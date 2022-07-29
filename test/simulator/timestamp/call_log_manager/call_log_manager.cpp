@@ -64,6 +64,24 @@ call_log_manager::process_call_log()
         process_call_log_entry(call_log_entry);
 }
 
+session_simulator* 
+call_log_manager::get_session(json call_log_entry){
+    const std::string session_id = call_log_entry["session_id"].get<std::string>();
+
+    /*
+     * We should not perform an operation on a session with an ID that does not exist in the
+     * session map.
+     */
+    if (_session_map.find(session_id) == _session_map.end()) {
+        std::cerr << "Could not perform operation, session does not exist (session ID: "
+                    << session_id << ")" << std::endl;
+        return (nullptr);
+    }
+
+    /* Get the session from the session map. */
+    return (_session_map.at(session_id));
+}
+
 void
 call_log_manager::process_call_log_entry(json call_log_entry)
 {
@@ -72,20 +90,7 @@ call_log_manager::process_call_log_entry(json call_log_entry)
 
         switch (_api_map.at(method_name)) {
         case api_method::begin_transaction: {
-            const std::string session_id = call_log_entry["session_id"].get<std::string>();
-
-            /*
-             * We should not begin transactions on sessions with an ID that does not exist in the
-             * session map.
-             */
-            if (_session_map.find(session_id) == _session_map.end()) {
-                std::cerr << "Could not begin transaction, session does not exist (session ID: "
-                          << session_id << ")" << std::endl;
-                break;
-            }
-
-            /* Get the session from the session map. */
-            session_simulator *session = _session_map.at(session_id);
+            session_simulator *session = get_session(call_log_entry);
 
             session->begin_transaction();
 
@@ -93,15 +98,7 @@ call_log_manager::process_call_log_entry(json call_log_entry)
         }
         case api_method::close_session: {
             const std::string session_id = call_log_entry["session_id"].get<std::string>();
-
-            /* We should not close sessions with an ID that does not exist in the session map. */
-            if (_session_map.find(session_id) == _session_map.end()) {
-                std::cerr << "Could not close session, session does not exist (session ID: "
-                          << session_id << ")" << std::endl;
-                break;
-            }
-
-            session_simulator *session = _session_map.at(session_id);
+            session_simulator *session = get_session(call_log_entry);
 
             /* Remove the session from the connection and the session map. */
             if (_conn->close_session(session))
@@ -128,26 +125,6 @@ call_log_manager::process_call_log_entry(json call_log_entry)
              * wiredtiger session object.
              */
             _session_map.insert(std::pair<std::string, session_simulator *>(session_id, session));
-            break;
-        }
-        case api_method::begin_transaction: {
-            const std::string session_id = call_log_entry["session_id"].get<std::string>();
-
-            /*
-             * We should not begin transactions on sessions with an ID that does not exist in the
-             * session map.
-             */
-            if (_session_map.find(session_id) == _session_map.end()) {
-                std::cerr << "Could not begin transaction, session does not exist (session ID: "
-                          << session_id << ")" << std::endl;
-                break;
-            }
-
-            /* Get the session from the session map. */
-            session_simulator *session = _session_map.at(session_id);
-
-            session->begin_transaction();
-
             break;
         }
         case api_method::query_timestamp: {
@@ -177,22 +154,10 @@ call_log_manager::process_call_log_entry(json call_log_entry)
             break;
         }
         case api_method::rollback_transaction: {
-            const std::string session_id = call_log_entry["session_id"].get<std::string>();
-
-            /*
-             * We cannot rollback a transaction on a session with an ID that does not exist in the
-             * session map.
-             */
-            if (_session_map.find(session_id) == _session_map.end()) {
-                std::cerr << "Could not rollback transaction, session does not exist (session ID: "
-                          << session_id << ")" << std::endl;
-                break;
-            }
-
-            /* Get the session from the session map. */
-            session_simulator *session = _session_map.at(session_id);
+            session_simulator *session = get_session(call_log_entry);
 
             session->rollback_transaction();
+            
             break;
         }
         case api_method::set_timestamp: {
