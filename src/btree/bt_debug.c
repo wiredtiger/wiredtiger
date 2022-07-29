@@ -1629,3 +1629,63 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
     return (ds->f(ds, "\n"));
 }
 #endif
+
+/*
+ * __wt_debug_check_clean_tree --
+ *     Check to ensure all pages in a tree are clean, if the tree is clean.
+ *     This isn't the right place for this function - everything else in this file is diagnostic
+ *     only.
+ */
+int
+__wt_debug_check_clean_tree(WT_SESSION_IMPL *session)
+{
+    WT_BTREE *btree;
+    WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
+    WT_PAGE *page;
+    WT_REF *next_ref, *ref;
+    uint32_t walk_flags;
+
+    dhandle = session->dhandle;
+    btree = dhandle->handle;
+
+    /*
+     * Empty and dirty trees aren't of further interest
+     */
+    if (btree->root.page == NULL || btree->modified)
+        return (0);
+
+    /* Walk the tree, reviewing pages. */
+    walk_flags = WT_READ_CACHE | WT_READ_NO_EVICT;
+    if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
+        walk_flags |= WT_READ_VISIBLE_ALL;
+
+    next_ref = NULL;
+    WT_ERR(__wt_tree_walk(session, &next_ref, walk_flags));
+    while ((ref = next_ref) != NULL) {
+        page = ref->page;
+
+        /* As soon as the tree becomes modified, this check is obsolete */
+        if (btree->modified)
+            break;
+
+        if (__wt_page_is_modified(page)) {
+            /*
+             * Now that we've seen a dirty page, check again for a dirty tree (it's possible that
+             * update came in since our prior tree-dirty check). If the tree is clean now then we
+             * have a bug. Checkpoint finished and left the tree clean, but there is at least one
+             * page marked dirty.
+             */
+            WT_ASSERT(session, !btree->modified);
+        }
+
+        WT_ERR(__wt_tree_walk(session, &next_ref, walk_flags));
+    }
+
+err:
+    /* Clear any left-over tree walk. */
+    if (next_ref != NULL)
+        WT_TRET(__wt_page_release(session, next_ref, walk_flags));
+
+    return (ret);
+}

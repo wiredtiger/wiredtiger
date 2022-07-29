@@ -2092,6 +2092,11 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
     else
         WT_ERR(__wt_evict_file(session, WT_SYNC_CLOSE));
 
+    /*
+     * Check to make sure that a tree that is going to be left clean by this checkpoint only has
+     * clean pages.
+     */
+    WT_ERR(__wt_debug_check_clean_tree(session));
 fake:
     /*
      * If we're faking a checkpoint and logging is enabled, recovery should roll forward any changes
