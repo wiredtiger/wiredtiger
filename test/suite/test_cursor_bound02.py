@@ -58,7 +58,6 @@ class test_cursor_bound02(bound_base):
         ('complex-string', dict(value_format='SS')),
     ]
 
-
     inclusive = [
         ('inclusive', dict(inclusive=True)),
         ('no-inclusive', dict(inclusive=False))

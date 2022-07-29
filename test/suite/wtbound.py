@@ -33,6 +33,8 @@ class bound():
         self.key = key
         self.inclusive = inclusive
         self.enabled = enabled
+        self.key_format = 'S'
+        self.value_format = 'S'
 
     def to_string(self):
         return "Enabled: " + str(self.enabled) + ", Key: " + str(self.key) + ", incl: " + self.inclusive_str()
