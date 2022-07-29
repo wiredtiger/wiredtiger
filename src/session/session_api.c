@@ -1710,6 +1710,10 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
           txn->rollback_reason == NULL ? "" : txn->rollback_reason);
 
 err:
+#ifdef HAVE_CALL_LOG
+    WT_TRET(__wt_call_log_commit_transaction(session, config, ret));
+#endif
+
     /*
      * We might have failed because an illegal configuration was specified or because there wasn't a
      * transaction running, and we check the former as part of the api macros before we check the

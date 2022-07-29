@@ -296,6 +296,35 @@ __wt_call_log_begin_transaction(WT_SESSION_IMPL *session, const char *config, in
 }
 
 /*
+ * __wt_call_log_commit_transaction --
+ *     Print the call log entry for the commit transaction API call.
+ */
+int
+__wt_call_log_commit_transaction(WT_SESSION_IMPL *session, const char *config, int ret_val)
+{
+    WT_CONNECTION_IMPL *conn;
+    char config_buf[128];
+
+    conn = S2C(session);
+
+    WT_RET(__call_log_print_start(session, "session", "commit_transaction"));
+    WT_RET(__wt_fprintf(session, conn->call_log_fst, "    \"session_id\": \"%p\",\n", session));
+
+    /*
+     * The commit transaction entry includes the timestamp configuration string which is copied from
+     * the original API call.
+     */
+    WT_RET(__wt_snprintf(config_buf, sizeof(config_buf), "\"config\": \"%s\"", config));
+    WT_RET(__call_log_print_input(session, 1, config_buf));
+
+    /* Commit transaction has no output arguments. */
+    WT_RET(__call_log_print_output(session, 0));
+    WT_RET(__wt_call_log_print_return(conn, session, ret_val, ""));
+
+    return (0);
+}
+
+/*
  * __wt_call_log_rollback_transaction --
  *     Print the call log entry for the rollback transaction API call.
  */
