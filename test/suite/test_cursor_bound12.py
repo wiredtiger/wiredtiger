@@ -34,10 +34,10 @@ from wtbound import set_prefix_bound
 # test_cursor_bound12.py
 # Check the search_near API returns the correct key according to visibility rules and its
 # configuration.
-# When prefix search is disabled, the search_near API should always return the closest key (in
+# When cursor bounds aren't set, the search_near API should always return the closest key (in
 # lexicographic order) as long as one exists and is visible.
-# When prefix search is enabled, in addition to the previous rules, search_near returns a key that
-# matches the prefix being searched.
+# When cursor bounds are set, in addition to the previous rules, search_near returns a key that
+# is within the given bounds.
 # This test has been migrated to use cursor bound logic.
 class test_cursor_bound12(wttest.WiredTigerTestCase):
     key_format_values = [
@@ -61,8 +61,8 @@ class test_cursor_bound12(wttest.WiredTigerTestCase):
         else:
             return key
 
-    def test_search_near(self):
-        uri = 'table:test_search_near'
+    def test_cursor_bound(self):
+        uri = 'table:test_cursor_bound'
         self.session.create(uri, 'key_format={},value_format=S'.format(self.key_format))
         cursor = self.session.open_cursor(uri)
         cursor2 = self.session.open_cursor(uri, None, "debug=(release_evict=true)")
@@ -101,7 +101,7 @@ class test_cursor_bound12(wttest.WiredTigerTestCase):
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(100))
         cursor3 = self.session.open_cursor(uri)
 
-        # Prefix search is disabled by default.
+        # Cursor bounds aren't set by default.
         # Search near should always return the only visible key.
         cursor3.set_key("aa")
         self.assertEqual(cursor3.search_near(), 1)
