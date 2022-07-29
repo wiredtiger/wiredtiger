@@ -761,6 +761,32 @@ err:
 }
 
 /*
+ * __wt_btree_new_internal_page --
+ *     Create an empty internal page.
+ */
+int
+__wt_btree_new_internal_page(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_BTREE *btree;
+
+    btree = S2BT(session);
+
+    switch (btree->type) {
+    case BTREE_COL_FIX:
+    case BTREE_COL_VAR:
+        WT_RET(__wt_page_alloc(session, WT_PAGE_COL_INT, 0, false, &ref->page));
+        break;
+    case BTREE_ROW:
+        WT_RET(__wt_page_alloc(session, WT_PAGE_ROW_INT, 0, false, &ref->page));
+        break;
+    }
+
+    WT_ASSERT(session, F_ISSET(ref, WT_REF_FLAG_INTERNAL));
+
+    return (0);
+}
+
+/*
  * __wt_btree_new_leaf_page --
  *     Create an empty leaf page.
  */
@@ -768,7 +794,9 @@ int
 __wt_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_BTREE *btree;
+    uint8_t previous_state;
 
+    previous_state = ref->state;
     btree = S2BT(session);
 
     switch (btree->type) {
@@ -790,7 +818,7 @@ __wt_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
         /* Turning an internal page to a leaf page should only happen for a deleted tree. */
-        WT_ASSERT(session, ref->state == WT_REF_DELETED);
+        WT_ASSERT(session, previous_state == WT_REF_DELETED);
         WT_ASSERT(session, ref->addr == NULL);
         F_CLR(ref, WT_REF_FLAG_INTERNAL);
     }

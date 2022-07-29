@@ -302,6 +302,8 @@ extern int __wt_btree_discard(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btree_huffman_open(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_btree_new_internal_page(WT_SESSION_IMPL *session, WT_REF *ref)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
