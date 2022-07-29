@@ -1807,6 +1807,9 @@ __session_rollback_transaction(WT_SESSION *wt_session, const char *config)
     F_CLR(session, WT_SESSION_RESOLVING_TXN);
 
 err:
+#ifdef HAVE_CALL_LOG
+    WT_TRET(__wt_call_log_rollback_transaction(session, ret));
+#endif
     API_END_RET(session, ret);
 }
 
