@@ -79,15 +79,24 @@ void
 end_threads(void)
 {
     if (g.tiered) {
+        /*
+         * The flush lock is also used by the worker threads. They have exited by the time this is
+         * called, so it is safe to destroy it.
+         */
         testutil_check(__wt_thread_join(NULL, &g.flush_thread));
         __wt_rwlock_destroy(NULL, &g.flush_lock);
     }
-    if (g.use_timestamps) {
+    if (g.use_timestamps)
+        /* Don't destroy the clock lock yet, it is also used by the checkpoint thread */
         testutil_check(__wt_thread_join(NULL, &g.clock_thread));
-        __wt_rwlock_destroy(NULL, &g.clock_lock);
-    }
-    /* Shutdown checkpoint after flush thread completes because flush depends on checkpoint. */
+
+    /*
+     * Shutdown checkpoint after flush thread completes because flush depends on checkpoint. Then we
+     * can destroy the clock lock too.
+     */
     testutil_check(__wt_thread_join(NULL, &g.checkpoint_thread));
+    if (g.use_timestamps)
+        __wt_rwlock_destroy(NULL, &g.clock_lock);
 }
 
 /*
