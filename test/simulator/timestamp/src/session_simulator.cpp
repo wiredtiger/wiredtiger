@@ -54,7 +54,8 @@ bool
 session_simulator::rollback_transaction()
 {
     if (!_txn_running) {
-        std::cerr << "Could not rollback transaction, there are no transactions running." << std::endl;
+        std::cerr << "Could not rollback transaction, there are no transactions running."
+                  << std::endl;
 
         return (false);
     }
