@@ -148,8 +148,7 @@ static void
 wt_startup(char *config_open)
 {
     static WT_EVENT_HANDLER event_handler = {
-      handle_error, handle_message, NULL, NULL /* Close handler. */
-    };
+      handle_error, handle_message, NULL, NULL /* Close handler. */, NULL, NULL};
     char config_buf[128];
 
     testutil_make_work_dir(home);

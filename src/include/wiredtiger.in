@@ -3371,6 +3371,22 @@ struct __wt_event_handler {
 	 */
 	int (*handle_close)(WT_EVENT_HANDLER *handler,
 	    WT_SESSION *session, WT_CURSOR *cursor);
+
+        /*!
+         * Callback to handle when a WT_CONNECTION is suitable for scanning
+         * the 'stats:' table.
+         */
+        void (*handle_conn_ready)(WT_EVENT_HANDLER *handler,
+            WT_CONNECTION *wt_conn);
+
+        /*!
+         * Callback to handle when a WT_CONNECTION is being closed.
+         *
+         * After this callback, the connection will no longer be usable for
+         * scanning the 'stats:' table. The application must stop accessing the
+         * connection prior to returning from this function.
+         */
+        void (*handle_conn_close)(WT_EVENT_HANDLER *handler);
 };
 
 /*!

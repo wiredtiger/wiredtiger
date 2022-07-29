@@ -78,8 +78,26 @@ __handle_close_default(WT_EVENT_HANDLER *handler, WT_SESSION *wt_session, WT_CUR
     return (0);
 }
 
+static void
+__handle_conn_ready_default(WT_EVENT_HANDLER *handler, WT_CONNECTION *wt_conn)
+{
+    WT_UNUSED(handler);
+    WT_UNUSED(wt_conn);
+
+    return;
+}
+
+static void
+__handle_conn_close_default(WT_EVENT_HANDLER *handler)
+{
+    WT_UNUSED(handler);
+
+    return;
+}
+
 static WT_EVENT_HANDLER __event_handler_default = {__handle_error_default, __handle_message_default,
-  __handle_progress_default, __handle_close_default};
+  __handle_progress_default, __handle_close_default, __handle_conn_ready_default,
+  __handle_conn_close_default};
 
 /*
  * __handler_failure --

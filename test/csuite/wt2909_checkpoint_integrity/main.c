@@ -481,11 +481,11 @@ subtest_error_handler(
     return (0);
 }
 
-static WT_EVENT_HANDLER event_handler = {
-  subtest_error_handler, NULL, /* Message handler */
-  NULL,                        /* Progress handler */
-  NULL                         /* Close handler */
-};
+static WT_EVENT_HANDLER event_handler = {subtest_error_handler, NULL, /* Message handler */
+  NULL,                                                               /* Progress handler */
+  NULL,                                                               /* Close handler */
+  NULL,
+  NULL};
 
 /*
  * subtest_main --

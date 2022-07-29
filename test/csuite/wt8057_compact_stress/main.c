@@ -73,11 +73,11 @@ subtest_error_handler(
     return (0);
 }
 
-static WT_EVENT_HANDLER event_handler = {
-  subtest_error_handler, NULL, /* Message handler */
-  NULL,                        /* Progress handler */
-  NULL                         /* Close handler */
-};
+static WT_EVENT_HANDLER event_handler = {subtest_error_handler, NULL, /* Message handler */
+  NULL,                                                               /* Progress handler */
+  NULL,                                                               /* Close handler */
+  NULL,
+  NULL};
 
 static void sig_handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 

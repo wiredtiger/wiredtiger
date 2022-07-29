@@ -1115,6 +1115,10 @@ err:
     conn->cache->eviction_dirty_trigger = 1.0;
     conn->cache->eviction_dirty_target = 0.1;
 
+    if (conn->default_session->event_handler) {
+        conn->default_session->event_handler->handle_conn_close(conn->default_session->event_handler);
+    }
+
     /*
      * Rollback all running transactions. We do this as a separate pass because an active
      * transaction in one session could cause trouble when closing a file, even if that session
@@ -1138,6 +1142,10 @@ err:
                 WT_TRET(s->event_handler->handle_close(s->event_handler, wt_session, NULL));
             WT_TRET(__wt_session_close_internal(s));
         }
+
+    if (conn->default_session->event_handler) {
+        conn->default_session->event_handler->handle_conn_ready(conn->default_session->event_handler, wt_conn);
+    }
 
     /* Wait for in-flight operations to complete. */
     WT_TRET(__wt_txn_activity_drain(session));
@@ -1167,6 +1175,10 @@ err:
 
     /* Perform a final checkpoint and shut down the global transaction state. */
     WT_TRET(__wt_txn_global_shutdown(session, cfg));
+
+    if (conn->default_session->event_handler) {
+        conn->default_session->event_handler->handle_conn_close(conn->default_session->event_handler);
+    }
 
     /*
      * See if close should wait for tiered storage to finish any flushing after the final
@@ -3019,6 +3031,10 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      */
     WT_ERR(__wt_backup_open(session));
 
+    if (event_handler->handle_conn_ready) {
+        event_handler->handle_conn_ready(event_handler, &conn->iface);
+    }
+
     /* Start the worker threads and run recovery. */
     WT_ERR(__wt_connection_workers(session, cfg));
 
@@ -3064,6 +3080,10 @@ err:
         __wt_free(session, conn->partial_backup_remove_ids);
 
     if (ret != 0) {
+	if (conn->default_session->event_handler) {
+	    conn->default_session->event_handler->handle_conn_close(conn->default_session->event_handler);
+	}
+
         /*
          * Set panic if we're returning the run recovery error or if recovery did not complete so
          * that we don't try to checkpoint data handles. We need an explicit flag instead of

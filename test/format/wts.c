@@ -129,8 +129,7 @@ handle_progress(
 }
 
 static WT_EVENT_HANDLER event_handler = {
-  NULL, handle_message, handle_progress, NULL /* Close handler. */
-};
+    NULL, handle_message, handle_progress, NULL /* Close handler. */, NULL, NULL};
 
 #define CONFIG_APPEND(p, ...)                                               \
     do {                                                                    \
