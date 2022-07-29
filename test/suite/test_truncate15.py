@@ -49,11 +49,11 @@ class test_truncate15(wttest.WiredTigerTestCase):
     ]
 
     format_values = [
-        # Do not run against VLCS or FLCS until/unless they get fast-truncate support.
+        # Do not run against FLCS until/unless it gets fast-truncate support.
         # The issue at hand is specific to fast-truncate pages and is not relevant to slow-truncate.
-        #('column', dict(key_format='r', value_format='S', extraconfig='')),
         #('column_fix', dict(key_format='r', value_format='8t',
         #    extraconfig=',allocation_size=512,leaf_page_max=512')),
+        ('column', dict(key_format='r', value_format='S', extraconfig='')),
         ('integer_row', dict(key_format='i', value_format='S', extraconfig='')),
     ]
 
