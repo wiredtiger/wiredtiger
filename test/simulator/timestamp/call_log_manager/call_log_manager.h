@@ -34,6 +34,7 @@
 using json = nlohmann::json;
 
 enum class api_method {
+    begin_transaction,
     close_session,
     open_session,
     query_timestamp,

@@ -28,4 +28,24 @@
 
 #include "session_simulator.h"
 
+#include <iostream>
+
 session_simulator::session_simulator() {}
+
+bool
+session_simulator::begin_transaction()
+{
+    /*
+     * Cannot begin a new transaction if there is an existing transaction that is currently running.
+     */
+    if (_txn_running) {
+        std::cerr << "Could not begin transaction, session already has a running "
+                     "transaction."
+                  << std::endl;
+        return (false);
+    }
+
+    _txn_running = true;
+
+    return (true);
+}
