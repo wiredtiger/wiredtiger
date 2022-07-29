@@ -3,7 +3,7 @@ include(cmake/configs/version.cmake)
 
 # Setup defaults based on the build type and available libraries.
 set(default_have_diagnostics ON)
-set(default_enable_python ON)
+set(default_enable_python OFF)
 set(default_enable_lz4 OFF)
 set(default_enable_snappy OFF)
 set(default_enable_zlib OFF)
@@ -12,17 +12,19 @@ set(default_enable_tcmalloc ${HAVE_LIBTCMALLOC})
 set(default_enable_debug_info ON)
 set(default_enable_static OFF)
 set(default_enable_shared ON)
-set(default_have_unittest ON)
 
 if("${CMAKE_BUILD_TYPE}" MATCHES "^(Release|RelWithDebInfo)$")
     set(default_have_diagnostics OFF)
 endif()
 
-# Disable unittests when building MSan, reports an use-of-uninitalized-value error due
-# libstdc++ not being built with the sanitizer.
-# See https://github.com/catchorg/Catch2/issues/899.
-if("${CMAKE_BUILD_TYPE}" STREQUAL "MSan")
-    set(default_have_unittest OFF)
+# Enable python if we have the minimum version.
+set(python_libs)
+set(python_version)
+set(python_executable)
+source_python3_package(python_libs python_version python_executable)
+
+if("${python_version}" VERSION_GREATER_EQUAL "3")
+  set(default_enable_python ON)
 endif()
 
 # MSan / UBSan fails on Python tests due to linking issue.
@@ -108,8 +110,8 @@ config_bool(
 
 config_bool(
     HAVE_UNITTEST
-    "Enable WiredTiger unit tests"
-    DEFAULT ${default_have_unittest}
+    "Enable C++ Catch2 based WiredTiger unit tests"
+    DEFAULT OFF
 )
 
 config_bool(

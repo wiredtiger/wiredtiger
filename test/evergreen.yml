@@ -102,7 +102,6 @@ functions:
 
         # Define common config flags for the tasks to make it cleaner when configuring the tasks.
         # Note that the config flags are resolved prior to changing to cmake_build directory.
-        # Unittest is enabled by default in cmake but disabled here because it causes failures in the s_all processing.
         DEFINED_EVERGREEN_CONFIG_FLAGS="${CMAKE_BUILD_TYPE|} \
           ${CMAKE_INSTALL_PREFIX|} \
           ${CMAKE_PREFIX_PATH|} \
@@ -114,7 +113,7 @@ functions:
           ${HAVE_BUILTIN_EXTENSION_ZLIB|} \
           ${HAVE_BUILTIN_EXTENSION_ZSTD|} \
           ${HAVE_FTRUNCATE|} \
-          ${HAVE_UNITTEST|-DHAVE_UNITTEST=0} \
+          ${HAVE_UNITTEST} \
           ${NON_BARRIER_DIAGNOSTIC_YIELDS|} \
           ${HAVE_DIAGNOSTIC|} \
           ${GNU_C_VERSION|} \
@@ -135,7 +134,7 @@ functions:
           # We execute it in a powershell environment as its easier to detect and source the Visual Studio
           # toolchain in a native Windows environment. We can't easily execute the build in a cygwin environment.
           echo "Using config flags $DEFINED_EVERGREEN_CONFIG_FLAGS ${windows_configure_flags|}"
-          powershell.exe  -NonInteractive '.\test\evergreen\build_windows.ps1' -configure 1 $DEFINED_EVERGREEN_CONFIG_FLAGS ${windows_configure_flags|}
+          ${configure_env_vars|} powershell.exe  -NonInteractive '.\test\evergreen\build_windows.ps1' -configure 1 $DEFINED_EVERGREEN_CONFIG_FLAGS ${windows_configure_flags|}
         else
           echo "Using config flags $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|}"
           # Fetch the gperftools library if needed. This will also get tcmalloc.
@@ -153,7 +152,7 @@ functions:
           mkdir -p cmake_build
           cd cmake_build
 
-          $CMAKE $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|} -G "${cmake_generator|Ninja}" ./..
+          ${configure_env_vars|} $CMAKE $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|} -G "${cmake_generator|Ninja}" ./..
         fi
   "make wiredtiger": &make_wiredtiger
     command: shell.exec
@@ -257,7 +256,8 @@ functions:
               if [ -d cmake_build ]; then rm -r cmake_build; fi
               mkdir -p cmake_build
               pushd cmake_build
-              $CMAKE -DCMAKE_C_FLAGS="-DMIGHT_NOT_RUN -Wno-error" ../.
+              # Adding -DENABLE_PYTHON=1 -DENABLE_STRICT=1 as 6.0 does not default these like develop.
+              $CMAKE -DCMAKE_C_FLAGS="-DMIGHT_NOT_RUN -Wno-error" -DENABLE_PYTHON=1 -DENABLE_STRICT=1 ../.
               make -C lang/python ${smp_command|}
             fi
             # Pop to root project directory.
@@ -4363,6 +4363,8 @@ buildvariants:
   - windows-64-vs2017-test
   expansions:
     python_binary: '/cygdrive/c/Python39/python'
+    configure_env_vars:
+      PATH=/cygdrive/c/Python39:/cygdrive/c/Python39/Scripts:$PATH
     test_env_vars:
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
@@ -4412,6 +4414,8 @@ buildvariants:
     cmake_generator: Ninja
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
+    # Must disable ZSTD as its not available on the big endian platform (we generate the data files used for those tests here).
+    posix_configure_flags: -DENABLE_ZSTD=0
   tasks:
     - name: compile
     - name: generate-datafile-little-endian
