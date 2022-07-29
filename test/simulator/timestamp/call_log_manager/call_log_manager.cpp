@@ -57,15 +57,8 @@ call_log_manager::api_map_setup()
     _api_map["set_timestamp"] = api_method::set_timestamp;
 }
 
-void
-call_log_manager::process_call_log()
-{
-    for (const auto &call_log_entry : _call_log)
-        process_call_log_entry(call_log_entry);
-}
-
 session_simulator *
-call_log_manager::get_session(const std::string session_id)
+call_log_manager::get_session(const std::string &session_id)
 {
     /*
      * We should not perform an operation on a session with an ID that does not exist in the session
@@ -80,95 +73,128 @@ call_log_manager::get_session(const std::string session_id)
 }
 
 void
-call_log_manager::process_call_log_entry(json call_log_entry)
+call_log_manager::call_log_begin_transaction(const json &call_log_entry)
+{
+    const std::string session_id = call_log_entry["session_id"].get<std::string>();
+    session_simulator *session = get_session(session_id);
+    session->begin_transaction();
+}
+
+void
+call_log_manager::call_log_close_session(const json &call_log_entry)
+{
+    const std::string session_id = call_log_entry["session_id"].get<std::string>();
+    session_simulator *session = get_session(session_id);
+
+    /* Remove the session from the connection and the session map. */
+    if (_conn->close_session(session))
+        _session_map.erase(session_id);
+    else
+        std::cerr << "Could not close the session (session ID: " << session_id << ")" << std::endl;
+}
+
+void
+call_log_manager::call_log_open_session(const json &call_log_entry)
+{
+    const std::string session_id = call_log_entry["session_id"].get<std::string>();
+
+    /* We should not open sessions with an ID that is already in use. */
+    if (_session_map.find(session_id) != _session_map.end()) {
+        std::cerr << "Could not open duplicate session, session already exists (session ID: "
+                  << session_id << ")" << std::endl;
+        return;
+    }
+
+    session_simulator *session = _conn->open_session();
+    /*
+     * Insert this session into the mapping between the simulator session object and the wiredtiger
+     * session object.
+     */
+    _session_map.insert(std::pair<std::string, session_simulator *>(session_id, session));
+}
+
+void
+call_log_manager::call_log_query_timestamp(const json &call_log_entry)
+{
+    /* Convert the config char * to a string object. */
+    std::string config = call_log_entry["input"]["config"].get<std::string>();
+    std::string hex_ts;
+
+    /*
+     * A generated call log without a configuration string in the set timestamp entry will have the
+     * string "(null)", default to all_durable.
+     */
+    if (config == "(null)")
+        config = "get=all_durable";
+
+    if (_conn->query_timestamp(config, hex_ts)) {
+        /*
+         * Ensure that the timestamp returned from query timestamp is equal to the expected
+         * timestamp.
+         */
+        std::string hex_ts_expected =
+          call_log_entry["output"]["timestamp_queried"].get<std::string>();
+        if (hex_ts != hex_ts_expected)
+            throw std::runtime_error("The expected timestamp (" + hex_ts_expected +
+              ") is not equal to the timestamp queried (" + hex_ts + ") in the simulator");
+    }
+}
+
+void
+call_log_manager::call_log_rollback_transaction(const json &call_log_entry)
+{
+    const std::string session_id = call_log_entry["session_id"].get<std::string>();
+    session_simulator *session = get_session(session_id);
+    session->rollback_transaction();
+}
+
+void
+call_log_manager::call_log_set_timestamp(const json &call_log_entry)
+{
+    /* Convert the config char * to a string object. */
+    const std::string config = call_log_entry["input"]["config"].get<std::string>();
+
+    /*
+     * A generated call log without a configuration string in the set timestamp entry will have the
+     * string "(null)". We can ignore the set timestamp call if there is no configuration.
+     */
+    if (config != "(null)" && !_conn->set_timestamp(config)) {
+        throw std::runtime_error("Failure to set timestamp. Timestamps may not be valid!");
+    }
+}
+
+void
+call_log_manager::process_call_log()
+{
+    for (const auto &call_log_entry : _call_log)
+        process_call_log_entry(call_log_entry);
+}
+
+void
+call_log_manager::process_call_log_entry(const json &call_log_entry)
 {
     try {
         const std::string method_name = call_log_entry["method_name"].get<std::string>();
 
         switch (_api_map.at(method_name)) {
-        case api_method::begin_transaction: {
-            const std::string session_id = call_log_entry["session_id"].get<std::string>();
-            session_simulator *session = get_session(session_id);
-            session->begin_transaction();
+        case api_method::begin_transaction:
+            call_log_begin_transaction(call_log_entry);
             break;
-        }
-        case api_method::close_session: {
-            const std::string session_id = call_log_entry["session_id"].get<std::string>();
-            session_simulator *session = get_session(session_id);
-
-            /* Remove the session from the connection and the session map. */
-            if (_conn->close_session(session))
-                _session_map.erase(session_id);
-            else
-                std::cerr << "Could not close the session (session ID: " << session_id << ")"
-                          << std::endl;
+        case api_method::close_session:
+            call_log_close_session(call_log_entry);
             break;
-        }
-        case api_method::open_session: {
-            const std::string session_id = call_log_entry["session_id"].get<std::string>();
-
-            /* We should not open sessions with an ID that is already in use. */
-            if (_session_map.find(session_id) != _session_map.end()) {
-                std::cerr
-                  << "Could not open duplicate session, session already exists (session ID: "
-                  << session_id << ")" << std::endl;
-                break;
-            }
-
-            session_simulator *session = _conn->open_session();
-            /*
-             * Insert this session into the mapping between the simulator session object and the
-             * wiredtiger session object.
-             */
-            _session_map.insert(std::pair<std::string, session_simulator *>(session_id, session));
+        case api_method::open_session:
+            call_log_open_session(call_log_entry);
             break;
-        }
-        case api_method::query_timestamp: {
-            /* Convert the config char * to a string object. */
-            std::string config = call_log_entry["input"]["config"].get<std::string>();
-            std::string hex_ts;
-
-            /*
-             * A generated call log without a configuration string in the set timestamp entry will
-             * have the string "(null)", default to all_durable.
-             */
-            if (config == "(null)")
-                config = "get=all_durable";
-
-            if (_conn->query_timestamp(config, hex_ts)) {
-                /*
-                 * Ensure that the timestamp returned from query timestamp is equal to the expected
-                 * timestamp.
-                 */
-                std::string hex_ts_expected =
-                  call_log_entry["output"]["timestamp_queried"].get<std::string>();
-                if (hex_ts != hex_ts_expected)
-                    throw std::runtime_error("The expected timestamp (" + hex_ts_expected +
-                      ") is not equal to the timestamp queried (" + hex_ts + ") in the simulator");
-            }
-
+        case api_method::query_timestamp:
+            call_log_query_timestamp(call_log_entry);
             break;
-        }
-        case api_method::rollback_transaction: {
-            const std::string session_id = call_log_entry["session_id"].get<std::string>();
-            session_simulator *session = get_session(session_id);
-            session->rollback_transaction();
+        case api_method::rollback_transaction:
+            call_log_rollback_transaction(call_log_entry);
             break;
-        }
-        case api_method::set_timestamp: {
-            /* Convert the config char * to a string object. */
-            const std::string config = call_log_entry["input"]["config"].get<std::string>();
-
-            /*
-             * A generated call log without a configuration string in the set timestamp entry will
-             * have the string "(null)". We can ignore the set timestamp call if there is no
-             * configuration.
-             */
-            if (config != "(null)" && !_conn->set_timestamp(config)) {
-                throw std::runtime_error("Failure to set timestamp. Timestamps may not be valid!");
-            }
+        case api_method::set_timestamp:
+            call_log_set_timestamp(call_log_entry);
             break;
-        }
         }
     } catch (const std::exception &e) {
         std::cerr << "exception: " << e.what() << std::endl;
