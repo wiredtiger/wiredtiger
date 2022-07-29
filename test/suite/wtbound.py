@@ -89,6 +89,8 @@ class bounds():
 
 # Shared base class used by cursor bound tests.
 class bound_base(wttest.WiredTigerTestCase):
+    # The start and end key denotes the first and last key in the table. Since 20 is a key itself, 
+    # there are 60 entries between the start and end key.
     start_key = 20
     end_key = 79
     lower_inclusive = True
