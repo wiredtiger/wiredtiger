@@ -799,6 +799,10 @@ __wt_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
     previous_state = ref->state;
     btree = S2BT(session);
 
+#ifndef HAVE_DIAGNOSTIC
+    WT_UNUSED(previous_state);
+#endif
+
     switch (btree->type) {
     case BTREE_COL_FIX:
         WT_RET(__wt_page_alloc(session, WT_PAGE_COL_FIX, 0, false, &ref->page));
