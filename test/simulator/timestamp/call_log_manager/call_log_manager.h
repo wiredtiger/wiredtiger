@@ -51,7 +51,7 @@ class call_log_manager {
     private:
     void process_call_log_entry(json);
     void api_map_setup();
-    session_simulator* get_session(json);
+    session_simulator* get_session(const std::string);
 
     /* Member variables */
     private:
