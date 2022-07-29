@@ -38,6 +38,7 @@ enum class api_method {
     close_session,
     open_session,
     query_timestamp,
+    rollback_transaction,
     set_timestamp,
 };
 
@@ -50,6 +51,7 @@ class call_log_manager {
     private:
     void process_call_log_entry(json);
     void api_map_setup();
+    session_simulator *get_session(const std::string);
 
     /* Member variables */
     private:
