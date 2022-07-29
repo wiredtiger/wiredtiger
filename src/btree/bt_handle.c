@@ -791,6 +791,7 @@ __wt_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
         /* Turning an internal page to a leaf page should only happen for a deleted tree. */
         WT_ASSERT(session, ref->state == WT_REF_DELETED);
+        WT_ASSERT(session, ref->addr == NULL);
         F_CLR(ref, WT_REF_FLAG_INTERNAL);
     }
     F_SET(ref, WT_REF_FLAG_LEAF);
