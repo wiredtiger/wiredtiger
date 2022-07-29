@@ -509,10 +509,7 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
      *
      * We will pedantically check the session and connection handles any time we use them.
      */
-    if (session != NULL)
-        conn = S2C(session);
-    else
-        conn = NULL;
+    conn = session != NULL ? S2C(session) : NULL;
 
     /*
      * Ignore error returns from underlying event handlers, we already have an error value to
