@@ -437,7 +437,7 @@ __verify_tree(
 #endif
 
     /* Make sure the page we got belongs in this kind of tree. */
-    switch (S2BT(session)->type) {
+    switch (btree->type) {
     case BTREE_COL_FIX:
         if (page->type != WT_PAGE_COL_INT && page->type != WT_PAGE_COL_FIX)
             WT_RET_MSG(session, WT_ERROR,
