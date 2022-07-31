@@ -2274,6 +2274,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
+          HAVE_UNITTEST: -DHAVE_UNITTEST=1
           <<: *configure_flags_with_builtins
           CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
           CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Coverage
@@ -2281,6 +2282,13 @@ tasks:
         vars:
           unit_test_args: -v 2
           check_coverage: true
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build"
+          script: |
+            set -o errexit
+            set -o verbose
+            ${test_env_vars|} test/unittest/unittests
       - command: shell.exec
         params:
           shell: bash
