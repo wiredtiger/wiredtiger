@@ -436,7 +436,11 @@ functions:
         set -o errexit
         set -o verbose
         cd cmake_build
-        ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
+        if [ ${check_coverage|false} = true ]; then
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1 || echo "Ignoring failed test as we are checking test coverage"
+        else
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
+        fi
   "format test":
     command: shell.exec
     params:
@@ -2276,6 +2280,7 @@ tasks:
       - func: "unit test"
         vars:
           unit_test_args: -v 2
+          check_coverage: true
       - command: shell.exec
         params:
           shell: bash
