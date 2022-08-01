@@ -84,8 +84,8 @@ timestamp_manager::validate_oldest_and_stable_ts(
         /* Cannot proceed any further, if oldest timestamp value <= 0 validation fails! */
         if ((int64_t)new_oldest_ts <= 0)
             WT_SIM_RET_MSG(EINVAL,
-              "Illegal timestamp value, 'oldest timestamp' : '" + std::to_string((int64_t)new_oldest_ts) +
-                "', is less than or equal to zero.");
+              "Illegal timestamp value, 'oldest timestamp' : '" +
+                std::to_string((int64_t)new_oldest_ts) + "', is less than or equal to zero.");
         /* It is a no-op to set the new oldest timestamps behind the current oldest timestamp. */
         if (new_oldest_ts <= conn->get_oldest_ts())
             has_oldest = false;
@@ -96,8 +96,8 @@ timestamp_manager::validate_oldest_and_stable_ts(
         /* Cannot proceed any further, if stable timestamp value <= 0 validation fails! */
         if ((int64_t)new_stable_ts <= 0)
             WT_SIM_RET_MSG(EINVAL,
-              "Illegal timestamp value, 'stable timestamp' : '" + std::to_string((int64_t)new_stable_ts) +
-                "', is less than or equal to zero.");
+              "Illegal timestamp value, 'stable timestamp' : '" +
+                std::to_string((int64_t)new_stable_ts) + "', is less than or equal to zero.");
         /* It is a no-op to set the new stable timestamps behind the current stable timestamp. */
         if (new_stable_ts <= conn->get_stable_ts())
             has_stable = false;
@@ -153,8 +153,8 @@ timestamp_manager::validate_durable_ts(
     /* Illegal timestamp value (if less than or equal to 0). Validation fails!  */
     if ((int64_t)new_durable_ts <= 0)
         WT_SIM_RET_MSG(EINVAL,
-          "Illegal timestamp value, 'durable timestamp' : '" + std::to_string((int64_t)new_durable_ts) +
-            "', is less than or equal to zero.");
+          "Illegal timestamp value, 'durable timestamp' : '" +
+            std::to_string((int64_t)new_durable_ts) + "', is less than or equal to zero.");
 
     return (0);
 }

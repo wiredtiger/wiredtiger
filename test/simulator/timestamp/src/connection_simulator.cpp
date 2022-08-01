@@ -81,8 +81,9 @@ connection_simulator::close_session(session_simulator *session)
     session = nullptr;
 }
 
-bool
-connection_simulator::query_timestamp(const std::string &config, std::string &hex_ts)
+int
+connection_simulator::query_timestamp(
+  const std::string &config, std::string &hex_ts, bool &ts_supported)
 {
     std::string query_timestamp;
     /* For an empty config default to all_durable. */
@@ -94,45 +95,49 @@ connection_simulator::query_timestamp(const std::string &config, std::string &he
 
         /* Throw an error if the config cannot be parsed. */
         WT_SIM_RET_MSG(ts_manager->parse_config(config, config_map),
-            "Incorrect config passed to query timestamp: " + config);
+          "Incorrect config passed to query timestamp: " + config);
 
         auto pos = config_map.find("get");
-        if (pos != config_map.end()) {
-            query_timestamp = pos->second;
-            config_map.erase(pos);
-        } else
-            throw std::runtime_error("Incorrect config (" + config + ") passed in query timestamp");
+        if (pos == config_map.end())
+            WT_SIM_RET_MSG(EINVAL, "Incorrect config (" + config + ") passed in query timestamp");
+
+        query_timestamp = pos->second;
+        config_map.erase(pos);
 
         if (!config_map.empty())
-            throw std::runtime_error("Incorrect config (" + config + ") passed in query timestamp");
+            WT_SIM_RET_MSG(EINVAL, "Incorrect config (" + config + ") passed in query timestamp");
     }
 
     /*
      * For now, the simulator only supports all_durable, oldest_timestamp, and stable_timestamp.
      * Hence, we ignore last_checkpoint, oldest_reader, pinned and recovery.
      */
+    ts_supported = false;
     uint64_t ts;
-    if (query_timestamp == "all_durable")
+    if (query_timestamp == "all_durable") {
         ts = _durable_ts;
-    else if (query_timestamp == "oldest_timestamp" || query_timestamp == "oldest")
+        ts_supported = true;
+    } else if (query_timestamp == "oldest_timestamp" || query_timestamp == "oldest") {
         ts = _oldest_ts;
-    else if (query_timestamp == "stable_timestamp" || query_timestamp == "stable")
+        ts_supported = true;
+    } else if (query_timestamp == "stable_timestamp" || query_timestamp == "stable") {
         ts = _stable_ts;
-    else if (query_timestamp == "last_checkpoint")
-        return (false);
+        ts_supported = true;
+    } else if (query_timestamp == "last_checkpoint")
+        return (0);
     else if (query_timestamp == "oldest_reader")
-        return (false);
+        return (0);
     else if (query_timestamp == "pinned")
-        return (false);
+        return (0);
     else if (query_timestamp == "recovery")
-        return (false);
+        return (0);
     else
-        throw std::runtime_error("Incorrect config (" + config + ") passed in query timestamp");
+        WT_SIM_RET_MSG(EINVAL, "Incorrect config (" + config + ") passed in query timestamp");
 
     /* Convert the timestamp from decimal to hex-decimal. */
     hex_ts = decimal_to_hex(ts);
 
-    return (true);
+    return (0);
 }
 
 inline uint64_t

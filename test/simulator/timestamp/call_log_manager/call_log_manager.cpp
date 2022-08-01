@@ -142,16 +142,24 @@ call_log_manager::call_log_query_timestamp(const json &call_log_entry)
         config = "get=all_durable";
 
     std::string hex_ts;
-    if (_conn->query_timestamp(config, hex_ts)) {
-        /*
-         * Ensure that the timestamp returned from query timestamp is equal to the expected
-         * timestamp.
-         */
+    bool ts_supported;
+
+    int ret = _conn->query_timestamp(config, hex_ts, ts_supported);
+    int ret_expected = call_log_entry["return"]["return_val"].get<int>();
+    /* The ret value should be equal to the expected ret value. */
+    assert(ret == ret_expected);
+
+    if (ret != 0)
+        throw "'query_timestamp' failed with ret value: '" + std::to_string(ret) +
+          "', and config: '" + config + "'";
+
+    /*
+     * Ensure that the timestamp returned from query timestamp is equal to the expected timestamp.
+     */
+    if (ts_supported) {
         std::string hex_ts_expected =
           call_log_entry["output"]["timestamp_queried"].get<std::string>();
-        if (hex_ts != hex_ts_expected)
-            throw std::runtime_error("The expected timestamp (" + hex_ts_expected +
-              ") is not equal to the timestamp queried (" + hex_ts + ") in the simulator");
+        assert(hex_ts == hex_ts_expected);
     }
 }
 
