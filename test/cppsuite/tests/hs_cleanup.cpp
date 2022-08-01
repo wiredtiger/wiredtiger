@@ -73,9 +73,9 @@ class hs_cleanup : public test {
 
             auto ret = cursor->next(cursor.get());
             if (ret != 0) {
-                if(ret == WT_NOTFOUND)
+                if (ret == WT_NOTFOUND)
                     testutil_check(cursor->reset(cursor.get()));
-                else if(ret == WT_ROLLBACK)
+                else if (ret == WT_ROLLBACK)
                     tc->txn.rollback();
                 else
                     testutil_die(ret, "Unexpected error returned from cursor->next()");
