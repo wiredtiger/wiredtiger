@@ -35,6 +35,7 @@
 #include <sstream>
 #include <string>
 
+#include "error_simulator.h"
 #include "timestamp_manager.h"
 
 /* Get an instance of connection_simulator class. */
@@ -159,7 +160,7 @@ connection_simulator::decimal_to_hex(const u_int64_t ts)
 }
 
 /* Get the timestamps and decode config map. */
-bool
+int
 connection_simulator::decode_timestamp_config_map(std::map<std::string, std::string> &config_map,
   uint64_t &new_oldest_ts, uint64_t &new_stable_ts, uint64_t &new_durable_ts, bool &has_oldest,
   bool &has_stable, bool &has_durable)
@@ -185,38 +186,36 @@ connection_simulator::decode_timestamp_config_map(std::map<std::string, std::str
         config_map.erase(pos);
     }
 
-    return (config_map.empty());
+    return (config_map.empty() ? 0 : EINVAL);
 }
 
-bool
+int
 connection_simulator::set_timestamp(const std::string &config)
 {
     /* If no timestamp was supplied, there's nothing to do. */
     if (config.empty())
-        return (true);
+        return (0);
 
     timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
     std::map<std::string, std::string> config_map;
 
     /* Throw an error if the config cannot be parsed. */
-    if (!ts_manager->parse_config(config, config_map))
-        throw std::runtime_error("Incorrect config passed to set timestamp: " + config);
+    WT_SIM_RET_MSG(ts_manager->parse_config(config, config_map),
+      "Incorrect config passed to set timestamp: " + config);
 
     uint64_t new_stable_ts = 0, new_oldest_ts = 0, new_durable_ts = 0;
     bool has_stable = false, has_oldest = false, has_durable = false;
 
-    if (!decode_timestamp_config_map(config_map, new_oldest_ts, new_stable_ts, new_durable_ts,
-          has_oldest, has_stable, has_durable))
-        throw std::runtime_error("Incorrect config passed to set timestamp: " + config);
+    WT_SIM_RET_MSG(decode_timestamp_config_map(config_map, new_oldest_ts, new_stable_ts,
+                     new_durable_ts, has_oldest, has_stable, has_durable),
+      "Incorrect config passed to set timestamp: " + config);
 
     /* Validate the new durable timestamp. */
-    if (!ts_manager->validate_durable_ts(new_durable_ts, has_durable))
-        return (false);
+    WT_SIM_RET(ts_manager->validate_durable_ts(new_durable_ts, has_durable));
 
     /* Validate the new oldest and stable timestamp. */
-    if (!ts_manager->validate_oldest_and_stable_ts(
-          new_stable_ts, new_oldest_ts, has_oldest, has_stable))
-        return (false);
+    WT_SIM_RET(ts_manager->validate_oldest_and_stable_ts(
+      new_stable_ts, new_oldest_ts, has_oldest, has_stable));
 
     if (has_stable)
         _stable_ts = new_stable_ts;
@@ -225,7 +224,7 @@ connection_simulator::set_timestamp(const std::string &config)
     if (has_durable)
         _durable_ts = new_durable_ts;
 
-    return (true);
+    return (0);
 }
 
 connection_simulator::connection_simulator() : _oldest_ts(0), _stable_ts(0), _durable_ts(0) {}

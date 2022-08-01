@@ -28,24 +28,21 @@
 
 #pragma once
 
-#include <map>
-#include <string>
+#define WT_SIM_RET_MSG(a, msg)             \
+    do {                                   \
+        int __ret;                         \
+        if ((__ret = (a)) != 0) {          \
+            std::cerr << msg << std::endl; \
+            return (__ret);                \
+        }                                  \
+    } while (0)
 
-/* Timestamp is a global singleton class responsible for validating the timestamps. */
-class timestamp_manager {
-    /* Methods */
-    public:
-    static timestamp_manager &get_timestamp_manager();
-    int parse_config(const std::string &, std::map<std::string, std::string> &);
-    /* Methods for validating timestamps */
-    int validate_oldest_and_stable_ts(uint64_t &, uint64_t &, bool &, bool &);
-    int validate_durable_ts(const uint64_t &, const bool &) const;
+#define WT_SIM_RET(a)           \
+    do {                        \
+        int __ret;              \
+        if ((__ret = (a)) != 0) \
+            return (__ret);     \
+    } while (0)
 
-    /* No copies of the singleton allowed. */
-    private:
-    timestamp_manager();
-
-    public:
-    timestamp_manager(timestamp_manager const &) = delete;
-    timestamp_manager &operator=(timestamp_manager const &) = delete;
-};
+/* Error list */
+#define EINVAL 22 /* Invalid argument */

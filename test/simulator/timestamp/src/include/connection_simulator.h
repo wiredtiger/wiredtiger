@@ -41,14 +41,14 @@ class connection_simulator {
     static connection_simulator &get_connection();
     session_simulator *open_session();
     void close_session(session_simulator *);
-    bool set_timestamp(const std::string &);
+    int set_timestamp(const std::string &);
     uint64_t get_oldest_ts() const;
     uint64_t get_stable_ts() const;
     bool query_timestamp(const std::string &, std::string &);
     ~connection_simulator();
 
     private:
-    bool decode_timestamp_config_map(std::map<std::string, std::string> &, uint64_t &, uint64_t &,
+    int decode_timestamp_config_map(std::map<std::string, std::string> &, uint64_t &, uint64_t &,
       uint64_t &, bool &, bool &, bool &);
     inline uint64_t hex_to_decimal(const std::string &);
     inline std::string decimal_to_hex(const u_int64_t);
