@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_search_near02.py
-#       Search_near with a key past the end much like search_near_05, but
+#       Search_near with a key past the end much like search_near_01, but
 #       this time use timestamps to ensure the update isn't visible.
 
 import wttest
