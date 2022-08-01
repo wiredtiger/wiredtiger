@@ -26,12 +26,12 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <fstream>
+#include <algorithm>
 #include <iostream>
 #include <string>
 
-#include "test_harness/util/logger.h"
-#include "test_harness/test.h"
+#include "src/common/logger.h"
+#include "src/main/test.h"
 
 #include "bounded_cursor_perf.cpp"
 #include "burst_inserts.cpp"
@@ -43,6 +43,10 @@
 #include "search_near_02.cpp"
 #include "search_near_03.cpp"
 #include "test_template.cpp"
+
+extern "C" {
+#include "test_util.h"
+}
 
 /* Declarations to avoid the error raised by -Werror=missing-prototypes. */
 const std::string parse_configuration_from_file(const std::string &filename);
@@ -120,7 +124,8 @@ run_test(const std::string &test_name, const std::string &config, const std::str
     int error_code = 0;
 
     test_harness::logger::log_msg(LOG_TRACE, "Configuration\t:" + config);
-    test_harness::test_args args(config, test_name, wt_open_config);
+    test_harness::test_args args = {
+      .test_config = config, .test_name = test_name, .wt_open_config = wt_open_config};
 
     if (test_name == "bounded_cursor_perf")
         bounded_cursor_perf(args).run();
@@ -240,6 +245,13 @@ main(int argc, char *argv[])
                     current_cfg = cfg;
 
                 error_code = run_test(current_test_name, current_cfg, wt_open_config);
+                /*
+                 * The connection is usually closed using the destructor of the connection manager.
+                 * Because it is a singleton and we are executing all tests, we are not going
+                 * through its destructor between each test, we need to close the connection
+                 * manually before starting the next test.
+                 */
+                connection_manager::instance().close();
                 if (error_code != 0)
                     break;
             }

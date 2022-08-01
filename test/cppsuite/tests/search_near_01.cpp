@@ -26,13 +26,12 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "test_harness/util/api_const.h"
-#include "test_harness/workload/random_generator.h"
-#include "test_harness/workload/thread_context.h"
-#include "test_harness/test.h"
-#include "test_harness/thread_manager.h"
+#include "src/common/constants.h"
+#include "src/common/random_generator.h"
+#include "src/main/test.h"
 
 using namespace test_harness;
+
 /*
  * In this test, we want to verify that search_near with prefix enabled only traverses the portion
  * of the tree that follows the prefix portion of the search key. The test is composed of a populate
@@ -43,7 +42,7 @@ using namespace test_harness;
  *  - Using WiredTiger statistics to validate that the number of entries traversed is within
  * bounds of the search key.
  */
-class search_near_01 : public test_harness::test {
+class search_near_01 : public test {
     uint64_t keys_per_prefix = 0;
     uint64_t srchkey_len = 0;
     const std::string ALPHABET{"abcdefghijklmnopqrstuvwxyz"};
@@ -51,7 +50,7 @@ class search_near_01 : public test_harness::test {
     const int64_t MINIMUM_EXPECTED_ENTRIES = 40;
 
     static void
-    populate_worker(thread_context *tc, const std::string &ALPHABET, uint64_t PREFIX_KEY_LEN)
+    populate_worker(thread_worker *tc, const std::string &ALPHABET, uint64_t PREFIX_KEY_LEN)
     {
         logger::log_msg(LOG_INFO, "Populate with thread id: " + std::to_string(tc->id));
 
@@ -70,7 +69,7 @@ class search_near_01 : public test_harness::test {
             for (uint64_t j = 0; j < ALPHABET.size(); ++j) {
                 for (uint64_t k = 0; k < ALPHABET.size(); ++k) {
                     for (uint64_t count = 0; count < tc->key_count; ++count) {
-                        tc->transaction.begin();
+                        tc->txn.begin();
                         /*
                          * Generate the prefix key, and append a random generated key string based
                          * on the key size configuration.
@@ -85,14 +84,14 @@ class search_near_01 : public test_harness::test {
                         if (!tc->insert(cursor, coll.id, prefix_key, value)) {
                             testutil_assert(rollback_retries < MAX_ROLLBACKS);
                             /* We failed to insert, rollback our transaction and retry. */
-                            tc->transaction.rollback();
+                            tc->txn.rollback();
                             ++rollback_retries;
                             if (count > 0)
                                 --count;
                         } else {
                             /* Commit txn at commit timestamp 100. */
-                            testutil_assert(tc->transaction.commit(
-                              "commit_timestamp=" + tc->tsm->decimal_to_hex(100)));
+                            testutil_assert(
+                              tc->txn.commit("commit_timestamp=" + tc->tsm->decimal_to_hex(100)));
                             rollback_retries = 0;
                         }
                     }
@@ -102,17 +101,17 @@ class search_near_01 : public test_harness::test {
     }
 
     public:
-    search_near_01(const test_harness::test_args &args) : test(args)
+    search_near_01(const test_args &args) : test(args)
     {
-        init_tracking();
+        init_operation_tracker();
     }
 
     void
-    populate(test_harness::database &database, test_harness::timestamp_manager *tsm,
-      test_harness::configuration *config, test_harness::workload_tracking *tracking) override final
+    populate(database &database, timestamp_manager *tsm, configuration *config,
+      operation_tracker *op_tracker) override final
     {
         uint64_t collection_count, key_size;
-        std::vector<thread_context *> workers;
+        std::vector<thread_worker *> workers;
         thread_manager tm;
 
         /* Validate our config. */
@@ -139,8 +138,8 @@ class search_near_01 : public test_harness::test {
 
         /* Spawn 26 threads to populate the database. */
         for (uint64_t i = 0; i < ALPHABET.size(); ++i) {
-            thread_context *tc = new thread_context(i, thread_type::INSERT, config,
-              connection_manager::instance().create_session(), tsm, tracking, database);
+            thread_worker *tc = new thread_worker(i, thread_type::INSERT, config,
+              connection_manager::instance().create_session(), tsm, op_tracker, database);
             workers.push_back(tc);
             tm.add_thread(populate_worker, tc, ALPHABET, PREFIX_KEY_LEN);
         }
@@ -168,7 +167,7 @@ class search_near_01 : public test_harness::test {
                     for (uint64_t k = 0; k < ALPHABET.size(); ++k) {
                         std::string key = {ALPHABET.at(i), ALPHABET.at(j), ALPHABET.at(k)};
                         evict_cursor->set_key(evict_cursor.get(), key.c_str());
-                        evict_cursor->search_near(evict_cursor.get(), &cmpp);
+                        testutil_check(evict_cursor->search_near(evict_cursor.get(), &cmpp));
                         testutil_check(evict_cursor->reset(evict_cursor.get()));
                     }
                 }
@@ -180,14 +179,14 @@ class search_near_01 : public test_harness::test {
     }
 
     static void
-    perform_search_near(test_harness::thread_context *tc, std::string collection_name,
-      uint64_t srchkey_len, std::atomic<int64_t> &z_key_searches)
+    perform_search_near(thread_worker *tc, std::string collection_name, uint64_t srchkey_len,
+      std::atomic<int64_t> &z_key_searches)
     {
         std::string srch_key;
         int cmpp = 0;
 
         scoped_cursor cursor = tc->session.open_scoped_cursor(collection_name);
-        cursor->reconfigure(cursor.get(), "prefix_search=true");
+        testutil_check(cursor->reconfigure(cursor.get(), "prefix_search=true"));
         /* Generate search prefix key of random length between a -> zzz. */
         srch_key = random_generator::instance().generate_random_string(
           srchkey_len, characters_type::ALPHABET);
@@ -200,11 +199,11 @@ class search_near_01 : public test_harness::test {
          * prefix search near, we expect the search to early exit out of its prefix range and return
          * WT_NOTFOUND.
          */
-        tc->transaction.begin("read_timestamp=" + tc->tsm->decimal_to_hex(10));
-        if (tc->transaction.active()) {
+        tc->txn.begin("read_timestamp=" + tc->tsm->decimal_to_hex(10));
+        if (tc->txn.active()) {
             cursor->set_key(cursor.get(), srch_key.c_str());
             testutil_assert(cursor->search_near(cursor.get(), &cmpp) == WT_NOTFOUND);
-            tc->transaction.add_op();
+            tc->txn.add_op();
 
             /*
              * There is an edge case where we may not early exit the prefix search near call because
@@ -218,19 +217,19 @@ class search_near_01 : public test_harness::test {
              */
             if (srch_key == "z" || srch_key == "zz" || srch_key == "zzz")
                 ++z_key_searches;
-            tc->transaction.rollback();
+            tc->txn.rollback();
         }
     }
 
     void
-    read_operation(test_harness::thread_context *tc) override final
+    read_operation(thread_worker *tc) override final
     {
         /* Make sure that thread statistics cursor is null before we open it. */
         testutil_assert(tc->stat_cursor.get() == nullptr);
         /* This test will only work with one read thread. */
         testutil_assert(tc->thread_count == 1);
-        test_harness::configuration *workload_config, *read_config;
-        std::vector<thread_context *> workers;
+        configuration *workload_config, *read_config;
+        std::vector<thread_worker *> workers;
         std::atomic<int64_t> z_key_searches;
         int64_t entries_stat, expected_entries, prefix_stat, prev_entries_stat, prev_prefix_stat;
         int num_threads;
@@ -239,7 +238,7 @@ class search_near_01 : public test_harness::test {
         prev_prefix_stat = 0;
         num_threads = _config->get_int("search_near_threads");
         tc->stat_cursor = tc->session.open_scoped_cursor(STATISTICS_URI);
-        workload_config = _config->get_subconfig(WORKLOAD_GENERATOR);
+        workload_config = _config->get_subconfig(WORKLOAD_MANAGER);
         read_config = workload_config->get_subconfig(READ_OP_CONFIG);
         z_key_searches = 0;
 
@@ -254,18 +253,17 @@ class search_near_01 : public test_harness::test {
          */
         expected_entries = keys_per_prefix * pow(ALPHABET.size(), PREFIX_KEY_LEN - srchkey_len);
         while (tc->running()) {
-            runtime_monitor::get_stat(
+            metrics_monitor::get_stat(
               tc->stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &prev_entries_stat);
-            runtime_monitor::get_stat(tc->stat_cursor,
+            metrics_monitor::get_stat(tc->stat_cursor,
               WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prev_prefix_stat);
 
             thread_manager tm;
             for (uint64_t i = 0; i < num_threads; ++i) {
                 /* Get a collection and find a cached cursor. */
                 collection &coll = tc->db.get_random_collection();
-                thread_context *search_near_tc =
-                  new thread_context(i, thread_type::READ, read_config,
-                    connection_manager::instance().create_session(), tc->tsm, tc->tracking, tc->db);
+                thread_worker *search_near_tc = new thread_worker(i, thread_type::READ, read_config,
+                  connection_manager::instance().create_session(), tc->tsm, tc->op_tracker, tc->db);
                 workers.push_back(search_near_tc);
                 tm.add_thread(perform_search_near, search_near_tc, coll.name, srchkey_len,
                   std::ref(z_key_searches));
@@ -280,9 +278,9 @@ class search_near_01 : public test_harness::test {
             }
             workers.clear();
 
-            runtime_monitor::get_stat(
+            metrics_monitor::get_stat(
               tc->stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &entries_stat);
-            runtime_monitor::get_stat(
+            metrics_monitor::get_stat(
               tc->stat_cursor, WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prefix_stat);
             logger::log_msg(LOG_TRACE,
               "Read thread skipped entries: " + std::to_string(entries_stat - prev_entries_stat) +

@@ -139,7 +139,7 @@ err:
  *     Destroy a data handle.
  */
 static int
-__conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
+__conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, bool final)
 {
     WT_DECL_RET;
 
@@ -151,7 +151,8 @@ __conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
         ret = __wt_schema_close_table(session, (WT_TABLE *)dhandle);
         break;
     case WT_DHANDLE_TYPE_TIERED:
-        WT_WITH_DHANDLE(session, dhandle, ret = __wt_tiered_discard(session, (WT_TIERED *)dhandle));
+        WT_WITH_DHANDLE(
+          session, dhandle, ret = __wt_tiered_discard(session, (WT_TIERED *)dhandle, final));
         break;
     case WT_DHANDLE_TYPE_TIERED_TREE:
         ret = __wt_tiered_tree_close(session, (WT_TIERED_TREE *)dhandle);
@@ -244,7 +245,7 @@ __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *c
     return (0);
 
 err:
-    WT_TRET(__conn_dhandle_destroy(session, dhandle));
+    WT_TRET(__conn_dhandle_destroy(session, dhandle, false));
     return (ret);
 }
 
@@ -404,7 +405,7 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead)
         WT_TRET(__wt_schema_close_table(session, (WT_TABLE *)dhandle));
         break;
     case WT_DHANDLE_TYPE_TIERED:
-        WT_TRET(__wt_tiered_close(session));
+        WT_TRET(__wt_tiered_close(session, (WT_TIERED *)dhandle, final));
         F_CLR(btree, WT_BTREE_SPECIAL_FLAGS);
         break;
     case WT_DHANDLE_TYPE_TIERED_TREE:
@@ -464,7 +465,7 @@ __conn_dhandle_config_parse_ts(WT_SESSION_IMPL *session)
 {
     WT_CONFIG_ITEM cval;
     WT_DATA_HANDLE *dhandle;
-    uint32_t flags;
+    uint16_t flags;
     const char **cfg;
 
     dhandle = session->dhandle;
@@ -893,7 +894,7 @@ __wt_conn_dhandle_discard_single(WT_SESSION_IMPL *session, bool final, bool mark
      * After successfully removing the handle, clean it up.
      */
     if (ret == 0 || final) {
-        WT_TRET(__conn_dhandle_destroy(session, dhandle));
+        WT_TRET(__conn_dhandle_destroy(session, dhandle, final));
         session->dhandle = NULL;
     }
 
@@ -969,12 +970,13 @@ restart:
  *     Update the open dhandles write generation, run write generation and base write generation
  *     number.
  */
-void
+int
 __wt_dhandle_update_write_gens(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
 
     conn = S2C(session);
 
@@ -987,15 +989,26 @@ __wt_dhandle_update_write_gens(WT_SESSION_IMPL *session)
             continue;
         btree = (WT_BTREE *)dhandle->handle;
 
-        WT_ASSERT(session, btree != NULL);
-
         /*
          * Initialize the btree write generation numbers after rollback to stable so that the
          * transaction ids of the pages will be reset when loaded from disk to memory.
          */
         btree->write_gen = btree->base_write_gen = btree->run_write_gen =
           WT_MAX(btree->write_gen, conn->base_write_gen);
+
+        /*
+         * Clear out any transaction IDs that might have been already loaded and cached, as they are
+         * now outdated. Currently this is only known to happen in the page_del structure associated
+         * with truncated pages.
+         */
+        if (btree->root.page == NULL)
+            continue;
+
+        WT_WITH_BTREE(session, btree, ret = __wt_delete_redo_window_cleanup(session));
+        WT_RET(ret);
     }
+
+    return (0);
 }
 
 /*

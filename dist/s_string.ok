@@ -37,8 +37,10 @@ BBBBBBBBBB
 BBBBBBBBBBBBB
 BBBBBBBBBBBBBBBB
 BBBBBBBBBBBBBBBBBB
+BCmvxz
 BDB
 BDB's
+BDmpvXx
 BIGENDIAN
 BLKCACHE
 BOOL
@@ -91,7 +93,6 @@ Checksum
 Checksums
 CityHash
 CloseHandle
-Cmvxz
 Cmvz
 Collet
 Comparator
@@ -125,7 +126,6 @@ Decrypt
 DeleteFileW
 Destructor
 Deterministically
-DmpvXx
 EACCES
 EAGAIN
 EB
@@ -715,6 +715,7 @@ countp
 cp
 cplusplus
 cpp
+cppsuite
 cpuid
 crc
 create's
@@ -1360,6 +1361,8 @@ regionp
 reinitialization
 relocked
 repl
+repositioned
+repositions
 resizable
 resize
 resizing
@@ -1499,6 +1502,7 @@ tokname
 tokstart
 toktype
 tolower
+tombstoned
 toolchain
 toplevel
 totalsec
@@ -1510,6 +1514,7 @@ trk
 trk's
 trun
 trunc
+truncations
 trylock
 tryrdlock
 trywrlock
@@ -1559,6 +1564,7 @@ unmodify
 unordered
 unpackv
 unpadded
+unpositioned
 unreconciled
 unreferenced
 unregister
@@ -1586,6 +1592,7 @@ uu
 vN
 va
 valgrind
+validator
 valuep
 valuev
 vanishingly

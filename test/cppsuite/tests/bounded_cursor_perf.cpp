@@ -26,14 +26,10 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <time.h>
+#include "src/component/execution_timer.cpp"
+#include "src/main/test.h"
 
-#include "test_harness/core/op_tracker.cpp"
-#include "test_harness/test.h"
-#include "test_harness/util/api_const.h"
-#include "test_harness/workload/random_generator.h"
-
-namespace test_harness {
+using namespace test_harness;
 
 /*
  * This test performs cursor traversal operations next() and prev() on a collection with both
@@ -44,20 +40,23 @@ class bounded_cursor_perf : public test {
     public:
     bounded_cursor_perf(const test_args &args) : test(args)
     {
-        init_tracking();
+        init_operation_tracker();
     }
 
     static void
     set_bounds(scoped_cursor &cursor)
     {
-        cursor->set_key(cursor.get(), std::string(1, ('0' - 1)).c_str());
-        cursor->bound(cursor.get(), "bound=lower");
-        cursor->set_key(cursor.get(), std::string(1, ('9' + 1)).c_str());
-        cursor->bound(cursor.get(), "bound=upper");
+        testutil_check(cursor->reset(cursor.get()));
+        std::string lower_bound(1, ('0' - 1));
+        cursor->set_key(cursor.get(), lower_bound.c_str());
+        testutil_check(cursor->bound(cursor.get(), "bound=lower"));
+        std::string upper_bound(1, ('9' + 1));
+        cursor->set_key(cursor.get(), upper_bound.c_str());
+        testutil_check(cursor->bound(cursor.get(), "bound=upper"));
     }
 
     void
-    read_operation(thread_context *tc) override final
+    read_operation(thread_worker *tc) override final
     {
         /* This test will only work with one read thread. */
         testutil_assert(tc->thread_count == 1);
@@ -65,13 +64,12 @@ class bounded_cursor_perf : public test {
          * Each read operation performs next() and prev() calls with both normal cursors and bounded
          * cursors.
          */
-        int range_ret_next, range_ret_prev, ret_next, ret_prev;
 
-        /* Initialize the op trackers. */
-        op_tracker bounded_next("bounded_next", test::_args.test_name);
-        op_tracker default_next("default_next", test::_args.test_name);
-        op_tracker bounded_prev("bounded_prev", test::_args.test_name);
-        op_tracker default_prev("default_prev", test::_args.test_name);
+        /* Initialize the different timers for each function. */
+        execution_timer bounded_next("bounded_next", test::_args.test_name);
+        execution_timer default_next("default_next", test::_args.test_name);
+        execution_timer bounded_prev("bounded_prev", test::_args.test_name);
+        execution_timer default_prev("default_prev", test::_args.test_name);
 
         /* Get the collection to work on. */
         testutil_assert(tc->collection_count == 1);
@@ -91,14 +89,15 @@ class bounded_cursor_perf : public test {
         set_bounds(prev_range_cursor);
 
         while (tc->running()) {
+            int ret_next = 0, ret_prev = 0;
             while (ret_next != WT_NOTFOUND && ret_prev != WT_NOTFOUND && tc->running()) {
-                range_ret_next = bounded_next.track([&next_range_cursor]() -> int {
+                auto range_ret_next = bounded_next.track([&next_range_cursor]() -> int {
                     return next_range_cursor->next(next_range_cursor.get());
                 });
                 ret_next = default_next.track(
                   [&next_cursor]() -> int { return next_cursor->next(next_cursor.get()); });
 
-                range_ret_prev = bounded_prev.track([&prev_range_cursor]() -> int {
+                auto range_ret_prev = bounded_prev.track([&prev_range_cursor]() -> int {
                     return prev_range_cursor->prev(prev_range_cursor.get());
                 });
                 ret_prev = default_prev.track(
@@ -111,7 +110,8 @@ class bounded_cursor_perf : public test {
             }
             set_bounds(next_range_cursor);
             set_bounds(prev_range_cursor);
+            testutil_check(next_cursor->reset(next_cursor.get()));
+            testutil_check(prev_cursor->reset(prev_cursor.get()));
         }
     }
 };
-} // namespace test_harness

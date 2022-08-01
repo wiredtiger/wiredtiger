@@ -88,7 +88,7 @@ __wt_block_compact_progress(WT_SESSION_IMPL *session, WT_BLOCK *block, u_int *ms
         ++*msg_countp;
         __wt_verbose_debug(session, WT_VERB_COMPACT_PROGRESS,
           " compacting %s for %" PRIu64 " seconds; reviewed %" PRIu64 " pages, skipped %" PRIu64
-          " pages, rewritten %" PRIu64 "pages",
+          " pages, rewritten %" PRIu64 " pages",
           block->name, time_diff, block->compact_pages_reviewed, block->compact_pages_skipped,
           block->compact_pages_rewritten);
     }
@@ -212,6 +212,12 @@ __compact_page_skip(
         }
     }
     __wt_spin_unlock(session, &block->live_lock);
+
+    ++block->compact_pages_reviewed;
+    if (*skipp)
+        ++block->compact_pages_skipped;
+    else
+        ++block->compact_pages_rewritten;
 }
 
 /*
@@ -234,12 +240,6 @@ __wt_block_compact_page_skip(
       session, block, addr, addr_size, &objectid, &offset, &size, &checksum));
 
     __compact_page_skip(session, block, offset, size, skipp);
-
-    ++block->compact_pages_reviewed;
-    if (*skipp)
-        ++block->compact_pages_skipped;
-    else
-        ++block->compact_pages_rewritten;
 
     return (0);
 }

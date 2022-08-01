@@ -34,6 +34,10 @@ __ovfl_discard_verbose(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell, c
     WT_CELL_UNPACK_KV *unpack, _unpack;
     WT_DECL_ITEM(tmp);
 
+    /* Because we dereference the page pointer, it can't be NULL */
+    if (page == NULL)
+        WT_RET(EINVAL);
+
     WT_RET(__wt_scr_alloc(session, 512, &tmp));
 
     unpack = &_unpack;
@@ -332,7 +336,8 @@ __ovfl_reuse_wrapup(WT_SESSION_IMPL *session, WT_PAGE *page)
         }
         *e = reuse->next[0];
 
-        WT_ASSERT(session, !F_ISSET(reuse, WT_OVFL_REUSE_JUST_ADDED));
+        WT_ASSERT_ALWAYS(session, !F_ISSET(reuse, WT_OVFL_REUSE_JUST_ADDED),
+          "Attempting to reuse dirty overflow record");
 
         if (WT_VERBOSE_ISSET(session, WT_VERB_OVERFLOW))
             WT_RET(__ovfl_reuse_verbose(session, page, reuse, "free"));

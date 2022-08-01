@@ -138,6 +138,60 @@ __wt_prefix_match(const WT_ITEM *prefix, const WT_ITEM *tree_item)
 }
 
 /*
+ * __wt_compare_bounds --
+ *     Return if the cursor key is within the bounded range. If upper is True, this indicates a next
+ *     call and the key is checked against the upper bound. If upper is False, this indicates a prev
+ *     call and the key is then checked against the lower bound.
+ */
+static inline int
+__wt_compare_bounds(
+  WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM *key, bool upper, bool *key_out_of_bounds)
+{
+    WT_CURSOR_BTREE *cbt;
+    uint64_t recno_bound;
+    int cmpp;
+
+    cbt = (WT_CURSOR_BTREE *)cursor;
+    cmpp = 0;
+    recno_bound = 0;
+
+    if (upper) {
+        WT_ASSERT(session, WT_DATA_IN_ITEM(&cursor->upper_bound));
+        if (S2BT(session)->type == BTREE_ROW)
+            WT_RET(
+              __wt_compare(session, S2BT(session)->collator, key, &cursor->upper_bound, &cmpp));
+        else
+            /* Unpack the raw recno buffer into integer variable. */
+            WT_RET(__wt_struct_unpack(
+              session, cursor->upper_bound.data, cursor->upper_bound.size, "q", &recno_bound));
+
+        if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE))
+            *key_out_of_bounds =
+              S2BT(session)->type == BTREE_ROW ? (cmpp > 0) : (cbt->recno > recno_bound);
+        else
+            *key_out_of_bounds =
+              S2BT(session)->type == BTREE_ROW ? (cmpp >= 0) : (cbt->recno >= recno_bound);
+    } else {
+        WT_ASSERT(session, WT_DATA_IN_ITEM(&cursor->lower_bound));
+        if (S2BT(session)->type == BTREE_ROW)
+            WT_RET(
+              __wt_compare(session, S2BT(session)->collator, key, &cursor->lower_bound, &cmpp));
+        else
+            /* Unpack the raw recno buffer into integer variable. */
+            WT_RET(__wt_struct_unpack(
+              session, cursor->lower_bound.data, cursor->lower_bound.size, "q", &recno_bound));
+
+        if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE))
+            *key_out_of_bounds =
+              S2BT(session)->type == BTREE_ROW ? (cmpp < 0) : (cbt->recno < recno_bound);
+        else
+            *key_out_of_bounds =
+              S2BT(session)->type == BTREE_ROW ? (cmpp <= 0) : (cbt->recno <= recno_bound);
+    }
+    return (0);
+}
+
+/*
  * __wt_lex_compare_skip --
  *     Lexicographic comparison routine, skipping leading bytes. Returns: < 0 if user_item is
  *     lexicographically < tree_item = 0 if user_item is lexicographically = tree_item > 0 if

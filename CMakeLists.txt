@@ -9,31 +9,6 @@ endif(CCACHE_FOUND)
 
 project(WiredTiger C CXX ASM)
 
-if(HAVE_UNITTEST)
-    Include(FetchContent)
-
-    FetchContent_Declare(
-        Catch2
-        GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-        GIT_TAG        v2.13.8
-    )
-
-    # Note, the preferred solution of using FetchContent_MakeAvailable()
-    # is not available in 3.11.0 (it arrived in 3.11.4), so we do some extra steps to achieve the same result.
-    #
-    # See https://cmake.org/cmake/help/v3.23/module/FetchContent.html
-    #
-    # Once we can rely on having 3.11.4 or greater, then the following call can be restored, and the
-    # code between the Start and End comments below can be removed.
-
-    # FetchContent_MakeAvailable(Catch2)
-
-    # Start of code that achieves what FetchContent_MakeAvailable(Catch2) would do.
-    FetchContent_Populate(Catch2)
-    add_subdirectory(${catch2_SOURCE_DIR} ${catch2_BINARY_DIR})
-    # End of code that achieves what FetchContent_MakeAvailable(Catch2) would do.
-endif()
-
 # Import our available build types prior to initializing the
 # project.
 include(cmake/configs/modes.cmake)
@@ -42,7 +17,8 @@ include(cmake/helpers.cmake)
 include(cmake/define_libwiredtiger.cmake)
 
 # If the user doesn't manually specify the target ARCH and OS (i.e not cross-compiling)
-# we will infer the target from the host.
+# we will infer the target from the host. This is checked prior to the config option
+# being defined (in base.cmake) since it will prevent it having a default value.
 if(NOT WT_ARCH)
     # Defer to our hosts architecture as our target architecture.
     if ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(x86_64|i686|i386|AMD64)$")
@@ -84,6 +60,17 @@ if(NOT ENABLE_SHARED AND NOT ENABLE_STATIC)
     message(FATAL_ERROR "Both ENABLE_SHARED & ENABLE_STATIC are disabled. Need to enable at least one build flavour.")
 endif()
 
+# Set the C++ 17 standard. Have to use this method to make it consistent across the platforms
+# as cmake is doing funny things with the versions we have (including setting -std on MSVC).
+if(MSVC)
+    set(CMAKE_CXX_STANDARD)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17")
+else()
+    set(CMAKE_CXX_STANDARD 17)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+    set(CMAKE_CXX_EXTENSIONS OFF)
+endif()
+
 if(ENABLE_STRICT)
     if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
         include(cmake/strict/gcc_strict.cmake)
@@ -99,6 +86,31 @@ if(ENABLE_STRICT)
     elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
         include(cmake/strict/clxx_strict.cmake)
     endif()
+endif()
+
+if(HAVE_UNITTEST)
+    Include(FetchContent)
+
+    FetchContent_Declare(
+        Catch2
+        GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+        GIT_TAG        v2.13.8
+    )
+
+    # Note, the preferred solution of using FetchContent_MakeAvailable()
+    # is not available in 3.11.0 (it arrived in 3.11.4), so we do some extra steps to achieve the same result.
+    #
+    # See https://cmake.org/cmake/help/v3.23/module/FetchContent.html
+    #
+    # Once we can rely on having 3.11.4 or greater, then the following call can be restored, and the
+    # code between the Start and End comments below can be removed.
+
+    # FetchContent_MakeAvailable(Catch2)
+
+    # Start of code that achieves what FetchContent_MakeAvailable(Catch2) would do.
+    FetchContent_Populate(Catch2)
+    add_subdirectory(${catch2_SOURCE_DIR} ${catch2_BINARY_DIR})
+    # End of code that achieves what FetchContent_MakeAvailable(Catch2) would do.
 endif()
 
 # Enable CTest. Subsequent targets may additionally define their own ctest definitions.

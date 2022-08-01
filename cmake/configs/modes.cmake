@@ -5,7 +5,7 @@ include(CheckCXXCompilerFlag)
 include(${CMAKE_SOURCE_DIR}/cmake/helpers.cmake)
 
 # Establish an internal cache variable to track our custom build modes.
-set(BUILD_MODES None Debug Release RelWithDebInfo CACHE INTERNAL "")
+set(BUILD_MODES Debug Release RelWithDebInfo CACHE INTERNAL "")
 
 if("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
     set(MSVC_C_COMPILER 1)
@@ -130,6 +130,7 @@ else()
     endif()
 endif()
 
+
 # UBSAN build variant flags.
 set(ubsan_link_flags "-fsanitize=undefined")
 set(ubsan_compiler_c_flag "-fsanitize=undefined")
@@ -185,11 +186,14 @@ define_build_mode(Coverage
     DEPENDS "NOT MSVC"
 )
 
-define_build_mode(None)
+define_build_mode(Debug)
 
+# Set the WiredTiger default build type to Debug.
+# Primary users of the build are our developers, who want as much help diagnosing
+# issues as possible. Builds targeted for release to customers should switch to a "Release" setting.
 if(NOT CMAKE_BUILD_TYPE)
     string(REPLACE ";" " " build_modes_doc "${BUILD_MODES}")
-    set(CMAKE_BUILD_TYPE "None" CACHE STRING "Choose the type of build, options are: ${build_modes_doc}." FORCE)
+    set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Choose the type of build, options are: ${build_modes_doc}." FORCE)
 endif()
 
 if(CMAKE_BUILD_TYPE)
@@ -199,3 +203,22 @@ if(CMAKE_BUILD_TYPE)
 endif()
 
 set(CMAKE_CONFIGURATION_TYPES ${BUILD_MODES})
+
+# We want to use the optimization level from CC_OPTIMIZE_LEVEL and our DEBUG settings as well.
+# Remove the default values from Release and RelWithDebInfo.
+if("${WT_OS}" STREQUAL "windows")
+    string(REPLACE "/O3" "" CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELEASE})
+    string(REPLACE "/O3" "" CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
+    string(REPLACE "/Z7" "" CMAKE_C_FLAGS_RELWITHDEBINFO ${CMAKE_C_FLAGS_RELWITHDEBINFO})
+    string(REPLACE "/Z7" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
+    string(REPLACE "/O2" "" CMAKE_C_FLAGS_RELWITHDEBINFO ${CMAKE_C_FLAGS_RELWITHDEBINFO})
+    string(REPLACE "/O2" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
+else()
+    string(REPLACE "-O3" "" CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELEASE})
+    string(REPLACE "-O3" "" CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
+    string(REPLACE "-O2" "" CMAKE_C_FLAGS_RELWITHDEBINFO ${CMAKE_C_FLAGS_RELWITHDEBINFO})
+    string(REPLACE "-O2" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
+    string(REPLACE "-g" "" CMAKE_C_FLAGS_RELWITHDEBINFO ${CMAKE_C_FLAGS_RELWITHDEBINFO})
+    string(REPLACE "-g" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
+endif()
+

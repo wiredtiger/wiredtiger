@@ -26,26 +26,40 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "test_harness/test.h"
+#include "src/common/constants.h"
+#include "src/common/logger.h"
+#include "src/common/random_generator.h"
+#include "src/component/operation_tracker.h"
+#include "src/main/test.h"
 
-namespace test_harness {
+using namespace test_harness;
+
 /* Defines what data is written to the tracking table for use in custom validation. */
-class tracking_table_cache_resize : public test_harness::workload_tracking {
+class operation_tracker_cache_resize : public operation_tracker {
 
     public:
-    tracking_table_cache_resize(
+    operation_tracker_cache_resize(
       configuration *config, const bool use_compression, timestamp_manager &tsm)
-        : workload_tracking(config, use_compression, tsm)
+        : operation_tracker(config, use_compression, tsm)
     {
     }
 
     void
-    set_tracking_cursor(const uint64_t txn_id, const tracking_operation &operation,
-      const uint64_t &, const std::string &, const std::string &value, wt_timestamp_t ts,
+    set_tracking_cursor(WT_SESSION *session, const tracking_operation &operation, const uint64_t &,
+      const std::string &, const std::string &value, wt_timestamp_t ts,
       scoped_cursor &op_track_cursor) override final
     {
+        uint64_t txn_id = ((WT_SESSION_IMPL *)session)->txn->id;
+        /*
+         * The cache_size may have been changed between the time we make an insert to the DB and
+         * when we write the details to the tracking table, as such we can't take cache_size from
+         * the connection. Instead, write the cache size as part of the atomic insert into the DB
+         * and when populating the tracking table take it from there.
+         */
+        uint64_t cache_size = std::stoull(value);
+
         op_track_cursor->set_key(op_track_cursor.get(), ts, txn_id);
-        op_track_cursor->set_value(op_track_cursor.get(), operation, value.c_str());
+        op_track_cursor->set_value(op_track_cursor.get(), operation, cache_size);
     }
 };
 
@@ -55,16 +69,17 @@ class tracking_table_cache_resize : public test_harness::workload_tracking {
  * than the cache size they are rejected, so only transactions made when cache size is 500MB should
  * be allowed.
  */
-class cache_resize : public test_harness::test {
+class cache_resize : public test {
     public:
-    cache_resize(const test_harness::test_args &args) : test(args)
+    cache_resize(const test_args &args) : test(args)
     {
-        init_tracking(new tracking_table_cache_resize(_config->get_subconfig(WORKLOAD_TRACKING),
-          _config->get_bool(COMPRESSION_ENABLED), *_timestamp_manager));
+        init_operation_tracker(
+          new operation_tracker_cache_resize(_config->get_subconfig(OPERATION_TRACKER),
+            _config->get_bool(COMPRESSION_ENABLED), *_timestamp_manager));
     }
 
     void
-    custom_operation(test_harness::thread_context *tc) override final
+    custom_operation(thread_worker *tc) override final
     {
         WT_CONNECTION *conn = connection_manager::instance().get_connection();
         WT_CONNECTION_IMPL *conn_impl = (WT_CONNECTION_IMPL *)conn;
@@ -97,30 +112,27 @@ class cache_resize : public test_harness::test {
             const std::string key;
             const std::string value = std::to_string(new_cache_size);
 
-            /* Retrieve the current transaction id. */
-            uint64_t txn_id = ((WT_SESSION_IMPL *)tc->session.get())->txn->id;
-
             /* Save the change of cache size in the tracking table. */
-            tc->transaction.begin();
-            int ret = tc->tracking->save_operation(txn_id, tracking_operation::CUSTOM,
+            tc->txn.begin();
+            int ret = tc->op_tracker->save_operation(tc->session.get(), tracking_operation::CUSTOM,
               collection_id, key, value, tc->tsm->get_next_ts(), tc->op_track_cursor);
 
             if (ret == 0)
-                testutil_assert(tc->transaction.commit());
+                testutil_assert(tc->txn.commit());
             else {
                 /* Due to the cache pressure, it is possible to fail when saving the operation. */
                 testutil_assert(ret == WT_ROLLBACK);
                 logger::log_msg(LOG_WARN,
                   "The cache size reconfiguration could not be saved in the tracking table, ret: " +
                     std::to_string(ret));
-                tc->transaction.rollback();
+                tc->txn.rollback();
             }
             increase_cache = !increase_cache;
         }
     }
 
     void
-    insert_operation(test_harness::thread_context *tc) override final
+    insert_operation(thread_worker *tc) override final
     {
         const uint64_t collection_count = tc->db.get_collection_count();
         testutil_assert(collection_count > 0);
@@ -135,32 +147,31 @@ class cache_resize : public test_harness::test {
               random_generator::instance().generate_pseudo_random_string(tc->key_size);
             const uint64_t cache_size =
               ((WT_CONNECTION_IMPL *)connection_manager::instance().get_connection())->cache_size;
-            /* Take into account the value size given in the test configuration file. */
             const std::string value = std::to_string(cache_size);
 
-            tc->transaction.try_begin();
+            tc->txn.try_begin();
             if (!tc->insert(cursor, coll.id, key, value)) {
-                tc->transaction.rollback();
-            } else if (tc->transaction.can_commit()) {
+                tc->txn.rollback();
+            } else if (tc->txn.can_commit()) {
                 /*
                  * The transaction can fit in the current cache size and is ready to be committed.
                  * This means the tracking table will contain a new record to represent this
                  * transaction which will be used during the validation stage.
                  */
-                testutil_assert(tc->transaction.commit());
+                testutil_assert(tc->txn.commit());
             }
         }
 
         /* Make sure the last transaction is rolled back now the work is finished. */
-        if (tc->transaction.active())
-            tc->transaction.rollback();
+        if (tc->txn.active())
+            tc->txn.rollback();
     }
 
     void
-    validate(const std::string &operation_table_name, const std::string &,
-      const std::vector<uint64_t> &) override final
+    validate(
+      const std::string &operation_table_name, const std::string &, database &) override final
     {
-        bool first_record = false;
+        bool first_record = true;
         int ret;
         uint64_t cache_size, num_records = 0, prev_txn_id;
         const uint64_t cache_size_500mb = 500000000;
@@ -183,7 +194,7 @@ class cache_resize : public test_harness::test {
 
             uint64_t tracked_ts, tracked_txn_id;
             int tracked_op_type;
-            const char *tracked_cache_size;
+            uint64_t tracked_cache_size;
 
             testutil_check(cursor->get_key(cursor.get(), &tracked_ts, &tracked_txn_id));
             testutil_check(cursor->get_value(cursor.get(), &tracked_op_type, &tracked_cache_size));
@@ -191,7 +202,7 @@ class cache_resize : public test_harness::test {
             logger::log_msg(LOG_TRACE,
               "Timestamp: " + std::to_string(tracked_ts) +
                 ", transaction id: " + std::to_string(tracked_txn_id) +
-                ", cache size: " + std::to_string(std::stoull(tracked_cache_size)));
+                ", cache size: " + std::to_string(tracked_cache_size));
 
             tracking_operation op_type = static_cast<tracking_operation>(tracked_op_type);
             /* There are only two types of operation tracked. */
@@ -218,8 +229,11 @@ class cache_resize : public test_harness::test {
                  */
             }
             prev_txn_id = tracked_txn_id;
-            /* Save the last cache size seen by the transaction. */
-            cache_size = std::stoull(tracked_cache_size);
+            /*
+             * FIXME-WT-9339 - Save the last cache size seen by the transaction.
+             *
+             * cache_size = tracked_cache_size;
+             */
             ++num_records;
         }
         /* All records have been parsed, the last one still needs the be checked. */
@@ -233,5 +247,3 @@ class cache_resize : public test_harness::test {
          */
     }
 };
-
-} // namespace test_harness
