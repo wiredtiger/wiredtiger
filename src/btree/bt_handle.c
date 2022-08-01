@@ -762,28 +762,67 @@ err:
 
 /*
  * __wt_btree_new_internal_page --
- *     Create an empty internal page.
+ *     Create an empty internal page, as well as a leaf page that is a child of the internal page.
  */
 int
 __wt_btree_new_internal_page(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_BTREE *btree;
+    WT_DECL_RET;
+    uint8_t internal_type;
 
     btree = S2BT(session);
 
     switch (btree->type) {
     case BTREE_COL_FIX:
     case BTREE_COL_VAR:
-        WT_RET(__wt_page_alloc(session, WT_PAGE_COL_INT, 1, true, &ref->page));
+        internal_type = WT_PAGE_COL_INT;
         break;
     case BTREE_ROW:
-        WT_RET(__wt_page_alloc(session, WT_PAGE_ROW_INT, 1, true, &ref->page));
+        internal_type = WT_PAGE_ROW_INT;
         break;
+    default:
+        /* This should not happen */
+        WT_ASSERT(session, false);
+        break;
+    }
+
+    WT_RET(__wt_page_alloc(session, internal_type, 1, true, &ref->page));
+    WT_REF_SET_STATE(ref, WT_REF_MEM);
+
+    /* Create the child leaf page */
+    {
+        WT_REF *ref_to_child;
+        WT_PAGE_INDEX *page_index;
+        void *key;
+        size_t size;
+
+        page_index = WT_INTL_INDEX_GET_SAFE(ref->page);
+        WT_ASSERT(session, page_index->entries == 1);
+        ref_to_child = page_index->index[0];
+
+        WT_RET(__wt_btree_new_leaf_page(session, ref_to_child));
+
+        ref_to_child->home = ref->page;
+        ref_to_child->addr = NULL;
+        size = sizeof(WT_PAGE_INDEX) + sizeof(WT_REF *);
+
+        if (ref->page->type == WT_PAGE_ROW_INT) {
+            __wt_ref_key(ref->page, ref, &key, &size);
+            WT_ERR(__wt_row_ikey(session, 0, key, size, ref_to_child));
+        } else
+            ref_to_child->ref_recno = ref->ref_recno;
+
+        WT_ASSERT(session, F_ISSET(ref_to_child, WT_REF_FLAG_LEAF));
+        WT_REF_SET_STATE(ref, WT_REF_MEM);
     }
 
     WT_ASSERT(session, F_ISSET(ref, WT_REF_FLAG_INTERNAL));
 
     return (0);
+
+err:
+    return (ret);
 }
 
 /*
