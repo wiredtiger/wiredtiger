@@ -134,8 +134,10 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
             WT_ERR(__wt_btree_new_internal_page(session, ref));
-        else
+        else {
+            WT_ASSERT(session, F_ISSET(ref, WT_REF_FLAG_LEAF));
             WT_ERR(__wt_btree_new_leaf_page(session, ref));
+        }
 
         goto skip_read;
     }

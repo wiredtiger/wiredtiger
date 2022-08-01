@@ -774,10 +774,10 @@ __wt_btree_new_internal_page(WT_SESSION_IMPL *session, WT_REF *ref)
     switch (btree->type) {
     case BTREE_COL_FIX:
     case BTREE_COL_VAR:
-        WT_RET(__wt_page_alloc(session, WT_PAGE_COL_INT, 0, false, &ref->page));
+        WT_RET(__wt_page_alloc(session, WT_PAGE_COL_INT, 1, true, &ref->page));
         break;
     case BTREE_ROW:
-        WT_RET(__wt_page_alloc(session, WT_PAGE_ROW_INT, 0, false, &ref->page));
+        WT_RET(__wt_page_alloc(session, WT_PAGE_ROW_INT, 1, true, &ref->page));
         break;
     }
 
