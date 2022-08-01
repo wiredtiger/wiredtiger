@@ -91,7 +91,7 @@ call_log_manager::call_log_close_session(const json &call_log_entry)
 {
     const std::string session_id = call_log_entry["session_id"].get<std::string>();
 
-    /* If there is a failure in opening a session, there is no work to do. */
+    /* If there is a failure in closing a session, there is no work to do. */
     int ret = call_log_entry["return"]["return_val"].get<int>();
     if (ret != 0)
         throw "Cannot close the session for session_id (" + session_id +
