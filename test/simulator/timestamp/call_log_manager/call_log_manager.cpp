@@ -182,8 +182,8 @@ call_log_manager::call_log_set_timestamp(const json &call_log_entry)
     assert(ret == ret_expected);
 
     if (ret != 0)
-        throw "set_timestamp failed with ret value: " + std::to_string(ret) +
-          ", and config: " + config;
+        throw "'set_timestamp' failed with ret value: '" + std::to_string(ret) +
+          "', and config: '" + config + "'";
 }
 
 void
