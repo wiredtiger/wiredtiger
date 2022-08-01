@@ -77,7 +77,7 @@ connection_simulator::close_session(session_simulator *session)
 
     _session_list.erase(position);
     delete session;
-    session = NULL;
+    session = nullptr;
 }
 
 bool
