@@ -34,7 +34,7 @@ def set_prefix_bound(test, cursor, lower_bound):
     test.assertEqual(cursor.bound("action=set,bound=lower,inclusive=true"), 0)
     # Strings are immutable in python so we cast the string to a list, then we convert the last
     # element to an integer using ord() and then convert it back to a char with chr(), finally we
-    # conver the list back to a string.
+    # convert the list back to a string.
     upper_bound = list(lower_bound)
     upper_bound[len(upper_bound) - 1] = chr(ord(upper_bound[len(upper_bound) - 1]) + 1)
     upper_bound = ''.join(upper_bound)
