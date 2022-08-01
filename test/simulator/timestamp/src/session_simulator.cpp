@@ -28,39 +28,25 @@
 
 #include "session_simulator.h"
 
+#include <cassert>
 #include <iostream>
 
 session_simulator::session_simulator() {}
 
-bool
+void
 session_simulator::begin_transaction()
 {
-    /*
-     * Cannot begin a new transaction if there is an existing transaction that is currently running.
-     */
-    if (_txn_running) {
-        std::cerr << "Could not begin transaction, session already has a running "
-                     "transaction."
-                  << std::endl;
-        return (false);
-    }
+    /* Make sure that the transaction from this session isn't running. */
+    assert(!_txn_running);
 
     _txn_running = true;
-
-    return (true);
 }
 
-bool
+void
 session_simulator::rollback_transaction()
 {
-    if (!_txn_running) {
-        std::cerr << "Could not rollback transaction, there are no transactions running."
-                  << std::endl;
-
-        return (false);
-    }
+    /* Make sure that the transaction from this session is running. */
+    assert(_txn_running);
 
     _txn_running = false;
-
-    return (true);
 }
