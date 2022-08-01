@@ -781,10 +781,6 @@ __wt_btree_new_internal_page(WT_SESSION_IMPL *session, WT_REF *ref)
     case BTREE_ROW:
         internal_type = WT_PAGE_ROW_INT;
         break;
-    default:
-        /* This should not happen */
-        WT_ASSERT(session, false);
-        break;
     }
 
     WT_RET(__wt_page_alloc(session, internal_type, 1, true, &ref->page));
