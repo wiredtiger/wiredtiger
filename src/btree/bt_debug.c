@@ -1644,9 +1644,8 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
 
 /*
  * __wt_debug_check_clean_tree --
- *     Check to ensure all pages in a tree are clean, if the tree is clean.
- *     This isn't the right place for this function - everything else in this file is diagnostic
- *     only.
+ *     Check to ensure all pages in a tree are clean, if the tree is clean. This isn't the right
+ *     place for this function - everything else in this file is diagnostic only.
  */
 int
 __wt_debug_check_clean_tree(WT_SESSION_IMPL *session)

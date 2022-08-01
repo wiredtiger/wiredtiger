@@ -129,8 +129,8 @@ main(int argc, char *argv[])
     testutil_check(pthread_create(&validate_thread, NULL, thread_validate, cr_opts));
     usleep(200); /* Wait for threads to spin up */
 
-    snprintf(opts->progress_msg, opts->progress_msg_len, "Running for %" PRIu64 " seconds\n",
-      opts->runtime);
+    testutil_check(__wt_snprintf(opts->progress_msg, opts->progress_msg_len,
+      "Running for %" PRIu64 " seconds\n", opts->runtime));
     testutil_progress(opts, opts->progress_msg);
     sleep((unsigned int)opts->runtime);
     test_running = false;
@@ -188,7 +188,7 @@ thread_create_table_race(void *arg)
         testutil_check(__wt_snprintf(index_uri, 64, "table:index_%" PRIu64, i));
 
         i = __atomic_fetch_add(&cr_opts->collection_count, 1, __ATOMIC_SEQ_CST);
-        snprintf(ts_string, 64, "commit_timestamp=%" PRIu64, i);
+        testutil_check(__wt_snprintf(ts_string, 64, "commit_timestamp=%" PRIu64, i));
 
         /* Create collection */
         testutil_check(session->create(
@@ -229,17 +229,17 @@ thread_create_table_race(void *arg)
             rnd_val = (uint64_t)__wt_random(&rnd);
         else
             rnd_val = 1;
-        snprintf(collection_config_str, sizeof(collection_config_str), "%s",
-          rnd_val % 12 == 0 ? "debug=(release_evict)" : "");
+        testutil_check(__wt_snprintf(collection_config_str, sizeof(collection_config_str), "%s",
+          rnd_val % 12 == 0 ? "debug=(release_evict)" : ""));
         rnd_val = (uint64_t)__wt_random(&rnd);
-        snprintf(index_config_str, sizeof(index_config_str), "%s",
-          rnd_val % 12 == 0 ? "debug=(release_evict)" : "");
+        testutil_check(__wt_snprintf(index_config_str, sizeof(index_config_str), "%s",
+          rnd_val % 12 == 0 ? "debug=(release_evict)" : ""));
 
         testutil_check(open_cursor_wrap(
           opts, session, collection_uri, collection_config_str, &collection_cursor));
 
-        snprintf(opts->progress_msg, opts->progress_msg_len, "Creating collection/index: %s\n",
-          collection_uri);
+        testutil_check(__wt_snprintf(opts->progress_msg, opts->progress_msg_len,
+          "Creating collection/index: %s\n", collection_uri));
         testutil_progress(opts, opts->progress_msg);
 
         collection_cursor->set_key(collection_cursor, i);
@@ -351,12 +351,14 @@ thread_add_load(void *arg)
                 /* The catalog is empty at first, so use some dummy values */
                 testutil_assert(ret == WT_NOTFOUND);
                 table_timestamp = 10;
-                snprintf(collection_uri, sizeof(collection_uri), "%s", "startup");
+                testutil_check(
+                  __wt_snprintf(collection_uri, sizeof(collection_uri), "%s", "startup"));
             }
         }
         load_cursor->set_key(load_cursor, i);
         data_offset = (uint64_t)__wt_random(&rnd) % (raw_data_str_len - sizeof(load_data));
-        snprintf(load_data, sizeof(load_data), "%s", data_string + data_offset);
+        testutil_check(
+          __wt_snprintf(load_data, sizeof(load_data), "%s", data_string + data_offset));
         load_cursor->set_value(load_cursor, collection_uri, load_data);
         testutil_check(load_cursor->insert(load_cursor));
 
@@ -370,7 +372,8 @@ thread_add_load(void *arg)
              * content being written to the database as part of this operation is included in
              * checkpoints.
              */
-            snprintf(ts_string, 64, "commit_timestamp=%" PRIu64, table_timestamp + 10);
+            testutil_check(
+              __wt_snprintf(ts_string, 64, "commit_timestamp=%" PRIu64, table_timestamp + 10));
             testutil_check(session->commit_transaction(session, ts_string));
             transaction_running = false;
             testutil_check(catalog_cursor->reset(catalog_cursor));
@@ -471,12 +474,12 @@ thread_validate(void *arg)
                 verify_uri = rnd_val % 2 == 0 ? collection_uri : index_uri;
                 ret = session->verify(session, verify_uri, NULL);
                 if (ret == EBUSY || ret == ENOENT)
-                    snprintf(opts->progress_msg, opts->progress_msg_len, "Verifying got %s on %s\n",
-                      ret == EBUSY ? "EBUSY" : "ENOENT", verify_uri);
+                    testutil_check(__wt_snprintf(opts->progress_msg, opts->progress_msg_len,
+                      "Verifying got %s on %s\n", ret == EBUSY ? "EBUSY" : "ENOENT", verify_uri));
                 else {
                     testutil_assert(ret == 0);
-                    snprintf(opts->progress_msg, opts->progress_msg_len,
-                      "Verifying complete on %s\n", verify_uri);
+                    testutil_check(__wt_snprintf(opts->progress_msg, opts->progress_msg_len,
+                      "Verifying complete on %s\n", verify_uri));
                 }
                 testutil_progress(opts, opts->progress_msg);
             }
@@ -484,9 +487,9 @@ thread_validate(void *arg)
     }
 
     testutil_check(catalog_cursor->close(catalog_cursor));
-    snprintf(opts->progress_msg, opts->progress_msg_len,
+    testutil_check(__wt_snprintf(opts->progress_msg, opts->progress_msg_len,
       "END validate thread, validation_passes: %" PRIu64 ", validated_values: %" PRIu64 "\n",
-      validation_passes, validated_values);
+      validation_passes, validated_values));
     testutil_progress(opts, opts->progress_msg);
 
     return (NULL);
@@ -531,7 +534,7 @@ get_table_to_drop(CHECKPOINT_RACE_OPTS *cr_opts, char **urip, size_t uri_len)
         goto err;
     }
     /* Choose a commit timestamp a bit in the future */
-    snprintf(ts_string, 64, "commit_timestamp=%" PRIu64, max_index + 10);
+    testutil_check(__wt_snprintf(ts_string, 64, "commit_timestamp=%" PRIu64, max_index + 10));
 
     /* Don't drop the newest table - give it a chance to be created properly */
     max_index -= 2;
@@ -605,14 +608,14 @@ thread_drop_tables(void *arg)
         if ((ret = session->drop(session, drop_uri, NULL)) == 0)
             ++dropped_tables;
         else {
-            snprintf(opts->progress_msg, opts->progress_msg_len,
-              "Failed to drop table %s, reason: %d\n", drop_uri, ret);
+            testutil_check(__wt_snprintf(opts->progress_msg, opts->progress_msg_len,
+              "Failed to drop table %s, reason: %d\n", drop_uri, ret));
             testutil_progress(opts, opts->progress_msg);
         }
     }
 
-    snprintf(opts->progress_msg, opts->progress_msg_len,
-      "END drop thread, dropped %" PRIu64 " tables\n", dropped_tables);
+    testutil_check(__wt_snprintf(opts->progress_msg, opts->progress_msg_len,
+      "END drop thread, dropped %" PRIu64 " tables\n", dropped_tables));
     testutil_progress(opts, opts->progress_msg);
 
     return (NULL);
@@ -649,7 +652,8 @@ thread_checkpoint(void *arg)
         /* Hack to ensure global timestamps don't go backward at startup */
         if (collection_count > 12)
             opts->conn->set_timestamp(opts->conn, ts_string);
-        snprintf(opts->progress_msg, opts->progress_msg_len, "Checkpoint: %s\n", ts_string);
+        testutil_check(
+          __wt_snprintf(opts->progress_msg, opts->progress_msg_len, "Checkpoint: %s\n", ts_string));
         testutil_progress(opts, opts->progress_msg);
 
         /* Checkpoint once per second or when woken */
@@ -717,8 +721,8 @@ sleep_for_us(TEST_OPTS *opts, WT_RAND_STATE *rnd, SLEEP_CONFIG cfg)
         sleep_us = cfg.sleep_min_us + rnd_val;
         // printf("%s waiting for for: %" PRIu64 " us\n", cfg.name, sleep_us);
 
-        snprintf(opts->progress_msg, opts->progress_msg_len, "%s waiting for: %" PRIu64 " us\n",
-          cfg.name, sleep_us);
+        testutil_check(__wt_snprintf(opts->progress_msg, opts->progress_msg_len,
+          "%s waiting for: %" PRIu64 " us\n", cfg.name, sleep_us));
         testutil_progress(opts, opts->progress_msg);
         usleep((unsigned int)sleep_us);
     }
@@ -735,8 +739,8 @@ open_cursor_wrap(
     int ret;
 
     while ((ret = session->open_cursor(session, uri, NULL, config, cursorp)) != 0) {
-        snprintf(opts->progress_msg, opts->progress_msg_len,
-          "Error returned opening %s cursor: %s\n", uri, wiredtiger_strerror(ret));
+        testutil_check(__wt_snprintf(opts->progress_msg, opts->progress_msg_len,
+          "Error returned opening %s cursor: %s\n", uri, wiredtiger_strerror(ret)));
         testutil_progress(opts, opts->progress_msg);
         if (ret != EBUSY)
             return (ret);
