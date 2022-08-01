@@ -416,7 +416,7 @@ format_die(void)
      * stuff in flight to be sure.
      */
     GV(QUIET) = 1;
-    g.trace = 0;
+    FLD_CLR(g.trace_flags, TRACE);
 
     /*
      * Single-thread error handling, our caller exits after calling us (we never release the lock).

@@ -399,7 +399,7 @@ lock_readunlock(WT_SESSION *session, RWLOCK *lock)
 
 #define trace_msg(s, fmt, ...)                                                               \
     do {                                                                                     \
-        if (g.trace)                                                                         \
+        if (FLD_ISSET(g.trace_flags, TRACE))                                                 \
             __wt_verbose_worker(                                                             \
               (WT_SESSION_IMPL *)(s), WT_VERB_TEMPORARY, WT_VERBOSE_INFO, fmt, __VA_ARGS__); \
     } while (0)
@@ -408,10 +408,10 @@ lock_readunlock(WT_SESSION *session, RWLOCK *lock)
         WT_SESSION_IMPL *__s;                                                                     \
         uint32_t __i;                                                                             \
         __s = (WT_SESSION_IMPL *)(tinfo)->session;                                                \
-        if (g.trace) {                                                                            \
+        if (FLD_ISSET(g.trace_flags, TRACE)) {                                                    \
             __wt_verbose_worker(__s, WT_VERB_TEMPORARY, WT_VERBOSE_INFO, "%" PRIu64 " %s%s" fmt,  \
               (tinfo)->opid, (uri) == NULL ? "" : (uri), (uri) == NULL ? "" : ": ", __VA_ARGS__); \
-            if (g.trace_txn) {                                                                    \
+            if (FLD_ISSET(g.trace_flags, TRACE_TXN)) {                                            \
                 __wt_verbose_worker(__s, WT_VERB_TEMPORARY, WT_VERBOSE_INFO,                      \
                   "%s%s txn id %" PRIu64 " snap_min %" PRIu64 " snap_max %" PRIu64                \
                   " snap count %" PRIu32,                                                         \
