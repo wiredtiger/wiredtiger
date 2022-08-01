@@ -403,6 +403,27 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
 }
 
 /*
+ * __rec_calc_upd_memsize --
+ *     Calculate the saved update size.
+ */
+static inline size_t
+__rec_calc_upd_memsize(WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, size_t upd_memsize)
+{
+    WT_UPDATE *upd;
+
+    /*
+     * The total update size only contains uncommitted updates. Add the size for the rest of the
+     * chain.
+     */
+    if (onpage_upd != NULL) {
+        for (upd = tombstone != NULL ? tombstone : onpage_upd; upd != NULL; upd = upd->next)
+            if (upd->txnid != WT_TXN_ABORTED)
+                upd_memsize += upd->size;
+    }
+    return (upd_memsize);
+}
+
+/*
  * __rec_upd_select --
  *     Select the update to write to disk image.
  */
@@ -831,6 +852,13 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
          */
         supd_restore = F_ISSET(r, WT_REC_EVICT) &&
           (has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
+
+        /* In memory database doesn't have history store. Count the size of the entire restored
+         * update chain. */
+        if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
+            WT_ASSERT(session, supd_restore);
+            upd_memsize = __rec_calc_upd_memsize(onpage_upd, upd_select->tombstone, upd_memsize);
+        }
 
         WT_RET(__rec_update_save(
           session, r, ins, rip, onpage_upd, upd_select->tombstone, supd_restore, upd_memsize));

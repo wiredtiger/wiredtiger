@@ -1813,8 +1813,9 @@ __rec_split_write_supd(
                     upd = page->modify->mod_row_update[WT_ROW_SLOT(page, r->supd[i].rip)];
                 else
                     upd = r->supd[i].ins->upd;
-                for (; upd != NULL && upd != r->supd[i].onpage_upd &&
-                     upd != r->supd[i].onpage_tombstone;
+                for (; upd != NULL &&
+                     ((upd != r->supd[i].onpage_upd && upd != r->supd[i].onpage_tombstone) ||
+                       F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
                      upd = upd->next)
                     r->supd_restore_memsize += upd->size;
             }
