@@ -876,7 +876,7 @@ variables:
         vars:
           times: 25
 
-  - &csuite-checkpoint-snapshot-race
+  - &csuite-checkpoint-snapshot
     depends_on:
       - name: compile
     commands:
@@ -1379,41 +1379,25 @@ tasks:
   # End of cppsuite test tasks.
   # Start of csuite test tasks
 
-  - <<: *csuite-checkpoint-snapshot-race
-    name: csuite-checkpoint-snapshot-race-1
-    tags: ["csuite-checkpoint-snapshot-race-1"]
+  - <<: *csuite-checkpoint-snapshot
+    name: csuite-checkpoint-snapshot-1
+    tags: ["csuite-checkpoint-snapshot-1"]
 
-  - <<: *csuite-checkpoint-snapshot-race
-    name: csuite-checkpoint-snapshot-race-2
-    tags: ["csuite-checkpoint-snapshot-race-2"]
+  - <<: *csuite-checkpoint-snapshot
+    name: csuite-checkpoint-snapshot-2
+    tags: ["csuite-checkpoint-snapshot-2"]
 
-  - <<: *csuite-checkpoint-snapshot-race
-    name: csuite-checkpoint-snapshot-race-3
-    tags: ["csuite-checkpoint-snapshot-race-3"]
+  - <<: *csuite-checkpoint-snapshot
+    name: csuite-checkpoint-snapshot-3
+    tags: ["csuite-checkpoint-snapshot-3"]
 
-  - <<: *csuite-checkpoint-snapshot-race
-    name: csuite-checkpoint-snapshot-race-4
-    tags: ["csuite-checkpoint-snapshot-race-4"]
+  - <<: *csuite-checkpoint-snapshot
+    name: csuite-checkpoint-snapshot-4
+    tags: ["csuite-checkpoint-snapshot-4"]
 
-  - <<: *csuite-checkpoint-snapshot-race
-    name: csuite-checkpoint-snapshot-race-5
-    tags: ["csuite-checkpoint-snapshot-race-5"]
-
-  - <<: *csuite-checkpoint-snapshot-race
-    name: csuite-checkpoint-snapshot-race-6
-    tags: ["csuite-checkpoint-snapshot-race-6"]
-
-  - <<: *csuite-checkpoint-snapshot-race
-    name: csuite-checkpoint-snapshot-race-7
-    tags: ["csuite-checkpoint-snapshot-race-7"]
-
-  - <<: *csuite-checkpoint-snapshot-race
-    name: csuite-checkpoint-snapshot-race-8
-    tags: ["csuite-checkpoint-snapshot-race-8"]
-
-  - <<: *csuite-checkpoint-snapshot-race
-    name: csuite-checkpoint-snapshot-race-9
-    tags: ["csuite-checkpoint-snapshot-race-9"]
+  - <<: *csuite-checkpoint-snapshot
+    name: csuite-checkpoint-snapshot-5
+    tags: ["csuite-checkpoint-snapshot-5"]
 
   - name: csuite-incr-backup-test
     tags: ["pull_request"]
@@ -3995,15 +3979,11 @@ buildvariants:
     - name: configure-combinations
     - name: syscall-linux
     - name: checkpoint-filetypes-test
-    - name: csuite-checkpoint-snapshot-race-1
-    - name: csuite-checkpoint-snapshot-race-2
-    - name: csuite-checkpoint-snapshot-race-3
-    - name: csuite-checkpoint-snapshot-race-4
-    - name: csuite-checkpoint-snapshot-race-5
-    - name: csuite-checkpoint-snapshot-race-6
-    - name: csuite-checkpoint-snapshot-race-7
-    - name: csuite-checkpoint-snapshot-race-8
-    - name: csuite-checkpoint-snapshot-race-9
+    - name: csuite-checkpoint-snapshot-1
+    - name: csuite-checkpoint-snapshot-2
+    - name: csuite-checkpoint-snapshot-3
+    - name: csuite-checkpoint-snapshot-4
+    - name: csuite-checkpoint-snapshot-5
     - name: unit-test-zstd
     - name: unit-test-random-seed
     - name: spinlock-gcc-test
@@ -4058,16 +4038,11 @@ buildvariants:
     - name: ".pull_request !.pull_request_compilers !.python !tiered-unittest-test"
     - name: examples-c-test
     - name: format-asan-smoke-test
-    - name: csuite-checkpoint-snapshot-race-1
-    - name: csuite-checkpoint-snapshot-race-2
-    - name: csuite-checkpoint-snapshot-race-3
-    - name: csuite-checkpoint-snapshot-race-4
-    - name: csuite-checkpoint-snapshot-race-5
-    - name: csuite-checkpoint-snapshot-race-6
-    - name: csuite-checkpoint-snapshot-race-7
-    - name: csuite-checkpoint-snapshot-race-8
-    - name: csuite-checkpoint-snapshot-race-9
-    - name: csuite-checkpoint-snapshot-race-*
+    - name: csuite-checkpoint-snapshot-1
+    - name: csuite-checkpoint-snapshot-2
+    - name: csuite-checkpoint-snapshot-3
+    - name: csuite-checkpoint-snapshot-4
+    - name: csuite-checkpoint-snapshot-5
 
 # Very minimal set without any extensions
 - name: ubuntu2004-minimal
@@ -4116,15 +4091,11 @@ buildvariants:
     - name: examples-c-production-disable-static-test
     - name: format-stress-pull-request-test
     - name: make-check-test
-    - name: csuite-checkpoint-snapshot-race-1
-    - name: csuite-checkpoint-snapshot-race-2
-    - name: csuite-checkpoint-snapshot-race-3
-    - name: csuite-checkpoint-snapshot-race-4
-    - name: csuite-checkpoint-snapshot-race-5
-    - name: csuite-checkpoint-snapshot-race-6
-    - name: csuite-checkpoint-snapshot-race-7
-    - name: csuite-checkpoint-snapshot-race-8
-    - name: csuite-checkpoint-snapshot-race-9
+    - name: csuite-checkpoint-snapshot-1
+    - name: csuite-checkpoint-snapshot-2
+    - name: csuite-checkpoint-snapshot-3
+    - name: csuite-checkpoint-snapshot-4
+    - name: csuite-checkpoint-snapshot-5
 
 - name: ubuntu2004-ubsan
   display_name: "! Ubuntu 20.04 UBSAN"
@@ -4150,15 +4121,11 @@ buildvariants:
     - name: compile
     - name: compile-production-disable-shared
     - name: compile-production-disable-static
-    - name: csuite-checkpoint-snapshot-race-1
-    - name: csuite-checkpoint-snapshot-race-2
-    - name: csuite-checkpoint-snapshot-race-3
-    - name: csuite-checkpoint-snapshot-race-4
-    - name: csuite-checkpoint-snapshot-race-5
-    - name: csuite-checkpoint-snapshot-race-6
-    - name: csuite-checkpoint-snapshot-race-7
-    - name: csuite-checkpoint-snapshot-race-8
-    - name: csuite-checkpoint-snapshot-race-9
+    - name: csuite-checkpoint-snapshot-1
+    - name: csuite-checkpoint-snapshot-2
+    - name: csuite-checkpoint-snapshot-3
+    - name: csuite-checkpoint-snapshot-4
+    - name: csuite-checkpoint-snapshot-5
     - name: examples-c-production-disable-shared-test
     - name: examples-c-production-disable-static-test
     - name: format-stress-pull-request-test
@@ -4169,6 +4136,11 @@ buildvariants:
     - name: cppsuite-search-near-01-default
     - name: cppsuite-search-near-02-default
     - name: cppsuite-search-near-03-default
+    - name: csuite-checkpoint-snapshot-1
+    - name: csuite-checkpoint-snapshot-2
+    - name: csuite-checkpoint-snapshot-3
+    - name: csuite-checkpoint-snapshot-4
+    - name: csuite-checkpoint-snapshot-5
 
 - name: ubuntu2004-compilers
   display_name: "! Ubuntu 20.04 Compilers"
@@ -4404,15 +4376,11 @@ buildvariants:
   tasks:
     - name: compile
     - name: make-check-test
-    - name: csuite-checkpoint-snapshot-race-1
-    - name: csuite-checkpoint-snapshot-race-2
-    - name: csuite-checkpoint-snapshot-race-3
-    - name: csuite-checkpoint-snapshot-race-4
-    - name: csuite-checkpoint-snapshot-race-5
-    - name: csuite-checkpoint-snapshot-race-6
-    - name: csuite-checkpoint-snapshot-race-7
-    - name: csuite-checkpoint-snapshot-race-8
-    - name: csuite-checkpoint-snapshot-race-9
+    - name: csuite-checkpoint-snapshot-1
+    - name: csuite-checkpoint-snapshot-2
+    - name: csuite-checkpoint-snapshot-3
+    - name: csuite-checkpoint-snapshot-4
+    - name: csuite-checkpoint-snapshot-5
     - name: unit-test
     - name: fops
     - name: time-shift-sensitivity-test
@@ -4668,15 +4636,11 @@ buildvariants:
     - name: fops
     - name: linux-directio
     - name: checkpoint-filetypes-test
-    - name: csuite-checkpoint-snapshot-race-1
-    - name: csuite-checkpoint-snapshot-race-2
-    - name: csuite-checkpoint-snapshot-race-3
-    - name: csuite-checkpoint-snapshot-race-4
-    - name: csuite-checkpoint-snapshot-race-5
-    - name: csuite-checkpoint-snapshot-race-6
-    - name: csuite-checkpoint-snapshot-race-7
-    - name: csuite-checkpoint-snapshot-race-8
-    - name: csuite-checkpoint-snapshot-race-9
+    - name: csuite-checkpoint-snapshot-1
+    - name: csuite-checkpoint-snapshot-2
+    - name: csuite-checkpoint-snapshot-3
+    - name: csuite-checkpoint-snapshot-4
+    - name: csuite-checkpoint-snapshot-5
     - name: unit-test-zstd
     - name: unit-test-long
       run_on:
