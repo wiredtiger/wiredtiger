@@ -75,6 +75,12 @@ void
 call_log_manager::call_log_begin_transaction(const json &call_log_entry)
 {
     const std::string session_id = call_log_entry["session_id"].get<std::string>();
+
+    /* If there is a failure in begin_transaction, there is no work to do. */
+    int ret = call_log_entry["return"]["return_val"].get<int>();
+    if (ret != 0)
+        throw "Cannot begin the transaction for session_id (" + session_id + ") as return value in the call log is: " + std::to_string(ret);
+
     session_simulator *session = get_session(session_id);
     session->begin_transaction();
 }
@@ -83,6 +89,12 @@ void
 call_log_manager::call_log_close_session(const json &call_log_entry)
 {
     const std::string session_id = call_log_entry["session_id"].get<std::string>();
+
+    /* If there is a failure in opening a session, there is no work to do. */
+    int ret = call_log_entry["return"]["return_val"].get<int>();
+    if (ret != 0)
+        throw "Cannot close the session for session_id (" + session_id + ") as return value in the call log is: " + std::to_string(ret);
+
     session_simulator *session = get_session(session_id);
 
     /* Remove the session from the connection and the session map. */
@@ -97,9 +109,13 @@ call_log_manager::call_log_open_session(const json &call_log_entry)
 
     /* session_id should not be empty. */
     assert(!session_id.empty());
-
     /* session_id should not already exist in session map. */
     assert(_session_map.find(session_id) == _session_map.end());
+
+    /* If there is a failure in opening a session, there is no work to do. */
+    int ret = call_log_entry["return"]["return_val"].get<int>();
+    if (ret != 0)
+        throw "Cannot open the session for session_id (" + session_id + ") as return value in the call log is: " + std::to_string(ret);
 
     session_simulator *session = _conn->open_session();
     /*
@@ -192,8 +208,8 @@ call_log_manager::process_call_log_entry(const json &call_log_entry)
             call_log_set_timestamp(call_log_entry);
             break;
         }
-    } catch (const std::exception &e) {
-        std::cerr << "exception: " << e.what() << std::endl;
+    } catch (std::string &exception_str) {
+        std::cerr << "exception: " << exception_str << std::endl;
     }
 }
 
