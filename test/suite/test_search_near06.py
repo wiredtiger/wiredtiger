@@ -26,112 +26,68 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
+# test_search_near06.py
+#       Search_near with a key past the end much like search_near_05, but
+#       this time use timestamps to ensure the update isn't visible.
 
 import wttest
 from wtscenario import make_scenarios
 
-# test_search_near04.py
-# This test checks that a search_near call with the prefix key
-# configuration will correctly find a key even in cases where the key
-# range is split across multiple pages.
-# FIXME-WT-9142 Remove once prefix search near is deprecated.
-class test_search_near04(wttest.WiredTigerTestCase):
+class test_search_near06(wttest.WiredTigerTestCase):
+    uri = 'file:test_search_near06'
+
     key_format_values = [
-        ('var_string', dict(key_format='S')),
-        ('byte_array', dict(key_format='u')),
+        ('fix', dict(key_format='r', value_format='8t')),
+        ('var', dict(key_format='r', value_format='I')),
+        ('row', dict(key_format='Q', value_format='I')),
     ]
 
-    scenarios = make_scenarios(key_format_values)
+    ops = [
+        ('update', dict(delete=False)),
+        ('delete', dict(delete=True)),
+    ]
 
-    def check_key(self, key):
-        if self.key_format == 'u':
-            return key.encode()
+    scenarios = make_scenarios(key_format_values, ops)
+
+    def evict(self, value):
+        evict_cursor = self.session.open_cursor(self.uri, None, "debug=(release_evict)")
+        self.session.begin_transaction()
+        for i in range(1, 1001):
+            v = evict_cursor[i]
+            self.assertEqual(v, value)
+            self.assertEqual(evict_cursor.reset(), 0)
+        self.session.rollback_transaction()
+
+    def test_implicit_record_cursor_insert_next(self):
+        self.session.create(self.uri, 'key_format={},value_format={}'.format(self.key_format, self.value_format))
+        cursor = self.session.open_cursor(self.uri)
+        value1 = 1
+        value2 = 2
+        for i in range(1, 1001):
+            cursor[i] = value1
+
+        # Do a checkpoint to write everything to the disk image
+        self.session.checkpoint()
+        # Evict the data
+        self.evict(value1)
+
+        # Update or delete the last key
+        if self.delete:
+            self.session.begin_transaction()
+            cursor.set_key(1000)
+            cursor.remove()
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
         else:
-            return key
+            self.session.begin_transaction()
+            cursor[1000] = value2
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
 
-    def test_search_near(self):
-        uri = 'table:test_search_near'
-        self.session.create(uri, 'key_format={},value_format=S'.format(self.key_format))
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(5))
+        cursor.set_key(1100)
+        cursor.search_near()
 
-        # Make the keys big enough to span over multiple pages.
-        # key_size can be set to a lower value so only one page is used and search_near works.
-        key_size = 200
+        self.assertEqual(cursor.get_key(), 1000)
+        self.assertEqual(cursor.get_value(), value1)
 
-        cursor = self.session.open_cursor(uri)
-        cursor2 = self.session.open_cursor(uri, None, "debug=(release_evict=true)")
-        
-        # Basic character array.
-        l = "abcdefghijklmnopqrstuvwxyz"
-
-        # Insert keys aaa -> aaz with timestamp 200.
-        prefix = "aa"
-        self.session.begin_transaction()
-        for k in range (0, 25):
-            key = prefix + l[k]
-            cursor[key * key_size] = key * key_size
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(200))
-
-        # Insert key aaz with timestamp 50.
-        self.session.begin_transaction()
-        key = prefix + "z"
-        cursor[key * key_size] = key * key_size
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(50))
-
-        # Evict the whole range.
-        # If eviction is not performed, things stay in memory and it works fine.
-        for k in range (0, 26):
-            cursor2.set_key((prefix + l[k]) * key_size)
-            self.assertEqual(cursor2.search(), 0)
-            self.assertEqual(cursor2.reset(), 0)
-
-        # Start a transaction at timestamp 100, aaz should be the only key that is visible.
-        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(100))
-        cursor3 = self.session.open_cursor(uri)
-
-        # Prefix search is disabled by default.
-        # Search near should always return the only visible key.
-        expected_key = "aaz" * key_size
-        cursor3.set_key("aa")
-        self.assertEqual(cursor3.search_near(), 1)
-        self.assertEqual(cursor3.get_key(), self.check_key(expected_key))
-
-        cursor3.set_key("az")
-        self.assertEqual(cursor3.search_near(), -1)
-        self.assertEqual(cursor3.get_key(), self.check_key(expected_key))
-
-        cursor3.set_key("aaz" * key_size)
-        self.assertEqual(cursor3.search_near(), 0)
-        self.assertEqual(cursor3.get_key(), self.check_key(expected_key))
-
-        cursor3.set_key("aazab")
-        self.assertEqual(cursor3.search_near(), -1)
-        self.assertEqual(cursor3.get_key(), self.check_key(expected_key))
-
-        # Enable prefix search.
-        cursor3.reconfigure("prefix_search=true")
-        
-        # The only visible key is aaz.
-        # If we try to do a search_near() with the prefixes "a" or "aa" without the changes
-        # introduced in WT-7912, we fail to find the key aaz although it is a valid result.
-        # This is because we traverse off the page and early exit before seeing the visible
-        # key that is on another page. However, if we specify "aaz" as a prefix, we are
-        # able to find that as we are traversing on the same page.
-        # All three of the prefixes "a", "aa" and "aaz" should lead us to find "aaz".
-        cursor3.set_key("a")
-        self.assertEqual(cursor3.search_near(), 1)
-        self.assertEqual(cursor3.get_key(), self.check_key(expected_key))
-
-        cursor3.set_key("aa")
-        self.assertEqual(cursor3.search_near(), 1)
-        self.assertEqual(cursor3.get_key(), self.check_key(expected_key))
-
-        cursor3.set_key("aaz")
-        self.assertEqual(cursor3.search_near(), 1)
-        self.assertEqual(cursor3.get_key(), self.check_key(expected_key))
-
-        cursor3.set_key("aaz" * key_size)
-        self.assertEqual(cursor3.search_near(), 0)
-        self.assertEqual(cursor3.get_key(), self.check_key(expected_key))
-
-        cursor3.close()
-        self.session.commit_transaction()
+if __name__ == '__main__':
+    wttest.run()
