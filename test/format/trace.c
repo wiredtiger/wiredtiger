@@ -32,8 +32,7 @@
     if ((p = strstr(copy, cmd)) != NULL) { \
         if (strcmp(cmd, "all") == 0)       \
             all = true;                    \
-        else                               \
-            FLD_SET(g.trace_flags, flag);  \
+        FLD_SET(g.trace_flags, flag);      \
         memset(p, ' ', strlen(cmd));       \
         continue;                          \
     }
