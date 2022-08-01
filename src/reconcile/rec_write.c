@@ -64,14 +64,6 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     /* It's an error to be called with a clean page. */
     WT_ASSERT(session, __wt_page_is_modified(page));
 
-#if 0
-    if (F_ISSET(ref, WT_REF_FLAG_WAS_DELETED) && page->modify->page_state < WT_PAGE_DIRTY)
-        fprintf(stderr, "Reconciling a page that was deleted after it has been reinstantiated, "
-                "without having additional changes added. Or possibly re-reconciling a page "
-                "without further changes. Mode %s, table: %s\n",
-                LF_ISSET(WT_REC_EVICT) ? "evict" : "checkpoint", session->dhandle->name);
-#endif
-
     /*
      * Reconciliation acquires and releases pages, and in rare cases that page release triggers
      * eviction. If the page is dirty, eviction can trigger reconciliation, and we re-enter this
@@ -292,16 +284,6 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     addr = ref->addr;
 #endif
 
-#if 0
-    {
-        if (!r->update_used  && WT_SESSION_IS_CHECKPOINT(session) && !__wt_ref_is_root(ref)) {
-            fprintf(stdout,
-                    "Checkpoint reconciled empty %spage in %s tree, state: %" PRIu32 "\n",
-                    __wt_ref_is_root(ref) ? "root " : "", btree->dhandle->name,
-                    page->modify->page_state);
-        }
-    }
-#endif
     /*
      * If we fail the reconciliation prior to calling __rec_write_wrapup then we can clean up our
      * state and return an error.
@@ -424,14 +406,10 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
          * If the page state changed, the page has been written since reconciliation started and
          * remains dirty (that can't happen when evicting, the page is exclusively locked).
          */
-        if (__wt_atomic_cas32(&mod->page_state, WT_PAGE_DIRTY_FIRST, WT_PAGE_CLEAN)) {
+        if (__wt_atomic_cas32(&mod->page_state, WT_PAGE_DIRTY_FIRST, WT_PAGE_CLEAN))
             __wt_cache_dirty_decr(session, page);
-        } else {
+        else
             WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT));
-            if (!WT_IS_METADATA(btree->dhandle))
-                fprintf(stderr, "Didn't mark %s page clean in %s tree after reconciliation\n",
-                  r->update_used ? "empty" : "non-empty", btree->dhandle->name);
-        }
     }
 }
 

@@ -305,9 +305,6 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 
     WT_STAT_CONN_DATA_INCR(session, cache_read_deleted);
 
-    /* Remember that a ref came through this path */
-    F_SET(ref, WT_REF_FLAG_WAS_DELETED);
-
     /* Track the prepared, fast-truncate pages we've had to instantiate. */
     if (ref->ft_info.del != NULL && ref->ft_info.del->prepare_state != WT_PREPARE_INIT)
         WT_STAT_CONN_DATA_INCR(session, cache_read_deleted_prepared);

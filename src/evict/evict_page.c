@@ -324,9 +324,8 @@ __evict_page_clean_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     if (ref->addr == NULL) {
         WT_WITH_PAGE_INDEX(session, ret = __evict_delete_ref(session, ref, flags));
         WT_RET_BUSY_OK(ret);
-    } else {
+    } else
         WT_REF_SET_STATE(ref, WT_REF_DISK);
-    }
 
     return (0);
 }
