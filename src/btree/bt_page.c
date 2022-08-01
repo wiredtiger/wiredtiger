@@ -85,7 +85,11 @@ __wt_page_alloc(
         WT_INTL_INDEX_SET(page, pindex);
         if (alloc_refs)
             for (i = 0; i < pindex->entries; ++i) {
+                WT_REF *ref;
+                ref = &pindex->index[i];
                 WT_ERR(__wt_calloc_one(session, &pindex->index[i]));
+                WT_ASSERT(session, ref->state == WT_REF_DISK);
+                WT_ASSERT(session, ref->addr == NULL);
                 size += sizeof(WT_REF);
             }
         if (0) {
