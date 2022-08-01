@@ -155,9 +155,9 @@ __wt_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM *key, u
 
     if (upper) {
         WT_ASSERT(session, WT_DATA_IN_ITEM(&cursor->upper_bound));
-        if (S2BT(session)->type == BTREE_ROW)
+        if (CUR2BT(cursor)->type == BTREE_ROW)
             WT_RET(
-              __wt_compare(session, S2BT(session)->collator, key, &cursor->upper_bound, &cmpp));
+              __wt_compare(session, CUR2BT(cursor)->collator, key, &cursor->upper_bound, &cmpp));
         else
             /* Unpack the raw recno buffer into integer variable. */
             WT_RET(__wt_struct_unpack(
@@ -165,15 +165,15 @@ __wt_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM *key, u
 
         if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE))
             *key_out_of_bounds =
-              S2BT(session)->type == BTREE_ROW ? (cmpp > 0) : (recno > recno_bound);
+              CUR2BT(cursor)->type == BTREE_ROW ? (cmpp > 0) : (recno > recno_bound);
         else
             *key_out_of_bounds =
-              S2BT(session)->type == BTREE_ROW ? (cmpp >= 0) : (recno >= recno_bound);
+              CUR2BT(cursor)->type == BTREE_ROW ? (cmpp >= 0) : (recno >= recno_bound);
     } else {
         WT_ASSERT(session, WT_DATA_IN_ITEM(&cursor->lower_bound));
-        if (S2BT(session)->type == BTREE_ROW)
+        if (CUR2BT(cursor)->type == BTREE_ROW)
             WT_RET(
-              __wt_compare(session, S2BT(session)->collator, key, &cursor->lower_bound, &cmpp));
+              __wt_compare(session, CUR2BT(cursor)->collator, key, &cursor->lower_bound, &cmpp));
         else
             /* Unpack the raw recno buffer into integer variable. */
             WT_RET(__wt_struct_unpack(
@@ -181,10 +181,10 @@ __wt_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM *key, u
 
         if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE))
             *key_out_of_bounds =
-              S2BT(session)->type == BTREE_ROW ? (cmpp < 0) : (recno < recno_bound);
+              CUR2BT(cursor)->type == BTREE_ROW ? (cmpp < 0) : (recno < recno_bound);
         else
             *key_out_of_bounds =
-              S2BT(session)->type == BTREE_ROW ? (cmpp <= 0) : (recno <= recno_bound);
+              CUR2BT(cursor)->type == BTREE_ROW ? (cmpp <= 0) : (recno <= recno_bound);
     }
     return (0);
 }

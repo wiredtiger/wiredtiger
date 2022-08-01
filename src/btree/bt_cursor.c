@@ -309,9 +309,9 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
                 if (key == NULL) {
                     tmp_key.data = WT_INSERT_KEY(cbt->ins);
                     tmp_key.size = WT_INSERT_KEY_SIZE(cbt->ins);
-                }
-                WT_RET(__btcur_bounds_contains_key(session, &cbt->iface,
-                  key != NULL ? key : &tmp_key, WT_RECNO_OOB, &key_out_of_bounds, NULL));
+                    WT_RET(__btcur_bounds_contains_key(session, &cbt->iface, &tmp_key, WT_RECNO_OOB, &key_out_of_bounds, NULL));
+                } else 
+                    WT_RET(__btcur_bounds_contains_key(session, &cbt->iface, key, WT_RECNO_OOB, &key_out_of_bounds, NULL));
             } else
                 WT_RET(__btcur_bounds_contains_key(
                   session, &cbt->iface, NULL, cbt->recno, &key_out_of_bounds, NULL));
@@ -2272,7 +2272,7 @@ __wt_btcur_bounds_position(
     WT_ASSERT(session, WT_DATA_IN_ITEM(bound));
     __wt_cursor_set_raw_key(cursor, bound);
 
-    if (S2BT(session)->type == BTREE_ROW) {
+    if (CUR2BT(cursor)->type == BTREE_ROW) {
         WT_RET(__cursor_row_search(cbt, false, NULL, NULL));
         /*
          * If there's an exact match, the row-store search function built the key in the cursor's
