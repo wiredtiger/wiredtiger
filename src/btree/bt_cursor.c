@@ -304,8 +304,8 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
      */
     if (cbt->ins != NULL) {
         if (WT_CURSOR_BOUNDS_SET(&cbt->iface)) {
-            /* Get the insert list key. */
             if (btree->type == BTREE_ROW) {
+                /* Get the insert list key. */
                 if (key == NULL) {
                     tmp_key.data = WT_INSERT_KEY(cbt->ins);
                     tmp_key.size = WT_INSERT_KEY_SIZE(cbt->ins);
