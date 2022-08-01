@@ -1813,6 +1813,10 @@ __rec_split_write_supd(
                     upd = page->modify->mod_row_update[WT_ROW_SLOT(page, r->supd[i].rip)];
                 else
                     upd = r->supd[i].ins->upd;
+                /*
+                 * Count the size of the whole update chain for in memory database as there is no
+                 * history store.
+                 */
                 for (; upd != NULL &&
                      ((upd != r->supd[i].onpage_upd && upd != r->supd[i].onpage_tombstone) ||
                        F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
