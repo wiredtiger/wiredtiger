@@ -28,6 +28,7 @@
 
 #include "call_log_manager.h"
 
+#include <cassert>
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -60,13 +61,11 @@ call_log_manager::api_map_setup()
 session_simulator *
 call_log_manager::get_session(const std::string &session_id)
 {
-    /*
-     * We should not perform an operation on a session with an ID that does not exist in the session
-     * map.
-     */
-    if (_session_map.find(session_id) == _session_map.end())
-        std::cerr << "Could not perform operation, session does not exist (session ID: "
-                  << session_id << ")" << std::endl;
+    /* session_id should not be empty. */
+    assert(!session_id.empty());
+
+    /* session_id should exist in the map. */
+    assert(_session_map.find(session_id) != _session_map.end());
 
     /* Get the session from the session map. */
     return (_session_map.at(session_id));
@@ -87,10 +86,8 @@ call_log_manager::call_log_close_session(const json &call_log_entry)
     session_simulator *session = get_session(session_id);
 
     /* Remove the session from the connection and the session map. */
-    if (_conn->close_session(session))
-        _session_map.erase(session_id);
-    else
-        std::cerr << "Could not close the session (session ID: " << session_id << ")" << std::endl;
+    _conn->close_session(session);
+    _session_map.erase(session_id);
 }
 
 void
@@ -98,12 +95,11 @@ call_log_manager::call_log_open_session(const json &call_log_entry)
 {
     const std::string session_id = call_log_entry["session_id"].get<std::string>();
 
-    /* We should not open sessions with an ID that is already in use. */
-    if (_session_map.find(session_id) != _session_map.end()) {
-        std::cerr << "Could not open duplicate session, session already exists (session ID: "
-                  << session_id << ")" << std::endl;
-        return;
-    }
+    /* session_id should not be empty. */
+    assert(!session_id.empty());
+
+    /* session_id should not already exist in session map. */
+    assert(_session_map.find(session_id) == _session_map.end());
 
     session_simulator *session = _conn->open_session();
     /*
@@ -118,7 +114,6 @@ call_log_manager::call_log_query_timestamp(const json &call_log_entry)
 {
     /* Convert the config char * to a string object. */
     std::string config = call_log_entry["input"]["config"].get<std::string>();
-    std::string hex_ts;
 
     /*
      * A generated call log without a configuration string in the set timestamp entry will have the
@@ -127,6 +122,7 @@ call_log_manager::call_log_query_timestamp(const json &call_log_entry)
     if (config == "(null)")
         config = "get=all_durable";
 
+    std::string hex_ts;
     if (_conn->query_timestamp(config, hex_ts)) {
         /*
          * Ensure that the timestamp returned from query timestamp is equal to the expected

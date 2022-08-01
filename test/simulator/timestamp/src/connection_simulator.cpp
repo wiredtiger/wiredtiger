@@ -29,6 +29,7 @@
 #include "connection_simulator.h"
 
 #include <algorithm>
+#include <cassert>
 #include <iostream>
 #include <map>
 #include <sstream>
@@ -66,21 +67,17 @@ connection_simulator::open_session()
     return (session);
 }
 
-bool
+void
 connection_simulator::close_session(session_simulator *session)
 {
-    std::vector<session_simulator *>::iterator position =
-      std::find(_session_list.begin(), _session_list.end(), session);
+    auto position = std::find(_session_list.begin(), _session_list.end(), session);
 
-    /* If session doesn't exist in the session_list return false. */
-    if (position == _session_list.end()) {
-        std::cerr << "Error: session is not present in the session list" << std::endl;
-        return (false);
-    }
+    /* The session to be closed should be present in the session list. */
+    assert(position != _session_list.end());
 
     _session_list.erase(position);
     delete session;
-    return (true);
+    session = NULL;
 }
 
 bool
