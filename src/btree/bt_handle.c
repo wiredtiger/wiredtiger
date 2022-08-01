@@ -774,8 +774,8 @@ __wt_btree_new_internal_page(WT_SESSION_IMPL *session, WT_REF *ref)
     btree = S2BT(session);
 
     if (btree->type == BTREE_ROW)
-        internal_type = WT_PAGE_ROW_INT; 
-    else 
+        internal_type = WT_PAGE_ROW_INT;
+    else
         internal_type = WT_PAGE_COL_INT;
 
     WT_RET(__wt_page_alloc(session, internal_type, 1, true, &ref->page));
