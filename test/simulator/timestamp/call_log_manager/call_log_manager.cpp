@@ -228,7 +228,7 @@ call_log_manager::process_call_log_entry(const json &call_log_entry)
             break;
         }
     } catch (std::string &exception_str) {
-        std::cerr << "exception: " << exception_str << "\n" << std::endl;
+        std::cerr << "exception: " << exception_str << std::endl << std::endl;
     }
 }
 
