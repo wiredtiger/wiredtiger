@@ -14,7 +14,7 @@
  */
 static inline int
 __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
-  WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, bool supd_restore, size_t upd_memsize)
+  WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, bool supd_restore)
 {
     WT_SAVE_UPD *supd;
 
@@ -35,7 +35,6 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_
     supd->onpage_tombstone = tombstone;
     supd->restore = supd_restore;
     ++r->supd_next;
-    r->supd_memsize += upd_memsize;
     return (0);
 }
 
@@ -401,37 +400,12 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
 }
 
 /*
- * __rec_calc_upd_memsize --
- *     Calculate the saved update size.
- */
-static inline size_t
-__rec_calc_upd_memsize(WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, size_t upd_memsize)
-{
-    WT_UPDATE *upd;
-
-    /*
-     * The total update size only contains uncommitted updates. Add the size for the rest of the
-     * chain.
-     *
-     * FIXME-WT-9182: figure out what should be included in the calculation of the size of the saved
-     * update chains.
-     */
-    if (onpage_upd != NULL) {
-        for (upd = tombstone != NULL ? tombstone : onpage_upd; upd != NULL; upd = upd->next)
-            if (upd->txnid != WT_TXN_ABORTED)
-                upd_memsize += WT_UPDATE_MEMSIZE(upd);
-    }
-    return (upd_memsize);
-}
-
-/*
  * __rec_upd_select --
  *     Select the update to write to disk image.
  */
 static int
 __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd,
-  WT_UPDATE_SELECT *upd_select, WT_UPDATE **first_txn_updp, bool *has_newer_updatesp,
-  size_t *upd_memsizep)
+  WT_UPDATE_SELECT *upd_select, WT_UPDATE **first_txn_updp, bool *has_newer_updatesp)
 {
     WT_UPDATE *upd;
     wt_timestamp_t max_ts;
@@ -461,7 +435,6 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
          * Special handling for application threads evicting their own updates.
          */
         if (!is_hs_page && F_ISSET(r, WT_REC_APP_EVICTION_SNAPSHOT) && txnid == session_txnid) {
-            *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
             *has_newer_updatesp = true;
             continue;
         }
@@ -500,7 +473,6 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
                 return (__wt_set_return(session, EBUSY));
             }
 
-            *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
             *has_newer_updatesp = true;
             continue;
         }
@@ -512,7 +484,6 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
               upd_select->upd == NULL || upd_select->upd->txnid == upd->txnid,
               "Cannot have two different prepared transactions active on the same key");
             if (F_ISSET(r, WT_REC_CHECKPOINT)) {
-                *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
                 *has_newer_updatesp = true;
                 if (upd->start_ts > max_ts)
                     max_ts = upd->start_ts;
@@ -711,7 +682,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
 {
     WT_PAGE *page;
     WT_UPDATE *first_txn_upd, *first_upd, *onpage_upd, *upd;
-    size_t upd_memsize;
     bool has_newer_updates, supd_restore, upd_saved;
 
     /*
@@ -726,7 +696,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
 
     page = r->page;
     first_txn_upd = onpage_upd = upd = NULL;
-    upd_memsize = 0;
     has_newer_updates = supd_restore = upd_saved = false;
 
     /*
@@ -743,8 +712,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
             return (0);
     }
 
-    WT_RET(__rec_upd_select(
-      session, r, first_upd, upd_select, &first_txn_upd, &has_newer_updates, &upd_memsize));
+    WT_RET(__rec_upd_select(session, r, first_upd, upd_select, &first_txn_upd, &has_newer_updates));
 
     /* Keep track of the selected update. */
     upd = upd_select->upd;
@@ -854,9 +822,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         supd_restore = F_ISSET(r, WT_REC_EVICT) &&
           (has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
 
-        upd_memsize = __rec_calc_upd_memsize(onpage_upd, upd_select->tombstone, upd_memsize);
-        WT_RET(__rec_update_save(
-          session, r, ins, rip, onpage_upd, upd_select->tombstone, supd_restore, upd_memsize));
+        WT_RET(
+          __rec_update_save(session, r, ins, rip, onpage_upd, upd_select->tombstone, supd_restore));
 
         /*
          * Mark the selected update (and potentially the tombstone preceding it) as being destined

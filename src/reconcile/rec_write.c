@@ -618,7 +618,6 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
 
     /* The list of saved updates is reused. */
     r->supd_next = 0;
-    r->supd_memsize = 0;
 
     /* The list of pages we've written. */
     r->multi = NULL;
@@ -1744,7 +1743,6 @@ __rec_split_write_supd(
     WT_PAGE *page;
     WT_REC_CHUNK *next;
     WT_SAVE_UPD *supd;
-    WT_UPDATE *upd;
     uint32_t i, j;
     int cmp;
 
@@ -1760,7 +1758,6 @@ __rec_split_write_supd(
     if (last_block) {
         WT_RET(__rec_supd_move(session, multi, r->supd, r->supd_next));
         r->supd_next = 0;
-        r->supd_memsize = 0;
         return (ret);
     }
 
@@ -1801,17 +1798,9 @@ __rec_split_write_supd(
          * the cached list (we maintain the saved updates in sorted order, new saved updates must be
          * appended to the list).
          */
-        r->supd_memsize = 0;
-        for (j = 0; i < r->supd_next; ++j, ++i) {
-            /* Account for the remaining update memory. */
-            if (r->supd[i].ins == NULL)
-                /* Note: ins is never NULL for column-store */
-                upd = page->modify->mod_row_update[WT_ROW_SLOT(page, r->supd[i].rip)];
-            else
-                upd = r->supd[i].ins->upd;
-            r->supd_memsize += __wt_update_list_memsize(upd);
+        for (j = 0; i < r->supd_next; ++j, ++i)
             r->supd[j] = r->supd[i];
-        }
+
         r->supd_next = j;
     }
 
