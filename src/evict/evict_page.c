@@ -491,17 +491,22 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
             /*
              * We can evict any truncation that's committed. However, restrictions in reconciliation
              * mean that it needs to be visible to us when we get there. And unfortunately we are
-             * upstream of the point where eviction threads get snapshots. So, use the following
+             * upstream of the point where eviction threads get snapshots. Plus, application threads
+             * doing eviction can see their own uncommitted truncations. So, use the following
              * logic:
-             *     1. If we already have a snapshot, use it to check visibility.
-             *     2. If we do not but we're an eviction thread, check if the operation is resolved.
-             *        We will get a snapshot shortly and any committed operation will be visible.
-             *     3. Otherwise, check if it is globally visible.
+             *     1. First check if the operation is committed. If not, it's not visible for these
+             *        purposes.
+             *     2. If we already have a snapshot, use it to check visibility.
+             *     3. If we do not but we're an eviction thread, go ahead. We will get a snapshot
+             *        shortly and any committed operation will be visible in it.
+             *     4. Otherwise, check if the operation is globally visible.
              */
-            if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
+            if (!__wt_page_del_committed(child->ft_info.del))
+                visible = false;
+            else if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
                 visible = __wt_page_del_visible(session, child->ft_info.del, false);
             else if (F_ISSET(session, WT_SESSION_EVICTION))
-                visible = __wt_page_del_committed(child->ft_info.del);
+                visible = true;
             else
                 visible = __wt_page_del_visible(session, child->ft_info.del, true);
             child->state = WT_REF_DELETED;
