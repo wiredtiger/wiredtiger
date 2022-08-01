@@ -86,11 +86,12 @@ connection_simulator::query_timestamp(
   const std::string &config, std::string &hex_ts, bool &ts_supported)
 {
     std::string query_timestamp;
+    timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
+
     /* For an empty config default to all_durable. */
     if (config.empty())
         query_timestamp = "all_durable";
     else {
-        timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
         std::map<std::string, std::string> config_map;
 
         /* Throw an error if the config cannot be parsed. */
@@ -135,33 +136,9 @@ connection_simulator::query_timestamp(
         WT_SIM_RET_MSG(EINVAL, "Incorrect config (" + config + ") passed in query timestamp");
 
     /* Convert the timestamp from decimal to hex-decimal. */
-    hex_ts = decimal_to_hex(ts);
+    hex_ts = ts_manager->decimal_to_hex(ts);
 
     return (0);
-}
-
-inline uint64_t
-connection_simulator::hex_to_decimal(const std::string &hex_ts)
-{
-    std::stringstream stream;
-    uint64_t ts;
-
-    stream << hex_ts;
-    stream >> std::hex >> ts;
-
-    return (ts);
-}
-
-inline std::string
-connection_simulator::decimal_to_hex(const u_int64_t ts)
-{
-    std::stringstream stream;
-    std::string hex_ts;
-
-    stream << std::hex << ts;
-    hex_ts = stream.str();
-
-    return (hex_ts);
 }
 
 /* Get the timestamps and decode config map. */
@@ -170,23 +147,24 @@ connection_simulator::decode_timestamp_config_map(std::map<std::string, std::str
   uint64_t &new_oldest_ts, uint64_t &new_stable_ts, uint64_t &new_durable_ts, bool &has_oldest,
   bool &has_stable, bool &has_durable)
 {
+    timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
     auto pos = config_map.find("oldest_timestamp");
     if (pos != config_map.end()) {
-        new_oldest_ts = hex_to_decimal(pos->second);
+        new_oldest_ts = ts_manager->hex_to_decimal(pos->second);
         has_oldest = true;
         config_map.erase(pos);
     }
 
     pos = config_map.find("stable_timestamp");
     if (pos != config_map.end()) {
-        new_stable_ts = hex_to_decimal(pos->second);
+        new_stable_ts = ts_manager->hex_to_decimal(pos->second);
         has_stable = true;
         config_map.erase(pos);
     }
 
     pos = config_map.find("durable_timestamp");
     if (pos != config_map.end()) {
-        new_durable_ts = hex_to_decimal(pos->second);
+        new_durable_ts = ts_manager->hex_to_decimal(pos->second);
         has_durable = true;
         config_map.erase(pos);
     }

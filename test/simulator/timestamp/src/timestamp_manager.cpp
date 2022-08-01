@@ -45,6 +45,30 @@ timestamp_manager::get_timestamp_manager()
     return (_timestamp_manager_instance);
 }
 
+uint64_t
+timestamp_manager::hex_to_decimal(const std::string &hex_ts)
+{
+    std::stringstream stream;
+    uint64_t ts;
+
+    stream << hex_ts;
+    stream >> std::hex >> ts;
+
+    return (ts);
+}
+
+std::string
+timestamp_manager::decimal_to_hex(const u_int64_t ts)
+{
+    std::stringstream stream;
+    std::string hex_ts;
+
+    stream << std::hex << ts;
+    hex_ts = stream.str();
+
+    return (hex_ts);
+}
+
 /* Parse config string to a config map. */
 int
 timestamp_manager::parse_config(
@@ -85,7 +109,7 @@ timestamp_manager::validate_oldest_and_stable_ts(
         if ((int64_t)new_oldest_ts <= 0)
             WT_SIM_RET_MSG(EINVAL,
               "Illegal timestamp value, 'oldest timestamp' : '" +
-                std::to_string((int64_t)new_oldest_ts) + "', is less than or equal to zero.");
+                std::to_string((int64_t)new_oldest_ts) + "' is less than or equal to zero.");
         /* It is a no-op to set the new oldest timestamps behind the current oldest timestamp. */
         if (new_oldest_ts <= conn->get_oldest_ts())
             has_oldest = false;
@@ -97,7 +121,7 @@ timestamp_manager::validate_oldest_and_stable_ts(
         if ((int64_t)new_stable_ts <= 0)
             WT_SIM_RET_MSG(EINVAL,
               "Illegal timestamp value, 'stable timestamp' : '" +
-                std::to_string((int64_t)new_stable_ts) + "', is less than or equal to zero.");
+                std::to_string((int64_t)new_stable_ts) + "' is less than or equal to zero.");
         /* It is a no-op to set the new stable timestamps behind the current stable timestamp. */
         if (new_stable_ts <= conn->get_stable_ts())
             has_stable = false;
@@ -154,7 +178,7 @@ timestamp_manager::validate_durable_ts(
     if ((int64_t)new_durable_ts <= 0)
         WT_SIM_RET_MSG(EINVAL,
           "Illegal timestamp value, 'durable timestamp' : '" +
-            std::to_string((int64_t)new_durable_ts) + "', is less than or equal to zero.");
+            std::to_string((int64_t)new_durable_ts) + "' is less than or equal to zero.");
 
     return (0);
 }

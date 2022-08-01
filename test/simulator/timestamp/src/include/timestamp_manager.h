@@ -37,7 +37,11 @@ class timestamp_manager {
     public:
     static timestamp_manager &get_timestamp_manager();
     int parse_config(const std::string &, std::map<std::string, std::string> &);
+    uint64_t hex_to_decimal(const std::string &);
+    std::string decimal_to_hex(const u_int64_t);
+
     /* Methods for validating timestamps */
+    public:
     int validate_oldest_and_stable_ts(uint64_t &, uint64_t &, bool &, bool &);
     int validate_durable_ts(const uint64_t &, const bool &) const;
 
