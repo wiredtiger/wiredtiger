@@ -49,9 +49,17 @@ class call_log_manager {
     void process_call_log();
 
     private:
-    void process_call_log_entry(json);
+    void process_call_log_entry(const json &);
     void api_map_setup();
-    session_simulator *get_session(const std::string);
+    session_simulator *get_session(const std::string &);
+
+    private:
+    void call_log_begin_transaction(const json &);
+    void call_log_close_session(const json &);
+    void call_log_open_session(const json &);
+    void call_log_query_timestamp(const json &);
+    void call_log_rollback_transaction(const json &);
+    void call_log_set_timestamp(const json &);
 
     /* Member variables */
     private:

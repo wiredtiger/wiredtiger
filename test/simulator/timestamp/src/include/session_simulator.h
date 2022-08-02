@@ -33,8 +33,8 @@ class session_simulator {
     public:
     session_simulator();
     ~session_simulator() = default;
-    bool begin_transaction();
-    bool rollback_transaction();
+    void begin_transaction();
+    void rollback_transaction();
 
     public:
     /* Deleted functions should generally be public as it results in better error messages. */
