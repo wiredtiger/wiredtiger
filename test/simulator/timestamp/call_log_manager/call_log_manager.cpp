@@ -68,7 +68,9 @@ call_log_manager::get_session(const std::string &session_id)
     assert(_session_map.find(session_id) != _session_map.end());
 
     /* Get the session from the session map. */
-    return (_session_map.at(session_id));
+    session_simulator *session = _session_map.at(session_id);
+    assert(session != nullptr);
+    return session;
 }
 
 void
