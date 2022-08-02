@@ -222,6 +222,8 @@ __compact_walk_internal(WT_SESSION_IMPL *session, WT_REF *parent)
     WT_REF *ref;
     bool overall_progress, skipp;
 
+    WT_ASSERT(session, F_ISSET(parent, WT_REF_FLAG_INTERNAL));
+
     ref = NULL; /* [-Wconditional-uninitialized] */
 
     /*
@@ -361,7 +363,9 @@ __wt_compact(WT_SESSION_IMPL *session)
         if (ref == NULL)
             break;
 
-        WT_WITH_PAGE_INDEX(session, ret = __compact_walk_internal(session, ref));
+        if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+            WT_WITH_PAGE_INDEX(session, ret = __compact_walk_internal(session, ref));
+
         WT_ERR(ret);
     }
 
