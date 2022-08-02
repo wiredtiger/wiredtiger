@@ -50,3 +50,12 @@ session_simulator::rollback_transaction()
 
     _txn_running = false;
 }
+
+void
+session_simulator::commit_transaction()
+{
+    /* Make sure that the transaction from this session is running. */
+    assert(_txn_running);
+
+    _txn_running = false;
+}

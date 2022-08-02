@@ -35,6 +35,7 @@ class session_simulator {
     ~session_simulator() = default;
     void begin_transaction();
     void rollback_transaction();
+    void commit_transaction();
 
     public:
     /* Deleted functions should generally be public as it results in better error messages. */

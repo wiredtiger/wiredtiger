@@ -36,6 +36,7 @@ using json = nlohmann::json;
 enum class api_method {
     begin_transaction,
     close_session,
+    commit_transaction,
     open_session,
     query_timestamp,
     rollback_transaction,
@@ -56,6 +57,7 @@ class call_log_manager {
     private:
     void call_log_begin_transaction(const json &);
     void call_log_close_session(const json &);
+    void call_log_commit_transaction(const json &);
     void call_log_open_session(const json &);
     void call_log_query_timestamp(const json &);
     void call_log_rollback_transaction(const json &);

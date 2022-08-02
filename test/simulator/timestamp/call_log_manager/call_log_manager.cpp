@@ -52,6 +52,7 @@ call_log_manager::api_map_setup()
 {
     _api_map["begin_transaction"] = api_method::begin_transaction;
     _api_map["close_session"] = api_method::close_session;
+    _api_map["commit_transaction"] = api_method::commit_transaction;
     _api_map["open_session"] = api_method::open_session;
     _api_map["query_timestamp"] = api_method::query_timestamp;
     _api_map["rollback_transaction"] = api_method::rollback_transaction;
@@ -104,6 +105,21 @@ call_log_manager::call_log_close_session(const json &call_log_entry)
     /* Remove the session from the connection and the session map. */
     _conn->close_session(session);
     _session_map.erase(session_id);
+}
+
+void
+call_log_manager::call_log_commit_transaction(const json &call_log_entry)
+{
+    const std::string session_id = call_log_entry["session_id"].get<std::string>();
+
+    /* If there is a failure in commit_transaction, there is no work to do. */
+    int ret = call_log_entry["return"]["return_val"].get<int>();
+    if (ret != 0)
+        throw "Cannot commit_transaction for session_id (" + session_id +
+          ") as return value in the call log is: " + std::to_string(ret);
+
+    session_simulator *session = get_session(session_id);
+    session->commit_transaction();
 }
 
 void
@@ -215,6 +231,9 @@ call_log_manager::process_call_log_entry(const json &call_log_entry)
             break;
         case api_method::close_session:
             call_log_close_session(call_log_entry);
+            break;
+        case api_method::commit_transaction:
+            call_log_commit_transaction(call_log_entry);
             break;
         case api_method::open_session:
             call_log_open_session(call_log_entry);
