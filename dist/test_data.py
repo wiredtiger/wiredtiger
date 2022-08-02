@@ -254,5 +254,8 @@ methods = {
     'search_near_02' : Method(test_config),
     'search_near_03' : Method(test_config),
     'test_template' : Method(test_config),
+    'cursor_bound_04' : Method(test_config),
+    'cursor_bound_03' : Method(test_config),
+    'cursor_bound_02' : Method(test_config),
     'bounded_cursor_perf' : Method(test_config),
 }
