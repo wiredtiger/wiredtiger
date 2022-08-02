@@ -98,6 +98,7 @@ connection_simulator::query_timestamp(
         WT_SIM_RET_MSG(ts_manager->parse_config(config, config_map),
           "Incorrect config passed to query timestamp: " + config);
 
+        /* For query timestamp we only expect one config. */
         if (config_map.size() != 1)
             WT_SIM_RET_MSG(EINVAL, "Incorrect config (" + config + ") passed in query timestamp");
 
