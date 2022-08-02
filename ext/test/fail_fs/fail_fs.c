@@ -38,6 +38,7 @@
 #include <execinfo.h>
 
 #include <wiredtiger_ext.h>
+#include "misc.h"
 #include "queue.h"
 
 #define FAIL_FS_GIGABYTE (1024 * 1024 * 1024)
@@ -115,25 +116,37 @@ static int fail_fs_terminate(WT_FILE_SYSTEM *, WT_SESSION *);
 static void
 fail_fs_allocate_lock(pthread_rwlock_t *lockp)
 {
-    assert(pthread_rwlock_init(lockp, NULL) == 0);
+    int ret;
+    ret = pthread_rwlock_init(lockp, NULL);
+    assert(ret == 0);
+    WT_UNUSED(ret); /* Marking unused for release builds. */
 }
 
 static void
 fail_fs_destroy_lock(pthread_rwlock_t *lockp)
 {
-    assert(pthread_rwlock_destroy(lockp) == 0);
+    int ret;
+    ret = pthread_rwlock_destroy(lockp);
+    assert(ret == 0);
+    WT_UNUSED(ret); /* Marking unused for release builds. */
 }
 
 static void
 fail_fs_lock(pthread_rwlock_t *lockp)
 {
-    assert(pthread_rwlock_wrlock(lockp) == 0);
+    int ret;
+    ret = pthread_rwlock_wrlock(lockp);
+    assert(ret == 0);
+    WT_UNUSED(ret); /* Marking unused for release builds. */
 }
 
 static void
 fail_fs_unlock(pthread_rwlock_t *lockp)
 {
-    assert(pthread_rwlock_unlock(lockp) == 0);
+    int ret;
+    ret = pthread_rwlock_unlock(lockp);
+    assert(ret == 0);
+    WT_UNUSED(ret); /* Marking unused for release builds. */
 }
 
 /*
