@@ -130,7 +130,13 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      * insert is forcing re-creation of the name space.
      */
     if (!__wt_ref_addr_copy(session, ref, &addr)) {
-        WT_ASSERT(session, previous_state == WT_REF_DELETED);
+#ifdef HAVE_DIAGNOSTIC
+        bool deleted_or_disk;
+        WT_UNUSED(deleted_or_disk);
+        deleted_or_disk = (previous_state == WT_REF_DELETED) || (previous_state == WT_REF_DISK);
+        if (deleted_or_disk)
+            WT_ASSERT(session, deleted_or_disk);
+#endif
 
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
             WT_ERR(__wt_btree_new_internal_page(session, ref));
