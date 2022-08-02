@@ -61,12 +61,9 @@ std::string
 timestamp_manager::decimal_to_hex(const uint64_t ts)
 {
     std::stringstream stream;
-    std::string hex_ts;
-
     stream << std::hex << ts;
-    hex_ts = stream.str();
 
-    return (hex_ts);
+    return (stream.str());
 }
 
 /* Parse config string to a config map. */
