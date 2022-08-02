@@ -98,15 +98,14 @@ connection_simulator::query_timestamp(
         WT_SIM_RET_MSG(ts_manager->parse_config(config, config_map),
           "Incorrect config passed to query timestamp: " + config);
 
+        if (config_map.size() != 1)
+            WT_SIM_RET_MSG(EINVAL, "Incorrect config (" + config + ") passed in query timestamp");
+
         auto pos = config_map.find("get");
         if (pos == config_map.end())
             WT_SIM_RET_MSG(EINVAL, "Incorrect config (" + config + ") passed in query timestamp");
 
         query_timestamp = pos->second;
-        config_map.erase(pos);
-
-        if (!config_map.empty())
-            WT_SIM_RET_MSG(EINVAL, "Incorrect config (" + config + ") passed in query timestamp");
     }
 
     /*
