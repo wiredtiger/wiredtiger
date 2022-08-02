@@ -58,7 +58,7 @@ timestamp_manager::hex_to_decimal(const std::string &hex_ts)
 }
 
 std::string
-timestamp_manager::decimal_to_hex(const u_int64_t ts)
+timestamp_manager::decimal_to_hex(const uint64_t ts)
 {
     std::stringstream stream;
     std::string hex_ts;
