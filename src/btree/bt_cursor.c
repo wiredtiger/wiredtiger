@@ -65,7 +65,7 @@ __btcur_bounds_search_near_reposition(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
     key_out_of_bounds = upper = false;
 
     WT_ASSERT(session, WT_CURSOR_BOUNDS_SET(cursor));
-    
+
     /*
      * Suppose a caller calls with the search key set to the lower bound but also specifies that the
      * lower bound isn't inclusive. We cannot know which key to set the lower bound to so we would
@@ -76,10 +76,10 @@ __btcur_bounds_search_near_reposition(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
      */
     if (CUR2BT(cursor)->type == BTREE_ROW)
         WT_RET(__btcur_bounds_contains_key(
-        session, cursor, &cursor->key, WT_RECNO_OOB, &key_out_of_bounds, &upper));
+          session, cursor, &cursor->key, WT_RECNO_OOB, &key_out_of_bounds, &upper));
     else
         WT_RET(__btcur_bounds_contains_key(
-        session, cursor, NULL, cursor->recno, &key_out_of_bounds, &upper)); 
+          session, cursor, NULL, cursor->recno, &key_out_of_bounds, &upper));
 
     if (key_out_of_bounds) {
         __wt_cursor_set_raw_key(cursor, upper ? &cursor->upper_bound : &cursor->lower_bound);
