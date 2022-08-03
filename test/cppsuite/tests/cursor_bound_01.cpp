@@ -28,6 +28,7 @@
 
 #include "src/common/constants.h"
 #include "src/common/random_generator.h"
+#include "src/bound/bound.h"
 #include "src/main/test.h"
 
 using namespace test_harness;
@@ -47,61 +48,6 @@ using namespace test_harness;
  */
 class cursor_bound_01 : public test {
     /* Class helper to represent the lower and uppers bounds for the range cursor. */
-    class bound {
-        public:
-        bound()
-        {
-            clear();
-        };
-
-        bound(uint64_t key_size_max, bool lower_bound) : _lower_bound(lower_bound)
-        {
-            auto key_size =
-              random_generator::instance().generate_integer(static_cast<uint64_t>(1), key_size_max);
-            _key = random_generator::instance().generate_random_string(
-              key_size, characters_type::ALPHABET);
-            _inclusive = random_generator::instance().generate_integer(0, 1);
-        }
-
-        bound(uint64_t key_size_max, bool lower_bound, char start)
-            : bound(key_size_max, lower_bound)
-        {
-            _key[0] = start;
-        }
-
-        std::string
-        get_config() const
-        {
-            return "bound=" + std::string(_lower_bound ? "lower" : "upper") +
-              ",inclusive=" + std::string(_inclusive ? "true" : "false");
-        }
-
-        const std::string &
-        get_key() const
-        {
-            return _key;
-        }
-
-        bool
-        get_inclusive() const
-        {
-            return _inclusive;
-        }
-
-        void
-        clear()
-        {
-            _key.clear();
-            _inclusive = false;
-            _lower_bound = false;
-        }
-
-        private:
-        std::string _key;
-        bool _inclusive;
-        bool _lower_bound;
-    };
-
     private:
     bool _reverse_collator_enabled = false;
     const uint64_t MAX_ROLLBACKS = 100;

@@ -26,6 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "src/bound/bound_set.h"
 #include "src/common/constants.h"
 #include "src/common/random_generator.h"
 #include "src/main/test.h"
@@ -186,7 +187,6 @@ class cursor_bound_02 : public test {
         int cmpp = 0;
 
         scoped_cursor cursor = tc->session.open_scoped_cursor(collection_name);
-        testutil_check(cursor->reconfigure(cursor.get(), "prefix_search=true"));
         /* Generate search prefix key of random length between a -> zzz. */
         srch_key = random_generator::instance().generate_random_string(
           srchkey_len, characters_type::ALPHABET);
@@ -202,7 +202,8 @@ class cursor_bound_02 : public test {
         tc->txn.begin("read_timestamp=" + tc->tsm->decimal_to_hex(10));
         if (tc->txn.active()) {
             cursor->set_key(cursor.get(), srch_key.c_str());
-            testutil_check(cursor->bound(cursor.get(), BOUND_ACTION_SET + "," + BOUND_UPPER));
+            bound_set prefix_bounds = bound_set(srch_key);
+            prefix_bounds.apply_bounds(cursor);
             cursor->set_key(cursor.get(), srch_key.c_str());
             testutil_assert(cursor->search_near(cursor.get(), &cmpp) == WT_NOTFOUND);
             tc->txn.add_op();

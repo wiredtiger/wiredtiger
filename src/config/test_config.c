@@ -166,6 +166,7 @@ static const WT_CONFIG_CHECK confchk_cursor_bound_02[] = {
   {"metrics_monitor", "category", NULL, NULL, confchk_metrics_monitor_subconfigs, 6},
   {"operation_tracker", "category", NULL, NULL, confchk_operation_tracker_subconfigs, 4},
   {"reverse_collator", "boolean", NULL, NULL, NULL, 0},
+  {"search_near_threads", "string", NULL, NULL, NULL, 0},
   {"statistics_config", "category", NULL, NULL, confchk_statistics_config_subconfigs, 2},
   {"timestamp_manager", "category", NULL, NULL, confchk_timestamp_manager_subconfigs, 4},
   {"workload_manager", "category", NULL, NULL, confchk_workload_manager_subconfigs, 9},
@@ -400,22 +401,22 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "save=false),stat_db_size=(max=1,min=0,postrun=false,"
     "runtime=false,save=false)),operation_tracker=(enabled=true,"
     "op_rate=1s,tracking_key_format=QSQ,tracking_value_format=iS),"
-    "reverse_collator=false,statistics_config=(enable_logging=true,"
-    "type=all),timestamp_manager=(enabled=true,oldest_lag=1,"
-    "op_rate=1s,stable_lag=1),"
-    "workload_manager=(checkpoint_config=(op_rate=60s,thread_count=1)"
-    ",custom_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1"
-    ",min=0),thread_count=0,value_size=5),enabled=true,"
-    "insert_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5),op_rate=1s,"
-    "populate_config=(collection_count=1,key_count_per_collection=0,"
-    "key_size=5,thread_count=1,value_size=5),read_config=(key_size=5,"
-    "op_rate=1s,ops_per_transaction=(max=1,min=0),thread_count=0,"
-    "value_size=5),remove_config=(op_rate=1s,"
-    "ops_per_transaction=(max=1,min=0),thread_count=0),"
-    "update_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5))",
-    confchk_cursor_bound_02, 11},
+    "reverse_collator=false,search_near_threads=10,"
+    "statistics_config=(enable_logging=true,type=all),"
+    "timestamp_manager=(enabled=true,oldest_lag=1,op_rate=1s,"
+    "stable_lag=1),workload_manager=(checkpoint_config=(op_rate=60s,"
+    "thread_count=1),custom_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "enabled=true,insert_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "op_rate=1s,populate_config=(collection_count=1,"
+    "key_count_per_collection=0,key_size=5,thread_count=1,"
+    "value_size=5),read_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5),"
+    "remove_config=(op_rate=1s,ops_per_transaction=(max=1,min=0),"
+    "thread_count=0),update_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5))",
+    confchk_cursor_bound_02, 12},
   {"cursor_bound_03",
     "cache_max_wait_ms=0,cache_size_mb=0,compression_enabled=false,"
     "duration_seconds=0,enable_logging=false,"

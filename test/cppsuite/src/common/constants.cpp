@@ -38,10 +38,6 @@ const std::string TIMESTAMP_MANAGER = "timestamp_manager";
 const std::string WORKLOAD_MANAGER = "workload_manager";
 
 /* Configuration API consts. */
-const std::string BOUND_ACTION_SET = "action=set";
-const std::string BOUND_INCLUSIVE = "inclusive";
-const std::string BOUND_LOWER = "bound=lower";
-const std::string BOUND_UPPER = "bound=upper";
 const std::string CACHE_HS_INSERT = "cache_hs_insert";
 const std::string CACHE_MAX_WAIT_MS = "cache_max_wait_ms";
 const std::string CACHE_SIZE_MB = "cache_size_mb";

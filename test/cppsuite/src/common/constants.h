@@ -41,10 +41,6 @@ extern const std::string TIMESTAMP_MANAGER;
 extern const std::string WORKLOAD_MANAGER;
 
 /* Configuration API consts. */
-extern const std::string BOUND_ACTION_SET;
-extern const std::string BOUND_INCLUSIVE;
-extern const std::string BOUND_LOWER;
-extern const std::string BOUND_UPPER;
 extern const std::string CACHE_HS_INSERT;
 extern const std::string CACHE_MAX_WAIT_MS;
 extern const std::string CACHE_SIZE_MB;

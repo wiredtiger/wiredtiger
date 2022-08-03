@@ -256,6 +256,8 @@ methods = {
     'test_template' : Method(test_config),
     'cursor_bound_04' : Method(test_config),
     'cursor_bound_03' : Method(test_config),
-    'cursor_bound_02' : Method(test_config),
+    'cursor_bound_02' : Method(test_config + [
+                        Config("search_near_threads", 10, r'''
+                            Number of threads that execute search near calls.''')]),
     'bounded_cursor_perf' : Method(test_config),
 }
