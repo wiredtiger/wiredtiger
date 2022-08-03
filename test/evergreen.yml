@@ -2333,7 +2333,8 @@ tasks:
           <<: *configure_flags_tiered_storage_s3
       - func: "run tiered storage test"
         vars:
-          python_binary: venv/bin/python3 # Set this in case of a core to get the correct python binary.
+          # Set this in case of a core to get the correct python binary.
+          python_binary: $(pwd)/venv/bin/python3
           tiered_storage_test_name: tiered
   - name: tiered-test-small
     tags: ["pull_request", "python", "ext"]
@@ -2344,7 +2345,8 @@ tasks:
           <<: *configure_flags_tiered_storage_s3
       - func: "run tiered storage test"
         vars:
-          python_binary: venv/bin/python3  # Set this in case of a core to get the correct python binary.
+          # Set this in case of a core to get the correct python binary.
+          python_binary: $(pwd)/venv/bin/python3
           tiered_storage_test_name: tiered06
   - name: tiered-unittest-test
     tags: ["pull_request", "ext"]
