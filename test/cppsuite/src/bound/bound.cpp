@@ -51,8 +51,7 @@ bound::bound(uint64_t key_size_max, bool lower_bound) : _lower_bound(lower_bound
     _inclusive = random_generator::instance().generate_integer(0, 1);
 }
 
-bound::bound(uint64_t key_size_max, bool lower_bound, char start)
-    : bound(key_size_max, lower_bound)
+bound::bound(uint64_t key_size_max, bool lower_bound, char start) : bound(key_size_max, lower_bound)
 {
     _key[0] = start;
 }

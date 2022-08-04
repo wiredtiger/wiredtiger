@@ -260,8 +260,8 @@ class cursor_bound_02 : public test {
         while (tc->running()) {
             metrics_monitor::get_stat(
               tc->stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &prev_entries_stat);
-            metrics_monitor::get_stat(tc->stat_cursor,
-              WT_STAT_CONN_CURSOR_BOUNDS_NEXT_EARLY_EXIT, &prev_prefix_stat);
+            metrics_monitor::get_stat(
+              tc->stat_cursor, WT_STAT_CONN_CURSOR_BOUNDS_NEXT_EARLY_EXIT, &prev_prefix_stat);
 
             thread_manager tm;
             for (uint64_t i = 0; i < num_threads; ++i) {

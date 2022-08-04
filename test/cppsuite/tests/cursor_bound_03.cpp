@@ -191,7 +191,7 @@ class cursor_bound_03 : public test {
                   prefix_size, characters_type::ALPHABET);
 
                 /* Call search near with the prefix cursor. */
-                bound_set prefix_bound = bound_set(generated_prefix.c_str());
+                bound_set prefix_bound = bound_set(generated_prefix);
                 prefix_bound.apply(cursor_prefix);
                 cursor_prefix->set_key(cursor_prefix.get(), generated_prefix.c_str());
                 ret = cursor_prefix->search_near(cursor_prefix.get(), &exact_prefix);

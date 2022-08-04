@@ -27,6 +27,7 @@
  */
 #pragma once
 #include <string>
+
 namespace test_harness {
 class bound {
     public:

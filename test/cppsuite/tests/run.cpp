@@ -138,6 +138,12 @@ run_test(const std::string &test_name, const std::string &config, const std::str
         cache_resize(args).run();
     else if (test_name == "cursor_bound_01")
         cursor_bound_01(args).run();
+    else if (test_name == "cursor_bound_02")
+        cursor_bound_02(args).run();
+    else if (test_name == "cursor_bound_03")
+        cursor_bound_03(args).run();
+    else if (test_name == "cursor_bound_04")
+        cursor_bound_04(args).run();
     else if (test_name == "hs_cleanup")
         hs_cleanup(args).run();
     else if (test_name == "operations_test")
@@ -150,12 +156,6 @@ run_test(const std::string &test_name, const std::string &config, const std::str
         search_near_03(args).run();
     else if (test_name == "test_template")
         test_template(args).run();
-    else if (test_name == "cursor_bound_04")
-        cursor_bound_04(args).run();
-    else if (test_name == "cursor_bound_03")
-        cursor_bound_03(args).run();
-    else if (test_name == "cursor_bound_02")
-        cursor_bound_02(args).run();
     else {
         test_harness::logger::log_msg(LOG_ERROR, "Test not found: " + test_name);
         error_code = -1;
@@ -178,8 +178,8 @@ main(int argc, char *argv[])
 {
     std::string cfg, config_filename, current_cfg, current_test_name, test_name, wt_open_config;
     int64_t error_code = 0;
-    const std::vector<std::string> all_tests = {"cursor_bound_04", "cursor_bound_03",
-      "cursor_bound_02", "bounded_cursor_perf", "burst_inserts", "cache_resize", "cursor_bound_01",
+    const std::vector<std::string> all_tests = {"bounded_cursor_perf", "burst_inserts",
+      "cache_resize", "cursor_bound_01", "cursor_bound_02", "cursor_bound_03", "cursor_bound_04",
       "hs_cleanup", "operations_test", "search_near_01", "search_near_02", "search_near_03",
       "test_template"};
 

@@ -204,7 +204,8 @@ class cursor_bound_01 : public test {
         bound lower_bound, upper_bound;
 
         testutil_check(range_cursor->reset(range_cursor.get()));
-        bound_action action = static_cast<bound_action>(random_generator::instance().generate_integer(0, 3));
+        bound_action action =
+          static_cast<bound_action>(random_generator::instance().generate_integer(0, 3));
         if (action == bound_action::NO_BOUNDS)
             testutil_check(range_cursor->bound(range_cursor.get(), "action=clear"));
 
