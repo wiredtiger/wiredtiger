@@ -66,6 +66,15 @@ timestamp_manager::decimal_to_hex(const uint64_t ts)
     return (stream.str());
 }
 
+/* Remove leading and trailing spaces from a string. */
+std::string
+timestamp_manager::trim(std::string str)
+{
+    str.erase(str.find_last_not_of(" ") + 1);
+    str.erase(0, str.find_first_not_of(" "));
+    return str;
+}
+
 /* Parse config string to a config map. */
 int
 timestamp_manager::parse_config(
@@ -78,7 +87,7 @@ timestamp_manager::parse_config(
         int pos = token.find('=');
         if (pos == -1)
             return (EINVAL);
-        config_map.insert({token.substr(0, pos), token.substr(pos + 1)});
+        config_map.insert({trim(token.substr(0, pos)), trim(token.substr(pos + 1))});
     }
     return (0);
 }

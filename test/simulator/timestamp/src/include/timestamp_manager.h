@@ -45,6 +45,9 @@ class timestamp_manager {
     int validate_oldest_and_stable_ts(uint64_t &, uint64_t &, bool &, bool &);
     int validate_durable_ts(const uint64_t &, const bool &) const;
 
+    private:
+    std::string trim(std::string);
+
     /* No copies of the singleton allowed. */
     private:
     timestamp_manager();
