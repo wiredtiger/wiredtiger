@@ -31,6 +31,7 @@
 
 #include "src/common/constants.h"
 #include "src/common/random_generator.h"
+
 namespace test_harness {
 bound::bound()
 {
@@ -51,7 +52,7 @@ bound::bound(uint64_t key_size_max, bool lower_bound) : _lower_bound(lower_bound
 }
 
 bound::bound(uint64_t key_size_max, bool lower_bound, char start)
-    : bound::bound(key_size_max, lower_bound)
+    : bound(key_size_max, lower_bound)
 {
     _key[0] = start;
 }

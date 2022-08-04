@@ -51,7 +51,7 @@ class cursor_bound_01 : public test {
     private:
     bool _reverse_collator_enabled = false;
     const uint64_t MAX_ROLLBACKS = 100;
-    enum bounds { NO_BOUNDS, LOWER_BOUND_SET, UPPER_BOUND_SET, ALL_BOUNDS_SET };
+    enum bound_choice { NO_BOUNDS, LOWER_BOUND_SET, UPPER_BOUND_SET, ALL_BOUNDS_SET };
 
     public:
     cursor_bound_01(const test_args &args) : test(args)

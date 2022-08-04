@@ -43,7 +43,7 @@ class bound_set {
     /* Construct a bound set given two bounds. */
     bound_set(bound lower, bound upper);
     /* Construct a prefix bound set given a key. */
-    bound_set(const std::string &key);
+    explicit bound_set(const std::string &key);
 
     /* Apply the bounds to a cursor. */
     void apply(scoped_cursor &cursor) const;

@@ -37,15 +37,15 @@
 #include "burst_inserts.cpp"
 #include "cache_resize.cpp"
 #include "cursor_bound_01.cpp"
+#include "cursor_bound_02.cpp"
+#include "cursor_bound_03.cpp"
+#include "cursor_bound_04.cpp"
 #include "hs_cleanup.cpp"
 #include "operations_test.cpp"
 #include "search_near_01.cpp"
 #include "search_near_02.cpp"
 #include "search_near_03.cpp"
 #include "test_template.cpp"
-#include "cursor_bound_04.cpp"
-#include "cursor_bound_03.cpp"
-#include "cursor_bound_02.cpp"
 
 extern "C" {
 #include "test_util.h"

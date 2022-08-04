@@ -28,6 +28,7 @@
 
 #include "src/bound/bound_set.h"
 #include "src/common/constants.h"
+#include "src/common/logger.h"
 #include "src/common/random_generator.h"
 #include "src/main/test.h"
 
