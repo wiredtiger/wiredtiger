@@ -35,11 +35,11 @@
 using namespace test_harness;
 
 /*
- * In this test, we want to verify search_near with prefix enabled returns the correct key.
+ * In this test, we want to verify search_near with bounds enabled returns the correct key.
  * During the test duration:
  *  - N threads will keep inserting new random keys
- *  - M threads will execute search_near calls with prefix enabled using random prefixes as well.
- * Each search_near call with prefix enabled is verified using the default search_near.
+ *  - M threads will execute search_near calls with bounds enabled using random prefixes as well.
+ * Each search_near call with bounds enabled is verified using the default search_near.
  */
 class cursor_bound_03 : public test {
     public:
@@ -149,9 +149,9 @@ class cursor_bound_03 : public test {
     read_operation(thread_worker *tc) override final
     {
         /*
-         * Each read operation performs search_near calls with and without prefix enabled on random
+         * Each read operation performs search_near calls with and without bounds enabled on random
          * collections. Each prefix is randomly generated. The result of the search_near call with
-         * prefix enabled is then validated using the search_near call without prefix enabled.
+         * bounds enabled is then validated using the search_near call without bounds enabled.
          */
         logger::log_msg(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
@@ -190,7 +190,7 @@ class cursor_bound_03 : public test {
                 generated_prefix = random_generator::instance().generate_random_string(
                   prefix_size, characters_type::ALPHABET);
 
-                /* Call search near with the prefix cursor. */
+                /* Call search near with the bounded cursor. */
                 bound_set prefix_bound = bound_set(generated_prefix);
                 prefix_bound.apply(cursor_prefix);
                 cursor_prefix->set_key(cursor_prefix.get(), generated_prefix.c_str());
@@ -206,7 +206,7 @@ class cursor_bound_03 : public test {
                 /* Open a cursor with the default configuration on the selected collection. */
                 scoped_cursor cursor_default(tc->session.open_scoped_cursor(coll.name));
 
-                /* Verify the prefix search_near output using the default cursor. */
+                /* Verify the bounded search_near output using the default cursor. */
                 validate_prefix_search_near(
                   ret, exact_prefix, key_prefix_str, cursor_default, generated_prefix);
 
@@ -221,7 +221,7 @@ class cursor_bound_03 : public test {
     }
 
     private:
-    /* Validate prefix search_near call outputs using a cursor without prefix key enabled. */
+    /* Validate bounded search_near call outputs using a cursor without bounds key enabled. */
     void
     validate_prefix_search_near(int ret_prefix, int exact_prefix, const std::string &key_prefix,
       scoped_cursor &cursor_default, const std::string &prefix)
@@ -232,7 +232,7 @@ class cursor_bound_03 : public test {
         int ret_default = cursor_default->search_near(cursor_default.get(), &exact_default);
 
         /*
-         * It is not possible to have a prefix search near call successful and the default search
+         * It is not possible to have a bounded search near call successful and the default search
          * near call unsuccessful.
          */
         testutil_assert(
@@ -244,22 +244,22 @@ class cursor_bound_03 : public test {
             if (ret_prefix == 0)
                 validate_successful_calls(
                   exact_prefix, key_prefix, cursor_default, exact_default, prefix);
-            /* The prefix search near call failed. */
+            /* The bounded search near call failed. */
             else
                 validate_unsuccessful_prefix_call(cursor_default, prefix, exact_default);
         }
     }
 
     /*
-     * Validate a successful prefix enabled search near call using a successful default search near
+     * Validate a successful bound enabled search near call using a successful default search near
      * call.
-     * The exact value set by the prefix search near call has to be either 0 or 1. Indeed, it cannot
-     * be -1 as the key needs to contain the prefix.
+     * The exact value set by the bounded search near call has to be either 0 or 1. Indeed, it
+     * cannot be -1 as the key needs to contain the prefix.
      * - If it is 0, both search near calls should return the same outputs and both cursors should
      * be positioned on the prefix we are looking for.
      * - If it is 1, it will depend on the exact value set by the default search near call which can
      * be -1 or 1. If it is -1, calling next on the default cursor should get us ti the key found by
-     * the prefix search near call. If it is 1, it means both search near calls have found the same
+     * the bounded search near call. If it is 1, it means both search near calls have found the same
      * key that is lexicographically greater than the prefix but still contains the prefix.
      */
     void
@@ -270,8 +270,8 @@ class cursor_bound_03 : public test {
         std::string k_str;
 
         /*
-         * The prefix search near call cannot retrieve a key with a smaller value than the prefix we
-         * searched.
+         * The bounded search near call cannot retrieve a key with a smaller value than the prefix
+         * we searched.
          */
         testutil_assert(exact_prefix >= 0);
 
@@ -292,19 +292,19 @@ class cursor_bound_03 : public test {
         /* keys: a, bb, bba. */
         /* Only bb is not visible. */
         /* Default search_near(bb) returns a, exact < 0. */
-        /* Prefix search_near(bb) returns bba, exact > 0. */
+        /* Bounded search_near(bb) returns bba, exact > 0. */
         if (exact_default < 0) {
             /* The key at the default cursor should not contain the prefix. */
             testutil_assert((key_default_str.substr(0, prefix.size()) != prefix));
 
             /*
-             * The prefix cursor should be positioned at a key lexicographically greater than the
+             * The bounded cursor should be positioned at a key lexicographically greater than the
              * prefix.
              */
             testutil_assert(exact_prefix > 0);
 
             /*
-             * The next key of the default cursor should be equal to the key pointed by the prefix
+             * The next key of the default cursor should be equal to the key pointed by the bounded
              * cursor.
              */
             testutil_assert(cursor_default->next(cursor_default.get()) == 0);
@@ -315,10 +315,10 @@ class cursor_bound_03 : public test {
         /* keys: a, bb, bba */
         /* Case 1: all keys are visible. */
         /* Default search_near(bb) returns bb, exact = 0 */
-        /* Prefix search_near(bb) returns bb, exact = 0 */
+        /* Bounded search_near(bb) returns bb, exact = 0 */
         /* Case 2: only bb is not visible. */
         /* Default search_near(bb) returns bba, exact > 0. */
-        /* Prefix search_near(bb) returns bba, exact > 0. */
+        /* Bounded search_near(bb) returns bba, exact > 0. */
         else {
             /* Both cursors should be pointing at the same key. */
             testutil_assert(exact_prefix == exact_default);
@@ -334,9 +334,9 @@ class cursor_bound_03 : public test {
 
     /*
      * Validate that no keys with the prefix used for the search have been found.
-     * To validate this, we can use the exact value set by the default search near. Since the prefix
-     * search near failed, the exact value set by the default search near call has to be either -1
-     * or 1:
+     * To validate this, we can use the exact value set by the default search near. Since the
+     * bounded search near failed, the exact value set by the default search near call has to be
+     * either -1 or 1:
      * - If it is -1, we need to check the next key, if it exists, is lexicographically greater than
      * the prefix we looked for.
      * - If it is 1, we need to check the previous keys, if it exists, if lexicographically smaller
@@ -351,7 +351,7 @@ class cursor_bound_03 : public test {
         std::string k_str;
 
         /*
-         * The exact value from the default search near call cannot be 0, otherwise the prefix
+         * The exact value from the default search near call cannot be 0, otherwise the bounded
          * search near should be successful too.
          */
         testutil_assert(exact_default != 0);
@@ -368,7 +368,7 @@ class cursor_bound_03 : public test {
         /* keys: a, bb, bbb. */
         /* All keys are visible. */
         /* Default search_near(bba) returns bb, exact < 0. */
-        /* Prefix search_near(bba) returns WT_NOTFOUND. */
+        /* Bounded search_near(bba) returns WT_NOTFOUND. */
         if (exact_default < 0) {
             /*
              * The current key of the default cursor should be lexicographically smaller than the
@@ -396,7 +396,7 @@ class cursor_bound_03 : public test {
         /* keys: a, bb, bbb. */
         /* All keys are visible. */
         /* Default search_near(bba) returns bbb, exact > 0. */
-        /* Prefix search_near(bba) returns WT_NOTFOUND. */
+        /* Bounded search_near(bba) returns WT_NOTFOUND. */
         else {
             /*
              * The current key of the default cursor should be lexicographically greater than the

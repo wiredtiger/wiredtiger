@@ -35,7 +35,7 @@
 using namespace test_harness;
 
 /*
- * In this test, we want to verify search_near with prefix enabled when performing unique index
+ * In this test, we want to verify search_near with bounds enabled when performing unique index
  * insertions. For the test duration:
  *  - N thread will perform unique index insertions on existing keys in the table. These insertions
  * are expected to fail.
@@ -82,7 +82,7 @@ class cursor_bound_04 : public test {
             return false;
 
         /*
-         * Prefix search near for the prefix. We expect that the prefix is not visible to us and a
+         * Bounded search near for the prefix. We expect that the prefix is not visible to us and a
          * WT_NOTFOUND error code is returned. If the prefix is present it means the (prefix, id)
          * has been inserted already. Double check that the prefix potion matches.
          */
