@@ -203,9 +203,10 @@ class cursor_bound_02 : public test {
         if (tc->txn.active()) {
             cursor->set_key(cursor.get(), srch_key.c_str());
             bound_set prefix_bounds = bound_set(srch_key);
-            prefix_bounds.apply_bounds(cursor);
+            prefix_bounds.apply(cursor);
             cursor->set_key(cursor.get(), srch_key.c_str());
             testutil_assert(cursor->search_near(cursor.get(), &cmpp) == WT_NOTFOUND);
+            cursor->reset(cursor.get());
             tc->txn.add_op();
 
             /*

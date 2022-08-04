@@ -2,7 +2,7 @@
 # The configuration creates:
 # - threads that continuously insert random keys and values.
 # - threads that continuously perform prefix search_near calls on random keys.
-duration_seconds=180,
+duration_seconds=60,
 cache_size_mb=500,
 timestamp_manager=
 (

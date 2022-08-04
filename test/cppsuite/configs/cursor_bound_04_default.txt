@@ -5,7 +5,7 @@
 #  - Each insert thread performs unique index insertions on existing prefixes.
 #  - Each read thread counts the number of current records in each collection, and check if the
 # table has changed.
-duration_seconds=300,
+duration_seconds=60,
 cache_size_mb=500,
 timestamp_manager=
 (

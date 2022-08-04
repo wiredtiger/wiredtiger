@@ -46,7 +46,7 @@ class bound_set {
     bound_set(const std::string &key);
 
     /* Apply the bounds to a cursor. */
-    void apply_bounds(scoped_cursor &cursor) const;
+    void apply(scoped_cursor &cursor) const;
 
     /* Basic getters. */
     const bound &get_lower() const;

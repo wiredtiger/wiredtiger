@@ -4,7 +4,7 @@
 #
 # There can only be one read thread in this test, since it manages the creation/deletion of
 # search_near_threads.
-duration_seconds=180,
+duration_seconds=60,
 cache_size_mb=1000,
 search_near_threads=10,
 timestamp_manager=

@@ -44,9 +44,10 @@ bound_set::bound_set(const std::string &key)
 }
 
 void
-bound_set::apply_bounds(scoped_cursor &cursor) const
+bound_set::apply(scoped_cursor &cursor) const
 {
     cursor->set_key(cursor.get(), _lower.get_key().c_str());
+    /* TODO: Wrap the bounds calls in testutil_check and fix compile error. */
     cursor->bound(cursor.get(), _lower.get_config().c_str());
     cursor->set_key(cursor.get(), _upper.get_key().c_str());
     cursor->bound(cursor.get(), _upper.get_config().c_str());
