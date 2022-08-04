@@ -37,9 +37,6 @@ target_compile_options(
 )
 
 target_link_libraries(unittests Catch2::Catch2)
-if(ENABLE_TCMALLOC)
-    target_link_libraries(unittests wt::tcmalloc)
-endif()
 
 add_test(NAME unittest COMMAND ${CMAKE_CURRENT_BINARY_DIR}/unittests)
 set_tests_properties(unittest PROPERTIES LABELS "check;unittest")
