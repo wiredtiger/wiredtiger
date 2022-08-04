@@ -76,7 +76,7 @@ timestamp_manager::trim(std::string str)
 }
 
 /* Parse config string to a config map. */
-int
+void
 timestamp_manager::parse_config(
   const std::string &config, std::map<std::string, std::string> &config_map)
 {
@@ -86,10 +86,10 @@ timestamp_manager::parse_config(
     while (std::getline(conf, token, ',')) {
         int pos = token.find('=');
         if (pos == -1)
-            return (EINVAL);
-        config_map.insert({trim(token.substr(0, pos)), trim(token.substr(pos + 1))});
+            config_map.insert({trim(token), ""});
+        else
+            config_map.insert({trim(token.substr(0, pos)), trim(token.substr(pos + 1))});
     }
-    return (0);
 }
 
 /*

@@ -94,9 +94,7 @@ connection_simulator::query_timestamp(
     else {
         std::map<std::string, std::string> config_map;
 
-        /* Throw an error if the config cannot be parsed. */
-        WT_SIM_RET_MSG(ts_manager->parse_config(config, config_map),
-          "Incorrect config passed to query timestamp: " + config);
+        ts_manager->parse_config(config, config_map);
 
         /* For query timestamp we only expect one config. */
         if (config_map.size() != 1)
@@ -145,7 +143,7 @@ connection_simulator::query_timestamp(
 int
 connection_simulator::decode_timestamp_config_map(std::map<std::string, std::string> &config_map,
   uint64_t &new_oldest_ts, uint64_t &new_stable_ts, uint64_t &new_durable_ts, bool &has_oldest,
-  bool &has_stable, bool &has_durable)
+  bool &has_stable, bool &has_durable, bool &force)
 {
     timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
     auto pos = config_map.find("oldest_timestamp");
@@ -168,6 +166,11 @@ connection_simulator::decode_timestamp_config_map(std::map<std::string, std::str
         has_durable = true;
         config_map.erase(pos);
     }
+    pos = config_map.find("force");
+    if (pos != config_map.end()) {
+        force = true;
+        config_map.erase(pos);
+    }
 
     return (config_map.empty() ? 0 : EINVAL);
 }
@@ -182,23 +185,23 @@ connection_simulator::set_timestamp(const std::string &config)
     timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
     std::map<std::string, std::string> config_map;
 
-    /* Throw an error if the config cannot be parsed. */
-    WT_SIM_RET_MSG(ts_manager->parse_config(config, config_map),
-      "Incorrect config passed to 'set_timestamp': '" + config + "'");
+    ts_manager->parse_config(config, config_map);
 
     uint64_t new_stable_ts = 0, new_oldest_ts = 0, new_durable_ts = 0;
-    bool has_stable = false, has_oldest = false, has_durable = false;
+    bool has_stable = false, has_oldest = false, has_durable = false, force = false;
 
     WT_SIM_RET_MSG(decode_timestamp_config_map(config_map, new_oldest_ts, new_stable_ts,
-                     new_durable_ts, has_oldest, has_stable, has_durable),
+                     new_durable_ts, has_oldest, has_stable, has_durable, force),
       "Incorrect config passed to 'set_timestamp': '" + config + "'");
 
-    /* Validate the new durable timestamp. */
-    WT_SIM_RET(ts_manager->validate_durable_ts(new_durable_ts, has_durable));
+    if (!force) {
+        /* Validate the new durable timestamp. */
+        WT_SIM_RET(ts_manager->validate_durable_ts(new_durable_ts, has_durable));
 
-    /* Validate the new oldest and stable timestamp. */
-    WT_SIM_RET(ts_manager->validate_oldest_and_stable_ts(
-      new_stable_ts, new_oldest_ts, has_oldest, has_stable));
+        /* Validate the new oldest and stable timestamp. */
+        WT_SIM_RET(ts_manager->validate_oldest_and_stable_ts(
+          new_stable_ts, new_oldest_ts, has_oldest, has_stable));
+    }
 
     if (has_stable)
         _stable_ts = new_stable_ts;

@@ -49,7 +49,7 @@ class connection_simulator {
 
     private:
     int decode_timestamp_config_map(std::map<std::string, std::string> &, uint64_t &, uint64_t &,
-      uint64_t &, bool &, bool &, bool &);
+      uint64_t &, bool &, bool &, bool &, bool &);
 
     /* No copies of the singleton allowed. */
     private:
