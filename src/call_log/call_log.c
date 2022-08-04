@@ -31,8 +31,6 @@ __wt_conn_call_log_setup(WT_SESSION_IMPL *session)
 
     F_SET(conn, WT_CONN_CALL_LOG_ENABLED);
 
-    WT_ERR(__wt_fprintf(session, conn->call_log_fst, "[\n"));
-
 err:
     __wt_scr_free(session, &file_name);
     return (ret);
@@ -51,8 +49,6 @@ __wt_conn_call_log_teardown(WT_SESSION_IMPL *session)
 
     if (!F_ISSET(conn, WT_CONN_CALL_LOG_ENABLED))
         return (0);
-
-    WT_RET(__wt_fprintf(session, conn->call_log_fst, "{}]\n"));
 
     return (__wt_fclose(session, &conn->call_log_fst));
 }

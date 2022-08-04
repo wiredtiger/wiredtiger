@@ -37,12 +37,29 @@ call_log_manager::call_log_manager(const std::string &call_log_file)
 {
     std::ifstream file(call_log_file);
     if (file.fail()) {
-        std::cout << "File '" << call_log_file << "' either doesn't exist or is not accessible."
+        std::cerr << "File '" << call_log_file << "' either doesn't exist or is not accessible."
                   << std::endl;
         exit(1);
     }
 
-    _call_log = json::parse(file);
+    std::string contents(
+      (std::istreambuf_iterator<char>(file)), (std::istreambuf_iterator<char>()));
+
+    if (contents.empty()) {
+        std::cerr << "File'" << call_log_file << "' is empty." << std::endl;
+        exit(1);
+    }
+    /*
+     * Get rid of the end line and comma from the call_log if it exists, and prepend, append square
+     * brackets.
+     */
+    if (contents.back() == '\n')
+        contents.pop_back();
+    if (contents.back() == ',')
+        contents.pop_back();
+    contents = "[" + contents + "]";
+
+    _call_log = json::parse(contents);
     _conn = &connection_simulator::get_connection();
     api_map_setup();
 }
