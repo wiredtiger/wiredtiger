@@ -30,7 +30,9 @@
 #include <string>
 
 #include "bound.h"
+extern "C" {
 #include "test_util.h"
+}
 
 namespace test_harness {
 bound_set::bound_set(bound lower, bound upper) : _lower(lower), _upper(upper) {}
@@ -47,10 +49,9 @@ void
 bound_set::apply(scoped_cursor &cursor) const
 {
     cursor->set_key(cursor.get(), _lower.get_key().c_str());
-    /* TODO: Wrap the bounds calls in testutil_check and fix compile error. */
-    cursor->bound(cursor.get(), _lower.get_config().c_str());
+    testutil_check(cursor->bound(cursor.get(), _lower.get_config().c_str()));
     cursor->set_key(cursor.get(), _upper.get_key().c_str());
-    cursor->bound(cursor.get(), _upper.get_config().c_str());
+    testutil_check(cursor->bound(cursor.get(), _upper.get_config().c_str()));
 }
 
 const bound &
