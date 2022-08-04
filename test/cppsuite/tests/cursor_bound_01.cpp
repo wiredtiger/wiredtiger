@@ -51,7 +51,7 @@ class cursor_bound_01 : public test {
     private:
     bool _reverse_collator_enabled = false;
     const uint64_t MAX_ROLLBACKS = 100;
-    enum bound_choice { NO_BOUNDS, LOWER_BOUND_SET, UPPER_BOUND_SET, ALL_BOUNDS_SET };
+    enum class bound_action { NO_BOUNDS, LOWER_BOUND_SET, UPPER_BOUND_SET, ALL_BOUNDS_SET };
 
     public:
     cursor_bound_01(const test_args &args) : test(args)
@@ -204,19 +204,19 @@ class cursor_bound_01 : public test {
         bound lower_bound, upper_bound;
 
         testutil_check(range_cursor->reset(range_cursor.get()));
-        auto bound_choice = random_generator::instance().generate_integer(0, 3);
-        if (bound_choice == NO_BOUNDS)
+        bound_action action = static_cast<bound_action>(random_generator::instance().generate_integer(0, 3));
+        if (action == bound_action::NO_BOUNDS)
             testutil_check(range_cursor->bound(range_cursor.get(), "action=clear"));
 
-        if (bound_choice == LOWER_BOUND_SET || bound_choice == ALL_BOUNDS_SET) {
+        if (action == bound_action::LOWER_BOUND_SET || action == bound_action::ALL_BOUNDS_SET) {
             lower_bound = bound(tc->key_size, true);
             range_cursor->set_key(range_cursor.get(), lower_bound.get_key().c_str());
             testutil_check(
               range_cursor->bound(range_cursor.get(), lower_bound.get_config().c_str()));
         }
 
-        if (bound_choice == UPPER_BOUND_SET || bound_choice == ALL_BOUNDS_SET) {
-            if (bound_choice == ALL_BOUNDS_SET) {
+        if (action == bound_action::UPPER_BOUND_SET || action == bound_action::ALL_BOUNDS_SET) {
+            if (action == bound_action::ALL_BOUNDS_SET) {
                 /* Ensure that the lower and upper bounds are never overlapping. */
                 if (_reverse_collator_enabled)
                     upper_bound = bound(tc->key_size, false, lower_bound.get_key()[0] - 1);
@@ -229,7 +229,7 @@ class cursor_bound_01 : public test {
               range_cursor->bound(range_cursor.get(), upper_bound.get_config().c_str()));
         }
 
-        if (bound_choice == ALL_BOUNDS_SET)
+        if (action == bound_action::ALL_BOUNDS_SET)
             testutil_assert(
               custom_lexicographical_compare(lower_bound.get_key(), upper_bound.get_key(), false));
 
