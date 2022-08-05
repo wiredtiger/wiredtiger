@@ -49,9 +49,9 @@ call_log_manager::call_log_manager(const std::string &call_log_file)
      * Get rid of the end line and comma from the call_log if it exists, and prepend, append square
      * brackets.
      */
-    if (contents.back() == '\n')
+    while (contents.back() == '\n')
         contents.pop_back();
-    if (contents.back() == ',')
+    while (contents.back() == ',')
         contents.pop_back();
     contents = "[" + contents + "]";
 
