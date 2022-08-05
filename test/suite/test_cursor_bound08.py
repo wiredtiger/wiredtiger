@@ -87,7 +87,7 @@ class test_cursor_bound08(bound_base):
 
         if (self.evict):
             evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
-            for i in range(1, nrows + 1):
+            for i in range(100, nrows + 1):
                 evict_cursor.set_key(self.gen_key(i))
                 evict_cursor.search()
                 evict_cursor.reset()
