@@ -33,7 +33,7 @@ __wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t old_state,
 
     cas_result = __wt_atomic_casv8(&ref->state, old_state, new_state);
 
-#ifdef HAVE_DIAGNOSTIC
+#ifdef HAVE_REF_TRACK
     /*
      * The history update here has potential to race; if the state gets updated again after the CAS
      * above but before the history has been updated.
@@ -1608,6 +1608,28 @@ __wt_page_del_active(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 }
 
 /*
+ * __wt_page_del_committed --
+ *     Return if a truncate operation is resolved. (Since truncations that abort are removed
+ *     immediately, "resolved" and "committed" are equivalent here.) The caller should have already
+ *     locked the ref and confirmed that the ref's previous state was WT_REF_DELETED. The page_del
+ *     argument should be the ref's ft_info.del member.
+ */
+static inline bool
+__wt_page_del_committed(WT_PAGE_DELETED *page_del)
+{
+    /*
+     * There are two possible cases: either page_del is NULL (in which case the deletion is globally
+     * visible and must have been committed) or it is not, in which case page_del->committed tells
+     * us what we want to know.
+     */
+
+    if (page_del == NULL)
+        return (true);
+
+    return (page_del->committed);
+}
+
+/*
  * __wt_btree_syncing_by_other_session --
  *     Returns true if the session's current btree is being synced by another thread.
  */
@@ -2136,8 +2158,16 @@ __wt_btcur_bounds_early_exit(
     if (!F_ISSET((&cbt->iface), bound_flag))
         return (0);
 
-    WT_RET(__wt_row_compare_bounds(
-      session, &cbt->iface, S2BT(session)->collator, next, key_out_of_boundsp));
+    if (CUR2BT(cbt)->type == BTREE_ROW) {
+        WT_ASSERT(session, &cbt->iface.key != NULL);
+        WT_RET(__wt_compare_bounds(
+          session, &cbt->iface, &cbt->iface.key, WT_RECNO_OOB, next, key_out_of_boundsp));
+    } else {
+        WT_ASSERT(session, cbt->recno != 0);
+        WT_RET(
+          __wt_compare_bounds(session, &cbt->iface, NULL, cbt->recno, next, key_out_of_boundsp));
+    }
+
     if (*key_out_of_boundsp)
         return (WT_NOTFOUND);
 

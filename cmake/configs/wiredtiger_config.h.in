@@ -35,6 +35,9 @@
 
 #cmakedefine HAVE_CALL_LOG 1
 
+/* Define to 1 for ref tracking */
+#cmakedefine HAVE_REF_TRACK 1
+
 /* Define to 1 to remove full memory barriers on diagnostic yields. */
 #cmakedefine NON_BARRIER_DIAGNOSTIC_YIELDS 0
 
