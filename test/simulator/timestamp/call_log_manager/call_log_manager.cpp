@@ -36,19 +36,15 @@
 call_log_manager::call_log_manager(const std::string &call_log_file)
 {
     std::ifstream file(call_log_file);
-    if (file.fail()) {
-        std::cerr << "File '" << call_log_file << "' either doesn't exist or is not accessible."
-                  << std::endl;
-        exit(1);
-    }
+    if (file.fail())
+        throw std::runtime_error("File '" + call_log_file + "' either doesn't exist or is not accessible.");
 
     std::string contents(
       (std::istreambuf_iterator<char>(file)), (std::istreambuf_iterator<char>()));
 
-    if (contents.empty()) {
-        std::cerr << "File'" << call_log_file << "' is empty." << std::endl;
-        exit(1);
-    }
+    if (contents.empty())
+        throw std::runtime_error("File '" + call_log_file + "' is empty.");
+
     /*
      * Get rid of the end line and comma from the call_log if it exists, and prepend, append square
      * brackets.
@@ -274,10 +270,8 @@ int
 main(int argc, char *argv[])
 {
     /* Exit if call log file was not passed. */
-    if (argc != 2) {
-        std::cout << "call_log_interface: missing call log file path" << std::endl;
-        exit(1);
-    }
+    if (argc != 2)
+        throw std::runtime_error("call_log_interface: missing call log file path");
 
     const std::string call_log_file = argv[1];
 
