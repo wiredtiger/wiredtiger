@@ -461,6 +461,7 @@ struct __wt_connection_stats {
     int64_t cache_hs_order_lose_durable_timestamp;
     int64_t cache_hs_key_truncate_rts_unstable;
     int64_t cache_hs_key_truncate_rts;
+    int64_t cache_hs_btree_truncate;
     int64_t cache_hs_key_truncate;
     int64_t cache_hs_order_remove;
     int64_t cache_hs_key_truncate_onpage_removal;
@@ -559,6 +560,7 @@ struct __wt_connection_stats {
     int64_t cursor_bounds_prev_unpositioned;
     int64_t cursor_bounds_prev_early_exit;
     int64_t cursor_bounds_search_early_exit;
+    int64_t cursor_bounds_search_near_repositioned_cursor;
     int64_t cursor_insert_bulk;
     int64_t cursor_cache_error;
     int64_t cursor_cache;
@@ -969,6 +971,7 @@ struct __wt_dsrc_stats {
     int64_t cache_hs_order_lose_durable_timestamp;
     int64_t cache_hs_key_truncate_rts_unstable;
     int64_t cache_hs_key_truncate_rts;
+    int64_t cache_hs_btree_truncate;
     int64_t cache_hs_key_truncate;
     int64_t cache_hs_order_remove;
     int64_t cache_hs_key_truncate_onpage_removal;
@@ -1049,6 +1052,7 @@ struct __wt_dsrc_stats {
     int64_t cursor_bounds_prev_unpositioned;
     int64_t cursor_bounds_prev_early_exit;
     int64_t cursor_bounds_search_early_exit;
+    int64_t cursor_bounds_search_near_repositioned_cursor;
     int64_t cursor_cache_error;
     int64_t cursor_close_error;
     int64_t cursor_compare_error;

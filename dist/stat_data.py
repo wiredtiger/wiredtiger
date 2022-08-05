@@ -77,7 +77,7 @@ class DhandleStat(Stat):
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, DhandleStat.prefix, desc, flags)
 class JoinStat(Stat):
-    prefix = ''  # prefix is inserted dynamically
+    prefix = 'join'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, JoinStat.prefix, desc, flags)
 class LockStat(Stat):
@@ -839,6 +839,7 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_walks_gave_up_no_targets', 'eviction walks gave up because they saw too many pages and found no candidates'),
     CacheStat('cache_eviction_walks_gave_up_ratio', 'eviction walks gave up because they saw too many pages and found too few candidates'),
     CacheStat('cache_eviction_walks_stopped', 'eviction walks gave up because they restarted their walk twice'),
+    CacheStat('cache_hs_btree_truncate', 'history store table truncation to remove all the keys of a btree'),
     CacheStat('cache_hs_insert', 'history store table insert calls'),
     CacheStat('cache_hs_insert_full_update', 'the number of times full update inserted to history store'),
     CacheStat('cache_hs_insert_restart', 'history store table insert calls that returned restart'),
@@ -872,6 +873,7 @@ conn_dsrc_stats = [
     CursorStat('cursor_bounds_next_early_exit', 'cursor bounds next early exit'),
     CursorStat('cursor_bounds_prev_early_exit', 'cursor bounds prev early exit'),
     CursorStat('cursor_bounds_search_early_exit', 'cursor bounds search early exit'),    
+    CursorStat('cursor_bounds_search_near_repositioned_cursor', 'cursor bounds search near call repositioned cursor'),
     CursorStat('cursor_bounds_next_unpositioned', 'cursor bounds next called on an unpositioned cursor'),
     CursorStat('cursor_bounds_prev_unpositioned', 'cursor bounds prev called on an unpositioned cursor'),
     CursorStat('cursor_next_hs_tombstone', 'cursor next calls that skip due to a globally visible history store tombstone'),
