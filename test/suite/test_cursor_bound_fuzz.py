@@ -288,7 +288,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
 
     def run_bound_scenarios(self, bound_set, cursor):
         if (self.data_format == 'column'):
-            scenario = random.choice([bound_scenarios.NEXT, bound_scenarios.PREV])
+            scenario = random.choice([bound_scenarios.NEXT, bound_scenarios.SEARCH])
         else:
             scenario = random.choice(list(bound_scenarios))
 
@@ -368,7 +368,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     # generate N values and keep them in memory.
     value_array = []
     iteration_count = 200 if wttest.islongtest() else 50
-    value_size = 1000000 if wttest.islongtest() else 100
+    value_size = 100000 if wttest.islongtest() else 100
     value_array_size = 20
     key_count = 10000 if wttest.islongtest() else 1000
     min_key = 1
