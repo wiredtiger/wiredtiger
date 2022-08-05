@@ -201,29 +201,26 @@ class cursor_bound_02 : public test {
          * return WT_NOTFOUND.
          */
         tc->txn.begin("read_timestamp=" + tc->tsm->decimal_to_hex(10));
-        if (tc->txn.active()) {
-            cursor->set_key(cursor.get(), srch_key.c_str());
-            bound_set prefix_bounds = bound_set(srch_key);
-            prefix_bounds.apply(cursor);
-            cursor->set_key(cursor.get(), srch_key.c_str());
-            testutil_assert(cursor->search_near(cursor.get(), &cmpp) == WT_NOTFOUND);
-            cursor->reset(cursor.get());
-            tc->txn.add_op();
+        cursor->set_key(cursor.get(), srch_key.c_str());
+        bound_set prefix_bounds = bound_set(srch_key);
+        prefix_bounds.apply(cursor);
+        cursor->set_key(cursor.get(), srch_key.c_str());
+        testutil_assert(cursor->search_near(cursor.get(), &cmpp) == WT_NOTFOUND);
+        cursor->reset(cursor.get());
 
-            /*
-             * There is an edge case where we may not early exit the bounded search near call
-             * because the specified prefix matches the rest of the entries in the tree.
-             *
-             * In this test, the keys in our database start with prefixes aaa -> zzz. If we search
-             * with a prefix such as "z", we will not early exit the search near call because the
-             * rest of the keys will also start with "z" and match the prefix. The statistic will
-             * stay the same if we do not early exit search near, track this through incrementing
-             * the number of z key searches we have done this iteration.
-             */
-            if (srch_key == "z" || srch_key == "zz" || srch_key == "zzz")
-                ++z_key_searches;
-            tc->txn.rollback();
-        }
+        /*
+         * There is an edge case where we may not early exit the bounded search near call
+         * because the specified prefix matches the rest of the entries in the tree.
+         *
+         * In this test, the keys in our database start with prefixes aaa -> zzz. If we search
+         * with a prefix such as "z", we will not early exit the search near call because the
+         * rest of the keys will also start with "z" and match the prefix. The statistic will
+         * stay the same if we do not early exit search near, track this through incrementing
+         * the number of z key searches we have done this iteration.
+         */
+        if (srch_key == "z" || srch_key == "zz" || srch_key == "zzz")
+            ++z_key_searches;
+        tc->txn.rollback();
     }
 
     void
