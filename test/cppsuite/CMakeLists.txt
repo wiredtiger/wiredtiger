@@ -2,6 +2,8 @@ project(cppsuite CXX)
 
 # Create an intermediate static lib.
 add_library(cppsuite_test_harness STATIC
+    src/bound/bound.cpp
+    src/bound/bound_set.cpp
     src/common/constants.cpp
     src/common/logger.cpp
     src/common/random_generator.cpp
