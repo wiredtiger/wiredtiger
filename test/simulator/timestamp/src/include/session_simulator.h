@@ -44,5 +44,5 @@ class session_simulator {
 
     /* Member variables */
     private:
-    bool _txn_running;
+    bool _txn_running = false;
 };
