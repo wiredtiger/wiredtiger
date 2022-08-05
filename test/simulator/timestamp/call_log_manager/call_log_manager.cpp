@@ -37,7 +37,8 @@ call_log_manager::call_log_manager(const std::string &call_log_file)
 {
     std::ifstream file(call_log_file);
     if (file.fail())
-        throw std::runtime_error("File '" + call_log_file + "' either doesn't exist or is not accessible.");
+        throw std::runtime_error(
+          "File '" + call_log_file + "' either doesn't exist or is not accessible.");
 
     std::string contents(
       (std::istreambuf_iterator<char>(file)), (std::istreambuf_iterator<char>()));
