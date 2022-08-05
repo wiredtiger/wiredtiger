@@ -209,14 +209,14 @@ class cursor_bound_02 : public test {
         cursor->reset(cursor.get());
 
         /*
-         * There is an edge case where we may not early exit the bounded search near call
-         * because the specified prefix matches the rest of the entries in the tree.
+         * There is an edge case where we may not early exit the bounded search near call because
+         * the specified prefix matches the rest of the entries in the tree.
          *
-         * In this test, the keys in our database start with prefixes aaa -> zzz. If we search
-         * with a prefix such as "z", we will not early exit the search near call because the
-         * rest of the keys will also start with "z" and match the prefix. The statistic will
-         * stay the same if we do not early exit search near, track this through incrementing
-         * the number of z key searches we have done this iteration.
+         * In this test, the keys in our database start with prefixes aaa -> zzz. If we search with
+         * a prefix such as "z", we will not early exit the search near call because the rest of the
+         * keys will also start with "z" and match the prefix. The statistic will stay the same if
+         * we do not early exit search near, track this through incrementing the number of z key
+         * searches we have done this iteration.
          */
         if (srch_key == "z" || srch_key == "zz" || srch_key == "zzz")
             ++z_key_searches;
