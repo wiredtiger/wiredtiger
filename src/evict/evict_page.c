@@ -337,11 +337,15 @@ __evict_page_clean_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     }
 
     /*
-     * Discard the page and update the reference structure. A page with a disk address is an on-disk
-     * page, and a page without a disk address is a re-instantiated deleted page (for example, by
-     * searching), that was never subsequently written.
+     * Discard the page and update the reference structure. A leaf page without a disk address is a
+     * deleted page that either was created empty and never written out, or had its on-disk page
+     * discarded already after the deletion became globally visible. It is not immediately clear if
+     * it's possible to get an internal page without a disk address here, but if one appears it can
+     * be deleted. (Note that deleting an internal page implicitly turns it into a leaf.)
      *
-     * If we are discarding an instantiated deleted page, set the state back to WT_REF_DELETED.
+     * A page with a disk address is now on disk, unless it was deleted and instantiated and then
+     * evicted unmodified, in which case it is still deleted. In the latter case set the state back
+     * to WT_REF_DELETED.
      */
     __wt_ref_out(session, ref);
     if (ref->addr == NULL) {
@@ -485,8 +489,8 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
 
     /*
      * It is always OK to evict pages from checkpoint cursor trees if they don't have children, and
-     * visibility checks for pages deleted in the checkpoint aren't needed (or correct when done in
-     * eviction threads).
+     * visibility checks for pages found to be deleted in the checkpoint aren't needed (or correct
+     * when done in eviction threads).
      */
     if (WT_READING_CHECKPOINT(session))
         return (0);

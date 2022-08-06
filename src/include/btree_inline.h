@@ -1579,11 +1579,12 @@ __wt_page_del_visible_all(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, b
      * For ordinary uses, the ref owning the page_deleted structure should be locked and its
      * pre-lock state should be WT_REF_DELETED. This prevents the page from being instantiated while
      * we look at it, and locks out other operations that might simultaneously discard the structure
-     * after checking visibility. In internal page reconciliation it is also sometimes necessary to
-     * look at the page_deleted structure of child pages that have already been instantiated. This
-     * is also safe because (a) we hold a hazard pointer for the child page while looking at it so
-     * it can't be evicted, and (b) once the page is instantiated only reconciliation discards the
-     * page_deleted structure.
+     * (either after checking visibility, or because its transaction aborted). In internal page
+     * reconciliation it is also sometimes necessary to look at the page_deleted structure of child
+     * pages that have already been instantiated. This is also safe because (a) we hold a hazard
+     * pointer for the child page while looking at it so it can't be evicted, and (b) once the page
+     * is instantiated only reconciliation discards the page_deleted structure. (XXX: point (b) is
+     * wrong. overoptimistic.)
      */
 
     /* If the page delete info is NULL, the deletion was previously found to be globally visible. */
@@ -1633,7 +1634,10 @@ __wt_page_del_visible(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, bool 
  *     Return if a truncate operation is resolved. (Since truncations that abort are removed
  *     immediately, "resolved" and "committed" are equivalent here.) The caller should have already
  *     locked the ref and confirmed that the ref's previous state was WT_REF_DELETED. The page_del
- *     argument should be the ref's page_del member.
+ *     argument should be the ref's page_del member. This function should only be used for pages in
+ *     WT_REF_DELETED state. For deleted pages that have been instantiated in memory, the update
+ *     list in the page modify structure should be checked instead, as the page_del structure might
+ *     have been discarded already. (The update list is non-null if the transaction is unresolved.)
  */
 static inline bool
 __wt_page_del_committed(WT_PAGE_DELETED *page_del)
@@ -1835,8 +1839,10 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * The list of updates in mod.inst_updates will be discarded when the transaction they belong to
      * is resolved.
      *
-     * Note that we are not using __wt_page_del_committed here because examining the page_del
-     * structure requires locking the ref.
+     * Note that we are not using __wt_page_del_committed here because (a) examining the page_del
+     * structure requires locking the ref, and (b) once in memory the page_del structure only
+     * remains until the next reconciliation, and nothing prevents that from occurring before the
+     * transaction commits.
      */
     if (mod->inst_updates != NULL)
         return (false);
@@ -2250,6 +2256,7 @@ __wt_btcur_skip_page(
      *     address cell below too, but that's slower.
      * (3) The page is in memory and has been instantiated. The delete info from the address cell
      *     will serve for readonly/unmodified pages, and for modified pages we can't skip the page.
+     *     (This case is checked further below.)
      *
      * In all cases, make use of the option to __wt_page_del_visible to hide prepared transactions,
      * as we shouldn't skip pages where the deletion is prepared but not committed.

@@ -445,7 +445,13 @@ struct __wt_page_modify {
     /* Overflow record tracking for reconciliation. */
     WT_OVFL_TRACK *ovfl_track;
 
-    /* Page-delete information for newly instantiated deleted pages. */
+    /*
+     * Page-delete information for newly instantiated deleted pages. The instantiated flag remains
+     * set until the page is reconciled successfully; this indicates that the page_del information
+     * in the ref remains valid. The update list remains set (if set at all) until the transaction
+     * that deleted the page is resolved. These transitions are independent; that is, the first
+     * reconciliation can happen either before or after the delete transaction resolves.
+     */
     bool instantiated;        /* True if this is a newly instantiated page. */
     WT_UPDATE **inst_updates; /* Update list for instantiated page with unresolved truncate. */
 
@@ -807,16 +813,17 @@ struct __wt_page {
  *
  * WT_REF_DELETED:
  *	The page is on disk, but has been deleted from the tree; we can delete
- *	row-store leaf pages without reading them if they don't reference
- *	overflow items.
+ *	row-store and VLCS leaf pages without reading them if they don't
+ *	reference overflow items.
  *
  * WT_REF_LOCKED:
  *	Locked for exclusive access.  In eviction, this page or a parent has
  *	been selected for eviction; once hazard pointers are checked, the page
  *	will be evicted.  When reading a page that was previously deleted, it
- *	is locked until the page is in memory with records marked deleted.  The
- *	thread that set the page to WT_REF_LOCKED has exclusive access, no
- *	other thread may use the WT_REF until the state is changed.
+ *	is locked until the page is in memory and the deletion has been
+ *      instantiated with tombstone updates. The thread that set the page to
+ *      WT_REF_LOCKED has exclusive access; no other thread may use the WT_REF
+ *      until the state is changed.
  *
  * WT_REF_MEM:
  *	Set by a reading thread once the page has been read from disk; the page
@@ -847,7 +854,9 @@ struct __wt_page {
 
 /*
  * WT_PAGE_DELETED --
- *	Related information for truncated pages.
+ *	Information about how they got deleted for deleted pages. This structure records the
+ *      transaction that deleted the page, plus the state the ref was in when the deletion happened.
+ *      This structure is akin to an update but applies to a whole page.
  */
 struct __wt_page_deleted {
     /*
@@ -863,8 +872,8 @@ struct __wt_page_deleted {
     wt_timestamp_t durable_timestamp;
 
     /*
-     * The prepare state is used for transaction prepare to manage visibility and inheriting prepare
-     * state to update_list.
+     * The prepare state is used for transaction prepare to manage visibility and propagating the
+     * prepare state to the updates generated at instantiation time.
      */
     volatile uint8_t prepare_state;
 
@@ -952,18 +961,44 @@ struct __wt_ref {
 #define ref_ikey key.ikey
 
     /*
-     * Fast-truncate information, written-to/read-from disk as necessary in the internal page's
-     * deleted page proxy cell. When a WT_REF first becomes part of a fast-truncate operation, the
-     * page_del field is allocated and initialized.
+     * Page deletion information, written-to/read-from disk as necessary in the internal page's
+     * address cell. (Deleted-address cells are also referred to as "proxy cells".) When a WT_REF
+     * first becomes part of a fast-truncate operation, the page_del field is allocated and
+     * initialized; it is similar to an update and holds information about the transaction that
+     * performed the truncate. It can be discarded and set to NULL when that transaction reaches
+     * global visibility.
      *
-     * Fast-truncate pages might have to be instantiated if a thread for which the operation isn't
-     * visible accesses the page. This can happen if the operation hasn't committed yet; it can also
-     * happen if an older read transaction visits the page, and it can happen if the fast-truncate
-     * operation is included in a checkpoint and then seen later, after a restart or via a
-     * checkpoint cursor.
+     * Operations other than truncate that produce deleted pages (checkpoint cleanup, reconciliation
+     * as empty, etc.) leave the page_del field NULL as in these cases the deletion is already
+     * globally visible.
      *
-     * If the page must be instantiated for any reason: (1) WT_UPDATE structures are created for the
-     * page entries, (2) the transaction information from page_del is copied to those WT_UPDATE
+     * Once the deletion is globally visible, the original on-disk page is no longer needed and can
+     * be discarded; this happens the next time the parent page is reconciled, either by eviction or
+     * by a checkpoint. The ref remains, however, and still occupies the same key space in the table
+     * that it always did.
+     *
+     * Deleted refs (and thus chunks of the tree namespace) are only discarded at two points: when
+     * the parent page is discarded after being evicted, or in the course of internal page splits
+     * and reverse splits. Until this happens, the "same" page can be brought back to life by
+     * writing to its portion of the key space.
+     *
+     * A deleted page needs to be "instantiated" (read in from disk and converted to an in-memory
+     * page where every item on the page has been individually deleted) if we need to position a
+     * cursor on the page, or if we need to visit it for other reasons. Logic exists to avoid that
+     * in various common cases (see: __wt_btcur_skip_page, __wt_delete_page_skip) but in many less
+     * common situations we proceed with instantiation anyway to avoid multiplying the number of
+     * special cases in the system.
+     *
+     * Common triggers for instantiation include: another thread reading from the page before a
+     * truncate commits; an older reader visiting a page after a truncate commits; a thread reading
+     * the page via a checkpoint cursor if the truncation wasn't yet globally visible at checkpoint
+     * time; a thread reading the page after shutdown and restart under similar circumstances; RTS
+     * needing to roll back a committed but unstable truncation (and possibly also updates that
+     * occurred before the truncation); and a thread writing to the truncated portion of the table
+     * space after the truncation but before the page is completely discarded.
+     *
+     * If the page must be instantiated for any reason: (1) for each entry on the page a WT_UPDATE
+     * is created; (2) the transaction information from page_del is copied to those WT_UPDATE
      * structures (making them a match for the truncate operation), and (3) the WT_REF state
      * switches to WT_REF_MEM.
      *
@@ -972,53 +1007,73 @@ struct __wt_ref {
      * operation subsequently resolves. (The page can split, so there needs to be some way to find
      * all of the update structures.)
      *
-     * The page_del structure is kept until the instantiated page is reconciled. This is because in
-     * some cases reconciliation of the parent internal page may need to write out a reference to
-     * the pre-instantiated on-disk page, and in this case the page_del information is needed to
-     * build the correct reference.
+     * After instantiation, the page_del structure is kept until the instantiated page is next
+     * reconciled. This is because in some cases reconciliation of the parent internal page may need
+     * to write out a reference to the pre-instantiated on-disk page, at which point the page_del
+     * information is needed to build the correct reference.
      *
-     * Doing anything other than testing if page_del (or modify->inst_updates) is non-NULL (which
-     * eviction does) requires the WT_REF be locked.
+     * If the ref is in WT_REF_DELETED state, all actions besides checking whether page_del is NULL
+     * require that the WT_REF be locked. There are two reasons for this: first, the page might be
+     * instantiated at any time, and it is important to not see a partly-completed instantiation;
+     * and second, the page_del structure is discarded opportunistically if its transaction is found
+     * to be globally visible, so accessing it without locking the ref is unsafe.
      *
-     * It is vital to interpret the state correctly and consider all the possible cases.
+     * If the ref is in WT_REF_MEM state because it has been instantiated, the safety requirements
+     * are somewhat looser. Checking for an instantiated page by examining modify->instantiated does
+     * not require locking. Checking if modify->inst_updates is non-NULL (which means that the
+     * truncation isn't committed) also doesn't require locking. In general the page_del structure
+     * should not be used after instantiation; exceptions are (a) it is still updated by transaction
+     * prepare, commit, and rollback (so that it remains correct) and (b) it is used by internal
+     * page reconciliation if that occurs before the instantiated child is itself reconciled. (The
+     * latter can only happen if the child is evicted in a fairly narrow time window during a
+     * checkpoint.) Currently in case (b) the internal page reconciliation code holds a hazard
+     * pointer on the page but does not lock the ref. This is thought to be safe. (XXX: it is safe
+     * for prepare and commit, but rollback frees the page_del and this seems to be problematic.)
      *
-     * These are the possible states:
+     * It is vital to consider all the possible cases when touching a deleted or instantiated page.
      *
-     * 1. The WT_REF state is WT_REF_DELETED and page_del is NULL. This means the page is deleted
-     * and the deletion is globally visible. Any on-disk page has been or will be discarded.
+     * There are two major groups of states:
      *
-     * 2. The WT_REF state is WT_REF_DELETED and page_del is not NULL. The page is deleted, but the
-     * deletion may not yet be globally visible (or visible to any given reader either.) The on-disk
-     * on-page remains in case we need it to satisfy reads. page_del describes the delete operation.
-     * If it is necessary to read the page on behalf of a thread that cannot see the deletion, the
-     * page must be instantiated as described above.
+     * 1. The WT_REF state is WT_REF_DELETED. This means the page is deleted and not in memory.
+     *    - If the page has no disk address, the ref is a placeholder in the key space and may in
+     *      general be discarded at the next opportunity. (Some restrictions apply in VLCS.)
+     *    - If the page has a disk address, page_del may be NULL. In this case, the deletion of the
+     *      page is globally visible and the on-disk page can be discarded at the next opportunity.
+     *    - If the page has a disk address and page_del is not NULL, page_del contains information
+     *      about the transaction that deleted the page. It is necessary to lock the ref to read
+     *      page_del; at that point (if the state hasn't changed while getting the lock)
+     *      page_del->committed can be used to check if the transaction is committed or not.
      *
-     * 3. The WT_REF state is WT_REF_DISK. The parent page's address cell is never a deleted-address
-     * cell. The page_del field is always NULL. This is an ordinary on-disk page.
+     * 2. The WT_REF state is WT_REF_MEM. The page is either an ordinary page or an instantiated
+     * deleted page.
+     *    - If ref->page->modify is NULL, the page is ordinary.
+     *    - If ref->page->modify->instantiated is false and ref->page->modify->inst_updates is NULL,
+     *      the page is ordinary.
+     *    - If ref->page->modify->instantiated is true, the page is instantiated and has not yet
+     *      been reconciled. ref->page_del is either NULL (meaning the deletion is globally visible)
+     *      or contains information about the transaction that deleted the page. This information is
+     *      only meaningful either (a) in relation to the existing on-disk page rather than the in-
+     *      memory page (this can be needed to reconcile the parent internal page) or (b) if the
+     *      page is clean.
+     *    - If ref->page->modify->inst_updates is not NULL, the page is instantiated and the
+     *      transaction that deleted it has not resolved yet. The update list is used during commit
+     *      or rollback to find the updates created during instantiation.
      *
-     * 4. The WT_REF state is WT_REF_MEM, and page->modify is NULL. The page_del field is always
-     * NULL. This is an ordinary in-memory unmodified page.
+     * The last two points of group (2) are orthogonal; that is, after instantiation the
+     * instantiated flag and page_del structure (on the one hand) and the update list (on the other)
+     * are used and discarded independently. The former persists only until the page is first
+     * successfully reconciled; the latter persists until the transaction resolves. These events may
+     * occur in either order.
      *
-     * 5. The WT_REF state is WT_REF_MEM, page->modify is not NULL, and page->modify->instantiated
-     * is false. The page_del field is always NULL. This is an ordinary in-memory perhaps-modified
-     * page.
+     * As described above, in any state in group (1) an access to the page may require it be read
+     * into memory, at which point it moves into group (2). Instantiation always sets the
+     * instantiated flag to true; the updates list is only created if the transaction has not yet
+     * resolved at the point instantiation happens. (The ref is locked in both transaction
+     * resolution and instantiation to make sure these events happen in a well-defined order.)
      *
-     * 6. The WT_REF state is WT_REF_MEM, page->modify is not NULL, and page->modify->instantiated
-     * is true. However, page->modify->inst_updates is NULL. This is a deleted page that has been
-     * instantiated and not yet reconciled, but the delete transaction is committed. The page delete
-     * information is retained in ref->page_del until the page is next reconciled. (It is possible
-     * in certain cases of eviction during checkpoints for parent page reconciliation to need the
-     * pre-instantiation page image, in which case it also needs the page_del structure.) Note that
-     * ref->page_del can be NULL in this state if the deletion is globally visible.
-     *
-     * 7. The WT_REF state is WT_REF_MEM, page->modify is not NULL, page->modify->instantiated
-     * is true, and page->modify->inst_updates is not NULL. This is a deleted page that has been
-     * instantiated before the delete transaction resolved. As in state 7 the page delete
-     * information is retained in the ref. The list of updates used to instantiate the page is
-     * tracked in page->modify->inst_updates; when the transaction resolves this list is used to
-     * commit or abort them as needed and then cleared. It is not possible to get to this state if
-     * the truncate information was read from disk; uncommitted (including prepared) truncates are
-     * not evicted or checkpointed.
+     * Because internal pages with uncommitted (including prepared) deletions are not written to
+     * disk, a page instantiated after its parent was read from disk will always have inst_updates
+     * set to NULL.
      */
     WT_PAGE_DELETED *page_del; /* Page-delete information for a deleted page. */
 

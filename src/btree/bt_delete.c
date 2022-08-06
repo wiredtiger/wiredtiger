@@ -17,24 +17,25 @@
  * The way cursor truncate works is it explicitly reads the first and last pages of the truncate
  * range, then walks the tree with a flag so the tree walk code skips reading eligible pages within
  * the range and instead just marks them as deleted, by changing their WT_REF state to
- * WT_REF_DELETED. Pages ineligible for this fast path include pages already in the cache, having
- * overflow items, or belonging to FLCS trees. Ineligible pages are read and have their rows
- * updated/deleted individually. The transaction for the delete operation is stored in memory
- * referenced by the WT_REF.page_del field.
+ * WT_REF_DELETED. Pages ineligible for this fast path ("fast-truncate" or "fast-delete") include
+ * pages already in the cache, having overflow items, containing prepared values, or belonging to
+ * FLCS trees. Ineligible pages are read and have their rows updated/deleted individually
+ * ("slow-truncate"). The transaction for the delete operation is stored in memory referenced by the
+ * WT_REF.page_del field.
  *
  * Future cursor walks of the tree will skip the deleted page based on the transaction stored for
  * the delete, but it gets more complicated if a read is done using a random key, or a cursor walk
- * is done with a transaction where the delete is not visible. In those cases, we read the original
- * contents of the page. The page-read code notices a deleted page is being read, and as part of the
- * read instantiates the contents of the page, creating tombstone WT_UPDATE records, in the same
- * transaction that deleted the page. In other words, the read process makes it appear as if the
- * page was read and each individual row deleted, exactly as would have happened if the page had
- * been in the cache all along.
+ * is done with a transaction where the delete is not visible, or if an update is applied. In those
+ * cases, we read the original contents of the page. The page-read code notices a deleted page is
+ * being read, and as part of the read instantiates the contents of the page, creating tombstone
+ * WT_UPDATE records, in the same transaction that deleted the page. In other words, the read
+ * process makes it appear as if the page was read and each individual row deleted, exactly as
+ * would have happened if the page had been in the cache all along.
  *
  * There's an additional complication to support rollback of the page delete. When the page was
  * marked deleted, a pointer to the WT_REF was saved in the deleting session's transaction list and
  * the delete is unrolled by resetting the WT_REF_DELETED state back to WT_REF_DISK. However, if the
- * page has been instantiated by some reading thread, that's not enough, each individual row on the
+ * page has been instantiated by some reading thread, that's not enough; each individual row on the
  * page must have the delete operation reset. If the page split, the WT_UPDATE lists might have been
  * saved/restored during reconciliation and appear on multiple pages, and the WT_REF stored in the
  * deleting session's transaction list is no longer useful. For this reason, when the page is
@@ -44,10 +45,14 @@
  *
  * There are two other ways pages can be marked deleted: if they reconcile empty, or if they are
  * found to be eligible for deletion and contain only obsolete items. (The latter is known as
- * "checkpoint cleanup" and happens in bt_sync.c.) In these cases, the WT_REF state will be set to
- * WT_REF_DELETED but there will not be any associated WT_REF.page_del field since the page
- * contains no data. These pages are always skipped during cursor traversal, and if read is forced
- * to instantiate such a page, it creates an empty page from scratch.
+ * "checkpoint cleanup" and happens in bt_sync.c.) There are also two cases in which deleted pages
+ * are manufactured out of thin air: in VLCS, if a key-space gap exists between the start recno of
+ * an internal page and the start recno of its first child, a deleted page is created to cover this
+ * space; and, when new trees are created they are created with a single deleted leaf page. In these
+ * cases, the WT_REF state will be set to WT_REF_DELETED but there will not be any associated
+ * WT_REF.page_del field since the page contains no data. These pages are always skipped during
+ * cursor traversal, and if read is forced to instantiate such a page, it creates an empty page from
+ * scratch.
  *
  * This feature is not available for FLCS objects. While most of the machinery exists (it is mostly
  * a property of column-store internal pages) there is a showstopper problem. For VLCS, truncate
@@ -83,13 +88,13 @@
  * split operation is delicate and risky and it was better to preserve that page. This requires
  * special-case code in four places: (a) in split, for VLCS trees, don't discard the first child ref
  * in splits, even if it's deleted and the deletion is globally visible; (b) in VLCS trees, don't
- * attempt reverse splits originating from that page, as that would discard it; (c) when loading an
- * internal page, create an extra ref in this position if the first on-disk child starts at a later
- * recno from the internal page itself; and (d) in verify, accept that the page in this position
- * might be an empty deleted ref with no on-disk address. Note that the critical issue is not
- * _discarding_ this page after deleting it. It is fine for it to _be_ deleted, as long as the ref
- * always exists when the internal page is in memory. (It is not written to disk either; internal
- * page reconciliation skips it.)
+ * attempt reverse splits originating from that page, as that would discard it; (c) as noted above,
+ * when loading an internal page, create an extra ref in this position if the first on-disk child
+ * starts at a later recno from the internal page itself; and (d) in verify, accept that the page
+ * in this position might be an empty deleted ref with no on-disk address. Note that the critical
+ * issue is that one must not _discard_ this page after deleting it. It is fine for it to _be_
+ * deleted, as long as the ref always exists when the internal page is in memory. (It is not written
+ * to disk either; internal page reconciliation skips it.)
  */
 
 /*
@@ -140,10 +145,8 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      * remains deleted, it'll be in WT_REF_DELETED state and we won't get here to do another delete.
      * If the page was previously deleted and instantiated, we can only get here if it was written
      * out again or we successfully just evicted it; in that case, the reconciliation will have
-     * cleared the final traces of the previous deletion and instantiation.
-     *
-     * It is possible for a deleted page to be in WT_REF_DISK state, but only in a readonly tree. We
-     * can't get here in a readonly tree.
+     * cleared the final traces of the previous deletion and instantiation. Furthermore, any prior
+     * deletion must have committed or another attempt would have failed with an update conflict.
      */
     WT_ASSERT(session, ref->page_del == NULL);
 
@@ -154,6 +157,8 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      *
      * Additionally, if the page has prepared updates or the aggregated start time point on the page
      * is not visible to us then we cannot truncate the page.
+     *
+     * Note that we indicate this by succeeding without setting the skip flag, not via EBUSY.
      */
     if (!__wt_ref_addr_copy(session, ref, &addr))
         goto err;
@@ -306,7 +311,9 @@ __delete_redo_window_cleanup_internal(WT_SESSION_IMPL *session, WT_REF *ref)
 /*
  * __delete_redo_window_cleanup_skip --
  *     Tree-walk skip function for __wt_delete_redo_window_cleanup. This skips all leaf pages; we'll
- *     visit all in-memory internal pages via the flag settings on the tree-walk call.
+ *     visit all in-memory internal pages via the flag settings on the tree-walk call. Note that we
+ *     won't be called (even here) for deleted leaf pages themselves, because they're skipped by
+ *     default.
  */
 static int
 __delete_redo_window_cleanup_skip(
@@ -358,15 +365,16 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
     bool discard, skip;
 
     /*
-     * Deleted pages come from two sources: either it's a truncate as described above, or the page
-     * has been emptied by other operations and eviction deleted it.
+     * Deleted pages come from several possible sources (as described at the top of this file).
      *
-     * In both cases, the WT_REF state will be WT_REF_DELETED. In the case of a truncated page,
-     * there will be a WT_PAGE_DELETED structure with the transaction ID of the transaction that
-     * deleted the page, and the page is visible if that transaction ID is visible. In the case of
-     * an empty page, there will be no WT_PAGE_DELETED structure and the delete is by definition
-     * visible, eviction could not have deleted the page if there were changes on it that were not
-     * globally visible.
+     * In all cases, the WT_REF state will be WT_REF_DELETED. If there is a WT_PAGE_DELETED
+     * structure describing a transaction, the deletion is visible (so the page is *not* visible) if
+     * the transaction is visible. If there is no WT_PAGE_DELETED structure, the deletion is
+     * globally visible. This happens either because the structure described a transaction that had
+     * become globally visible and was previously removed, or because the page was deleted by a
+     * non-transactional mechanism. (In the latter case, the deletion is inherently globally
+     * visible; pages only become empty if nothing in them remains visible to anyone, and newly
+     * minted empty pages cannot have anything in them to see.)
      *
      * We're here because we found a WT_REF state set to WT_REF_DELETED. It is possible the page is
      * being read into memory right now, though, and the page could switch to an in-memory state at
@@ -378,9 +386,10 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
     /*
      * Check visibility.
      *
-     * Use the option in __wt_page_del_visible_all to hide prepared transactions as it is apparently
-     * possible for prepared transactions to become visible_all before they commit, and if we
-     * discard the page delete info before commit, commit will segfault.
+     * Use the option to hide prepared transactions in all checks; we can't skip a page if the
+     * deletion is only prepared (we need to visit it to generate a prepare conflict), and we can't
+     * discard the page_del info either, as doing so leads to dropping the on-disk page and if the
+     * prepared transaction rolls back we'd then be in trouble.
      */
     if (visible_all)
         skip = discard = __wt_page_del_visible_all(session, ref->page_del, true);
@@ -440,7 +449,8 @@ __instantiate_tombstone(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del,
     /*
      * If we find an existing stop time point we don't need to append a tombstone. Such rows would
      * not have been visible to the original truncate operation and were, logically, skipped over
-     * rather than re-deleted.
+     * rather than re-deleted. (A row that _was_ visible would have forced its page to be slow-
+     * truncated rather than fast-truncated.)
      */
     if (WT_TIME_WINDOW_HAS_STOP(tw))
         *updp = NULL;
@@ -608,8 +618,8 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /*
      * An operation is accessing a "deleted" page, and we're building an in-memory version of the
-     * page (making it look like all entries in the page were individually updated by a remove
-     * operation). We end up here if a transaction used a truncate call to delete the page without
+     * page, making it look like all entries in the page were individually updated by a remove
+     * operation. We end up here if a transaction used a truncate call to delete the page without
      * reading it, and something else that can't yet see the truncation decided to read the page.
      * (We also end up here if someone who _can_ see the truncation writes new data into the same
      * namespace before the deleted pages are discarded.)

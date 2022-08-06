@@ -264,14 +264,15 @@ __wt_rec_child_modify(
              * Depending on visibility, we may need to write the original page, or write a proxy
              * (deleted-address) cell with the pre-instantiation page-delete information, or we may
              * be able to ignore the page entirely. We keep the original fast-truncate information
-             * in the modify structure after instantiation to make the visibility check possible.
+             * in the ref after instantiation to make the visibility check possible.
              *
              * The key is the page-modify.instantiated flag, removed during page reconciliation. If
              * it's set, instantiation happened after checkpoint passed the leaf page and we treat
              * this page like a WT_REF_DELETED page, evaluating it as it was before instantiation.
              *
              * We do not need additional locking: with a hazard pointer the page can't be evicted,
-             * and reconciliation is the only thing that can clear the page-modify info.
+             * and reconciliation is the only thing that can clear the page-modify info. (XXX:
+             * that's not true, abort does.)
              */
             if (mod != NULL && mod->instantiated) {
                 WT_RET(__rec_child_deleted(session, r, ref, cmsp));

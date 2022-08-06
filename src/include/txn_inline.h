@@ -231,15 +231,20 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
 
     /*
      * Timestamps and prepare state are in the page deleted structure for truncates, or in the
-     * updates list in the case of instantiated pages. In the case of instantiated pages we may also
-     * need to update the page deleted structure saved in page->modify.
+     * updates list in the case of instantiated pages. We also need to update any page deleted
+     * structure in the ref.
      *
      * Only two cases are possible. First: the state is WT_REF_DELETED. In this case page_del cannot
-     * be NULL yet because an uncommitted operation cannot have reached global visibility.
-     * Otherwise: there is an uncommitted delete operation we're handling, so the page can't be in a
-     * non-deleted state, and the tree can't be readonly. Therefore the page must have been
+     * be NULL yet because an uncommitted operation cannot have reached global visibility. (Or at
+     * least, global visibility in the sense we need to use it for truncations, in which prepared
+     * and uncommitted transactions are not visible.)
+     *
+     * Otherwise: there is an uncommitted delete operation we're handling, so the page must have
+     * been deleted at some point, and the tree can't be readonly. Therefore the page must have been
      * instantiated, the state must be WT_REF_MEM, and there should be an update list in
-     * mod->inst_updates. (But just in case, allow the update list to be null.)
+     * mod->inst_updates. (But just in case, allow the update list to be null.) There might be a
+     * non-null page_del structure to update, depending on whether the page has been reconciled
+     * since it was deleted and then instantiated.
      */
     if (previous_state != WT_REF_DELETED) {
         WT_ASSERT(session, previous_state == WT_REF_MEM);
@@ -286,14 +291,20 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
 
     /*
      * Timestamps are in the page deleted structure for truncates, or in the updates in the case of
-     * instantiated pages. Both commit and durable timestamps need to be updated.
+     * instantiated pages. We also need to update any page deleted structure in the ref. Both commit
+     * and durable timestamps need to be updated.
      *
      * Only two cases are possible. First: the state is WT_REF_DELETED. In this case page_del cannot
-     * be NULL yet because an uncommitted operation cannot have reached global visibility.
-     * Otherwise: there is an uncommitted delete operation we're handling, so the page can't be in a
-     * non-deleted state, and the tree can't be readonly. Therefore the page must have been
+     * be NULL yet because an uncommitted operation cannot have reached global visibility. (Or at
+     * least, global visibility in the sense we need to use it for truncations, in which prepared
+     * and uncommitted transactions are not visible.)
+     *
+     * Otherwise: there is an uncommitted delete operation we're handling, so the page must have
+     * been deleted at some point, and the tree can't be readonly. Therefore the page must have been
      * instantiated, the state must be WT_REF_MEM, and there should be an update list in
-     * mod->inst_updates. (But just in case, allow the update list to be null.)
+     * mod->inst_updates. (But just in case, allow the update list to be null.) There might be a
+     * non-null page_del structure to update, depending on whether the page has been reconciled
+     * since it was deleted and then instantiated.
      */
     if (previous_state != WT_REF_DELETED) {
         WT_ASSERT(session, previous_state == WT_REF_MEM);
