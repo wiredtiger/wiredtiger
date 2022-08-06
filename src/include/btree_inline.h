@@ -1576,15 +1576,10 @@ __wt_page_del_visible_all(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, b
      * them in reconciliation. Similarly, we can't skip over a page just because a transaction has
      * deleted it and prepared; only committed transactions are suitable.)
      *
-     * For ordinary uses, the ref owning the page_deleted structure should be locked and its
-     * pre-lock state should be WT_REF_DELETED. This prevents the page from being instantiated while
-     * we look at it, and locks out other operations that might simultaneously discard the structure
-     * (either after checking visibility, or because its transaction aborted). In internal page
-     * reconciliation it is also sometimes necessary to look at the page_deleted structure of child
-     * pages that have already been instantiated. This is also safe because (a) we hold a hazard
-     * pointer for the child page while looking at it so it can't be evicted, and (b) once the page
-     * is instantiated only reconciliation discards the page_deleted structure. (XXX: point (b) is
-     * wrong. overoptimistic.)
+     * In all cases, the ref owning the page_deleted structure should be locked and its pre-lock
+     * state should be WT_REF_DELETED. This prevents the page from being instantiated while we look
+     * at it, and locks out other operations that might simultaneously discard the structure (either
+     * after checking visibility, or because its transaction aborted).
      */
 
     /* If the page delete info is NULL, the deletion was previously found to be globally visible. */

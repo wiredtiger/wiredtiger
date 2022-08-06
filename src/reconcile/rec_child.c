@@ -229,15 +229,20 @@ __wt_rec_child_modify(
              * Set WT_READ_NO_WAIT because we're only interested in the WT_REF's final state. Pages
              * in transition might change WT_REF state during our read, and then return WT_NOTFOUND
              * to us. In that case, loop and look again.
+             *
+             * If we retried from below this point and already have a hazard pointer, don't do it
+             * again.
              */
-            ret = __wt_page_in(
-              session, ref, WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN | WT_READ_NO_WAIT);
-            if (ret == WT_NOTFOUND) {
-                ret = 0;
-                break;
+            if (cmsp->hazard == false) {
+                ret = __wt_page_in(session, ref,
+                  WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN | WT_READ_NO_WAIT);
+                if (ret == WT_NOTFOUND) {
+                    ret = 0;
+                    break;
+                }
+                WT_RET(ret);
+                cmsp->hazard = true;
             }
-            WT_RET(ret);
-            cmsp->hazard = true;
 
             /*
              * The child is potentially modified if the page's modify structure has been created. If
@@ -270,12 +275,18 @@ __wt_rec_child_modify(
              * it's set, instantiation happened after checkpoint passed the leaf page and we treat
              * this page like a WT_REF_DELETED page, evaluating it as it was before instantiation.
              *
-             * We do not need additional locking: with a hazard pointer the page can't be evicted,
-             * and reconciliation is the only thing that can clear the page-modify info. (XXX:
-             * that's not true, abort does.)
+             * We need to lock the ref for it to be safe to examine the page_del structure, in case
+             * the transaction in it is unresolved and tries to roll back (which discards the
+             * structure) while we're looking at it. It should be possible to skip the locking if
+             * the instantiation update list is NULL (that means the transaction is resolved) but
+             * for now let's do the conservatively safe thing.
              */
             if (mod != NULL && mod->instantiated) {
+                if (!WT_REF_CAS_STATE(session, ref, WT_REF_MEM, WT_REF_LOCKED))
+                    /* Oops. Retry... */
+                    break;
                 WT_RET(__rec_child_deleted(session, r, ref, cmsp));
+                WT_REF_SET_STATE(ref, WT_REF_MEM);
                 goto done;
             }
 

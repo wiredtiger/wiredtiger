@@ -1026,9 +1026,7 @@ struct __wt_ref {
      * prepare, commit, and rollback (so that it remains correct) and (b) it is used by internal
      * page reconciliation if that occurs before the instantiated child is itself reconciled. (The
      * latter can only happen if the child is evicted in a fairly narrow time window during a
-     * checkpoint.) Currently in case (b) the internal page reconciliation code holds a hazard
-     * pointer on the page but does not lock the ref. This is thought to be safe. (XXX: it is safe
-     * for prepare and commit, but rollback frees the page_del and this seems to be problematic.)
+     * checkpoint.) This still requires locking the ref.
      *
      * It is vital to consider all the possible cases when touching a deleted or instantiated page.
      *
