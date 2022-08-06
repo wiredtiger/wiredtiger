@@ -277,10 +277,8 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
          * been an instantiated page, the information (and flag) is only kept until the page is
          * reconciled for the first time after instantiation, so it might not be set now.
          */
-        if (ref->page->modify->instantiated) {
-            ref->page->modify->instantiated = false;
-            __wt_free(session, ref->page_del);
-        }
+        if (ref->page->modify->instantiated)
+            __wt_free_page_del(session, ref);
     }
 
     WT_REF_SET_STATE(ref, current_state);
@@ -699,7 +697,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
         break;
     }
 
-    page->modify->instantiated = true;
+    page->modify->instantiated = 1;
     page->modify->inst_updates = update_list;
 
     /*

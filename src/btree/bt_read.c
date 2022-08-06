@@ -167,7 +167,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         if (ref->page_del == NULL) {
             WT_ERR(__wt_btree_new_leaf_page(session, ref));
             WT_ERR(__wt_page_modify_init(session, ref->page));
-            ref->page->modify->instantiated = true;
+            ref->page->modify->instantiated = 1;
             goto skip_read;
         }
     }

@@ -1650,6 +1650,17 @@ __wt_page_del_committed(WT_PAGE_DELETED *page_del)
 }
 
 /*
+ * __wt_free_page_del --
+ *     Clear the instantiated flag in the modify structure and discard the ref's page_del structure.
+ */
+static inline void
+__wt_free_page_del(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    if (__wt_atomic_cas8(&ref->page->modify->instantiated, 1, 0))
+        __wt_free(session, ref->page_del);
+}
+
+/*
  * __wt_btree_syncing_by_other_session --
  *     Returns true if the session's current btree is being synced by another thread.
  */

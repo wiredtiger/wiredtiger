@@ -2559,10 +2559,8 @@ split:
     }
 
     /* If the page has post-instantiation delete information, we don't need it any more. */
-    if (mod->instantiated) {
-        mod->instantiated = false;
-        __wt_free(session, ref->page_del);
-    }
+    if (mod->instantiated)
+        __wt_free_page_del(session, ref);
 
     return (0);
 }

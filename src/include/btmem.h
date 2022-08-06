@@ -451,8 +451,13 @@ struct __wt_page_modify {
      * in the ref remains valid. The update list remains set (if set at all) until the transaction
      * that deleted the page is resolved. These transitions are independent; that is, the first
      * reconciliation can happen either before or after the delete transaction resolves.
+     *
+     * The instantiated flag 1 -> 0 transition must be done atomically with
+     * __wt_delete_clear_instantiated, which also discards the page_del structure in the ref. This
+     * is required to avoid freeing the latter twice, as one of the places this discard happens is
+     * at the end of reconciliation where we want to avoid an unnecessary lock cycle on the ref.
      */
-    bool instantiated;        /* True if this is a newly instantiated page. */
+    uint8_t instantiated;     /* True if this is a newly instantiated page. */
     WT_UPDATE **inst_updates; /* Update list for instantiated page with unresolved truncate. */
 
 #define WT_PAGE_LOCK(s, p) __wt_spin_lock((s), &(p)->modify->page_lock)
