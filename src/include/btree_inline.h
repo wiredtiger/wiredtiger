@@ -745,6 +745,7 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
          *  Simululate a delay after marking a tree dirty - there is a race where checkpoint
          *  can clear the dirty state before a page is marked clean.
          */
+        if (__wt_random(&session->rnd) % 100 == 0)
         __wt_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_RACE);
     }
 
