@@ -183,7 +183,7 @@ __wt_spin_backoff(uint64_t *yield_count, uint64_t *sleep_usecs)
  *     Optionally add delay to stress code paths.
  */
 static inline void
-__wt_timing_stress(WT_SESSION_IMPL *session, u_int flag)
+__wt_timing_stress(WT_SESSION_IMPL *session, u_int flag, struct timespec *tsp)
 {
     double pct;
     uint64_t i, max;
@@ -191,6 +191,12 @@ __wt_timing_stress(WT_SESSION_IMPL *session, u_int flag)
     /* Optionally only sleep when a specified configuration flag is set. */
     if (flag != 0 && !FLD_ISSET(S2C(session)->timing_stress_flags, flag))
         return;
+
+    /* If a delay is provided then use that delay and return. */
+    if (tsp != NULL) {
+        __wt_sleep((uint64_t)tsp->tv_sec, (uint64_t)tsp->tv_nsec / WT_THOUSAND);
+        return;
+    }
 
     /*
      * If there is a lot of cache pressure, don't let the sleep time get too large. If the cache is
