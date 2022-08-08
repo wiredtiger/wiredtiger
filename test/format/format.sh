@@ -375,12 +375,10 @@ wait_for_process()
 	pid=$1
 	ret=127
 	if [ `ps -o pid | grep -w $pid | wc -l` -gt 0 ]; then
-		echo "HERE for $pid"
 		wait $pid
 		ret=$?
 	else
 		while [ -d "/proc/$pid/" ]; do
-			echo "HERE for /proc/$pid/"
 			sleep 1
 		done
 	fi
