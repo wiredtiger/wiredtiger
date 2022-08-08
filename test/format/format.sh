@@ -374,7 +374,8 @@ wait_for_process()
 {
 	pid=$1
 	ret=127
-	if [ `ps -o pid | grep -w $pid | wc -l` -gt 0 ]; then
+
+	if [ `pstree -p $$ | grep -w $pid | wc -l` -gt "0" ]; then
 		wait $pid
 		ret=$?
 	else
@@ -418,7 +419,7 @@ resolve()
 			}
 
 			# Kill the process group to catch any child processes.
-			if [ `ps -eo ppid | grep -w $pid | wc -l` -gt 0 ]; then
+			if [ `ps -eo ppid | grep -w $pid | wc -l` -gt "0" ]; then
 				kill -KILL -- -$pid
 			fi
 			# Kill the process.
