@@ -263,6 +263,9 @@ CONFIG configuration_list[] = {
   {"stress.checkpoint_evict_page", "stress force checkpoint to evict all reconciling pages",
     C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_CHECKPOINT_EVICT_PAGE},
 
+  {"stress.checkpoint_race", "stress checkpoint dirty page race",
+    C_BOOL, 100, 0, 0, V_GLOBAL_STRESS_CHECKPOINT_RACE},
+
   {"stress.checkpoint_reserved_txnid_delay", "stress checkpoint invisible transaction id delay",
     C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_CHECKPOINT_RESERVED_TXNID_DELAY},
 
