@@ -286,16 +286,28 @@ __evict_delete_ref(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
          * This will consume the deleted ref (and eventually free it). If the reverse split can't
          * get the access it needs because something is busy, be sure that the page still ends up
          * marked deleted.
+         *
+         * Don't do it if we are a VLCS tree and the child we're deleting is the leftmost child. The
+         * reverse split will automatically remove the page entirely, creating a namespace gap at
+         * the beginning of the internal page, and that leaves search nowhere to go. Note that the
+         * situation will be handled safely if another child gets deleted, or if eviction comes for
+         * a visit.
          */
         if (ndeleted > pindex->entries / 10 && pindex->entries > 1) {
-            if ((ret = __wt_split_reverse(session, ref)) == 0)
-                return (0);
-            WT_RET_BUSY_OK(ret);
+            if (S2BT(session)->type == BTREE_COL_VAR && ref == pindex->index[0])
+                WT_STAT_CONN_DATA_INCR(session, cache_reverse_splits_skipped_vlcs);
+            else {
+                if ((ret = __wt_split_reverse(session, ref)) == 0) {
+                    WT_STAT_CONN_DATA_INCR(session, cache_reverse_splits);
+                    return (0);
+                }
+                WT_RET_BUSY_OK(ret);
 
-            /*
-             * The child must be locked after a failed reverse split.
-             */
-            WT_ASSERT(session, ref->state == WT_REF_LOCKED);
+                /*
+                 * The child must be locked after a failed reverse split.
+                 */
+                WT_ASSERT(session, ref->state == WT_REF_LOCKED);
+            }
         }
     }
 
@@ -311,18 +323,36 @@ static int
 __evict_page_clean_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 {
     WT_DECL_RET;
+    bool instantiated;
 
     /*
-     * Discard the page and update the reference structure. A page with a disk address is an on-disk
-     * page, and a page without a disk address is a re-instantiated deleted page (for example, by
-     * searching), that was never subsequently written.
+     * We might discard an instantiated deleted page, because instantiated pages are not marked
+     * dirty by default. Check this before discarding the modify structure in __wt_ref_out.
+     */
+    if (ref->page->modify != NULL && ref->page->modify->instantiated)
+        instantiated = true;
+    else {
+        WT_ASSERT(session, ref->page_del == NULL);
+        instantiated = false;
+    }
+
+    /*
+     * Discard the page and update the reference structure. A leaf page without a disk address is a
+     * deleted page that either was created empty and never written out, or had its on-disk page
+     * discarded already after the deletion became globally visible. It is not immediately clear if
+     * it's possible to get an internal page without a disk address here, but if one appears it can
+     * be deleted. (Note that deleting an internal page implicitly turns it into a leaf.)
+     *
+     * A page with a disk address is now on disk, unless it was deleted and instantiated and then
+     * evicted unmodified, in which case it is still deleted. In the latter case set the state back
+     * to WT_REF_DELETED.
      */
     __wt_ref_out(session, ref);
     if (ref->addr == NULL) {
         WT_WITH_PAGE_INDEX(session, ret = __evict_delete_ref(session, ref, flags));
         WT_RET_BUSY_OK(ret);
     } else
-        WT_REF_SET_STATE(ref, WT_REF_DISK);
+        WT_REF_SET_STATE(ref, instantiated ? WT_REF_DELETED : WT_REF_DISK);
 
     return (0);
 }
@@ -459,8 +489,8 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
 
     /*
      * It is always OK to evict pages from checkpoint cursor trees if they don't have children, and
-     * visibility checks for pages deleted in the checkpoint aren't needed (or correct when done in
-     * eviction threads).
+     * visibility checks for pages found to be deleted in the checkpoint aren't needed (or correct
+     * when done in eviction threads).
      */
     if (WT_READING_CHECKPOINT(session))
         return (0);
@@ -489,6 +519,22 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
             if (!__wt_atomic_casv8(&child->state, WT_REF_DELETED, WT_REF_LOCKED))
                 return (__wt_set_return(session, EBUSY));
             /*
+             * Insert a read/read barrier so we're guaranteed the page_del state we read below comes
+             * after the locking operation on the ref state and therefore after the previous unlock
+             * of the ref. Otherwise we might read an inconsistent view of the page deletion info,
+             * and while many combinations are harmless and would just lead us to falsely refuse to
+             * evict, some (e.g. reading committed as true and a stale durable timestamp from before
+             * it was set by commit) are not.
+             *
+             * Note that while ordinarily a lock acquire should have an acquire (read/any) barrier
+             * after it, because we are only reading the write part is irrelevant and a read/read
+             * barrier is sufficient.
+             *
+             * FUTURE: this and the CAS should be rolled into a WT_REF_TRYLOCK macro.
+             */
+            WT_READ_BARRIER();
+
+            /*
              * We can evict any truncation that's committed. However, restrictions in reconciliation
              * mean that it needs to be visible to us when we get there. And unfortunately we are
              * upstream of the point where eviction threads get snapshots. Plus, application threads
@@ -500,15 +546,20 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
              *     3. If we do not but we're an eviction thread, go ahead. We will get a snapshot
              *        shortly and any committed operation will be visible in it.
              *     4. Otherwise, check if the operation is globally visible.
+             *
+             * Even though we specifically can't evict prepared truncations, we don't need to deploy
+             * the special-case logic for prepared transactions in __wt_page_del_visible; prepared
+             * transactions aren't committed so they'll fail the first check.
              */
-            if (!__wt_page_del_committed(child->ft_info.del))
+            if (!__wt_page_del_committed(child->page_del))
                 visible = false;
             else if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
-                visible = __wt_page_del_visible(session, child->ft_info.del, false);
+                visible = __wt_page_del_visible(session, child->page_del, false);
             else if (F_ISSET(session, WT_SESSION_EVICTION))
                 visible = true;
             else
-                visible = __wt_page_del_visible(session, child->ft_info.del, true);
+                visible = __wt_page_del_visible_all(session, child->page_del, false);
+            /* FUTURE: is there a reason this doesn't use WT_REF_UNLOCK? */
             child->state = WT_REF_DELETED;
             if (!visible)
                 return (__wt_set_return(session, EBUSY));

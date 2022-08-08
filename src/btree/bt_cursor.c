@@ -66,9 +66,6 @@ __btcur_bounds_search_near_reposition(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
 
     WT_ASSERT(session, WT_CURSOR_BOUNDS_SET(cursor));
 
-    if (CUR2BT(cursor)->type != BTREE_ROW)
-        return (ENOTSUP);
-
     /*
      * Suppose a caller calls with the search key set to the lower bound but also specifies that the
      * lower bound isn't inclusive. We cannot know which key to set the lower bound to so we would
@@ -77,8 +74,13 @@ __btcur_bounds_search_near_reposition(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
      * bounds calls. However for the time being we will leave it as is as it is unlikely to present
      * a performance issue.
      */
-    WT_RET(__btcur_bounds_contains_key(
-      session, cursor, &cursor->key, WT_RECNO_OOB, &key_out_of_bounds, &upper));
+    if (CUR2BT(cursor)->type == BTREE_ROW)
+        WT_RET(__btcur_bounds_contains_key(
+          session, cursor, &cursor->key, WT_RECNO_OOB, &key_out_of_bounds, &upper));
+    else
+        WT_RET(__btcur_bounds_contains_key(
+          session, cursor, NULL, cursor->recno, &key_out_of_bounds, &upper));
+
     if (key_out_of_bounds) {
         __wt_cursor_set_raw_key(cursor, upper ? &cursor->upper_bound : &cursor->lower_bound);
         WT_STAT_CONN_DATA_INCR(session, cursor_bounds_search_near_repositioned_cursor);
@@ -368,7 +370,11 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
         /*
          * Column-store updates are stored as "insert" objects. If search returned an insert object
          * we can't return, the returned on-page object must be checked for a match. The flag tells
-         * us whether the insert was actually an append to allow skipping the on-disk check.
+         * us whether the insert was actually an append to allow skipping the on-disk check. Note
+         * that appends can't have history store content. This is true both for "real" appends at
+         * the end of the tree and also for appends that are filling in truncated gaps in the middle
+         * of the tree -- the gap only appears after the truncation becomes globally visible and at
+         * that point by definition nothing older can be accessible.
          */
         if (cbt->ins != NULL && !F_ISSET(cbt, WT_CBT_VAR_ONPAGE_MATCH))
             return (0);
@@ -2237,9 +2243,10 @@ __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
     session = CUR2S(cbt);
 
     /*
-     * The in-memory split and history store table code creates low-level btree cursors to
-     * search/modify leaf pages. Those cursors don't hold hazard pointers, nor are they counted in
-     * the session handle's cursor count. Skip the usual cursor tear-down in that case.
+     * The in-memory split, history store table, and fast-truncate instantiation code creates
+     * low-level btree cursors to search/modify leaf pages. Those cursors don't hold hazard
+     * pointers, nor are they counted in the session handle's cursor count. Skip the usual cursor
+     * tear-down in that case.
      */
     if (!lowlevel)
         ret = __cursor_reset(cbt);

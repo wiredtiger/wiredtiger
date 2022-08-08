@@ -27,15 +27,17 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
-from wiredtiger import stat, WiredTigerError, wiredtiger_strerror, WT_ROLLBACK
+from helper import simulate_crash_restart
+from wiredtiger import stat, WiredTigerError, wiredtiger_strerror, WT_NOTFOUND, WT_ROLLBACK
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_truncate10.py
+# test_truncate16.py
 #
-# Check that nothing comes unstuck if we commit a truncate with durable > commit.
+# Make sure that no shenanigans occur if we try to read from a page that's been
+# fast-truncated by a prepared transaction.
 
-class test_truncate10(wttest.WiredTigerTestCase):
+class test_truncate16(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
     session_config = 'isolation=snapshot'
 
@@ -47,31 +49,21 @@ class test_truncate10(wttest.WiredTigerTestCase):
         ('truncate', dict(trunc_with_remove=False)),
         #('remove', dict(trunc_with_remove=True)),
     ]
-
     format_values = [
         ('column', dict(key_format='r', value_format='S', extraconfig='')),
         ('column_fix', dict(key_format='r', value_format='8t',
             extraconfig=',allocation_size=512,leaf_page_max=512')),
         ('integer_row', dict(key_format='i', value_format='S', extraconfig='')),
     ]
-    # Try various stable times.
-    stable_values = [
-        ('10', dict(stable_timestamp=10)),
-        ('20', dict(stable_timestamp=20)),
-        ('25', dict(stable_timestamp=25)),
-        ('30', dict(stable_timestamp=30)),
-    ]
-    # Try both with and without an intermediate checkpoint.
     checkpoint_values = [
+        ('no_checkpoint', dict(do_checkpoint=False)),
         ('checkpoint', dict(do_checkpoint=True)),
-        ('no-checkpoint', dict(do_checkpoint=False)),
     ]
+    scenarios = make_scenarios(trunc_values, format_values, checkpoint_values)
 
-    scenarios = make_scenarios(trunc_values, format_values, stable_values, checkpoint_values)
-
-    def truncate(self, uri, make_key, keynum1, keynum2):
+    def truncate(self, session, uri, make_key, keynum1, keynum2):
         if self.trunc_with_remove:
-            cursor = self.session.open_cursor(uri)
+            cursor = session.open_cursor(uri)
             err = 0
             for k in range(keynum1, keynum2 + 1):
                 cursor.set_key(k)
@@ -86,12 +78,12 @@ class test_truncate10(wttest.WiredTigerTestCase):
                     break
             cursor.close()
         else:
-            lo_cursor = self.session.open_cursor(uri)
-            hi_cursor = self.session.open_cursor(uri)
+            lo_cursor = session.open_cursor(uri)
+            hi_cursor = session.open_cursor(uri)
             lo_cursor.set_key(make_key(keynum1))
             hi_cursor.set_key(make_key(keynum2))
             try:
-                err = self.session.truncate(None, lo_cursor, hi_cursor, None)
+                err = session.truncate(None, lo_cursor, hi_cursor, None)
             except WiredTigerError as e:
                 if wiredtiger_strerror(WT_ROLLBACK) in str(e):
                     err = WT_ROLLBACK
@@ -101,29 +93,14 @@ class test_truncate10(wttest.WiredTigerTestCase):
             hi_cursor.close()
         return err
 
-    def check(self, uri, make_key, nrows, nzeros, value, ts):
-        cursor = self.session.open_cursor(uri)
-        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(ts))
-        seen = 0
-        zseen = 0
-        for k, v in cursor:
-            if self.value_format == '8t' and v == 0:
-                zseen += 1
-            else:
-                self.assertEqual(v, value)
-                seen += 1
-        self.assertEqual(seen, nrows)
-        self.assertEqual(zseen, nzeros if self.value_format == '8t' else 0)
-        self.session.rollback_transaction()
-        cursor.close()
-
-    def test_truncate10(self):
+    def test_truncate16(self):
         nrows = 10000
 
-        uri = "table:truncate10"
+        # Create a table.
+        uri = "table:truncate16"
         ds = SimpleDataSet(
             self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=false)' + self.extraconfig)
+            config=self.extraconfig)
         ds.populate()
 
         if self.value_format == '8t':
@@ -137,12 +114,16 @@ class test_truncate10(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
             ',stable_timestamp=' + self.timestamp_str(1))
 
-        # Write a bunch of data at time 10.
+        # Write some baseline data at time 10.
         cursor = self.session.open_cursor(ds.uri)
         self.session.begin_transaction()
         for i in range(1, nrows + 1):
             cursor[ds.key(i)] = value_a
+            if i % 487 == 0:
+                self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
+                self.session.begin_transaction()
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
+        cursor.close()
 
         # Mark it stable.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
@@ -150,13 +131,16 @@ class test_truncate10(wttest.WiredTigerTestCase):
         # Reopen the connection so nothing is in memory and we can fast-truncate.
         self.reopen_conn()
 
-        # Truncate the data at time 25, but prepare at 20 and make durable 30.
-        self.session.begin_transaction()
-        err = self.truncate(ds.uri, ds.key, nrows // 4 + 1, nrows // 4 + nrows // 2)
+        # Make a session to prepare in.
+        session2 = self.conn.open_session()
+
+        # Truncate the middle of the table.
+        # 
+        # Prepare the truncate at time 20 and leave it hanging.
+        session2.begin_transaction()
+        err = self.truncate(session2, ds.uri, ds.key, nrows // 4 + 1, 3 * nrows // 4)
         self.assertEqual(err, 0)
-        self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(20))
-        self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(25))
-        self.session.commit_transaction('durable_timestamp=' + self.timestamp_str(30))
+        session2.prepare_transaction('prepare_timestamp=' + self.timestamp_str(20))
 
         # Make sure we did at least one fast-delete. (Unless we specifically didn't want to,
         # or running on FLCS where it isn't supported.)
@@ -166,33 +150,47 @@ class test_truncate10(wttest.WiredTigerTestCase):
             self.assertEqual(fastdelete_pages, 0)
         else:
             self.assertGreater(fastdelete_pages, 0)
+        stat_cursor.close()
 
-        # Optionally advance stable.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.stable_timestamp))
-
-        # Optionally checkpoint.
+        # Optionally checkpoint at this stage, just in case it breaks or trips on
+        # the prepared truncation.
         if self.do_checkpoint:
             self.session.checkpoint()
 
-        # Validate the data.
+        # Now read from the truncated region. This should give WT_PREPARE_CONFLICT.
+        cursor = self.session.open_cursor(ds.uri)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
+        cursor.set_key(nrows // 2)
+        self.assertRaisesException(WiredTigerError,
+            lambda: cursor.search(),
+            exceptionString='/conflict with a prepared update/')
 
-        # At time 10 we should see all value_a.
-        self.check(ds.uri, ds.key, nrows, 0, value_a, 10)
+        # It should have instantiated the page under the key we read, and nothing else.
+        # (But not if we weren't fast-deleting.)
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        read_deleted = stat_cursor[stat.conn.cache_read_deleted][2]
+        if self.value_format == '8t' or self.trunc_with_remove:
+            self.assertEqual(read_deleted, 0)
+        else:
+            self.assertEqual(read_deleted, 1)
+        stat_cursor.close()
 
-        # At time 20 we should still see all value_a.
-        self.check(ds.uri, ds.key, nrows, 0, value_a, 20)
+        # Now toss the prepared transaction, and just for kicks make sure we can read the whole
+        # table.
+        session2.rollback_transaction()
 
-        # At time 25 we should still see half value_a, and for FLCS, half zeros.
-        # (Note that reading between commit and durable can be problematic, but for
-        # now at least it remains permitted.)
-        self.check(ds.uri, ds.key, nrows // 2, nrows // 2, value_a, 25)
+        for i in range(1, nrows + 1):
+            cursor.next()
+            self.assertEqual(cursor.get_key(), ds.key(i))
+            self.assertEqual(cursor.get_value(), value_a)
+        self.session.rollback_transaction()
 
-        # At time 30 we should also see half value_a, and for FLCS, half zeros.
-        self.check(ds.uri, ds.key, nrows // 2, nrows // 2, value_a, 30)
-
-        # Move the stable timestamp forward before exiting so we don't waste time rolling
-        # back the changes during shutdown.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
+        # Unlike RTS, transaction rollback should not instantiate pages, so the number of
+        # instantiated pages should remain 1.
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        read_deleted_still = stat_cursor[stat.conn.cache_read_deleted][2]
+        self.assertEqual(read_deleted_still, read_deleted)
+        stat_cursor.close()
 
 if __name__ == '__main__':
     wttest.run()

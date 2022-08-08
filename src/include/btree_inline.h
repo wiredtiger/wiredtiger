@@ -1556,55 +1556,72 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
- * __wt_page_del_visible --
- *     Return if a truncate operation is visible to the caller.
+ * __wt_page_del_visible_all --
+ *     Check if a truncate operation is visible to everyone and the data under it is obsolete.
  */
 static inline bool
-__wt_page_del_visible(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, bool visible_all)
+__wt_page_del_visible_all(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, bool hide_prepared)
 {
     uint8_t prepare_state;
 
     /*
-     * In general usage, a NULL WT_PAGE_DELETED is a truncate operation whose details were discarded
-     * when it became globally visible.
+     * Like other visible_all checks, use the durable timestamp to avoid complications: there is
+     * potentially a window where a prepared and committed transaction can be visible but not yet
+     * durable, and in that window the changes under it are not obsolete yet.
+     *
+     * The hide_prepared argument causes prepared but not committed transactions to be treated as
+     * invisible. (Apparently prepared and uncommitted transactions can be visible_all, but we need
+     * to not see them in some cases; for example, prepared deletions can't exist on disk because
+     * the on-disk format doesn't have space for the extra "I'm prepared" bit, so we avoid seeing
+     * them in reconciliation. Similarly, we can't skip over a page just because a transaction has
+     * deleted it and prepared; only committed transactions are suitable.)
+     *
+     * In all cases, the ref owning the page_deleted structure should be locked and its pre-lock
+     * state should be WT_REF_DELETED. This prevents the page from being instantiated while we look
+     * at it, and locks out other operations that might simultaneously discard the structure (either
+     * after checking visibility, or because its transaction aborted).
      */
+
+    /* If the page delete info is NULL, the deletion was previously found to be globally visible. */
     if (page_del == NULL)
         return (true);
 
     /* We discard page_del on transaction abort, so should never see an aborted one. */
     WT_ASSERT(session, page_del->txnid != WT_TXN_ABORTED);
 
-    WT_ORDERED_READ(prepare_state, page_del->prepare_state);
-    if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
-        return (false);
+    if (hide_prepared) {
+        WT_ORDERED_READ(prepare_state, page_del->prepare_state);
+        if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
+            return (false);
+    }
 
-    return (visible_all ?
-        __wt_txn_visible_all(session, page_del->txnid, page_del->durable_timestamp) :
-        __wt_txn_visible(session, page_del->txnid, page_del->timestamp));
+    return (__wt_txn_visible_all(session, page_del->txnid, page_del->durable_timestamp));
 }
 
 /*
- * __wt_page_del_active --
- *     Return if a truncate operation is active.
+ * __wt_page_del_visible --
+ *     Return if a truncate operation is visible to the caller. The same considerations apply as in
+ *     the visible_all version.
  */
 static inline bool
-__wt_page_del_active(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
+__wt_page_del_visible(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, bool hide_prepared)
 {
-    /*
-     * Return if a truncate operation is active: "active" means approximately that the truncate is
-     * still in progress, that is, that the underlying original page may still be required. This
-     * function in practice is actually a visibility test (it returns whether the truncate is *not*
-     * visible) and should be renamed and have its sense flipped to be more consistent with the rest
-     * of the system.
-     *
-     * Our caller should have already locked the WT_REF and confirmed that the previous state was
-     * WT_REF_DELETED. Consequently there are two possible cases: either ft_info.del is NULL (in
-     * which case the deletion is globally visible and cannot be rolled back) or it is not, in which
-     * case the information in ft_info.del gives us the visibility.
-     */
-    WT_ASSERT(session, ref->state == WT_REF_LOCKED);
+    uint8_t prepare_state;
 
-    return (!__wt_page_del_visible(session, ref->ft_info.del, visible_all));
+    /* If the page delete info is NULL, the deletion was previously found to be globally visible. */
+    if (page_del == NULL)
+        return (true);
+
+    /* We discard page_del on transaction abort, so should never see an aborted one. */
+    WT_ASSERT(session, page_del->txnid != WT_TXN_ABORTED);
+
+    if (hide_prepared) {
+        WT_ORDERED_READ(prepare_state, page_del->prepare_state);
+        if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
+            return (false);
+    }
+
+    return (__wt_txn_visible(session, page_del->txnid, page_del->timestamp));
 }
 
 /*
@@ -1612,7 +1629,10 @@ __wt_page_del_active(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
  *     Return if a truncate operation is resolved. (Since truncations that abort are removed
  *     immediately, "resolved" and "committed" are equivalent here.) The caller should have already
  *     locked the ref and confirmed that the ref's previous state was WT_REF_DELETED. The page_del
- *     argument should be the ref's ft_info.del member.
+ *     argument should be the ref's page_del member. This function should only be used for pages in
+ *     WT_REF_DELETED state. For deleted pages that have been instantiated in memory, the update
+ *     list in the page modify structure should be checked instead, as the page_del structure might
+ *     have been discarded already. (The update list is non-null if the transaction is unresolved.)
  */
 static inline bool
 __wt_page_del_committed(WT_PAGE_DELETED *page_del)
@@ -1627,6 +1647,17 @@ __wt_page_del_committed(WT_PAGE_DELETED *page_del)
         return (true);
 
     return (page_del->committed);
+}
+
+/*
+ * __wt_free_page_del --
+ *     Clear the instantiated flag in the modify structure and discard the ref's page_del structure.
+ */
+static inline void
+__wt_free_page_del(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    if (__wt_atomic_cas8(&ref->page->modify->instantiated, 1, 0))
+        __wt_free(session, ref->page_del);
 }
 
 /*
@@ -1808,13 +1839,18 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     /*
      * Check the fast-truncate information. Pages with an uncommitted truncate cannot be evicted.
      *
-     * Because the page is in memory, we look at ft_info.update. If it's not NULL, that means the
+     * Because the page is in memory, we look at mod.inst_updates. If it's not NULL, that means the
      * truncate operation isn't committed.
      *
-     * The list of updates in ft_info.update will be discarded when the transaction they belong to
+     * The list of updates in mod.inst_updates will be discarded when the transaction they belong to
      * is resolved.
+     *
+     * Note that we are not using __wt_page_del_committed here because (a) examining the page_del
+     * structure requires locking the ref, and (b) once in memory the page_del structure only
+     * remains until the next reconciliation, and nothing prevents that from occurring before the
+     * transaction commits.
      */
-    if (ref->ft_info.update != NULL)
+    if (mod->inst_updates != NULL)
         return (false);
 
     /*
@@ -2217,21 +2253,21 @@ __wt_btcur_skip_page(
     WT_REF_LOCK(session, ref, &previous_state);
 
     /*
-     * Check the fast-truncate information, there are 4 cases:
+     * Check the fast-truncate information; there are 3 cases:
      *
-     * (1) The page is in the WT_REF_DELETED state and ft_info.del is NULL. The page is deleted.
-     * (2) The page is in the WT_REF_DELETED state and ft_info.del is not NULL. The page is deleted
-     *     if the truncate operation is visible. Look at ft_info.del; we could use the info from the
+     * (1) The page is in the WT_REF_DELETED state and page_del is NULL. The page is deleted. This
+     *     case is folded into the next because __wt_page_del_visible handles it.
+     * (2) The page is in the WT_REF_DELETED state and page_del is not NULL. The page is deleted
+     *     if the truncate operation is visible. Look at page_del; we could use the info from the
      *     address cell below too, but that's slower.
-     * (3) The page is in the WT_REF_DISK state. The page may be deleted; check the delete info from
-     *     the address cell.
-     * (4) The page is in memory and has been instantiated. The delete info from the address cell
-     *     will serve for readonly/unmodified pages, and for modified pages we can't skip the page
-     *     anyway.
+     * (3) The page is in memory and has been instantiated. The delete info from the address cell
+     *     will serve for readonly/unmodified pages, and for modified pages we can't skip the page.
+     *     (This case is checked further below.)
+     *
+     * In all cases, make use of the option to __wt_page_del_visible to hide prepared transactions,
+     * as we shouldn't skip pages where the deletion is prepared but not committed.
      */
-    if (previous_state == WT_REF_DELETED &&
-      (ref->ft_info.del == NULL ||
-        __wt_txn_visible(session, ref->ft_info.del->txnid, ref->ft_info.del->timestamp))) {
+    if (previous_state == WT_REF_DELETED && __wt_page_del_visible(session, ref->page_del, true)) {
         *skipp = true;
         goto unlock;
     }
@@ -2245,7 +2281,7 @@ __wt_btcur_skip_page(
           (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page))) &&
       __wt_ref_addr_copy(session, ref, &addr)) {
         /* If there's delete information in the disk address, we can use it. */
-        if (addr.del_set && __wt_txn_visible(session, addr.del.txnid, addr.del.timestamp)) {
+        if (addr.del_set && __wt_page_del_visible(session, &addr.del, true)) {
             *skipp = true;
             goto unlock;
         }
