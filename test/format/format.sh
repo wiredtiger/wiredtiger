@@ -367,6 +367,27 @@ report_failure()
 	echo "$name: failure status reported" > $dir/$status
 }
 
+# Wait for a process to die. Handle both child and non-child processes.
+# $1 pid
+# Return <exit code> of process if child or 127 if non-child
+wait_for_process()
+{
+	pid=$1
+	ret=127
+	if [ `ps -o pid | grep -w $pid | wc -l` -gt 0 ]; then
+		echo "HERE for $pid"
+		wait $pid
+		ret=$?
+	else
+		while [ -d "/proc/$pid/" ]; do
+			echo "HERE for /proc/$pid/"
+			sleep 1
+		done
+	fi
+
+	return $ret
+}
+
 # Resolve/cleanup completed jobs.
 resolve()
 {
@@ -399,15 +420,20 @@ resolve()
 			}
 
 			# Kill the process group to catch any child processes.
+			if [ `ps -eo ppid | grep -w $pid | wc -l` -gt 0 ]; then
+				kill -KILL -- -$pid
+			fi
+			# Kill the process.
+			kill -KILL $pid
+			wait_for_process $pid
+
 			msg "job in $dir killed"
-			kill -KILL -- -$pid
-			wait $pid
 
 			# Remove jobs we killed, they count as neither success or failure.
 			rm -rf $dir $log
 			continue
 		}
-		wait $pid
+		wait_for_process $pid
 		eret=$?
 
 		# Remove successful jobs.
