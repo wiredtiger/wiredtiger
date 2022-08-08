@@ -746,8 +746,8 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
          *  Simulate a delay after marking a tree dirty - there is a race where checkpoint
          *  can clear the dirty state before a page is marked clean.
          */
-        tsp.tv_sec=0;
-        tsp.tv_nsec=1000000;
+        tsp.tv_sec = 0;
+        tsp.tv_nsec = 1000000;
         __wt_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_RACE, &tsp);
     }
 
@@ -809,6 +809,16 @@ __wt_page_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     __wt_page_only_modify_set(session, page);
 
+    /*
+     * We need to make sure a checkpoint doesn't come through and mark the tree clean before we have
+     * a chance to mark the page dirty. Otherwise, the checkpoint may also visit the page before
+     * it is marked dirty and skip it without also marking the tree clean. Worst case scenario with
+     * this approach is that a future checkpoint reviews the tree again unnecessarily - however, it
+     * is likely this is necessary since the update triggering this modify set would not be included
+     * in the checkpoint. If hypothetically a checkpoint came through after the page was modified 
+     * andbefore the tree is marked dirty again, that is fine. The transaction installing this update
+     * wasn't visible to the checkpoint, so it's reasonable for the tree to remain dirty.
+     */
     __wt_tree_modify_set(session);
 }
 

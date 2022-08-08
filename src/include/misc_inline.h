@@ -180,7 +180,7 @@ __wt_spin_backoff(uint64_t *yield_count, uint64_t *sleep_usecs)
 
 /*
  * __wt_timing_stress --
- *     Optionally add delay to stress code paths. 
+ *     Optionally add delay to stress code paths.
  */
 static inline void
 __wt_timing_stress(WT_SESSION_IMPL *session, u_int flag, struct timespec *tsp)
@@ -193,8 +193,8 @@ __wt_timing_stress(WT_SESSION_IMPL *session, u_int flag, struct timespec *tsp)
     if (flag != 0 && !FLD_ISSET(S2C(session)->timing_stress_flags, flag))
         return;
 
-    /* If a delay is set, use that delay otherwise default to original behaviour. */
-    if (tsp != NULL){
+    /* If a delay is set, use that delay otherwise default to original behavior. */
+    if (tsp != NULL) {
         __wt_sleep((uint64_t)tsp->tv_sec, (uint64_t)tsp->tv_nsec / WT_THOUSAND);
         return;
     }

@@ -33,6 +33,7 @@
 
 import wttest, wtthread
 import threading
+from wtscenario import make_scenarios
 
 class test_bug010(wttest.WiredTigerTestCase):
     name = 'test_bug010'
@@ -41,7 +42,10 @@ class test_bug010(wttest.WiredTigerTestCase):
 
     # Disable checkpoint sync, to make checkpoints faster and
     # increase the likelihood of triggering the symptom
-    conn_config = 'checkpoint_sync=false'
+    scenarios = make_scenarios([
+        ('normal', dict(conn_config='checkpoint_sync=false')),
+        ('timing_stress', dict(conn_config='checkpoint_sync=false,timing_stress_for_test=[checkpoint_race]')),
+    ])
 
     def test_checkpoint_dirty(self):
         # Create a lot of tables
