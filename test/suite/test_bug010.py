@@ -41,7 +41,7 @@ class test_bug010(wttest.WiredTigerTestCase):
 
     # Disable checkpoint sync, to make checkpoints faster and
     # increase the likelihood of triggering the symptom
-    conn_config = 'checkpoint_sync=false'
+    conn_config = 'checkpoint_sync=false,timing_stress_for_test=[checkpoint_race]'
 
     def test_checkpoint_dirty(self):
         # Create a lot of tables
