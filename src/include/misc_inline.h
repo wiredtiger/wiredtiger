@@ -187,7 +187,6 @@ __wt_timing_stress(WT_SESSION_IMPL *session, u_int flag, struct timespec *tsp)
 {
     double pct;
     uint64_t i, max;
-    WT_UNUSED(tsp);
 
     /* Optionally only sleep when a specified configuration flag is set. */
     if (flag != 0 && !FLD_ISSET(S2C(session)->timing_stress_flags, flag))
