@@ -287,12 +287,8 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
                         raise Exception('Illegal state found in search_near')
 
     def run_bound_scenarios(self, bound_set, cursor):
-        if (self.data_format == 'column'):
-            scenario = random.choice([bound_scenarios.NEXT, bound_scenarios.SEARCH])
-        else:
-            scenario = random.choice(list(bound_scenarios))
+        scenario = random.choice(list(bound_scenarios))
 
-        scenario = bound_scenarios.PREV
         if (scenario is bound_scenarios.NEXT):
             self.run_next_prev(bound_set, True, cursor)
         elif (scenario is bound_scenarios.PREV):
