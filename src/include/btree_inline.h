@@ -741,6 +741,13 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
 
         S2BT(session)->modified = true;
         WT_FULL_BARRIER();
+
+        /*
+         * There is a potential race where checkpoint walks the tree and marks it as clean before
+         * the its page is marked as dirty, leaving us with a dirty page on a clean tree. Yield here
+         * to encourage this scenario and ensure we're handling it correctly.
+         */
+        WT_DIAGNOSTIC_YIELD;
     }
 
     /*
