@@ -195,7 +195,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     def run_search(self, bound_set, cursor):
         # Choose a N random keys and preform a search on each
         for i in range(0, self.search_count):
-            rand_key = random.randrange(self.key_count)
+            rand_key = random.randrange(self.min_key, self.max_key + 1)
             cursor.set_key(rand_key)
             ret = cursor.search()
             if (ret == wiredtiger.WT_PREPARE_CONFLICT):
