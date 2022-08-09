@@ -1087,7 +1087,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
     WT_SESSION_IMPL *session;
     size_t insert_bytes;
     uint64_t yield_count, sleep_usecs;
-    bool append_key, valid;
+    bool append_key, key_out_of_bounds, valid;
 
     btree = CUR2BT(cbt);
     cursor = &cbt->iface;
@@ -1101,6 +1101,22 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
     if (btree->type == BTREE_ROW)
         WT_RET(__cursor_size_chk(session, &cursor->key));
     WT_RET(__cursor_size_chk(session, &cursor->value));
+
+    /*
+     * Check that the provided insert key is within bounds. If not, return WT_NOTFOUND and early
+     * exit.
+     */
+    if (WT_CURSOR_BOUNDS_SET(cursor)) {
+        if (btree->type == BTREE_ROW)
+            WT_ERR(__btcur_bounds_contains_key(
+              session, cursor, &cursor->key, WT_RECNO_OOB, &key_out_of_bounds, NULL));
+        else
+            WT_ERR(__btcur_bounds_contains_key(
+              session, cursor, NULL, cursor->recno, &key_out_of_bounds, NULL));
+
+        if (key_out_of_bounds)
+            WT_ERR(WT_NOTFOUND);
+    }
 
     /* It's no longer possible to bulk-load into the tree. */
     __wt_btree_disable_bulk(session);
@@ -1524,7 +1540,7 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     uint64_t yield_count, sleep_usecs;
-    bool valid;
+    bool key_out_of_bounds, valid;
 
     btree = CUR2BT(cbt);
     cursor = &cbt->iface;
@@ -1533,6 +1549,22 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
 
     /* It's no longer possible to bulk-load into the tree. */
     __wt_btree_disable_bulk(session);
+
+    /*
+     * Check that the provided insert key is within bounds. If not, return WT_NOTFOUND and early
+     * exit.
+     */
+    if (WT_CURSOR_BOUNDS_SET(cursor)) {
+        if (btree->type == BTREE_ROW)
+            WT_ERR(__btcur_bounds_contains_key(
+              session, cursor, &cursor->key, WT_RECNO_OOB, &key_out_of_bounds, NULL));
+        else
+            WT_ERR(__btcur_bounds_contains_key(
+              session, cursor, NULL, cursor->recno, &key_out_of_bounds, NULL));
+
+        if (key_out_of_bounds)
+            WT_ERR(WT_NOTFOUND);
+    }
 
     /* Save the cursor state. */
     __cursor_state_save(cursor, &state);
