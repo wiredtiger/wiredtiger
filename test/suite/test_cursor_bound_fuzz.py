@@ -129,7 +129,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
 
     data_format = [
         ('row', dict(key_format='i')),
-        ('column', dict(key_format='r'))
+        #('column', dict(key_format='r'))
     ]
     scenarios = make_scenarios(types, data_format)
 
@@ -150,7 +150,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     # Get a value from the value array.
     def get_value(self):
         return self.value_array[random.randrange(self.value_array_size)]
-    
+
     def get_random_key(self):
         return random.randrange(self.min_key, self.max_key)
 
@@ -510,7 +510,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
             cursor.set_key(upper.key)
             cursor.bound("bound=upper,inclusive=" + upper.inclusive_str())
         return bound_set
-    
+
     def apply_truncate(self, cursor, cursor2):
         lower_key = self.get_random_key()
 
@@ -522,7 +522,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
 
             for key_id in range(lower_key, upper_key + 1):
                 self.key_range[key_id].update(None, key_states.DELETED)
-            
+
             self.verbose(2, "Trucated keys between: " + str(lower_key) + "and" + str(upper_key))
 
     # The primary test loop is contained here.
@@ -564,6 +564,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Begin main loop
+        prepare = False
         for  i in range(0, self.iteration_count):
             self.verbose(2, "Iteration: " + str(i))
             bound_set = self.apply_bounds(read_cursor)
