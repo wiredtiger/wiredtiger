@@ -376,6 +376,8 @@ wait_for_process()
 	ret=127
 
 	if [ `pstree -p $$ | grep -w $pid | wc -l` -gt "0" ]; then
+		# Can still produce "wait: pid XXXX is not a child of this shell" due to process
+		# ending between the steps, can be safely ignored.
 		wait $pid
 		ret=$?
 	else
