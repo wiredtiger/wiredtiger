@@ -35,7 +35,7 @@ class operations(Enum):
     UPSERT = 1
     REMOVE = 2
     # FIXME-WT-9554 Implement truncate operations.
-    #TRUNCATE = 3
+    TRUNCATE = 3
 
 class key_states(Enum):
     UPSERTED = 1
@@ -48,7 +48,7 @@ class bound_scenarios(Enum):
     NEXT = 1
     PREV = 2
     SEARCH = 3
-    SEARCH_NEAR = 4
+    # SEARCH_NEAR = 4
 
 class key():
     key_state = key_states.NONE
@@ -113,6 +113,9 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
 
     def get_value(self):
         return self.value_array[random.randrange(self.value_array_size)]
+    
+    def get_random_key(self):
+        return random.randrange(self.min_key, self.max_key)
 
     def apply_update(self, cursor, key_id):
         value = self.get_value()
@@ -130,14 +133,21 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
 
     def apply_ops(self, cursor):
         op_count = self.key_count
-        for i in self.key_range_iter():
-            op = random.choice(list(operations))
-            if (op is operations.UPSERT):
-                self.apply_update(cursor, i)
-            elif (op is operations.REMOVE):
-                self.apply_remove(cursor, i)
-            else:
-                raise Exception("Unhandled operation generated")
+        op = random.choice(list(operations))
+        if (op is operations.TRUNCATE):
+            cursor2 = self.session.open_cursor(self.uri + self.file_name)
+            self.apply_truncate(cursor,cursor2)
+        else:
+            for i in self.key_range_iter():
+                op = random.choice(list(operations))
+                if (op is operations.TRUNCATE):
+                    pass
+                elif (op is operations.UPSERT):
+                    self.apply_update(cursor, i)
+                elif (op is operations.REMOVE):
+                    self.apply_remove(cursor, i)
+                else:
+                    raise Exception("Unhandled operation generated")
 
     def run_next_prev(self, bound_set, next, cursor):
         # This array gives us confidence that we have validated the full key range.
@@ -193,9 +203,9 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
         self.assertTrue(len(checked_keys) == self.key_count)
 
     def run_search(self, bound_set, cursor):
-        # Choose a N random keys and preform a search on each
+        # Choose a N random keys and perform a search on each
         for i in range(0, self.search_count):
-            rand_key = random.randrange(self.min_key, self.max_key)
+            rand_key = self.get_random_key()
             cursor.set_key(rand_key)
             ret = cursor.search()
             if (ret == wiredtiger.WT_PREPARE_CONFLICT):
@@ -219,7 +229,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     def run_search_near(self, bound_set, cursor):
         # Choose N random keys and perform a search near.
         for i in range(0, self.search_count):
-            search_key = random.randrange(self.min_key, self.max_key)
+            search_key = self.get_random_key()
             cursor.set_key(search_key)
             self.verbose(2, "Searching for key: " + str(search_key))
             ret = cursor.search_near()
@@ -227,7 +237,6 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
                 self.verbose(2, "Nothing visible checking.")
                 # Nothing visible within the bound range.
                 # Validate.
-                self.assertTrue(self.check_all_within_bounds_not_visible(bound_set))
             elif (ret == wiredtiger.WT_PREPARE_CONFLICT):
                 # We ran into a prepare conflict, validate.
                 pass
@@ -302,7 +311,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
 
     def apply_bounds(self, cursor):
         cursor.reset()
-        lower = bound(random.randrange(self.min_key, self.max_key), bool(random.getrandbits(1)), bool(random.getrandbits(1)))
+        lower = bound(self.get_random_key(), bool(random.getrandbits(1)), bool(random.getrandbits(1)))
         upper = bound(random.randrange(lower.key, self.max_key), bool(random.getrandbits(1)), bool(random.getrandbits(1)))
         # Prevent invalid bounds being generated.
         if (lower.key == upper.key and lower.enabled and upper.enabled):
@@ -315,6 +324,20 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
             cursor.set_key(upper.key)
             cursor.bound("bound=upper,inclusive=" + upper.inclusive_str())
         return bound_set
+    
+    def apply_truncate(self, cursor, cursor2):
+        lower_key = self.get_random_key()
+
+        if (lower_key + 1 < self.max_key):
+            upper_key = random.randrange(lower_key + 1, self.max_key)
+            cursor.set_key(lower_key)
+            cursor2.set_key(upper_key)
+            self.assertEqual(self.session.truncate(None, cursor, cursor2, None), 0)
+
+            for key_id in range(lower_key, upper_key + 1):
+                self.key_range[key_id].update(None, key_states.DELETED)
+            
+            self.verbose(2, "Trucated keys between: " + str(lower_key) + "and" + str(upper_key))
 
     def test_bound_fuzz(self):
         uri = self.uri + self.file_name
@@ -324,7 +347,8 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
         # Setup a reproducible random seed.
         # If this test fails inspect the file WT_TEST/results.txt and replace the time.time()
         # with a given seed. e.g.:
-        #seed = 1657676799.777366
+        # seed = 1657676799.777366
+        # seed = 1660016164.5960677
         # Additionally this test is configured for verbose logging which can make debugging a bit
         # easier.
         seed = time.time()
