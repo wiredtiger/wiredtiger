@@ -727,7 +727,6 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 static inline void
 __wt_tree_modify_set(WT_SESSION_IMPL *session)
 {
-    struct timespec tsp;
     /*
      * Test before setting the dirty flag, it's a hot cache line.
      *
@@ -742,13 +741,6 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
 
         S2BT(session)->modified = true;
         WT_FULL_BARRIER();
-        /*
-         *  Simulate a delay after marking a tree dirty - there is a race where checkpoint
-         *  can clear the dirty state before a page is marked clean.
-         */
-        tsp.tv_sec = 0;
-        tsp.tv_nsec = 1000000;
-        __wt_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_RACE, &tsp);
     }
 
     /*
