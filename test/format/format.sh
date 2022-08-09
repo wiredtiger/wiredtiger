@@ -495,9 +495,9 @@ resolve()
 			continue
 		}
 
-		# Check for the library abort message, or an error from format.
+		# Check for the library abort message, an error from format, or LeakSanitizer..
 		grep -E \
-		    'aborting WiredTiger library|format alarm timed out|run FAILED' \
+		    'aborting WiredTiger library|format alarm timed out|run FAILED|LeakSanitizer' \
 		    $log > /dev/null && {
 			report_failure $dir
 			continue
