@@ -57,11 +57,6 @@ create_test_executable(csuite_style_example_test
     CXX
 )
 
-if(ENABLE_TCMALLOC)
-    target_link_libraries(run wt::tcmalloc)
-    target_link_libraries(csuite_style_example_test wt::tcmalloc)
-endif()
-
 # Test definitions.
 add_test(NAME cppsuite COMMAND ${CMAKE_CURRENT_BINARY_DIR}/run)
 

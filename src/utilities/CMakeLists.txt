@@ -35,7 +35,7 @@ target_include_directories(wt
 target_link_libraries(wt wt::wiredtiger)
 
 if(ENABLE_TCMALLOC)
-    target_link_libraries(wt wt::tcmalloc)
+    target_link_libraries(wt wt::wiredtiger wt::tcmalloc)
 endif()
 
 # Our test suite expects `wt` to sit at the top level build directory.
