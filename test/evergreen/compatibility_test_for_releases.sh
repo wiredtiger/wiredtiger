@@ -625,7 +625,7 @@ import_compatibility_test()
     create_file $1 test_import
 
     # Now import it into the newer branch and verify.
-    import_file $2 $1 test_import
+    import_file $1 $2 test_import
     verify_file $2 test_import
 
     # Now downgrade by running wt from the older branch and dumping the table contents.
@@ -814,7 +814,7 @@ if [ "$import" = true ]; then
         fi
 
         older=${import_release_branches[$i+1]}
-        (import_compatibility_test $newer $older)
+        import_compatibility_test $older $newer
     done
 fi
 
