@@ -152,8 +152,6 @@ configure_timing_stress(char **p, size_t max)
     CONFIG_APPEND(*p, ",timing_stress_for_test=[");
     if (GV(STRESS_AGGRESSIVE_SWEEP))
         CONFIG_APPEND(*p, ",aggressive_sweep");
-    if (GV(STRESS_CHECKPOINT_RACE))
-        CONFIG_APPEND(*p, ",checkpoint_race");
     if (GV(STRESS_CHECKPOINT))
         CONFIG_APPEND(*p, ",checkpoint_slow");
     if (GV(STRESS_CHECKPOINT_EVICT_PAGE))
