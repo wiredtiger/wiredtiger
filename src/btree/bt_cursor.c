@@ -1102,6 +1102,19 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
         WT_RET(__cursor_size_chk(session, &cursor->key));
     WT_RET(__cursor_size_chk(session, &cursor->value));
 
+    /* It's no longer possible to bulk-load into the tree. */
+    __wt_btree_disable_bulk(session);
+
+    /*
+     * Insert a new record if WT_CURSTD_APPEND configured, (ignoring any application set record
+     * number). Although append can't be configured for a row-store, this code would break if it
+     * were, and that's owned by the upper cursor layer, be cautious.
+     */
+    append_key = F_ISSET(cursor, WT_CURSTD_APPEND) && btree->type != BTREE_ROW;
+
+    /* Save the cursor state. */
+    __cursor_state_save(cursor, &state);
+
     /*
      * Check that the provided insert key is within bounds. If not, return WT_NOTFOUND and early
      * exit.
@@ -1117,19 +1130,6 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
         if (key_out_of_bounds)
             WT_ERR(WT_NOTFOUND);
     }
-
-    /* It's no longer possible to bulk-load into the tree. */
-    __wt_btree_disable_bulk(session);
-
-    /*
-     * Insert a new record if WT_CURSTD_APPEND configured, (ignoring any application set record
-     * number). Although append can't be configured for a row-store, this code would break if it
-     * were, and that's owned by the upper cursor layer, be cautious.
-     */
-    append_key = F_ISSET(cursor, WT_CURSTD_APPEND) && btree->type != BTREE_ROW;
-
-    /* Save the cursor state. */
-    __cursor_state_save(cursor, &state);
 
     /*
      * If inserting with overwrite configured, and positioned to an on-page key, the update doesn't
@@ -1547,6 +1547,12 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
     session = CUR2S(cbt);
     yield_count = sleep_usecs = 0;
 
+    /* It's no longer possible to bulk-load into the tree. */
+    __wt_btree_disable_bulk(session);
+
+    /* Save the cursor state. */
+    __cursor_state_save(cursor, &state);
+
     /*
      * Check that the provided update key is within bounds. If not, return WT_NOTFOUND and early
      * exit.
@@ -1562,12 +1568,6 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
         if (key_out_of_bounds)
             WT_ERR(WT_NOTFOUND);
     }
-
-    /* It's no longer possible to bulk-load into the tree. */
-    __wt_btree_disable_bulk(session);
-
-    /* Save the cursor state. */
-    __cursor_state_save(cursor, &state);
 
     /*
      * If update positioned to an on-page key, the update doesn't require another search. We don't
