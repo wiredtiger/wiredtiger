@@ -1547,11 +1547,8 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
     session = CUR2S(cbt);
     yield_count = sleep_usecs = 0;
 
-    /* It's no longer possible to bulk-load into the tree. */
-    __wt_btree_disable_bulk(session);
-
     /*
-     * Check that the provided insert key is within bounds. If not, return WT_NOTFOUND and early
+     * Check that the provided update key is within bounds. If not, return WT_NOTFOUND and early
      * exit.
      */
     if (WT_CURSOR_BOUNDS_SET(cursor)) {
@@ -1565,6 +1562,9 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
         if (key_out_of_bounds)
             WT_ERR(WT_NOTFOUND);
     }
+
+    /* It's no longer possible to bulk-load into the tree. */
+    __wt_btree_disable_bulk(session);
 
     /* Save the cursor state. */
     __cursor_state_save(cursor, &state);
