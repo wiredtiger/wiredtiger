@@ -609,8 +609,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
          * all the updates of the key in the history store with timestamps.
          */
         if (oldest_upd->type == WT_UPDATE_TOMBSTONE && oldest_upd->start_ts == WT_TS_NONE) {
-            WT_ERR(__wt_hs_delete_key_from_ts(
-              session, hs_cursor, btree->id, key, false, error_on_ts_ordering));
+            WT_ERR(
+              __wt_hs_delete_key(session, hs_cursor, btree->id, key, false, error_on_ts_ordering));
 
             /* Reset the update without a timestamp if it is the last update in the chain. */
             if (oldest_upd == no_ts_upd)
@@ -822,12 +822,11 @@ err:
 }
 
 /*
- * __wt_hs_delete_key_from_ts --
- *     Delete history store content of a given key from a timestamp and optionally reinsert them
- *     with ts-1 timestamp.
+ * __wt_hs_delete_key --
+ *     Delete history store content of a given key and optionally reinsert them with ts-1 timestamp.
  */
 int
-__wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
+__wt_hs_delete_key(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
   const WT_ITEM *key, bool reinsert, bool error_on_ts_ordering)
 {
     WT_DECL_RET;
