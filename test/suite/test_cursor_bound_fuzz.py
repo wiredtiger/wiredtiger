@@ -95,12 +95,12 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
 
     types = [
         ('file', dict(uri='file:')),
-        ('table', dict(uri='table:'))
+        #('table', dict(uri='table:'))
     ]
 
     data_format = [
         ('row', dict(key_format='i')),
-        # ('column', dict(key_format='r'))
+        ('column', dict(key_format='r'))
     ]
     scenarios = make_scenarios(types, data_format)
 
@@ -354,7 +354,6 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
 
     def run_bound_scenarios(self, bound_set, cursor):
         scenario = random.choice(list(bound_scenarios))
-
         if (scenario is bound_scenarios.NEXT):
             self.run_next_prev(bound_set, True, cursor)
         elif (scenario is bound_scenarios.PREV):
@@ -384,7 +383,6 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
 
     def apply_truncate(self, session, cursor, cursor2, prepare):
         lower_key = self.get_random_key()
-
         if (lower_key + 1 < self.max_key):
             upper_key = random.randrange(lower_key + 1, self.max_key)
             cursor.set_key(lower_key)
@@ -395,9 +393,6 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
                 self.key_range[key_id].update(None, key_states.DELETED, self.current_ts, prepare)
 
             self.verbose(2, "Trucated keys between: " + str(lower_key) + "and" + str(upper_key))
-
-    def get_read_ts(self):
-        return self.current_ts - random.randrange(0, self.key_count)
 
     def test_bound_fuzz(self):
         uri = self.uri + self.file_name
@@ -418,7 +413,6 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
 
         write_session = self.setUpSessionOpen(self.conn)
         write_cursor = write_session.open_cursor(uri)
-
 
         # Initialize the value array.
         self.verbose(2, "Generating value array")
@@ -452,14 +446,13 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
                     ',durable_timestamp='+ self.timestamp_str(self.current_ts))
                 self.current_ts += 1
                 prepare = False
-            rnd = random.uniform(0, 1)
-            prepare = True#rnd <= self.prepare_frequency
-            self.session.breakpoint()
-            self.verbose(2, str(rnd))
+
+            # Check if we are doing a prepared transaction on this iteration.
+            prepare = random.uniform(0, 1) <= self.prepare_frequency
             write_session.begin_transaction()
             self.apply_ops(write_session, write_cursor, prepare)
-            self.verbose(2, "Prepare is " + str(prepare))
             if (prepare):
+                self.verbose(2, "Preparing applied operations.")
                 write_session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(self.current_ts))
             else:
                 write_session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.current_ts))
