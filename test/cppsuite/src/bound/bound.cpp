@@ -25,42 +25,61 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
-#include "fuzz_util.h"
+#include "bound.h"
 
-int LLVMFuzzerTestOneInput(const uint8_t *, size_t);
+#include <string>
 
-/*
- * LLVMFuzzerTestOneInput --
- *    A fuzzing target for configuration parsing.
- */
-int
-LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
+#include "src/common/constants.h"
+#include "src/common/random_generator.h"
+
+namespace test_harness {
+bound::bound()
 {
-    FUZZ_SLICED_INPUT input;
-    WT_CONFIG_ITEM cval;
-    char *config, *key;
-    static const uint8_t separator[] = {'|'};
-
-    WT_CLEAR(input);
-    config = key = NULL;
-
-    fuzzutil_setup();
-    if (!fuzzutil_sliced_input_init(&input, data, size, separator, sizeof(separator), 2))
-        return (0);
-
-    testutil_assert(input.num_slices == 2);
-    key = fuzzutil_slice_to_cstring(input.slices[0], input.sizes[0]);
-    if (key == NULL)
-        testutil_die(ENOMEM, "Failed to allocate key");
-    config = fuzzutil_slice_to_cstring(input.slices[1], input.sizes[1]);
-    if (config == NULL)
-        testutil_die(ENOMEM, "Failed to allocate config");
-
-    (void)__wt_config_getones((WT_SESSION_IMPL *)fuzz_state.session, config, key, &cval);
-    (void)cval;
-
-    fuzzutil_sliced_input_free(&input);
-    free(config);
-    free(key);
-    return (0);
+    clear();
 }
+
+bound::bound(const std::string &key, bool lower_bound, bool inclusive)
+    : _key(key), _lower_bound(lower_bound), _inclusive(inclusive)
+{
+}
+
+bound::bound(uint64_t key_size_max, bool lower_bound) : _lower_bound(lower_bound)
+{
+    auto key_size =
+      random_generator::instance().generate_integer(static_cast<uint64_t>(1), key_size_max);
+    _key = random_generator::instance().generate_random_string(key_size, characters_type::ALPHABET);
+    _inclusive = random_generator::instance().generate_integer(0, 1);
+}
+
+bound::bound(uint64_t key_size_max, bool lower_bound, char start) : bound(key_size_max, lower_bound)
+{
+    _key[0] = start;
+}
+
+std::string
+bound::get_config() const
+{
+    return "bound=" + std::string(_lower_bound ? "lower" : "upper") +
+      ",inclusive=" + std::string(_inclusive ? "true" : "false");
+}
+
+const std::string &
+bound::get_key() const
+{
+    return _key;
+}
+
+bool
+bound::get_inclusive() const
+{
+    return _inclusive;
+}
+
+void
+bound::clear()
+{
+    _key.clear();
+    _inclusive = false;
+    _lower_bound = false;
+}
+} // namespace test_harness

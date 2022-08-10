@@ -25,42 +25,35 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
-#include "fuzz_util.h"
+#pragma once
+#include <string>
 
-int LLVMFuzzerTestOneInput(const uint8_t *, size_t);
+#include "bound.h"
+#include "src/storage/scoped_cursor.h"
 
+namespace test_harness {
 /*
- * LLVMFuzzerTestOneInput --
- *    A fuzzing target for configuration parsing.
+ * bound_set is a basic class that can hold two bounds, an upper and a lower. It also provides a
+ * convenient way of creating prefix bounds.
  */
-int
-LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
-{
-    FUZZ_SLICED_INPUT input;
-    WT_CONFIG_ITEM cval;
-    char *config, *key;
-    static const uint8_t separator[] = {'|'};
+class bound_set {
+    public:
+    /* No default constructor is allowed. */
+    bound_set() = delete;
+    /* Construct a bound set given two bounds. */
+    bound_set(bound lower, bound upper);
+    /* Construct a prefix bound set given a key. */
+    explicit bound_set(const std::string &key);
 
-    WT_CLEAR(input);
-    config = key = NULL;
+    /* Apply the bounds to a cursor. */
+    void apply(scoped_cursor &cursor) const;
 
-    fuzzutil_setup();
-    if (!fuzzutil_sliced_input_init(&input, data, size, separator, sizeof(separator), 2))
-        return (0);
+    /* Basic getters. */
+    const bound &get_lower() const;
+    const bound &get_upper() const;
 
-    testutil_assert(input.num_slices == 2);
-    key = fuzzutil_slice_to_cstring(input.slices[0], input.sizes[0]);
-    if (key == NULL)
-        testutil_die(ENOMEM, "Failed to allocate key");
-    config = fuzzutil_slice_to_cstring(input.slices[1], input.sizes[1]);
-    if (config == NULL)
-        testutil_die(ENOMEM, "Failed to allocate config");
-
-    (void)__wt_config_getones((WT_SESSION_IMPL *)fuzz_state.session, config, key, &cval);
-    (void)cval;
-
-    fuzzutil_sliced_input_free(&input);
-    free(config);
-    free(key);
-    return (0);
-}
+    private:
+    bound _lower;
+    bound _upper;
+};
+} // namespace test_harness

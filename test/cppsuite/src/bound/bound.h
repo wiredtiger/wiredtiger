@@ -25,42 +25,27 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
-#include "fuzz_util.h"
+#pragma once
+#include <string>
 
-int LLVMFuzzerTestOneInput(const uint8_t *, size_t);
+namespace test_harness {
+class bound {
+    public:
+    bound();
+    bound(const std::string &key, bool lower_bound, bool inclusive);
+    bound(uint64_t key_size_max, bool lower_bound);
+    bound(uint64_t key_size_max, bool lower_bound, char start);
 
-/*
- * LLVMFuzzerTestOneInput --
- *    A fuzzing target for configuration parsing.
- */
-int
-LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
-{
-    FUZZ_SLICED_INPUT input;
-    WT_CONFIG_ITEM cval;
-    char *config, *key;
-    static const uint8_t separator[] = {'|'};
+    std::string get_config() const;
+    const std::string &get_key() const;
 
-    WT_CLEAR(input);
-    config = key = NULL;
+    bool get_inclusive() const;
 
-    fuzzutil_setup();
-    if (!fuzzutil_sliced_input_init(&input, data, size, separator, sizeof(separator), 2))
-        return (0);
+    void clear();
 
-    testutil_assert(input.num_slices == 2);
-    key = fuzzutil_slice_to_cstring(input.slices[0], input.sizes[0]);
-    if (key == NULL)
-        testutil_die(ENOMEM, "Failed to allocate key");
-    config = fuzzutil_slice_to_cstring(input.slices[1], input.sizes[1]);
-    if (config == NULL)
-        testutil_die(ENOMEM, "Failed to allocate config");
-
-    (void)__wt_config_getones((WT_SESSION_IMPL *)fuzz_state.session, config, key, &cval);
-    (void)cval;
-
-    fuzzutil_sliced_input_free(&input);
-    free(config);
-    free(key);
-    return (0);
-}
+    private:
+    std::string _key;
+    bool _inclusive;
+    bool _lower_bound;
+};
+} // namespace test_harness
