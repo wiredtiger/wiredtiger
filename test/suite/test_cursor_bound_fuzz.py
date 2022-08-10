@@ -124,12 +124,12 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
 
     types = [
         ('file', dict(uri='file:')),
-        ('table', dict(uri='table:'))
+        #('table', dict(uri='table:'))
     ]
 
     data_format = [
         ('row', dict(key_format='i')),
-        # ('column', dict(key_format='r'))
+        ('column', dict(key_format='r'))
     ]
     scenarios = make_scenarios(types, data_format)
 
@@ -513,7 +513,6 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
 
     def apply_truncate(self, session, cursor, cursor2, prepare):
         lower_key = self.get_random_key()
-
         if (lower_key + 1 < self.max_key):
             upper_key = random.randrange(lower_key + 1, self.max_key)
             cursor.set_key(lower_key)
