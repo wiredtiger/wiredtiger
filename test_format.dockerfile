@@ -1,8 +1,13 @@
 FROM ubuntu
 MAINTAINER me@gmail.com
-COPY build_cmake/test/format/t bin/t
-COPY build_cmake/test/format/CONFIG.stress bin/
-COPY build_cmake/libwiredtiger.so.10.0.2 lib/libwiredtiger.so.10.0.2
-COPY build_cmake/ext/ lib/
-ENV LD_LIBRARY_PATH={docker_path}:$LD_LIBRARY_PATH
-CMD ["bin/t"]
+WORKDIR /opt
+RUN mkdir -p bin/test/format
+COPY cmake_build/test/format/t bin/test/format/
+COPY cmake_build/test/format/CONFIG.stress bin/test/format/
+COPY tools/voidstar/lib/libvoidstar.so tools/voidstar/lib/
+COPY cmake_build/libwiredtiger.so.11.0.1 bin/
+COPY cmake_build/ext bin/ext
+COPY test.sh bin/
+RUN apt-get update
+RUN apt-get install -y libsnappy-dev
+CMD ["bin/test.sh"]
