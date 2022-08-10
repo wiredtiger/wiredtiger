@@ -312,7 +312,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
                       session, &cbt->iface, key, NULL, &key_out_of_bounds, NULL));
             } else
                 WT_RET(__btcur_bounds_contains_key(session, &cbt->iface, &cbt->iface.key,
-                  &cbt->iface.recno, &key_out_of_bounds, NULL));
+                  &cbt->recno, &key_out_of_bounds, NULL));
 
             /* The key value pair we were trying to return weren't within the given bounds. */
             if (key_out_of_bounds)
