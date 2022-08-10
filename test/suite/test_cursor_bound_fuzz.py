@@ -34,21 +34,18 @@ from wtscenario import make_scenarios
 class operations(Enum):
     UPSERT = 1
     REMOVE = 2
-    # FIXME-WT-9554 Implement truncate operations.
     TRUNCATE = 3
 
 class key_states(Enum):
     UPSERTED = 1
     DELETED = 2
     NONE = 3
-    # FIXME-WT-9554 Implement prepared operations.
-    #PREPARED = 4
 
 class bound_scenarios(Enum):
     NEXT = 1
     PREV = 2
     SEARCH = 3
-    # SEARCH_NEAR = 4
+    SEARCH_NEAR = 4
 
 class key():
     key_state = key_states.NONE
@@ -138,11 +135,11 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
         self.key_range[key_id].update(None, key_states.DELETED, self.current_ts, prepare)
         self.verbose(3, "Removing " + self.key_range[key_id].to_string())
 
-    def apply_ops(self, cursor, prepare):
+    def apply_ops(self, session, cursor, prepare):
         op_count = self.key_count
         op = random.choice(list(operations))
-        if (op is operations.TRUNCATE):
-            cursor2 = self.session.open_cursor(self.uri + self.file_name)
+        if (op is operations.TRUNCATE and self.applied_ops):
+            cursor2 = session.open_cursor(self.uri + self.file_name)
             self.apply_truncate(cursor,cursor2)
         else:
             for i in self.key_range_iter():
@@ -155,6 +152,30 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
                     self.apply_remove(cursor, i, prepare)
                 else:
                     raise Exception("Unhandled operation generated")
+        self.applied_ops = True
+
+    def prepare_call(self, func):
+        try:
+            ret = func()
+        except wiredtiger.WiredTigerError as e:
+            if wiredtiger.wiredtiger_strerror(wiredtiger.WT_PREPARE_CONFLICT) in str(e):
+                ret = wiredtiger.WT_PREPARE_CONFLICT
+            else:
+                raise e
+        return ret
+
+    def get_expected_key(self, bound_set, next):
+        if next:
+            if bound_set.lower.enabled:
+                if bound_set.lower.inclusive:
+                    return bound_set.lower.key
+                return bound_set.lower.key + 1
+            return self.min_key
+        if bound_set.upper.enabled:
+            if bound_set.upper.inclusive:
+                return bound_set.upper.key
+            return bound_set.upper.key - 1
+        return self.max_key - 1
 
     def run_next_prev(self, bound_set, next, cursor):
         # This array gives us confidence that we have validated the full key range.
@@ -386,10 +407,10 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
         # Setup a reproducible random seed.
         # If this test fails inspect the file WT_TEST/results.txt and replace the time.time()
         # with a given seed. e.g.:
-        # seed = 1657676799.777366
+        seed = 1660018908.2051475
         # Additionally this test is configured for verbose logging which can make debugging a bit
         # easier.
-        seed = time.time()
+        #seed = time.time()
         self.pr("Using seed: " + str(seed))
         random.seed(seed)
         self.session.create(uri, create_params)
@@ -436,7 +457,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
             self.session.breakpoint()
             self.verbose(2, str(rnd))
             write_session.begin_transaction()
-            self.apply_ops(write_cursor, prepare)
+            self.apply_ops(write_session, write_cursor, prepare)
             self.verbose(2, "Prepare is " + str(prepare))
             if (prepare):
                 write_session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(self.current_ts))
@@ -459,6 +480,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     min_key = 1
     max_key = min_key + key_count
     current_ts = 1
+    applied_ops = False
     # For each iteration we do search_count searches that way we test more cases without having to
     # generate as many key ranges.
     search_count = 20
