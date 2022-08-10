@@ -511,17 +511,17 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
             cursor.bound("bound=upper,inclusive=" + upper.inclusive_str())
         return bound_set
 
-    def apply_truncate(self, cursor, cursor2):
+    def apply_truncate(self, session, cursor, cursor2, prepare):
         lower_key = self.get_random_key()
 
         if (lower_key + 1 < self.max_key):
             upper_key = random.randrange(lower_key + 1, self.max_key)
             cursor.set_key(lower_key)
             cursor2.set_key(upper_key)
-            self.assertEqual(self.session.truncate(None, cursor, cursor2, None), 0)
+            self.assertEqual(session.truncate(None, cursor, cursor2, None), 0)
 
             for key_id in range(lower_key, upper_key + 1):
-                self.key_range[key_id].update(None, key_states.DELETED)
+                self.key_range[key_id].update(None, key_states.DELETED, self.current_ts, prepare)
 
             self.verbose(2, "Trucated keys between: " + str(lower_key) + "and" + str(upper_key))
 
@@ -537,7 +537,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
         # seed = 1660215872.5926154
         # Additionally this test is configured for verbose logging which can make debugging a bit
         # easier.
-        #seed = time.time()
+        seed = time.time()
         self.pr("Using seed: " + str(seed))
         random.seed(seed)
         self.session.create(uri, create_params)
