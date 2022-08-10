@@ -437,6 +437,12 @@ resolve()
 		wait_for_process $pid
 		eret=$?
 
+		# Check for Sanitizer failures, have to do this prior to success because both can be reported.
+		grep -E -i 'Sanitizer' $log > /dev/null && {
+			report_failure $dir
+			continue
+		}
+
 		# Remove successful jobs.
 		grep 'successful run completed' $log > /dev/null && {
 			rm -rf $dir $log
@@ -495,9 +501,9 @@ resolve()
 			continue
 		}
 
-		# Check for the library abort message, an error from format, or LeakSanitizer..
+		# Check for the library abort message or an error from format.
 		grep -E \
-		    'aborting WiredTiger library|format alarm timed out|run FAILED|LeakSanitizer' \
+		    'aborting WiredTiger library|format alarm timed out|run FAILED' \
 		    $log > /dev/null && {
 			report_failure $dir
 			continue
