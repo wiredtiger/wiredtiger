@@ -517,7 +517,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
 
             /* Detect any update without a timestamp. */
             if (prev_upd != NULL && prev_upd->start_ts < upd->start_ts) {
-                WT_ASSERT(session, prev_upd->start_ts == WT_TS_NONE);
+                WT_ASSERT_ALWAYS(session, prev_upd->start_ts == WT_TS_NONE, "out-of-order updated detected");
                 /*
                  * Fail the eviction if we detect any timestamp ordering issue and the error flag is
                  * set. We cannot modify the history store to fix the updates' timestamps as it may
