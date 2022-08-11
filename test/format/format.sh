@@ -173,7 +173,16 @@ while :; do
 		smoke_test=1
 		shift ;;
 	-T)
-		trace='-T ,,'
+		trace='-T'
+		trace_args="$2"
+		case "$trace_args" in
+		-*)
+			trace+=","
+			;;
+		*)
+			trace+="$trace_args,"
+			shift;;
+		esac
 		shift ;;
 	-t)
 		minutes="$2"
