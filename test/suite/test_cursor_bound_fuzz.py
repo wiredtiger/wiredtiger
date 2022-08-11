@@ -143,6 +143,8 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
             self.apply_truncate(session, cursor,cursor2, prepare)
         else:
             for i in self.key_range_iter():
+                if (random.uniform(0, 1) < self.update_frequency):
+                    continue
                 op = random.choice(list(operations))
                 if (op is operations.TRUNCATE):
                     pass
@@ -211,9 +213,16 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
                 ret = self.prepare_call(lambda: cursor.next())
             key_range_it = key_range_it + 1
             if (ret == wiredtiger.WT_PREPARE_CONFLICT):
-                check_key = self.get_expected_key(key_range_it, bound_set, next)
-                self.verbose(2, "Checking if key is prepared: " + str(check_key) + " " + self.key_range[check_key].to_string())
-                self.assertTrue(self.key_range[check_key].is_prepared())
+                check_key = key_range_it
+                if (key_range_it == self.min_key):
+                    check_key = self.get_expected_key(key_range_it, bound_set, next)
+                    self.verbose(2, "Checking if key is prepared: " + str(check_key) + " " + self.key_range[check_key].to_string())
+                    self.assertTrue(self.key_range[check_key].is_prepared())
+                else:
+                    if (not self.key_range[check_key].is_prepared()):
+                        check_key = self.get_expected_key(key_range_it, bound_set, next)
+                    self.verbose(2, "Checking if key is prepared: " + str(check_key) + " " + self.key_range[check_key].to_string())
+                    self.assertTrue(self.key_range[check_key].is_prepared())
                 # We hit a prepare conflict we can't continue from this state.
                 return
             # If key_range_it is < key_count then the rest of the range was deleted
@@ -244,7 +253,9 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
             # If key_range_it is > key_count then the rest of the range was deleted
             key_range_it -= 1
             if (ret == wiredtiger.WT_PREPARE_CONFLICT):
-                check_key = self.get_expected_key(key_range_it, bound_set, next)
+                check_key = key_range_it
+                if (key_range_it == self.max_key):
+                    check_key = self.get_expected_key(key_range_it, bound_set, next)
                 self.verbose(2, "Checking if key is prepared: " + str(check_key) + " " + self.key_range[check_key].to_string())
                 self.assertTrue(self.key_range[check_key].is_prepared())
                 # We hit a prepare conflict we can't continue from this state.
@@ -406,11 +417,11 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
         # Setup a reproducible random seed.
         # If this test fails inspect the file WT_TEST/results.txt and replace the time.time()
         # with a given seed. e.g.:
-        # seed = 1660018908.2051475
+        seed = 1660194166.551218
         # seed = 1660109986.8337185
         # Additionally this test is configured for verbose logging which can make debugging a bit
         # easier.
-        seed = time.time()
+        #seed = time.time()
         self.pr("Using seed: " + str(seed))
         random.seed(seed)
         self.session.create(uri, create_params)
@@ -471,10 +482,10 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     # A lot of time was spent generating values, to achieve some amount of randomness we pre
     # generate N values and keep them in memory.
     value_array = []
-    iteration_count = 200 if wttest.islongtest() else 100
+    iteration_count = 200 if wttest.islongtest() else 200
     value_size = 100000 if wttest.islongtest() else 100
     value_array_size = 20
-    key_count = 10000 if wttest.islongtest() else 1000
+    key_count = 10000 if wttest.islongtest() else 100
     min_key = 1
     max_key = min_key + key_count
     current_ts = 1
