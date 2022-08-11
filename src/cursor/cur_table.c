@@ -441,6 +441,9 @@ __curtable_reset(WT_CURSOR *cursor)
     JOINABLE_CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, NULL);
     APPLY_CG(ctable, reset);
 
+    if (API_FIRST_ENTRY(session))
+        __wt_cursor_bound_reset(cursor);
+
 err:
     API_END_RET(session, ret);
 }
