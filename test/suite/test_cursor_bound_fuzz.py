@@ -47,6 +47,10 @@ class bound_scenarios(Enum):
     SEARCH = 3
     SEARCH_NEAR = 4
 
+class bound_type(Enum):
+    LOWER = 1
+    UPPER = 2
+
 class key():
     key_state = key_states.NONE
     data = -1
@@ -100,7 +104,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
 
     data_format = [
         ('row', dict(key_format='i')),
-        ('column', dict(key_format='r'))
+        #('column', dict(key_format='r'))
     ]
     scenarios = make_scenarios(types, data_format)
 
@@ -180,6 +184,19 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
             return bound_set.upper.key - 1
         return self.max_key - 1
 
+    def get_expected_key_type(self, bound_set, type):
+        if type == bound_type.LOWER:
+            if (bound_set.lower.enabled):
+                if (bound_set.lower.inclusive):
+                    return bound_set.lower.key
+                return bound_set.lower.key + 1
+            return self.min_key
+        if (type == bound_type.UPPER):
+            if (bound_set.upper.inclusive):
+                return bound_set.upper.key
+            return bound_set.upper.key - 1
+        return self.max_key - 1
+
     def validate_deleted_range(self, start_key, end_key, next):
         if (next):
             step = 1
@@ -195,25 +212,25 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
             else:
                 self.assertTrue(False)
 
-    def validate_prepare_conflict_next(self, current_key, bound_set, next):
+    def validate_prepare_conflict_next(self, current_key, bound_set):
         if current_key == self.min_key:
             # We hit a prepare conflict while walking forwards before we stepped to a valid key.
             # We should check that the range from where we expect to walk from is deleted followed by a prepare
             self.validate_deleted_range(
-                self.get_expected_key(bound_set, next), self.get_expected_key(bound_set, not next), next)
+                self.get_expected_key_type(bound_set, bound_type.LOWER), self.get_expected_key_type(bound_set, bound_type.UPPER), True)
         else:
             # We walked part of the way through a valid key range before we hit the prepared
             # update. Therefore we should check that the range between our current key and the
             # maximum possible key.
             self.validate_deleted_range(
-                current_key, self.get_expected_key(bound_set, not next), not next)
+                current_key, self.get_expected_key_type(bound_set, bound_type.UPPER), True)
 
 
-    def validate_prepare_conflict_prev(self, current_key, bound_set, next):
+    def validate_prepare_conflict_prev(self, current_key, bound_set):
         if (current_key == self.max_key):
-            self.validate_deleted_range(self.get_expected_key(bound_set, next), self.get_expected_key(bound_set, not next), not next)
+            self.validate_deleted_range(self.get_expected_key(bound_set, bound_type.UPPER), self.get_expected_key(bound_set, bound_type.LOWER), False)
         else:
-            self.validate_deleted_range(current_key, self.get_expected_key(bound_set, not next), not next)
+            self.validate_deleted_range(self.get_expected_key_type(bound_set, bound_type.UPPER), current_key, False)
 
     def run_next_prev(self, bound_set, next, cursor):
         # This array gives us confidence that we have validated the full key range.
@@ -242,7 +259,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
                 ret = self.prepare_call(lambda: cursor.next())
             key_range_it = key_range_it + 1
             if (ret == wiredtiger.WT_PREPARE_CONFLICT):
-                self.validate_prepare_conflict_next(key_range_it, bound_set, next)
+                self.validate_prepare_conflict_next(key_range_it, bound_set)
                 # We hit a prepare conflict we can't continue from this state.
                 return
             # If key_range_it is < key_count then the rest of the range was deleted
@@ -382,7 +399,8 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
                         raise Exception('Illegal state found in search_near')
 
     def run_bound_scenarios(self, bound_set, cursor):
-        scenario = random.choice(list(bound_scenarios))
+        #scenario = random.choice(list(bound_scenarios))
+        scenario = bound_scenarios.PREV
         if (scenario is bound_scenarios.NEXT):
             self.run_next_prev(bound_set, True, cursor)
         elif (scenario is bound_scenarios.PREV):
@@ -499,7 +517,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     iteration_count = 200 if wttest.islongtest() else 200
     value_size = 100000 if wttest.islongtest() else 100
     value_array_size = 20
-    key_count = 10000 if wttest.islongtest() else 1000
+    key_count = 10000 if wttest.islongtest() else 100
     min_key = 1
     max_key = min_key + key_count
     current_ts = 1
@@ -508,7 +526,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     # generate as many key ranges.
     search_count = 20
     key_range = {}
-    prepare_frequency = 1/10
+    prepare_frequency = 5/10
     update_frequency = 2/10
 
 if __name__ == '__main__':
