@@ -823,7 +823,7 @@ err:
 
 /*
  * __wt_hs_delete_key --
- *     Delete history store content of a given key and optionally reinsert them with ts-1 timestamp.
+ *     Delete history store content of a given key and optionally reinsert them with 0 timestamp.
  */
 int
 __wt_hs_delete_key(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
