@@ -129,7 +129,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
 
     data_format = [
         ('row', dict(key_format='i')),
-        ('column', dict(key_format='r'))
+        #('column', dict(key_format='r'))
     ]
     scenarios = make_scenarios(types, data_format)
 
@@ -482,7 +482,8 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
 
     # Choose a scenario and run it.
     def run_bound_scenarios(self, bound_set, cursor):
-        scenario = random.choice(list(bound_scenarios))
+        #scenario = random.choice(list(bound_scenarios))
+        scenario = bound_scenarios.PREV
         if (scenario is bound_scenarios.NEXT):
             self.run_next(bound_set, cursor)
         elif (scenario is bound_scenarios.PREV):
