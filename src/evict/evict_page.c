@@ -761,9 +761,11 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
         WT_IS_METADATA(btree->dhandle));
 
     /*
-     * Disable this failpoint for now - triggering it leads to a memory leak in testing. We
-     * want to fix the leak and take the time to cleanup the code, so disable the failpoint
-     * in the meantime to reduce testing noise.
+     * FIXME-WT-9751
+     *
+     * Disable this failpoint for now - triggering it leads to a memory leak in testing. We want to
+     * fix the leak and take the time to cleanup the code, so disable the failpoint in the meantime
+     * to reduce testing noise.
      */
 #if 0
     /* Fail 0.1% of the time. */
