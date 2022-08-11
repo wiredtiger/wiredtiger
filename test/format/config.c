@@ -988,7 +988,7 @@ config_mirrors(void)
      * tables.
      */
     explicit_mirror = config_explicit(NULL, "runs.mirror");
-    if (!explicit_mirror && mmrand(NULL, 1, 10) < 3)
+    if (!explicit_mirror && mmrand(NULL, 1, 10) < 9)
         return;
     config_off_all("runs.mirror");
 
