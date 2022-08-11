@@ -536,7 +536,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
         # seed = 1660215872.5926154
         # Additionally this test is configured for verbose logging which can make debugging a bit
         # easier.
-        seed = time.time()
+        #seed = time.time()
         self.pr("Using seed: " + str(seed))
         random.seed(seed)
         self.session.create(uri, create_params)
