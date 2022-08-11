@@ -129,7 +129,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
 
     data_format = [
         ('row', dict(key_format='i')),
-        ('column', dict(key_format='r'))
+        # ('column', dict(key_format='r'))
     ]
     scenarios = make_scenarios(types, data_format)
 
