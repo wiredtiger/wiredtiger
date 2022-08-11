@@ -104,7 +104,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
 
     data_format = [
         ('row', dict(key_format='i')),
-        #('column', dict(key_format='r'))
+        ('column', dict(key_format='r'))
     ]
     scenarios = make_scenarios(types, data_format)
 
@@ -171,8 +171,8 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
         return ret
 
     # If we were to walk next or prev which key would we expect to see first?
-    def get_expected_key(self, bound_set, lower):
-        if lower:
+    def get_expected_key(self, bound_set, type):
+        if (type == bound_type.LOWER):
             if (bound_set.lower.enabled):
                 if (bound_set.lower.inclusive):
                     return bound_set.lower.key
@@ -184,27 +184,15 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
             return bound_set.upper.key - 1
         return self.max_key - 1
 
-    def get_expected_key_type(self, bound_set, type):
-        if type == bound_type.LOWER:
-            if (bound_set.lower.enabled):
-                if (bound_set.lower.inclusive):
-                    return bound_set.lower.key
-                return bound_set.lower.key + 1
-            return self.min_key
-        if (type == bound_type.UPPER):
-            if (bound_set.upper.inclusive):
-                return bound_set.upper.key
-            return bound_set.upper.key - 1
-        return self.max_key - 1
-
     def validate_deleted_range(self, start_key, end_key, next):
         if (next):
             step = 1
         else:
             step = -1
-        self.verbose(3, "Walking deleted range from: " + str(start_key) + " to: " + str(end_key))
+        self.verbose(2, "Walking deleted range from: " + str(start_key) + " to: " + str(end_key))
 
         for i in range(start_key, end_key, step):
+            self.verbose(3, "Validating state of key: " + self.key_range[i].to_string())
             if (self.key_range[i].is_prepared()):
                 return
             elif (self.key_range[i].is_deleted()):
@@ -213,24 +201,26 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
                 self.assertTrue(False)
 
     def validate_prepare_conflict_next(self, current_key, bound_set):
+        self.verbose(3, "Current key is: " + str(current_key) + " min_key is: " +str(self.min_key))
         if current_key == self.min_key:
             # We hit a prepare conflict while walking forwards before we stepped to a valid key.
             # We should check that the range from where we expect to walk from is deleted followed by a prepare
             self.validate_deleted_range(
-                self.get_expected_key_type(bound_set, bound_type.LOWER), self.get_expected_key_type(bound_set, bound_type.UPPER), True)
+                self.get_expected_key(bound_set, bound_type.LOWER), self.get_expected_key(bound_set, bound_type.UPPER), True)
         else:
             # We walked part of the way through a valid key range before we hit the prepared
             # update. Therefore we should check that the range between our current key and the
             # maximum possible key.
             self.validate_deleted_range(
-                current_key, self.get_expected_key_type(bound_set, bound_type.UPPER), True)
+                current_key, self.get_expected_key(bound_set, bound_type.UPPER), True)
 
 
     def validate_prepare_conflict_prev(self, current_key, bound_set):
-        if (current_key == self.max_key):
+        self.verbose(3, "Current key is: " + str(current_key) + " max_key is: " +str(self.max_key))
+        if (current_key == self.max_key - 1):
             self.validate_deleted_range(self.get_expected_key(bound_set, bound_type.UPPER), self.get_expected_key(bound_set, bound_type.LOWER), False)
         else:
-            self.validate_deleted_range(self.get_expected_key_type(bound_set, bound_type.UPPER), current_key, False)
+            self.validate_deleted_range(current_key, self.get_expected_key(bound_set, bound_type.LOWER), False)
 
     def run_next_prev(self, bound_set, next, cursor):
         # This array gives us confidence that we have validated the full key range.
@@ -399,8 +389,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
                         raise Exception('Illegal state found in search_near')
 
     def run_bound_scenarios(self, bound_set, cursor):
-        #scenario = random.choice(list(bound_scenarios))
-        scenario = bound_scenarios.PREV
+        scenario = random.choice(list(bound_scenarios))
         if (scenario is bound_scenarios.NEXT):
             self.run_next_prev(bound_set, True, cursor)
         elif (scenario is bound_scenarios.PREV):
@@ -439,7 +428,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
             for key_id in range(lower_key, upper_key + 1):
                 self.key_range[key_id].update(None, key_states.DELETED, self.current_ts, prepare)
 
-            self.verbose(2, "Trucated keys between: " + str(lower_key) + "and" + str(upper_key))
+            self.verbose(2, "Truncated keys between: " + str(lower_key) + " and: " + str(upper_key))
 
     def test_bound_fuzz(self):
         uri = self.uri + self.file_name
@@ -449,8 +438,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
         # Setup a reproducible random seed.
         # If this test fails inspect the file WT_TEST/results.txt and replace the time.time()
         # with a given seed. e.g.:
-        #seed = 1660194166.551218
-        # seed = 1660109986.8337185
+        # seed = 1660215872.5926154
         # Additionally this test is configured for verbose logging which can make debugging a bit
         # easier.
         seed = time.time()
@@ -509,15 +497,13 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
                 # Technically this is a write but easier to do it with this session.
                 self.session.checkpoint()
 
-        #self.dump_key_range()
-
     # A lot of time was spent generating values, to achieve some amount of randomness we pre
     # generate N values and keep them in memory.
     value_array = []
     iteration_count = 200 if wttest.islongtest() else 200
     value_size = 100000 if wttest.islongtest() else 100
     value_array_size = 20
-    key_count = 10000 if wttest.islongtest() else 100
+    key_count = 10000 if wttest.islongtest() else 1000
     min_key = 1
     max_key = min_key + key_count
     current_ts = 1
@@ -526,7 +512,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     # generate as many key ranges.
     search_count = 20
     key_range = {}
-    prepare_frequency = 5/10
+    prepare_frequency = 5/100
     update_frequency = 2/10
 
 if __name__ == '__main__':
