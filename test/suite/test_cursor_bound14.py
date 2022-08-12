@@ -31,7 +31,7 @@ from wtscenario import make_scenarios
 from wtbound import bound_base
 
 # test_cursor_bound14.py
-# Test the next() and prev() calls in the cursor bound API. Test general use cases of bound API,
+# Test write operation calls on a bounded cursor. Test general use cases of bound API,
 # including setting lower bounds and upper bounds.
 class test_cursor_bound14(bound_base):
     file_name = 'test_cursor_bound14'
@@ -68,7 +68,7 @@ class test_cursor_bound14(bound_base):
         ('upper-bounds-evict', dict(lower_bounds=False,upper_bounds=True,evict=True)),
         ('both-bounds-evict', dict(lower_bounds=True,upper_bounds=True,evict=True)),
         ('lower-bounds-no-evict', dict(lower_bounds=True,upper_bounds=False,evict=True)),
-        ('upper-bounds-no-evict', dict(lower_bounds=False,upper_bounds=True,evict=True)),  
+        ('upper-bounds-no-evict', dict(lower_bounds=False,upper_bounds=True,evict=True)),
         ('both-bounds-no-evict', dict(lower_bounds=True,upper_bounds=True,evict=False)),
     ]
 
@@ -170,6 +170,27 @@ class test_cursor_bound14(bound_base):
             self.assertEqual(cursor.remove(), wiredtiger.WT_NOTFOUND)
         else:
             self.assertEqual(cursor.remove(), 0)
+
+        # Test update a key on the boundary of bounds.
+        cursor.set_key(self.gen_key(45))
+        cursor.set_value(self.gen_val(120))
+        if (self.lower_bounds):
+            if (self.lower_inclusive):
+                self.assertEqual(cursor.update(), 0)
+            else:
+                self.assertEqual(cursor.update(), wiredtiger.WT_NOTFOUND)
+        else:
+            self.assertEqual(cursor.update(), 0)
+
+        cursor.set_key(self.gen_key(50))
+        cursor.set_value(self.gen_val(120))
+        if (self.upper_bounds):
+            if (self.upper_inclusive):
+                self.assertEqual(cursor.update(), 0)
+            else:
+                self.assertEqual(cursor.update(), wiredtiger.WT_NOTFOUND)
+        else:
+            self.assertEqual(cursor.update(), 0)
         cursor.close()
 
 if __name__ == '__main__':
