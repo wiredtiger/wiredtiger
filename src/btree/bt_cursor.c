@@ -26,7 +26,7 @@ typedef struct {
  */
 static int
 __btcur_bounds_contains_key(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM *key,
-  uint64_t *recno, bool *key_out_of_boundsp, bool *upperp)
+  uint64_t recno, bool *key_out_of_boundsp, bool *upperp)
 {
     *key_out_of_boundsp = false;
 
@@ -36,7 +36,8 @@ __btcur_bounds_contains_key(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM
     if (upperp != NULL)
         *upperp = false;
 
-    WT_ASSERT(session, key != NULL || recno != NULL);
+    WT_ASSERT_ALWAYS(session, key != NULL || recno != WT_RECNO_OOB,
+      "A valid key or recno must be provided when comparing bounds.");
     if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER))
         WT_RET(__wt_compare_bounds(session, cursor, key, recno, false, key_out_of_boundsp));
 
@@ -73,7 +74,7 @@ __btcur_bounds_search_near_reposition(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
      * a performance issue.
      */
     WT_RET(__btcur_bounds_contains_key(
-      session, cursor, &cursor->key, &cursor->recno, &key_out_of_bounds, &upper));
+      session, cursor, &cursor->key, cursor->recno, &key_out_of_bounds, &upper));
 
     if (key_out_of_bounds) {
         __wt_cursor_set_raw_key(cursor, upper ? &cursor->upper_bound : &cursor->lower_bound);
@@ -306,13 +307,13 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
                     tmp_key.data = WT_INSERT_KEY(cbt->ins);
                     tmp_key.size = WT_INSERT_KEY_SIZE(cbt->ins);
                     WT_RET(__btcur_bounds_contains_key(
-                      session, &cbt->iface, &tmp_key, NULL, &key_out_of_bounds, NULL));
+                      session, &cbt->iface, &tmp_key, WT_RECNO_OOB, &key_out_of_bounds, NULL));
                 } else
                     WT_RET(__btcur_bounds_contains_key(
-                      session, &cbt->iface, key, NULL, &key_out_of_bounds, NULL));
+                      session, &cbt->iface, key, WT_RECNO_OOB, &key_out_of_bounds, NULL));
             } else
-                WT_RET(__btcur_bounds_contains_key(session, &cbt->iface, &cbt->iface.key,
-                  &cbt->recno, &key_out_of_bounds, NULL));
+                WT_RET(__btcur_bounds_contains_key(
+                  session, &cbt->iface, &cbt->iface.key, cbt->recno, &key_out_of_bounds, NULL));
 
             /* The key value pair we were trying to return weren't within the given bounds. */
             if (key_out_of_bounds)
@@ -384,7 +385,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
             return (0);
 
         WT_RET(__btcur_bounds_contains_key(
-          session, &cbt->iface, NULL, &cbt->recno, &key_out_of_bounds, NULL));
+          session, &cbt->iface, NULL, cbt->recno, &key_out_of_bounds, NULL));
         /* The key value pair we were trying to return weren't within the given bounds. */
         if (key_out_of_bounds)
             return (0);
@@ -426,8 +427,8 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
             key = cbt->tmp;
         }
 
-        WT_RET(
-          __btcur_bounds_contains_key(session, &cbt->iface, key, NULL, &key_out_of_bounds, NULL));
+        WT_RET(__btcur_bounds_contains_key(
+          session, &cbt->iface, key, WT_RECNO_OOB, &key_out_of_bounds, NULL));
         /* The key value pair we were trying to return weren't within the given bounds. */
         if (key_out_of_bounds)
             return (0);
@@ -803,7 +804,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
      * exit.
      */
     WT_ERR(__btcur_bounds_contains_key(
-      session, cursor, &cursor->key, &cursor->recno, &key_out_of_bounds, NULL));
+      session, cursor, &cursor->key, cursor->recno, &key_out_of_bounds, NULL));
     if (key_out_of_bounds) {
         WT_STAT_CONN_DATA_INCR(session, cursor_bounds_search_early_exit);
         WT_ERR(WT_NOTFOUND);
@@ -1103,7 +1104,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
      * exit.
      */
     WT_ERR(__btcur_bounds_contains_key(
-      session, cursor, &cursor->key, &cursor->recno, &key_out_of_bounds, NULL));
+      session, cursor, &cursor->key, cursor->recno, &key_out_of_bounds, NULL));
     if (key_out_of_bounds)
         WT_ERR(WT_NOTFOUND);
 
@@ -1534,7 +1535,7 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
      * exit.
      */
     WT_ERR(__btcur_bounds_contains_key(
-      session, cursor, &cursor->key, &cursor->recno, &key_out_of_bounds, NULL));
+      session, cursor, &cursor->key, cursor->recno, &key_out_of_bounds, NULL));
     if (key_out_of_bounds)
         WT_ERR(WT_NOTFOUND);
 

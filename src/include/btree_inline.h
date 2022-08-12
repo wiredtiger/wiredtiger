@@ -2159,7 +2159,7 @@ __wt_btcur_bounds_early_exit(
         return (0);
 
     WT_RET(__wt_compare_bounds(
-      session, &cbt->iface, &cbt->iface.key, &cbt->recno, next, key_out_of_boundsp));
+      session, &cbt->iface, &cbt->iface.key, cbt->recno, next, key_out_of_boundsp));
 
     if (*key_out_of_boundsp)
         return (WT_NOTFOUND);

@@ -144,7 +144,7 @@ __wt_prefix_match(const WT_ITEM *prefix, const WT_ITEM *tree_item)
  *     call and the key is then checked against the lower bound.
  */
 static inline int
-__wt_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM *key, uint64_t *recno,
+__wt_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM *key, uint64_t recno,
   bool upper, bool *key_out_of_bounds)
 {
     uint64_t recno_bound;
@@ -165,10 +165,10 @@ __wt_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM *key, u
 
         if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE))
             *key_out_of_bounds =
-              CUR2BT(cursor)->type == BTREE_ROW ? (cmpp > 0) : (*recno > recno_bound);
+              CUR2BT(cursor)->type == BTREE_ROW ? (cmpp > 0) : (recno > recno_bound);
         else
             *key_out_of_bounds =
-              CUR2BT(cursor)->type == BTREE_ROW ? (cmpp >= 0) : (*recno >= recno_bound);
+              CUR2BT(cursor)->type == BTREE_ROW ? (cmpp >= 0) : (recno >= recno_bound);
     } else {
         WT_ASSERT(session, WT_DATA_IN_ITEM(&cursor->lower_bound));
         if (CUR2BT(cursor)->type == BTREE_ROW)
@@ -181,10 +181,10 @@ __wt_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM *key, u
 
         if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE))
             *key_out_of_bounds =
-              CUR2BT(cursor)->type == BTREE_ROW ? (cmpp < 0) : (*recno < recno_bound);
+              CUR2BT(cursor)->type == BTREE_ROW ? (cmpp < 0) : (recno < recno_bound);
         else
             *key_out_of_bounds =
-              CUR2BT(cursor)->type == BTREE_ROW ? (cmpp <= 0) : (*recno <= recno_bound);
+              CUR2BT(cursor)->type == BTREE_ROW ? (cmpp <= 0) : (recno <= recno_bound);
     }
     return (0);
 }
