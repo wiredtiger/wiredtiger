@@ -1,9 +1,13 @@
 This branch is to run format as a docker container to work with Antithesis.
 
-1. Build with these options
-    cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_clang.cmake -DENABLE_ANTITHESIS=1  -G "Ninja" ./..
+1. Configure and build with these options
+    $ cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_clang.cmake -DENABLE_ANTITHESIS=1  -G "Ninja" ./..
+    $ ninja
 2. Install docker on your host
 3. Execute the following command to build the docker container and run the docker image:
-    sudo docker build -f test_format.dockerfile -t image_name . && sudo docker run image_name
+    $ sudo docker build -f test_format.dockerfile -t wt_test_format . && sudo docker run wt_test_format
+4. Export the container
+    $ sudo docker image save wt_test_format > wt_test_format.tar
 
-We are including libstarvoid which helps with Antithesus integration.
+We are including libstarvoid which helps with Antithesis integration.
+
