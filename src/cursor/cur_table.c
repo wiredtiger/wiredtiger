@@ -22,6 +22,16 @@ static int __curtable_update(WT_CURSOR *cursor);
         }                                                                               \
     } while (0)
 
+#define APPLY_CG_CUSTOM(ctable, f)                                                      \
+    do {                                                                                \
+        WT_CURSOR **__cp;                                                               \
+        u_int __i;                                                                      \
+        for (__i = 0, __cp = (ctable)->cg_cursors; __i < WT_COLGROUPS((ctable)->table); \
+             __i++, __cp++) {                                                           \
+            f(*__cp);                                                                   \
+        }                                                                               \
+    } while (0)
+
 /* Cursor type for custom extractor callback. */
 typedef struct {
     WT_CURSOR iface;
@@ -439,10 +449,17 @@ __curtable_reset(WT_CURSOR *cursor)
 
     ctable = (WT_CURSOR_TABLE *)cursor;
     JOINABLE_CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, NULL);
+
     APPLY_CG(ctable, reset);
 
-    if (API_FIRST_ENTRY(session))
+    if (API_FIRST_ENTRY(session)) {
         __wt_cursor_bound_reset(cursor);
+        /*
+         * We have to directly call our bounds reset on the column group cursors as we don't want
+         * our logic to prevent their bounds from getting reset.
+         */
+        APPLY_CG_CUSTOM(ctable, __wt_cursor_bound_reset);
+    }
 
 err:
     API_END_RET(session, ret);
