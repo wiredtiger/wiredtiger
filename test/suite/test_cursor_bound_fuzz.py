@@ -491,9 +491,11 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
             key_value = self.get_value()
             self.key_range[i] = key(i, key_value, key_states.UPSERTED, self.current_ts)
             self.current_ts += 1
-            write_session.begin_transaction()
+            if (self.transactions_enabled):
+                write_session.begin_transaction()
             write_cursor[i] = key_value
-            write_session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.key_range[i].timestamp))
+            if (self.transactions_enabled):
+                write_session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.key_range[i].timestamp))
 
         #self.dump_key_range()
         self.session.checkpoint()
@@ -504,10 +506,12 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
             bound_set = self.apply_bounds(read_cursor)
             self.verbose(2, "Generated bound set: " + bound_set.to_string())
             # Use the current timestamp so we don't need to track previous versions.
-            self.session.begin_transaction('read_timestamp=' + self.timestamp_str(self.current_ts))
+            if (self.transactions_enabled):
+                self.session.begin_transaction('read_timestamp=' + self.timestamp_str(self.current_ts))
             self.run_bound_scenarios(bound_set, read_cursor)
-            self.session.rollback_transaction()
-            if (prepare):
+            if (self.transactions_enabled):
+                self.session.rollback_transaction()
+            if (self.transactions_enabled and prepare):
                 write_session.commit_transaction(
                     'commit_timestamp=' + self.timestamp_str(self.current_ts) +
                     ',durable_timestamp='+ self.timestamp_str(self.current_ts))
@@ -515,13 +519,14 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
                 prepare = False
 
             # Check if we are doing a prepared transaction on this iteration.
-            prepare = random.uniform(0, 1) <= self.prepare_frequency
-            write_session.begin_transaction()
+            prepare = random.uniform(0, 1) <= self.prepare_frequency and self.transactions_enabled
+            if (self.transactions_enabled):
+                write_session.begin_transaction()
             self.apply_ops(write_session, write_cursor, prepare)
-            if (prepare):
+            if (self.transactions_enabled and prepare):
                 self.verbose(2, "Preparing applied operations.")
                 write_session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(self.current_ts))
-            else:
+            elif (self.transactions_enabled):
                 write_session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.current_ts))
             self.current_ts += 1
             if (i % 10 == 0):
@@ -545,6 +550,8 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     search_count = 20
     key_range = {}
     prepare_frequency = 5/100
+    # Large transactions throw rollback errors so we don't use them in the long test.
+    transactions_enabled = False if wttest.islongtest() else True
     update_frequency = 2/10
 
 if __name__ == '__main__':
