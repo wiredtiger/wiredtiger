@@ -2181,6 +2181,12 @@ __wt_btcur_skip_page(
     }
 
     /*
+    if (ref->addr != NULL)
+        if (((WT_ADDR *)ref->addr)->size != 0)
+            WT_ASSERT(session, ((WT_ADDR *)ref->addr)->addr != NULL);
+    */
+
+    /*
      * Look at the disk address, if it exists, and if the page is unmodified. We must skip this test
      * if the page has been modified since it was reconciled, since neither the delete information
      * nor the timestamp information is necessarily up to date.
