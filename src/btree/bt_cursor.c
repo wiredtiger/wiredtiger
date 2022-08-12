@@ -301,19 +301,15 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
      */
     if (cbt->ins != NULL) {
         if (WT_CURSOR_BOUNDS_SET(&cbt->iface)) {
-            if (btree->type == BTREE_ROW) {
-                /* Get the insert list key. */
-                if (key == NULL) {
-                    tmp_key.data = WT_INSERT_KEY(cbt->ins);
-                    tmp_key.size = WT_INSERT_KEY_SIZE(cbt->ins);
-                    WT_RET(__btcur_bounds_contains_key(
-                      session, &cbt->iface, &tmp_key, WT_RECNO_OOB, &key_out_of_bounds, NULL));
-                } else
-                    WT_RET(__btcur_bounds_contains_key(
-                      session, &cbt->iface, key, WT_RECNO_OOB, &key_out_of_bounds, NULL));
+            /* Get the insert list key. */
+            if (key == NULL && btree->type == BTREE_ROW) {
+                tmp_key.data = WT_INSERT_KEY(cbt->ins);
+                tmp_key.size = WT_INSERT_KEY_SIZE(cbt->ins);
+                WT_RET(__btcur_bounds_contains_key(
+                  session, &cbt->iface, &tmp_key, WT_RECNO_OOB, &key_out_of_bounds, NULL));
             } else
                 WT_RET(__btcur_bounds_contains_key(
-                  session, &cbt->iface, &cbt->iface.key, cbt->recno, &key_out_of_bounds, NULL));
+                  session, &cbt->iface, key, cbt->recno, &key_out_of_bounds, NULL));
 
             /* The key value pair we were trying to return weren't within the given bounds. */
             if (key_out_of_bounds)
