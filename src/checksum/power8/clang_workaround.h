@@ -13,9 +13,9 @@
 #endif
 
 static inline __vector unsigned long long __attribute__((overloadable))
-vec_ld(int __a, const __vector unsigned long long *__b)
+vec_ld(unsigned int __a, const __vector unsigned long long *__b)
 {
-    return (__vector unsigned long long)__builtin_altivec_lvx(__a, __b);
+    return (__vector unsigned long long)__builtin_altivec_lvx((int)__a, __b);
 }
 
 /*
