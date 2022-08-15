@@ -1251,8 +1251,9 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
       (upd->type != WT_UPDATE_TOMBSTONE ||
         (upd->next != NULL && upd->durable_ts == upd->next->durable_ts &&
           upd->txnid == upd->next->txnid && upd->start_ts == upd->next->start_ts));
-    first_committed_upd_in_hs =
-      first_committed_upd != NULL && F_ISSET(first_committed_upd, WT_UPDATE_HS) && !F_ISSET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS);
+    first_committed_upd_in_hs = first_committed_upd != NULL &&
+      F_ISSET(first_committed_upd, WT_UPDATE_HS) &&
+      !F_ISSET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS);
 
     /*
      * Marked the update older than the prepared update that is already in the history store to be
@@ -1379,7 +1380,7 @@ prepare_verify:
          * If we restored an update from the history store, it should be the last update on the
          * chain.
          */
-        if (!free_fixupd && prepare_on_disk && head_upd->type == WT_UPDATE_STANDARD &&
+        if (!commit && prepare_on_disk && head_upd->type == WT_UPDATE_STANDARD &&
           F_ISSET(head_upd, WT_UPDATE_RESTORED_FROM_HS))
             WT_ASSERT(session, head_upd->next == NULL);
     }
