@@ -717,13 +717,12 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 }
 
 /*
- * __txn_locate_hs_record --
- *     Locate the update older than the prepared update in the history store and append it to the
- *     update chain if necessary.
+ * __txn_restore_hs_record --
+ *     Restore the history store record to the update chain
  */
 static int
-__txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *page,
-  WT_UPDATE *chain, bool commit, bool first_committed_upd_in_hs)
+__txn_restore_hs_record(
+  WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *page, WT_UPDATE *chain)
 {
     WT_DECL_ITEM(hs_value);
     WT_DECL_RET;
@@ -739,13 +738,6 @@ __txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
     hs_tw = NULL;
     size = total_size = 0;
     tombstone = upd = NULL;
-
-    /*
-     * When the prepared update is getting committed or the history store update is still on the
-     * update chain, no need to append it onto the update chain.
-     */
-    if (commit || first_committed_upd_in_hs)
-        goto done;
 
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
@@ -815,7 +807,6 @@ err:
         WT_ASSERT(session, tombstone == NULL || upd == tombstone);
         __wt_free_update_list(session, &upd);
     }
-done:
     __wt_scr_free(session, &hs_value);
     return (ret);
 }
@@ -1293,10 +1284,13 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
              * and instead write nothing.
              */
             WT_ERR(__txn_append_tombstone(session, op, cbt));
-        } else if (ret == 0) {
-            WT_ERR(__txn_locate_hs_record(
-              session, hs_cursor, page, upd, commit, first_committed_upd_in_hs));
-        } else
+        } else if (ret == 0 && (!commit && prepare_on_disk))
+            /*
+             * Restore the history store record to the update chain if we are rolling back the
+             * prepared update written to the disk image.
+             */
+            WT_ERR(__txn_restore_hs_record(session, hs_cursor, page, upd));
+        else
             ret = 0;
     } else if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !commit && first_committed_upd == NULL) {
         /*
@@ -1341,8 +1335,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     __wt_page_modify_set(session, page);
 
     /*
-     * Fix the history store contents if we are committing the prepared update and the previous
-     * update is written to the history store.
+     * Fix the history store record's stop time point if we are committing the prepared update and
+     * the previous update is written to the history store.
      */
     if (commit && (prepare_on_disk || first_committed_upd_in_hs))
         WT_ERR(__txn_fixup_prepared_update(session, hs_cursor));
