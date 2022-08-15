@@ -739,7 +739,7 @@ __txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
 
     hs_tw = NULL;
     *fix_updp = NULL;
-    *free_fixupdp = true;
+    *free_fixupdp = false;
     size = total_size = 0;
     tombstone = upd = NULL;
 
@@ -761,15 +761,14 @@ __txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
     if (!first_committed_upd_in_hs) {
         __wt_hs_upd_time_window(hs_cursor, &hs_tw);
         WT_ERR(__wt_upd_alloc(session, hs_value, WT_UPDATE_STANDARD, &upd, &size));
+        *free_fixupdp = true;
         upd->txnid = hs_tw->start_txn;
         upd->durable_ts = hs_tw->durable_start_ts;
         upd->start_ts = hs_tw->start_ts;
         if (commit)
             *fix_updp = upd;
-    } else if (commit) {
+    } else if (commit)
         *fix_updp = first_committed_upd;
-        *free_fixupdp = false;
-    }
 
     /*
      * When the prepared update is getting committed or the history store update is still on the
