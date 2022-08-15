@@ -739,7 +739,7 @@ __txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
 
     hs_tw = NULL;
     *fix_updp = NULL;
-    *free_fixupdp = false;
+    *free_fixupdp = true;
     size = total_size = 0;
     tombstone = upd = NULL;
 
@@ -766,8 +766,10 @@ __txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
         upd->start_ts = hs_tw->start_ts;
         if (commit)
             *fix_updp = upd;
-    } else if (commit)
+    } else if (commit) {
         *fix_updp = first_committed_upd;
+        *free_fixupdp = false;
+    }
 
     /*
      * When the prepared update is getting committed or the history store update is still on the
@@ -822,7 +824,7 @@ __txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
 
     /* Append the update to the end of the chain. */
     WT_PUBLISH(chain->next, upd);
-    *free_fixupdp = true;
+    *free_fixupdp = false;
 
     __wt_cache_page_inmem_incr(session, page, total_size);
 
@@ -1251,7 +1253,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         (upd->next != NULL && upd->durable_ts == upd->next->durable_ts &&
           upd->txnid == upd->next->txnid && upd->start_ts == upd->next->start_ts));
     first_committed_upd_in_hs =
-      first_committed_upd != NULL && F_ISSET(first_committed_upd, WT_UPDATE_HS);
+      first_committed_upd != NULL && F_ISSET(first_committed_upd, WT_UPDATE_HS) && !F_ISSET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS);
 
     /*
      * Marked the update older than the prepared update that is already in the history store to be
