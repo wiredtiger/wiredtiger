@@ -115,7 +115,7 @@ class test_prepare23(wttest.WiredTigerTestCase):
                 self.session.rollback_transaction()
             
             # Verify we can still read back the prepared update
-            self.session.begin_transaction('read_timestamp=' + self.timestamp_str(ts + 40))
+            self.session.begin_transaction('read_timestamp=' + self.timestamp_str(ts + 30))
             self.assertEquals(cursor[i], value_b)
             self.session.rollback_transaction()
             
