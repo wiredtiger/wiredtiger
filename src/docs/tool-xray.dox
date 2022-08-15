@@ -105,8 +105,8 @@ $ cp <wtperf> <xray_log> .
 
 ## Step 2: Configure and build WiredTiger with LLVM flags
 
-Supply the \c -DENABLE_LLVM flag to your configuration to build anything with a
-dependency to LLVM.
+Supply \c -DENABLE_LLVM=1 to your configuration and have a clang toolchain installed
+in order to build.
 
 @code
 $ cd build
