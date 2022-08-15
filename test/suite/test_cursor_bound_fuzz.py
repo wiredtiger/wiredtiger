@@ -95,11 +95,12 @@ class key():
 #    A python test fuzzer that generates a random key range and applies bounds to it, then runs
 #    randomized operations and validates them for correctness.
 class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
+    conn_config = 'cache_size=500MB'
     file_name = 'test_fuzz.wt'
 
     types = [
         ('file', dict(uri='file:')),
-        #('table', dict(uri='table:'))
+        ('table', dict(uri='table:'))
     ]
 
     data_format = [
@@ -536,7 +537,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     # A lot of time was spent generating values, to achieve some amount of randomness we pre
     # generate N values and keep them in memory.
     value_array = []
-    iteration_count = 200 if wttest.islongtest() else 200
+    iteration_count = 200 if wttest.islongtest() else 50
     value_size = 100000 if wttest.islongtest() else 100
     value_array_size = 20
     key_count = 10000 if wttest.islongtest() else 1000
