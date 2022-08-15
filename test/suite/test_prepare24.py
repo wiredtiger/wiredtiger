@@ -77,7 +77,7 @@ class test_prepare23(wttest.WiredTigerTestCase):
                 cursor.remove()
                 self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts + 20))
 
-            # Do a prepared update
+            # Insert a value
             self.session.begin_transaction()
             cursor[i] = value_b
             self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(ts + 30))
