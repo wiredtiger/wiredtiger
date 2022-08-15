@@ -761,12 +761,13 @@ __txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
     if (!first_committed_upd_in_hs) {
         __wt_hs_upd_time_window(hs_cursor, &hs_tw);
         WT_ERR(__wt_upd_alloc(session, hs_value, WT_UPDATE_STANDARD, &upd, &size));
-        *free_fixupdp = true;
         upd->txnid = hs_tw->start_txn;
         upd->durable_ts = hs_tw->durable_start_ts;
         upd->start_ts = hs_tw->start_ts;
-        if (commit)
+        if (commit) {
             *fix_updp = upd;
+            *free_fixupdp = true;
+        }
     } else if (commit)
         *fix_updp = first_committed_upd;
 
@@ -823,7 +824,6 @@ __txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
 
     /* Append the update to the end of the chain. */
     WT_PUBLISH(chain->next, upd);
-    *free_fixupdp = false;
 
     __wt_cache_page_inmem_incr(session, page, total_size);
 
