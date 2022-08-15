@@ -723,7 +723,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
  */
 static int
 __txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *page,
-  WT_UPDATE *chain, bool commit, WT_UPDATE **fix_updp, bool *upd_appended,
+  WT_UPDATE *chain, bool commit, WT_UPDATE **fix_updp, bool *free_fixupdp,
   WT_UPDATE *first_committed_upd, bool first_committed_upd_in_hs)
 {
     WT_DECL_ITEM(hs_value);
@@ -739,7 +739,7 @@ __txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
 
     hs_tw = NULL;
     *fix_updp = NULL;
-    *upd_appended = false;
+    *free_fixupdp = false;
     size = total_size = 0;
     tombstone = upd = NULL;
 
@@ -822,7 +822,7 @@ __txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
 
     /* Append the update to the end of the chain. */
     WT_PUBLISH(chain->next, upd);
-    *upd_appended = true;
+    *free_fixupdp = true;
 
     __wt_cache_page_inmem_incr(session, page, total_size);
 
@@ -1173,12 +1173,12 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 #endif
     uint8_t *p, hs_recno_key_buf[WT_INTPACK64_MAXSIZE];
     char ts_string[3][WT_TS_INT_STRING_SIZE];
-    bool first_committed_upd_in_hs, prepare_on_disk, tw_found, upd_appended;
+    bool first_committed_upd_in_hs, free_fixupd, prepare_on_disk, tw_found;
 
     hs_cursor = NULL;
     txn = session->txn;
     fix_upd = NULL;
-    upd_appended = false;
+    free_fixupd = false;
 
     WT_RET(__txn_search_prepared_op(session, op, cursorp, &upd));
 
@@ -1302,10 +1302,10 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
              * and instead write nothing.
              */
             WT_ERR(__txn_append_tombstone(session, op, cbt));
-        } else if (ret == 0)
+        } else if (ret == 0) {
             WT_ERR(__txn_locate_hs_record(session, hs_cursor, page, upd, commit, &fix_upd,
-              &upd_appended, first_committed_upd, first_committed_upd_in_hs));
-        else
+              &free_fixupd, first_committed_upd, first_committed_upd_in_hs));
+        } else
             ret = 0;
     } else if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !commit && first_committed_upd == NULL) {
         /*
@@ -1378,7 +1378,7 @@ prepare_verify:
          * If we restored an update from the history store, it should be the last update on the
          * chain.
          */
-        if (upd_appended && head_upd->type == WT_UPDATE_STANDARD &&
+        if (!free_fixupd && !first_committed_upd_in_hs && head_upd->type == WT_UPDATE_STANDARD &&
           F_ISSET(head_upd, WT_UPDATE_RESTORED_FROM_HS))
             WT_ASSERT(session, head_upd->next == NULL);
     }
@@ -1387,7 +1387,7 @@ prepare_verify:
 err:
     if (hs_cursor != NULL)
         WT_TRET(hs_cursor->close(hs_cursor));
-    if (!upd_appended)
+    if (free_fixupd)
         __wt_free(session, fix_upd);
     return (ret);
 }
