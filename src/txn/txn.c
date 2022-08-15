@@ -828,6 +828,7 @@ __txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
 err:
         WT_ASSERT(session, tombstone == NULL || upd == tombstone);
         __wt_free_update_list(session, &upd);
+        *fix_updp = NULL;
     }
 done:
     __wt_scr_free(session, &hs_value);
