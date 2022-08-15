@@ -1178,7 +1178,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     hs_cursor = NULL;
     txn = session->txn;
     fix_upd = NULL;
-    free_fixupd = prepared_on_disk = false;
+    free_fixupd = prepare_on_disk = false;
 
     WT_RET(__txn_search_prepared_op(session, op, cursorp, &upd));
 
