@@ -723,8 +723,8 @@ __wt_txn_release(WT_SESSION_IMPL *session)
  */
 static int
 __txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *page,
-  WT_UPDATE *chain, bool commit, WT_UPDATE **fix_updp, bool *free_fixupdp,
-  WT_UPDATE *first_committed_upd, bool first_committed_upd_in_hs)
+  WT_UPDATE *chain, bool commit, WT_UPDATE *first_committed_upd, bool first_committed_upd_in_hs,
+  WT_UPDATE **fix_updp)
 {
     WT_DECL_ITEM(hs_value);
     WT_DECL_RET;
@@ -739,7 +739,6 @@ __txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
 
     hs_tw = NULL;
     *fix_updp = NULL;
-    *free_fixupdp = false;
     size = total_size = 0;
     tombstone = upd = NULL;
 
@@ -764,10 +763,8 @@ __txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
         upd->txnid = hs_tw->start_txn;
         upd->durable_ts = hs_tw->durable_start_ts;
         upd->start_ts = hs_tw->start_ts;
-        if (commit) {
+        if (commit)
             *fix_updp = upd;
-            *free_fixupdp = true;
-        }
     } else if (commit)
         *fix_updp = first_committed_upd;
 
@@ -1174,12 +1171,12 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 #endif
     uint8_t *p, hs_recno_key_buf[WT_INTPACK64_MAXSIZE];
     char ts_string[3][WT_TS_INT_STRING_SIZE];
-    bool first_committed_upd_in_hs, free_fixupd, prepare_on_disk, tw_found;
+    bool first_committed_upd_in_hs, prepare_on_disk, tw_found;
 
     hs_cursor = NULL;
     txn = session->txn;
     fix_upd = NULL;
-    free_fixupd = prepare_on_disk = false;
+    prepare_on_disk = false;
 
     WT_RET(__txn_search_prepared_op(session, op, cursorp, &upd));
 
@@ -1305,8 +1302,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
              */
             WT_ERR(__txn_append_tombstone(session, op, cbt));
         } else if (ret == 0) {
-            WT_ERR(__txn_locate_hs_record(session, hs_cursor, page, upd, commit, &fix_upd,
-              &free_fixupd, first_committed_upd, first_committed_upd_in_hs));
+            WT_ERR(__txn_locate_hs_record(session, hs_cursor, page, upd, commit,
+              first_committed_upd, first_committed_upd_in_hs, &fix_upd));
         } else
             ret = 0;
     } else if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !commit && first_committed_upd == NULL) {
@@ -1389,7 +1386,8 @@ prepare_verify:
 err:
     if (hs_cursor != NULL)
         WT_TRET(hs_cursor->close(hs_cursor));
-    if (free_fixupd)
+    /* Only free the fix update if we commit the prepared update written to the disk image. */
+    if (fix_upd != NULL && commit && prepare_on_disk)
         __wt_free(session, fix_upd);
     return (ret);
 }
