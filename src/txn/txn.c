@@ -717,11 +717,11 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 }
 
 /*
- * __txn_restore_hs_record --
- *     Restore the history store record to the update chain
+ * __txn_restore_hs_update --
+ *     Restore the history store update to the update chain
  */
 static int
-__txn_restore_hs_record(
+__txn_restore_hs_update(
   WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *page, WT_UPDATE *chain)
 {
     WT_DECL_ITEM(hs_value);
@@ -901,11 +901,11 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
 }
 
 /*
- * __txn_fixup_prepared_update --
- *     Fix the history store record with the max stop time point if we commit the prepared update.
+ * __txn_fixup_hs_update --
+ *     Fix the history store update with the max stop time point if we commit the prepared update.
  */
 static int
-__txn_fixup_prepared_update(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
+__txn_fixup_hs_update(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
 {
     WT_DECL_ITEM(hs_value);
     WT_DECL_RET;
@@ -927,14 +927,7 @@ __txn_fixup_prepared_update(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
     if (hs_tw->durable_stop_ts != WT_TS_MAX)
         return (0);
 
-    WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
-
-    /* Get current value. */
-    WT_ERR(
-      hs_cursor->get_value(hs_cursor, &hs_stop_durable_ts, &hs_durable_ts, &type_full, hs_value));
-
-    /* The value older than the prepared update in the history store must be a full value. */
-    WT_ASSERT(session, (uint8_t)type_full == WT_UPDATE_STANDARD);
+    WT_RET(__wt_scr_alloc(session, 0, &hs_value));
 
     /*
      * Transaction error is cleared temporarily as cursor functions are not allowed after an error
@@ -942,6 +935,13 @@ __txn_fixup_prepared_update(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
      */
     txn_flags = FLD_MASK(txn->flags, WT_TXN_ERROR);
     F_CLR(txn, txn_flags);
+
+    /* Get current value. */
+    WT_ERR(
+      hs_cursor->get_value(hs_cursor, &hs_stop_durable_ts, &hs_durable_ts, &type_full, hs_value));
+
+    /* The value older than the prepared update in the history store must be a full value. */
+    WT_ASSERT(session, (uint8_t)type_full == WT_UPDATE_STANDARD);
 
     /*
      * The API layer will immediately return an error if the WT_TXN_PREPARE flag is set before
@@ -1286,10 +1286,10 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
             WT_ERR(__txn_append_tombstone(session, op, cbt));
         } else if (ret == 0 && (!commit && prepare_on_disk))
             /*
-             * Restore the history store record to the update chain if we are rolling back the
+             * Restore the history store update to the update chain if we are rolling back the
              * prepared update written to the disk image.
              */
-            WT_ERR(__txn_restore_hs_record(session, hs_cursor, page, upd));
+            WT_ERR(__txn_restore_hs_update(session, hs_cursor, page, upd));
         else
             ret = 0;
     } else if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !commit && first_committed_upd == NULL) {
@@ -1339,7 +1339,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * the previous update is written to the history store.
      */
     if (commit && (prepare_on_disk || first_committed_upd_in_hs))
-        WT_ERR(__txn_fixup_prepared_update(session, hs_cursor));
+        WT_ERR(__txn_fixup_hs_update(session, hs_cursor));
 
 prepare_verify:
 #ifdef HAVE_DIAGNOSTIC
