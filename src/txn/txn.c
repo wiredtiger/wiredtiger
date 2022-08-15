@@ -1378,7 +1378,7 @@ prepare_verify:
          * If we restored an update from the history store, it should be the last update on the
          * chain.
          */
-        if (!free_fixupd && !first_committed_upd_in_hs && head_upd->type == WT_UPDATE_STANDARD &&
+        if (!free_fixupd && prepare_on_disk && head_upd->type == WT_UPDATE_STANDARD &&
           F_ISSET(head_upd, WT_UPDATE_RESTORED_FROM_HS))
             WT_ASSERT(session, head_upd->next == NULL);
     }
