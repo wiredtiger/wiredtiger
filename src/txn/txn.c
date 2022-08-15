@@ -924,7 +924,7 @@ __txn_fixup_hs_update(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
      * If the history update already has a stop time point there is no work to do. This happens if a
      * deleted key is reinserted by a prepared update.
      */
-    if (hs_tw->durable_stop_ts != WT_TS_MAX)
+    if (WT_TIME_WINDOW_HAS_STOP(hs_tw))
         return (0);
 
     WT_RET(__wt_scr_alloc(session, 0, &hs_value));
@@ -1231,9 +1231,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
       (upd->type != WT_UPDATE_TOMBSTONE ||
         (upd->next != NULL && upd->durable_ts == upd->next->durable_ts &&
           upd->txnid == upd->next->txnid && upd->start_ts == upd->next->start_ts));
-    first_committed_upd_in_hs = first_committed_upd != NULL &&
-      F_ISSET(first_committed_upd, WT_UPDATE_HS) &&
-      !F_ISSET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS);
+    first_committed_upd_in_hs = first_committed_upd != NULL && F_ISSET(first_committed_upd, WT_UPDATE_HS);
 
     /*
      * Marked the update older than the prepared update that is already in the history store to be
@@ -1284,7 +1282,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
              * and instead write nothing.
              */
             WT_ERR(__txn_append_tombstone(session, op, cbt));
-        } else if (ret == 0 && (!commit && prepare_on_disk))
+        } else if (ret == 0 && !commit && prepare_on_disk)
             /*
              * Restore the history store update to the update chain if we are rolling back the
              * prepared update written to the disk image.
