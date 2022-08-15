@@ -574,7 +574,7 @@ __crc32_vpmsum(unsigned int crc, const void *p, unsigned long len)
         for (i = 0; i < length; i += 16) {
             vdata0 = vec_ld((unsigned int)i, (__vector unsigned long long *)p);
             VEC_PERM(vdata0, vdata0, vdata0, vperm_const);
-            va0 = vec_ld(offset + i, vcrc_short_const);
+            va0 = vec_ld((unsigned int)(offset + i), vcrc_short_const);
             va0 = (__vector unsigned long long)__builtin_crypto_vpmsumw(
               (__vector unsigned int)vdata0, (__vector unsigned int)va0);
             v0 = vec_xor(v0, va0);
@@ -664,7 +664,7 @@ __crc32_vpmsum(unsigned int crc, const void *p, unsigned long len)
     v0 = (__vector unsigned long long)vec_sld(
       (__vector unsigned char)v0, (__vector unsigned char)vzero, 4);
 
-    result = __builtin_unpack_vector_0((unsigned int)v0);
+    result = (unsigned int)__builtin_unpack_vector_0(v0);
 #endif
 
     return result;
