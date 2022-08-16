@@ -219,6 +219,8 @@ err:
     if (blkcache_found)
         (void)__wt_atomic_subv32(&blkcache_item->ref_count, 1);
 
+    if (ret == 0)
+        WT_ASSERT(session, buf->data != NULL);
     __wt_scr_free(session, &tmp);
     __wt_scr_free(session, &etmp);
     return (ret);

@@ -93,7 +93,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 {
     WT_ADDR_COPY addr;
     WT_DECL_RET;
-    WT_ITEM tmp;
+    WT_ITEM tmp, tmp_orig;
     WT_PAGE *notused;
     WT_PAGE_DELETED *del;
     uint32_t page_flags;
@@ -105,6 +105,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      * memory of the appropriate size.
      */
     WT_CLEAR(tmp);
+    WT_CLEAR(tmp_orig);
 
     /* Lock the WT_REF. */
     switch (previous_state = ref->state) {
@@ -138,6 +139,9 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 
     /* There's an address, read the backing disk page and build an in-memory version of the page. */
     WT_ERR(__wt_blkcache_read(session, &tmp, addr.addr, addr.size));
+    tmp_orig = tmp;
+    __wt_yield();
+    WT_ASSERT(session, tmp_orig.data != NULL);
 
     /*
      * Build the in-memory version of the page. Clear our local reference to the allocated copy of
@@ -151,6 +155,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     page_flags = WT_DATA_IN_ITEM(&tmp) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED;
     if (LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
         FLD_SET(page_flags, WT_PAGE_EVICT_NO_PROGRESS);
+    __wt_yield();
+    WT_ASSERT(session, tmp.data != NULL);
     WT_ERR(__wt_page_inmem(session, ref, tmp.data, page_flags, &notused, &prepare));
     tmp.mem = NULL;
     if (prepare)
