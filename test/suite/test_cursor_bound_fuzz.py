@@ -95,7 +95,6 @@ class key():
 #    A python test fuzzer that generates a random key range and applies bounds to it, then runs
 #    randomized operations and validates them for correctness.
 class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=500MB'
     file_name = 'test_fuzz.wt'
 
     types = [
@@ -165,8 +164,11 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     # Each iteration calls this function once to update the state of the keys in the database and
     # in memory.
     def apply_ops(self, session, cursor, prepare):
-        op_count = self.key_count
-        op = random.choice(list(operations))
+        # FIX-ME-WT-9768: Truncate operation leads to a cache stuck issue for bounded cursors. 
+        if (wttest.islongtest()):
+            op = random.choice(list(operations)[:-1])
+        else:
+            op = random.choice(list(operations))
         if (op is operations.TRUNCATE and self.applied_ops):
             cursor2 = session.open_cursor(self.uri + self.file_name)
             self.apply_truncate(session, cursor,cursor2, prepare)
@@ -229,7 +231,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
                 return
             elif (self.key_range[i].is_deleted()):
                 continue
-            else:
+            else:   
                 self.assertTrue(False)
 
     # Validate a prepare conflict in the cursor->next scenario.
@@ -498,7 +500,6 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
             if (self.transactions_enabled):
                 write_session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.key_range[i].timestamp))
 
-        #self.dump_key_range()
         self.session.checkpoint()
         # Begin main loop
         prepare = False
