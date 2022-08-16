@@ -204,7 +204,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     # Note the type argument determines if we return the start or end limit. e.g. if we have a lower
     # bound then the key would be the lower bound, however if the lower bound isn't enabled then the
     # lowest possible key would be min_key. max_key isn't inclusive so we subtract 1 off it.
-    def get_expected_key(self, bound_set, type):
+    def get_expected_limit_key(self, bound_set, type):
         if (type == bound_type.LOWER):
             if (bound_set.lower.enabled):
                 if (bound_set.lower.inclusive):
@@ -220,7 +220,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     # When a prepared cursor walks next or prev it can skip deleted records internally before
     # returning a prepare conflict, we don't know which key it got to so we need to validate that
     # we see a series of deleted keys followed by a prepared key.
-    def validate_deleted_range(self, start_key, end_key, next):
+    def validate_deleted_prepared_range(self, start_key, end_key, next):
         if (next):
             step = 1
         else:
@@ -242,21 +242,28 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
             # We hit a prepare conflict while walking forwards before we stepped to a valid key.
             # We should check that the keys from the start of the range are deleted followed by a
             # prepare.
-            self.validate_deleted_range(
-                self.get_expected_key(bound_set, bound_type.LOWER), self.get_expected_key(bound_set, bound_type.UPPER), True)
+            self.validate_deleted_prepared_range(
+                self.get_expected_limit_key(bound_set, bound_type.LOWER), self.get_expected_limit_key(bound_set, bound_type.UPPER), True)
         else:
             # We walked part of the way through a valid key range before we hit the prepared
             # update. Therefore we should check that the range between our current key and the
             # maximum possible key.
-            self.validate_deleted_range(
-                current_key, self.get_expected_key(bound_set, bound_type.UPPER), True)
+            self.validate_deleted_prepared_range(
+                current_key, self.get_expected_limit_key(bound_set, bound_type.UPPER), True)
 
+    # Validate a prepare conflict in the cursor->prev scenario.
     def validate_prepare_conflict_prev(self, current_key, bound_set):
         self.verbose(3, "Current key is: " + str(current_key) + " max_key is: " + str(self.max_key))
         if (current_key == self.max_key - 1):
-            self.validate_deleted_range(self.get_expected_key(bound_set, bound_type.UPPER), self.get_expected_key(bound_set, bound_type.LOWER), False)
+            # We hit a prepare conflict while walking backwards before we stepped to a valid key.
+            # We should check that the keys from the end of the range are deleted followed by a
+            # prepare.
+            self.validate_deleted_prepared_range(self.get_expected_limit_key(bound_set, bound_type.UPPER), self.get_expected_limit_key(bound_set, bound_type.LOWER), False)
         else:
-            self.validate_deleted_range(current_key, self.get_expected_key(bound_set, bound_type.LOWER), False)
+            # We walked part of the way through a valid key range before we hit the prepared
+            # update. Therefore we should check that the range between our current key and the
+            # min possible key.
+            self.validate_deleted_prepared_range(current_key, self.get_expected_limit_key(bound_set, bound_type.LOWER), False)
 
     # Walk the cursor using cursor->next and validate the returned keys.
     def run_next(self, bound_set, cursor):
