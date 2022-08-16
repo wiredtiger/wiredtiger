@@ -1232,9 +1232,15 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         (upd->next != NULL && upd->durable_ts == upd->next->durable_ts &&
           upd->txnid == upd->next->txnid && upd->start_ts == upd->next->start_ts));
     /*
-     * If the first committed update after the prepared transaction has already been marked to be
-     * deleted from the history store, no need to do anything because there is another prepared
-     * update that is rolled back before the current prepared update.
+     * If the first committed update after the prepared update has already been marked to be
+     * deleted from the history store, we are in the case that there was a previous prepared update
+     * that was rolled back.
+     *
+     * 1) We have a prepared update Up and an update U on the update chain initially.
+     * 2) An eviction writes Up to the disk and U to the history store.
+     * 3) The eviction fails and everything is restored.
+     * 4) We rollback Up and mark U to be deleted from the history store.
+     * 5) We add another prepared update to the update chain.
      */
     first_committed_upd_in_hs = first_committed_upd != NULL &&
       F_ISSET(first_committed_upd, WT_UPDATE_HS) &&

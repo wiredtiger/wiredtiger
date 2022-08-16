@@ -83,6 +83,7 @@ class test_prepare23(wttest.WiredTigerTestCase):
             self.session.begin_transaction()
             cursor[i] = value_b
             self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(ts + 30))
+            cursor.reset()
 
             # Evict the page
             session2.begin_transaction('ignore_prepare=true,read_timestamp=' + self.timestamp_str(ts + 10))
@@ -102,6 +103,7 @@ class test_prepare23(wttest.WiredTigerTestCase):
             self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(ts + 40))
             self.session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(ts + 50))
             self.session.commit_transaction()
+            cursor.reset()
 
             # Evict the page again
             session2.begin_transaction('ignore_prepare=true,read_timestamp=' + self.timestamp_str(ts + 10))
