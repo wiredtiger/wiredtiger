@@ -351,6 +351,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
     WT_MULTI multi;
     WT_PAGE_MODIFY *mod;
     bool closing;
+    void *tmp;
 
     mod = ref->page->modify;
     closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
@@ -386,7 +387,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
          */
         if (mod->mod_multi_entries == 1) {
             WT_ASSERT(session, closing == false);
-            WT_RET(__wt_split_rewrite(session, ref, &mod->mod_multi[0], false));
+            WT_RET(__wt_split_rewrite(session, ref, &mod->mod_multi[0]));
         } else
             WT_RET(__wt_split_multi(session, ref, closing));
         break;
@@ -413,13 +414,20 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
             __wt_ref_out(session, ref);
             WT_REF_SET_STATE(ref, WT_REF_DISK);
         } else {
-            /*
-             * The split code works with WT_MULTI structures, build one for the disk image.
-             */
+            /* The split code works with WT_MULTI structures, build one for the disk image. */
             memset(&multi, 0, sizeof(multi));
             multi.disk_image = mod->mod_disk_image;
-
-            WT_RET(__wt_split_rewrite(session, ref, &multi, true));
+            /*
+             * Store the disk image to a temporary pointer in case we fail to rewrite the page and
+             * we need to link the new disk image back to the old disk image.
+             */
+            tmp = mod->mod_disk_image;
+            mod->mod_disk_image = NULL;
+            ret = __wt_split_rewrite(session, ref, &multi);
+            if (ret != 0) {
+                mod->mod_disk_image = tmp;
+                return (ret);
+            }
         }
 
         break;
