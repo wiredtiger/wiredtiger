@@ -557,7 +557,6 @@ __slvg_trk_init(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
 
 err:
     __wt_free(session, trk->trk_addr);
-    if(rand() % WT_9512_ODDS == 0) usleep(WT_9512_SLEEP_FOR);
     __wt_free(session, trk->shared);
     __wt_free(session, trk);
     return (ret);
@@ -1210,10 +1209,13 @@ __slvg_col_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
     uint32_t i;
 
     addr = NULL;
+    __wt_yield();
 
     /* Allocate a column-store root (internal) page and fill it in. */
     WT_RET(__wt_page_alloc(session, WT_PAGE_COL_INT, leaf_cnt, true, &page));
+    __wt_yield();
     WT_ERR(__slvg_modify_init(session, page));
+    __wt_yield();
 
     pindex = WT_INTL_INDEX_GET_SAFE(page);
     for (refp = pindex->index, i = 0; i < ss->pages_next; ++i) {
@@ -1222,15 +1224,22 @@ __slvg_col_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
 
         ref = *refp++;
         ref->home = page;
+        __wt_yield();
         ref->page = NULL;
+        __wt_yield();
 
         WT_ERR(__wt_calloc_one(session, &addr));
         WT_TIME_AGGREGATE_COPY(&addr->ta, &trk->trk_ta);
         WT_ERR(__wt_memdup(session, trk->trk_addr, trk->trk_addr_size, &addr->addr));
+        __wt_yield();
         addr->size = trk->trk_addr_size;
+        __wt_yield();
         addr->type = trk->trk_ovfl_cnt == 0 ? WT_ADDR_LEAF_NO : WT_ADDR_LEAF;
+        __wt_yield();
         ref->addr = addr;
+        __wt_yield();
         addr = NULL;
+        __wt_yield();
 
         ref->ref_recno = trk->col_start;
         F_SET(ref, WT_REF_FLAG_LEAF);
@@ -2453,10 +2462,8 @@ __slvg_trk_free_addr(WT_SESSION_IMPL *session, WT_TRACK *trk)
     uint32_t i;
 
     if (trk->trk_ovfl_addr != NULL) {
-        for (i = 0; i < trk->trk_ovfl_cnt; ++i) {
+        for (i = 0; i < trk->trk_ovfl_cnt; ++i)
             __wt_free(session, trk->trk_ovfl_addr[i].addr);
-            if(rand() % WT_9512_ODDS == 0) usleep(WT_9512_SLEEP_FOR);
-        }
         __wt_free(session, trk->trk_ovfl_addr);
     }
 }
@@ -2508,7 +2515,6 @@ __slvg_trk_free(WT_SESSION_IMPL *session, WT_TRACK **trkp, bool free_on_last_ref
             WT_RET(__slvg_trk_free_block(session, trk));
 
         __wt_free(session, trk->trk_addr);
-        if(rand() % WT_9512_ODDS == 0) usleep(WT_9512_SLEEP_FOR);
 
         __slvg_trk_free_addr(session, trk);
 

@@ -106,9 +106,10 @@ __compact_page_replace_addr(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY 
     addr = ref->addr;
     WT_ASSERT(session, addr != NULL);
 
+    __wt_yield();
     if (__wt_off_page(ref->home, addr)) {
         __wt_free(session, addr->addr);
-        if(rand() % WT_9512_ODDS == 0) usleep(WT_9512_SLEEP_FOR);
+        __wt_yield();
     } else {
         __wt_cell_unpack_addr(session, ref->home->dsk, (WT_CELL *)addr, &unpack);
 
@@ -132,10 +133,16 @@ __compact_page_replace_addr(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY 
         }
     }
 
+    __wt_yield();
     WT_ERR(__wt_strndup(session, copy->addr, copy->size, &addr->addr));
+    __wt_yield();
     addr->size = copy->size;
+    __wt_yield();
+
 
     ref->addr = addr;
+    __wt_yield();
+
     return (0);
 
 err:

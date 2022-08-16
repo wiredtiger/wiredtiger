@@ -244,10 +244,15 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
     WT_ORDERED_READ(ref_addr, ref->addr);
     if (ref_addr != NULL && !__wt_off_page(from_home, ref_addr)) {
         __wt_cell_unpack_addr(session, from_home->dsk, (WT_CELL *)ref_addr, &unpack);
+        __wt_yield();
         WT_RET(__wt_calloc_one(session, &addr));
+        __wt_yield();
         WT_TIME_AGGREGATE_COPY(&addr->ta, &unpack.ta);
+        __wt_yield();
         WT_ERR(__wt_memdup(session, unpack.data, unpack.size, &addr->addr));
+        __wt_yield();
         addr->size = (uint8_t)unpack.size;
+        __wt_yield();
         switch (unpack.raw) {
         case WT_CELL_ADDR_INT:
             addr->type = WT_ADDR_INT;
@@ -261,19 +266,23 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
         default:
             WT_ERR(__wt_illegal_value(session, unpack.raw));
         }
+        __wt_yield();
         /* If the compare-and-swap is successful, clear addr to skip the free at the end. */
+        /* TODO loop? */
         if (__wt_atomic_cas_ptr(&ref->addr, ref_addr, addr))
             addr = NULL;
     }
+    __wt_yield();
 
     /* And finally, copy the WT_REF pointer itself. */
     *to_refp = ref;
     WT_MEM_TRANSFER(*decrp, *incrp, sizeof(WT_REF));
 
 err:
+    __wt_yield();
     if (addr != NULL) {
         __wt_free(session, addr->addr);
-        if(rand() % WT_9512_ODDS == 0) usleep(WT_9512_SLEEP_FOR);
+        __wt_yield();
         __wt_free(session, addr);
     }
     return (ret);
@@ -1717,16 +1726,25 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
      * freeing the reference array would have to avoid freeing the memory, and it's not worth the
      * confusion.
      */
+    __wt_yield();
     if (multi->addr.addr != NULL) {
+        __wt_yield();
         WT_RET(__wt_calloc_one(session, &addr));
+        __wt_yield();
         ref->addr = addr;
+        __wt_yield();
         WT_TIME_AGGREGATE_COPY(&addr->ta, &multi->addr.ta);
+        __wt_yield();
         WT_RET(__wt_memdup(session, multi->addr.addr, multi->addr.size, &addr->addr));
+        __wt_yield();
         addr->size = multi->addr.size;
+        __wt_yield();
         addr->type = multi->addr.type;
+        __wt_yield();
 
         WT_REF_SET_STATE(ref, WT_REF_DISK);
     }
+    __wt_yield();
 
     /*
      * If we have a disk image and we're not closing the file, re-instantiate the page.
@@ -1797,19 +1815,23 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     child->pindex_hint = ref->pindex_hint;
     F_SET(child, WT_REF_FLAG_LEAF);
     child->state = WT_REF_MEM; /* Visible as soon as the split completes. */
+    __wt_yield();
     child->addr = ref->addr;
+    __wt_yield();
     if (type == WT_PAGE_ROW_LEAF) {
         __wt_ref_key(ref->home, ref, &key, &key_size);
         WT_ERR(__wt_row_ikey(session, 0, key, key_size, child));
         parent_incr += sizeof(WT_IKEY) + key_size;
     } else
         child->ref_recno = ref->ref_recno;
+    __wt_yield();
 
     /*
      * The address has moved to the replacement WT_REF. Make sure it isn't freed when the original
      * ref is discarded.
      */
     ref->addr = NULL;
+    __wt_yield();
 
     /* The second page in the split is a new WT_REF/page pair. */
     WT_ERR(__wt_page_alloc(session, type, 0, false, &right));
@@ -2007,29 +2029,40 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     __wt_cache_page_inmem_incr(session, page, page_decr);
 
 err:
+    __wt_yield();
     if (split_ref[0] != NULL) {
         /*
          * The address was moved to the replacement WT_REF, restore it.
          */
+        __wt_yield();
         ref->addr = split_ref[0]->addr;
+        __wt_yield();
 
         if (type == WT_PAGE_ROW_LEAF)
             __wt_free(session, split_ref[0]->ref_ikey);
+        __wt_yield();
         __wt_free(session, split_ref[0]);
+        __wt_yield();
     }
     if (split_ref[1] != NULL) {
+        __wt_yield();
         if (type == WT_PAGE_ROW_LEAF)
             __wt_free(session, split_ref[1]->ref_ikey);
+        __wt_yield();
         __wt_free(session, split_ref[1]);
     }
     if (right != NULL) {
+        __wt_yield();
         /*
          * We marked the new page dirty; we're going to discard it, but first mark it clean and fix
          * up the cache statistics.
          */
+        __wt_yield();
         __wt_page_modify_clear(session, right);
+        __wt_yield();
         __wt_page_out(session, &right);
     }
+    __wt_yield();
     return (ret);
 }
 
