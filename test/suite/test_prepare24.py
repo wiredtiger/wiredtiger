@@ -31,7 +31,7 @@ from wtscenario import make_scenarios
 
 # test_prepare24.py
 # Test prepare commit after eviction failure.
-class test_prepare23(wttest.WiredTigerTestCase):
+class test_prepare24(wttest.WiredTigerTestCase):
     conn_config = 'timing_stress_for_test=[failpoint_eviction_fail_after_reconciliation]'
 
     format_values = [
@@ -66,7 +66,7 @@ class test_prepare23(wttest.WiredTigerTestCase):
         evict_cursor = session2.open_cursor(uri, None, 'debug=(release_evict)')
         ts = 0
         for i in range (1, 1001):
-            # Do the first update
+            # Insert a value
             self.session.begin_transaction()
             cursor[i] = value_a
             self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts + 10))
@@ -77,10 +77,11 @@ class test_prepare23(wttest.WiredTigerTestCase):
                 cursor.remove()
                 self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts + 20))
 
-            # Insert a value
+            # Do a prepared update
             self.session.begin_transaction()
             cursor[i] = value_b
             self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(ts + 30))
+            cursor.reset()
 
             # Evict the page
             session2.begin_transaction('ignore_prepare=true,read_timestamp=' + self.timestamp_str(ts + 10))
