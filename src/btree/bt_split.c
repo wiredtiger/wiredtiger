@@ -273,6 +273,7 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
 err:
     if (addr != NULL) {
         __wt_free(session, addr->addr);
+        if(rand() % WT_9512_ODDS == 0) usleep(WT_9512_SLEEP_FOR);
         __wt_free(session, addr);
     }
     return (ret);

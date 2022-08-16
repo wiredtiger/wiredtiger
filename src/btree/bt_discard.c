@@ -167,6 +167,7 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
             __wt_free(session, multi->supd);
             __wt_free(session, multi->disk_image);
             __wt_free(session, multi->addr.addr);
+            if(rand() % WT_9512_ODDS == 0) usleep(WT_9512_SLEEP_FOR);
         }
         __wt_free(session, mod->mod_multi);
         break;
@@ -176,6 +177,7 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
          * but at the root that can't happen.
          */
         __wt_free(session, mod->mod_replace.addr);
+        if(rand() % WT_9512_ODDS == 0) usleep(WT_9512_SLEEP_FOR);
         break;
     }
 
@@ -243,6 +245,7 @@ __wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref)
 
     if (ref->home == NULL || __wt_off_page(ref->home, ref_addr)) {
         __wt_free(session, ((WT_ADDR *)ref_addr)->addr);
+        if(rand() % WT_9512_ODDS == 0) usleep(WT_9512_SLEEP_FOR);
         __wt_free(session, ref_addr);
     }
 }
