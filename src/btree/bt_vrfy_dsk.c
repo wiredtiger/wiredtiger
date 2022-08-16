@@ -20,6 +20,28 @@ static int __verify_dsk_row_int(WT_SESSION_IMPL *, const char *, const WT_PAGE_H
 static int __verify_dsk_row_leaf(
   WT_SESSION_IMPL *, const char *, const WT_PAGE_HEADER *, WT_ADDR *);
 
+/*
+ * WT_VERIFY_INFO --
+ * A structure to hold all the information related to a verify operation.
+ WT_ADDR --
+ *	An in-memory structure to hold a block's location.
+ */
+struct __wt_verify_info {
+/* AUTOMATIC FLAG VALUE GENERATION START 12 */
+#define WT_VRFY_DISK_CONTINUE_ON_FAILURE    0x1u
+#define WT_VRFY_EMPTY_PAGE_OK               0x2u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+    uint32_t flags;
+
+    const char *tag;
+    uint64_t cellnum;
+    size_t item_size;
+    WT_ADDR *item_addr;
+    uint64_t recno;
+};
+
+typedef struct __wt_verify_info WT_VERIFY_INFO;
+
 #define WT_ERR_VRFY(session, ...)                                          \
     do {                                                                   \
         if (!(F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))) {          \
@@ -69,6 +91,20 @@ __wt_verify_dsk_image(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_H
 {
     uint8_t flags;
     const uint8_t *p, *end;
+
+    /* Initialize the verify information. */
+    WT_VERIFY_INFO vi;
+    vi.flags = 0;
+    vi.tag = tag;
+    vi.cellnum = 0;
+    vi.item_size = size;
+    vi.item_addr = addr;
+    vi.recno = 0;
+    WT_UNUSED(vi);
+    WT_UNUSED(WT_VRFY_EMPTY_PAGE_OK);
+    if (empty_page_ok)
+        LF_SET(WT_VRFY_EMPTY_PAGE_OK);
+    WT_UNUSED(WT_VRFY_DISK_CONTINUE_ON_FAILURE);
 
     /* Check the page type. */
     switch (dsk->type) {
