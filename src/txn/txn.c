@@ -1231,8 +1231,14 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
       (upd->type != WT_UPDATE_TOMBSTONE ||
         (upd->next != NULL && upd->durable_ts == upd->next->durable_ts &&
           upd->txnid == upd->next->txnid && upd->start_ts == upd->next->start_ts));
-    first_committed_upd_in_hs =
-      first_committed_upd != NULL && F_ISSET(first_committed_upd, WT_UPDATE_HS);
+    /*
+     * If the first committed update after the prepared transaction has already been marked to be
+     * deleted from the history store, no need to do anything because there is another prepared
+     * update that is rolled back before the current prepared update.
+     */
+    first_committed_upd_in_hs = first_committed_upd != NULL &&
+      F_ISSET(first_committed_upd, WT_UPDATE_HS) &&
+      !F_ISSET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS);
 
     /*
      * Marked the update older than the prepared update that is already in the history store to be
