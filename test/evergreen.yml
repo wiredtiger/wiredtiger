@@ -2620,6 +2620,8 @@ tasks:
           trace_args: -T all
 
   - name: format-stress-pull-request-test
+    # FIXME-WT-9770
+    activate: false
     tags: ["pull_request"]
     commands:
       - func: "get project"
@@ -3018,6 +3020,8 @@ tasks:
           times: 25
 
   - name: format-abort-recovery-stress-test
+    # FIXME-WT-9767
+    activate: false
     commands:
       # Allow 30 minutes beyond test runtime because recovery under load can cause the test to
       # run longer.
