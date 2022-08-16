@@ -1495,6 +1495,9 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
     if (addr == NULL)
         return (false);
 
+    if(addr->addr == NULL)
+        WT_ASSERT_ALWAYS(session, addr->size == 0, "NULL addr->addr, non-zero copy size");
+
     /* If off-page, the pointer references a WT_ADDR structure. */
     if (__wt_off_page(page, addr)) {
         WT_TIME_AGGREGATE_COPY(&copy->ta, &addr->ta);

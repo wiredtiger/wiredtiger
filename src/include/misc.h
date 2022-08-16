@@ -37,6 +37,9 @@
 
 #define WT_DIVIDER "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
+#define WT_9512_SLEEP_FOR (1000000)
+#define WT_9512_ODDS (2)
+
 /* Basic constants. */
 #define WT_THOUSAND (1000)
 #define WT_MILLION (1000000)
