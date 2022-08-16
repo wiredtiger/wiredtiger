@@ -176,6 +176,7 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
          * but at the root that can't happen.
          */
         __wt_free(session, mod->mod_replace.addr);
+        __wt_free(session, mod->mod_disk_image);
         break;
     }
 

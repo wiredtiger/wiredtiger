@@ -386,7 +386,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
          */
         if (mod->mod_multi_entries == 1) {
             WT_ASSERT(session, closing == false);
-            WT_RET(__wt_split_rewrite(session, ref, &mod->mod_multi[0]));
+            WT_RET(__wt_split_rewrite(session, ref, &mod->mod_multi[0], false));
         } else
             WT_RET(__wt_split_multi(session, ref, closing));
         break;
@@ -419,7 +419,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
             memset(&multi, 0, sizeof(multi));
             multi.disk_image = mod->mod_disk_image;
 
-            WT_RET(__wt_split_rewrite(session, ref, &multi));
+            WT_RET(__wt_split_rewrite(session, ref, &multi, true));
         }
 
         break;
@@ -760,19 +760,10 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
       !__wt_page_is_modified(page) || LF_ISSET(WT_REC_HS | WT_REC_IN_MEMORY) ||
         WT_IS_METADATA(btree->dhandle));
 
-    /*
-     * FIXME-WT-9751
-     *
-     * Disable this failpoint for now - triggering it leads to a memory leak in testing. We want to
-     * fix the leak and take the time to cleanup the code, so disable the failpoint in the meantime
-     * to reduce testing noise.
-     */
-#if 0
     /* Fail 0.1% of the time. */
     if (!closing &&
       __wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_EVICTION_FAIL_AFTER_RECONCILIATION, 10))
         return (EBUSY);
-#endif
 
     return (0);
 }

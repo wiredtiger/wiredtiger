@@ -2228,7 +2228,7 @@ __wt_split_reverse(WT_SESSION_IMPL *session, WT_REF *ref)
  *     Rewrite an in-memory page with a new version.
  */
 int
-__wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
+__wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi, bool replace)
 {
     WT_DECL_RET;
     WT_PAGE *page;
@@ -2274,6 +2274,11 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
     __wt_page_modify_clear(session, page);
     if (!F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_SCRUB) || multi->supd_restore)
         F_SET_ATOMIC_16(page, WT_PAGE_EVICT_NO_PROGRESS);
+
+    /* Set the instantiated disk image to NULL so it is not freed with the old disk image. */
+    if (replace)
+        page->modify->mod_disk_image = NULL;
+
     __wt_ref_out(session, ref);
 
     /* Swap the new page into place. */
