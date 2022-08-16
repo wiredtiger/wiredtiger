@@ -425,7 +425,7 @@ __posix_file_read(
         if ((nr = pread(pfh->fd, addr, chunk, offset)) <= 0)
             WT_RET_MSG(session, nr == 0 ? WT_ERROR : __wt_errno(),
               "%s: handle-read: pread: failed with %li to read %" WT_SIZET_FMT " bytes at offset %" PRIuMAX,
-              file_handle->name, nr, chunk, (uintmax_t)offset);
+              file_handle->name, nr == 0 ? nr : errno, chunk, (uintmax_t)offset);
     }
     WT_STAT_CONN_INCRV(session, block_byte_read_syscall, len);
     return (0);

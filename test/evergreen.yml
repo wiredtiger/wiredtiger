@@ -564,6 +564,14 @@ functions:
         PATH="/opt/mongodbtoolchain/v3/gdb/bin:$PATH" ${python_binary|python3} ../test/wt_hang_analyzer/wt_hang_analyzer.py $wt_hang_analyzer_option
 
   "save wt hang analyzer core/debugger files":
+    - command: shell.exec
+      params:
+        script: |
+            set -o verbose
+
+            dmesg
+            cat /var/log/messages
+            cat /var/log/syslog
     - command: archive.targz_pack
       params:
         target: "wt-hang-analyzer.tgz"
@@ -4532,6 +4540,7 @@ buildvariants:
     smp_command: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 2 | bc)
     cmake_generator: Ninja
     make_command: ninja
+    posix_configure_flags: -DENABLE_STRICT=0
   tasks:
     - name: compile
     - name: unit-test

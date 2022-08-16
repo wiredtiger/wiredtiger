@@ -214,7 +214,7 @@ __crc32_vpmsum(unsigned int crc, const void *p, unsigned long len)
     /* Short version. */
     if (len < 256) {
         /* Calculate where in the constant table we need to start. */
-        offset = (unsigned int)(256 - len);
+        offset = 256 - len;
 
         vconst1 = vec_ld(offset, vcrc_short_const);
         vdata0 = vec_ld(0, (__vector unsigned long long *)p);
@@ -228,8 +228,8 @@ __crc32_vpmsum(unsigned int crc, const void *p, unsigned long len)
         v0 = vec_xor(v0, vdata0);
 
         for (i = 16; i < len; i += 16) {
-            vconst1 = vec_ld((unsigned int)(offset + i), vcrc_short_const);
-            vdata0 = vec_ld((unsigned int)i, (__vector unsigned long long *)p);
+            vconst1 = vec_ld(offset + i, vcrc_short_const);
+            vdata0 = vec_ld(i, (__vector unsigned long long *)p);
             VEC_PERM(vdata0, vdata0, vconst1, vperm_const);
             vdata0 = (__vector unsigned long long)__builtin_crypto_vpmsumw(
               (__vector unsigned int)vdata0, (__vector unsigned int)vconst1);
@@ -280,7 +280,7 @@ __crc32_vpmsum(unsigned int crc, const void *p, unsigned long len)
              * Work out the offset into the constants table to start at. Each constant is 16 bytes,
              * and it is used against 128 bytes of input data - 128 / 16 = 8
              */
-            offset = (unsigned int)((MAX_SIZE / 8) - (block_size / 8));
+            offset = (MAX_SIZE / 8) - (block_size / 8);
             /* We reduce our final 128 bytes in a separate step */
             chunks = (block_size / 128) - 1;
 
@@ -540,7 +540,7 @@ __crc32_vpmsum(unsigned int crc, const void *p, unsigned long len)
         length = (len & 127);
 
         /* Calculate where in (short) constant table we need to start. */
-        offset = (unsigned int)(128 - length);
+        offset = 128 - length;
 
         v0 = vec_ld(offset, vcrc_short_const);
         v1 = vec_ld(offset + 16, vcrc_short_const);
@@ -572,9 +572,9 @@ __crc32_vpmsum(unsigned int crc, const void *p, unsigned long len)
 
         /* Now reduce the tail (0-112 bytes). */
         for (i = 0; i < length; i += 16) {
-            vdata0 = vec_ld((unsigned int)i, (__vector unsigned long long *)p);
+            vdata0 = vec_ld(i, (__vector unsigned long long *)p);
             VEC_PERM(vdata0, vdata0, vdata0, vperm_const);
-            va0 = vec_ld((unsigned int)(offset + i), vcrc_short_const);
+            va0 = vec_ld(offset + i, vcrc_short_const);
             va0 = (__vector unsigned long long)__builtin_crypto_vpmsumw(
               (__vector unsigned int)vdata0, (__vector unsigned int)va0);
             v0 = vec_xor(v0, va0);
@@ -664,7 +664,7 @@ __crc32_vpmsum(unsigned int crc, const void *p, unsigned long len)
     v0 = (__vector unsigned long long)vec_sld(
       (__vector unsigned char)v0, (__vector unsigned char)vzero, 4);
 
-    result = (unsigned int)__builtin_unpack_vector_0(v0);
+    result = __builtin_unpack_vector_0(v0);
 #endif
 
     return result;
