@@ -156,6 +156,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
             cursor2.set_key(upper_key)
             self.assertEqual(session.truncate(None, cursor, cursor2, None), 0)
 
+            # Mark all keys from lower_key to upper_key as deleted.
             for key_id in range(lower_key, upper_key + 1):
                 self.key_range[key_id].update(None, key_states.DELETED, self.current_ts, prepare)
 
@@ -171,7 +172,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
             op = random.choice(list(operations))
         if (op is operations.TRUNCATE and self.applied_ops):
             cursor2 = session.open_cursor(self.uri + self.file_name)
-            self.apply_truncate(session, cursor,cursor2, prepare)
+            self.apply_truncate(session, cursor, cursor2, prepare)
         else:
             for i in self.key_range_iter():
                 if (random.uniform(0, 1) < self.update_frequency):
@@ -199,10 +200,10 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
                 raise e
         return ret
 
-    # Given a bound this key returns what would be the start of the bounded range for that bound.
-    # e.g. if we have a lower bound then the key would be the lower bound, however if the lower
-    # bound isn't enabled then the lowest possible key would be min_key.
-    # max_key isn't inclusive so we subtract 1 off it.
+    # Given a bound, this functions returns the start or end expected key of the bounded range. 
+    # Note the type argument determines if we return the start or end limit. e.g. if we have a lower
+    # bound then the key would be the lower bound, however if the lower bound isn't enabled then the
+    # lowest possible key would be min_key. max_key isn't inclusive so we subtract 1 off it.
     def get_expected_key(self, bound_set, type):
         if (type == bound_type.LOWER):
             if (bound_set.lower.enabled):
@@ -236,7 +237,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
 
     # Validate a prepare conflict in the cursor->next scenario.
     def validate_prepare_conflict_next(self, current_key, bound_set):
-        self.verbose(3, "Current key is: " + str(current_key) + " min_key is: " +str(self.min_key))
+        self.verbose(3, "Current key is: " + str(current_key) + " min_key is: " + str(self.min_key))
         if current_key == self.min_key:
             # We hit a prepare conflict while walking forwards before we stepped to a valid key.
             # We should check that the keys from the start of the range are deleted followed by a
@@ -251,7 +252,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
                 current_key, self.get_expected_key(bound_set, bound_type.UPPER), True)
 
     def validate_prepare_conflict_prev(self, current_key, bound_set):
-        self.verbose(3, "Current key is: " + str(current_key) + " max_key is: " +str(self.max_key))
+        self.verbose(3, "Current key is: " + str(current_key) + " max_key is: " + str(self.max_key))
         if (current_key == self.max_key - 1):
             self.validate_deleted_range(self.get_expected_key(bound_set, bound_type.UPPER), self.get_expected_key(bound_set, bound_type.LOWER), False)
         else:
