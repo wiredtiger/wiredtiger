@@ -199,8 +199,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     if (__wt_ref_is_root(ref))
         __wt_ref_out(session, ref);
     else if ((clean_page && !F_ISSET(conn, WT_CONN_IN_MEMORY)) || tree_dead)
-        /*
-         * Pages that belong to dead trees never write back to disk and can't support page splits.
+        /* Pages that belong to dead trees never write back to disk and can't support page splits.
          */
         WT_ERR(__evict_page_clean_update(session, ref, flags));
     else
