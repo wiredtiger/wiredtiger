@@ -153,8 +153,12 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      * Setting the instantiated flag requires a modify structure. We don't need to mark it dirty; if
      * it gets discarded before something else modifies it, eviction will see the instantiated flag
      * and set the ref state back to WT_REF_DELETED.
+     *
+     * Skip this optimization in cases that need the obsolete values. To minimize the number of
+     * special cases, use the same test as for skipping instantiation below.
      */
-    if (previous_state == WT_REF_DELETED) {
+    if (previous_state == WT_REF_DELETED &&
+      !F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
         /*
          * If the deletion has not yet been found to be globally visible (page_del isn't NULL),
          * check if it is now, in case we can in fact avoid reading the page. Hide prepared deletes
