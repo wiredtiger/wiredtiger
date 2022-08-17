@@ -206,6 +206,11 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     else
         WT_ERR(__evict_page_dirty_update(session, ref, flags));
 
+    /*
+     * We have loaded the new disk image and updated the tree structure. We can no longer fail after
+     * this point.
+     */
+
     if (time_start != 0) {
         time_stop = __wt_clock(session);
         if (force_evict_hs)
