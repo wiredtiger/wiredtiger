@@ -1116,7 +1116,8 @@ err:
     conn->cache->eviction_dirty_target = 0.1;
 
     if (conn->default_session->event_handler) {
-        conn->default_session->event_handler->handle_conn_close(conn->default_session->event_handler);
+        conn->default_session->event_handler->handle_conn_close(
+          conn->default_session->event_handler);
     }
 
     /*
@@ -1144,7 +1145,8 @@ err:
         }
 
     if (conn->default_session->event_handler) {
-        conn->default_session->event_handler->handle_conn_ready(conn->default_session->event_handler, wt_conn);
+        conn->default_session->event_handler->handle_conn_ready(
+          conn->default_session->event_handler, wt_conn);
     }
 
     /* Wait for in-flight operations to complete. */
@@ -1177,7 +1179,8 @@ err:
     WT_TRET(__wt_txn_global_shutdown(session, cfg));
 
     if (conn->default_session->event_handler) {
-        conn->default_session->event_handler->handle_conn_close(conn->default_session->event_handler);
+        conn->default_session->event_handler->handle_conn_close(
+          conn->default_session->event_handler);
     }
 
     /*
@@ -3081,9 +3084,10 @@ err:
         __wt_free(session, conn->partial_backup_remove_ids);
 
     if (ret != 0) {
-	if (conn->default_session->event_handler) {
-	    conn->default_session->event_handler->handle_conn_close(conn->default_session->event_handler);
-	}
+        if (conn->default_session->event_handler) {
+            conn->default_session->event_handler->handle_conn_close(
+              conn->default_session->event_handler);
+        }
 
         /*
          * Set panic if we're returning the run recovery error or if recovery did not complete so

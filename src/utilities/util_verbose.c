@@ -50,11 +50,9 @@ __handle_progress_verbose(
     return (printf("\r\t%s %-20" PRIu64, operation, progress) < 0 ? EIO : 0);
 }
 
-static WT_EVENT_HANDLER __event_handler_verbose = {
-  __handle_error_verbose, __handle_message_verbose, __handle_progress_verbose,
-  NULL, /* Close handler. */
-  NULL, /* Connection ready handler. */
-  NULL
-};
+static WT_EVENT_HANDLER __event_handler_verbose = {__handle_error_verbose, __handle_message_verbose,
+  __handle_progress_verbose, NULL, /* Close handler. */
+  NULL,                            /* Connection ready handler. */
+  NULL};
 
 WT_EVENT_HANDLER *verbose_handler = &__event_handler_verbose;

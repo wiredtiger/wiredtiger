@@ -177,8 +177,7 @@ subtest_error_handler(
 static WT_EVENT_HANDLER event_handler = {subtest_error_handler, NULL, /* Message handler */
   NULL,                                                               /* Progress handler */
   NULL,                                                               /* Close handler */
-  NULL,
-  NULL};
+  NULL, NULL};
 
 /*
  * The following are various schema-related functions to have some threads performing during the
