@@ -257,7 +257,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     def validate_prepare_conflict_prev(self, current_key, bound_set):
         self.verbose(3, "Current key is: " + str(current_key) + " max_key is: " + str(self.max_key))
         start_range = None
-        if current_key == self.min_key:
+        if current_key == self.max_key - 1:
             # We hit a prepare conflict while walking backwards before we stepped to a valid key.
             # Therefore validate all the keys from start of the range are deleted followed by a
             # prepare.
