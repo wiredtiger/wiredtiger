@@ -286,16 +286,28 @@ __evict_delete_ref(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
          * This will consume the deleted ref (and eventually free it). If the reverse split can't
          * get the access it needs because something is busy, be sure that the page still ends up
          * marked deleted.
+         *
+         * Don't do it if we are a VLCS tree and the child we're deleting is the leftmost child. The
+         * reverse split will automatically remove the page entirely, creating a namespace gap at
+         * the beginning of the internal page, and that leaves search nowhere to go. Note that the
+         * situation will be handled safely if another child gets deleted, or if eviction comes for
+         * a visit.
          */
         if (ndeleted > pindex->entries / 10 && pindex->entries > 1) {
-            if ((ret = __wt_split_reverse(session, ref)) == 0)
-                return (0);
-            WT_RET_BUSY_OK(ret);
+            if (S2BT(session)->type == BTREE_COL_VAR && ref == pindex->index[0])
+                WT_STAT_CONN_DATA_INCR(session, cache_reverse_splits_skipped_vlcs);
+            else {
+                if ((ret = __wt_split_reverse(session, ref)) == 0) {
+                    WT_STAT_CONN_DATA_INCR(session, cache_reverse_splits);
+                    return (0);
+                }
+                WT_RET_BUSY_OK(ret);
 
-            /*
-             * The child must be locked after a failed reverse split.
-             */
-            WT_ASSERT(session, ref->state == WT_REF_LOCKED);
+                /*
+                 * The child must be locked after a failed reverse split.
+                 */
+                WT_ASSERT(session, ref->state == WT_REF_LOCKED);
+            }
         }
     }
 
@@ -426,7 +438,7 @@ static int
 __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
 {
     WT_REF *child;
-    bool active;
+    bool visible;
 
     /*
      * There may be cursors in the tree walking the list of child pages. The parent is locked, so
@@ -488,9 +500,29 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
                               */
             if (!__wt_atomic_casv8(&child->state, WT_REF_DELETED, WT_REF_LOCKED))
                 return (__wt_set_return(session, EBUSY));
-            active = __wt_page_del_active(session, child, true);
+            /*
+             * We can evict any truncation that's committed. However, restrictions in reconciliation
+             * mean that it needs to be visible to us when we get there. And unfortunately we are
+             * upstream of the point where eviction threads get snapshots. Plus, application threads
+             * doing eviction can see their own uncommitted truncations. So, use the following
+             * logic:
+             *     1. First check if the operation is committed. If not, it's not visible for these
+             *        purposes.
+             *     2. If we already have a snapshot, use it to check visibility.
+             *     3. If we do not but we're an eviction thread, go ahead. We will get a snapshot
+             *        shortly and any committed operation will be visible in it.
+             *     4. Otherwise, check if the operation is globally visible.
+             */
+            if (!__wt_page_del_committed(child->ft_info.del))
+                visible = false;
+            else if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
+                visible = __wt_page_del_visible(session, child->ft_info.del, false);
+            else if (F_ISSET(session, WT_SESSION_EVICTION))
+                visible = true;
+            else
+                visible = __wt_page_del_visible(session, child->ft_info.del, true);
             child->state = WT_REF_DELETED;
-            if (active)
+            if (!visible)
                 return (__wt_set_return(session, EBUSY));
             break;
         default:
@@ -727,6 +759,20 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     WT_ASSERT(session,
       !__wt_page_is_modified(page) || LF_ISSET(WT_REC_HS | WT_REC_IN_MEMORY) ||
         WT_IS_METADATA(btree->dhandle));
+
+    /*
+     * FIXME-WT-9751
+     *
+     * Disable this failpoint for now - triggering it leads to a memory leak in testing. We want to
+     * fix the leak and take the time to cleanup the code, so disable the failpoint in the meantime
+     * to reduce testing noise.
+     */
+#if 0
+    /* Fail 0.1% of the time. */
+    if (!closing &&
+      __wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_EVICTION_FAIL_AFTER_RECONCILIATION, 10))
+        return (EBUSY);
+#endif
 
     return (0);
 }

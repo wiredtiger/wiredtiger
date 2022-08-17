@@ -32,6 +32,7 @@ from wiredtiger import stat
 
 # test_search_near01.py
 # Test various prefix search near scenarios.
+# FIXME-WT-9142 Remove once prefix search near is deprecated.
 class test_search_near01(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
 

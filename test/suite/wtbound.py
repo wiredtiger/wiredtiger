@@ -28,11 +28,26 @@
 
 import wiredtiger, wttest
 
+def set_prefix_bound(test, cursor, lower_bound):
+    test.assertEqual(cursor.reset(), 0)
+    cursor.set_key(lower_bound)
+    test.assertEqual(cursor.bound("action=set,bound=lower,inclusive=true"), 0)
+    # Strings are immutable in python so we cast the string to a list, then we convert the last
+    # element to an integer using ord() and then convert it back to a char with chr(), finally we
+    # convert the list back to a string.
+    upper_bound = list(lower_bound)
+    upper_bound[len(upper_bound) - 1] = chr(ord(upper_bound[len(upper_bound) - 1]) + 1)
+    upper_bound = ''.join(upper_bound)
+    cursor.set_key(upper_bound)
+    test.assertEqual(cursor.bound("action=set,bound=upper,inclusive=false"), 0)
+
 class bound():
     def __init__(self, key, inclusive, enabled):
         self.key = key
         self.inclusive = inclusive
         self.enabled = enabled
+        self.key_format = 'S'
+        self.value_format = 'S'
 
     def to_string(self):
         return "Enabled: " + str(self.enabled) + ", Key: " + str(self.key) + ", incl: " + self.inclusive_str()
@@ -87,10 +102,41 @@ class bounds():
 
 # Shared base class used by cursor bound tests.
 class bound_base(wttest.WiredTigerTestCase):
+    # The start and end key denotes the first and last key in the table. Since 20 is a key itself, 
+    # there are 60 entries between the start and end key.
     start_key = 20
-    end_key = 80
-    lower_inclusve = True
+    end_key = 79
+    lower_inclusive = True
     upper_inclusive = True
+
+    def create_session_and_cursor(self, cursor_config=None):
+        uri = self.uri + self.file_name
+        create_params = 'value_format={},key_format={}'.format(self.value_format, self.key_format)
+        if self.use_colgroup:
+            create_params += self.gen_colgroup_create_param()
+        self.session.create(uri, create_params)
+
+        # Add in column group.
+        if self.use_colgroup:
+            for i in range(0, len(self.value_format)):
+                create_params = 'columns=(v{0}),'.format(i)
+                suburi = 'colgroup:{0}:g{1}'.format(self.file_name, i)
+                self.session.create(suburi, create_params)
+
+        cursor = self.session.open_cursor(uri, None, cursor_config)
+        self.session.begin_transaction()
+
+        for i in range(self.start_key, self.end_key + 1):
+            cursor[self.gen_key(i)] = self.gen_val("value" + str(i))
+        self.session.commit_transaction()
+
+        if (self.evict):
+            evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
+            for i in range(self.start_key, self.end_key):
+                evict_cursor.set_key(self.gen_key(i))
+                evict_cursor.search()
+                evict_cursor.reset() 
+        return cursor        
 
     def gen_colgroup_create_param(self):
         create_params = ",columns=("
@@ -98,7 +144,18 @@ class bound_base(wttest.WiredTigerTestCase):
         for _ in self.key_format:
             create_params += "k{0},".format(str(start)) 
             start += 1
-        create_params += "v),colgroups=(g0)"
+
+        start = 0
+        for _ in self.value_format:
+            create_params += "v{0},".format(str(start)) 
+            start += 1
+        create_params += "),colgroups=("
+
+        start = 0
+        for _ in self.value_format:
+            create_params += "g{0},".format(str(start)) 
+            start += 1
+        create_params += ")"
         return create_params
 
     def gen_key(self, i):
@@ -115,6 +172,21 @@ class bound_base(wttest.WiredTigerTestCase):
             return tuple_key[0]
         else:
             return tuple(tuple_key)
+
+    def gen_val(self, i):
+        tuple_val = []
+        for key in self.value_format:
+            if key == 'S' or key == 'u':
+                tuple_val.append(str(i))
+            elif key == "r":
+                tuple_val.append(self.recno(i))
+            elif key == "i":
+                tuple_val.append(i)
+        
+        if (len(self.value_format) == 1):
+            return tuple_val[0]
+        else:
+            return tuple(tuple_val)
 
     def check_key(self, i):
         list_key = []
@@ -162,14 +234,15 @@ class bound_base(wttest.WiredTigerTestCase):
         if (upper_key):
             if (upper_key < end_range):
                 end_range = upper_key
-                if (self.upper_inclusive == False):
+                if (not self.upper_inclusive):
                     end_range -= 1
-        
+
         if (lower_key):
             if (lower_key > start_range):
                 start_range = lower_key
-                if (self.lower_inclusive == False):
+                if (not self.lower_inclusive):
                     start_range += 1
+
 
         count = ret = 0
         while True:
@@ -193,8 +266,7 @@ class bound_base(wttest.WiredTigerTestCase):
             elif (upper_key):
                 self.assertTrue(key < self.check_key(upper_key))
                 
-        count = max(count - 1, 0)
         if (expected_count != None):
             self.assertEqual(expected_count, count)
         else:
-            self.assertEqual(end_range - start_range, count)
+            self.assertEqual(end_range - start_range + 1, count)

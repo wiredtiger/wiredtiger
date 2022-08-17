@@ -6,9 +6,6 @@ CONFIG configuration_list[] = {
   {"assert.read_timestamp", "assert read_timestamp",
     C_BOOL, 2, 0, 0, V_GLOBAL_ASSERT_READ_TIMESTAMP},
 
-  {"assert.write_timestamp", "set write_timestamp_usage and assert write_timestamp",
-    C_BOOL, 2, 0, 0, V_GLOBAL_ASSERT_WRITE_TIMESTAMP},
-
   {"backup", "configure backups",
     C_BOOL, 20, 0, 0, V_GLOBAL_BACKUP},
 
@@ -227,6 +224,9 @@ CONFIG configuration_list[] = {
   {"runs.ops", "operations per run",
     0x0, 0, M(2), M(100), V_GLOBAL_RUNS_OPS},
 
+  {"runs.mirror", "mirror tables",
+    C_BOOL | C_IGNORE | C_TABLE, 0, 0, 0, V_TABLE_RUNS_MIRROR},
+
   {"runs.rows", "number of rows",
     C_TABLE, 10, M(1), M(100), V_TABLE_RUNS_ROWS},
 
@@ -271,6 +271,9 @@ CONFIG configuration_list[] = {
 
   {"stress.evict_reposition", "stress evict reposition",
     C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_EVICT_REPOSITION},
+
+  {"stress.failpoint_eviction_fail_after_reconciliation", "stress failpoint eviction fail after reconciliation",
+    C_BOOL, 30, 0, 0, V_GLOBAL_STRESS_FAILPOINT_EVICTION_FAIL_AFTER_RECONCILIATION},
 
   {"stress.failpoint_hs_delete_key_from_ts", "stress failpoint history store delete key from ts",
     C_BOOL, 30, 0, 0, V_GLOBAL_STRESS_FAILPOINT_HS_DELETE_KEY_FROM_TS},
