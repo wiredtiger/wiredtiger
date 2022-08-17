@@ -238,32 +238,39 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     # Validate a prepare conflict in the cursor->next scenario.
     def validate_prepare_conflict_next(self, current_key, bound_set):
         self.verbose(3, "Current key is: " + str(current_key) + " min_key is: " + str(self.min_key))
+        start_range = None
         if current_key == self.min_key:
             # We hit a prepare conflict while walking forwards before we stepped to a valid key.
-            # We should check that the keys from the start of the range are deleted followed by a
-            # prepare.
-            self.validate_deleted_prepared_range(
-                self.get_expected_limit_key(bound_set, bound_type.LOWER), self.get_expected_limit_key(bound_set, bound_type.UPPER), True)
+            # Therefore validate all the keys from start of the range are deleted followed by a prepare.
+            start_range = self.get_expected_limit_key(bound_set, bound_type.LOWER)
         else:
             # We walked part of the way through a valid key range before we hit the prepared
-            # update. Therefore we should check that the range between our current key and the
-            # maximum possible key.
-            self.validate_deleted_prepared_range(
-                current_key, self.get_expected_limit_key(bound_set, bound_type.UPPER), True)
+            # update. Therefore validate the range between our current key and the
+            # end range.
+            start_range = current_key   
+        end_range = self.get_expected_limit_key(bound_set, bound_type.UPPER)
+
+        # Perform validation from the start range to end range.
+        self.validate_deleted_prepared_range(start_range, end_range, True)
 
     # Validate a prepare conflict in the cursor->prev scenario.
     def validate_prepare_conflict_prev(self, current_key, bound_set):
         self.verbose(3, "Current key is: " + str(current_key) + " max_key is: " + str(self.max_key))
-        if (current_key == self.max_key - 1):
+        start_range = None
+        if current_key == self.min_key:
             # We hit a prepare conflict while walking backwards before we stepped to a valid key.
-            # We should check that the keys from the end of the range are deleted followed by a
+            # Therefore validate all the keys from start of the range are deleted followed by a
             # prepare.
-            self.validate_deleted_prepared_range(self.get_expected_limit_key(bound_set, bound_type.UPPER), self.get_expected_limit_key(bound_set, bound_type.LOWER), False)
+            start_range = self.get_expected_limit_key(bound_set, bound_type.UPPER)
         else:
             # We walked part of the way through a valid key range before we hit the prepared
-            # update. Therefore we should check that the range between our current key and the
-            # min possible key.
-            self.validate_deleted_prepared_range(current_key, self.get_expected_limit_key(bound_set, bound_type.LOWER), False)
+            # update. Therefore validate the range between our current key and the
+            # end range.
+            start_range = current_key  
+        end_range = self.get_expected_limit_key(bound_set, bound_type.LOWER)
+
+        # Perform validation from the start range to end range.
+        self.validate_deleted_prepared_range(start_range, end_range, False)
 
     # Walk the cursor using cursor->next and validate the returned keys.
     def run_next(self, bound_set, cursor):
@@ -318,6 +325,10 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
             self.assertTrue(bound_set.in_bounds_key(current_key))
             self.assertTrue(self.key_range[current_key].equals(current_key, current_value))
             checked_keys.append(current_key)
+            
+            # If the cursor has walked to a record that isn't -1 our current record then it
+            # skipped something internally.
+            # Check that the key range between key_range_it and current_key isn't visible
             if (current_key != key_range_it - 1):
                 # Check that the key range between key_range_it and current_key isn't visible
                 for i in range(current_key + 1, key_range_it):
