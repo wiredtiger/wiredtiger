@@ -174,10 +174,13 @@ subtest_error_handler(
     return (0);
 }
 
-static WT_EVENT_HANDLER event_handler = {subtest_error_handler, NULL, /* Message handler */
-  NULL,                                                               /* Progress handler */
-  NULL,                                                               /* Close handler */
-  NULL, NULL};
+static WT_EVENT_HANDLER event_handler = {
+  subtest_error_handler, NULL, /* Message handler */
+  NULL,                        /* Progress handler */
+  NULL,                        /* Session close handler */
+  NULL,                        /* Connection ready handler */
+  NULL                         /* Connection close handler */
+};
 
 /*
  * The following are various schema-related functions to have some threads performing during the

@@ -147,8 +147,9 @@ main(int argc, char *argv[])
 static void
 wt_startup(char *config_open)
 {
-    static WT_EVENT_HANDLER event_handler = {
-      handle_error, handle_message, NULL, NULL /* Close handler. */, NULL, NULL};
+    static WT_EVENT_HANDLER event_handler = {handle_error, handle_message,
+      NULL /* Progress handler */, NULL /* Session close handler. */,
+      NULL /* Connection ready handler */, NULL /* Connection close handler */};
     char config_buf[128];
 
     testutil_make_work_dir(home);

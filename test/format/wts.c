@@ -137,8 +137,9 @@ handle_progress(
     return (0);
 }
 
-static WT_EVENT_HANDLER event_handler = {
-  NULL, handle_message, handle_progress, NULL /* Close handler. */, NULL, NULL};
+static WT_EVENT_HANDLER event_handler = {NULL /* Error handler */, handle_message, handle_progress,
+  NULL /* Session close handler. */, NULL /* Connection ready handler */,
+  NULL /* Connection close handler */};
 
 #define CONFIG_APPEND(p, ...)                                               \
     do {                                                                    \
