@@ -1267,9 +1267,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * store with the max timestamp.
      */
     WT_ASSERT(session,
-      !first_committed_upd_in_hs ||
-        (page->modify->rec_result == WT_PM_REC_MULTIBLOCK ||
-          page->modify->rec_result == WT_PM_REC_REPLACE));
+      !first_committed_upd_in_hs || page->modify->rec_result == WT_PM_REC_MULTIBLOCK ||
+        page->modify->rec_result == WT_PM_REC_REPLACE);
 
     /*
      * Marked the update older than the prepared update that is already in the history store to be
