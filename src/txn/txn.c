@@ -1235,6 +1235,21 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
       first_committed_upd != NULL && F_ISSET(first_committed_upd, WT_UPDATE_HS);
 
     /*
+     * If we see the first committed update has been moved to the history store, we must have done a
+     * successful reconciliation on the page but failed to evict it. Also reconciliation could not
+     * possibly emptied the page because the prepared update is not globally visible. Therefore,
+     * reconciliation either has split the page or done a page rewrite.
+     *
+     * In this case, we still need to resolve the prepared update as if we have successfully evicted
+     * the page because the value older than the prepared update has been written to the history
+     * store with the max timestamp.
+     */
+    WT_ASSERT(session,
+      !first_committed_upd_in_hs ||
+        (page->modify->rec_result == WT_PM_REC_MULTIBLOCK ||
+          page->modify->rec_result == WT_PM_REC_REPLACE));
+
+    /*
      * Marked the update older than the prepared update that is already in the history store to be
      * deleted from the history store.
      */
