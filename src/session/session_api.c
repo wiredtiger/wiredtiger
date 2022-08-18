@@ -619,6 +619,19 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL(session, open_cursor, config, cfg);
 
+    /*
+     * Check for early usage of a user session to collect statistics. If the connection is not fully
+     * ready but can be used, then only allow a cursor uri of "statistics:" only. The conditional is
+     * complicated. Allow the cursor to open if:
+     * - The connection is ready
+     * - The session is an internal session
+     * - The connection is minimally ready and the URI is "statistics:"
+     */
+    if (!F_ISSET(S2C(session), WT_CONN_READY) && !F_ISSET(session, WT_SESSION_INTERNAL) &&
+      (!F_ISSET(S2C(session), WT_CONN_MINIMAL) || strcmp(uri, "statistics:") != 0))
+        WT_ERR_MSG(
+          session, EINVAL, "cannot open a non-statistics cursor before connection is opened");
+
     statjoin = (to_dup != NULL && uri != NULL && strcmp(uri, "statistics:join") == 0);
     if (!statjoin) {
         if ((to_dup == NULL && uri == NULL) || (to_dup != NULL && uri != NULL))
