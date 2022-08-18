@@ -172,16 +172,6 @@ struct __wt_name_flag {
 #define WT_CONN_CHECK_PANIC(conn) (F_ISSET(conn, WT_CONN_PANIC) ? WT_PANIC : 0)
 #define WT_SESSION_CHECK_PANIC(session) WT_CONN_CHECK_PANIC(S2C(session))
 
-/* Check if the connection is ready for an API call. */
-#define WT_CONN_CHECK_READY(s, conn, early)                                                      \
-    do {                                                                                         \
-        if (early && !F_ISSET((conn), (WT_CONN_MINIMAL | WT_CONN_READY)))                        \
-            WT_ERR_MSG(                                                                          \
-              s, ENOTSUP, "Connection not ready 0x%x for early API calls", (int)conn->flags);    \
-        else if (!F_ISSET((conn), WT_CONN_READY))                                                \
-            WT_ERR_MSG(s, ENOTSUP, "Connection not ready 0x%x for API calls", (int)conn->flags); \
-    } while (0)
-
 /*
  * Macros to ensure the dhandle is inserted or removed from both the main queue and the hashed
  * queue.

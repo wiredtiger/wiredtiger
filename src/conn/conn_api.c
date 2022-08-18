@@ -127,7 +127,7 @@ __conn_add_collator(
     ncoll = NULL;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
-    CONNECTION_API_CALL_EARLY(conn, session, add_collator, config, cfg);
+    CONNECTION_API_CALL(conn, session, add_collator, config, cfg);
     WT_UNUSED(cfg);
 
     if (strcmp(name, "none") == 0)
@@ -228,7 +228,7 @@ __conn_add_compressor(
     ncomp = NULL;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
-    CONNECTION_API_CALL_EARLY(conn, session, add_compressor, config, cfg);
+    CONNECTION_API_CALL(conn, session, add_compressor, config, cfg);
     WT_UNUSED(cfg);
 
     if (strcmp(name, "none") == 0)
@@ -295,7 +295,7 @@ __conn_add_data_source(
     ndsrc = NULL;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
-    CONNECTION_API_CALL_EARLY(conn, session, add_data_source, config, cfg);
+    CONNECTION_API_CALL(conn, session, add_data_source, config, cfg);
     WT_UNUSED(cfg);
 
     WT_ERR(__wt_calloc_one(session, &ndsrc));
@@ -460,7 +460,7 @@ __conn_add_encryptor(
     nenc = NULL;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
-    CONNECTION_API_CALL_EARLY(conn, session, add_encryptor, config, cfg);
+    CONNECTION_API_CALL(conn, session, add_encryptor, config, cfg);
     WT_UNUSED(cfg);
 
     if (strcmp(name, "none") == 0)
@@ -553,7 +553,7 @@ __conn_add_extractor(
     nextractor = NULL;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
-    CONNECTION_API_CALL_EARLY(conn, session, add_extractor, config, cfg);
+    CONNECTION_API_CALL(conn, session, add_extractor, config, cfg);
     WT_UNUSED(cfg);
 
     if (strcmp(name, "none") == 0)
@@ -680,7 +680,7 @@ __conn_add_storage_source(
     nstorage = NULL;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
-    CONNECTION_API_CALL_EARLY(conn, session, add_storage_source, config, cfg);
+    CONNECTION_API_CALL(conn, session, add_storage_source, config, cfg);
     WT_UNUSED(cfg);
 
     WT_ERR(__wt_calloc_one(session, &nstorage));
@@ -1291,7 +1291,7 @@ __conn_open_session(WT_CONNECTION *wt_conn, WT_EVENT_HANDLER *event_handler, con
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
 
-    CONNECTION_API_CALL_EARLY(conn, session, open_session, config, cfg);
+    CONNECTION_API_CALL(conn, session, open_session, config, cfg);
     WT_UNUSED(cfg);
 
     session_ret = NULL;
@@ -2427,7 +2427,7 @@ __conn_set_file_system(WT_CONNECTION *wt_conn, WT_FILE_SYSTEM *file_system, cons
     WT_SESSION_IMPL *session;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
-    CONNECTION_API_CALL_EARLY(conn, session, set_file_system, config, cfg);
+    CONNECTION_API_CALL(conn, session, set_file_system, config, cfg);
     WT_UNUSED(cfg);
 
     /*
