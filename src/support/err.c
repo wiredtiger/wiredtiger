@@ -78,6 +78,10 @@ __handle_close_default(WT_EVENT_HANDLER *handler, WT_SESSION *wt_session, WT_CUR
     return (0);
 }
 
+/*
+ * __handle_conn_ready_default --
+ *     Default WT_EVENT_HANDLER->handle_conn_ready implementation: ignore.
+ */
 static void
 __handle_conn_ready_default(WT_EVENT_HANDLER *handler, WT_CONNECTION *wt_conn)
 {
@@ -87,6 +91,10 @@ __handle_conn_ready_default(WT_EVENT_HANDLER *handler, WT_CONNECTION *wt_conn)
     return;
 }
 
+/*
+ * __handle_conn_close_default --
+ *     Default WT_EVENT_HANDLER->handle_conn_close implementation: ignore.
+ */
 static void
 __handle_conn_close_default(WT_EVENT_HANDLER *handler)
 {
