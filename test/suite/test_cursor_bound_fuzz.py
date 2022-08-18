@@ -96,6 +96,28 @@ class key():
 #    randomized operations and validates them for correctness.
 class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     file_name = 'test_fuzz.wt'
+    
+    iteration_count = 200 if wttest.islongtest() else 5
+    # For each iteration we do search_count searches that way we test more cases without having to
+    # generate as many key ranges.
+    search_count = 20
+    key_count = 10000 if wttest.islongtest() else 1000
+    # Large transactions throw rollback errors so we don't use them in the long test.
+    transactions_enabled = False if wttest.islongtest() else True
+    value_size = 100000 if wttest.islongtest() else 100
+    prepare_frequency = 5/100
+    update_frequency = 2/10
+    
+    min_key = 1
+    # Max_key is not inclusive so the actual max_key is max_key - 1.
+    max_key = min_key + key_count
+    # A lot of time was spent generating values, to achieve some amount of randomness we pre
+    # generate N values and keep them in memory.
+    value_array = []
+    value_array_size = 20
+    current_ts = 1
+    applied_ops = False
+    key_range = {}
 
     types = [
         ('file', dict(uri='file:')),
@@ -518,62 +540,45 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
             write_cursor[i] = key_value
             if (self.transactions_enabled):
                 write_session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.key_range[i].timestamp))
-
         self.session.checkpoint()
+
         # Begin main loop
-        prepare = False
         for  i in range(0, self.iteration_count):
             self.verbose(2, "Iteration: " + str(i))
             bound_set = self.apply_bounds(read_cursor)
             self.verbose(2, "Generated bound set: " + bound_set.to_string())
-            # Use the current timestamp so we don't need to track previous versions.
-            if (self.transactions_enabled):
-                self.session.begin_transaction('read_timestamp=' + self.timestamp_str(self.current_ts))
-            self.run_bound_scenarios(bound_set, read_cursor)
-            if (self.transactions_enabled):
-                self.session.rollback_transaction()
-            if (self.transactions_enabled and prepare):
-                write_session.commit_transaction(
-                    'commit_timestamp=' + self.timestamp_str(self.current_ts) +
-                    ',durable_timestamp='+ self.timestamp_str(self.current_ts))
-                self.current_ts += 1
-                prepare = False
 
             # Check if we are doing a prepared transaction on this iteration.
             prepare = random.uniform(0, 1) <= self.prepare_frequency and self.transactions_enabled
             if (self.transactions_enabled):
                 write_session.begin_transaction()
             self.apply_ops(write_session, write_cursor, prepare)
-            if (self.transactions_enabled and prepare):
-                self.verbose(2, "Preparing applied operations.")
-                write_session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(self.current_ts))
-            elif (self.transactions_enabled):
-                write_session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.current_ts))
+            if (self.transactions_enabled):
+                if (prepare):
+                    self.verbose(2, "Preparing applied operations.")
+                    write_session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(self.current_ts))
+                else:
+                    write_session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.current_ts))
+
+            # Use the current timestamp so we don't need to track previous versions.
+            if (self.transactions_enabled):
+                self.session.begin_transaction('read_timestamp=' + self.timestamp_str(self.current_ts))
+            self.run_bound_scenarios(bound_set, read_cursor)
+            if (self.transactions_enabled):
+                self.session.rollback_transaction()
+                if (prepare):
+                    write_session.commit_transaction(
+                        'commit_timestamp=' + self.timestamp_str(self.current_ts) +
+                        ',durable_timestamp='+ self.timestamp_str(self.current_ts))
             self.current_ts += 1
             if (i % 10 == 0):
                 # Technically this is a write but easier to do it with this session.
                 self.session.checkpoint()
 
-    # A lot of time was spent generating values, to achieve some amount of randomness we pre
-    # generate N values and keep them in memory.
-    value_array = []
-    iteration_count = 200 if wttest.islongtest() else 50
-    value_size = 100000 if wttest.islongtest() else 100
-    value_array_size = 20
-    key_count = 10000 if wttest.islongtest() else 1000
-    min_key = 1
-    # Max_key is not inclusive so the actual max_key is max_key - 1.
-    max_key = min_key + key_count
-    current_ts = 1
-    applied_ops = False
-    # For each iteration we do search_count searches that way we test more cases without having to
-    # generate as many key ranges.
-    search_count = 20
-    key_range = {}
-    prepare_frequency = 5/100
-    # Large transactions throw rollback errors so we don't use them in the long test.
-    transactions_enabled = False if wttest.islongtest() else True
-    update_frequency = 2/10
+        # It is possible that we are left we a prepared transaction whern we are finished. Rollback the 
+        # transaction in that case.
+        if (self.transactions_enabled and prepare):
+            write_session.rollback_transaction()
 
 if __name__ == '__main__':
     wttest.run()
