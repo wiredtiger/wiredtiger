@@ -172,6 +172,16 @@ struct __wt_name_flag {
 #define WT_CONN_CHECK_PANIC(conn) (F_ISSET(conn, WT_CONN_PANIC) ? WT_PANIC : 0)
 #define WT_SESSION_CHECK_PANIC(session) WT_CONN_CHECK_PANIC(S2C(session))
 
+/* Check if the connection is ready for an API call. */
+#define WT_CONN_CHECK_READY(s, conn, early)                                                      \
+    do {                                                                                         \
+        if (early && !F_ISSET((conn), (WT_CONN_MINIMAL | WT_CONN_READY)))                        \
+            WT_ERR_MSG(                                                                          \
+              s, ENOTSUP, "Connection not ready 0x%x for early API calls", (int)conn->flags);    \
+        else if (!F_ISSET((conn), WT_CONN_READY))                                                \
+            WT_ERR_MSG(s, ENOTSUP, "Connection not ready 0x%x for API calls", (int)conn->flags); \
+    } while (0)
+
 /*
  * Macros to ensure the dhandle is inserted or removed from both the main queue and the hashed
  * queue.
@@ -636,30 +646,32 @@ struct __wt_connection_impl {
     uint32_t server_flags;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CONN_BACKUP_PARTIAL_RESTORE 0x000001u
-#define WT_CONN_CACHE_CURSORS 0x000002u
-#define WT_CONN_CACHE_POOL 0x000004u
-#define WT_CONN_CKPT_GATHER 0x000008u
-#define WT_CONN_CKPT_SYNC 0x000010u
-#define WT_CONN_CLOSING 0x000020u
-#define WT_CONN_CLOSING_CHECKPOINT 0x000040u
-#define WT_CONN_CLOSING_NO_MORE_OPENS 0x000080u
-#define WT_CONN_COMPATIBILITY 0x000100u
-#define WT_CONN_DATA_CORRUPTION 0x000200u
-#define WT_CONN_EVICTION_RUN 0x000400u
-#define WT_CONN_HS_OPEN 0x000800u
-#define WT_CONN_INCR_BACKUP 0x001000u
-#define WT_CONN_IN_MEMORY 0x002000u
-#define WT_CONN_LEAK_MEMORY 0x004000u
-#define WT_CONN_LSM_MERGE 0x008000u
-#define WT_CONN_OPTRACK 0x010000u
-#define WT_CONN_PANIC 0x020000u
-#define WT_CONN_READONLY 0x040000u
-#define WT_CONN_RECONFIGURING 0x080000u
-#define WT_CONN_RECOVERING 0x100000u
-#define WT_CONN_SALVAGE 0x200000u
-#define WT_CONN_TIERED_FIRST_FLUSH 0x400000u
-#define WT_CONN_WAS_BACKUP 0x800000u
+#define WT_CONN_BACKUP_PARTIAL_RESTORE 0x0000001u
+#define WT_CONN_CACHE_CURSORS 0x0000002u
+#define WT_CONN_CACHE_POOL 0x0000004u
+#define WT_CONN_CKPT_GATHER 0x0000008u
+#define WT_CONN_CKPT_SYNC 0x0000010u
+#define WT_CONN_CLOSING 0x0000020u
+#define WT_CONN_CLOSING_CHECKPOINT 0x0000040u
+#define WT_CONN_CLOSING_NO_MORE_OPENS 0x0000080u
+#define WT_CONN_COMPATIBILITY 0x0000100u
+#define WT_CONN_DATA_CORRUPTION 0x0000200u
+#define WT_CONN_EVICTION_RUN 0x0000400u
+#define WT_CONN_HS_OPEN 0x0000800u
+#define WT_CONN_INCR_BACKUP 0x0001000u
+#define WT_CONN_IN_MEMORY 0x0002000u
+#define WT_CONN_LEAK_MEMORY 0x0004000u
+#define WT_CONN_LSM_MERGE 0x0008000u
+#define WT_CONN_MINIMAL 0x0010000u
+#define WT_CONN_OPTRACK 0x0020000u
+#define WT_CONN_PANIC 0x0040000u
+#define WT_CONN_READONLY 0x0080000u
+#define WT_CONN_READY 0x0100000u
+#define WT_CONN_RECONFIGURING 0x0200000u
+#define WT_CONN_RECOVERING 0x0400000u
+#define WT_CONN_SALVAGE 0x0800000u
+#define WT_CONN_TIERED_FIRST_FLUSH 0x1000000u
+#define WT_CONN_WAS_BACKUP 0x2000000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };

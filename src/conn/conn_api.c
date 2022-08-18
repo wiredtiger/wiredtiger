@@ -127,7 +127,7 @@ __conn_add_collator(
     ncoll = NULL;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
-    CONNECTION_API_CALL(conn, session, add_collator, config, cfg);
+    CONNECTION_API_CALL_EARLY(conn, session, add_collator, config, cfg);
     WT_UNUSED(cfg);
 
     if (strcmp(name, "none") == 0)
@@ -228,7 +228,7 @@ __conn_add_compressor(
     ncomp = NULL;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
-    CONNECTION_API_CALL(conn, session, add_compressor, config, cfg);
+    CONNECTION_API_CALL_EARLY(conn, session, add_compressor, config, cfg);
     WT_UNUSED(cfg);
 
     if (strcmp(name, "none") == 0)
@@ -295,7 +295,7 @@ __conn_add_data_source(
     ndsrc = NULL;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
-    CONNECTION_API_CALL(conn, session, add_data_source, config, cfg);
+    CONNECTION_API_CALL_EARLY(conn, session, add_data_source, config, cfg);
     WT_UNUSED(cfg);
 
     WT_ERR(__wt_calloc_one(session, &ndsrc));
@@ -460,7 +460,7 @@ __conn_add_encryptor(
     nenc = NULL;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
-    CONNECTION_API_CALL(conn, session, add_encryptor, config, cfg);
+    CONNECTION_API_CALL_EARLY(conn, session, add_encryptor, config, cfg);
     WT_UNUSED(cfg);
 
     if (strcmp(name, "none") == 0)
@@ -553,7 +553,7 @@ __conn_add_extractor(
     nextractor = NULL;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
-    CONNECTION_API_CALL(conn, session, add_extractor, config, cfg);
+    CONNECTION_API_CALL_EARLY(conn, session, add_extractor, config, cfg);
     WT_UNUSED(cfg);
 
     if (strcmp(name, "none") == 0)
@@ -680,7 +680,7 @@ __conn_add_storage_source(
     nstorage = NULL;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
-    CONNECTION_API_CALL(conn, session, add_storage_source, config, cfg);
+    CONNECTION_API_CALL_EARLY(conn, session, add_storage_source, config, cfg);
     WT_UNUSED(cfg);
 
     WT_ERR(__wt_calloc_one(session, &nstorage));
@@ -1115,6 +1115,7 @@ err:
     conn->cache->eviction_dirty_trigger = 1.0;
     conn->cache->eviction_dirty_target = 0.1;
 
+    F_CLR(conn, WT_CONN_MINIMAL | WT_CONN_READY);
     if (conn->default_session->event_handler->handle_conn_close != NULL)
         conn->default_session->event_handler->handle_conn_close(
           conn->default_session->event_handler);
@@ -1143,6 +1144,7 @@ err:
             WT_TRET(__wt_session_close_internal(s));
         }
 
+    F_SET(conn, WT_CONN_MINIMAL);
     if (conn->default_session->event_handler->handle_conn_ready != NULL)
         conn->default_session->event_handler->handle_conn_ready(
           conn->default_session->event_handler, wt_conn);
@@ -1176,6 +1178,7 @@ err:
     /* Perform a final checkpoint and shut down the global transaction state. */
     WT_TRET(__wt_txn_global_shutdown(session, cfg));
 
+    F_CLR(conn, WT_CONN_MINIMAL | WT_CONN_READY);
     if (conn->default_session->event_handler->handle_conn_close != NULL)
         conn->default_session->event_handler->handle_conn_close(
           conn->default_session->event_handler);
@@ -1288,7 +1291,7 @@ __conn_open_session(WT_CONNECTION *wt_conn, WT_EVENT_HANDLER *event_handler, con
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
 
-    CONNECTION_API_CALL(conn, session, open_session, config, cfg);
+    CONNECTION_API_CALL_EARLY(conn, session, open_session, config, cfg);
     WT_UNUSED(cfg);
 
     session_ret = NULL;
@@ -2424,7 +2427,7 @@ __conn_set_file_system(WT_CONNECTION *wt_conn, WT_FILE_SYSTEM *file_system, cons
     WT_SESSION_IMPL *session;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
-    CONNECTION_API_CALL(conn, session, set_file_system, config, cfg);
+    CONNECTION_API_CALL_EARLY(conn, session, set_file_system, config, cfg);
     WT_UNUSED(cfg);
 
     /*
@@ -2952,6 +2955,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * Load the extensions after initialization completes; extensions expect everything else to be
      * in place, and the extensions call back into the library.
      */
+    F_SET(conn, WT_CONN_MINIMAL);
     WT_ERR(__conn_builtin_extensions(conn, cfg));
     WT_ERR(__conn_load_extensions(session, cfg, false));
 
@@ -3052,6 +3056,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     F_SET(session, WT_SESSION_NO_DATA_HANDLES);
 
     WT_STATIC_ASSERT(offsetof(WT_CONNECTION_IMPL, iface) == 0);
+    F_SET(conn, WT_CONN_READY);
+    F_CLR(conn, WT_CONN_MINIMAL);
     *connectionp = &conn->iface;
 
 err:

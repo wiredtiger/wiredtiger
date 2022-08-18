@@ -49,7 +49,7 @@
     --(s)->api_call_counter
 
 /* Standard entry points to the API: declares/initializes local variables. */
-#define API_SESSION_INIT(s, h, n, dh)                                   \
+#define API_SESSION_INIT(s, h, n, dh, early)                            \
     WT_TRACK_OP_DECL;                                                   \
     API_SESSION_PUSH(s, h, n, dh);                                      \
     /*                                                                  \
@@ -58,6 +58,7 @@
      */                                                                 \
     WT_ERR(WT_SESSION_CHECK_PANIC(s));                                  \
     WT_SINGLE_THREAD_CHECK_START(s);                                    \
+    WT_CONN_CHECK_READY(s, S2C(s), early);                              \
     WT_TRACK_OP_INIT(s);                                                \
     if ((s)->api_call_counter == 1 && !F_ISSET(s, WT_SESSION_INTERNAL)) \
         __wt_op_timer_start(s);                                         \
@@ -68,12 +69,19 @@
 
 #define API_CALL_NOCONF(s, h, n, dh) \
     do {                             \
-    API_SESSION_INIT(s, h, n, dh)
+    API_SESSION_INIT(s, h, n, dh, false)
 
 #define API_CALL(s, h, n, dh, config, cfg)                                \
     do {                                                                  \
         const char *(cfg)[] = {WT_CONFIG_BASE(s, h##_##n), config, NULL}; \
-        API_SESSION_INIT(s, h, n, dh);                                    \
+        API_SESSION_INIT(s, h, n, dh, false);                             \
+        if ((config) != NULL)                                             \
+    WT_ERR(__wt_config_check((s), WT_CONFIG_REF(s, h##_##n), (config), 0))
+
+#define API_CALL_EARLY(s, h, n, dh, config, cfg)                          \
+    do {                                                                  \
+        const char *(cfg)[] = {WT_CONFIG_BASE(s, h##_##n), config, NULL}; \
+        API_SESSION_INIT(s, h, n, dh, true);                              \
         if ((config) != NULL)                                             \
     WT_ERR(__wt_config_check((s), WT_CONFIG_REF(s, h##_##n), (config), 0))
 
@@ -188,6 +196,10 @@
 #define API_END_RET_NO_TXN_ERROR(s, ret) \
     API_END(s, 0);                       \
     return ((ret) == WT_NOTFOUND ? ENOENT : (ret))
+
+#define CONNECTION_API_CALL_EARLY(conn, s, n, config, cfg) \
+    s = (conn)->default_session;                           \
+    API_CALL_EARLY(s, WT_CONNECTION, n, NULL, config, cfg)
 
 #define CONNECTION_API_CALL(conn, s, n, config, cfg) \
     s = (conn)->default_session;                     \
