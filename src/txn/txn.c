@@ -1237,8 +1237,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     /*
      * If we see the first committed update has been moved to the history store, we must have done a
      * successful reconciliation on the page but failed to evict it. Also reconciliation could not
-     * possibly emptied the page because the prepared update is not globally visible. Therefore,
-     * reconciliation either has split the page or done a page rewrite.
+     * possibly empty the page because the prepared update is not globally visible. Therefore,
+     * reconciliation must have either split the page or done a page rewrite.
      *
      * In this case, we still need to resolve the prepared update as if we have successfully evicted
      * the page because the value older than the prepared update has been written to the history
