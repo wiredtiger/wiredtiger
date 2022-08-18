@@ -2955,7 +2955,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * Load the extensions after initialization completes; extensions expect everything else to be
      * in place, and the extensions call back into the library.
      */
-    F_SET(conn, WT_CONN_MINIMAL);
     WT_ERR(__conn_builtin_extensions(conn, cfg));
     WT_ERR(__conn_load_extensions(session, cfg, false));
 
@@ -3036,6 +3035,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      */
     WT_ERR(__wt_backup_open(session));
 
+    F_SET(conn, WT_CONN_MINIMAL);
     if (event_handler->handle_conn_ready != NULL)
         event_handler->handle_conn_ready(event_handler, &conn->iface);
 
