@@ -64,6 +64,9 @@ class key():
         self.value = value
         self.timestamp = timestamp
 
+    def clear_prepared(self):
+        self.prepared = False
+
     def is_prepared(self):
         return self.prepared
 
@@ -97,7 +100,7 @@ class key():
 class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     file_name = 'test_fuzz.wt'
     
-    iteration_count = 200 if wttest.islongtest() else 5
+    iteration_count = 200 if wttest.islongtest() else 50
     # For each iteration we do search_count searches that way we test more cases without having to
     # generate as many key ranges.
     search_count = 20
@@ -221,6 +224,11 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
             else:
                 raise e
         return ret
+    
+    # Once we commit the prepared transaction, update and clear the prepared flags.
+    def clear_prepare_key_ranges(self):
+        for i in self.key_range_iter():
+            self.key_range[i].clear_prepared()
 
     # Given a bound, this functions returns the start or end expected key of the bounded range. 
     # Note the type argument determines if we return the start or end limit. e.g. if we have a lower
@@ -570,15 +578,11 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
                     write_session.commit_transaction(
                         'commit_timestamp=' + self.timestamp_str(self.current_ts) +
                         ',durable_timestamp='+ self.timestamp_str(self.current_ts))
+                    self.clear_prepare_key_ranges()
             self.current_ts += 1
             if (i % 10 == 0):
                 # Technically this is a write but easier to do it with this session.
                 self.session.checkpoint()
-
-        # It is possible that we are left we a prepared transaction whern we are finished. Rollback the 
-        # transaction in that case.
-        if (self.transactions_enabled and prepare):
-            write_session.rollback_transaction()
 
 if __name__ == '__main__':
     wttest.run()
