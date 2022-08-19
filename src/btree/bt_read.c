@@ -208,10 +208,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      * page_del gets cleared and set to NULL if the deletion is found to be globally visible; this
      * can happen in any of several places.
      */
-    if (previous_state == WT_REF_DISK) {
-        WT_ASSERT(session, ref->page_del == NULL);
-        WT_ASSERT(session, addr.del_set == false);
-    }
+    WT_ASSERT(
+      session, previous_state != WT_REF_DISK || (ref->page_del == NULL && addr.del_set == false));
 
     if (previous_state == WT_REF_DELETED &&
       !F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY))
