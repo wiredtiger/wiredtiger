@@ -190,11 +190,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     # Each iteration calls this function once to update the state of the keys in the database and
     # in memory.
     def apply_ops(self, session, cursor, prepare):
-        # FIX-ME-WT-9768: Truncate operation leads to a cache stuck issue for bounded cursors. 
-        if (wttest.islongtest()):
-            op = random.choice(list(operations)[:-1])
-        else:
-            op = random.choice(list(operations))
+        op = random.choice(list(operations))
         if (op is operations.TRUNCATE and self.applied_ops):
             cursor2 = session.open_cursor(self.uri + self.file_name)
             self.apply_truncate(session, cursor, cursor2, prepare)
