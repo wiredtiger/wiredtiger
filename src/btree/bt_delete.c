@@ -397,9 +397,9 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
     }
 
     /*
-     * The fast-truncate structure can be freed as soon as the delete is stable: it is only read
-     * when the ref state is locked. It is worth checking every time we come through because once
-     * this is freed, we no longer need synchronization to check the ref.
+     * The fast-truncate structure can be freed as soon as the delete is globally visible: it is
+     * only read when the ref state is locked. It is worth checking every time we come through
+     * because once this is freed, we no longer need synchronization to check the ref.
      */
     if (discard && ref->page_del != NULL)
         __wt_overwrite_and_free(session, ref->page_del);
@@ -447,7 +447,8 @@ __instantiate_tombstone(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del,
     /*
      * If we find an existing stop time point we don't need to append a tombstone. Such rows would
      * not have been visible to the original truncate operation and were, logically, skipped over
-     * rather than re-deleted. (A row that _was_ visible would have forced its page to be slow-
+     * rather than re-deleted. (If the row _was_ visible to the truncate in spite of having been
+     * subsequently removed, the stop time not being visible would have forced its page to be slow-
      * truncated rather than fast-truncated.)
      */
     if (WT_TIME_WINDOW_HAS_STOP(tw))
@@ -649,7 +650,8 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
      * We do not need to mark the page dirty here. (It used to be necessary because evicting a clean
      * instantiated page would lose the delete information; but that is no longer the case.) Note
      * though that because VLCS instantiation goes through col_modify it will mark the page dirty
-     * regardless, except in read-only trees where attempts to mark things dirty are ignored.
+     * regardless, except in read-only trees where attempts to mark things dirty are ignored. (Row-
+     * store instantiation adds the tombstones by hand and so does not need to mark the page dirty.)
      *
      * Note that partially visible truncates that may need instantiation can appear in read-only
      * trees (whether a read-only open of the live database or via a checkpoint cursor) if they were
