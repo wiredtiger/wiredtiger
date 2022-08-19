@@ -164,7 +164,10 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
          * check if it is now, in case we can in fact avoid reading the page. Hide prepared deletes
          * from this check; if the deletion is prepared we still need to load the page, because the
          * reader might be reading at a timestamp early enough to not conflict with the prepare.
+         * Update oldest before checking; we're about to read from disk so it's worth doing some
+         * work to avoid that.
          */
+        WT_ERR(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
         if (ref->page_del != NULL && __wt_page_del_visible_all(session, ref->page_del, true))
             __wt_overwrite_and_free(session, ref->page_del);
 
