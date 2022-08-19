@@ -285,6 +285,14 @@ __wt_rec_child_modify(
                 if (!WT_REF_CAS_STATE(session, ref, WT_REF_MEM, WT_REF_LOCKED))
                     /* Oops. Retry... */
                     break;
+
+                /* This is a very small race window, but check just in case. */
+                if (mod->instantiated == false) {
+                    WT_REF_SET_STATE(ref, WT_REF_MEM);
+                    /* Retry from the top; we may now have a rec_result. */
+                    break;
+                }
+
                 WT_RET(__rec_child_deleted(session, r, ref, cmsp));
                 WT_REF_SET_STATE(ref, WT_REF_MEM);
                 goto done;
