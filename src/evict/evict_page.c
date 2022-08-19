@@ -530,7 +530,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
              * after it, because we are only reading the write part is irrelevant and a read/read
              * barrier is sufficient.
              *
-             * FUTURE: this and the CAS should be rolled into a WT_REF_TRYLOCK macro.
+             * FIXME-WT-9780: this and the CAS should be rolled into a WT_REF_TRYLOCK macro.
              */
             WT_READ_BARRIER();
 
@@ -559,7 +559,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
                 visible = true;
             else
                 visible = __wt_page_del_visible_all(session, child->page_del, false);
-            /* FUTURE: is there a reason this doesn't use WT_REF_UNLOCK? */
+            /* FIXME-WT-9780: is there a reason this doesn't use WT_REF_UNLOCK? */
             child->state = WT_REF_DELETED;
             if (!visible)
                 return (__wt_set_return(session, EBUSY));
