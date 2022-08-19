@@ -2569,8 +2569,10 @@ split:
      * checkpointing the parent, and we can't be evicting the parent either because internal pages
      * can't be evicted while they have in-memory children.
      */
-    if (mod->instantiated)
-        __wt_free_page_del(session, ref);
+    if (mod->instantiated) {
+        mod->instantiated = false;
+        __wt_free(session, ref->page_del);
+    }
 
     return (0);
 }
