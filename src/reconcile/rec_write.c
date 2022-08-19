@@ -2558,7 +2558,17 @@ split:
         break;
     }
 
-    /* If the page has post-instantiation delete information, we don't need it any more. */
+    /*
+     * If the page has post-instantiation delete information, we don't need it any more. Note: this
+     * is the only place in the system that potentially touches ref->page_del without locking the
+     * ref. There are two other pieces of code it can interact with: transaction rollback and parent
+     * internal page reconciliation. We use __wt_free_page_del here and in transaction rollback to
+     * make the deletion atomic. Reconciliation of the parent is locked out for the following
+     * reasons: first, if we are evicting the leaf here, eviction has the ref locked, and the parent
+     * will wait for it; and if we are checkpointing the leaf, we can't simultaneously be
+     * checkpointing the parent, and we can't be evicting the parent either because internal pages
+     * can't be evicted while they have in-memory children.
+     */
     if (mod->instantiated)
         __wt_free_page_del(session, ref);
 
