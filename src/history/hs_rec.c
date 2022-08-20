@@ -10,7 +10,7 @@
 
 static int __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
   uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, bool no_ts_tombstone,
-  bool error_on_ts_ordering, uint64_t *hs_counter);
+  bool error_on_ts_ordering, uint64_t *hs_counter, WT_TIME_WINDOW *upd_tw);
 
 /*
  * __hs_verbose_cache_stats --
@@ -276,7 +276,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
 
     if (ret == 0)
         WT_ERR(__hs_delete_reinsert_from_pos(session, cursor, btree->id, key, tw->start_ts + 1,
-          true, false, error_on_ts_ordering, &counter));
+          true, false, error_on_ts_ordering, &counter, tw));
 
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -855,7 +855,7 @@ __wt_hs_delete_key(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btre
     }
 
     WT_ERR(__hs_delete_reinsert_from_pos(session, hs_cursor, btree_id, key, WT_TS_NONE, reinsert,
-      true, error_on_ts_ordering, &hs_counter));
+      true, error_on_ts_ordering, &hs_counter, NULL));
 
 done:
 err:
@@ -874,7 +874,7 @@ err:
 static int
 __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
   const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, bool no_ts_tombstone,
-  bool error_on_ts_ordering, uint64_t *counter)
+  bool error_on_ts_ordering, uint64_t *counter, WT_TIME_WINDOW *upd_tw)
 {
     WT_CURSOR *hs_insert_cursor;
     WT_CURSOR_BTREE *hs_cbt;
@@ -909,7 +909,8 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
         /* Ignore records that are obsolete. */
         __wt_hs_upd_time_window(hs_cursor, &twp);
-        if (__wt_txn_tw_stop_visible_all(session, twp))
+        if (__wt_txn_tw_stop_visible_all(session, twp) ||
+          (upd_tw != NULL && WT_TIME_WINDOWS_EQUAL(upd_tw, twp)))
             continue;
 
         /* We shouldn't have crossed the btree and user key search space. */
