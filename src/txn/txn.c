@@ -747,6 +747,7 @@ __txn_restore_hs_update(
     /* The value older than the prepared update in the history store must be a full value. */
     WT_ASSERT(session, (uint8_t)type_full == WT_UPDATE_STANDARD);
 
+    /* Use time window in cell to initialize the update. */
     __wt_hs_upd_time_window(hs_cursor, &hs_tw);
     WT_ERR(__wt_upd_alloc(session, hs_value, WT_UPDATE_STANDARD, &upd, &size));
     upd->txnid = hs_tw->start_txn;
@@ -952,6 +953,10 @@ __txn_fixup_hs_update(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
      */
     F_SET(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
 
+    /*
+     * Set the stop time point to be the committing transaction's time point and copy the start
+     * timepoint from the current history store update.
+     */
     tw.stop_ts = txn->commit_timestamp;
     tw.durable_stop_ts = txn->durable_timestamp;
     tw.stop_txn = txn->id;
