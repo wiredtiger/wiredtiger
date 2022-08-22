@@ -2128,8 +2128,8 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
         __split_multi_inmem_final(session, page, &mod->mod_multi[i]);
 
     /*
-     * Pages with unresolved changes are not marked clean in reconciliation, do it now, then discard
-     * the page.
+     * Page with changes not written in this reconciliation is not marked as clean, do it now, then
+     * discard the page.
      */
     __wt_page_modify_clear(session, page);
     __wt_page_out(session, &page);
