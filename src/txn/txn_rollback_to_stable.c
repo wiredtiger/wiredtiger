@@ -109,13 +109,12 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
     }
 
     /*
-     * Clear the history store flag for the stable update to indicate that this update should not be
-     * written into the history store later, when all the aborted updates are removed from the
-     * history store. The next time when this update is moved into the history store, it will have a
-     * different stop time point.
+     * Clear the history store flags for the stable update to indicate that this update should be
+     * written to the history store later. The next time when this update is moved into the history
+     * store, it will have a different stop time point.
      */
     if (stable_upd != NULL) {
-        if (F_ISSET(stable_upd, WT_UPDATE_HS)) {
+        if (F_ISSET(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS)) {
             /* Find the update following a stable tombstone. */
             if (stable_upd->type == WT_UPDATE_TOMBSTONE) {
                 tombstone = stable_upd;
@@ -124,7 +123,7 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
                     if (stable_upd->txnid != WT_TXN_ABORTED) {
                         WT_ASSERT(session,
                           stable_upd->type != WT_UPDATE_TOMBSTONE &&
-                            F_ISSET(stable_upd, WT_UPDATE_HS));
+                            F_ISSET(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS));
                         break;
                     }
                 }
@@ -140,13 +139,13 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
               session, key, stable_upd == NULL ? tombstone->start_ts : stable_upd->start_ts));
 
             /*
-             * Clear the history store flag for the first stable update. Otherwise, it will not be
+             * Clear the history store flags for the first stable update. Otherwise, it will not be
              * moved to history store again.
              */
             if (stable_upd != NULL)
-                F_CLR(stable_upd, WT_UPDATE_HS);
+                F_CLR(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS);
             if (tombstone != NULL)
-                F_CLR(tombstone, WT_UPDATE_HS);
+                F_CLR(tombstone, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS);
         }
         if (stable_update_found != NULL)
             *stable_update_found = true;
@@ -1132,8 +1131,11 @@ __rollback_page_needs_abort(
      * is greater than or equal to recovered checkpoint snapshot min:
      * 1. The reconciled replace page max durable timestamp.
      * 2. The reconciled multi page max durable timestamp.
-     * 3. The on page address max durable timestamp.
-     * 4. The off page address max durable timestamp.
+     * 3. For just-instantiated deleted pages that have not otherwise been modified, the durable
+     *    timestamp in the page delete information. This timestamp isn't reflected in the address's
+     *    time aggregate.
+     * 4. The on page address max durable timestamp.
+     * 5. The off page address max durable timestamp.
      */
     if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE) {
         tag = "reconciled replace block";
@@ -1150,6 +1152,15 @@ __rollback_page_needs_abort(
                 prepared = true;
         }
         result = (durable_ts > rollback_timestamp) || prepared;
+    } else if (mod != NULL && mod->instantiated && !__wt_page_is_modified(ref->page) &&
+      ref->page_del != NULL) {
+        tag = "page_del info";
+        durable_ts = ref->page_del->durable_timestamp;
+        prepared = ref->page_del->prepare_state == WT_PREPARE_INPROGRESS ||
+          ref->page_del->prepare_state == WT_PREPARE_LOCKED;
+        newest_txn = ref->page_del->txnid;
+        result = (durable_ts > rollback_timestamp) || prepared ||
+          WT_CHECK_RECOVERY_FLAG_TXNID(session, newest_txn);
     } else if (!__wt_off_page(ref->home, addr)) {
         tag = "on page cell";
         /* Check if the page is obsolete using the page disk address. */
@@ -1253,11 +1264,20 @@ __rollback_to_stable_page_skip(
      */
     if (ref->state == WT_REF_DELETED &&
       WT_REF_CAS_STATE(session, ref, WT_REF_DELETED, WT_REF_LOCKED)) {
-        page_del = ref->ft_info.del;
+        page_del = ref->page_del;
         if (page_del == NULL ||
           (__rollback_txn_visible_id(session, page_del->txnid) &&
-            page_del->durable_timestamp <= rollback_timestamp))
+            page_del->durable_timestamp <= rollback_timestamp)) {
+            /*
+             * We should never see a prepared truncate here; not at recovery time because prepared
+             * truncates can't be written to disk, and not during a runtime RTS either because it
+             * should not be possible to do that with an unresolved prepared transaction.
+             */
+            WT_ASSERT(session,
+              page_del == NULL || page_del->prepare_state == WT_PREPARE_INIT ||
+                page_del->prepare_state == WT_PREPARE_RESOLVED);
             *skipp = true;
+        }
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
         return (0);
     }
@@ -1407,50 +1427,72 @@ __rollback_to_stable_check(WT_SESSION_IMPL *session)
 static int
 __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_id)
 {
-    WT_CURSOR *hs_cursor;
+    WT_CURSOR *hs_cursor_start, *hs_cursor_stop;
     WT_DECL_ITEM(hs_key);
     WT_DECL_RET;
-    WT_TIME_WINDOW *hs_tw;
+    WT_SESSION *truncate_session;
     wt_timestamp_t hs_start_ts;
     uint64_t hs_counter;
     uint32_t hs_btree_id;
-    char tw_string[WT_TIME_STRING_SIZE];
 
-    hs_cursor = NULL;
+    hs_cursor_start = hs_cursor_stop = NULL;
+    hs_btree_id = 0;
+    truncate_session = (WT_SESSION *)session;
 
     WT_RET(__wt_scr_alloc(session, 0, &hs_key));
 
-    /* Open a history store table cursor. */
-    WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
-    F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+    /* Open a history store start cursor. */
+    WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor_start));
+    F_SET(hs_cursor_start, WT_CURSTD_HS_READ_COMMITTED);
 
-    /* Walk the history store for the given btree. */
-    hs_cursor->set_key(hs_cursor, 1, btree_id);
-    ret = __wt_curhs_search_near_after(session, hs_cursor);
-
-    for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
-        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
-
-        /* We shouldn't cross the btree search space. */
-        WT_ASSERT(session, btree_id == hs_btree_id);
-
-        /* Retrieve the time window from the history cursor. */
-        __wt_hs_upd_time_window(hs_cursor, &hs_tw);
-
-        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-          "rollback to stable history store cleanup of update with time window: %s",
-          __wt_time_window_to_string(hs_tw, tw_string));
-
-        WT_ERR(hs_cursor->remove(hs_cursor));
-        WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
-        WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts);
+    hs_cursor_start->set_key(hs_cursor_start, 1, btree_id);
+    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, hs_cursor_start), true);
+    if (ret == WT_NOTFOUND) {
+        ret = 0;
+        goto done;
     }
-    WT_ERR_NOTFOUND_OK(ret, false);
 
+    /* Open a history store stop cursor. */
+    WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor_stop));
+    F_SET(hs_cursor_stop, WT_CURSTD_HS_READ_COMMITTED | WT_CURSTD_HS_READ_ACROSS_BTREE);
+
+    hs_cursor_stop->set_key(hs_cursor_stop, 1, btree_id + 1);
+    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, hs_cursor_stop), true);
+
+#ifdef HAVE_DIAGNOSTIC
+    /* If we get not found, we are at the largest btree id in the history store. */
+    if (ret == 0) {
+        hs_cursor_stop->get_key(hs_cursor_stop, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter);
+        WT_ASSERT(session, hs_btree_id > btree_id);
+    }
+#endif
+
+    do {
+        WT_ASSERT(session, ret == WT_NOTFOUND || hs_btree_id > btree_id);
+
+        WT_ERR_NOTFOUND_OK(hs_cursor_stop->prev(hs_cursor_stop), true);
+        /* We can find the start point then we must be able to find the stop point. */
+        if (ret == WT_NOTFOUND)
+            WT_ERR_PANIC(
+              session, ret, "cannot locate the stop point to truncate the history store.");
+        hs_cursor_stop->get_key(hs_cursor_stop, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter);
+    } while (hs_btree_id != btree_id);
+
+    WT_ERR(
+      truncate_session->truncate(truncate_session, NULL, hs_cursor_start, hs_cursor_stop, NULL));
+
+    WT_STAT_CONN_DATA_INCR(session, cache_hs_btree_truncate);
+
+    __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+      "Rollback to stable has truncated records for btree %u from the history store", btree_id);
+
+done:
 err:
     __wt_scr_free(session, &hs_key);
-    if (hs_cursor != NULL)
-        WT_TRET(hs_cursor->close(hs_cursor));
+    if (hs_cursor_start != NULL)
+        WT_TRET(hs_cursor_start->close(hs_cursor_start));
+    if (hs_cursor_stop != NULL)
+        WT_TRET(hs_cursor_stop->close(hs_cursor_stop));
 
     return (ret);
 }
@@ -1530,8 +1572,9 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
         for (i = 0; conn->partial_backup_remove_ids[i] != 0; ++i)
             WT_ERR(
               __rollback_to_stable_btree_hs_truncate(session, conn->partial_backup_remove_ids[i]));
-    WT_TRET(__wt_session_release_dhandle(session));
 err:
+    if (session->dhandle != NULL)
+        WT_TRET(__wt_session_release_dhandle(session));
     __wt_free(session, config);
     return (ret);
 }
@@ -1834,6 +1877,9 @@ __rollback_to_stable(WT_SESSION_IMPL *session, bool no_ckpt)
     F_SET(session, WT_SESSION_ROLLBACK_TO_STABLE);
 
     WT_ERR(__rollback_to_stable_check(session));
+
+    /* Update the oldest id to get a consistent view of global visibility. */
+    WT_ERR(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 
     /*
      * Copy the stable timestamp, otherwise we'd need to lock it each time it's accessed. Even

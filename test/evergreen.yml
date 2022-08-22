@@ -32,7 +32,7 @@ functions:
     command: git.get_project
     params:
       directory: wiredtiger
-  "fetch artifacts" :
+  "fetch artifacts": &fetch_artifacts
     command: s3.get
     params:
       aws_key: ${aws_key}
@@ -64,7 +64,7 @@ functions:
         set -o verbose
         mongo_repo=https://github.com/mongodb/mongo
         branch=${branch_name}
-        if [[ $branch =~ "mongodb-" ]]; then   
+        if [[ $branch =~ "mongodb-" ]]; then
           mongo_branch=v$(echo $branch | cut -d'-' -f 2)
         else
           mongo_branch=master
@@ -97,22 +97,51 @@ functions:
       working_dir: "wiredtiger"
       shell: bash
       script: |
-        # Fetch the gperftools library.
-        if [[ "${posix_configure_flags|}" =~ (tcmalloc|TCMALLOC) ]]; then
-          is_cmake_build=true
-          git clone git@github.com:wiredtiger/automation-scripts.git
-          . automation-scripts/evergreen/find_gperftools.sh ${s3_access_key} ${s3_secret_key} ${build_variant} $is_cmake_build
-        fi
-        
         set -o errexit
-        set -o verbose
+        # Not setting verbose mode as we have sensitive keys that could be logged.
+
+        # Define common config flags for the tasks to make it cleaner when configuring the tasks.
+        # Note that the config flags are resolved prior to changing to cmake_build directory.
+        DEFINED_EVERGREEN_CONFIG_FLAGS="${CMAKE_BUILD_TYPE|} \
+          ${CMAKE_INSTALL_PREFIX|} \
+          ${CMAKE_TOOLCHAIN_FILE|} \
+          ${ENABLE_SHARED|} \
+          ${ENABLE_STATIC|} \
+          ${HAVE_BUILTIN_EXTENSION_LZ4|} \
+          ${HAVE_BUILTIN_EXTENSION_SNAPPY|} \
+          ${HAVE_BUILTIN_EXTENSION_ZLIB|} \
+          ${HAVE_BUILTIN_EXTENSION_ZSTD|} \
+          ${HAVE_FTRUNCATE|} \
+          ${HAVE_UNITTEST} \
+          ${NON_BARRIER_DIAGNOSTIC_YIELDS|} \
+          ${HAVE_DIAGNOSTIC|} \
+          ${GNU_C_VERSION|} \
+          ${GNU_CXX_VERSION|} \
+          ${ENABLE_S3|} \
+          ${IMPORT_S3_SDK|} \
+          ${SPINLOCK_TYPE|} \
+          ${CC_OPTIMIZE_LEVEL|}"
+
+        # This is a workaround until WT-8981 is resolved and we can remove this. The Ubuntu PPC platform does not have ZSTD.
+        # Strip it out.
+        if [ "${build_variant|}" = "ubuntu1804-ppc" ] && [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS" =~ (\-DHAVE_BUILTIN_EXTENSION_ZSTD=1) ]]; then
+          DEFINED_EVERGREEN_CONFIG_FLAGS=${DEFINED_EVERGREEN_CONFIG_FLAGS/\-DHAVE_BUILTIN_EXTENSION_ZSTD=1/}
+        fi
 
         if [ "$OS" = "Windows_NT" ]; then
           # Use the Windows powershell script to configure the CMake build.
           # We execute it in a powershell environment as its easier to detect and source the Visual Studio
           # toolchain in a native Windows environment. We can't easily execute the build in a cygwin environment.
-          powershell.exe  -NonInteractive '.\test\evergreen\build_windows.ps1' -configure 1 ${windows_configure_flags|}
+          echo "Using config flags $DEFINED_EVERGREEN_CONFIG_FLAGS ${windows_configure_flags|}"
+          ${configure_env_vars|} powershell.exe  -NonInteractive '.\test\evergreen\build_windows.ps1' -configure 1 $DEFINED_EVERGREEN_CONFIG_FLAGS ${windows_configure_flags|}
         else
+          echo "Using config flags $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|}"
+          # Fetch the gperftools library if needed. This will also get tcmalloc.
+          if [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|}" =~ (tcmalloc|TCMALLOC) ]] && [ ! -d "./automation-scripts" ]; then
+            is_cmake_build=true
+            git clone git@github.com:wiredtiger/automation-scripts.git
+            . automation-scripts/evergreen/find_gperftools.sh ${s3_access_key} ${s3_secret_key} ${build_variant} $is_cmake_build
+          fi
           # Compiling with CMake.
           . test/evergreen/find_cmake.sh
           # If we've fetched the wiredtiger artifact from a previous compilation/build, it's best to remove
@@ -121,8 +150,8 @@ functions:
           if [ -d cmake_build ]; then rm -r cmake_build; fi
           mkdir -p cmake_build
           cd cmake_build
-          $CMAKE \
-          ${posix_configure_flags|-DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1 -DENABLE_STATIC=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL} -G "${cmake_generator|Ninja}" ./..
+
+          ${configure_env_vars|} $CMAKE $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|} -G "${cmake_generator|Ninja}" ./..
         fi
   "make wiredtiger": &make_wiredtiger
     command: shell.exec
@@ -154,67 +183,36 @@ functions:
           set -o verbose
           echo '#undef HAVE_FTRUNCATE' >> config/wiredtiger_config.h
     - *make_wiredtiger
-  "compile wiredtiger address sanitizer":
+  "run data validation stress test checkpoint":
+    - *fetch_artifacts
     - command: shell.exec
       params:
-        working_dir: "wiredtiger"
+        working_dir: "wiredtiger/cmake_build/test/checkpoint"
         shell: bash
         script: |
           set -o errexit
           set -o verbose
-          if [ "$OS" != "Windows_NT" ]; then
-            . test/evergreen/find_cmake.sh
-            if [ -d cmake_build ]; then rm -r cmake_build; fi
-            mkdir -p cmake_build
-            cd cmake_build
-            $CMAKE -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1 \
-              -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 ${NON_BARRIER_DIAGNOSTIC_YIELDS|} -DCMAKE_BUILD_TYPE=ASan \
-              -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1 -DHAVE_BUILTIN_EXTENSION_ZSTD=1 ${configure_python_setting|} \
-              -G "${cmake_generator|Ninja}" ../.
-          fi
-    - *make_wiredtiger
-  # FIXME-WT-8981 - Ubuntu PPC tests have been replaced by RHEL8 tests as of WT-8688, but the RHEL8 tests are currently disabled 
-  # due to platform issues. On completion of WT-8981 this can be deleted.
-  "compile wiredtiger address sanitizer ppc ubuntu":
+          ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ./recovery-test.sh "${data_validation_stress_test_args} ${run_test_checkpoint_args}" WT_TEST.$t test_checkpoint' 120
+  "run tiered storage test":
     - command: shell.exec
       params:
-        working_dir: "wiredtiger"
+        working_dir: "wiredtiger/cmake_build"
         shell: bash
+        silent: true
         script: |
           set -o errexit
-          set -o verbose
-          if [ "$OS" != "Windows_NT" ]; then
-            . test/evergreen/find_cmake.sh
-            if [ -d cmake_build ]; then rm -r cmake_build; fi
-            mkdir -p cmake_build
-            cd cmake_build
-            # CC is set to the system default "clang" binary here as a workaround to mongo toolchains not supporting ASAN on Ubuntu PPC.
-            $CMAKE -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1 \
-              -DHAVE_DIAGNOSTIC=1 ${NON_BARRIER_DIAGNOSTIC_YIELDS|} -DCMAKE_BUILD_TYPE=ASan \
-              -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1 ${configure_python_setting|} \
-              -G "${cmake_generator|Ninja}" ../.
-          fi
-    - *make_wiredtiger
+          export AWS_ACCESS_KEY_ID=${aws_sdk_s3_ext_access_key}
+          export AWS_SECRET_ACCESS_KEY=${aws_sdk_s3_ext_secret_key}
 
-  "compile wiredtiger with builtins":
-    - command: shell.exec
-      params:
-        working_dir: "wiredtiger"
-        shell: bash
-        script: |
-          set -o errexit
+          # Only set verbose after having put the AWS access credentials into the environment.
           set -o verbose
-          if [ "$OS" != "Windows_NT" ]; then
-            . test/evergreen/find_cmake.sh
-            if [ -d cmake_build ]; then rm -r cmake_build; fi
-            mkdir -p cmake_build
-            cd cmake_build
-            $CMAKE -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1 \
-              -DHAVE_DIAGNOSTIC=1 ${NON_BARRIER_DIAGNOSTIC_YIELDS|} -DENABLE_STRICT=1  \
-              -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1 ${configure_python_setting|} \
-              -G "${cmake_generator|Ninja}" ../.
-          fi
-    - *make_wiredtiger
+
+          virtualenv -p python3 venv
+          source venv/bin/activate
+          pip3 install boto3
+
+          # Run Python testing for all tiered tests.
+          ${test_env_vars|} python3 ../test/suite/run.py -j $(nproc) ${tiered_storage_test_name}
   "compile wiredtiger docs":
     - command: shell.exec
       params:
@@ -257,6 +255,7 @@ functions:
               if [ -d cmake_build ]; then rm -r cmake_build; fi
               mkdir -p cmake_build
               pushd cmake_build
+              # Adding -DENABLE_PYTHON=1 -DENABLE_STRICT=1 as 6.0 does not default these like develop.
               $CMAKE -DCMAKE_C_FLAGS="-DMIGHT_NOT_RUN -Wno-error" -DENABLE_PYTHON=1 -DENABLE_STRICT=1 ../.
               make -C lang/python ${smp_command|}
             fi
@@ -427,7 +426,7 @@ functions:
         set -o errexit
         set -o verbose
         ${test_env_vars|} $(pwd)/test/csuite/${test_name}/test_${test_name} ${test_args|} 2>&1
-        
+
   "unit test":
     command: shell.exec
     params:
@@ -436,7 +435,11 @@ functions:
         set -o errexit
         set -o verbose
         cd cmake_build
-        ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
+        if [ ${check_coverage|false} = true ]; then
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1 || echo "Ignoring failed test as we are checking test coverage"
+        else
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
+        fi
   "format test":
     command: shell.exec
     params:
@@ -445,7 +448,7 @@ functions:
         set -o errexit
         set -o verbose
         for i in $(seq ${times|1}); do
-          ./t -c ${config|../../../test/format/CONFIG.stress} ${extra_args|} || ( [ -f RUNDIR/CONFIG ] && cat RUNDIR/CONFIG ) 2>&1
+          ./t -c ${config|../../../test/format/CONFIG.stress} ${trace_args|-T bulk,txn,retain=100} ${extra_args|} || ( [ -f RUNDIR/CONFIG ] && cat RUNDIR/CONFIG ) 2>&1
         done
   "format test script":
     command: shell.exec
@@ -558,7 +561,7 @@ functions:
         wt_hang_analyzer_option="-c -o file -o stdout"
 
         echo "Calling the wt hang analyzer ..."
-        PATH="/opt/mongodbtoolchain/gdb/bin:$PATH" ${python_binary|python3} ../test/wt_hang_analyzer/wt_hang_analyzer.py $wt_hang_analyzer_option
+        PATH="/opt/mongodbtoolchain/v3/gdb/bin:$PATH" ${python_binary|python3} ../test/wt_hang_analyzer/wt_hang_analyzer.py $wt_hang_analyzer_option
 
   "save wt hang analyzer core/debugger files":
     - command: archive.targz_pack
@@ -589,10 +592,9 @@ functions:
           set -o verbose
           # Parse through any failures inside the WT_TEST directory.
           ${python_binary|python3} ../test/evergreen/print_stack_trace.py --unit_test -e ${python_binary|python3} -c WT_TEST -l .
-          
+
           # Look through the stress format directory for any coredumps.
-          cd test/format
-          ${python_binary|python3} ../../../test/evergreen/print_stack_trace.py --format -e ./t -c . -l .
+          ${python_binary|python3} ../test/evergreen/print_stack_trace.py --format -e ./test/format/t -c test/format/. -l test/format/.
     - command: s3.put
       params:
         aws_secret: ${aws_secret}
@@ -755,6 +757,43 @@ functions:
 #######################################
 
 variables:
+  # Configure flags for builtins.
+  - &configure_flags_with_builtins
+    HAVE_BUILTIN_EXTENSION_LZ4: -DHAVE_BUILTIN_EXTENSION_LZ4=1
+    HAVE_BUILTIN_EXTENSION_SNAPPY: -DHAVE_BUILTIN_EXTENSION_SNAPPY=1
+    HAVE_BUILTIN_EXTENSION_ZLIB: -DHAVE_BUILTIN_EXTENSION_ZLIB=1
+    HAVE_BUILTIN_EXTENSION_ZSTD: -DHAVE_BUILTIN_EXTENSION_ZSTD=1
+
+  # Configure flags static library (default in cmake is dynamic).
+  - &configure_flags_static_lib
+    ENABLE_SHARED: -DENABLE_SHARED=0
+    ENABLE_STATIC: -DENABLE_STATIC=1
+
+  # Configure flags static library (default in cmake is dynamic) with builtins.
+  - &configure_flags_static_lib_with_builtins
+    <<: *configure_flags_with_builtins
+    ENABLE_SHARED: -DENABLE_SHARED=0
+    ENABLE_STATIC: -DENABLE_STATIC=1
+
+  # Configure flags for tiered storage S3 extension.
+  - &configure_flags_tiered_storage_s3
+    ENABLE_S3: -DENABLE_S3=1
+    IMPORT_S3_SDK: -DIMPORT_S3_SDK=external
+    CMAKE_PREFIX_PATH: # FIXME-WT-9590 - the S3 extension tests core with TCMALLOC.
+
+  # Configure flags for address sanitizer for mongodb toolchain v4 clang (include builtins).
+  - &configure_flags_address_sanitizer_mongodb_v4_clang_with_builtins
+    <<: *configure_flags_with_builtins
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
+
+  # Configure flags for address sanitizer ppc ubuntu.
+  # FIXME-WT-8981 - Ubuntu PPC tests have been replaced by RHEL8 tests as of WT-8688, but the RHEL8 tests are currently disabled
+  # due to platform issues. On completion of WT-8981 this can be deleted.
+  - &configure_flags_address_sanitizer_clang_with_builtins
+    <<: *configure_flags_with_builtins
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
 
 #########################################################################################
 # The following stress tests are configured to run for six hours via the "-t 360"
@@ -767,7 +806,10 @@ variables:
     exec_timeout_secs: 25200
     commands:
       - func: "get project"
-      - func: "compile wiredtiger with builtins"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
       - func: "format test script"
         vars:
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 360
@@ -776,7 +818,9 @@ variables:
     exec_timeout_secs: 25200
     commands:
       - func: "get project"
-      - func: "compile wiredtiger address sanitizer"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_address_sanitizer_mongodb_v4_clang_with_builtins
       - func: "format test script"
         vars:
           format_test_script_args: -t 360
@@ -784,13 +828,15 @@ variables:
             ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0:unmap_shadow_on_exit=1"
             ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
 
-  # FIXME-WT-8981 - Ubuntu PPC tests have been replaced by RHEL8 tests as of WT-8688, but the RHEL8 tests are currently disabled 
+  # FIXME-WT-8981 - Ubuntu PPC tests have been replaced by RHEL8 tests as of WT-8688, but the RHEL8 tests are currently disabled
   # due to platform issues. On completion of WT-8981 this can be deleted.
   - &format-stress-sanitizer-test-ppc-ubuntu
     exec_timeout_secs: 25200
     commands:
       - func: "get project"
-      - func: "compile wiredtiger address sanitizer ppc ubuntu"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_address_sanitizer_clang_with_builtins
       - func: "format test script"
         vars:
           format_test_script_args: -t 360
@@ -802,7 +848,9 @@ variables:
     exec_timeout_secs: 25200
     commands:
       - func: "get project"
-      - func: "compile wiredtiger address sanitizer"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_address_sanitizer_mongodb_v4_clang_with_builtins
       - func: "format test script"
         vars:
           format_test_script_args: -R -t 360
@@ -816,7 +864,7 @@ variables:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1
+          <<: *configure_flags_with_builtins
       - func: "recovery stress test script"
         vars:
           times: 25
@@ -843,7 +891,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DENABLE_STRICT=1 -DENABLE_SHARED=0 -DENABLE_STATIC=1
+          <<: *configure_flags_static_lib
       - func: "upload artifact"
       - func: "cleanup"
 
@@ -854,7 +902,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DENABLE_SHARED=1 -DENABLE_STATIC=0 -DENABLE_STRICT=1 -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1 -DHAVE_BUILTIN_EXTENSION_ZSTD=1 -DENABLE_PYTHON=1
+          <<: *configure_flags_with_builtins
       - func: "upload artifact"
       - func: "cleanup"
 
@@ -863,7 +911,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DHAVE_DIAGNOSTIC=1 -DENABLE_STRICT=1 -DENABLE_PYTHON=1 -DHAVE_FTRUNCATE=0
+          HAVE_FTRUNCATE: -DHAVE_FTRUNCATE=0
       - func: "upload artifact"
       - func: "cleanup"
 
@@ -872,7 +920,6 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1
       - func: "upload artifact"
       - func: "cleanup"
 
@@ -882,16 +929,22 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=0
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
+          HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake -DGNU_C_VERSION=7 -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
+          GNU_C_VERSION: -DGNU_C_VERSION=7
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake -DGNU_C_VERSION=8 -DGNU_CXX_VERSION=8 -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
+          GNU_C_VERSION: -DGNU_C_VERSION=8
+          DGNU_CXX_VERSION: -DDGNU_CXX_VERSION=8
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake -DGNU_C_VERSION=9 -DGNU_CXX_VERSION=9 -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
+          GNU_C_VERSION: -DGNU_C_VERSION=9
+          DGNU_CXX_VERSION: -DDGNU_CXX_VERSION=9
 
   - name: compile-clang
     tags: ["pull_request", "pull_request_compilers"]
@@ -899,16 +952,23 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=0
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
+          HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake -DCLANG_C_VERSION=6.0 -DCLANG_CXX_VERSION=6.0 -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
+          CLANG_C_VERSION: -DCLANG_C_VERSION=6.0
+          CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=6.0
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake -DCLANG_C_VERSION=7 -DCLANG_CXX_VERSION=7 -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
+          CLANG_C_VERSION: -DCLANG_C_VERSION=7
+          CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=7
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake -DCLANG_C_VERSION=8 -DCLANG_CXX_VERSION=8 -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
+          CLANG_C_VERSION: -DCLANG_C_VERSION=8
+          CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=8
 
   - name: make-check-test
     commands:
@@ -921,7 +981,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DHAVE_DIAGNOSTIC=1 -DENABLE_STRICT=1 -DENABLE_PYTHON=1 -DHAVE_FTRUNCATE=0
+          HAVE_FTRUNCATE: -DHAVE_FTRUNCATE=0
       - func: "make check all"
 
   # Start of normal make check test tasks
@@ -950,7 +1010,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DENABLE_STRICT=1 -DENABLE_SHARED=0 -DENABLE_STATIC=1
+          <<: *configure_flags_static_lib
       - func: "make check directory"
         vars:
           directory: examples/c
@@ -961,7 +1021,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DENABLE_SHARED=1 -DENABLE_STATIC=0 -DENABLE_STRICT=1 -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1 -DHAVE_BUILTIN_EXTENSION_ZSTD=1 -DENABLE_PYTHON=1
+          <<: *configure_flags_with_builtins
       - func: "make check directory"
         vars:
           directory: examples/c
@@ -1080,16 +1140,14 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 -DENABLE_LZ4=1 -DENABLE_SNAPPY=1 -DENABLE_ZLIB=1 -DHAVE_UNITTEST=1
-          # Different flags for windows based on what is supported and enabled by default.
-          windows_configure_flags: -DHAVE_DIAGNOSTIC=1 -DHAVE_UNITTEST=1
+          HAVE_UNITTEST: -DHAVE_UNITTEST=1
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build"
           script: |
             set -o errexit
             set -o verbose
-            test/unittest/unittests
+            ${test_env_vars|} test/unittest/unittests
   # End of normal make check test tasks
 
   # Start of cppsuite test tasks.
@@ -1187,6 +1245,30 @@ tasks:
           test_config_filename: configs/bounded_cursor_perf_default.txt
           test_name: bounded_cursor_perf
 
+  - name: cppsuite-cursor-bound-01-default
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config: debug_mode=(cursor_copy=true)
+          test_config_filename: configs/cursor_bound_01_default.txt
+          test_name: cursor_bound_01
+
+  - name: cppsuite-cursor-bound-01-reverse-default
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config: debug_mode=(cursor_copy=true)
+          test_config_filename: configs/cursor_bound_01_reverse_default.txt
+          test_name: cursor_bound_01
+
   - name: cppsuite-operations-test-stress
     depends_on:
       - name: compile
@@ -1216,6 +1298,26 @@ tasks:
         vars:
           test_config_filename: configs/burst_inserts_stress.txt
           test_name: burst_inserts
+
+  - name: cppsuite-cursor-bound-01-stress
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/cursor_bound_01_stress.txt
+          test_name: cursor_bound_01
+
+  - name: cppsuite-cursor-bound-01-reverse-stress
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/cursor_bound_01_reverse_stress.txt
+          test_name: cursor_bound_01
 
   - name: cppsuite-search-near-01-stress
     depends_on:
@@ -2080,16 +2182,14 @@ tasks:
             CMAKE_BIN=$CMAKE ./configure_combinations.sh -g="${cmake_generator|Ninja}" -j=$(grep -c ^processor /proc/cpuinfo) 2>&1
       # Handle special build combination for running all the diagnostic tests.
       - func: "configure wiredtiger"
-        vars:
-          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 -DENABLE_STATIC=0
       - func: "make wiredtiger"
       - func: "make check all"
 
   # Use format.sh to run tests in parallel for just under two hours (the
   # default Evergreen timeout) on the higher spec build distros. This allows
   # us to perform multiple test runs while ensuring a long-running config does
-  # not result in an Evergreen test timeout failure. This test is run on a 
-  # higher spec distro due to historical issues with timeout failures. Consider 
+  # not result in an Evergreen test timeout failure. This test is run on a
+  # higher spec distro due to historical issues with timeout failures. Consider
   # reducing the parallelism if frequent timeouts occur.
   - name: linux-directio
     commands:
@@ -2152,7 +2252,7 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           # Don't use diagnostic - this test looks for timing problems that are more likely to occur without it
-          posix_configure_flags: -DENABLE_STRICT=1
+          HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
       - func: "checkpoint test"
         vars:
           checkpoint_args: -t m -n 1000000 -k 5000000 -C cache_size=100MB
@@ -2167,56 +2267,26 @@ tasks:
     commands:
       - command: timeout.update
         params:
-          exec_timeout_secs: 36000 # 10 hrs
+          exec_timeout_secs: 43200 # 12 hrs
           timeout_secs: 1800 # 30 mins
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_BUILD_TYPE=Coverage -DCMAKE_C_FLAGS="-ggdb" -DWITH_PIC=1 -DHAVE_DIAGNOSTIC=1 -DENABLE_STRICT=1 -DENABLE_PYTHON=1 -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_ZSTD=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1
-      - func: "make check all"
+          HAVE_UNITTEST: -DHAVE_UNITTEST=1
+          <<: *configure_flags_with_builtins
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Coverage
       - func: "unit test"
         vars:
-          unit_test_args: -v 2 --long
-      - func: "format test"
-        vars:
-          config: ../../../test/format/CONFIG.coverage
-          extra_args: file_type=row compression=snappy logging=1 logging_compression=snappy logging_prealloc=1
-      - func: "format test"
-        vars:
-          config: ../../../test/format/CONFIG.coverage
-          extra_args: file_type=row alter=1 backups=1 compaction=1 data_extend=1 prepare=1 salvage=1 statistics=1 statistics_server=1 verify=1
-      - func: "format test"
-        vars:
-          config: ../../../test/format/CONFIG.coverage
-          extra_args: file_type=row firstfit=1 internal_key_truncation=1
-      - func: "format test"
-        vars:
-          config: ../../../test/format/CONFIG.coverage
-          extra_args: file_type=row checkpoints=0 in_memory=1 reverse=1 truncate=1
-      - func: "format test"
-        vars:
-          config: ../../../test/format/CONFIG.coverage
-          extra_args: file_type=row compression=zlib huffman_value=1
-      - func: "format test"
-        vars:
-          config: ../../../test/format/CONFIG.coverage
-          extra_args: file_type=row data_source=lsm bloom=1
-      - func: "format test"
-        vars:
-          config: ../../../test/format/CONFIG.coverage
-          extra_args: file_type=row compression=lz4 prefix_compression=1 leaf_page_max=9 internal_page_max=9 key_min=256 value_min=256
-      - func: "format test"
-        vars:
-          config: ../../../test/format/CONFIG.coverage
-          extra_args: file_type=var compression=snappy checksum=uncompressed dictionary=1 repeat_data_pct=10
-      - func: "format test"
-        vars:
-          config: ../../../test/format/CONFIG.coverage
-          extra_args: file_type=var leaf_page_max=9 internal_page_max=9 value_min=256
-      - func: "format test"
-        vars:
-          config: ../../../test/format/CONFIG.coverage
-          extra_args: file_type=fix
+          unit_test_args: -v 2
+          check_coverage: true
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build"
+          script: |
+            set -o errexit
+            set -o verbose
+            ${test_env_vars|} test/unittest/unittests
       - command: shell.exec
         params:
           shell: bash
@@ -2226,7 +2296,7 @@ tasks:
             set -o verbose
             virtualenv -p python3 venv
             source venv/bin/activate
-            pip3 install gcovr
+            pip3 install lxml==4.8.0 Pygments==2.11.2 Jinja2==3.0.3 gcovr==5.0
             mkdir -p ../coverage_report
             GCOV=/opt/mongodbtoolchain/v3/bin/gcov gcovr -r .. -f ../src -e '.*/bt_(debug|dump|misc|salvage|vrfy).*' -e '.*/(log|progress|verify_build|strerror|env_msg|err_file|cur_config|os_abort)\..*' -e '.*_stat\..*' -e 'bench' -e 'examples' -e 'test' -e 'ext' -e 'dist' -e 'tools' -j 4 --html-details --html-self-contained -o ../coverage_report/2_coverage_report.html
       - command: s3.put
@@ -2253,40 +2323,37 @@ tasks:
           remote_file: wiredtiger/${build_variant}/${revision}/coverage_report_${build_id}-${execution}/1_coverage_report_main.html
 
   - name: tiered-storage-extensions-test
+    tags: ["python", "ext"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 -DENABLE_S3=1 -DIMPORT_S3_SDK=external -DENABLE_PYTHON=1 -DHAVE_UNITTEST=1 -DCMAKE_CXX_FLAGS="-ggdb"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build"
-          shell: bash
-          silent: true
-          script: |
-            set -o errexit
-            export AWS_ACCESS_KEY_ID=${aws_sdk_s3_ext_access_key}
-            export AWS_SECRET_ACCESS_KEY=${aws_sdk_s3_ext_secret_key}
-
-            # Only set verbose after having put the AWS access credentials into the environment.
-            set -o verbose
-
-            virtualenv -p python3 venv
-            source venv/bin/activate
-            pip3 install boto3
-
-            # Run S3 extension unit testing
-            ext/storage_sources/s3_store/test/run_s3_unit_tests
-            # Run Python testing for all tiered tests
-            ${test_env_vars|} python3 ../test/suite/run.py -j $(nproc) tiered
-
+          <<: *configure_flags_tiered_storage_s3
+      - func: "run tiered storage test"
+        vars:
+          # Set this in case of a core to get the correct python binary.
+          python_binary: $(pwd)/venv/bin/python3
+          tiered_storage_test_name: tiered
   - name: tiered-test-small
-    tags: ["pull_request"]
+    tags: ["pull_request", "python", "ext"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 -DENABLE_S3=1 -DIMPORT_S3_SDK=external -DENABLE_PYTHON=1 -DHAVE_UNITTEST=1 -DCMAKE_CXX_FLAGS="-ggdb"
+          <<: *configure_flags_tiered_storage_s3
+      - func: "run tiered storage test"
+        vars:
+          # Set this in case of a core to get the correct python binary.
+          python_binary: $(pwd)/venv/bin/python3
+          tiered_storage_test_name: tiered06
+  - name: tiered-unittest-test
+    tags: ["pull_request", "ext"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_tiered_storage_s3
+          HAVE_UNITTEST: -DHAVE_UNITTEST=1
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build"
@@ -2300,22 +2367,14 @@ tasks:
             # Only set verbose after having put the AWS access credentials into the environment.
             set -o verbose
 
-            virtualenv -p python3 venv
-            source venv/bin/activate
-            pip3 install boto3
-
-            # Run S3 extension unit testing
+            # Run S3 extension unit testing.
             ext/storage_sources/s3_store/test/run_s3_unit_tests
-            # Run Python testing for tiered06 
-            ${test_env_vars|} python3 ../test/suite/run.py -j $(nproc) tiered06
-
-
   - name: spinlock-gcc-test
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DENABLE_PYTHON=1 -DSPINLOCK_TYPE=gcc -DENABLE_STRICT=1
+          SPINLOCK_TYPE: -DSPINLOCK_TYPE=gcc
       - func: "make check all"
       - func: "format test"
         vars:
@@ -2327,7 +2386,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DENABLE_PYTHON=1 -DSPINLOCK_TYPE=pthread_adaptive -DENABLE_STRICT=1
+          SPINLOCK_TYPE: -DSPINLOCK_TYPE=pthread_adaptive
       - func: "make check all"
       - func: "format test"
         vars:
@@ -2370,7 +2429,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_FTRUNCATE=0
+          HAVE_FTRUNCATE: -DHAVE_FTRUNCATE=0
       - func: "csuite test"
         vars:
           test_name: truncated_log
@@ -2388,12 +2447,7 @@ tasks:
       - func: "get project"
       - func: "configure wiredtiger"
         vars:
-          posix_configure_flags:
-            -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
-            -DCMAKE_C_FLAGS='-g -Werror'
-            -DHAVE_DIAGNOSTIC=1
-            -DENABLE_STRICT=1
-            -DENABLE_STATIC=0
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
       - func: "make wiredtiger"
 
       # Run the long version of make check, that includes the full csuite tests
@@ -2480,8 +2534,6 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
-        vars:
-          posix_configure_flags: -DENABLE_STRICT=1
       - command: shell.exec
         params:
           working_dir: "wiredtiger/test/csuite"
@@ -2490,6 +2542,15 @@ tasks:
             set -o verbose
 
             RW_LOCK_FILE=$(pwd)/../../cmake_build/test/csuite/rwlock/test_rwlock ./time_shift_test.sh /usr/local/lib/faketime/libfaketimeMT.so.1 0-1 2>&1
+
+  - name: format-mirror-test
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "format test"
+        vars:
+          config: ../../../test/format/CONFIG.mirror
+          trace_args: -T all
 
   - name: format-stress-pull-request-test
     tags: ["pull_request"]
@@ -2505,7 +2566,10 @@ tasks:
   - name: format-smoke-test
     commands:
       - func: "get project"
-      - func: "compile wiredtiger with builtins"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
       - func: "format test script"
         vars:
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -S
@@ -2513,7 +2577,9 @@ tasks:
   - name: format-asan-smoke-test
     commands:
       - func: "get project"
-      - func: "compile wiredtiger address sanitizer"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_address_sanitizer_mongodb_v4_clang_with_builtins
       - func: "format test script"
         vars:
           test_env_vars:
@@ -2521,19 +2587,14 @@ tasks:
             ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
           format_test_script_args: -S
 
-  # FIXME-WT-8981 - Ubuntu PPC tests have been replaced by RHEL8 tests as of WT-8688, but the RHEL8 tests are currently disabled 
+  # FIXME-WT-8981 - Ubuntu PPC tests have been replaced by RHEL8 tests as of WT-8688, but the RHEL8 tests are currently disabled
   # due to platform issues. On completion of WT-8981 this can be deleted.
   - name: format-asan-smoke-ppc-test
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags:
-            -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
-            -DHAVE_DIAGNOSTIC=1
-            -DWITH_PIC=1
-            -DCMAKE_BUILD_TYPE=ASan
-            -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1
+          <<: *configure_flags_address_sanitizer_clang_with_builtins
       - func: "format test script"
         # Run smoke tests, don't stop at failed tests, use default config
         vars:
@@ -2545,7 +2606,10 @@ tasks:
   - name: format-wtperf-test
     commands:
       - func: "get project"
-      - func: "compile wiredtiger with builtins"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build/bench/wtperf"
@@ -2560,155 +2624,95 @@ tasks:
     depends_on:
     - name: compile
     commands:
-      - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build/test/checkpoint"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ./recovery-test.sh "${data_validation_stress_test_args} -x" WT_TEST.$t test_checkpoint' 120
+      - func: "run data validation stress test checkpoint"
+        vars:
+          run_test_checkpoint_args: -x
 
   - name: data-validation-stress-test-checkpoint-no-timestamp
     depends_on:
     - name: compile
     commands:
-      - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build/test/checkpoint"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ./recovery-test.sh "${data_validation_stress_test_args}" WT_TEST.$t test_checkpoint' 120
+      - func: "run data validation stress test checkpoint"
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1
     depends_on:
     - name: compile
     commands:
-      - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build/test/checkpoint"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ./recovery-test.sh "${data_validation_stress_test_args} -x -s 1" WT_TEST.$t test_checkpoint' 120
+      - func: "run data validation stress test checkpoint"
+        vars:
+          run_test_checkpoint_args: -x -s 1
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1-no-timestamp
     depends_on:
     - name: compile
     commands:
-      - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build/test/checkpoint"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ./recovery-test.sh "${data_validation_stress_test_args} -s 1" WT_TEST.$t test_checkpoint' 120
+      - func: "run data validation stress test checkpoint"
+        vars:
+          run_test_checkpoint_args: -s 1
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s2
     depends_on:
     - name: compile
     commands:
-      - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build/test/checkpoint"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ./recovery-test.sh "${data_validation_stress_test_args} -x -s 2" WT_TEST.$t test_checkpoint' 120
+      - func: "run data validation stress test checkpoint"
+        vars:
+          run_test_checkpoint_args: -x -s 2
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3
     depends_on:
     - name: compile
     commands:
-      - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build/test/checkpoint"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ./recovery-test.sh "${data_validation_stress_test_args} -x -s 3" WT_TEST.$t test_checkpoint' 120
+      - func: "run data validation stress test checkpoint"
+        vars:
+          run_test_checkpoint_args: -x -s 3
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3-no-timestamp
     depends_on:
     - name: compile
     commands:
-      - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build/test/checkpoint"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ./recovery-test.sh "${data_validation_stress_test_args} -s 3" WT_TEST.$t test_checkpoint' 120
+      - func: "run data validation stress test checkpoint"
+        vars:
+          run_test_checkpoint_args: -s 3
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s4
     depends_on:
     - name: compile
     commands:
-      - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build/test/checkpoint"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ./recovery-test.sh "${data_validation_stress_test_args} -x -s 4" WT_TEST.$t test_checkpoint' 120
+      - func: "run data validation stress test checkpoint"
+        vars:
+          run_test_checkpoint_args: -x -s 4
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5
     depends_on:
     - name: compile
     commands:
-      - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build/test/checkpoint"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ./recovery-test.sh "${data_validation_stress_test_args} -x -s 5" WT_TEST.$t test_checkpoint' 120
+      - func: "run data validation stress test checkpoint"
+        vars:
+          run_test_checkpoint_args: -x -s 5
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5-no-timestamp
     depends_on:
     - name: compile
     commands:
-      - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build/test/checkpoint"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ./recovery-test.sh "${data_validation_stress_test_args} -s 5" WT_TEST.$t test_checkpoint' 120
+      - func: "run data validation stress test checkpoint"
+        vars:
+          run_test_checkpoint_args: -s 5
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s6
     depends_on:
     - name: compile
     commands:
-      - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build/test/checkpoint"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ./recovery-test.sh "${data_validation_stress_test_args} -x -s 6" WT_TEST.$t test_checkpoint' 120
+      - func: "run data validation stress test checkpoint"
+        vars:
+          run_test_checkpoint_args: -x -s 6
+  
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s7
+    depends_on:
+    - name: compile
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          run_test_checkpoint_args: -x -s 7
 
   - name: format-failure-configs-test
     depends_on:
@@ -2729,7 +2733,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DENABLE_STRICT=1 -DENABLE_STATIC=1 -DENABLE_SHARED=0 -DHAVE_BUILTIN_EXTENSION_ZSTD=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1
+          <<: *configure_flags_static_lib_with_builtins
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build"
@@ -2759,7 +2763,9 @@ tasks:
     # tags: ["stress-test-sanitizer-1"]
     commands:
       - func: "get project"
-      - func: "compile wiredtiger address sanitizer"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_address_sanitizer_mongodb_v4_clang_with_builtins
       - func: "format test script"
         vars:
           test_env_vars:
@@ -2776,7 +2782,10 @@ tasks:
         params:
           timeout_secs: 86400
       - func: "get project"
-      - func: "compile wiredtiger with builtins"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
       - func: "checkpoint stress test"
         vars:
           times: 1       # No of times to run the loop
@@ -2788,12 +2797,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags:
-            -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
-            -DCMAKE_C_FLAGS="-ggdb"
-            -DENABLE_PYTHON=1
-            -DWITH_PIC=1
-            -DENABLE_STRICT=1
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
       - command: shell.exec
         params:
           working_dir: "wiredtiger/bench/workgen/runner"
@@ -2809,7 +2813,10 @@ tasks:
     exec_timeout_secs: 9000
     commands:
       - func: "get project"
-      - func: "compile wiredtiger with builtins"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
       - func: "format test script"
         vars:
           #run for 2 hours ( 2 * 60 = 120 minutes), use default config
@@ -2826,14 +2833,7 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           # CC is set to the system default "clang" binary here as a workaround to mongo toolchains not supporting ASAN on Ubuntu PPC.
-          posix_configure_flags:
-            -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
-            -DHAVE_DIAGNOSTIC=1
-            -DWITH_PIC=1
-            -DHAVE_BUILTIN_EXTENSION_LZ4=1
-            -DHAVE_BUILTIN_EXTENSION_SNAPPY=1
-            -DHAVE_BUILTIN_EXTENSION_ZLIB=1
-            -DCMAKE_BUILD_TYPE=ASan
+          <<: *configure_flags_address_sanitizer_clang_with_builtins
       - func: "format test script"
         vars:
           test_env_vars:
@@ -2896,8 +2896,10 @@ tasks:
     exec_timeout_secs: 25200
     commands:
       - func: "get project"
-      - func: "compile wiredtiger with builtins"
-        vars: 
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
       - func: "format test script"
         vars:
@@ -2968,8 +2970,9 @@ tasks:
     exec_timeout_secs: 25200
     commands:
       - func: "get project"
-      - func: "compile wiredtiger address sanitizer"
-        vars: 
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_address_sanitizer_mongodb_v4_clang_with_builtins
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
       - func: "format test script"
         vars:
@@ -2983,8 +2986,9 @@ tasks:
     exec_timeout_secs: 25200
     commands:
       - func: "get project"
-      - func: "compile wiredtiger address sanitizer"
-        vars: 
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_address_sanitizer_mongodb_v4_clang_with_builtins
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
       - func: "format test script"
         vars:
@@ -3000,7 +3004,8 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 -DNON_BARRIER_DIAGNOSTIC_YIELDS=1 -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1
+          <<: *configure_flags_with_builtins
+          NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
       - func: "recovery stress test script"
         vars:
           times: 25
@@ -3013,7 +3018,10 @@ tasks:
         params:
           exec_timeout_secs: 3600
       - func: "get project"
-      - func: "compile wiredtiger with builtins"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
       - func: "format test script"
         vars:
           format_test_script_args: -a -t 30
@@ -3060,7 +3068,6 @@ tasks:
             ./upload-results-atlas.py ${atlas_wt_perf_test_user} ${atlas_wt_perf_pass} wt-perf-tests many-collection-test ${branch_name} $res_dir/results/results.json
 
   - name: cyclomatic-complexity
-    tags: ["pull_request"]
     commands:
       - func: "get project"
       - command: shell.exec
@@ -3085,12 +3092,12 @@ tasks:
 
             # Fail if there are functions with cyclomatic complexity larger than 91
             python "../metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:91 > $t
-            if grep -q 'exceeds' $t; then 
+            if grep -q 'exceeds' $t; then
                 echo "[ERROR]:complexity:cyclomatic: Complexity limit exceeded."
                 cat $t
                 echo "[ERROR]:complexity:cyclomatic: Finished " && rm $t && exit 1
             else
-                cat $t && rm $t 
+                cat $t && rm $t
             fi
 
     #############################
@@ -3578,7 +3585,7 @@ tasks:
     # Performance Tests for eviction #
     ##################################
 
-  - name: perf-test-evict-btree 
+  - name: perf-test-evict-btree
     tags: ["evict-perf"]
     depends_on:
       - name: compile
@@ -3593,7 +3600,7 @@ tasks:
         vars:
           perf-test-name: evict-btree.wtperf
 
-  - name: perf-test-evict-btree-1 
+  - name: perf-test-evict-btree-1
     tags: ["evict-perf"]
     depends_on:
       - name: compile
@@ -3608,7 +3615,7 @@ tasks:
         vars:
           perf-test-name: evict-btree-1.wtperf
 
-  - name: perf-test-evict-lsm 
+  - name: perf-test-evict-lsm
     # Disable/Un-tag the LSM perf test till the support for LSM is restored.
     # tags: ["evict-perf"]
     depends_on:
@@ -3623,8 +3630,8 @@ tasks:
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: evict-lsm.wtperf
-      
-  - name: perf-test-evict-lsm-1 
+
+  - name: perf-test-evict-lsm-1
     # Disable/Un-tag the LSM perf test till the support for LSM is restored.
     # tags: ["evict-perf"]
     depends_on:
@@ -3949,18 +3956,8 @@ buildvariants:
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
-    posix_configure_flags:
-      -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
-      -DCMAKE_C_FLAGS="-ggdb"
-      -DCMAKE_CXX_FLAGS="-ggdb"
-      -DHAVE_DIAGNOSTIC=1
-      -DENABLE_PYTHON=1
-      -DENABLE_ZLIB=1
-      -DENABLE_SNAPPY=1
-      -DENABLE_STRICT=1
-      -DENABLE_TCMALLOC=1
-      -DCMAKE_PREFIX_PATH="$(pwd)/../TCMALLOC_LIB"
-      -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
+    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
+    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: Ninja
@@ -3986,6 +3983,7 @@ buildvariants:
     - name: static-wt-build-test
     - name: linux-directio
       distros: ubuntu2004-build
+    - name: format-mirror-test
     - name: format-smoke-test
     - name: format-failure-configs-test
     - name: data-validation-stress-test-checkpoint
@@ -3998,6 +3996,7 @@ buildvariants:
     - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5
     - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5-no-timestamp
     - name: data-validation-stress-test-checkpoint-fp-hs-insert-s6
+    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s7
     - name: data-validation-stress-test-checkpoint-no-timestamp
     - name: unittest-test
     - name: tiered-storage-extensions-test
@@ -4007,17 +4006,10 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    posix_configure_flags:
-      -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_clang.cmake
-      -DCMAKE_BUILD_TYPE=ASan
-      -DENABLE_STRICT=1
-      -DHAVE_DIAGNOSTIC=1
-      -DENABLE_STATIC=0
-      -DENABLE_TCMALLOC=1
-      -DCMAKE_PREFIX_PATH="$(pwd)/../TCMALLOC_LIB"
-      -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
-      -DCMAKE_C_FLAGS="-ggdb"
-      -DCMAKE_CXX_FLAGS="-ggdb"
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
+    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
+    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
     test_env_vars:
@@ -4027,28 +4019,40 @@ buildvariants:
       LSAN_OPTIONS="print_suppressions=0:suppressions=$WT_TOPDIR/test/evergreen/asan_leaks.supp"
       ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
       TESTUTIL_BYPASS_ASAN=1
-      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so 
-      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.python"
+    - name: ".pull_request !.pull_request_compilers !.python !tiered-unittest-test"
     - name: examples-c-test
     - name: format-asan-smoke-test
+
+# Very minimal set without any extensions
+- name: ubuntu2004-minimal
+  display_name: "! Ubuntu 20.04 Minimal"
+  batchtime: 480 # 3 times a day
+  run_on:
+  - ubuntu2004-test
+  expansions:
+    posix_configure_flags: -DENABLE_PYTHON=0 -DENABLE_LZ4=0 -DENABLE_SNAPPY=0 -DENABLE_ZLIB=0 -DENABLE_ZSTD=0
+    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
+    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+    make_command: ninja
+  tasks:
+    - name: compile
+    - name: make-check-test
+    - name: fops
+    - name: unittest-test
+    - name: examples-c-test
 
 - name: ubuntu2004-msan
   display_name: "! Ubuntu 20.04 MSAN"
   run_on:
   - ubuntu2004-test
   expansions:
-    posix_configure_flags:
-      -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_clang.cmake
-      -DCMAKE_BUILD_TYPE=MSan
-      -DCC_OPTIMIZE_LEVEL=-O1
-      -DENABLE_STRICT=1
-      -DHAVE_DIAGNOSTIC=1
-      -DENABLE_STATIC=0
-      -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
-      -DCMAKE_C_FLAGS="-ggdb"
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_clang.cmake
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=MSan
+    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
     test_env_vars:
@@ -4076,18 +4080,11 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    posix_configure_flags:
-      -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_clang.cmake
-      -DCMAKE_BUILD_TYPE=UBSan
-      -DCC_OPTIMIZE_LEVEL=-O1
-      -DENABLE_STRICT=1
-      -DHAVE_DIAGNOSTIC=1
-      -DENABLE_STATIC=0
-      -DENABLE_TCMALLOC=1
-      -DCMAKE_PREFIX_PATH="$(pwd)/../TCMALLOC_LIB"
-      -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
-      -DCMAKE_C_FLAGS="-ggdb"
-      -DCMAKE_CXX_FLAGS="-ggdb"
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_clang.cmake
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=UBSan
+    CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O1
+    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
+    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
     test_env_vars:
@@ -4108,6 +4105,7 @@ buildvariants:
     - name: make-check-test
     - name: cppsuite-operations-test-default
     - name: cppsuite-hs-cleanup-default
+    - name: cppsuite-burst-inserts-default
     - name: cppsuite-search-near-01-default
     - name: cppsuite-search-near-02-default
     - name: cppsuite-search-near-03-default
@@ -4117,16 +4115,7 @@ buildvariants:
   run_on:
   - ubuntu2004-wt-build
   expansions:
-    posix_configure_flags: 
-      -DHAVE_DIAGNOSTIC=1
-      -DENABLE_STRICT=1
-      -DENABLE_LZ4=1
-      -DENABLE_SNAPPY=1
-      -DENABLE_ZLIB=1
-      -DENABLE_ZSTD=1
-      -DENABLE_PYTHON=1
-      -DENABLE_TCMALLOC=1
-      -DCMAKE_PREFIX_PATH="$(pwd)/../TCMALLOC_LIB"
+    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
@@ -4146,16 +4135,8 @@ buildvariants:
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
-    posix_configure_flags:
-      -DHAVE_DIAGNOSTIC=1
-      -DENABLE_PYTHON=1
-      -DENABLE_ZLIB=1
-      -DENABLE_SNAPPY=1
-      -DENABLE_STRICT=1
-      -DENABLE_STATIC=1
-      -DENABLE_TCMALLOC=1
-      -DCMAKE_PREFIX_PATH="$(pwd)/../TCMALLOC_LIB"
-      -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
+    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
+    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
   tasks:
     - name: ".stress-test-1"
@@ -4178,21 +4159,13 @@ buildvariants:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
     test_env_vars:
-      LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libeatmydata.so
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
+      LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libeatmydata.so
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
-    posix_configure_flags:
-      -DHAVE_DIAGNOSTIC=1
-      -DENABLE_PYTHON=1
-      -DENABLE_ZLIB=1
-      -DENABLE_SNAPPY=1
-      -DENABLE_STRICT=1
-      -DENABLE_STATIC=1
-      -DENABLE_TCMALLOC=1
-      -DCMAKE_PREFIX_PATH="$(pwd)/../TCMALLOC_LIB"
-      -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
+    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
+    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
   tasks:
   # FIXME-WT-8947: For now run the whole stress test suite like we do on the x86 platform. But later
@@ -4215,15 +4188,10 @@ buildvariants:
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_BUILDDIR/test/utility/
-    posix_configure_flags:
-      -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
-      -DCMAKE_C_FLAGS="-ggdb"
-      -DHAVE_DIAGNOSTIC=1
-      -DENABLE_PYTHON=1
-      -DENABLE_ZLIB=1
-      -DENABLE_SNAPPY=1
-      -DENABLE_STRICT=1
-      -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
+    CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O3
+    HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     pip3_binary: '/opt/mongodbtoolchain/v3/bin/pip3'
     virtualenv_binary: '/opt/mongodbtoolchain/v3/bin/virtualenv'
@@ -4242,6 +4210,7 @@ buildvariants:
     - name: ".long-perf"
     - name: many-dhandle-stress
     - name: ".wt2853-perf"
+    - name: cppsuite-bounded-cursor-perf-stress
   display_tasks:
     - name: Wiredtiger-perf-btree-jobs
       execution_tasks:
@@ -4277,14 +4246,7 @@ buildvariants:
   expansions:
     make_command: ninja
     cmake_generator: Ninja
-    posix_configure_flags:
-      -DENABLE_PYTHON=1
-      -DENABLE_ZLIB=1
-      -DENABLE_SNAPPY=1
-      -DENABLE_STRICT=1
-      -DENABLE_STATIC=1
-      -DENABLE_TCMALLOC=1
-      -DCMAKE_PREFIX_PATH="$(pwd)/../TCMALLOC_LIB"
+    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
     test_env_vars:
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
       WT_TOPDIR=$(git rev-parse --show-toplevel)
@@ -4298,7 +4260,7 @@ buildvariants:
 
 - name: cppsuite-stress-tests
   display_name: "Cppsuite Stress Tests"
-  batchtime: 960 # Twice a day
+  batchtime: 480 # 3 times a day
   run_on:
   - ubuntu2004-medium
   expansions:
@@ -4308,25 +4270,17 @@ buildvariants:
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
     cmake_generator: Ninja
     make_command: ninja
-    posix_configure_flags:
-      -DHAVE_DIAGNOSTIC=1
-      -DENABLE_PYTHON=1
-      -DENABLE_SNAPPY=1
-      -DENABLE_STRICT=1
-      -DENABLE_STATIC=1
-      -DENABLE_TCMALLOC=1
-      -DENABLE_ZLIB=1
-      -DCMAKE_CXX_FLAGS="-ggdb"
-      -DCMAKE_PREFIX_PATH="$(pwd)/../TCMALLOC_LIB"
+    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
   tasks:
     - name: compile
     - name: cppsuite-operations-test-stress
     - name: cppsuite-burst-inserts-stress
+    - name: cppsuite-cursor-bound-01-stress
+    - name: cppsuite-cursor-bound-01-reverse-stress
     - name: cppsuite-hs-cleanup-stress
     - name: cppsuite-search-near-01-stress
     - name: cppsuite-search-near-02-stress
     - name: cppsuite-search-near-03-stress
-    - name: cppsuite-bounded-cursor-perf-stress
 
 - name: package
   display_name: "~ Package"
@@ -4362,6 +4316,8 @@ buildvariants:
     make_command: ninja
     cmake_generator: Ninja
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
   tasks:
     - name: compile-linux-no-ftruncate
     - name: make-check-linux-no-ftruncate-test
@@ -4383,6 +4339,8 @@ buildvariants:
     cmake_generator: "Unix Makefiles"
     make_command: make
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
   tasks:
     - name: compile
     - name: make-check-test
@@ -4418,6 +4376,8 @@ buildvariants:
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
     make_command: ninja
     cmake_generator: Ninja
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
   tasks:
     - name: coverage-report
     - name: cyclomatic-complexity
@@ -4454,12 +4414,13 @@ buildvariants:
   - windows-64-vs2017-test
   expansions:
     python_binary: '/cygdrive/c/Python39/python'
+    configure_env_vars:
+      PATH=/cygdrive/c/Python39:/cygdrive/c/Python39/Scripts:$PATH
     test_env_vars:
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       PATH=/cygdrive/c/Python39:/cygdrive/c/Python39/Scripts:$PATH
       PYTHONPATH=($WT_TOPDIR/lang/python/wiredtiger):$(cygpath -w $WT_TOPDIR/lang/python)
-    windows_configure_flags: -vcvars_bat "'C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional\VC\Auxiliary\Build\vcvars64.bat'"
   tasks:
     - name: compile
     - name: make-check-test
@@ -4473,18 +4434,12 @@ buildvariants:
   - macos-1014
   batchtime: 120 # 2 hours
   expansions:
-    posix_configure_flags:
-      -DCMAKE_C_FLAGS="-ggdb"
-      -DHAVE_DIAGNOSTIC=1
-      -DENABLE_PYTHON=1
-      -DENABLE_ZLIB=1
-      -DENABLE_STRICT=1 
-      -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
+    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
     python_binary: 'python3'
     smp_command: -j $(sysctl -n hw.logicalcpu)
     cmake_generator: "Unix Makefiles"
     make_command: make
-    test_env_vars: 
+    test_env_vars:
       WT_BUILDDIR=$(git rev-parse --show-toplevel)/cmake_build
       DYLD_LIBRARY_PATH=$WT_BUILDDIR
   tasks:
@@ -4508,6 +4463,10 @@ buildvariants:
       LD_LIBRARY_PATH=$WT_BUILDDIR
     make_command: ninja
     cmake_generator: Ninja
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
+    # Must disable ZSTD as its not available on the big endian platform (we generate the data files used for those tests here).
+    posix_configure_flags: -DENABLE_ZSTD=0
   tasks:
     - name: compile
     - name: generate-datafile-little-endian
@@ -4531,6 +4490,8 @@ buildvariants:
       LD_LIBRARY_PATH=$WT_BUILDDIR
     make_command: ninja
     cmake_generator: Ninja
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
   tasks:
     - name: compile
     - name: generate-datafile-big-endian
@@ -4549,15 +4510,8 @@ buildvariants:
     test_env_vars:
       WT_BUILDDIR=$(git rev-parse --show-toplevel)/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR
-    posix_configure_flags:
-      -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
-      -DCMAKE_C_FLAGS="-ggdb"
-      -DHAVE_DIAGNOSTIC=1
-      -DENABLE_PYTHON=1
-      -DENABLE_ZLIB=1
-      -DENABLE_SNAPPY=1
-      -DENABLE_STRICT=1
-      -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     # Use half number of vCPU to avoid OOM kill failure
     smp_command: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 2 | bc)
@@ -4583,15 +4537,8 @@ buildvariants:
     test_env_vars:
       WT_BUILDDIR=$(git rev-parse --show-toplevel)/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR
-    posix_configure_flags:
-      -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
-      -DCMAKE_C_FLAGS="-ggdb"
-      -DHAVE_DIAGNOSTIC=1
-      -DENABLE_PYTHON=1
-      -DENABLE_ZLIB=1
-      -DENABLE_SNAPPY=1
-      -DENABLE_STRICT=1
-      -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake
+    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
     # Use half number of vCPU to avoid OOM kill failure
     smp_command: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 2 | bc)
@@ -4615,15 +4562,8 @@ buildvariants:
     test_env_vars:
       WT_BUILDDIR=$(git rev-parse --show-toplevel)/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR
-    posix_configure_flags:
-      -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake 
-      -DCMAKE_C_FLAGS="-ggdb"
-      -DHAVE_DIAGNOSTIC=1
-      -DENABLE_PYTHON=1
-      -DENABLE_ZLIB=1 
-      -DENABLE_SNAPPY=1
-      -DENABLE_STRICT=1
-      -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     # Use half number of vCPU to avoid OOM kill failure
     smp_command: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 2 | bc)
@@ -4647,15 +4587,7 @@ buildvariants:
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR
-    posix_configure_flags:
-      -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
-      -DCMAKE_C_FLAGS="-ggdb"
-      -DHAVE_DIAGNOSTIC=1
-      -DENABLE_PYTHON=1
-      -DENABLE_ZLIB=1
-      -DENABLE_SNAPPY=1
-      -DENABLE_STRICT=1
-      -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
+    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: Ninja
@@ -4669,6 +4601,8 @@ buildvariants:
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
     - name: unit-test-long
+      run_on:
+      - ubuntu2004-arm64-large
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
     - name: compile-wtperf

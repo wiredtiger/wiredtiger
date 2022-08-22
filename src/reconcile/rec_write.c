@@ -1877,7 +1877,8 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
     }
 
     /* Set the fast-truncate proxy cell information flag. */
-    if (page->type == WT_PAGE_ROW_INT && __wt_process.fast_truncate_2022)
+    if ((page->type == WT_PAGE_COL_INT || page->type == WT_PAGE_ROW_INT) &&
+      __wt_process.fast_truncate_2022)
         F_SET(dsk, WT_PAGE_FT_UPDATE);
 
     dsk->unused = 0;
@@ -2558,10 +2559,8 @@ split:
     }
 
     /* If the page has post-instantiation delete information, we don't need it any more. */
-    if (mod->instantiated) {
-        mod->instantiated = false;
-        __wt_free(session, mod->page_del);
-    }
+    if (mod->instantiated)
+        __wt_free_page_del(session, ref);
 
     return (0);
 }

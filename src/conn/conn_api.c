@@ -2248,11 +2248,14 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
     static const WT_NAME_FLAG stress_types[] = {
       {"aggressive_sweep", WT_TIMING_STRESS_AGGRESSIVE_SWEEP},
       {"backup_rename", WT_TIMING_STRESS_BACKUP_RENAME},
+      {"checkpoint_evict_page", WT_TIMING_STRESS_CHECKPOINT_EVICT_PAGE},
       {"checkpoint_reserved_txnid_delay", WT_TIMING_STRESS_CHECKPOINT_RESERVED_TXNID_DELAY},
       {"checkpoint_slow", WT_TIMING_STRESS_CHECKPOINT_SLOW},
       {"checkpoint_stop", WT_TIMING_STRESS_CHECKPOINT_STOP},
       {"compact_slow", WT_TIMING_STRESS_COMPACT_SLOW},
       {"evict_reposition", WT_TIMING_STRESS_EVICT_REPOSITION},
+      {"failpoint_eviction_fail_after_reconciliation",
+        WT_TIMING_STRESS_FAILPOINT_EVICTION_FAIL_AFTER_RECONCILIATION},
       {"failpoint_history_delete_key_from_ts",
         WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_DELETE_KEY_FROM_TS},
       {"history_store_checkpoint_delay", WT_TIMING_STRESS_HS_CHECKPOINT_DELAY},
@@ -2276,9 +2279,8 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     flags = 0;
     for (ft = stress_types; ft->name != NULL; ft++) {
-        if ((ret = __wt_config_subgets(session, &cval, ft->name, &sval)) == 0 && sval.val != 0) {
+        if ((ret = __wt_config_subgets(session, &cval, ft->name, &sval)) == 0 && sval.val != 0)
             LF_SET(ft->flag);
-        }
         WT_RET_NOTFOUND_OK(ret);
     }
 

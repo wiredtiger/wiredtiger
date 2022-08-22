@@ -32,6 +32,7 @@ from wiredtiger import stat
 
 # test_search_near01.py
 # Test various prefix search near scenarios.
+# FIXME-WT-9142 Remove once prefix search near is deprecated.
 class test_search_near01(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
 
@@ -311,7 +312,7 @@ class test_search_near01(wttest.WiredTigerTestCase):
 
         prefix_skip_count = self.get_stat(stat.conn.cursor_next_skip_lt_100, session2)
         # We expect to traverse one entry and have a buffer to account for anomalies.
-        self.assertEqual(prefix_skip_count - skip_count, 2)
+        self.assertEqual(prefix_skip_count - skip_count, 3)
         skip_count = prefix_skip_count
 
         # We early exit here as "cc" is not the last key. 

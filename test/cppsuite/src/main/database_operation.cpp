@@ -215,8 +215,7 @@ database_operation::insert_operation(thread_worker *tc)
         testutil_assert(counter < collections_per_thread);
     }
     /* Make sure the last transaction is rolled back now the work is finished. */
-    if (tc->txn.active())
-        tc->txn.rollback();
+    tc->txn.try_rollback();
 }
 
 void
@@ -257,8 +256,7 @@ database_operation::read_operation(thread_worker *tc)
         testutil_check(cursor->reset(cursor.get()));
     }
     /* Make sure the last transaction is rolled back now the work is finished. */
-    if (tc->txn.active())
-        tc->txn.rollback();
+    tc->txn.try_rollback();
 }
 
 void
@@ -341,8 +339,7 @@ database_operation::remove_operation(thread_worker *tc)
     }
 
     /* Make sure the last operation is rolled back now the work is finished. */
-    if (tc->txn.active())
-        tc->txn.rollback();
+    tc->txn.try_rollback();
 }
 
 void
@@ -401,15 +398,14 @@ database_operation::update_operation(thread_worker *tc)
     }
 
     /* Make sure the last operation is rolled back now the work is finished. */
-    if (tc->txn.active())
-        tc->txn.rollback();
+    tc->txn.try_rollback();
 }
 
 void
-database_operation::validate(const std::string &operation_table_name,
-  const std::string &schema_table_name, const std::vector<uint64_t> &known_collection_ids)
+database_operation::validate(
+  const std::string &operation_table_name, const std::string &schema_table_name, database &db)
 {
     validator wv;
-    wv.validate(operation_table_name, schema_table_name, known_collection_ids);
+    wv.validate(operation_table_name, schema_table_name, db);
 }
 } // namespace test_harness
