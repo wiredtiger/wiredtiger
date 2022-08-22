@@ -955,7 +955,7 @@ __txn_fixup_hs_update(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
 
     /*
      * Set the stop time point to be the committing transaction's time point and copy the start
-     * timepoint from the current history store update.
+     * time point from the current history store update.
      */
     tw.stop_ts = txn->commit_timestamp;
     tw.durable_stop_ts = txn->durable_timestamp;
