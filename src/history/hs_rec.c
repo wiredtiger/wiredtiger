@@ -948,9 +948,10 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
          * history while reconciling.
          */
 
-        if (upd_tw != NULL && __wt_txn_tw_start_visible_all(session, upd_tw) ?
-            WT_TIME_WINDOWS_STOP_EQUAL(upd_tw, twp) :
-            WT_TIME_WINDOWS_EQUAL(upd_tw, twp))
+        if (upd_tw != NULL &&
+          (__wt_txn_tw_start_visible_all(session, upd_tw) ?
+              WT_TIME_WINDOWS_STOP_EQUAL(upd_tw, twp) :
+              WT_TIME_WINDOWS_EQUAL(upd_tw, twp)))
             continue;
 
         /* We shouldn't have crossed the btree and user key search space. */
