@@ -1499,10 +1499,12 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
     __wt_yield();
 
 
-    if(addr->addr == NULL && addr->size != 0){
+    /*
+    if (addr->addr == NULL && addr->size != 0) {
         __wt_yield();
         WT_ASSERT_ALWAYS(session, addr->size == 0 || !__wt_off_page(page, addr), "NULL addr->addr, non-zero copy size");
     }
+    */
 
     __wt_yield();
     __wt_yield();
