@@ -2404,6 +2404,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     mod = page->modify;
     ref = r->ref;
     WT_TIME_AGGREGATE_INIT(&ta);
+    previous_ref_state = 0;
 
     /*
      * If using the history store table eviction path and we found updates that weren't globally
