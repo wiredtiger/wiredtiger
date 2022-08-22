@@ -3036,7 +3036,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_backup_open(session));
 
     F_SET(conn, WT_CONN_MINIMAL);
-    if (event_handler->handle_conn_ready != NULL)
+    if (event_handler != NULL && event_handler->handle_conn_ready != NULL)
         event_handler->handle_conn_ready(event_handler, &conn->iface);
 
     /* Start the worker threads and run recovery. */
