@@ -55,6 +55,7 @@ usage() {
 	echo "    -R           add configuration for randomized split stress (defaults to none)"
 	echo "    -r binary    record with UndoDB binary (defaults to no recording)"
 	echo "    -S           run smoke-test configurations (defaults to off)"
+	echo "    -T           turn on format tracing (defaults to off)"
 	echo "    -t minutes   minutes to run (defaults to no limit)"
 	echo "    -v           verbose output (defaults to off)"
 	echo "    --           separates $name arguments from additional format arguments"
@@ -108,6 +109,7 @@ quit=0
 skip_errors=0
 stress_split_test=0
 total_jobs=0
+trace=""
 # Default to format.sh directory (assumed to be in a WiredTiger build tree).
 format_bin_dir=`dirname $0`
 
@@ -169,6 +171,18 @@ while :; do
 		shift; shift ;;
 	-S)
 		smoke_test=1
+		shift ;;
+	-T)
+		trace='-T'
+		trace_args="$2"
+		case "$trace_args" in
+		-*)
+			trace+=","
+			;;
+		*)
+			trace+="$trace_args,"
+			shift;;
+		esac
 		shift ;;
 	-t)
 		minutes="$2"
@@ -367,6 +381,28 @@ report_failure()
 	echo "$name: failure status reported" > $dir/$status
 }
 
+# Wait for a process to die. Handle both child and non-child processes.
+# $1 pid
+# Return <exit code> of process if child or 127 if non-child
+wait_for_process()
+{
+	pid=$1
+	ret=127
+
+	if [ `pstree -p $$ | grep -w $pid | wc -l` -gt "0" ]; then
+		# Can still produce "wait: pid XXXX is not a child of this shell" due to process
+		# ending between the steps, can be safely ignored.
+		wait $pid
+		ret=$?
+	else
+		while [ -d "/proc/$pid/" ]; do
+			sleep 1
+		done
+	fi
+
+	return $ret
+}
+
 # Resolve/cleanup completed jobs.
 resolve()
 {
@@ -399,16 +435,27 @@ resolve()
 			}
 
 			# Kill the process group to catch any child processes.
+			if [ `ps -eo ppid | grep -w $pid | wc -l` -gt "0" ]; then
+				kill -KILL -- -$pid
+			fi
+			# Kill the process.
+			kill -KILL $pid
+			wait_for_process $pid
+
 			msg "job in $dir killed"
-			kill -KILL -- -$pid
-			wait $pid
 
 			# Remove jobs we killed, they count as neither success or failure.
 			rm -rf $dir $log
 			continue
 		}
-		wait $pid
+		wait_for_process $pid
 		eret=$?
+
+		# Check for Sanitizer failures, have to do this prior to success because both can be reported.
+		grep -E -i 'Sanitizer' $log > /dev/null && {
+			report_failure $dir
+			continue
+		}
 
 		# Remove successful jobs.
 		grep 'successful run completed' $log > /dev/null && {
@@ -434,30 +481,7 @@ resolve()
 			 echo "$name: original directory copied into $dir.RECOVER"
 			 echo) >> $log
 
-			# Verify the objects. In current format, it's a list of files named with a
-			# leading F or tables named with a leading T. Historically, it was a file
-			# or table named "wt".
-			verify_failed=0
-			for i in $(ls $dir | sed -e 's/.*\///'); do
-			    case $i in
-			    F*) uri="file:$i";;
-			    T*) uri="table:${i%.wt}";;
-			    wt) uri="file:wt";;
-			    wt.wt) uri="table:wt";;
-			    *) continue;;
-			    esac
-
-			    # Use the wt utility to recover & verify the object.
-			    echo "verify: $wt_binary -R -h $dir verify $uri" >> $log
-			    if  $($wt_binary -R -h $dir verify $uri >> $log 2>&1); then
-				continue
-			    fi
-
-			    verify_failed=1
-			    break
-			done
-
-			if [[ $verify_failed -eq 0 ]]; then
+			if $format_binary -Rqv -h $dir $trace > $log 2>&1; then
 			    rm -rf $dir $dir.RECOVER $log
 			    success=$(($success + 1))
 			    msg "job in $dir successfully completed"
@@ -468,7 +492,7 @@ resolve()
 			continue
 		}
 
-		# Check for the library abort message, or an error from format.
+		# Check for the library abort message or an error from format.
 		grep -E \
 		    'aborting WiredTiger library|format alarm timed out|run FAILED' \
 		    $log > /dev/null && {
@@ -495,6 +519,9 @@ resolve()
 			signame="SIGBUS";;
 		$((128 + 8)))
 			signame="SIGFPE";;
+		$((128 + 9)))
+			# SIGKILL is the Linux out-of-memory kill signal.
+			signame="SIGKILL (suspected Linux OOM failure)";;
 		$((128 + 11)))
 			signame="SIGSEGV";;
 		$((128 + 24)))
@@ -562,7 +589,7 @@ format()
 		live_record_binary="$live_record_binary --save-on=error"
 	fi
 
-	cmd="$live_record_binary $format_binary -c "$config" -h "$dir" $args quiet=1"
+	cmd="$live_record_binary $format_binary -c "$config" -h "$dir" $trace $args quiet=1"
 	msg "$cmd"
 
 	# Disassociate the command from the shell script so we can exit and let the command

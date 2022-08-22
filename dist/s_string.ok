@@ -53,8 +53,7 @@ BerkeleyDB
 Bitfield
 Bitstring
 Bitwise
-BlqR
-BqRt
+BqRv
 Brueckner
 Bsearch
 Btree
@@ -574,6 +573,7 @@ aspell
 assertfmt
 async
 atomicity
+atou
 auth
 autocommit
 autoconf

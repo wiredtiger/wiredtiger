@@ -287,6 +287,13 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
     (void)__wt_atomic_addsize(&page->memory_footprint, size);
 
     if (page->modify != NULL) {
+        /*
+         * If this is an application thread that is running in a txn, keep track of its dirty bytes
+         * in the session statistic.
+         */
+        if (!F_ISSET(session, WT_SESSION_INTERNAL) &&
+          F_ISSET(session->txn, WT_TXN_RUNNING | WT_TXN_HAS_ID))
+            WT_STAT_SESSION_INCRV(session, txn_bytes_dirty, size);
         if (!WT_PAGE_IS_INTERNAL(page) && !btree->lsm_primary) {
             (void)__wt_atomic_add64(&cache->bytes_updates, size);
             (void)__wt_atomic_add64(&btree->bytes_updates, size);
@@ -741,6 +748,13 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
 
         S2BT(session)->modified = true;
         WT_FULL_BARRIER();
+
+        /*
+         * There is a potential race where checkpoint walks the tree and marks it as clean before a
+         * page is subsequently marked as dirty, leaving us with a dirty page on a clean tree. Yield
+         * here to encourage this scenario and ensure we're handling it correctly.
+         */
+        WT_DIAGNOSTIC_YIELD;
     }
 
     /*
@@ -800,6 +814,18 @@ __wt_page_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
     __wt_tree_modify_set(session);
 
     __wt_page_only_modify_set(session, page);
+
+    /*
+     * We need to make sure a checkpoint doesn't come through and mark the tree clean before we have
+     * a chance to mark the page dirty. Otherwise, the checkpoint may also visit the page before it
+     * is marked dirty and skip it without also marking the tree clean. Worst case scenario with
+     * this approach is that a future checkpoint reviews the tree again unnecessarily - however, it
+     * is likely this is necessary since the update triggering this modify set would not be included
+     * in the checkpoint. If hypothetically a checkpoint came through after the page was modified
+     * and before the tree is marked dirty again, that is fine. The transaction installing this
+     * update wasn't visible to the checkpoint, so it's reasonable for the tree to remain dirty.
+     */
+    __wt_tree_modify_set(session);
 }
 
 /*
@@ -2183,15 +2209,8 @@ __wt_btcur_bounds_early_exit(
     if (!F_ISSET((&cbt->iface), bound_flag))
         return (0);
 
-    if (CUR2BT(cbt)->type == BTREE_ROW) {
-        WT_ASSERT(session, &cbt->iface.key != NULL);
-        WT_RET(__wt_compare_bounds(
-          session, &cbt->iface, &cbt->iface.key, WT_RECNO_OOB, next, key_out_of_boundsp));
-    } else {
-        WT_ASSERT(session, cbt->recno != 0);
-        WT_RET(
-          __wt_compare_bounds(session, &cbt->iface, NULL, cbt->recno, next, key_out_of_boundsp));
-    }
+    WT_RET(__wt_compare_bounds(
+      session, &cbt->iface, &cbt->iface.key, cbt->recno, next, key_out_of_boundsp));
 
     if (*key_out_of_boundsp)
         return (WT_NOTFOUND);
