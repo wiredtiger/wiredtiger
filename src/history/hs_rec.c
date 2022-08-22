@@ -909,8 +909,48 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
         /* Ignore records that are obsolete. */
         __wt_hs_upd_time_window(hs_cursor, &twp);
-        if (__wt_txn_tw_stop_visible_all(session, twp) ||
-          (upd_tw != NULL && WT_TIME_WINDOWS_EQUAL(upd_tw, twp)))
+        if (__wt_txn_tw_stop_visible_all(session, twp))
+            continue;
+
+        /*
+         * The below condition is to handle scenario where the data store and the
+         * history store has same records and ignore.
+         *
+         * Suppose there are two tables table1 and table2 and the below operations are performed.
+         *
+         * 1. Insert a=1 in table1 at timestamp 10
+         * 2. Insert b=1 in table2 at timestamp 10
+         * 3. Delete a from table1 at timestamp 20
+         * 4. Delete b from table2 at timestamp 20
+         * 5. Set stable timestamp = 20, oldest timestamp=1
+         * 6. Checkpoint table1
+         * 7. Checkpoint table2
+         * 8. Insert a=2 in table1 at timestamp 30
+         * 9. Insert b=2 in table2 at timestamp 30
+         * 10. Evict a=2 from table1 and move the content to history store.
+         * 11. Checkpoint history store.
+         *
+         * After all this operations the checkpoint content will be
+         * Data store --
+         * table1 --> a=1 at start_ts=10, stop_ts=20
+         * table2 --> b=1 at start_ts=10, stop_ts=20
+         *
+         * History store --
+         * table1 --> a=1 at start_ts=10, stop_ts=20
+         *
+         * WiredTiger takes a backup of the checkpoint and use this backup to restore.
+         * Note: In table1 of both data store and history store has the same content.
+         *
+         * Now the backup is used to restore.
+         *
+         * 1. Insert a=3 in table1
+         * 2. Checkpoint started, eviction started and sees the same content in data store and
+         * history while reconciling.
+         */
+
+        if (upd_tw != NULL && __wt_txn_tw_start_visible_all(session, upd_tw) ?
+            WT_TIME_WINDOWS_STOP_EQUAL(upd_tw, twp) :
+            WT_TIME_WINDOWS_EQUAL(upd_tw, twp))
             continue;
 
         /* We shouldn't have crossed the btree and user key search space. */

@@ -53,10 +53,11 @@ class test_rollback_to_stable39(test_rollback_to_stable_base):
     scenarios = make_scenarios(format_values, prepare_values)
 
     def conn_config(self):
+        config = 'cache_size=25MB,statistics=(all),statistics_log=(json,on_close,wait=1)'
         if self.restart_config:
-            config = 'cache_size=25MB,statistics=(all),statistics_log=(json,on_close,wait=1),timing_stress_for_test=[checkpoint_slow]'
+            config += ',timing_stress_for_test=[checkpoint_slow]'
         else:
-            config = 'cache_size=25MB,statistics=(all),statistics_log=(json,on_close,wait=1),timing_stress_for_test=[history_store_checkpoint_delay]'
+            config += ',timing_stress_for_test=[history_store_checkpoint_delay]'
         return config
 
     def test_rollback_to_stable(self):
@@ -91,10 +92,7 @@ class test_rollback_to_stable39(test_rollback_to_stable_base):
         self.check(value_a, uri, 0, nrows, 31 if self.prepare else 30)
 
         # Pin stable to timestamp 40 if prepare otherwise 30.
-        if self.prepare:
-            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
-        else:
-            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40 if self.prepare else 30))
 
         # Create a checkpoint thread
         done = threading.Event()
@@ -169,4 +167,5 @@ class test_rollback_to_stable39(test_rollback_to_stable_base):
 
 if __name__ == '__main__':
     wttest.run()
+
     
