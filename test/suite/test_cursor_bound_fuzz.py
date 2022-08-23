@@ -124,12 +124,12 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
 
     types = [
         ('file', dict(uri='file:')),
-        #('table', dict(uri='table:'))
+        ('table', dict(uri='table:'))
     ]
 
     data_format = [
         ('row', dict(key_format='i')),
-        #('column', dict(key_format='r'))
+        ('column', dict(key_format='r'))
     ]
     scenarios = make_scenarios(types, data_format)
 
@@ -150,10 +150,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     # Get a value from the value array.
     def get_value(self):
         return self.value_array[random.randrange(self.value_array_size)]
-
-    def get_random_key(self):
-        return random.randrange(self.min_key, self.max_key)
-
+        
     # Get a key within the range of min_key and max_key.
     def get_random_key(self):
         return random.randrange(self.min_key, self.max_key)
@@ -482,8 +479,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
 
     # Choose a scenario and run it.
     def run_bound_scenarios(self, bound_set, cursor):
-        #scenario = random.choice(list(bound_scenarios))
-        scenario = bound_scenarios.PREV
+        scenario = random.choice(list(bound_scenarios))
         if (scenario is bound_scenarios.NEXT):
             self.run_next(bound_set, cursor)
         elif (scenario is bound_scenarios.PREV):
@@ -511,19 +507,6 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
             cursor.set_key(upper.key)
             cursor.bound("bound=upper,inclusive=" + upper.inclusive_str())
         return bound_set
-
-    def apply_truncate(self, session, cursor, cursor2, prepare):
-        lower_key = self.get_random_key()
-        if (lower_key + 1 < self.max_key):
-            upper_key = random.randrange(lower_key + 1, self.max_key)
-            cursor.set_key(lower_key)
-            cursor2.set_key(upper_key)
-            self.assertEqual(session.truncate(None, cursor, cursor2, None), 0)
-
-            for key_id in range(lower_key, upper_key + 1):
-                self.key_range[key_id].update(None, key_states.DELETED, self.current_ts, prepare)
-
-            self.verbose(2, "Trucated keys between: " + str(lower_key) + "and" + str(upper_key))
 
     # The primary test loop is contained here.
     def test_bound_fuzz(self):
@@ -564,11 +547,9 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Begin main loop
-        prepare = False
         for  i in range(0, self.iteration_count):
             self.verbose(2, "Iteration: " + str(i))
             bound_set = self.apply_bounds(read_cursor)
-
             self.verbose(2, "Generated bound set: " + bound_set.to_string())
 
             # Check if we are doing a prepared transaction on this iteration.
