@@ -611,6 +611,9 @@ __wt_btcur_reset(WT_CURSOR_BTREE *cbt)
 
     WT_STAT_CONN_DATA_INCR(session, cursor_reset);
 
+    if (API_FIRST_ENTRY(session))
+        __wt_cursor_bound_reset(cursor);
+
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
     return (__cursor_reset(cbt));

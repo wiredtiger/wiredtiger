@@ -273,9 +273,6 @@ __curfile_reset(WT_CURSOR *cursor)
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, CUR2BT(cbt));
     WT_ERR(__cursor_copy_release(cursor));
 
-    if (API_FIRST_ENTRY(session))
-        __wt_cursor_bound_reset(cursor);
-
     ret = __wt_btcur_reset(cbt);
 
     /* Reset maintains no position, key or value. */
