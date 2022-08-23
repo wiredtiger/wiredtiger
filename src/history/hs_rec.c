@@ -913,27 +913,23 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
             continue;
 
         /*
-         * The below condition is to handle scenario where the data store and the
-         * history store has same records and ignore.
+         * The below example illustrates a case that the data store and the history
+         * store may contain the same value. In this case, skipping inserting the same
+         * value to the history store again.
          *
-         * Suppose there are two tables table1 and table2 and the below operations are performed.
+         * Suppose there is one table table1 and the below operations are performed.
          *
          * 1. Insert a=1 in table1 at timestamp 10
-         * 2. Insert b=1 in table2 at timestamp 10
-         * 3. Delete a from table1 at timestamp 20
-         * 4. Delete b from table2 at timestamp 20
-         * 5. Set stable timestamp = 20, oldest timestamp=1
-         * 6. Checkpoint table1
-         * 7. Checkpoint table2
-         * 8. Insert a=2 in table1 at timestamp 30
-         * 9. Insert b=2 in table2 at timestamp 30
-         * 10. Evict a=2 from table1 and move the content to history store.
-         * 11. Checkpoint history store.
+         * 2. Delete a from table1 at timestamp 20
+         * 3. Set stable timestamp = 20, oldest timestamp=1
+         * 4. Checkpoint table1
+         * 5. Insert a=2 in table1 at timestamp 30
+         * 6. Evict a=2 from table1 and move the content to history store.
+         * 7. Checkpoint history store.
          *
          * After all this operations the checkpoint content will be
          * Data store --
          * table1 --> a=1 at start_ts=10, stop_ts=20
-         * table2 --> b=1 at start_ts=10, stop_ts=20
          *
          * History store --
          * table1 --> a=1 at start_ts=10, stop_ts=20
@@ -945,11 +941,17 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
          *
          * 1. Insert a=3 in table1
          * 2. Checkpoint started, eviction started and sees the same content in data store and
-         * history while reconciling.
+         * history store while reconciling.
+         *
+         * The start timestamp and transaction ids are checked to ensure for the global
+         * visibility because timestamps and transactions gets wiped off on start.
+         * The time window of the inserting record and the history store record are
+         * compared to make sure that the same record are not being inserted again.
          */
 
         if (upd_tw != NULL &&
-          (__wt_txn_tw_start_visible_all(session, upd_tw) ?
+          (__wt_txn_tw_start_visible_all(session, upd_tw) &&
+                __wt_txn_tw_start_visible_all(session, twp) ?
               WT_TIME_WINDOWS_STOP_EQUAL(upd_tw, twp) :
               WT_TIME_WINDOWS_EQUAL(upd_tw, twp)))
             continue;
