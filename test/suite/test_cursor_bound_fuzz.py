@@ -568,6 +568,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
         for  i in range(0, self.iteration_count):
             self.verbose(2, "Iteration: " + str(i))
             bound_set = self.apply_bounds(read_cursor)
+
             self.verbose(2, "Generated bound set: " + bound_set.to_string())
 
             # Check if we are doing a prepared transaction on this iteration.
