@@ -941,6 +941,8 @@ __txn_fixup_hs_update(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
     WT_ERR(
       hs_cursor->get_value(hs_cursor, &hs_stop_durable_ts, &hs_durable_ts, &type_full, hs_value));
 
+    /* The old stop timestamp must be max. */
+    WT_ASSERT(session, hs_stop_durable_ts == WT_TS_MAX);
     /* The value older than the prepared update in the history store must be a full value. */
     WT_ASSERT(session, (uint8_t)type_full == WT_UPDATE_STANDARD);
 
@@ -960,9 +962,7 @@ __txn_fixup_hs_update(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
     tw.stop_ts = txn->commit_timestamp;
     tw.durable_stop_ts = txn->durable_timestamp;
     tw.stop_txn = txn->id;
-    tw.start_ts = hs_tw->start_ts;
-    tw.durable_start_ts = hs_tw->durable_start_ts;
-    tw.start_txn = hs_tw->start_txn;
+    WT_TIME_WINDOW_COPY_START(&tw, hs_tw);
 
     /*
      * We need to update the stop durable timestamp stored in the history store value.
@@ -1258,7 +1258,10 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     first_committed_upd_in_hs =
       first_committed_upd != NULL && F_ISSET(first_committed_upd, WT_UPDATE_HS);
 
-    /* We should not see the flags both set. */
+    /*
+     * We should not see the flags both set as we either successfully evict the page with prepared
+     * updates or not.
+     */
     WT_ASSERT(session, !prepare_on_disk || !first_committed_upd);
 
     /*
@@ -1329,21 +1332,23 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 
         /* We should only get not found if the prepared update is on disk. */
         WT_ASSERT(session, ret != WT_NOTFOUND || prepare_on_disk);
-        if (ret == WT_NOTFOUND && !commit) {
+        if (ret == 0) {
+            /*
+             * Restore the history store update to the update chain if we are rolling back the
+             * prepared update written to the disk image.
+             */
+            if (!commit && prepare_on_disk)
+                WT_ERR(__txn_restore_hs_update(session, hs_cursor, page, upd));
+        } else {
+            ret = 0;
             /*
              * Allocate a tombstone and prepend it to the row so when we reconcile the update chain
              * we don't copy the prepared cell, which is now associated with a rolled back prepare,
              * and instead write nothing.
              */
-            WT_ERR(__txn_append_tombstone(session, op, cbt));
-        } else if (ret == 0 && !commit && prepare_on_disk)
-            /*
-             * Restore the history store update to the update chain if we are rolling back the
-             * prepared update written to the disk image.
-             */
-            WT_ERR(__txn_restore_hs_update(session, hs_cursor, page, upd));
-        else
-            ret = 0;
+            if (!commit)
+                WT_ERR(__txn_append_tombstone(session, op, cbt));
+        }
     } else if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !commit && first_committed_upd == NULL) {
         /*
          * For in-memory configurations of WiredTiger if a prepared update is reconciled and then

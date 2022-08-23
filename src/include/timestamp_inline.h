@@ -65,6 +65,22 @@
         (tw)->stop_txn = (upd)->txnid;                           \
     } while (0)
 
+/* Copy the start values of a time window from another time window. */
+#define WT_TIME_WINDOW_COPY_START(tw1, tw2)                \
+    do {                                                   \
+        (tw1)->durable_start_ts = (tw2)->durable_start_ts; \
+        (tw1)->start_ts = (tw2)->start_ts;                 \
+        (tw1)->start_txn = (tw2)->start_txn;               \
+    } while (0)
+
+/* Copy the stop values of a time window from another time window. */
+#define WT_TIME_WINDOW_COPY_STOP(tw1, tw2)               \
+    do {                                                 \
+        (tw1)->durable_stop_ts = (tw2)->durable_stop_ts; \
+        (tw1)->stop_ts = (tw2)->stop_ts;                 \
+        (tw1)->stop_txn = (tw2)->start_txn;              \
+    } while (0)
+
 /*
  * Initialize the fields in an aggregated time window to their defaults. The aggregated durable
  * timestamp values represent the maximum durable timestamp over set of timestamps. These aggregated
