@@ -944,7 +944,7 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
          * history store while reconciling.
          *
          * The start timestamp and transaction ids are checked to ensure for the global
-         * visibility because timestamps and transactions gets wiped off on start.
+         * visibility because globally visible timestamps and transaction ids may be cleared to 0.
          * The time window of the inserting record and the history store record are
          * compared to make sure that the same record are not being inserted again.
          */
