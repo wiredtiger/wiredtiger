@@ -747,6 +747,7 @@ __txn_restore_hs_update(
     /* The value older than the prepared update in the history store must be a full value. */
     WT_ASSERT(session, (uint8_t)type_full == WT_UPDATE_STANDARD);
 
+    /* Use time window in cell to initialize the update. */
     __wt_hs_upd_time_window(hs_cursor, &hs_tw);
     WT_ERR(__wt_upd_alloc(session, hs_value, WT_UPDATE_STANDARD, &upd, &size));
     upd->txnid = hs_tw->start_txn;
@@ -952,6 +953,10 @@ __txn_fixup_hs_update(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
      */
     F_SET(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
 
+    /*
+     * Set the stop time point to be the committing transaction's time point and copy the start time
+     * point from the current history store update.
+     */
     tw.stop_ts = txn->commit_timestamp;
     tw.durable_stop_ts = txn->durable_timestamp;
     tw.stop_txn = txn->id;
@@ -1212,20 +1217,39 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     page = cbt->ref->page;
 
     /*
-     * Locate the previous update from the history store and append it to the update chain if
-     * required. We know there may be content in the history store if the prepared update is written
-     * to the disk image or first committed update older than the prepared update is marked as
-     * WT_UPDATE_HS. The second case is rare but can happen if the eviction that writes the prepared
-     * update to the disk image fails after it has inserted the other updates of the key into the
-     * history store.
+     * If the prepared update is a single tombstone, we don't need to do anything special and we can
+     * directly resolve it in memory.
      *
-     * We need to do this before we resolve the prepared updates because if we abort the prepared
-     * updates first, the history search logic may race with other sessions modifying the same key
-     * and checkpoint moving the new updates to the history store.
+     * If the prepared update is not a tombstone or we have multiple prepared updates in the same
+     * transaction. There are three base cases:
      *
-     * Fix the history store entry for the updates other than tombstone type or the tombstone
-     * followed by the update is also from the same prepared transaction by either restoring the
-     * previous update from history store or removing the key.
+     * 1) Prepared updates are on the update chain and hasn't been reconciled to write to data
+     * store.
+     *     Simply resolve the prepared updates in memory.
+     *
+     * 2) Prepared updates are written to the data store.
+     *     If there is no older updates written to the history store:
+     *         commit: simply resolve the prepared updates in memory.
+     *         rollback: delete the whole key.
+     *
+     *     If there are older updates written to the history store:
+     *         commit: fix the stop timestamp of the newest update in the history store if it has a
+     *                 max timestamp.
+     *         rollback: restore the newest update in the history store to the data store and mark
+     *                   it to be deleted from the history store in the future reconciliation.
+     *
+     * 3) Prepared updates are successfully reconciled to a new disk image in eviction but the
+     * eviction fails and the updates are restored back to the old disk image.
+     *     If there is no older updates written to the history store:
+     *         commit: simply resolve the prepared updates in memory.
+     *         rollback: delete the whole key.
+     *
+     *     If there are older updates written to the history store:
+     *          commit: fix the stop timestamp of the newest update in the history store if it has a
+     *                  max timestamp.
+     *          rollback: mark the data update (or tombstone and data update) that is older
+     *                    than the prepared updates to be deleted from the history store in the
+     *                    future reconciliation.
      */
     prepare_on_disk = F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS) &&
       (upd->type != WT_UPDATE_TOMBSTONE ||
@@ -1248,6 +1272,23 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     first_committed_upd_in_hs = first_committed_upd != NULL &&
       F_ISSET(first_committed_upd, WT_UPDATE_HS) &&
       !F_ISSET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS);
+
+    /* We should not see the flags both set. */
+    WT_ASSERT(session, !prepare_on_disk || !first_committed_upd);
+
+    /*
+     * If we see the first committed update has been moved to the history store, we must have done a
+     * successful reconciliation on the page but failed to evict it. Also reconciliation could not
+     * possibly empty the page because the prepared update is not globally visible. Therefore,
+     * reconciliation must have either split the page or done a page rewrite.
+     *
+     * In this case, we still need to resolve the prepared update as if we have successfully evicted
+     * the page because the value older than the prepared update has been written to the history
+     * store with the max timestamp.
+     */
+    WT_ASSERT(session,
+      !first_committed_upd_in_hs || page->modify->rec_result == WT_PM_REC_MULTIBLOCK ||
+        page->modify->rec_result == WT_PM_REC_REPLACE);
 
     /*
      * Marked the update older than the prepared update that is already in the history store to be
@@ -1287,6 +1328,18 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
             hs_recno_key.size = WT_PTRDIFF(p, hs_recno_key_buf);
             hs_cursor->set_key(hs_cursor, 4, btree->id, &hs_recno_key, WT_TS_MAX, UINT64_MAX);
         }
+        /*
+         * Locate the previous update from the history store. We know there may be content in the
+         * history store if the prepared update is written to the disk image or first committed
+         * update older than the prepared update is marked as WT_UPDATE_HS. The second case is rare
+         * but can happen if the previous eviction that writes the prepared update to the disk image
+         * fails after reconciliation.
+         *
+         * We need to locate the history store update before we resolve the prepared updates because
+         * if we abort the prepared updates first, the history store search may race with other
+         * sessions modifying the same key and checkpoint moving the new updates to the history
+         * store.
+         */
         WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, hs_cursor), true);
 
         /* We should only get not found if the prepared update is on disk. */
