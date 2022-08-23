@@ -449,7 +449,7 @@ functions:
         set -o errexit
         set -o verbose
         for i in $(seq ${times|1}); do
-          ./t -c ${config|../../../test/format/CONFIG.stress} ${extra_args|} || ( [ -f RUNDIR/CONFIG ] && cat RUNDIR/CONFIG ) 2>&1
+          ./t -c ${config|../../../test/format/CONFIG.stress} ${trace_args|-T bulk,txn,retain=100} ${extra_args|} || ( [ -f RUNDIR/CONFIG ] && cat RUNDIR/CONFIG ) 2>&1
         done
   "format test script":
     command: shell.exec
@@ -2610,16 +2610,26 @@ tasks:
 
             RW_LOCK_FILE=$(pwd)/../../cmake_build/test/csuite/rwlock/test_rwlock ./time_shift_test.sh /usr/local/lib/faketime/libfaketimeMT.so.1 0-1 2>&1
 
+  - name: format-mirror-test
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "format test"
+        vars:
+          config: ../../../test/format/CONFIG.mirror
+          trace_args: -T all
+
   - name: format-stress-pull-request-test
     tags: ["pull_request"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
-      - func: "format test script"
-        vars:
-          smp_command: -j $(grep -c ^processor /proc/cpuinfo)
-          # run for 10 minutes.
-          format_test_script_args: -t 10 rows=10000 ops=50000
+      # FIXME-WT-9770
+      # - func: "format test script"
+      #   vars:
+      #     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+      #     # run for 10 minutes.
+      #     format_test_script_args: -t 10 rows=10000 ops=50000
 
   - name: format-smoke-test
     commands:
@@ -2880,25 +2890,6 @@ tasks:
           #run for 2 hours ( 2 * 60 = 120 minutes), use default config
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 120
 
-  # FIXME-WT-8981 - Ubuntu PPC tests have been replaced by RHEL8 tests as of WT-8688, but the RHEL8 tests are currently disabled
-  # due to platform issues. On completion of WT-8981 this can be deleted.
-  - name: format-stress-sanitizer-ppc-test
-    tags: ["stress-test-ppc-ubuntu"]
-    # Set 2.5 hours timeout (60 * 60 * 2.5)
-    exec_timeout_secs: 9000
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          # CC is set to the system default "clang" binary here as a workaround to mongo toolchains not supporting ASAN on Ubuntu PPC.
-          <<: *configure_flags_address_sanitizer_clang_with_builtins
-      - func: "format test script"
-        vars:
-          test_env_vars:
-            ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0:unmap_shadow_on_exit=1"
-            ASAN_SYMBOLIZER_PATH=/usr/lib/llvm-6.0/bin/llvm-symbolizer
-          # Run for 2 hours (2 * 60 = 120 minutes), don't stop at failed tests, use default config
-          format_test_script_args: -t 120
 
   - <<: *format-stress-test
     name: format-stress-test-1
@@ -3020,9 +3011,10 @@ tasks:
         vars:
           <<: *configure_flags_with_builtins
           CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
-      - func: "format test script"
-        vars:
-          format_test_script_args: -a -t 30
+      # FIXME-WT-9767
+      # - func: "format test script"
+      #   vars:
+      #     format_test_script_args: -a -t 30
 
   - name: many-collection-test
     commands:
@@ -3981,6 +3973,7 @@ buildvariants:
     - name: static-wt-build-test
     - name: linux-directio
       distros: ubuntu2004-build
+    - name: format-mirror-test
     - name: format-smoke-test
     - name: format-failure-configs-test
     - name: data-validation-stress-test-checkpoint
