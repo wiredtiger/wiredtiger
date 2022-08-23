@@ -250,12 +250,13 @@ __verify_dsk_addr_validity(WT_CELL_UNPACK_ADDR *unpack, WT_VERIFY_INFO *vi)
 
     addr = vi->item_addr;
 
-    if ((ret = __wt_time_aggregate_validate(vi->session, &unpack->ta, addr != NULL ? &addr->ta : NULL,
-           F_ISSET(vi->session, WT_SESSION_QUIET_CORRUPT_FILE))) == 0)
+    if ((ret = __wt_time_aggregate_validate(vi->session, &unpack->ta,
+           addr != NULL ? &addr->ta : NULL, F_ISSET(vi->session, WT_SESSION_QUIET_CORRUPT_FILE))) ==
+      0)
         return (0);
 
-    WT_RET_VRFY_RETVAL(vi->session, ret, "cell %" PRIu32 " on page at %s failed timestamp validation",
-      vi->cell_num - 1, vi->tag);
+    WT_RET_VRFY_RETVAL(vi->session, ret,
+      "cell %" PRIu32 " on page at %s failed timestamp validation", vi->cell_num - 1, vi->tag);
 }
 
 /*
@@ -495,8 +496,7 @@ __verify_dsk_row_int(WT_VERIFY_INFO *vi)
         case WT_CELL_ADDR_INT:
         case WT_CELL_ADDR_LEAF:
         case WT_CELL_ADDR_LEAF_NO:
-            WT_ERR(
-              __verify_dsk_addr_validity(unpack, vi));
+            WT_ERR(__verify_dsk_addr_validity(unpack, vi));
             break;
         }
 
