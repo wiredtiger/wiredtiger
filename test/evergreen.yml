@@ -2910,8 +2910,10 @@ tasks:
     exec_timeout_secs: 25200
     commands:
       - func: "get project"
-      - func: "compile wiredtiger with builtins"
-        vars: 
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
       - func: "format test script"
         vars:
@@ -2922,8 +2924,10 @@ tasks:
     exec_timeout_secs: 25200
     commands:
       - func: "get project"
-      - func: "compile wiredtiger with builtins"
-        vars: 
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
       - func: "format test script"
         vars:
@@ -2934,8 +2938,10 @@ tasks:
     exec_timeout_secs: 25200
     commands:
       - func: "get project"
-      - func: "compile wiredtiger with builtins"
-        vars: 
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
       - func: "format test script"
         vars:
@@ -2946,8 +2952,10 @@ tasks:
     exec_timeout_secs: 25200
     commands:
       - func: "get project"
-      - func: "compile wiredtiger with builtins"
-        vars: 
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
       - func: "format test script"
         vars:
@@ -2958,8 +2966,10 @@ tasks:
     exec_timeout_secs: 25200
     commands:
       - func: "get project"
-      - func: "compile wiredtiger with builtins"
-        vars: 
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
       - func: "format test script"
         vars:
