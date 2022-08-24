@@ -454,12 +454,12 @@ upgrade_downgrade()
             echo "$1 format running on $2 access method $am..."
             cd "$top/$format_dir_branch1"
             flags="-1Rq $(bflag $1)"
-            ./t $flags -c "$top/$format_dir_branch2/${cfg_file_branch1}" -h "$top/$format_dir_branch2/RUNDIR.$am" timer=2
+            ./t $flags -h "$top/$format_dir_branch2/RUNDIR.$am" timer=2
 
             echo "$2 format running on $2 access method $am..."
             cd "$top/$format_dir_branch2"
             flags="-1Rq $(bflag $2)"
-            ./t $flags -c $cfg_file_branch2 -h "RUNDIR.$am" timer=2
+            ./t $flags -h "RUNDIR.$am" timer=2
         done
     done
 }

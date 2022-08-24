@@ -277,6 +277,15 @@ main(int argc, char *argv[])
     if (g.reopen) {
         if (access(g.home_config, R_OK) != 0)
             testutil_die(ENOENT, "%s", g.home_config);
+
+        /*
+         * The test uses an existing config file in the home directory and ignores the provided
+         * config file during reopen. Log the new config file that is used.
+         */
+        if (config != NULL && strcmp(config, g.home_config) != 0) {
+            printf("provided configuration file is ignored and used: %s\n", g.home_config);
+            fflush(stdout);
+        }
         config = g.home_config;
     }
     if (config == NULL && access("CONFIG", R_OK) == 0)
