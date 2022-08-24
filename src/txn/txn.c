@@ -717,12 +717,13 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 }
 
 /*
- * __txn_restore_hs_update --
- *     Restore the history store update to the update chain
+ * __txn_prepare_rollback_restore_hs_update --
+ *     Restore the history store update to the update chain before roll back prepared update evicted
+ *     to disk
  */
 static int
-__txn_restore_hs_update(
-  WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *page, WT_UPDATE *chain)
+__txn_prepare_rollback_restore_hs_update(
+  WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *page, WT_UPDATE *upd_chain)
 {
     WT_DECL_ITEM(hs_value);
     WT_DECL_RET;
@@ -733,7 +734,7 @@ __txn_restore_hs_update(
     uint64_t type_full;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
-    WT_ASSERT(session, chain != NULL);
+    WT_ASSERT(session, upd_chain != NULL);
 
     hs_tw = NULL;
     size = total_size = 0;
@@ -790,16 +791,16 @@ __txn_restore_hs_update(
     }
 
     /* Walk to the end of the chain and we can only have prepared updates on the update chain. */
-    for (;; chain = chain->next) {
-        WT_ASSERT(
-          session, chain->txnid != WT_TXN_ABORTED && chain->prepare_state == WT_PREPARE_INPROGRESS);
+    for (;; upd_chain = upd_chain->next) {
+        WT_ASSERT(session,
+          upd_chain->txnid != WT_TXN_ABORTED && upd_chain->prepare_state == WT_PREPARE_INPROGRESS);
 
-        if (chain->next == NULL)
+        if (upd_chain->next == NULL)
             break;
     }
 
     /* Append the update to the end of the chain. */
-    WT_PUBLISH(chain->next, upd);
+    WT_PUBLISH(upd_chain->next, upd);
 
     __wt_cache_page_inmem_incr(session, page, total_size);
 
@@ -914,7 +915,7 @@ __txn_fixup_hs_update(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
     WT_TXN *txn;
     wt_timestamp_t hs_durable_ts, hs_stop_durable_ts;
     uint64_t type_full;
-    uint32_t txn_flags;
+    bool txn_error, txn_prepare_ignore_api_check;
 
     hs_tw = NULL;
     txn = session->txn;
@@ -934,8 +935,18 @@ __txn_fixup_hs_update(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
      * Transaction error is cleared temporarily as cursor functions are not allowed after an error
      * or a prepared transaction.
      */
-    txn_flags = FLD_MASK(txn->flags, WT_TXN_ERROR);
-    F_CLR(txn, txn_flags);
+    txn_error = F_ISSET(txn, WT_TXN_ERROR);
+    F_CLR(txn, WT_TXN_ERROR);
+
+    /*
+     * The API layer will immediately return an error if the WT_TXN_PREPARE flag is set before
+     * attempting cursor operations. However, we can't clear the WT_TXN_PREPARE flag because a
+     * function in the eviction flow may attempt to forcibly rollback the transaction if it is not
+     * marked as a prepared transaction. The flag WT_TXN_PREPARE_IGNORE_API_CHECK is set so that
+     * cursor operations can proceed without having to clear the WT_TXN_PREPARE flag.
+     */
+    txn_prepare_ignore_api_check = F_ISSET(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
+    F_SET(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
 
     /* Get current value. */
     WT_ERR(
@@ -945,15 +956,6 @@ __txn_fixup_hs_update(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
     WT_ASSERT(session, hs_stop_durable_ts == WT_TS_MAX);
     /* The value older than the prepared update in the history store must be a full value. */
     WT_ASSERT(session, (uint8_t)type_full == WT_UPDATE_STANDARD);
-
-    /*
-     * The API layer will immediately return an error if the WT_TXN_PREPARE flag is set before
-     * attempting cursor operations. However, we can't clear the WT_TXN_PREPARE flag because a
-     * function in the eviction flow may attempt to forcibly rollback the transaction if it is not
-     * marked as a prepared transaction. The flag WT_TXN_PREPARE_IGNORE_API_CHECK is set so that
-     * cursor operations can proceed without having to clear the WT_TXN_PREPARE flag.
-     */
-    F_SET(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
 
     /*
      * Set the stop time point to be the committing transaction's time point and copy the start time
@@ -974,8 +976,10 @@ __txn_fixup_hs_update(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
     WT_ERR(hs_cursor->update(hs_cursor));
 
 err:
-    F_SET(txn, txn_flags);
-    F_CLR(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
+    if (txn_error)
+        F_SET(txn, WT_TXN_ERROR);
+    if (!txn_prepare_ignore_api_check)
+        F_CLR(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
     __wt_scr_free(session, &hs_value);
 
     return (ret);
@@ -1338,7 +1342,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
              * prepared update written to the disk image.
              */
             if (!commit && prepare_on_disk)
-                WT_ERR(__txn_restore_hs_update(session, hs_cursor, page, upd));
+                WT_ERR(__txn_prepare_rollback_restore_hs_update(session, hs_cursor, page, upd));
         } else {
             ret = 0;
             /*
