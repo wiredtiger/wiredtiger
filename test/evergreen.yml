@@ -1303,7 +1303,7 @@ tasks:
         vars:
           test_config: debug_mode=(cursor_copy=true)
           test_config_filename: configs/bounded_cursor_prefix_indices_default.txt
-          test_name: bounded_cursor_prefix_indices_default
+          test_name: bounded_cursor_prefix_indices
 
   - name: cppsuite-operations-test-stress
     depends_on:
@@ -1373,7 +1373,7 @@ tasks:
       - func: "cppsuite test"
         vars:
           test_config_filename: configs/bounded_cursor_prefix_search_near_stress.txt
-          test_name: bounded_cursor_prefix_search_near_stress
+          test_name: bounded_cursor_prefix_search_near
 
   - name: cppsuite-bounded-cursor-prefix-indices-stress
     depends_on:
@@ -1383,7 +1383,7 @@ tasks:
       - func: "cppsuite test"
         vars:
           test_config_filename: configs/bounded_cursor_prefix_indices_stress.txt
-          test_name: bounded_cursor_prefix_indices_stress
+          test_name: bounded_cursor_prefix_indices
 
   - name: cppsuite-search-near-01-stress
     depends_on:
