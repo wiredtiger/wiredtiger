@@ -78,7 +78,7 @@
     do {                                                 \
         (tw1)->durable_stop_ts = (tw2)->durable_stop_ts; \
         (tw1)->stop_ts = (tw2)->stop_ts;                 \
-        (tw1)->stop_txn = (tw2)->start_txn;              \
+        (tw1)->stop_txn = (tw2)->stop_txn;               \
     } while (0)
 
 /*
