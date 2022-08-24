@@ -1357,7 +1357,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
              * Restore the history store update to the update chain if we are rolling back the
              * prepared update written to the disk image.
              */
-            if (!commit && resolve_case == RESOLVE_PREPARE_EVICTION_FAILURE)
+            if (!commit && resolve_case == RESOLVE_PREPARE_ON_DISK)
                 WT_ERR(__txn_prepare_rollback_restore_hs_update(session, hs_cursor, page, upd));
         } else {
             ret = 0;
