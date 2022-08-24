@@ -1,0 +1,20 @@
+This branch is to run format as a docker container to work with Antithesis. This results in two containers, one for the binary to run test format,
+and one for a config that will launch docker compose (requested by Antithesis).
+
+1. Install docker on your host
+2. Configure and build with these options (requires cmake_build under the wiredtiger top directory)
+    $ cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_clang.cmake -DENABLE_ANTITHESIS=1  -G "Ninja" ./..
+    $ ninja
+3. Execute the following command to build the binary docker container (from this directory):
+    $ sudo docker build -f test_format.dockerfile -t wt_test_format ../..
+4. Execute the following command to build the config docker container (from this directory):
+    $ sudo docker build -f config.docker -t wt_config ../..
+5. Test via docker-compose (from this directory):
+    $ sudo docker-compose up
+
+
+As needed, we can export the containers:
+    $ sudo docker image save wt_test_format > wt_test_format.tar
+    $ sudo docker image save wt_config > wt_config.tar
+
+We are including libstarvoid which helps with Antithesis integration.

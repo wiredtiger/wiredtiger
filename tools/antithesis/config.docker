@@ -1,0 +1,3 @@
+FROM scratch
+COPY tools/antithesis/docker-compose.yaml docker-compose.yaml
+COPY tools/antithesis/CONFIG.antithesis CONFIG.antithesis
