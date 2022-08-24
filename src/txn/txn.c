@@ -1169,6 +1169,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     hs_cursor = NULL;
     txn = session->txn;
     has_hs_record = false;
+    resolve_case = 0;
 
     WT_RET(__txn_search_prepared_op(session, op, cursorp, &upd));
 
