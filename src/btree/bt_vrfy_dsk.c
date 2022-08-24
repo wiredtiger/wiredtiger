@@ -19,26 +19,6 @@ static int __verify_dsk_memsize(WT_CELL *, WT_VERIFY_INFO *);
 static int __verify_dsk_row_int(WT_VERIFY_INFO *vi);
 static int __verify_dsk_row_leaf(WT_VERIFY_INFO *);
 
-/*
- * WT_VERIFY_INFO -- A structure to hold all the information related to a verify operation.
- */
-struct __wt_verify_info {
-    WT_SESSION_IMPL *session;
-
-/* AUTOMATIC FLAG VALUE GENERATION START 12 */
-#define WT_VRFY_DISK_CONTINUE_ON_FAILURE 0x1u
-#define WT_VRFY_EMPTY_PAGE_OK 0x2u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
-    uint32_t flags;
-
-    const char *tag;
-    uint32_t cell_num;
-    size_t item_size;
-    WT_ADDR *item_addr;
-    const WT_PAGE_HEADER *dsk;
-    uint64_t recno;
-};
-
 #define WT_ERR_VRFY(session, f, ...)                                       \
     do {                                                                   \
         if (!(F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))) {          \
