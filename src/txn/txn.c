@@ -1169,7 +1169,11 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     hs_cursor = NULL;
     txn = session->txn;
     has_hs_record = false;
-    resolve_case = 0;
+#define RESOLVE_UPDATE_CHAIN 0
+#define RESOLVE_PREPARE_ON_DISK 1
+#define RESOLVE_PREPARE_EVICTION_FAILURE 2
+#define RESOLVE_IN_MEMORY 3
+    resolve_case = RESOLVE_UPDATE_CHAIN;
 
     WT_RET(__txn_search_prepared_op(session, op, cursorp, &upd));
 
@@ -1260,10 +1264,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      *     commit: resolve the prepared updates in memory.
      *     rollback: if the prepared update is written to the disk image, delete the whole key.
      */
-#define RESOLVE_UPDATE_CHAIN 0
-#define RESOLVE_PREPARE_ON_DISK 1
-#define RESOLVE_PREPARE_EVICTION_FAILURE 2
-#define RESOLVE_IN_MEMORY 3
+
     /*
      * We also need to handle the on disk prepared updates if we have a prepared delete and a
      * prepared update on the disk image.
