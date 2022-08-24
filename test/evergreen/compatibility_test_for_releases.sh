@@ -440,9 +440,6 @@ upgrade_downgrade()
     echo "Upgrade/downgrade testing with \"$1\" and \"$2\""
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
-    cfg_file_branch1=$(get_config_file_name $1)
-    cfg_file_branch2=$(get_config_file_name $2)
-
     format_dir_branch1="$1/build/test/format"
     format_dir_branch2="$2/build/test/format"
 

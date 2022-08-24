@@ -283,7 +283,8 @@ main(int argc, char *argv[])
          * config file during reopen. Log the new config file that is used.
          */
         if (config != NULL && strcmp(config, g.home_config) != 0) {
-            printf("provided configuration file is ignored and used: %s\n", g.home_config);
+            printf(
+              "Provided configuration file is ignored. %s config file is used.\n", g.home_config);
             fflush(stdout);
         }
         config = g.home_config;
