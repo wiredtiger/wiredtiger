@@ -914,7 +914,7 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
 
         /*
          * The below example illustrates a case that the data store and the history
-         * store may contain the same value. In this case, skipping inserting the same
+         * store may contain the same value. In this case, skip inserting the same
          * value to the history store again.
          *
          * Suppose there is one table table1 and the below operations are performed.
@@ -925,7 +925,8 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
          * 4. Checkpoint table1
          * 5. Insert a=2 in table1 at timestamp 30
          * 6. Evict a=2 from table1 and move the content to history store.
-         * 7. Checkpoint history store.
+         * 7. Checkpoint is still running and before it finishes checkpointing the history store the
+         * above steps 5 and 6 will happen.
          *
          * After all this operations the checkpoint content will be
          * Data store --
