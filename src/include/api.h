@@ -189,7 +189,7 @@
     API_END(s, 0);                       \
     return ((ret) == WT_NOTFOUND ? ENOENT : (ret))
 
-#define API_FIRST_ENTRY(s) (s)->api_call_counter == 1
+#define API_USER_ENTRY(s) (s)->api_call_counter == 1
 
 #define CONNECTION_API_CALL(conn, s, n, config, cfg) \
     s = (conn)->default_session;                     \

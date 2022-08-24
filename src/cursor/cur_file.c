@@ -275,7 +275,7 @@ __curfile_reset(WT_CURSOR *cursor)
 
     ret = __wt_btcur_reset(cbt);
 
-    if (API_FIRST_ENTRY(session))
+    if (API_USER_ENTRY(session))
         __wt_cursor_bound_reset(cursor);
 
     /* Reset maintains no position, key or value. */
