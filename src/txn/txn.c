@@ -1381,9 +1381,11 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
          * rolling back a prepared reconciled update would result in only aborted updates on the
          * update chain.
          */
-        tw_found = __wt_read_cell_time_window(cbt, &tw);
-        if (tw_found && tw.prepare == WT_PREPARE_INPROGRESS)
-            WT_ERR(__txn_append_tombstone(session, op, cbt));
+        if (!commit && first_committed_upd == NULL) {
+            tw_found = __wt_read_cell_time_window(cbt, &tw);
+            if (tw_found && tw.prepare == WT_PREPARE_INPROGRESS)
+                WT_ERR(__txn_append_tombstone(session, op, cbt));
+        }
         break;
     default:
         WT_ASSERT(session, resolve_case == RESOLVE_UPDATE_CHAIN);
