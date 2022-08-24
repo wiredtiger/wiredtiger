@@ -66,19 +66,19 @@
     } while (0)
 
 /* Copy the start values of a time window from another time window. */
-#define WT_TIME_WINDOW_COPY_START(tw1, tw2)                \
-    do {                                                   \
-        (tw1)->durable_start_ts = (tw2)->durable_start_ts; \
-        (tw1)->start_ts = (tw2)->start_ts;                 \
-        (tw1)->start_txn = (tw2)->start_txn;               \
+#define WT_TIME_WINDOW_COPY_START(dest, source)                \
+    do {                                                       \
+        (dest)->durable_start_ts = (source)->durable_start_ts; \
+        (dest)->start_ts = (source)->start_ts;                 \
+        (dest)->start_txn = (source)->start_txn;               \
     } while (0)
 
 /* Copy the stop values of a time window from another time window. */
-#define WT_TIME_WINDOW_COPY_STOP(tw1, tw2)               \
-    do {                                                 \
-        (tw1)->durable_stop_ts = (tw2)->durable_stop_ts; \
-        (tw1)->stop_ts = (tw2)->stop_ts;                 \
-        (tw1)->stop_txn = (tw2)->stop_txn;               \
+#define WT_TIME_WINDOW_COPY_STOP(dest, source)               \
+    do {                                                     \
+        (dest)->durable_stop_ts = (source)->durable_stop_ts; \
+        (dest)->stop_ts = (source)->stop_ts;                 \
+        (dest)->stop_txn = (source)->stop_txn;               \
     } while (0)
 
 /*
