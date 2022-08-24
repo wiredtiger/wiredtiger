@@ -202,6 +202,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     /*
      * In the case of a fast delete, move all of the page's records to a deleted state based on the
      * fast-delete information. Skip for special commands that don't care about an in-memory state.
+     * (But do set up page->modify and set page->modify->instantiated so evicting the pages while
+     * these commands are working doesn't go off the rails.)
      *
      * There are two possible cases: the state was WT_REF_DELETED and page_del was or wasn't NULL.
      * It used to also be possible for eviction to set the state to WT_REF_DISK while the parent
@@ -214,9 +216,13 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_ASSERT(
       session, previous_state != WT_REF_DISK || (ref->page_del == NULL && addr.del_set == false));
 
-    if (previous_state == WT_REF_DELETED &&
-      !F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY))
-        WT_ERR(__wt_delete_page_instantiate(session, ref));
+    if (previous_state == WT_REF_DELETED) {
+        if (F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
+            WT_ERR(__wt_page_modify_init(session, ref->page));
+            ref->page->modify->instantiated = true;
+        } else
+            WT_ERR(__wt_delete_page_instantiate(session, ref));
+    }
 
 skip_read:
     F_CLR(ref, WT_REF_FLAG_READING);
