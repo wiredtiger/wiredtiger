@@ -66,7 +66,7 @@ static int __verify_dsk_row_leaf(WT_VERIFY_INFO *);
  */
 int
 __wt_verify_dsk_image(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_HEADER *dsk,
-  size_t size, WT_ADDR *addr, bool empty_page_ok, bool vrfy_continue_on_failure)
+  size_t size, WT_ADDR *addr, uint32_t verify_flags)
 {
     uint8_t flags;
     const uint8_t *p, *end;
@@ -74,18 +74,13 @@ __wt_verify_dsk_image(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_H
     /* Initialize the verify information. */
     WT_VERIFY_INFO vi;
     vi.session = session;
-    vi.flags = 0;
     vi.tag = tag;
-    vi.cell_num = 0;
-    vi.item_size = size;
-    vi.item_addr = addr;
     vi.dsk = dsk;
+    vi.item_addr = addr;
+    vi.item_size = size;
+    vi.cell_num = 0;
     vi.recno = 0;
-
-    if (empty_page_ok)
-        FLD_SET(vi.flags, WT_VRFY_EMPTY_PAGE_OK);
-    if (vrfy_continue_on_failure)
-        FLD_SET(vi.flags, WT_VRFY_DISK_CONTINUE_ON_FAILURE);
+    vi.flags = verify_flags;
 
     /* Check the page type. */
     switch (dsk->type) {
@@ -177,7 +172,7 @@ __wt_verify_dsk_image(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_H
     case WT_PAGE_COL_VAR:
     case WT_PAGE_ROW_INT:
     case WT_PAGE_ROW_LEAF:
-        if (!FLD_ISSET(vi.flags, WT_VRFY_EMPTY_PAGE_OK) && dsk->u.entries == 0)
+        if (!FLD_ISSET(vi.flags, WT_VRFY_DISK_EMPTY_PAGE_OK) && dsk->u.entries == 0)
             WT_RET_VRFY(
               session, "%s page at %s has no entries", __wt_page_type_string(dsk->type), tag);
         break;
@@ -215,7 +210,7 @@ __wt_verify_dsk_image(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_H
 int
 __wt_verify_dsk(WT_SESSION_IMPL *session, const char *tag, WT_ITEM *buf)
 {
-    return (__wt_verify_dsk_image(session, tag, buf->data, buf->size, NULL, false, true));
+    return (__wt_verify_dsk_image(session, tag, buf->data, buf->size, NULL, WT_VRFY_DISK_EMPTY_PAGE_OK));
 }
 
 /*
@@ -348,7 +343,7 @@ __verify_dsk_addr_page_del(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *unpack
  */
 static int
 __verify_row_key_order_check(WT_SESSION_IMPL *session, WT_ITEM *last, uint32_t last_cell_num,
-  WT_ITEM *current, uint32_t cell_num, const char *tag)
+  WT_ITEM *current, uint32_t cell_num, const char *tag, WT_VERIFY_INFO *vi)
 {
     WT_DECL_ITEM(tmp1);
     WT_DECL_ITEM(tmp2);
@@ -363,7 +358,7 @@ __verify_row_key_order_check(WT_SESSION_IMPL *session, WT_ITEM *last, uint32_t l
     WT_ERR(__wt_scr_alloc(session, 0, &tmp2));
 
     ret = WT_ERROR;
-    WT_ERR_VRFY(session, 0,
+    WT_ERR_VRFY(session, vi->flags,
       "the %" PRIu32 " and %" PRIu32 " keys on page at %s are incorrectly sorted: %s, %s",
       last_cell_num, cell_num, tag,
       __wt_buf_set_printable(session, last->data, last->size, false, tmp1),
@@ -423,10 +418,10 @@ __verify_dsk_row_int(WT_VERIFY_INFO *vi)
 
         /* Internal row-store cells should not have prefix compression or recno/rle fields. */
         if (unpack->prefix != 0)
-            WT_ERR_VRFY(vi->session, 0, "the %" PRIu32 " cell on page at %s has a non-zero prefix",
+            WT_ERR_VRFY(vi->session, vi->flags, "the %" PRIu32 " cell on page at %s has a non-zero prefix",
               cell_num, vi->tag);
         if (unpack->v != 0)
-            WT_ERR_VRFY(vi->session, 0,
+            WT_ERR_VRFY(vi->session, vi->flags,
               "the %" PRIu32 " cell on page at %s has a non-zero rle/recno field", cell_num,
               vi->tag);
 
@@ -446,7 +441,7 @@ __verify_dsk_row_int(WT_VERIFY_INFO *vi)
             case WAS_VALUE:
                 break;
             case WAS_KEY:
-                WT_ERR_VRFY(vi->session, 0,
+                WT_ERR_VRFY(vi->session, vi->flags,
                   "cell %" PRIu32 " on page at %s is the first of two adjacent keys", cell_num - 1,
                   vi->tag);
             }
@@ -458,11 +453,11 @@ __verify_dsk_row_int(WT_VERIFY_INFO *vi)
         case WT_CELL_ADDR_LEAF_NO:
             switch (last_cell_type) {
             case FIRST:
-                WT_ERR_VRFY(vi->session, 0, "page at %s begins with a value", vi->tag);
+                WT_ERR_VRFY(vi->session, vi->flags, "page at %s begins with a value", vi->tag);
             case WAS_KEY:
                 break;
             case WAS_VALUE:
-                WT_ERR_VRFY(vi->session, 0,
+                WT_ERR_VRFY(vi->session, vi->flags,
                   "cell %" PRIu32 " on page at %s is the first of two adjacent values",
                   cell_num - 1, vi->tag);
             }
@@ -528,7 +523,7 @@ __verify_dsk_row_int(WT_VERIFY_INFO *vi)
          */
         if (cell_num > 3)
             WT_ERR(__verify_row_key_order_check(
-              vi->session, last, cell_num - 2, current, cell_num, vi->tag));
+              vi->session, last, cell_num - 2, current, cell_num, vi->tag, vi));
 
         /* Swap the buffers. */
         tmp = last;
@@ -542,7 +537,7 @@ __verify_dsk_row_int(WT_VERIFY_INFO *vi)
      * entries.
      */
     if (key_cnt * 2 != vi->dsk->u.entries)
-        WT_ERR_VRFY(vi->session, 0,
+        WT_ERR_VRFY(vi->session, vi->flags,
           "%s page at %s has a key count of %" PRIu32 " and a physical entry count of %" PRIu32,
           __wt_page_type_string(vi->dsk->type), vi->tag, key_cnt, vi->dsk->u.entries);
 
@@ -608,7 +603,7 @@ __verify_dsk_row_leaf(WT_VERIFY_INFO *vi)
 
         /* Leaf row-store cells should not have recno/rle fields. */
         if (unpack->v != 0)
-            WT_ERR_VRFY(vi->session, 0,
+            WT_ERR_VRFY(vi->session, vi->flags,
               "the %" PRIu32 " cell on page at %s has a non-zero rle/recno field", cell_num,
               vi->tag);
 
@@ -628,11 +623,11 @@ __verify_dsk_row_leaf(WT_VERIFY_INFO *vi)
         case WT_CELL_VALUE_OVFL:
             switch (last_cell_type) {
             case FIRST:
-                WT_ERR_VRFY(vi->session, 0, "page at %s begins with a value", vi->tag);
+                WT_ERR_VRFY(vi->session, vi->flags, "page at %s begins with a value", vi->tag);
             case WAS_KEY:
                 break;
             case WAS_VALUE:
-                WT_ERR_VRFY(vi->session, 0,
+                WT_ERR_VRFY(vi->session, vi->flags,
                   "cell %" PRIu32 " on page at %s is the first of two adjacent values",
                   cell_num - 1, vi->tag);
             }
@@ -681,7 +676,7 @@ __verify_dsk_row_leaf(WT_VERIFY_INFO *vi)
          */
         prefix = unpack->prefix;
         if (last_pfx->size == 0 && prefix != 0)
-            WT_ERR_VRFY(vi->session, 0,
+            WT_ERR_VRFY(vi->session, vi->flags,
               "the %" PRIu32
               " key on page at %s is the first non-overflow key on the page and has a non-zero "
               "prefix compression value",
@@ -689,7 +684,7 @@ __verify_dsk_row_leaf(WT_VERIFY_INFO *vi)
 
         /* Confirm the prefix compression count is possible. */
         if (cell_num > 1 && prefix > last->size)
-            WT_ERR_VRFY(vi->session, 0,
+            WT_ERR_VRFY(vi->session, vi->flags,
               "key %" PRIu32 " on page at %s has a prefix compression count of %" WT_SIZET_FMT
               ", larger than the length of the previous key, %" WT_SIZET_FMT,
               cell_num, vi->tag, prefix, last->size);
@@ -711,7 +706,7 @@ key_compare:
          */
         if (cell_num > 1)
             WT_ERR(__verify_row_key_order_check(
-              vi->session, last, last_cell_num, current, cell_num, vi->tag));
+              vi->session, last, last_cell_num, current, cell_num, vi->tag, vi));
         last_cell_num = cell_num;
 
         /*
@@ -739,12 +734,12 @@ key_compare:
      * count should be equal to the number of physical entries.
      */
     if (F_ISSET(vi->dsk, WT_PAGE_EMPTY_V_ALL) && key_cnt != vi->dsk->u.entries)
-        WT_ERR_VRFY(vi->session, 0,
+        WT_ERR_VRFY(vi->session, vi->flags,
           "%s page at %s with the 'all empty values' flag set has a key count of %" PRIu32
           " and a physical entry count of %" PRIu32,
           __wt_page_type_string(vi->dsk->type), vi->tag, key_cnt, vi->dsk->u.entries);
     if (F_ISSET(vi->dsk, WT_PAGE_EMPTY_V_NONE) && key_cnt * 2 != vi->dsk->u.entries)
-        WT_ERR_VRFY(vi->session, 0,
+        WT_ERR_VRFY(vi->session, vi->flags,
           "%s page at %s with the 'no empty values' flag set has a key count of %" PRIu32
           " and a physical entry count of %" PRIu32,
           __wt_page_type_string(vi->dsk->type), vi->tag, key_cnt, vi->dsk->u.entries);
