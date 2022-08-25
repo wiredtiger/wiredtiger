@@ -1006,6 +1006,12 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
             __cursor_state_restore(cursor, &state);
         else {
             __wt_value_return(cbt, cbt->upd_value);
+            if (WT_CURSOR_BOUNDS_SET(cursor)) {
+                if (btree->type == BTREE_ROW)
+                    WT_RET(__wt_compare(session, btree->collator, &cursor->key, &state.key, &exact));
+                else
+                    exact = cbt->recno < state.recno ? -1 : cbt->recno == state.recno ? 0 : 1;
+            }
             goto done;
         }
     }
@@ -1016,6 +1022,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
         cursor->value.data = &cbt->v;
         cursor->value.size = 1;
         exact = 0;
+
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
     } else {
