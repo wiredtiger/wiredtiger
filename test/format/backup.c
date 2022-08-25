@@ -470,7 +470,7 @@ backup(void *arg)
     WT_CURSOR *backup_cursor;
     WT_DECL_RET;
     WT_SESSION *session;
-    u_int counter, incremental, period, num_yield;
+    u_int counter, incremental, num_yield, period;
     uint64_t src_id, this_id;
     const char *config, *key;
     char cfg[512];
