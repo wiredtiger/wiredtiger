@@ -102,7 +102,11 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
          * In a live system, there are no concurrent transaction running along with
          * rollback to stable to verify transaction id of an update to confirm the stability
          * of an update. But during recovery, the transaction id of an update must be validated
-         * against the checkpoint snapshot to confirm it is stability.
+         * against the checkpoint snapshot to confirm whether it is stable.
+         *
+         * Usually during recovery, there are no in memory updates present on the page. But
+         * whenever an unstable fast truncate operation is written to the disk, as part
+         * of the rollback to stable page read, it instantiates the tombstones on the page.
          */
         if (!__rollback_txn_visible_id(session, upd->txnid) ||
           rollback_timestamp < upd->durable_ts || upd->prepare_state == WT_PREPARE_INPROGRESS) {
