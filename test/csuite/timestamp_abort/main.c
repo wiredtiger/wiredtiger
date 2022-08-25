@@ -155,6 +155,7 @@ thread_ts_run(void *arg)
     WT_SESSION *session;
     THREAD_DATA *td;
     wt_timestamp_t last_ts, ts;
+    uint64_t last_reconfig, now;
     uint32_t rand_op;
     int dbg;
     char tscfg[64];
@@ -165,6 +166,7 @@ thread_ts_run(void *arg)
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
 
+    __wt_seconds((WT_SESSION_IMPL *)session, &last_reconfig);
     /* Update the oldest/stable timestamps every 1 millisecond. */
     for (last_ts = 0;; __wt_sleep(0, 1000)) {
         /* Get the last committed timestamp periodically in order to update the oldest timestamp. */
@@ -183,6 +185,14 @@ thread_ts_run(void *arg)
         testutil_check(conn->set_timestamp(conn, tscfg));
 
         /*
+         * Only perform the reconfigure test every two seconds. If we do it too frequently then
+         * internal servers like the statistics server get destroyed and restarted too fast to do
+         * any work.
+         */
+        __wt_seconds((WT_SESSION_IMPL *)session, &now);
+        if (now - 2 <= last_reconfig)
+            continue;
+        /*
          * Set and reset the checkpoint retention setting on a regular basis. We want to test racing
          * with the internal log removal thread while we're here.
          */
@@ -194,6 +204,7 @@ thread_ts_run(void *arg)
             testutil_check(
               __wt_snprintf(tscfg, sizeof(tscfg), "debug_mode=(checkpoint_retention=5)"));
         testutil_check(conn->reconfigure(conn, tscfg));
+        last_reconfig = now;
     }
     /* NOTREACHED */
 }
