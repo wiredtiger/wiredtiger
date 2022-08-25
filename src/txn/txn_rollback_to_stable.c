@@ -93,6 +93,17 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
 
+        /*
+         * The unstable update according to the following needs to be aborted.
+         * 1. An invisible update according to the checkpoint snapshot during recovery.
+         * 2. The update durable timestamp is greater than the stable timestamp.
+         * 3. A prepared update.
+         *
+         * In a live system, there are no concurrent transaction running along with
+         * rollback to stable to verify transaction id of an update to confirm the stability
+         * of an update. But during recovery, the transaction id of an update must be validated
+         * against the checkpoint snapshot to confirm it is stability.
+         */
         if (!__rollback_txn_visible_id(session, upd->txnid) ||
           rollback_timestamp < upd->durable_ts || upd->prepare_state == WT_PREPARE_INPROGRESS) {
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
@@ -1280,9 +1291,9 @@ __rollback_to_stable_page_skip(
             WT_ASSERT(session,
               page_del == NULL || page_del->prepare_state == WT_PREPARE_INIT ||
                 page_del->prepare_state == WT_PREPARE_RESOLVED);
-            
-	    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-              "%p: deleted page walk skipped", (void *)ref);
+
+            __wt_verbose_multi(
+              session, WT_VERB_RECOVERY_RTS(session), "%p: deleted page walk skipped", (void *)ref);
             WT_STAT_CONN_INCR(session, txn_rts_tree_walk_skip_pages);
             *skipp = true;
         }
