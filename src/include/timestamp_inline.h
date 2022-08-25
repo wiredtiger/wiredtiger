@@ -41,6 +41,11 @@
       (tw1)->stop_ts == (tw2)->stop_ts && (tw1)->stop_txn == (tw2)->stop_txn &&                   \
       (tw1)->prepare == (tw2)->prepare)
 
+/* Return true if the stop time windows are the same. */
+#define WT_TIME_WINDOWS_STOP_EQUAL(tw1, tw2)                                                 \
+    ((tw1)->durable_stop_ts == (tw2)->durable_stop_ts && (tw1)->stop_ts == (tw2)->stop_ts && \
+      (tw1)->stop_txn == (tw2)->stop_txn && (tw1)->prepare == (tw2)->prepare)
+
 /*
  * Set the start values of a time window from those in an update structure. Durable timestamp can be
  * 0 for prepared updates, in those cases use the prepared timestamp as durable timestamp.
@@ -63,6 +68,22 @@
         if ((upd)->durable_ts != WT_TS_NONE)                     \
             (tw)->durable_stop_ts = (upd)->durable_ts;           \
         (tw)->stop_txn = (upd)->txnid;                           \
+    } while (0)
+
+/* Copy the start values of a time window from another time window. */
+#define WT_TIME_WINDOW_COPY_START(dest, source)                \
+    do {                                                       \
+        (dest)->durable_start_ts = (source)->durable_start_ts; \
+        (dest)->start_ts = (source)->start_ts;                 \
+        (dest)->start_txn = (source)->start_txn;               \
+    } while (0)
+
+/* Copy the stop values of a time window from another time window. */
+#define WT_TIME_WINDOW_COPY_STOP(dest, source)               \
+    do {                                                     \
+        (dest)->durable_stop_ts = (source)->durable_stop_ts; \
+        (dest)->stop_ts = (source)->stop_ts;                 \
+        (dest)->stop_txn = (source)->stop_txn;               \
     } while (0)
 
 /*
