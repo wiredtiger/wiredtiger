@@ -1134,8 +1134,11 @@ __rollback_page_needs_abort(
      * is greater than or equal to recovered checkpoint snapshot min:
      * 1. The reconciled replace page max durable timestamp.
      * 2. The reconciled multi page max durable timestamp.
-     * 3. The on page address max durable timestamp.
-     * 4. The off page address max durable timestamp.
+     * 3. For just-instantiated deleted pages that have not otherwise been modified, the durable
+     *    timestamp in the page delete information. This timestamp isn't reflected in the address's
+     *    time aggregate.
+     * 4. The on page address max durable timestamp.
+     * 5. The off page address max durable timestamp.
      */
     if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE) {
         tag = "reconciled replace block";
@@ -1152,6 +1155,15 @@ __rollback_page_needs_abort(
                 prepared = true;
         }
         result = (durable_ts > rollback_timestamp) || prepared;
+    } else if (mod != NULL && mod->instantiated && !__wt_page_is_modified(ref->page) &&
+      ref->page_del != NULL) {
+        tag = "page_del info";
+        durable_ts = ref->page_del->durable_timestamp;
+        prepared = ref->page_del->prepare_state == WT_PREPARE_INPROGRESS ||
+          ref->page_del->prepare_state == WT_PREPARE_LOCKED;
+        newest_txn = ref->page_del->txnid;
+        result = (durable_ts > rollback_timestamp) || prepared ||
+          WT_CHECK_RECOVERY_FLAG_TXNID(session, newest_txn);
     } else if (!__wt_off_page(ref->home, addr)) {
         tag = "on page cell";
         /* Check if the page is obsolete using the page disk address. */
@@ -1256,11 +1268,20 @@ __rollback_to_stable_page_skip(
      */
     if (ref->state == WT_REF_DELETED &&
       WT_REF_CAS_STATE(session, ref, WT_REF_DELETED, WT_REF_LOCKED)) {
-        page_del = ref->ft_info.del;
+        page_del = ref->page_del;
         if (page_del == NULL ||
           (__rollback_txn_visible_id(session, page_del->txnid) &&
             page_del->durable_timestamp <= rollback_timestamp)) {
-            __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+            /*
+             * We should never see a prepared truncate here; not at recovery time because prepared
+             * truncates can't be written to disk, and not during a runtime RTS either because it
+             * should not be possible to do that with an unresolved prepared transaction.
+             */
+            WT_ASSERT(session,
+              page_del == NULL || page_del->prepare_state == WT_PREPARE_INIT ||
+                page_del->prepare_state == WT_PREPARE_RESOLVED);
+            
+	    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
               "%p: deleted page walk skipped", (void *)ref);
             WT_STAT_CONN_INCR(session, txn_rts_tree_walk_skip_pages);
             *skipp = true;
