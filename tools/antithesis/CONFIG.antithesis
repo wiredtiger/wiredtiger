@@ -6,4 +6,3 @@ runs.tables=5
 runs.threads=4:32
 runs.timer=5
 runs.type=row,var
-

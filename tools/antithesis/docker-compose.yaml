@@ -4,7 +4,8 @@ services:
         wiredtiger:
                 container_name: wiredtiger
                 hostname: wiredtiger
-                image: wt_test_format:latest
+                image: wt-test-format:wt-latest
+                command: /bin/bash /opt/bin/test.sh -c CONFIG.antithesis -h /data/RUNDIR
                 volumes:
                   - ./data/wiredtiger:/data/
                   - type: bind

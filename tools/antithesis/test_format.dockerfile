@@ -15,4 +15,3 @@ COPY cmake_build/ext/compressors/snappy/libwiredtiger_snappy.so bin/ext/compress
 COPY tools/antithesis/test.sh bin/
 RUN apt-get update
 RUN apt-get install -y libsnappy-dev
-CMD ["bin/test.sh"]
