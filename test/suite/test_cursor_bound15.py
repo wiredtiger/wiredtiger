@@ -203,12 +203,10 @@ import wttest
 from wtscenario import make_scenarios
 from wtbound import set_prefix_bound, bound_base
 
-# test_cursor_bound14.py
-# This test checks that a search_near call with the prefix key
-# configuration will correctly find a key even in cases where the key
-# range is split across multiple pages.
-# This test has been migrated to use cursor bounds logic.
-class test_cursor_bound14(bound_base):
+# test_cursor_bound15.py
+# This test checks the edge case that a search_near call with bounds and prefix key
+# will return the right value of exact. 
+class test_cursor_bound15(bound_base):
     key_format_values = [
         ('var_string', dict(key_format='S')),
         ('byte_array', dict(key_format='u')),
