@@ -976,10 +976,10 @@ __txn_fixup_hs_update(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
     WT_ERR(hs_cursor->update(hs_cursor));
 
 err:
-    if (txn_error)
-        F_SET(txn, WT_TXN_ERROR);
     if (!txn_prepare_ignore_api_check)
         F_CLR(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
+    if (txn_error)
+        F_SET(txn, WT_TXN_ERROR);
     __wt_scr_free(session, &hs_value);
 
     return (ret);
