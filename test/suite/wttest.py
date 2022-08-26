@@ -45,28 +45,6 @@ from contextlib import contextmanager
 import errno, glob, os, re, shutil, sys, time, traceback
 import wiredtiger, wtscenario, wthooks
 
-# Use as "with timeout(seconds): ....". Argument of 0 means no timeout,
-# and only available (with non-zero argument) on Unix systems.
-class timeout(object):
-    def __init__(self, seconds=0):
-        self.seconds = seconds
-        self.prev_handler = None
-
-    def signal_handler(self, signum, frame):
-        raise(TimeoutError('time for test exceeded {} seconds'.format(self.seconds)))
-
-    def __enter__(self):
-        if self.seconds != 0:
-            import signal     # This will fail on non-Unix systems.
-            self.prev_handler = signal.signal(signal.SIGALRM, self.signal_handler)
-            signal.alarm(self.seconds)
-
-    def __exit__(self, typ, value, traceback):
-        if self.seconds != 0:
-            import signal     # This will fail on non-Unix systems.
-            signal.alarm(0)
-            signal.signal(signal.SIGALRM, self.prev_handler)
-
 def shortenWithEllipsis(s, maxlen):
     if len(s) > maxlen:
         s = s[0:maxlen-3] + '...'
@@ -233,7 +211,7 @@ class WiredTigerTestCase(unittest.TestCase):
     def globalSetup(preserveFiles = False, removeAtStart = True, useTimestamp = False,
                     gdbSub = False, lldbSub = False, verbose = 1, builddir = None, dirarg = None,
                     longtest = False, zstdtest = False, ignoreStdout = False, seedw = 0, seedz = 0, 
-                    hookmgr = None, ss_random_prefix = 0, timeout = 0):
+                    hookmgr = None, ss_random_prefix = 0):
         WiredTigerTestCase._preserveFiles = preserveFiles
         d = 'WT_TEST' if dirarg == None else dirarg
         if useTimestamp:
@@ -263,11 +241,9 @@ class WiredTigerTestCase(unittest.TestCase):
         WiredTigerTestCase._ss_random_prefix = ss_random_prefix
         WiredTigerTestCase._retriesAfterRollback = 0
         WiredTigerTestCase._testsRun = 0
-        WiredTigerTestCase._timeout = timeout
         if hookmgr == None:
             hookmgr = wthooks.WiredTigerHookManager()
         WiredTigerTestCase._hookmgr = hookmgr
-        WiredTigerTestCase.hook_names = hookmgr.get_hook_names()
         if seedw != 0 and seedz != 0:
             WiredTigerTestCase._randomseed = True
             WiredTigerTestCase._seeds = [seedw, seedz]
@@ -307,18 +283,6 @@ class WiredTigerTestCase(unittest.TestCase):
         self.skipped = False
         if not self._globalSetup:
             WiredTigerTestCase.globalSetup()
-
-    def tableExists(self, name):
-        # XXX This is a little ugly to have knowledge of specific hooks here.
-        if 'tiered' in self.hook_names:
-            for i in range(1, 9):
-                tablename = name + "-000000000{}.wtobj".format(i)
-                if os.path.exists(tablename):
-                    return True
-            return False
-        else:
-            tablename = name + ".wt"
-            return os.path.exists(tablename)
 
     def __str__(self):
         # when running with scenarios, if the number_scenarios() method
@@ -361,9 +325,8 @@ class WiredTigerTestCase(unittest.TestCase):
         WiredTigerTestCase._testsRun += 1
         while not finished and rollbacksAllowed >= 0:
             try:
-                with timeout(WiredTigerTestCase._timeout):
-                    method()
-                    finished = True
+                method()
+                finished = True
             except wiredtiger.WiredTigerRollbackError:
                 WiredTigerTestCase._retriesAfterRollback += 1
                 self.prexception(sys.exc_info())
