@@ -40,7 +40,6 @@ class test_rollback_to_stable37(test_rollback_to_stable_base):
 
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
         ('row_integer', dict(key_format='i', value_format='S')),
     ]
 
