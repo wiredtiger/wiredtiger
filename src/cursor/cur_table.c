@@ -446,9 +446,8 @@ __curtable_reset(WT_CURSOR *cursor)
 
     APPLY_CG(ctable, reset);
 
-    if (API_USER_ENTRY(session)) {
+    if (API_USER_ENTRY(session))
         __wt_cursor_bound_reset(primary);
-    }
 
 err:
     API_END_RET(session, ret);

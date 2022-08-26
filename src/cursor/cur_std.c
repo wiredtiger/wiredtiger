@@ -651,6 +651,10 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 
     WT_TRET(cursor->reset(cursor));
 
+    /* 
+     * The cursor reset only clears bounds when called externally. Therefore explicitly clear the 
+     * bounds for cache cursors. 
+     */
     __wt_cursor_bound_reset(cursor);
 
     /* Don't keep buffers allocated for cached cursors. */
