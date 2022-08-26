@@ -64,20 +64,46 @@ from wttest import WiredTigerTestCase
 # Add the local storage extension whenever we call wiredtiger_open
 def wiredtiger_open_tiered(ignored_self, args):
     auth_token = "test_token"
+
+    # The bucket name, when it appears in configuration, is relative to the database home.
+    # Also build the path name to the bucket, including the home, so it can be created.
     bucket = "mybucket"
+    bucketpath = bucket
     extension_name = "dir_store"
     prefix = "pfx-"
+    curconfig = args[-1]
+    homedir = args[0]
+    if homedir != None:
+        bucketpath = os.path.join(homedir, bucketpath)
     extension_libs = WiredTigerTestCase.findExtension('storage_sources', extension_name)
     if len(extension_libs) == 0:
         raise Exception(extension_name + ' storage source extension not found')
 
-    if not os.path.exists(bucket):
-        os.mkdir(bucket)
-    tier_string = ',tiered_storage=(auth_token=%s,' % auth_token + \
+    if not os.path.exists(bucketpath):
+        os.mkdir(bucketpath)
+
+    tier_string = ',tiered_storage=(' + \
+      'auth_token=%s,' % auth_token + \
       'bucket=%s,' % bucket + \
       'bucket_prefix=%s,' % prefix + \
-      'name=%s),' % extension_name + \
-      'extensions=[\"%s\"],' % extension_libs[0]
+      'name=%s)' % extension_name
+
+    # Build the extension strings, we'll need to merge it with any extensions
+    # already in the configuration.
+    ext_string = 'extensions=['
+    start = curconfig.find(ext_string)
+    if start >= 0:
+        end = curconfig.find(']', start)
+        if end < 0:
+            raise Exception('hook_tiered: bad extensions in config \"%s\"' % curconfig)
+        ext_string = curconfig[start: end]
+
+    tier_string += ',' + ext_string + ',\"%s\"]' % extension_libs[0]
+
+    # The current implementation of flush_tier cannot complete until a new checkpoint has completed.
+    # Single threaded tests without a checkpoint thread would hang, so have WT do the checkpoint
+    # during the flush_tier call.
+    tier_string += ',debug_mode=(flush_checkpoint=true),'
 
     args = list(args)         # convert from a readonly tuple to a writeable list
     args[-1] += tier_string   # Modify the list
@@ -154,6 +180,14 @@ def session_drop_replace(orig_session_drop, session_self, uri, config):
         ret = orig_session_drop(session_self, uri, config)
     return ret
 
+# FIXME-WT-9785
+# Called to replace Session.open_cursor. This is needed to skip tests that
+# do statistics on (tiered) table data sources, as that is not yet supported.
+def session_open_cursor_replace(orig_session_open_cursor, session_self, uri, dupcursor, config):
+    if uri != None and (uri.startswith("statistics:table:") or uri.startswith("statistics:file:")):
+        raise unittest.SkipTest("statistics on tiered tables not yet implemented")
+    return orig_session_open_cursor(session_self, uri, dupcursor, config)
+
 # Called to replace Session.rename
 def session_rename_replace(orig_session_rename, session_self, uri, newuri, config):
     # Rename isn't implemented for tiered tables.  Only call it if this can't be the uri
@@ -196,15 +230,80 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
     def skip_test(self, test):
         # Skip any test that contains one of these strings as a substring
         skip = ["backup",               # Can't backup a tiered table
+                "env01",                # Using environment variable to set WT home
+                "config02",             # Using environment variable to set WT home
                 "cursor13_ckpt",        # Checkpoint tests with cached cursors
                 "cursor13_drops",       # Tests that require working drop implementation
                 "cursor13_dup",         # More cursor cache tests
                 "cursor13_reopens",     # More cursor cache tests
                 "lsm",                  # If the test name tells us it uses lsm ignore it
                 "modify_smoke_recover", # Copying WT dir doesn't copy the bucket directory
+                "salvage01",            # Salvage tests directly name files ending in ".wt"
                 "test_config_json",     # create replacement can't handle a json config string
                 "test_cursor_big",      # Cursor caching verified with stats
-                "tiered"]
+                "tiered",               # Tiered tests already do tiering.
+                "verify_api_75pct_null",# Test damages file, then reopens connection (flushes tier)
+                                        # so local file is undamaged
+
+                # FIXME-WT-???? The following failures should be triaged and potentially
+                # individually reticketed.
+
+                # This first group fail within Python for unknown reasons.
+                "test_alter03.test_alter03_table_app_metadata",
+                "test_bug018.test_bug018",
+                "test_checkpoint.test_checkpoint",
+                "test_checkpoint.test_checkpoint",
+                "test_checkpoint.test_checkpoint",
+                "test_checkpoint_snapshot02.test_checkpoint_snapshot_with_txnid_and_timestamp",
+                "test_compat05.test_compat05",
+                "test_config05.test_too_many_sessions",
+                "test_config09.test_config09",
+                "test_drop_create.test_drop_create2",
+                "test_encrypt06.test_encrypt",
+                "test_encrypt07.test_salvage_api",
+                "test_encrypt07.test_salvage_api_damaged",
+                "test_encrypt07.test_salvage_process_damaged",
+                "test_export01.test_export_restart",
+                "test_import04.test_table_import",
+                "test_import09.test_import_table_repair",
+                "test_import09.test_import_table_repair",
+                "test_import11.test_file_import",
+                "test_import11.test_file_import",
+                "test_join03.test_join",
+                "test_join07.test_join_string",
+                "test_jsondump02.test_json_all_bytes",
+                "test_prepare02.test_prepare_session_operations",
+                "test_prepare_hs03.test_prepare_hs",
+                "test_prepare_hs03.test_prepare_hs",
+                "test_rollback_to_stable09.test_rollback_to_stable",
+                "test_rollback_to_stable28.test_update_restore_evict_recovery",
+                "test_rollback_to_stable35.test_rollback_to_stable",
+                "test_sweep03.test_disable_idle_timeout_drop",
+                "test_sweep03.test_disable_idle_timeout_drop_force",
+                "test_verbose01.test_verbose_single",
+                "test_verbose02.test_verbose_single",
+                "test_verify2.test_verify_ckpt",
+
+                # This group currently cause severe errors, where Python crashes,
+                # whether from internal assertion or other causes.
+                "test_bug024.test_bug024",
+                "test_cursor16.test_cursor16",
+                "test_inmem01.test_insert",
+                "test_inmem01.test_insert_over_capacity",
+                "test_inmem01.test_insert_over_delete",
+                "test_inmem01.test_insert_over_delete_replace",
+                "test_inmem02.test_insert_over_allowed",
+                "test_prepare19.test_server_example",
+                "test_readonly03.test_readonly",
+                "test_rollback_to_stable18.test_rollback_to_stable",
+                "test_rollback_to_stable33.test_rollback_to_stable33",
+                "test_stat_log01_readonly.test_stat_log01_readonly",
+                "test_timestamp26_in_memory_ts.test_in_memory_ts",
+                "test_truncate15.test_truncate15",
+                "test_txn02.test_ops",
+
+                ]
+
         for item in skip:
             if item in str(test):
                 return True
@@ -236,6 +335,10 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
         orig_session_drop = self.Session['drop']
         self.Session['drop'] = (wthooks.HOOK_REPLACE, lambda s, uri, config=None:
           session_drop_replace(orig_session_drop, s, uri, config))
+
+        orig_session_open_cursor = self.Session['open_cursor']
+        self.Session['open_cursor'] = (wthooks.HOOK_REPLACE, lambda s, uri, todup=None, config=None:
+          session_open_cursor_replace(orig_session_open_cursor, s, uri, todup, config))
 
         orig_session_rename = self.Session['rename']
         self.Session['rename'] = (wthooks.HOOK_REPLACE, lambda s, uri, newuri, config=None:

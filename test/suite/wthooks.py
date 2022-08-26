@@ -159,6 +159,7 @@ class WiredTigerHookManager(object):
             except:
                 print('Cannot import hook: ' + name + ', check file ' + modname + '.py')
                 raise
+        self.hook_names = tuple(names_seen)
         for hook in self.hooks:
             hook.setup_hooks()
 
@@ -218,6 +219,9 @@ class WiredTigerHookManager(object):
         for hook in self.hooks:
             tests = hook.filter_tests(tests)
         return tests
+
+    def get_hook_names(self):
+        return self.hook_names
 
 class HookCreatorProxy(object):
     def __init__(self, hookmgr, clazz):
