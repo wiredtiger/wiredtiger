@@ -94,19 +94,15 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
             continue;
 
         /*
-         * The unstable update according to the following needs to be aborted.
-         * 1. An invisible update according to the checkpoint snapshot during recovery.
+         * An unstable update needs to be aborted if any of the following are true:
+         * 1. An update is invisible based on the checkpoint snapshot during recovery.
          * 2. The update durable timestamp is greater than the stable timestamp.
-         * 3. A prepared update.
-         *
-         * In a live system, there are no concurrent transaction running along with
-         * rollback to stable to verify transaction id of an update to confirm the stability
-         * of an update. But during recovery, the transaction id of an update must be validated
-         * against the checkpoint snapshot to confirm whether it is stable.
+         * 3. The update is a prepared update.
          *
          * Usually during recovery, there are no in memory updates present on the page. But
          * whenever an unstable fast truncate operation is written to the disk, as part
          * of the rollback to stable page read, it instantiates the tombstones on the page.
+         * The transaction id validation is ignored in all scenarios except recovery.
          */
         if (!__rollback_txn_visible_id(session, upd->txnid) ||
           rollback_timestamp < upd->durable_ts || upd->prepare_state == WT_PREPARE_INPROGRESS) {
