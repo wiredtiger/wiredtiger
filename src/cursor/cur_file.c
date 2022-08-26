@@ -275,6 +275,7 @@ __curfile_reset(WT_CURSOR *cursor)
 
     ret = __wt_btcur_reset(cbt);
 
+    /* If a user calls cursor reset also reset the bounds. */
     if (API_USER_ENTRY(session))
         __wt_cursor_bound_reset(cursor);
 

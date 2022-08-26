@@ -446,6 +446,7 @@ __curtable_reset(WT_CURSOR *cursor)
 
     APPLY_CG(ctable, reset);
 
+    /* If a user calls cursor reset also reset the bounds. */
     if (API_USER_ENTRY(session))
         __wt_cursor_bound_reset(primary);
 
