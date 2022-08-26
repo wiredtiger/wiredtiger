@@ -77,7 +77,7 @@ class DhandleStat(Stat):
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, DhandleStat.prefix, desc, flags)
 class JoinStat(Stat):
-    prefix = ''  # prefix is inserted dynamically
+    prefix = 'join'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, JoinStat.prefix, desc, flags)
 class LockStat(Stat):
@@ -338,7 +338,6 @@ conn_stats = [
     CursorStat('cursor_reopen', 'cursors reused from cache'),
     CursorStat('cursor_reserve', 'cursor reserve calls'),
     CursorStat('cursor_reset', 'cursor reset calls'),
-    CursorStat('cursor_bounds_reset', 'cursor bounds cleared from reset'),
     CursorStat('cursor_restart', 'cursor operation restarted'),
     CursorStat('cursor_search', 'cursor search calls'),
     CursorStat('cursor_search_hs', 'cursor search history store calls'),
@@ -547,6 +546,7 @@ conn_stats = [
     StorageStat('tiered_retention', 'tiered storage local retention time (secs)', 'no_clear,no_scale,size'),
     StorageStat('tiered_work_units_created', 'tiered operations scheduled'),
     StorageStat('tiered_work_units_dequeued', 'tiered operations dequeued and processed'),
+    StorageStat('tiered_work_units_removed', 'tiered operations removed without processing'),
 
     ##########################################
     # Thread Count statistics
@@ -751,7 +751,6 @@ dsrc_stats = [
     CursorStat('cursor_reopen', 'cache cursors reuse count'),
     CursorStat('cursor_reserve', 'reserve calls'),
     CursorStat('cursor_reset', 'reset calls'),
-    CursorStat('cursor_bounds_reset', 'cursor bounds cleared from reset'),
     CursorStat('cursor_restart', 'operation restarted'),
     CursorStat('cursor_search', 'search calls'),
     CursorStat('cursor_search_hs', 'search history store calls'),
@@ -840,6 +839,7 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_walks_gave_up_no_targets', 'eviction walks gave up because they saw too many pages and found no candidates'),
     CacheStat('cache_eviction_walks_gave_up_ratio', 'eviction walks gave up because they saw too many pages and found too few candidates'),
     CacheStat('cache_eviction_walks_stopped', 'eviction walks gave up because they restarted their walk twice'),
+    CacheStat('cache_hs_btree_truncate', 'history store table truncation to remove all the keys of a btree'),
     CacheStat('cache_hs_insert', 'history store table insert calls'),
     CacheStat('cache_hs_insert_full_update', 'the number of times full update inserted to history store'),
     CacheStat('cache_hs_insert_restart', 'history store table insert calls that returned restart'),
@@ -862,6 +862,8 @@ conn_dsrc_stats = [
     CacheStat('cache_read_deleted', 'pages read into cache after truncate'),
     CacheStat('cache_read_deleted_prepared', 'pages read into cache after truncate in prepare state'),
     CacheStat('cache_read_overflow', 'overflow pages read into cache'),
+    CacheStat('cache_reverse_splits', 'reverse splits performed'),
+    CacheStat('cache_reverse_splits_skipped_vlcs', 'reverse splits skipped because of VLCS namespace gap restrictions'),
     CacheStat('cache_write', 'pages written from cache'),
     CacheStat('cache_write_hs', 'page written requiring history store records'),
     CacheStat('cache_write_restore', 'pages written requiring in-memory restoration'),
@@ -869,6 +871,13 @@ conn_dsrc_stats = [
     ##########################################
     # Cursor operations
     ##########################################
+    CursorStat('cursor_bounds_reset', 'cursor bounds cleared from reset'),
+    CursorStat('cursor_bounds_next_early_exit', 'cursor bounds next early exit'),
+    CursorStat('cursor_bounds_prev_early_exit', 'cursor bounds prev early exit'),
+    CursorStat('cursor_bounds_search_early_exit', 'cursor bounds search early exit'),    
+    CursorStat('cursor_bounds_search_near_repositioned_cursor', 'cursor bounds search near call repositioned cursor'),
+    CursorStat('cursor_bounds_next_unpositioned', 'cursor bounds next called on an unpositioned cursor'),
+    CursorStat('cursor_bounds_prev_unpositioned', 'cursor bounds prev called on an unpositioned cursor'),
     CursorStat('cursor_next_hs_tombstone', 'cursor next calls that skip due to a globally visible history store tombstone'),
     CursorStat('cursor_next_skip_ge_100', 'cursor next calls that skip greater than or equal to 100 entries'),
     CursorStat('cursor_next_skip_lt_100', 'cursor next calls that skip less than 100 entries'),
@@ -950,6 +959,7 @@ conn_dsrc_stats = [
     RecStat('rec_time_window_start_txn', 'records written including a start transaction ID'),
     RecStat('rec_time_window_stop_ts', 'records written including a stop timestamp'),
     RecStat('rec_time_window_stop_txn', 'records written including a stop transaction ID'),
+    RecStat('rec_vlcs_emptied_pages', 'VLCS pages explicitly reconciled as empty'),
 
     ##########################################
     # Transaction statistics
@@ -993,6 +1003,7 @@ session_stats = [
     SessionStat('cache_time', 'time waiting for cache (usecs)'),
     SessionStat('lock_dhandle_wait', 'dhandle lock wait time (usecs)'),
     SessionStat('lock_schema_wait', 'schema lock wait time (usecs)'),
+    SessionStat('txn_bytes_dirty', 'dirty bytes in this txn'),
     SessionStat('read_time', 'page read from disk to cache time (usecs)'),
     SessionStat('write_time', 'page write from cache to disk time (usecs)'),
 ]

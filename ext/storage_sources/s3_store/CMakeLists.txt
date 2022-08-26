@@ -1,4 +1,3 @@
-set(CMAKE_CXX_STANDARD 17)
 project(s3_store CXX)
 
 # Create an intermediate library to build the helper library.
@@ -13,7 +12,6 @@ target_include_directories(
 
 target_compile_options(
     aws_bucket_util
-    PUBLIC -std=c++17
     PRIVATE ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
 )
 
@@ -37,7 +35,6 @@ target_include_directories(
 
 target_compile_options(
     wiredtiger_s3_store
-    PUBLIC -std=c++17
     PRIVATE ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
 )
 
@@ -49,5 +46,11 @@ target_link_libraries(
         aws-sdk::core
 )
 
-# Add the unit tests.
-add_subdirectory(test)
+if(ENABLE_TCMALLOC)
+    target_link_libraries(wiredtiger_s3_store PRIVATE wt::tcmalloc)
+endif()
+
+# Add the unit tests, need Catch2 which is resolved with HAVE_UNITTEST.
+if(HAVE_UNITTEST)
+    add_subdirectory(test)
+endif()

@@ -100,7 +100,6 @@ else()
     set(swig_cxx_flags
         -Wno-sign-conversion
         -w
-        -std=c++17
     )
 endif()
 list(APPEND swig_cxx_flags -I${CMAKE_SOURCE_DIR})

@@ -2,6 +2,8 @@ project(cppsuite CXX)
 
 # Create an intermediate static lib.
 add_library(cppsuite_test_harness STATIC
+    src/bound/bound.cpp
+    src/bound/bound_set.cpp
     src/common/constants.cpp
     src/common/logger.cpp
     src/common/random_generator.cpp
@@ -33,7 +35,6 @@ add_library(cppsuite_test_harness STATIC
 target_include_directories(cppsuite_test_harness PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_options(
     cppsuite_test_harness
-    PUBLIC -std=c++17
     PRIVATE ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
 )
 target_link_libraries(cppsuite_test_harness PRIVATE test_util)
@@ -55,11 +56,6 @@ create_test_executable(csuite_style_example_test
     LIBS cppsuite_test_harness
     CXX
 )
-
-if(ENABLE_TCMALLOC)
-    target_link_libraries(run wt::tcmalloc)
-    target_link_libraries(csuite_style_example_test wt::tcmalloc)
-endif()
 
 # Test definitions.
 add_test(NAME cppsuite COMMAND ${CMAKE_CURRENT_BINARY_DIR}/run)
