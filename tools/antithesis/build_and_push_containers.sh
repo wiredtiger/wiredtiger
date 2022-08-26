@@ -3,6 +3,8 @@
 set -o errexit
 set -o verbose
 
+set
+
 tag="evergreen-latest"
 if [ "${is_patch}" = "true" ]; then
     tag="evergreen-patch"
@@ -11,11 +13,6 @@ fi
 if [ -n "${antithesis_image_tag:-}" ]; then
     echo "Using provided tag: '$antithesis_image_tag' for docker pushes"
     tag=$antithesis_image_tag
-fi
-
-if [ -n "${antithesis_repo_key:-}" ]; then
-    echo "ERROR: Missing antithesis_repo_key"
-    exit 1
 fi
 
 # Build the containers
