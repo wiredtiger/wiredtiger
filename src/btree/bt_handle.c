@@ -830,9 +830,9 @@ err:
 
 /*
  * __btree_get_last_recno --
- *     Set the last record number for a column-store.
- *     Note that this is used to handle appending to a column store after a truncate operation. It
- *     is not related to the WT_CURSOR::largest_key API.
+ *     Set the last record number for a column-store. Note that this is used to handle appending to
+ *     a column store after a truncate operation. It is not related to the WT_CURSOR::largest_key
+ *     API.
  */
 static int
 __btree_get_last_recno(WT_SESSION_IMPL *session)
