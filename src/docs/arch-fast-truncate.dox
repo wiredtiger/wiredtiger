@@ -183,6 +183,7 @@ This is used by prepare to avoid trying to coalesce these updates with others to
 key.
 (That wouldn't work because the instantiation updates don't appear directly in the
 transaction modify list; they are referenced indirectly through the truncation.)
+
 If the deletion is not resolved (according to the \c page_del information in the ref) an
 array is allocated to hold the updates and this is placed in \c
 page->modify->inst_updates.
