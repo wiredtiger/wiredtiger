@@ -29,7 +29,7 @@ rm mongodb.key.json
 sudo docker tag "wt-test-format:$tag" "us-central1-docker.pkg.dev/molten-verve-216720/mongodb-repository/wt-test-format:$tag"
 sudo docker push "us-central1-docker.pkg.dev/molten-verve-216720/mongodb-repository/wt-test-format:$tag"
 
-sudo docker tag "wt-test-format:$tag" "us-central1-docker.pkg.dev/molten-verve-216720/mongodb-repository/wt-test-format-config:$tag"
+sudo docker tag "wt-test-format-config:$tag" "us-central1-docker.pkg.dev/molten-verve-216720/mongodb-repository/wt-test-format-config:$tag"
 sudo docker push "us-central1-docker.pkg.dev/molten-verve-216720/mongodb-repository/wt-test-format-config:$tag"
 
 sudo docker logout https://us-central1-docker.pkg.dev
