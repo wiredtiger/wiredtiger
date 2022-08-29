@@ -200,7 +200,6 @@ class bounded_cursor_stress : public test {
      * inclusive configuration is also randomly set as well.
      */
     bound_set
-
     set_random_bounds(thread_worker *tc, scoped_cursor &bounded_cursor)
     {
         bound lower_bound, upper_bound;
@@ -219,8 +218,9 @@ class bounded_cursor_stress : public test {
                 /* Ensure that the lower and upper bounds are never overlapping. */
                 auto diff = _reverse_collator_enabled ? -1 : 1;
                 upper_bound = bound(tc->key_size, false, lower_bound.get_key()[0] + diff);
-            } else
+            } else {
                 upper_bound = bound(tc->key_size, false);
+            }
 
         if (action == bound_action::ALL_BOUNDS_SET)
             testutil_assert(
@@ -231,8 +231,7 @@ class bounded_cursor_stress : public test {
         if (!(upper_bound.get_key()).empty())
             upper_bound.apply(bounded_cursor);
 
-        bound_set cursor_bounds = bound_set(lower_bound, upper_bound);
-        return cursor_bounds;
+        return bound_set(lower_bound, upper_bound);
     }
 
     /*
@@ -244,7 +243,7 @@ class bounded_cursor_stress : public test {
      */
     void
     validate_bound_search(int range_ret, scoped_cursor &bounded_cursor,
-      const std::string &search_key, const bound_set bounds)
+      const std::string &search_key, const bound_set &bounds)
     {
         auto lower_bound = bounds.get_lower();
         auto upper_bound = bounds.get_upper();
@@ -297,7 +296,7 @@ class bounded_cursor_stress : public test {
      */
     void
     validate_bound_search_near(int range_ret, int range_exact, scoped_cursor &bounded_cursor,
-      scoped_cursor &normal_cursor, const std::string &search_key, const bound_set bounds)
+      scoped_cursor &normal_cursor, const std::string &search_key, const bound_set &bounds)
     {
         auto lower_bound = bounds.get_lower();
         auto upper_bound = bounds.get_upper();

@@ -136,14 +136,14 @@ run_test(const std::string &test_name, const std::string &config, const std::str
         burst_inserts(args).run();
     else if (test_name == "cache_resize")
         cache_resize(args).run();
-    else if (test_name == "bounded_cursor_stress")
-        bounded_cursor_stress(args).run();
-    else if (test_name == "bounded_cursor_prefix_stat")
-        bounded_cursor_prefix_stat(args).run();
-    else if (test_name == "bounded_cursor_prefix_search_near")
-        bounded_cursor_prefix_search_near(args).run();
     else if (test_name == "bounded_cursor_prefix_indices")
         bounded_cursor_prefix_indices(args).run();
+    else if (test_name == "bounded_cursor_prefix_search_near")
+        bounded_cursor_prefix_search_near(args).run();
+    else if (test_name == "bounded_cursor_prefix_stat")
+        bounded_cursor_prefix_stat(args).run();
+    else if (test_name == "bounded_cursor_stress")
+        bounded_cursor_stress(args).run();
     else if (test_name == "hs_cleanup")
         hs_cleanup(args).run();
     else if (test_name == "operations_test")
@@ -179,9 +179,9 @@ main(int argc, char *argv[])
     std::string cfg, config_filename, current_cfg, current_test_name, test_name, wt_open_config;
     int64_t error_code = 0;
     const std::vector<std::string> all_tests = {"bounded_cursor_perf", "burst_inserts",
-      "cache_resize", "bounded_cursor_stress", "bounded_cursor_prefix_stat",
-      "bounded_cursor_prefix_search_near", "bounded_cursor_prefix_indices", "hs_cleanup",
-      "operations_test", "search_near_01", "search_near_02", "search_near_03", "test_template"};
+      "cache_resize", "bounded_cursor_prefix_indices", "bounded_cursor_prefix_search_near",
+      "bounded_cursor_prefix_stat", "bounded_cursor_stress", "hs_cleanup", "operations_test",
+      "search_near_01", "search_near_02", "search_near_03", "test_template"};
 
     /* Set the program name for error messages. */
     (void)testutil_set_progname(argv);
