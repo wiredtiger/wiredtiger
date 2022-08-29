@@ -29,8 +29,8 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-# test_prepare23.py
-# Test prepare rollback with rollback to stable and failed eviction.
+# test_prepare25.py
+# Test prepare rollback and then prepare commit with failed eviction.
 class test_prepare23(wttest.WiredTigerTestCase):
     conn_config = 'timing_stress_for_test=[failpoint_eviction_fail_after_reconciliation]'
 
@@ -47,8 +47,8 @@ class test_prepare23(wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios(format_values, delete)
 
-    def test_prepare23(self):
-        uri = "table:test_prepare23"
+    def test_prepare25(self):
+        uri = "table:test_prepare25"
         self.session.create(uri, 'key_format=' + self.key_format + ',value_format=' + self.value_format)
 
         if self.value_format == '8t':
@@ -68,56 +68,57 @@ class test_prepare23(wttest.WiredTigerTestCase):
         evict_cursor = session2.open_cursor(uri, None, 'debug=(release_evict)')
         ts = 0
         for i in range (1, 1001):
-            # Do the first update
+            # Insert an update
             self.session.begin_transaction()
             cursor[i] = value_a
             self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts + 10))
-
-            # Do the second update
-            self.session.begin_transaction()
-            cursor[i] = value_b
-            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts + 20))
 
             if self.delete:
                 self.session.begin_transaction()
                 cursor.set_key(i)
                 cursor.remove()
-                self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts + 30))
+                self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts + 20))
 
             # Do a prepared update
             self.session.begin_transaction()
-            cursor[i] = value_c
-            self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(ts + 40))
+            cursor[i] = value_b
+            self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(ts + 30))
             cursor.reset()
 
             # Evict the page
-            session2.begin_transaction('ignore_prepare=true,read_timestamp=' + self.timestamp_str(ts + 20))
-            self.assertEquals(evict_cursor[i], value_b)
+            session2.begin_transaction('ignore_prepare=true,read_timestamp=' + self.timestamp_str(ts + 10))
+            self.assertEquals(evict_cursor[i], value_a)
             evict_cursor.reset()
             session2.rollback_transaction()
 
             # Rollback the prepared transaction
             self.session.rollback_transaction()
 
-            # Set stable timestamp to 30 * i
-            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts + 30))
+            # Do another prepared update
+            self.session.begin_transaction()
+            cursor[i] = value_c
+            self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(ts + 40))
 
-            # Call rollback to stable
-            self.conn.rollback_to_stable()
+            # Commit the prepared update
+            self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(ts + 40))
+            self.session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(ts + 50))
+            self.session.commit_transaction()
+            cursor.reset()
+
+            # Evict the page again
+            session2.begin_transaction('ignore_prepare=true,read_timestamp=' + self.timestamp_str(ts + 10))
+            self.assertEquals(evict_cursor[i], value_a)
+            evict_cursor.reset()
+            session2.rollback_transaction()
 
             # Verify we can still read back value a
             self.session.begin_transaction('read_timestamp=' + self.timestamp_str(ts + 10))
             self.assertEquals(cursor[i], value_a)
             self.session.rollback_transaction()
 
-            # Verify we can still read back value b
-            self.session.begin_transaction('read_timestamp=' + self.timestamp_str(ts + 20))
-            self.assertEquals(cursor[i], value_b)
-            self.session.rollback_transaction()
-
             # Verify we can still read back the deletion
             if self.delete:
-                self.session.begin_transaction('read_timestamp=' + self.timestamp_str(ts + 30))
+                self.session.begin_transaction('read_timestamp=' + self.timestamp_str(ts + 20))
                 if self.value_format == '8t':
                     self.assertEquals(cursor[i], 0)
                 else:
@@ -125,7 +126,12 @@ class test_prepare23(wttest.WiredTigerTestCase):
                     self.assertEquals(cursor.search(), wiredtiger.WT_NOTFOUND)
                 self.session.rollback_transaction()
             
-            ts += 40
+            # Verify we can still read back value c
+            self.session.begin_transaction('read_timestamp=' + self.timestamp_str(ts + 40))
+            self.assertEquals(cursor[i], value_c)
+            self.session.rollback_transaction()
+            
+            ts += 50
 
 if __name__ == '__main__':
     wttest.run()
