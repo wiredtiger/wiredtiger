@@ -218,7 +218,7 @@ class bounded_cursor_stress : public test {
             if (action == bound_action::ALL_BOUNDS_SET) {
                 /* Ensure that the lower and upper bounds are never overlapping. */
                 auto diff = _reverse_collator_enabled ? -1 : 1;
-                upper_bound =  bound(tc->key_size, false, lower_bound.get_key()[0] + diff);
+                upper_bound = bound(tc->key_size, false, lower_bound.get_key()[0] + diff);
             } else
                 upper_bound = bound(tc->key_size, false);
 
@@ -248,7 +248,7 @@ class bounded_cursor_stress : public test {
     {
         auto lower_bound = bounds.get_lower();
         auto upper_bound = bounds.get_upper();
-        auto lower_key =  lower_bound.get_key();
+        auto lower_key = lower_bound.get_key();
         auto upper_key = upper_bound.get_key();
         auto lower_inclusive = lower_bound.get_inclusive();
         auto upper_inclusive = upper_bound.get_inclusive();
@@ -646,8 +646,8 @@ class bounded_cursor_stress : public test {
                     continue;
 
                 /* Verify the bound search_near result using the normal cursor. */
-                validate_bound_search_near(ret, exact, bounded_cursor, normal_cursor, srch_key,
-                  bound_pair);
+                validate_bound_search_near(
+                  ret, exact, bounded_cursor, normal_cursor, srch_key, bound_pair);
 
                 /*
                  * If search near was successful, use the key it's currently positioned on as the
@@ -667,8 +667,7 @@ class bounded_cursor_stress : public test {
                     testutil_assert(ret == 0 || ret == WT_NOTFOUND || ret == WT_ROLLBACK);
                     if (ret == WT_ROLLBACK)
                         continue;
-                    validate_bound_search(ret, bounded_cursor, range_key_copy,
-                      bound_pair);
+                    validate_bound_search(ret, bounded_cursor, range_key_copy, bound_pair);
                 }
 
                 tc->txn.add_op();
