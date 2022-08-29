@@ -439,7 +439,7 @@ __curtable_reset(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
 
     ctable = (WT_CURSOR_TABLE *)cursor;
-    /* Grab the primary cursor and call bound function. */
+    /* Grab the primary cursor to reset the bounds. */
     primary = *ctable->cg_cursors;
 
     JOINABLE_CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, NULL);
