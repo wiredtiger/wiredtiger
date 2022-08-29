@@ -708,14 +708,12 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_PAGE *page;
     uint32_t flags;
     bool closing, is_eviction_thread, use_snapshot_for_app_thread;
 
     btree = S2BT(session);
     conn = S2C(session);
     flags = WT_REC_EVICT;
-    page = ref->page;
     closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
 
     /*
@@ -840,7 +838,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
      * Success: assert that the page is clean or reconciliation was configured to save updates.
      */
     WT_ASSERT(session,
-      !__wt_page_is_modified(page) || LF_ISSET(WT_REC_HS | WT_REC_IN_MEMORY) ||
+      !__wt_page_is_modified(ref->page) || LF_ISSET(WT_REC_HS | WT_REC_IN_MEMORY) ||
         WT_IS_METADATA(btree->dhandle));
 
     return (0);
