@@ -638,7 +638,7 @@ Page deletion information unpacked from the on-disk cell by \c __wt_ref_addr_cop
 @row{btree_inline.h, Structure member, \c WT_ADDR_COPY::del_set,
 True if page deletion information was unpacked.}
 @row{btree_inline.h, Hook, in \c __wt_ref_addr_copy,
-A hook to return the page delete information unpacked from the address
+Return the page delete information unpacked from the address.}
 @row{btree_inline.h, Function, \c __wt_page_del_visible,
 Function for checking thread visibility of a \c WT_PAGE_DELETED.}
 @row{btree_inline.h, Function, \c __wt_page_del_visible_all,
