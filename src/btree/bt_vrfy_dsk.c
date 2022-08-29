@@ -210,7 +210,8 @@ __wt_verify_dsk_image(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_H
 int
 __wt_verify_dsk(WT_SESSION_IMPL *session, const char *tag, WT_ITEM *buf)
 {
-    return (__wt_verify_dsk_image(session, tag, buf->data, buf->size, NULL, WT_VRFY_DISK_EMPTY_PAGE_OK));
+    return (
+      __wt_verify_dsk_image(session, tag, buf->data, buf->size, NULL, WT_VRFY_DISK_CONTINUE_ON_FAILURE));
 }
 
 /*
@@ -418,8 +419,8 @@ __verify_dsk_row_int(WT_VERIFY_INFO *vi)
 
         /* Internal row-store cells should not have prefix compression or recno/rle fields. */
         if (unpack->prefix != 0)
-            WT_ERR_VRFY(vi->session, vi->flags, "the %" PRIu32 " cell on page at %s has a non-zero prefix",
-              cell_num, vi->tag);
+            WT_ERR_VRFY(vi->session, vi->flags,
+              "the %" PRIu32 " cell on page at %s has a non-zero prefix", cell_num, vi->tag);
         if (unpack->v != 0)
             WT_ERR_VRFY(vi->session, vi->flags,
               "the %" PRIu32 " cell on page at %s has a non-zero rle/recno field", cell_num,
