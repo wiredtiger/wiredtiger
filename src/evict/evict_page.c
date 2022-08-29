@@ -185,9 +185,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
      * Fail 0.1% of the time after we have done reconciliation. We should always evict the page of a
      * dead tree.
      */
-    if (!closing &&
-      !tree_dead __wt_failpoint(
-        session, WT_TIMING_STRESS_FAILPOINT_EVICTION_FAIL_AFTER_RECONCILIATION, 10))
+    if (!closing && !tree_dead &&
+      __wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_EVICTION_FAIL_AFTER_RECONCILIATION, 10))
         return (EBUSY);
 
     /* Check we are not evicting an accessible internal page with an active split generation. */
