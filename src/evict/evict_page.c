@@ -169,11 +169,13 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     WT_ERR(__evict_review(session, ref, flags, &inmem_split));
 
     /*
-     * If there was an in-memory split, the tree has been left in the state we want: there is
-     * nothing more to do.
+     * If we decide to do an in-memory split. Do it now. If an in-memory split completes, the page
+     * stays in memory and the tree is left in the desired state: avoid the usual cleanup.
      */
-    if (inmem_split)
+    if (inmem_split) {
+        WT_ERR(__wt_split_insert(session, ref));
         goto done;
+    }
 
     /* Reconcile the page if it is dirty. Otherwise, directly evict it from memory. */
     if (__wt_page_is_modified(page))
@@ -661,11 +663,10 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
 
         /*
          * Check for an append-only workload needing an in-memory split; we can't do this earlier
-         * because in-memory splits require exclusive access. If an in-memory split completes, the
-         * page stays in memory and the tree is left in the desired state: avoid the usual cleanup.
+         * because in-memory splits require exclusive access.
          */
         if (*inmem_splitp)
-            return (__wt_split_insert(session, ref));
+            return (0);
     }
 
     /* If the page is clean, we're done and we can evict. */
