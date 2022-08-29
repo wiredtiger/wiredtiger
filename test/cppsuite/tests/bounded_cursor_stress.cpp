@@ -213,7 +213,7 @@ class bounded_cursor_stress : public test {
         if (action == bound_action::LOWER_BOUND_SET || action == bound_action::ALL_BOUNDS_SET)
             lower_bound = bound(tc->key_size, true);
 
-        if (action == bound_action::UPPER_BOUND_SET || action == bound_action::ALL_BOUNDS_SET)
+        if (action == bound_action::UPPER_BOUND_SET || action == bound_action::ALL_BOUNDS_SET) {
             if (action == bound_action::ALL_BOUNDS_SET) {
                 /* Ensure that the lower and upper bounds are never overlapping. */
                 auto diff = _reverse_collator_enabled ? -1 : 1;
@@ -221,6 +221,7 @@ class bounded_cursor_stress : public test {
             } else {
                 upper_bound = bound(tc->key_size, false);
             }
+        }
 
         if (action == bound_action::ALL_BOUNDS_SET)
             testutil_assert(
