@@ -10,6 +10,7 @@
 
 static int __evict_page_clean_update(WT_SESSION_IMPL *, WT_REF *, uint32_t);
 static int __evict_page_dirty_update(WT_SESSION_IMPL *, WT_REF *, uint32_t);
+static int __evict_reconcile(WT_SESSION_IMPL *, WT_REF *, uint32_t);
 static int __evict_review(WT_SESSION_IMPL *, WT_REF *, uint32_t, bool *);
 
 /*
@@ -173,6 +174,15 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
      */
     if (inmem_split)
         goto done;
+
+    /* Reconcile the page if it is dirty. Otherwise, directly evict it from memory. */
+    if (__wt_page_is_modified(page))
+        WT_ERR(__evict_reconcile(session, ref, flags));
+
+    /* Fail 0.1% of the time after we have done reconciliation. */
+    if (!closing &&
+      __wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_EVICTION_FAIL_AFTER_RECONCILIATION, 10))
+        return (EBUSY);
 
     /* Check we are not evicting an accessible internal page with an active split generation. */
     WT_ASSERT(session,
@@ -595,20 +605,16 @@ static int
 __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool *inmem_splitp)
 {
     WT_BTREE *btree;
-    WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
-    uint32_t flags;
     bool closing, modified;
-    bool is_eviction_thread, use_snapshot_for_app_thread;
 
     *inmem_splitp = false;
 
     btree = S2BT(session);
     conn = S2C(session);
     page = ref->page;
-    flags = WT_REC_EVICT;
     closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
 
     /*
@@ -686,6 +692,30 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      */
     if (F_ISSET(session, WT_SESSION_NO_RECONCILE))
         return (__wt_set_return(session, EBUSY));
+
+    return (0);
+}
+
+/*
+ * __evict_reconcile --
+ *     Reconcile the page for eviction
+ */
+static int
+__evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
+{
+    WT_BTREE *btree;
+    WT_CACHE *cache;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_PAGE *page;
+    uint32_t flags;
+    bool closing, is_eviction_thread, use_snapshot_for_app_thread;
+
+    btree = S2BT(session);
+    conn = S2C(session);
+    flags = WT_REC_EVICT;
+    page = ref->page;
+    closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
 
     /*
      * If the page is dirty, reconcile it to decide if we can evict it.
@@ -811,11 +841,6 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     WT_ASSERT(session,
       !__wt_page_is_modified(page) || LF_ISSET(WT_REC_HS | WT_REC_IN_MEMORY) ||
         WT_IS_METADATA(btree->dhandle));
-
-    /* Fail 0.1% of the time. */
-    if (!closing &&
-      __wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_EVICTION_FAIL_AFTER_RECONCILIATION, 10))
-        return (EBUSY);
 
     return (0);
 }
