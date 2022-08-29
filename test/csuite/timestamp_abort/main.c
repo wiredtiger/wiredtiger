@@ -70,6 +70,7 @@ static char home[1024]; /* Program working dir */
 #define RECORDS_FILE "records-%" PRIu32
 /* Include worker threads and prepare extra sessions */
 #define SESSION_MAX (MAX_TH + 3 + MAX_TH * PREPARE_PCT)
+#define STAT_WAIT 1
 
 static const char *table_pfx = "table";
 static const char *const uri_collection = "collection";
@@ -99,7 +100,7 @@ static uint64_t global_ts = 1;
     "debug_mode=(table_logging=true,checkpoint_retention=5)," \
     "eviction_updates_target=20,eviction_updates_trigger=90," \
     "log=(enabled,file_max=10M,remove=true),session_max=%d,"  \
-    "statistics=(fast),statistics_log=(wait=1,json=true)"
+    "statistics=(fast),statistics_log=(wait=%d,json=true)"
 #define ENV_CONFIG_TXNSYNC \
     ENV_CONFIG_DEF         \
     ",transaction_sync=(enabled,method=none)"
@@ -185,26 +186,26 @@ thread_ts_run(void *arg)
         testutil_check(conn->set_timestamp(conn, tscfg));
 
         /*
-         * Only perform the reconfigure test every two seconds. If we do it too frequently then
-         * internal servers like the statistics server get destroyed and restarted too fast to do
-         * any work.
+         * Only perform the reconfigure test after statistics have a chance to run. If we do it too
+         * frequently then internal servers like the statistics server get destroyed and restarted
+         * too fast to do any work.
          */
         __wt_seconds((WT_SESSION_IMPL *)session, &now);
-        if (now - 2 <= last_reconfig)
-            continue;
-        /*
-         * Set and reset the checkpoint retention setting on a regular basis. We want to test racing
-         * with the internal log removal thread while we're here.
-         */
-        dbg = __wt_random(&rnd) % 2;
-        if (dbg == 0)
-            testutil_check(
-              __wt_snprintf(tscfg, sizeof(tscfg), "debug_mode=(checkpoint_retention=0)"));
-        else
-            testutil_check(
-              __wt_snprintf(tscfg, sizeof(tscfg), "debug_mode=(checkpoint_retention=5)"));
-        testutil_check(conn->reconfigure(conn, tscfg));
-        last_reconfig = now;
+        if (now > last_reconfig + STAT_WAIT + 1) {
+            /*
+             * Set and reset the checkpoint retention setting on a regular basis. We want to test
+             * racing with the internal log removal thread while we're here.
+             */
+            dbg = __wt_random(&rnd) % 2;
+            if (dbg == 0)
+                testutil_check(
+                  __wt_snprintf(tscfg, sizeof(tscfg), "debug_mode=(checkpoint_retention=0)"));
+            else
+                testutil_check(
+                  __wt_snprintf(tscfg, sizeof(tscfg), "debug_mode=(checkpoint_retention=5)"));
+            testutil_check(conn->reconfigure(conn, tscfg));
+            last_reconfig = now;
+        }
     }
     /* NOTREACHED */
 }
@@ -502,11 +503,11 @@ run_workload(void)
     if (chdir(home) != 0)
         testutil_die(errno, "Child chdir: %s", home);
     if (inmem)
-        testutil_check(
-          __wt_snprintf(envconf, sizeof(envconf), ENV_CONFIG_DEF, cache_mb, SESSION_MAX));
+        testutil_check(__wt_snprintf(
+          envconf, sizeof(envconf), ENV_CONFIG_DEF, cache_mb, SESSION_MAX, STAT_WAIT));
     else
-        testutil_check(
-          __wt_snprintf(envconf, sizeof(envconf), ENV_CONFIG_TXNSYNC, cache_mb, SESSION_MAX));
+        testutil_check(__wt_snprintf(
+          envconf, sizeof(envconf), ENV_CONFIG_TXNSYNC, cache_mb, SESSION_MAX, STAT_WAIT));
     if (compat)
         strcat(envconf, ENV_CONFIG_ADD_COMPAT);
     if (stress)
