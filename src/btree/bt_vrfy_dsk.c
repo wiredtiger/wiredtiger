@@ -210,8 +210,8 @@ __wt_verify_dsk_image(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_H
 int
 __wt_verify_dsk(WT_SESSION_IMPL *session, const char *tag, WT_ITEM *buf)
 {
-    return (
-      __wt_verify_dsk_image(session, tag, buf->data, buf->size, NULL, WT_VRFY_DISK_CONTINUE_ON_FAILURE));
+    return (__wt_verify_dsk_image(
+      session, tag, buf->data, buf->size, NULL, WT_VRFY_DISK_CONTINUE_ON_FAILURE));
 }
 
 /*
