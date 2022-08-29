@@ -211,20 +211,16 @@ class bounded_cursor_stress : public test {
         if (action == bound_action::NO_BOUNDS)
             testutil_check(bounded_cursor->bound(bounded_cursor.get(), "action=clear"));
 
-        if (action == bound_action::LOWER_BOUND_SET || action == bound_action::ALL_BOUNDS_SET) {
+        if (action == bound_action::LOWER_BOUND_SET || action == bound_action::ALL_BOUNDS_SET)
             lower_bound = bound(tc->key_size, true);
-        }
 
-        if (action == bound_action::UPPER_BOUND_SET || action == bound_action::ALL_BOUNDS_SET) {
+        if (action == bound_action::UPPER_BOUND_SET || action == bound_action::ALL_BOUNDS_SET)
             if (action == bound_action::ALL_BOUNDS_SET) {
                 /* Ensure that the lower and upper bounds are never overlapping. */
-                if (_reverse_collator_enabled)
-                    upper_bound = bound(tc->key_size, false, lower_bound.get_key()[0] - 1);
-                else
-                    upper_bound = bound(tc->key_size, false, lower_bound.get_key()[0] + 1);
+                auto diff = _reverse_collator_enabled ? -1 : 1;
+                upper_bound =  bound(tc->key_size, false, lower_bound.get_key()[0] + diff);
             } else
                 upper_bound = bound(tc->key_size, false);
-        }
 
         if (action == bound_action::ALL_BOUNDS_SET)
             testutil_assert(
@@ -248,9 +244,11 @@ class bounded_cursor_stress : public test {
      */
     void
     validate_bound_search(int range_ret, scoped_cursor &bounded_cursor,
-      const std::string &search_key, const bound &lower_bound, const bound &upper_bound)
+      const std::string &search_key, const bound_set bounds)
     {
-        auto lower_key = lower_bound.get_key();
+        auto lower_bound = bounds.get_lower();
+        auto upper_bound = bounds.get_upper();
+        auto lower_key =  lower_bound.get_key();
         auto upper_key = upper_bound.get_key();
         auto lower_inclusive = lower_bound.get_inclusive();
         auto upper_inclusive = upper_bound.get_inclusive();
@@ -299,9 +297,10 @@ class bounded_cursor_stress : public test {
      */
     void
     validate_bound_search_near(int range_ret, int range_exact, scoped_cursor &bounded_cursor,
-      scoped_cursor &normal_cursor, const std::string &search_key, const bound &lower_bound,
-      const bound &upper_bound)
+      scoped_cursor &normal_cursor, const std::string &search_key, const bound_set bounds)
     {
+        auto lower_bound = bounds.get_lower();
+        auto upper_bound = bounds.get_upper();
         /* Range cursor has successfully returned with a key. */
         if (range_ret == 0) {
             auto lower_key = lower_bound.get_key();
@@ -648,7 +647,7 @@ class bounded_cursor_stress : public test {
 
                 /* Verify the bound search_near result using the normal cursor. */
                 validate_bound_search_near(ret, exact, bounded_cursor, normal_cursor, srch_key,
-                  bound_pair.get_lower(), bound_pair.get_upper());
+                  bound_pair);
 
                 /*
                  * If search near was successful, use the key it's currently positioned on as the
@@ -669,7 +668,7 @@ class bounded_cursor_stress : public test {
                     if (ret == WT_ROLLBACK)
                         continue;
                     validate_bound_search(ret, bounded_cursor, range_key_copy,
-                      bound_pair.get_lower(), bound_pair.get_upper());
+                      bound_pair);
                 }
 
                 tc->txn.add_op();

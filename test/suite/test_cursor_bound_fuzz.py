@@ -150,7 +150,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     # Get a value from the value array.
     def get_value(self):
         return self.value_array[random.randrange(self.value_array_size)]
-        
+
     # Get a key within the range of min_key and max_key.
     def get_random_key(self):
         return random.randrange(self.min_key, self.max_key)

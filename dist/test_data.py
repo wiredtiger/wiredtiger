@@ -246,12 +246,12 @@ methods = {
         Config("burst_duration", 90, r'''
         How long the insertions will occur for.''')]),
     'cache_resize' : Method(test_config),
-    'bounded_cursor_stress' : Method(test_config),
+    'bounded_cursor_prefix_indices' : Method(test_config),
+    'bounded_cursor_prefix_search_near' : Method(test_config),
     'bounded_cursor_prefix_stat' : Method(test_config + [
         Config("search_near_threads", 10, r'''
         Number of threads that execute search near calls.''')]),
-    'bounded_cursor_prefix_search_near' : Method(test_config),
-    'bounded_cursor_prefix_indices' : Method(test_config),
+    'bounded_cursor_stress' : Method(test_config),
     'hs_cleanup' : Method(test_config),
     'operations_test' : Method(test_config),
     'search_near_01' : Method(test_config + [

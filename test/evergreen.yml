@@ -4266,11 +4266,11 @@ buildvariants:
     - name: compile
     - name: cppsuite-operations-test-stress
     - name: cppsuite-burst-inserts-stress
-    - name: cppsuite-bounded-cursor-stress-stress
-    - name: cppsuite-bounded-cursor-stress-reverse-stress
-    - name: cppsuite-bounded-cursor-prefix-stat-stress
-    - name: cppsuite-bounded-cursor-prefix-search-near-stress
     - name: cppsuite-bounded-cursor-prefix-indices-stress
+    - name: cppsuite-bounded-cursor-prefix-search-near-stress
+    - name: cppsuite-bounded-cursor-prefix-stat-stress
+    - name: cppsuite-bounded-cursor-stress-reverse-stress
+    - name: cppsuite-bounded-cursor-stress-stress
     - name: cppsuite-hs-cleanup-stress
     - name: cppsuite-search-near-01-stress
     - name: cppsuite-search-near-02-stress
