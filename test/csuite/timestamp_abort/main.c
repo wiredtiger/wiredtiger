@@ -148,12 +148,13 @@ static WT_EVENT_HANDLER my_event = {NULL, NULL, NULL, NULL, handle_conn_ready, h
  *     Function to run with the early connection and gather statistics.
  */
 static WT_THREAD_RET
-stat_func()
+stat_func(void *arg)
 {
     WT_CURSOR *stat_c;
     int64_t last, value;
     const char *desc, *pvalue;
 
+    WT_UNUSED(arg);
     testutil_assert(stat_conn != NULL);
     testutil_check(stat_conn->open_session(stat_conn, NULL, NULL, &stat_session));
     desc = pvalue = NULL;
@@ -202,14 +203,17 @@ static void
 handle_conn_ready(WT_EVENT_HANDLER *handler, WT_CONNECTION *conn)
 {
     WT_UNUSED(handler);
+    int unused;
+
     /*
      * Set the global connection for statistics and then start a statistics thread.
      */
+    unused = 0;
     testutil_assert(stat_conn == NULL);
     memset(&stat_th, 0, sizeof(stat_th));
     stat_conn = conn;
     stat_run = true;
-    testutil_check(__wt_thread_create(NULL, &stat_th, stat_func, NULL));
+    testutil_check(__wt_thread_create(NULL, &stat_th, stat_func, &unused));
 }
 
 /*
