@@ -76,8 +76,8 @@ __wt_verify_dsk_image(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_H
     vi.session = session;
     vi.tag = tag;
     vi.dsk = dsk;
-    vi.item_addr = addr;
-    vi.item_size = size;
+    vi.page_addr = addr;
+    vi.page_size = size;
     vi.cell_num = 0;
     vi.recno = 0;
     vi.flags = verify_flags;
@@ -224,7 +224,7 @@ __verify_dsk_addr_validity(WT_CELL_UNPACK_ADDR *unpack, WT_VERIFY_INFO *vi)
     WT_ADDR *addr;
     WT_DECL_RET;
 
-    addr = vi->item_addr;
+    addr = vi->page_addr;
 
     if ((ret = __wt_time_aggregate_validate(vi->session, &unpack->ta,
            addr != NULL ? &addr->ta : NULL, F_ISSET(vi->session, WT_SESSION_QUIET_CORRUPT_FILE))) ==
@@ -245,7 +245,7 @@ __verify_dsk_value_validity(WT_CELL_UNPACK_KV *unpack, WT_VERIFY_INFO *vi)
     WT_ADDR *addr;
     WT_DECL_RET;
 
-    addr = vi->item_addr;
+    addr = vi->page_addr;
 
     if ((ret = __wt_time_value_validate(vi->session, &unpack->tw, addr != NULL ? &addr->ta : NULL,
            F_ISSET(vi->session, WT_SESSION_QUIET_CORRUPT_FILE))) == 0)
@@ -343,31 +343,31 @@ __verify_dsk_addr_page_del(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *unpack
  *     Check key ordering for row-store pages.
  */
 static int
-__verify_row_key_order_check(WT_SESSION_IMPL *session, WT_ITEM *last, uint32_t last_cell_num,
-  WT_ITEM *current, uint32_t cell_num, const char *tag, WT_VERIFY_INFO *vi)
+__verify_row_key_order_check(
+  WT_ITEM *last, uint32_t last_cell_num, WT_ITEM *current, uint32_t cell_num, WT_VERIFY_INFO *vi)
 {
     WT_DECL_ITEM(tmp1);
     WT_DECL_ITEM(tmp2);
     WT_DECL_RET;
     int cmp;
 
-    WT_RET(__wt_compare(session, S2BT(session)->collator, last, current, &cmp));
+    WT_RET(__wt_compare(vi->session, S2BT(vi->session)->collator, last, current, &cmp));
     if (cmp < 0)
         return (0);
 
-    WT_ERR(__wt_scr_alloc(session, 0, &tmp1));
-    WT_ERR(__wt_scr_alloc(session, 0, &tmp2));
+    WT_ERR(__wt_scr_alloc(vi->session, 0, &tmp1));
+    WT_ERR(__wt_scr_alloc(vi->session, 0, &tmp2));
 
     ret = WT_ERROR;
-    WT_ERR_VRFY(session, vi->flags,
+    WT_ERR_VRFY(vi->session, vi->flags,
       "the %" PRIu32 " and %" PRIu32 " keys on page at %s are incorrectly sorted: %s, %s",
-      last_cell_num, cell_num, tag,
-      __wt_buf_set_printable(session, last->data, last->size, false, tmp1),
-      __wt_buf_set_printable(session, current->data, current->size, false, tmp2));
+      last_cell_num, cell_num, vi->tag,
+      __wt_buf_set_printable(vi->session, last->data, last->size, false, tmp1),
+      __wt_buf_set_printable(vi->session, current->data, current->size, false, tmp2));
 
 err:
-    __wt_scr_free(session, &tmp1);
-    __wt_scr_free(session, &tmp2);
+    __wt_scr_free(vi->session, &tmp1);
+    __wt_scr_free(vi->session, &tmp2);
     return (ret);
 }
 
@@ -492,7 +492,7 @@ __verify_dsk_row_int(WT_VERIFY_INFO *vi)
         /* Check that any fast-delete info is consistent with the validity window. */
         if (cell_type == WT_CELL_ADDR_DEL && F_ISSET(vi->dsk, WT_PAGE_FT_UPDATE))
             WT_ERR(
-              __verify_dsk_addr_page_del(vi->session, unpack, cell_num, vi->item_addr, vi->tag));
+              __verify_dsk_addr_page_del(vi->session, unpack, cell_num, vi->page_addr, vi->tag));
 
         /*
          * Remaining checks are for key order. If this cell isn't a key, we're done, move to the
@@ -523,8 +523,7 @@ __verify_dsk_row_int(WT_VERIFY_INFO *vi)
          * collators may not be able to handle truncated keys.
          */
         if (cell_num > 3)
-            WT_ERR(__verify_row_key_order_check(
-              vi->session, last, cell_num - 2, current, cell_num, vi->tag, vi));
+            WT_ERR(__verify_row_key_order_check(last, cell_num - 2, current, cell_num, vi));
 
         /* Swap the buffers. */
         tmp = last;
@@ -706,8 +705,7 @@ key_compare:
          * Compare the current key against the last key.
          */
         if (cell_num > 1)
-            WT_ERR(__verify_row_key_order_check(
-              vi->session, last, last_cell_num, current, cell_num, vi->tag, vi));
+            WT_ERR(__verify_row_key_order_check(last, last_cell_num, current, cell_num, vi));
         last_cell_num = cell_num;
 
         /*
