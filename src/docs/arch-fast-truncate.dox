@@ -115,7 +115,8 @@ Also note that it is not possible to fast-truncate an instantiated page.
 Only on-disk pages can be fast-truncated.
 See @ref ft_truncate.
 
-@subsection ft_instantiated_instantiated Instantiated flag and \c page_del
+<!-- Note: you apparently can't use \c in a section header. -->
+@subsection ft_instantiated_instantiated The instantiated flag and the page_del field
 
 The \c instantiated flag and the \c page_del structure are retained for the benefit of
 parent internal page reconciliation.
@@ -129,7 +130,8 @@ operational decisions.
 Additional updates might have been applied to the page since the instantiation happened;
 these may contradict or obsolete the deletion information.
 
-@subsection ft_instantiated_updates \c inst_updates
+<!-- Note: you apparently can't use either \c or <tt> in a section header. -->
+@subsection ft_instantiated_updates The inst_updates field
 
 Meanwhile, the \c inst_updates field is kept independently until the transaction that
 created it is resolved.
@@ -157,15 +159,15 @@ page's portion of the namespace.
 It can happen either before or after the transaction that deleted the page is resolved.
 (But not at the same time; locking the ref prevents that.)
 
-(Note that for searches that are positioning to do updates, the instantiation is
+Note that for searches that are positioning to do updates, the instantiation is
 unavoidable; however, for searches that are only reading, it would be better to return \c
 WT_NOTFOUND without pointlessly instantiating the page.
 This is not currently implemented and as of this writing it is not entirely clear how
 involved or feasible such changes would be.
 Also note that this only applies to explicit searches and searches that are part of other
-cursor operations; the cursor next and previous operations do skip over deleted pages.)
+cursor operations; the cursor next and previous operations do skip over deleted pages.
 
-In either case the fact that the page is deleted is detected when we read the page.
+In any case, we notice the page is deleted when we read it.
 If the page has no address, or it has an address but the deletion is globally visible, we
 create a new in-memory page instead of reading the on-disk page.
 Otherwise, we read the on-disk page and call the instantiation code in \c bt_delete.c.
@@ -178,9 +180,9 @@ The column-store version uses a cursor and calls into \c col_modify.c to do it; 
 because the data structures are considerably more complicated and updating them directly
 would require a lot of cut-and-paste code.
 
-The tombstones are tagged with WT_UPDATE_RESTORED_FAST_TRUNCATE.
-This is used by prepare to avoid trying to coalesce these updates with others to the same
-key.
+The tombstones are tagged with \c WT_UPDATE_RESTORED_FAST_TRUNCATE.
+This is used by \c __wt_txn_prepare to avoid trying to coalesce these
+updates with others to the same key.
 (That wouldn't work because the instantiation updates don't appear directly in the
 transaction modify list; they are referenced indirectly through the truncation.)
 
