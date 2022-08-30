@@ -12,7 +12,7 @@ static void __bm_method_set(WT_BM *, bool);
 
 /*
  * __bm_close_block_remove --
- *     Remove a single block handle.
+ *     Remove a single block handle. Must be called with the block lock held.
  */
 static int
 __bm_close_block_remove(WT_SESSION_IMPL *session, WT_BLOCK *block)
@@ -621,15 +621,9 @@ __bm_switch_object(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t objectid)
      * FIXME: the old object does not participate in the upcoming checkpoint which has a couple of
      * implications. First, the extent lists for the old object are discarded and never written,
      * which makes it impossible to treat the old object as a standalone object, so, for example,
-     * you can't verify it. Second, I'm not sure what mechanism ensures the old object's writes are
-     * flushed to stable storage before the new objects complete a checkpoint. I think the writes
-     * will necessarily be done to the OS (because reconciliation of the old object is holding the
-     * page locked and checkpoint will wait on that lock), but there's no flush of the old block
-     * handle to ensure the write has hit stable storage. We're unlikely to get caught (and I might
-     * be wrong about this, I haven't actually tested it), but I'm suspicious there's a problem. A
-     * solution is both of these issues is for the upper layers to checkpoint all modified objects
-     * in the logical object before the checkpoint updates the metadata, flushing all underlying
-     * writes to stable storage, but that means writing extent lists without a root page.
+     * you can't verify it. A solution to this is for the upper layers to checkpoint all modified
+     * objects in the logical object before the checkpoint updates the metadata, flushing all
+     * underlying writes to stable storage, but that means writing extent lists without a root page.
      */
     current->close_on_checkpoint = true;
 
