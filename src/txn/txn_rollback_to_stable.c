@@ -1821,8 +1821,8 @@ __rollback_to_stable_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t ro
         WT_ERR(cursor->get_value(cursor, &config));
 
         F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
-        WT_WITHOUT_DHANDLE(
-            session, ret = __rollback_to_stable_btree_apply(session, uri, config, rollback_timestamp));
+        WT_WITHOUT_DHANDLE(session,
+          ret = __rollback_to_stable_btree_apply(session, uri, config, rollback_timestamp));
         F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
 
         /*
