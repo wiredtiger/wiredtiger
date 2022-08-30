@@ -218,18 +218,17 @@ class bounded_cursor_stress : public test {
                 /* Ensure that the lower and upper bounds are never overlapping. */
                 auto diff = _reverse_collator_enabled ? -1 : 1;
                 upper_bound = bound(tc->key_size, false, lower_bound.get_key()[0] + diff);
-            } else {
+            } else
                 upper_bound = bound(tc->key_size, false);
-            }
         }
 
         if (action == bound_action::ALL_BOUNDS_SET)
             testutil_assert(
               custom_lexicographical_compare(lower_bound.get_key(), upper_bound.get_key(), false));
 
-        if (!(lower_bound.get_key()).empty())
+        if (!lower_bound.get_key().empty())
             lower_bound.apply(bounded_cursor);
-        if (!(upper_bound.get_key()).empty())
+        if (!upper_bound.get_key().empty())
             upper_bound.apply(bounded_cursor);
 
         return bound_set(lower_bound, upper_bound);
