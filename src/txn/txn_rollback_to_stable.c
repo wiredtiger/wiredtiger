@@ -1783,7 +1783,8 @@ __wt_rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *ski
     WT_ORDERED_READ(rollback_timestamp, S2C(session)->txn_global.stable_timestamp);
 
     F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
-    ret = __rollback_to_stable_btree_apply(session, uri, config, rollback_timestamp);
+    WT_WITHOUT_DHANDLE(
+      session, ret = __rollback_to_stable_btree_apply(session, uri, config, rollback_timestamp));
     F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
 
     __wt_free(session, config);
@@ -1820,7 +1821,8 @@ __rollback_to_stable_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t ro
         WT_ERR(cursor->get_value(cursor, &config));
 
         F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
-        ret = __rollback_to_stable_btree_apply(session, uri, config, rollback_timestamp);
+        WT_WITHOUT_DHANDLE(
+            session, ret = __rollback_to_stable_btree_apply(session, uri, config, rollback_timestamp));
         F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
 
         /*
@@ -1890,9 +1892,7 @@ __rollback_to_stable(WT_SESSION_IMPL *session, bool no_ckpt)
           conn->recovery_ckpt_snap_min, conn->recovery_ckpt_snap_max,
           conn->recovery_ckpt_snapshot_count);
 
-    WT_WITHOUT_DHANDLE(
-      session, ret = __rollback_to_stable_btree_apply_all(session, rollback_timestamp));
-    WT_ERR(ret);
+    WT_ERR(__rollback_to_stable_btree_apply_all(session, rollback_timestamp));
 
     /* Rollback the global durable timestamp to the stable timestamp. */
     txn_global->has_durable_timestamp = txn_global->has_stable_timestamp;
