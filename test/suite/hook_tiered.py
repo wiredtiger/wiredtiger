@@ -73,6 +73,14 @@ def wiredtiger_open_tiered(ignored_self, args):
     prefix = "pfx-"
     curconfig = args[-1]
     homedir = args[0]
+
+    # If there is already tiered storage enabled, we shouldn't enable it here.
+    # We might attempt to let the wiredtiger_open to complete without alteration,
+    # however, we alter several other API methods that would do weird things with
+    # a different tiered_storage configuration. So better to skip the test entirely.
+    if 'tiered_storage=' in curconfig:
+        raise unittest.SkipTest("cannot run tiered hook on a test that already uses tiered storage")
+
     if homedir != None:
         bucketpath = os.path.join(homedir, bucketpath)
     extension_libs = WiredTigerTestCase.findExtension('storage_sources', extension_name)
@@ -245,7 +253,7 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
                 "verify_api_75pct_null",# Test damages file, then reopens connection (flushes tier)
                                         # so local file is undamaged
 
-                # FIXME-WT-???? The following failures should be triaged and potentially
+                # FIXME-WT-9809 The following failures should be triaged and potentially
                 # individually reticketed.
 
                 # This first group fail within Python for unknown reasons.
