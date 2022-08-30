@@ -7,11 +7,11 @@ interchangeably) and the pages it is done to are called <i>deleted pages</i>.
 There are also four other ways deleted pages can appear in a database.
 The checkpoint cleanup code (found in \c bt_sync.c) discards pages it finds to contain
 only obsolete values.
-Pages that reconcile completely empty turn into deleted pages.  In VLCS, an empty deleted
-page is inserted when loading an internal page whose start recno is less than the start
-recno of its first child.
-Finally, new trees are created with a single empty deleted leaf page.  These circumstances
-are all discussed further below.
+Pages that reconcile completely empty turn into deleted pages.
+In VLCS, an empty deleted page is inserted when loading an internal page whose start recno
+is less than the start recno of its first child.
+Finally, new trees are created with a single empty deleted leaf page.
+These circumstances are all discussed further below.
 
 The fast-truncate and deleted-page arrangements to some extent violate the system
 architecture and the system's layering and modularity.
@@ -174,8 +174,9 @@ Otherwise, we read the on-disk page and call the instantiation code in \c bt_del
 
 The instantiation code iterates the page and adds a tombstone for every item.
 (To be precise, it adds a tombstone for every item that isn't already deleted; items that
-have a stop time do not need to be deleted again.)  The row-store version of this iterates
-the entries on the page and directly adds a tombstone to each update list.
+have a stop time do not need to be deleted again.)
+The row-store version of this iterates the entries on the page and directly adds a tombstone
+to each update list.
 The column-store version uses a cursor and calls into \c col_modify.c to do it; this is
 because the data structures are considerably more complicated and updating them directly
 would require a lot of cut-and-paste code.
@@ -503,10 +504,11 @@ These pages are detected at the end of leaf reconciliation and converted to empt
 
 @section ft_flcs FLCS and deleted pages
 
-Fast-truncate and deleted pages in general are not supported in FLCS.  Most of the code is
-in place (since deleted and instantiated page handling mostly occurs in the internal page
-code and this is shared with VLCS) but there's a showstopper problem: because there are no
-deleted values (deleted values read back as zero) there are also no gaps in the namespace.
+Fast-truncate and deleted pages in general are not supported in FLCS.
+Most of the code is in place (since deleted and instantiated page handling mostly occurs in
+the internal page code and this is shared with VLCS) but there's a showstopper problem:
+because there are no deleted values (deleted values read back as zero) there are also no
+gaps in the namespace.
 In particular, if we truncate a range, discard the pages, and then read through the gap we
 need to read back the entire truncated namespace as zero one entry at a time.
 That requires knowing how big the gaps are; and while that information is encoded in the
@@ -560,8 +562,8 @@ After recovery, when the write generations are bumped, it is necessary to check 
 possibly discard the transaction IDs (and sometimes the timestamps) in loaded \c page_del
 structures, so that they contain the values they would if unpacked with the new write
 generations.
-Otherwise we might start using transaction IDs from a previous run.  This is done by \c
-__wt_delete_redo_window_cleanup in \c bt_delete.c.
+Otherwise we might start using transaction IDs from a previous run.
+This is done by \c __wt_delete_redo_window_cleanup in \c bt_delete.c.
 
 Internal pages are never fast-truncated.
 In most cases if a truncate spans all the children of an internal page, at the point when
