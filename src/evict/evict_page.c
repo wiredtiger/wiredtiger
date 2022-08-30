@@ -605,8 +605,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
 
 /*
  * __evict_review --
- *     Get exclusive access to the page and review the page and its subtree for conditions that
- *     would block its eviction.
+ *     Review the page and its subtree for conditions that would block its eviction.
  */
 static int
 __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool *inmem_splitp)
@@ -666,10 +665,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
         if (!__wt_page_can_evict(session, ref, inmem_splitp))
             return (__wt_set_return(session, EBUSY));
 
-        /*
-         * Check for an append-only workload needing an in-memory split; we can't do this earlier
-         * because in-memory splits require exclusive access.
-         */
+        /* Check for an append-only workload needing an in-memory split. */
         if (*inmem_splitp)
             return (0);
     }
@@ -680,12 +676,12 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
 
     /*
      * If we are trying to evict a dirty page that does not belong to history store(HS) and
-     * checkpoint is processing the HS file, then avoid evicting the dirty non-HS page for now if
-     * the cache is already dominated by dirty HS content.
+     * checkpoint is processing the HS file, avoid evicting the dirty non-HS page for now if the
+     * cache is already dominated by dirty HS content.
      *
-     * Evicting a non-HS dirty page can generate even more HS content. As we can not evict HS pages
+     * Evicting an non-HS dirty page can generate even more HS content. As we cannot evict HS pages
      * while checkpoint is operating on the HS file, we can end up in a situation where we exceed
-     * the cache size limits.
+     * the cache size limit.
      */
     if (conn->txn_global.checkpoint_running_hs && !WT_IS_HS(btree->dhandle) &&
       __wt_cache_hs_dirty(session) && __wt_cache_full(session)) {
@@ -704,7 +700,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
 
 /*
  * __evict_reconcile --
- *     Reconcile the page for eviction
+ *     Reconcile the page for eviction.
  */
 static int
 __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
@@ -811,10 +807,8 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
         __wt_txn_bump_snapshot(session);
     else if (use_snapshot_for_app_thread)
         LF_SET(WT_REC_APP_EVICTION_SNAPSHOT);
-    else {
-        if (!WT_SESSION_BTREE_SYNC(session))
-            LF_SET(WT_REC_VISIBLE_ALL);
-    }
+    else if (!WT_SESSION_BTREE_SYNC(session))
+        LF_SET(WT_REC_VISIBLE_ALL);
 
     WT_ASSERT(session, LF_ISSET(WT_REC_VISIBLE_ALL) || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
@@ -825,7 +819,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
      * Reconcile the page. Force read-committed isolation level if we are using snapshots for
      * eviction workers or application threads.
      */
-    if (LF_ISSET(WT_REC_APP_EVICTION_SNAPSHOT) || is_eviction_thread)
+    if (is_eviction_thread || use_snapshot_for_app_thread)
         WT_WITH_TXN_ISOLATION(
           session, WT_ISO_READ_COMMITTED, ret = __wt_reconcile(session, ref, NULL, flags));
     else
