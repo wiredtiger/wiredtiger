@@ -111,6 +111,7 @@ functions:
           ${HAVE_BUILTIN_EXTENSION_LZ4|} \
           ${HAVE_BUILTIN_EXTENSION_SNAPPY|} \
           ${HAVE_BUILTIN_EXTENSION_ZLIB|} \
+          ${HAVE_BUILTIN_EXTENSION_ZSTD|} \
           ${HAVE_FTRUNCATE|} \
           ${HAVE_UNITTEST} \
           ${NON_BARRIER_DIAGNOSTIC_YIELDS|} \
@@ -122,9 +123,8 @@ functions:
           ${SPINLOCK_TYPE|} \
           ${CC_OPTIMIZE_LEVEL|}"
 
-        # This is a workaround until WT-8981 is resolved and we can remove this. The Ubuntu PPC platform does not have ZSTD.
-        # Strip it out.
-        if [ "${build_variant|}" = "ubuntu1804-ppc" ] && [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS" =~ (\-DHAVE_BUILTIN_EXTENSION_ZSTD=1) ]]; then
+        # The REHL PPC platform does not have ZSTD. Strip it out.
+        if [ "${build_variant|}" = "rhel8-ppc" ] && [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS" =~ (\-DHAVE_BUILTIN_EXTENSION_ZSTD=1) ]]; then
           DEFINED_EVERGREEN_CONFIG_FLAGS=${DEFINED_EVERGREEN_CONFIG_FLAGS/\-DHAVE_BUILTIN_EXTENSION_ZSTD=1/}
         fi
 
@@ -564,14 +564,6 @@ functions:
         PATH="/opt/mongodbtoolchain/v3/gdb/bin:$PATH" ${python_binary|python3} ../test/wt_hang_analyzer/wt_hang_analyzer.py $wt_hang_analyzer_option
 
   "save wt hang analyzer core/debugger files":
-    - command: shell.exec
-      params:
-        script: |
-            set -o verbose
-
-            dmesg
-            cat /var/log/messages
-            cat /var/log/syslog
     - command: archive.targz_pack
       params:
         target: "wt-hang-analyzer.tgz"
@@ -794,14 +786,6 @@ variables:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
 
-  # Configure flags for address sanitizer ppc ubuntu.
-  # FIXME-WT-8981 - Ubuntu PPC tests have been replaced by RHEL8 tests as of WT-8688, but the RHEL8 tests are currently disabled
-  # due to platform issues. On completion of WT-8981 this can be deleted.
-  - &configure_flags_address_sanitizer_clang_with_builtins
-    <<: *configure_flags_with_builtins
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
-    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
-
 #########################################################################################
 # The following stress tests are configured to run for six hours via the "-t 360"
 # argument to format.sh: format-stress-test, format-stress-sanitizer-test, and
@@ -828,22 +812,6 @@ variables:
       - func: "compile wiredtiger"
         vars:
           <<: *configure_flags_address_sanitizer_mongodb_v4_clang_with_builtins
-      - func: "format test script"
-        vars:
-          format_test_script_args: -t 360
-          test_env_vars:
-            ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0:unmap_shadow_on_exit=1"
-            ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
-
-  # FIXME-WT-8981 - Ubuntu PPC tests have been replaced by RHEL8 tests as of WT-8688, but the RHEL8 tests are currently disabled
-  # due to platform issues. On completion of WT-8981 this can be deleted.
-  - &format-stress-sanitizer-test-ppc-ubuntu
-    exec_timeout_secs: 25200
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_address_sanitizer_clang_with_builtins
       - func: "format test script"
         vars:
           format_test_script_args: -t 360
@@ -2672,22 +2640,6 @@ tasks:
             ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
           format_test_script_args: -S
 
-  # FIXME-WT-8981 - Ubuntu PPC tests have been replaced by RHEL8 tests as of WT-8688, but the RHEL8 tests are currently disabled
-  # due to platform issues. On completion of WT-8981 this can be deleted.
-  - name: format-asan-smoke-ppc-test
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_address_sanitizer_clang_with_builtins
-      - func: "format test script"
-        # Run smoke tests, don't stop at failed tests, use default config
-        vars:
-          test_env_vars:
-            ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0:unmap_shadow_on_exit=1"
-            ASAN_SYMBOLIZER_PATH=/usr/lib/llvm-6.0/bin/llvm-symbolizer
-          format_test_script_args: -S
-
   - name: format-wtperf-test
     commands:
       - func: "get project"
@@ -2920,9 +2872,6 @@ tasks:
   - <<: *format-stress-test
     name: format-stress-test-4
     tags: ["stress-test-4"]
-  - <<: *format-stress-sanitizer-test-ppc-ubuntu
-    name: format-stress-sanitizer-test-ppc-ubuntu
-    tags: ["stress-test-ppc-ubuntu"]
   - <<: *format-stress-sanitizer-test
     name: format-stress-sanitizer-test-1
     tags: ["stress-test-sanitizer-1", "stress-test-ppc-1"]
@@ -4521,34 +4470,6 @@ buildvariants:
     - name: verify-datafile-big-endian
     - name: verify-datafile-from-little-endian
 
-# FIXME-WT-8981 - Ubuntu PPC tests have been replaced by RHEL8 tests as of WT-8688, but the RHEL8 tests are currently disabled
-# due to platform issues. On completion of WT-8981 this can be deleted.
-- name: ubuntu1804-ppc
-  display_name: "~ Ubuntu 18.04 PPC"
-  run_on:
-  - ubuntu1804-power8-test
-  batchtime: 120 # 2 hours
-  expansions:
-    format_test_setting: ulimit -c unlimited
-    test_env_vars:
-      WT_BUILDDIR=$(git rev-parse --show-toplevel)/cmake_build
-      LD_LIBRARY_PATH=$WT_BUILDDIR
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
-    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
-    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
-    # Use half number of vCPU to avoid OOM kill failure
-    smp_command: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 2 | bc)
-    cmake_generator: Ninja
-    make_command: ninja
-    posix_configure_flags: -DENABLE_STRICT=0
-  tasks:
-    - name: compile
-    - name: unit-test
-    - name: format-smoke-test
-    - name: format-asan-smoke-ppc-test
-    - name: format-wtperf-test
-    - name: ".stress-test-ppc-ubuntu"
-
 - name: rhel8-ppc
   display_name: "~ RHEL8 PPC"
   run_on:
@@ -4562,8 +4483,8 @@ buildvariants:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
-    # Use half number of vCPU to avoid OOM kill failure
-    smp_command: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 2 | bc)
+    # Use a fixed count of 4 to avoid disk issues on this platform.
+    smp_command: -j 4
     cmake_generator: Ninja
     make_command: ninja
   tasks:
