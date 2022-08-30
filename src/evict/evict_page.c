@@ -717,33 +717,6 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
     flags = WT_REC_EVICT;
     closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
 
-    /*
-     * If the page is dirty, reconcile it to decide if we can evict it.
-     *
-     * If we have an exclusive lock (we're discarding the tree), assert there are no updates we
-     * cannot read.
-     *
-     * Don't set any other flags for internal pages: there are no update lists to be saved and
-     * restored, changes can't be written into the history store table, nor can we re-create
-     * internal pages in memory.
-     *
-     * For leaf pages:
-     *
-     * In-memory pages are a known configuration.
-     *
-     * Set the update/restore flag, so reconciliation will write blocks it can write and create a
-     * list of skipped updates for blocks it cannot write, along with disk images. This is how
-     * eviction of active, huge pages works: we take a big page and reconcile it into blocks, some
-     * of which we write and discard, the rest of which we re-create as smaller in-memory pages,
-     * (restoring the updates that stopped us from writing the block), and inserting the whole mess
-     * into the page's parent. Set the flag in all cases because the incremental cost of
-     * update/restore in reconciliation is minimal, eviction shouldn't have picked a page where
-     * update/restore is necessary, absent some cache pressure. It's possible updates occurred after
-     * we selected this page for eviction, but it's unlikely and we don't try and manage that risk.
-     *
-     * Additionally, if we aren't trying to free space in the cache, scrub the page and keep it in
-     * memory.
-     */
     cache = conn->cache;
 
     /*
@@ -753,22 +726,36 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
     if (FLD_ISSET(evict_flags, WT_EVICT_CALL_URGENT))
         LF_SET(WT_REC_CALL_URGENT);
 
+    /*
+     * If we have an exclusive lock (we're discarding the tree), assert there are no updates we
+     * cannot read.
+     */
     if (closing)
         LF_SET(WT_REC_VISIBILITY_ERR);
+    /*
+     * Don't set any other flags for internal pages: there are no update lists to be saved and
+     * restored, changes can't be written into the history store table, nor can we re-create
+     * internal pages in memory.
+     *
+     * Don't set any other flags for history store table as all the content is evictable.
+     */
     else if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) || WT_IS_HS(btree->dhandle))
         ;
-    else if (WT_SESSION_BTREE_SYNC(session) && !WT_IS_METADATA(btree->dhandle))
-        LF_SET(WT_REC_HS);
+    /* Always do update restore for in-memory database. */
     else if (F_ISSET(conn, WT_CONN_IN_MEMORY))
         LF_SET(WT_REC_IN_MEMORY | WT_REC_SCRUB);
+    /* For data store leaf pages, write the history to history store except for metadata. */
     else if (!WT_IS_METADATA(btree->dhandle)) {
         LF_SET(WT_REC_HS);
 
         /*
-         * Scrub if we're supposed to or toss it in sometimes if we are in debugging mode.
+         * Scrub and we're supposed to or toss it in sometimes if we are in debugging mode.
+         *
+         * Note that don't scrub if checkpoint is running on the tree.
          */
-        if (F_ISSET(cache, WT_CACHE_EVICT_SCRUB) ||
-          (F_ISSET(cache, WT_CACHE_EVICT_DEBUG_MODE) && __wt_random(&session->rnd) % 3 == 0))
+        if (!WT_SESSION_BTREE_SYNC(session) &&
+          (F_ISSET(cache, WT_CACHE_EVICT_SCRUB) ||
+            (F_ISSET(cache, WT_CACHE_EVICT_DEBUG_MODE) && __wt_random(&session->rnd) % 3 == 0)))
             LF_SET(WT_REC_SCRUB);
     }
 
