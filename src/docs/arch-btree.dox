@@ -71,24 +71,32 @@ they are deleted.
 Historically we have stated that truncation is not transactional: if a range truncate is in
 progress and another transaction happens to insert a key into the same range, the behavior is
 not well defined.
-This was a hedge for a known bug; that bug is now understood, and it is limited to cases in
-logged trees where the truncation passes \c NULL instead of a cursor for the start and/or end
-point and that point changes concurrently; it is possible in these circumstances for log
-replay to find and use a different position for the start or end of the tree than occurred in
-the original transaction.
+This is a hedge for a pair of known bugs, both limited to logged trees.
+One is that if the truncation passes \c NULL instead of a cursor for the start and/or end
+point and that point changes concurrently, it is possible for log replay to find and use a
+different position for the start or end of the tree than occurred in the original
+transaction.
 
-Otherwise it is believed that truncate is fully transactional. However, to understand its
-behavior one must recognize that it is a read-write operation: it scans the tree from the
+The other is a bit more complicated. However, to understand its
+behavior one must recognize that truncate is a read-write operation: it scans the tree from the
 start key to the end key and deletes every value it finds. Concurrent updates where the same
 scan and update done manually would report a conflict cause truncate to report a conflict.
 Concurrent updates that this scan would miss (for example, insertion of new rows in a
 row-store tree) will be skipped over by the truncate and not cause a conflict. (This is a
 form of <i>phantom</i> behavior and is a result of the isolation model, not a transaction
-bug.) Note that pages where a conflict is possible are always slow-truncated, and the slow
-truncate path uses the same update logic as all other updates; apart from possible logging
-issues it would be difficult for truncate to be non-transactional.
+bug.)
+The second logging bug is that these phantom writes, which should be left alone, are removed by log
+recovery if the transaction that created them commits before the truncate.
+The logging for truncate saves the endpoints of the truncate range,, not the individual
+data items removed, and consequently when replayed with additional items visible it
+removes them as well.
 
-For the time being, however, the hedge remains in the user documentation and no guarantees
+Note that pages where conflicts (including prepare conflicts) are possible are always
+slow-truncated, and the slow truncate path uses the same update logic as all other updates;
+apart from possible logging issues it would be difficult for truncate to be
+non-transactional.
+
+For the time being, the hedge remains in the user documentation and no guarantees
 are made to users.
 
 */
