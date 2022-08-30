@@ -7,7 +7,7 @@ COPY cmake_build/test/format/t bin/test/format/
 COPY tools/voidstar/lib/libvoidstar.so tools/voidstar/lib/
 COPY cmake_build/libwiredtiger.so.11.0.1 bin/
 RUN mkdir -p bin/encryptors/rotn
-COPY ext/encryptors/rotn/libwiredtiger_rotn.so bin/encryptors/rotn
+COPY cmake_build/ext/encryptors/rotn/libwiredtiger_rotn.so bin/encryptors/rotn
 RUN mkdir -p bin/ext/collators/reverse
 COPY cmake_build/ext/collators/reverse/libwiredtiger_reverse_collator.so bin/ext/collators/reverse
 RUN mkdir -p bin/ext/collators/revint
