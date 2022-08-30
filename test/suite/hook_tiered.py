@@ -294,8 +294,10 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
 
                 # This group currently cause severe errors, where Python crashes,
                 # whether from internal assertion or other causes.
+                "test_bug003.test_bug003",   # crashes in connection close after opening bulk cursor.
                 "test_bug024.test_bug024",
                 "test_cursor16.test_cursor16",
+                "test_flcs03.test_flcs03.test_flcs",
                 "test_inmem01.test_insert",
                 "test_inmem01.test_insert_over_capacity",
                 "test_inmem01.test_insert_over_delete",
