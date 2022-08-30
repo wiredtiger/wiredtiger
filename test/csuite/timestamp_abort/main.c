@@ -213,7 +213,7 @@ handle_conn_ready(WT_EVENT_HANDLER *handler, WT_CONNECTION *conn)
     memset(&stat_th, 0, sizeof(stat_th));
     stat_conn = conn;
     stat_run = true;
-    testutil_check(__wt_thread_create(NULL, &stat_th, stat_func, &unused));
+    testutil_check(__wt_thread_create(NULL, &stat_th, stat_func, (void *)&unused));
 }
 
 /*
