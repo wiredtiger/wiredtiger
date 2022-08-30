@@ -87,7 +87,7 @@ form of <i>phantom</i> behavior and is a result of the isolation model, not a tr
 bug.)
 The second logging bug is that these phantom writes, which should be left alone, are removed by log
 recovery if the transaction that created them commits before the truncate.
-The logging for truncate saves the endpoints of the truncate range,, not the individual
+The logging for truncate saves the endpoints of the truncate range, not the individual
 data items removed, and consequently when replayed with additional items visible it
 removes them as well.
 
