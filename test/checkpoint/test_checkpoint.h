@@ -74,19 +74,20 @@ typedef struct {
     bool reserved_txnid_timing_stress;   /* Reserved transaction id timing stress */
     bool sweep_stress;                   /* Sweep stress test */
 
-    uint64_t ts_oldest;                   /* Current oldest timestamp */
-    uint64_t ts_stable;                   /* Current stable timestamp */
-    bool failpoint_hs_delete_key_from_ts; /* Failpoint for hs key deletion. */
-    bool no_ts_deletes;                   /* Run with deletes without timestamps */
-    bool prepare;                         /* Use prepare transactions */
-    bool race_timestamps;                 /* Async update to oldest timestamp */
+    uint64_t ts_oldest;                                /* Current oldest timestamp */
+    uint64_t ts_stable;                                /* Current stable timestamp */
+    bool failpoint_eviction_fail_after_reconciliation; /*Fail point for eviction fail after
+                                                          reconciliation. */
+    bool failpoint_hs_delete_key_from_ts;              /* Failpoint for hs key deletion. */
+    bool no_ts_deletes;                                /* Run with deletes without timestamps */
+    bool prepare;                                      /* Use prepare transactions */
+    bool race_timestamps;                              /* Async update to oldest timestamp */
 
     bool tiered;         /* Use tiered storage. Start flush thread */
     bool use_timestamps; /* Use txn timestamps. Start clock thread */
 
     COOKIE *cookies;               /* Per-thread info */
     WT_RWLOCK clock_lock;          /* Clock synchronization */
-    WT_RWLOCK flush_lock;          /* Flush synchronization */
     wt_thread_t checkpoint_thread; /* Checkpoint thread */
     wt_thread_t clock_thread;      /* Clock thread */
     wt_thread_t flush_thread;      /* Flush thread */

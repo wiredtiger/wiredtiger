@@ -18,6 +18,8 @@
         WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RTS})) : \
         WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RTS})))
 
+static bool __rollback_txn_visible_id(WT_SESSION_IMPL *session, uint64_t id);
+
 /*
  * __rollback_delete_hs --
  *     Delete the updates for a key in the history store until the first update (including) that is
@@ -91,7 +93,19 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
 
-        if (rollback_timestamp < upd->durable_ts || upd->prepare_state == WT_PREPARE_INPROGRESS) {
+        /*
+         * An unstable update needs to be aborted if any of the following are true:
+         * 1. An update is invisible based on the checkpoint snapshot during recovery.
+         * 2. The update durable timestamp is greater than the stable timestamp.
+         * 3. The update is a prepared update.
+         *
+         * Usually during recovery, there are no in memory updates present on the page. But
+         * whenever an unstable fast truncate operation is written to the disk, as part
+         * of the rollback to stable page read, it instantiates the tombstones on the page.
+         * The transaction id validation is ignored in all scenarios except recovery.
+         */
+        if (!__rollback_txn_visible_id(session, upd->txnid) ||
+          rollback_timestamp < upd->durable_ts || upd->prepare_state == WT_PREPARE_INPROGRESS) {
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
               "rollback to stable update aborted with txnid: %" PRIu64
               " durable timestamp: %s and stable timestamp: %s, prepared: %s",
@@ -109,13 +123,12 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
     }
 
     /*
-     * Clear the history store flag for the stable update to indicate that this update should not be
-     * written into the history store later, when all the aborted updates are removed from the
-     * history store. The next time when this update is moved into the history store, it will have a
-     * different stop time point.
+     * Clear the history store flags for the stable update to indicate that this update should be
+     * written to the history store later. The next time when this update is moved into the history
+     * store, it will have a different stop time point.
      */
     if (stable_upd != NULL) {
-        if (F_ISSET(stable_upd, WT_UPDATE_HS)) {
+        if (F_ISSET(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS)) {
             /* Find the update following a stable tombstone. */
             if (stable_upd->type == WT_UPDATE_TOMBSTONE) {
                 tombstone = stable_upd;
@@ -124,7 +137,7 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
                     if (stable_upd->txnid != WT_TXN_ABORTED) {
                         WT_ASSERT(session,
                           stable_upd->type != WT_UPDATE_TOMBSTONE &&
-                            F_ISSET(stable_upd, WT_UPDATE_HS));
+                            F_ISSET(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS));
                         break;
                     }
                 }
@@ -140,13 +153,13 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
               session, key, stable_upd == NULL ? tombstone->start_ts : stable_upd->start_ts));
 
             /*
-             * Clear the history store flag for the first stable update. Otherwise, it will not be
+             * Clear the history store flags for the first stable update. Otherwise, it will not be
              * moved to history store again.
              */
             if (stable_upd != NULL)
-                F_CLR(stable_upd, WT_UPDATE_HS);
+                F_CLR(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS);
             if (tombstone != NULL)
-                F_CLR(tombstone, WT_UPDATE_HS);
+                F_CLR(tombstone, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS);
         }
         if (stable_update_found != NULL)
             *stable_update_found = true;
@@ -1132,8 +1145,11 @@ __rollback_page_needs_abort(
      * is greater than or equal to recovered checkpoint snapshot min:
      * 1. The reconciled replace page max durable timestamp.
      * 2. The reconciled multi page max durable timestamp.
-     * 3. The on page address max durable timestamp.
-     * 4. The off page address max durable timestamp.
+     * 3. For just-instantiated deleted pages that have not otherwise been modified, the durable
+     *    timestamp in the page delete information. This timestamp isn't reflected in the address's
+     *    time aggregate.
+     * 4. The on page address max durable timestamp.
+     * 5. The off page address max durable timestamp.
      */
     if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE) {
         tag = "reconciled replace block";
@@ -1150,6 +1166,15 @@ __rollback_page_needs_abort(
                 prepared = true;
         }
         result = (durable_ts > rollback_timestamp) || prepared;
+    } else if (mod != NULL && mod->instantiated && !__wt_page_is_modified(ref->page) &&
+      ref->page_del != NULL) {
+        tag = "page_del info";
+        durable_ts = ref->page_del->durable_timestamp;
+        prepared = ref->page_del->prepare_state == WT_PREPARE_INPROGRESS ||
+          ref->page_del->prepare_state == WT_PREPARE_LOCKED;
+        newest_txn = ref->page_del->txnid;
+        result = (durable_ts > rollback_timestamp) || prepared ||
+          WT_CHECK_RECOVERY_FLAG_TXNID(session, newest_txn);
     } else if (!__wt_off_page(ref->home, addr)) {
         tag = "on page cell";
         /* Check if the page is obsolete using the page disk address. */
@@ -1169,9 +1194,10 @@ __rollback_page_needs_abort(
     }
 
     __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-      "%p: page with %s durable timestamp: %s, newest txn: %" PRIu64 " and prepared updates: %s",
+      "%p: page with %s durable timestamp: %s, newest txn: %" PRIu64
+      " and prepared updates: %s needs abort: %s",
       (void *)ref, tag, __wt_timestamp_to_string(durable_ts, ts_string), newest_txn,
-      prepared ? "true" : "false");
+      prepared ? "true" : "false", result ? "true" : "false");
 
     return (result);
 }
@@ -1253,11 +1279,24 @@ __rollback_to_stable_page_skip(
      */
     if (ref->state == WT_REF_DELETED &&
       WT_REF_CAS_STATE(session, ref, WT_REF_DELETED, WT_REF_LOCKED)) {
-        page_del = ref->ft_info.del;
+        page_del = ref->page_del;
         if (page_del == NULL ||
           (__rollback_txn_visible_id(session, page_del->txnid) &&
-            page_del->durable_timestamp <= rollback_timestamp))
+            page_del->durable_timestamp <= rollback_timestamp)) {
+            /*
+             * We should never see a prepared truncate here; not at recovery time because prepared
+             * truncates can't be written to disk, and not during a runtime RTS either because it
+             * should not be possible to do that with an unresolved prepared transaction.
+             */
+            WT_ASSERT(session,
+              page_del == NULL || page_del->prepare_state == WT_PREPARE_INIT ||
+                page_del->prepare_state == WT_PREPARE_RESOLVED);
+
+            __wt_verbose_multi(
+              session, WT_VERB_RECOVERY_RTS(session), "%p: deleted page walk skipped", (void *)ref);
+            WT_STAT_CONN_INCR(session, txn_rts_tree_walk_skip_pages);
             *skipp = true;
+        }
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
         return (0);
     }
