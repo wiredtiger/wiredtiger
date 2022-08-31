@@ -1879,8 +1879,12 @@ __rollback_to_stable_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t ro
      * Performing eviction in parallel to a checkpoint can lead to situation where the history store
      * have more updates than its corresponding data store. Performing history store cleanup at the
      * end can able to remove any such unstable updates that are written to the history store.
+     *
+     * Do not perform the final pass on the history store in an in-memory configuration as it
+     * doesn't exist.
      */
-    WT_ERR(__rollback_to_stable_hs_final_pass(session, rollback_timestamp));
+    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+        WT_ERR(__rollback_to_stable_hs_final_pass(session, rollback_timestamp));
 
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
