@@ -985,8 +985,8 @@ done:
 
     if (do_checkpoint || rts_executed)
         /*
-         * Forcibly log a checkpoint so the next open is fast and keep the metadata up to date with
-         * the checkpoint LSN and removal.
+         * Take a system-wide checkpoint of all recovered tables so the next open is fast and keep
+         * the metadata up to date with the checkpoint LSN and removal.
          */
         WT_ERR(session->iface.checkpoint(&session->iface, NULL));
 
