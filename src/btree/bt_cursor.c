@@ -611,19 +611,6 @@ __wt_btcur_reset(WT_CURSOR_BTREE *cbt)
 
     WT_STAT_CONN_DATA_INCR(session, cursor_reset);
 
-    /* Clear bounds if they are set. */
-    if (F_ISSET(cursor, WT_CURSTD_BOUNDS_SET)) {
-        WT_STAT_CONN_DATA_INCR(session, cursor_bounds_reset);
-        /* Clear upper bound, and free the buffer. */
-        F_CLR(cursor, WT_CURSTD_BOUND_UPPER | WT_CURSTD_BOUND_UPPER_INCLUSIVE);
-        __wt_buf_free(session, &cursor->upper_bound);
-        WT_CLEAR(cursor->upper_bound);
-        /* Clear lower bound, and free the buffer. */
-        F_CLR(cursor, WT_CURSTD_BOUND_LOWER | WT_CURSTD_BOUND_LOWER_INCLUSIVE);
-        __wt_buf_free(session, &cursor->lower_bound);
-        WT_CLEAR(cursor->lower_bound);
-    }
-
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
     return (__cursor_reset(cbt));
@@ -1019,6 +1006,19 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
             __cursor_state_restore(cursor, &state);
         else {
             __wt_value_return(cbt, cbt->upd_value);
+            /*
+             * This compare is needed for bounded cursors in the event that a valid key is found.
+             * The returned value of exact must reflect the comparison between the found key and the
+             * original search key, not the repositioned bounds key. This comparison ensures that is
+             * the case.
+             */
+            if (WT_CURSOR_BOUNDS_SET(cursor)) {
+                if (btree->type == BTREE_ROW)
+                    WT_ERR(
+                      __wt_compare(session, btree->collator, &cursor->key, &state.key, &exact));
+                else
+                    exact = cbt->recno < state.recno ? -1 : cbt->recno == state.recno ? 0 : 1;
+            }
             goto done;
         }
     }
