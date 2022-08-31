@@ -886,7 +886,7 @@ main(int argc, char *argv[])
      * Open the connection which forces recovery to be run.
      */
     testutil_check(wiredtiger_open(NULL, &my_event, ENV_CONFIG_REC, &conn));
-    printf("Wiredtiger_open and recovery complete. Verify content\n");
+    printf("Connection open and recovery complete. Verify content\n");
     usleep(USEC_STAT + 10);
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     /*
