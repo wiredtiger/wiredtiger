@@ -202,9 +202,9 @@ handle_conn_close(WT_EVENT_HANDLER *handler)
 static void
 handle_conn_ready(WT_EVENT_HANDLER *handler, WT_CONNECTION *conn)
 {
-    WT_UNUSED(handler);
     int unused;
 
+    WT_UNUSED(handler);
     /*
      * Set the global connection for statistics and then start a statistics thread.
      */
