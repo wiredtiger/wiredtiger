@@ -2059,7 +2059,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         __session_query_timestamp, __session_timestamp_transaction,
         __session_timestamp_transaction_uint, __session_checkpoint, __session_reset_snapshot,
         __session_transaction_pinned_range, __session_get_rollback_reason, __wt_session_breakpoint},
-      stds_readonly = {NULL, NULL, __session_close, __session_reconfigure, __session_flush_tier_readonly,
+      stds_readonly = {NULL, NULL, __session_close, __session_reconfigure, __session_flush_tier,
         __wt_session_strerror, __session_open_cursor, __session_alter_readonly,
         __session_create_readonly, __wt_session_compact_readonly, __session_drop_readonly,
         __session_join, __session_log_flush_readonly, __session_log_printf_readonly,
