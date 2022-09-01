@@ -303,7 +303,10 @@ workload_compact(const char *home, const char *table_config)
         compact_error = false;
         /* Only perform compaction on the first table. */
         ret = session->compact(session, uri1, NULL);
-        /* If the handler function set this, make sure we got back the correct error. */
+        /*
+         * If the handler function returned an error to WiredTiger, make sure the correct error was
+         * returned back to the caller.
+         */
         if (compact_error)
             testutil_assert(ret == EINTR);
         else
