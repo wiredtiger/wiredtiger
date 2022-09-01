@@ -927,13 +927,13 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
 
     WT_RET(__wt_config_subgets(session, v, "order", &a));
     if (a.len == 0)
-        goto format;
+        WT_RET_MSG(session, WT_ERROR, "corrupted order value in checkpoint config");
     ckpt->order = a.val;
 
     WT_RET(__wt_config_subgets(session, v, "time", &a));
     ret = __ckpt_parse_time(session, &a, &ckpt->sec);
     if (ret != 0)
-        goto format;
+        WT_RET_MSG(session, WT_ERROR, "corrupted time value in checkpoint config");
 
     WT_RET(__wt_config_subgets(session, v, "size", &a));
     ckpt->size = (uint64_t)a.val;
@@ -1000,7 +1000,7 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
 
     WT_RET(__wt_config_subgets(session, v, "write_gen", &a));
     if (a.len == 0)
-        goto format;
+        WT_RET_MSG(session, WT_ERROR, "corrupted write_gen in checkpoint config");
     ckpt->write_gen = (uint64_t)a.val;
 
     /*
@@ -1014,9 +1014,6 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
         ckpt->run_write_gen = (uint64_t)a.val;
 
     return (0);
-
-format:
-    WT_RET_MSG(session, WT_ERROR, "corrupted checkpoint list");
 }
 
 /*
