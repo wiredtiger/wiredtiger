@@ -273,8 +273,8 @@ workload_compact(const char *home, const char *table_config)
     populate(session, 0, NUM_RECORDS);
 
     /*
-     * Although we are repeating the steps 40 times, we expect the parent process will kill us way
-     * before than that.
+     * Although we are repeating the steps 40 times, we expect the parent process will kill us long
+     * before that number of iterations.
      */
     for (i = 0; i < 40; i++) {
 
