@@ -40,9 +40,8 @@
 #define NUM_RECORDS 100000
 #define TIMEOUT 40
 
-static uint64_t compact_event;
-
 static bool compact_error;
+static uint64_t compact_event;
 
 /* Constants and variables declaration. */
 /*
