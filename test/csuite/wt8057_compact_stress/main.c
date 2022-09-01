@@ -92,10 +92,10 @@ handle_general(
 
     ++compact_event;
     /*
-     * Most iterations of compact only end up in the callback a few times. Periodically interrupt
-     * when this has been called a number of times.
+     * The compact_event variable is cumulative. Return with an interrupt periodically but not too
+     * often. We don't want to change the nature of the test too much.
      */
-    if (compact_event % 4 == 0) {
+    if (compact_event % 8 == 0) {
         printf(" *** Compact check interrupting compact with EINTR\n");
         compact_error = true;
         return (EINTR);
@@ -276,6 +276,7 @@ workload_compact(const char *home, const char *table_config)
      * Although we are repeating the steps 40 times, we expect the parent process will kill us long
      * before that number of iterations.
      */
+    compact_event = 0;
     for (i = 0; i < 40; i++) {
 
         printf("Running Loop: %" PRIu32 "\n", i + 1);
@@ -300,25 +301,22 @@ workload_compact(const char *home, const char *table_config)
         remove_records(session, uri2, key_range_start, key_range_start + NUM_RECORDS / 3);
 
         compact_error = false;
-        compact_event = 0;
         /* Only perform compaction on the first table. */
-        if (i % 2 == 0) {
-            ret = session->compact(session, uri1, NULL);
-            /* If the handler function set this, make sure we got back the correct error. */
-            if (compact_error)
-                testutil_assert(ret == EINTR);
-            else
-                testutil_assert(ret == 0);
-        } else
-            testutil_check(session->compact(session, uri1, NULL));
+        ret = session->compact(session, uri1, NULL);
+        /* If the handler function set this, make sure we got back the correct error. */
+        if (compact_error)
+            testutil_assert(ret == EINTR);
+        else
+            testutil_assert(ret == 0);
 
         /*
-         * Only assert on the first iteration that work was done for compact that called the general
-         * callback. The first iteration does the most compact work.
+         * We expect that sometime in the first several iterations at least one of those compact
+         * calls would have called the callback function. It is hard to predict on any given
+         * iteration so check the total once, after a while.
          */
-        if (i == 0)
+        if (i == 5)
             testutil_assert(compact_event != 0);
-        printf(" - Compact event callbacks: %" PRIu64 "\n", compact_event);
+        printf(" - Cumulative compact event callbacks: %" PRIu64 "\n", compact_event);
         log_db_size(session, uri1);
 
         /* If we made progress with compact, verify that compact stats support that. */
