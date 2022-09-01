@@ -176,8 +176,8 @@ err:
 
 /*
  * __ckpt_parse_time --
- *     Parse clock time from checkpoint metadata config. This requires special handling
- *     because times are unsigned values and config parsing treats numeric values as signed.
+ *     Parse clock time from checkpoint metadata config. This requires special handling because
+ *     times are unsigned values and config parsing treats numeric values as signed.
  */
 static int
 __ckpt_parse_time(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *a, uint64_t *timep)
@@ -188,14 +188,14 @@ __ckpt_parse_time(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *a, uint64_t *timep)
     *timep = 0;
 
     if (a->len == 0 || a->len > sizeof(timebuf) - 1)
-        return(WT_ERROR);
+        return (WT_ERROR);
     memcpy(timebuf, a->str, a->len);
     timebuf[a->len] = '\0';
     /* NOLINTNEXTLINE(cert-err34-c) */
     if (sscanf(timebuf, "%" SCNu64, timep) != 1)
-        return(WT_ERROR);
+        return (WT_ERROR);
 
-    return(0);
+    return (0);
 }
 
 /*
@@ -1018,8 +1018,8 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
 
 /*
  * __wt_metadata_update_connection --
- *     Update the connection's base write generation and most recent checkpoint time from the
- *     config string.
+ *     Update the connection's base write generation and most recent checkpoint time from the config
+ *     string.
  */
 int
 __wt_metadata_update_connection(WT_SESSION_IMPL *session, const char *config)

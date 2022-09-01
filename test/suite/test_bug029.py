@@ -94,7 +94,7 @@ class test_bug029(wttest.WiredTigerTestCase):
         while True:
             ret = backup_cursor.next()
             if ret != 0:
-                break;
+                break
             shutil.copy(backup_cursor.get_key(), self.backup_dir)
         backup_cursor.close()
 

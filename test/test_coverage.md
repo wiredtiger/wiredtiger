@@ -19,7 +19,7 @@
 |Config Api||[test_base02.py](../test/suite/test_base02.py), [test_config02.py](../test/suite/test_config02.py)
 |Connection Api||[test_version.py](../test/suite/test_version.py)
 |Connection Api|Reconfigure|[test_reconfig01.py](../test/suite/test_reconfig01.py), [test_reconfig02.py](../test/suite/test_reconfig02.py)
-|Connection Api|Turtle File|[test_bug024.py](../test/suite/test_bug024.py)
+|Connection Api|Turtle File|[test_bug024.py](../test/suite/test_bug024.py), [test_bug029.py](../test/suite/test_bug029.py)
 |Connection Api|Wiredtiger Open|[test_config02.py](../test/suite/test_config02.py)
 |Cursors|Prepare|[test_prepare_cursor01.py](../test/suite/test_prepare_cursor01.py)
 |Cursors|Reconfigure|[test_cursor06.py](../test/suite/test_cursor06.py)
