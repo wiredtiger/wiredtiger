@@ -226,14 +226,10 @@ handle_general(
     WT_UNUSED(handler);
     WT_UNUSED(session);
 
-    switch (type) {
-    case WT_EVENT_CONN_CLOSE:
+    if (type == WT_EVENT_CONN_CLOSE)
         handle_conn_close();
-        break;
-    case WT_EVENT_CONN_READY:
+    else if (type == WT_EVENT_CONN_READY)
         handle_conn_ready(conn);
-        break;
-    }
     return (0);
 }
 
