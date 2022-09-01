@@ -49,7 +49,10 @@ class test_empty(wttest.WiredTigerTestCase):
         self.session.close()
         name = self.name
         if self.type == "table:":
-            name = name + '.wt'
+            if 'tiered' in self.hook_names and self.fmt != 'r':
+                name = name + "-0000000001.wtobj"
+            else:
+                name = name + ".wt"
         self.assertEquals(os.stat(name).st_size, 4*1024)
 
 if __name__ == '__main__':
