@@ -1005,11 +1005,12 @@ format:
 }
 
 /*
- * __wt_metadata_update_base_write_gen --
- *     Update the connection's base write generation from the config string.
+ * __wt_metadata_update_connection --
+ *     Update the connection's base write generation and most recent checkpoint time from the
+ *     config string.
  */
 int
-__wt_metadata_update_base_write_gen(WT_SESSION_IMPL *session, const char *config)
+__wt_metadata_update_connection(WT_SESSION_IMPL *session, const char *config)
 {
     WT_CKPT ckpt;
     WT_CONNECTION_IMPL *conn;
@@ -1020,6 +1021,7 @@ __wt_metadata_update_base_write_gen(WT_SESSION_IMPL *session, const char *config
 
     if ((ret = __ckpt_last(session, config, &ckpt)) == 0) {
         conn->base_write_gen = WT_MAX(ckpt.write_gen + 1, conn->base_write_gen);
+        conn->ckpt_most_recent = WT_MAX(ckpt.sec, conn->ckpt_most_recent);
         __wt_meta_checkpoint_free(session, &ckpt);
     } else
         WT_RET_NOTFOUND_OK(ret);
@@ -1028,21 +1030,26 @@ __wt_metadata_update_base_write_gen(WT_SESSION_IMPL *session, const char *config
 }
 
 /*
- * __wt_metadata_init_base_write_gen --
- *     Initialize the connection's base write generation.
+ * __wt_metadata_load_prior_state --
+ *     Initialize the connection's base write generation and most recent checkpoint time
  */
 int
-__wt_metadata_init_base_write_gen(WT_SESSION_IMPL *session)
+__wt_metadata_load_prior_state(WT_SESSION_IMPL *session)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     char *config;
 
+    conn = S2C(session);
+
     /* Initialize the base write gen to 1 */
-    S2C(session)->base_write_gen = 1;
+    conn->base_write_gen = 1;
+    /* Initialize most recent checkpoint time with current clock */
+    __wt_seconds(session, &conn->ckpt_most_recent);
     /* Retrieve the metadata entry for the metadata file. */
     WT_ERR(__wt_metadata_search(session, WT_METAFILE_URI, &config));
     /* Update base write gen to the write gen of metadata. */
-    WT_ERR(__wt_metadata_update_base_write_gen(session, config));
+    WT_ERR(__wt_metadata_update_connection(session, config));
 
 err:
     __wt_free(session, config);
@@ -1072,7 +1079,7 @@ __wt_metadata_correct_base_write_gen(WT_SESSION_IMPL *session)
         WT_ERR(cursor->get_value(cursor, &config));
 
         /* Update base write gen to the write gen. */
-        WT_ERR(__wt_metadata_update_base_write_gen(session, config));
+        WT_ERR(__wt_metadata_update_connection(session, config));
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 
