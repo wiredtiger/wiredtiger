@@ -42,7 +42,7 @@ except ImportError:
     import unittest
 
 from contextlib import contextmanager
-import errno, glob, os, re, shutil, sys, time, traceback
+import errno, glob, os, re, shutil, sys, threading, time, traceback
 import wiredtiger, wtscenario, wthooks
 
 # Use as "with timeout(seconds): ....". Argument of 0 means no timeout,
@@ -207,6 +207,11 @@ class WiredTigerTestCase(unittest.TestCase):
     _printOnceSeen = {}
     _ttyDescriptor = None   # set this early, to allow tty() to be called any time.
 
+    # We store the current test case in thread local storage.  There are
+    # certain odd cases where this is useful, like hooks, where we don't
+    # have any notion of the current test case.
+    _threadLocal = threading.local()
+
     # rollbacks_allowed can be overridden to permit more or fewer retries on rollback errors.
     # We retry tests that get rollback errors in a way that is mostly invisible.
     # There is a visible difference in that the rollback error's stack trace is recorded
@@ -286,6 +291,10 @@ class WiredTigerTestCase(unittest.TestCase):
         if totalTestsRun > 0 and totalRetries / totalTestsRun > 0.01 and totalRetries >= 3:
             raise Exception('Retries from WT_ROLLBACK in test suite: {}/{}, see {} for stack traces'.format(
                 totalRetries, totalTestsRun, WiredTigerTestCase._resultFileName))
+
+    @staticmethod
+    def currentTestCase():
+        return getattr(WiredTigerTestCase._threadLocal, 'currentTestCase', None)
 
     def fdSetUp(self):
         self.captureout = CapturedFd('stdout.txt', 'standard output')
@@ -561,6 +570,7 @@ class WiredTigerTestCase(unittest.TestCase):
         with open('testname.txt', 'w+') as namefile:
             namefile.write(str(self) + '\n')
         self.fdSetUp()
+        self._threadLocal.currentTestCase = self
         # tearDown needs a conn field, set it here in case the open fails.
         self.conn = None
         try:
@@ -654,6 +664,8 @@ class WiredTigerTestCase(unittest.TestCase):
             shutil.rmtree(self.testdir, ignore_errors=True)
         else:
             self.pr('preserving directory ' + self.testdir)
+
+        self._threadLocal.currentTestCase = None
 
         elapsed = time.time() - self.starttime
         if elapsed > 0.001 and WiredTigerTestCase._verbose >= 2:
