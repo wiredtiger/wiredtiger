@@ -81,6 +81,14 @@ def wiredtiger_open_tiered(ignored_self, args):
     if 'tiered_storage=' in curconfig:
         raise unittest.SkipTest("cannot run tiered hook on a test that already uses tiered storage")
 
+    if 'in_memory=true' in curconfig:
+        raise unittest.SkipTest("cannot run tiered hook on a test that is in-memory")
+
+    # Mark this test as readonly, but don't disallow it.  See testcase_is_readonly().
+    if 'readonly=true' in curconfig:
+        testcase = WiredTigerTestCase.currentTestCase()
+        testcase._readonlyTieredTest = True
+
     if homedir != None:
         bucketpath = os.path.join(homedir, bucketpath)
     extension_libs = WiredTigerTestCase.findExtension('storage_sources', extension_name)
@@ -121,12 +129,25 @@ def wiredtiger_open_tiered(ignored_self, args):
 
     return args
 
+# We want readonly tests to run with tiered storage, since it is possible to do readonly
+# operations.  This function is called for two purposes:
+#  - when readonly is enabled, we don't want to do flush_tier calls.
+#  - normally the hook silently removes other (not supported) calls, like alter/compact/drop.
+#    Except that some tests enable readonly and call these functions, expecting an exception.
+#    So for these "modifying" APIs, we want to actually do the operation (but only when readonly).
+def testcase_is_readonly():
+    testcase = WiredTigerTestCase.currentTestCase()
+    return getattr(testcase, '_readonlyTieredTest', False)
+
 # Called to replace Connection.close
 # Insert a call to flush_tier before closing connection.
 def connection_close_replace(orig_connection_close, connection_self, config):
-    s = connection_self.open_session(None)
-    s.flush_tier(None)
-    s.close()
+    # We cannot call flush_tier on a readonly connection.
+    if not testcase_is_readonly():
+        s = connection_self.open_session(None)
+        s.flush_tier(None)
+        s.close()
+
     ret = orig_connection_close(connection_self, config)
     return ret
 
@@ -136,7 +157,7 @@ def session_alter_replace(orig_session_alter, session_self, uri, config):
     # of a tiered table.  Note this isn't a precise match for when we did/didn't create
     # a tiered table, but we don't have the create config around to check.
     ret = 0
-    if not uri.startswith("table:"):
+    if not uri.startswith("table:") or testcase_is_readonly():
         ret = orig_session_alter(session_self, uri, config)
     return ret
 
@@ -147,9 +168,12 @@ def session_checkpoint_replace(orig_session_checkpoint, session_self, config):
     ret = orig_session_checkpoint(session_self, config)
     if ret != 0:
         return ret
-    WiredTigerTestCase.verbose(None, 3,
-        '    Calling flush_tier() after checkpoint')
-    return session_self.flush_tier(None)
+
+    # We cannot call flush_tier on a readonly connection.
+    if not testcase_is_readonly():
+        WiredTigerTestCase.verbose(None, 3,
+            '    Calling flush_tier() after checkpoint')
+        return session_self.flush_tier(None)
 
 # Called to replace Session.compact
 def session_compact_replace(orig_session_compact, session_self, uri, config):
@@ -157,7 +181,7 @@ def session_compact_replace(orig_session_compact, session_self, uri, config):
     # of a tiered table.  Note this isn't a precise match for when we did/didn't create
     # a tiered table, but we don't have the create config around to check.
     ret = 0
-    if not uri.startswith("table:"):
+    if not uri.startswith("table:") or testcase_is_readonly():
         ret = orig_session_compact(session_self, uri, config)
     return ret
 
@@ -170,7 +194,7 @@ def session_create_replace(orig_session_create, session_self, uri, config):
 
     # If the test isn't creating a table (i.e., it's a column store or lsm) create it as a
     # "local only" object.  Otherwise we get tiered storage from the connection defaults.
-    if not uri.startswith("table:") or "key_format=r" in new_config or "type=lsm" in new_config:
+    if not uri.startswith("table:") or "key_format=r" in new_config or "type=lsm" in new_config or testcase_is_readonly():
         new_config = new_config + ',tiered_storage=(name=none)'
 
     WiredTigerTestCase.verbose(None, 3,
@@ -184,7 +208,7 @@ def session_drop_replace(orig_session_drop, session_self, uri, config):
     # of a tiered table.  Note this isn't a precise match for when we did/didn't create
     # a tiered table, but we don't have the create config around to check.
     ret = 0
-    if not uri.startswith("table:"):
+    if not uri.startswith("table:") or testcase_is_readonly():
         ret = orig_session_drop(session_self, uri, config)
     return ret
 
@@ -202,7 +226,7 @@ def session_rename_replace(orig_session_rename, session_self, uri, newuri, confi
     # of a tiered table.  Note this isn't a precise match for when we did/didn't create
     # a tiered table, but we don't have the create config around to check.
     ret = 0
-    if not uri.startswith("table:"):
+    if not uri.startswith("table:") or testcase_is_readonly():
         ret = orig_session_rename(session_self, uri, newuri, config)
     return ret
 
@@ -212,7 +236,7 @@ def session_salvage_replace(orig_session_salvage, session_self, uri, config):
     # of a tiered table.  Note this isn't a precise match for when we did/didn't create
     # a tiered table, but we don't have the create config around to check.
     ret = 0
-    if not uri.startswith("table:"):
+    if not uri.startswith("table:") or testcase_is_readonly():
         ret = orig_session_salvage(session_self, uri, config)
     return ret
 
@@ -222,7 +246,7 @@ def session_verify_replace(orig_session_verify, session_self, uri, config):
     # of a tiered table.  Note this isn't a precise match for when we did/didn't create
     # a tiered table, but we don't have the create config around to check.
     ret = 0
-    if not uri.startswith("table:"):
+    if not uri.startswith("table:") or testcase_is_readonly():
         ret = orig_session_verify(session_self, uri, config)
     return ret
 
@@ -244,6 +268,7 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
                 "cursor13_drops",       # Tests that require working drop implementation
                 "cursor13_dup",         # More cursor cache tests
                 "cursor13_reopens",     # More cursor cache tests
+                "inmem",                # In memory tests don't make sense with tiered storage
                 "lsm",                  # If the test name tells us it uses lsm ignore it
                 "modify_smoke_recover", # Copying WT dir doesn't copy the bucket directory
                 "salvage01",            # Salvage tests directly name files ending in ".wt"
@@ -298,17 +323,11 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
                 "test_bug024.test_bug024",
                 "test_cursor16.test_cursor16",
                 "test_flcs03.test_flcs03.test_flcs",
-                "test_inmem01.test_insert",
-                "test_inmem01.test_insert_over_capacity",
-                "test_inmem01.test_insert_over_delete",
-                "test_inmem01.test_insert_over_delete_replace",
-                "test_inmem02.test_insert_over_allowed",
                 "test_prepare19.test_server_example",
-                "test_readonly03.test_readonly",
+                #"test_readonly03.test_readonly",
                 "test_rollback_to_stable18.test_rollback_to_stable",
                 "test_rollback_to_stable33.test_rollback_to_stable33",
                 "test_stat_log01_readonly.test_stat_log01_readonly",
-                "test_timestamp26_in_memory_ts.test_in_memory_ts",
                 "test_truncate15.test_truncate15",
                 "test_txn02.test_ops",
 
