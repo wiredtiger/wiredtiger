@@ -12,9 +12,11 @@ static int __ckpt_last(WT_SESSION_IMPL *, const char *, WT_CKPT *);
 static int __ckpt_last_name(WT_SESSION_IMPL *, const char *, const char **, int64_t *, uint64_t *);
 static int __ckpt_load(WT_SESSION_IMPL *, WT_CONFIG_ITEM *, WT_CONFIG_ITEM *, WT_CKPT *);
 static int __ckpt_named(WT_SESSION_IMPL *, const char *, const char *, WT_CKPT *);
+static int __ckpt_parse_time(WT_SESSION_IMPL *, WT_CONFIG_ITEM *, uint64_t *);
 static int __ckpt_set(WT_SESSION_IMPL *, const char *, const char *, bool);
 static int __ckpt_version_chk(WT_SESSION_IMPL *, const char *, const char *);
 static int __meta_blk_mods_load(WT_SESSION_IMPL *, const char *, WT_CKPT *, WT_CKPT *, bool);
+
 /*
  * __ckpt_load_blk_mods --
  *     Load the block information from the config string.
@@ -173,6 +175,30 @@ err:
 }
 
 /*
+ * __ckpt_parse_time --
+ *     Parse clock time from checkpoint metadata config. This requires special handling
+ *     because times are unsigned values and config parsing treats numeric values as signed.
+ */
+static int
+__ckpt_parse_time(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *a, uint64_t *timep)
+{
+    char timebuf[64];
+
+    WT_UNUSED(session);
+    *timep = 0;
+
+    if (a->len == 0 || a->len > sizeof(timebuf) - 1)
+        return(WT_ERROR);
+    memcpy(timebuf, a->str, a->len);
+    timebuf[a->len] = '\0';
+    /* NOLINTNEXTLINE(cert-err34-c) */
+    if (sscanf(timebuf, "%" SCNu64, timep) != 1)
+        return(WT_ERROR);
+
+    return(0);
+}
+
+/*
  * __wt_meta_checkpoint_by_name --
  *     Look up the requested named checkpoint in the metadata and return its order and time
  *     information.
@@ -213,7 +239,7 @@ __wt_meta_checkpoint_by_name(WT_SESSION_IMPL *session, const char *uri, const ch
             WT_ERR(__wt_config_subgets(session, &v, "write_gen", &a));
             if ((uint64_t)a.val >= conn->base_write_gen) {
                 WT_ERR(__wt_config_subgets(session, &v, "time", &a));
-                *timep = (uint64_t)a.val;
+                WT_ERR(__ckpt_parse_time(session, &a, timep));
             }
             break;
         }
@@ -372,12 +398,10 @@ __ckpt_last_name(WT_SESSION_IMPL *session, const char *config, const char **name
 {
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM a, k, v;
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     uint64_t time;
     int64_t found;
 
-    conn = S2C(session);
     *namep = NULL;
     time = 0;
 
@@ -391,13 +415,9 @@ __ckpt_last_name(WT_SESSION_IMPL *session, const char *config, const char **name
             continue;
         found = a.val;
 
-        /* If the write generation is current, extract the wall-clock time for matching purposes. */
-        WT_ERR(__wt_config_subgets(session, &v, "write_gen", &a));
-        if ((uint64_t)a.val >= conn->base_write_gen) {
-            WT_ERR(__wt_config_subgets(session, &v, "time", &a));
-            time = (uint64_t)a.val;
-        } else
-            time = 0;
+        /* Extract the wall-clock time for matching purposes. */
+        WT_ERR(__wt_config_subgets(session, &v, "time", &a));
+        WT_ERR(__ckpt_parse_time(session, &a, &time));
 
         __wt_free(session, *namep);
         WT_ERR(__wt_strndup(session, k.str, k.len, namep));
@@ -891,7 +911,6 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
 {
     WT_CONFIG_ITEM a;
     WT_DECL_RET;
-    char timebuf[64];
 
     /*
      * Copy the name, address (raw and hex), order and time into the slot. If there's no address,
@@ -912,12 +931,8 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     ckpt->order = a.val;
 
     WT_RET(__wt_config_subgets(session, v, "time", &a));
-    if (a.len == 0 || a.len > sizeof(timebuf) - 1)
-        goto format;
-    memcpy(timebuf, a.str, a.len);
-    timebuf[a.len] = '\0';
-    /* NOLINTNEXTLINE(cert-err34-c) */
-    if (sscanf(timebuf, "%" SCNu64, &ckpt->sec) != 1)
+    ret = __ckpt_parse_time(session, &a, &ckpt->sec);
+    if (ret != 0)
         goto format;
 
     WT_RET(__wt_config_subgets(session, v, "size", &a));
