@@ -3010,7 +3010,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         WT_ERR(wt_session->salvage(wt_session, WT_METAFILE_URI, NULL));
     }
 
-    /* Initialize connection values from stored metadata */
+    /* Initialize connection values from stored metadata. */
     WT_ERR(__wt_metadata_load_prior_state(session));
 
     WT_ERR(__wt_metadata_cursor(session, NULL));

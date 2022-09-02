@@ -83,9 +83,9 @@ class test_bug029(wttest.WiredTigerTestCase):
         for i in range(10):
             self.session.checkpoint("force=1")
 
-        # Write and checkpoint a bunch of data. If we erreously deleted our 
-        # backup checkpoint this should overwrite a bunch of that checkpoint's
-        # blocks
+        # Write and checkpoint a bunch of data. If we erroneously deleted our 
+        # backup checkpoint this should overwrite some of that checkpoint's
+        # blocks.
         self.add_data(self.uri, 1000, 2000)
         self.session.checkpoint()
 

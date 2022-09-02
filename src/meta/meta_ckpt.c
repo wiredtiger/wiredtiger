@@ -1043,7 +1043,7 @@ __wt_metadata_update_connection(WT_SESSION_IMPL *session, const char *config)
 
 /*
  * __wt_metadata_load_prior_state --
- *     Initialize the connection's base write generation and most recent checkpoint time
+ *     Initialize the connection's base write generation and most recent checkpoint time.
  */
 int
 __wt_metadata_load_prior_state(WT_SESSION_IMPL *session)
