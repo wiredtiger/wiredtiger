@@ -1596,14 +1596,12 @@ __wt_meta_read_checkpoint_snapshot(WT_SESSION_IMPL *session, const char *ckpt_na
     WT_CONFIG list;
     WT_CONFIG_ITEM cval;
     WT_CONFIG_ITEM k;
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     uint64_t write_gen;
     uint32_t counter;
     char *sys_config;
 
-    conn = S2C(session);
     write_gen = 0;
     counter = 0;
     sys_config = NULL;
@@ -1679,14 +1677,11 @@ __wt_meta_read_checkpoint_snapshot(WT_SESSION_IMPL *session, const char *ckpt_na
         if (snap_write_gen != NULL)
             *snap_write_gen = write_gen;
 
-        /*
-         * If the write generation is current, extract the checkpoint time. Otherwise we use 0.
-         */
-        if (ckpttime != NULL && cval.val != 0 && write_gen >= conn->base_write_gen) {
+        /* Extract the checkpoint time. */
+        if (ckpttime != NULL) {
             WT_ERR_NOTFOUND_OK(
               __wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_TIME, &cval), false);
-            if (cval.val != 0)
-                *ckpttime = (uint64_t)cval.val;
+            WT_ERR(__ckpt_parse_time(session, &cval, ckpttime));
         }
 
         /*
@@ -1715,11 +1710,9 @@ __meta_retrieve_timestamp(WT_SESSION_IMPL *session, const char *system_uri,
   const char *timestamp_name, wt_timestamp_t *timestampp, uint64_t *ckpttime)
 {
     WT_CONFIG_ITEM cval;
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     char *sys_config;
 
-    conn = S2C(session);
     sys_config = NULL;
     *timestampp = WT_TXN_NONE;
     if (ckpttime != NULL)
@@ -1737,16 +1730,10 @@ __meta_retrieve_timestamp(WT_SESSION_IMPL *session, const char *system_uri,
         }
 
         if (ckpttime != NULL) {
-            /* If the write generation is current, extract the checkpoint time. Otherwise we use 0.
-             */
+            /* Extract the checkpoint time. */
             WT_ERR_NOTFOUND_OK(
-              __wt_config_getones(session, sys_config, WT_SYSTEM_TS_WRITE_GEN, &cval), false);
-            if (cval.val != 0 && (uint64_t)cval.val >= conn->base_write_gen) {
-                WT_ERR_NOTFOUND_OK(
-                  __wt_config_getones(session, sys_config, WT_SYSTEM_TS_TIME, &cval), false);
-                if (cval.val != 0)
-                    *ckpttime = (uint64_t)cval.val;
-            }
+              __wt_config_getones(session, sys_config, WT_SYSTEM_TS_TIME, &cval), false);
+            WT_ERR(__ckpt_parse_time(session, &cval, ckpttime));
         }
     }
 
