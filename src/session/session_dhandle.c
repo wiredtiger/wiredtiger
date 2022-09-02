@@ -579,10 +579,7 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
              * collection of checkpoint cursors they opened on different files all came from the
              * same global checkpoint or not. This is the same problem as checking if the history
              * store checkpoint and data store checkpoint match, so the wall time is the right thing
-             * to use for it. Note that it will be 0 for all checkpoints from before this run;
-             * however, it is impossible to open the same checkpoint name twice and get two
-             * different checkpoints from before the current database run, since the newer one must
-             * have just been created.
+             * to use for it.
              */
             ckpt_snapshot->ckpt_id = snapshot_time;
         }
