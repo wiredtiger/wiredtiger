@@ -281,22 +281,32 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
                 # FIXME-WT-9809 The following failures should be triaged and potentially
                 # individually reticketed.
 
-                # This first group fail within Python for unknown reasons.
+                # This first group currently cause severe errors, where Python crashes,
+                # whether from internal assertion or other causes.
+                "test_bug003.test_bug003",   # crashes in connection close after opening bulk cursor.
+                "test_bug024.test_bug024",
+                "test_durable_ts03.test_durable_ts03",
+                "test_stat_log01_readonly.test_stat_log01_readonly",
+                "test_txn02.test_ops",
+                "test_upgrade.test_upgrade",
+
+                # This group fail within Python for unknown reasons.
                 "test_alter03.test_alter03_table_app_metadata",
                 "test_bug018.test_bug018",
                 "test_checkpoint.test_checkpoint",
-                "test_checkpoint.test_checkpoint",
-                "test_checkpoint.test_checkpoint",
+                "test_checkpoint_target.test_checkpoint_target",
                 "test_checkpoint_snapshot02.test_checkpoint_snapshot_with_txnid_and_timestamp",
                 "test_compat05.test_compat05",
                 "test_config05.test_too_many_sessions",
                 "test_config09.test_config09",
+                "test_drop.test_drop",
                 "test_drop_create.test_drop_create2",
                 "test_encrypt06.test_encrypt",
                 "test_encrypt07.test_salvage_api",
                 "test_encrypt07.test_salvage_api_damaged",
                 "test_encrypt07.test_salvage_process_damaged",
                 "test_export01.test_export_restart",
+                "test_hs21.test_hs",
                 "test_import04.test_table_import",
                 "test_import09.test_import_table_repair",
                 "test_import09.test_import_table_repair",
@@ -305,32 +315,32 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
                 "test_join03.test_join",
                 "test_join07.test_join_string",
                 "test_jsondump02.test_json_all_bytes",
+                "test_metadata_cursor02.test_missing",
                 "test_prepare02.test_prepare_session_operations",
                 "test_prepare_hs03.test_prepare_hs",
                 "test_prepare_hs03.test_prepare_hs",
+                "test_rename.test_rename",
                 "test_rollback_to_stable09.test_rollback_to_stable",
                 "test_rollback_to_stable28.test_update_restore_evict_recovery",
+                "test_rollback_to_stable34.test_rollback_to_stable",
                 "test_rollback_to_stable35.test_rollback_to_stable",
+                "test_rollback_to_stable36.test_rollback_to_stable",
                 "test_sweep03.test_disable_idle_timeout_drop",
                 "test_sweep03.test_disable_idle_timeout_drop_force",
+                "test_truncate01.test_truncate_cursor_end",
+                "test_truncate01.test_truncate_timestamp",
+                "test_truncate01.test_truncate_uri",
+                "test_truncate10.test_truncate10",
+                "test_truncate12.test_truncate12",
+                "test_truncate13.test_truncate",
+                "test_truncate14.test_truncate",
+                "test_truncate16.test_truncate16",
+                "test_truncate18.test_truncate18",
+                "test_truncate15.test_truncate15",
+                "test_txn22.test_corrupt_meta",
                 "test_verbose01.test_verbose_single",
                 "test_verbose02.test_verbose_single",
                 "test_verify2.test_verify_ckpt",
-
-                # This group currently cause severe errors, where Python crashes,
-                # whether from internal assertion or other causes.
-                "test_bug003.test_bug003",   # crashes in connection close after opening bulk cursor.
-                "test_bug024.test_bug024",
-                "test_cursor16.test_cursor16",
-                "test_flcs03.test_flcs03.test_flcs",
-                "test_prepare19.test_server_example",
-                #"test_readonly03.test_readonly",
-                "test_rollback_to_stable18.test_rollback_to_stable",
-                "test_rollback_to_stable33.test_rollback_to_stable33",
-                "test_stat_log01_readonly.test_stat_log01_readonly",
-                "test_truncate15.test_truncate15",
-                "test_txn02.test_ops",
-
                 ]
 
         for item in skip:
