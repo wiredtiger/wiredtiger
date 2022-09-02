@@ -3973,7 +3973,7 @@ buildvariants:
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
     - name: unit-test-random-seed
-    - name: unit-test-tiered
+    - name: unit-test-hook-tiered
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
     - name: compile-wtperf
