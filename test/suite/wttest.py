@@ -329,6 +329,21 @@ class WiredTigerTestCase(unittest.TestCase):
             tablename = name + ".wt"
             return os.path.exists(tablename)
 
+    # The first filename for this URI.  In the tiered storage
+    # world, this makes a difference, every flush tier creates a
+    # new backing file for writes, and others may no longer be
+    # present in the file system.
+    def initialFileName(self, uri):
+        # XXX This is a little ugly to have knowledge of specific hooks here.
+        if 'tiered' in self.hook_names and uri.startswith('table:'):
+            return uri[6:] + '-0000000001.wtobj'
+        if uri.startswith('table:'):
+            return uri[6:] + '.wt'
+        elif uri.startwith('file:'):
+            return uri[5:]
+        else:
+            raise Exception('bad uri')
+
     def __str__(self):
         # when running with scenarios, if the number_scenarios() method
         # is used, then each scenario is given a number, which can
