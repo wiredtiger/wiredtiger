@@ -28,7 +28,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # [TEST_TAGS]
-# connection_api:turtle_file
+# checkpoint:recovery
 # [END_TAGS]
 
 import wttest
