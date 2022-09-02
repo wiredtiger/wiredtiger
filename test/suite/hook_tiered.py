@@ -287,6 +287,7 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
                 "test_bug024.test_bug024",
                 "test_durable_ts03.test_durable_ts03",
                 "test_stat_log01_readonly.test_stat_log01_readonly",
+                "test_stat_log02.test_stats_log_on_json_with_tables",
                 "test_txn02.test_ops",
                 "test_upgrade.test_upgrade",
 

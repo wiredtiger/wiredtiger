@@ -1908,7 +1908,7 @@ tasks:
         vars:
           unit_test_args: -v 2 -R cursor13 join02 join07 schema03 timestamp22
 
-  - name: unit-test-tiered
+  - name: unit-test-hook-tiered
     tags: ["python"]
     depends_on:
     - name: compile
