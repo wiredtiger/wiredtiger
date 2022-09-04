@@ -1440,18 +1440,6 @@ __rollback_to_stable_check(WT_SESSION_IMPL *session)
 }
 
 /*
- * __check_rollback_to_stable_btree_dirty --
- *     Check that the rollback to stable btree is dirty or not.
- */
-static int
-__check_rollback_to_stable_btree_dirty(WT_SESSION_IMPL *session, const char *uri, bool *perform_rts)
-{
-    WT_RET(__wt_conn_dhandle_find(session, uri, NULL));
-    *perform_rts = S2BT(session)->modified;
-    return (0);
-}
-
-/*
  * __rollback_to_stable_btree_hs_truncate --
  *     Wipe all history store updates for the btree (non-timestamped tables)
  */
@@ -1637,7 +1625,7 @@ __rollback_progress_msg(WT_SESSION_IMPL *session, struct timespec rollback_start
 
 /*
  * __check_rollback_to_stable_btree_dirty --
- *     Comment
+ *     Check that the rollback to stable btree is dirty or not.
  */
 static int
 __check_rollback_to_stable_btree_dirty(WT_SESSION_IMPL *session, const char *uri, bool *perform_rts)
