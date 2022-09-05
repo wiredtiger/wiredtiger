@@ -28,6 +28,8 @@
 
 #include "format.h"
 
+static void apply_bounds(WT_CURSOR *, TABLE *, WT_ITEM *, uint32_t);
+static void clear_bounds(WT_CURSOR *);
 static int col_insert(TINFO *);
 static void col_insert_resolve(TABLE *, void *);
 static int col_modify(TINFO *, bool);
@@ -1271,6 +1273,52 @@ read_row_worker(TINFO *tinfo, TABLE *table, WT_CURSOR *cursor, uint64_t keyno, W
 }
 
 /*
+ * apply_bounds --
+ *     TODO
+ */
+static void
+apply_bounds(WT_CURSOR *cursor, TABLE *table, WT_ITEM *key, uint32_t max_rows)
+{
+    cursor->reset(cursor);
+
+    /* Retrieve the key/value pair by key. */
+    switch (table->type) {
+    case FIX:
+    case VAR:
+        cursor->set_key(cursor, 1);
+        break;
+    case ROW:
+        key_gen(table, key, 1);
+        cursor->set_key(cursor, key);
+        break;
+    }
+    cursor->bound(cursor, "action=set,bound=lower");
+
+    /* Retrieve the key/value pair by key. */
+    switch (table->type) {
+    case FIX:
+    case VAR:
+        cursor->set_key(cursor, max_rows);
+        break;
+    case ROW:
+        key_gen(table, key, max_rows);
+        cursor->set_key(cursor, key);
+        break;
+    }
+    cursor->bound(cursor, "action=set,bound=upper");
+}
+
+/*
+ * clear_bounds --
+ *     TODO
+ */
+static void
+clear_bounds(WT_CURSOR *cursor)
+{
+    cursor->bound(cursor, "action=clear");
+}
+
+/*
  * wts_read_scan --
  *     Read and verify a subset of the elements in a file.
  */
@@ -1314,6 +1362,9 @@ wts_read_scan(TABLE *table, void *arg)
         if (keyno > max_rows)
             keyno = max_rows;
 
+        if (GV(OPS_BOUND_CURSOR) && mmrand(NULL, 1, 10) == 1)
+            apply_bounds(cursor, table, &key, max_rows);
+
         switch (ret = read_row_worker(NULL, table, cursor, keyno, &key, &value, &bitv, false)) {
         case 0:
         case WT_NOTFOUND:
@@ -1324,6 +1375,7 @@ wts_read_scan(TABLE *table, void *arg)
         default:
             testutil_die(ret, "%s: read row %" PRIu64, __func__, keyno);
         }
+        clear_bounds(cursor);
     }
 
     wt_wrap_close_session(session);
