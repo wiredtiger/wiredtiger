@@ -18,8 +18,10 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_
 {
     WT_SAVE_UPD *supd;
 
-    WT_ASSERT_ALWAYS(session, onpage_upd != NULL || supd_restore,
-      "If nothing is committed the update chain must be restored");
+    WT_ASSERT_ALWAYS(session,
+      onpage_upd != NULL || (tombstone != NULL && __wt_txn_upd_visible_all(session, tombstone)) ||
+        supd_restore,
+      "If nothing is committed or we are not deleting the key, the update chain must be restored");
     WT_ASSERT_ALWAYS(session,
       onpage_upd == NULL || onpage_upd->type == WT_UPDATE_STANDARD ||
         onpage_upd->type == WT_UPDATE_MODIFY,
@@ -198,11 +200,12 @@ __rec_need_save_upd(
     if (F_ISSET(r, WT_REC_EVICT) && has_newer_updates)
         return (true);
 
-    /* No need to save the update chain if we want to delete the key from the disk image. */
-    if (upd_select->upd != NULL && upd_select->upd->type == WT_UPDATE_TOMBSTONE)
-        return (false);
-
-    /* Save the update chain to delete the update from the history store later. */
+    /*
+     * Save the update chain to delete the update from the history store later.
+     *
+     * This check needs to be before all the checks that return false. Otherwise, we may skip
+     * deleting an update from the history store.
+     */
     for (upd = upd_select->upd; upd != NULL; upd = upd->next) {
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
@@ -210,6 +213,10 @@ __rec_need_save_upd(
         if (F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS))
             return (true);
     }
+
+    /* No need to save the update chain if we want to delete the key from the disk image. */
+    if (upd_select->upd != NULL && upd_select->upd->type == WT_UPDATE_TOMBSTONE)
+        return (false);
 
     /*
      * Don't save updates for any reconciliation that doesn't involve history store (in-memory
