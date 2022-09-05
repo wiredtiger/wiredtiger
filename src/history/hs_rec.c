@@ -1110,10 +1110,6 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
             hs_insert_cursor->set_value(hs_insert_cursor, &hs_insert_tw,
               hs_insert_tw.durable_stop_ts, hs_insert_tw.durable_start_ts, (uint64_t)hs_upd_type,
               &hs_value);
-            // if (WT_TIME_WINDOW_HAS_STOP(&hs_insert_tw) && hs_insert_tw.stop_txn == WT_TXN_MAX) {
-            //     printf("wrong hs key %" PRIu64 "\n", *(uint64_t *)hs_key.data);
-            //     WT_ASSERT(session, false);
-            // }
             WT_ERR(hs_insert_cursor->insert(hs_insert_cursor));
             ++(*counter);
             ++cache_hs_order_reinsert;
