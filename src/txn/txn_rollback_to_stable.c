@@ -1624,11 +1624,11 @@ __rollback_progress_msg(WT_SESSION_IMPL *session, struct timespec rollback_start
 }
 
 /*
- * __check_rollback_to_stable_btree_dirty --
+ * __check_btree_dirty --
  *     Check that the rollback to stable btree is dirty or not.
  */
 static int
-__check_rollback_to_stable_btree_dirty(WT_SESSION_IMPL *session, const char *uri, bool *perform_rts)
+__check_btree_dirty(WT_SESSION_IMPL *session, const char *uri, bool *perform_rts)
 {
     WT_RET(__wt_conn_dhandle_find(session, uri, NULL));
     *perform_rts = S2BT(session)->modified;
@@ -1740,8 +1740,7 @@ __rollback_to_stable_btree_apply(
      * 4. There is no durable timestamp in any checkpoint.
      * 5. The checkpoint newest txn is greater than snapshot min txn id.
      */
-    WT_WITH_HANDLE_LIST_READ_LOCK(
-      session, (ret = __check_rollback_to_stable_btree_dirty(session, uri, &perform_rts)));
+    WT_WITH_HANDLE_LIST_READ_LOCK(session, (ret = __check_btree_dirty(session, uri, &perform_rts)));
 
     WT_ERR_NOTFOUND_OK(ret, false);
 
