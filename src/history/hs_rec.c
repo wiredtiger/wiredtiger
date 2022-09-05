@@ -831,7 +831,7 @@ __wt_hs_delete_key(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btre
 {
     WT_DECL_RET;
     WT_ITEM hs_key;
-    wt_timestamp_t hs_ts;
+    wt_timestamp_t hs_start_ts;
     uint64_t hs_counter;
     uint32_t hs_btree_id;
     bool hs_read_all_flag;
@@ -850,7 +850,7 @@ __wt_hs_delete_key(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btre
         ret = 0;
         goto done;
     } else {
-        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_ts, &hs_counter));
+        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
         ++hs_counter;
     }
 
@@ -880,8 +880,8 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
     WT_CURSOR_BTREE *hs_cbt;
     WT_DECL_RET;
     WT_ITEM hs_key, hs_value;
-    WT_TIME_WINDOW hs_insert_tw, tw, *twp;
-    wt_timestamp_t hs_ts;
+    WT_TIME_WINDOW hs_insert_tw, *twp;
+    wt_timestamp_t hs_durable_start_ts, hs_durable_stop_ts, hs_start_ts;
     uint64_t cache_hs_order_lose_durable_timestamp, cache_hs_order_reinsert, cache_hs_order_remove;
     uint64_t hs_counter, hs_upd_type;
     uint32_t hs_btree_id;
@@ -958,7 +958,7 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
             continue;
 
         /* We shouldn't have crossed the btree and user key search space. */
-        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_ts, &hs_counter));
+        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
         WT_ASSERT(session, hs_btree_id == btree_id);
 #ifdef HAVE_DIAGNOSTIC
         WT_ERR(__wt_compare(session, NULL, &hs_key, key, &cmp));
@@ -970,7 +970,7 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
          * the cell. The cell's start timestamp can be cleared during reconciliation if it is
          * globally visible.
          */
-        if (hs_ts >= ts || twp->stop_ts >= ts)
+        if (hs_start_ts >= ts || twp->stop_ts >= ts)
             break;
     }
     if (ret == WT_NOTFOUND)
@@ -1026,7 +1026,7 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
      */
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
         /* We shouldn't have crossed the btree and user key search space. */
-        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_ts, &hs_counter));
+        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
         WT_ASSERT(session, hs_btree_id == btree_id);
 #ifdef HAVE_DIAGNOSTIC
         WT_ERR(__wt_compare(session, NULL, &hs_key, key, &cmp));
@@ -1044,7 +1044,7 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
          * by ignoring them.
          */
         __wt_hs_upd_time_window(hs_cursor, &twp);
-        if (hs_ts < ts && twp->stop_ts < ts)
+        if (hs_start_ts < ts && twp->stop_ts < ts)
             continue;
 
         if (reinsert) {
@@ -1098,10 +1098,10 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
 
             /* Extract the underlying value for reinsertion. */
             WT_ERR(hs_cursor->get_value(
-              hs_cursor, &tw.durable_stop_ts, &tw.durable_start_ts, &hs_upd_type, &hs_value));
+              hs_cursor, &hs_durable_stop_ts, &hs_durable_start_ts, &hs_upd_type, &hs_value));
 
             /* Reinsert the update with corrected timestamps. */
-            if (no_ts_tombstone && hs_ts == ts)
+            if (no_ts_tombstone && hs_start_ts == ts)
                 *counter = hs_counter;
 
             /* Insert the value back with different timestamps. */
@@ -1110,6 +1110,10 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
             hs_insert_cursor->set_value(hs_insert_cursor, &hs_insert_tw,
               hs_insert_tw.durable_stop_ts, hs_insert_tw.durable_start_ts, (uint64_t)hs_upd_type,
               &hs_value);
+            // if (WT_TIME_WINDOW_HAS_STOP(&hs_insert_tw) && hs_insert_tw.stop_txn == WT_TXN_MAX) {
+            //     printf("wrong hs key %" PRIu64 "\n", *(uint64_t *)hs_key.data);
+            //     WT_ASSERT(session, false);
+            // }
             WT_ERR(hs_insert_cursor->insert(hs_insert_cursor));
             ++(*counter);
             ++cache_hs_order_reinsert;
