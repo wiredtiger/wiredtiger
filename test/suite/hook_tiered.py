@@ -74,19 +74,25 @@ def wiredtiger_open_tiered(ignored_self, args):
     curconfig = args[-1]
     homedir = args[0]
 
+    testcase = WiredTigerTestCase.currentTestCase()
+
     # If there is already tiered storage enabled, we shouldn't enable it here.
     # We might attempt to let the wiredtiger_open to complete without alteration,
     # however, we alter several other API methods that would do weird things with
     # a different tiered_storage configuration. So better to skip the test entirely.
     if 'tiered_storage=' in curconfig:
-        raise unittest.SkipTest("cannot run tiered hook on a test that already uses tiered storage")
+        testcase.skipTest("cannot run tiered hook on a test that already uses tiered storage")
+
+    # Similarly if this test is already set up to run tiered vs non-tiered scenario, let's
+    # not get in the way.
+    if hasattr(testcase, 'tiered_conn_config'):
+        testcase.skipTest("cannot run tiered hook on a test that already includes TieredConfigMixin")
 
     if 'in_memory=true' in curconfig:
-        raise unittest.SkipTest("cannot run tiered hook on a test that is in-memory")
+        testcase.skipTest("cannot run tiered hook on a test that is in-memory")
 
     # Mark this test as readonly, but don't disallow it.  See testcase_is_readonly().
     if 'readonly=true' in curconfig:
-        testcase = WiredTigerTestCase.currentTestCase()
         testcase._readonlyTieredTest = True
 
     if homedir != None:
@@ -217,7 +223,8 @@ def session_drop_replace(orig_session_drop, session_self, uri, config):
 # do statistics on (tiered) table data sources, as that is not yet supported.
 def session_open_cursor_replace(orig_session_open_cursor, session_self, uri, dupcursor, config):
     if uri != None and (uri.startswith("statistics:table:") or uri.startswith("statistics:file:")):
-        raise unittest.SkipTest("statistics on tiered tables not yet implemented")
+        testcase = WiredTigerTestCase.currentTestCase()
+        testcase.skipTest("statistics on tiered tables not yet implemented")
     return orig_session_open_cursor(session_self, uri, dupcursor, config)
 
 # Called to replace Session.rename
@@ -292,7 +299,6 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
                 "test_upgrade.test_upgrade",
 
                 # This group fail within Python for unknown reasons.
-                "test_alter03.test_alter03_table_app_metadata",
                 "test_bug018.test_bug018",
                 "test_checkpoint.test_checkpoint",
                 "test_checkpoint_target.test_checkpoint_target",
