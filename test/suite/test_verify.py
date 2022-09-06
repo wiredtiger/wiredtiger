@@ -40,11 +40,8 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
     # of tiered storage, builds the .wtobj object name.
     # Assumes that no checkpoints are done, so we
     # are on the first object.
-    def wt_extension(self):
-        if 'tiered' in self.hook_names:
-            return "-0000000001.wtobj"
-        else:
-            return ".wt"
+    def file_name(self, name):
+        return self.initialFileName('table:' + name)
 
     def populate(self, tablename):
         """
@@ -84,7 +81,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         if self.conn != None:
             self.conn.close()
             self.conn = None
-        filename = tablename + self.wt_extension()
+        filename = self.file_name(tablename)
 
         filesize = os.path.getsize(filename)
         position = (filesize * pct) // 100
