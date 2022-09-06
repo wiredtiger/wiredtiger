@@ -467,9 +467,10 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
      * checkpoint. Before recovery, we load the time of the last successful checkpoint in the
      * previous database so we can ensure checkpoint times increase across restarts. This avoids
      * trouble if the system clock moves backwards between runs, and also avoids possible issues if
-     * the checkpoint clock runs forward. (See notes about that in txn_ckpt.c.) When reading from a
-     * previous database, the checkpoint time in the snapshot and timestamp metadata default to zero
-     * if not present, avoiding confusion caused by older versions that don't include these values.
+     * the checkpoint clock runs forward. (See comment about that in
+     * __txn_checkpoint_establish_time().) When reading from a previous database, the checkpoint
+     * time in the snapshot and timestamp metadata default to zero if not present, avoiding
+     * confusion caused by older versions that don't include these values.
      *
      * Also note that only the exact name "WiredTigerCheckpoint" needs to be resolved. Requests to
      * open specific versions, such as "WiredTigerCheckpoint.6", must be looked up like named

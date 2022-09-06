@@ -1060,7 +1060,7 @@ __wt_metadata_load_prior_state(WT_SESSION_IMPL *session)
     __wt_seconds(session, &conn->ckpt_most_recent);
     /* Retrieve the metadata entry for the metadata file. */
     WT_ERR(__wt_metadata_search(session, WT_METAFILE_URI, &config));
-    /* Update base write gen to the write gen of metadata. */
+    /* Update base write gen and most recent checkpoint time from the metadata. */
     WT_ERR(__wt_metadata_update_connection(session, config));
 
 err:
@@ -1090,7 +1090,7 @@ __wt_metadata_correct_base_write_gen(WT_SESSION_IMPL *session)
 
         WT_ERR(cursor->get_value(cursor, &config));
 
-        /* Update base write gen to the write gen. */
+        /* Update base write gen and most recent checkpoint time. */
         WT_ERR(__wt_metadata_update_connection(session, config));
     }
     WT_ERR_NOTFOUND_OK(ret, false);

@@ -65,7 +65,7 @@ class test_bug029(wttest.WiredTigerTestCase):
         for i in range(100):
             self.session.checkpoint("force=1")
 
-        # Add more data and checkpoint again. The creates a bunch of pages
+        # Add more data and checkpoint again. This creates a bunch of pages
         # in the final checkpoint that can be deleted and reused if we hit
         # the bug.
         self.add_data(self.uri, 2000, 2000)
@@ -76,10 +76,12 @@ class test_bug029(wttest.WiredTigerTestCase):
 
         self.add_data(self.uri, 0, 100)
 
+        # Open a backup cursor and force a few checkpoints. This will allow
+        # WT to delete older checkpoints, but as long as the backup cursor
+        # is open, it shouldn't delete the backup checkpoint---unless we hit
+        # the bug.
         backup_cursor = self.session.open_cursor('backup:')
 
-        # Force a few checkpoints. If the bug hits, the backup checkpoint will
-        # get deleted.
         for i in range(10):
             self.session.checkpoint("force=1")
 
