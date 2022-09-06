@@ -337,9 +337,9 @@ class WiredTigerTestCase(unittest.TestCase):
         # XXX This is a little ugly to have knowledge of specific hooks here.
         if 'tiered' in self.hook_names and uri.startswith('table:'):
             return uri[6:] + '-0000000001.wtobj'
-        if uri.startswith('table:'):
+        elif uri.startswith('table:'):
             return uri[6:] + '.wt'
-        elif uri.startwith('file:'):
+        elif uri.startswith('file:'):
             return uri[5:]
         else:
             raise Exception('bad uri')
