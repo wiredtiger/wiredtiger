@@ -1740,7 +1740,9 @@ __rollback_to_stable_btree_apply(
      * 4. There is no durable timestamp in any checkpoint.
      * 5. The checkpoint newest txn is greater than snapshot min txn id.
      */
-    WT_WITH_HANDLE_LIST_READ_LOCK(session, (ret = __check_btree_dirty(session, uri, &perform_rts)));
+    WT_WITHOUT_DHANDLE(session,
+      WT_WITH_HANDLE_LIST_READ_LOCK(
+        session, (ret = __check_btree_dirty(session, uri, &perform_rts))));
 
     WT_ERR_NOTFOUND_OK(ret, false);
 
@@ -1821,8 +1823,7 @@ __wt_rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *ski
     WT_ORDERED_READ(rollback_timestamp, S2C(session)->txn_global.stable_timestamp);
 
     F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
-    WT_WITHOUT_DHANDLE(
-      session, ret = __rollback_to_stable_btree_apply(session, uri, config, rollback_timestamp));
+    ret = __rollback_to_stable_btree_apply(session, uri, config, rollback_timestamp);
     F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
 
     __wt_free(session, config);
@@ -1859,8 +1860,7 @@ __rollback_to_stable_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t ro
         WT_ERR(cursor->get_value(cursor, &config));
 
         F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
-        WT_WITHOUT_DHANDLE(session,
-          ret = __rollback_to_stable_btree_apply(session, uri, config, rollback_timestamp));
+        ret = __rollback_to_stable_btree_apply(session, uri, config, rollback_timestamp);
         F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
 
         /*
