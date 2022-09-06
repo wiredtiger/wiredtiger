@@ -180,17 +180,17 @@ err:
  *     times are unsigned values and config parsing treats numeric values as signed.
  */
 static int
-__ckpt_parse_time(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *a, uint64_t *timep)
+__ckpt_parse_time(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *config_value, uint64_t *timep)
 {
     char timebuf[64];
 
     WT_UNUSED(session);
     *timep = 0;
 
-    if (a->len == 0 || a->len > sizeof(timebuf) - 1)
+    if (config_value->len == 0 || config_value->len > sizeof(timebuf) - 1)
         return (WT_ERROR);
-    memcpy(timebuf, a->str, a->len);
-    timebuf[a->len] = '\0';
+    memcpy(timebuf, config_value->str, config_value->len);
+    timebuf[config_value->len] = '\0';
     /* NOLINTNEXTLINE(cert-err34-c) */
     if (sscanf(timebuf, "%" SCNu64, timep) != 1)
         return (WT_ERROR);
