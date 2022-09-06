@@ -1106,7 +1106,7 @@ err:
 }
 
 /*
- * __session_reset --
+ * __session_reset_notsup --
  *     WT_SESSION->reset method; not supported version.
  */
 static int
