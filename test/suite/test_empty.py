@@ -47,7 +47,9 @@ class test_empty(wttest.WiredTigerTestCase):
         uri = self.type + self.name
         self.session.create(uri, 'key_format=' + self.fmt + ',value_format=S')
         self.session.close()
-        name = self.initialFileName(uri)
+        name = self.name
+        if self.type == "table:":
+            name = name + '.wt'
         self.assertEquals(os.stat(name).st_size, 4*1024)
 
 if __name__ == '__main__':

@@ -298,7 +298,7 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
                 "test_txn02.test_ops",
                 "test_upgrade.test_upgrade",
 
-                # This group fail within Python for unknown reasons.
+                # This group fail within Python for various, sometimes unknown, reasons.
                 "test_bug018.test_bug018",
                 "test_checkpoint.test_checkpoint",
                 "test_checkpoint_target.test_checkpoint_target",
@@ -308,6 +308,7 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
                 "test_config09.test_config09",
                 "test_drop.test_drop",
                 "test_drop_create.test_drop_create2",
+                "test_empty.test_empty",     # looks at wt file names and uses column store
                 "test_encrypt06.test_encrypt",
                 "test_encrypt07.test_salvage_api",
                 "test_encrypt07.test_salvage_api_damaged",
