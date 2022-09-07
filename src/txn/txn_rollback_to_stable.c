@@ -1624,11 +1624,11 @@ __rollback_progress_msg(WT_SESSION_IMPL *session, struct timespec rollback_start
 }
 
 /*
- * __check_btree_modified --
+ * __rollback_to_stable_check_btree_modified --
  *     Check that the rollback to stable btree is modified or not.
  */
 static int
-__check_btree_modified(WT_SESSION_IMPL *session, const char *uri, bool *modified)
+__rollback_to_stable_check_btree_modified(WT_SESSION_IMPL *session, const char *uri, bool *modified)
 {
     WT_DECL_RET;
 
@@ -1744,7 +1744,7 @@ __rollback_to_stable_btree_apply(
      */
     WT_WITHOUT_DHANDLE(session,
       WT_WITH_HANDLE_LIST_READ_LOCK(
-        session, (ret = __check_btree_modified(session, uri, &modified))));
+        session, (ret = __rollback_to_stable_check_btree_modified(session, uri, &modified))));
 
     WT_ERR_NOTFOUND_OK(ret, false);
 
