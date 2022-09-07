@@ -2001,7 +2001,7 @@ err:
 }
 
 /*
- * __session_timestamp_transaction_uint__notsup --
+ * __session_timestamp_transaction_uint_notsup --
  *     WT_SESSION->timestamp_transaction_uint_ method; not supported version.
  */
 static int
