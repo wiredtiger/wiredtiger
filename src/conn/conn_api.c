@@ -1117,8 +1117,8 @@ err:
 
     F_CLR(conn, WT_CONN_MINIMAL | WT_CONN_READY);
     if (conn->default_session->event_handler->handle_general != NULL)
-        conn->default_session->event_handler->handle_general(
-          conn->default_session->event_handler, &conn->iface, NULL, WT_EVENT_CONN_CLOSE);
+        WT_TRET(conn->default_session->event_handler->handle_general(
+          conn->default_session->event_handler, &conn->iface, NULL, WT_EVENT_CONN_CLOSE));
 
     /*
      * Rollback all running transactions. We do this as a separate pass because an active
@@ -1146,8 +1146,8 @@ err:
 
     F_SET(conn, WT_CONN_MINIMAL);
     if (conn->default_session->event_handler->handle_general != NULL)
-        conn->default_session->event_handler->handle_general(
-          conn->default_session->event_handler, wt_conn, NULL, WT_EVENT_CONN_READY);
+        WT_TRET(conn->default_session->event_handler->handle_general(
+          conn->default_session->event_handler, wt_conn, NULL, WT_EVENT_CONN_READY));
 
     /* Wait for in-flight operations to complete. */
     WT_TRET(__wt_txn_activity_drain(session));
@@ -1180,8 +1180,8 @@ err:
 
     F_CLR(conn, WT_CONN_MINIMAL | WT_CONN_READY);
     if (conn->default_session->event_handler->handle_general != NULL)
-        conn->default_session->event_handler->handle_general(
-          conn->default_session->event_handler, wt_conn, NULL, WT_EVENT_CONN_CLOSE);
+        WT_TRET(conn->default_session->event_handler->handle_general(
+          conn->default_session->event_handler, wt_conn, NULL, WT_EVENT_CONN_CLOSE));
 
     /*
      * See if close should wait for tiered storage to finish any flushing after the final
@@ -3037,7 +3037,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     F_SET(conn, WT_CONN_MINIMAL);
     if (event_handler != NULL && event_handler->handle_general != NULL)
-        event_handler->handle_general(event_handler, &conn->iface, NULL, WT_EVENT_CONN_READY);
+        WT_ERR(
+          event_handler->handle_general(event_handler, &conn->iface, NULL, WT_EVENT_CONN_READY));
 
     /* Start the worker threads and run recovery. */
     WT_ERR(__wt_connection_workers(session, cfg));
@@ -3087,8 +3088,8 @@ err:
 
     if (ret != 0) {
         if (conn->default_session->event_handler->handle_general != NULL)
-            conn->default_session->event_handler->handle_general(
-              conn->default_session->event_handler, &conn->iface, NULL, WT_EVENT_CONN_CLOSE);
+            WT_TRET(conn->default_session->event_handler->handle_general(
+              conn->default_session->event_handler, &conn->iface, NULL, WT_EVENT_CONN_CLOSE));
 
         /*
          * Set panic if we're returning the run recovery error or if recovery did not complete so
