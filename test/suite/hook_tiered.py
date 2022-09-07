@@ -294,6 +294,7 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
                 "test_bug003.test_bug003",   # crashes in connection close after opening bulk cursor.
                 "test_bug024.test_bug024",
                 "test_durable_ts03.test_durable_ts03",
+                "test_rollback_to_stable20.test_rollback_to_stable",
                 "test_stat_log01_readonly.test_stat_log01_readonly",
                 "test_stat_log02.test_stats_log_on_json_with_tables",
                 "test_txn02.test_ops",
