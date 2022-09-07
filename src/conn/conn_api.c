@@ -1115,10 +1115,11 @@ err:
     conn->cache->eviction_dirty_trigger = 1.0;
     conn->cache->eviction_dirty_target = 0.1;
 
-    F_CLR(conn, WT_CONN_MINIMAL | WT_CONN_READY);
-    if (conn->default_session->event_handler->handle_general != NULL)
+    if (conn->default_session->event_handler->handle_general != NULL &&
+      F_ISSET(conn, WT_CONN_MINIMAL | WT_CONN_READY))
         WT_TRET(conn->default_session->event_handler->handle_general(
           conn->default_session->event_handler, &conn->iface, NULL, WT_EVENT_CONN_CLOSE));
+    F_CLR(conn, WT_CONN_MINIMAL | WT_CONN_READY);
 
     /*
      * Rollback all running transactions. We do this as a separate pass because an active
@@ -1178,10 +1179,11 @@ err:
     /* Perform a final checkpoint and shut down the global transaction state. */
     WT_TRET(__wt_txn_global_shutdown(session, cfg));
 
-    F_CLR(conn, WT_CONN_MINIMAL | WT_CONN_READY);
+    /* We know WT_CONN_MINIMAL is set a few lines above no need to check again. */
     if (conn->default_session->event_handler->handle_general != NULL)
         WT_TRET(conn->default_session->event_handler->handle_general(
           conn->default_session->event_handler, wt_conn, NULL, WT_EVENT_CONN_CLOSE));
+    F_CLR(conn, WT_CONN_MINIMAL);
 
     /*
      * See if close should wait for tiered storage to finish any flushing after the final
@@ -3087,9 +3089,11 @@ err:
         __wt_free(session, conn->partial_backup_remove_ids);
 
     if (ret != 0) {
-        if (conn->default_session->event_handler->handle_general != NULL)
+        if (conn->default_session->event_handler->handle_general != NULL &&
+          F_ISSET(conn, WT_CONN_MINIMAL | WT_CONN_READY))
             WT_TRET(conn->default_session->event_handler->handle_general(
               conn->default_session->event_handler, &conn->iface, NULL, WT_EVENT_CONN_CLOSE));
+        F_CLR(conn, WT_CONN_MINIMAL | WT_CONN_READY);
 
         /*
          * Set panic if we're returning the run recovery error or if recovery did not complete so
