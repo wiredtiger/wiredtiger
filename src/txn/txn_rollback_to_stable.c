@@ -1624,15 +1624,17 @@ __rollback_progress_msg(WT_SESSION_IMPL *session, struct timespec rollback_start
 }
 
 /*
- * __check_btree_dirty --
+ * __check_btree_modified --
  *     Check that the rollback to stable btree is dirty or not.
  */
 static int
-__check_btree_dirty(WT_SESSION_IMPL *session, const char *uri, bool *perform_rts)
+__check_btree_modified(WT_SESSION_IMPL *session, const char *uri, bool *modified)
 {
-    WT_RET(__wt_conn_dhandle_find(session, uri, NULL));
-    *perform_rts = S2BT(session)->modified;
-    return (0);
+    WT_DECL_RET;
+
+    ret = __wt_conn_dhandle_find(session, uri, NULL);
+    *modified = ret == 0 && S2BT(session)->modified;
+    return (ret);
 }
 
 /*
@@ -1651,7 +1653,7 @@ __rollback_to_stable_btree_apply(
     uint64_t rollback_txnid, write_gen;
     uint32_t btree_id;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool dhandle_allocated, durable_ts_found, has_txn_updates_gt_than_ckpt_snap, perform_rts;
+    bool dhandle_allocated, durable_ts_found, has_txn_updates_gt_than_ckpt_snap, modified;
     bool prepared_updates;
 
     /* Ignore non-btree objects as well as the metadata and history store files. */
@@ -1742,11 +1744,11 @@ __rollback_to_stable_btree_apply(
      */
     WT_WITHOUT_DHANDLE(session,
       WT_WITH_HANDLE_LIST_READ_LOCK(
-        session, (ret = __check_btree_dirty(session, uri, &perform_rts))));
+        session, (ret = __check_btree_modified(session, uri, &modified))));
 
     WT_ERR_NOTFOUND_OK(ret, false);
 
-    if (perform_rts || max_durable_ts > rollback_timestamp || prepared_updates ||
+    if (modified || max_durable_ts > rollback_timestamp || prepared_updates ||
       !durable_ts_found || has_txn_updates_gt_than_ckpt_snap) {
         /*
          * Open a handle; we're potentially opening a lot of handles and there's no reason to cache
