@@ -340,9 +340,18 @@ __wt_compact(WT_SESSION_IMPL *session)
         if (++i > 100) {
             bm->compact_progress(bm, session, &msg_count);
             WT_ERR(__wt_session_compact_check_timeout(session));
-            if (session->event_handler->handle_general != NULL)
-                WT_ERR(session->event_handler->handle_general(session->event_handler,
-                  &(S2C(session))->iface, &session->iface, WT_EVENT_COMPACT_CHECK));
+            if (session->event_handler->handle_general != NULL) {
+                ret = session->event_handler->handle_general(session->event_handler,
+                  &(S2C(session))->iface, &session->iface, WT_EVENT_COMPACT_CHECK);
+                /*
+                 * If the user's handler returned an error we want to return it generally. But EBUSY
+                 * is specially interpreted by callers. If the handler returns EBUSY, send back
+                 * WT_ERROR.
+                 */
+                if (ret == EBUSY)
+                    ret = WT_ERROR;
+                WT_ERR(ret);
+            }
 
             if (__wt_cache_stuck(session))
                 WT_ERR(EBUSY);
