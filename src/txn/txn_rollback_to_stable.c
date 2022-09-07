@@ -1625,7 +1625,7 @@ __rollback_progress_msg(WT_SESSION_IMPL *session, struct timespec rollback_start
 
 /*
  * __check_btree_modified --
- *     Check that the rollback to stable btree is dirty or not.
+ *     Check that the rollback to stable btree is modified or not.
  */
 static int
 __check_btree_modified(WT_SESSION_IMPL *session, const char *uri, bool *modified)
