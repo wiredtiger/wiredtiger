@@ -641,7 +641,7 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
     /*
      * Check for early usage of a user session to collect statistics. If the connection is not fully
      * ready but can be used, then only allow a cursor uri of "statistics:" only. The conditional is
-     * complicated. Allow the cursor to open if:
+     * complicated. Allow the cursor to open if any of these conditions are met:
      * - The connection is ready
      * - The session is an internal session
      * - The connection is minimally ready and the URI is "statistics:"

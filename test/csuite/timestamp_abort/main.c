@@ -140,7 +140,7 @@ static int handle_general(WT_EVENT_HANDLER *, WT_CONNECTION *, WT_SESSION *, WT_
 
 static WT_CONNECTION *stat_conn = NULL;
 static WT_SESSION *stat_session = NULL;
-static bool stat_run = false;
+static volatile bool stat_run = false;
 static wt_thread_t stat_th;
 
 static WT_EVENT_HANDLER my_event = {NULL, NULL, NULL, NULL, handle_general};
@@ -905,6 +905,7 @@ main(int argc, char *argv[])
      */
     testutil_check(wiredtiger_open(NULL, &my_event, ENV_CONFIG_REC, &conn));
     printf("Connection open and recovery complete. Verify content\n");
+    /* Sleep to guarantee the statistics thread has enough time to run. */
     usleep(USEC_STAT + 10);
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     /*

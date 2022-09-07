@@ -1145,6 +1145,10 @@ err:
             WT_TRET(__wt_session_close_internal(s));
         }
 
+    /*
+     * Set MINIMAL again and call the event handler so that statistics can monitor any end of
+     * connection activity (like the final checkpoint).
+     */
     F_SET(conn, WT_CONN_MINIMAL);
     if (conn->default_session->event_handler->handle_general != NULL)
         WT_TRET(conn->default_session->event_handler->handle_general(
