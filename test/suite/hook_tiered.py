@@ -41,7 +41,7 @@
 #
 # 2. If we create an object that is *not* a table:, we add options to its config
 #    so that it will be stored local-only.  Tiered storage isn't intended (yet?) for
-#    use with lsm.
+#    use with lsm or column store.
 #
 # 3. We add calls to flush_tier().  Currently we only flush after a checkpoint() call,
 #    but we should add others.
@@ -198,9 +198,10 @@ def session_create_replace(orig_session_create, session_self, uri, config):
     else:
         new_config = config
 
-    # If the test isn't creating a table (i.e., it's lsm) create it as a
+    # If the test isn't creating a table (i.e., it's a column store or lsm) create it as a
     # "local only" object.  Otherwise we get tiered storage from the connection defaults.
-    if not uri.startswith("table:") or "type=lsm" in new_config or testcase_is_readonly():
+    # FIXME-WT-9832 Column store testing should be allowed with this hook.
+    if not uri.startswith("table:") or "key_format=r" in new_config or "type=lsm" in new_config or testcase_is_readonly():
         new_config = new_config + ',tiered_storage=(name=none)'
 
     WiredTigerTestCase.verbose(None, 3,
