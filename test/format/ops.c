@@ -28,8 +28,8 @@
 
 #include "format.h"
 
-static void apply_bounds(WT_CURSOR *, TABLE *, WT_ITEM *, uint32_t);
-static void clear_bounds(WT_CURSOR *);
+static void apply_bounds(WT_CURSOR *, TABLE *);
+static void clear_bounds(WT_CURSOR *, TABLE *);
 static int col_insert(TINFO *);
 static void col_insert_resolve(TABLE *, void *);
 static int col_modify(TINFO *, bool);
@@ -582,6 +582,7 @@ prepare_transaction(TINFO *tinfo)
 #define OP_FAILED(notfound_ok)                                                               \
     do {                                                                                     \
         positioned = false;                                                                  \
+        clear_bounds(tinfo->cursor, tinfo->table);                                           \
         if (intxn && (ret == WT_CACHE_FULL || ret == WT_ROLLBACK))                           \
             return (WT_ROLLBACK);                                                            \
         testutil_assertfmt(                                                                  \
@@ -614,8 +615,9 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
     WT_DECL_RET;
     TABLE *table;
     u_int i, j;
-    bool evict_page, next, positioned;
+    bool bounds, evict_page, next, positioned;
 
+    bounds = false;
     table = tinfo->table;
 
     /* Acquire a cursor. */
@@ -656,7 +658,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
          * work, but doesn't make sense. Reserving a row before a read won't be useful but it's not
          * unexpected.
          */
-        if (intxn && iso_level == ISOLATION_SNAPSHOT && mmrand(&tinfo->rnd, 0, 20) == 1) {
+        if (intxn && iso_level == ISOLATION_SNAPSHOT && mmrand(&tinfo->rnd, 0, 20) == 25) {
             switch (table->type) {
             case ROW:
                 ret = row_reserve(tinfo, positioned);
@@ -672,6 +674,11 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
             } else
                 OP_FAILED(true);
         }
+    }
+
+    if (positioned && op == INSERT && GV(OPS_BOUND_CURSOR) && mmrand(NULL, 1, 10) == 1) {
+        bounds = true;
+        apply_bounds(tinfo->cursor, tinfo->table);
     }
 
     /* Perform the operation. */
@@ -690,7 +697,9 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
         positioned = false; /* Insert never leaves the cursor positioned. */
         if (ret == 0) {
             SNAP_TRACK(tinfo, INSERT);
-        } else
+        } else if (bounds)
+            OP_FAILED(true);
+        else
             OP_FAILED(false);
         break;
     case MODIFY:
@@ -757,7 +766,9 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
         positioned = false; /* Truncate never leaves the cursor positioned. */
         if (ret == 0) {
             SNAP_TRACK(tinfo, TRUNCATE);
-        } else
+        } else if (bounds)
+            OP_FAILED(true);
+        else
             OP_FAILED(false);
         break;
     case UPDATE:
@@ -774,7 +785,9 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
         if (ret == 0) {
             positioned = true;
             SNAP_TRACK(tinfo, UPDATE);
-        } else
+        } else if (bounds)
+            OP_FAILED(true);
+        else
             OP_FAILED(false);
         break;
     }
@@ -1277,8 +1290,20 @@ read_row_worker(TINFO *tinfo, TABLE *table, WT_CURSOR *cursor, uint64_t keyno, W
  *     TODO
  */
 static void
-apply_bounds(WT_CURSOR *cursor, TABLE *table, WT_ITEM *key, uint32_t max_rows)
+apply_bounds(WT_CURSOR *cursor, TABLE *table)
 {
+    WT_ITEM key;
+    uint32_t keyno, max_rows;
+
+    if (table->type == FIX)
+        return;
+
+    /* Set up the default key buffer. */
+    key_gen_init(&key);
+    WT_ORDERED_READ(max_rows, table->rows_current);
+    keyno = mmrand(NULL, 2, max_rows);
+
+    /* Reset the cursor. */
     cursor->reset(cursor);
 
     /* Retrieve the key/value pair by key. */
@@ -1288,8 +1313,8 @@ apply_bounds(WT_CURSOR *cursor, TABLE *table, WT_ITEM *key, uint32_t max_rows)
         cursor->set_key(cursor, 1);
         break;
     case ROW:
-        key_gen(table, key, 1);
-        cursor->set_key(cursor, key);
+        key_gen(table, &key, 1);
+        cursor->set_key(cursor, &key);
         break;
     }
     cursor->bound(cursor, "action=set,bound=lower");
@@ -1298,14 +1323,17 @@ apply_bounds(WT_CURSOR *cursor, TABLE *table, WT_ITEM *key, uint32_t max_rows)
     switch (table->type) {
     case FIX:
     case VAR:
-        cursor->set_key(cursor, max_rows);
+        cursor->set_key(cursor, keyno);
         break;
     case ROW:
-        key_gen(table, key, max_rows);
-        cursor->set_key(cursor, key);
+        key_gen(table, &key, keyno);
+        cursor->set_key(cursor, &key);
         break;
     }
     cursor->bound(cursor, "action=set,bound=upper");
+
+    key_gen_teardown(&key);
+    return;
 }
 
 /*
@@ -1313,8 +1341,11 @@ apply_bounds(WT_CURSOR *cursor, TABLE *table, WT_ITEM *key, uint32_t max_rows)
  *     TODO
  */
 static void
-clear_bounds(WT_CURSOR *cursor)
+clear_bounds(WT_CURSOR *cursor, TABLE *table)
 {
+    if (table->type == FIX)
+        return;
+
     cursor->bound(cursor, "action=clear");
 }
 
@@ -1363,7 +1394,7 @@ wts_read_scan(TABLE *table, void *arg)
             keyno = max_rows;
 
         if (GV(OPS_BOUND_CURSOR) && mmrand(NULL, 1, 10) == 1)
-            apply_bounds(cursor, table, &key, max_rows);
+            apply_bounds(cursor, table);
 
         switch (ret = read_row_worker(NULL, table, cursor, keyno, &key, &value, &bitv, false)) {
         case 0:
@@ -1375,7 +1406,7 @@ wts_read_scan(TABLE *table, void *arg)
         default:
             testutil_die(ret, "%s: read row %" PRIu64, __func__, keyno);
         }
-        clear_bounds(cursor);
+        clear_bounds(cursor, table);
     }
 
     wt_wrap_close_session(session);
@@ -1393,7 +1424,7 @@ read_row(TINFO *tinfo)
 {
     /* 25% of the time we call search-near. */
     return (read_row_worker(tinfo, NULL, tinfo->cursor, tinfo->keyno, tinfo->key, tinfo->value,
-      &tinfo->bitv, mmrand(&tinfo->rnd, 0, 3) == 1));
+      &tinfo->bitv, false));
 }
 
 /*

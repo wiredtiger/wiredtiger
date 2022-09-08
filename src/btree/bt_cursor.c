@@ -1126,6 +1126,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
      */
     if (btree->type != BTREE_COL_FIX && __cursor_page_pinned(cbt, false) &&
       F_ISSET(cursor, WT_CURSTD_OVERWRITE) && !append_key) {
+        WT_ASSERT(session, WT_CURSOR_BOUNDS_SET(cursor) == false);
         WT_ERR(__wt_txn_autocommit_check(session));
         /*
          * The cursor position may not be exact (the cursor's comparison value not equal to zero).
