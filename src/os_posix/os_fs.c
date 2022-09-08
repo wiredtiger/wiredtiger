@@ -422,10 +422,23 @@ __posix_file_read(
     /* Break reads larger than 1GB into 1GB chunks. */
     for (addr = buf; len > 0; addr += nr, len -= (size_t)nr, offset += nr) {
         chunk = WT_MIN(len, WT_GIGABYTE);
+#ifdef RHEL_PPC
+        if ((nr = pread(pfh->fd, addr, chunk, offset)) <= 0) {
+            /* Try again ask RHEL PPC often has failures that can occur on read ops. */
+            __wt_verbose(session, WT_VERB_READ,
+                  "%s: handle-read: pread: failed to read %" WT_SIZET_FMT " bytes at offset %" PRIuMAX ", will retry",
+                file_handle->name, chunk, (uintmax_t)offset);
+            if ((nr = pread(pfh->fd, addr, chunk, offset)) <= 0)
+                WT_RET_MSG(session, nr == 0 ? WT_ERROR : __wt_errno(),
+                   "%s: handle-read: pread: failed to read %" WT_SIZET_FMT " bytes at offset %" PRIuMAX,
+                   file_handle->name, chunk, (uintmax_t)offset);
+        }
+#else
         if ((nr = pread(pfh->fd, addr, chunk, offset)) <= 0)
             WT_RET_MSG(session, nr == 0 ? WT_ERROR : __wt_errno(),
               "%s: handle-read: pread: failed to read %" WT_SIZET_FMT " bytes at offset %" PRIuMAX,
               file_handle->name, chunk, (uintmax_t)offset);
+#endif
     }
     WT_STAT_CONN_INCRV(session, block_byte_read_syscall, len);
     return (0);

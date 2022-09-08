@@ -4483,10 +4483,11 @@ buildvariants:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
-    # Use a fixed count of 4 to avoid disk issues on this platform.
-    smp_command: -j 4
+    # Use half number of vCPU to avoid OOM kill failure
+    smp_command: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 2 | bc)
     cmake_generator: Ninja
     make_command: ninja
+    posix_configure_flags: -DENABLE_STRICT=0 -DRHEL_PPC=1
   tasks:
     - name: compile
     - name: unit-test

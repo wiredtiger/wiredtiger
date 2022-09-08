@@ -91,6 +91,12 @@ config_string(
 )
 
 config_bool(
+    RHEL_PPC
+    "Enable special platform specific behavior for RHEL PPC."
+    DEFAULT OFF
+)
+
+config_bool(
     HAVE_DIAGNOSTIC
     "Enable WiredTiger diagnostics. Automatically enables debug info."
     DEFAULT ${default_have_diagnostics}

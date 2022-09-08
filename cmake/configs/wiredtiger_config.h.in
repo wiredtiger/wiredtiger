@@ -9,6 +9,9 @@
 #ifndef __WIREDTIGER_CONFIG_H_
 #define __WIREDTIGER_CONFIG_H_
 
+/* Define to 1 if the user has explicitly enabled RHEL_PPC. */
+#cmakedefine RHEL_PPC 1
+
 /* Define to 1 to pause for debugger attach on failure. */
 #cmakedefine HAVE_ATTACH 1
 
