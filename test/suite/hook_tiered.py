@@ -61,8 +61,8 @@ from wttest import WiredTigerTestCase
 
 # These are the hook functions that are run when particular APIs are called.
 
-# Add the local storage extension whenever we call wiredtiger_open
-def wiredtiger_open_tiered(ignored_self, args):
+# Add the local storage extension to the arguments whenever we call wiredtiger_open
+def wiredtiger_open_replace(orig_wiredtiger_open, homedir, curconfig):
     auth_token = "test_token"
 
     # The bucket name, when it appears in configuration, is relative to the database home.
@@ -71,8 +71,6 @@ def wiredtiger_open_tiered(ignored_self, args):
     bucketpath = bucket
     extension_name = "dir_store"
     prefix = "pfx-"
-    curconfig = args[-1]
-    homedir = args[0]
 
     testcase = WiredTigerTestCase.currentTestCase()
 
@@ -90,10 +88,6 @@ def wiredtiger_open_tiered(ignored_self, args):
 
     if 'in_memory=true' in curconfig:
         testcase.skipTest("cannot run tiered hook on a test that is in-memory")
-
-    # Mark this test as readonly, but don't disallow it.  See testcase_is_readonly().
-    if 'readonly=true' in curconfig:
-        testcase._readonlyTieredTest = True
 
     if homedir != None:
         bucketpath = os.path.join(homedir, bucketpath)
@@ -127,29 +121,34 @@ def wiredtiger_open_tiered(ignored_self, args):
     # during the flush_tier call.
     tier_string += ',debug_mode=(flush_checkpoint=true),'
 
-    args = list(args)         # convert from a readonly tuple to a writeable list
-    args[-1] += tier_string   # Modify the list
+    config = curconfig + tier_string
 
     WiredTigerTestCase.verbose(None, 3,
-        '    Calling wiredtiger_open with config = \'{}\''.format(args))
+        '    Calling wiredtiger_open(\'{}\',\'{}\')'.format(homedir, config))
+    conn = orig_wiredtiger_open(homedir, config)
 
-    return args
+    # If the connection is readonly, mark it so, but don't disallow it.  See conn_is_readonly().
+    conn._is_readonly = ('readonly=true' in curconfig)
 
-# We want readonly tests to run with tiered storage, since it is possible to do readonly
+    return conn
+
+# We want readonly connections to run with tiered storage, since it is possible to do readonly
 # operations.  This function is called for two purposes:
 #  - when readonly is enabled, we don't want to do flush_tier calls.
 #  - normally the hook silently removes other (not supported) calls, like compact/rename/salvage.
 #    Except that some tests enable readonly and call these functions, expecting an exception.
 #    So for these "modifying" APIs, we want to actually do the operation (but only when readonly).
-def testcase_is_readonly():
-    testcase = WiredTigerTestCase.currentTestCase()
-    return getattr(testcase, '_readonlyTieredTest', False)
+def conn_is_readonly(conn):
+    return conn._is_readonly
+
+def session_is_readonly(session):
+    return conn_is_readonly(session.connection)
 
 # Called to replace Connection.close
 # Insert a call to flush_tier before closing connection.
 def connection_close_replace(orig_connection_close, connection_self, config):
     # We cannot call flush_tier on a readonly connection.
-    if not testcase_is_readonly():
+    if not conn_is_readonly(connection_self):
         s = connection_self.open_session(None)
         s.flush_tier(None)
         s.close()
@@ -166,7 +165,7 @@ def session_checkpoint_replace(orig_session_checkpoint, session_self, config):
         return ret
 
     # We cannot call flush_tier on a readonly connection.
-    if not testcase_is_readonly():
+    if not session_is_readonly(session_self):
         WiredTigerTestCase.verbose(None, 3,
             '    Calling flush_tier() after checkpoint')
         return session_self.flush_tier(None)
@@ -176,8 +175,9 @@ def session_compact_replace(orig_session_compact, session_self, uri, config):
     # Compact isn't implemented for tiered tables.  Only call it if this can't be the uri
     # of a tiered table.  Note this isn't a precise match for when we did/didn't create
     # a tiered table, but we don't have the create config around to check.
+    # We want readonly connections to do the real call, see comment in conn_is_readonly.
     ret = 0
-    if not uri.startswith("table:") or testcase_is_readonly():
+    if not uri.startswith("table:") or session_is_readonly(session_self):
         ret = orig_session_compact(session_self, uri, config)
     return ret
 
@@ -190,8 +190,10 @@ def session_create_replace(orig_session_create, session_self, uri, config):
 
     # If the test isn't creating a table (i.e., it's a column store or lsm) create it as a
     # "local only" object.  Otherwise we get tiered storage from the connection defaults.
+    # We want readonly connections to do the real call, see comment in conn_is_readonly.
     # FIXME-WT-9832 Column store testing should be allowed with this hook.
-    if not uri.startswith("table:") or "key_format=r" in new_config or "type=lsm" in new_config or testcase_is_readonly():
+    if not uri.startswith("table:") or "key_format=r" in new_config or "type=lsm" in new_config or \
+      session_is_readonly(session_self):
         new_config = new_config + ',tiered_storage=(name=none)'
 
     WiredTigerTestCase.verbose(None, 3,
@@ -213,8 +215,9 @@ def session_rename_replace(orig_session_rename, session_self, uri, newuri, confi
     # Rename isn't implemented for tiered tables.  Only call it if this can't be the uri
     # of a tiered table.  Note this isn't a precise match for when we did/didn't create
     # a tiered table, but we don't have the create config around to check.
+    # We want readonly connections to do the real call, see comment in conn_is_readonly.
     ret = 0
-    if not uri.startswith("table:") or testcase_is_readonly():
+    if not uri.startswith("table:") or session_is_readonly(session_self):
         ret = orig_session_rename(session_self, uri, newuri, config)
     return ret
 
@@ -223,8 +226,9 @@ def session_salvage_replace(orig_session_salvage, session_self, uri, config):
     # Salvage isn't implemented for tiered tables.  Only call it if this can't be the uri
     # of a tiered table.  Note this isn't a precise match for when we did/didn't create
     # a tiered table, but we don't have the create config around to check.
+    # We want readonly connections to do the real call, see comment in conn_is_readonly.
     ret = 0
-    if not uri.startswith("table:") or testcase_is_readonly():
+    if not uri.startswith("table:") or session_is_readonly(session_self):
         ret = orig_session_salvage(session_self, uri, config)
     return ret
 
@@ -233,8 +237,9 @@ def session_verify_replace(orig_session_verify, session_self, uri, config):
     # Verify isn't implemented for tiered tables.  Only call it if this can't be the uri
     # of a tiered table.  Note this isn't a precise match for when we did/didn't create
     # a tiered table, but we don't have the create config around to check.
+    # We want readonly connections to do the real call, see comment in conn_is_readonly.
     ret = 0
-    if not uri.startswith("table:") or testcase_is_readonly():
+    if not uri.startswith("table:") or session_is_readonly(session_self):
         ret = orig_session_verify(session_self, uri, config)
     return ret
 
@@ -371,7 +376,9 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
         self.Session['verify'] = (wthooks.HOOK_REPLACE, lambda s, uri, config=None:
           session_verify_replace(orig_session_verify, s, uri, config))
 
-        self.wiredtiger['wiredtiger_open'] = (wthooks.HOOK_ARGS, wiredtiger_open_tiered)
+        orig_wiredtiger_open = self.wiredtiger['wiredtiger_open']
+        self.wiredtiger['wiredtiger_open'] = (wthooks.HOOK_REPLACE, lambda homedir, config=None:
+          wiredtiger_open_replace(orig_wiredtiger_open, homedir, config))
 
 # Every hook file must have a top level initialize function,
 # returning a list of WiredTigerHook objects.
