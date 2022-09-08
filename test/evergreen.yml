@@ -5089,7 +5089,7 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    posix_configure_flags: -DENABLE_ANTITHESIS=1
+    posix_configure_flags: -DENABLE_ANTITHESIS=1 -DENABLE_STRICT=0
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_clang.cmake
     make_command: ninja
   tasks:
