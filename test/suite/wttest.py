@@ -57,15 +57,21 @@ class timeout(object):
 
     def __enter__(self):
         if self.seconds != 0:
-            import signal     # This will fail on non-Unix systems.
-            self.prev_handler = signal.signal(signal.SIGALRM, self.signal_handler)
-            signal.alarm(self.seconds)
+            try:
+                import signal     # This will fail on non-Unix systems.
+                self.prev_handler = signal.signal(signal.SIGALRM, self.signal_handler)
+                signal.alarm(self.seconds)
+            except Exception as e:
+                raise Exception('The --timeout option is not available on this system: ' + str(e))
 
     def __exit__(self, typ, value, traceback):
         if self.seconds != 0:
-            import signal     # This will fail on non-Unix systems.
-            signal.alarm(0)
-            signal.signal(signal.SIGALRM, self.prev_handler)
+            try:
+                import signal     # This will fail on non-Unix systems.
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, self.prev_handler)
+            except Exception as e:
+                raise Exception('The --timeout option is not available on this system: ' + str(e))
 
 def shortenWithEllipsis(s, maxlen):
     if len(s) > maxlen:
