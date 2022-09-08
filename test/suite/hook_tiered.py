@@ -77,7 +77,7 @@ def wiredtiger_open_tiered(ignored_self, args):
     testcase = WiredTigerTestCase.currentTestCase()
 
     # If there is already tiered storage enabled, we shouldn't enable it here.
-    # We might attempt to let the wiredtiger_open to complete without alteration,
+    # We might attempt to let the wiredtiger_open complete without alteration,
     # however, we alter several other API methods that would do weird things with
     # a different tiered_storage configuration. So better to skip the test entirely.
     if 'tiered_storage=' in curconfig:
@@ -138,7 +138,7 @@ def wiredtiger_open_tiered(ignored_self, args):
 # We want readonly tests to run with tiered storage, since it is possible to do readonly
 # operations.  This function is called for two purposes:
 #  - when readonly is enabled, we don't want to do flush_tier calls.
-#  - normally the hook silently removes other (not supported) calls, like alter/compact/drop.
+#  - normally the hook silently removes other (not supported) calls, like compact/rename/salvage.
 #    Except that some tests enable readonly and call these functions, expecting an exception.
 #    So for these "modifying" APIs, we want to actually do the operation (but only when readonly).
 def testcase_is_readonly():
@@ -155,16 +155,6 @@ def connection_close_replace(orig_connection_close, connection_self, config):
         s.close()
 
     ret = orig_connection_close(connection_self, config)
-    return ret
-
-# Called to replace Session.alter
-def session_alter_replace(orig_session_alter, session_self, uri, config):
-    # Alter isn't implemented for tiered tables.  Only call it if this can't be the uri
-    # of a tiered table.  Note this isn't a precise match for when we did/didn't create
-    # a tiered table, but we don't have the create config around to check.
-    ret = 0
-    if not uri.startswith("table:") or testcase_is_readonly():
-        ret = orig_session_alter(session_self, uri, config)
     return ret
 
 # Called to replace Session.checkpoint.
@@ -207,16 +197,6 @@ def session_create_replace(orig_session_create, session_self, uri, config):
     WiredTigerTestCase.verbose(None, 3,
         '    Creating \'{}\' with config = \'{}\''.format(uri, new_config))
     ret = orig_session_create(session_self, uri, new_config)
-    return ret
-
-# Called to replace Session.drop
-def session_drop_replace(orig_session_drop, session_self, uri, config):
-    # Drop isn't implemented for tiered tables.  Only call it if this can't be the uri
-    # of a tiered table.  Note this isn't a precise match for when we did/didn't create
-    # a tiered table, but we don't have the create config around to check.
-    ret = 0
-    if not uri.startswith("table:") or testcase_is_readonly():
-        ret = orig_session_drop(session_self, uri, config)
     return ret
 
 # FIXME-WT-9785
@@ -273,7 +253,6 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
                 "env01",                # Using environment variable to set WT home
                 "config02",             # Using environment variable to set WT home
                 "cursor13_ckpt",        # Checkpoint tests with cached cursors
-                "cursor13_drops",       # Tests that require working drop implementation
                 "cursor13_dup",         # More cursor cache tests
                 "cursor13_reopens",     # More cursor cache tests
                 "inmem",                # In memory tests don't make sense with tiered storage
@@ -309,7 +288,6 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
                 "test_config05.test_too_many_sessions",
                 "test_config09.test_config09",
                 "test_drop.test_drop",
-                "test_drop_create.test_drop_create2",
                 "test_empty.test_empty",     # looks at wt file names and uses column store
                 "test_encrypt06.test_encrypt",
                 "test_encrypt07.test_salvage_api",
@@ -369,10 +347,6 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
         self.Connection['close'] = (wthooks.HOOK_REPLACE, lambda s, config=None:
           connection_close_replace(orig_connection_close, s, config))
 
-        orig_session_alter = self.Session['alter']
-        self.Session['alter'] =  (wthooks.HOOK_REPLACE, lambda s, uri, config=None:
-          session_alter_replace(orig_session_alter, s, uri, config))
-
         orig_session_compact = self.Session['compact']
         self.Session['compact'] =  (wthooks.HOOK_REPLACE, lambda s, uri, config=None:
           session_compact_replace(orig_session_compact, s, uri, config))
@@ -380,10 +354,6 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
         orig_session_create = self.Session['create']
         self.Session['create'] =  (wthooks.HOOK_REPLACE, lambda s, uri, config=None:
           session_create_replace(orig_session_create, s, uri, config))
-
-        orig_session_drop = self.Session['drop']
-        self.Session['drop'] = (wthooks.HOOK_REPLACE, lambda s, uri, config=None:
-          session_drop_replace(orig_session_drop, s, uri, config))
 
         orig_session_open_cursor = self.Session['open_cursor']
         self.Session['open_cursor'] = (wthooks.HOOK_REPLACE, lambda s, uri, todup=None, config=None:
