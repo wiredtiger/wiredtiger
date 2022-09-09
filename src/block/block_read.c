@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -151,10 +151,13 @@ err:
  */
 int
 __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint32_t objectid,
-  wt_off_t offset, uint32_t size, uint32_t checksum)
+                    wt_off_t offset, uint32_t size, uint32_t checksum)
 {
     WT_BLOCK_HEADER *blk, swap;
+    bool chunkcache_has_data;
     size_t bufsize;
+    uint32_t chunksize;
+    void *chunk_location;
 
     __wt_verbose(session, WT_VERB_READ, "off %" PRIuMAX ", size %" PRIu32 ", checksum %#" PRIx32,
       (uintmax_t)offset, size, checksum);
@@ -192,7 +195,20 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
     WT_RET(__wt_buf_init(session, buf, bufsize));
     buf->size = size;
 
-    WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
+    /*
+     * If the chunk size is not zero, the chunk cache is asking the underlying
+     * remote storage system to read more data than the BTree had asked for.
+     *
+     */
+    __blkcache_chunk_check(session, block, objectid, offset, size, &chunksize, &chunk_location,
+                           &chunkcache_has_data, buf->mem);
+    if (chunk_size != 0 && __wt_read(session, block->fh, offset, chunk_size, chunk_location) == 0) {
+        /* Put the chunk into the cache */
+        __blkcache_chunk_put(session, block, objectid, offset, chunksize, chunk_location);
+        memcpy((void*)buf->mem, chunk_location, size);
+    }
+    else if (!chunkcache_has_data)
+        WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
 
     /*
      * We incrementally read through the structure before doing a checksum, do little- to big-endian

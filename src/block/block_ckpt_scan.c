@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -16,7 +16,7 @@
  * manager's checkpoint is the avail list. If current metadata and checkpoint information is
  * included in that write, we're close. We can open the file, read the blocks, scan until we find
  * the avail list, and read the metadata and checkpoint information from there.
- *	Two problems remain: first, the checkpoint information isn't correct until we write the
+ *  Two problems remain: first, the checkpoint information isn't correct until we write the
  * avail list and the checkpoint information has to include the avail list address plus the final
  * file size after the write. Fortunately, when scanning the file for the avail lists, we're
  * figuring out exactly the information needed to fix up the checkpoint information we wrote, that
@@ -55,12 +55,12 @@ __wt_block_checkpoint_final(
      * First, add in a counter to uniquely order checkpoints at our level.
      * There's order and time information in the checkpoint itself, but the
      * order isn't written and the time is only at second granularity.
-     *	I'm using the Btree write generation for this purpose. That's
+     *  I'm using the Btree write generation for this purpose. That's
      * safe and guaranteed correct because everything is locked down for the
      * checkpoint, we're the only writer. Plus, because we use the write
      * generation as a database connection generation, it's guaranteed to
      * move forward and never repeat.
-     *	It's a layering violation though, this is the only place the
+     *  It's a layering violation though, this is the only place the
      * block manager uses the write generation. The alternative would be to
      * add our own write-generation scheme in the block manager, storing a
      * value and recovering it when we open the file. We could do that, as
@@ -284,7 +284,7 @@ __wt_block_checkpoint_last(WT_SESSION_IMPL *session, WT_BLOCK *block, char **met
          * block isn't valid, skip to the next possible block.
          */
         if (__wt_block_offset_invalid(block, offset, size) ||
-          __wt_block_read_off(session, block, tmp, objectid, offset, size, checksum) != 0) {
+            __wt_block_read_off(session, block, tmp, objectid, offset, size, checksum) != 0) {
             size = WT_BTREE_MIN_ALLOC_SIZE;
             continue;
         }

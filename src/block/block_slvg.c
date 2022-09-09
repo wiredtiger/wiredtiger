@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -140,7 +140,7 @@ __wt_block_salvage_next(
          * otherwise, move past it.
          */
         if (!__wt_block_offset_invalid(block, offset, size) &&
-          __wt_block_read_off(session, block, tmp, objectid, offset, size, checksum) == 0)
+            __wt_block_read_off(session, block, tmp, objectid, offset, size, checksum) == 0)
             break;
 
         /* Free the allocation-size block. */

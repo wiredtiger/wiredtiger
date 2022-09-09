@@ -105,7 +105,6 @@ typedef struct {
 
     char *auth_token;     /* Identifier for key management system */
     char *bucket_dir;     /* Directory that stands in for cloud storage bucket */
-    char *cache_dir;      /* Directory for cached objects */
     const char *home_dir; /* Owned by the connection */
 } DIR_STORE_FILE_SYSTEM;
 
@@ -122,7 +121,6 @@ typedef struct dir_store_file_handle {
  * Forward function declarations for internal functions
  */
 static int dir_store_bucket_path(WT_FILE_SYSTEM *, const char *, char **);
-static int dir_store_cache_path(WT_FILE_SYSTEM *, const char *, char **);
 static int dir_store_home_path(WT_FILE_SYSTEM *, const char *, char **);
 static int dir_store_configure(DIR_STORE *, WT_CONFIG_ARG *);
 static int dir_store_configure_int(DIR_STORE *, WT_CONFIG_ARG *, const char *, uint32_t *);
@@ -353,17 +351,6 @@ dir_store_bucket_path(WT_FILE_SYSTEM *file_system, const char *name, char **path
 }
 
 /*
- * dir_store_cache_path --
- *     Construct the cache pathname from the file system and dir_store name.
- */
-static int
-dir_store_cache_path(WT_FILE_SYSTEM *file_system, const char *name, char **pathp)
-{
-    return (
-      dir_store_path(file_system, ((DIR_STORE_FILE_SYSTEM *)file_system)->cache_dir, name, pathp));
-}
-
-/*
  * dir_store_home_path --
  *     Construct the source pathname from the file system and dir_store name.
  */
@@ -417,22 +404,9 @@ dir_store_stat(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
 
     path = NULL;
 
-    /*
-     * We check to see if the file exists in the cache first, and if not the bucket directory. This
-     * maps what a real cloud implementation would do. This will allow us to instrument this code to
-     * try out and measure caching implementations.
-     */
-    if ((ret = dir_store_cache_path(file_system, name, &path)) != 0)
+    if ((ret = dir_store_bucket_path(file_system, name, &path)) != 0)
         goto err;
-
     ret = stat(path, statp);
-    if (ret != 0 && errno == ENOENT) {
-        /* It's not in the cache, try the bucket directory. */
-        free(path);
-        if ((ret = dir_store_bucket_path(file_system, name, &path)) != 0)
-            goto err;
-        ret = stat(path, statp);
-    }
     if (ret != 0) {
         /*
          * If the file must exist, report the error no matter what.
@@ -479,7 +453,6 @@ dir_store_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *s
 {
     DIR_STORE *dir_store;
     DIR_STORE_FILE_SYSTEM *fs;
-    WT_CONFIG_ITEM cachedir;
     WT_FILE_SYSTEM *wt_fs;
     int ret;
     const char *p;
@@ -489,18 +462,6 @@ dir_store_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *s
 
     fs = NULL;
     ret = 0;
-
-    /* Parse configuration string. */
-    if ((ret = dir_store->wt_api->config_get_string(
-           dir_store->wt_api, session, config, "cache_directory", &cachedir)) != 0) {
-        if (ret == WT_NOTFOUND) {
-            ret = 0;
-            cachedir.len = 0;
-        } else {
-            ret = dir_store_err(dir_store, session, ret, "customize_file_system: config parsing");
-            goto err;
-        }
-    }
 
     if ((ret = dir_store->wt_api->file_system_get(dir_store->wt_api, session, &wt_fs)) != 0) {
         ret = dir_store_err(
@@ -527,7 +488,7 @@ dir_store_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *s
     fs->home_dir = session->connection->get_home(session->connection);
 
     /*
-     * Get the bucket directory and the cache directory.
+     * Get the bucket directory.
      */
     if ((ret = dir_store_get_directory(fs->home_dir, bucket_name, -1, false, &fs->bucket_dir)) !=
       0) {
@@ -535,28 +496,6 @@ dir_store_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *s
         goto err;
     }
 
-    /*
-     * The default cache directory is named "cache-<name>", where name is the last component of the
-     * bucket name's path. We'll create it if it doesn't exist.
-     */
-    if (cachedir.len == 0) {
-        if ((p = strrchr(bucket_name, '/')) != NULL)
-            p++;
-        else
-            p = bucket_name;
-        if (snprintf(buf, sizeof(buf), "cache-%s", p) >= (int)sizeof(buf)) {
-            ret = dir_store_err(dir_store, session, EINVAL, "overflow snprintf");
-            goto err;
-        }
-        cachedir.str = buf;
-        cachedir.len = strlen(buf);
-    }
-    if ((ret = dir_store_get_directory(
-           fs->home_dir, cachedir.str, (ssize_t)cachedir.len, true, &fs->cache_dir)) != 0) {
-        ret = dir_store_err(
-          dir_store, session, ret, "%*s: cache directory", (int)cachedir.len, cachedir.str);
-        goto err;
-    }
     fs->file_system.fs_directory_list = dir_store_directory_list;
     fs->file_system.fs_directory_list_single = dir_store_directory_list_single;
     fs->file_system.fs_directory_list_free = dir_store_directory_list_free;
@@ -573,7 +512,6 @@ err:
     else if (fs != NULL) {
         free(fs->auth_token);
         free(fs->bucket_dir);
-        free(fs->cache_dir);
         free(fs);
     }
     return (ret);
@@ -726,49 +664,21 @@ err:
 
 /*
  * dir_store_flush_finish --
- *     Cache a file in the new file system.
+ *     Nothing to do for now.
  */
 static int
 dir_store_flush_finish(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
   WT_FILE_SYSTEM *file_system, const char *source, const char *object, const char *config)
 {
-    DIR_STORE *dir_store;
-    int ret;
-    char *dest_path, *src_path;
 
-    (void)config; /* unused */
-    dest_path = src_path = NULL;
-    dir_store = (DIR_STORE *)storage_source;
-    ret = 0;
+    WT_UNUSED(storage_source);
+    WT_UNUSED(session);
+    WT_UNUSED(file_system);
+    WT_UNUSED(source);
+    WT_UNUSED(object);
+    WT_UNUSED(config);
 
-    if (file_system == NULL || source == NULL || object == NULL)
-        return dir_store_err(
-          dir_store, session, EINVAL, "ss_flush_finish: required arguments missing");
-
-    if ((ret = dir_store_home_path(file_system, source, &src_path)) != 0)
-        goto err;
-
-    if ((ret = dir_store_cache_path(file_system, object, &dest_path)) != 0)
-        goto err;
-
-    dir_store->op_count++;
-    /*
-     * Link the object with the original dir_store object. The could be replaced by a file copy if
-     * portability is an issue.
-     */
-    if ((ret = link(src_path, dest_path)) != 0) {
-        ret = dir_store_err(
-          dir_store, session, errno, "ss_flush_finish link %s to %s failed", source, dest_path);
-        goto err;
-    }
-    /* Set the file to readonly in the cache. */
-    if (ret == 0 && (ret = chmod(dest_path, 0444)) < 0)
-        ret =
-          dir_store_err(dir_store, session, errno, "%s: ss_flush_finish chmod failed", dest_path);
-err:
-    free(dest_path);
-    free(src_path);
-    return (ret);
+    return (0);
 }
 
 /*
@@ -909,7 +819,7 @@ dir_store_directory_list_internal(WT_FILE_SYSTEM *file_system, WT_SESSION *sessi
 err:
     if (closedir(dirp) != 0) {
         t_ret = dir_store_err(
-          dir_store, session, errno, "%s: ss_directory_list: closedir", dir_store_fs->cache_dir);
+          dir_store, session, errno, "%s: ss_directory_list: closedir", dir_store_fs->bucket_dir);
         if (ret == 0)
             ret = t_ret;
     }
@@ -939,7 +849,6 @@ dir_store_fs_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
     FS2DS(file_system)->op_count++;
     free(dir_store_fs->auth_token);
     free(dir_store_fs->bucket_dir);
-    free(dir_store_fs->cache_dir);
     free(file_system);
 
     return (0);
@@ -960,7 +869,7 @@ dir_store_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
     WT_FILE_SYSTEM *wt_fs;
     struct stat sb;
     int ret;
-    char *bucket_path, *cache_path;
+    char *bucket_path;
 
     (void)flags; /* Unused */
 
@@ -970,7 +879,7 @@ dir_store_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
     dir_store_fs = (DIR_STORE_FILE_SYSTEM *)file_system;
     dir_store = dir_store_fs->dir_store;
     wt_fs = dir_store_fs->wt_fs;
-    bucket_path = cache_path = NULL;
+    bucket_path = NULL;
 
     if ((flags & WT_FS_OPEN_READONLY) == 0 || (flags & WT_FS_OPEN_CREATE) != 0)
         return (dir_store_err(
@@ -996,31 +905,16 @@ dir_store_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
         ret = ENOMEM;
         goto err;
     }
-    if ((ret = dir_store_cache_path(file_system, name, &cache_path)) != 0)
+    if ((ret = dir_store_bucket_path(file_system, name, &bucket_path)) != 0)
         goto err;
-    ret = stat(cache_path, &sb);
+    ret = stat(bucket_path, &sb);
     if (ret != 0) {
-        if (errno != ENOENT) {
-            ret = dir_store_err(dir_store, session, errno, "%s: dir_store_open stat", cache_path);
-            goto err;
-        }
-
-        /*
-         * The file doesn't exist locally, make a copy of it from the cloud.
-         */
-        if ((ret = dir_store_bucket_path(file_system, name, &bucket_path)) != 0)
-            goto err;
-
-        if ((ret = dir_store_delay(dir_store)) != 0)
-            goto err;
-
-        if ((ret = dir_store_file_copy(
-               dir_store, session, bucket_path, cache_path, WT_FS_OPEN_FILE_TYPE_DATA, false)) != 0)
-            goto err;
-
-        dir_store->object_reads++;
+        ret = dir_store_err(dir_store, session, errno, "%s: dir_store_open stat", bucket_path);
+        goto err;
     }
-    if ((ret = wt_fs->fs_open_file(wt_fs, session, cache_path, file_type, flags, &wt_fh)) != 0) {
+    dir_store->object_reads++;
+
+    if ((ret = wt_fs->fs_open_file(wt_fs, session, bucket_path, file_type, flags, &wt_fh)) != 0) {
         ret = dir_store_err(dir_store, session, ret, "ss_open_object: open: %s", name);
         goto err;
     }
@@ -1071,7 +965,6 @@ dir_store_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
 
 err:
     free(bucket_path);
-    free(cache_path);
     if (ret != 0) {
         if (dir_store_fh != NULL)
             dir_store_file_close_internal(dir_store, session, dir_store_fh);
@@ -1102,16 +995,10 @@ static int
 dir_store_remove(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, uint32_t flags)
 {
     int ret;
-    char *bucket_path, *cache_path;
+    char *bucket_path;
 
-    bucket_path = cache_path = NULL;
+    bucket_path = NULL;
     ret = 0;
-
-    /* Check to see if the file exists in the cache directory before attempting to remove it. */
-    if ((ret = dir_store_cache_path(file_system, name, &cache_path)) != 0)
-        goto err;
-    if ((ret = dir_store_remove_if_exists(file_system, session, cache_path, flags)) != 0)
-        goto err;
 
     /* Check to see if the file exists in the bucket directory before attempting to remove it. */
     if ((ret = dir_store_bucket_path(file_system, name, &bucket_path)) != 0)
@@ -1121,7 +1008,6 @@ dir_store_remove(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *n
 
 err:
     free(bucket_path);
-    free(cache_path);
     return (ret);
 }
 
