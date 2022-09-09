@@ -196,18 +196,18 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
     buf->size = size;
 
     /*
-     * If the chunk size is not zero, the chunk cache is asking the underlying
-     * remote storage system to read more data than the BTree had asked for.
-     *
+     * Check the chunk cache for the needed data. If the data is not there, the chunk cache
+     * may ask the underlying storage system to read more data than the BTree had asked for.
+     * In that case, the chunk size will be non-zero and indicate how much data it wants to read.
      */
     __blkcache_chunk_check(session, block, objectid, offset, size, &chunksize, &chunk_location,
                            &chunkcache_has_data, buf->mem);
-    if (chunk_size != 0 && __wt_read(session, block->fh, offset, chunk_size, chunk_location) == 0) {
-        /* Put the chunk into the cache */
+    if (chunksize != 0 && __wt_read(session, block->fh, offset, chunksize, chunk_location) == 0) {
         __blkcache_chunk_put(session, block, objectid, offset, chunksize, chunk_location);
         memcpy((void*)buf->mem, chunk_location, size);
+        chunkcache_has_data = true;
     }
-    else if (!chunkcache_has_data)
+    if (!chunkcache_has_data)
         WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
 
     /*

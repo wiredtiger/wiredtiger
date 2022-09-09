@@ -22,6 +22,7 @@ __wt_chunkcache_check(WT_SESSION_IMPL session, WT_BLOCK *block, uint32_t objecti
                        bool *chunkcache_has_data, void *buf->mem)
 {
     WT_CHUNKCACHE *chunkcache = S2C(session)->chunkcache;
+    WT_CHUNKCACHE_CHAIN *chunkchain;
     struct {
         objectname[WT_CHUNKCACHE_NAMEMAX];
         objectid;
@@ -35,10 +36,16 @@ __wt_chunkcache_check(WT_SESSION_IMPL session, WT_BLOCK *block, uint32_t objecti
 
     bzero(&hash_id, sizeof(hash_id));
     hash_id.objectid = objectid;
-    memcpy(&hashid.objectname, block->name, WT_MAX(strlen(block->name), WT_CHUNKCACHE_NAMEMAX));
+    memcpy(&hashid.objectname, block->name, WT_MIN(strlen(block->name), WT_CHUNKCACHE_NAMEMAX));
 
     hash =  __wt_hash_city64(hash_id, sizeof(hash_id));
-    bucket = hash % chunkcache->size;
+    bucket = hash % chunkcache->table_size;
+    __wt_spin_lock(session, &chunkcache->bucket_locks[bucket]);
+    TAILQ_FOREACH(chunkchain, &chunkcache->has[bucket], hashq) {
+        if (strncmp(chunkchain->name, &hash_id.objectname, strlen(&hash_id.objectname)) == 0
+            && hash_id.objectid == chunkchain.objectid) {
+        }
+    }
 
 }
 

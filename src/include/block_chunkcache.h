@@ -22,7 +22,7 @@ struct __wt_chunkcache_chunk {
 };
 
 
-struct __wt_chunkcache_bucket {
+struct __wt_chunkcache_chain {
     /* This queue contains all objects that collided in this hash bucket */
     TAILQ_ENTRY(__wt_chunkcache_bucket) hashq;
 
@@ -30,7 +30,7 @@ struct __wt_chunkcache_bucket {
     const char *name;
     uint32_t objectid;
     TAILQ_HEAD(__wt_chunkcache_list, __wt_chunkcache_chunk) chunklist_head;
-}
+};
 
 /*
  * WT_CHUNKCACHE --
