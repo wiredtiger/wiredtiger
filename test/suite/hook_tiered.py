@@ -249,7 +249,9 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
     def __init__(self, arg=0):
         # Caller can specify an optional command-line argument.  We're not using it
         # now, but this is where it would show up.
-        return
+
+        # Override some platform APIs
+        self.platform_api = TieredPlatformAPI()
 
     # Is this test one we should skip?
     def skip_test(self, test):
@@ -347,6 +349,9 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
         new_tests.addTests([t for t in tests if not self.skip_test(t)])
         return new_tests
 
+    def get_platform_api(self):
+        return self.platform_api
+
     def setup_hooks(self):
         orig_connection_close = self.Connection['close']
         self.Connection['close'] = (wthooks.HOOK_REPLACE, lambda s, config=None:
@@ -377,6 +382,21 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
           session_verify_replace(orig_session_verify, s, uri, config))
 
         self.wiredtiger['wiredtiger_open'] = (wthooks.HOOK_ARGS, wiredtiger_open_tiered)
+
+# Override some platform APIs for this hook.
+class TieredPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
+    def tableExists(self, name):
+        for i in range(1, 9):
+            tablename = name + "-000000000{}.wtobj".format(i)
+            if os.path.exists(tablename):
+                return True
+        return False
+
+    def initialFileName(self, uri):
+        if uri.startswith('table:'):
+            return uri[6:] + '-0000000001.wtobj'
+        else:
+            return wthooks.DefaultPlatformAPI.initialFileName(uri)
 
 # Every hook file must have a top level initialize function,
 # returning a list of WiredTigerHook objects.

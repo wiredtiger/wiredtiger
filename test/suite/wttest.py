@@ -322,33 +322,20 @@ class WiredTigerTestCase(unittest.TestCase):
         self.skipped = False
         if not self._globalSetup:
             WiredTigerTestCase.globalSetup()
+        self.platform_api = WiredTigerTestCase._hookmgr.get_platform_api()
 
+    # Platform specific functions (may be overridden by hooks):
+
+    # Return true if file(s) for the table with the given base name exist in the file system.
+    # This may have a different implementation when running under certain hooks.
     def tableExists(self, name):
-        # XXX This is a little ugly to have knowledge of specific hooks here.
-        if 'tiered' in self.hook_names:
-            for i in range(1, 9):
-                tablename = name + "-000000000{}.wtobj".format(i)
-                if os.path.exists(tablename):
-                    return True
-            return False
-        else:
-            tablename = name + ".wt"
-            return os.path.exists(tablename)
+        return self.platform_api.tableExists(name)
 
     # The first filename for this URI.  In the tiered storage
     # world, this makes a difference, every flush tier creates a
-    # new backing file for writes, and others may no longer be
-    # present in the file system.
-    def initialFileName(self, uri):
-        # XXX This is a little ugly to have knowledge of specific hooks here.
-        if 'tiered' in self.hook_names and uri.startswith('table:'):
-            return uri[6:] + '-0000000001.wtobj'
-        elif uri.startswith('table:'):
-            return uri[6:] + '.wt'
-        elif uri.startswith('file:'):
-            return uri[5:]
-        else:
-            raise Exception('bad uri')
+    # This may have a different implementation when running under certain hooks.
+    def initialFileName(self, name):
+        return self.platform_api.initialFileName(name)
 
     def __str__(self):
         # when running with scenarios, if the number_scenarios() method
