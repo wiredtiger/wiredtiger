@@ -569,6 +569,7 @@ class WiredTigerTestCase(unittest.TestCase):
             self.prhead('started in ' + self.testdir, True)
         # tearDown needs connections list, set it here in case the open fails.
         self._connections = []
+        self._failed = None   # set to True/False during teardown.
         self.origcwd = os.getcwd()
         shutil.rmtree(self.testdir, ignore_errors=True)
         if os.path.exists(self.testdir):
@@ -631,7 +632,8 @@ class WiredTigerTestCase(unittest.TestCase):
         failure = self.list2reason(result, 'failures')
         exc_failure = (sys.exc_info() != (None, None, None))
 
-        passed = not error and not failure and not exc_failure
+        self._failed = error or failure or exc_failure
+        passed = not self._failed
 
         # Download the files from the S3 bucket for tiered tests if the test fails or preserve is
         # turned on.
@@ -684,6 +686,11 @@ class WiredTigerTestCase(unittest.TestCase):
             self.pr('preserving directory ' + self.testdir)
         if WiredTigerTestCase._verbose > 2:
             self.prhead('TEST COMPLETED')
+
+    # Returns None if testcase is running.  If during (or after) tearDown,
+    # will return True or False depending if the test case failed.
+    def failed(self):
+        return self._failed
 
     def backup(self, backup_dir, session=None):
         if session is None:

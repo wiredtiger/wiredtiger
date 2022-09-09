@@ -145,11 +145,18 @@ def testcase_is_readonly():
     testcase = WiredTigerTestCase.currentTestCase()
     return getattr(testcase, '_readonlyTieredTest', False)
 
+def testcase_has_failed():
+    testcase = WiredTigerTestCase.currentTestCase()
+    return testcase.failed()
+
 # Called to replace Connection.close
 # Insert a call to flush_tier before closing connection.
 def connection_close_replace(orig_connection_close, connection_self, config):
     # We cannot call flush_tier on a readonly connection.
-    if not testcase_is_readonly():
+    # Likewise we should not call flush_tier if the test case has failed,
+    # and the connection is being closed at the end of the run after the failure.
+    # Otherwise, diagnosing the original failure may be troublesome.
+    if not testcase_is_readonly() and not testcase_has_failed():
         s = connection_self.open_session(None)
         s.flush_tier(None)
         s.close()
@@ -208,6 +215,9 @@ def session_open_cursor_replace(orig_session_open_cursor, session_self, uri, dup
     if uri != None and (uri.startswith("statistics:table:") or uri.startswith("statistics:file:")):
         testcase = WiredTigerTestCase.currentTestCase()
         testcase.skipTest("statistics on tiered tables not yet implemented")
+    if uri != None and uri.startswith("backup:"):
+        testcase = WiredTigerTestCase.currentTestCase()
+        testcase.skipTest("backup on tiered tables not yet implemented")
     return orig_session_open_cursor(session_self, uri, dupcursor, config)
 
 # Called to replace Session.rename
