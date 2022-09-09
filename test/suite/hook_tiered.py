@@ -176,6 +176,7 @@ def session_compact_replace(orig_session_compact, session_self, uri, config):
     # Compact isn't implemented for tiered tables.  Only call it if this can't be the uri
     # of a tiered table.  Note this isn't a precise match for when we did/didn't create
     # a tiered table, but we don't have the create config around to check.
+    # We want readonly connections to do the real call, see comment in testcase_is_readonly.
     ret = 0
     if not uri.startswith("table:") or testcase_is_readonly():
         ret = orig_session_compact(session_self, uri, config)
@@ -190,6 +191,7 @@ def session_create_replace(orig_session_create, session_self, uri, config):
 
     # If the test isn't creating a table (i.e., it's a column store or lsm) create it as a
     # "local only" object.  Otherwise we get tiered storage from the connection defaults.
+    # We want readonly connections to do the real call, see comment in testcase_is_readonly.
     # FIXME-WT-9832 Column store testing should be allowed with this hook.
     if not uri.startswith("table:") or "key_format=r" in new_config or "type=lsm" in new_config or testcase_is_readonly():
         new_config = new_config + ',tiered_storage=(name=none)'
@@ -213,6 +215,7 @@ def session_rename_replace(orig_session_rename, session_self, uri, newuri, confi
     # Rename isn't implemented for tiered tables.  Only call it if this can't be the uri
     # of a tiered table.  Note this isn't a precise match for when we did/didn't create
     # a tiered table, but we don't have the create config around to check.
+    # We want readonly connections to do the real call, see comment in testcase_is_readonly.
     ret = 0
     if not uri.startswith("table:") or testcase_is_readonly():
         ret = orig_session_rename(session_self, uri, newuri, config)
@@ -223,6 +226,7 @@ def session_salvage_replace(orig_session_salvage, session_self, uri, config):
     # Salvage isn't implemented for tiered tables.  Only call it if this can't be the uri
     # of a tiered table.  Note this isn't a precise match for when we did/didn't create
     # a tiered table, but we don't have the create config around to check.
+    # We want readonly connections to do the real call, see comment in testcase_is_readonly.
     ret = 0
     if not uri.startswith("table:") or testcase_is_readonly():
         ret = orig_session_salvage(session_self, uri, config)
@@ -233,6 +237,7 @@ def session_verify_replace(orig_session_verify, session_self, uri, config):
     # Verify isn't implemented for tiered tables.  Only call it if this can't be the uri
     # of a tiered table.  Note this isn't a precise match for when we did/didn't create
     # a tiered table, but we don't have the create config around to check.
+    # We want readonly connections to do the real call, see comment in testcase_is_readonly.
     ret = 0
     if not uri.startswith("table:") or testcase_is_readonly():
         ret = orig_session_verify(session_self, uri, config)
