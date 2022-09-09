@@ -69,22 +69,20 @@ class test_stat08(wttest.WiredTigerTestCase):
         self.session.create("table:test_stat08",
                             "key_format=i,value_format=S")
         cursor =  self.session.open_cursor('table:test_stat08', None, None)
-        self.session.begin_transaction()
-        txn_dirty = self.get_stat(wiredtiger.stat.session.txn_bytes_dirty)
-        self.assertEqual(txn_dirty, 0)
+
         # Write the entries.
         for i in range(0, self.nentries):
+            # Check the statistics every 1000 operations.
+            self.session.begin_transaction()
+            if i % 1000 == 0:
+                txn_dirty = self.get_stat(wiredtiger.stat.session.txn_bytes_dirty)
+                self.assertEqual(txn_dirty, 0)
             cursor[i] = self.entry_value
-            # Since we're using an explicit transaction, we need to commit somewhat frequently.
-            # So check the statistics and commit/restart the transaction every 1000 operations.
             if i % 1000 == 0:
                 txn_dirty = self.get_stat(wiredtiger.stat.session.txn_bytes_dirty)
                 self.assertNotEqual(txn_dirty, 0)
-                self.session.commit_transaction()
-                self.session.begin_transaction()
-                txn_dirty = self.get_stat(wiredtiger.stat.session.txn_bytes_dirty)
-                self.assertEqual(txn_dirty, 0)
-        self.session.commit_transaction()
+            self.session.commit_transaction()
+
         cursor.reset()
 
         # Read the entries.

@@ -142,14 +142,10 @@ class test_truncate15(wttest.WiredTigerTestCase):
 
         # Write a bunch of data at time 10.
         cursor = self.session.open_cursor(ds.uri)
-        self.session.begin_transaction()
         for i in range(1, nrows + 1):
+            self.session.begin_transaction()
             cursor[ds.key(i)] = value_a
-            # Commit every 101 rows to avoid overflowing the cache.
-            if i % 101 == 0:
-                self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
-                self.session.begin_transaction()
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
 
         # Mark it stable.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
