@@ -34,8 +34,8 @@ from wtscenario import make_scenarios
 class test_prepare26(wttest.WiredTigerTestCase):
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
-        #('column_fix', dict(key_format='r', value_format='8t')),
-        #('row_integer', dict(key_format='i', value_format='S')),
+        ('column_fix', dict(key_format='r', value_format='8t')),
+        ('row_integer', dict(key_format='i', value_format='S')),
     ]
 
     scenarios = make_scenarios(format_values)
