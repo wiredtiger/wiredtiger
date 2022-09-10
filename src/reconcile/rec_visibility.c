@@ -860,7 +860,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         if (delete_upd->type == WT_UPDATE_TOMBSTONE &&
           F_ISSET(delete_upd, WT_UPDATE_TO_DELETE_FROM_HS))
             delete_tombstone = delete_upd;
-        else if (F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS)) {
+        else if (F_ISSET(delete_upd, WT_UPDATE_TO_DELETE_FROM_HS)) {
             WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
 
             switch (r->page->type) {
