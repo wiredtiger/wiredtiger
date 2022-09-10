@@ -244,6 +244,73 @@ err:
 }
 
 /*
+ * __rec_find_and_delete_hs_record --
+ *     Find and delete the update left in the history store
+ */
+static int
+__rec_find_and_delete_hs_record(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
+  WT_ROW *rip, WT_UPDATE_SELECT *upd_select)
+{
+    WT_DECL_ITEM(key);
+    WT_DECL_RET;
+    WT_UPDATE *delete_tombstone, *delete_upd;
+    uint8_t *p;
+
+    delete_tombstone = NULL;
+
+    for (delete_upd = upd_select->tombstone != NULL ? upd_select->tombstone : upd_select->upd;
+         delete_upd != NULL; delete_upd = delete_upd->next) {
+        if (delete_upd->txnid == WT_TXN_ABORTED)
+            continue;
+
+        if (F_ISSET(delete_upd, WT_UPDATE_TO_DELETE_FROM_HS)) {
+            WT_ASSERT_ALWAYS(session,
+              F_ISSET(delete_upd, WT_UPDATE_HS | WT_UPDATE_RESTORED_FROM_HS),
+              "Attempting to remove an update from the history store in WiredTiger, but the "
+              "update was missing.");
+            if (delete_upd->type == WT_UPDATE_TOMBSTONE)
+                delete_tombstone = delete_upd;
+            else {
+                WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
+
+                switch (r->page->type) {
+                case WT_PAGE_COL_FIX:
+                case WT_PAGE_COL_VAR:
+                    p = key->mem;
+                    WT_ERR(__wt_vpack_uint(&p, 0, WT_INSERT_RECNO(ins)));
+                    key->size = WT_PTRDIFF(p, key->data);
+                    break;
+                case WT_PAGE_ROW_LEAF:
+                    if (ins == NULL) {
+                        WT_ERR(__wt_row_leaf_key(session, r->page, rip, key, false));
+                    } else {
+                        key->data = WT_INSERT_KEY(ins);
+                        key->size = WT_INSERT_KEY_SIZE(ins);
+                    }
+                    break;
+                default:
+                    WT_ERR(__wt_illegal_value(session, r->page->type));
+                }
+                WT_ERR(__rec_delete_hs_record(session, r, key, delete_upd, delete_tombstone));
+                if (r->page->type == WT_PAGE_COL_FIX)
+                    printf("Remove hs record %" PRIu64 "\n", WT_INSERT_RECNO(ins));
+                break;
+            }
+        }
+    }
+
+    /*
+     * If we see a restored tombstone from the history store, we must also see a restored update
+     * from the history store.
+     */
+    WT_ASSERT(session, delete_tombstone == NULL || delete_upd != NULL);
+
+err:
+    __wt_scr_free(session, &key);
+    return (ret);
+}
+
+/*
  * __rec_need_save_upd --
  *     Return if we need to save the update chain
  */
@@ -759,12 +826,9 @@ int
 __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
   WT_CELL_UNPACK_KV *vpack, WT_UPDATE_SELECT *upd_select)
 {
-    WT_DECL_ITEM(key);
-    WT_DECL_RET;
     WT_PAGE *page;
-    WT_UPDATE *delete_tombstone, *delete_upd, *first_txn_upd, *first_upd, *onpage_upd, *upd;
+    WT_UPDATE *first_txn_upd, *first_upd, *onpage_upd, *upd;
     size_t upd_memsize;
-    uint8_t *p;
     bool has_newer_updates, supd_restore, upd_saved;
 
     /*
@@ -778,7 +842,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     WT_TIME_WINDOW_INIT(&upd_select->tw);
 
     page = r->page;
-    delete_tombstone = delete_upd = first_txn_upd = onpage_upd = upd = NULL;
+    first_txn_upd = onpage_upd = upd = NULL;
     upd_memsize = 0;
     has_newer_updates = supd_restore = upd_saved = false;
 
@@ -851,49 +915,14 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     /* Check the update chain for conditions that could prevent it's eviction. */
     WT_RET(__rec_validate_upd_chain(session, r, onpage_upd, &upd_select->tw, vpack));
 
-    /* Delete the record from the history store. */
-    for (delete_upd = upd_select->tombstone != NULL ? upd_select->tombstone : upd_select->upd;
-         delete_upd != NULL; delete_upd = delete_upd->next) {
-        if (delete_upd->txnid == WT_TXN_ABORTED)
-            continue;
-
-        if (F_ISSET(delete_upd, WT_UPDATE_TO_DELETE_FROM_HS)) {
-            WT_ASSERT_ALWAYS(session,
-              F_ISSET(delete_upd, WT_UPDATE_HS | WT_UPDATE_RESTORED_FROM_HS),
-              "Attempting to remove an update from the history store in WiredTiger, but the "
-              "update was missing.");
-            if (delete_upd->type == WT_UPDATE_TOMBSTONE)
-                delete_tombstone = delete_upd;
-            else {
-                WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
-
-                switch (r->page->type) {
-                case WT_PAGE_COL_FIX:
-                case WT_PAGE_COL_VAR:
-                    p = key->mem;
-                    WT_ERR(__wt_vpack_uint(&p, 0, WT_INSERT_RECNO(ins)));
-                    key->size = WT_PTRDIFF(p, key->data);
-                    break;
-                case WT_PAGE_ROW_LEAF:
-                    if (ins == NULL) {
-                        WT_ERR(__wt_row_leaf_key(session, r->page, rip, key, false));
-                    } else {
-                        key->data = WT_INSERT_KEY(ins);
-                        key->size = WT_INSERT_KEY_SIZE(ins);
-                    }
-                    break;
-                default:
-                    WT_ERR(__wt_illegal_value(session, r->page->type));
-                }
-                WT_ERR(__rec_delete_hs_record(session, r, key, delete_upd, delete_tombstone));
-                if (r->page->type == WT_PAGE_COL_FIX)
-                    printf("Remove hs record %" PRIu64 "\n", WT_INSERT_RECNO(ins));
-                break;
-            }
-        }
-    }
-
-    WT_ASSERT(session, delete_tombstone == NULL || delete_upd != NULL);
+    /*
+     * If we have done a prepared rollback, we may have restored a history store value to the update
+     * chain but the same value is left in the history store. Delete it from the history store here.
+     *
+     * We have to do it here because we may discard the whole update chain later and completely lose
+     * the information that there may be a redundant record in the history store.
+     */
+    WT_RET(__rec_find_and_delete_hs_record(session, r, ins, rip, upd_select));
 
     /*
      * Set the flag if the selected tombstone has no timestamp. Based on this flag, the caller
@@ -933,7 +962,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         /* Catch this case in diagnostic builds. */
         WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_3);
         WT_ASSERT(session, false);
-        WT_ERR(EBUSY);
+        return (EBUSY);
     }
 
     /*
@@ -952,7 +981,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
           (has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
 
         upd_memsize = __rec_calc_upd_memsize(onpage_upd, upd_select->tombstone, upd_memsize);
-        WT_ERR(__rec_update_save(
+        WT_RET(__rec_update_save(
           session, r, ins, rip, onpage_upd, upd_select->tombstone, supd_restore, upd_memsize));
 
         /*
@@ -997,14 +1026,12 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
      */
     if (upd_select->upd != NULL && vpack != NULL && vpack->type != WT_CELL_DEL &&
       !vpack->tw.prepare && (upd_saved || F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)))
-        WT_ERR(__rec_append_orig_value(session, page, upd_select->upd, vpack));
+        WT_RET(__rec_append_orig_value(session, page, upd_select->upd, vpack));
 
     __wt_rec_time_window_clear_obsolete(session, upd_select, NULL, r);
 
     WT_ASSERT(
       session, upd_select->tw.stop_txn != WT_TXN_MAX || upd_select->tw.stop_ts == WT_TS_MAX);
 
-err:
-    __wt_scr_free(session, &key);
-    return (ret);
+    return (0);
 }
