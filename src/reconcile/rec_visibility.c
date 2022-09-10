@@ -858,7 +858,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
             continue;
 
         if (F_ISSET(delete_upd, WT_UPDATE_TO_DELETE_FROM_HS)) {
-            WT_ASSERT_ALWAYS(session, F_ISSET(upd, WT_UPDATE_HS | WT_UPDATE_RESTORED_FROM_HS),
+            WT_ASSERT_ALWAYS(session, F_ISSET(delete_upd, WT_UPDATE_HS | WT_UPDATE_RESTORED_FROM_HS),
               "Attempting to remove an update from the history store in WiredTiger, but the "
               "update was missing.");
             if (delete_upd->type == WT_UPDATE_TOMBSTONE)
