@@ -857,32 +857,38 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         if (delete_upd->txnid == WT_TXN_ABORTED)
             continue;
 
-        if (delete_upd->type == WT_UPDATE_TOMBSTONE &&
-          F_ISSET(delete_upd, WT_UPDATE_TO_DELETE_FROM_HS))
-            delete_tombstone = delete_upd;
-        else if (F_ISSET(delete_upd, WT_UPDATE_TO_DELETE_FROM_HS)) {
-            WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
+        if (F_ISSET(delete_upd, WT_UPDATE_TO_DELETE_FROM_HS)) {
+            WT_ASSERT_ALWAYS(session, F_ISSET(upd, WT_UPDATE_HS | WT_UPDATE_RESTORED_FROM_HS),
+              "Attempting to remove an update from the history store in WiredTiger, but the "
+              "update was missing.");
+            if (delete_upd->type == WT_UPDATE_TOMBSTONE)
+                delete_tombstone = delete_upd;
+            else {
+                WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
 
-            switch (r->page->type) {
-            case WT_PAGE_COL_FIX:
-            case WT_PAGE_COL_VAR:
-                p = key->mem;
-                WT_ERR(__wt_vpack_uint(&p, 0, WT_INSERT_RECNO(ins)));
-                key->size = WT_PTRDIFF(p, key->data);
-                break;
-            case WT_PAGE_ROW_LEAF:
-                if (ins == NULL) {
-                    WT_ERR(__wt_row_leaf_key(session, r->page, rip, key, false));
-                } else {
-                    key->data = WT_INSERT_KEY(ins);
-                    key->size = WT_INSERT_KEY_SIZE(ins);
+                switch (r->page->type) {
+                case WT_PAGE_COL_FIX:
+                case WT_PAGE_COL_VAR:
+                    p = key->mem;
+                    WT_ERR(__wt_vpack_uint(&p, 0, WT_INSERT_RECNO(ins)));
+                    key->size = WT_PTRDIFF(p, key->data);
+                    break;
+                case WT_PAGE_ROW_LEAF:
+                    if (ins == NULL) {
+                        WT_ERR(__wt_row_leaf_key(session, r->page, rip, key, false));
+                    } else {
+                        key->data = WT_INSERT_KEY(ins);
+                        key->size = WT_INSERT_KEY_SIZE(ins);
+                    }
+                    break;
+                default:
+                    WT_ERR(__wt_illegal_value(session, r->page->type));
                 }
+                WT_ERR(__rec_delete_hs_record(session, r, key, delete_upd, delete_tombstone));
+                if (r->page->type == WT_PAGE_COL_FIX)
+                    printf("Remove hs record %" PRIu64 "\n", WT_INSERT_RECNO(ins));
                 break;
-            default:
-                WT_ERR(__wt_illegal_value(session, r->page->type));
             }
-            WT_ERR(__rec_delete_hs_record(session, r, key, delete_upd, delete_tombstone));
-            break;
         }
     }
 
