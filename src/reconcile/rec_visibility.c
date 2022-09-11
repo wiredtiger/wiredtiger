@@ -202,10 +202,8 @@ __rec_delete_hs_record(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ITEM *key,
     F_SET(r->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     /* No need to delete from the history store if it is already obsolete. */
-    if (delete_tombstone != NULL && __wt_txn_upd_visible_all(session, delete_tombstone)) {
-        ret = 0;
+    if (delete_tombstone != NULL && __wt_txn_upd_visible_all(session, delete_tombstone))
         goto done;
-    }
 
     r->hs_cursor->set_key(r->hs_cursor, 4, S2BT(session)->id, key, WT_TS_MAX, UINT64_MAX);
     WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, r->hs_cursor), true);
@@ -292,18 +290,13 @@ __rec_find_and_delete_hs_record(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_IN
                     WT_ERR(__wt_illegal_value(session, r->page->type));
                 }
                 WT_ERR(__rec_delete_hs_record(session, r, key, delete_upd, delete_tombstone));
-                if (r->page->type == WT_PAGE_COL_FIX)
-                    printf("Remove hs record %" PRIu64 "\n", WT_INSERT_RECNO(ins));
                 break;
             }
         }
     }
 
-    /*
-     * If we see a restored tombstone from the history store, we must also see a restored update
-     * from the history store.
-     */
-    WT_ASSERT(session, delete_tombstone == NULL || delete_upd != NULL);
+    WT_ASSERT_ALWAYS(session, delete_tombstone == NULL || delete_upd != NULL,
+      "If we delete a tombstone from the history store, we must also delete the update.");
 
 err:
     __wt_scr_free(session, &key);
