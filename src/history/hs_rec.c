@@ -1046,3 +1046,103 @@ err:
 
     return (ret);
 }
+
+/*
+ * __hs_delete_record --
+ *     Delete the update left in the history store
+ */
+static int
+__hs_delete_record(
+  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ITEM *key, WT_UPDATE *upd, WT_UPDATE *tombstone)
+{
+    WT_DECL_RET;
+    bool hs_read_committed;
+#ifdef HAVE_DIAGNOSTIC
+    WT_TIME_WINDOW *hs_tw;
+#endif
+
+    if (r->hs_cursor == NULL)
+        WT_RET(__wt_curhs_open(session, NULL, &r->hs_cursor));
+    hs_read_committed = F_ISSET(r->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+    F_SET(r->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+
+    /* No need to delete from the history store if it is already obsolete. */
+    if (tombstone != NULL && __wt_txn_upd_visible_all(session, tombstone))
+        goto done;
+
+    r->hs_cursor->set_key(r->hs_cursor, 4, S2BT(session)->id, key, WT_TS_MAX, UINT64_MAX);
+    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, r->hs_cursor), true);
+    /* It's possible the value in the history store becomes obsolete concurrently. */
+    if (ret == WT_NOTFOUND) {
+        WT_ASSERT(session, tombstone != NULL && __wt_txn_upd_visible_all(session, tombstone));
+        ret = 0;
+        goto done;
+    }
+
+#ifdef HAVE_DIAGNOSTIC
+    __wt_hs_upd_time_window(r->hs_cursor, &hs_tw);
+    WT_ASSERT(session, hs_tw->start_txn == WT_TXN_NONE || hs_tw->start_txn == upd->txnid);
+    WT_ASSERT(session, hs_tw->start_ts == WT_TS_NONE || hs_tw->start_ts == upd->start_ts);
+    WT_ASSERT(
+      session, hs_tw->durable_start_ts == WT_TS_NONE || hs_tw->durable_start_ts == upd->durable_ts);
+    if (tombstone != NULL) {
+        WT_ASSERT(session, hs_tw->stop_txn == tombstone->txnid);
+        WT_ASSERT(session, hs_tw->stop_ts == tombstone->start_ts);
+        WT_ASSERT(session, hs_tw->durable_stop_ts == tombstone->durable_ts);
+    } else
+        WT_ASSERT(session, !WT_TIME_WINDOW_HAS_STOP(hs_tw));
+#endif
+
+    WT_ERR(r->hs_cursor->remove(r->hs_cursor));
+done:
+    if (tombstone != NULL)
+        F_CLR(tombstone, WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS);
+    F_CLR(upd, WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS);
+
+err:
+    if (!hs_read_committed)
+        F_CLR(r->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+    return (ret);
+}
+
+/*
+ * __wt_hs_delete_updates --
+ *     Delete the updates from the history store
+ */
+int
+__wt_hs_delete_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+{
+    WT_DECL_ITEM(key);
+    WT_DECL_RET;
+    WT_DELETE_HS_UPD *delete_hs_upd;
+    uint32_t i;
+    uint8_t *p;
+
+    WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
+
+    for (delete_hs_upd = r->delete_hs_upd, i = 0; i < r->delete_hs_upd_next; ++delete_hs_upd, ++i) {
+        switch (r->page->type) {
+        case WT_PAGE_COL_FIX:
+        case WT_PAGE_COL_VAR:
+            p = key->mem;
+            WT_ERR(__wt_vpack_uint(&p, 0, WT_INSERT_RECNO(delete_hs_upd->ins)));
+            key->size = WT_PTRDIFF(p, key->data);
+            break;
+        case WT_PAGE_ROW_LEAF:
+            if (delete_hs_upd->ins == NULL) {
+                WT_ERR(__wt_row_leaf_key(session, r->page, delete_hs_upd->rip, key, false));
+            } else {
+                key->data = WT_INSERT_KEY(delete_hs_upd->ins);
+                key->size = WT_INSERT_KEY_SIZE(delete_hs_upd->ins);
+            }
+            break;
+        default:
+            WT_ERR(__wt_illegal_value(session, r->page->type));
+        }
+        WT_ERR(__hs_delete_record(session, r, key, delete_hs_upd->upd, delete_hs_upd->tombstone));
+    }
+
+err:
+    __wt_scr_free(session, &key);
+    return (ret);
+}

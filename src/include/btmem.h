@@ -247,6 +247,17 @@ struct __wt_save_upd {
 };
 
 /*
+ * WT_DELETE_HS_UPD --
+ *	Update needs to be deleted from the history store.
+ */
+struct __wt_delete_hs_upd {
+    WT_INSERT *ins; /* Insert list reference */
+    WT_ROW *rip;    /* Original on-page reference */
+    WT_UPDATE *upd;
+    WT_UPDATE *tombstone;
+};
+
+/*
  * WT_MULTI --
  *	Replacement block information used during reconciliation.
  */

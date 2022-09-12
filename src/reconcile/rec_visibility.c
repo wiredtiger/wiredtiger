@@ -40,6 +40,27 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_
 }
 
 /*
+ * __rec_delete_hs_upd_save --
+ *     Save a WT_DELETE_HS_UPDATE list to delete the update from the history store later.
+ */
+static inline int
+__rec_delete_hs_upd_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
+  WT_UPDATE *upd, WT_UPDATE *tombstone)
+{
+    WT_DELETE_HS_UPD *delete_hs_upd;
+
+    WT_RET(__wt_realloc_def(
+      session, &r->delete_hs_upd_allocated, r->delete_hs_upd_next + 1, &r->delete_hs_upd));
+    delete_hs_upd = &r->delete_hs_upd[r->delete_hs_upd_next];
+    delete_hs_upd->ins = ins;
+    delete_hs_upd->rip = rip;
+    delete_hs_upd->upd = upd;
+    delete_hs_upd->tombstone = tombstone;
+    ++r->delete_hs_upd_next;
+    return (0);
+}
+
+/*
  * __rec_append_orig_value --
  *     Append the key's original value to its update list. It assumes that we have an onpage value,
  *     the onpage value is not a prepared update, and we don't overwrite transaction id to
@@ -183,76 +204,14 @@ err:
 }
 
 /*
- * __rec_delete_hs_record --
- *     Delete the update left in the history store
+ * __rec_find_and_save_delete_hs_upd --
+ *     Find and save the update that needs to be deleted from the history store later
  */
 static int
-__rec_delete_hs_record(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ITEM *key,
-  WT_UPDATE *delete_upd, WT_UPDATE *delete_tombstone)
-{
-    WT_DECL_RET;
-    bool hs_read_committed;
-#ifdef HAVE_DIAGNOSTIC
-    WT_TIME_WINDOW *hs_tw;
-#endif
-
-    if (r->hs_cursor == NULL)
-        WT_RET(__wt_curhs_open(session, NULL, &r->hs_cursor));
-    hs_read_committed = F_ISSET(r->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
-    F_SET(r->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
-
-    /* No need to delete from the history store if it is already obsolete. */
-    if (delete_tombstone != NULL && __wt_txn_upd_visible_all(session, delete_tombstone))
-        goto done;
-
-    r->hs_cursor->set_key(r->hs_cursor, 4, S2BT(session)->id, key, WT_TS_MAX, UINT64_MAX);
-    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, r->hs_cursor), true);
-    /* It's possible the value in the history store becomes obsolete concurrently. */
-    if (ret == WT_NOTFOUND) {
-        WT_ASSERT(
-          session, delete_tombstone != NULL && __wt_txn_upd_visible_all(session, delete_tombstone));
-        ret = 0;
-        goto done;
-    }
-
-#ifdef HAVE_DIAGNOSTIC
-    __wt_hs_upd_time_window(r->hs_cursor, &hs_tw);
-    WT_ASSERT(session, hs_tw->start_txn == WT_TXN_NONE || hs_tw->start_txn == delete_upd->txnid);
-    WT_ASSERT(session, hs_tw->start_ts == WT_TS_NONE || hs_tw->start_ts == delete_upd->start_ts);
-    WT_ASSERT(session,
-      hs_tw->durable_start_ts == WT_TS_NONE || hs_tw->durable_start_ts == delete_upd->durable_ts);
-    if (delete_tombstone != NULL) {
-        WT_ASSERT(session, hs_tw->stop_txn == delete_tombstone->txnid);
-        WT_ASSERT(session, hs_tw->stop_ts == delete_tombstone->start_ts);
-        WT_ASSERT(session, hs_tw->durable_stop_ts == delete_tombstone->durable_ts);
-    } else
-        WT_ASSERT(session, !WT_TIME_WINDOW_HAS_STOP(hs_tw));
-#endif
-
-    WT_ERR(r->hs_cursor->remove(r->hs_cursor));
-done:
-    if (delete_tombstone != NULL)
-        F_CLR(delete_tombstone, WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS);
-    F_CLR(delete_upd, WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS);
-
-err:
-    if (!hs_read_committed)
-        F_CLR(r->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
-    return (ret);
-}
-
-/*
- * __rec_find_and_delete_hs_record --
- *     Find and delete the update left in the history store
- */
-static int
-__rec_find_and_delete_hs_record(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
+__rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
   WT_ROW *rip, WT_UPDATE_SELECT *upd_select)
 {
-    WT_DECL_ITEM(key);
-    WT_DECL_RET;
     WT_UPDATE *delete_tombstone, *delete_upd;
-    uint8_t *p;
 
     delete_tombstone = NULL;
 
@@ -269,27 +228,8 @@ __rec_find_and_delete_hs_record(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_IN
             if (delete_upd->type == WT_UPDATE_TOMBSTONE)
                 delete_tombstone = delete_upd;
             else {
-                WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
-
-                switch (r->page->type) {
-                case WT_PAGE_COL_FIX:
-                case WT_PAGE_COL_VAR:
-                    p = key->mem;
-                    WT_ERR(__wt_vpack_uint(&p, 0, WT_INSERT_RECNO(ins)));
-                    key->size = WT_PTRDIFF(p, key->data);
-                    break;
-                case WT_PAGE_ROW_LEAF:
-                    if (ins == NULL) {
-                        WT_ERR(__wt_row_leaf_key(session, r->page, rip, key, false));
-                    } else {
-                        key->data = WT_INSERT_KEY(ins);
-                        key->size = WT_INSERT_KEY_SIZE(ins);
-                    }
-                    break;
-                default:
-                    WT_ERR(__wt_illegal_value(session, r->page->type));
-                }
-                WT_ERR(__rec_delete_hs_record(session, r, key, delete_upd, delete_tombstone));
+                WT_RET(
+                  __rec_delete_hs_upd_save(session, r, ins, rip, delete_upd, delete_tombstone));
                 break;
             }
         }
@@ -298,9 +238,7 @@ __rec_find_and_delete_hs_record(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_IN
     WT_ASSERT_ALWAYS(session, delete_tombstone == NULL || delete_upd != NULL,
       "If we delete a tombstone from the history store, we must also delete the update.");
 
-err:
-    __wt_scr_free(session, &key);
-    return (ret);
+    return (0);
 }
 
 /*
@@ -910,12 +848,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
 
     /*
      * If we have done a prepared rollback, we may have restored a history store value to the update
-     * chain but the same value is left in the history store. Delete it from the history store here.
-     *
-     * We have to do it here because we may discard the whole update chain later and completely lose
-     * the information that there may be a redundant record in the history store.
+     * chain but the same value is left in the history store. Save it to delete it from the history
+     * store later.
      */
-    WT_RET(__rec_find_and_delete_hs_record(session, r, ins, rip, upd_select));
+    WT_RET(__rec_find_and_save_delete_hs_upd(session, r, ins, rip, upd_select));
 
     /*
      * Set the flag if the selected tombstone has no timestamp. Based on this flag, the caller
