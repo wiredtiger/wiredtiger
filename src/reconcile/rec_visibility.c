@@ -41,7 +41,7 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_
 
 /*
  * __rec_delete_hs_upd_save --
- *     Save a WT_DELETE_HS_UPDATE list to delete the update from the history store later.
+ *     Save an update into a WT_DELETE_HS_UPD list to delete it from the history store later.
  */
 static inline int
 __rec_delete_hs_upd_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,

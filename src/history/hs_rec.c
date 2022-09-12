@@ -1049,7 +1049,7 @@ err:
 
 /*
  * __hs_delete_record --
- *     Delete the update left in the history store
+ *     Delete an update from the history store if it is not obsolete
  */
 static int
 __hs_delete_record(
@@ -1064,6 +1064,7 @@ __hs_delete_record(
     if (r->hs_cursor == NULL)
         WT_RET(__wt_curhs_open(session, NULL, &r->hs_cursor));
     hs_read_committed = F_ISSET(r->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+    /* Ensure we can see all the content in the history store. */
     F_SET(r->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     /* No need to delete from the history store if it is already obsolete. */
@@ -1117,6 +1118,10 @@ __wt_hs_delete_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     WT_DELETE_HS_UPD *delete_hs_upd;
     uint32_t i;
     uint8_t *p;
+
+    /* Nothing to delete from the history store. */
+    if (r->delete_hs_upd == NULL)
+        return (0);
 
     WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
 
