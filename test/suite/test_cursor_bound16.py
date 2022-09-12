@@ -106,8 +106,19 @@ class test_cursor_bound16(bound_base):
 
         dumpcurs.set_key(self.gen_dump_key(60))
         self.assertEqual(dumpcurs.search(), wiredtiger.WT_NOTFOUND)
-        self.assertEqual(dumpcurs.reset(), 0)
 
+        # Test that cursor resets the bounds.
+        self.assertEqual(dumpcurs.reset(), 0)
+        self.cursor_traversal_bound(dumpcurs, self.start_key, self.end_key, True, 60)
+        self.cursor_traversal_bound(dumpcurs, self.start_key, self.end_key, False, 60)
+
+        # Test that cursor action clear works and clears the bounds.
+        self.set_bounds(dumpcurs, self.gen_dump_key(30), "lower")
+        self.set_bounds(dumpcurs, self.gen_dump_key(50), "upper")
+        self.assertEqual(dumpcurs.bound("action=clear"), 0)
+        self.cursor_traversal_bound(dumpcurs, self.start_key, self.end_key, True, 60)
+        self.cursor_traversal_bound(dumpcurs, self.start_key, self.end_key, False, 60)
+        
         dumpcurs.close()
 
 if __name__ == '__main__':

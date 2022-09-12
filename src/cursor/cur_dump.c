@@ -410,7 +410,7 @@ __wt_curdump_create(WT_CURSOR *child, WT_CURSOR *owner, WT_CURSOR **cursorp)
       __wt_cursor_notsup,                           /* reserve */
       __wt_cursor_config_notsup,                    /* reconfigure */
       __wt_cursor_notsup,                           /* largest_key */
-      __curdump_bound,                    /* bound */
+      __curdump_bound,                              /* bound */
       __wt_cursor_notsup,                           /* cache */
       __wt_cursor_reopen_notsup,                    /* reopen */
       __wt_cursor_checkpoint_id,                    /* checkpoint ID */
