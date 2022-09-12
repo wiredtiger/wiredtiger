@@ -19,17 +19,19 @@
 void
 __wt_chunkcache_check(WT_SESSION_IMPL session, WT_BLOCK *block, uint32_t objectid, wt_off_t offset,
                        uint32_t size, uint32_t *chunksize, void **chunk_location,
-                       bool *chunkcache_has_data, void *buf->mem)
+                       bool *chunkcache_has_data, void *dst)
 {
-    WT_CHUNKCACHE *chunkcache = S2C(session)->chunkcache;
-    WT_CHUNKCACHE_CHAIN *chunkchain;
+    WT_CHUNKCACHE *chunkcache;
+    WT_CHUNKCACHE_BUCKET *bucket;
+
     struct {
         objectname[WT_CHUNKCACHE_NAMEMAX];
         objectid;
     } hash_id;
 
-    uint64_t bucket, hash;
+    uint64_t hash;
 
+    chunkcache = S2C(session)->chunkcache;
     *chunk_location = NULL
     *chunksize = 0;
     *chunkcache_has_data = false;
@@ -39,25 +41,18 @@ __wt_chunkcache_check(WT_SESSION_IMPL session, WT_BLOCK *block, uint32_t objecti
     memcpy(&hashid.objectname, block->name, WT_MIN(strlen(block->name), WT_CHUNKCACHE_NAMEMAX));
 
     hash =  __wt_hash_city64(hash_id, sizeof(hash_id));
-    bucket = hash % chunkcache->table_size;
+    bucket = chunkcache->hashtable[hash % chunkcache->hashtable_size];
     __wt_spin_lock(session, &chunkcache->bucket_locks[bucket]);
-    TAILQ_FOREACH(chunkchain, &chunkcache->has[bucket], hashq) {
-        if (strncmp(chunkchain->name, &hash_id.objectname, strlen(&hash_id.objectname)) == 0
-            && hash_id.objectid == chunkchain.objectid) {
+    TAILQ_FOREACH(chunklist, bucket->chainq, chunkchain) {
+        if (strncmp(chunklist->name, &hash_id.objectname, strlen(&hash_id.objectname)) == 0
+            && hash_id.objectid == chunklist.objectid) {
+            /* Found the list of chunks corresponding to the given object. See if we have the needed chunk. */
+            TAILQ_FOREACH(chunk, chunklist->chunks, chunkn) {
+                if (chunk->chunk_offset <= offset && (chunk->chunk_offset + chunk->chunk_size) >= (offset + size)) {
+                    memcpy(dst, chunk->chunk_location[offset-chunk->chunk_offset], size);
+                    *chunk_has_data = true;
+                }
+            }
         }
     }
-
-}
-
-/*
- * __wt_chunkcache_put
- *     After the chunk has been read, update the metadata so that we know we have it.
- */
-void
-__wt_chunkcache_put(WT_SESSION_IMPL session, WT_BLOCK block, uint32_t objectid, wt_off_t offset,
-                    uint32_t chunksize, void *chunk_location)
-{
-
-
-
 }
