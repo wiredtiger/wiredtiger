@@ -325,7 +325,7 @@ __curdump_set_value(WT_CURSOR *cursor, ...)
 
 /*
  * __curdump_bound --
- *     WT_CURSOR::search_near for dump cursors.
+ *     WT_CURSOR::bound for dump cursors.
  */
 static int
 __curdump_bound(WT_CURSOR *cursor, const char *config)
