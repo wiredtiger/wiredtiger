@@ -316,7 +316,8 @@ __hs_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_RECONCILE *r, WT_INS
     default:
         WT_RET(__wt_illegal_value(session, r->page->type));
     }
-    return (0);
+
+    return (ret);
 }
 
 /*
