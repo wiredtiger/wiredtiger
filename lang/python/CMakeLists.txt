@@ -138,6 +138,11 @@ target_compile_options(${swig_wt_target}
 
 swig_link_libraries(wiredtiger_python ${wiredtiger_target} ${python_libs})
 
+if(ENABLE_TCMALLOC)
+    # Order matters on linking as WT lib depends on tcmalloc when enabled.
+    swig_link_libraries(wiredtiger_python ${wiredtiger_target} wt::tcmalloc)
+endif()
+
 # Setup our output 'wiredtiger' directory to hold the python module sources.
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/wiredtiger
     DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
