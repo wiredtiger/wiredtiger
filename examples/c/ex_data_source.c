@@ -234,7 +234,7 @@ my_cursor_remove(WT_CURSOR *wtcursor)
     return (0);
 }
 static int
-my_cursor_bound(WT_CURSOR *wtcursor, const char* config)
+my_cursor_bound(WT_CURSOR *wtcursor, const char *config)
 {
     (void)wtcursor;
     (void)config;
