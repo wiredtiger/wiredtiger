@@ -1078,24 +1078,23 @@ __hs_delete_record(
     if (ret == WT_NOTFOUND) {
         WT_ASSERT(session, tombstone != NULL && __wt_txn_upd_visible_all(session, tombstone));
         ret = 0;
-        goto done;
-    }
-
+    } else {
 #ifdef HAVE_DIAGNOSTIC
-    __wt_hs_upd_time_window(r->hs_cursor, &hs_tw);
-    WT_ASSERT(session, hs_tw->start_txn == WT_TXN_NONE || hs_tw->start_txn == upd->txnid);
-    WT_ASSERT(session, hs_tw->start_ts == WT_TS_NONE || hs_tw->start_ts == upd->start_ts);
-    WT_ASSERT(
-      session, hs_tw->durable_start_ts == WT_TS_NONE || hs_tw->durable_start_ts == upd->durable_ts);
-    if (tombstone != NULL) {
-        WT_ASSERT(session, hs_tw->stop_txn == tombstone->txnid);
-        WT_ASSERT(session, hs_tw->stop_ts == tombstone->start_ts);
-        WT_ASSERT(session, hs_tw->durable_stop_ts == tombstone->durable_ts);
-    } else
-        WT_ASSERT(session, !WT_TIME_WINDOW_HAS_STOP(hs_tw));
+        __wt_hs_upd_time_window(r->hs_cursor, &hs_tw);
+        WT_ASSERT(session, hs_tw->start_txn == WT_TXN_NONE || hs_tw->start_txn == upd->txnid);
+        WT_ASSERT(session, hs_tw->start_ts == WT_TS_NONE || hs_tw->start_ts == upd->start_ts);
+        WT_ASSERT(session,
+          hs_tw->durable_start_ts == WT_TS_NONE || hs_tw->durable_start_ts == upd->durable_ts);
+        if (tombstone != NULL) {
+            WT_ASSERT(session, hs_tw->stop_txn == tombstone->txnid);
+            WT_ASSERT(session, hs_tw->stop_ts == tombstone->start_ts);
+            WT_ASSERT(session, hs_tw->durable_stop_ts == tombstone->durable_ts);
+        } else
+            WT_ASSERT(session, !WT_TIME_WINDOW_HAS_STOP(hs_tw));
 #endif
 
-    WT_ERR(r->hs_cursor->remove(r->hs_cursor));
+        WT_ERR(r->hs_cursor->remove(r->hs_cursor));
+    }
 done:
     if (tombstone != NULL)
         F_CLR(tombstone, WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS);
@@ -1124,7 +1123,7 @@ __wt_hs_delete_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     if (r->delete_hs_upd == NULL)
         return (0);
 
-    WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
+    WT_RET(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
 
     for (delete_hs_upd = r->delete_hs_upd, i = 0; i < r->delete_hs_upd_next; ++delete_hs_upd, ++i) {
         switch (r->page->type) {
