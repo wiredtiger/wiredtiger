@@ -134,10 +134,10 @@ __wt_chunkcache_check(WT_SESSION_IMPL session, WT_BLOCK *block, uint32_t objecti
             goto done;
         }
         newchain.hash_id = hash_id;
-        TAILQ_INSERT_HEAD(bucket->chainq, newchain, chainq);
+        TAILQ_INSERT_HEAD(bucket->chainq, newchain, next_link);
 
         /* Insert the new chunk. */
-        TAILQ_INSERT_HEAD(newchain->chunks, newchunk, chunks);
+        TAILQ_INSERT_HEAD(newchain->chunks, newchunk, next_chunk);
         /* Increment allocation stats. XXX */
     }
   done:
