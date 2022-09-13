@@ -286,6 +286,40 @@ __hs_next_upd_full_value(WT_SESSION_IMPL *session, WT_UPDATE_VECTOR *updates,
 }
 
 /*
+ * __hs_pack_key --
+ *     Pack the history store key
+ */
+static inline int
+__hs_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_RECONCILE *r, WT_INSERT *ins,
+  WT_ROW *rip, WT_ITEM *key)
+{
+    WT_DECL_RET;
+    uint8_t *p;
+
+    switch (r->page->type) {
+    case WT_PAGE_COL_FIX:
+    case WT_PAGE_COL_VAR:
+        p = key->mem;
+        WT_RET(__wt_vpack_uint(&p, 0, WT_INSERT_RECNO(ins)));
+        key->size = WT_PTRDIFF(p, key->data);
+        break;
+    case WT_PAGE_ROW_LEAF:
+        if (ins == NULL) {
+            WT_WITH_BTREE(
+              session, btree, ret = __wt_row_leaf_key(session, r->page, rip, key, false));
+            WT_RET(ret);
+        } else {
+            key->data = WT_INSERT_KEY(ins);
+            key->size = WT_INSERT_KEY_SIZE(ins);
+        }
+        break;
+    default:
+        WT_RET(__wt_illegal_value(session, r->page->type));
+    }
+    return (0);
+}
+
+/*
  * __wt_hs_insert_updates --
  *     Copy one set of saved updates into the database's history store table if they haven't been
  *     moved there. Whether the function fails or succeeds, if there is a successful write to
@@ -315,7 +349,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
     uint64_t insert_cnt, max_hs_size, modify_cnt;
     uint64_t cache_hs_insert_full_update, cache_hs_insert_reverse_modify, cache_hs_write_squash;
     uint32_t i;
-    uint8_t *p;
     int nentries;
     bool enable_reverse_modify, error_on_ts_ordering, hs_inserted, squashed;
 
@@ -362,26 +395,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             continue;
 
         /* History store table key component: source key. */
-        switch (r->page->type) {
-        case WT_PAGE_COL_FIX:
-        case WT_PAGE_COL_VAR:
-            p = key->mem;
-            WT_ERR(__wt_vpack_uint(&p, 0, WT_INSERT_RECNO(list->ins)));
-            key->size = WT_PTRDIFF(p, key->data);
-            break;
-        case WT_PAGE_ROW_LEAF:
-            if (list->ins == NULL) {
-                WT_WITH_BTREE(
-                  session, btree, ret = __wt_row_leaf_key(session, r->page, list->rip, key, false));
-                WT_ERR(ret);
-            } else {
-                key->data = WT_INSERT_KEY(list->ins);
-                key->size = WT_INSERT_KEY_SIZE(list->ins);
-            }
-            break;
-        default:
-            WT_ERR(__wt_illegal_value(session, r->page->type));
-        }
+        WT_ERR(__hs_pack_key(session, btree, r, list->ins, list->rip, key));
 
         no_ts_upd = newest_hs = NULL;
         ref_upd = list->onpage_upd;
@@ -1113,37 +1127,22 @@ err:
 int
 __wt_hs_delete_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
+    WT_BTREE *btree;
     WT_DECL_ITEM(key);
     WT_DECL_RET;
     WT_DELETE_HS_UPD *delete_hs_upd;
     uint32_t i;
-    uint8_t *p;
 
     /* Nothing to delete from the history store. */
     if (r->delete_hs_upd == NULL)
         return (0);
 
+    btree = S2BT(session);
+
     WT_RET(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
 
     for (delete_hs_upd = r->delete_hs_upd, i = 0; i < r->delete_hs_upd_next; ++delete_hs_upd, ++i) {
-        switch (r->page->type) {
-        case WT_PAGE_COL_FIX:
-        case WT_PAGE_COL_VAR:
-            p = key->mem;
-            WT_ERR(__wt_vpack_uint(&p, 0, WT_INSERT_RECNO(delete_hs_upd->ins)));
-            key->size = WT_PTRDIFF(p, key->data);
-            break;
-        case WT_PAGE_ROW_LEAF:
-            if (delete_hs_upd->ins == NULL) {
-                WT_ERR(__wt_row_leaf_key(session, r->page, delete_hs_upd->rip, key, false));
-            } else {
-                key->data = WT_INSERT_KEY(delete_hs_upd->ins);
-                key->size = WT_INSERT_KEY_SIZE(delete_hs_upd->ins);
-            }
-            break;
-        default:
-            WT_ERR(__wt_illegal_value(session, r->page->type));
-        }
+        WT_ERR(__hs_pack_key(session, btree, r, delete_hs_upd->ins, delete_hs_upd->rip, key));
         WT_ERR(__hs_delete_record(session, r, key, delete_hs_upd->upd, delete_hs_upd->tombstone));
     }
 
