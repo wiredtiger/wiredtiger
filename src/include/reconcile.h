@@ -228,8 +228,9 @@ struct __wt_reconcile {
     size_t supd_memsize; /* Size of saved update structures */
 
     /*
-     * List of updates to be deleted from history store. While reviewing updates for each page, we
-     * save WT_HS_DELETE_UPD lists here, and then delete them after we have built the disk image.
+     * List of updates to be deleted from the history store. While reviewing updates for each page,
+     * we save the updates that needs to be deleted from history store here, and then delete them
+     * after we have built the disk image.
      */
     WT_DELETE_HS_UPD *delete_hs_upd; /* Updates to delete from history store */
     uint32_t delete_hs_upd_next;
