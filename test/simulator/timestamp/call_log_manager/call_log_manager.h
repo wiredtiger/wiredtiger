@@ -29,10 +29,7 @@
 #pragma once
 
 #include "connection_simulator.h"
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wformat-truncation"
 #include "nlohmann/json.hpp"
-#pragma GCC diagnostic pop
 
 using json = nlohmann::json;
 

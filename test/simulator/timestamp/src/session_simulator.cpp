@@ -31,9 +31,7 @@
 #include <cassert>
 #include <iostream>
 
-session_simulator::session_simulator() {
-    _txn_running = false;
-}
+session_simulator::session_simulator(): _txn_running(false) { }
 
 void
 session_simulator::begin_transaction()
