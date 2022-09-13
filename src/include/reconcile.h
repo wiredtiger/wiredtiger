@@ -65,6 +65,17 @@ struct __wt_rec_chunk {
 };
 
 /*
+ * WT_DELETE_HS_UPD --
+ *	Update that needs to be deleted from the history store.
+ */
+struct __wt_delete_hs_upd {
+    WT_INSERT *ins; /* Insert list reference */
+    WT_ROW *rip;    /* Original on-page reference */
+    WT_UPDATE *upd;
+    WT_UPDATE *tombstone;
+};
+
+/*
  * Reconciliation is the process of taking an in-memory page, walking each entry
  * in the page, building a backing disk image in a temporary buffer representing
  * that information, and writing that buffer to disk.  What could be simpler?

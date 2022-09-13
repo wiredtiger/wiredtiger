@@ -345,15 +345,10 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
     if (!F_ISSET(r, WT_REC_CHECKPOINT_RUNNING))
         return (0);
 
-    for (upd = select_upd; upd != NULL; upd = upd->next) {
-        if (upd->txnid == WT_TXN_ABORTED)
-            continue;
-
-        /* Cannot delete the update from history store when checkpoint is running. */
-        if (F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS)) {
-            WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_remove_hs_race_with_checkpoint);
-            return (EBUSY);
-        }
+    /* Cannot delete the update from history store when checkpoint is running. */
+    if (r->delete_hs_upd != NULL) {
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_remove_hs_race_with_checkpoint);
+        return (EBUSY);
     }
 
     /*
@@ -843,15 +838,15 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
       NULL :
       upd_select->upd;
 
-    /* Check the update chain for conditions that could prevent it's eviction. */
-    WT_RET(__rec_validate_upd_chain(session, r, onpage_upd, &upd_select->tw, vpack));
-
     /*
      * If we have done a prepared rollback, we may have restored a history store value to the update
      * chain but the same value is left in the history store. Save it to delete it from the history
      * store later.
      */
     WT_RET(__rec_find_and_save_delete_hs_upd(session, r, ins, rip, upd_select));
+
+    /* Check the update chain for conditions that could prevent it's eviction. */
+    WT_RET(__rec_validate_upd_chain(session, r, onpage_upd, &upd_select->tw, vpack));
 
     /*
      * Set the flag if the selected tombstone has no timestamp. Based on this flag, the caller
