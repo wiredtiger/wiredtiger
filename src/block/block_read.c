@@ -154,6 +154,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
                     wt_off_t offset, uint32_t size, uint32_t checksum)
 {
     WT_BLOCK_HEADER *blk, swap;
+    WT_CHUNKCACHE_CHUNK *chunkptr;
     bool chunkcache_has_data;
     size_t bufsize;
     uint32_t chunksize;
@@ -198,13 +199,12 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
     /*
      * Check the chunk cache for the needed data. If the data is not there, the chunk cache
      * may ask the underlying storage system to read more data than the BTree had asked for.
-     * In that case, the chunk size will be non-zero and indicate how much data it wants to read.
+     * In that case, the chunk pointer will be valid and its contents will indicate how much data to read.
      */
-    __blkcache_chunk_check(session, block, objectid, offset, size, &chunksize, &chunk_location,
-                           &chunkcache_has_data, buf->mem);
-    if (chunksize != 0 && __wt_read(session, block->fh, offset, chunksize, chunk_location) == 0) {
-        __blkcache_chunk_put(session, block, objectid, offset, chunksize, chunk_location);
-        memcpy((void*)buf->mem, chunk_location, size);
+    __wt_chunkcache_check(session, block, objectid, offset, size, &chunkptr, &chunkcache_has_data, buf->mem);
+    if (chunkptr != NULL && __wt_read(session, block->fh, offset, chunkptr->chunksize, chunkptr->chunk_location) == 0) {
+        __wt_chunkcache_complete_read(session, chunkptr);
+        memcpy((void*)buf->mem, chunkptr->chunk_location, size);
         chunkcache_has_data = true;
     }
     if (!chunkcache_has_data)
