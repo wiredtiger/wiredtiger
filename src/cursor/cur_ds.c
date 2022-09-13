@@ -96,7 +96,7 @@ __curds_cursor_resolve(WT_CURSOR *cursor, int ret)
 
 /*
  * __curds_bound --
- *     WT_CURSOR.search method for the data-source cursor type.
+ *     WT_CURSOR.bound method for the data-source cursor type.
  */
 static int
 __curds_bound(WT_CURSOR *cursor, const char *config)
