@@ -107,9 +107,8 @@ __curds_bound(WT_CURSOR *cursor, const char *config)
 
     source = ((WT_CURSOR_DATA_SOURCE *)cursor)->source;
 
-    CURSOR_API_CALL_CONF(cursor, session, bound, config, cfg, NULL);
+    CURSOR_API_CALL(cursor, session, bound, NULL);
 
-    WT_UNUSED(cfg);
     WT_ERR(__curds_key_set(cursor));
     ret = __curds_cursor_resolve(cursor, source->bound(source, config));
 
@@ -464,7 +463,6 @@ __wt_curds_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, con
 
     metaconf = NULL;
 
-    WT_ASSERT(session, false);
     WT_RET(__wt_calloc_one(session, &data_source));
     cursor = (WT_CURSOR *)data_source;
     *cursor = iface;
