@@ -37,6 +37,7 @@ from wtscenario import make_scenarios
 # lexicographic order) as long as one exists and is visible.
 # When prefix search is enabled, in addition to the previous rules, search_near returns a key that
 # matches the prefix being searched.
+# FIXME-WT-9142 Remove once prefix search near is deprecated.
 class test_search_near02(wttest.WiredTigerTestCase):
     key_format_values = [
         ('fixed_string', dict(key_format='10s')),

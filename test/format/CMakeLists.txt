@@ -18,7 +18,9 @@ set(format_sources
     snap.c
     t.c
     trace.c
+    timestamp.c
     util.c
+    verify.c
     wts.c
 )
 

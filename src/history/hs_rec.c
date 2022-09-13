@@ -10,7 +10,7 @@
 
 static int __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
   uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, bool no_ts_tombstone,
-  bool error_on_ts_ordering, uint64_t *hs_counter);
+  bool error_on_ts_ordering, uint64_t *hs_counter, WT_TIME_WINDOW *upd_tw);
 
 /*
  * __hs_verbose_cache_stats --
@@ -276,7 +276,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
 
     if (ret == 0)
         WT_ERR(__hs_delete_reinsert_from_pos(session, cursor, btree->id, key, tw->start_ts + 1,
-          true, false, error_on_ts_ordering, &counter));
+          true, false, error_on_ts_ordering, &counter, tw));
 
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -517,7 +517,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
 
             /* Detect any update without a timestamp. */
             if (prev_upd != NULL && prev_upd->start_ts < upd->start_ts) {
-                WT_ASSERT(session, prev_upd->start_ts == WT_TS_NONE);
+                WT_ASSERT_ALWAYS(session, prev_upd->start_ts == WT_TS_NONE,
+                  "out-of-order timestamp update detected");
                 /*
                  * Fail the eviction if we detect any timestamp ordering issue and the error flag is
                  * set. We cannot modify the history store to fix the updates' timestamps as it may
@@ -608,8 +609,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
          * all the updates of the key in the history store with timestamps.
          */
         if (oldest_upd->type == WT_UPDATE_TOMBSTONE && oldest_upd->start_ts == WT_TS_NONE) {
-            WT_ERR(__wt_hs_delete_key_from_ts(
-              session, hs_cursor, btree->id, key, false, error_on_ts_ordering));
+            WT_ERR(
+              __wt_hs_delete_key(session, hs_cursor, btree->id, key, false, error_on_ts_ordering));
 
             /* Reset the update without a timestamp if it is the last update in the chain. */
             if (oldest_upd == no_ts_upd)
@@ -821,12 +822,11 @@ err:
 }
 
 /*
- * __wt_hs_delete_key_from_ts --
- *     Delete history store content of a given key from a timestamp and optionally reinsert them
- *     with ts-1 timestamp.
+ * __wt_hs_delete_key --
+ *     Delete history store content of a given key and optionally reinsert them with 0 timestamp.
  */
 int
-__wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
+__wt_hs_delete_key(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
   const WT_ITEM *key, bool reinsert, bool error_on_ts_ordering)
 {
     WT_DECL_RET;
@@ -855,7 +855,7 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
     }
 
     WT_ERR(__hs_delete_reinsert_from_pos(session, hs_cursor, btree_id, key, WT_TS_NONE, reinsert,
-      true, error_on_ts_ordering, &hs_counter));
+      true, error_on_ts_ordering, &hs_counter, NULL));
 
 done:
 err:
@@ -874,7 +874,7 @@ err:
 static int
 __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
   const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, bool no_ts_tombstone,
-  bool error_on_ts_ordering, uint64_t *counter)
+  bool error_on_ts_ordering, uint64_t *counter, WT_TIME_WINDOW *upd_tw)
 {
     WT_CURSOR *hs_insert_cursor;
     WT_CURSOR_BTREE *hs_cbt;
@@ -912,6 +912,51 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
         if (__wt_txn_tw_stop_visible_all(session, twp))
             continue;
 
+        /*
+         * The below example illustrates a case that the data store and the history
+         * store may contain the same value. In this case, skip inserting the same
+         * value to the history store again.
+         *
+         * Suppose there is one table table1 and the below operations are performed.
+         *
+         * 1. Insert a=1 in table1 at timestamp 10
+         * 2. Delete a from table1 at timestamp 20
+         * 3. Set stable timestamp = 20, oldest timestamp=1
+         * 4. Checkpoint table1
+         * 5. Insert a=2 in table1 at timestamp 30
+         * 6. Evict a=2 from table1 and move the content to history store.
+         * 7. Checkpoint is still running and before it finishes checkpointing the history store the
+         * above steps 5 and 6 will happen.
+         *
+         * After all this operations the checkpoint content will be
+         * Data store --
+         * table1 --> a=1 at start_ts=10, stop_ts=20
+         *
+         * History store --
+         * table1 --> a=1 at start_ts=10, stop_ts=20
+         *
+         * WiredTiger takes a backup of the checkpoint and use this backup to restore.
+         * Note: In table1 of both data store and history store has the same content.
+         *
+         * Now the backup is used to restore.
+         *
+         * 1. Insert a=3 in table1
+         * 2. Checkpoint started, eviction started and sees the same content in data store and
+         * history store while reconciling.
+         *
+         * The start timestamp and transaction ids are checked to ensure for the global
+         * visibility because globally visible timestamps and transaction ids may be cleared to 0.
+         * The time window of the inserting record and the history store record are
+         * compared to make sure that the same record are not being inserted again.
+         */
+
+        if (upd_tw != NULL &&
+          (__wt_txn_tw_start_visible_all(session, upd_tw) &&
+                __wt_txn_tw_start_visible_all(session, twp) ?
+              WT_TIME_WINDOWS_STOP_EQUAL(upd_tw, twp) :
+              WT_TIME_WINDOWS_EQUAL(upd_tw, twp)))
+            continue;
+
         /* We shouldn't have crossed the btree and user key search space. */
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_ts, &hs_counter));
         WT_ASSERT(session, hs_btree_id == btree_id);
@@ -931,6 +976,9 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
     if (ret == WT_NOTFOUND)
         return (0);
     WT_ERR(ret);
+
+    WT_ASSERT_ALWAYS(
+      session, ts == 1 || ts == WT_TS_NONE, "out-of-order timestamp update detected");
 
     /*
      * Fail the eviction if we detect any timestamp ordering issue and the error flag is set. We
