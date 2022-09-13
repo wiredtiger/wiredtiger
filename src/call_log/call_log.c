@@ -356,8 +356,24 @@ __wt_call_log_timestamp_transaction_uint(
     WT_CONNECTION_IMPL *conn;
     char ts_buf[128];
     char ts_type_buf[128];
+    const char *name;
 
     conn = S2C(session);
+
+    switch (which) {
+        case WT_TS_TXN_TYPE_COMMIT:
+            name = "commit";
+            break;
+        case WT_TS_TXN_TYPE_DURABLE:
+            name = "durable";
+            break;
+        case WT_TS_TXN_TYPE_PREPARE:
+            name = "prepare";
+            break;
+        case WT_TS_TXN_TYPE_READ:
+            name = "read";
+            break;
+    }
 
     WT_RET(__call_log_print_start(session, "session", "timestamp_transaction_uint"));
     WT_RET(__wt_fprintf(session, conn->call_log_fst, "    \"session_id\": \"%p\",\n", session));
@@ -366,7 +382,7 @@ __wt_call_log_timestamp_transaction_uint(
      * The timestamp transaction uint entry includes the timestamp being set, indicated by
      * WT_TS_TXN_TYPE and the timestamp itself as input.
      */
-    WT_RET(__wt_snprintf(ts_type_buf, sizeof(ts_type_buf), "\"wt_ts_txp_type\": \"%u\"", which));
+    WT_RET(__wt_snprintf(ts_type_buf, sizeof(ts_type_buf), "\"wt_ts_txp_type\": \"%s\"", name));
     WT_RET(__wt_snprintf(ts_buf, sizeof(ts_buf), "\"timestamp\": \"%" PRIu64 "\"", ts));
     WT_RET(__call_log_print_input(session, 2, ts_type_buf, ts_buf));
 
