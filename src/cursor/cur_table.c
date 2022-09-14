@@ -837,17 +837,19 @@ err:
 static int
 __curtable_bound(WT_CURSOR *cursor, const char *config)
 {
-    WT_CURSOR *primary;
+    WT_CURSOR **cp;
     WT_CURSOR_TABLE *ctable;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    u_int i;
 
     ctable = (WT_CURSOR_TABLE *)cursor;
     JOINABLE_CURSOR_API_CALL(cursor, session, bound, NULL);
 
-    /* Grab the primary cursor and call bound function. */
-    primary = *ctable->cg_cursors;
-    WT_ERR(primary->bound(primary, config));
+    /* Call bound function on all column groups. */
+    for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); i++, cp++)
+        WT_ERR((*cp)->bound(*cp, config));
+
 err:
     API_END_RET(session, ret);
 }
