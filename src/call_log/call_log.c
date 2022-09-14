@@ -356,6 +356,7 @@ __wt_call_log_timestamp_transaction_uint(
 
     conn = S2C(session);
 
+    name = "unknown";
     switch (which) {
         case WT_TS_TXN_TYPE_COMMIT:
             name = "commit";
