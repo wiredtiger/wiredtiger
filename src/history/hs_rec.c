@@ -900,6 +900,9 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
     WT_UNUSED(key);
 #endif
 
+    /* This function should only accept mixed mode timestamped updates. */
+    WT_ASSERT(session, ts == 1 || ts == WT_TS_NONE);
+
     /*
      * If we delete all the updates of the key from the history store, we should not reinsert any
      * update except when a tombstone without a timestamp is not globally visible yet.
@@ -976,9 +979,6 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
     if (ret == WT_NOTFOUND)
         return (0);
     WT_ERR(ret);
-
-    WT_ASSERT_ALWAYS(
-      session, ts == 1 || ts == WT_TS_NONE, "out-of-order timestamp update detected");
 
     /*
      * Fail the eviction if we detect any timestamp ordering issue and the error flag is set. We
