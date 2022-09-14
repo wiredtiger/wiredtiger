@@ -358,18 +358,18 @@ __wt_call_log_timestamp_transaction_uint(
 
     name = "unknown";
     switch (which) {
-        case WT_TS_TXN_TYPE_COMMIT:
-            name = "commit";
-            break;
-        case WT_TS_TXN_TYPE_DURABLE:
-            name = "durable";
-            break;
-        case WT_TS_TXN_TYPE_PREPARE:
-            name = "prepare";
-            break;
-        case WT_TS_TXN_TYPE_READ:
-            name = "read";
-            break;
+    case WT_TS_TXN_TYPE_COMMIT:
+        name = "commit";
+        break;
+    case WT_TS_TXN_TYPE_DURABLE:
+        name = "durable";
+        break;
+    case WT_TS_TXN_TYPE_PREPARE:
+        name = "prepare";
+        break;
+    case WT_TS_TXN_TYPE_READ:
+        name = "read";
+        break;
     }
 
     WT_RET(__call_log_print_start(session, "session", "timestamp_transaction_uint"));
