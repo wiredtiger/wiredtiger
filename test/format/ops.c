@@ -582,7 +582,6 @@ prepare_transaction(TINFO *tinfo)
 #define OP_FAILED(notfound_ok)                                                               \
     do {                                                                                     \
         positioned = false;                                                                  \
-        clear_bounds(tinfo->cursor, tinfo->table);                                           \
         if (intxn && (ret == WT_CACHE_FULL || ret == WT_ROLLBACK))                           \
             return (WT_ROLLBACK);                                                            \
         testutil_assertfmt(                                                                  \
@@ -615,9 +614,8 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
     WT_DECL_RET;
     TABLE *table;
     u_int i, j;
-    bool bounds, evict_page, next, positioned;
+    bool evict_page, next, positioned;
 
-    bounds = false;
     table = tinfo->table;
 
     /* Acquire a cursor. */
@@ -658,7 +656,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
          * work, but doesn't make sense. Reserving a row before a read won't be useful but it's not
          * unexpected.
          */
-        if (intxn && iso_level == ISOLATION_SNAPSHOT && mmrand(&tinfo->rnd, 0, 20) == 25) {
+        if (intxn && iso_level == ISOLATION_SNAPSHOT && mmrand(&tinfo->rnd, 0, 20) == 1) {
             switch (table->type) {
             case ROW:
                 ret = row_reserve(tinfo, positioned);
@@ -674,11 +672,6 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
             } else
                 OP_FAILED(true);
         }
-    }
-
-    if (positioned && op == INSERT && GV(OPS_BOUND_CURSOR) && mmrand(NULL, 1, 10) == 1) {
-        bounds = true;
-        apply_bounds(tinfo->cursor, tinfo->table);
     }
 
     /* Perform the operation. */
@@ -697,9 +690,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
         positioned = false; /* Insert never leaves the cursor positioned. */
         if (ret == 0) {
             SNAP_TRACK(tinfo, INSERT);
-        } else if (bounds)
-            OP_FAILED(true);
-        else
+        } else
             OP_FAILED(false);
         break;
     case MODIFY:
@@ -725,12 +716,19 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
         break;
     case READ:
         ++tinfo->search;
+
+        if (!positioned && GV(OPS_BOUND_CURSOR) && mmrand(NULL, 1, 2) == 1)
+            apply_bounds(tinfo->cursor, tinfo->table);
+
         ret = read_row(tinfo);
         if (ret == 0) {
             positioned = true;
             SNAP_TRACK(tinfo, READ);
-        } else
+        } else {
+            clear_bounds(tinfo->cursor, tinfo->table);
             OP_FAILED(true);
+        }
+        clear_bounds(tinfo->cursor, tinfo->table);
         break;
     case REMOVE:
         ++tinfo->remove;
@@ -766,9 +764,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
         positioned = false; /* Truncate never leaves the cursor positioned. */
         if (ret == 0) {
             SNAP_TRACK(tinfo, TRUNCATE);
-        } else if (bounds)
-            OP_FAILED(true);
-        else
+        } else
             OP_FAILED(false);
         break;
     case UPDATE:
@@ -785,9 +781,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
         if (ret == 0) {
             positioned = true;
             SNAP_TRACK(tinfo, UPDATE);
-        } else if (bounds)
-            OP_FAILED(true);
-        else
+        } else
             OP_FAILED(false);
         break;
     }
@@ -1317,7 +1311,11 @@ apply_bounds(WT_CURSOR *cursor, TABLE *table)
         cursor->set_key(cursor, &key);
         break;
     }
-    cursor->bound(cursor, "action=set,bound=lower");
+    
+    if (TV(BTREE_REVERSE))
+        cursor->bound(cursor, "action=set,bound=upper");
+    else
+        cursor->bound(cursor, "action=set,bound=lower");
 
     /* Retrieve the key/value pair by key. */
     switch (table->type) {
@@ -1330,8 +1328,11 @@ apply_bounds(WT_CURSOR *cursor, TABLE *table)
         cursor->set_key(cursor, &key);
         break;
     }
-    cursor->bound(cursor, "action=set,bound=upper");
-
+    
+    if (TV(BTREE_REVERSE))
+        cursor->bound(cursor, "action=set,bound=upper");
+    else
+        cursor->bound(cursor, "action=set,bound=lower");
     key_gen_teardown(&key);
     return;
 }
@@ -1423,8 +1424,8 @@ static int
 read_row(TINFO *tinfo)
 {
     /* 25% of the time we call search-near. */
-    return (read_row_worker(tinfo, NULL, tinfo->cursor, tinfo->keyno, tinfo->key, tinfo->value,
-      &tinfo->bitv, false));
+    return (read_row_worker(
+      tinfo, NULL, tinfo->cursor, tinfo->keyno, tinfo->key, tinfo->value, &tinfo->bitv, false));
 }
 
 /*
