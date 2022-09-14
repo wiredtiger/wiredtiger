@@ -1534,6 +1534,7 @@ txn
 txnc
 txnid
 txnmin
+txp
 txt
 typedef
 typemaps

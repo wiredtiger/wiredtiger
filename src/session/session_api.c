@@ -1857,6 +1857,9 @@ __session_timestamp_transaction_uint(WT_SESSION *wt_session, WT_TS_TXN_TYPE whic
 
     ret = __wt_txn_set_timestamp_uint(session, which, (wt_timestamp_t)ts);
 err:
+#ifdef HAVE_CALL_LOG
+    WT_TRET(__wt_call_log_timestamp_transaction_uint(session, which, ts, ret));
+#endif
     API_END_RET(session, ret);
 }
 
