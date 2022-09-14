@@ -64,8 +64,7 @@ do
 		fi
 	fi
 
-	tables=$(${wt_binary} -h "${d}" list)
-	if [ "$?" -ne "0" ]; then 
+	if ! tables=$(${wt_binary} -h "${d}" list); then
 		echo "Failed to list '${d}' directory, exiting ..."
 		exit 1
 	fi
