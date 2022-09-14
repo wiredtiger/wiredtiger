@@ -617,15 +617,11 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     r->any_empty_value = false;
 
     /* The list of saved updates is reused. */
-    r->supd = NULL;
     r->supd_next = 0;
-    r->supd_allocated = 0;
     r->supd_memsize = 0;
 
     /* The list of updates to be deleted from the history store. */
-    r->delete_hs_upd = NULL;
     r->delete_hs_upd_next = 0;
-    r->delete_hs_upd_allocated = 0;
 
     /* The list of pages we've written. */
     r->multi = NULL;
