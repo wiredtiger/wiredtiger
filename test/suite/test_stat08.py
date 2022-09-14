@@ -34,7 +34,7 @@ import wiredtiger, wttest
 class test_stat08(wttest.WiredTigerTestCase):
 
     nentries = 350000
-    conn_config = 'cache_size=10MB,statistics=(all)'
+    conn_config = 'statistics=(all)'
     entry_value = "abcde" * 40
     BYTES_READ = wiredtiger.stat.session.bytes_read
     READ_TIME = wiredtiger.stat.session.read_time
@@ -60,14 +60,13 @@ class test_stat08(wttest.WiredTigerTestCase):
         cur.search()
         [desc, pvalue, value] = cur.get_values()
         self.pr('  stat: \'%s\', \'%s\', \'%s\'' % (desc, pvalue, str(value)))
-        self.assertEqual(desc, exp_desc )
+        self.assertEqual(desc, exp_desc)
         if k is self.BYTES_READ or k is self.READ_TIME:
             self.assertTrue(value > 0)
 
     def test_session_stats(self):
         self.session = self.conn.open_session()
-        self.session.create("table:test_stat08",
-                            "key_format=i,value_format=S")
+        self.session.create("table:test_stat08", "key_format=i,value_format=S")
         cursor =  self.session.open_cursor('table:test_stat08', None, None)
         self.session.begin_transaction()
         txn_dirty = self.get_stat(wiredtiger.stat.session.txn_bytes_dirty)
