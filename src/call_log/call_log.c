@@ -31,8 +31,6 @@ __wt_conn_call_log_setup(WT_SESSION_IMPL *session)
 
     F_SET(conn, WT_CONN_CALL_LOG_ENABLED);
 
-    WT_ERR(__wt_fprintf(session, conn->call_log_fst, "[\n"));
-
 err:
     __wt_scr_free(session, &file_name);
     return (ret);
@@ -51,8 +49,6 @@ __wt_conn_call_log_teardown(WT_SESSION_IMPL *session)
 
     if (!F_ISSET(conn, WT_CONN_CALL_LOG_ENABLED))
         return (0);
-
-    WT_RET(__wt_fprintf(session, conn->call_log_fst, "{}]\n"));
 
     return (__wt_fclose(session, &conn->call_log_fst));
 }
@@ -360,19 +356,20 @@ __wt_call_log_timestamp_transaction_uint(
 
     conn = S2C(session);
 
+    name = "unknown";
     switch (which) {
-        case WT_TS_TXN_TYPE_COMMIT:
-            name = "commit";
-            break;
-        case WT_TS_TXN_TYPE_DURABLE:
-            name = "durable";
-            break;
-        case WT_TS_TXN_TYPE_PREPARE:
-            name = "prepare";
-            break;
-        case WT_TS_TXN_TYPE_READ:
-            name = "read";
-            break;
+    case WT_TS_TXN_TYPE_COMMIT:
+        name = "commit";
+        break;
+    case WT_TS_TXN_TYPE_DURABLE:
+        name = "durable";
+        break;
+    case WT_TS_TXN_TYPE_PREPARE:
+        name = "prepare";
+        break;
+    case WT_TS_TXN_TYPE_READ:
+        name = "read";
+        break;
     }
 
     WT_RET(__call_log_print_start(session, "session", "timestamp_transaction_uint"));
