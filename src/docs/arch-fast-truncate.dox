@@ -333,7 +333,8 @@ neither write these fields nor expect to find them.
 The explicit header flag is required to make compatibility guarantees function as needed.
 (MongoDB 6.x knows how to read pages with \c WT_PAGE_FT_UPDATE set, but does not write
 them.
-This is controlled in the WT library by the build config.)
+This is controlled in the WT library by the \c __wt_process::fast_truncate_2022 flag,
+whose default setting is controlled by the build config.)
 
 @section ft_truncate Truncation
 
@@ -354,14 +355,15 @@ the ref.
 (And then check if it is <i>still</i> on disk.)
 
 Then the following categories of pages are ineligible for fast-truncate:
-* Pages that have no address. These should not exist, but we need to look at the address
+- Pages that have no address. These should not exist, but we need to look at the address
 information and are therefore obliged to check.
-* Pages that may have overflow items. (Or internal pages.) The address cell type must be
-\c WT_ADDR_LEAF_NO (rather than \c WT_ADDR_LEAF, where overflow items may exist.) Pages
-with overflow items need their overflow pages deleted as well, and that requires reading
-them into memory.
-* Pages that contain prepared values.
-* Pages where the newest transaction on the page (by either transaction ID or timestamp)
+- Pages that may have overflow items. (Or internal pages.)
+Pages with overflow items need their overflow pages deleted as well, and that requires
+reading them into memory.
+The address cell type must be \c WT_ADDR_LEAF_NO, rather than \c WT_ADDR_LEAF, where
+overflow items may exist.
+- Pages that contain prepared values.
+- Pages where the newest transaction on the page (by either transaction ID or timestamp)
 is not visible.
 
 If the page passes these checks, we mark its parent dirty, initialize the \c page_del
@@ -419,7 +421,8 @@ tree with no leaves at all causes problems.
 
 There are two separate skip functions for skipping deleted pages during tree walks.
 The basic skip function is \c __wt_delete_page_skip in \c bt_delete.c; it is always called
-in tree walks when \c WT_READ_SKIP_DELETED is set, which is all tree walks except RTS.
+in tree walks when \c WT_READ_SKIP_DELETED is set, which is all tree walks except @ref
+arch-rts.
 It checks for whether the ref state is \c WT_REF_DELETED and the truncation is visible to
 the caller.
 
@@ -436,7 +439,7 @@ information, it checks for the visibility of that deletion.
 Failing that, it checks the time aggregate in case all the values on the page are no
 longer visible, e.g. because the page was slow-truncated and reconciled.
 
-(For an unmodified in-memory page the deletion information in the address should be the
+For an unmodified in-memory page the deletion information in the address should be the
 same as present in the ref's \c page_del structure.
 However, inspecting the unpacked copy instead, which is free since we are unpacking the
 cell to look at the time aggregate anyway, makes this check independent of the lifecycle
@@ -445,7 +448,7 @@ This was more important in previous iterations of the code than it is now; howev
 principle it's possible to drop the ref's \c page_del immediately upon instantiation in a
 read-only tree, since it is kept for internal page reconciliation and pages in read-only
 trees are never reconciled.
-Checking the unpacked information here avoids interfering with that option.)
+Checking the unpacked information here avoids interfering with that option.
 
 Note that \c __wt_btcur_skip_page is passed to the tree-walk code as a custom skip
 function, which means that when it's used <i>both</i> it and \c __wt_delete_page_skip are
@@ -455,6 +458,7 @@ Furthermore, it is unclear whether these functions really need to be different; 
 it may be that the additional time aggregate check in \c __wt_btcur_skip_page should be
 deployed for all tree walks.
 (If not, the reason should be discovered and documented.)
+<!-- FIXME-WT-9859: WT-9859 is the ticket for cleaning this up. -->
 
 @section ft_vlcs VLCS considerations
 
@@ -661,11 +665,11 @@ Akin to \c WT_TIME_AGGREGATE_UPDATE but for a \c WT_PAGE_DELETED; used in intern
 reconciliation.}
 
 @row{txn_inline.h, Function, \c __wt_txn_op_delete_apply_prepare_state,
-The code for updating \c WT_PAGE_DELETED at prepare time.  updates to \c WT_PAGE_DELETED.}
+The code for updating \c WT_PAGE_DELETED at prepare time.}
 @row{txn_inline.h, Function, \c __wt_txn_op_commit_apply_timestamps,
 Part of the code for updating \c WT_PAGE_DELETED at commit time.
 (The rest is in \c __wt_txn_commit itself.
-Note that the rollback-time update is in bt_delete.c.)}
+Note that the rollback-time update is in \c bt_delete.c.)}
 @row{txn_inline.h, Hook, in \c __wt_txn_op_set_timestamp,
 Call \c __wt_txn_op_delete_apply_prepare_state and
 \c __wt_txn_op_commit_apply_timestamps.}
@@ -675,7 +679,7 @@ This records a fast-truncate in the current transaction.}
 @row{cell_inline.h, Function, \c __cell_page_del_window_cleanup,
 Akin to \c __cell_kv_window_cleanup except for \c WT_PAGE_DELETED.}
 @row{cell_inline.h, Function, \c __cell_redo_page_del_cleanup,
-Function that redoes does the timestamp cleanup for a \c WT_PAGE_DELETED structure; used
+Function that redoes the timestamp cleanup for a \c WT_PAGE_DELETED structure; used
 after we bump write generations at the end recovery.}
 @row{cell_inline.h, Hook, in \c __wt_cell_unpack_safe,
 Unpack the page deletion information from deleted-address cells.}
@@ -699,6 +703,7 @@ but as of this writing it is missing.}
 @row{bt_debug.c, Hook, in \c __debug_ref or possibly \c __debug_ref_state,
 There should be a hook to print the deletion information for deleted and instantiated
 pages\, but as of this writing it is missing.}
+<!-- FIXME-WT-9860: WT-9860 is the ticket about these hooks being missing. -->
 
 @row{bt_delete.c, Function, \c __wt_delete_page,
 The implementation of fast-truncate itself.}
