@@ -1824,8 +1824,12 @@ __rec_split_write_supd(
                 for (; upd != NULL &&
                      ((upd != r->supd[i].onpage_upd && upd != r->supd[i].onpage_tombstone) ||
                        F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
-                     upd = upd->next)
+                     upd = upd->next) {
+                    if (upd->txnid == WT_TXN_ABORTED)
+                        continue;
+
                     r->supd_restore_memsize += upd->size;
+                }
             }
             r->supd[j] = r->supd[i];
         }
