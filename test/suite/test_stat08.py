@@ -33,8 +33,8 @@ import wiredtiger, wttest
 #    Session statistics for bytes read into the cache.
 class test_stat08(wttest.WiredTigerTestCase):
 
-    nentries = 100000
-    conn_config = 'statistics=(all)'
+    nentries = 350000
+    conn_config = 'cache_size=10MB,statistics=(all)'
     entry_value = "abcde" * 40
     BYTES_READ = wiredtiger.stat.session.bytes_read
     READ_TIME = wiredtiger.stat.session.read_time
@@ -60,13 +60,14 @@ class test_stat08(wttest.WiredTigerTestCase):
         cur.search()
         [desc, pvalue, value] = cur.get_values()
         self.pr('  stat: \'%s\', \'%s\', \'%s\'' % (desc, pvalue, str(value)))
-        self.assertEqual(desc, exp_desc)
+        self.assertEqual(desc, exp_desc )
         if k is self.BYTES_READ or k is self.READ_TIME:
             self.assertTrue(value > 0)
 
     def test_session_stats(self):
         self.session = self.conn.open_session()
-        self.session.create("table:test_stat08", "key_format=i,value_format=S")
+        self.session.create("table:test_stat08",
+                            "key_format=i,value_format=S")
         cursor =  self.session.open_cursor('table:test_stat08', None, None)
         self.session.begin_transaction()
         txn_dirty = self.get_stat(wiredtiger.stat.session.txn_bytes_dirty)
@@ -75,8 +76,8 @@ class test_stat08(wttest.WiredTigerTestCase):
         for i in range(0, self.nentries):
             cursor[i] = self.entry_value
             # Since we're using an explicit transaction, we need to commit somewhat frequently.
-            # So check the statistics and commit/restart the transaction every 200 operations.
-            if i % 200 == 0:
+            # So check the statistics and commit/restart the transaction every 1000 operations.
+            if i % 1000 == 0:
                 txn_dirty = self.get_stat(wiredtiger.stat.session.txn_bytes_dirty)
                 self.assertNotEqual(txn_dirty, 0)
                 self.session.commit_transaction()
