@@ -31,7 +31,7 @@ do
 	else
 		let "failure++"
 		[ -f WT_TEST/CONFIG ] && cat WT_TEST/CONFIG
-		mv WT_TEST WT_TEST_${config##*/}
+		mv WT_TEST WT_TEST_$(basename $config)
 	fi
 done
 
