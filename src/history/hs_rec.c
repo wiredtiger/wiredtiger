@@ -900,7 +900,11 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
     WT_UNUSED(key);
 #endif
 
-    /* This function should only accept mixed mode timestamped updates. */
+    /*
+     * This function should only accept mixed mode timestamped updates.
+     *
+     * FIXME-WT-9846: Change this back to WT_ASSERT_ALWAYS once WT-9846 is resolved
+     */
     WT_ASSERT(session, ts == 1 || ts == WT_TS_NONE);
 
     /*
