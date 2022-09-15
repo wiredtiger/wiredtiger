@@ -300,21 +300,18 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
      * update that's been deleted is not a valid key/value pair).
      */
     if (cbt->ins != NULL) {
-        if (WT_CURSOR_BOUNDS_SET(&cbt->iface)) {
+        if (btree->type == BTREE_ROW && WT_CURSOR_BOUNDS_SET(&cbt->iface) && key == NULL) {
             /* Get the insert list key. */
-            if (key == NULL && btree->type == BTREE_ROW) {
-                tmp_key.data = WT_INSERT_KEY(cbt->ins);
-                tmp_key.size = WT_INSERT_KEY_SIZE(cbt->ins);
-                WT_RET(__btcur_bounds_contains_key(
-                  session, &cbt->iface, &tmp_key, WT_RECNO_OOB, &key_out_of_bounds, NULL));
-            } else
-                WT_RET(__btcur_bounds_contains_key(
-                  session, &cbt->iface, key, cbt->recno, &key_out_of_bounds, NULL));
-
-            /* The key value pair we were trying to return weren't within the given bounds. */
-            if (key_out_of_bounds)
-                return (0);
+            tmp_key.data = WT_INSERT_KEY(cbt->ins);
+            tmp_key.size = WT_INSERT_KEY_SIZE(cbt->ins);
         }
+        WT_RET(__btcur_bounds_contains_key(session, &cbt->iface, key == NULL ? &tmp_key : key,
+          cbt->recno, &key_out_of_bounds, NULL));
+
+        /* The key value pair we were trying to return weren't within the given bounds. */
+        if (key_out_of_bounds)
+            return (0);
+
         WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
         if (cbt->upd_value->type != WT_UPDATE_INVALID) {
             if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE)
@@ -322,6 +319,14 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
             *valid = true;
             return (0);
         }
+    }
+
+    if (btree->type != BTREE_ROW) {
+        WT_RET(__btcur_bounds_contains_key(
+          session, &cbt->iface, NULL, cbt->recno, &key_out_of_bounds, NULL));
+        /* The key value pair we were trying to return weren't within the given bounds. */
+        if (key_out_of_bounds)
+            return (0);
     }
 
     /*
@@ -378,12 +383,6 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
         cip = &page->pg_var[cbt->slot];
         cell = WT_COL_PTR(page, cip);
         if (__wt_cell_type(cell) == WT_CELL_DEL)
-            return (0);
-
-        WT_RET(__btcur_bounds_contains_key(
-          session, &cbt->iface, NULL, cbt->recno, &key_out_of_bounds, NULL));
-        /* The key value pair we were trying to return weren't within the given bounds. */
-        if (key_out_of_bounds)
             return (0);
 
         /*
