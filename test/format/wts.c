@@ -220,7 +220,8 @@ create_database(const char *home, WT_CONNECTION **connp)
       ",checkpoint_sync=false"
       ",error_prefix=\"%s\""
       ",operation_timeout_ms=2000"
-      ",statistics=(all)", GV(CACHE), progname);
+      ",statistics=(all)",
+      GV(CACHE), progname);
 
     /* In-memory configuration. */
     if (GV(RUNS_IN_MEMORY) != 0)
