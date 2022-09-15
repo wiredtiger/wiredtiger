@@ -841,8 +841,9 @@ __curtable_bound(WT_CURSOR *cursor, const char *config)
     WT_CURSOR_TABLE *ctable;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    u_int i;
+    u_int i, j;
 
+    i = 0;
     ctable = (WT_CURSOR_TABLE *)cursor;
     JOINABLE_CURSOR_API_CALL(cursor, session, bound, NULL);
 
@@ -851,6 +852,10 @@ __curtable_bound(WT_CURSOR *cursor, const char *config)
         WT_ERR((*cp)->bound(*cp, config));
 
 err:
+    /* If applying bounds fails on one colgroup, reset all of them for consistency. */
+    if (ret != 0)
+        for (j = 0, cp = ctable->cg_cursors; j <= i; j++, cp++)
+            WT_IGNORE_RET((*cp)->bound(*cp, "action=clear"));
     API_END_RET(session, ret);
 }
 
