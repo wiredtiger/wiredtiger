@@ -459,9 +459,12 @@ __rec_calc_upd_memsize(WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, size_t upd_m
      * chain.
      */
     if (onpage_upd != NULL) {
-        for (upd = tombstone != NULL ? tombstone : onpage_upd; upd != NULL; upd = upd->next)
-            if (upd->txnid != WT_TXN_ABORTED)
-                upd_memsize += upd->size;
+        for (upd = tombstone != NULL ? tombstone : onpage_upd; upd != NULL; upd = upd->next) {
+            if (upd->txnid == WT_TXN_ABORTED)
+                continue;
+
+            upd_memsize += upd->size;
+        }
     }
     return (upd_memsize);
 }
