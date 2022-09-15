@@ -236,7 +236,7 @@ call_log_manager::call_log_timestamp_transaction_uint(const json &call_log_entry
     /*
      * There are no timestamps to be set if the timestamp type is not specified.
      */
-    if (wt_ts_txn_type == "unkown")
+    if (wt_ts_txn_type == "unknown")
         return;
 
     const uint64_t ts = call_log_entry["input"]["timestamp"].get<uint64_t>();
