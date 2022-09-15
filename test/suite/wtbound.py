@@ -288,14 +288,12 @@ class bound_base(wttest.WiredTigerTestCase):
         if (expected_count != None):
             self.assertEqual(expected_count, count)
         else:
-            #self.pr("endrange: " + str(end_range) + " start_range: " + str(start_range) + " count :" + str(count) + " lower_key: " + str(lower_key))
             # As a result of fix length column store creating implicit records during eviction we
             # have assert that we either walked the expected range or a range with additional
             # implicit records.
             if (self.flcs):
                 range_without_implicit = end_range - start_range + 1
                 range_with_implicit = end_range - flcs_start_range + 1
-                #self.pr("rw/i: " + str(range_with_implicit) + " rw/oi: " + str(range_without_implicit))
                 self.assertTrue(count == range_with_implicit or count == range_without_implicit)
             else:
                 self.assertEqual(end_range - start_range + 1, count)
