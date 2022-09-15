@@ -901,13 +901,6 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
 #endif
 
     /*
-     * This function should only accept mixed mode timestamped updates.
-     *
-     * FIXME-WT-9846: Change this back to WT_ASSERT_ALWAYS once WT-9846 is resolved
-     */
-    WT_ASSERT(session, ts == 1 || ts == WT_TS_NONE);
-
-    /*
      * If we delete all the updates of the key from the history store, we should not reinsert any
      * update except when a tombstone without a timestamp is not globally visible yet.
      */
@@ -983,6 +976,14 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
     if (ret == WT_NOTFOUND)
         return (0);
     WT_ERR(ret);
+
+    /*
+     * If we find a key with a timestamp larger than or equal to the specified timestamp then the
+     * specified timestamp must be mixed mode.
+     *
+     * FIXME-WT-9846: Change this back to WT_ASSERT_ALWAYS once WT-9846 is resolved
+     */
+    WT_ASSERT(session, ts == 1 || ts == WT_TS_NONE);
 
     /*
      * Fail the eviction if we detect any timestamp ordering issue and the error flag is set. We
