@@ -853,8 +853,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         supd_restore = F_ISSET(r, WT_REC_EVICT) &&
           (has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
 
-        /* In memory database doesn't have history store. Count the size of the entire restored
-         * update chain. */
+        /*
+         * In memory database doesn't have history store. Count the size of the entire restored
+         * update chain.
+         */
         if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
             WT_ASSERT(session, supd_restore);
             upd_memsize = __rec_calc_upd_memsize(onpage_upd, upd_select->tombstone, upd_memsize);
