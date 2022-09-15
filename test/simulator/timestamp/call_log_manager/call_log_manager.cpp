@@ -230,10 +230,10 @@ call_log_manager::call_log_set_timestamp(const json &call_log_entry)
 void
 call_log_manager::call_log_timestamp_transaction_uint(const json &call_log_entry)
 {
-    /* Convert the config char * to a string object. */
+    /* Convert the transaction type char * to a string object. */
     const std::string wt_ts_txn_type = call_log_entry["input"]["wt_ts_txp_type"].get<std::string>();
 
-    /* 
+    /*
      * There are no timestamps to be set if the timestamp type is not specified.
      */
     if (wt_ts_txn_type == "unkown")

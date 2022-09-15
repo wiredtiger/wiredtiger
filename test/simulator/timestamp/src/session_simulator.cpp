@@ -62,22 +62,26 @@ session_simulator::commit_transaction()
 }
 
 void
-session_simulator::set_commit_timestamp(const uint64_t &ts){
+session_simulator::set_commit_timestamp(const uint64_t &ts)
+{
     _commit_ts = ts;
 }
 
 void
-session_simulator::set_durable_timestamp(const uint64_t &ts){
+session_simulator::set_durable_timestamp(const uint64_t &ts)
+{
     _durable_ts = ts;
 }
 
 void
-session_simulator::set_prepare_timestamp(const uint64_t &ts){
+session_simulator::set_prepare_timestamp(const uint64_t &ts)
+{
     _prepare_ts = ts;
 }
 
 void
-session_simulator::set_read_timestamp(const uint64_t &ts){
+session_simulator::set_read_timestamp(const uint64_t &ts)
+{
     _read_ts = ts;
 }
 
@@ -85,17 +89,17 @@ int
 session_simulator::timestamp_transaction_uint(const std::string &ts_type, const uint64_t &ts)
 {
     /* Zero timestamp is not permitted. */
-    if (ts == 0){
+    if (ts == 0) {
         WT_SIM_RET_MSG(EINVAL, "Illegal " + std::to_string(ts) + " timestamp: zero not permitted.");
     }
 
-    if (ts_type == "commit"){
+    if (ts_type == "commit") {
         set_commit_timestamp(ts);
-    } else if (ts_type == "durable"){
+    } else if (ts_type == "durable") {
         set_durable_timestamp(ts);
-    } else if (ts_type == "prepare"){
+    } else if (ts_type == "prepare") {
         set_prepare_timestamp(ts);
-    } else if (ts_type == "read"){
+    } else if (ts_type == "read") {
         set_read_timestamp(ts);
     }
 
