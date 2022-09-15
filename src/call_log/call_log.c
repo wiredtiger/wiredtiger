@@ -262,6 +262,35 @@ __wt_call_log_conn_query_timestamp(
     return (0);
 }
 
+int
+__wt_call_log_session_query_timestamp(
+  WT_SESSION_IMPL *session, const char *config, const char *hex_timestamp, int ret_val)
+{
+    WT_CONNECTION_IMPL *conn;
+    char config_buf[128], hex_ts_buf[128];
+
+    conn = S2C(session);
+
+    WT_RET(__call_log_print_start(session, "session", "query_timestamp"));
+    WT_RET(__wt_fprintf(session, conn->call_log_fst, "    \"session_id\": \"%p\",\n", session));
+
+    /*
+     * The query timestamp entry includes the timestamp configuration string which is copied from
+     * the original API call.
+     */
+    WT_RET(__wt_snprintf(config_buf, sizeof(config_buf), "\"config\": \"%s\"", config));
+    WT_RET(__call_log_print_input(session, 1, config_buf));
+
+    /* The timestamp queried is the output from the original query timestamp API call. */
+    WT_RET(__wt_snprintf(
+      hex_ts_buf, sizeof(hex_ts_buf), "\"timestamp_queried\": \"%s\"", hex_timestamp));
+    WT_RET(__call_log_print_output(session, 1, hex_ts_buf));
+
+    WT_RET(__wt_call_log_print_return(conn, session, ret_val, ""));
+
+    return (0);
+}
+
 /*
  * __wt_call_log_begin_transaction --
  *     Print the call log entry for the begin transaction API call.
