@@ -10,7 +10,7 @@ set -e
 # Switch to the Git repo toplevel directory
 cd $(git rev-parse --show-toplevel)
 # Walk into the test/format directory
-cd cmake_build/test/format
+cd build/test/format
 set +e
 
 # Check the existence of 't' binary
@@ -26,11 +26,12 @@ failure=0
 for config in $(find ../../../test/format/failure_configs/ -name "CONFIG.*" | sort)
 do
 	echo -e "\nTesting CONFIG $config ...\n"
-	if (./t -c $config); then
+	if (./t -c $config -h WT_TEST); then
 		let "success++"
 	else
 		let "failure++"
-		[ -f RUNDIR/CONFIG ] && cat RUNDIR/CONFIG
+		[ -f WT_TEST/CONFIG ] && cat WT_TEST/CONFIG
+		mv WT_TEST WT_TEST_${config##*/}
 	fi
 done
 
