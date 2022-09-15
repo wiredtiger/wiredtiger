@@ -101,7 +101,7 @@ static uint32_t flush_calls = 1;
     "debug_mode=(table_logging=true,checkpoint_retention=5)," \
     "eviction_updates_target=20,eviction_updates_trigger=90," \
     "log=(enabled,file_max=10M,remove=true),session_max=%d,"  \
-    "statistics=(fast),statistics_log=(wait=1,json=true),"    \
+    "statistics=(all),statistics_log=(wait=1,json=true),"     \
     "tiered_storage=(bucket=%s,bucket_prefix=%s,"             \
     "local_retention=%d,interval=%d,name=dir_store)"
 #define ENV_CONFIG_TXNSYNC                                \
