@@ -228,22 +228,29 @@ __wt_call_log_set_timestamp(WT_SESSION_IMPL *session, const char *config, int re
 }
 
 /*
- * __wt_call_log_query_timestamp --
+ * __wt_call_log_conn_query_timestamp --
  *     Print the call log entry for the query timestamp API call.
  */
 int
 __wt_call_log_query_timestamp(
-  WT_SESSION_IMPL *session, const char *config, const char *hex_timestamp, int ret_val)
+  WT_SESSION_IMPL *session, const char *config, const char *hex_timestamp, int ret_val, bool global)
 {
     WT_CONNECTION_IMPL *conn;
     char config_buf[128], hex_ts_buf[128];
 
     conn = S2C(session);
 
-    WT_RET(__call_log_print_start(session, "connection", "query_timestamp"));
-
-    /* Connection ID to be used by the call log manager. */
-    WT_RET(__wt_fprintf(session, conn->call_log_fst, "    \"connection_id\": \"%p\",\n", conn));
+    /*
+     * The global transaction timestamps are queried on the connection object while the session
+     * transaction timestamps are queried on the session object.
+     */
+    if (global) {
+        WT_RET(__call_log_print_start(session, "connection", "query_timestamp"));
+        WT_RET(__wt_fprintf(session, conn->call_log_fst, "    \"connection_id\": \"%p\",\n", conn));
+    } else {
+        WT_RET(__call_log_print_start(session, "session", "query_timestamp"));
+        WT_RET(__wt_fprintf(session, conn->call_log_fst, "    \"session_id\": \"%p\",\n", session));
+    }
 
     /*
      * The query timestamp entry includes the timestamp configuration string which is copied from
