@@ -305,6 +305,12 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
             tmp_key.data = WT_INSERT_KEY(cbt->ins);
             tmp_key.size = WT_INSERT_KEY_SIZE(cbt->ins);
         }
+        /*
+         * A number of different scenarios are handled here, we can have a key provided to the
+         * function for row-store. If there isn't a key for row-store then we need to get it from
+         * the insert list. The key held on the cursor isn't considered here. Additionally column
+         * store is handled here by passing the recno.
+         */
         WT_RET(__btcur_bounds_contains_key(session, &cbt->iface, key == NULL ? &tmp_key : key,
           cbt->recno, &key_out_of_bounds, NULL));
 
@@ -321,6 +327,11 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
         }
     }
 
+    /*
+     * The previous call to the contains key function handles insert list scenarios. If we don't
+     * have an insert list then we should check again against the recno. We can't check for
+     * row-store here as the key is extracted later in the function.
+     */
     if (btree->type != BTREE_ROW) {
         WT_RET(__btcur_bounds_contains_key(
           session, &cbt->iface, NULL, cbt->recno, &key_out_of_bounds, NULL));
