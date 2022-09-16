@@ -616,6 +616,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
     u_int i, j;
     bool bound_set, evict_page, next, positioned;
 
+    bound_set = false;
     table = tinfo->table;
 
     /* Acquire a cursor. */
