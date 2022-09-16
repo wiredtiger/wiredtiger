@@ -66,6 +66,11 @@ session_simulator::commit_transaction()
 void
 session_simulator::set_commit_timestamp(uint64_t ts)
 {
+    if (!_has_commit_ts){
+        _first_commit_ts = ts;
+        _has_commit_ts = true;
+    }
+
     _commit_ts = ts;
 }
 
@@ -146,6 +151,9 @@ session_simulator::query_timestamp(
         ts_supported = true;
     } else if (query_timestamp == "read"){
         ts = _read_ts;
+        ts_supported = true;
+    } else if (query_timestamp == "first_commit"){
+        ts = _first_commit_ts;
         ts_supported = true;
     } else {
         WT_SIM_RET_MSG(EINVAL, "Incorrect config (" + config + ") passed in query timestamp");
