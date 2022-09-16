@@ -131,10 +131,8 @@ class test_truncate15(wttest.WiredTigerTestCase):
 
         if self.value_format == '8t':
             value_a = 97
-            value_b = 98
         else:
             value_a = "aaaaa" * 500
-            value_b = "bbbbb" * 500
 
         # Pin oldest and stable timestamps to 1.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
