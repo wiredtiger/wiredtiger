@@ -1921,7 +1921,13 @@ __rollback_to_stable(WT_SESSION_IMPL *session, bool no_ckpt)
 
     WT_ERR(__rollback_to_stable_check(session));
 
-    /* Update the oldest id to get a consistent view of global visibility. */
+    /*
+     * Update the global time window state to have consistent view from global visibility rules for
+     * the rollback to stable to bring back the database into a consistent state.
+     *
+     * As part of the below function call, the oldest transaction id and pinned timestamps are
+     * updated.
+     */
     WT_ERR(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 
     /*

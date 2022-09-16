@@ -408,7 +408,8 @@ __recovery_set_checkpoint_timestamp(WT_RECOVERY *r)
 
 /*
  * __recovery_set_oldest_timestamp --
- *     Set the oldest timestamp as retrieved from the metadata file.
+ *     Set the oldest timestamp as retrieved from the metadata file. Setting the oldest timestamp
+ *     doesn't automatically set the pinned timestamp.
  */
 static int
 __recovery_set_oldest_timestamp(WT_RECOVERY *r)
