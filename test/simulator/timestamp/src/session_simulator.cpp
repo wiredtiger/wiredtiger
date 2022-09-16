@@ -86,7 +86,7 @@ session_simulator::set_read_timestamp(uint64_t ts)
 }
 
 int
-session_simulator::timestamp_transaction_uint(const std::string &ts_type, const uint64_t &ts)
+session_simulator::timestamp_transaction_uint(const std::string &ts_type, uint64_t ts)
 {
     /* Zero timestamp is not permitted. */
     if (ts == 0) {

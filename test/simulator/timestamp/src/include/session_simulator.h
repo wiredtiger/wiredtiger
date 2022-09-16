@@ -38,7 +38,7 @@ class session_simulator {
     void begin_transaction();
     void rollback_transaction();
     void commit_transaction();
-    int timestamp_transaction_uint(const std::string &, const uint64_t &);
+    int timestamp_transaction_uint(const std::string &, uint64_t);
     void set_commit_timestamp(uint64_t);
     void set_durable_timestamp(uint64_t);
     void set_prepare_timestamp(uint64_t);
