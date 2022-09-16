@@ -405,6 +405,7 @@ snap_verify(TINFO *tinfo, SNAP_OPS *snap)
     CUR2S(cursor)->format_private = NULL;
 
     testutil_assert(ret == 0 || ret == WT_NOTFOUND || ret == WT_ROLLBACK);
+    testutil_check(cursor->reset(cursor));
     return (ret == WT_NOTFOUND ? 0 : ret);
 }
 
