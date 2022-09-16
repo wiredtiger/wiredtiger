@@ -387,7 +387,7 @@ __wt_call_log_timestamp_transaction_uint(
      * WT_TS_TXN_TYPE and the timestamp itself as input.
      */
     WT_RET(__wt_snprintf(ts_type_buf, sizeof(ts_type_buf), "\"wt_ts_txp_type\": \"%s\"", name));
-    WT_RET(__wt_snprintf(ts_buf, sizeof(ts_buf), "\"timestamp\": %" PRIu64, ts));
+    WT_RET(__wt_snprintf(ts_buf, sizeof(ts_buf), "\"timestamp\": \"%" PRIu64 "\"", ts));
     WT_RET(__call_log_print_input(session, 2, ts_type_buf, ts_buf));
 
     /* timestamp_transaction_uint has no output arguments. */

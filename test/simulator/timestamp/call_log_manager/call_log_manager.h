@@ -41,7 +41,6 @@ enum class api_method {
     query_timestamp,
     rollback_transaction,
     set_timestamp,
-    timestamp_transaction_uint
 };
 
 class call_log_manager {
@@ -63,7 +62,6 @@ class call_log_manager {
     void call_log_query_timestamp(const json &);
     void call_log_rollback_transaction(const json &);
     void call_log_set_timestamp(const json &);
-    void call_log_timestamp_transaction_uint(const json &);
 
     /* Member variables */
     private:

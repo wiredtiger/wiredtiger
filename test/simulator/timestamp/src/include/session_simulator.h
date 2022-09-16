@@ -28,8 +28,6 @@
 
 #pragma once
 
-#include <string>
-
 class session_simulator {
     /* Methods */
     public:
@@ -38,11 +36,6 @@ class session_simulator {
     void begin_transaction();
     void rollback_transaction();
     void commit_transaction();
-    int timestamp_transaction_uint(const std::string &, const uint64_t &);
-    void set_commit_timestamp(const uint64_t &);
-    void set_durable_timestamp(const uint64_t &);
-    void set_prepare_timestamp(const uint64_t &);
-    void set_read_timestamp(const uint64_t &);
 
     public:
     /* Deleted functions should generally be public as it results in better error messages. */
@@ -52,8 +45,4 @@ class session_simulator {
     /* Member variables */
     private:
     bool _txn_running;
-    uint64_t _read_ts;
-    uint64_t _prepare_ts;
-    uint64_t _commit_ts;
-    uint64_t _durable_ts;
 };
