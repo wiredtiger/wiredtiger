@@ -1307,7 +1307,7 @@ __conn_query_timestamp(WT_CONNECTION *wt_conn, char *hex_timestamp, const char *
     ret = __wt_txn_query_timestamp(session, hex_timestamp, cfg, true);
 err:
 #ifdef HAVE_CALL_LOG
-    WT_TRET(__wt_call_log_conn_query_timestamp(session, config, hex_timestamp, ret));
+    WT_TRET(__wt_call_log_query_timestamp(session, config, hex_timestamp, ret, true));
 #endif
     API_END_RET(session, ret);
 }
