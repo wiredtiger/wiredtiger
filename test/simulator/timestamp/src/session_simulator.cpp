@@ -62,25 +62,25 @@ session_simulator::commit_transaction()
 }
 
 void
-session_simulator::set_commit_timestamp(const uint64_t &ts)
+session_simulator::set_commit_timestamp(uint64_t ts)
 {
     _commit_ts = ts;
 }
 
 void
-session_simulator::set_durable_timestamp(const uint64_t &ts)
+session_simulator::set_durable_timestamp(uint64_t ts)
 {
     _durable_ts = ts;
 }
 
 void
-session_simulator::set_prepare_timestamp(const uint64_t &ts)
+session_simulator::set_prepare_timestamp(uint64_t ts)
 {
     _prepare_ts = ts;
 }
 
 void
-session_simulator::set_read_timestamp(const uint64_t &ts)
+session_simulator::set_read_timestamp(uint64_t ts)
 {
     _read_ts = ts;
 }
