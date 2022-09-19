@@ -53,11 +53,12 @@ def session_timestamped_transaction(session, timestamper):
         session.begin_transaction()
         need_commit = True
     yield
-    config = 'commit_timestamp=%x' % timestamper.get_incr()
     if need_commit:
+        config = 'commit_timestamp=%x' % timestamper.get_incr()
         #wttest.WiredTigerTestCase.tty('commit_transaction ' + config)
         session.commit_transaction(config)
-    else:
+    elif timestamper != None:
+        config = 'commit_timestamp=%x' % timestamper.get_incr()
         #wttest.WiredTigerTestCase.tty('timestamp_transaction ' + config)
         session.timestamp_transaction(config)
 
@@ -76,7 +77,9 @@ class TimestampedCursor(wiredtiger.Cursor):
     # A more convenient way to "wrap" an operation in a transaction
     @contextmanager
     def timestamped_transaction(self):
-        session = self._cursor._session
+        # Prefer the _session object if available, it returns a Python
+        # Session object that is 1-1 mapped to the WT_SESSION in the C API.
+        session = getattr(self._cursor, "_session", self._cursor.session)
         timestamper = self._timeStamper
         with session_timestamped_transaction(session, timestamper):
             yield
