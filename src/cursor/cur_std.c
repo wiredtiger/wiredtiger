@@ -8,11 +8,6 @@
 
 #include "wt_internal.h"
 
-typedef struct {
-    WT_ITEM lower_bound;
-    WT_ITEM upper_bound;
-} WT_CURSOR_BOUNDS_STATE;
-
 /*
  * __wt_cursor_noop --
  *     Cursor noop.
