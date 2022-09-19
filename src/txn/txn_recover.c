@@ -505,6 +505,23 @@ err:
 }
 
 /*
+ * __recovery_txn_setup_initial_state --
+ *     Setup the transaction initial state required by rollback to stable.
+ */
+static int
+__recovery_txn_setup_initial_state(WT_SESSION_IMPL *session, WT_RECOVERY *r)
+{
+    WT_RET(__recovery_set_checkpoint_timestamp(r));
+    WT_RET(__recovery_set_oldest_timestamp(r));
+    WT_RET(__recovery_set_checkpoint_snapshot(session));
+
+    /* Update the global time window state to have consistent view from global visibility rules */
+    __wt_txn_update_pinned_timestamp(session, true);
+
+    return (0);
+}
+
+/*
  * __recovery_setup_file --
  *     Set up the recovery slot for a file, track the largest file ID, and update the base write gen
  *     based on the file's configuration.
@@ -926,10 +943,7 @@ done:
           "Upgrading from a WiredTiger version 10.0.0 database that was not shutdown cleanly is "
           "not allowed. Perform a clean shutdown on version 10.0.0 and then upgrade.");
 #endif
-
-    WT_ERR(__recovery_set_checkpoint_timestamp(&r));
-    WT_ERR(__recovery_set_oldest_timestamp(&r));
-    WT_ERR(__recovery_set_checkpoint_snapshot(session));
+    WT_ERR(__recovery_txn_setup_initial_state(session, &r));
 
     /*
      * Set the history store file size as it may already exist after a restart.
