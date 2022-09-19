@@ -32,7 +32,6 @@
 #include <cassert>
 #include <iostream>
 
-#include "error_simulator.h"
 #include "timestamp_manager.h"
 
 session_simulator::session_simulator() : _txn_running(false) {}
@@ -112,56 +111,6 @@ session_simulator::timestamp_transaction_uint(const std::string &ts_type, uint64
     } else {
         WT_SIM_RET_MSG(
           EINVAL, "Invalid timestamp type (" + ts_type + ") passed to timestamp transaction uint.");
-    }
-
-    return (0);
-}
-
-void
-session_simulator::set_commit_timestamp(uint64_t ts)
-{
-    if (!_has_commit_ts){
-        _first_commit_ts = ts;
-        _has_commit_ts = true;
-    }
-
-    _commit_ts = ts;
-}
-
-void
-session_simulator::set_durable_timestamp(uint64_t ts)
-{
-    _durable_ts = ts;
-}
-
-void
-session_simulator::set_prepare_timestamp(uint64_t ts)
-{
-    _prepare_ts = ts;
-}
-
-void
-session_simulator::set_read_timestamp(uint64_t ts)
-{
-    _read_ts = ts;
-}
-
-int
-session_simulator::timestamp_transaction_uint(const std::string &ts_type, uint64_t ts)
-{
-    /* Zero timestamp is not permitted. */
-    if (ts == 0) {
-        WT_SIM_RET_MSG(EINVAL, "Illegal " + std::to_string(ts) + " timestamp: zero not permitted.");
-    }
-
-    if (ts_type == "commit") {
-        set_commit_timestamp(ts);
-    } else if (ts_type == "durable") {
-        set_durable_timestamp(ts);
-    } else if (ts_type == "prepare") {
-        set_prepare_timestamp(ts);
-    } else if (ts_type == "read") {
-        set_read_timestamp(ts);
     }
 
     return (0);
