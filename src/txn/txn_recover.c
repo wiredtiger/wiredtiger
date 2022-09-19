@@ -511,12 +511,25 @@ err:
 static int
 __recovery_txn_setup_initial_state(WT_SESSION_IMPL *session, WT_RECOVERY *r)
 {
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    WT_RET(__recovery_set_checkpoint_snapshot(session));
     WT_RET(__recovery_set_checkpoint_timestamp(r));
     WT_RET(__recovery_set_oldest_timestamp(r));
-    WT_RET(__recovery_set_checkpoint_snapshot(session));
 
     /* Update the global time window state to have consistent view from global visibility rules */
     __wt_txn_update_pinned_timestamp(session, true);
+
+    WT_ASSERT(session,
+      conn->txn_global.has_stable_timestamp == false &&
+        conn->txn_global.stable_timestamp == WT_TS_NONE);
+
+    /* Set the stable timestamp from recovery timestamp. */
+    conn->txn_global.stable_timestamp = conn->txn_global.recovery_timestamp;
+    if (conn->txn_global.recovery_timestamp != WT_TS_NONE)
+        conn->txn_global.has_stable_timestamp = true;
 
     return (0);
 }
@@ -965,20 +978,6 @@ done:
             WT_ERR(__wt_evict_create(session));
             eviction_started = true;
         }
-
-        WT_ASSERT(session,
-          conn->txn_global.has_stable_timestamp == false &&
-            conn->txn_global.stable_timestamp == WT_TS_NONE);
-
-        /*
-         * Set the stable timestamp from recovery timestamp and process the trees for rollback to
-         * stable.
-         */
-        conn->txn_global.stable_timestamp = conn->txn_global.recovery_timestamp;
-        conn->txn_global.has_stable_timestamp = false;
-
-        if (conn->txn_global.recovery_timestamp != WT_TS_NONE)
-            conn->txn_global.has_stable_timestamp = true;
 
         __wt_verbose_multi(session,
           WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RTS})),
