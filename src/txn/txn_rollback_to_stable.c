@@ -55,12 +55,22 @@ __rollback_delete_hs(WT_SESSION_IMPL *session, WT_ITEM *key, wt_timestamp_t ts)
     for (; ret == 0; ret = hs_cursor->prev(hs_cursor)) {
         /* Retrieve the time window from the history cursor. */
         __wt_hs_upd_time_window(hs_cursor, &hs_tw);
-        if (hs_tw->start_ts < ts)
+
+        /*
+         * Remove all history store versions with a stop timestamp greater than the start/stop
+         * timestamp of a stable update in the data store.
+         */
+        if (hs_tw->stop_ts <= ts)
             break;
 
         WT_ERR(hs_cursor->remove(hs_cursor));
         WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
-        if (hs_tw->start_ts == ts)
+
+        /*
+         * The globally visible start time window's are cleared during history store reconciliation.
+         * Treat them also as a stable entry removal from the history store.
+         */
+        if (hs_tw->start_ts == ts || hs_tw->start_ts == WT_TS_NONE)
             WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts);
         else
             WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts_unstable);
@@ -1911,8 +1921,19 @@ __rollback_to_stable(WT_SESSION_IMPL *session, bool no_ckpt)
 
     WT_ERR(__rollback_to_stable_check(session));
 
-    /* Update the oldest id to get a consistent view of global visibility. */
+    /*
+     * Update the global time window state to have consistent view from global visibility rules for
+     * the rollback to stable to bring back the database into a consistent state.
+     *
+     * As part of the below function call, the oldest transaction id and pinned timestamps are
+     * updated.
+     */
     WT_ERR(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
+
+    WT_ASSERT_ALWAYS(session,
+      (txn_global->has_pinned_timestamp || !txn_global->has_oldest_timestamp),
+      "Database has no pinned timestamp but an oldest timestamp. Pinned timestamp is required to "
+      "find out the global visibility/obsolete of an update.");
 
     /*
      * Copy the stable timestamp, otherwise we'd need to lock it each time it's accessed. Even
