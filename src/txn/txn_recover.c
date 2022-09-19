@@ -516,6 +516,11 @@ __recovery_txn_setup_initial_state(WT_SESSION_IMPL *session, WT_RECOVERY *r)
     conn = S2C(session);
 
     WT_RET(__recovery_set_checkpoint_snapshot(session));
+
+    /*
+     * Set the checkpoint timestamp and oldest timestamp retrieved from the checkpoint metadata.
+     * These are the stable timestamp and oldest timestamps of the last successful checkpoint.
+     */
     WT_RET(__recovery_set_checkpoint_timestamp(r));
     WT_RET(__recovery_set_oldest_timestamp(r));
 
