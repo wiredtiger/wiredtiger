@@ -35,6 +35,8 @@ import wiredtiger, wttest
 class test_stat08(wttest.WiredTigerTestCase):
 
     nentries = 100000
+    # Leave the cache size on the default setting to avoid filling up the cache
+    # too much and triggering unnecessary rollbacks.
     conn_config = 'statistics=(all)'
     entry_value = "abcde" * 40
     BYTES_READ = wiredtiger.stat.session.bytes_read
@@ -66,6 +68,8 @@ class test_stat08(wttest.WiredTigerTestCase):
             self.assertTrue(value > 0)
 
     def test_session_stats(self):
+        # We want to configure for pages to be explicitly evicted when we are done with them so
+        # that we can correctly verify the statistic measuring bytes read from cache.
         self.session = self.conn.open_session("debug=(release_evict_page=true)")
         self.session.create("table:test_stat08", "key_format=i,value_format=S")
         cursor =  self.session.open_cursor('table:test_stat08', None, None)
