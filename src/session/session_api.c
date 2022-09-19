@@ -1878,6 +1878,9 @@ __session_query_timestamp(WT_SESSION *wt_session, char *hex_timestamp, const cha
 
     ret = __wt_txn_query_timestamp(session, hex_timestamp, cfg, false);
 err:
+#ifdef HAVE_CALL_LOG
+    WT_TRET(__wt_call_log_query_timestamp(session, config, hex_timestamp, ret, false));
+#endif
     API_END_RET(session, ret);
 }
 
