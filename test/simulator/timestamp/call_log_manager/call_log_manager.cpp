@@ -71,6 +71,7 @@ call_log_manager::api_map_setup()
     _api_map["query_timestamp"] = api_method::query_timestamp;
     _api_map["rollback_transaction"] = api_method::rollback_transaction;
     _api_map["set_timestamp"] = api_method::set_timestamp;
+    _api_map["timestamp_transaction_uint"] = api_method::timestamp_transaction_uint;
 }
 
 session_simulator *
@@ -227,6 +228,30 @@ call_log_manager::call_log_set_timestamp(const json &call_log_entry)
 }
 
 void
+call_log_manager::call_log_timestamp_transaction_uint(const json &call_log_entry)
+{
+    /* Convert the transaction type char * to a string object. */
+    const std::string wt_ts_txn_type = call_log_entry["input"]["wt_ts_txp_type"].get<std::string>();
+    const std::string session_id = call_log_entry["session_id"].get<std::string>();
+
+    /* There are no timestamps to be set if the timestamp type is not specified. */
+    if (wt_ts_txn_type == "unknown")
+        throw "Cannot set a transaction timestamp for session_id (" + session_id + ") without a valid timestamp type.";
+
+    const uint64_t ts = call_log_entry["input"]["timestamp"].get<uint64_t>();
+    session_simulator *session = get_session(session_id);
+
+    int ret = session->timestamp_transaction_uint(wt_ts_txn_type, ts);
+    int ret_expected = call_log_entry["return"]["return_val"].get<int>();
+    /* The ret value should be equal to the expected ret value. */
+    assert(ret == ret_expected);
+
+    if (ret != 0)
+        throw "'timestamp_transaction_uint' failed with ret value: '" + std::to_string(ret) +
+          "', and timestamp type: '" + wt_ts_txn_type + "'";
+}
+
+void
 call_log_manager::process_call_log()
 {
     for (const auto &call_log_entry : _call_log)
@@ -260,6 +285,9 @@ call_log_manager::process_call_log_entry(const json &call_log_entry)
             break;
         case api_method::set_timestamp:
             call_log_set_timestamp(call_log_entry);
+            break;
+        case api_method::timestamp_transaction_uint:
+            call_log_timestamp_transaction_uint(call_log_entry);
             break;
         }
     } catch (std::string &exception_str) {
