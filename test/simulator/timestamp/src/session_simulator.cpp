@@ -27,11 +27,11 @@
  */
 
 #include "session_simulator.h"
-#include "error_simulator.h"
 
 #include <cassert>
 #include <iostream>
 
+#include "error_simulator.h"
 #include "timestamp_manager.h"
 
 session_simulator::session_simulator() : _txn_running(false) {}
@@ -66,7 +66,7 @@ session_simulator::commit_transaction()
 void
 session_simulator::set_commit_timestamp(uint64_t ts)
 {
-    if (!_has_commit_ts){
+    if (!_has_commit_ts) {
         _first_commit_ts = ts;
         _has_commit_ts = true;
     }
@@ -123,8 +123,6 @@ session_simulator::query_timestamp(
     std::string query_timestamp;
     timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
 
-    std::cout << "Queried session ts: " << config << std::endl;
-
     /* For an empty config default to read timestamp. */
     if (config.empty())
         query_timestamp = "read";
@@ -146,16 +144,16 @@ session_simulator::query_timestamp(
 
     ts_supported = false;
     uint64_t ts;
-    if (query_timestamp == "commit"){
+    if (query_timestamp == "commit") {
         ts = _commit_ts;
         ts_supported = true;
-    } else if (query_timestamp == "prepare"){
+    } else if (query_timestamp == "prepare") {
         ts = _prepare_ts;
         ts_supported = true;
-    } else if (query_timestamp == "read"){
+    } else if (query_timestamp == "read") {
         ts = _read_ts;
         ts_supported = true;
-    } else if (query_timestamp == "first_commit"){
+    } else if (query_timestamp == "first_commit") {
         ts = _first_commit_ts;
         ts_supported = true;
     } else {
@@ -164,8 +162,6 @@ session_simulator::query_timestamp(
 
     /* Convert the timestamp from decimal to hex-decimal. */
     hex_ts = ts_manager->decimal_to_hex(ts);
-
-    std::cout << "Queried session ts: " << config << " = " << hex_ts << std::endl;
 
     return (0);
 }
