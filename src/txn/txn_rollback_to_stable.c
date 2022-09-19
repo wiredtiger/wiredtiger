@@ -55,12 +55,22 @@ __rollback_delete_hs(WT_SESSION_IMPL *session, WT_ITEM *key, wt_timestamp_t ts)
     for (; ret == 0; ret = hs_cursor->prev(hs_cursor)) {
         /* Retrieve the time window from the history cursor. */
         __wt_hs_upd_time_window(hs_cursor, &hs_tw);
-        if (hs_tw->start_ts < ts)
+
+        /*
+         * Remove all history store versions with a stop timestamp greater than the start/stop
+         * timestamp of a stable update in the data store.
+         */
+        if (hs_tw->stop_ts <= ts)
             break;
 
         WT_ERR(hs_cursor->remove(hs_cursor));
         WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
-        if (hs_tw->start_ts == ts)
+
+        /*
+         * The globally visible start time window's are cleared during history store reconciliation.
+         * Treat them also as a stable entry removal from the history store.
+         */
+        if (hs_tw->start_ts == ts || hs_tw->start_ts == WT_TS_NONE)
             WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts);
         else
             WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts_unstable);
@@ -1624,6 +1634,20 @@ __rollback_progress_msg(WT_SESSION_IMPL *session, struct timespec rollback_start
 }
 
 /*
+ * __rollback_to_stable_check_btree_modified --
+ *     Check that the rollback to stable btree is modified or not.
+ */
+static int
+__rollback_to_stable_check_btree_modified(WT_SESSION_IMPL *session, const char *uri, bool *modified)
+{
+    WT_DECL_RET;
+
+    ret = __wt_conn_dhandle_find(session, uri, NULL);
+    *modified = ret == 0 && S2BT(session)->modified;
+    return (ret);
+}
+
+/*
  * __rollback_to_stable_btree_apply --
  *     Perform rollback to stable on a single file.
  */
@@ -1639,7 +1663,7 @@ __rollback_to_stable_btree_apply(
     uint64_t rollback_txnid, write_gen;
     uint32_t btree_id;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool dhandle_allocated, durable_ts_found, has_txn_updates_gt_than_ckpt_snap, perform_rts;
+    bool dhandle_allocated, durable_ts_found, has_txn_updates_gt_than_ckpt_snap, modified;
     bool prepared_updates;
 
     /* Ignore non-btree objects as well as the metadata and history store files. */
@@ -1728,14 +1752,14 @@ __rollback_to_stable_btree_apply(
      * 4. There is no durable timestamp in any checkpoint.
      * 5. The checkpoint newest txn is greater than snapshot min txn id.
      */
-    WT_WITH_HANDLE_LIST_READ_LOCK(session, (ret = __wt_conn_dhandle_find(session, uri, NULL)));
-
-    perform_rts = ret == 0 && S2BT(session)->modified;
+    WT_WITHOUT_DHANDLE(session,
+      WT_WITH_HANDLE_LIST_READ_LOCK(
+        session, (ret = __rollback_to_stable_check_btree_modified(session, uri, &modified))));
 
     WT_ERR_NOTFOUND_OK(ret, false);
 
-    if (perform_rts || max_durable_ts > rollback_timestamp || prepared_updates ||
-      !durable_ts_found || has_txn_updates_gt_than_ckpt_snap) {
+    if (modified || max_durable_ts > rollback_timestamp || prepared_updates || !durable_ts_found ||
+      has_txn_updates_gt_than_ckpt_snap) {
         /*
          * Open a handle; we're potentially opening a lot of handles and there's no reason to cache
          * all of them for future unknown use, discard on close.
@@ -1897,8 +1921,19 @@ __rollback_to_stable(WT_SESSION_IMPL *session, bool no_ckpt)
 
     WT_ERR(__rollback_to_stable_check(session));
 
-    /* Update the oldest id to get a consistent view of global visibility. */
+    /*
+     * Update the global time window state to have consistent view from global visibility rules for
+     * the rollback to stable to bring back the database into a consistent state.
+     *
+     * As part of the below function call, the oldest transaction id and pinned timestamps are
+     * updated.
+     */
     WT_ERR(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
+
+    WT_ASSERT_ALWAYS(session,
+      (txn_global->has_pinned_timestamp || !txn_global->has_oldest_timestamp),
+      "Database has no pinned timestamp but an oldest timestamp. Pinned timestamp is required to "
+      "find out the global visibility/obsolete of an update.");
 
     /*
      * Copy the stable timestamp, otherwise we'd need to lock it each time it's accessed. Even

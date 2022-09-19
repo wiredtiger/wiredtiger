@@ -408,7 +408,8 @@ __recovery_set_checkpoint_timestamp(WT_RECOVERY *r)
 
 /*
  * __recovery_set_oldest_timestamp --
- *     Set the oldest timestamp as retrieved from the metadata file.
+ *     Set the oldest timestamp as retrieved from the metadata file. Setting the oldest timestamp
+ *     doesn't automatically set the pinned timestamp.
  */
 static int
 __recovery_set_oldest_timestamp(WT_RECOVERY *r)
@@ -504,6 +505,44 @@ err:
 }
 
 /*
+ * __recovery_txn_setup_initial_state --
+ *     Setup the transaction initial state required by rollback to stable.
+ */
+static int
+__recovery_txn_setup_initial_state(WT_SESSION_IMPL *session, WT_RECOVERY *r)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    WT_RET(__recovery_set_checkpoint_snapshot(session));
+
+    /*
+     * Set the checkpoint timestamp and oldest timestamp retrieved from the checkpoint metadata.
+     * These are the stable timestamp and oldest timestamps of the last successful checkpoint.
+     */
+    WT_RET(__recovery_set_checkpoint_timestamp(r));
+    WT_RET(__recovery_set_oldest_timestamp(r));
+
+    /*
+     * Now that timestamps extracted from the checkpoint metadata have been configured, configure
+     * the pinned timestamp.
+     */
+    __wt_txn_update_pinned_timestamp(session, true);
+
+    WT_ASSERT(session,
+      conn->txn_global.has_stable_timestamp == false &&
+        conn->txn_global.stable_timestamp == WT_TS_NONE);
+
+    /* Set the stable timestamp from recovery timestamp. */
+    conn->txn_global.stable_timestamp = conn->txn_global.recovery_timestamp;
+    if (conn->txn_global.stable_timestamp != WT_TS_NONE)
+        conn->txn_global.has_stable_timestamp = true;
+
+    return (0);
+}
+
+/*
  * __recovery_setup_file --
  *     Set up the recovery slot for a file, track the largest file ID, and update the base write gen
  *     based on the file's configuration.
@@ -556,8 +595,8 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
       (WT_IS_MAX_LSN(&r->max_ckpt_lsn) || __wt_log_cmp(&lsn, &r->max_ckpt_lsn) > 0))
         WT_ASSIGN_LSN(&r->max_ckpt_lsn, &lsn);
 
-    /* Update the base write gen based on this file's configuration. */
-    if ((ret = __wt_metadata_update_base_write_gen(r->session, config)) != 0)
+    /* Update the base write gen and most recent checkpoint based on this file's configuration. */
+    if ((ret = __wt_metadata_update_connection(r->session, config)) != 0)
         WT_RET_MSG(r->session, ret, "Failed recovery setup for %s: cannot update write gen", uri);
     return (0);
 }
@@ -925,10 +964,7 @@ done:
           "Upgrading from a WiredTiger version 10.0.0 database that was not shutdown cleanly is "
           "not allowed. Perform a clean shutdown on version 10.0.0 and then upgrade.");
 #endif
-
-    WT_ERR(__recovery_set_checkpoint_timestamp(&r));
-    WT_ERR(__recovery_set_oldest_timestamp(&r));
-    WT_ERR(__recovery_set_checkpoint_snapshot(session));
+    WT_ERR(__recovery_txn_setup_initial_state(session, &r));
 
     /*
      * Set the history store file size as it may already exist after a restart.
@@ -950,20 +986,6 @@ done:
             WT_ERR(__wt_evict_create(session));
             eviction_started = true;
         }
-
-        WT_ASSERT(session,
-          conn->txn_global.has_stable_timestamp == false &&
-            conn->txn_global.stable_timestamp == WT_TS_NONE);
-
-        /*
-         * Set the stable timestamp from recovery timestamp and process the trees for rollback to
-         * stable.
-         */
-        conn->txn_global.stable_timestamp = conn->txn_global.recovery_timestamp;
-        conn->txn_global.has_stable_timestamp = false;
-
-        if (conn->txn_global.recovery_timestamp != WT_TS_NONE)
-            conn->txn_global.has_stable_timestamp = true;
 
         __wt_verbose_multi(session,
           WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RTS})),
