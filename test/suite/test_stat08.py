@@ -65,7 +65,6 @@ class test_stat08(wttest.WiredTigerTestCase):
         if k is self.BYTES_READ or k is self.READ_TIME:
             self.assertTrue(value > 0)
 
-    @skip("skipping this test: FIXME-WT-9774")
     def test_session_stats(self):
         self.session = self.conn.open_session("debug=(release_evict_page=true)")
         self.session.create("table:test_stat08", "key_format=i,value_format=S")
