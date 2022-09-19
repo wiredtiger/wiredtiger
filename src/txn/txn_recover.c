@@ -519,7 +519,10 @@ __recovery_txn_setup_initial_state(WT_SESSION_IMPL *session, WT_RECOVERY *r)
     WT_RET(__recovery_set_checkpoint_timestamp(r));
     WT_RET(__recovery_set_oldest_timestamp(r));
 
-    /* Update the global time window state to have consistent view from global visibility rules */
+    /*
+     * Now that timestamps extracted from the checkpoint metadata have been configured, configure
+     * the pinned timestamp.
+     */
     __wt_txn_update_pinned_timestamp(session, true);
 
     WT_ASSERT(session,
