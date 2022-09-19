@@ -30,6 +30,12 @@ typedef struct {
     int (*f)(WT_CURSOR *);
 } WT_CURSOR_EXTRACTOR;
 
+/* Cursor bounds state. */
+typedef struct {
+    WT_ITEM lower_bound;
+    WT_ITEM upper_bound;
+} WT_CURSOR_BOUNDS_STATE;
+
 /*
  * __curextract_insert --
  *     Handle a key produced by a custom extractor.
@@ -433,22 +439,23 @@ err:
 static int
 __curtable_reset(WT_CURSOR *cursor)
 {
-    WT_CURSOR *primary;
+    WT_CURSOR **cp;
     WT_CURSOR_TABLE *ctable;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    u_int i;
 
     ctable = (WT_CURSOR_TABLE *)cursor;
-    /* Grab the primary cursor to reset the bounds. */
-    primary = *ctable->cg_cursors;
 
     JOINABLE_CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, NULL);
 
     APPLY_CG(ctable, reset);
 
-    /* If a user calls cursor reset also reset the bounds. */
-    if (API_USER_ENTRY(session))
-        __wt_cursor_bound_reset(primary);
+    /* If a user calls cursor reset, call cursor reset on all column groups. */
+    if (API_USER_ENTRY(session)) {
+        for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); i++, cp++)
+            __wt_cursor_bound_reset(*cp);
+    }
 
 err:
     API_END_RET(session, ret);
@@ -805,6 +812,28 @@ err:
 }
 
 /*
+ * __wt_cursor_bounds_save --
+ *     Save cursor bounds to restore the state.
+ */
+static inline void
+__wt_cursor_bounds_save(WT_CURSOR *cursor, WT_CURSOR_BOUNDS_STATE *state)
+{
+    WT_ITEM_SET(state->lower_bound, cursor->lower_bound);
+    WT_ITEM_SET(state->upper_bound, cursor->upper_bound);
+}
+
+/*
+ * __wt_cursor_state_restore --
+ *     Restore the cursor's external state.
+ */
+static inline void
+__wt_cursor_state_restore(WT_CURSOR *cursor, WT_CURSOR_BOUNDS_STATE *bounds_state)
+{
+    WT_ITEM_SET(cursor->lower_bound, bounds_state->lower_bound);
+    WT_ITEM_SET(cursor->upper_bound, bounds_state->upper_bound);
+}
+
+/*
  * __curtable_largest_key --
  *     WT_CURSOR->largest_key method for the table cursor type.
  */
@@ -837,7 +866,8 @@ err:
 static int
 __curtable_bound(WT_CURSOR *cursor, const char *config)
 {
-    WT_CURSOR **cp;
+    WT_CURSOR **cp, *primary;
+    WT_CURSOR_BOUNDS_STATE saved_bounds;
     WT_CURSOR_TABLE *ctable;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
@@ -845,17 +875,20 @@ __curtable_bound(WT_CURSOR *cursor, const char *config)
 
     i = 0;
     ctable = (WT_CURSOR_TABLE *)cursor;
+    primary = *ctable->cg_cursors;
     JOINABLE_CURSOR_API_CALL(cursor, session, bound, NULL);
+
+    __wt_cursor_bounds_save(primary, &saved_bounds);
 
     /* Call bound function on all column groups. */
     for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); i++, cp++)
         WT_ERR((*cp)->bound(*cp, config));
-
 err:
     /* If applying bounds fails on one colgroup, reset all of them for consistency. */
-    if (ret != 0)
+    if (ret != 0) {
         for (j = 0, cp = ctable->cg_cursors; j <= i; j++, cp++)
-            WT_IGNORE_RET((*cp)->bound(*cp, "action=clear"));
+            (__wt_cursor_state_restore(*cp, &saved_bounds));
+    }
     API_END_RET(session, ret);
 }
 
