@@ -232,13 +232,13 @@ call_log_manager::call_log_timestamp_transaction_uint(const json &call_log_entry
 {
     /* Convert the transaction type char * to a string object. */
     const std::string wt_ts_txn_type = call_log_entry["input"]["wt_ts_txp_type"].get<std::string>();
+    const std::string session_id = call_log_entry["session_id"].get<std::string>();
 
     /* There are no timestamps to be set if the timestamp type is not specified. */
     if (wt_ts_txn_type == "unknown")
-        return;
+        throw "Cannot set a transaction timestamp for session_id (" + session_id + ") without a valid timestamp type.";
 
     const uint64_t ts = call_log_entry["input"]["timestamp"].get<uint64_t>();
-    const std::string session_id = call_log_entry["session_id"].get<std::string>();
     session_simulator *session = get_session(session_id);
 
     int ret = session->timestamp_transaction_uint(wt_ts_txn_type, ts);

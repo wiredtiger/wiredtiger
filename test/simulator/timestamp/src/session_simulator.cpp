@@ -101,6 +101,9 @@ session_simulator::timestamp_transaction_uint(const std::string &ts_type, uint64
         set_prepare_timestamp(ts);
     } else if (ts_type == "read") {
         set_read_timestamp(ts);
+    } else {
+        WT_SIM_RET_MSG(
+          EINVAL, "Invalid timestamp type (" + ts_type + ") passed to timestamp transaction uint.");
     }
 
     return (0);
