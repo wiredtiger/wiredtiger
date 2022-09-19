@@ -355,18 +355,31 @@ err:
 static int
 __curindex_bound(WT_CURSOR *cursor, const char *config)
 {
+    WT_CURSOR **cp;
     WT_CURSOR *child;
     WT_CURSOR_INDEX *cindex;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    u_int i;
 
     cindex = (WT_CURSOR_INDEX *)cursor;
     JOINABLE_CURSOR_API_CALL(cursor, session, bound, NULL);
-
     /* Grab the primary cursor and call bound function. */
-    cindex = (WT_CURSOR_INDEX *)cursor;
     child = cindex->child;
+
+    /* Set the child key if the public cursor has a key set. */
+    if (F_ISSET(cursor, WT_CURSTD_KEY_SET))
+        __wt_cursor_set_raw_key(child, &cursor->key);
+    
+    /* Apply bounds on the child and to all of the column groups. */
     WT_ERR(child->bound(child, config));
+    for (i = 0, cp = cindex->cg_cursors; i < WT_COLGROUPS(cindex->table); i++, cp++) {
+        if (*cp == NULL)    
+            continue;
+        if (F_ISSET(cursor, WT_CURSTD_KEY_SET))
+            __wt_cursor_set_raw_key((*cp), &cursor->key);
+        WT_ERR((*cp)->bound(*cp, config));
+    }
 err:
     API_END_RET(session, ret);
 }
