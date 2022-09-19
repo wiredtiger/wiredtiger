@@ -528,7 +528,7 @@ __recovery_txn_setup_initial_state(WT_SESSION_IMPL *session, WT_RECOVERY *r)
 
     /* Set the stable timestamp from recovery timestamp. */
     conn->txn_global.stable_timestamp = conn->txn_global.recovery_timestamp;
-    if (conn->txn_global.recovery_timestamp != WT_TS_NONE)
+    if (conn->txn_global.stable_timestamp != WT_TS_NONE)
         conn->txn_global.has_stable_timestamp = true;
 
     return (0);
