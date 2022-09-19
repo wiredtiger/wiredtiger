@@ -52,9 +52,12 @@
 /* Generic option parsing structure shared by all test cases. */
 typedef struct {
     char *home;
-    const char *argv0;    /* Exec name */
-    const char *progname; /* Truncated program name */
-    char *build_dir;      /* Build directory path */
+    const char *argv0; /* Exec name */
+    char **nargv;
+    int nargc;
+
+    const char *progname;        /* Truncated program name */
+    char *build_dir;             /* Build directory path */
     char *tiered_storage_source; /* Tiered storage source */
 
     enum {
@@ -368,7 +371,6 @@ void testutil_create_backup_directory(const char *);
 void testutil_make_work_dir(const char *);
 void testutil_modify_apply(WT_ITEM *, WT_ITEM *, WT_MODIFY *, int, uint8_t);
 int testutil_parse_opts(int, char *const *, TEST_OPTS *);
-void testutil_parse_tiered_opts(int, char *const *, char ***, int *, TEST_OPTS *);
 void testutil_print_command_line(int argc, char *const *argv);
 void testutil_progress(TEST_OPTS *, const char *);
 #ifndef _WIN32

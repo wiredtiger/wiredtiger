@@ -220,6 +220,15 @@ testutil_cleanup(TEST_OPTS *opts)
     free(opts->progress_file_name);
     free(opts->home);
     free(opts->build_dir);
+    if (opts->tiered_storage) {
+        for (int i = 0; i < opts->nargc; ++i)
+            free(opts->nargv[i]);
+        if (opts->nargv != NULL)
+            free(opts->nargv);
+
+        if (opts->tiered_storage_source)
+            free(opts->tiered_storage_source);
+    }
 }
 
 /*

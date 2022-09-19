@@ -35,51 +35,58 @@ extern char *__wt_optarg; /* argument associated with option */
  *     Parse command line options for the tiered storage configurations.
  */
 static inline void
-parse_tiered_opts(int argc, char *const *argv, int *argc_new)
+parse_tiered_opts(int argc, char *const *argv, TEST_OPTS *opts)
 {
+    int index;
     int number_of_tiered_options;
 
     number_of_tiered_options = 0;
+    opts->tiered_storage = false;
 
-    //printf ("Argc : %d\n", argc);
-
-    for (int i = 1; i < argc; i++)  {
-        if (strcmp(argv[i], "-Po") == 0) {
-            number_of_tiered_options +=2;
-        }
-        // This parsing is different because PR does not accept any argument.
-        else if (strcmp(argv[i], "-PT") == 0) {
-            ++number_of_tiered_options;
+    for (int i = 1; i < argc; i++) {
+        /* Tiered storage command line options starts with -P. */
+        if (strstr(argv[i], "-P")) {
+            /* Many more options to come here. */
+            if (argv[i][2] == 'o') {
+                if (argv[i + 1] == NULL)
+                    testutil_die(
+                      EINVAL, "%s option requires an argument %s", opts->progname, argv[i]);
+                number_of_tiered_options += 2;
+            } else if (argv[i][2] == 'T') {
+                /* This parsing is different because -PT does not accept any arguments. */
+                ++number_of_tiered_options;
+                opts->tiered_storage = true;
+            }
         }
     }
-    *argc_new = argc-number_of_tiered_options;
-}
 
-/*
- * parse_tiered_opts --
- *     Parse command line options for the tiered storage configurations.
- */
-static inline void
-copy_tiered_opts (int argc, char *const *argv, char **argv_new, TEST_OPTS *opts)
-{
-    int index;
+    /* Return from here if tiered arguments are not passed. */
+    if (!opts->tiered_storage)
+        return;
+
+    opts->nargc = argc - number_of_tiered_options;
+
+    /* Allocate the memory for the new argv without tiered options. */
+    opts->nargv = dmalloc((size_t)opts->nargc);
+    for (int i = 0; i < opts->nargc; ++i) {
+        opts->nargv[i] = dmalloc(1024);
+    }
 
     opts->tiered_storage = false;
     index = 0;
+
+    /* Copy other command line arguments except tiered. */
     for (int i = 0; i < argc; i++) {
-        //printf("argv[%d] -- %s\n", i,argv[i]);
         if (strcmp(argv[i], "-Po") == 0) {
-            opts->tiered_storage_source = dstrdup(argv[i+1]);
+            opts->tiered_storage_source = dstrdup(argv[i + 1]);
+            /* Move the index because this option has an argument. */
             i++;
-        }
-        else if (strcmp(argv[i], "-PT") == 0) {
-            opts->tiered_storage = true;
-        }
-        else {
-            //printf ("Copying %s\n", argv[i]);
-            argv_new[index++] = dstrdup(argv[i]);
-        }
+        } else
+            opts->nargv[index++] = dstrdup(argv[i]);
     }
+
+    if (opts->tiered_storage_source == NULL)
+        opts->tiered_storage_source = dstrdup(DIR_STORE);
 }
 
 /*
@@ -92,11 +99,9 @@ testutil_parse_opts(int argc, char *const *argv, TEST_OPTS *opts)
 
     size_t len;
     int ch;
-    int argc_new;
-    char **argv_new;
 
-    argc_new = 0;
-    argv_new = NULL;
+    opts->nargc = 0;
+    opts->nargv = NULL;
     opts->do_data_ops = false;
     opts->preserve = false;
     opts->running = true;
@@ -107,26 +112,15 @@ testutil_parse_opts(int argc, char *const *argv, TEST_OPTS *opts)
 
     testutil_print_command_line(argc, argv);
 
-    parse_tiered_opts (argc, argv, &argc_new);
-    argv_new = dmalloc((size_t)argc_new);
-    for (int i=0 ; i<argc_new ; ++i)
-    {
-        argv_new[i] = dmalloc(1024);
-    }
-    copy_tiered_opts(argc, argv, argv_new, opts);
+    parse_tiered_opts(argc, argv, opts);
 
-    /*
-    printf ("Original argv\n");
-    for (int i=0 ; i<argc ; ++i){
-        printf ("argv[%d] = %s\n", i, argv[i]);
+    if (!opts->tiered_storage) {
+        opts->nargv = (char **)argv;
+        opts->nargc = argc;
     }
 
-    printf ("New argv\n");
-    for (int i=0 ; i<argc_new ; ++i){
-        printf ("argv[%d] = %s\n", i, argv_new[i]);
-    }
-    */
-    while ((ch = __wt_getopt(opts->progname, argc_new, argv_new, "A:Bb:dh:n:o:pR:T:t:vW:")) != EOF)
+    while (
+      (ch = __wt_getopt(opts->progname, opts->nargc, opts->nargv, "A:Bb:dh:n:o:pR:T:t:vW:")) != EOF)
         switch (ch) {
         case 'A': /* Number of append threads */
             opts->n_append_threads = (uint64_t)atoll(__wt_optarg);
@@ -210,12 +204,6 @@ testutil_parse_opts(int argc, char *const *argv, TEST_OPTS *opts)
         testutil_check(__wt_snprintf(opts->home, len, "WT_TEST.%s", opts->progname));
     }
 
-    if (opts->tiered_storage_source == NULL)
-        opts->tiered_storage_source = dstrdup(DIR_STORE);
-    
-
-    //printf("strlen(%s) - %d\n", DIR_STORE, (int)strlen(DIR_STORE));
-
     /*
      * Setup the progress file name.
      */
@@ -227,14 +215,6 @@ testutil_parse_opts(int argc, char *const *argv, TEST_OPTS *opts)
     len = strlen("table:") + strlen(opts->progname) + 10;
     opts->uri = dmalloc(len);
     testutil_check(__wt_snprintf(opts->uri, len, "table:%s", opts->progname));
-
-    /*
-    for (int i=0 ; i<argc_new ; ++i)
-    {
-        free(argv_new[i]);
-    }
-    free(argv_new);
-    */
 
     return (0);
 }
