@@ -67,7 +67,7 @@ class test_stat08(wttest.WiredTigerTestCase):
 
     @skip("skipping this test: FIXME-WT-9774")
     def test_session_stats(self):
-        self.session = self.conn.open_session()
+        self.session = self.conn.open_session("debug=(release_evict_page=true)")
         self.session.create("table:test_stat08", "key_format=i,value_format=S")
         cursor =  self.session.open_cursor('table:test_stat08', None, None)
         self.session.begin_transaction()
