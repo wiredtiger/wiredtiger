@@ -97,11 +97,11 @@ __cursor_state_save(WT_CURSOR *cursor, WT_CURFILE_STATE *state)
 }
 
 /*
- * __cursor_state_restore --
+ * __cursor_bounds_restore --
  *     Restore the cursor's external state.
  */
 static inline void
-__cursor_state_restore(WT_CURSOR *cursor, WT_CURFILE_STATE *state)
+__cursor_bounds_restore(WT_CURSOR *cursor, WT_CURFILE_STATE *state)
 {
     if (F_ISSET(state, WT_CURSTD_KEY_EXT))
         WT_ITEM_SET(cursor->key, state->key);
@@ -879,7 +879,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 err:
     if (ret != 0) {
         WT_TRET(__cursor_reset(cbt));
-        __cursor_state_restore(cursor, &state);
+        __cursor_bounds_restore(cursor, &state);
     }
     return (ret);
 }
@@ -1006,7 +1006,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
         WT_ERR(__wt_key_return(cbt));
         if (F_ISSET(cursor, WT_CURSTD_PREFIX_SEARCH) &&
           __wt_prefix_match(&state.key, &cursor->key) != 0)
-            __cursor_state_restore(cursor, &state);
+            __cursor_bounds_restore(cursor, &state);
         else {
             __wt_value_return(cbt, cbt->upd_value);
             /*
@@ -1059,7 +1059,7 @@ err:
          * search near.
          */
         WT_TRET(__cursor_reset(cbt));
-        __cursor_state_restore(cursor, &state);
+        __cursor_bounds_restore(cursor, &state);
     }
     return (ret);
 }
@@ -1247,7 +1247,7 @@ done:
     }
     WT_TRET(__cursor_reset(cbt));
     if (ret != 0 && ret != WT_DUPLICATE_KEY)
-        __cursor_state_restore(cursor, &state);
+        __cursor_bounds_restore(cursor, &state);
 
     return (ret);
 }
@@ -1487,7 +1487,7 @@ err:
          */
         if (ret != 0) {
             WT_TRET(__cursor_reset(cbt));
-            __cursor_state_restore(cursor, &state);
+            __cursor_bounds_restore(cursor, &state);
         }
     } else {
         /*
@@ -1496,7 +1496,7 @@ err:
          * fails.
          */
         WT_TRET(__cursor_reset(cbt));
-        __cursor_state_restore(cursor, &state);
+        __cursor_bounds_restore(cursor, &state);
     }
 
 done:
@@ -1682,7 +1682,7 @@ done:
 
     if (ret != 0) {
         WT_TRET(__cursor_reset(cbt));
-        __cursor_state_restore(cursor, &state);
+        __cursor_bounds_restore(cursor, &state);
     }
 
     return (ret);
@@ -1825,7 +1825,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
     if (ret != 0) {
 err:
         WT_TRET(__cursor_reset(cbt));
-        __cursor_state_restore(cursor, &state);
+        __cursor_bounds_restore(cursor, &state);
     }
 
     __wt_scr_free(session, &modify);

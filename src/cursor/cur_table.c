@@ -824,11 +824,11 @@ __wt_cursor_bounds_save(WT_CURSOR *cursor, WT_CURSOR_BOUNDS_STATE *state)
 }
 
 /*
- * __wt_cursor_state_restore --
+ * __wt_cursor_bounds_restore --
  *     Restore the cursor's external state.
  */
 static inline void
-__wt_cursor_state_restore(WT_CURSOR *cursor, WT_CURSOR_BOUNDS_STATE *bounds_state)
+__wt_cursor_bounds_restore(WT_CURSOR *cursor, WT_CURSOR_BOUNDS_STATE *bounds_state)
 {
     WT_ITEM_SET(cursor->lower_bound, bounds_state->lower_bound);
     WT_ITEM_SET(cursor->upper_bound, bounds_state->upper_bound);
@@ -889,7 +889,7 @@ err:
     /* If applying bounds fails on one colgroup, reset all of them for consistency. */
     if (ret != 0) {
         for (j = 0, cp = ctable->cg_cursors; j <= i; j++, cp++)
-            (__wt_cursor_state_restore(*cp, &saved_bounds));
+            (__wt_cursor_bounds_restore(*cp, &saved_bounds));
     }
     API_END_RET(session, ret);
 }
