@@ -124,23 +124,21 @@ session_simulator::query_timestamp(
     timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
 
     /* For an empty config default to read timestamp. */
-    if (config.empty())
-        query_timestamp = "read";
-    else {
-        std::map<std::string, std::string> config_map;
+    std::map<std::string, std::string> config_map;
 
-        ts_manager->parse_config(config, config_map);
+    ts_manager->parse_config(config, config_map);
 
-        /* For query timestamp we only expect one config. */
-        if (config_map.size() != 1)
-            WT_SIM_RET_MSG(EINVAL, "Incorrect config (" + config + ") passed in query timestamp");
+    std::cout << "config: " << config << std::endl;
 
-        auto pos = config_map.find("get");
-        if (pos == config_map.end())
-            WT_SIM_RET_MSG(EINVAL, "Incorrect config (" + config + ") passed in query timestamp");
+    /* For query timestamp we only expect one config. */
+    if (config_map.size() != 1)
+        WT_SIM_RET_MSG(EINVAL, "Incorrect config (" + config + ") passed in query timestamp");
 
-        query_timestamp = pos->second;
-    }
+    auto pos = config_map.find("get");
+    if (pos == config_map.end())
+        WT_SIM_RET_MSG(EINVAL, "Incorrect config (" + config + ") passed in query timestamp");
+
+    query_timestamp = pos->second;
 
     ts_supported = true;
     uint64_t ts;
