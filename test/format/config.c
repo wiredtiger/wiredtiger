@@ -517,7 +517,6 @@ config_backward_compatible(void)
 
     BC_CHECK("disk.mmap_all", DISK_MMAP_ALL);
     BC_CHECK("block_cache", BLOCK_CACHE);
-    BC_CHECK("stress.checkpoint_reserved_txnid_delay", STRESS_CHECKPOINT_RESERVED_TXNID_DELAY);
     BC_CHECK("stress.hs_checkpoint_delay", STRESS_HS_CHECKPOINT_DELAY);
     BC_CHECK("stress.hs_search", STRESS_HS_SEARCH);
     BC_CHECK("stress.hs_sweep", STRESS_HS_SWEEP);
@@ -1179,8 +1178,10 @@ config_transaction(void)
         config_off(NULL, "transaction.timestamps");
         config_off(NULL, "ops.prepare");
     }
-    if (GV(LOGGING) && config_explicit(NULL, "logging"))
+    if (GV(LOGGING) && config_explicit(NULL, "logging")) {
+        config_off(NULL, "transaction.timestamps");
         config_off(NULL, "ops.prepare");
+    }
     if (GV(OPS_SALVAGE) && config_explicit(NULL, "ops.salvage")) { /* FIXME WT-6431 */
         config_off(NULL, "transaction.timestamps");
         config_off(NULL, "ops.prepare");
