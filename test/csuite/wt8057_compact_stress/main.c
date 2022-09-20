@@ -96,9 +96,9 @@ handle_general(
      * often. We don't want to change the nature of the test too much.
      */
     if (compact_event % 8 == 0) {
-        printf(" *** Compact check interrupting compact with EINTR\n");
+        printf(" *** Compact check interrupting compact with error\n");
         compact_error = true;
-        return (EINTR);
+        return (-1);
     }
     return (0);
 }
@@ -308,7 +308,7 @@ workload_compact(const char *home, const char *table_config)
          * returned back to the caller.
          */
         if (compact_error)
-            testutil_assert(ret == EINTR);
+            testutil_assert(ret != 0);
         else
             testutil_assert(ret == 0);
 
