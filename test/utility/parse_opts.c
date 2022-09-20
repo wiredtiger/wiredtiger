@@ -64,13 +64,13 @@ parse_tiered_opts(int argc, char *const *argv, TEST_OPTS *opts)
     /* Return from here if tiered arguments are not passed. */
     if (!opts->tiered_storage && number_of_tiered_options > 0) {
         testutil_die(
-                      EINVAL, "Error - Tiered storage command line arguments are passed without -PT.");
+          EINVAL, "Error - Tiered storage command line arguments are passed without -PT.");
     }
 
     opts->nargc = argc - number_of_tiered_options;
 
     /* Allocate the memory for the new argv without tiered options. */
-    opts->nargv = dmalloc(((size_t)opts->nargc * sizeof(char*)));
+    opts->nargv = dmalloc(((size_t)opts->nargc * sizeof(char *)));
     for (int i = 0; i < opts->nargc; ++i) {
         opts->nargv[i] = dmalloc(1024);
     }
@@ -121,13 +121,10 @@ testutil_parse_opts(int argc, char *const *argv, TEST_OPTS *opts)
     }
 
     while (
-      (ch = __wt_getopt(opts->progname, opts->nargc, opts->nargv, "A:Bb:dh:n:o:pR:T:t:vW:")) != EOF)
+      (ch = __wt_getopt(opts->progname, opts->nargc, opts->nargv, "A:b:dh:n:o:pR:T:t:vW:")) != EOF)
         switch (ch) {
         case 'A': /* Number of append threads */
             opts->n_append_threads = (uint64_t)atoll(__wt_optarg);
-            break;
-        case 'B': /* Use tiered storage objects and buckets. */
-            opts->tiered = true;
             break;
         case 'b': /* Build directory */
             opts->build_dir = dstrdup(__wt_optarg);

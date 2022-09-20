@@ -71,7 +71,6 @@ typedef struct {
 
     bool do_data_ops;          /* Have schema ops use data */
     bool preserve;             /* Don't remove files on exit */
-    bool tiered;               /* Configure tiered storage */
     bool tiered_storage;       /* Configure tiered storage */
     bool verbose;              /* Run in verbose mode */
     uint64_t nrecords;         /* Number of records */
