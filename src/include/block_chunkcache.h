@@ -11,6 +11,7 @@
  */
 
 #define WT_CHUNKCACHE_NAMEMAX 50
+#define WT_CHUNKCACHE_DRAM 0
 
 struct __wt_chunkcache_hashid {
     char objectname[WT_CHUNKCACHE_NAMEMAX];
@@ -37,10 +38,9 @@ struct __wt_chunkcache_chain {
 };
 
 /*
- * This data structure represents a bucket in the chunk cache hash table.
- * A bucket may contain several chunk lists, if multiple chunk lists hashed
- * to the same bucket. We call the collection of chunk lists hashing to the
- * same bucket a chunk chain.
+ * This data structure represents a bucket in the chunk cache hash table. A bucket may contain
+ * several chunk lists, if multiple chunk lists hashed to the same bucket. We call the collection of
+ * chunk lists hashing to the same bucket a chunk chain.
  */
 struct __wt_chunkcache_bucket {
     /* This queue contains all objects that collided in this hash bucket */
@@ -55,16 +55,16 @@ struct __wt_chunkcache_bucket {
  */
 struct __wt_chunkcache {
     /* Hashtable buckets. Locks are per bucket. */
-    WT_CHUNKCACHE_BUCKET * hashtable;
-    WT_SPINLOCK *chunkcache_locks;
+    WT_CHUNKCACHE_BUCKET *hashtable;
+    WT_SPINLOCK *bucket_locks;
     int hashtable_size;
+    int type;
 };
 
 /*
  * __wt_chunkcache_complete_read --
- *     The upper layer calls this function once it has completed the read for the chunk.
- *     At this point we mark the chunk as valid. The chunk cannot be accessed before it is
- *     set to valid.
+ *     The upper layer calls this function once it has completed the read for the chunk. At this
+ *     point we mark the chunk as valid. The chunk cannot be accessed before it is set to valid.
  */
 inline void
 __wt_chunkcache_complete_read(WT_SESSION_IMPL session, WT_CHUNKCACHE_CHUNK *chunk)
