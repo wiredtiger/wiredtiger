@@ -53,8 +53,8 @@
 typedef struct {
     char *home;
     const char *argv0; /* Exec name */
-    char **nargv;
-    int nargc;
+    char **nargv;      /* New argument vector */
+    int nargc;         /* New argument count */
 
     const char *progname;        /* Truncated program name */
     char *build_dir;             /* Build directory path */

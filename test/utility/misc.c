@@ -226,7 +226,7 @@ testutil_cleanup(TEST_OPTS *opts)
         if (opts->nargv != NULL)
             free(opts->nargv);
 
-        if (opts->tiered_storage_source)
+        if (opts->tiered_storage_source != NULL)
             free(opts->tiered_storage_source);
     }
 }
