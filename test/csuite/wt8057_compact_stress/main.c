@@ -90,12 +90,11 @@ handle_general(
     if (type != WT_EVENT_COMPACT_CHECK)
         return (0);
 
-    ++compact_event;
     /*
      * The compact_event variable is cumulative. Return with an interrupt periodically but not too
      * often. We don't want to change the nature of the test too much.
      */
-    if (compact_event % 8 == 0) {
+    if (++compact_event % 8 == 0) {
         printf(" *** Compact check interrupting compact with error\n");
         compact_error = true;
         return (-1);
