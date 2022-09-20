@@ -122,13 +122,9 @@ session_simulator::query_timestamp(
 {
     std::string query_timestamp;
     timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
-
-    /* For an empty config default to read timestamp. */
     std::map<std::string, std::string> config_map;
 
     ts_manager->parse_config(config, config_map);
-
-    std::cout << "config: " << config << std::endl;
 
     /* For query timestamp we only expect one config. */
     if (config_map.size() != 1)

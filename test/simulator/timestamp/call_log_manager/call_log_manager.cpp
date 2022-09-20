@@ -185,10 +185,6 @@ call_log_manager::call_log_query_timestamp(const json &call_log_entry)
 
         ret = _conn->query_timestamp(config, hex_ts, ts_supported);
     } else if (class_name == "session") {
-        /*
-         * A generated call log without a configuration string in the set timestamp entry will have
-         * the string "(null)", default to read timestamp.
-         */
         const std::string session_id = call_log_entry["session_id"].get<std::string>();
         session_simulator *session = get_session(session_id);
 

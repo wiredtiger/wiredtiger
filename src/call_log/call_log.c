@@ -228,7 +228,7 @@ __wt_call_log_set_timestamp(WT_SESSION_IMPL *session, const char *config, int re
 }
 
 /*
- * __wt_call_log_conn_query_timestamp --
+ * __wt_call_log_query_timestamp --
  *     Print the call log entry for the query timestamp API call.
  */
 int
