@@ -201,7 +201,7 @@ CONFIG configuration_list[] = {
     C_IGNORE | C_TABLE, 0, 0, 100, V_TABLE_OPS_PCT_WRITE},
 
   {"ops.bound_cursor", "configure bound cursor reads",
-    C_BOOL, 10, 0, 0, V_GLOBAL_OPS_BOUND_CURSOR},
+    C_BOOL, 5, 0, 0, V_GLOBAL_OPS_BOUND_CURSOR},
 
   {"ops.prepare", "configure transaction prepare",
     C_BOOL, 5, 0, 0, V_GLOBAL_OPS_PREPARE},

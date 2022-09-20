@@ -204,7 +204,7 @@ CONFIG configuration_list[] = {
 
 {"ops.pct.write", "update operations (percentage)", C_IGNORE | C_TABLE, 0, 0, 100}
 
-{"ops.bound_cursor", "configure bound cursor reads", C_BOOL, 10, 0, 0}
+{"ops.bound_cursor", "configure bound cursor reads", C_BOOL, 5, 0, 0}
 
 {"ops.prepare", "configure transaction prepare", C_BOOL, 5, 0, 0}
 
