@@ -95,13 +95,16 @@ class test_truncate_uri(wttest.WiredTigerTestCase):
         uri = self.type + self.name
 
         # A simple, one-file file or table object.
-        ds = SimpleDataSet(self, uri, 100).populate()
+        ds = SimpleDataSet(self, uri, 100)
+        ds.populate()
+
         ds.truncate(uri, None, None, None)
         confirm_empty(self, uri)
         self.dropUntilSuccess(self.session, uri)
 
         if self.type == "table:":
-            cds = ComplexDataSet(self, uri, 100).populate()
+            cds = ComplexDataSet(self, uri, 100)
+            cds.populate()
             cds.truncate(uri, None, None, None)
             confirm_empty(self, uri)
             self.dropUntilSuccess(self.session, uri)
