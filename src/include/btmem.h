@@ -892,7 +892,7 @@ struct __wt_page_deleted {
     bool committed;
 
     /* Flag to indicate fast-truncate is written to disk. */
-    bool on_disk;
+    bool selected_for_write;
 };
 
 /*
