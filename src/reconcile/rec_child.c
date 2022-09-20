@@ -47,7 +47,7 @@ __rec_child_deleted(
      * should select it regardless of visibility unless it is visible globally visible. This is
      * important as it is never ok to shift the on-disk value backwards.
      */
-    if (page_del->on_disk && !visible_all) {
+    if (page_del->selected_for_write && !visible_all) {
         cmsp->del = *page_del;
         cmsp->state = WT_CHILD_PROXY;
         return (0);
@@ -127,7 +127,7 @@ __rec_child_deleted(
     if (!visible_all) {
         cmsp->del = *page_del;
         cmsp->state = WT_CHILD_PROXY;
-        page_del->on_disk = true;
+        page_del->selected_for_write = true;
         return (0);
     }
 
