@@ -167,12 +167,14 @@ call_log_manager::call_log_query_timestamp(const json &call_log_entry)
     /* Convert the config char * to a string object. */
     std::string config = call_log_entry["input"]["config"].get<std::string>();
 
-    std::string class_name = call_log_entry["class_name"].get<std::string>();
+    const std::string class_name = call_log_entry["class_name"].get<std::string>();
     std::string hex_ts;
     bool ts_supported;
     int ret;
-    /* Check whether we're querying a global connection timestamp or a session transaction
-     * timestamp. */
+    /* 
+     * Check whether we're querying a global connection timestamp or a session transaction
+     * timestamp. 
+     */
     if (class_name == "connection") {
         /*
          * A generated call log without a configuration string in the set timestamp entry will have

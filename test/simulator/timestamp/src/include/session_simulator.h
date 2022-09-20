@@ -52,8 +52,8 @@ class session_simulator {
 
     /* Member variables */
     private:
-    bool _txn_running;
     bool _has_commit_ts;
+    bool _txn_running;
     uint64_t _commit_ts;
     uint64_t _durable_ts;
     uint64_t _first_commit_ts;

@@ -34,7 +34,7 @@
 #include "error_simulator.h"
 #include "timestamp_manager.h"
 
-session_simulator::session_simulator() : _txn_running(false) {}
+session_simulator::session_simulator() : _has_commit_ts(false), _txn_running(false) {}
 
 void
 session_simulator::begin_transaction()
@@ -142,21 +142,18 @@ session_simulator::query_timestamp(
         query_timestamp = pos->second;
     }
 
-    ts_supported = false;
+    ts_supported = true;
     uint64_t ts;
     if (query_timestamp == "commit") {
         ts = _commit_ts;
-        ts_supported = true;
-    } else if (query_timestamp == "prepare") {
-        ts = _prepare_ts;
-        ts_supported = true;
-    } else if (query_timestamp == "read") {
-        ts = _read_ts;
-        ts_supported = true;
     } else if (query_timestamp == "first_commit") {
         ts = _first_commit_ts;
-        ts_supported = true;
+    } else if (query_timestamp == "prepare") {
+        ts = _prepare_ts;
+    } else if (query_timestamp == "read") {
+        ts = _read_ts;
     } else {
+        ts_supported = false;
         WT_SIM_RET_MSG(EINVAL, "Incorrect config (" + config + ") passed in query timestamp");
     }
 
