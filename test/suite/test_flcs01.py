@@ -43,17 +43,11 @@ class test_flcs01(wttest.WiredTigerTestCase):
     # Evict the page to force reconciliation.
     def evict(self, ds, uri, key, check_value):
         evict_cursor = ds.open_cursor(uri, None, "debug=(release_evict)")
-        wttest.WiredTigerTestCase.tty('X60.1')
         self.session.begin_transaction()
-        wttest.WiredTigerTestCase.tty('X61')
         v = evict_cursor[key]
-        wttest.WiredTigerTestCase.tty('X62')
         self.assertEqual(v, check_value)
-        wttest.WiredTigerTestCase.tty('X63')
         self.assertEqual(evict_cursor.reset(), 0)
-        wttest.WiredTigerTestCase.tty('X64')
         self.session.rollback_transaction()
-        wttest.WiredTigerTestCase.tty('X64.5')
         evict_cursor.close()
 
     def check_next(self, cursor, k, expected_val):
@@ -132,7 +126,6 @@ class test_flcs01(wttest.WiredTigerTestCase):
         for i in range(1, nrows + 1):
             cursor[i] = i
         self.session.commit_transaction()
-        wttest.WiredTigerTestCase.tty('X5')
 
         # Delete one of the values and read it back in the same transaction.
         self.delete_readback_abort(cursor, updatekey1)
@@ -155,7 +148,6 @@ class test_flcs01(wttest.WiredTigerTestCase):
         self.check_next(cursor, appendkey1, 0)
         self.check_prev_fail(cursor, appendkey1)
         self.session.rollback_transaction()
-        wttest.WiredTigerTestCase.tty('X30')
 
         # Doing that might or might not have extended the table. Accept either behavior,
         # at least for now.
@@ -184,7 +176,6 @@ class test_flcs01(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.remove(), 0)
         cursor.reset()
         self.session.commit_transaction()
-        wttest.WiredTigerTestCase.tty('X50')
 
         # This should definitely have extended the table.
         self.session.begin_transaction()
@@ -194,11 +185,9 @@ class test_flcs01(wttest.WiredTigerTestCase):
         self.check_next(cursor, appendkey2, 0)
         self.check_prev_fail(cursor, appendkey2)
         self.session.rollback_transaction()
-        wttest.WiredTigerTestCase.tty('X60')
 
         # Evict the page to force reconciliation.
         self.evict(ds, uri, 1, 1)
-        wttest.WiredTigerTestCase.tty('X65')
 
         # The committed zeros should still be there.
         self.session.begin_transaction()
@@ -208,7 +197,6 @@ class test_flcs01(wttest.WiredTigerTestCase):
         self.check_next(cursor, updatekey2, 0)
         self.check_prev(cursor, updatekey2, 0)
         self.session.rollback_transaction()
-        wttest.WiredTigerTestCase.tty('X70')
 
         self.session.begin_transaction()
         v = cursor[appendkey2]
