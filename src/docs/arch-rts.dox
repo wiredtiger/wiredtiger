@@ -23,7 +23,7 @@ one of the following:
 
 1. It is empty
 2. It has timestamped updates but there is no stable timestamp set.
-3. The associated files don’t exist.
+3. The associated files are missing.
 4. The associated files are corrupted.
 5. It is dedicated to @ref arch-metadata "metadata"
 6. It is a logged table. RTS is not necessary for those as their updates are stable when the
