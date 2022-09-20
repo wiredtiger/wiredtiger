@@ -720,6 +720,11 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
 
         if (!positioned && GV(OPS_BOUND_CURSOR) && mmrand(NULL, 1, 2) == 1) {
             bound_set = true;
+            /*
+             * FIXME-WT-9883: It is possible that the underlying cursor is still positioned even
+             * though the positioned variable is false. Reset the position through reset for now.
+             */
+            testutil_check(tinfo->cursor->reset(tinfo->cursor));
             apply_bounds(tinfo->cursor, tinfo->table);
         }
 
