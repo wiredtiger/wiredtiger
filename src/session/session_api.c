@@ -1839,6 +1839,9 @@ __session_timestamp_transaction(WT_SESSION *wt_session, const char *config)
 
     ret = __wt_txn_set_timestamp(session, cfg, false);
 err:
+#ifdef HAVE_CALL_LOG
+    WT_TRET(__wt_call_log_timestamp_transaction(session, config, ret));
+#endif
     API_END_RET(session, ret);
 }
 
