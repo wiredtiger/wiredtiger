@@ -34,6 +34,7 @@ typedef struct {
 typedef struct {
     WT_ITEM lower_bound;
     WT_ITEM upper_bound;
+    uint64_t flags;
 } WT_CURSOR_BOUNDS_STATE;
 
 /*
@@ -452,10 +453,9 @@ __curtable_reset(WT_CURSOR *cursor)
     APPLY_CG(ctable, reset);
 
     /* If a user calls cursor reset, call cursor reset on all column groups. */
-    if (API_USER_ENTRY(session)) {
+    if (API_USER_ENTRY(session))
         for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); i++, cp++)
             __wt_cursor_bound_reset(*cp);
-    }
 
 err:
     API_END_RET(session, ret);
@@ -820,6 +820,7 @@ __wt_cursor_bounds_save(WT_CURSOR *cursor, WT_CURSOR_BOUNDS_STATE *state)
 {
     WT_ITEM_SET(state->lower_bound, cursor->lower_bound);
     WT_ITEM_SET(state->upper_bound, cursor->upper_bound);
+    state->flags = cursor->flags;
 }
 
 /*
@@ -831,6 +832,7 @@ __wt_cursor_state_restore(WT_CURSOR *cursor, WT_CURSOR_BOUNDS_STATE *bounds_stat
 {
     WT_ITEM_SET(cursor->lower_bound, bounds_state->lower_bound);
     WT_ITEM_SET(cursor->upper_bound, bounds_state->upper_bound);
+    cursor->flags = bounds_state->flags;
 }
 
 /*
