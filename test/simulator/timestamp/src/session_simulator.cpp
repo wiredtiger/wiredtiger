@@ -143,6 +143,9 @@ session_simulator::decode_timestamp_config_map(std::map<std::string, std::string
 int
 session_simulator::timestamp_transaction(const std::string &config)
 {
+    /* Make sure that the transaction from this session is running. */
+    assert(_txn_running);
+
     /* If not timestamp was supplied, there's nothing to do. */
     // PM-2564-TODO check this in wiredtiger.
     if (config.empty())
@@ -184,6 +187,9 @@ session_simulator::timestamp_transaction(const std::string &config)
 int
 session_simulator::timestamp_transaction_uint(const std::string &ts_type, uint64_t ts)
 {
+    /* Make sure that the transaction from this session is running. */
+    assert(_txn_running);
+
     /* Zero timestamp is not permitted. */
     if (ts == 0) {
         WT_SIM_RET_MSG(EINVAL, "Illegal " + std::to_string(ts) + " timestamp: zero not permitted.");
