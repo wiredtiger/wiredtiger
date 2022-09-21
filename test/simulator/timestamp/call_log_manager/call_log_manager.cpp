@@ -167,24 +167,37 @@ call_log_manager::call_log_query_timestamp(const json &call_log_entry)
     /* Convert the config char * to a string object. */
     std::string config = call_log_entry["input"]["config"].get<std::string>();
 
-    /*
-     * A generated call log without a configuration string in the set timestamp entry will have the
-     * string "(null)", default to all_durable.
-     */
-    if (config == "(null)")
-        config = "get=all_durable";
-
+    const std::string class_name = call_log_entry["class_name"].get<std::string>();
     std::string hex_ts;
     bool ts_supported;
+    int ret;
+    /*
+     * Check whether we're querying a global connection timestamp or a session transaction
+     * timestamp.
+     */
+    if (class_name == "connection") {
+        /*
+         * A generated call log without a configuration string in the set timestamp entry will have
+         * the string "(null)", default to all_durable.
+         */
+        if (config == "(null)")
+            config = "get=all_durable";
 
-    int ret = _conn->query_timestamp(config, hex_ts, ts_supported);
+        ret = _conn->query_timestamp(config, hex_ts, ts_supported);
+    } else if (class_name == "session") {
+        const std::string session_id = call_log_entry["session_id"].get<std::string>();
+        session_simulator *session = get_session(session_id);
+
+        ret = session->query_timestamp(config, hex_ts, ts_supported);
+    }
+
     int ret_expected = call_log_entry["return"]["return_val"].get<int>();
     /* The ret value should be equal to the expected ret value. */
     assert(ret == ret_expected);
 
     if (ret != 0)
-        throw "'query_timestamp' failed with ret value: '" + std::to_string(ret) +
-          "', and config: '" + config + "'";
+        throw "'query_timestamp' failed on " + class_name + "with ret value: '" +
+          std::to_string(ret) + "', and config: '" + config + "'";
 
     /*
      * Ensure that the timestamp returned from query timestamp is equal to the expected timestamp.
@@ -236,7 +249,8 @@ call_log_manager::call_log_timestamp_transaction_uint(const json &call_log_entry
 
     /* There are no timestamps to be set if the timestamp type is not specified. */
     if (wt_ts_txn_type == "unknown")
-        throw "Cannot set a transaction timestamp for session_id (" + session_id + ") without a valid timestamp type.";
+        throw "Cannot set a transaction timestamp for session_id (" + session_id +
+          ") without a valid timestamp type.";
 
     const uint64_t ts = call_log_entry["input"]["timestamp"].get<uint64_t>();
     session_simulator *session = get_session(session_id);

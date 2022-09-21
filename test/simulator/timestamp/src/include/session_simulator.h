@@ -43,6 +43,7 @@ class session_simulator {
     void set_durable_timestamp(uint64_t);
     void set_prepare_timestamp(uint64_t);
     void set_read_timestamp(uint64_t);
+    int query_timestamp(const std::string &, std::string &, bool &);
 
     public:
     /* Deleted functions should generally be public as it results in better error messages. */
@@ -51,9 +52,11 @@ class session_simulator {
 
     /* Member variables */
     private:
+    bool _has_commit_ts;
     bool _txn_running;
     uint64_t _commit_ts;
     uint64_t _durable_ts;
+    uint64_t _first_commit_ts;
     uint64_t _prepare_ts;
     uint64_t _read_ts;
 };

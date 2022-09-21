@@ -27,12 +27,14 @@
  */
 
 #include "session_simulator.h"
-#include "error_simulator.h"
 
 #include <cassert>
 #include <iostream>
 
-session_simulator::session_simulator() : _txn_running(false) {}
+#include "error_simulator.h"
+#include "timestamp_manager.h"
+
+session_simulator::session_simulator() : _has_commit_ts(false), _txn_running(false) {}
 
 void
 session_simulator::begin_transaction()
@@ -64,6 +66,11 @@ session_simulator::commit_transaction()
 void
 session_simulator::set_commit_timestamp(uint64_t ts)
 {
+    if (!_has_commit_ts) {
+        _first_commit_ts = ts;
+        _has_commit_ts = true;
+    }
+
     _commit_ts = ts;
 }
 
@@ -105,6 +112,47 @@ session_simulator::timestamp_transaction_uint(const std::string &ts_type, uint64
         WT_SIM_RET_MSG(
           EINVAL, "Invalid timestamp type (" + ts_type + ") passed to timestamp transaction uint.");
     }
+
+    return (0);
+}
+
+int
+session_simulator::query_timestamp(
+  const std::string &config, std::string &hex_ts, bool &ts_supported)
+{
+    std::string query_timestamp;
+    timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
+    std::map<std::string, std::string> config_map;
+
+    ts_manager->parse_config(config, config_map);
+
+    /* For query timestamp we only expect one config. */
+    if (config_map.size() != 1)
+        WT_SIM_RET_MSG(EINVAL, "Incorrect config (" + config + ") passed in query timestamp");
+
+    auto pos = config_map.find("get");
+    if (pos == config_map.end())
+        WT_SIM_RET_MSG(EINVAL, "Incorrect config (" + config + ") passed in query timestamp");
+
+    query_timestamp = pos->second;
+
+    ts_supported = true;
+    uint64_t ts;
+    if (query_timestamp == "commit") {
+        ts = _commit_ts;
+    } else if (query_timestamp == "first_commit") {
+        ts = _first_commit_ts;
+    } else if (query_timestamp == "prepare") {
+        ts = _prepare_ts;
+    } else if (query_timestamp == "read") {
+        ts = _read_ts;
+    } else {
+        ts_supported = false;
+        WT_SIM_RET_MSG(EINVAL, "Incorrect config (" + config + ") passed in query timestamp");
+    }
+
+    /* Convert the timestamp from decimal to hex-decimal. */
+    hex_ts = ts_manager->decimal_to_hex(ts);
 
     return (0);
 }
