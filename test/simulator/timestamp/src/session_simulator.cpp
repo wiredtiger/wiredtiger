@@ -130,13 +130,6 @@ session_simulator::decode_timestamp_config_map(std::map<std::string, std::string
         config_map.erase(pos);
     }
 
-    // std::cout << "commit_ts: " << commit_ts << std::endl;
-    // std::cout << "durable_ts: " << durable_ts << std::endl;
-    // std::cout << "read_ts: " << read_ts << std::endl;
-    // std::cout << "prepare_ts: " << prepare_ts << std::endl;
-
-    // std::cout << "config_map.empty(): " << config_map.empty() << std::endl;
-
     return (config_map.empty() ? 0 : EINVAL);
 }
 
@@ -146,8 +139,7 @@ session_simulator::timestamp_transaction(const std::string &config)
     /* Make sure that the transaction from this session is running. */
     assert(_txn_running);
 
-    /* If not timestamp was supplied, there's nothing to do. */
-    // PM-2564-TODO check this in wiredtiger.
+    /* If no timestamp was supplied, there's nothing to do. */
     if (config.empty())
         return (0);
 
@@ -158,13 +150,12 @@ session_simulator::timestamp_transaction(const std::string &config)
 
     uint64_t commit_ts = 0, durable_ts = 0, prepare_ts = 0, read_ts = 0;
 
-    std::cout << "timestmap_transaction.config: " << config << std::endl;
-
-    // PM-2564-TODO config can have multiple timestamps to set.
+    /* Decode a configuration string that may contain multiple timestamps and store them here. */
     WT_SIM_RET_MSG(
       decode_timestamp_config_map(config_map, commit_ts, durable_ts, prepare_ts, read_ts),
       "Incorrect config passed to 'timestamp_transaction': '" + config + "'");
 
+    /* Check if the timestamps were included in the configuration string and set them. */
     if (commit_ts != 0) {
         set_commit_timestamp(commit_ts);
     }
