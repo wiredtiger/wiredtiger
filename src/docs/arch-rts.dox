@@ -49,10 +49,10 @@ On leaf pages, RTS can roll back unstable updates with the following steps:
 
 1. Checks the smallest insert lists on the page
 2. Traverses through all the on-disk keys
-    a. Checks the update list
-    b. Checks the insert list
+    a. Checks the update list.
+    b. Checks the insert list.
     c. Checks the on-disk version if no stable update is found in the update list.
-3. Traverses through the reconciled pages to abort any history store updates.
+    d. Removes any unstable update from the history store.
 
 @section rts-abort-update How RTS aborts in-memory updates
 
