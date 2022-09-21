@@ -64,32 +64,32 @@ snapshot during the tree walk.
 In the following scenario, there are 3 updates on the update list, an on-disk value, the history
 store is empty and the stable timestamp is 10:
 
-Update list: U3 (30) -> U2 (20) -> U1 (10)
-On-disk: U2 (20)
-History store: Empty
-Stable timestamp: 10
+Update list: U3 (30) -> U2 (20) -> U1 (10)\n
+On-disk: U2 (20)\n
+History store: Empty\n
+Stable timestamp: 10\n\n
 
 RTS will mark all the unstable updates from the update list as aborted and the on-disk value will be
 replaced the most recent stable update after reconciliation:
 
-Update list: U3 (30) Aborted -> U2 (20) Aborted -> U1(10)
-On-disk: U1 (10)
-History store: Empty
-Stable timestamp: 10
+Update list: U3 (30) Aborted -> U2 (20) Aborted -> U1(10)\n
+On-disk: U1 (10)\n
+History store: Empty\n
+Stable timestamp: 10\n\n
 
 Now let's consider a scenario where the history store is not empty:
 
-Update list: U5(50) -> U4 (40)
-On-disk: U3 (30)
-History store: U2 (20) -> U1 (10)
-Stable timestamp: 20
+Update list: U5(50) -> U4 (40)\n
+On-disk: U3 (30)\n
+History store: U2 (20) -> U1 (10)\n
+Stable timestamp: 20\n\n
 
 In this case, RTS will abort the unstable update from the update list again but will also move the
 latest stable update from the history store to the update list:
 
-Update list: U2 (20) -> U5 (50) Aborted -> U4 (40) Aborted
-On-disk: U2 (20)
-History store: U1 (10)
-Stable timestamp: 20
+Update list: U2 (20) -> U5 (50) Aborted -> U4 (40) Aborted\n
+On-disk: U2 (20)\n
+History store: U1 (10)\n
+Stable timestamp: 20\n
 
 */
