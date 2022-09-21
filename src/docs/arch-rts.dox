@@ -57,7 +57,7 @@ On leaf pages, RTS can roll back unstable updates with the following steps:
 @section rts-abort-update How RTS aborts in-memory updates
 
 RTS traverses through all the updates defined in the update list and aborts every update until a
-stable is found. To remove any unstable update, RTS adds globally a visible tombstone to the key
+stable is found. To remove any key from the table, RTS adds a globally visible tombstone to the key
 update list and this key gets removed later during reconciliation.
 
 @section rts-abort-on-disk-update How RTS aborts on-disk update
