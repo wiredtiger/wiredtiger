@@ -48,10 +48,10 @@ For in-memory updates, RTS traverses all the updates defined in the update list 
 update until a stable is found. To remove any key from the table, RTS adds a globally visible
 tombstone to the key update list and this key gets removed later during reconciliation.
 
-For on-disk values, if the start time pair is not stable, RTS searches the history store to find a
-stable update to replace the on-disk version with. If the history store does not contain any stable
-update, the on-disk key is removed. If the stop time pair exists and it is not stable, the on-disk
-update is restored into the update list.
+For on-disk values, if the start time pair is not stable and the update list does not contain any
+stable update, RTS searches the history store to find a stable update to replace the on-disk version
+with. If the history store does not contain any stable update, the on-disk key is removed. If the
+stop time pair exists and it is not stable, the on-disk update is restored into the update list.
 
 @section rts-page-skip Skipping reading unnecessary pages into memory
 
@@ -77,7 +77,7 @@ On-disk: U1 (10)\n
 History store: Empty\n
 Stable timestamp: 10\n\n
 
-Now let's consider a scenario where the history store is not empty:
+Let's consider a scenario where the history store is not empty:
 
 Update list: U5(50) -> U4 (40)\n
 On-disk: U3 (30)\n
