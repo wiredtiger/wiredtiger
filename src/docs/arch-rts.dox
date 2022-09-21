@@ -42,7 +42,7 @@ longer required and the on-disk value is preserved.
 Finally, RTS is triggered on startup, shutdown or when the application is initiated. It is worth
 noting that it cannot run if there is any transaction activity happening in WiredTiger.
 
-@section rts-abort-update How RTS aborts unstable updates
+@section rts-abort-updates How RTS aborts unstable updates
 
 For in-memory updates, RTS traverses all the updates defined in the update list and aborts every
 update until a stable is found. To remove any key from the table, RTS adds a globally visible
@@ -52,6 +52,39 @@ For on-disk values, if the start time pair is not stable, RTS searches the histo
 stable update to replace the on-disk version with. If the history store does not contain any stable
 update, the on-disk key is removed. If the stop time pair exists and it is not stable, the on-disk
 update is restored into the update list.
+
+@section rts-examples Examples
+
+In the following scenario, there are 3 updates on the update list, an on-disk value, the history
+store is empty and the stable timestamp is 10:
+
+Update list: U3 (30) -> U2 (20) -> U1 (10)
+On-disk: U2 (20)
+History store: Empty
+Stable timestamp: 10
+
+RTS will mark all the unstable updates from the update list as aborted and the on-disk value will be
+replaced the most recent stable update after reconciliation:
+
+Update list: U3 (30) Aborted -> U2 (20) Aborted -> U1(10)
+On-disk: U1 (10)
+History store: Empty
+Stable timestamp: 10
+
+Now let's consider a scenario where the history store is not empty:
+
+Update list: U5(50) -> U4 (40)
+On-disk: U3 (30)
+History store: U2 (20) -> U1 (10)
+Stable timestamp: 20
+
+In this case, RTS will abort the unstable update from the update list again but will also move the
+latest stable update from the history store to the update list:
+
+Update list: U2 (20) -> U5 (50) Aborted -> U4 (40) Aborted
+On-disk: U2 (20)
+History store: U1 (10)
+Stable timestamp: 20
 
 @section rts-page-skip Skipping reading unnecessary pages into memory
 
