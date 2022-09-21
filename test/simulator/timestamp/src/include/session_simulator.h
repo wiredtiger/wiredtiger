@@ -29,6 +29,7 @@
 #pragma once
 
 #include <string>
+#include <map>
 
 class session_simulator {
     /* Methods */
@@ -38,6 +39,9 @@ class session_simulator {
     void begin_transaction();
     void rollback_transaction();
     void commit_transaction();
+    int decode_timestamp_config_map(
+      std::map<std::string, std::string> &, uint64_t &, uint64_t &, uint64_t &, uint64_t &);
+    int timestamp_transaction(const std::string &);
     int timestamp_transaction_uint(const std::string &, uint64_t);
     void set_commit_timestamp(uint64_t);
     void set_durable_timestamp(uint64_t);

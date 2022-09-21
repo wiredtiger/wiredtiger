@@ -30,6 +30,7 @@
 
 #include <cassert>
 #include <iostream>
+#include <map>
 
 #include "error_simulator.h"
 #include "timestamp_manager.h"
@@ -90,6 +91,94 @@ void
 session_simulator::set_read_timestamp(uint64_t ts)
 {
     _read_ts = ts;
+}
+
+int
+session_simulator::decode_timestamp_config_map(std::map<std::string, std::string> &config_map,
+  uint64_t &commit_ts, uint64_t &durable_ts, uint64_t &prepare_ts, uint64_t &read_ts)
+{
+    timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
+    auto pos = config_map.find("commit_timestamp");
+    if (pos != config_map.end()) {
+        commit_ts = ts_manager->hex_to_decimal(pos->second);
+        if (commit_ts == 0) 
+            WT_SIM_RET_MSG(EINVAL, "Illegal commit timestamp: zero not permitted.");
+        config_map.erase(pos);
+    }
+
+    pos = config_map.find("durable_timestamp");
+    if (pos != config_map.end()) {
+        durable_ts = ts_manager->hex_to_decimal(pos->second);
+        if (durable_ts == 0) 
+            WT_SIM_RET_MSG(EINVAL, "Illegal durable timestamp: zero not permitted.");
+        config_map.erase(pos);
+    }
+
+    pos = config_map.find("prepare_timestamp");
+    if (pos != config_map.end()) {
+        prepare_ts = ts_manager->hex_to_decimal(pos->second);
+        if (prepare_ts == 0) 
+            WT_SIM_RET_MSG(EINVAL, "Illegal prepare timestamp: zero not permitted.");
+        config_map.erase(pos);
+    }
+
+    pos = config_map.find("read_timestamp");
+    if (pos != config_map.end()) {
+        read_ts = ts_manager->hex_to_decimal(pos->second);
+        if (read_ts == 0) 
+            WT_SIM_RET_MSG(EINVAL, "Illegal read timestamp: zero not permitted.");
+        config_map.erase(pos);
+    }
+
+    // std::cout << "commit_ts: " << commit_ts << std::endl;
+    // std::cout << "durable_ts: " << durable_ts << std::endl;
+    // std::cout << "read_ts: " << read_ts << std::endl;
+    // std::cout << "prepare_ts: " << prepare_ts << std::endl;
+
+    // std::cout << "config_map.empty(): " << config_map.empty() << std::endl;
+
+    return (config_map.empty() ? 0 : EINVAL);
+}
+
+int
+session_simulator::timestamp_transaction(const std::string &config)
+{
+    /* If not timestamp was supplied, there's nothing to do. */
+    // PM-2564-TODO check this in wiredtiger.
+    if (config.empty())
+        return (0);
+
+    timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
+    std::map<std::string, std::string> config_map;
+
+    ts_manager->parse_config(config, config_map);
+
+    uint64_t commit_ts = 0, durable_ts = 0, prepare_ts = 0, read_ts = 0;
+
+    std::cout << "timestmap_transaction.config: " << config << std::endl;
+
+    // PM-2564-TODO config can have multiple timestamps to set.
+    WT_SIM_RET_MSG(
+      decode_timestamp_config_map(config_map, commit_ts, durable_ts, prepare_ts, read_ts),
+      "Incorrect config passed to 'timestamp_transaction': '" + config + "'");
+
+    if (commit_ts != 0) {
+        set_commit_timestamp(commit_ts);
+    }
+
+    if (durable_ts != 0) {
+        set_durable_timestamp(durable_ts);
+    }
+
+    if (prepare_ts != 0) {
+        set_prepare_timestamp(prepare_ts);
+    }
+
+    if (read_ts != 0) {
+        set_read_timestamp(read_ts);
+    }
+
+    return (0);
 }
 
 int
