@@ -42,30 +42,16 @@ longer required and the on-disk value is preserved.
 Finally, RTS is triggered on startup, shutdown or when the application is initiated. It is worth
 noting that it cannot run if there is any transaction activity happening in WiredTiger.
 
-@section rts-pages Internal and leaf pages
+@section rts-abort-update How RTS aborts unstable updates
 
-On internal pages, RTS can roll back unstable fast truncate operations.
-On leaf pages, RTS can roll back unstable updates with the following steps:
+For in-memory updates, RTS traverses all the updates defined in the update list and aborts every
+update until a stable is found. To remove any key from the table, RTS adds a globally visible
+tombstone to the key update list and this key gets removed later during reconciliation.
 
-1. Checks the smallest insert lists on the page
-2. Traverses through all the on-disk keys
-    a. Checks the update list.
-    b. Checks the insert list.
-    c. Checks the on-disk version if no stable update is found in the update list.
-    d. Removes any unstable update from the history store.
-
-@section rts-abort-update How RTS aborts in-memory updates
-
-RTS traverses through all the updates defined in the update list and aborts every update until a
-stable is found. To remove any key from the table, RTS adds a globally visible tombstone to the key
-update list and this key gets removed later during reconciliation.
-
-@section rts-abort-on-disk-update How RTS aborts on-disk update
-
-If the start time pair is not stable, RTS searches the history store to find a stable update to
-replace the on-disk version. If the history store does not contain any stable update, the on-disk
-key is removed. If the stop time pair exists and it is not stable, the on-disk update is restored
-into the update list.
+For on-disk values, if the start time pair is not stable, RTS searches the history store to find a
+stable update to replace the on-disk version with. If the history store does not contain any stable
+update, the on-disk key is removed. If the stop time pair exists and it is not stable, the on-disk
+update is restored into the update list.
 
 @section rts-page-skip Skipping reading unnecessary pages into memory
 
