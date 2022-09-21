@@ -349,8 +349,8 @@ __wt_call_log_rollback_transaction(WT_SESSION_IMPL *session, int ret_val)
 }
 
 /*
- * __wt_call_log_timestamp_transaction_uint --
- *     Print the call log entry for the timestamp_transaction_uint API call.
+ * __wt_call_log_timestamp_transaction --
+ *     Print the call log entry for the timestamp_transaction API call.
  */
 int
 __wt_call_log_timestamp_transaction(WT_SESSION_IMPL *session, const char *config, int ret_val)
@@ -364,7 +364,7 @@ __wt_call_log_timestamp_transaction(WT_SESSION_IMPL *session, const char *config
     WT_RET(__wt_fprintf(session, conn->call_log_fst, "    \"session_id\": \"%p\",\n", session));
 
     /*
-     * The timestamp transaction entry includes the timestamp configuration string which is copied 
+     * The timestamp transaction entry includes the timestamp configuration string which is copied
      * from the original API call.
      */
     WT_RET(__wt_snprintf(config_buf, sizeof(config_buf), "\"config\": \"%s\"", config));
