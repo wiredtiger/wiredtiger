@@ -465,9 +465,9 @@ static void
 copy_format_files(WT_SESSION *session)
 {
     size_t dest_len, file_len;
-    bool exist;
-    char *dest, *filename;
     u_int i;
+    char *dest, *filename;
+    bool exist;
 
     /* Copy over the CONFIG file. */
     dest_len = strlen("BACKUP.copy") + strlen("CONFIG") + 10;
