@@ -343,10 +343,9 @@ __wt_compact(WT_SESSION_IMPL *session)
             if (session->event_handler->handle_general != NULL) {
                 ret = session->event_handler->handle_general(session->event_handler,
                   &(S2C(session))->iface, &session->iface, WT_EVENT_COMPACT_CHECK);
-                /* If the user's handler returned an error we return WT_ERROR to the caller. */
+                /* If the user's handler returned non-zero we return WT_ERROR to the caller. */
                 if (ret != 0)
-                    WT_ERR_MSG(session, WT_ERROR,
-                      "compact check event handler returned an error to interrupt");
+                    WT_ERR_MSG(session, WT_ERROR, "compact interrupted by application");
             }
 
             if (__wt_cache_stuck(session))
