@@ -43,6 +43,7 @@ parse_tiered_opts(int argc, char *const *argv, TEST_OPTS *opts)
     number_of_tiered_options = 0;
     index = 0;
     opts->tiered_storage = false;
+    opts->tiered_storage_source = NULL;
 
     for (int i = 1; i < argc; i++) {
         /* Tiered storage command line options starts with -P. */
@@ -62,18 +63,18 @@ parse_tiered_opts(int argc, char *const *argv, TEST_OPTS *opts)
     }
 
     /* Return from here if tiered arguments are not passed. */
-    if (!opts->tiered_storage && number_of_tiered_options > 0) {
-        testutil_die(
-          EINVAL, "Error - Tiered storage command line arguments are passed without -PT.");
+    if (!opts->tiered_storage) {
+        if (number_of_tiered_options == 0)
+            return;
+        else
+            testutil_die(
+              EINVAL, "Error - Tiered storage command line arguments are passed without -PT.");
     }
 
     opts->nargc = argc - number_of_tiered_options;
 
     /* Allocate the memory for the new argv without tiered options. */
-    opts->nargv = dmalloc(((size_t)opts->nargc * sizeof(char *)));
-    for (int i = 0; i < opts->nargc; ++i) {
-        opts->nargv[i] = dmalloc(1024);
-    }
+    opts->nargv = dmalloc((((size_t)opts->nargc + 1) * sizeof(char *)));
 
     /* Copy other command line arguments except tiered. */
     for (int i = 0; i < argc; ++i) {
@@ -86,6 +87,12 @@ parse_tiered_opts(int argc, char *const *argv, TEST_OPTS *opts)
         else
             opts->nargv[index++] = dstrdup(argv[i]);
     }
+
+    /*
+     * Allocating an extra empty space at the end of the new argv just to replicate the system argv
+     * implementation.
+     */
+    opts->nargv[index++] = dstrdup("");
 
     if (opts->tiered_storage_source == NULL)
         opts->tiered_storage_source = dstrdup(DIR_STORE);
