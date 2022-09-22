@@ -424,7 +424,7 @@ __posix_file_read(
         chunk = WT_MIN(len, WT_GIGABYTE);
 #ifdef RHEL_PPC
         if ((nr = pread(pfh->fd, addr, chunk, offset)) <= 0) {
-            /* Try again ask RHEL PPC often has failures that can occur on read ops. */
+            /* Try again as the RHEL PPC VMs we use often have false failures that occur on pread. */
             __wt_verbose(session, WT_VERB_READ,
                   "%s: handle-read: pread: failed to read %" WT_SIZET_FMT " bytes at offset %" PRIuMAX ", will retry",
                 file_handle->name, chunk, (uintmax_t)offset);
