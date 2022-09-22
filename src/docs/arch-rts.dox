@@ -20,8 +20,8 @@ applicable only during the restart phase)
 4. One of the checkpoint durable timestamps (start/stop) is greater than the rollback timestamp.
 5. There is no durable timestamp in any checkpoint.
 
-On the other hand, a table is skipped by RTS if it does not meet any of the previous criteria and
-one of the following:
+On the other hand, a table is skipped by RTS if it does not meet any of the previous criteria but
+does meet one of the following:
 
 1. It is empty
 2. It has timestamped updates but there is no stable timestamp set.
