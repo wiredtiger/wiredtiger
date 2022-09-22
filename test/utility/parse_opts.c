@@ -37,7 +37,7 @@ extern char *__wt_optarg; /* argument associated with option */
 static inline void
 parse_tiered_opts(int argc, char *const *argv, TEST_OPTS *opts)
 {
-    int index;
+    int index, i;
     int number_of_tiered_options;
 
     number_of_tiered_options = 0;
@@ -45,7 +45,7 @@ parse_tiered_opts(int argc, char *const *argv, TEST_OPTS *opts)
     opts->tiered_storage = false;
     opts->tiered_storage_source = NULL;
 
-    for (int i = 1; i < argc; i++) {
+    for (i = 1; i < argc; i++) {
         /* Tiered storage command line options starts with -P. */
         if (strstr(argv[i], "-P")) {
             /* Many more options to come here. */
@@ -74,10 +74,10 @@ parse_tiered_opts(int argc, char *const *argv, TEST_OPTS *opts)
     opts->nargc = argc - number_of_tiered_options;
 
     /* Allocate the memory for the new argv without tiered options. */
-    opts->nargv = dmalloc((((size_t)opts->nargc + 1) * sizeof(char *)));
+    opts->nargv = dmalloc(((size_t)opts->nargc + 1) * sizeof(char *));
 
     /* Copy other command line arguments except tiered. */
-    for (int i = 0; i < argc; ++i) {
+    for (i = 0; i < argc; ++i) {
         if (strcmp(argv[i], "-Po") == 0) {
             opts->tiered_storage_source = dstrdup(argv[i + 1]);
             /* Move the index because this option has an argument. */
@@ -88,6 +88,7 @@ parse_tiered_opts(int argc, char *const *argv, TEST_OPTS *opts)
             opts->nargv[index++] = dstrdup(argv[i]);
     }
 
+    testutil_assert(index == opts->nargc);
     /*
      * Allocating an extra empty space at the end of the new argv just to replicate the system argv
      * implementation.
