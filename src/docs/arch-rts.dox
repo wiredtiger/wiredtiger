@@ -60,7 +60,8 @@ RTS doesn't load pages that don't have unstable updates that need to be removed.
 by comparing the time aggregated values with the stable timestamp or the recovery checkpoint
 snapshot during the tree walk.
 
-@section rts-examples Examples
+@section rts-example-1 Example 1
+
 
 In the following scenario, there are 3 updates on the update list, an on-disk value, the history
 store is empty and the stable timestamp is 10:
@@ -78,6 +79,8 @@ On-disk: U1 (10)\n
 History store: Empty\n
 Stable timestamp: 10\n\n
 
+@section rts-example-2 Example 2
+
 Let's consider a scenario where the history store is not empty:
 
 Update list: U5(50) -> U4 (40)\n
@@ -91,7 +94,9 @@ latest stable update from the history store to the update list:
 Update list: U2 (20) -> U5 (50) Aborted -> U4 (40) Aborted\n
 On-disk: U2 (20)\n
 History store: U1 (10)\n
-Stable timestamp: 20\n
+Stable timestamp: 20\n\n
+
+@section rts-example-3 Example 3
 
 The last scenario covers the situation when the on-disk update is restored into the update list
 because the stop time pair exists and it is not stable:
