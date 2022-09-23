@@ -762,7 +762,7 @@ dir_store_flush_finish(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
         goto err;
     }
     /* Set the file to readonly in the cache. */
-    if (ret == 0 && (ret = chmod(dest_path, 0444)) < 0)
+    if ((ret = chmod(dest_path, 0444)) < 0)
         ret =
           dir_store_err(dir_store, session, errno, "%s: ss_flush_finish chmod failed", dest_path);
 err:
