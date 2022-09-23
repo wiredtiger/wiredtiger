@@ -77,7 +77,7 @@ replaced the most recent stable update after reconciliation:
 Update list: U3 (30) Aborted -> U2 (20) Aborted -> U1(10)\n
 On-disk: U1 (10)\n
 History store: Empty\n
-Stable timestamp: 10\n\n
+Stable timestamp: 10
 
 @section rts-example-2 Example 2
 
@@ -94,7 +94,7 @@ latest stable update from the history store to the update list:
 Update list: U2 (20) -> U5 (50) Aborted -> U4 (40) Aborted\n
 On-disk: U2 (20)\n
 History store: U1 (10)\n
-Stable timestamp: 20\n\n
+Stable timestamp: 20
 
 @section rts-example-3 Example 3
 
@@ -111,5 +111,5 @@ After RTS, we end up with the following state:
 Update list: U3 (30)\n
 On-disk: U3 (30)\n
 History store: U2 (20) -> U1 (10)\n
-Stable timestamp: 30\n\n
+Stable timestamp: 30
 */
