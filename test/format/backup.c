@@ -464,49 +464,34 @@ save_backup_info(ACTIVE_FILES *active, uint64_t id)
 static void
 copy_format_files(WT_SESSION *session)
 {
-    size_t dest_len, file_len;
+    size_t file_len;
     u_int i;
-    char *dest, *filename;
+    char *filename;
     bool exist;
 
     /* Copy over the CONFIG file. */
-    dest_len = strlen("BACKUP.copy") + strlen("CONFIG") + 10;
-    dest = dmalloc(dest_len);
     testutil_check(__wt_fs_exist((WT_SESSION_IMPL *)session, "CONFIG", &exist));
-    if (exist) {
-        testutil_check(__wt_snprintf(dest, dest_len, "BACKUP.copy/%s", "CONFIG"));
-        testutil_check(__wt_copy_and_sync(session, "CONFIG", dest));
-    }
-    free(dest);
+    if (exist)
+        testutil_copy_file(session, "CONFIG");
 
     /* Copy over any CONFIG.keylen* files if they exist. */
     if (ntables == 0) {
-        dest_len = strlen("BACKUP.copy") + strlen("CONFIG.keylen") + 10;
-        dest = dmalloc(dest_len);
-
         testutil_check(__wt_fs_exist((WT_SESSION_IMPL *)session, "CONFIG.keylen", &exist));
-        if (exist) {
-            testutil_check(__wt_snprintf(dest, dest_len, "BACKUP.copy/%s", "CONFIG.keylen"));
-            testutil_check(__wt_copy_and_sync(session, "CONFIG.keylen", dest));
-        }
+        if (exist)
+            testutil_copy_file(session, "CONFIG.keylen");
     } else {
         /* Generate the destination path and the name of the file to be copied. */
-        dest_len = strlen("BACKUP.copy") + strlen("CONFIG.keylen.") + 10;
-        dest = dmalloc(dest_len);
         file_len = strlen("CONFIG.keylen.") + 10;
         filename = dmalloc(file_len);
 
         for (i = 1; i <= ntables; ++i) {
             testutil_check(__wt_snprintf(filename, file_len, "CONFIG.keylen.%u", i));
             testutil_check(__wt_fs_exist((WT_SESSION_IMPL *)session, filename, &exist));
-            if (exist) {
-                testutil_check(__wt_snprintf(dest, dest_len, "BACKUP.copy/%s", filename));
-                testutil_check(__wt_copy_and_sync(session, filename, dest));
-            }
+            if (exist)
+                testutil_copy_file(session, filename);
         }
         free(filename);
     }
-    free(dest);
 }
 
 /*
@@ -632,6 +617,12 @@ backup(void *arg)
         /* If we're taking a full backup, create the backup directories. */
         if (full || incremental == 0) {
             testutil_create_backup_directory(g.home);
+
+            /*
+             * Copy format-specific files into the backup directories so that test/format can be run on
+             * the BACKUP.copy database for verification. These include CONFIG and any CONFIG.keylen* files.
+             */
+            copy_format_files(session);
         }
 
         /*
@@ -708,12 +699,6 @@ backup(void *arg)
 
     if (incremental != 0)
         check_copy();
-
-    /*
-     * Copy format-specific files into the BACKUP.copy directory so that test/format can be run on
-     * the BACKUP.copy database for verification. These include CONFIG and any CONFIG.keylen* files.
-     */
-    copy_format_files(session);
 
     active_files_free(&active[0]);
     active_files_free(&active[1]);
