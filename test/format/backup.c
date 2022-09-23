@@ -619,8 +619,9 @@ backup(void *arg)
             testutil_create_backup_directory(g.home);
 
             /*
-             * Copy format-specific files into the backup directories so that test/format can be run on
-             * the BACKUP.copy database for verification. These include CONFIG and any CONFIG.keylen* files.
+             * Copy format-specific files into the backup directories so that test/format can be run
+             * on the BACKUP.copy database for verification. These include CONFIG and any
+             * CONFIG.keylen* files.
              */
             copy_format_files(session);
         }
