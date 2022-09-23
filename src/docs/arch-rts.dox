@@ -17,7 +17,7 @@ it meets one of the following conditions:
 2. It has prepared updates.
 3. It has updates from transactions greater than the recovery checkpoint snapshot (this is
 applicable only during the restart phase)
-4. One of the checkpoint durable timestamps (start/stop) is greater than the rollback timestamp.
+4. One of the checkpoint durable timestamps (start/stop) is greater than the stable timestamp.
 5. There is no durable timestamp in any checkpoint.
 
 On the other hand, a table is skipped by RTS if it does not meet any of the previous criteria but
