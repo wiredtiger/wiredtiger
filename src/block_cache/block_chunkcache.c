@@ -42,7 +42,7 @@ __chunkcache_alloc_chunk(
 
     *chunk = NULL;
 
-    if (__wt_calloc_one(session, WT_CHUNKCACHE_CHUNK, &newchunk) != 0)
+    if (__wt_calloc(session, 1, sizeof(WT_CHUNKCACHE_CHUNK), &newchunk) != 0)
         return (WT_ERROR);
 
     newchunk->chunk_size = size;
@@ -60,7 +60,7 @@ static uint32_t
 __chunkcache_admit_size(void)
 {
 #define WT_DEFAULT_CHUNKSIZE 1024*1024*1024
-    return (WT_DEFAULT_CHUNK_SIZE);
+    return (WT_DEFAULT_CHUNKSIZE);
 }
 
 /*
@@ -70,7 +70,7 @@ __chunkcache_admit_size(void)
  *     and cache a larger chunk of data than what the upper layer asked for.
  */
 void
-__wt_chunkcache_check(WT_SESSION_IMPL session, WT_BLOCK *block, uint32_t objectid, wt_off_t offset,
+__wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid, wt_off_t offset,
   uint32_t size, WT_CHUNKCACHE_CHUNK **chunk_to_read, bool *chunkcache_has_data, void *dst)
 {
     WT_CHUNKCACHE *chunkcache;
@@ -81,7 +81,7 @@ __wt_chunkcache_check(WT_SESSION_IMPL session, WT_BLOCK *block, uint32_t objecti
     uint64_t hash;
     uint32_t newchunk_size;
 
-    chunkcache = S2C(session)->chunkcache;
+    chunkcache = &S2C(session)->chunkcache;
     *chunk_to_read = NULL;
     *chunkcache_has_data = false;
 
@@ -134,7 +134,7 @@ __wt_chunkcache_check(WT_SESSION_IMPL session, WT_BLOCK *block, uint32_t objecti
      */
     if ((newchunk_size = __chunkcache_admit_size()) > 0 &&
       __chunkcache_alloc_chunk(session, &newchunk, offset, newchunk_size) == 0) {
-        if (__wt_calloc_one(session, WT_CHUNKCACHE_CHAIN, &newchain) != 0) {
+        if (__wt_calloc(session, 1, sizeof(WT_CHUNKCACHE_CHAIN), &newchain) != 0) {
             __chunkcache_free_chunk(session, newchunk);
             goto done;
         }

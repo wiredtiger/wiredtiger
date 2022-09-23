@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -430,6 +430,7 @@ typedef uint64_t wt_timestamp_t;
 #include "api.h"
 #include "block.h"
 #include "block_cache.h"
+#include "block_chunkcache.h"
 #include "bloom.h"
 #include "btmem.h"
 #include "btree.h"

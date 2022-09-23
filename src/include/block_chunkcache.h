@@ -66,8 +66,8 @@ struct __wt_chunkcache {
  *     The upper layer calls this function once it has completed the read for the chunk. At this
  *     point we mark the chunk as valid. The chunk cannot be accessed before it is set to valid.
  */
-inline void
-__wt_chunkcache_complete_read(WT_SESSION_IMPL session, WT_CHUNKCACHE_CHUNK *chunk)
+static inline void
+__wt_chunkcache_complete_read(WT_CHUNKCACHE_CHUNK *chunk)
 {
     /* Atomically mark the chunk as valid */
     (void)__wt_atomic_addv32(&chunk->valid, 1);

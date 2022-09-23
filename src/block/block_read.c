@@ -156,9 +156,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
     WT_BLOCK_HEADER *blk, swap;
     WT_CHUNKCACHE_CHUNK *chunkptr;
     size_t bufsize;
-    uint32_t chunksize;
     bool chunkcache_has_data;
-    void *chunk_location;
 
     __wt_verbose(session, WT_VERB_READ, "off %" PRIuMAX ", size %" PRIu32 ", checksum %#" PRIx32,
       (uintmax_t)offset, size, checksum);
@@ -204,8 +202,8 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
     __wt_chunkcache_check(
       session, block, objectid, offset, size, &chunkptr, &chunkcache_has_data, buf->mem);
     if (chunkptr != NULL &&
-      __wt_read(session, block->fh, offset, chunkptr->chunksize, chunkptr->chunk_location) == 0) {
-        __wt_chunkcache_complete_read(session, chunkptr);
+      __wt_read(session, block->fh, offset, chunkptr->chunk_size, chunkptr->chunk_location) == 0) {
+        __wt_chunkcache_complete_read(chunkptr);
         memcpy((void *)buf->mem, chunkptr->chunk_location, size);
         chunkcache_has_data = true;
     }
