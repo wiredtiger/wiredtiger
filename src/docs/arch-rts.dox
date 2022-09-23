@@ -62,7 +62,6 @@ snapshot during the tree walk.
 
 @section rts-example-1 Example 1
 
-
 In the following scenario, there are 3 updates on the update list, an on-disk value, the history
 store is empty and the stable timestamp is 10:
 
