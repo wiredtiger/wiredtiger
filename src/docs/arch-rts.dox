@@ -92,4 +92,18 @@ On-disk: U2 (20)\n
 History store: U1 (10)\n
 Stable timestamp: 20\n
 
+The last scenario covers the situation when the on-disk update is restored into the update list
+because the stop time pair exists and it is not stable:
+
+Update list: Empty\n
+On-disk: U3 (30) with a stop timestamp (40)\n
+History store: U2 (20) -> U1 (10)\n
+Stable timestamp: 30\n\n
+
+After RTS, we end up with the following state:
+
+Update list: U3 (30)\n
+On-disk: U3 (30)\n
+History store: U2 (20) -> U1 (10)\n
+Stable timestamp: 30\n\n
 */
