@@ -2027,14 +2027,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
         if (__wt_cache_aggressive(session))
             goto fast;
 
-        /*
-         * If the global transaction state hasn't changed since the last time we tried eviction,
-         * it's unlikely we can make progress. Similarly, if the most recent update on the page is
-         * not yet globally visible, eviction will fail. This heuristic avoids repeated attempts to
-         * evict the same page.
-         */
-        if (!__wt_page_evict_retry(session, page) ||
-          (modified && page->modify->update_txn >= conn->txn_global.last_running))
+        if (!__wt_page_evict_retry(session, page))
             continue;
 
 fast:
@@ -2473,6 +2466,7 @@ err:
         session->cache_wait_us += elapsed;
         if (cache_max_wait_us != 0 && session->cache_wait_us > cache_max_wait_us) {
             WT_TRET(__wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW));
+            // WT_ASSERT(session, cache->evict_aggressive_score > 0);
             --cache->evict_aggressive_score;
             WT_STAT_CONN_INCR(session, cache_timed_out_ops);
             __wt_verbose_notice(session, WT_VERB_TRANSACTION, "%s", session->txn->rollback_reason);

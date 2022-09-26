@@ -52,6 +52,7 @@ class test_txn24(wttest.WiredTigerTestCase):
                 eviction=(threads_max=4)'
 
     def test_snapshot_isolation_and_eviction(self):
+        self.rollbacks_allowed = 0
 
         # Create and populate a table.
         uri = "table:test_txn24"
