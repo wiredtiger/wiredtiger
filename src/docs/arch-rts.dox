@@ -52,7 +52,7 @@ tombstone to the key's update list and this key gets removed later during reconc
 For on-disk values, if the start time point is not stable and the update list does not contain any
 stable update, RTS searches the history store to find a stable update to replace the unstable on-disk version
 with. If the history store does not contain any stable update, the on-disk key is removed. If the
-stop time pair exists and it is not stable, the on-disk update is restored into the update list.
+stop time point exists and it is not stable, the on-disk update is restored into the update list.
 
 @section rts-page-skip Skipping reading unnecessary pages into memory
 
@@ -98,7 +98,7 @@ Stable timestamp: 20
 @section rts-example-3 Example 3
 
 The last scenario covers the situation when the on-disk update is restored into the update list
-because the stop time pair exists and it is not stable:
+because the stop time point exists and it is not stable:
 
 Update list: Empty\n
 On-disk: U3 (30) with a stop timestamp (40)\n
