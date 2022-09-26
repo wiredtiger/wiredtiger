@@ -31,6 +31,8 @@
 #include <map>
 #include <string>
 
+#include "session_simulator.h"
+
 /* Timestamp is a global singleton class responsible for validating the timestamps. */
 class timestamp_manager {
     /* Methods */
@@ -44,6 +46,7 @@ class timestamp_manager {
     public:
     int validate_oldest_and_stable_ts(uint64_t &, uint64_t &, bool &, bool &);
     int validate_durable_ts(const uint64_t &, const bool &) const;
+    int validate_read_timestamp(session_simulator *, const uint64_t) const;
 
     private:
     std::string trim(std::string);

@@ -31,10 +31,15 @@
 #include <cassert>
 #include <iostream>
 
+#include "connection_simulator.h"
 #include "error_simulator.h"
 #include "timestamp_manager.h"
 
-session_simulator::session_simulator() : _has_commit_ts(false), _txn_running(false) {}
+session_simulator::session_simulator()
+    : _commit_ts(0), _durable_ts(0), _first_commit_ts(0), _prepare_ts(0), _read_ts(0),
+      _has_commit_ts(false), _txn_running(false)
+{
+}
 
 void
 session_simulator::begin_transaction()
@@ -63,6 +68,36 @@ session_simulator::commit_transaction()
     _txn_running = false;
 }
 
+uint64_t
+session_simulator::get_commit_timestamp()
+{
+    return _commit_ts;
+}
+
+uint64_t
+session_simulator::get_durable_timestamp()
+{
+    return _durable_ts;
+}
+
+uint64_t
+session_simulator::get_prepare_timestamp()
+{
+    return _prepare_ts;
+}
+
+uint64_t
+session_simulator::get_read_timestamp()
+{
+    return _read_ts;
+}
+
+bool
+session_simulator::get_ts_round_read()
+{
+    return _ts_round_read;
+}
+
 void
 session_simulator::set_commit_timestamp(uint64_t ts)
 {
@@ -86,10 +121,24 @@ session_simulator::set_prepare_timestamp(uint64_t ts)
     _prepare_ts = ts;
 }
 
-void
-session_simulator::set_read_timestamp(uint64_t ts)
+int
+session_simulator::set_read_timestamp(uint64_t read_ts)
 {
-    _read_ts = ts;
+    timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
+    WT_SIM_RET(ts_manager->validate_read_timestamp(this, read_ts));
+
+    /*
+     * If the given timestamp is earlier than the oldest timestamp then round the read timestamp to
+     * oldest timestamp.
+     */
+    connection_simulator *conn = &connection_simulator::get_connection();
+    uint64_t oldest_ts = conn->get_oldest_ts();
+    if (_ts_round_read && read_ts < oldest_ts) {
+        _read_ts = oldest_ts;
+    } else
+        _read_ts = read_ts;
+
+    return (0);
 }
 
 int
@@ -107,7 +156,7 @@ session_simulator::timestamp_transaction_uint(const std::string &ts_type, uint64
     } else if (ts_type == "prepare") {
         set_prepare_timestamp(ts);
     } else if (ts_type == "read") {
-        set_read_timestamp(ts);
+        WT_SIM_RET(set_read_timestamp(ts));
     } else {
         WT_SIM_RET_MSG(
           EINVAL, "Invalid timestamp type (" + ts_type + ") passed to timestamp transaction uint.");
