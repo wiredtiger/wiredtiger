@@ -30,6 +30,7 @@
 
 #include <cassert>
 #include <iostream>
+#include <map>
 
 #include "error_simulator.h"
 #include "timestamp_manager.h"
@@ -93,22 +94,103 @@ session_simulator::set_read_timestamp(uint64_t ts)
 }
 
 int
+session_simulator::decode_timestamp_config_map(std::map<std::string, std::string> &config_map,
+  uint64_t &commit_ts, uint64_t &durable_ts, uint64_t &prepare_ts, uint64_t &read_ts)
+{
+    timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
+    auto pos = config_map.find("commit_timestamp");
+    if (pos != config_map.end()) {
+        commit_ts = ts_manager->hex_to_decimal(pos->second);
+        if (commit_ts == 0)
+            WT_SIM_RET_MSG(EINVAL, "Illegal commit timestamp: zero not permitted.");
+        config_map.erase(pos);
+    }
+
+    pos = config_map.find("durable_timestamp");
+    if (pos != config_map.end()) {
+        durable_ts = ts_manager->hex_to_decimal(pos->second);
+        if (durable_ts == 0)
+            WT_SIM_RET_MSG(EINVAL, "Illegal durable timestamp: zero not permitted.");
+        config_map.erase(pos);
+    }
+
+    pos = config_map.find("prepare_timestamp");
+    if (pos != config_map.end()) {
+        prepare_ts = ts_manager->hex_to_decimal(pos->second);
+        if (prepare_ts == 0)
+            WT_SIM_RET_MSG(EINVAL, "Illegal prepare timestamp: zero not permitted.");
+        config_map.erase(pos);
+    }
+
+    pos = config_map.find("read_timestamp");
+    if (pos != config_map.end()) {
+        read_ts = ts_manager->hex_to_decimal(pos->second);
+        if (read_ts == 0)
+            WT_SIM_RET_MSG(EINVAL, "Illegal read timestamp: zero not permitted.");
+        config_map.erase(pos);
+    }
+
+    return (config_map.empty() ? 0 : EINVAL);
+}
+
+int
+session_simulator::timestamp_transaction(const std::string &config)
+{
+    /* Make sure that the transaction from this session is running. */
+    assert(_txn_running);
+
+    /* If no timestamp was supplied, there's nothing to do. */
+    if (config.empty())
+        return (0);
+
+    timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
+    std::map<std::string, std::string> config_map;
+
+    ts_manager->parse_config(config, config_map);
+
+    uint64_t commit_ts = 0, durable_ts = 0, prepare_ts = 0, read_ts = 0;
+
+    /* Decode a configuration string that may contain multiple timestamps and store them here. */
+    WT_SIM_RET_MSG(
+      decode_timestamp_config_map(config_map, commit_ts, durable_ts, prepare_ts, read_ts),
+      "Incorrect config passed to 'timestamp_transaction': '" + config + "'");
+
+    /* Check if the timestamps were included in the configuration string and set them. */
+    if (commit_ts != 0)
+        set_commit_timestamp(commit_ts);
+
+    if (durable_ts != 0)
+        set_durable_timestamp(durable_ts);
+
+    if (prepare_ts != 0)
+        set_prepare_timestamp(prepare_ts);
+
+    if (read_ts != 0)
+        set_read_timestamp(read_ts);
+
+    return (0);
+}
+
+int
 session_simulator::timestamp_transaction_uint(const std::string &ts_type, uint64_t ts)
 {
+    /* Make sure that the transaction from this session is running. */
+    assert(_txn_running);
+
     /* Zero timestamp is not permitted. */
     if (ts == 0) {
         WT_SIM_RET_MSG(EINVAL, "Illegal " + std::to_string(ts) + " timestamp: zero not permitted.");
     }
 
-    if (ts_type == "commit") {
+    if (ts_type == "commit")
         set_commit_timestamp(ts);
-    } else if (ts_type == "durable") {
+    else if (ts_type == "durable")
         set_durable_timestamp(ts);
-    } else if (ts_type == "prepare") {
+    else if (ts_type == "prepare")
         set_prepare_timestamp(ts);
-    } else if (ts_type == "read") {
+    else if (ts_type == "read")
         set_read_timestamp(ts);
-    } else {
+    else {
         WT_SIM_RET_MSG(
           EINVAL, "Invalid timestamp type (" + ts_type + ") passed to timestamp transaction uint.");
     }
@@ -138,15 +220,15 @@ session_simulator::query_timestamp(
 
     ts_supported = true;
     uint64_t ts;
-    if (query_timestamp == "commit") {
+    if (query_timestamp == "commit")
         ts = _commit_ts;
-    } else if (query_timestamp == "first_commit") {
+    else if (query_timestamp == "first_commit")
         ts = _first_commit_ts;
-    } else if (query_timestamp == "prepare") {
+    else if (query_timestamp == "prepare")
         ts = _prepare_ts;
-    } else if (query_timestamp == "read") {
+    else if (query_timestamp == "read")
         ts = _read_ts;
-    } else {
+    else {
         ts_supported = false;
         WT_SIM_RET_MSG(EINVAL, "Incorrect config (" + config + ") passed in query timestamp");
     }
