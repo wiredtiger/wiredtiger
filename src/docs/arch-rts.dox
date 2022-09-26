@@ -16,21 +16,21 @@ it meets one of the following conditions:
 1. It is modified.
 2. It has prepared updates.
 3. It has updates from transactions greater than the recovery checkpoint snapshot (this is
-applicable only during the restart phase)
+applicable only during the restart phase).
 4. One of the checkpoint durable timestamps (start/stop) is greater than the stable timestamp.
 
 On the other hand, a table is skipped by RTS if it does not meet any of the previous criteria but
 does meet one of the following:
 
-1. It is empty
+1. It is empty.
 2. It has timestamped updates but there is no stable timestamp set.
 3. The associated files are missing.
 4. The associated files are corrupted.
-5. It is dedicated to @ref arch-metadata "metadata"
+5. It is dedicated to @ref arch-metadata "metadata".
 6. It is a logged table. RTS is not necessary for those as their updates are stable when the
 transaction gets committed.
 7. It has no aggregated time window. It is worth noting that the tables with no aggregated time
-window are only created in versions older than MongoDB 4.4
+window are only created in versions older than MongoDB 4.4.
 
 For each selected table, its pages are read into the cache. The unstable in-memory updates and the
 unstable historical versions from the history store are removed. The unstable on-disk version is replaced by
