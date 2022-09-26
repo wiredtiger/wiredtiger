@@ -479,9 +479,6 @@ struct __wt_page_modify {
 #define WT_PM_REC_MULTIBLOCK 2 /* Reconciliation: multiple blocks */
 #define WT_PM_REC_REPLACE 3    /* Reconciliation: single block */
     uint8_t rec_result;        /* Reconciliation state */
-
-#define WT_PAGE_RS_RESTORED 0x1
-    uint8_t restore_state; /* Created by restoring updates */
 };
 
 /*

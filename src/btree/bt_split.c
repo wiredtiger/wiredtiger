@@ -1539,10 +1539,6 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     mod->rec_max_txn = orig->modify->rec_max_txn;
     mod->rec_max_timestamp = orig->modify->rec_max_timestamp;
 
-    /* Add the update/restore flag to any previous state. */
-    mod->restore_state = orig->modify->restore_state;
-    FLD_SET(mod->restore_state, WT_PAGE_RS_RESTORED);
-
 err:
     /* Free any resources that may have been cached in the cursor. */
     WT_TRET(__wt_btcur_close(&cbt, true));
