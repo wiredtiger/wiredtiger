@@ -1291,6 +1291,38 @@ err:
 }
 
 /*
+ * __wt_cursor_bounds_save --
+ *     Save cursor bounds to restore the state.
+ */
+void
+__wt_cursor_bounds_save(WT_CURSOR *cursor, WT_CURSOR_BOUNDS_STATE *state)
+{
+    WT_ITEM_SET(state->lower_bound, cursor->lower_bound);
+    WT_ITEM_SET(state->upper_bound, cursor->upper_bound);
+    state->flags = cursor->flags;
+}
+
+/*
+ * __wt_cursor_bounds_restore --
+ *     Restore the cursor's bounds state.
+ */
+void
+__wt_cursor_bounds_restore(WT_CURSOR *cursor, WT_CURSOR_BOUNDS_STATE *bounds_state)
+{
+    uint64_t mask;
+
+    mask = WT_CURSTD_BOUND_UPPER | WT_CURSTD_BOUND_UPPER_INCLUSIVE | WT_CURSTD_BOUND_LOWER |
+      WT_CURSTD_BOUND_LOWER_INCLUSIVE;
+
+    bounds_state->flags = cursor->flags & mask;
+    cursor->flags = (cursor->flags & ~mask) | (bounds_state->flags & mask);
+    WT_IGNORE_RET(__wt_buf_set((WT_SESSION_IMPL *)cursor->session, &cursor->lower_bound,
+      bounds_state->lower_bound.data, bounds_state->lower_bound.size));
+    WT_IGNORE_RET(__wt_buf_set((WT_SESSION_IMPL *)cursor->session, &cursor->upper_bound,
+      bounds_state->upper_bound.data, bounds_state->upper_bound.size));
+}
+
+/*
  * __wt_cursor_dup_position --
  *     Set a cursor to another cursor's position.
  */

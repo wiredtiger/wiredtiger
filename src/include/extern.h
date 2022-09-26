@@ -1755,6 +1755,8 @@ extern void __wt_conn_config_discard(WT_SESSION_IMPL *session);
 extern void __wt_conn_foc_discard(WT_SESSION_IMPL *session);
 extern void __wt_conn_stat_init(WT_SESSION_IMPL *session);
 extern void __wt_connection_destroy(WT_CONNECTION_IMPL *conn);
+extern void __wt_cursor_bounds_restore(WT_CURSOR *cursor, WT_CURSOR_BOUNDS_STATE *bounds_state);
+extern void __wt_cursor_bounds_save(WT_CURSOR *cursor, WT_CURSOR_BOUNDS_STATE *state);
 extern void __wt_cursor_close(WT_CURSOR *cursor);
 extern void __wt_cursor_get_hash(
   WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *to_dup, uint64_t *hash_value);

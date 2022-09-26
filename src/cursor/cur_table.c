@@ -30,13 +30,6 @@ typedef struct {
     int (*f)(WT_CURSOR *);
 } WT_CURSOR_EXTRACTOR;
 
-/* Cursor bounds state. */
-typedef struct {
-    WT_ITEM lower_bound;
-    WT_ITEM upper_bound;
-    uint64_t flags;
-} WT_CURSOR_BOUNDS_STATE;
-
 /*
  * __curextract_insert --
  *     Handle a key produced by a custom extractor.
@@ -812,30 +805,6 @@ err:
 }
 
 /*
- * __wt_cursor_bounds_save --
- *     Save cursor bounds to restore the state.
- */
-static inline void
-__wt_cursor_bounds_save(WT_CURSOR *cursor, WT_CURSOR_BOUNDS_STATE *state)
-{
-    WT_ITEM_SET(state->lower_bound, cursor->lower_bound);
-    WT_ITEM_SET(state->upper_bound, cursor->upper_bound);
-    state->flags = cursor->flags;
-}
-
-/*
- * __wt_cursor_bounds_restore --
- *     Restore the cursor's external state.
- */
-static inline void
-__wt_cursor_bounds_restore(WT_CURSOR *cursor, WT_CURSOR_BOUNDS_STATE *bounds_state)
-{
-    WT_ITEM_SET(cursor->lower_bound, bounds_state->lower_bound);
-    WT_ITEM_SET(cursor->upper_bound, bounds_state->upper_bound);
-    cursor->flags = bounds_state->flags;
-}
-
-/*
  * __curtable_largest_key --
  *     WT_CURSOR->largest_key method for the table cursor type.
  */
@@ -873,9 +842,8 @@ __curtable_bound(WT_CURSOR *cursor, const char *config)
     WT_CURSOR_TABLE *ctable;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    u_int i, j;
+    u_int i;
 
-    i = 0;
     ctable = (WT_CURSOR_TABLE *)cursor;
     primary = *ctable->cg_cursors;
     JOINABLE_CURSOR_API_CALL(cursor, session, bound, NULL);
@@ -888,8 +856,8 @@ __curtable_bound(WT_CURSOR *cursor, const char *config)
 err:
     /* If applying bounds fails on one colgroup, reset all of them for consistency. */
     if (ret != 0) {
-        for (j = 0, cp = ctable->cg_cursors; j <= i; j++, cp++)
-            (__wt_cursor_bounds_restore(*cp, &saved_bounds));
+        for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); i++, cp++)
+            __wt_cursor_bounds_restore(*cp, &saved_bounds);
     }
     API_END_RET(session, ret);
 }
