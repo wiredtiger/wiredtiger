@@ -53,7 +53,8 @@ class test_cursor_bound17(bound_base):
 
     value_formats = [
         ('string', dict(value_format='S')),
-        ('fix', dict(value_format='8t')),
+        # FIXME-WT-9851: Enable once FLCS is supported.
+        # ('fix', dict(value_format='8t')),
         ('complex-string', dict(value_format='SS')),
     ]
 
