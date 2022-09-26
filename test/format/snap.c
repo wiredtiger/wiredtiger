@@ -391,7 +391,7 @@ snap_verify(TINFO *tinfo, SNAP_OPS *snap)
 
     /*
      * Hook into the WiredTiger library with a callback function. That allows us to dump information
-     * before any failing operation releases its underlying pages
+     * before any failing operation releases its underlying pages.
      */
     callback.snap = snap;
     callback.table = table;
