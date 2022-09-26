@@ -27,8 +27,7 @@ does meet one of the following:
 3. The associated files are missing.
 4. The associated files are corrupted.
 5. It is dedicated to @ref arch-metadata "metadata".
-6. It is a logged table. RTS is not necessary for those as their updates are stable when the
-transaction gets committed.
+6. It is a logged table. RTS is not necessary for tables with commit-level durability.
 7. It has no aggregated time window. It is worth noting that the tables with no aggregated time
 window are only created in versions older than MongoDB 4.4.
 
