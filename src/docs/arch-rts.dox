@@ -33,7 +33,7 @@ transaction gets committed.
 window are only created in versions older than MongoDB 4.4
 
 For each selected table, its pages are read into the cache. The unstable in-memory updates and the
-unstable historical versions from the history store are removed. The on-disk version is replaced by
+unstable historical versions from the history store are removed. The unstable on-disk version is replaced by
 the latest stable in-memory update if any, otherwise by the latest stable version from the history
 store. If there is no stable in-memory updates and no stable version in the history store, the data
 store entry is completely removed. In the situation where the table has no timestamped updates, all
@@ -49,8 +49,8 @@ For in-memory updates, RTS traverses all the updates defined in the update list 
 update until a stable is found. To remove any key from the table, RTS adds a globally visible
 tombstone to the key's update list and this key gets removed later during reconciliation.
 
-For on-disk values, if the start time pair is not stable and the update list does not contain any
-stable update, RTS searches the history store to find a stable update to replace the on-disk version
+For on-disk values, if the start time point is not stable and the update list does not contain any
+stable update, RTS searches the history store to find a stable update to replace the unstable on-disk version
 with. If the history store does not contain any stable update, the on-disk key is removed. If the
 stop time pair exists and it is not stable, the on-disk update is restored into the update list.
 
