@@ -49,81 +49,47 @@ class test_cursor_bound18(bound_base):
 
     value_formats = [
         ('string', dict(value_format='S')),
-        # FIXME-WT-9851: Enable once FLCS is supported.
-        # ('fix', dict(value_format='8t')),
         ('complex-string', dict(value_format='SS')),
     ]
 
     config = [
-        ('evict', dict(evict=True)),
-        ('no-evict', dict(evict=False))
+        ('inclusive-evict', dict(lower_inclusive=True,upper_inclusive=True,evict=True)),
+        ('no-inclusive-evict', dict(lower_inclusive=False,upper_inclusive=False,evict=True)),
+        ('inclusive-no-evict', dict(lower_inclusive=True,upper_inclusive=True,evict=False)),
+        ('no-inclusive-no-evict', dict(lower_inclusive=False,upper_inclusive=False,evict=False))
     ]
-    scenarios = make_scenarios(config, types, key_formats, value_formats)
 
-    def test_bound_checkpoint_or_rollback(self):
-        cursor = self.create_session_and_cursor()
+    direction = [
+        ('prev', dict(next=False)),
+        ('next', dict(next=True)),
+    ]
 
-        # Test bound api: Test that when checkpoint resets all cursors it doesn't clear the bounds 
-        # on all the cursors.
-        self.set_bounds(cursor, 30, "lower")
-        self.set_bounds(cursor, 60, "upper")
-        self.cursor_traversal_bound(cursor, 30, 60, True)
-        self.cursor_traversal_bound(cursor, 30, 60, False)
-        self.session.checkpoint()
-        self.cursor_traversal_bound(cursor, 30, 60, True)
-        self.cursor_traversal_bound(cursor, 30, 60, False)
-        cursor.reset()
+    scenarios = make_scenarios(key_formats, value_formats, config, direction)
 
-        # Test bound api: Test that when rollback resets all cursors it doesn't clear the bounds 
-        # on all the cursors.
-        self.session.begin_transaction()
-        self.set_bounds(cursor, 30, "lower")
-        self.set_bounds(cursor, 60, "upper")
-        self.cursor_traversal_bound(cursor, 30, 60, True)
-        self.cursor_traversal_bound(cursor, 30, 60, False)
-        self.session.rollback_transaction()
-        self.cursor_traversal_bound(cursor, 30, 60, True)
-        self.cursor_traversal_bound(cursor, 30, 60, False)
-        cursor.reset()
+    def test_bound_api(self):
+        cursor = self.create_session_and_cursor()                                                                                                                                                                                                                                        
 
-        # Test bound api: Test that when commit resets all cursors it doesn't clear the bounds 
-        # on all the cursors.
-        self.session.begin_transaction()
-        self.set_bounds(cursor, 30, "lower")
-        self.set_bounds(cursor, 60, "upper")
-        self.cursor_traversal_bound(cursor, 30, 60, True)
-        self.cursor_traversal_bound(cursor, 30, 60, False)
-        self.session.commit_transaction()
-        self.cursor_traversal_bound(cursor, 30, 60, True)
-        self.cursor_traversal_bound(cursor, 30, 60, False)
-        cursor.reset()
+        # Test default bound api with column groups.
+        self.assertEqual(self.set_bounds(cursor, 40, "lower"), 0) 
+        self.assertEqual(self.set_bounds(cursor, 90, "upper"), 0)
 
-        # Test bound api: Test that when reconfigure resets all cursors it doesn't clear the bounds 
-        # on all the cursors.
-        self.set_bounds(cursor, 30, "lower")
-        self.set_bounds(cursor, 60, "upper")
-        self.cursor_traversal_bound(cursor, 30, 60, True)
-        self.cursor_traversal_bound(cursor, 30, 60, False)
-        self.session.reconfigure("cache_cursors=false")
-        self.cursor_traversal_bound(cursor, 30, 60, True)
-        self.cursor_traversal_bound(cursor, 30, 60, False)
-        cursor.reset()
+        # Test that original bounds persist even if setting one bound fails. 
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.set_bounds(cursor, 30, "upper"), '/Invalid argument/')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.set_bounds(cursor, 95, "lower"), '/Invalid argument/')
 
-        # Test bound api: Test that when session reset api resets all cursors it doesn't clear the
-        # bounds on all the cursors.
-        self.set_bounds(cursor, 30, "lower")
-        self.set_bounds(cursor, 60, "upper")
-        self.cursor_traversal_bound(cursor, 30, 60, True)
-        self.cursor_traversal_bound(cursor, 30, 60, False)
-        self.session.reset()
-        self.cursor_traversal_bound(cursor, 30, 60, True)
-        self.cursor_traversal_bound(cursor, 30, 60, False)
-        cursor.reset()
+        self.assertEqual(self.set_bounds(cursor, 50, "lower"), 0) 
+        self.assertEqual(self.set_bounds(cursor, 80, "upper"), 0)
+        self.cursor_traversal_bound(cursor, 50, 80, None)
 
-        self.cursor_traversal_bound(cursor, None, None, True)
-        self.cursor_traversal_bound(cursor, None, None, False)
-        cursor.close()
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.set_bounds(cursor, 40, "upper"), '/Invalid argument/')
+        cursor.set_key(self.gen_key(50))
+        self.cursor_traversal_bound(cursor, 50, 90, None)
 
+        self.assertEqual(self.set_bounds(cursor, 70, "upper"), 0) 
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.set_bounds(cursor, 80, "lower"), '/Invalid argument/')
+        self.cursor_traversal_bound(cursor, 50, 70, None)
 
-if __name__ == '__main__':
-    wttest.run()
+        #Test successful setting of both bounds.
+        self.assertEqual(self.set_bounds(cursor, 50, "lower"), 0) 
+        self.assertEqual(self.set_bounds(cursor, 70, "upper"), 0) 
+        self.cursor_traversal_bound(cursor, 50, 70, None)
