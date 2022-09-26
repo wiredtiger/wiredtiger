@@ -209,12 +209,12 @@ class test_checkpoint_target(wttest.WiredTigerTestCase):
     ])
 
     def update(self, uri, ds, value):
-        cursor = self.session.open_cursor(uri, None, "overwrite")
+        cursor = ds.open_cursor(uri, None, "overwrite")
         cursor[ds.key(10)] = value
         cursor.close()
 
     def check(self, uri, ds, value):
-        cursor = self.session.open_cursor(uri, None, "checkpoint=checkpoint-1")
+        cursor = ds.open_cursor(uri, None, "checkpoint=checkpoint-1")
         self.assertEquals(cursor[ds.key(10)], value)
         cursor.close()
 
