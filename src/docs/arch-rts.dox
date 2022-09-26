@@ -29,7 +29,7 @@ does meet one of the following:
 5. It is dedicated to @ref arch-metadata "metadata"
 6. It is a logged table. RTS is not necessary for those as their updates are stable when the
 transaction gets committed.
-7. It has no aggregated time window. It is worth noting that the tables with no aggregate time
+7. It has no aggregated time window. It is worth noting that the tables with no aggregated time
 window are only created in versions older than MongoDB 4.4
 
 For each selected table, its pages are read into the cache. The unstable in-memory updates and the
@@ -47,7 +47,7 @@ noting that it cannot run if there is any transaction activity happening in Wire
 
 For in-memory updates, RTS traverses all the updates defined in the update list and aborts every
 update until a stable is found. To remove any key from the table, RTS adds a globally visible
-tombstone to the key update list and this key gets removed later during reconciliation.
+tombstone to the key's update list and this key gets removed later during reconciliation.
 
 For on-disk values, if the start time pair is not stable and the update list does not contain any
 stable update, RTS searches the history store to find a stable update to replace the on-disk version
