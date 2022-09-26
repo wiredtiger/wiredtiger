@@ -316,7 +316,7 @@ struct __wt_page_modify {
     /* The first unwritten transaction ID (approximate). */
     uint64_t first_dirty_txn;
 
-    /* The transaction state last time eviction was attempted. */
+    /* The eviction pass generation last time eviction was attempted. */
     uint64_t last_evict_pass_gen;
 
 #ifdef HAVE_DIAGNOSTIC
