@@ -123,23 +123,21 @@ static void
 __reconcile_save_evict_state(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 {
     WT_PAGE_MODIFY *mod;
+#ifdef HAVE_DIAGNOSTIC
     uint64_t oldest_id;
+#endif
 
     mod = ref->page->modify;
-    oldest_id = __wt_txn_oldest_id(session);
 
     /*
-     * During eviction, save the transaction state that causes history to be pinned, regardless of
-     * whether reconciliation succeeds or fails. There is usually no point retrying eviction until
-     * this state changes.
+     * During eviction, save the eviction pass generation to avoid frequently queuing the same page
+     * for eviction.
      */
-    if (LF_ISSET(WT_REC_EVICT)) {
-        mod->last_eviction_id = oldest_id;
-        __wt_txn_pinned_timestamp(session, &mod->last_eviction_timestamp);
+    if (LF_ISSET(WT_REC_EVICT))
         mod->last_evict_pass_gen = S2C(session)->cache->evict_pass_gen;
-    }
 
 #ifdef HAVE_DIAGNOSTIC
+    oldest_id = __wt_txn_oldest_id(session);
     /*
      * Check that transaction time always moves forward for a given page. If this check fails,
      * reconciliation can free something that a future reconciliation will need.

@@ -318,8 +318,6 @@ struct __wt_page_modify {
 
     /* The transaction state last time eviction was attempted. */
     uint64_t last_evict_pass_gen;
-    uint64_t last_eviction_id;
-    wt_timestamp_t last_eviction_timestamp;
 
 #ifdef HAVE_DIAGNOSTIC
     /* Check that transaction time moves forward. */

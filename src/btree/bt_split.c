@@ -1536,8 +1536,6 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * page.
      */
     mod->last_evict_pass_gen = orig->modify->last_evict_pass_gen;
-    mod->last_eviction_id = orig->modify->last_eviction_id;
-    mod->last_eviction_timestamp = orig->modify->last_eviction_timestamp;
     mod->rec_max_txn = orig->modify->rec_max_txn;
     mod->rec_max_timestamp = orig->modify->rec_max_timestamp;
 
