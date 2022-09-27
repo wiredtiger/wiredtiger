@@ -219,6 +219,7 @@ class test_checkpoint_target(wttest.WiredTigerTestCase):
         cursor.close()
 
     # FIXME-WT-9902
+    @wttest.skip_for_hook("tiered", "strange interaction with tiered and named checkpoints using target")
     @wttest.skip_for_hook("timestamp", "strange interaction with timestamps and named checkpoints using target")
     def test_checkpoint_target(self):
         # Create 3 objects, change one record to an easily recognizable string.
