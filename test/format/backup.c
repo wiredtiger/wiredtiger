@@ -467,28 +467,20 @@ copy_format_files(WT_SESSION *session)
     size_t file_len;
     u_int i;
     char *filename;
-    bool exist;
 
-    /* Copy over the CONFIG file. */
-    testutil_check(__wt_fs_exist((WT_SESSION_IMPL *)session, "CONFIG", &exist));
-    if (exist)
-        testutil_copy_file(session, "CONFIG");
+    /* The CONFIG file should always exist, copy it over. */
+    testutil_copy_file(session, "CONFIG");
 
     /* Copy over any CONFIG.keylen* files if they exist. */
-    if (ntables == 0) {
-        testutil_check(__wt_fs_exist((WT_SESSION_IMPL *)session, "CONFIG.keylen", &exist));
-        if (exist)
-            testutil_copy_file(session, "CONFIG.keylen");
-    } else {
-        /* Generate the destination path and the name of the file to be copied. */
+    if (ntables == 0)
+        testutil_copy_if_exists(session, "CONFIG.keylen");
+    else {
         file_len = strlen("CONFIG.keylen.") + 10;
         filename = dmalloc(file_len);
 
         for (i = 1; i <= ntables; ++i) {
             testutil_check(__wt_snprintf(filename, file_len, "CONFIG.keylen.%u", i));
-            testutil_check(__wt_fs_exist((WT_SESSION_IMPL *)session, filename, &exist));
-            if (exist)
-                testutil_copy_file(session, filename);
+            testutil_copy_if_exists(session, filename);
         }
         free(filename);
     }
