@@ -811,7 +811,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
                 if (F_ISSET(cursor, WT_CURSTD_KEY_ONLY))
                     valid = true;
                 else
-                    WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid, true));
+                    WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid, false));
             }
         } else {
             WT_ERR(__cursor_col_search(cbt, cbt->ref, &leaf_found));
@@ -819,7 +819,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
                 if (F_ISSET(cursor, WT_CURSTD_KEY_ONLY))
                     valid = true;
                 else
-                    WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid, true));
+                    WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid, false));
             }
         }
     }
@@ -832,7 +832,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
                 if (F_ISSET(cursor, WT_CURSTD_KEY_ONLY))
                     valid = true;
                 else
-                    WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid, true));
+                    WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid, false));
             }
         } else {
             WT_ERR(__cursor_col_search(cbt, NULL, NULL));
@@ -840,7 +840,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
                 if (F_ISSET(cursor, WT_CURSTD_KEY_ONLY))
                     valid = true;
                 else
-                    WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid, true));
+                    WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid, false));
             }
         }
     }
@@ -1168,7 +1168,7 @@ retry:
          * If not overwriting, fail if the key exists, else insert the key/value pair.
          */
         if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE) && cbt->compare == 0) {
-            WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid, true));
+            WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid, false));
             if (valid)
                 goto duplicate;
         }
@@ -1199,7 +1199,7 @@ retry:
                  * Even so, we still have to call the cursor validity check function so we return
                  * the found value for any duplicate key, and for FLCS we need to set 0 explicitly.
                  */
-                WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid, true));
+                WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid, false));
                 if (valid)
                     goto duplicate;
                 if (btree->type == BTREE_COL_FIX) {
@@ -1604,7 +1604,7 @@ retry:
             WT_ERR(__curfile_update_check(cbt));
             if (cbt->compare == 0) {
                 WT_WITH_UPDATE_VALUE_SKIP_BUF(
-                  ret = __wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid, true));
+                  ret = __wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid, false));
                 WT_ERR(ret);
                 if (!valid)
                     WT_ERR(WT_NOTFOUND);
@@ -1630,7 +1630,7 @@ retry:
                  */
                 if (btree->type != BTREE_COL_FIX) {
                     WT_WITH_UPDATE_VALUE_SKIP_BUF(
-                      ret = __wt_cursor_valid(cbt, NULL, cbt->recno, &valid, true));
+                      ret = __wt_cursor_valid(cbt, NULL, cbt->recno, &valid, false));
                     WT_ERR(ret);
                     if (!valid)
                         WT_ERR(WT_NOTFOUND);
@@ -2299,50 +2299,54 @@ __wt_btcur_bounds_position(
 
     if (CUR2BT(cursor)->type == BTREE_ROW) {
         WT_RET(__cursor_row_search(cbt, false, NULL, NULL));
-        if (!next) {
-            if (cbt->compare == 0) {
-                if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE))
-                    WT_RET(__wt_cursor_valid(
-                        cbt, cbt->tmp, WT_RECNO_OOB, &valid, false));
-                else
-                    *need_walkp = true;
-            } else if (cbt->compare > 0)
-                /* We landed to the right of the search key we need to walk at least once to be
-                 * within the bounded range.
-                 *
-                 * We can assume that we won't walk onto the upper bound as it should've been
-                 * returned by the cursor row search. Can we assert this?
-                 */
-                *need_walkp = true;
-            else
-                /* We landed to the left of the search key we still need to check if the lower bound
-                 * is being honoured.
-                 */
-                WT_RET(__wt_cursor_valid(cbt, (cbt->compare == 0 ? cbt->tmp : NULL), WT_RECNO_OOB, &valid, true));
-        } else {
+        if (cbt->compare == 0) {
             /*
-            * If there's an exact match, the row-store search function built the key in the cursor's
-            * temporary buffer.
-            */
-            if (cbt->compare == 0) {
-                /* We're on our search key, if we are inclusive then this is a valid position. */
-                if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE))
-                    WT_RET(__wt_cursor_valid(
-                        cbt, cbt->tmp, WT_RECNO_OOB, &valid, false));
-                else
-                    *need_walkp = true;
-            } else if (cbt->compare > 0)
-                /* We landed to the right of the search key. We need to check if the upper bound
-                * is still being respected, and if so call cursor_valid, for now just call
-                * cursor valid.
-                */
+             * If our compare value is 0 we found the exact key we were looking for, if the bound we
+             * are searching for is inclusive we can return it without walking.
+             */
+            if (F_ISSET(
+                  cursor, next ? WT_CURSTD_BOUND_LOWER_INCLUSIVE : WT_CURSTD_BOUND_UPPER_INCLUSIVE))
+                WT_RET(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid, false));
+            else
+                *need_walkp = true;
+        } else if (cbt->compare > 0) {
+            /* We landed to the right of search key. */
+            if (next)
+                /*
+                 * We need to check if the upper bound is being honored. We could optimize the call
+                 * to cursor valid and have it only check a single bound, but we would need to
+                 * indicate the bound and direction.
+                 */
                 WT_RET(__wt_cursor_valid(cbt, NULL, WT_RECNO_OOB, &valid, true));
             else
-                /* We landed to the left of the search key, we know that this isn't a valid as
-                * we're doing a bound position call. Thus we should set need_walkp and continue. */
+                /*
+                 * We know that this isn't a valid as we're doing a bound position call on the upper
+                 * bound, indicate that we need to walk and exit.
+                 *
+                 * We are making the assumption that the actual key which the bound is equal to
+                 * doesn't exist as if it does we could in theory walk onto that. However if it did
+                 * exist we should've returned it in the cursor row search and thus have had a cbt
+                 * compare value of 0. Either way we check the assumption later with an assertion.
+                 */
                 *need_walkp = true;
+        } else {
+            /* We landed to the left of search key. */
+            if (next)
+                /*
+                 * We know that this isn't a valid as we're doing a bound position call on the lower
+                 * bound, indicate that we need to walk and exit.
+                 */
+                *need_walkp = true;
+            else
+                /*
+                 * We need to check if the lower bound is being honored. We could optimize the call
+                 * to cursor valid and have it only check a single bound, but we would need to
+                 * indicate the bound and direction.
+                 */
+                WT_RET(__wt_cursor_valid(cbt, NULL, WT_RECNO_OOB, &valid, true));
         }
     } else {
+        /* Column store bound comparisons are fast and don't require optimization. */
         WT_RET(__cursor_col_search(cbt, NULL, NULL));
         WT_RET(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid, true));
     }

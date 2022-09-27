@@ -894,6 +894,17 @@ err:
          */
         if (!F_ISSET(cbt, WT_CBT_ITERATE_RETRY_NEXT))
             ret = __wt_cursor_key_order_check(session, cbt, false);
+
+        if (need_walk) {
+            /*
+             * The bounds positioning code relies on the assumption that if we had to walk then we
+             * can't possibly have walked to the upper bound. We check that assumption here by
+             * comparing the upper bound with our current key or recno.
+             */
+            ret = __wt_compare_bounds(
+              session, cursor, &cbt->iface.key, cbt->recno, true, &key_out_of_bounds);
+            WT_ASSERT(session, ret == 0 && !key_out_of_bounds);
+        }
 #endif
         break;
     case WT_PREPARE_CONFLICT:
