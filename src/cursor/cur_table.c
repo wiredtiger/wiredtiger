@@ -857,7 +857,7 @@ err:
     /* If applying bounds fails on one colgroup, reset all of them for consistency. */
     if (ret != 0) {
         for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); i++, cp++)
-            __wt_cursor_bounds_restore(*cp, &saved_bounds);
+            WT_TRET(__wt_cursor_bounds_restore(session, *cp, &saved_bounds));
     }
     API_END_RET(session, ret);
 }
