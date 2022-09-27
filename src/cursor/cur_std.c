@@ -1306,7 +1306,7 @@ __wt_cursor_bounds_save(WT_CURSOR *cursor, WT_CURSOR_BOUNDS_STATE *state)
 /*
  * __wt_cursor_bounds_restore --
  *     Restore the cursor's bounds state. We want to change only related flags as we can't guarantee
- *     the initial flag state of the primary and secondary column groups are the same.
+ *     the initial flag state of the column group cursors are the same.
  */
 int
 __wt_cursor_bounds_restore(

@@ -848,13 +848,14 @@ __curtable_bound(WT_CURSOR *cursor, const char *config)
     primary = *ctable->cg_cursors;
     JOINABLE_CURSOR_API_CALL(cursor, session, bound, NULL);
 
+    /* Save the current state of the bounds in case we fail to apply the new state. */
     __wt_cursor_bounds_save(primary, &saved_bounds);
 
     /* Call bound function on all column groups. */
     for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); i++, cp++)
         WT_ERR((*cp)->bound(*cp, config));
 err:
-    /* If applying bounds fails on one colgroup, reset all of them for consistency. */
+    /* If applying bounds fails on one colgroup cursor, restore the previous state. */
     if (ret != 0) {
         for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); i++, cp++)
             WT_TRET(__wt_cursor_bounds_restore(session, *cp, &saved_bounds));
