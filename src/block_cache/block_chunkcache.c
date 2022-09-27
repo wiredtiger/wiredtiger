@@ -63,6 +63,13 @@ __chunkcache_admit_size(void)
     return (WT_DEFAULT_CHUNKSIZE);
 }
 
+static void
+__chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
+{
+    (void)session;
+    (void)chunk;
+}
+
 /*
  * __wt_chunkcache_check --
  *     Check if the chunk cache already has the data of size 'size' in the given block at the given
@@ -75,9 +82,10 @@ __wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object
 {
     WT_CHUNKCACHE *chunkcache;
     WT_CHUNKCACHE_BUCKET *bucket;
-    WT_CHUNKCACHE_CHAIN *newchain;
-    WT_CHUNKCACHE_CHUNK *newchunk;
+    WT_CHUNKCACHE_CHAIN *chunkchain, *newchain;
+    WT_CHUNKCACHE_CHUNK *chunk,*newchunk;
     WT_CHUNKCACHE_HASHID hash_id;
+    uint bucket_id;
     uint64_t hash;
     uint32_t newchunk_size;
 
@@ -89,18 +97,19 @@ __wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object
     hash_id.objectid = objectid;
     memcpy(&hash_id.objectname, block->name, WT_MIN(strlen(block->name), WT_CHUNKCACHE_NAMEMAX));
 
-    hash = __wt_hash_city64(hash_id, sizeof(hash_id));
-    bucket = chunkcache->hashtable[hash % chunkcache->hashtable_size];
+    hash = __wt_hash_city64((void*) &hash_id, sizeof(hash_id));
+    bucket_id = (uint)(hash % chunkcache->hashtable_size);
+    bucket = &chunkcache->hashtable[bucket_id];
 
-    __wt_spin_lock(session, &chunkcache->bucket_locks[bucket]);
-    TAILQ_FOREACH (chunkchain, bucket->chainq, next_link) {
-        if (memcmp(&chunkchain->hash_id, &hash_id, sizeof(hash_id) == 0)) {
+    __wt_spin_lock(session, &chunkcache->bucket_locks[bucket_id]);
+    TAILQ_FOREACH(chunkchain, bucket->chainq, next_link) {
+        if (memcmp(&chunkchain->hash_id, &hash_id, sizeof(hash_id)) == 0) {
             /* Found the chain of chunks corresponding to the given object. See if we have the
              * needed chunk. */
-            TAILQ_FOREACH (chunk, chunkchain->chunks, next_chunk) {
+            TAILQ_FOREACH(chunk, chunkchain->chunks, next_chunk) {
                 if (chunk->valid && chunk->chunk_offset <= offset &&
-                  (chunk->chunk_offset + chunk->chunk_size) >= (offset + size)) {
-                    memcpy(dst, chunk->chunk_location[offset - chunk->chunk_offset], size);
+                    (chunk->chunk_offset + (wt_off_t)chunk->chunk_size) >= (offset + (wt_off_t)size)) {
+                    memcpy(dst, chunk->chunk_location + (offset - chunk->chunk_offset), size);
                     *chunkcache_has_data = true;
                     /* Increment hit statistics. XXX */
                     goto done;

@@ -15,7 +15,7 @@
 
 struct __wt_chunkcache_hashid {
     char objectname[WT_CHUNKCACHE_NAMEMAX];
-    char objectid;
+    uint32_t objectid;
 };
 
 /*
@@ -26,7 +26,7 @@ struct __wt_chunkcache_chunk {
 
     wt_off_t chunk_offset;
     size_t chunk_size;
-    void *chunk_location;
+    char *chunk_location;
     uint32_t valid;
 };
 
@@ -57,7 +57,7 @@ struct __wt_chunkcache {
     /* Hashtable buckets. Locks are per bucket. */
     WT_CHUNKCACHE_BUCKET *hashtable;
     WT_SPINLOCK *bucket_locks;
-    int hashtable_size;
+    uint hashtable_size;
     int type;
 };
 
