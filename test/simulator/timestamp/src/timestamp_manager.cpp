@@ -206,7 +206,7 @@ timestamp_manager::validate_read_timestamp(session_simulator *session, const uin
 
     /* Read timestamps can't change once set. */
     if (session->get_read_timestamp() != 0) {
-        WT_SIM_RET_MSG(EINVAL, "A read_timestamp may only be set once per transaction.");
+        WT_SIM_RET_MSG(EINVAL, "A read_timestamp can only be set once per transaction.");
     }
 
     /*

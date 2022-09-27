@@ -37,8 +37,8 @@
 #include "timestamp_manager.h"
 
 session_simulator::session_simulator()
-    : _commit_ts(0), _durable_ts(0), _first_commit_ts(0), _prepare_ts(0), _read_ts(0),
-      _has_commit_ts(false), _ts_round_read(false), _txn_running(false)
+    : _has_commit_ts(false), _ts_round_read(false), _txn_running(false), _commit_ts(0),
+      _durable_ts(0), _first_commit_ts(0), _prepare_ts(0), _read_ts(0)
 {
 }
 
@@ -47,7 +47,6 @@ session_simulator::begin_transaction(const std::string &config)
 {
     /* Make sure that the transaction from this session isn't running. */
     assert(!_txn_running);
-    _ts_round_read = false;
 
     timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
     std::map<std::string, std::string> config_map;
@@ -56,6 +55,7 @@ session_simulator::begin_transaction(const std::string &config)
 
     /* Check if the read timestamp should be rounded up. */
     auto pos = config_map.find("roundup_timestamps");
+    _ts_round_read = false;
     if (pos != config_map.end() && pos->second.find("read=true")) {
         _ts_round_read = true;
         config_map.erase(pos);
@@ -95,25 +95,25 @@ session_simulator::commit_transaction()
 }
 
 uint64_t
-session_simulator::get_commit_timestamp()
+session_simulator::get_commit_timestamp() const
 {
     return _commit_ts;
 }
 
 uint64_t
-session_simulator::get_durable_timestamp()
+session_simulator::get_durable_timestamp() const
 {
     return _durable_ts;
 }
 
 uint64_t
-session_simulator::get_prepare_timestamp()
+session_simulator::get_prepare_timestamp() const
 {
     return _prepare_ts;
 }
 
 uint64_t
-session_simulator::get_read_timestamp()
+session_simulator::get_read_timestamp() const
 {
     return _read_ts;
 }

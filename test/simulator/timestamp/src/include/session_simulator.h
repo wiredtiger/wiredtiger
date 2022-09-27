@@ -43,10 +43,10 @@ class session_simulator {
       std::map<std::string, std::string> &, uint64_t &, uint64_t &, uint64_t &, uint64_t &);
     int timestamp_transaction(const std::string &);
     int timestamp_transaction_uint(const std::string &, uint64_t);
-    uint64_t get_commit_timestamp();
-    uint64_t get_durable_timestamp();
-    uint64_t get_prepare_timestamp();
-    uint64_t get_read_timestamp();
+    uint64_t get_commit_timestamp() const;
+    uint64_t get_durable_timestamp() const;
+    uint64_t get_prepare_timestamp() const;
+    uint64_t get_read_timestamp() const;
     bool get_ts_round_read();
     void set_commit_timestamp(uint64_t);
     void set_durable_timestamp(uint64_t);
