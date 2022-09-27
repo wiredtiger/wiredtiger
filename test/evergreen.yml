@@ -2958,7 +2958,7 @@ tasks:
       - func: "compile wiredtiger"
       - func: "format test script"
         vars:
-          format_test_script_args: -t 360 -v -c ../../../test/format/CONFIG.wt9715
+          format_test_script_args: -t 360 -c ../../../test/format/CONFIG.wt9715
 
   - name: wt-9715-test-1
     tags: ["WT-9715"]
@@ -2968,7 +2968,7 @@ tasks:
       - func: "compile wiredtiger"
       - func: "format test script"
         vars:
-          format_test_script_args: -t 360 -v -c ../../../test/format/CONFIG.wt9715
+          format_test_script_args: -t 360 -c ../../../test/format/CONFIG.wt9715
 
   - name: wt-9715-test-2
     tags: ["WT-9715"]
@@ -2978,7 +2978,7 @@ tasks:
       - func: "compile wiredtiger"
       - func: "format test script"
         vars:
-          format_test_script_args: -t 360 -v -c ../../../test/format/CONFIG.wt9715
+          format_test_script_args: -t 360 -c ../../../test/format/CONFIG.wt9715
 
   - name: wt-9715-test-3
     tags: ["WT-9715"]
@@ -2988,7 +2988,7 @@ tasks:
       - func: "compile wiredtiger"
       - func: "format test script"
         vars:
-          format_test_script_args: -t 360 -v -c ../../../test/format/CONFIG.wt9715
+          format_test_script_args: -t 360 -c ../../../test/format/CONFIG.wt9715
 
   - name: wt-9715-test-4
     tags: ["WT-9715"]
@@ -2998,7 +2998,7 @@ tasks:
       - func: "compile wiredtiger"
       - func: "format test script"
         vars:
-          format_test_script_args: -t 360 -v -c ../../../test/format/CONFIG.wt9715
+          format_test_script_args: -t 360 -c ../../../test/format/CONFIG.wt9715
 
   - name: wt-9715-test-5
     tags: ["WT-9715"]
@@ -3008,7 +3008,7 @@ tasks:
       - func: "compile wiredtiger"
       - func: "format test script"
         vars:
-          format_test_script_args: -t 360 -v -c ../../../test/format/CONFIG.wt9715
+          format_test_script_args: -t 360 -c ../../../test/format/CONFIG.wt9715
 
   - name: wt-9715-test-6
     tags: ["WT-9715"]
@@ -3018,7 +3018,7 @@ tasks:
       - func: "compile wiredtiger"
       - func: "format test script"
         vars:
-          format_test_script_args: -t 360 -v -c ../../../test/format/CONFIG.wt9715
+          format_test_script_args: -t 360 -c ../../../test/format/CONFIG.wt9715
 
   - name: wt-9715-test-7
     tags: ["WT-9715"]
@@ -3028,7 +3028,7 @@ tasks:
       - func: "compile wiredtiger"
       - func: "format test script"
         vars:
-          format_test_script_args: -t 360 -v -c ../../../test/format/CONFIG.wt9715
+          format_test_script_args: -t 360 -c ../../../test/format/CONFIG.wt9715
 
   - name: wt-9715-test-8
     tags: ["WT-9715"]
@@ -3038,7 +3038,7 @@ tasks:
       - func: "compile wiredtiger"
       - func: "format test script"
         vars:
-          format_test_script_args: -t 360 -v -c ../../../test/format/CONFIG.wt9715
+          format_test_script_args: -t 360 -c ../../../test/format/CONFIG.wt9715
 
   - name: wt-9715-test-9
     tags: ["WT-9715"]
@@ -3048,7 +3048,7 @@ tasks:
       - func: "compile wiredtiger"
       - func: "format test script"
         vars:
-          format_test_script_args: -t 360 -v -c ../../../test/format/CONFIG.wt9715
+          format_test_script_args: -t 360 -c ../../../test/format/CONFIG.wt9715
 
   - name: format-stress-test-no-barrier
     tags: ["stress-test-no-barrier"]
