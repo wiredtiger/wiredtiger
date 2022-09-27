@@ -202,7 +202,7 @@ timestamp_manager::validate_read_timestamp(session_simulator *session, const uin
         WT_SIM_RET_MSG(EINVAL, "A read_timestamp may only be set once per transaction.");
     }
 
-    /* 
+    /*
      * We cannot set the read timestamp to be earlier than the oldest timestamp if we're not
      * rounding to the oldest.
      */

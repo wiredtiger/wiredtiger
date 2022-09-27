@@ -94,15 +94,13 @@ void
 call_log_manager::call_log_begin_transaction(const json &call_log_entry)
 {
     const std::string session_id = call_log_entry["session_id"].get<std::string>();
-
-    /* If there is a failure in begin_transaction, there is no work to do. */
-    int ret = call_log_entry["return"]["return_val"].get<int>();
-    if (ret != 0)
-        throw "Cannot begin the transaction for session_id (" + session_id +
-          ") as return value in the call log is: " + std::to_string(ret);
-
     session_simulator *session = get_session(session_id);
-    session->begin_transaction();
+    const std::string config = call_log_entry["input"]["config"].get<std::string>();
+    int ret = session->begin_transaction(config);
+
+    int ret_expected = call_log_entry["return"]["return_val"].get<int>();
+    /* The ret value should be equal to the expected ret value. */
+    assert(ret == ret_expected);
 }
 
 void

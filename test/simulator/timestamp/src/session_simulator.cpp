@@ -38,17 +38,42 @@
 
 session_simulator::session_simulator()
     : _commit_ts(0), _durable_ts(0), _first_commit_ts(0), _prepare_ts(0), _read_ts(0),
-      _has_commit_ts(false), _txn_running(false)
+      _has_commit_ts(false), _ts_round_read(false), _txn_running(false)
 {
 }
 
-void
-session_simulator::begin_transaction()
+int
+session_simulator::begin_transaction(const std::string &config)
 {
     /* Make sure that the transaction from this session isn't running. */
     assert(!_txn_running);
+    _ts_round_read = false;
+
+    timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
+    std::map<std::string, std::string> config_map;
+
+    ts_manager->parse_config(config, config_map);
+
+    /* Check if the read timestamp should be rounded up. */
+    auto pos = config_map.find("roundup_timestamps");
+    if (pos != config_map.end() && pos->second.find("read=true")) {
+        _ts_round_read = true;
+        config_map.erase(pos);
+    }
+
+    /* Set the read timestamp if it provided. */
+    pos = config_map.find("read_timestamp");
+    if (pos != config_map.end()) {
+        uint64_t read_ts = ts_manager->hex_to_decimal(pos->second);
+        if (read_ts == 0)
+            WT_SIM_RET_MSG(EINVAL, "Illegal read timestamp: zero not permitted.");
+        config_map.erase(pos);
+        set_read_timestamp(read_ts);
+    }
 
     _txn_running = true;
+
+    return (config_map.empty() ? 0 : EINVAL);
 }
 
 void

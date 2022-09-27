@@ -36,7 +36,7 @@ class session_simulator {
     public:
     session_simulator();
     ~session_simulator() = default;
-    void begin_transaction();
+    int begin_transaction(const std::string &);
     void rollback_transaction();
     void commit_transaction();
     int decode_timestamp_config_map(
