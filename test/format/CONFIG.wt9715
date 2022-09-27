@@ -89,7 +89,7 @@ table1.ops.pct.write=0
 table1.ops.truncate=1
 table1.runs.mirror=1
 table1.runs.source=table
-table1.runs.type=variable-length column-store
+table1.runs.type=row-store
 ############################################
 #  TABLE PARAMETERS: table 2
 ############################################
@@ -142,7 +142,7 @@ table3.ops.pct.write=13
 table3.ops.truncate=1
 table3.runs.mirror=1
 table3.runs.source=table
-table3.runs.type=variable-length column-store
+table3.runs.type=row-store
 ############################################
 #  TABLE PARAMETERS: table 4
 ############################################
@@ -166,7 +166,7 @@ table4.ops.pct.write=7
 table4.ops.truncate=1
 table4.runs.mirror=1
 table4.runs.source=table
-table4.runs.type=variable-length column-store
+table4.runs.type=row-store
 ############################################
 #  TABLE PARAMETERS: table 5
 ############################################
