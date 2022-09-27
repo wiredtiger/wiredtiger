@@ -174,8 +174,8 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: close calls that result in cache",
   "cursor: create calls",
   "cursor: cursor bound calls that return an error",
-  "cursor: cursor bound comparisons performed",
   "cursor: cursor bounds cleared from reset",
+  "cursor: cursor bounds comparisons performed",
   "cursor: cursor bounds next called on an unpositioned cursor",
   "cursor: cursor bounds next early exit",
   "cursor: cursor bounds prev called on an unpositioned cursor",
@@ -197,7 +197,6 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: cursor next calls that skip greater than or equal to 100 entries",
   "cursor: cursor next calls that skip less than 100 entries",
   "cursor: cursor next random calls that return an error",
-  "cursor: cursor prefix comparisons performed",
   "cursor: cursor prev calls that return an error",
   "cursor: cursor prev calls that skip due to a globally visible history store tombstone",
   "cursor: cursor prev calls that skip greater than or equal to 100 entries",
@@ -480,8 +479,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_cache = 0;
     stats->cursor_create = 0;
     stats->cursor_bound_error = 0;
-    stats->cursor_bounds_comparisons = 0;
     stats->cursor_bounds_reset = 0;
+    stats->cursor_bounds_comparisons = 0;
     stats->cursor_bounds_next_unpositioned = 0;
     stats->cursor_bounds_next_early_exit = 0;
     stats->cursor_bounds_prev_unpositioned = 0;
@@ -503,7 +502,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_next_skip_ge_100 = 0;
     stats->cursor_next_skip_lt_100 = 0;
     stats->cursor_next_random_error = 0;
-    stats->cursor_prefix_comparisons = 0;
     stats->cursor_prev_error = 0;
     stats->cursor_prev_hs_tombstone = 0;
     stats->cursor_prev_skip_ge_100 = 0;
@@ -775,8 +773,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_cache += from->cursor_cache;
     to->cursor_create += from->cursor_create;
     to->cursor_bound_error += from->cursor_bound_error;
-    to->cursor_bounds_comparisons += from->cursor_bounds_comparisons;
     to->cursor_bounds_reset += from->cursor_bounds_reset;
+    to->cursor_bounds_comparisons += from->cursor_bounds_comparisons;
     to->cursor_bounds_next_unpositioned += from->cursor_bounds_next_unpositioned;
     to->cursor_bounds_next_early_exit += from->cursor_bounds_next_early_exit;
     to->cursor_bounds_prev_unpositioned += from->cursor_bounds_prev_unpositioned;
@@ -799,7 +797,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_next_skip_ge_100 += from->cursor_next_skip_ge_100;
     to->cursor_next_skip_lt_100 += from->cursor_next_skip_lt_100;
     to->cursor_next_random_error += from->cursor_next_random_error;
-    to->cursor_prefix_comparisons += from->cursor_prefix_comparisons;
     to->cursor_prev_error += from->cursor_prev_error;
     to->cursor_prev_hs_tombstone += from->cursor_prev_hs_tombstone;
     to->cursor_prev_skip_ge_100 += from->cursor_prev_skip_ge_100;
@@ -1075,8 +1072,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_cache += WT_STAT_READ(from, cursor_cache);
     to->cursor_create += WT_STAT_READ(from, cursor_create);
     to->cursor_bound_error += WT_STAT_READ(from, cursor_bound_error);
-    to->cursor_bounds_comparisons += WT_STAT_READ(from, cursor_bounds_comparisons);
     to->cursor_bounds_reset += WT_STAT_READ(from, cursor_bounds_reset);
+    to->cursor_bounds_comparisons += WT_STAT_READ(from, cursor_bounds_comparisons);
     to->cursor_bounds_next_unpositioned += WT_STAT_READ(from, cursor_bounds_next_unpositioned);
     to->cursor_bounds_next_early_exit += WT_STAT_READ(from, cursor_bounds_next_early_exit);
     to->cursor_bounds_prev_unpositioned += WT_STAT_READ(from, cursor_bounds_prev_unpositioned);
@@ -1099,7 +1096,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_next_skip_ge_100 += WT_STAT_READ(from, cursor_next_skip_ge_100);
     to->cursor_next_skip_lt_100 += WT_STAT_READ(from, cursor_next_skip_lt_100);
     to->cursor_next_random_error += WT_STAT_READ(from, cursor_next_random_error);
-    to->cursor_prefix_comparisons += WT_STAT_READ(from, cursor_prefix_comparisons);
     to->cursor_prev_error += WT_STAT_READ(from, cursor_prev_error);
     to->cursor_prev_hs_tombstone += WT_STAT_READ(from, cursor_prev_hs_tombstone);
     to->cursor_prev_skip_ge_100 += WT_STAT_READ(from, cursor_prev_skip_ge_100);
@@ -1433,8 +1429,8 @@ static const char *const __stats_connection_desc[] = {
   "hot or large page",
   "cursor: cached cursor count",
   "cursor: cursor bound calls that return an error",
-  "cursor: cursor bound comparisons performed",
   "cursor: cursor bounds cleared from reset",
+  "cursor: cursor bounds comparisons performed",
   "cursor: cursor bounds next called on an unpositioned cursor",
   "cursor: cursor bounds next early exit",
   "cursor: cursor bounds prev called on an unpositioned cursor",
@@ -1466,7 +1462,6 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor next calls that skip less than 100 entries",
   "cursor: cursor next random calls that return an error",
   "cursor: cursor operation restarted",
-  "cursor: cursor prefix comparisons performed",
   "cursor: cursor prev calls",
   "cursor: cursor prev calls that return an error",
   "cursor: cursor prev calls that skip due to a globally visible history store tombstone",
@@ -2033,8 +2028,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cursor_reposition = 0;
     /* not clearing cursor_cached_count */
     stats->cursor_bound_error = 0;
-    stats->cursor_bounds_comparisons = 0;
     stats->cursor_bounds_reset = 0;
+    stats->cursor_bounds_comparisons = 0;
     stats->cursor_bounds_next_unpositioned = 0;
     stats->cursor_bounds_next_early_exit = 0;
     stats->cursor_bounds_prev_unpositioned = 0;
@@ -2066,7 +2061,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cursor_next_skip_lt_100 = 0;
     stats->cursor_next_random_error = 0;
     stats->cursor_restart = 0;
-    stats->cursor_prefix_comparisons = 0;
     stats->cursor_prev = 0;
     stats->cursor_prev_error = 0;
     stats->cursor_prev_hs_tombstone = 0;
@@ -2637,8 +2631,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_reposition += WT_STAT_READ(from, cursor_reposition);
     to->cursor_cached_count += WT_STAT_READ(from, cursor_cached_count);
     to->cursor_bound_error += WT_STAT_READ(from, cursor_bound_error);
-    to->cursor_bounds_comparisons += WT_STAT_READ(from, cursor_bounds_comparisons);
     to->cursor_bounds_reset += WT_STAT_READ(from, cursor_bounds_reset);
+    to->cursor_bounds_comparisons += WT_STAT_READ(from, cursor_bounds_comparisons);
     to->cursor_bounds_next_unpositioned += WT_STAT_READ(from, cursor_bounds_next_unpositioned);
     to->cursor_bounds_next_early_exit += WT_STAT_READ(from, cursor_bounds_next_early_exit);
     to->cursor_bounds_prev_unpositioned += WT_STAT_READ(from, cursor_bounds_prev_unpositioned);
@@ -2671,7 +2665,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_next_skip_lt_100 += WT_STAT_READ(from, cursor_next_skip_lt_100);
     to->cursor_next_random_error += WT_STAT_READ(from, cursor_next_random_error);
     to->cursor_restart += WT_STAT_READ(from, cursor_restart);
-    to->cursor_prefix_comparisons += WT_STAT_READ(from, cursor_prefix_comparisons);
     to->cursor_prev += WT_STAT_READ(from, cursor_prev);
     to->cursor_prev_error += WT_STAT_READ(from, cursor_prev_error);
     to->cursor_prev_hs_tombstone += WT_STAT_READ(from, cursor_prev_hs_tombstone);

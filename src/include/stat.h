@@ -563,8 +563,8 @@ struct __wt_connection_stats {
     int64_t cursor_reposition;
     int64_t cursor_cached_count;
     int64_t cursor_bound_error;
-    int64_t cursor_bounds_comparisons;
     int64_t cursor_bounds_reset;
+    int64_t cursor_bounds_comparisons;
     int64_t cursor_bounds_next_unpositioned;
     int64_t cursor_bounds_next_early_exit;
     int64_t cursor_bounds_prev_unpositioned;
@@ -596,7 +596,6 @@ struct __wt_connection_stats {
     int64_t cursor_next_skip_lt_100;
     int64_t cursor_next_random_error;
     int64_t cursor_restart;
-    int64_t cursor_prefix_comparisons;
     int64_t cursor_prev;
     int64_t cursor_prev_error;
     int64_t cursor_prev_hs_tombstone;
@@ -1061,8 +1060,8 @@ struct __wt_dsrc_stats {
     int64_t cursor_cache;
     int64_t cursor_create;
     int64_t cursor_bound_error;
-    int64_t cursor_bounds_comparisons;
     int64_t cursor_bounds_reset;
+    int64_t cursor_bounds_comparisons;
     int64_t cursor_bounds_next_unpositioned;
     int64_t cursor_bounds_next_early_exit;
     int64_t cursor_bounds_prev_unpositioned;
@@ -1084,7 +1083,6 @@ struct __wt_dsrc_stats {
     int64_t cursor_next_skip_ge_100;
     int64_t cursor_next_skip_lt_100;
     int64_t cursor_next_random_error;
-    int64_t cursor_prefix_comparisons;
     int64_t cursor_prev_error;
     int64_t cursor_prev_hs_tombstone;
     int64_t cursor_prev_skip_ge_100;
