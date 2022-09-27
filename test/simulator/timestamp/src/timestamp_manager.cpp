@@ -189,6 +189,13 @@ timestamp_manager::validate_durable_ts(
     return (0);
 }
 
+/*
+ * Validate the read timestamp. The constraints on the read timestamp are:
+ * 1) The read timestamp can only be set before a transaction is prepared
+ * 2) Read timestamps can only be set once.
+ * 3) The read timestamp must be greater than or equal to the oldest timestamp unless rounding
+ * the read timestamp is enabled.
+ */
 int
 timestamp_manager::validate_read_timestamp(session_simulator *session, const uint64_t read_ts) const
 {
