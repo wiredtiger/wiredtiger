@@ -455,9 +455,8 @@ dir_store_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *s
     DIR_STORE_FILE_SYSTEM *fs;
     WT_FILE_SYSTEM *wt_fs;
     int ret;
-    const char *p;
-    char buf[1024];
 
+    (void)config;
     dir_store = (DIR_STORE *)storage_source;
 
     fs = NULL;
@@ -671,12 +670,12 @@ dir_store_flush_finish(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
   WT_FILE_SYSTEM *file_system, const char *source, const char *object, const char *config)
 {
 
-    WT_UNUSED(storage_source);
-    WT_UNUSED(session);
-    WT_UNUSED(file_system);
-    WT_UNUSED(source);
-    WT_UNUSED(object);
-    WT_UNUSED(config);
+    (void)storage_source;
+    (void)session;
+    (void)file_system;
+    (void)source;
+    (void)object;
+    (void)config;
 
     return (0);
 }

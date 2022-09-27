@@ -147,7 +147,7 @@ __wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object
             __chunkcache_free_chunk(session, newchunk);
             goto done;
         }
-        newchain.hash_id = hash_id;
+        newchain->hash_id = hash_id;
         TAILQ_INSERT_HEAD(bucket->chainq, newchain, next_link);
 
         /* Insert the new chunk. */
@@ -157,7 +157,7 @@ __wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object
         /* Increment allocation stats. XXX */
     }
 done:
-    __wt_spin_unlock(session, &chunkcache->bucket_locks[bucket]);
+    __wt_spin_unlock(session, &chunkcache->bucket_locks[bucket_id]);
 }
 
 /*
@@ -171,6 +171,9 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
 
     chunkcache = &S2C(session)->chunkcache;
 
+    (void)cfg;
+    (void)reconfig;
+
 #define CHUNKCACHE_TABLE_SIZE 1024
 
     chunkcache->type = WT_CHUNKCACHE_DRAM;
@@ -179,7 +182,7 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
     WT_RET(__wt_calloc_def(session, chunkcache->hashtable_size, &chunkcache->hashtable));
     WT_RET(__wt_calloc_def(session, chunkcache->hashtable_size, &chunkcache->bucket_locks));
 
-    if (type != WT_CHUNKCACHE_DRAM) {
+    if (chunkcache->type != WT_CHUNKCACHE_DRAM) {
 #ifdef ENABLE_MEMKIND
         if ((ret = memkind_create_pmem(nvram_device_path, 0, &blkcache->pmem_kind)) != 0)
             WT_RET_MSG(session, ret, "block cache failed to initialize: memkind_create_pmem");
