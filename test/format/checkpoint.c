@@ -97,17 +97,6 @@ checkpoint(void *arg)
         backup_locked = false;
         if (named_checkpoints)
             switch (mmrand(NULL, 1, 20)) {
-            case 2:
-                /*
-                 * 5% drop all named snapshots.
-                 */
-                ret = lock_try_writelock(session, &g.backup_lock);
-                if (ret == 0) {
-                    backup_locked = true;
-                    ckpt_config = "drop=(all)";
-                } else if (ret != EBUSY)
-                    testutil_check(ret);
-                break;
             case 1:
                 /*
                  * 5% create a named snapshot. Rotate between a few names to test multiple named
@@ -120,6 +109,17 @@ checkpoint(void *arg)
                       config_buf, sizeof(config_buf), "name=mine.%" PRIu32, mmrand(NULL, 1, 4)));
                     ckpt_config = config_buf;
                     ckpt_vrfy_name = config_buf + strlen("name=");
+                } else if (ret != EBUSY)
+                    testutil_check(ret);
+                break;
+            case 2:
+                /*
+                 * 5% drop all named snapshots.
+                 */
+                ret = lock_try_writelock(session, &g.backup_lock);
+                if (ret == 0) {
+                    backup_locked = true;
+                    ckpt_config = "drop=(all)";
                 } else if (ret != EBUSY)
                     testutil_check(ret);
                 break;
@@ -143,7 +143,7 @@ checkpoint(void *arg)
         /* Verify the checkpoints. */
         wts_verify_checkpoint(conn, ckpt_vrfy_name);
 
-        secs = mmrand(NULL, 300, 400);
+        secs = mmrand(NULL, 5, 40);
     }
 
     wt_wrap_open_session(conn, &sap, NULL, &session);
