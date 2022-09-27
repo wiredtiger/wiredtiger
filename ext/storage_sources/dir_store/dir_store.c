@@ -428,6 +428,8 @@ dir_store_stat(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
     ret = stat(path, statp);
     if (ret != 0 && errno == ENOENT) {
         /* It's not in the cache, try the bucket directory. */
+        free(path);
+        path = NULL;
         if ((ret = dir_store_bucket_path(file_system, name, &path)) != 0)
             goto err;
         ret = stat(path, statp);
