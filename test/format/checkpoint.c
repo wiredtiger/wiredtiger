@@ -79,7 +79,7 @@ checkpoint(void *arg)
     wt_wrap_open_session(conn, &sap, NULL, &session);
 
     named_checkpoints = !g.lsm_config;
-    for (secs = mmrand(NULL, 1, 2); !g.workers_finished;) {
+    for (secs = mmrand(NULL, 1, 10); !g.workers_finished;) {
         if (secs > 0) {
             __wt_sleep(1, 0);
             --secs;
@@ -108,9 +108,9 @@ checkpoint(void *arg)
                 } else if (ret != EBUSY)
                     testutil_check(ret);
                 break;
-            default:
+            case 1:
                 /*
-                 * 95% create a named snapshot. Rotate between a few names to test multiple named
+                 * 5% create a named snapshot. Rotate between a few names to test multiple named
                  * snapshots in the system.
                  */
                 ret = lock_try_writelock(session, &g.backup_lock);
@@ -143,7 +143,7 @@ checkpoint(void *arg)
         /* Verify the checkpoints. */
         wts_verify_checkpoint(conn, ckpt_vrfy_name);
 
-        secs = mmrand(NULL, 1, 2);
+        secs = mmrand(NULL, 300, 400);
     }
 
     wt_wrap_open_session(conn, &sap, NULL, &session);
