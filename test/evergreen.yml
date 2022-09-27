@@ -2950,6 +2950,106 @@ tasks:
     name: recovery-stress-test-3
     tags: ["stress-test-3", "stress-test-zseries-3"]
 
+  - name: wt-9715-test-0
+    tags: ["WT-9715"]
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "format test script"
+        vars:
+          format_test_script_args: -t 360 -v -c CONFIG.wt9715
+
+  - name: wt-9715-test-1
+    tags: ["WT-9715"]
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "format test script"
+        vars:
+          format_test_script_args: -t 360 -v -c CONFIG.wt9715
+
+  - name: wt-9715-test-2
+    tags: ["WT-9715"]
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "format test script"
+        vars:
+          format_test_script_args: -t 360 -v -c CONFIG.wt9715
+
+  - name: wt-9715-test-3
+    tags: ["WT-9715"]
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "format test script"
+        vars:
+          format_test_script_args: -t 360 -v -c CONFIG.wt9715
+
+  - name: wt-9715-test-4
+    tags: ["WT-9715"]
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "format test script"
+        vars:
+          format_test_script_args: -t 360 -v -c CONFIG.wt9715
+
+  - name: wt-9715-test-5
+    tags: ["WT-9715"]
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "format test script"
+        vars:
+          format_test_script_args: -t 360 -v -c CONFIG.wt9715
+
+  - name: wt-9715-test-6
+    tags: ["WT-9715"]
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "format test script"
+        vars:
+          format_test_script_args: -t 360 -v -c CONFIG.wt9715
+
+  - name: wt-9715-test-7
+    tags: ["WT-9715"]
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "format test script"
+        vars:
+          format_test_script_args: -t 360 -v -c CONFIG.wt9715
+
+  - name: wt-9715-test-8
+    tags: ["WT-9715"]
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "format test script"
+        vars:
+          format_test_script_args: -t 360 -v -c CONFIG.wt9715
+
+  - name: wt-9715-test-9
+    tags: ["WT-9715"]
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "format test script"
+        vars:
+          format_test_script_args: -t 360 -v -c CONFIG.wt9715
+
   - name: format-stress-test-no-barrier
     tags: ["stress-test-no-barrier"]
     exec_timeout_secs: 25200
@@ -4002,6 +4102,11 @@ buildvariants:
     - name: data-validation-stress-test-checkpoint-no-timestamp
     - name: unittest-test
     - name: tiered-storage-extensions-test
+    - name: ".WT-9715"
+  display_tasks:
+    - name: WT-9715
+      execution_tasks:
+        - ".WT-9715"
 
 - name: ubuntu2004-asan
   display_name: "! Ubuntu 20.04 ASAN"
