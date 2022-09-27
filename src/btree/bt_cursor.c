@@ -2300,39 +2300,48 @@ __wt_btcur_bounds_position(
     if (CUR2BT(cursor)->type == BTREE_ROW) {
         WT_RET(__cursor_row_search(cbt, false, NULL, NULL));
         if (!next) {
-            WT_RET(__wt_cursor_valid(cbt, (cbt->compare == 0 ? cbt->tmp : NULL), WT_RECNO_OOB, &valid, true));
-        } else {
-        /*
-         * If there's an exact match, the row-store search function built the key in the cursor's
-         * temporary buffer.
-         */
-        if (cbt->compare == 0) {
-            if (next) {
-                /* We're on our search key, if we are inclusive then this is a valid position. */
-                if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE)) {
+            if (cbt->compare == 0) {
+                if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE))
                     WT_RET(__wt_cursor_valid(
                         cbt, cbt->tmp, WT_RECNO_OOB, &valid, false));
-                } else {
+                else
                     *need_walkp = true;
-                }
-            }
-        } else if (cbt->compare > 0) {
-            if (next) {
-                /* We landed to the right of the search key. We need to check if the upper bound
-                 * is still being respected, and if so call cursor_valid, for now just call
-                 * cursor valid.
+            } else if (cbt->compare > 0)
+                /* We landed to the right of the search key we need to walk at least once to be
+                 * within the bounded range.
+                 *
+                 * We can assume that we won't walk onto the upper bound as it should've been
+                 * returned by the cursor row search. Can we assert this?
                  */
-                WT_RET(__wt_cursor_valid(cbt, NULL, WT_RECNO_OOB, &valid, true));
-            }
-        } else {
-            if (next) {
-                /* We landed to the left of the search key, we know that this isn't a valid as
-                 * we're doing a bound position call. Thus we should set need_walkp and continue. */
                 *need_walkp = true;
-            }
+            else
+                /* We landed to the left of the search key we still need to check if the lower bound
+                 * is being honoured.
+                 */
+                WT_RET(__wt_cursor_valid(cbt, (cbt->compare == 0 ? cbt->tmp : NULL), WT_RECNO_OOB, &valid, true));
+        } else {
+            /*
+            * If there's an exact match, the row-store search function built the key in the cursor's
+            * temporary buffer.
+            */
+            if (cbt->compare == 0) {
+                /* We're on our search key, if we are inclusive then this is a valid position. */
+                if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE))
+                    WT_RET(__wt_cursor_valid(
+                        cbt, cbt->tmp, WT_RECNO_OOB, &valid, false));
+                else
+                    *need_walkp = true;
+            } else if (cbt->compare > 0)
+                /* We landed to the right of the search key. We need to check if the upper bound
+                * is still being respected, and if so call cursor_valid, for now just call
+                * cursor valid.
+                */
+                WT_RET(__wt_cursor_valid(cbt, NULL, WT_RECNO_OOB, &valid, true));
+            else
+                /* We landed to the left of the search key, we know that this isn't a valid as
+                * we're doing a bound position call. Thus we should set need_walkp and continue. */
+                *need_walkp = true;
         }
-        }
-
     } else {
         WT_RET(__cursor_col_search(cbt, NULL, NULL));
         WT_RET(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid, true));

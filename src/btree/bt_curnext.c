@@ -787,6 +787,10 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
     size_t total_skipped, skipped;
     uint32_t flags;
     bool key_out_of_bounds, newpage, restart, need_walk;
+#ifdef HAVE_DIAGNOSTIC
+    uint64_t recno_bound;
+    int cmp;
+#endif
 
     cursor = &cbt->iface;
     key_out_of_bounds = false;
@@ -965,6 +969,23 @@ err:
          */
         if (!F_ISSET(cbt, WT_CBT_ITERATE_RETRY_PREV))
             ret = __wt_cursor_key_order_check(session, cbt, true);
+
+        if (need_walk) {
+            /*
+             * The bounds positioning code relies on the assumption that if we had to walk then we
+             * can't possibly have walked to the lower bound. We check that assumption here by
+             * comparing the lower bound with our current key or recno.
+             */
+            if (CUR2BT(cursor)->type == BTREE_ROW) {
+                ret = __wt_compare(session, CUR2BT(cursor)->collator, &cbt->iface.key, &cursor->lower_bound, &cmp);
+                WT_ASSERT(session, ret == 0 && cmp > 0);
+            } else {
+                /* Unpack the raw recno buffer. */
+                WT_RET(__wt_struct_unpack(
+                    session, cursor->lower_bound.data, cursor->lower_bound.size, "q", &recno_bound));
+                WT_ASSERT(session, recno_bound < cbt->recno);
+            }
+        }
 #endif
         break;
     case WT_PREPARE_CONFLICT:
