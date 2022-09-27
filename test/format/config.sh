@@ -236,8 +236,6 @@ CONFIG configuration_list[] = {
 
 {"runs.verify_failure_dump", "configure page dump on repeatable read error", C_BOOL | C_IGNORE, 0, 0, 1}
 
-{"statistics", "configure statistics", C_BOOL, 20, 0, 0}
-
 {"statistics.server", "configure statistics server thread", C_BOOL, 5, 0, 0}
 
 {"stress.aggressive_sweep", "stress aggressive sweep", C_BOOL, 2, 0, 0}
@@ -245,8 +243,6 @@ CONFIG configuration_list[] = {
 {"stress.checkpoint", "stress checkpoints", C_BOOL, 2, 0, 0}
 
 {"stress.checkpoint_evict_page", "stress force checkpoint to evict all reconciling pages", C_BOOL, 2, 0, 0}
-
-{"stress.checkpoint_reserved_txnid_delay", "stress checkpoint invisible transaction id delay", C_BOOL, 2, 0, 0}
 
 {"stress.checkpoint_prepare", "stress checkpoint prepare", C_BOOL, 2, 0, 0}
 
