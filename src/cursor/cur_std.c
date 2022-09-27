@@ -1321,11 +1321,11 @@ __wt_cursor_bounds_restore(
 
     if ((ret = __wt_buf_set(session, &cursor->lower_bound, bounds_state->lower_bound.data,
            bounds_state->lower_bound.size)) != 0)
-        WT_RET_PANIC(session, ret, "Failed to restore the bounds.");
+        WT_RET_PANIC(session, ret, "Unrecoverable error encountered while restoring bounds");
 
     if ((ret = __wt_buf_set(session, &cursor->upper_bound, bounds_state->upper_bound.data,
            bounds_state->upper_bound.size)) != 0)
-        WT_RET_PANIC(session, ret, "Failed to restore the bounds.");
+        WT_RET_PANIC(session, ret, "Unrecoverable error encountered while restoring bounds");
 
     return (0);
 }
