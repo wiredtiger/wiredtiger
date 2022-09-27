@@ -78,6 +78,12 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
     WT_RET(__wt_config_gets(session, cfg, "dump_pages", &cval));
     vs->dump_pages = cval.val != 0;
 
+    WT_RET(__wt_config_gets(session, cfg, "read_corrupt", &cval));
+    if (cval.val)
+        F_SET(session, WT_SESSION_VERIFY_READ_CORRUPT);
+    else
+        F_CLR(session, WT_SESSION_VERIFY_READ_CORRUPT);
+
     WT_RET(__wt_config_gets(session, cfg, "stable_timestamp", &cval));
     vs->stable_timestamp = WT_TS_NONE; /* Ignored unless a value has been set */
     if (cval.val != 0) {
