@@ -138,7 +138,9 @@ class test_cursor_bound14(bound_base):
             self.assertEqual(cursor.reserve(), 0)
         self.session.commit_transaction()
 
-        # Test bound API: test modifies on an existing key outside of bounds.
+        # Test bound API: test modifies on an existing key outside of bounds. 
+        # Only test this with string format as cursor modify is not supported for 
+        # complex strings. 
         if (not self.use_colgroup and self.value_format == 'S'):
             self.session.begin_transaction()
             cursor.set_key(self.gen_key(10))
