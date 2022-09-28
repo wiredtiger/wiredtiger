@@ -188,3 +188,37 @@ timestamp_manager::validate_durable_ts(
 
     return (0);
 }
+
+/*
+ * Validate the read timestamp. The constraints on the read timestamp are:
+ * 1) The read timestamp can only be set before a transaction is prepared
+ * 2) Read timestamps can only be set once.
+ * 3) The read timestamp must be greater than or equal to the oldest timestamp unless rounding
+ * the read timestamp is enabled.
+ */
+int
+timestamp_manager::validate_read_timestamp(session_simulator *session, const uint64_t read_ts) const
+{
+    /* The read timestamp can't be set after a transaction is prepared. */
+    if (session->get_prepare_timestamp() != 0) {
+        WT_SIM_RET_MSG(EINVAL, "Cannot set a read timestamp after a transaction is prepared.");
+    }
+
+    /* Read timestamps can't change once set. */
+    if (session->get_read_timestamp() != 0) {
+        WT_SIM_RET_MSG(EINVAL, "A read_timestamp can only be set once per transaction.");
+    }
+
+    /*
+     * We cannot set the read timestamp to be earlier than the oldest timestamp if we're not
+     * rounding to the oldest.
+     */
+    connection_simulator *conn = &connection_simulator::get_connection();
+    if (read_ts < conn->get_oldest_ts() && !session->get_ts_round_read()) {
+        WT_SIM_RET_MSG(EINVAL,
+          "Cannot set read timestamp before the oldest timestamp, unless we round the read "
+          "timestamp up to the oldest.");
+    }
+
+    return (0);
+}

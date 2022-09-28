@@ -36,17 +36,22 @@ class session_simulator {
     public:
     session_simulator();
     ~session_simulator() = default;
-    void begin_transaction();
+    int begin_transaction(const std::string &);
     void rollback_transaction();
     void commit_transaction();
     int decode_timestamp_config_map(
       std::map<std::string, std::string> &, uint64_t &, uint64_t &, uint64_t &, uint64_t &);
     int timestamp_transaction(const std::string &);
     int timestamp_transaction_uint(const std::string &, uint64_t);
+    uint64_t get_commit_timestamp() const;
+    uint64_t get_durable_timestamp() const;
+    uint64_t get_prepare_timestamp() const;
+    uint64_t get_read_timestamp() const;
+    bool get_ts_round_read();
     void set_commit_timestamp(uint64_t);
     void set_durable_timestamp(uint64_t);
     void set_prepare_timestamp(uint64_t);
-    void set_read_timestamp(uint64_t);
+    int set_read_timestamp(uint64_t);
     int query_timestamp(const std::string &, std::string &, bool &);
 
     public:
@@ -57,6 +62,7 @@ class session_simulator {
     /* Member variables */
     private:
     bool _has_commit_ts;
+    bool _ts_round_read;
     bool _txn_running;
     uint64_t _commit_ts;
     uint64_t _durable_ts;
