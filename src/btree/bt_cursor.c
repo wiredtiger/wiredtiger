@@ -381,11 +381,13 @@ __wt_cursor_valid(
         if (__wt_cell_type(cell) == WT_CELL_DEL)
             return (0);
 
-        WT_RET(__btcur_bounds_contains_key(
-          session, &cbt->iface, NULL, cbt->recno, &key_out_of_bounds, NULL));
-        /* The key value pair we were trying to return weren't within the given bounds. */
-        if (key_out_of_bounds)
-            return (0);
+        if (check_bounds) {
+            WT_RET(__btcur_bounds_contains_key(
+            session, &cbt->iface, NULL, cbt->recno, &key_out_of_bounds, NULL));
+            /* The key value pair we were trying to return weren't within the given bounds. */
+            if (key_out_of_bounds)
+                return (0);
+        }
 
         /*
          * Check for an update. For column store, modifications are handled with insert lists, so an
@@ -2320,7 +2322,7 @@ __wt_btcur_bounds_position(
                 WT_RET(__wt_cursor_valid(cbt, NULL, WT_RECNO_OOB, &valid, true));
             else
                 /*
-                 * We know that this isn't a valid as we're doing a bound position call on the upper
+                 * We know that this isn't valid as we're doing a bound position call on the upper
                  * bound, indicate that we need to walk and exit.
                  *
                  * We are making the assumption that the actual key which the bound is equal to
@@ -2333,7 +2335,7 @@ __wt_btcur_bounds_position(
             /* We landed to the left of search key. */
             if (next)
                 /*
-                 * We know that this isn't a valid as we're doing a bound position call on the lower
+                 * We know that this isn't valid as we're doing a bound position call on the lower
                  * bound, indicate that we need to walk and exit.
                  */
                 *need_walkp = true;
