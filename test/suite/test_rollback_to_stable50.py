@@ -59,7 +59,7 @@ class test_rollback_to_stable50(test_rollback_to_stable_base):
 
         # Create a table.
         uri = 'table:aaa'
-        self.session.create(uri, 'key_format=S,value_format=S')
+        self.session.create(uri, 'key_format=S,value_format=S,log=(enabled=false)')
 
         # Insert value A1 @ 15.
         key = 'A' * 100
