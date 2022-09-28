@@ -591,7 +591,11 @@ celltype_err:
 
             /* Verify the subtree. */
             ++vs->depth;
-            WT_RET(__wt_page_in(session, child_ref, 0));
+            ret = __wt_page_in(session, child_ref, 0);
+            if (F_ISSET(session, WT_SESSION_VERIFY_READ_CORRUPT))
+                continue;
+            else
+                WT_RET(ret);
             ret = __verify_tree(session, child_ref, unpack, vs);
             WT_TRET(__wt_page_release(session, child_ref, 0));
             --vs->depth;
@@ -621,7 +625,11 @@ celltype_err:
 
             /* Verify the subtree. */
             ++vs->depth;
-            WT_RET(__wt_page_in(session, child_ref, 0));
+            ret = __wt_page_in(session, child_ref, 0);
+            if (F_ISSET(session, WT_SESSION_VERIFY_READ_CORRUPT))
+                continue;
+            else
+                WT_RET(ret);
             ret = __verify_tree(session, child_ref, unpack, vs);
             WT_TRET(__wt_page_release(session, child_ref, 0));
             --vs->depth;
