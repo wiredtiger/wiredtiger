@@ -61,6 +61,12 @@ class test_rollback_to_stable50(test_rollback_to_stable_base):
         uri = 'table:aaa'
         self.session.create(uri, 'key_format=S,value_format=S,log=(enabled=false)')
 
+
+        # Setup global oldest and stable
+        stable_ts = 10
+        oldest_ts = 10
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(stable_ts) +
+                                ',stable_timestamp=' + self.timestamp_str(oldest_ts))
         # Insert value A1 @ 15.
         key = 'A' * 100
         value = 'A1' * 100
@@ -73,11 +79,11 @@ class test_rollback_to_stable50(test_rollback_to_stable_base):
         self.insert_kv(uri, key, value, commit_ts)
 
         # Persist to disk, there should be A2 on the DS and A1 in the HS.
-        self.session.checkpoint()
+        #self.session.checkpoint()
 
         # TODO - Is it necessary?
         # Perform eviction, there should be A2 on the DS and A1 in the HS.
-        # self.evict(uri, key)
+        self.evict(uri, key)
 
         # Move the oldest and stable timestamps @ 25 to make A1 and A2 globally visible.
         stable_ts = 25
@@ -93,11 +99,12 @@ class test_rollback_to_stable50(test_rollback_to_stable_base):
         commit_ts = 30
         self.insert_kv(uri, key, value, commit_ts)
 
-        # Perform a checkpoint to move add A2 to the HS and replace it with A3 on the DS.
-        self.session.checkpoint()
+        # Persist A3 to disk - this should move A2 to the histor store, with a 0 timestamp
+        self.evict(uri, key)
 
-        # TODO - Is it necessary?
-        # self.evict(uri, key)
+        # Perform a checkpoint so that rollback to stable will try to replace A3 with A2 on
+        # recovery
+        self.session.checkpoint()
 
         # Simulate a crash, this will execute RTS using the stable timestamp 25.
         # We expect RTS to discard A3 since its commit timestamp is more recent than stable
