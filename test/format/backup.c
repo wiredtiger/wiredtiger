@@ -459,7 +459,8 @@ save_backup_info(ACTIVE_FILES *active, uint64_t id)
 
 /*
  * copy_format_files --
- *     Copies over format-specific files to the BACKUP.copy directory.
+ *     Copies over format-specific files to the BACKUP.copy directory. These include CONFIG and any
+ *     CONFIG.keylen* files.
  */
 static void
 copy_format_files(WT_SESSION *session)
@@ -612,8 +613,7 @@ backup(void *arg)
 
             /*
              * Copy format-specific files into the backup directories so that test/format can be run
-             * on the BACKUP.copy database for verification. These include CONFIG and any
-             * CONFIG.keylen* files.
+             * on the BACKUP.copy database for verification.
              */
             copy_format_files(session);
         }
