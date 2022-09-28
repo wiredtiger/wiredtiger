@@ -159,9 +159,9 @@ session_simulator::set_read_timestamp(uint64_t read_ts)
      */
     connection_simulator *conn = &connection_simulator::get_connection();
     uint64_t oldest_ts = conn->get_oldest_ts();
-    if (_ts_round_read && read_ts < oldest_ts) {
+    if (_ts_round_read && read_ts < oldest_ts)
         _read_ts = oldest_ts;
-    } else
+    else if (read_ts >= oldest_ts)
         _read_ts = read_ts;
 
     return (0);
