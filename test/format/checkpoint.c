@@ -96,7 +96,7 @@ checkpoint(void *arg)
         ckpt_vrfy_name = "WiredTigerCheckpoint";
         backup_locked = false;
         if (named_checkpoints)
-            switch (mmrand(NULL, 1, 20)) {
+            switch (mmrand(NULL, 1, 2)) {
             case 1:
                 /*
                  * 50% create a named snapshot. Rotate between a few names to test multiple named
@@ -143,7 +143,7 @@ checkpoint(void *arg)
         /* Verify the checkpoints. */
         wts_verify_checkpoint(conn, ckpt_vrfy_name);
 
-        secs = mmrand(NULL, 5, 40);
+        secs = mmrand(NULL, 1, 2);
     }
 
     wt_wrap_open_session(conn, &sap, NULL, &session);
