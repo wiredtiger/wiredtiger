@@ -848,6 +848,7 @@ __curtable_bound(WT_CURSOR *cursor, const char *config)
     ctable = (WT_CURSOR_TABLE *)cursor;
     primary = *ctable->cg_cursors;
     JOINABLE_CURSOR_API_CALL(cursor, session, bound, NULL);
+    bounds_set = false;
 
     /* Save the current state of the bounds in case we fail to apply the new state. */
     if (WT_CURSOR_BOUNDS_SET(cursor)) {
