@@ -58,6 +58,17 @@ connection_simulator::get_stable_ts() const
     return (_stable_ts);
 }
 
+uint64_t
+connection_simulator::get_latest_active_read() const
+{
+    uint64_t max_read_ts = 0;
+    for (auto &session : _session_list)
+        if (session->get_read_timestamp() > max_read_ts)
+            max_read_ts = session->get_read_timestamp();
+
+    return (max_read_ts);
+}
+
 session_simulator *
 connection_simulator::open_session()
 {
