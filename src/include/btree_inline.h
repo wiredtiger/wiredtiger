@@ -1794,9 +1794,10 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     WT_PAGE_MODIFY *mod;
 
-    mod = page->modify;
-
-    if (mod == NULL)
+    /*
+     * If the page hasn't been through one round of update/restore, give it a try.
+     */
+    if ((mod = page->modify) == NULL || !FLD_ISSET(mod->restore_state, WT_PAGE_RS_RESTORED))
         return (true);
 
     if (__wt_cache_aggressive(session))
