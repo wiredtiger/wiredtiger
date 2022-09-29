@@ -29,6 +29,7 @@ typedef struct {
     bool dump_blocks;
     bool dump_layout;
     bool dump_pages;
+    bool read_corrupt;
 
     /* Page layout information. */
     uint64_t depth, depth_internal[100], depth_leaf[100];
@@ -79,10 +80,7 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
     vs->dump_pages = cval.val != 0;
 
     WT_RET(__wt_config_gets(session, cfg, "read_corrupt", &cval));
-    if (cval.val)
-        F_SET(session, WT_SESSION_VERIFY_READ_CORRUPT);
-    else
-        F_CLR(session, WT_SESSION_VERIFY_READ_CORRUPT);
+    vs->read_corrupt = cval.val != 0;
 
     WT_RET(__wt_config_gets(session, cfg, "stable_timestamp", &cval));
     vs->stable_timestamp = WT_TS_NONE; /* Ignored unless a value has been set */
@@ -592,7 +590,12 @@ celltype_err:
             /* Verify the subtree. */
             ++vs->depth;
             ret = __wt_page_in(session, child_ref, 0);
-            if (F_ISSET(session, WT_SESSION_VERIFY_READ_CORRUPT))
+
+            /*
+             * If configured, continue traversing through the pages of the tree even after
+             * encountering errors in the verification process.
+             */
+            if (vs->read_corrupt)
                 continue;
             else
                 WT_RET(ret);
@@ -626,7 +629,12 @@ celltype_err:
             /* Verify the subtree. */
             ++vs->depth;
             ret = __wt_page_in(session, child_ref, 0);
-            if (F_ISSET(session, WT_SESSION_VERIFY_READ_CORRUPT))
+
+            /*
+             * If configured, continue traversing through the pages of the tree even after
+             * encountering errors in the verification process.
+             */
+            if (vs->read_corrupt)
                 continue;
             else
                 WT_RET(ret);
