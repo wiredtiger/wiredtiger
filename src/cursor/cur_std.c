@@ -1332,9 +1332,6 @@ __wt_cursor_bounds_restore(
            bounds_state->upper_bound.size)) != 0)
         WT_RET_PANIC(session, ret, "Unrecoverable error encountered while restoring bounds");
 
-    __wt_free(session, bounds_state->lower_bound);
-    __wt_free(session, bounds_state->upper_bound);
-
     return (0);
 }
 
