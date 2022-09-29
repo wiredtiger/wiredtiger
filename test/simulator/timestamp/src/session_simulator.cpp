@@ -37,7 +37,7 @@
 #include "timestamp_manager.h"
 
 session_simulator::session_simulator()
-    : _has_commit_ts(false), _ts_round_read(false), _txn_running(false), _commit_ts(0),
+    : _has_commit_ts(false), _ts_round_prepared(false), _ts_round_read(false), _txn_running(false), _commit_ts(0),
       _durable_ts(0), _first_commit_ts(0), _prepare_ts(0), _read_ts(0)
 {
 }
@@ -167,7 +167,7 @@ session_simulator::set_commit_timestamp(uint64_t commit_ts)
     }
 
     if (_ts_round_prepared && commit_ts < _prepare_ts)
-        commit_ts = _prepare_ts;
+        _commit_ts = _prepare_ts;
     else if (commit_ts >= _prepare_ts)
         _commit_ts = commit_ts;
 
