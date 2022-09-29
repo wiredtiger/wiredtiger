@@ -156,7 +156,7 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
     }
 
     __wt_verbose_debug(session, WT_VERB_COMPACT,
-      "%s: total reviewed %" PRIu64 " pages, total wrote %" PRIu64 " pages", block->name,
+      "%s: total reviewed %" PRIu64 " pages, total rewritten %" PRIu64 " pages", block->name,
       block->compact_pages_reviewed, block->compact_pages_rewritten);
     __wt_verbose_debug(session, WT_VERB_COMPACT,
       "%s: %" PRIuMAX "MB (%" PRIuMAX ") available space in the first 80%% of the file",
