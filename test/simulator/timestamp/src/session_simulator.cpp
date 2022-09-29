@@ -95,8 +95,6 @@ session_simulator::commit_transaction(const std::string &config)
     /* Make sure that the transaction from this session is running. */
     assert(_txn_running);
 
-    std::cout << "Committing transaction " << std::endl;
-
     timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
     std::map<std::string, std::string> config_map;
 
@@ -162,7 +160,6 @@ int
 session_simulator::set_commit_timestamp(uint64_t commit_ts)
 {
     timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
-    std::cout << "set_commit_timestamp" << std::endl;
     WT_SIM_RET(ts_manager->validate_commit_timestamp(this, commit_ts));
     if (!_has_commit_ts) {
         _first_commit_ts = commit_ts;

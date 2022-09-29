@@ -230,9 +230,7 @@ int
 timestamp_manager::validate_commit_timestamp(
   session_simulator *session, const uint64_t commit_ts) const
 {
-    std::cout << "Validating commit timestamp" << std::endl;
     uint64_t prepare_ts = session->get_prepare_timestamp();
-    std::cout << "prepare_ts = " << prepare_ts << std::endl;
     if (!prepare_ts) {
         /*
          * We cannot set the commit timestamp to be earlier than the fist commit timestamp when
