@@ -55,11 +55,12 @@ session_simulator::begin_transaction(const std::string &config)
 
     /* Check if the read timestamp should be rounded up. */
     auto pos = config_map.find("roundup_timestamps");
+    _ts_round_prepared = false;
     _ts_round_read = false;
     if (pos != config_map.end()) {
         if (pos->second.find("read=true"))
             _ts_round_read = true;
-        else if (pos->second.find("prepared=true"))
+        if (pos->second.find("prepared=true"))
             _ts_round_prepared = true;
 
         config_map.erase(pos);
@@ -102,6 +103,10 @@ session_simulator::commit_transaction(const std::string &config)
 
     auto pos = config_map.find("commit_timestamp");
     if (pos != config_map.end()) {
+        for (auto &ch : pos->second)
+            if (!std::isxdigit(ch))
+                WT_SIM_RET_MSG(EINVAL, "Illegal commit timestamp: invalid hex value.");
+
         uint64_t commit_ts = ts_manager->hex_to_decimal(pos->second);
         if (commit_ts == 0)
             WT_SIM_RET_MSG(EINVAL, "Illegal commit timestamp: zero not permitted.");
