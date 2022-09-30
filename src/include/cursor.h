@@ -297,8 +297,8 @@ struct __wt_cursor_config {
 };
 
 struct __wt_cursor_bounds_state {
-    WT_ITEM lower_bound;
-    WT_ITEM upper_bound;
+    WT_ITEM *lower_bound;
+    WT_ITEM *upper_bound;
     uint64_t bound_flags;
 };
 

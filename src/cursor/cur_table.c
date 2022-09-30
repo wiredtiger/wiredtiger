@@ -843,16 +843,16 @@ __curtable_bound(WT_CURSOR *cursor, const char *config)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     u_int i;
-    bool bounds_set;
 
     ctable = (WT_CURSOR_TABLE *)cursor;
     primary = *ctable->cg_cursors;
     JOINABLE_CURSOR_API_CALL(cursor, session, bound, NULL);
-    bounds_set = false;
+
+    WT_ERR(__wt_scr_alloc(session, 0, &saved_bounds.lower_bound));
+    WT_ERR(__wt_scr_alloc(session, 0, &saved_bounds.upper_bound));
 
     /* Save the current state of the bounds in case we fail to apply the new state. */
-    if (WT_CURSOR_BOUNDS_SET(cursor)) {
-        bounds_set = true;
+    if (WT_CURSOR_BOUNDS_SET(primary)) {
         WT_RET(__wt_cursor_bounds_save(session, primary, &saved_bounds));
     }
 
@@ -860,15 +860,14 @@ __curtable_bound(WT_CURSOR *cursor, const char *config)
     for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); i++, cp++)
         WT_ERR((*cp)->bound(*cp, config));
 err:
-    if (bounds_set) {
-        /* If applying bounds fails on one colgroup cursor, restore the previous state. */
-        if (ret != 0) {
-            for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); i++, cp++)
-                WT_TRET(__wt_cursor_bounds_restore(session, *cp, &saved_bounds));
-        }
-        __wt_buf_free(session, &saved_bounds.lower_bound);
-        __wt_buf_free(session, &saved_bounds.upper_bound);
-    }
+    /* If applying bounds fails on one colgroup cursor, restore the previous state. */
+    if (ret != 0)
+        for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); i++, cp++)
+            WT_TRET(__wt_cursor_bounds_restore(session, *cp, &saved_bounds));
+
+    __wt_scr_free(session, &saved_bounds.lower_bound);
+    __wt_scr_free(session, &saved_bounds.upper_bound);
+
     API_END_RET(session, ret);
 }
 
