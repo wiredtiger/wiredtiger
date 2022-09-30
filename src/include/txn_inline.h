@@ -1048,9 +1048,15 @@ __wt_txn_read(
     WT_TIME_WINDOW tw;
     WT_UPDATE *prepare_upd, *restored_upd;
     bool have_stop_tw, retry;
+#ifdef HAVE_DIAGNOSTIC
+    bool is_ovfl_rm;
+#endif
 
     prepare_upd = restored_upd = NULL;
     retry = true;
+#ifdef HAVE_DIAGNOSTIC
+    is_ovfl_rm = false;
+#endif
 
 retry:
     WT_RET(__wt_txn_read_upd_list_internal(session, cbt, upd, &prepare_upd, &restored_upd));
@@ -1082,7 +1088,12 @@ retry:
         have_stop_tw = WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw);
 
         /* Check the ondisk value. */
-        WT_RET(__wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &tw));
+        WT_RET(__wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &tw
+#ifdef HAVE_DIAGNOSTIC
+          ,
+          &is_ovfl_rm
+#endif
+          ));
 
         /*
          * If the stop time point is set, that means that there is a tombstone at that time. If it
@@ -1125,6 +1136,8 @@ retry:
             cbt->upd_value->tw.start_txn = tw.start_txn;
             cbt->upd_value->tw.prepare = tw.prepare;
             cbt->upd_value->type = WT_UPDATE_STANDARD;
+            /* We should not return removed overflow value. */
+            WT_ASSERT(session, !is_ovfl_rm);
             return (0);
         }
     }
