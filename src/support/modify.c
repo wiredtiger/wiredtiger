@@ -490,12 +490,13 @@ __wt_modify_reconstruct_from_upd_list(
          */
         WT_ASSERT(session, cbt->slot != UINT32_MAX);
 
-        WT_ERR(__wt_value_return_buf(cbt, cbt->ref, &upd_value->buf, &tw
+        ret = __wt_value_return_buf(cbt, cbt->ref, &upd_value->buf, &tw
 #ifdef HAVE_DIAGNOSTIC
           ,
           &is_ovfl_rm
 #endif
-          ));
+        );
+        WT_ERR(ret);
 
         /* The base value cannot be a removed overflow value. */
         WT_ASSERT(session, !is_ovfl_rm);
