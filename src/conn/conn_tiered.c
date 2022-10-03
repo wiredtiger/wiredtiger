@@ -30,11 +30,11 @@ __tiered_server_run_chk(WT_SESSION_IMPL *session)
 }
 
 /*
- * __flush_tier_wait --
+ * __wt_flush_tier_wait --
  *     Wait for all previous work units queued to be processed.
  */
-static int
-__flush_tier_wait(WT_SESSION_IMPL *session, const char **cfg)
+int
+__wt_flush_tier_wait(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
@@ -50,7 +50,7 @@ __flush_tier_wait(WT_SESSION_IMPL *session, const char **cfg)
      * work will get done.
      */
     WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
-    WT_RET(__wt_config_gets(session, cfg, "timeout", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "flush_tier.timeout", &cval));
     timeout = (uint64_t)cval.val;
     if (timeout != 0)
         __wt_seconds(session, &start);
@@ -77,11 +77,11 @@ __flush_tier_wait(WT_SESSION_IMPL *session, const char **cfg)
 }
 
 /*
- * __flush_tier_once --
+ * __wt_flush_tier_once --
  *     Perform one iteration of tiered storage maintenance.
  */
-static int
-__flush_tier_once(WT_SESSION_IMPL *session, uint32_t flags)
+int
+__wt_flush_tier_once(WT_SESSION_IMPL *session, bool force)
 {
     WT_CKPT ckpt;
     WT_CONFIG_ITEM cval;
@@ -91,8 +91,7 @@ __flush_tier_once(WT_SESSION_IMPL *session, uint32_t flags)
     uint64_t ckpt_time, flush_time;
     const char *key, *value;
 
-    WT_UNUSED(flags);
-    __wt_verbose(session, WT_VERB_TIERED, "FLUSH_TIER_ONCE: Called flags %" PRIx32, flags);
+    __wt_verbose(session, WT_VERB_TIERED, "FLUSH_TIER_ONCE: Called force %d", force);
 
     conn = S2C(session);
     cursor = NULL;
@@ -132,8 +131,8 @@ __flush_tier_once(WT_SESSION_IMPL *session, uint32_t flags)
         /* For now just switch tiers which just does metadata manipulation. */
         if (WT_PREFIX_MATCH(key, "tiered:")) {
             __wt_verbose(
-              session, WT_VERB_TIERED, "FLUSH_TIER_ONCE: %s %s 0x%" PRIx32, key, value, flags);
-            if (!LF_ISSET(WT_FLUSH_TIER_FORCE)) {
+              session, WT_VERB_TIERED, "FLUSH_TIER_ONCE: %s %s force %d", key, value, force);
+            if (!force) {
                 /*
                  * Check the table's last checkpoint time and only flush trees that have a
                  * checkpoint more recent than the last flush time.
@@ -499,6 +498,7 @@ __tier_storage_remove(WT_SESSION_IMPL *session, bool force)
     return (0);
 }
 
+#if 0
 /*
  * __wt_flush_tier --
  *     Entry function for flush_tier method.
@@ -551,7 +551,7 @@ __wt_flush_tier(WT_SESSION_IMPL *session, const char *config)
      * turned off then any following call must wait and will do so here. We have to wait while not
      * holding the schema lock.
      */
-    WT_ERR(__flush_tier_wait(session, cfg));
+    WT_ERR(__wt_flush_tier_wait(session, cfg));
     if (wait)
         WT_WITH_CHECKPOINT_LOCK(
           session, WT_WITH_SCHEMA_LOCK(session, ret = __flush_tier_once(session, flags)));
@@ -564,13 +564,14 @@ __wt_flush_tier(WT_SESSION_IMPL *session, const char *config)
         WT_ERR(__wt_txn_checkpoint(session, checkpoint_cfg, true));
 
     if (ret == 0 && LF_ISSET(WT_FLUSH_TIER_ON))
-        WT_ERR(__flush_tier_wait(session, cfg));
+        WT_ERR(__wt_flush_tier_wait(session, cfg));
 
 err:
     if (locked)
         __wt_spin_unlock(session, &conn->flush_tier_lock);
     return (ret);
 }
+#endif
 
 /*
  * __tiered_server --

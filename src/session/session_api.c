@@ -2243,6 +2243,7 @@ __wt_session_strerror(WT_SESSION *wt_session, int error)
     return (__wt_strerror(session, error, NULL, 0));
 }
 
+#if 0
 /*
  * __session_flush_tier --
  *     Wrapper for the flush_tier method.
@@ -2261,6 +2262,7 @@ err:
         WT_STAT_CONN_INCR(session, flush_tier_fail);
     API_END_RET(session, ret);
 }
+#endif
 
 /*
  * __session_flush_tier_readonly --
@@ -2304,7 +2306,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
   WT_SESSION_IMPL **sessionp)
 {
     static const WT_SESSION
-      stds = {NULL, NULL, __session_close, __session_reconfigure, __session_flush_tier,
+      stds = {NULL, NULL, __session_close, __session_reconfigure, __session_flush_tier_readonly,
         __wt_session_strerror, __session_open_cursor, __session_alter, __session_create,
         __wt_session_compact, __session_drop, __session_join, __session_log_flush,
         __session_log_printf, __session_rename, __session_reset, __session_salvage,
