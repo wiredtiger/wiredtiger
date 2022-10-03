@@ -228,7 +228,6 @@ testutil_cleanup(TEST_OPTS *opts)
     }
     if (opts->tiered_storage_source != NULL)
         free(opts->tiered_storage_source);
-    free(opts->usage);
 }
 
 /*
