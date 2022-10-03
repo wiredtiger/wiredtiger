@@ -1298,12 +1298,16 @@ int
 __wt_cursor_bounds_save(
   WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_CURSOR_BOUNDS_STATE *bounds_state)
 {
-    if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER))
+    if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER)) {
+        WT_RET(__wt_scr_alloc(session, 0, &bounds_state->lower_bound));
         WT_RET(__wt_buf_set(
           session, bounds_state->lower_bound, cursor->lower_bound.data, cursor->lower_bound.size));
-    if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER))
+    }
+    if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER)) {
+        WT_RET(__wt_scr_alloc(session, 0, &bounds_state->upper_bound));
         WT_RET(__wt_buf_set(
           session, bounds_state->upper_bound, cursor->upper_bound.data, cursor->upper_bound.size));
+    }
     /* Save the bound flags to the state. */
     bounds_state->bound_flags = F_MASK(cursor, WT_CURSTD_BOUND_ALL);
 
@@ -1326,12 +1330,12 @@ __wt_cursor_bounds_restore(
     /* Set the saved bound flags back to the cursor. */
     F_SET(cursor, bounds_state->bound_flags);
 
-    if (WT_DATA_IN_ITEM(bounds_state->lower_bound))
+    if (bounds_state->lower_bound != NULL)
         if ((ret = __wt_buf_set(session, &cursor->lower_bound, bounds_state->lower_bound->data,
                bounds_state->lower_bound->size)) != 0)
             WT_RET_PANIC(session, ret, "Unrecoverable error encountered while restoring bounds");
 
-    if (WT_DATA_IN_ITEM(bounds_state->upper_bound))
+    if (bounds_state->upper_bound != NULL)
         if ((ret = __wt_buf_set(session, &cursor->upper_bound, bounds_state->upper_bound->data,
                bounds_state->upper_bound->size)) != 0)
             WT_RET_PANIC(session, ret, "Unrecoverable error encountered while restoring bounds");

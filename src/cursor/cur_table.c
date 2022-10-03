@@ -848,12 +848,12 @@ __curtable_bound(WT_CURSOR *cursor, const char *config)
     primary = *ctable->cg_cursors;
     JOINABLE_CURSOR_API_CALL(cursor, session, bound, NULL);
 
-    WT_ERR(__wt_scr_alloc(session, 0, &saved_bounds.lower_bound));
-    WT_ERR(__wt_scr_alloc(session, 0, &saved_bounds.upper_bound));
+    saved_bounds.lower_bound = NULL;
+    saved_bounds.upper_bound = NULL;
 
     /* Save the current state of the bounds in case we fail to apply the new state. */
     if (WT_CURSOR_BOUNDS_SET(primary)) {
-        WT_RET(__wt_cursor_bounds_save(session, primary, &saved_bounds));
+        WT_TRET(__wt_cursor_bounds_save(session, primary, &saved_bounds));
     }
 
     /* Call bound function on all column groups. */
@@ -865,8 +865,10 @@ err:
         for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); i++, cp++)
             WT_TRET(__wt_cursor_bounds_restore(session, *cp, &saved_bounds));
 
-    __wt_scr_free(session, &saved_bounds.lower_bound);
-    __wt_scr_free(session, &saved_bounds.upper_bound);
+    if (saved_bounds.lower_bound != NULL)
+        __wt_scr_free(session, &saved_bounds.lower_bound);
+    if (saved_bounds.upper_bound != NULL)
+        __wt_scr_free(session, &saved_bounds.upper_bound);
 
     API_END_RET(session, ret);
 }
