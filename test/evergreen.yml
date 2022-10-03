@@ -1444,9 +1444,9 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "csuite smoke test"
+      - func: "csuite test"
         vars:
-          test_binary: parse_opts
+          test_name: parse_opts
 
   - name: csuite-random-abort-test
     tags: ["pull_request"]
