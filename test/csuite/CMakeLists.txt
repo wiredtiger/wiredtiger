@@ -44,12 +44,11 @@ define_c_test(
 )
 
 define_c_test(
-  TARGET test_parse_opts
-  SOURCES parse_opts/main.c
-  DIR_NAME parse_opts
-  ARGUMENTS $<TARGET_FILE:test_parse_opts>
-  DEPENDS "WT_POSIX"
-  )
+    TARGET test_parse_opts
+    SOURCES parse_opts/main.c
+    DIR_NAME parse_opts
+    DEPENDS "WT_POSIX"
+)
 
 define_c_test(
     TARGET test_schema_abort
