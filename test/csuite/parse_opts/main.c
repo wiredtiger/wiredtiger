@@ -259,6 +259,18 @@ verify_expect(TEST_OPTS *opts, EXTENDED_OPTS *x_opts, TEST_OPTS *expect, EXTENDE
 }
 
 /*
+ * cleanup --
+ *     Clean up allocated resources.
+ */
+static void
+cleanup(TEST_OPTS *opts, EXTENDED_OPTS *x_opts)
+{
+    (void)x_opts; /* Nothing to clean up here. */
+
+    testutil_cleanup(opts);
+}
+
+/*
  * main --
  *     Unit test for test utility functions.
  */
@@ -281,6 +293,7 @@ main(int argc, char *argv[])
         }
         check(argc, argv, &opts, &x_opts);
         report(&opts, &x_opts);
+        cleanup(&opts, &x_opts);
     } else {
         testutil_assert(WT_ELEMENTS(command_lines) == WT_ELEMENTS(expected));
         for (i = 0; i < WT_ELEMENTS(command_lines); i++) {
@@ -291,6 +304,7 @@ main(int argc, char *argv[])
             x_expect = &x_expected[i];
             check(nargs, cmd, &opts, &x_opts);
             verify_expect(&opts, &x_opts, expect, x_expect);
+            cleanup(&opts, &x_opts);
         }
     }
 
