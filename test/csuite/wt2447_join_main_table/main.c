@@ -116,7 +116,6 @@ main(int argc, char *argv[])
         printf("Table type: rows\n");
         break;
     case TABLE_NOT_SET:
-    default:
         testutil_die(ENOTSUP, "Unknown table type (%d)\n", (int)opts->table_type);
     }
 
