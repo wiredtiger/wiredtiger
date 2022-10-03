@@ -357,6 +357,7 @@ PackOutputStream
 Pandis
 Phong
 PlatformSDK
+Pomy
 Posix
 PostgreSQL
 Postrun
@@ -591,6 +592,7 @@ batchSize
 bb
 bba
 bbb
+bbuilddir
 bcr
 beginthreadex
 bigram
@@ -830,6 +832,7 @@ dsync
 dumpcmp
 dumpfile
 dup
+dv
 eee
 eg
 egrep
@@ -853,6 +856,8 @@ errhandler
 errno
 errx
 esc
+ev
+evd
 eventv
 evictable
 evictserver
@@ -1262,6 +1267,7 @@ other's
 oversized
 ovfl
 ownp
+pR
 packv
 pagedump
 pageref
@@ -1554,6 +1560,7 @@ unhandled
 unicode
 uninstantiated
 unistd
+unittest
 unlink
 unlinked
 unmap
@@ -1592,6 +1599,7 @@ util
 utils
 uu
 vN
+vW
 va
 valgrind
 validator
@@ -1600,6 +1608,7 @@ valuev
 vanishingly
 variable's
 variadic
+vd
 vdata
 vec
 vectorized

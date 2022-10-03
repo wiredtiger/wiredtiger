@@ -222,12 +222,13 @@ testutil_cleanup(TEST_OPTS *opts)
     free(opts->home);
     free(opts->build_dir);
     if (opts->tiered_storage) {
-        for (i = 0; i <= opts->nargc; ++i)
-            free(opts->nargv[i]);
-        free(opts->nargv);
+        for (i = 0; i <= opts->argc; ++i)
+            free(opts->argv[i]);
+        free(opts->argv);
     }
     if (opts->tiered_storage_source != NULL)
         free(opts->tiered_storage_source);
+    free(opts->usage);
 }
 
 /*

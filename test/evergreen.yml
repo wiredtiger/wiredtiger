@@ -1438,6 +1438,16 @@ tasks:
         vars:
           test_name: incr_backup
 
+  - name: csuite-parse-opts-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "csuite smoke test"
+        vars:
+          test_binary: parse_opts
+
   - name: csuite-random-abort-test
     tags: ["pull_request"]
     depends_on:
