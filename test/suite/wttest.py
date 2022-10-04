@@ -474,6 +474,7 @@ class WiredTigerTestCase(unittest.TestCase):
     def setUpConnectionOpen(self, home):
         self.home = home
         config = self.conn_config
+        print(config)
         if hasattr(config, '__call__'):
             config = self.conn_config()
         config += self.extensionsConfig()

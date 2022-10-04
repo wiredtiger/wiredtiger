@@ -40,12 +40,11 @@ class test_truncate19(wttest.WiredTigerTestCase):
     conn_config = 'log=(enabled=true)'
     
     def test_truncate19(self):
-        nrows = 1000
         #extraconfig = ''
         extraconfig = ',log=(enabled=true)'
 
         # VLCS and FLCS tables
-        row_uri = "table:trunca2te19_row"
+        row_uri = "table:trunca2te19_vlcs"
         row_format = "key_format=r,value_format=S"
 
         flcs_uri = "table:trunca2te19_flcs"
@@ -72,6 +71,8 @@ class test_truncate19(wttest.WiredTigerTestCase):
             row_cursor[i] = str(i)
             flcs_cursor[i] = i
         self.session.commit_transaction()
+
+        self.session.checkpoint()
 
         # 2. truncate from 90-110
         self.session.begin_transaction()
@@ -105,6 +106,15 @@ class test_truncate19(wttest.WiredTigerTestCase):
 
         self.session.commit_transaction()
 
+        self.conn_config = 'log=(enabled=true),verbose=(recovery)'
+        simulate_crash_restart(self, ".", "RESTART")
+        row_cursor2 = self.session.open_cursor(row_uri)
+        flcs_cursor2 = self.session.open_cursor(flcs_uri)
+
+        row_cursor2.set_key(120)
+        flcs_cursor2.set_key(120)
+        
+        self.assertEqual(row_cursor2.search(), flcs_cursor2.search())
 
 if __name__ == '__main__':
     wttest.run()
