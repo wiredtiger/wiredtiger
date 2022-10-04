@@ -39,7 +39,7 @@ import time
 
 class test_truncate19(wttest.WiredTigerTestCase):
     conn_config = 'log=(enabled=true)'
-    
+
     def test_truncate19(self):
         extraconfig = ',log=(enabled=true)'
 
