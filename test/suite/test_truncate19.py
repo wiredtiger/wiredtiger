@@ -83,7 +83,7 @@ class test_truncate19(wttest.WiredTigerTestCase):
         flcs_end = self.session.open_cursor(flcs_uri, None)
         flcs_end.set_key(130)
         self.session.truncate(None, flcs_start, flcs_end, "log=(enabled=true)")
-        
+
         # 4. Insert 120 on a second transaction.
         session2.begin_transaction()
         vlcs_cursor2[120] = 120
@@ -108,7 +108,7 @@ class test_truncate19(wttest.WiredTigerTestCase):
         # 7. Both keys and values should be the same, but are not.
         vlcs_cursor2.set_key(120)
         flcs_cursor2.set_key(120)
-        
+
         self.assertEqual(vlcs_cursor2.search(), flcs_cursor2.search())
         self.assertEqual(vlcs_cursor2.get_value(), flcs_cursor2.get_value())
 
