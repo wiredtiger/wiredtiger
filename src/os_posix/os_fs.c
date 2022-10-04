@@ -421,6 +421,7 @@ __posix_file_read(
           len >= S2C(session)->buffer_alignment && len % S2C(session)->buffer_alignment == 0));
 
     /* Break reads larger than 1GB into 1GB chunks. */
+    nr = 0;
     for (addr = buf; len > 0; addr += nr, len -= (size_t)nr, offset += nr) {
         chunk = WT_MIN(len, WT_GIGABYTE);
         /*
