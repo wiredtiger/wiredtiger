@@ -37,19 +37,27 @@ from wtscenario import make_scenarios
 # WT-9715 testing thingo
 
 class test_truncate19(wttest.WiredTigerTestCase):
+    conn_config = 'log=(enabled=true)'
+    
     def test_truncate19(self):
         nrows = 1000
-        extraconfig = ',log=(enabled=true,file_max=318905344)'
+        #extraconfig = ''
+        extraconfig = ',log=(enabled=true)'
 
         # VLCS and FLCS tables
         row_uri = "table:truncate19_row"
-        row_format = "key_format=i,value_format=S"
+        row_format = "key_format=i,value_format=i"
 
         flcs_uri = "table:truncate19_flcs"
         flcs_format = "key_format=r,value_format=8t"
 
+        session2 = self.conn.open_session()
         self.session.create(row_uri, row_format+extraconfig)
         self.session.create(flcs_uri, flcs_format+extraconfig)
+
+
+        row_cursor2 = session2.open_cursor(row_uri)
+        flcs_cursor2 = session2.open_cursor(flcs_uri)
 
         row_cursor = self.session.open_cursor(row_uri)
         flcs_cursor = self.session.open_cursor(flcs_uri)
@@ -57,34 +65,72 @@ class test_truncate19(wttest.WiredTigerTestCase):
         self.session.begin_transaction()
         # insert keys 1-100
         for i in range(1, 100):
-            row_cursor[i] = str(i)
+            row_cursor[i] = i
             flcs_cursor[i] = i
-
-        # 2. truncate from 90-110
-        row_start = self.session.open_cursor(row_uri, None)
-        row_start.set_key(90)
-        flcs_start = self.session.open_cursor(flcs_uri, None)
-        flcs_start.set_key(90)
-
-        row_end = self.session.open_cursor(row_uri, None)
-        row_end.set_key(110)
-        flcs_end = self.session.open_cursor(flcs_uri, None)
-        flcs_end.set_key(110)
-
-        self.session.truncate(None, row_start, row_end, None)
-        self.session.truncate(None, flcs_start, flcs_end, None)
-
         self.session.commit_transaction()
 
-        # checkpoint
+
+        self.session.begin_transaction()
+        for i in range(150, 200):
+            row_cursor[i] = i
+            flcs_cursor[i] = i
+        self.session.commit_transaction()
+
+        # 2. truncate from 90-110
+        session2.begin_transaction()
+        self.session.begin_transaction()
+
+        # 3. Truncate FLCS
+        flcs_start = self.session.open_cursor(flcs_uri, None)
+        flcs_start.set_key(120)
+        flcs_end = self.session.open_cursor(flcs_uri, None)
+        flcs_end.set_key(130)
+        # flcs_end.search_near()
+        # flcs_end.prev()
+        self.session.truncate(None, flcs_start, flcs_end, None)
+        
+        # 4. Modify 120
+        row_cursor2[120] = 120
+        flcs_cursor2[120] = 120
+
+        # 5. Truncate Row
+        row_start = self.session.open_cursor(row_uri, None)
+        row_start.set_key(120)
+        row_end = self.session.open_cursor(row_uri, None)
+        row_end.set_key(130)
+        # row_end.search_near()
+        # row_end.prev()
+
+        self.session.truncate(None, row_start, row_end, None)
+
+        # print(row_end.get_key(), flcs_end.get_key())
+
+
+        session2.commit_transaction()
+        self.session.commit_transaction()
+
         self.session.checkpoint()
-
-        # then restart
-        simulate_crash_restart(self, ".", "RESTART")
-        self.assertEqual(0, 1)
-
-        # TODO figure out success/failure condition - check all data?
 
 
 if __name__ == '__main__':
     wttest.run()
+
+
+# // T1 Truncate 520978 [4, 105344] -> Begins earlier and commits later
+# // T2 Update 521192 [4, 76032] -> Begins later and commits earlier
+
+# // T1, T2 Begins
+# // 11169 -> 15874 do not exist
+# // search_near(13000)
+# // T1 truncates 1 -> 15874 T1 (FLCS) -> position (snapshot)
+# // T2 updates and commits 13777 
+# // T2 truncates 1 -> 11169 T2 (ROW-STORE) -> 11169 
+# //
+
+# // T1, T2 Begins
+# // 11169 -> 15874 do not exist
+# // search_near(13000)
+# // T2 updates and commits 13777
+# // T1 truncates 1 -> 15874 T1 (FLCS) -> position 
+# // T2 truncates 1 -> 11169 T2 (ROW-STORE) -> 11169 
+# //
