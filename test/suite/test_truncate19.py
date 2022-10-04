@@ -45,10 +45,10 @@ class test_truncate19(wttest.WiredTigerTestCase):
         extraconfig = ',log=(enabled=true)'
 
         # VLCS and FLCS tables
-        row_uri = "table:truncate19_row"
-        row_format = "key_format=i,value_format=i"
+        row_uri = "table:trunca2te19_row"
+        row_format = "key_format=r,value_format=S"
 
-        flcs_uri = "table:truncate19_flcs"
+        flcs_uri = "table:trunca2te19_flcs"
         flcs_format = "key_format=r,value_format=8t"
 
         session2 = self.conn.open_session()
@@ -65,51 +65,45 @@ class test_truncate19(wttest.WiredTigerTestCase):
         self.session.begin_transaction()
         # insert keys 1-100
         for i in range(1, 100):
-            row_cursor[i] = i
+            row_cursor[i] = str(i)
             flcs_cursor[i] = i
-        self.session.commit_transaction()
 
-
-        self.session.begin_transaction()
         for i in range(150, 200):
-            row_cursor[i] = i
+            row_cursor[i] = str(i)
             flcs_cursor[i] = i
         self.session.commit_transaction()
 
         # 2. truncate from 90-110
-        session2.begin_transaction()
         self.session.begin_transaction()
 
         # 3. Truncate FLCS
         flcs_start = self.session.open_cursor(flcs_uri, None)
-        flcs_start.set_key(120)
+        flcs_start.set_key(80)
         flcs_end = self.session.open_cursor(flcs_uri, None)
         flcs_end.set_key(130)
         # flcs_end.search_near()
         # flcs_end.prev()
-        self.session.truncate(None, flcs_start, flcs_end, None)
+        self.session.truncate(None, flcs_start, flcs_end, "log=(enabled=true)")
         
         # 4. Modify 120
-        row_cursor2[120] = 120
+        session2.begin_transaction()
+        row_cursor2[120] = str(120)
         flcs_cursor2[120] = 120
+        session2.commit_transaction()
 
         # 5. Truncate Row
         row_start = self.session.open_cursor(row_uri, None)
-        row_start.set_key(120)
+        row_start.set_key(80)
         row_end = self.session.open_cursor(row_uri, None)
         row_end.set_key(130)
         # row_end.search_near()
         # row_end.prev()
 
-        self.session.truncate(None, row_start, row_end, None)
-
+        self.session.truncate(None, row_start, row_end, "log=(enabled=true)")
         # print(row_end.get_key(), flcs_end.get_key())
 
 
-        session2.commit_transaction()
         self.session.commit_transaction()
-
-        self.session.checkpoint()
 
 
 if __name__ == '__main__':
@@ -119,13 +113,21 @@ if __name__ == '__main__':
 # // T1 Truncate 520978 [4, 105344] -> Begins earlier and commits later
 # // T2 Update 521192 [4, 76032] -> Begins later and commits earlier
 
-# // T1, T2 Begins
+# // T1, T2 Begins, Logging
 # // 11169 -> 15874 do not exist
 # // search_near(13000)
-# // T1 truncates 1 -> 15874 T1 (FLCS) -> position (snapshot)
-# // T2 updates and commits 13777 
-# // T2 truncates 1 -> 11169 T2 (ROW-STORE) -> 11169 
-# //
+# // T1 truncates 1 -> 15874 Table1 (FLCS) -> position (snapshot)
+# // T2 updates and commits 13777 Logging #1
+# // T1 truncates 1 -> 11169 Table2 (ROW-STORE) -> 11169 
+# // T1 commits Logs #2 
+# Live vs Replayed
+# 
+# Playing from the logs
+# #1 and then #2
+# Update on 13777
+# Truncate
+
+# T2 first and then 
 
 # // T1, T2 Begins
 # // 11169 -> 15874 do not exist
@@ -133,4 +135,3 @@ if __name__ == '__main__':
 # // T2 updates and commits 13777
 # // T1 truncates 1 -> 15874 T1 (FLCS) -> position 
 # // T2 truncates 1 -> 11169 T2 (ROW-STORE) -> 11169 
-# //

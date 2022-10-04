@@ -2105,7 +2105,6 @@ retry:
         start->compare = 0; /* Exact match */
     }
 
-err:
     if (ret == WT_RESTART) {
         __cursor_restart(session, &yield_count, &sleep_usecs);
         goto retry;
@@ -2155,7 +2154,7 @@ __wt_btcur_range_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop)
      */
     if (logging)
         WT_RET(__wt_txn_truncate_log(session, start, stop));
-
+å
     switch (btree->type) {
     case BTREE_COL_FIX:
         WT_ERR(__cursor_truncate_fix(start, stop, __cursor_col_modify));
