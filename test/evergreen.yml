@@ -4524,7 +4524,7 @@ buildvariants:
     smp_command: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 4 | bc)
     cmake_generator: Ninja
     make_command: ninja
-    posix_configure_flags: -DENABLE_STRICT=0 -DRHEL_PPC=1
+    posix_configure_flags: -DENABLE_STRICT=0
   tasks:
     - name: compile
     - name: unit-test
