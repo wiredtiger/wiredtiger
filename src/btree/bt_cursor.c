@@ -1174,6 +1174,7 @@ retry:
             if (valid)
                 goto duplicate;
         }
+
         ret = __cursor_row_modify(cbt, &cbt->iface.value, WT_UPDATE_STANDARD);
     } else if (append_key) {
         /*

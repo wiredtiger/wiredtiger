@@ -718,7 +718,11 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
     size_t total_skipped, skipped;
     uint32_t flags;
     bool key_out_of_bounds, newpage, restart, need_walk;
+#ifdef HAVE_DIAGNOSTIC
+    bool inclusive_set;
 
+    inclusive_set = false;
+#endif
     cursor = &cbt->iface;
     key_out_of_bounds = false;
     need_walk = false;
@@ -899,11 +903,16 @@ err:
             /*
              * The bounds positioning code relies on the assumption that if we had to walk then we
              * can't possibly have walked to the upper bound. We check that assumption here by
-             * comparing the upper bound with our current key or recno.
+             * comparing the upper bound with our current key or recno. Force inclusive to be false
+             * so we don't consider the bound itself.
              */
+            inclusive_set = F_ISSET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE);
+            F_CLR(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE);
             ret = __wt_compare_bounds(
               session, cursor, &cbt->iface.key, cbt->recno, true, &key_out_of_bounds);
             WT_ASSERT(session, ret == 0 && !key_out_of_bounds);
+            if (inclusive_set)
+                F_SET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE);
         }
 #endif
         break;
