@@ -1298,6 +1298,9 @@ int
 __wt_cursor_bounds_save(
   WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_CURSOR_BOUNDS_STATE *bounds_state)
 {
+    /* Save the bound flags to the state. */
+    bounds_state->bound_flags = F_MASK(cursor, WT_CURSTD_BOUND_ALL);
+
     if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER)) {
         WT_RET(__wt_scr_alloc(session, 0, &bounds_state->lower_bound));
         WT_RET(__wt_buf_set(
@@ -1308,8 +1311,6 @@ __wt_cursor_bounds_save(
         WT_RET(__wt_buf_set(
           session, bounds_state->upper_bound, cursor->upper_bound.data, cursor->upper_bound.size));
     }
-    /* Save the bound flags to the state. */
-    bounds_state->bound_flags = F_MASK(cursor, WT_CURSTD_BOUND_ALL);
 
     return (0);
 }
