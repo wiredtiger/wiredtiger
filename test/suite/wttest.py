@@ -474,11 +474,10 @@ class WiredTigerTestCase(unittest.TestCase):
     def setUpConnectionOpen(self, home):
         self.home = home
         config = self.conn_config
-        print(config)
         if hasattr(config, '__call__'):
             config = self.conn_config()
         config += self.extensionsConfig()
-        # In case the open starts additional threads, flush first to
+        # In case the open starts additional threads, flush first to`sa`
         # avoid confusion.
         sys.stdout.flush()
         conn_param = 'create,error_prefix="%s",%s' % (self.shortid(), config)

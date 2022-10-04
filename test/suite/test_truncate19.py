@@ -31,6 +31,7 @@ from helper import simulate_crash_restart
 from wiredtiger import stat, WiredTigerError, wiredtiger_strerror, WT_NOTFOUND, WT_ROLLBACK
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
+import time
 
 # test_truncate19.py
 #
@@ -40,41 +41,40 @@ class test_truncate19(wttest.WiredTigerTestCase):
     conn_config = 'log=(enabled=true)'
     
     def test_truncate19(self):
-        #extraconfig = ''
         extraconfig = ',log=(enabled=true)'
 
         # VLCS and FLCS tables
-        row_uri = "table:trunca2te19_vlcs"
-        row_format = "key_format=r,value_format=S"
+        vlcs_uri = "table:trunca2te19_vlcs"
+        vlcs_format = "key_format=r,value_format=i"
 
         flcs_uri = "table:trunca2te19_flcs"
         flcs_format = "key_format=r,value_format=8t"
 
         session2 = self.conn.open_session()
-        self.session.create(row_uri, row_format+extraconfig)
+        self.session.create(vlcs_uri, vlcs_format+extraconfig)
         self.session.create(flcs_uri, flcs_format+extraconfig)
 
-
-        row_cursor2 = session2.open_cursor(row_uri)
+        vlcs_cursor2 = session2.open_cursor(vlcs_uri)
         flcs_cursor2 = session2.open_cursor(flcs_uri)
 
-        row_cursor = self.session.open_cursor(row_uri)
+        vlcs_cursor = self.session.open_cursor(vlcs_uri)
         flcs_cursor = self.session.open_cursor(flcs_uri)
 
         self.session.begin_transaction()
-        # insert keys 1-100
+
+        # 1. Insert keys 1-100 and 150-200
         for i in range(1, 100):
-            row_cursor[i] = str(i)
+            vlcs_cursor[i] = i
             flcs_cursor[i] = i
 
         for i in range(150, 200):
-            row_cursor[i] = str(i)
+            vlcs_cursor[i] = i
             flcs_cursor[i] = i
         self.session.commit_transaction()
 
         self.session.checkpoint()
 
-        # 2. truncate from 90-110
+        # 2. Truncate from 90-110
         self.session.begin_transaction()
 
         # 3. Truncate FLCS
@@ -82,66 +82,35 @@ class test_truncate19(wttest.WiredTigerTestCase):
         flcs_start.set_key(80)
         flcs_end = self.session.open_cursor(flcs_uri, None)
         flcs_end.set_key(130)
-        # flcs_end.search_near()
-        # flcs_end.prev()
         self.session.truncate(None, flcs_start, flcs_end, "log=(enabled=true)")
         
-        # 4. Modify 120
+        # 4. Insert 120 on a second transaction.
         session2.begin_transaction()
-        row_cursor2[120] = str(120)
+        vlcs_cursor2[120] = 120
         flcs_cursor2[120] = 120
         session2.commit_transaction()
 
-        # 5. Truncate Row
-        row_start = self.session.open_cursor(row_uri, None)
-        row_start.set_key(80)
-        row_end = self.session.open_cursor(row_uri, None)
-        row_end.set_key(130)
-        # row_end.search_near()
-        # row_end.prev()
+        # 5. Truncate VLCS
+        vlcs_start = self.session.open_cursor(vlcs_uri, None)
+        vlcs_start.set_key(80)
+        vlcs_end = self.session.open_cursor(vlcs_uri, None)
+        vlcs_end.set_key(130)
 
-        self.session.truncate(None, row_start, row_end, "log=(enabled=true)")
-        # print(row_end.get_key(), flcs_end.get_key())
-
-
+        self.session.truncate(None, vlcs_start, vlcs_end, "log=(enabled=true)")
         self.session.commit_transaction()
 
-        self.conn_config = 'log=(enabled=true),verbose=(recovery)'
+        time.sleep(5)
+        # 6. Simulate crash and log recovery.
         simulate_crash_restart(self, ".", "RESTART")
-        row_cursor2 = self.session.open_cursor(row_uri)
+        vlcs_cursor2 = self.session.open_cursor(vlcs_uri)
         flcs_cursor2 = self.session.open_cursor(flcs_uri)
 
-        row_cursor2.set_key(120)
+        # 7. Both keys and values should be the same, but are not.
+        vlcs_cursor2.set_key(120)
         flcs_cursor2.set_key(120)
         
-        self.assertEqual(row_cursor2.search(), flcs_cursor2.search())
+        self.assertEqual(vlcs_cursor2.search(), flcs_cursor2.search())
+        self.assertEqual(vlcs_cursor2.get_value(), flcs_cursor2.get_value())
 
 if __name__ == '__main__':
     wttest.run()
-
-
-# // T1 Truncate 520978 [4, 105344] -> Begins earlier and commits later
-# // T2 Update 521192 [4, 76032] -> Begins later and commits earlier
-
-# // T1, T2 Begins, Logging
-# // 11169 -> 15874 do not exist
-# // search_near(13000)
-# // T1 truncates 1 -> 15874 Table1 (FLCS) -> position (snapshot)
-# // T2 updates and commits 13777 Logging #1
-# // T1 truncates 1 -> 11169 Table2 (ROW-STORE) -> 11169 
-# // T1 commits Logs #2 
-# Live vs Replayed
-# 
-# Playing from the logs
-# #1 and then #2
-# Update on 13777
-# Truncate
-
-# T2 first and then 
-
-# // T1, T2 Begins
-# // 11169 -> 15874 do not exist
-# // search_near(13000)
-# // T2 updates and commits 13777
-# // T1 truncates 1 -> 15874 T1 (FLCS) -> position 
-# // T2 truncates 1 -> 11169 T2 (ROW-STORE) -> 11169 
