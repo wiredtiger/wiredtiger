@@ -1744,21 +1744,21 @@ methods = {
                 tiered storage''',
                 type='boolean'),
             Config('force', 'false', r'''
-                if false (the default), flush_tier may be skipped if the underlying object
-                has not been modified since the previous flush_tier. If true, this option forces
-                the flush_tier''',
+                if false (the default), flush_tier of any individual object may be skipped if the
+                underlying object has not been modified since the previous flush_tier. If true,
+                this option forces the flush_tier''',
                 type='boolean'),
             Config('sync', 'true', r'''
                 wait for all objects to be flushed to the shared storage to the level specified.
                 When false, do not wait for any objects to be written to the tiered storage system
                 but return immediately after generating the objects and work units for an internal
-                thread.  When true,the caller waits until all work queued for this call to be
+                thread.  When true, the caller waits until all work queued for this call to be
                 completely processed before returning''',
                 type='boolean'),
             Config('timeout', '0', r'''
-                maximum amount of time to allow for waiting for previous flushing of objects, in
-                seconds. The actual amount of time spent waiting may exceed the configured value. A
-                value of zero disables the timeout''',
+                amount of time, in seconds, to allow for waiting for flushing of objects.
+                WiredTiger returns EBUSY if the timeout is reached. A value of zero disables
+                the timeout''',
                 type='int'),
     ]),
     Config('force', 'false', r'''

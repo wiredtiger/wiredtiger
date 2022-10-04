@@ -74,7 +74,7 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    uint64_t ckpt_time, flush_time;
+    uint64_t ckpt_time;
     const char *key, *value;
 
     __wt_verbose(session, WT_VERB_TIERED, "CKPT_FLUSH_TIER: Called force %d", force);
@@ -91,20 +91,9 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
      */
     conn->flush_state = 0;
 
-    /*
-     * We hold the checkpoint lock so we know no other thread can be doing a checkpoint at this time
-     * but our time can move backward with respect to the time set by a different thread that did a
-     * checkpoint. Update time value for most recent flush_tier, taking the more recent of now or
-     * the checkpoint time.
-     */
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_CHECKPOINT));
-    __wt_seconds(session, &flush_time);
-    /*
-     * XXX If/when flush tier no longer requires the checkpoint lock, all of these global values and
-     * their settings need consideration to make sure they don't race with a checkpoint.
-     */
     conn->flush_ckpt_complete = false;
-    conn->flush_most_recent = WT_MAX(flush_time, conn->ckpt_most_recent);
+    conn->flush_most_recent = conn->ckpt_most_recent;
     conn->flush_ts = conn->txn_global.last_ckpt_timestamp;
 
     /*
@@ -125,10 +114,6 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
                  * checkpoint more recent than the last flush time.
                  */
                 WT_ERR(__wt_meta_checkpoint(session, key, NULL, &ckpt));
-                /*
-                 * XXX If/when flush tier no longer requires the checkpoint lock, this needs
-                 * consideration.
-                 */
                 ckpt_time = ckpt.sec;
                 __wt_meta_checkpoint_free(session, &ckpt);
                 WT_ERR(__wt_config_getones(session, value, "flush_time", &cval));
