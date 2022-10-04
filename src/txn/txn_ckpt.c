@@ -77,8 +77,9 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
     uint64_t ckpt_time, flush_time;
     const char *key, *value;
 
-    __wt_verbose(session, WT_VERB_TIERED, "FLUSH_TIER_ONCE: Called force %d", force);
+    __wt_verbose(session, WT_VERB_TIERED, "CKPT_FLUSH_TIER: Called force %d", force);
 
+    WT_STAT_CONN_INCR(session, flush_tier);
     conn = S2C(session);
     cursor = NULL;
     /*
@@ -117,7 +118,7 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
         /* For now just switch tiers which just does metadata manipulation. */
         if (WT_PREFIX_MATCH(key, "tiered:")) {
             __wt_verbose(
-              session, WT_VERB_TIERED, "FLUSH_TIER_ONCE: %s %s force %d", key, value, force);
+              session, WT_VERB_TIERED, "CKPT_FLUSH_TIER: %s %s force %d", key, value, force);
             if (!force) {
                 /*
                  * Check the table's last checkpoint time and only flush trees that have a
@@ -158,6 +159,7 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
 err:
     WT_TRET(__wt_session_release_dhandle(session));
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    WT_STAT_CONN_INCR(session, flush_tier_fail);
     return (ret);
 }
 /*
