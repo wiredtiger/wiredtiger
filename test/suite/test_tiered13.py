@@ -65,8 +65,7 @@ class test_tiered13(test_import_base, TieredConfigMixin):
         c = self.session.open_cursor(self.uri)
         c["0"] = "0"
         c.close()
-        self.session.checkpoint()
-        self.session.flush_tier(None)
+        self.session.checkpoint('flush_tier=(enabled)')
         c = self.session.open_cursor(self.uri)
         c["1"] = "1"
         c.close()

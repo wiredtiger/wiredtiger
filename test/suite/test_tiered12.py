@@ -80,9 +80,7 @@ class test_tiered12(wttest.WiredTigerTestCase, TieredConfigMixin):
         c["0"] = "0"
         self.check(c, 0, 1)
         c.close()
-        self.session.checkpoint()
-
-        self.session.flush_tier(None)
+        self.session.checkpoint('flush_tier=(enabled)')
 
         # On directory store, the bucket object should exist.
         if self.ss_name == 'dir_store':

@@ -105,10 +105,8 @@ class test_tiered10(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.check(c2, 20, 1)
         c1.close()
         c2.close()
-        session1.checkpoint()
-        session1.flush_tier(None)
-        session2.checkpoint()
-        session2.flush_tier(None)
+        self.session1.checkpoint('flush_tier=(enabled)')
+        self.session2.checkpoint('flush_tier=(enabled)')
         conn1_obj1 = os.path.join(self.bucket, self.bucket_prefix + self.obj1file)
         conn2_obj1 = os.path.join(self.bucket, self.bucket_prefix1 + self.obj1file)
 

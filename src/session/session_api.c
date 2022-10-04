@@ -2243,27 +2243,6 @@ __wt_session_strerror(WT_SESSION *wt_session, int error)
     return (__wt_strerror(session, error, NULL, 0));
 }
 
-#if 0
-/*
- * __session_flush_tier --
- *     Wrapper for the flush_tier method.
- */
-static int
-__session_flush_tier(WT_SESSION *wt_session, const char *config)
-{
-    WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-
-    session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL_NOCONF(session, flush_tier);
-    ret = __wt_flush_tier(session, config);
-err:
-    if (ret != 0)
-        WT_STAT_CONN_INCR(session, flush_tier_fail);
-    API_END_RET(session, ret);
-}
-#endif
-
 /*
  * __session_flush_tier_readonly --
  *     WT_SESSION->flush_tier method; readonly version.
@@ -2279,7 +2258,6 @@ __session_flush_tier_readonly(WT_SESSION *wt_session, const char *config)
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL_NOCONF(session, flush_tier);
 
-    WT_STAT_CONN_INCR(session, flush_tier_fail);
     ret = __wt_session_notsup(session);
 err:
     API_END_RET(session, ret);

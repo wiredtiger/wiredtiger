@@ -78,15 +78,13 @@ class test_tiered16(TieredConfigMixin, wttest.WiredTigerTestCase):
             c["a"] = "a"
             c["b"] = "b"
             c.close()
-            self.session.checkpoint()
-            self.session.flush_tier(None)
+            self.session.checkpoint('flush_tier=(enabled)')
 
             c2 = self.session.open_cursor(uri_b)
             c2["c"] = "c"
             c2["d"] = "d"
             c2.close()
-            self.session.checkpoint()
-            self.session.flush_tier(None)
+            self.session.checkpoint('flush_tier=(enabled)')
 
             self.session.drop(uri_a, "remove_files=true,remove_shared=true")
 
