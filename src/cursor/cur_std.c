@@ -1302,12 +1302,12 @@ __wt_cursor_bounds_save(
     bounds_state->bound_flags = F_MASK(cursor, WT_CURSTD_BOUND_ALL);
 
     if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER)) {
-        WT_RET(__wt_scr_alloc(session, 0, &bounds_state->lower_bound));
+        WT_RET(__wt_scr_alloc(session, cursor->lower_bound.size, &bounds_state->lower_bound));
         WT_RET(__wt_buf_set(
           session, bounds_state->lower_bound, cursor->lower_bound.data, cursor->lower_bound.size));
     }
     if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER)) {
-        WT_RET(__wt_scr_alloc(session, 0, &bounds_state->upper_bound));
+        WT_RET(__wt_scr_alloc(session, cursor->upper_bound.size, &bounds_state->upper_bound));
         WT_RET(__wt_buf_set(
           session, bounds_state->upper_bound, cursor->upper_bound.data, cursor->upper_bound.size));
     }

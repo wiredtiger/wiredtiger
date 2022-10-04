@@ -445,7 +445,13 @@ __curtable_reset(WT_CURSOR *cursor)
 
     APPLY_CG(ctable, reset);
 
-    /* If a user calls cursor reset, call cursor reset on all column groups. */
+    /*
+     * The bounded cursor API clears bounds on external calls to cursor->reset. We determine this by
+     * guarding the call to cursor bound reset with the API_USER_ENTRY macro. Doing so prevents
+     * internal API calls from resetting cursor bounds unintentionally, e.g. cursor->remove. In the
+     * case of the table cursor we walk each cursor and directly reset the bounds on them without
+     * going through curfile_reset for that reason.
+     */
     if (API_USER_ENTRY(session))
         for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); i++, cp++)
             __wt_cursor_bound_reset(*cp);
