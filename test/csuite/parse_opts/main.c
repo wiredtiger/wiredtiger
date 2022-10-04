@@ -237,7 +237,9 @@ verify_expect(TEST_OPTS *opts, EXTENDED_OPTS *x_opts, TEST_OPTS *expect, EXTENDE
         }                                                     \
     } while (0)
 
-    /* opts->home is always set, even without -h on the command line, so don't check it here. */
+    /*
+     * opts->home is always set, even without -h on the command line, so don't check it here.
+     */
     VERIFY_STR(opts, expect, build_dir);
     VERIFY_STR(opts, expect, tiered_storage_source);
     VERIFY_INT(opts, expect, table_type);
@@ -284,7 +286,8 @@ main(int argc, char *argv[])
     char *const *cmd;
 
     if (argc > 1) {
-        /* If first arg is --parse_opt(s), then make argv[0] point to "parse_opt" or "parse_opts".
+        /*
+         * If first arg is --parse_opt(s), then make argv[0] point to "parse_opt" or "parse_opts".
          */
         if (strncmp(argv[1], "--parse_opt", 11) == 0) {
             argc--;
