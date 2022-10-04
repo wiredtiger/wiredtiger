@@ -248,7 +248,7 @@ class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.assertEqual(switch1, switch2)
         self.assertGreater(skip2, skip1)
 
-        self.session.checkpoint('flush_tier=(enabled,sync=off)')
+        self.session.checkpoint('flush_tier=(enabled,sync=false)')
         flush += 3
         self.pr("reconfigure get stat")
         calls = self.get_stat(stat.conn.flush_tier, None)
