@@ -52,9 +52,13 @@
 /* Generic option parsing structure shared by all test cases. */
 typedef struct {
     char *home;
-    const char *argv0;    /* Exec name */
-    const char *progname; /* Truncated program name */
-    char *build_dir;      /* Build directory path */
+    const char *argv0; /* Exec name */
+    char **nargv;      /* New argument vector */
+    int nargc;         /* New argument count */
+
+    const char *progname;        /* Truncated program name */
+    char *build_dir;             /* Build directory path */
+    char *tiered_storage_source; /* Tiered storage source */
 
     enum {
         TABLE_COL = 1, /* Fixed-length column store */
@@ -67,7 +71,7 @@ typedef struct {
 
     bool do_data_ops;          /* Have schema ops use data */
     bool preserve;             /* Don't remove files on exit */
-    bool tiered;               /* Configure tiered storage */
+    bool tiered_storage;       /* Configure tiered storage */
     bool verbose;              /* Run in verbose mode */
     uint64_t nrecords;         /* Number of records */
     uint64_t nops;             /* Number of operations */
@@ -362,9 +366,10 @@ void testutil_clean_work_dir(const char *);
 void testutil_cleanup(TEST_OPTS *);
 void testutil_copy_data(const char *);
 void testutil_copy_file(WT_SESSION *, const char *);
+void testutil_copy_if_exists(WT_SESSION *, const char *);
 void testutil_create_backup_directory(const char *);
 void testutil_make_work_dir(const char *);
-void testutil_modify_apply(WT_ITEM *, WT_ITEM *, WT_MODIFY *, int);
+void testutil_modify_apply(WT_ITEM *, WT_ITEM *, WT_MODIFY *, int, uint8_t);
 int testutil_parse_opts(int, char *const *, TEST_OPTS *);
 void testutil_print_command_line(int argc, char *const *argv);
 void testutil_progress(TEST_OPTS *, const char *);

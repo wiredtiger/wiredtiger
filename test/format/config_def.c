@@ -6,9 +6,6 @@ CONFIG configuration_list[] = {
   {"assert.read_timestamp", "assert read_timestamp",
     C_BOOL, 2, 0, 0, V_GLOBAL_ASSERT_READ_TIMESTAMP},
 
-  {"assert.write_timestamp", "set write_timestamp_usage and assert write_timestamp",
-    C_BOOL, 2, 0, 0, V_GLOBAL_ASSERT_WRITE_TIMESTAMP},
-
   {"backup", "configure backups",
     C_BOOL, 20, 0, 0, V_GLOBAL_BACKUP},
 
@@ -203,6 +200,9 @@ CONFIG configuration_list[] = {
   {"ops.pct.write", "update operations (percentage)",
     C_IGNORE | C_TABLE, 0, 0, 100, V_TABLE_OPS_PCT_WRITE},
 
+  {"ops.bound_cursor", "configure bound cursor reads",
+    C_BOOL, 5, 0, 0, V_GLOBAL_OPS_BOUND_CURSOR},
+
   {"ops.prepare", "configure transaction prepare",
     C_BOOL, 5, 0, 0, V_GLOBAL_OPS_PREPARE},
 
@@ -226,6 +226,9 @@ CONFIG configuration_list[] = {
 
   {"runs.ops", "operations per run",
     0x0, 0, M(2), M(100), V_GLOBAL_RUNS_OPS},
+
+  {"runs.mirror", "mirror tables",
+    C_BOOL | C_IGNORE | C_TABLE, 0, 0, 0, V_TABLE_RUNS_MIRROR},
 
   {"runs.rows", "number of rows",
     C_TABLE, 10, M(1), M(100), V_TABLE_RUNS_ROWS},
@@ -262,9 +265,6 @@ CONFIG configuration_list[] = {
 
   {"stress.checkpoint_evict_page", "stress force checkpoint to evict all reconciling pages",
     C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_CHECKPOINT_EVICT_PAGE},
-
-  {"stress.checkpoint_reserved_txnid_delay", "stress checkpoint invisible transaction id delay",
-    C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_CHECKPOINT_RESERVED_TXNID_DELAY},
 
   {"stress.checkpoint_prepare", "stress checkpoint prepare",
     C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_CHECKPOINT_PREPARE},

@@ -86,16 +86,16 @@ class bounds():
         return True
 
     # This is used by for loops, so add one to the expected end range.
-    def end_range(self, key_count):
+    def end_range(self, max_key):
         if (not self.upper.enabled):
-            return key_count
+            return max_key
         if (self.upper.inclusive):
             return self.upper.key + 1
         return self.upper.key
 
-    def start_range(self):
+    def start_range(self, min_key):
         if (not self.lower.enabled):
-            return 0
+            return min_key
         if (self.lower.inclusive):
             return self.lower.key
         return self.lower.key + 1
@@ -109,7 +109,7 @@ class bound_base(wttest.WiredTigerTestCase):
     lower_inclusive = True
     upper_inclusive = True
 
-    def create_session_and_cursor(self):
+    def create_session_and_cursor(self, cursor_config=None):
         uri = self.uri + self.file_name
         create_params = 'value_format={},key_format={}'.format(self.value_format, self.key_format)
         if self.use_colgroup:
@@ -123,7 +123,7 @@ class bound_base(wttest.WiredTigerTestCase):
                 suburi = 'colgroup:{0}:g{1}'.format(self.file_name, i)
                 self.session.create(suburi, create_params)
 
-        cursor = self.session.open_cursor(uri)
+        cursor = self.session.open_cursor(uri, None, cursor_config)
         self.session.begin_transaction()
 
         for i in range(self.start_key, self.end_key + 1):

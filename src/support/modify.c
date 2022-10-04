@@ -168,7 +168,8 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value, WT_MODIFY *modify, 
      */
     if (value->size <= offset) {
         if (value->size < offset)
-            memset((uint8_t *)value->data + value->size, sformat ? ' ' : 0, offset - value->size);
+            memset((uint8_t *)value->data + value->size,
+              sformat ? ' ' : __wt_process.modify_pad_byte, offset - value->size);
         memcpy((uint8_t *)value->data + offset, data, data_size);
         value->size = offset + data_size;
         return (0);
@@ -448,10 +449,16 @@ __wt_modify_reconstruct_from_upd_list(
     WT_DECL_RET;
     WT_TIME_WINDOW tw;
     WT_UPDATE_VECTOR modifies;
+#ifdef HAVE_DIAGNOSTIC
+    bool is_ovfl_rm;
+#endif
 
     WT_ASSERT(session, upd->type == WT_UPDATE_MODIFY);
 
     cursor = &cbt->iface;
+#ifdef HAVE_DIAGNOSTIC
+    is_ovfl_rm = false;
+#endif
 
     /* While we have a pointer to our original modify, grab this information. */
     upd_value->tw.durable_start_ts = upd->durable_ts;
@@ -483,7 +490,17 @@ __wt_modify_reconstruct_from_upd_list(
          */
         WT_ASSERT(session, cbt->slot != UINT32_MAX);
 
-        WT_ERR(__wt_value_return_buf(cbt, cbt->ref, &upd_value->buf, &tw));
+        ret = __wt_value_return_buf(cbt, cbt->ref, &upd_value->buf, &tw
+#ifdef HAVE_DIAGNOSTIC
+          ,
+          &is_ovfl_rm
+#endif
+        );
+        WT_ERR(ret);
+
+        /* The base value cannot be a removed overflow value. */
+        WT_ASSERT(session, !is_ovfl_rm);
+
         /*
          * Applying modifies on top of a tombstone is invalid. So if we're using the onpage value,
          * the stop time point should be unset.

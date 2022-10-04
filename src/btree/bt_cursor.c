@@ -30,15 +30,14 @@ __btcur_bounds_contains_key(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM
 {
     *key_out_of_boundsp = false;
 
+    if (!WT_CURSOR_BOUNDS_SET(cursor))
+        return (0);
+
     if (upperp != NULL)
         *upperp = false;
 
-    WT_ASSERT(session, WT_CURSOR_BOUNDS_SET(cursor));
-    if (CUR2BT(cursor)->type == BTREE_ROW)
-        WT_ASSERT(session, key != NULL);
-    else
-        WT_ASSERT(session, recno != 0);
-
+    WT_ASSERT_ALWAYS(session, key != NULL || recno != WT_RECNO_OOB,
+      "A valid key or recno must be provided when comparing bounds.");
     if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER))
         WT_RET(__wt_compare_bounds(session, cursor, key, recno, false, key_out_of_boundsp));
 
@@ -74,12 +73,8 @@ __btcur_bounds_search_near_reposition(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
      * bounds calls. However for the time being we will leave it as is as it is unlikely to present
      * a performance issue.
      */
-    if (CUR2BT(cursor)->type == BTREE_ROW)
-        WT_RET(__btcur_bounds_contains_key(
-          session, cursor, &cursor->key, WT_RECNO_OOB, &key_out_of_bounds, &upper));
-    else
-        WT_RET(__btcur_bounds_contains_key(
-          session, cursor, NULL, cursor->recno, &key_out_of_bounds, &upper));
+    WT_RET(__btcur_bounds_contains_key(
+      session, cursor, &cursor->key, cursor->recno, &key_out_of_bounds, &upper));
 
     if (key_out_of_bounds) {
         __wt_cursor_set_raw_key(cursor, upper ? &cursor->upper_bound : &cursor->lower_bound);
@@ -306,19 +301,15 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
      */
     if (cbt->ins != NULL) {
         if (WT_CURSOR_BOUNDS_SET(&cbt->iface)) {
-            if (btree->type == BTREE_ROW) {
-                /* Get the insert list key. */
-                if (key == NULL) {
-                    tmp_key.data = WT_INSERT_KEY(cbt->ins);
-                    tmp_key.size = WT_INSERT_KEY_SIZE(cbt->ins);
-                    WT_RET(__btcur_bounds_contains_key(
-                      session, &cbt->iface, &tmp_key, WT_RECNO_OOB, &key_out_of_bounds, NULL));
-                } else
-                    WT_RET(__btcur_bounds_contains_key(
-                      session, &cbt->iface, key, WT_RECNO_OOB, &key_out_of_bounds, NULL));
+            /* Get the insert list key. */
+            if (key == NULL && btree->type == BTREE_ROW) {
+                tmp_key.data = WT_INSERT_KEY(cbt->ins);
+                tmp_key.size = WT_INSERT_KEY_SIZE(cbt->ins);
+                WT_RET(__btcur_bounds_contains_key(
+                  session, &cbt->iface, &tmp_key, WT_RECNO_OOB, &key_out_of_bounds, NULL));
             } else
                 WT_RET(__btcur_bounds_contains_key(
-                  session, &cbt->iface, NULL, cbt->recno, &key_out_of_bounds, NULL));
+                  session, &cbt->iface, key, cbt->recno, &key_out_of_bounds, NULL));
 
             /* The key value pair we were trying to return weren't within the given bounds. */
             if (key_out_of_bounds)
@@ -370,7 +361,11 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
         /*
          * Column-store updates are stored as "insert" objects. If search returned an insert object
          * we can't return, the returned on-page object must be checked for a match. The flag tells
-         * us whether the insert was actually an append to allow skipping the on-disk check.
+         * us whether the insert was actually an append to allow skipping the on-disk check. Note
+         * that appends can't have history store content. This is true both for "real" appends at
+         * the end of the tree and also for appends that are filling in truncated gaps in the middle
+         * of the tree -- the gap only appears after the truncation becomes globally visible and at
+         * that point by definition nothing older can be accessible.
          */
         if (cbt->ins != NULL && !F_ISSET(cbt, WT_CBT_VAR_ONPAGE_MATCH))
             return (0);
@@ -385,13 +380,11 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
         if (__wt_cell_type(cell) == WT_CELL_DEL)
             return (0);
 
-        if (WT_CURSOR_BOUNDS_SET(&cbt->iface)) {
-            WT_RET(__btcur_bounds_contains_key(
-              session, &cbt->iface, NULL, cbt->recno, &key_out_of_bounds, NULL));
-            /* The key value pair we were trying to return weren't within the given bounds. */
-            if (key_out_of_bounds)
-                return (0);
-        }
+        WT_RET(__btcur_bounds_contains_key(
+          session, &cbt->iface, NULL, cbt->recno, &key_out_of_bounds, NULL));
+        /* The key value pair we were trying to return weren't within the given bounds. */
+        if (key_out_of_bounds)
+            return (0);
 
         /*
          * Check for an update. For column store, modifications are handled with insert lists, so an
@@ -430,13 +423,11 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
             key = cbt->tmp;
         }
 
-        if (WT_CURSOR_BOUNDS_SET(&cbt->iface)) {
-            WT_RET(__btcur_bounds_contains_key(
-              session, &cbt->iface, key, WT_RECNO_OOB, &key_out_of_bounds, NULL));
-            /* The key value pair we were trying to return weren't within the given bounds. */
-            if (key_out_of_bounds)
-                return (0);
-        }
+        WT_RET(__btcur_bounds_contains_key(
+          session, &cbt->iface, key, WT_RECNO_OOB, &key_out_of_bounds, NULL));
+        /* The key value pair we were trying to return weren't within the given bounds. */
+        if (key_out_of_bounds)
+            return (0);
 
         /* Check for an update. */
         upd = (page->modify != NULL && page->modify->mod_row_update != NULL) ?
@@ -620,20 +611,10 @@ __wt_btcur_reset(WT_CURSOR_BTREE *cbt)
 
     WT_STAT_CONN_DATA_INCR(session, cursor_reset);
 
-    /* Clear bounds if they are set. */
-    if (F_ISSET(cursor, WT_CURSTD_BOUNDS_SET)) {
-        WT_STAT_CONN_DATA_INCR(session, cursor_bounds_reset);
-        /* Clear upper bound, and free the buffer. */
-        F_CLR(cursor, WT_CURSTD_BOUND_UPPER | WT_CURSTD_BOUND_UPPER_INCLUSIVE);
-        __wt_buf_free(session, &cursor->upper_bound);
-        WT_CLEAR(cursor->upper_bound);
-        /* Clear lower bound, and free the buffer. */
-        F_CLR(cursor, WT_CURSTD_BOUND_LOWER | WT_CURSTD_BOUND_LOWER_INCLUSIVE);
-        __wt_buf_free(session, &cursor->lower_bound);
-        WT_CLEAR(cursor->lower_bound);
-    }
-
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+    /* Initialize the update value as we are not pointing to any value. */
+    cbt->upd_value->type = WT_UPDATE_INVALID;
+    WT_TIME_WINDOW_INIT(&cbt->upd_value->tw);
 
     return (__cursor_reset(cbt));
 }
@@ -808,18 +789,11 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
      * Check that the provided search key is within bounds. If not, return WT_NOTFOUND and early
      * exit.
      */
-    if (WT_CURSOR_BOUNDS_SET(cursor)) {
-        if (btree->type == BTREE_ROW)
-            WT_ERR(__btcur_bounds_contains_key(
-              session, cursor, &cursor->key, WT_RECNO_OOB, &key_out_of_bounds, NULL));
-        else
-            WT_ERR(__btcur_bounds_contains_key(
-              session, cursor, NULL, cursor->recno, &key_out_of_bounds, NULL));
-
-        if (key_out_of_bounds) {
-            WT_STAT_CONN_DATA_INCR(session, cursor_bounds_search_early_exit);
-            WT_ERR(WT_NOTFOUND);
-        }
+    WT_ERR(__btcur_bounds_contains_key(
+      session, cursor, &cursor->key, cursor->recno, &key_out_of_bounds, NULL));
+    if (key_out_of_bounds) {
+        WT_STAT_CONN_DATA_INCR(session, cursor_bounds_search_early_exit);
+        WT_ERR(WT_NOTFOUND);
     }
     /*
      * If we have a page pinned, search it; if we don't have a page pinned, or the search of the
@@ -885,6 +859,14 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
         F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
     } else
         ret = WT_NOTFOUND;
+
+    /*
+     * The format test program does repeatable reads testing, and wants to dump the cursor page on
+     * failure. It sets up a callback for that purpose, and we pay a cache miss per search to make
+     * that work.
+     */
+    if (session->format_private != NULL && (ret == 0 || ret == WT_NOTFOUND))
+        session->format_private(ret, session->format_private_arg);
 
 #ifdef HAVE_DIAGNOSTIC
     if (ret == 0)
@@ -1027,6 +1009,19 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
             __cursor_state_restore(cursor, &state);
         else {
             __wt_value_return(cbt, cbt->upd_value);
+            /*
+             * This compare is needed for bounded cursors in the event that a valid key is found.
+             * The returned value of exact must reflect the comparison between the found key and the
+             * original search key, not the repositioned bounds key. This comparison ensures that is
+             * the case.
+             */
+            if (WT_CURSOR_BOUNDS_SET(cursor)) {
+                if (btree->type == BTREE_ROW)
+                    WT_ERR(
+                      __wt_compare(session, btree->collator, &cursor->key, &state.key, &exact));
+                else
+                    exact = cbt->recno < state.recno ? -1 : cbt->recno == state.recno ? 0 : 1;
+            }
             goto done;
         }
     }
@@ -1083,7 +1078,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
     WT_SESSION_IMPL *session;
     size_t insert_bytes;
     uint64_t yield_count, sleep_usecs;
-    bool append_key, valid;
+    bool append_key, key_out_of_bounds, valid;
 
     btree = CUR2BT(cbt);
     cursor = &cbt->iface;
@@ -1110,6 +1105,15 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
 
     /* Save the cursor state. */
     __cursor_state_save(cursor, &state);
+
+    /*
+     * Check that the provided insert key is within bounds. If not, return WT_NOTFOUND and early
+     * exit.
+     */
+    WT_ERR(__btcur_bounds_contains_key(
+      session, cursor, &cursor->key, cursor->recno, &key_out_of_bounds, NULL));
+    if (key_out_of_bounds)
+        WT_ERR(WT_NOTFOUND);
 
     /*
      * If inserting with overwrite configured, and positioned to an on-page key, the update doesn't
@@ -1520,7 +1524,7 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     uint64_t yield_count, sleep_usecs;
-    bool valid;
+    bool key_out_of_bounds, valid;
 
     btree = CUR2BT(cbt);
     cursor = &cbt->iface;
@@ -1532,6 +1536,15 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
 
     /* Save the cursor state. */
     __cursor_state_save(cursor, &state);
+
+    /*
+     * Check that the provided update key is within bounds. If not, return WT_NOTFOUND and early
+     * exit.
+     */
+    WT_ERR(__btcur_bounds_contains_key(
+      session, cursor, &cursor->key, cursor->recno, &key_out_of_bounds, NULL));
+    if (key_out_of_bounds)
+        WT_ERR(WT_NOTFOUND);
 
     /*
      * If update positioned to an on-page key, the update doesn't require another search. We don't
@@ -2195,6 +2208,10 @@ __wt_btcur_open(WT_CURSOR_BTREE *cbt)
     cbt->modify_update = &cbt->_modify_update;
     cbt->upd_value = &cbt->_upd_value;
 
+    /* Initialize the value. */
+    cbt->upd_value->type = WT_UPDATE_INVALID;
+    WT_TIME_WINDOW_INIT(&cbt->upd_value->tw);
+
 #ifdef HAVE_DIAGNOSTIC
     cbt->lastkey = &cbt->_lastkey;
     cbt->lastrecno = WT_RECNO_OOB;
@@ -2231,9 +2248,10 @@ __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
     session = CUR2S(cbt);
 
     /*
-     * The in-memory split and history store table code creates low-level btree cursors to
-     * search/modify leaf pages. Those cursors don't hold hazard pointers, nor are they counted in
-     * the session handle's cursor count. Skip the usual cursor tear-down in that case.
+     * The in-memory split, history store table, and fast-truncate instantiation code creates
+     * low-level btree cursors to search/modify leaf pages. Those cursors don't hold hazard
+     * pointers, nor are they counted in the session handle's cursor count. Skip the usual cursor
+     * tear-down in that case.
      */
     if (!lowlevel)
         ret = __cursor_reset(cbt);

@@ -327,11 +327,10 @@ __tiered_create_object(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 {
     WT_DECL_RET;
     const char *cfg[4] = {NULL, NULL, NULL, NULL};
-    const char *config, *name, *orig_name;
+    const char *config, *name;
 
     config = name = NULL;
-    config = name = orig_name = NULL;
-    orig_name = tiered->tiers[WT_TIERED_INDEX_LOCAL].name;
+    config = name = NULL;
     /*
      * Create the name and metadata of the new shared object of the current local object. The data
      * structure keeps this id so that we don't have to parse and manipulate strings.
@@ -842,6 +841,7 @@ __tiered_cleanup(WT_SESSION_IMPL *session, WT_TIERED *tiered, bool final)
 int
 __wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered, bool final)
 {
+    __wt_verbose(session, WT_VERB_TIERED, "TIERED_CLOSE: called final %d", (int) final);
     __tiered_cleanup(session, tiered, final);
 
     return (__wt_btree_close(session));
@@ -854,8 +854,8 @@ __wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered, bool final)
 int
 __wt_tiered_discard(WT_SESSION_IMPL *session, WT_TIERED *tiered, bool final)
 {
+    __wt_verbose(session, WT_VERB_TIERED, "TIERED_DISCARD: called final %d", (int) final);
     __tiered_cleanup(session, tiered, final);
-    __wt_verbose(session, WT_VERB_TIERED, "%s", "TIERED_CLOSE: called");
     return (__wt_btree_discard(session));
 }
 

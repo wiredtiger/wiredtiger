@@ -539,6 +539,7 @@ conn_stats = [
     # Tiered storage statistics
     ##########################################
     StorageStat('flush_tier', 'flush_tier operation calls'),
+    StorageStat('flush_tier_fail', 'flush_tier failed calls'),
     StorageStat('flush_tier_skipped', 'flush_tier tables skipped due to no checkpoint'),
     StorageStat('flush_tier_switched', 'flush_tier tables switched'),
     StorageStat('local_objects_inuse', 'attempts to remove a local object and the object is in use'),
@@ -862,6 +863,8 @@ conn_dsrc_stats = [
     CacheStat('cache_read_deleted', 'pages read into cache after truncate'),
     CacheStat('cache_read_deleted_prepared', 'pages read into cache after truncate in prepare state'),
     CacheStat('cache_read_overflow', 'overflow pages read into cache'),
+    CacheStat('cache_reverse_splits', 'reverse splits performed'),
+    CacheStat('cache_reverse_splits_skipped_vlcs', 'reverse splits skipped because of VLCS namespace gap restrictions'),
     CacheStat('cache_write', 'pages written from cache'),
     CacheStat('cache_write_hs', 'page written requiring history store records'),
     CacheStat('cache_write_restore', 'pages written requiring in-memory restoration'),
@@ -957,6 +960,7 @@ conn_dsrc_stats = [
     RecStat('rec_time_window_start_txn', 'records written including a start transaction ID'),
     RecStat('rec_time_window_stop_ts', 'records written including a stop timestamp'),
     RecStat('rec_time_window_stop_txn', 'records written including a stop transaction ID'),
+    RecStat('rec_vlcs_emptied_pages', 'VLCS pages explicitly reconciled as empty'),
 
     ##########################################
     # Transaction statistics
@@ -1000,6 +1004,7 @@ session_stats = [
     SessionStat('cache_time', 'time waiting for cache (usecs)'),
     SessionStat('lock_dhandle_wait', 'dhandle lock wait time (usecs)'),
     SessionStat('lock_schema_wait', 'schema lock wait time (usecs)'),
+    SessionStat('txn_bytes_dirty', 'dirty bytes in this txn'),
     SessionStat('read_time', 'page read from disk to cache time (usecs)'),
     SessionStat('write_time', 'page write from cache to disk time (usecs)'),
 ]
