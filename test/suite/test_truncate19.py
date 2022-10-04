@@ -38,7 +38,7 @@ from wtscenario import make_scenarios
 
 class test_truncate19(wttest.WiredTigerTestCase):
     conn_config = 'log=(enabled=true)'
-    
+
     def test_truncate19(self):
         #extraconfig = ''
         extraconfig = ',log=(enabled=true)'
@@ -85,7 +85,7 @@ class test_truncate19(wttest.WiredTigerTestCase):
         # flcs_end.search_near()
         # flcs_end.prev()
         self.session.truncate(None, flcs_start, flcs_end, "log=(enabled=true)")
-        
+
         # 4. Modify 120
         session2.begin_transaction()
         row_cursor2[120] = str(120)
@@ -113,7 +113,7 @@ class test_truncate19(wttest.WiredTigerTestCase):
 
         row_cursor2.set_key(120)
         flcs_cursor2.set_key(120)
-        
+
         self.assertEqual(row_cursor2.search(), flcs_cursor2.search())
 
 if __name__ == '__main__':
@@ -128,20 +128,20 @@ if __name__ == '__main__':
 # // search_near(13000)
 # // T1 truncates 1 -> 15874 Table1 (FLCS) -> position (snapshot)
 # // T2 updates and commits 13777 Logging #1
-# // T1 truncates 1 -> 11169 Table2 (ROW-STORE) -> 11169 
-# // T1 commits Logs #2 
+# // T1 truncates 1 -> 11169 Table2 (ROW-STORE) -> 11169
+# // T1 commits Logs #2
 # Live vs Replayed
-# 
+#
 # Playing from the logs
 # #1 and then #2
 # Update on 13777
 # Truncate
 
-# T2 first and then 
+# T2 first and then
 
 # // T1, T2 Begins
 # // 11169 -> 15874 do not exist
 # // search_near(13000)
 # // T2 updates and commits 13777
-# // T1 truncates 1 -> 15874 T1 (FLCS) -> position 
-# // T2 truncates 1 -> 11169 T2 (ROW-STORE) -> 11169 
+# // T1 truncates 1 -> 15874 T1 (FLCS) -> position
+# // T2 truncates 1 -> 11169 T2 (ROW-STORE) -> 11169
