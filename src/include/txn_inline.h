@@ -1119,13 +1119,15 @@ retry:
             if (cbt->upd_value->skip_buf) {
                 cbt->upd_value->buf.data = NULL;
                 cbt->upd_value->buf.size = 0;
-            } else if (is_ovfl_rm)
+            } else if (is_ovfl_rm) {
+                WT_STAT_CONN_DATA_INCR(session, txn_read_race_overflow_remove);
                 /*
                  * We race with checkpoint reconciliation removing the overflown items. Retry the
                  * read as the value should now be appended to the update chain by checkpoint
                  * reconciliation.
                  */
                 goto retry;
+            }
             cbt->upd_value->tw.durable_start_ts = tw.durable_start_ts;
             cbt->upd_value->tw.start_ts = tw.start_ts;
             cbt->upd_value->tw.start_txn = tw.start_txn;

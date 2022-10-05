@@ -494,8 +494,10 @@ retry:
          * We race with checkpoint reconciliation removing the overflown items. Retry the read as
          * the value should now be appended to the update chain by checkpoint reconciliation.
          */
-        if (is_ovfl_rm)
+        if (is_ovfl_rm) {
+            WT_STAT_CONN_DATA_INCR(session, txn_read_race_overflow_remove);
             goto retry;
+        }
 
         /*
          * Applying modifies on top of a tombstone is invalid. So if we're using the onpage value,
