@@ -1047,9 +1047,10 @@ __wt_txn_read(
 {
     WT_TIME_WINDOW tw;
     WT_UPDATE *prepare_upd, *restored_upd;
-    bool have_stop_tw, is_ovfl_rm;
+    bool have_stop_tw, is_ovfl_rm, retry;
 
     prepare_upd = restored_upd = NULL;
+    retry = true;
 
 retry:
     is_ovfl_rm = false;
@@ -1154,8 +1155,10 @@ retry:
      */
     if (prepare_upd != NULL) {
         WT_ASSERT(session, F_ISSET(prepare_upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS));
-        if (prepare_upd->txnid == WT_TXN_ABORTED ||
-          prepare_upd->prepare_state == WT_PREPARE_RESOLVED) {
+        if (retry &&
+          (prepare_upd->txnid == WT_TXN_ABORTED ||
+            prepare_upd->prepare_state == WT_PREPARE_RESOLVED)) {
+            retry = false;
             /* Clean out any stale value before performing the retry. */
             __wt_upd_value_clear(cbt->upd_value);
             WT_STAT_CONN_DATA_INCR(session, txn_read_race_prepare_update);
