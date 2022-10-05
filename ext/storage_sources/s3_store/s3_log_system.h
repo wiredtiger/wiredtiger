@@ -46,7 +46,7 @@ static const std::map<int32_t, Aws::Utils::Logging::LogLevel> verbosityMapping =
   {WT_VERBOSE_DEBUG_1, Aws::Utils::Logging::LogLevel::Debug},
   {WT_VERBOSE_DEBUG_2, Aws::Utils::Logging::LogLevel::Debug},
   {WT_VERBOSE_DEBUG_3, Aws::Utils::Logging::LogLevel::Debug},
-  {WT_VERBOSE_DEBUG_4, Aws::Utils::Logging::LogLevel::Trace},
+  {WT_VERBOSE_DEBUG_4, Aws::Utils::Logging::LogLevel::Debug},
   {WT_VERBOSE_DEBUG_5, Aws::Utils::Logging::LogLevel::Trace}};
 
 // Provides the S3 Store with a logger implementation that redirects the generated logs to
