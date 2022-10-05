@@ -83,7 +83,7 @@ __wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object
     WT_CHUNKCACHE *chunkcache;
     WT_CHUNKCACHE_BUCKET *bucket;
     WT_CHUNKCACHE_CHAIN *chunkchain, *newchain;
-    WT_CHUNKCACHE_CHUNK *chunk,*newchunk;
+    WT_CHUNKCACHE_CHUNK *chunk, *newchunk;
     WT_CHUNKCACHE_HASHID hash_id;
     uint bucket_id;
     uint64_t hash;
@@ -102,18 +102,32 @@ __wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object
     bucket = &chunkcache->hashtable[bucket_id];
 
     __wt_spin_lock(session, &chunkcache->bucket_locks[bucket_id]);
-    TAILQ_FOREACH(chunkchain, bucket->chainq, next_link) {
+    printf("\nchunkcache_check: %s (%d)offset: %" PRId64 ", size: %d. Bucket: %d\n",
+           (char*)&hash_id.objectname, hash_id.objectid, offset, size, bucket_id);
+    printf("Hash: %" PRIu64 "\n", hash);
+    printf("Hash id: %s, %" PRIu32 "\n", (char*)&hash_id.objectname, objectid);
+
+
+    TAILQ_FOREACH(chunkchain, &bucket->chainq, next_link) {
+        printf("Comparing to hash id: %s,  %" PRIu32 "\n",
+               (char*)&chunkchain->hash_id.objectname, chunkchain->hash_id.objectid);
         if (memcmp(&chunkchain->hash_id, &hash_id, sizeof(hash_id)) == 0) {
             /* Found the chain of chunks corresponding to the given object. See if we have the
              * needed chunk. */
-            TAILQ_FOREACH(chunk, chunkchain->chunks, next_chunk) {
+            printf("Found the chain\n");
+            TAILQ_FOREACH(chunk, &chunkchain->chunks, next_chunk) {
                 if (chunk->valid && chunk->chunk_offset <= offset &&
                     (chunk->chunk_offset + (wt_off_t)chunk->chunk_size) >= (offset + (wt_off_t)size)) {
-                    memcpy(dst, chunk->chunk_location + (offset - chunk->chunk_offset), size);
-                    *chunkcache_has_data = true;
+                    /* XXX uncomment that
+                       memcpy(dst, chunk->chunk_location + (offset - chunk->chunk_offset), size);
+                    */
+                    (void)dst;
+                    *chunkcache_has_data = false /* XXX true */;
                     /* Increment hit statistics. XXX */
+                    printf("Found the chunk\n");
                     goto done;
                 } else if (chunk->chunk_offset > offset) {
+                    printf("Chunk list exists, but no chunk\n");
                     break;
                 }
             }
@@ -121,14 +135,25 @@ __wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object
              * The chunk list is present, but the chunk is not there. Do we want to allocate space
              * for it and insert it?
              */
+            printf("Try to insert a new chunk? \n");
             if ((newchunk_size = __chunkcache_admit_size()) > 0 &&
               __chunkcache_alloc_chunk(session, &newchunk, offset, newchunk_size) == 0) {
-                if (chunk == NULL)
-                    TAILQ_INSERT_HEAD(chunkchain->chunks, newchunk, next_chunk);
-                else if (chunk->chunk_offset > newchunk->chunk_offset)
+                printf("Allocated a new chunk at offset %" PRId64 ", size %d\n",
+                       offset, newchunk_size);
+                if (chunk == NULL) {
+                    TAILQ_INSERT_HEAD(&chunkchain->chunks, newchunk, next_chunk);
+                    printf("Inserted head\n");
+                }
+                else if (chunk->chunk_offset > newchunk->chunk_offset) {
                     TAILQ_INSERT_BEFORE(chunk, newchunk, next_chunk);
-                else
-                    TAILQ_INSERT_AFTER(chunkchain->chunks, chunk, newchunk, next_chunk);
+                    printf("Inserted before chunk  at offset %" PRId64 ", size %ld\n",
+                           chunk->chunk_offset, chunk->chunk_size);
+                }
+                else {
+                    TAILQ_INSERT_AFTER(&chunkchain->chunks, chunk, newchunk, next_chunk);
+                    printf("Inserted after chunk  at offset %" PRId64 ", size %ld\n",
+                           chunk->chunk_offset, chunk->chunk_size);
+                }
 
                 /* Setting this pointer tells the block manager to read data for this chunk. */
                 *chunk_to_read = newchunk;
@@ -148,11 +173,16 @@ __wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object
             goto done;
         }
         newchain->hash_id = hash_id;
-        TAILQ_INSERT_HEAD(bucket->chainq, newchain, next_link);
+        TAILQ_INSERT_HEAD(&bucket->chainq, newchain, next_link);
+        printf("Allocated and inserted new chain\n");
 
         /* Insert the new chunk. */
-        TAILQ_INSERT_HEAD(newchain->chunks, newchunk, next_chunk);
+        TAILQ_INIT(&(newchain->chunks));
+        TAILQ_INSERT_HEAD(&newchain->chunks, newchunk, next_chunk);
         *chunk_to_read = newchunk;
+
+        printf("Allocated a new chunklist and inserte a chunk at offset %" PRId64 ", size %d\n",
+               offset, newchunk_size);
 
         /* Increment allocation stats. XXX */
     }
@@ -168,11 +198,14 @@ int
 __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 {
     WT_CHUNKCACHE *chunkcache;
+    uint i;
 
     chunkcache = &S2C(session)->chunkcache;
 
     (void)cfg;
     (void)reconfig;
+
+    printf("NEW CHUNK CACHE SETUP\n");
 
 #define CHUNKCACHE_TABLE_SIZE 1024
 
@@ -181,6 +214,11 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
 
     WT_RET(__wt_calloc_def(session, chunkcache->hashtable_size, &chunkcache->hashtable));
     WT_RET(__wt_calloc_def(session, chunkcache->hashtable_size, &chunkcache->bucket_locks));
+
+    for (i = 0; i < chunkcache->hashtable_size; i++) {
+        TAILQ_INIT(&chunkcache->hashtable[i].chainq); /* chunk cache collision chains */
+        WT_RET(__wt_spin_init(session, &chunkcache->bucket_locks[i], "chunk cache bucket locks"));
+    }
 
     if (chunkcache->type != WT_CHUNKCACHE_DRAM) {
 #ifdef ENABLE_MEMKIND

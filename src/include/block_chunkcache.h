@@ -34,7 +34,7 @@ struct __wt_chunkcache_chain {
     TAILQ_ENTRY(__wt_chunkcache_chain) next_link;
     /* File name and object ID uniquely identify local and remote objects. */
     WT_CHUNKCACHE_HASHID hash_id;
-    TAILQ_HEAD(__wt_chunklist_head, __wt_chunkcache_chunk) * chunks;
+    TAILQ_HEAD(__wt_chunklist_head, __wt_chunkcache_chunk) chunks;
 };
 
 /*
@@ -44,7 +44,7 @@ struct __wt_chunkcache_chain {
  */
 struct __wt_chunkcache_bucket {
     /* This queue contains all objects that collided in this hash bucket */
-    TAILQ_HEAD(__wt_chunkchain_head, __wt_chunkcache_chain) * chainq;
+    TAILQ_HEAD(__wt_chunkchain_head, __wt_chunkcache_chain) chainq;
 };
 
 /*
