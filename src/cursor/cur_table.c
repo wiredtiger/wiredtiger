@@ -867,10 +867,8 @@ err:
         for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); i++, cp++)
             WT_TRET(__wt_cursor_bounds_restore(session, *cp, &saved_bounds));
 
-    if (saved_bounds.lower_bound != NULL)
-        __wt_scr_free(session, &saved_bounds.lower_bound);
-    if (saved_bounds.upper_bound != NULL)
-        __wt_scr_free(session, &saved_bounds.upper_bound);
+    __wt_scr_free(session, &saved_bounds.lower_bound);
+    __wt_scr_free(session, &saved_bounds.upper_bound);
 
     API_END_RET(session, ret);
 }
