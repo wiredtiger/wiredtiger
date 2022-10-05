@@ -1047,10 +1047,10 @@ __wt_txn_read(
 {
     WT_TIME_WINDOW tw;
     WT_UPDATE *prepare_upd, *restored_upd;
-    bool have_stop_tw, is_ovfl_rm, retry;
+    bool have_stop_tw, is_ovfl_rm, ovfl_retry, prepare_retry;
 
     prepare_upd = restored_upd = NULL;
-    retry = true;
+    ovfl_retry = prepare_retry = true;
 
 retry:
     is_ovfl_rm = false;
@@ -1120,7 +1120,8 @@ retry:
             if (cbt->upd_value->skip_buf) {
                 cbt->upd_value->buf.data = NULL;
                 cbt->upd_value->buf.size = 0;
-            } else if (is_ovfl_rm) {
+            } else if (ovfl_retry && is_ovfl_rm) {
+                ovfl_retry = false;
                 WT_STAT_CONN_DATA_INCR(session, txn_read_race_overflow_remove);
                 /*
                  * We race with checkpoint reconciliation removing the overflow items. Retry the
@@ -1129,6 +1130,9 @@ retry:
                  */
                 goto retry;
             }
+
+            /* We should not read overflow removed after retry. */
+            WT_ASSERT(session, ovfl_retry || !is_ovfl_rm);
             cbt->upd_value->tw.durable_start_ts = tw.durable_start_ts;
             cbt->upd_value->tw.start_ts = tw.start_ts;
             cbt->upd_value->tw.start_txn = tw.start_txn;
@@ -1155,10 +1159,10 @@ retry:
      */
     if (prepare_upd != NULL) {
         WT_ASSERT(session, F_ISSET(prepare_upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS));
-        if (retry &&
+        if (prepare_retry &&
           (prepare_upd->txnid == WT_TXN_ABORTED ||
             prepare_upd->prepare_state == WT_PREPARE_RESOLVED)) {
-            retry = false;
+            prepare_retry = false;
             /* Clean out any stale value before performing the retry. */
             __wt_upd_value_clear(cbt->upd_value);
             WT_STAT_CONN_DATA_INCR(session, txn_read_race_prepare_update);

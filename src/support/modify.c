@@ -450,7 +450,7 @@ __wt_modify_reconstruct_from_upd_list(
     WT_TIME_WINDOW tw;
     WT_UPDATE *upd;
     WT_UPDATE_VECTOR modifies;
-    bool is_ovfl_rm;
+    bool is_ovfl_rm, ovfl_retry;
 
     WT_ASSERT(session, modify->type == WT_UPDATE_MODIFY);
 
@@ -458,6 +458,7 @@ __wt_modify_reconstruct_from_upd_list(
     /* While we have a pointer to our original modify, grab this information. */
     upd_value->tw.durable_start_ts = modify->durable_ts;
     upd_value->tw.start_txn = modify->txnid;
+    ovfl_retry = true;
 
 retry:
     is_ovfl_rm = false;
@@ -494,10 +495,14 @@ retry:
          * We race with checkpoint reconciliation removing the overflow items. Retry the read as the
          * value should now be appended to the update chain by checkpoint reconciliation.
          */
-        if (is_ovfl_rm) {
+        if (ovfl_retry && is_ovfl_rm) {
+            ovfl_retry = false;
             WT_STAT_CONN_DATA_INCR(session, txn_read_race_overflow_remove);
             goto retry;
         }
+
+        /* We should not read overflow removed after retry. */
+        WT_ASSERT(session, ovfl_retry || !is_ovfl_rm);
 
         /*
          * Applying modifies on top of a tombstone is invalid. So if we're using the onpage value,
