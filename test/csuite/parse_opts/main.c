@@ -119,12 +119,16 @@ static TEST_DRIVER driver[] = {
 static void
 report(const TEST_OPTS *opts, EXTENDED_OPTS *x_opts)
 {
-#define REPORT_INT(o, field) \
-    if (o->field != 0)       \
-    printf(#field ": %" PRIu64 "\n", (uint64_t)o->field)
-#define REPORT_STR(o, field) \
-    if (o->field != NULL)    \
-    printf(#field ": %s\n", o->field)
+#define REPORT_INT(o, field)                                      \
+    do {                                                          \
+        if (o->field != 0)                                        \
+            printf(#field ": %" PRIu64 "\n", (uint64_t)o->field); \
+    } while (0)
+#define REPORT_STR(o, field)                   \
+    do {                                       \
+        if (o->field != NULL)                  \
+            printf(#field ": %s\n", o->field); \
+    } while (0)
 
     REPORT_STR(opts, home);
     REPORT_STR(opts, build_dir);
@@ -226,9 +230,11 @@ check(int argc, char *const *argv, TEST_OPTS *opts, EXTENDED_OPTS *x_opts)
 static void
 verify_expect(TEST_OPTS *opts, EXTENDED_OPTS *x_opts, TEST_OPTS *expect, EXTENDED_OPTS *x_expect)
 {
-#define VERIFY_INT(o, e, field)         \
-    if (o->field != 0 || e->field != 0) \
-    testutil_assert(o->field == e->field)
+#define VERIFY_INT(o, e, field)                    \
+    do {                                           \
+        if (o->field != 0 || e->field != 0)        \
+            testutil_assert(o->field == e->field); \
+    } while (0)
 #define VERIFY_STR(o, e, field)                               \
     do {                                                      \
         if (o->field != NULL || e->field != NULL) {           \
