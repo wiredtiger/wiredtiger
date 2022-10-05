@@ -464,7 +464,6 @@ retry:
 
     /* Construct full update */
     __wt_update_vector_init(session, &modifies);
-
     /* Find a complete update. */
     for (upd = modify; upd != NULL; upd = upd->next) {
         if (upd->txnid == WT_TXN_ABORTED)
