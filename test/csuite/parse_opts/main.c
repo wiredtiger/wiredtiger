@@ -52,74 +52,63 @@ typedef struct {
  * "parse_opt", then we are parsing some of our "own" options, put into an EXTENDED_OPTS struct, and
  * using testutil_parse_opt to parse any we don't recognize, those are put into TEST_OPTS.
  */
-static const char *command_line0[] = {"parse_opts", "-b", "builddir", "-T", "21", NULL};
-static const char *command_line1[] = {"parse_opts", "-bbuilddir", "-T", "21", NULL};
-static const char *command_line2[] = {"parse_opts", "-v", "-PT", NULL};
-static const char *command_line3[] = {"parse_opts", "-v", "-Po", "my_store", "-PT", NULL};
-static const char *command_line4[] = {"parse_opts", "-v", "-Pomy_store", "-PT", NULL};
+typedef struct {
+    const char *command_line[10];
+    TEST_OPTS expected;
+    EXTENDED_OPTS x_expected;
+} TEST_DRIVER;
 
-static const char *command_line5[] = {"parse_opt", "-vd", "-Pomy_store",
-  "-c"
-  "string_opt",
-  "-PT", NULL};
-static const char *command_line6[] = {
-  "parse_opt", "-dv", "-Pomy_store", "-cstring_opt", "-PT", NULL};
-static const char *command_line7[] = {
-  "parse_opt", "-ev", "-cstring_opt", "-Pomy_store", "-PT", "-f", "22", NULL};
-static const char *command_line8[] = {"parse_opt", "-evd", "-Pomy_store", "-PT", "-f22", NULL};
-static const char *command_line9[] = {"parse_opt", "-v", "-Pomy_store", "-PT", NULL};
+static TEST_DRIVER driver[] = {
+    { { "parse_opts", "-b", "builddir", "-T", "21", NULL },
+      { NULL, NULL, {0}, NULL, (char *)"builddir", NULL, 0, NULL, NULL, false, false, false, false, 0, 0,
+        21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 
-static const char **command_lines[] = {
-  command_line0,
-  command_line1,
-  command_line2,
-  command_line3,
-  command_line4,
-  command_line5,
-  command_line6,
-  command_line7,
-  command_line8,
-  command_line9,
-};
+    { {"parse_opts", "-bbuilddir", "-T", "21", NULL},
+      { NULL, NULL, {0}, NULL, (char *)"builddir", NULL, 0, NULL, NULL, false, false, false, false, 0, 0,
+        21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+      { NULL, 0, 0, 0} },
 
-static TEST_OPTS expected[] = {
-  {NULL, NULL, {0}, NULL, (char *)"builddir", NULL, 0, NULL, NULL, false, false, false, false, 0, 0,
-    21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  {NULL, NULL, {0}, NULL, (char *)"builddir", NULL, 0, NULL, NULL, false, false, false, false, 0, 0,
-    21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  /* If -PT is used, the tiered_storage source is set to dir_store, even if -Po is not used. */
-  {NULL, NULL, {0}, NULL, NULL, (char *)"dir_store", 0, NULL, NULL, false, false, true, true, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    /* If -PT is used, the tiered_storage source is set to dir_store, even if -Po is not used. */
+    { {"parse_opts", "-v", "-PT", NULL},
+      {NULL, NULL, {0}, NULL, NULL, (char *)"dir_store", 0, NULL, NULL, false, false, true, true, 0, 0,
+       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+      { NULL, 0, 0, 0} },
 
-  /* Extended tests */
-  {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-};
+    { {"parse_opts", "-v", "-Po", "my_store", "-PT", NULL},
+      {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
+       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+      { NULL, 0, 0, 0} },
 
-static EXTENDED_OPTS x_expected[] = {
-  {NULL, 0, 0, 0},
-  {NULL, 0, 0, 0},
-  {NULL, 0, 0, 0},
-  {NULL, 0, 0, 0},
-  {NULL, 0, 0, 0},
+    { {"parse_opts", "-v", "-Pomy_store", "-PT", NULL},
+      {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
+       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+      { NULL, 0, 0, 0} },
 
-  {(char *)"string_opt", true, false, 0},
-  {(char *)"string_opt", true, false, 0},
-  {(char *)"string_opt", false, true, 22},
-  {NULL, true, true, 22},
-  {NULL, false, false, 0},
+    /* From here on, we are using some "extended" options. */
+    { {"parse_opt", "-vd", "-Pomy_store", "-c", "string_opt", "-PT", NULL},
+      {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
+       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+      {(char *)"string_opt", true, false, 0} },
+
+    { { "parse_opt", "-dv", "-Pomy_store", "-cstring_opt", "-PT", NULL},
+      {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
+       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+      {(char *)"string_opt", true, false, 0} },
+
+    { { "parse_opt", "-ev", "-cstring_opt", "-Pomy_store", "-PT", "-f", "22", NULL},
+      {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
+       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+      {(char *)"string_opt", false, true, 22} },
+
+    { {"parse_opt", "-evd", "-Pomy_store", "-PT", "-f22", NULL},
+      {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
+       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+      {NULL, true, true, 22} },
+
+    { {"parse_opt", "-v", "-Pomy_store", "-PT", NULL},
+      {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
+       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+      {NULL, false, false, 0} },
 };
 
 /*
@@ -298,13 +287,12 @@ main(int argc, char *argv[])
         report(&opts, &x_opts);
         cleanup(&opts, &x_opts);
     } else {
-        testutil_assert(WT_ELEMENTS(command_lines) == WT_ELEMENTS(expected));
-        for (i = 0; i < WT_ELEMENTS(command_lines); i++) {
-            cmd = (char *const *)command_lines[i];
+        for (i = 0; i < WT_ELEMENTS(driver); i++) {
+            cmd = (char *const *)driver[i].command_line;
             for (nargs = 0; cmd[nargs] != NULL; nargs++)
                 ;
-            expect = &expected[i];
-            x_expect = &x_expected[i];
+            expect = &driver[i].expected;
+            x_expect = &driver[i].x_expected;
             check(nargs, cmd, &opts, &x_opts);
             verify_expect(&opts, &x_opts, expect, x_expect);
             cleanup(&opts, &x_opts);
