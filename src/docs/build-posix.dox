@@ -14,6 +14,8 @@ To build from the WiredTiger GitHub repository requires
 <a href="http://www.swig.org/">SWIG</a> (if building to support the Python API).
 We also suggest <a href="https://ninja-build.org/">Ninja</a> and
 <a href="https://ccache.dev/">ccache</a> for improved incremental build times.
+If wanting to compile the Python API, we also require the following python3-dev and swig packages.
+Consult your package management application for installation instructions
 
 First, clone the repository:
 
