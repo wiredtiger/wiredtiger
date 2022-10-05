@@ -603,6 +603,8 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     r->max_txn = WT_TXN_NONE;
     r->max_ts = WT_TS_NONE;
 
+    r->encourage_row_split = S2C(session)->cache->encourage_row_split;
+
     /* Track if updates were used and/or uncommitted. */
     r->update_used = false;
 

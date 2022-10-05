@@ -107,6 +107,10 @@ struct __wt_reconcile {
     uint64_t max_txn;
     wt_timestamp_t max_ts;
 
+    /* Whether we have enabled the option to encourage row store leaf page to split if there are
+     * updates on the page after reconciliation. */
+    bool encourage_row_split;
+
     /*
      * When we do not find any update to be written for the whole page, we would like to mark
      * eviction failed in the case of update-restore. There is no progress made by eviction in such

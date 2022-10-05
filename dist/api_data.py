@@ -614,6 +614,10 @@ connection_runtime_config = [
             if true, control all dirty page evictions through forcing update restore eviction.''',
             type='boolean'),
         ]),
+    Config('encourage_row_split', 'false', r'''
+        if true, leaf row store pages are encouraged to split if there are updates on the page
+        after reconciliation.''',
+        type='boolean'),
     Config('error_prefix', '', r'''
         prefix string for error messages'''),
     Config('eviction', '', r'''

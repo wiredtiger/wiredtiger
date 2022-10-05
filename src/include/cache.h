@@ -106,6 +106,8 @@ struct __wt_cache {
     uint64_t read_gen;        /* Current page read generation */
     uint64_t read_gen_oldest; /* Oldest read generation the eviction
                                * server saw in its last queue load */
+    bool encourage_row_split; /* Encourage leaf row store pages to split if there are updates after
+                                reconciliation. */
     uint64_t evict_pass_gen;  /* Number of eviction passes */
 
     /*

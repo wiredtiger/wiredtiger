@@ -186,7 +186,7 @@ __wt_rec_need_split(WT_RECONCILE *r, size_t len)
     page_items = r->entries + r->supd_restore_count;
 
     /*
-     * In the case of a row-store leaf page, we want to encourage a split if we see lots of
+     * In the case of a row-store leaf page, we can configure to encourage a split if we see lots of
      * in-memory content. This allows pages to be split for update/restore and history store
      * eviction even when the disk image itself isn't growing.
      *
@@ -198,7 +198,8 @@ __wt_rec_need_split(WT_RECONCILE *r, size_t len)
      * the update structure could skew the calculation. Therefore, we only consider the size of the
      * value in the saved updates' memory size
      */
-    if (r->page->type == WT_PAGE_ROW_LEAF && page_items > WT_REC_SPLIT_MIN_ITEMS_USE_MEM)
+    if (r->encourage_row_split && r->page->type == WT_PAGE_ROW_LEAF &&
+      page_items > WT_REC_SPLIT_MIN_ITEMS_USE_MEM)
         len += r->supd_restore_memsize / 10;
 
     /* Check for the disk image crossing a boundary. */

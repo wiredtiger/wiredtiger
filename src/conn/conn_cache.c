@@ -73,6 +73,9 @@ __cache_config_local(WT_SESSION_IMPL *session, bool shared, const char *cfg[])
     WT_RET(__wt_config_gets(session, cfg, "cache_overhead", &cval));
     cache->overhead_pct = (u_int)cval.val;
 
+    WT_RET(__wt_config_gets(session, cfg, "encourage_row_split", &cval));
+    cache->encourage_row_split = cval.val > 0;
+
     WT_RET(__wt_config_gets(session, cfg, "eviction_target", &cval));
     cache->eviction_target = (double)cval.val;
     WT_RET(
