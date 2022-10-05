@@ -138,13 +138,14 @@ __wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object
                 }
                 else if (chunk->chunk_offset > newchunk->chunk_offset) {
                     TAILQ_INSERT_BEFORE(chunk, newchunk, next_chunk);
-                    printf("insert: %s(%d), offset=%" PRId64 ", size=%ld\n",
+                    printf("insert-before: %s(%d), offset=%" PRId64 ", size=%ld\n",
                            (char*)&hash_id.objectname, hash_id.objectid,
                            chunk->chunk_offset, chunk->chunk_size);
                 }
                 else {
                     TAILQ_INSERT_AFTER(&chunkchain->chunks, chunk, newchunk, next_chunk);
-                    printf("Inserted after chunk  at offset %" PRId64 ", size %ld\n",
+                    printf("insert-after:  %s(%d), offset=%" PRId64 ", size=%ld\n",
+                           (char*)&hash_id.objectname, hash_id.objectid,
                            chunk->chunk_offset, chunk->chunk_size);
                 }
 
