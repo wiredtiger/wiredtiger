@@ -64,9 +64,9 @@ __wt_ovfl_read(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK_COMMON *u
      * lock before testing the removed flag.
      */
     __wt_readlock(session, &S2BT(session)->ovfl_lock);
-    if (__wt_cell_type_raw(unpack->cell) == WT_CELL_VALUE_OVFL_RM) {
+    if (__wt_cell_type_raw(unpack->cell) == WT_CELL_VALUE_OVFL_RM)
         ret = WT_NOTFOUND;
-    } else
+    else
         ret = __ovfl_read(session, unpack->data, unpack->size, store);
     __wt_readunlock(session, &S2BT(session)->ovfl_lock);
 
