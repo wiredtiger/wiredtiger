@@ -2312,41 +2312,29 @@ __wt_btcur_bounds_position(
                 WT_RET(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid, false));
             else
                 *need_walkp = true;
-        } else if (cbt->compare > 0) {
-            /* We landed to the right of search key. */
-            if (next)
-                /*
-                 * We need to check if the upper bound is being honored. We could optimize the call
-                 * to cursor valid and have it only check a single bound, but we would need to
-                 * indicate the bound and direction.
-                 */
-                WT_RET(__wt_cursor_valid(cbt, NULL, WT_RECNO_OOB, &valid, true));
-            else
-                /*
-                 * We know that this isn't valid as we're doing a bound position call on the upper
-                 * bound, indicate that we need to walk and exit.
-                 *
-                 * We are making the assumption that the actual key which the bound is equal to
-                 * doesn't exist as if it does we could in theory walk onto that. However if it did
-                 * exist we should've returned it in the cursor row search and thus have had a cbt
-                 * compare value of 0. Either way we check the assumption later with an assertion.
-                 */
-                *need_walkp = true;
+        } else if ((cbt->compare > 0 && next) || (cbt->compare < 0 && !next)) {
+            /*
+             * We landed on the other side of the search key with respect to the direction.
+             *
+             * We need to check if the relevant bound is being honored. In the case of next that
+             * would be the upper bound, and prev would be the lower bound. We could optimize the
+             * call to cursor valid and have it only check a single bound, but we would need to
+             * indicate the bound and direction.
+             */
+            WT_RET(__wt_cursor_valid(cbt, NULL, WT_RECNO_OOB, &valid, true));
         } else {
-            /* We landed to the left of search key. */
-            if (next)
-                /*
-                 * We know that this isn't valid as we're doing a bound position call on the lower
-                 * bound, indicate that we need to walk and exit.
-                 */
-                *need_walkp = true;
-            else
-                /*
-                 * We need to check if the lower bound is being honored. We could optimize the call
-                 * to cursor valid and have it only check a single bound, but we would need to
-                 * indicate the bound and direction.
-                 */
-                WT_RET(__wt_cursor_valid(cbt, NULL, WT_RECNO_OOB, &valid, true));
+            /*
+             * In the case of a next traversal we are positioned before the lower bounded, in the
+             * case of a prev traversal we are positioned after the upper bound. This is valid as
+             * such we need to keep walking.
+             *
+             * We are making the assumption that the actual key which the bound is equal to doesn't
+             * exist as if it does we could in theory walk onto that. However if it did exist we
+             * should've returned it in the cursor row search and thus have had a cbt compare value
+             * of 0. Either way we check the assumption later with an assertion.
+             */
+            WT_ASSERT(session, (cbt->compare < 0 && next) || (cbt->compare > 0 && !next));
+            *need_walkp = true;
         }
     } else {
         /* Column store bound comparisons are fast and don't require optimization. */
