@@ -1122,7 +1122,7 @@ retry:
             } else if (is_ovfl_rm) {
                 WT_STAT_CONN_DATA_INCR(session, txn_read_race_overflow_remove);
                 /*
-                 * We race with checkpoint reconciliation removing the overflown items. Retry the
+                 * We race with checkpoint reconciliation removing the overflow items. Retry the
                  * read as the value should now be appended to the update chain by checkpoint
                  * reconciliation.
                  */

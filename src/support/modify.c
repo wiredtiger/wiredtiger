@@ -491,8 +491,8 @@ retry:
         WT_ERR(__wt_value_return_buf(cbt, cbt->ref, &upd_value->buf, &tw, &is_ovfl_rm));
 
         /*
-         * We race with checkpoint reconciliation removing the overflown items. Retry the read as
-         * the value should now be appended to the update chain by checkpoint reconciliation.
+         * We race with checkpoint reconciliation removing the overflow items. Retry the read as the
+         * value should now be appended to the update chain by checkpoint reconciliation.
          */
         if (is_ovfl_rm) {
             WT_STAT_CONN_DATA_INCR(session, txn_read_race_overflow_remove);
