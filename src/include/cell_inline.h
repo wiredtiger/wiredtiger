@@ -1272,7 +1272,8 @@ __wt_dsk_cell_data_ref(WT_SESSION_IMPL *session, int page_type, void *unpack_arg
 
 /*
  * __wt_page_cell_data_ref --
- *     Set a buffer to reference the data from an unpacked cell.
+ *     Set a buffer to reference the data from an unpacked cell. Return not found if it is an
+ *     overflow removed cell.
  */
 static inline int
 __wt_page_cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, void *unpack_arg, WT_ITEM *store)

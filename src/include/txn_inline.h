@@ -1045,6 +1045,7 @@ static inline int
 __wt_txn_read(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, WT_UPDATE *upd)
 {
+    WT_DECL_RET;
     WT_TIME_WINDOW tw;
     WT_UPDATE *prepare_upd, *restored_upd;
     bool have_stop_tw, is_ovfl_rm, ovfl_retry, prepare_retry;
@@ -1083,7 +1084,11 @@ retry:
         have_stop_tw = WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw);
 
         /* Check the ondisk value. */
-        WT_RET(__wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &tw, &is_ovfl_rm));
+        ret = __wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &tw);
+        if (ret == WT_NOTFOUND)
+            is_ovfl_rm = true;
+        else
+            WT_RET(ret);
 
         /*
          * If the stop time point is set, that means that there is a tombstone at that time. If it

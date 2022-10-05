@@ -59,13 +59,13 @@ __wt_ovfl_read(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK_COMMON *u
     /*
      * WT_CELL_VALUE_OVFL_RM cells: if reconciliation deletes an overflow value, the on-page cell
      * type is reset to WT_CELL_VALUE_OVFL_RM. Any values required by an existing reader will be
-     * copied into the HS file, which means this value should never be read. It's possible to race
-     * with checkpoints doing that work, lock before testing the removed flag.
+     * copied into the HS file, which means this value should never be read. Return not found for
+     * the upper layer to retry the read. It's possible to race with checkpoints doing that work,
+     * lock before testing the removed flag.
      */
     __wt_readlock(session, &S2BT(session)->ovfl_lock);
     if (__wt_cell_type_raw(unpack->cell) == WT_CELL_VALUE_OVFL_RM) {
-        ret = __wt_buf_setstr(session, store, "WT_CELL_VALUE_OVFL_RM");
-        *decoded = true;
+        ret = WT_NOTFOUND;
     } else
         ret = __ovfl_read(session, unpack->data, unpack->size, store);
     __wt_readunlock(session, &S2BT(session)->ovfl_lock);
