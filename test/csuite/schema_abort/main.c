@@ -86,17 +86,11 @@ typedef struct {
 } THREAD_TS;
 static volatile THREAD_TS th_ts[MAX_TH];
 
-/*
- * TODO: WT-7833 Lock to coordinate inserts and flush_tier. This lock should be removed when that
- * ticket is fixed. Flush_tier should be able to run with ongoing operations.
- */
-static pthread_rwlock_t flush_lock;
-
 #define ENV_CONFIG_COMPAT ",compatibility=(release=\"2.9\")"
 #define ENV_CONFIG_DEF                                        \
     "create,"                                                 \
     "eviction_updates_trigger=95,eviction_updates_target=80," \
-    "log=(enabled,file_max=10M,remove=false)"
+    "log=(enabled,file_max=10M,remove=false),statistics=(all)"
 #define ENV_CONFIG_TIER          \
     ",tiered_storage=(bucket=./" \
     "bucket,bucket_prefix=pfx-,local_retention=2,name=dir_store)"
@@ -106,7 +100,7 @@ static pthread_rwlock_t flush_lock;
 #define ENV_CONFIG_TXNSYNC \
     ENV_CONFIG_DEF         \
     ",transaction_sync=(enabled,method=none)"
-#define ENV_CONFIG_REC "log=(recover=on,remove=false)"
+#define ENV_CONFIG_REC "log=(recover=on,remove=false),statistics=(all)"
 
 /*
  * A minimum width of 10, along with zero filling, means that all the keys sort according to their
@@ -177,7 +171,8 @@ subtest_error_handler(
 static WT_EVENT_HANDLER event_handler = {
   subtest_error_handler, NULL, /* Message handler */
   NULL,                        /* Progress handler */
-  NULL                         /* Close handler */
+  NULL,                        /* Close handler */
+  NULL                         /* General handler */
 };
 
 /*
@@ -625,13 +620,11 @@ thread_flush_run(void *arg)
          * Currently not testing any of the flush tier configuration strings other than defaults. We
          * expect the defaults are what MongoDB wants for now.
          */
-        testutil_check(pthread_rwlock_wrlock(&flush_lock));
         if ((ret = session->flush_tier(session, NULL)) != 0) {
             if (ret != EBUSY)
                 testutil_die(ret, "session.flush_tier");
         } else
             printf("Flush tier %" PRIu32 " completed.\n", i);
-        testutil_check(pthread_rwlock_unlock(&flush_lock));
         fflush(stdout);
     }
     /* NOTREACHED */
@@ -751,7 +744,6 @@ thread_run(void *arg)
         if (use_ts)
             stable_ts = __wt_atomic_addv64(&global_ts, 1);
 
-        testutil_check(pthread_rwlock_rdlock(&flush_lock));
         testutil_check(session->begin_transaction(session, NULL));
         if (use_prep)
             testutil_check(oplog_session->begin_transaction(oplog_session, NULL));
@@ -828,7 +820,6 @@ thread_run(void *arg)
         data.data = lbuf;
         cur_local->set_value(cur_local, &data);
         testutil_check(cur_local->insert(cur_local));
-        testutil_check(pthread_rwlock_unlock(&flush_lock));
 
         /*
          * Save the timestamp and key separately for checking later.
@@ -1066,7 +1057,6 @@ main(int argc, char *argv[])
     if (argc != 0)
         usage();
 
-    testutil_check(pthread_rwlock_init(&flush_lock, NULL));
     testutil_work_dir_from_path(home, sizeof(home), working_dir);
     /*
      * If the user wants to verify they need to tell us how many threads there were so we can find

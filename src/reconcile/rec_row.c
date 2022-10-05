@@ -297,7 +297,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
     btree = S2BT(session);
     child = NULL;
-    WT_TIME_AGGREGATE_INIT(&ft_ta);
+    WT_TIME_AGGREGATE_INIT_MERGE(&ft_ta);
 
     key = &r->k;
     kpack = &_kpack;
@@ -410,15 +410,17 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         } else {
             /*
              * The transaction ids are cleared after restart. Repack the cell with new validity
-             * information to flush cleared transaction ids. Proxy cells require additional
-             * information in the address cell, be sure to propagate the original fast-truncate
-             * information.
+             * information to flush cleared transaction ids.
              */
             WT_ASSERT_ALWAYS(session, cms.state == WT_CHILD_ORIGINAL,
               "Not propagating the original fast-truncate information");
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
+
+            /* The proxy cells of fast truncate pages must be handled in the above flows. */
+            WT_ASSERT_ALWAYS(session, vpack->type != WT_CELL_ADDR_DEL,
+              "Proxy cell is selected with original child image");
+
             if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
-                page_del = vpack->type == WT_CELL_ADDR_DEL ? &vpack->page_del : NULL;
                 __wt_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del);
             } else {
                 val->buf.data = ref->addr;
@@ -434,14 +436,8 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          * in the internal page's aggregate information for RTS to find it.
          */
         WT_TIME_AGGREGATE_COPY(&ta, source_ta);
-        if (page_del != NULL) {
-            ft_ta.newest_start_durable_ts = ta.newest_start_durable_ts;
-            ft_ta.newest_stop_durable_ts = page_del->durable_timestamp;
-            ft_ta.oldest_start_ts = ta.oldest_start_ts;
-            ft_ta.newest_txn = page_del->txnid;
-            ft_ta.newest_stop_ts = page_del->timestamp;
-            ft_ta.newest_stop_txn = page_del->txnid;
-        }
+        if (page_del != NULL)
+            WT_TIME_AGGREGATE_UPDATE_PAGE_DEL(session, &ft_ta, page_del);
         WT_CHILD_RELEASE_ERR(session, cms.hazard, ref);
 
         /* Build key cell. Truncate any 0th key, internal pages don't need 0th keys. */

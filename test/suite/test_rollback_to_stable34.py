@@ -32,9 +32,9 @@ from wiredtiger import stat, WT_NOTFOUND
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_rollback_to_stable33.py
+# test_rollback_to_stable34.py
 # Test interaction between fast-delete and RTS.
-class test_rollback_to_stable33(test_rollback_to_stable_base):
+class test_rollback_to_stable34(test_rollback_to_stable_base):
     session_config = 'isolation=snapshot'
     conn_config = 'cache_size=50MB,statistics=(all),log=(enabled=false)'
 
@@ -104,7 +104,7 @@ class test_rollback_to_stable33(test_rollback_to_stable_base):
         nrows = 10000
 
         # Create a table without logging.
-        uri = "table:rollback_to_stable33"
+        uri = "table:rollback_to_stable34"
         ds = SimpleDataSet(
             self, uri, 0, key_format=self.key_format, value_format=self.value_format,
             config='log=(enabled=false)' + self.extraconfig)
@@ -172,10 +172,10 @@ class test_rollback_to_stable33(test_rollback_to_stable_base):
         lo_cursor.close()
 
         # Check stats to make sure we fast-deleted at least one page.
-        # Since VLCS and FLCS do not (yet) support fast-delete, instead assert we didn't.
+        # (Except for FLCS, where it's not supported and we should fast-delete zero pages.)
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         fastdelete_pages = stat_cursor[stat.conn.rec_page_delete_fast][2]
-        if self.key_format == 'r':
+        if self.value_format == '8t':
             self.assertEqual(fastdelete_pages, 0)
         else:
             self.assertGreater(fastdelete_pages, 0)

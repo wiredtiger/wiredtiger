@@ -207,6 +207,7 @@ testutil_progress(TEST_OPTS *opts, const char *message)
 void
 testutil_cleanup(TEST_OPTS *opts)
 {
+    int i;
     if (opts->conn != NULL)
         testutil_check(opts->conn->close(opts->conn, NULL));
 
@@ -220,6 +221,13 @@ testutil_cleanup(TEST_OPTS *opts)
     free(opts->progress_file_name);
     free(opts->home);
     free(opts->build_dir);
+    if (opts->tiered_storage) {
+        for (i = 0; i <= opts->nargc; ++i)
+            free(opts->nargv[i]);
+        free(opts->nargv);
+    }
+    if (opts->tiered_storage_source != NULL)
+        free(opts->tiered_storage_source);
 }
 
 /*
@@ -302,6 +310,20 @@ testutil_copy_file(WT_SESSION *session, const char *name)
 
     free(first);
     free(second);
+}
+
+/*
+ * testutil_copy_if_exists --
+ *     Copy a file into a directory if it exists.
+ */
+void
+testutil_copy_if_exists(WT_SESSION *session, const char *name)
+{
+    bool exist;
+
+    testutil_check(__wt_fs_exist((WT_SESSION_IMPL *)session, name, &exist));
+    if (exist)
+        testutil_copy_file(session, name);
 }
 
 /*

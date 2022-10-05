@@ -231,22 +231,25 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
 
     /*
      * Timestamps and prepare state are in the page deleted structure for truncates, or in the
-     * updates in the case of instantiated pages. In the case of instantiated pages we may also need
-     * to update the page deleted structure saved in page->modify.
+     * updates list in the case of instantiated pages. We also need to update any page deleted
+     * structure in the ref.
      *
-     * Only two cases are possible. First: the state is WT_REF_DELETED. In this case ft_info.del
-     * cannot be NULL yet because an uncommitted operation cannot have reached global visibility.
-     * Otherwise: there is an uncommitted delete operation we're handling, so the page can't be in a
-     * non-deleted state, and the tree can't be readonly. Therefore the page must have been
+     * Only two cases are possible. First: the state is WT_REF_DELETED. In this case page_del cannot
+     * be NULL yet because an uncommitted operation cannot have reached global visibility. (Or at
+     * least, global visibility in the sense we need to use it for truncations, in which prepared
+     * and uncommitted transactions are not visible.)
+     *
+     * Otherwise: there is an uncommitted delete operation we're handling, so the page must have
+     * been deleted at some point, and the tree can't be readonly. Therefore the page must have been
      * instantiated, the state must be WT_REF_MEM, and there should be an update list in
-     * ft_info.update. (But just in case, allow the update list to be null. Perhaps the page was
-     * truncated when all items on it were already deleted, so no tombstones were created during
-     * instantiation.)
+     * mod->inst_updates. (But just in case, allow the update list to be null.) There might be a
+     * non-null page_del structure to update, depending on whether the page has been reconciled
+     * since it was deleted and then instantiated.
      */
-    if (previous_state == WT_REF_DELETED)
-        page_del = ref->ft_info.del;
-    else {
-        if ((updp = ref->ft_info.update) != NULL)
+    if (previous_state != WT_REF_DELETED) {
+        WT_ASSERT(session, previous_state == WT_REF_MEM);
+        WT_ASSERT(session, ref->page != NULL && ref->page->modify != NULL);
+        if ((updp = ref->page->modify->inst_updates) != NULL)
             for (; *updp != NULL; ++updp) {
                 (*updp)->start_ts = ts;
                 /*
@@ -257,9 +260,8 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
                 if (commit)
                     (*updp)->durable_ts = txn->durable_timestamp;
             }
-        WT_ASSERT(session, ref->page != NULL && ref->page->modify != NULL);
-        page_del = ref->page->modify->page_del;
     }
+    page_del = ref->page_del;
     if (page_del != NULL) {
         page_del->timestamp = ts;
         if (commit)
@@ -289,28 +291,31 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
 
     /*
      * Timestamps are in the page deleted structure for truncates, or in the updates in the case of
-     * instantiated pages. Both commit and durable timestamps need to be updated.
+     * instantiated pages. We also need to update any page deleted structure in the ref. Both commit
+     * and durable timestamps need to be updated.
      *
-     * Only two cases are possible. First: the state is WT_REF_DELETED. In this case ft_info.del
-     * cannot be NULL yet because an uncommitted operation cannot have reached global visibility.
-     * Otherwise: there is an uncommitted delete operation we're handling, so the page can't be in a
-     * non-deleted state, and the tree can't be readonly. Therefore the page must have been
+     * Only two cases are possible. First: the state is WT_REF_DELETED. In this case page_del cannot
+     * be NULL yet because an uncommitted operation cannot have reached global visibility. (Or at
+     * least, global visibility in the sense we need to use it for truncations, in which prepared
+     * and uncommitted transactions are not visible.)
+     *
+     * Otherwise: there is an uncommitted delete operation we're handling, so the page must have
+     * been deleted at some point, and the tree can't be readonly. Therefore the page must have been
      * instantiated, the state must be WT_REF_MEM, and there should be an update list in
-     * ft_info.update. (But just in case, allow the update list to be null. Perhaps the page was
-     * truncated when all items on it were already deleted, so no tombstones were created during
-     * instantiation.)
+     * mod->inst_updates. (But just in case, allow the update list to be null.) There might be a
+     * non-null page_del structure to update, depending on whether the page has been reconciled
+     * since it was deleted and then instantiated.
      */
-    if (previous_state == WT_REF_DELETED)
-        page_del = ref->ft_info.del;
-    else {
-        if ((updp = ref->ft_info.update) != NULL)
+    if (previous_state != WT_REF_DELETED) {
+        WT_ASSERT(session, previous_state == WT_REF_MEM);
+        WT_ASSERT(session, ref->page != NULL && ref->page->modify != NULL);
+        if ((updp = ref->page->modify->inst_updates) != NULL)
             for (; *updp != NULL; ++updp) {
                 (*updp)->start_ts = txn->commit_timestamp;
                 (*updp)->durable_ts = txn->durable_timestamp;
             }
-        WT_ASSERT(session, ref->page != NULL && ref->page->modify != NULL);
-        page_del = ref->page->modify->page_del;
     }
+    page_del = ref->page_del;
     if (page_del != NULL && page_del->timestamp == WT_TS_NONE) {
         page_del->timestamp = txn->commit_timestamp;
         page_del->durable_timestamp = txn->durable_timestamp;
@@ -437,7 +442,7 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
      * This access to the WT_PAGE_DELETED structure is safe; caller has the WT_REF locked, and in
      * fact just allocated the structure to fill in.
      */
-    ref->ft_info.del->txnid = txn->id;
+    ref->page_del->txnid = txn->id;
     __wt_txn_op_set_timestamp(session, op);
 
     if (__wt_log_op(session))
@@ -1040,12 +1045,19 @@ static inline int
 __wt_txn_read(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, WT_UPDATE *upd)
 {
+    WT_DECL_RET;
     WT_TIME_WINDOW tw;
     WT_UPDATE *prepare_upd, *restored_upd;
     bool have_stop_tw, retry;
+#ifdef HAVE_DIAGNOSTIC
+    bool is_ovfl_rm;
+#endif
 
     prepare_upd = restored_upd = NULL;
     retry = true;
+#ifdef HAVE_DIAGNOSTIC
+    is_ovfl_rm = false;
+#endif
 
 retry:
     WT_RET(__wt_txn_read_upd_list_internal(session, cbt, upd, &prepare_upd, &restored_upd));
@@ -1077,7 +1089,13 @@ retry:
         have_stop_tw = WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw);
 
         /* Check the ondisk value. */
-        WT_RET(__wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &tw));
+        ret = __wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &tw
+#ifdef HAVE_DIAGNOSTIC
+          ,
+          &is_ovfl_rm
+#endif
+        );
+        WT_RET(ret);
 
         /*
          * If the stop time point is set, that means that there is a tombstone at that time. If it
@@ -1120,13 +1138,15 @@ retry:
             cbt->upd_value->tw.start_txn = tw.start_txn;
             cbt->upd_value->tw.prepare = tw.prepare;
             cbt->upd_value->type = WT_UPDATE_STANDARD;
+            /* We should not return removed overflow value. */
+            WT_ASSERT(session, !is_ovfl_rm);
             return (0);
         }
     }
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
     if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
-        __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH);
+        __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH, NULL);
         WT_RET(__wt_hs_find_upd(session, S2BT(session)->id, key, cbt->iface.value_format, recno,
           cbt->upd_value, &cbt->upd_value->buf));
     }

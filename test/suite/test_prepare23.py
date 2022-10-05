@@ -88,6 +88,7 @@ class test_prepare23(wttest.WiredTigerTestCase):
             self.session.begin_transaction()
             cursor[i] = value_c
             self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(ts + 40))
+            cursor.reset()
 
             # Evict the page
             session2.begin_transaction('ignore_prepare=true,read_timestamp=' + self.timestamp_str(ts + 20))
