@@ -1756,7 +1756,7 @@ methods = {
                 completely processed before returning''',
                 type='boolean'),
             Config('timeout', '0', r'''
-                amount of time, in seconds, to allow for waiting for flushing of objects.
+                amount of time, in seconds, to wait for flushing of objects to complete.
                 WiredTiger returns EBUSY if the timeout is reached. A value of zero disables
                 the timeout''',
                 type='int'),

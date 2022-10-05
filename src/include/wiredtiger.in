@@ -2000,7 +2000,7 @@ struct __wt_session {
 	 * waits until all work queued for this call to be completely processed before returning., a
 	 * boolean flag; default \c true.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;timeout, amount of time\,
-	 * in seconds\, to allow for waiting for flushing of objects.  WiredTiger returns EBUSY if
+	 * in seconds\, to wait for flushing of objects to complete.  WiredTiger returns EBUSY if
 	 * the timeout is reached.  A value of zero disables the timeout., an integer; default \c
 	 * 0.}
 	 * @config{ ),,}
