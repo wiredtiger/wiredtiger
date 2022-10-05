@@ -148,6 +148,61 @@ __realloc_func(WT_SESSION_IMPL *session, size_t *bytes_allocated_ret, size_t byt
 }
 
 /*
+ * __realloc_malloc_func --
+ *     ANSI realloc function.
+ */
+static int
+__realloc_malloc_func(WT_SESSION_IMPL *session, size_t *bytes_allocated_ret,
+  size_t bytes_to_allocate, bool clear_memory, void *retp)
+{
+    size_t bytes_allocated;
+    void *p, *p1;
+    /*
+     * !!!
+     * This function MUST handle a NULL WT_SESSION_IMPL handle.
+     *
+     * Sometimes we're allocating memory and we don't care about the
+     * final length -- bytes_allocated_ret may be NULL.
+     */
+    p = *(void **)retp;
+    bytes_allocated = (bytes_allocated_ret == NULL) ? 0 : *bytes_allocated_ret;
+    WT_ASSERT(session,
+      (p == NULL && bytes_allocated == 0) ||
+        (p != NULL && (bytes_allocated_ret == NULL || bytes_allocated != 0)));
+    WT_ASSERT(session, bytes_to_allocate != 0);
+    WT_ASSERT(session, bytes_allocated < bytes_to_allocate);
+
+    if (session != NULL) {
+        if (p == NULL)
+            WT_STAT_CONN_INCR(session, memory_allocation);
+        else
+            WT_STAT_CONN_INCR(session, memory_grow);
+    }
+
+    if ((p1 = malloc(bytes_to_allocate)) == NULL)
+        WT_RET_MSG(session, __wt_errno(), "memory allocation of %" WT_SIZET_FMT " bytes failed",
+          bytes_to_allocate);
+
+    memcpy(p, p1, *bytes_allocated_ret);
+    memset((uint8_t *)p, 0, bytes_allocated);
+    free(p);
+
+    /*
+     * Clear the allocated memory, parts of WiredTiger depend on allocated memory being cleared.
+     */
+    if (clear_memory)
+        memset((uint8_t *)p1 + bytes_allocated, 0, bytes_to_allocate - bytes_allocated);
+    WT_UNUSED(clear_memory);
+
+    /* Update caller's bytes allocated value. */
+    if (bytes_allocated_ret != NULL)
+        *bytes_allocated_ret = bytes_to_allocate;
+
+    *(void **)retp = p1;
+    return (0);
+}
+
+/*
  * __wt_realloc --
  *     WiredTiger's realloc API.
  */
@@ -155,17 +210,9 @@ int
 __wt_realloc(
   WT_SESSION_IMPL *session, size_t *bytes_allocated_ret, size_t bytes_to_allocate, void *retp)
 {
-    void *p;
-    void *tmp;
-
-    if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_REALLOC_EXACT)){
-        __wt_malloc(session, bytes_to_allocate, &p);
-        memcpy(p, retp, bytes_allocated_ret);
-        memset(retp, 0, bytes_allocated_ret);
-        tmp = *(void **)retp;
-        *(void **)retp = p;
-        free(tmp);
-    } else 
+    if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_REALLOC_MALLOC))
+        return (__realloc_malloc_func(session, bytes_allocated_ret, bytes_to_allocate, true, retp));
+    else
         return (__realloc_func(session, bytes_allocated_ret, bytes_to_allocate, true, retp));
 }
 
