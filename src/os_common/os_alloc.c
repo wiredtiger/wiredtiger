@@ -155,7 +155,18 @@ int
 __wt_realloc(
   WT_SESSION_IMPL *session, size_t *bytes_allocated_ret, size_t bytes_to_allocate, void *retp)
 {
-    return (__realloc_func(session, bytes_allocated_ret, bytes_to_allocate, true, retp));
+    void *p;
+    void *tmp;
+
+    if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_REALLOC_EXACT)){
+        __wt_malloc(session, bytes_to_allocate, &p);
+        memcpy(p, retp, bytes_allocated_ret);
+        memset(retp, 0, bytes_allocated_ret);
+        tmp = *(void **)retp;
+        *(void **)retp = p;
+        free(tmp);
+    } else 
+        return (__realloc_func(session, bytes_allocated_ret, bytes_to_allocate, true, retp));
 }
 
 /*
