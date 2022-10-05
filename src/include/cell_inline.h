@@ -1283,7 +1283,7 @@ __wt_page_cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, void *unpack_ar
     unpack = (WT_CELL_UNPACK_COMMON *)unpack_arg;
 
     WT_RET(__cell_data_ref(session, page, page->type, (WT_CELL_UNPACK_COMMON *)unpack_arg, store));
-    if (__wt_cell_type_raw(unpack->cell) == WT_CELL_VALUE_OVFL_RM)
+    if (unpack->cell != NULL && __wt_cell_type_raw(unpack->cell) == WT_CELL_VALUE_OVFL_RM)
         return (WT_NOTFOUND);
     return (0);
 }
