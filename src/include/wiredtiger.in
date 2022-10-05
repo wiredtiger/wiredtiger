@@ -2229,6 +2229,8 @@ struct __wt_connection {
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;realloc_exact, if true\, reallocation of memory
 	 * will only provide the exact amount requested.  This will help with spotting memory
 	 * allocation issues more easily., a boolean flag; default \c false.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;realloc_malloc, if true\, realloc functionality will be
+	 * replaced by using malloc to mimic reallocation., a boolean flag; default \c false.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;rollback_error, return a WT_ROLLBACK error from a
 	 * transaction operation about every Nth operation to simulate a collision., an integer
 	 * between \c 0 and \c 10M; default \c 0.}
@@ -2958,11 +2960,13 @@ struct __wt_connection {
  * realloc_exact, if true\, reallocation of memory will only provide the exact amount requested.
  * This will help with spotting memory allocation issues more easily., a boolean flag; default \c
  * false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;rollback_error, return a WT_ROLLBACK error from a
- * transaction operation about every Nth operation to simulate a collision., an integer between \c 0
- * and \c 10M; default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;slow_checkpoint, if true\, slow down
- * checkpoint creation by slowing down internal page processing., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;realloc_malloc, if true\, realloc functionality will be
+ * replaced by using malloc to mimic reallocation., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;rollback_error, return a WT_ROLLBACK error from a transaction
+ * operation about every Nth operation to simulate a collision., an integer between \c 0 and \c 10M;
+ * default \c 0.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;slow_checkpoint, if true\, slow down checkpoint
+ * creation by slowing down internal page processing., a boolean flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;table_logging, if true\, write transaction related information to
  * the log for all operations\, even operations for tables with logging turned off.  This additional
  * logging information is intended for debugging and is informational only\, that is\, it is ignored
