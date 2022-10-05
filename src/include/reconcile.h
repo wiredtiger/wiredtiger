@@ -107,8 +107,10 @@ struct __wt_reconcile {
     uint64_t max_txn;
     wt_timestamp_t max_ts;
 
-    /* Whether we have enabled the option to encourage row store leaf page to split if there are
-     * updates on the page after reconciliation. */
+    /*
+     * Whether we have enabled the option to encourage row store leaf page to split if there are
+     * updates on the page after reconciliation.
+     */
     bool encourage_row_split;
 
     /*
