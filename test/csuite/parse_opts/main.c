@@ -59,56 +59,57 @@ typedef struct {
 } TEST_DRIVER;
 
 static TEST_DRIVER driver[] = {
-    { { "parse_opts", "-b", "builddir", "-T", "21", NULL },
-      { NULL, NULL, {0}, NULL, (char *)"builddir", NULL, 0, NULL, NULL, false, false, false, false, 0, 0,
-        21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+  {{"parse_opts", "-b", "builddir", "-T", "21", NULL},
+    {NULL, NULL, {0}, NULL, (char *)"builddir", NULL, 0, NULL, NULL, false, false, false, false, 0,
+      0, 21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {NULL, 0, 0, 0}},
 
-    { {"parse_opts", "-bbuilddir", "-T", "21", NULL},
-      { NULL, NULL, {0}, NULL, (char *)"builddir", NULL, 0, NULL, NULL, false, false, false, false, 0, 0,
-        21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      { NULL, 0, 0, 0} },
+  {{"parse_opts", "-bbuilddir", "-T", "21", NULL},
+    {NULL, NULL, {0}, NULL, (char *)"builddir", NULL, 0, NULL, NULL, false, false, false, false, 0,
+      0, 21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {NULL, 0, 0, 0}},
 
-    /* If -PT is used, the tiered_storage source is set to dir_store, even if -Po is not used. */
-    { {"parse_opts", "-v", "-PT", NULL},
-      {NULL, NULL, {0}, NULL, NULL, (char *)"dir_store", 0, NULL, NULL, false, false, true, true, 0, 0,
-       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      { NULL, 0, 0, 0} },
+  /* If -PT is used, the tiered_storage source is set to dir_store, even if -Po is not used. */
+  {{"parse_opts", "-v", "-PT", NULL},
+    {NULL, NULL, {0}, NULL, NULL, (char *)"dir_store", 0, NULL, NULL, false, false, true, true, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {NULL, 0, 0, 0}},
 
-    { {"parse_opts", "-v", "-Po", "my_store", "-PT", NULL},
-      {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
-       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      { NULL, 0, 0, 0} },
+  {{"parse_opts", "-v", "-Po", "my_store", "-PT", NULL},
+    {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {NULL, 0, 0, 0}},
 
-    { {"parse_opts", "-v", "-Pomy_store", "-PT", NULL},
-      {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
-       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      { NULL, 0, 0, 0} },
+  {{"parse_opts", "-v", "-Pomy_store", "-PT", NULL},
+    {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {NULL, 0, 0, 0}},
 
-    /* From here on, we are using some "extended" options. */
-    { {"parse_opt", "-vd", "-Pomy_store", "-c", "string_opt", "-PT", NULL},
-      {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
-       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      {(char *)"string_opt", true, false, 0} },
+  /* From here on, we are using some "extended" options. */
+  {{"parse_opt", "-vd", "-Pomy_store", "-c", "string_opt", "-PT", NULL},
+    {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {(char *)"string_opt", true, false, 0}},
 
-    { { "parse_opt", "-dv", "-Pomy_store", "-cstring_opt", "-PT", NULL},
-      {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
-       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      {(char *)"string_opt", true, false, 0} },
+  {{"parse_opt", "-dv", "-Pomy_store", "-cstring_opt", "-PT", NULL},
+    {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {(char *)"string_opt", true, false, 0}},
 
-    { { "parse_opt", "-ev", "-cstring_opt", "-Pomy_store", "-PT", "-f", "22", NULL},
-      {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
-       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      {(char *)"string_opt", false, true, 22} },
+  {{"parse_opt", "-ev", "-cstring_opt", "-Pomy_store", "-PT", "-f", "22", NULL},
+    {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {(char *)"string_opt", false, true, 22}},
 
-    { {"parse_opt", "-evd", "-Pomy_store", "-PT", "-f22", NULL},
-      {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
-       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      {NULL, true, true, 22} },
+  {{"parse_opt", "-evd", "-Pomy_store", "-PT", "-f22", NULL},
+    {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {NULL, true, true, 22}},
 
-    { {"parse_opt", "-v", "-Pomy_store", "-PT", NULL},
-      {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
-       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      {NULL, false, false, 0} },
+  {{"parse_opt", "-v", "-Pomy_store", "-PT", NULL},
+    {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {NULL, false, false, 0}},
 };
 
 /*
@@ -179,10 +180,18 @@ check(int argc, char *const *argv, TEST_OPTS *opts, EXTENDED_OPTS *x_opts)
         testutil_assert(strcmp(prog, "parse_opt") == 0);
 
         /*
-         * For this part of the testing, we're extending the list of options we're parsing, and
-         * using testutil_parse_opt to parse a subset of the standard options.
+         * For this part of the testing, we're parsing options for a fictional test program. This
+         * test program wants to have the standard testutil parsing for options 'b', 'P', 'T', and
+         * 'v', and has added its own options: 'c', 'd', 'e', and 'f'. Its 'd' option overrides the
+         * standard 'd' option. Because testutil_parse_opts can only parse a fix set of options, we
+         * are using the following idiom that uses testutil_parse_opt_begin,getopt,
+         * testutil_parse_opt, and testutil_parse_opt_end.
          */
+
+        /* "b:P:T:v" are the only options we want testutil to handle. */
         testutil_parse_opt_begin(argc, argv, "b:P:T:v", opts);
+
+        /* We list the entire set of options we want to support when we call getopt. */
         while ((ch = __wt_getopt(opts->progname, argc, argv, "b:c:def:P:T:v")) != EOF)
             switch (ch) {
             case 'c':
@@ -198,11 +207,14 @@ check(int argc, char *const *argv, TEST_OPTS *opts, EXTENDED_OPTS *x_opts)
                 x_opts->f_option = atoi(__wt_optarg);
                 break;
             default:
+                /* The option is either one that we're asking testutil to support, or illegal. */
                 if (testutil_parse_opt(opts, ch) != 0) {
                     (void)fprintf(stderr, "usage: %s%s%s\n", opts->progname, x_usage, opts->usage);
                     testutil_assert(false);
                 }
             }
+        /* We are finished parsing, so ask testutil to finish any extra processing of the options.
+         */
         testutil_parse_opt_end(opts);
     }
 }
