@@ -191,12 +191,8 @@ __wt_read_cell_time_window(WT_CURSOR_BTREE *cbt, WT_TIME_WINDOW *tw)
  *     Change a buffer to reference an internal original-page return value.
  */
 int
-__wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_WINDOW *tw
-#ifdef HAVE_DIAGNOSTIC
-  ,
-  bool *is_ovfl_rm
-#endif
-)
+__wt_value_return_buf(
+  WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_WINDOW *tw, bool *is_ovfl_rm)
 {
     WT_BTREE *btree;
     WT_CELL *cell;
@@ -234,10 +230,8 @@ __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_W
         if (tw != NULL)
             WT_TIME_WINDOW_COPY(tw, &unpack.tw);
         ret = __wt_page_cell_data_ref(session, page, &unpack, buf);
-#ifdef HAVE_DIAGNOSTIC
         if (ret == 0 && unpack.cell != NULL && is_ovfl_rm != NULL)
             *is_ovfl_rm = __wt_cell_type_raw(unpack.cell) == WT_CELL_VALUE_OVFL_RM;
-#endif
         return (ret);
 
     case WT_PAGE_COL_VAR:
@@ -247,10 +241,8 @@ __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_W
         if (tw != NULL)
             WT_TIME_WINDOW_COPY(tw, &unpack.tw);
         ret = __wt_page_cell_data_ref(session, page, &unpack, buf);
-#ifdef HAVE_DIAGNOSTIC
         if (ret == 0 && unpack.cell != NULL && is_ovfl_rm != NULL)
             *is_ovfl_rm = __wt_cell_type_raw(unpack.cell) == WT_CELL_VALUE_OVFL_RM;
-#endif
         return (ret);
 
     case WT_PAGE_COL_FIX:

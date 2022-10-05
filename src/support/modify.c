@@ -443,41 +443,30 @@ err:
  */
 int
 __wt_modify_reconstruct_from_upd_list(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE_VALUE *upd_value)
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *modify, WT_UPDATE_VALUE *upd_value)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    WT_RWLOCK *ovfl_lock;
     WT_TIME_WINDOW tw;
+    WT_UPDATE *upd;
     WT_UPDATE_VECTOR modifies;
-    bool locked;
-#ifdef HAVE_DIAGNOSTIC
     bool is_ovfl_rm;
-#endif
 
-    WT_ASSERT(session, upd->type == WT_UPDATE_MODIFY);
+    WT_ASSERT(session, modify->type == WT_UPDATE_MODIFY);
 
     cursor = &cbt->iface;
-#ifdef HAVE_DIAGNOSTIC
-    is_ovfl_rm = false;
-#endif
-
     /* While we have a pointer to our original modify, grab this information. */
-    upd_value->tw.durable_start_ts = upd->durable_ts;
-    upd_value->tw.start_txn = upd->txnid;
-    ovfl_lock = &S2BT(session)->ovfl_lock;
+    upd_value->tw.durable_start_ts = modify->durable_ts;
+    upd_value->tw.start_txn = modify->txnid;
+
+retry:
+    is_ovfl_rm = false;
 
     /* Construct full update */
     __wt_update_vector_init(session, &modifies);
 
-    /*
-     * Get the overflown lock in case we need to use the on page overflown value as the base value.
-     * We need to prevent it from being removed by checkpoint concurrently.
-     */
-    __wt_readlock(session, ovfl_lock);
-    locked = true;
     /* Find a complete update. */
-    for (; upd != NULL; upd = upd->next) {
+    for (upd = modify; upd != NULL; upd = upd->next) {
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
 
@@ -500,18 +489,14 @@ __wt_modify_reconstruct_from_upd_list(
          */
         WT_ASSERT(session, cbt->slot != UINT32_MAX);
 
-        ret = __wt_value_return_buf(cbt, cbt->ref, &upd_value->buf, &tw
-#ifdef HAVE_DIAGNOSTIC
-          ,
-          &is_ovfl_rm
-#endif
-        );
-        __wt_readunlock(session, ovfl_lock);
-        locked = false;
-        WT_ERR(ret);
+        WT_ERR(__wt_value_return_buf(cbt, cbt->ref, &upd_value->buf, &tw, &is_ovfl_rm));
 
-        /* The base value cannot be a removed overflow value. */
-        WT_ASSERT(session, !is_ovfl_rm);
+        /*
+         * We race with checkpoint reconciliation removing the overflown items. Retry the read as
+         * the value should now be appended to the update chain by checkpoint reconciliation.
+         */
+        if (is_ovfl_rm)
+            goto retry;
 
         /*
          * Applying modifies on top of a tombstone is invalid. So if we're using the onpage value,
@@ -520,8 +505,6 @@ __wt_modify_reconstruct_from_upd_list(
         WT_ASSERT(session,
           tw.stop_txn == WT_TXN_MAX && tw.stop_ts == WT_TS_MAX && tw.durable_stop_ts == WT_TS_NONE);
     } else {
-        __wt_readunlock(session, &S2BT(session)->ovfl_lock);
-        locked = false;
         /* The base update must not be a tombstone. */
         WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
         WT_ERR(__wt_buf_set(session, &upd_value->buf, upd->data, upd->size));
@@ -533,8 +516,6 @@ __wt_modify_reconstruct_from_upd_list(
     }
     upd_value->type = WT_UPDATE_STANDARD;
 err:
-    if (locked)
-        __wt_readunlock(session, ovfl_lock);
     __wt_update_vector_free(&modifies);
     return (ret);
 }
