@@ -447,8 +447,10 @@ __wt_modify_reconstruct_from_upd_list(
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    WT_RWLOCK *ovfl_lock;
     WT_TIME_WINDOW tw;
     WT_UPDATE_VECTOR modifies;
+    bool locked;
 #ifdef HAVE_DIAGNOSTIC
     bool is_ovfl_rm;
 #endif
@@ -463,9 +465,17 @@ __wt_modify_reconstruct_from_upd_list(
     /* While we have a pointer to our original modify, grab this information. */
     upd_value->tw.durable_start_ts = upd->durable_ts;
     upd_value->tw.start_txn = upd->txnid;
+    ovfl_lock = &S2BT(session)->ovfl_lock;
 
     /* Construct full update */
     __wt_update_vector_init(session, &modifies);
+
+    /*
+     * Get the overflown lock in case we need to use the on page overflown value as the base value.
+     * We need to prevent it from being removed by checkpoint concurrently.
+     */
+    __wt_readlock(session, ovfl_lock);
+    locked = true;
     /* Find a complete update. */
     for (; upd != NULL; upd = upd->next) {
         if (upd->txnid == WT_TXN_ABORTED)
@@ -496,6 +506,8 @@ __wt_modify_reconstruct_from_upd_list(
           &is_ovfl_rm
 #endif
         );
+        __wt_readunlock(session, ovfl_lock);
+        locked = false;
         WT_ERR(ret);
 
         /* The base value cannot be a removed overflow value. */
@@ -508,6 +520,8 @@ __wt_modify_reconstruct_from_upd_list(
         WT_ASSERT(session,
           tw.stop_txn == WT_TXN_MAX && tw.stop_ts == WT_TS_MAX && tw.durable_stop_ts == WT_TS_NONE);
     } else {
+        __wt_readunlock(session, &S2BT(session)->ovfl_lock);
+        locked = false;
         /* The base update must not be a tombstone. */
         WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
         WT_ERR(__wt_buf_set(session, &upd_value->buf, upd->data, upd->size));
@@ -519,6 +533,8 @@ __wt_modify_reconstruct_from_upd_list(
     }
     upd_value->type = WT_UPDATE_STANDARD;
 err:
+    if (locked)
+        __wt_readunlock(session, ovfl_lock);
     __wt_update_vector_free(&modifies);
     return (ret);
 }
