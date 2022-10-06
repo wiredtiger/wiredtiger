@@ -268,8 +268,7 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
                 "test_config_json",     # create replacement can't handle a json config string
                 "test_cursor_big",      # Cursor caching verified with stats
                 "tiered",               # Tiered tests already do tiering.
-                "verify_api_75pct_null",# Test damages file, then reopens connection (flushes tier)
-                                        # so local file is undamaged
+                "test_verify"           # Verify not supported on tiered tables (yet)
 
                 # FIXME-WT-9809 The following failures should be triaged and potentially
                 # individually reticketed.
@@ -278,6 +277,7 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
                 # whether from internal assertion or other causes.
                 "test_bug003.test_bug003",   # crashes in connection close after opening bulk cursor.
                 "test_bug024.test_bug024",
+                "test_bulk01.test_bulk_load",   # Triggers WT-9954
                 "test_durable_ts03.test_durable_ts03",
                 "test_rollback_to_stable20.test_rollback_to_stable",
                 "test_stat_log01_readonly.test_stat_log01_readonly",
@@ -320,6 +320,7 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
                 "test_rollback_to_stable36.test_rollback_to_stable",
                 "test_sweep03.test_disable_idle_timeout_drop",
                 "test_sweep03.test_disable_idle_timeout_drop_force",
+                "test_truncate01.test_truncate_cursor",
                 "test_truncate01.test_truncate_cursor_end",
                 "test_truncate01.test_truncate_timestamp",
                 "test_truncate01.test_truncate_uri",
