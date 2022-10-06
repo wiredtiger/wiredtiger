@@ -268,14 +268,14 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
                 "test_config_json",     # create replacement can't handle a json config string
                 "test_cursor_big",      # Cursor caching verified with stats
                 "tiered",               # Tiered tests already do tiering.
-                "test_verify"           # Verify not supported on tiered tables (yet)
+                "test_verify",          # Verify not supported on tiered tables (yet)
 
                 # FIXME-WT-9809 The following failures should be triaged and potentially
                 # individually reticketed.
 
                 # This first group currently cause severe errors, where Python crashes,
                 # whether from internal assertion or other causes.
-                "test_bug003.test_bug003",   # crashes in connection close after opening bulk cursor.
+                "test_bug003.test_bug003",   # Triggers WT-9954
                 "test_bug024.test_bug024",
                 "test_bulk01.test_bulk_load",   # Triggers WT-9954
                 "test_durable_ts03.test_durable_ts03",
