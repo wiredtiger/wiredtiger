@@ -133,6 +133,9 @@ call_log_manager::call_log_commit_transaction(const json &call_log_entry)
     int ret_expected = call_log_entry["return"]["return_val"].get<int>();
     /* The ret value should be equal to the expected ret value. */
     assert(ret == ret_expected);
+    if (ret != 0)
+        throw "commit_transaction for session_id (" + session_id +
+          ") failed with return value: " + std::to_string(ret);
 }
 
 void

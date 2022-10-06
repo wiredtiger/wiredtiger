@@ -37,8 +37,8 @@
 #include "timestamp_manager.h"
 
 session_simulator::session_simulator()
-    : _has_commit_ts(false), _ts_round_prepared(false), _ts_round_read(false), _txn_running(false), _commit_ts(0),
-      _durable_ts(0), _first_commit_ts(0), _prepare_ts(0), _read_ts(0)
+    : _has_commit_ts(false), _ts_round_prepared(false), _ts_round_read(false), _txn_running(false),
+      _commit_ts(0), _durable_ts(0), _first_commit_ts(0), _prepare_ts(0), _read_ts(0)
 {
 }
 
@@ -53,7 +53,7 @@ session_simulator::begin_transaction(const std::string &config)
 
     ts_manager->parse_config(config, config_map);
 
-    /* Check if the read timestamp should be rounded up. */
+    /* Check if the read or prepared timestamp should be rounded up. */
     auto pos = config_map.find("roundup_timestamps");
     _ts_round_prepared = false;
     _ts_round_read = false;
@@ -103,6 +103,7 @@ session_simulator::commit_transaction(const std::string &config)
 
     auto pos = config_map.find("commit_timestamp");
     if (pos != config_map.end()) {
+        /* Check that the timestamp string has valid hexadecimal characters. */
         for (auto &ch : pos->second)
             if (!std::isxdigit(ch))
                 WT_SIM_RET_MSG(EINVAL, "Illegal commit timestamp: invalid hex value.");
@@ -191,6 +192,12 @@ session_simulator::set_prepare_timestamp(uint64_t ts)
     _prepare_ts = ts;
 }
 
+bool
+session_simulator::has_prepare_timestamp()
+{
+    return _prepare_ts != 0;
+}
+
 int
 session_simulator::set_read_timestamp(uint64_t read_ts)
 {
@@ -218,6 +225,10 @@ session_simulator::decode_timestamp_config_map(std::map<std::string, std::string
     timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
     auto pos = config_map.find("commit_timestamp");
     if (pos != config_map.end()) {
+        /* Check that the timestamp string has valid hexadecimal characters. */
+        for (auto &ch : pos->second)
+            if (!std::isxdigit(ch))
+                WT_SIM_RET_MSG(EINVAL, "Illegal commit timestamp: invalid hex value.");
         commit_ts = ts_manager->hex_to_decimal(pos->second);
         if (commit_ts == 0)
             WT_SIM_RET_MSG(EINVAL, "Illegal commit timestamp: zero not permitted.");
@@ -226,6 +237,10 @@ session_simulator::decode_timestamp_config_map(std::map<std::string, std::string
 
     pos = config_map.find("durable_timestamp");
     if (pos != config_map.end()) {
+        /* Check that the timestamp string has valid hexadecimal characters. */
+        for (auto &ch : pos->second)
+            if (!std::isxdigit(ch))
+                WT_SIM_RET_MSG(EINVAL, "Illegal commit timestamp: invalid hex value.");
         durable_ts = ts_manager->hex_to_decimal(pos->second);
         if (durable_ts == 0)
             WT_SIM_RET_MSG(EINVAL, "Illegal durable timestamp: zero not permitted.");
@@ -234,6 +249,10 @@ session_simulator::decode_timestamp_config_map(std::map<std::string, std::string
 
     pos = config_map.find("prepare_timestamp");
     if (pos != config_map.end()) {
+        /* Check that the timestamp string has valid hexadecimal characters. */
+        for (auto &ch : pos->second)
+            if (!std::isxdigit(ch))
+                WT_SIM_RET_MSG(EINVAL, "Illegal commit timestamp: invalid hex value.");
         prepare_ts = ts_manager->hex_to_decimal(pos->second);
         if (prepare_ts == 0)
             WT_SIM_RET_MSG(EINVAL, "Illegal prepare timestamp: zero not permitted.");
@@ -242,6 +261,10 @@ session_simulator::decode_timestamp_config_map(std::map<std::string, std::string
 
     pos = config_map.find("read_timestamp");
     if (pos != config_map.end()) {
+        /* Check that the timestamp string has valid hexadecimal characters. */
+        for (auto &ch : pos->second)
+            if (!std::isxdigit(ch))
+                WT_SIM_RET_MSG(EINVAL, "Illegal commit timestamp: invalid hex value.");
         read_ts = ts_manager->hex_to_decimal(pos->second);
         if (read_ts == 0)
             WT_SIM_RET_MSG(EINVAL, "Illegal read timestamp: zero not permitted.");
