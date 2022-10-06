@@ -99,10 +99,10 @@ CONFIG configuration_list[] = {
   {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured",
     0x0, 5, 100, 3600, V_GLOBAL_CHECKPOINT_WAIT},
 
-  {"debug.realloc_malloc", "stress history store sweep",
+  {"debug.realloc_malloc", "use malloc when allocating memory",
     C_BOOL, 5, 0, 0, V_GLOBAL_DEBUG_REALLOC_MALLOC},
 
-  {"debug.realloc_exact", "stress history store sweep",
+  {"debug.realloc_exact", "reallocation of memory will only provide the exact amount requested",
     C_BOOL, 0, 0, 0, V_GLOBAL_DEBUG_REALLOC_EXACT},
 
   {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)",

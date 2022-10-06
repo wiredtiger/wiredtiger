@@ -150,6 +150,10 @@ __realloc_func(WT_SESSION_IMPL *session, size_t *bytes_allocated_ret, size_t byt
             WT_STAT_CONN_INCR(session, memory_grow);
     }
 
+    /*
+     * If realloc_malloc is enabled, use malloc to mimic realloc functionality, copy to the new
+     * memory, scribble over the old memory then free it.
+     */
     if (realloc_malloc) {
         if ((p = malloc(bytes_to_allocate)) == NULL)
             WT_RET_MSG(session, __wt_errno(), "memory allocation of %" WT_SIZET_FMT " bytes failed",
