@@ -135,6 +135,10 @@ CONFIG configuration_list[] = {
 
 {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured", 0x0, 5, 100, 3600}
 
+{"debug.realloc_malloc", "stress history store sweep", C_BOOL, 5, 0, 0}
+
+{"debug.realloc_exact", "stress history store sweep", C_BOOL, 0, 0, 0}
+
 {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)", C_IGNORE | C_STRING | C_TABLE, 0, 0, 0}
 
 {"disk.data_extend", "configure data file extension", C_BOOL, 5, 0, 0}
