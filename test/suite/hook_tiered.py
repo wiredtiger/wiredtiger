@@ -152,7 +152,7 @@ def connection_close_replace(orig_connection_close, connection_self, config):
     # Otherwise, diagnosing the original failure may be troublesome.
     if not testcase_is_readonly() and not testcase_has_failed():
         s = connection_self.open_session(None)
-        s.flush_tier(None)
+        s.checkpoint('flush_tier=(enabled,force=true)')
         s.close()
 
     ret = orig_connection_close(connection_self, config)
@@ -162,15 +162,10 @@ def connection_close_replace(orig_connection_close, connection_self, config):
 # We add a call to flush_tier after the checkpoint to make sure we are exercising tiered
 # functionality.
 def session_checkpoint_replace(orig_session_checkpoint, session_self, config):
-    ret = orig_session_checkpoint(session_self, config)
-    if ret != 0:
-        return ret
-
     # We cannot call flush_tier on a readonly connection.
     if not testcase_is_readonly():
-        WiredTigerTestCase.verbose(None, 3,
-            '    Calling flush_tier() after checkpoint')
-        return session_self.flush_tier(None)
+        config += ',flush_tier=(enabled,force=true)'
+    return orig_session_checkpoint(session_self, config)
 
 # Called to replace Session.compact
 def session_compact_replace(orig_session_compact, session_self, uri, config):
