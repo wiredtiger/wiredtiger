@@ -67,11 +67,11 @@ parse_tiered_opt(TEST_OPTS *opts)
 }
 
 /*
- * testutil_parse_opt_begin --
+ * testutil_parse_begin_opt --
  *     Start a set of calls to parse single command line options.
  */
 void
-testutil_parse_opt_begin(int argc, char *const *argv, const char *getopts_string, TEST_OPTS *opts)
+testutil_parse_begin_opt(int argc, char *const *argv, const char *getopts_string, TEST_OPTS *opts)
 {
     opts->argc = 0;
     opts->argv = NULL;
@@ -102,11 +102,11 @@ testutil_parse_opt_begin(int argc, char *const *argv, const char *getopts_string
 }
 
 /*
- * testutil_parse_opt_end --
+ * testutil_parse_end_opt --
  *     Finish a set of calls to parse single command line options.
  */
 void
-testutil_parse_opt_end(TEST_OPTS *opts)
+testutil_parse_end_opt(TEST_OPTS *opts)
 {
     size_t len;
 
@@ -137,11 +137,11 @@ testutil_parse_opt_end(TEST_OPTS *opts)
 }
 
 /*
- * testutil_parse_opt --
+ * testutil_parse_single_opt --
  *     Parse a single command line option for a test case.
  */
 int
-testutil_parse_opt(TEST_OPTS *opts, int ch)
+testutil_parse_single_opt(TEST_OPTS *opts, int ch)
 {
     if (ch == '?' || strchr(opts->getopts_string, ch) == NULL)
         return (1);
@@ -216,13 +216,13 @@ testutil_parse_opts(int argc, char *const *argv, TEST_OPTS *opts)
     int ch;
     static const char *getopt_args = "A:b:dh:n:o:P:pR:T:t:vW:";
 
-    testutil_parse_opt_begin(argc, argv, getopt_args, opts);
+    testutil_parse_begin_opt(argc, argv, getopt_args, opts);
     while ((ch = __wt_getopt(opts->progname, opts->argc, opts->argv, getopt_args)) != EOF)
-        if (testutil_parse_opt(opts, ch) != 0) {
+        if (testutil_parse_single_opt(opts, ch) != 0) {
             (void)fprintf(stderr, "usage: %s%s\n", opts->progname, opts->usage);
             return (1);
         }
 
-    testutil_parse_opt_end(opts);
+    testutil_parse_end_opt(opts);
     return (0);
 }

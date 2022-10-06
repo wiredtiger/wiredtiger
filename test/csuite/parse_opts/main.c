@@ -28,7 +28,26 @@
 #include "test_util.h"
 
 /*
- * Unit test testutil_parse_opts and testutil_parse_opt functions.
+ * This is a unit test for the testutil_parse_opts and testutil_parse_single_opt functions.
+ *
+ * In one part of the test, we do a straightforward test of the testutil_parse_opts
+ * function.  This function is used by test programs to parse a fixed set of
+ * commonly used options, for example ".... -h homedir -T 3 -v" sets the home directory as
+ indicated,
+ * the thread count to 3 and turns on verbose.  Options are parsed and a TEST_OPTS
+ * structure is modified accordingly.  To test this, we have a set of simulated
+ * command lines and our expected contents of the TEST_OPTS structure.  These command
+ 8 lines and expected TEST_OPTS appear as the first entries in the driver array below.
+ *
+ * In the second part of the test, we want to parse additional options. Many test programs
+ * need some of options from the fixed set provided by the testutil_parse_opts function, but
+ * perhaps needs additional options.  We have in mind a fictional test program that wants
+ * to use the standard testutil parsing for options 'b', 'P', 'T', and 'v', and has added
+ * its own options: 'c', 'd', 'e', and 'f', which it stores in a struct below called
+ * FICTIONAL_OPTS.  Note that its 'd' option overrides the standard 'd' option.
+ * To do this sort of "extended" parsing, we need to use a particular idiom that uses
+ * testutil_parse_begin_opt, getopt, testutil_parse_single_opt, and testutil_parse_end_opt,
+ * as seen in the check function.
  */
 
 extern char *__wt_optarg; /* option argument */
@@ -36,35 +55,44 @@ extern int __wt_optind;   /* argv position, needed to reset __wt_getopt parser *
 extern int __wt_optreset; /* needed to reset the parser internal state */
 
 /*
- * This structure aids in testing testutil_parse_opt. That function is useful for test applications
- * that wish to extend/modify the basic option set provided by testutil.
+ * This structure aids in testing testutil_parse_opt. The options here only have meaning to our
+ * fictional test program.
  */
 typedef struct {
-    char *c_option;
-    bool d_option;
-    bool e_option;
-    int f_option;
-} EXTENDED_OPTS;
+    char *checkpoint_name; /* -c option, takes a string argument */
+    bool delete_flag;      /* -d option */
+    bool energize_flag;    /* -e option, it's fictional! */
+    int fuzziness_option;  /* -f option, takes an int argument */
+} FICTIONAL_OPTS;
 
 /*
  * This drives the testing. For each given command_line, there is a matching expected TEST_OPTS
  * structure. When argv[0] is "parse_opts", we are driving testutil_parse_opts. If argv[0] is
- * "parse_opt", then we are parsing some of our "own" options, put into an EXTENDED_OPTS struct, and
- * using testutil_parse_opt to parse any we don't recognize, those are put into TEST_OPTS.
+ * "parse_opt", then we are parsing some of our "own" options, put into an FICTIONAL_OPTS struct,
+ * and using testutil_parse_opt to parse any we don't recognize, those are put into TEST_OPTS.
  */
 typedef struct {
     const char *command_line[10];
     TEST_OPTS expected;
-    EXTENDED_OPTS x_expected;
+    FICTIONAL_OPTS fiction_expected;
 } TEST_DRIVER;
 
+/*
+ * We've chosen tests to cover:
+ *  - string options both appearing as "-b option" and "-boption"
+ *  - int options also appearing both as "-T 21" and "-T21"
+ *  - tiered storage multiple character options starting with "-P", like "-PT" and "-Po name".
+ *  - flag options like "-v".
+ *  - our set of "fictional" arguments.
+ *
+ */
 static TEST_DRIVER driver[] = {
   {{"parse_opts", "-b", "builddir", "-T", "21", NULL},
     {NULL, NULL, {0}, NULL, (char *)"builddir", NULL, 0, NULL, NULL, false, false, false, false, 0,
       0, 21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
     {NULL, 0, 0, 0}},
 
-  {{"parse_opts", "-bbuilddir", "-T", "21", NULL},
+  {{"parse_opts", "-bbuilddir", "-T21", NULL},
     {NULL, NULL, {0}, NULL, (char *)"builddir", NULL, 0, NULL, NULL, false, false, false, false, 0,
       0, 21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
     {NULL, 0, 0, 0}},
@@ -80,33 +108,36 @@ static TEST_DRIVER driver[] = {
       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
     {NULL, 0, 0, 0}},
 
-  {{"parse_opts", "-v", "-Pomy_store", "-PT", NULL},
+  {{"parse_opts", "-vPomy_store", "-PT", NULL},
     {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
     {NULL, 0, 0, 0}},
 
-  /* From here on, we are using some "extended" options. */
-  {{"parse_opt", "-vd", "-Pomy_store", "-c", "string_opt", "-PT", NULL},
+  /*
+   * From here on, we are using some "extended" options, see previous comment. We set the argv[0] to
+   * "parse_single_opt" to indicate to use the extended parsing idiom.
+   */
+  {{"parse_single_opt", "-vd", "-Pomy_store", "-c", "string_opt", "-PT", NULL},
     {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
     {(char *)"string_opt", true, false, 0}},
 
-  {{"parse_opt", "-dv", "-Pomy_store", "-cstring_opt", "-PT", NULL},
+  {{"parse_single_opt", "-dv", "-Pomy_store", "-cstring_opt", "-PT", NULL},
     {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
     {(char *)"string_opt", true, false, 0}},
 
-  {{"parse_opt", "-ev", "-cstring_opt", "-Pomy_store", "-PT", "-f", "22", NULL},
+  {{"parse_single_opt", "-ev", "-cstring_opt", "-Pomy_store", "-PT", "-f", "22", NULL},
     {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
     {(char *)"string_opt", false, true, 22}},
 
-  {{"parse_opt", "-evd", "-Pomy_store", "-PT", "-f22", NULL},
+  {{"parse_single_opt", "-evd", "-Pomy_store", "-PT", "-f22", NULL},
     {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
     {NULL, true, true, 22}},
 
-  {{"parse_opt", "-v", "-Pomy_store", "-PT", NULL},
+  {{"parse_single_opt", "-v", "-Pomy_store", "-PT", NULL},
     {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
     {NULL, false, false, 0}},
@@ -117,7 +148,7 @@ static TEST_DRIVER driver[] = {
  *     Show any changed fields in the options.
  */
 static void
-report(const TEST_OPTS *opts, EXTENDED_OPTS *x_opts)
+report(const TEST_OPTS *opts, FICTIONAL_OPTS *fiction_opts)
 {
 #define REPORT_INT(o, field)                                      \
     do {                                                          \
@@ -144,10 +175,10 @@ report(const TEST_OPTS *opts, EXTENDED_OPTS *x_opts)
     REPORT_INT(opts, n_append_threads);
     REPORT_INT(opts, n_read_threads);
     REPORT_INT(opts, n_write_threads);
-    REPORT_STR(x_opts, c_option);
-    REPORT_INT(x_opts, d_option);
-    REPORT_INT(x_opts, e_option);
-    REPORT_INT(x_opts, f_option);
+    REPORT_STR(fiction_opts, checkpoint_name);
+    REPORT_INT(fiction_opts, delete_flag);
+    REPORT_INT(fiction_opts, energize_flag);
+    REPORT_INT(fiction_opts, fuzziness_option);
 }
 
 /*
@@ -155,14 +186,14 @@ report(const TEST_OPTS *opts, EXTENDED_OPTS *x_opts)
  *     Call testutil_parse_opts and return options.
  */
 static void
-check(int argc, char *const *argv, TEST_OPTS *opts, EXTENDED_OPTS *x_opts)
+check(int argc, char *const *argv, TEST_OPTS *opts, FICTIONAL_OPTS *fiction_opts)
 {
     int ch;
     const char *prog;
-    const char *x_usage = " [-c string] [-d] [-e] [-f int]";
+    const char *fiction_usage = " [-c string] [-d] [-e] [-f int]";
 
     memset(opts, 0, sizeof(*opts));
-    memset(x_opts, 0, sizeof(*x_opts));
+    memset(fiction_opts, 0, sizeof(*fiction_opts));
 
     /* This may be called multiple times, so reset the __wt_getopt parser. */
     __wt_optind = 1;
@@ -181,45 +212,45 @@ check(int argc, char *const *argv, TEST_OPTS *opts, EXTENDED_OPTS *x_opts)
          * Test of extended parsing, in which we'll parse some options that we know about and rely
          * on testutil_parse_opt to cover the options it knows about.
          */
-        testutil_assert(strcmp(prog, "parse_opt") == 0);
+        testutil_assert(strcmp(prog, "parse_single_opt") == 0);
 
         /*
          * For this part of the testing, we're parsing options for a fictional test program. This
          * test program wants to have the standard testutil parsing for options 'b', 'P', 'T', and
-         * 'v', and has added its own options: 'c', 'd', 'e', and 'f'. Its 'd' option overrides the
-         * standard 'd' option. Because testutil_parse_opts can only parse a fix set of options, we
-         * are using the following idiom that uses testutil_parse_opt_begin,getopt,
-         * testutil_parse_opt, and testutil_parse_opt_end.
+         * 'v', and has added its own options: 'c', 'd', 'e', and 'f'. We use the following idiom to
+         * accomplish this.
          */
 
         /* "b:P:T:v" are the only options we want testutil to handle. */
-        testutil_parse_opt_begin(argc, argv, "b:P:T:v", opts);
+        testutil_parse_begin_opt(argc, argv, "b:P:T:v", opts);
 
         /* We list the entire set of options we want to support when we call getopt. */
         while ((ch = __wt_getopt(opts->progname, argc, argv, "b:c:def:P:T:v")) != EOF)
             switch (ch) {
             case 'c':
-                x_opts->c_option = __wt_optarg;
+                fiction_opts->checkpoint_name = __wt_optarg;
                 break;
             case 'd':
-                x_opts->d_option = true;
+                fiction_opts->delete_flag = true;
                 break;
             case 'e':
-                x_opts->e_option = true;
+                fiction_opts->energize_flag = true;
                 break;
             case 'f':
-                x_opts->f_option = atoi(__wt_optarg);
+                fiction_opts->fuzziness_option = atoi(__wt_optarg);
                 break;
             default:
                 /* The option is either one that we're asking testutil to support, or illegal. */
-                if (testutil_parse_opt(opts, ch) != 0) {
-                    (void)fprintf(stderr, "usage: %s%s%s\n", opts->progname, x_usage, opts->usage);
+                if (testutil_parse_single_opt(opts, ch) != 0) {
+                    (void)fprintf(
+                      stderr, "usage: %s%s%s\n", opts->progname, fiction_usage, opts->usage);
                     testutil_assert(false);
                 }
             }
-        /* We are finished parsing, so ask testutil to finish any extra processing of the options.
+        /*
+         * We are finished parsing, so ask testutil to finish any extra processing of the options.
          */
-        testutil_parse_opt_end(opts);
+        testutil_parse_end_opt(opts);
     }
 }
 
@@ -228,7 +259,8 @@ check(int argc, char *const *argv, TEST_OPTS *opts, EXTENDED_OPTS *x_opts)
  *     Verify the returned options against the expected options.
  */
 static void
-verify_expect(TEST_OPTS *opts, EXTENDED_OPTS *x_opts, TEST_OPTS *expect, EXTENDED_OPTS *x_expect)
+verify_expect(
+  TEST_OPTS *opts, FICTIONAL_OPTS *fiction_opts, TEST_OPTS *expect, FICTIONAL_OPTS *fiction_expect)
 {
 #define VERIFY_INT(o, e, field)                    \
     do {                                           \
@@ -261,10 +293,10 @@ verify_expect(TEST_OPTS *opts, EXTENDED_OPTS *x_opts, TEST_OPTS *expect, EXTENDE
     VERIFY_INT(opts, expect, n_read_threads);
     VERIFY_INT(opts, expect, n_write_threads);
 
-    VERIFY_STR(x_opts, x_expect, c_option);
-    VERIFY_INT(x_opts, x_expect, d_option);
-    VERIFY_INT(x_opts, x_expect, e_option);
-    VERIFY_INT(x_opts, x_expect, f_option);
+    VERIFY_STR(fiction_opts, fiction_expect, checkpoint_name);
+    VERIFY_INT(fiction_opts, fiction_expect, delete_flag);
+    VERIFY_INT(fiction_opts, fiction_expect, energize_flag);
+    VERIFY_INT(fiction_opts, fiction_expect, fuzziness_option);
 }
 
 /*
@@ -272,9 +304,9 @@ verify_expect(TEST_OPTS *opts, EXTENDED_OPTS *x_opts, TEST_OPTS *expect, EXTENDE
  *     Clean up allocated resources.
  */
 static void
-cleanup(TEST_OPTS *opts, EXTENDED_OPTS *x_opts)
+cleanup(TEST_OPTS *opts, FICTIONAL_OPTS *fiction_opts)
 {
-    (void)x_opts; /* Nothing to clean up here. */
+    (void)fiction_opts; /* Nothing to clean up here. */
 
     testutil_cleanup(opts);
 }
@@ -287,33 +319,34 @@ int
 main(int argc, char *argv[])
 {
     TEST_OPTS *expect, opts;
-    EXTENDED_OPTS *x_expect, x_opts;
+    FICTIONAL_OPTS *fiction_expect, fiction_opts;
     size_t i;
     int nargs;
     char *const *cmd;
 
     if (argc > 1) {
         /*
-         * If first arg is --parse_opt(s), then make argv[0] point to "parse_opt" or "parse_opts".
+         * If first arg is --parse_opt or --parse_single_opt, then make argv[0] point to "parse_opt"
+         * or "parse_single_opt".
          */
-        if (strncmp(argv[1], "--parse_opt", 11) == 0) {
+        if (strncmp(argv[1], "--parse", strlen("--parse")) == 0) {
             argc--;
             argv++;
             argv[0] += 2; /* skip past -- */
         }
-        check(argc, argv, &opts, &x_opts);
-        report(&opts, &x_opts);
-        cleanup(&opts, &x_opts);
+        check(argc, argv, &opts, &fiction_opts);
+        report(&opts, &fiction_opts);
+        cleanup(&opts, &fiction_opts);
     } else {
         for (i = 0; i < WT_ELEMENTS(driver); i++) {
             cmd = (char *const *)driver[i].command_line;
             for (nargs = 0; cmd[nargs] != NULL; nargs++)
                 ;
             expect = &driver[i].expected;
-            x_expect = &driver[i].x_expected;
-            check(nargs, cmd, &opts, &x_opts);
-            verify_expect(&opts, &x_opts, expect, x_expect);
-            cleanup(&opts, &x_opts);
+            fiction_expect = &driver[i].fiction_expected;
+            check(nargs, cmd, &opts, &fiction_opts);
+            verify_expect(&opts, &fiction_opts, expect, fiction_expect);
+            cleanup(&opts, &fiction_opts);
         }
     }
 
