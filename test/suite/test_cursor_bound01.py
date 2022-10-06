@@ -122,6 +122,8 @@ class test_cursor_bound01(bound_base):
             cursor = self.session.open_cursor(uri, None, "next_random=true")
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.set_bounds(cursor, 40, "lower"), 
                 '/Operation not supported/')
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.set_bounds(cursor, 60, "upper"), 
+                '/Operation not supported/')
 
 if __name__ == '__main__':
     wttest.run()
