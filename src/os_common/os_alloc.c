@@ -131,11 +131,13 @@ __realloc_func(WT_SESSION_IMPL *session, size_t *bytes_allocated_ret, size_t byt
      * final length -- bytes_allocated_ret may be NULL.
      */
     bytes_allocated = (bytes_allocated_ret == NULL) ? 0 : *bytes_allocated_ret;
-    WT_ASSERT(session,
-      (realloc_malloc && tmpp == NULL && bytes_allocated == 0) ||
-        (!realloc_malloc && p == NULL && bytes_allocated == 0) ||
-        (realloc_malloc && tmpp != NULL && (bytes_allocated_ret == NULL || bytes_allocated != 0)) ||
-        (!realloc_malloc && p != NULL && (bytes_allocated_ret == NULL || bytes_allocated != 0)));
+    if (realloc_malloc)
+        WT_ASSERT(session, (tmpp == NULL && bytes_allocated == 0) ||
+          (tmpp != NULL && (bytes_allocated_ret == NULL || bytes_allocated != 0)));
+    else
+        WT_ASSERT(session, (p == NULL && bytes_allocated == 0) ||
+          (p != NULL && (bytes_allocated_ret == NULL || bytes_allocated != 0)));
+
     WT_ASSERT(session, bytes_to_allocate != 0);
     WT_ASSERT(session, bytes_allocated < bytes_to_allocate);
 
