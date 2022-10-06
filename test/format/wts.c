@@ -274,11 +274,12 @@ create_database(const char *home, WT_CONNECTION **connp)
         CONFIG_APPEND(p, ",file_extend=(data=8MB)");
 
     /* Configure realloc malloc debug mode. */
-    if (GV(DEBUG_REALLOC_MALLOC))
+    if (GV(DEBUG_REALLOC_MALLOC)) {
         if (mmrand(NULL, 0, 1) == 1)
             CONFIG_APPEND(p, ",debug_mode=(realloc_malloc=true,realloc_exact=true)");
         else
             CONFIG_APPEND(p, ",debug_mode=(realloc_malloc=true)");
+    }
 
     /*
      * Run the statistics server and/or maintain statistics in the engine. Sometimes specify a set
