@@ -1889,6 +1889,9 @@ __session_prepare_transaction(WT_SESSION *wt_session, const char *config)
     F_CLR(session, WT_SESSION_RESOLVING_TXN);
 
 err:
+#ifdef HAVE_CALL_LOG
+    WT_TRET(__wt_call_log_prepare_transaction(session, config, ret));
+#endif
     API_END_RET(session, ret);
 }
 
