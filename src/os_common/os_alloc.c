@@ -108,7 +108,8 @@ __realloc_func(WT_SESSION_IMPL *session, size_t *bytes_allocated_ret, size_t byt
     bool realloc_malloc;
     void *p, *tmpp;
 
-    realloc_malloc = FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_REALLOC_MALLOC) &&
+    realloc_malloc = session != NULL &&
+      FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_REALLOC_MALLOC) &&
       (bytes_allocated_ret != NULL);
     /*
      * If we are mimicking the realloc functionality using malloc, retain a copy to the original
@@ -132,8 +133,8 @@ __realloc_func(WT_SESSION_IMPL *session, size_t *bytes_allocated_ret, size_t byt
     bytes_allocated = (bytes_allocated_ret == NULL) ? 0 : *bytes_allocated_ret;
     WT_ASSERT(session,
       (realloc_malloc && tmpp == NULL && bytes_allocated == 0) ||
-      (!realloc_malloc && p == NULL && bytes_allocated == 0) ||
-      (realloc_malloc && tmpp != NULL && (bytes_allocated_ret == NULL || bytes_allocated != 0)) ||
+        (!realloc_malloc && p == NULL && bytes_allocated == 0) ||
+        (realloc_malloc && tmpp != NULL && (bytes_allocated_ret == NULL || bytes_allocated != 0)) ||
         (!realloc_malloc && p != NULL && (bytes_allocated_ret == NULL || bytes_allocated != 0)));
     WT_ASSERT(session, bytes_to_allocate != 0);
     WT_ASSERT(session, bytes_allocated < bytes_to_allocate);
