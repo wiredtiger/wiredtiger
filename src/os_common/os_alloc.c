@@ -132,11 +132,13 @@ __realloc_func(WT_SESSION_IMPL *session, size_t *bytes_allocated_ret, size_t byt
      */
     bytes_allocated = (bytes_allocated_ret == NULL) ? 0 : *bytes_allocated_ret;
     if (realloc_malloc)
-        WT_ASSERT(session, (tmpp == NULL && bytes_allocated == 0) ||
-          (tmpp != NULL && (bytes_allocated_ret == NULL || bytes_allocated != 0)));
+        WT_ASSERT(session,
+          (tmpp == NULL && bytes_allocated == 0) ||
+            (tmpp != NULL && (bytes_allocated_ret == NULL || bytes_allocated != 0)));
     else
-        WT_ASSERT(session, (p == NULL && bytes_allocated == 0) ||
-          (p != NULL && (bytes_allocated_ret == NULL || bytes_allocated != 0)));
+        WT_ASSERT(session,
+          (p == NULL && bytes_allocated == 0) ||
+            (p != NULL && (bytes_allocated_ret == NULL || bytes_allocated != 0)));
 
     WT_ASSERT(session, bytes_to_allocate != 0);
     WT_ASSERT(session, bytes_allocated < bytes_to_allocate);
@@ -153,7 +155,7 @@ __realloc_func(WT_SESSION_IMPL *session, size_t *bytes_allocated_ret, size_t byt
             WT_RET_MSG(session, __wt_errno(), "memory allocation of %" WT_SIZET_FMT " bytes failed",
               bytes_to_allocate);
         memcpy(p, tmpp, *bytes_allocated_ret);
-        memset((uint8_t *)tmpp, 0, bytes_allocated);
+        memset((uint8_t *)tmpp, WT_DEBUG_BYTE, bytes_allocated);
         free(tmpp);
     } else {
         if ((p = realloc(p, bytes_to_allocate)) == NULL)
