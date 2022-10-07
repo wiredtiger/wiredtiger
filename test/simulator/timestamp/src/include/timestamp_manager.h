@@ -41,12 +41,14 @@ class timestamp_manager {
     void parse_config(const std::string &, std::map<std::string, std::string> &);
     uint64_t hex_to_decimal(const std::string &);
     std::string decimal_to_hex(const uint64_t);
+    int validate_hex_value(const std::string &);
 
     /* Methods for validating timestamps */
     public:
     int validate_oldest_and_stable_ts(uint64_t &, uint64_t &, bool &, bool &);
     int validate_durable_ts(const uint64_t &, const bool &) const;
     int validate_read_timestamp(session_simulator *, const uint64_t) const;
+    int validate_commit_timestamp(session_simulator *, const uint64_t) const;
 
     private:
     std::string trim(std::string);
