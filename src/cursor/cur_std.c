@@ -1197,6 +1197,9 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
     if (F_ISSET(cursor, WT_CURSTD_PREFIX_SEARCH))
         WT_ERR_MSG(session, EINVAL, "setting bounds is not compatible with prefix search.");
 
+    if (config == NULL || config[0] == '\0')
+        WT_ERR_MSG(session, EINVAL, "an empty config is not valid when setting bounds");
+
     cfg1 = strstr(config, "action");
     if (cfg1 == NULL)
         WT_ERR_MSG(session, EINVAL,
