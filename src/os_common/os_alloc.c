@@ -105,23 +105,7 @@ __realloc_func(WT_SESSION_IMPL *session, size_t *bytes_allocated_ret, size_t byt
   bool clear_memory, void *retp)
 {
     size_t bytes_allocated;
-    bool realloc_malloc;
     void *p, *tmpp;
-
-    realloc_malloc = session != NULL &&
-      FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_REALLOC_MALLOC) &&
-      (bytes_allocated_ret != NULL);
-    /*
-     * If we are mimicking the realloc functionality using malloc, retain a copy to the original
-     * buffer so that we can free it later.
-     */
-    if (realloc_malloc) {
-        p = NULL;
-        tmpp = *(void **)retp;
-    } else {
-        p = *(void **)retp;
-        tmpp = NULL;
-    }
 
     /*
      * !!!
@@ -130,16 +114,11 @@ __realloc_func(WT_SESSION_IMPL *session, size_t *bytes_allocated_ret, size_t byt
      * Sometimes we're allocating memory and we don't care about the
      * final length -- bytes_allocated_ret may be NULL.
      */
+    p = *(void **)retp;
     bytes_allocated = (bytes_allocated_ret == NULL) ? 0 : *bytes_allocated_ret;
-    if (realloc_malloc)
-        WT_ASSERT(session,
-          (tmpp == NULL && bytes_allocated == 0) ||
-            (tmpp != NULL && (bytes_allocated_ret == NULL || bytes_allocated != 0)));
-    else
-        WT_ASSERT(session,
-          (p == NULL && bytes_allocated == 0) ||
-            (p != NULL && (bytes_allocated_ret == NULL || bytes_allocated != 0)));
-
+    WT_ASSERT(session,
+      (p == NULL && bytes_allocated == 0) ||
+        (p != NULL && (bytes_allocated_ret == NULL || bytes_allocated != 0)));
     WT_ASSERT(session, bytes_to_allocate != 0);
     WT_ASSERT(session, bytes_allocated < bytes_to_allocate);
 
@@ -151,10 +130,12 @@ __realloc_func(WT_SESSION_IMPL *session, size_t *bytes_allocated_ret, size_t byt
     }
 
     /*
-     * If realloc_malloc is enabled, use malloc to mimic realloc functionality, copy to the new
+     * If realloc_malloc is enabled, force a new memory allocation by using malloc, copy to the new
      * memory, scribble over the old memory then free it.
      */
-    if (realloc_malloc) {
+    tmpp = p;
+    if (session != NULL && FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_REALLOC_MALLOC) &&
+      (bytes_allocated_ret != NULL)) {
         if ((p = malloc(bytes_to_allocate)) == NULL)
             WT_RET_MSG(session, __wt_errno(), "memory allocation of %" WT_SIZET_FMT " bytes failed",
               bytes_to_allocate);

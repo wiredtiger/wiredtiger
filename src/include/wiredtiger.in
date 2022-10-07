@@ -2229,8 +2229,8 @@ struct __wt_connection {
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;realloc_exact, if true\, reallocation of memory
 	 * will only provide the exact amount requested.  This will help with spotting memory
 	 * allocation issues more easily., a boolean flag; default \c false.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;realloc_malloc, if true\, malloc will be used to allocate
-	 * memory and mimic realloc function., a boolean flag; default \c false.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;realloc_malloc, if true\, every realloc call will force a
+	 * new memory allocation by using malloc., a boolean flag; default \c false.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;rollback_error, return a WT_ROLLBACK error from a
 	 * transaction operation about every Nth operation to simulate a collision., an integer
 	 * between \c 0 and \c 10M; default \c 0.}
@@ -2960,8 +2960,8 @@ struct __wt_connection {
  * realloc_exact, if true\, reallocation of memory will only provide the exact amount requested.
  * This will help with spotting memory allocation issues more easily., a boolean flag; default \c
  * false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;realloc_malloc, if true\, malloc will be used to allocate
- * memory and mimic realloc function., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;realloc_malloc, if true\, every realloc call will force a
+ * new memory allocation by using malloc., a boolean flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;rollback_error, return a WT_ROLLBACK error from a transaction
  * operation about every Nth operation to simulate a collision., an integer between \c 0 and \c 10M;
  * default \c 0.}

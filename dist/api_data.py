@@ -598,7 +598,7 @@ connection_runtime_config = [
             will help with spotting memory allocation issues more easily.''',
             type='boolean'),
         Config('realloc_malloc', 'false', r'''
-            if true, malloc will be used to allocate memory and mimic realloc function.''',
+            if true, every realloc call will force a new memory allocation by using malloc.''',
             type='boolean'),
         Config('rollback_error', '0', r'''
             return a WT_ROLLBACK error from a transaction operation about every Nth operation

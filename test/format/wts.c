@@ -276,7 +276,7 @@ create_database(const char *home, WT_CONNECTION **connp)
     /* Configure realloc malloc debug mode. */
     if (GV(DEBUG_REALLOC_MALLOC)) {
         if (mmrand(NULL, 0, 1) == 1)
-            CONFIG_APPEND(p, ",debug_mode=(realloc_malloc=true,realloc_exact=true)");
+            CONFIG_APPEND(p, ",debug_mode=(realloc_exact=true,realloc_malloc=true)");
         else
             CONFIG_APPEND(p, ",debug_mode=(realloc_malloc=true)");
     }
