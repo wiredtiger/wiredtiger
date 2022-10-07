@@ -1272,8 +1272,9 @@ __wt_dsk_cell_data_ref(WT_SESSION_IMPL *session, int page_type, void *unpack_arg
 
 /*
  * __wt_page_cell_data_ref --
- *     Set a buffer to reference the data from an unpacked cell. Return restart if it is an overflow
- *     removed cell.
+ *     Set a buffer to reference the data from an unpacked cell. If we see an overflow removed cell,
+ *     we have raced with checkpoint freeing the overflow cell. Return restart for the caller to
+ *     retry the read.
  */
 static inline int
 __wt_page_cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, void *unpack_arg, WT_ITEM *store)
