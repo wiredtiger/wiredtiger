@@ -273,6 +273,9 @@ create_database(const char *home, WT_CONNECTION **connp)
     if (GV(DISK_DATA_EXTEND))
         CONFIG_APPEND(p, ",file_extend=(data=8MB)");
 
+    if (GV(DEBUG_REALLOC_EXACT))
+        CONFIG_APPEND(p, ",debug_mode=(realloc_exact=true)");
+
     /* Configure realloc malloc debug mode. */
     if (GV(DEBUG_REALLOC_MALLOC)) {
         if (mmrand(NULL, 0, 1) == 1)
