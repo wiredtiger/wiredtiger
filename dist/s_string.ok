@@ -611,6 +611,7 @@ bm
 bnd
 bool
 boolean
+boption
 br
 breakpoint
 bs
@@ -1599,6 +1600,7 @@ util
 utils
 uu
 vN
+vPomy
 vW
 va
 valgrind

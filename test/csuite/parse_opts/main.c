@@ -30,24 +30,21 @@
 /*
  * This is a unit test for the testutil_parse_opts and testutil_parse_single_opt functions.
  *
- * In one part of the test, we do a straightforward test of the testutil_parse_opts
- * function.  This function is used by test programs to parse a fixed set of
- * commonly used options, for example ".... -h homedir -T 3 -v" sets the home directory as
- indicated,
- * the thread count to 3 and turns on verbose.  Options are parsed and a TEST_OPTS
- * structure is modified accordingly.  To test this, we have a set of simulated
- * command lines and our expected contents of the TEST_OPTS structure.  These command
- 8 lines and expected TEST_OPTS appear as the first entries in the driver array below.
+ * In one part of the test, we do a straightforward test of the testutil_parse_opts function. This
+ * function is used by test programs to parse a fixed set of commonly used options, for example
+ * ".... -h home_dir -T 3 -v" sets the home directory as indicated, the thread count to 3 and turns
+ * on verbose. Options are parsed and a TEST_OPTS structure is modified accordingly. To test this,
+ * we have a set of simulated command lines and our expected contents of the TEST_OPTS structure.
+ * These command lines and expected TEST_OPTS appear as the first entries in the driver array below.
  *
- * In the second part of the test, we want to parse additional options. Many test programs
- * need some of options from the fixed set provided by the testutil_parse_opts function, but
- * perhaps needs additional options.  We have in mind a fictional test program that wants
- * to use the standard testutil parsing for options 'b', 'P', 'T', and 'v', and has added
- * its own options: 'c', 'd', 'e', and 'f', which it stores in a struct below called
- * FICTIONAL_OPTS.  Note that its 'd' option overrides the standard 'd' option.
- * To do this sort of "extended" parsing, we need to use a particular idiom that uses
- * testutil_parse_begin_opt, getopt, testutil_parse_single_opt, and testutil_parse_end_opt,
- * as seen in the check function.
+ * In the second part of the test, we want to parse additional options. Many test programs need some
+ * of options from the fixed set provided by the testutil_parse_opts function, but perhaps needs
+ * additional options. We have in mind a fictional test program that wants to use the standard
+ * testutil parsing for options 'b', 'P', 'T', and 'v', and has added its own options: 'c', 'd',
+ * 'e', and 'f', which it stores in a struct below called FICTIONAL_OPTS. Note that its 'd' option
+ * overrides the standard 'd' option. To do this sort of "extended" parsing, we need to use a
+ * particular idiom that uses testutil_parse_begin_opt, getopt, testutil_parse_single_opt, and
+ * testutil_parse_end_opt, as seen in the check function.
  */
 
 extern char *__wt_optarg; /* option argument */
@@ -189,8 +186,8 @@ static void
 check(int argc, char *const *argv, TEST_OPTS *opts, FICTIONAL_OPTS *fiction_opts)
 {
     int ch;
-    const char *prog;
     const char *fiction_usage = " [-c string] [-d] [-e] [-f int]";
+    const char *prog;
 
     memset(opts, 0, sizeof(*opts));
     memset(fiction_opts, 0, sizeof(*fiction_opts));
@@ -326,18 +323,27 @@ main(int argc, char *argv[])
 
     if (argc > 1) {
         /*
-         * If first arg is --parse_opt or --parse_single_opt, then make argv[0] point to "parse_opt"
-         * or "parse_single_opt".
+         * If the first arg is --parse_opt or --parse_single_opt, then make argv[0] point to
+         * "parse_opt" or "parse_single_opt". This is not used by test scripts, but can be useful
+         * for manual tests.
          */
         if (strncmp(argv[1], "--parse", strlen("--parse")) == 0) {
             argc--;
             argv++;
             argv[0] += 2; /* skip past -- */
+            if (strcmp(argv[0], "parse_opts") != 0 && strcmp(argv[0], "parse_single_opt") != 0) {
+                fprintf("Usage: parse_opts [ --parse_opts | --parse_single_opt ] options...\n");
+                exit(EXIT_FAILURE);
+            }
         }
         check(argc, argv, &opts, &fiction_opts);
         report(&opts, &fiction_opts);
         cleanup(&opts, &fiction_opts);
     } else {
+        /*
+         * For normal testing, we run the whole test, parsing each command line from the driver
+         * array.
+         */
         for (i = 0; i < WT_ELEMENTS(driver); i++) {
             cmd = (char *const *)driver[i].command_line;
             for (nargs = 0; cmd[nargs] != NULL; nargs++)
