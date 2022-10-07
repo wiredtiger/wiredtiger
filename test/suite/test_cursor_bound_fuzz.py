@@ -502,10 +502,10 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
         bound_set = bounds(lower, upper)
         if (lower.enabled):
             cursor.set_key(lower.key)
-            cursor.bound("bound=lower,inclusive=" + lower.inclusive_str())
+            cursor.bound("action=set,bound=lower,inclusive=" + lower.inclusive_str())
         if (upper.enabled):
             cursor.set_key(upper.key)
-            cursor.bound("bound=upper,inclusive=" + upper.inclusive_str())
+            cursor.bound("action=set,bound=upper,inclusive=" + upper.inclusive_str())
         return bound_set
 
     # The primary test loop is contained here.
