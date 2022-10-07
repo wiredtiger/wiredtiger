@@ -323,12 +323,13 @@ main(int argc, char *argv[])
 
     if (argc > 1) {
         /*
-         * The first arg must be --parse_opt or --parse_single_opt, we'll make make argv[0] point to
+         * The first arg must be --parse_opt or --parse_single_opt, we'll make argv[0] point to
          * "parse_opt" or "parse_single_opt" so our "check" parser knows what kind of parsing to be
-         * done.  This path is not used by test scripts, but can be useful for manual testing.
+         * done. This path is not used by test scripts, but can be useful for manual testing.
          */
         if (strcmp(argv[1], "--parse_opts") != 0 && strcmp(argv[1], "--parse_single_opt") != 0) {
-            fprintf(stderr, "Error: test_wt9937_parse_opts first argument must be --parse_opts or "
+            fprintf(stderr,
+              "Error: test_wt9937_parse_opts first argument must be --parse_opts or "
               "--parse_single_opt, remaining options will be parsed accordingly\n");
             exit(EXIT_FAILURE);
         }
