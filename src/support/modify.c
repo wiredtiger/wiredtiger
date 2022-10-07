@@ -500,7 +500,7 @@ retry:
         }
 
         /* We should not read overflow removed after retry. */
-        WT_ASSERT(session, ovfl_retry || ret == 0);
+        WT_ASSERT(session, ret != WT_RESTART);
 
         WT_ERR(ret);
 
