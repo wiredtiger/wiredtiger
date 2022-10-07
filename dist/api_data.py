@@ -1201,7 +1201,7 @@ wiredtiger_open = wiredtiger_open_common + [
 ]
 
 cursor_bound_config = [
-    Config('action', 'set', r'''
+    Config('action', '', r'''
         configures whether this call into the API will set or clear range bounds on the given
         cursor. It takes one of two values, "set" or "clear". If "set" is specified then "bound"
         must also be specified. If "clear" is specified without any bounds then both bounds will

@@ -688,7 +688,7 @@ struct __wt_cursor {
 	 * bounds then both bounds will be cleared.  The keys relevant to the given bound must have
 	 * been set prior to the call using WT_CURSOR::set_key.  This configuration is currently a
 	 * work in progress and should not be used., a string\, chosen from the following options:
-	 * \c "clear"\, \c "set"; default \c set.}
+	 * \c "clear"\, \c "set"; default empty.}
 	 * @config{bound, configures which bound is being operated on.  It takes one of two values\,
 	 * "lower" or "upper". This configuration is currently a work in progress and should not be
 	 * used., a string\, chosen from the following options: \c "lower"\, \c "upper"; default
