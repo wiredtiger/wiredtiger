@@ -13,16 +13,14 @@
 #include "wrappers/connection_wrapper.h"
 #include "wt_internal.h"
 
-int
+bool
 validate_cursor_bounds_restore(WT_CURSOR *cursor, uint64_t original_cursor_flags)
 {
-    assert(cursor->flags == original_cursor_flags);
-    return (0);
+    return cursor->flags == original_cursor_flags;
 }
 
 TEST_CASE("Bounds save and restore flag logic", "[bounds_restore]")
 {
-    uint64_t original_cursor_flags;
     WT_CURSOR mock_cursor;
     WT_CURSOR_BOUNDS_STATE mock_state;
 
@@ -32,6 +30,7 @@ TEST_CASE("Bounds save and restore flag logic", "[bounds_restore]")
     mock_state.lower_bound = NULL;
     mock_state.upper_bound = NULL;
 
+    mock_cursor.flags = 0;
     mock_cursor.lower_bound.size = 0;
     mock_cursor.lower_bound.data = NULL;
     mock_cursor.upper_bound.size = 0;
@@ -42,22 +41,21 @@ TEST_CASE("Bounds save and restore flag logic", "[bounds_restore]")
     {
         F_SET(&mock_cursor, WT_CURSTD_BOUND_UPPER);
         F_SET(&mock_cursor, WT_CURSTD_BOUND_LOWER);
-        original_cursor_flags = mock_cursor.flags;
+        uint64_t original_cursor_flags = mock_cursor.flags;
         REQUIRE(__wt_cursor_bounds_save(session, &mock_cursor, &mock_state) == 0);
         REQUIRE(__wt_cursor_bounds_restore(session, &mock_cursor, &mock_state) == 0);
-        REQUIRE(validate_cursor_bounds_restore(&mock_cursor, original_cursor_flags) == 0);
+        REQUIRE(validate_cursor_bounds_restore(&mock_cursor, original_cursor_flags));
         __wt_scr_free(session, &mock_state.lower_bound);
         __wt_scr_free(session, &mock_state.upper_bound);
     }
 
-    mock_cursor.flags = 0;
     SECTION("Save non-empty inclusive bounds flags and restore")
     {
         F_SET(&mock_cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE);
         F_SET(&mock_cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);
-        original_cursor_flags = mock_cursor.flags;
+        uint64_t original_cursor_flags = mock_cursor.flags;
         REQUIRE(__wt_cursor_bounds_save(session, &mock_cursor, &mock_state) == 0);
         REQUIRE(__wt_cursor_bounds_restore(session, &mock_cursor, &mock_state) == 0);
-        REQUIRE(validate_cursor_bounds_restore(&mock_cursor, original_cursor_flags) == 0);
+        REQUIRE(validate_cursor_bounds_restore(&mock_cursor, original_cursor_flags));
     }
 }
