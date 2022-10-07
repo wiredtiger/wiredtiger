@@ -1272,8 +1272,8 @@ __wt_dsk_cell_data_ref(WT_SESSION_IMPL *session, int page_type, void *unpack_arg
 
 /*
  * __wt_page_cell_data_ref --
- *     Set a buffer to reference the data from an unpacked cell. Return not found if it is an
- *     overflow removed cell.
+ *     Set a buffer to reference the data from an unpacked cell. Return restart if it is an overflow
+ *     removed cell.
  */
 static inline int
 __wt_page_cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, void *unpack_arg, WT_ITEM *store)
@@ -1284,7 +1284,7 @@ __wt_page_cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, void *unpack_ar
 
     WT_RET(__cell_data_ref(session, page, page->type, (WT_CELL_UNPACK_COMMON *)unpack_arg, store));
     if (unpack->cell != NULL && __wt_cell_type_raw(unpack->cell) == WT_CELL_VALUE_OVFL_RM)
-        return (WT_NOTFOUND);
+        return (WT_RESTART);
     return (0);
 }
 

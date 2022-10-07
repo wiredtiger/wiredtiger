@@ -487,17 +487,19 @@ retry:
          */
         WT_ASSERT(session, cbt->slot != UINT32_MAX);
 
-        WT_ERR_NOTFOUND_OK(__wt_value_return_buf(cbt, cbt->ref, &upd_value->buf, &tw), true);
+        ret = __wt_value_return_buf(cbt, cbt->ref, &upd_value->buf, &tw);
 
         /*
          * We race with checkpoint reconciliation removing the overflow items. Retry the read as the
          * value should now be appended to the update chain by checkpoint reconciliation.
          */
-        if (ovfl_retry && ret == WT_NOTFOUND) {
+        if (ovfl_retry && ret == WT_RESTART) {
             ovfl_retry = false;
             WT_STAT_CONN_DATA_INCR(session, txn_read_race_overflow_remove);
             goto retry;
         }
+
+        WT_ERR(ret);
 
         /* We should not read overflow removed after retry. */
         WT_ASSERT(session, ovfl_retry || ret == 0);

@@ -1085,7 +1085,7 @@ retry:
 
         /* Check the ondisk value. */
         ret = __wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &tw);
-        if (ret == WT_NOTFOUND)
+        if (ret == WT_RESTART)
             is_ovfl_rm = true;
         else
             WT_RET(ret);
