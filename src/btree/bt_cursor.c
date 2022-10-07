@@ -921,31 +921,32 @@ __btcur_search_near_row_pinned_page(WT_CURSOR_BTREE *cbt, bool *validp)
     leaf_found = false;
     session = CUR2S(cbt);
 
+    if (!__cursor_page_pinned(cbt, true))
+        return (0);
+
     /* If we have a row-store page pinned, search it. */
-    if (__cursor_page_pinned(cbt, true)) {
-        __wt_txn_cursor_op(session);
+    __wt_txn_cursor_op(session);
 
-        /*
-         * Set the "insert" flag for row-store search; we may intend to position the cursor at the
-         * the end of the tree, rather than match an existing record. (LSM requires this semantic.)
-         */
-        WT_RET(__cursor_row_search(cbt, true, cbt->ref, &leaf_found));
+    /*
+     * Set the "insert" flag for row-store search; we may intend to position the cursor at the the
+     * end of the tree, rather than match an existing record. (LSM requires this semantic.)
+     */
+    WT_RET(__cursor_row_search(cbt, true, cbt->ref, &leaf_found));
 
-        /*
-         * Only use the pinned page search results if search returns an exact match or a slot other
-         * than the page's boundary slots, if that's not the case, a neighbor page might offer a
-         * better match. This test is simplistic as we're ignoring append lists (there may be no
-         * page slots or we might be legitimately positioned after the last page slot). Ignore those
-         * cases, it makes things too complicated.
-         *
-         * If there's an exact match, the row-store search function built the key in the cursor's
-         * temporary buffer.
-         */
-        if (leaf_found &&
-          (cbt->compare == 0 || (cbt->slot != 0 && cbt->slot != cbt->ref->page->entries - 1)))
-            WT_RET(__wt_cursor_valid(
-              cbt, (cbt->compare == 0 ? cbt->tmp : NULL), WT_RECNO_OOB, validp, true));
-    }
+    /*
+     * Only use the pinned page search results if search returns an exact match or a slot other than
+     * the page's boundary slots, if that's not the case, a neighbor page might offer a better
+     * match. This test is simplistic as we're ignoring append lists (there may be no page slots or
+     * we might be legitimately positioned after the last page slot). Ignore those cases, it makes
+     * things too complicated.
+     *
+     * If there's an exact match, the row-store search function built the key in the cursor's
+     * temporary buffer.
+     */
+    if (leaf_found &&
+      (cbt->compare == 0 || (cbt->slot != 0 && cbt->slot != cbt->ref->page->entries - 1)))
+        WT_RET(__wt_cursor_valid(
+          cbt, (cbt->compare == 0 ? cbt->tmp : NULL), WT_RECNO_OOB, validp, true));
 
     return (0);
 }
