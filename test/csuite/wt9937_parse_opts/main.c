@@ -328,8 +328,8 @@ main(int argc, char *argv[])
          * done.  This path is not used by test scripts, but can be useful for manual testing.
          */
         if (strcmp(argv[1], "--parse_opts") != 0 && strcmp(argv[1], "--parse_single_opt") != 0) {
-            fprintf(stderr, "Error: parse_opts first argument must be --parse_opts or "
-              "--parse_single_opt, remaining options will be parsed accordinly\n");
+            fprintf(stderr, "Error: test_wt9937_parse_opts first argument must be --parse_opts or "
+              "--parse_single_opt, remaining options will be parsed accordingly\n");
             exit(EXIT_FAILURE);
         }
 

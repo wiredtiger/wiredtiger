@@ -44,13 +44,6 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET test_parse_opts
-    SOURCES parse_opts/main.c
-    DIR_NAME parse_opts
-    DEPENDS "WT_POSIX"
-)
-
-define_c_test(
     TARGET test_schema_abort
     SOURCES schema_abort/main.c
     DIR_NAME schema_abort
@@ -361,5 +354,13 @@ define_c_test(
     SOURCES wt8963_insert_stress/main.c
     DIR_NAME wt8963_insert_stress
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt8963_insert_stress>/WT_HOME>
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
+    TARGET test_wt9937_parse_opts
+    SOURCES wt9937_parse_opts/main.c
+    DIR_NAME wt9937_parse_opts
+    ARGUMENTS
     DEPENDS "WT_POSIX"
 )
