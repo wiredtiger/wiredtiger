@@ -1863,7 +1863,7 @@ tasks:
       - func: "fetch artifacts"
       - func: "csuite test"
         vars:
-          test_name: parse_opts
+          test_name: wt9937_parse_opts
 
   # End of csuite test tasks
 
