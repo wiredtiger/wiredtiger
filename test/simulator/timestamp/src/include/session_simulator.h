@@ -49,7 +49,7 @@ class session_simulator {
     uint64_t get_prepare_timestamp() const;
     uint64_t get_read_timestamp() const;
     bool get_ts_round_read();
-    bool get_ts_round_prepared();
+    bool get_ts_round_prepared() const;
     bool has_prepare_timestamp();
     int set_commit_timestamp(uint64_t);
     void set_durable_timestamp(uint64_t);

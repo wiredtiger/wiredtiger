@@ -66,6 +66,17 @@ timestamp_manager::decimal_to_hex(const uint64_t ts)
     return (stream.str());
 }
 
+int
+timestamp_manager::validate_hex_value(const std::string &ts_string)
+{
+    /* Check that the timestamp string has valid hexadecimal characters. */
+    for (auto &ch : ts_string)
+        if (!std::isxdigit(ch))
+            WT_SIM_RET_MSG(EINVAL, "Illegal commit timestamp: invalid hex value.");
+
+    return (0);
+}
+
 /* Remove leading and trailing spaces from a string. */
 std::string
 timestamp_manager::trim(std::string str)
@@ -232,7 +243,7 @@ timestamp_manager::validate_commit_timestamp(
 {
     uint64_t prepare_ts = session->get_prepare_timestamp();
     /*
-     * We cannot set the commit timestamp to be earlier than the fist commit timestamp when setting
+     * We cannot set the commit timestamp to be earlier than the first commit timestamp when setting
      * the commit timestamp multiple times within a transaction.
      */
     uint64_t first_commit_ts = session->get_first_commit_timestamp();
@@ -244,8 +255,8 @@ timestamp_manager::validate_commit_timestamp(
     }
 
     /*
-     * For a non-prepared transactions the commit timestamp should not be less or equal to the
-     * oldest and/or stable timestamp.
+     * For a non-prepared transaction the commit timestamp should not be less or equal to the oldest
+     * and/or stable timestamp.
      */
     connection_simulator *conn = &connection_simulator::get_connection();
     uint64_t oldest_ts = conn->get_oldest_ts();
