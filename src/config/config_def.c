@@ -65,9 +65,9 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_debug_mode_subconfigs[] = {
   {"cursor_copy", "boolean", NULL, NULL, NULL, 0},
   {"cursor_reposition", "boolean", NULL, NULL, NULL, 0},
   {"eviction", "boolean", NULL, NULL, NULL, 0},
-  {"flush_checkpoint", "boolean", NULL, NULL, NULL, 0},
   {"log_retention", "int", NULL, "min=0,max=1024", NULL, 0},
   {"realloc_exact", "boolean", NULL, NULL, NULL, 0},
+  {"realloc_malloc", "boolean", NULL, NULL, NULL, 0},
   {"rollback_error", "int", NULL, "min=0,max=10M", NULL, 0},
   {"slow_checkpoint", "boolean", NULL, NULL, NULL, 0},
   {"table_logging", "boolean", NULL, NULL, NULL, 0},
@@ -242,10 +242,17 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_begin_transaction[] = {
     confchk_WT_SESSION_begin_transaction_roundup_timestamps_subconfigs, 2},
   {"sync", "boolean", NULL, NULL, NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
+static const WT_CONFIG_CHECK confchk_WT_SESSION_checkpoint_flush_tier_subconfigs[] = {
+  {"enabled", "boolean", NULL, NULL, NULL, 0}, {"force", "boolean", NULL, NULL, NULL, 0},
+  {"sync", "boolean", NULL, NULL, NULL, 0}, {"timeout", "int", NULL, NULL, NULL, 0},
+  {NULL, NULL, NULL, NULL, NULL, 0}};
+
 static const WT_CONFIG_CHECK confchk_WT_SESSION_checkpoint[] = {
-  {"drop", "list", NULL, NULL, NULL, 0}, {"force", "boolean", NULL, NULL, NULL, 0},
-  {"name", "string", NULL, NULL, NULL, 0}, {"target", "list", NULL, NULL, NULL, 0},
-  {"use_timestamp", "boolean", NULL, NULL, NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
+  {"drop", "list", NULL, NULL, NULL, 0},
+  {"flush_tier", "category", NULL, NULL, confchk_WT_SESSION_checkpoint_flush_tier_subconfigs, 4},
+  {"force", "boolean", NULL, NULL, NULL, 0}, {"name", "string", NULL, NULL, NULL, 0},
+  {"target", "list", NULL, NULL, NULL, 0}, {"use_timestamp", "boolean", NULL, NULL, NULL, 0},
+  {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_commit_transaction[] = {
   {"commit_timestamp", "string", NULL, NULL, NULL, 0},
@@ -1199,7 +1206,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "checkpoint=(log_size=0,wait=0),compatibility=(release=),"
     "debug_mode=(checkpoint_retention=0,corruption_abort=true,"
     "cursor_copy=false,cursor_reposition=false,eviction=false,"
-    "flush_checkpoint=false,log_retention=0,realloc_exact=false,"
+    "log_retention=0,realloc_exact=false,realloc_malloc=false,"
     "rollback_error=0,slow_checkpoint=false,table_logging=false,"
     "update_restore_evict=false),error_prefix=,"
     "eviction=(threads_max=8,threads_min=1),"
@@ -1240,8 +1247,10 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "operation_timeout_ms=0,priority=0,read_timestamp=,"
     "roundup_timestamps=(prepared=false,read=false),sync=",
     confchk_WT_SESSION_begin_transaction, 9},
-  {"WT_SESSION.checkpoint", "drop=,force=false,name=,target=,use_timestamp=true",
-    confchk_WT_SESSION_checkpoint, 5},
+  {"WT_SESSION.checkpoint",
+    "drop=,flush_tier=(enabled=false,force=false,sync=true,timeout=0)"
+    ",force=false,name=,target=,use_timestamp=true",
+    confchk_WT_SESSION_checkpoint, 6},
   {"WT_SESSION.close", "", NULL, 0},
   {"WT_SESSION.commit_transaction",
     "commit_timestamp=,durable_timestamp=,operation_timeout_ms=0,"
@@ -1477,8 +1486,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "compatibility=(release=,require_max=,require_min=),"
     "config_base=true,create=false,debug_mode=(checkpoint_retention=0"
     ",corruption_abort=true,cursor_copy=false,cursor_reposition=false"
-    ",eviction=false,flush_checkpoint=false,log_retention=0,"
-    "realloc_exact=false,rollback_error=0,slow_checkpoint=false,"
+    ",eviction=false,log_retention=0,realloc_exact=false,"
+    "realloc_malloc=false,rollback_error=0,slow_checkpoint=false,"
     "table_logging=false,update_restore_evict=false),direct_io=,"
     "encryption=(keyid=,name=,secretkey=),error_prefix=,"
     "eviction=(threads_max=8,threads_min=1),"
@@ -1518,8 +1527,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "compatibility=(release=,require_max=,require_min=),"
     "config_base=true,create=false,debug_mode=(checkpoint_retention=0"
     ",corruption_abort=true,cursor_copy=false,cursor_reposition=false"
-    ",eviction=false,flush_checkpoint=false,log_retention=0,"
-    "realloc_exact=false,rollback_error=0,slow_checkpoint=false,"
+    ",eviction=false,log_retention=0,realloc_exact=false,"
+    "realloc_malloc=false,rollback_error=0,slow_checkpoint=false,"
     "table_logging=false,update_restore_evict=false),direct_io=,"
     "encryption=(keyid=,name=,secretkey=),error_prefix=,"
     "eviction=(threads_max=8,threads_min=1),"
@@ -1560,7 +1569,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "compatibility=(release=,require_max=,require_min=),"
     "debug_mode=(checkpoint_retention=0,corruption_abort=true,"
     "cursor_copy=false,cursor_reposition=false,eviction=false,"
-    "flush_checkpoint=false,log_retention=0,realloc_exact=false,"
+    "log_retention=0,realloc_exact=false,realloc_malloc=false,"
     "rollback_error=0,slow_checkpoint=false,table_logging=false,"
     "update_restore_evict=false),direct_io=,encryption=(keyid=,name=,"
     "secretkey=),error_prefix=,eviction=(threads_max=8,threads_min=1)"
@@ -1599,7 +1608,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "compatibility=(release=,require_max=,require_min=),"
     "debug_mode=(checkpoint_retention=0,corruption_abort=true,"
     "cursor_copy=false,cursor_reposition=false,eviction=false,"
-    "flush_checkpoint=false,log_retention=0,realloc_exact=false,"
+    "log_retention=0,realloc_exact=false,realloc_malloc=false,"
     "rollback_error=0,slow_checkpoint=false,table_logging=false,"
     "update_restore_evict=false),direct_io=,encryption=(keyid=,name=,"
     "secretkey=),error_prefix=,eviction=(threads_max=8,threads_min=1)"
