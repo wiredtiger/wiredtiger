@@ -499,10 +499,10 @@ retry:
             goto retry;
         }
 
-        WT_ERR(ret);
-
         /* We should not read overflow removed after retry. */
         WT_ASSERT(session, ovfl_retry || ret == 0);
+
+        WT_ERR(ret);
 
         /*
          * Applying modifies on top of a tombstone is invalid. So if we're using the onpage value,
