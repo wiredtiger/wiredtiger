@@ -52,7 +52,7 @@ class session_simulator {
     bool get_ts_round_prepared() const;
     bool has_prepare_timestamp();
     int set_commit_timestamp(uint64_t);
-    void set_durable_timestamp(uint64_t);
+    int set_durable_timestamp(uint64_t);
     void set_prepare_timestamp(uint64_t);
     int set_read_timestamp(uint64_t);
     int query_timestamp(const std::string &, std::string &, bool &);

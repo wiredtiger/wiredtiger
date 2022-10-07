@@ -47,6 +47,12 @@ connection_simulator::get_connection()
 }
 
 uint64_t
+connection_simulator::get_durable_ts() const
+{
+    return (_durable_ts);
+}
+
+uint64_t
 connection_simulator::get_oldest_ts() const
 {
     return (_oldest_ts);
@@ -67,6 +73,19 @@ connection_simulator::get_latest_active_read() const
             max_read_ts = session->get_read_timestamp();
 
     return (max_read_ts);
+}
+
+uint64_t
+connection_simulator::get_all_durable_ts() const
+{
+    uint64_t all_durable_ts = 0;
+    for (auto &session : _session_list) {
+        uint64_t durable_ts = session->get_durable_timestamp();
+        if (all_durable_ts == 0 || durable_ts < all_durable_ts)
+            all_durable_ts = --durable_ts;
+    }
+
+    return (all_durable_ts);
 }
 
 session_simulator *
@@ -125,7 +144,7 @@ connection_simulator::query_timestamp(
     ts_supported = false;
     uint64_t ts;
     if (query_timestamp == "all_durable") {
-        ts = _durable_ts;
+        ts = get_all_durable_ts();
         ts_supported = true;
     } else if (query_timestamp == "oldest_timestamp" || query_timestamp == "oldest") {
         ts = _oldest_ts;
@@ -187,6 +206,14 @@ connection_simulator::decode_timestamp_config_map(std::map<std::string, std::str
 }
 
 int
+connection_simulator::set_durable_timestamp(uint64_t durable_ts)
+{
+    _durable_ts = durable_ts;
+
+    return (0);
+}
+
+int
 connection_simulator::set_timestamp(const std::string &config)
 {
     /* If no timestamp was supplied, there's nothing to do. */
@@ -206,9 +233,6 @@ connection_simulator::set_timestamp(const std::string &config)
       "Incorrect config passed to 'set_timestamp': '" + config + "'");
 
     if (!force) {
-        /* Validate the new durable timestamp. */
-        WT_SIM_RET(ts_manager->validate_durable_ts(new_durable_ts, has_durable));
-
         /* Validate the new oldest and stable timestamp. */
         WT_SIM_RET(ts_manager->validate_oldest_and_stable_ts(
           new_stable_ts, new_oldest_ts, has_oldest, has_stable));

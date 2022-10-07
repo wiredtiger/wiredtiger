@@ -28,6 +28,7 @@
 
 #include "timestamp_manager.h"
 
+#include <cassert>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -181,23 +182,37 @@ timestamp_manager::validate_oldest_and_stable_ts(
     return (0);
 }
 
-/*
- * Validate durable timestamp.
- * 1) Validation fails if Illegal timestamp value is passed (if less than or equal to 0).
- */
+/* Validate the transaction level durable timestamp. */
 int
-timestamp_manager::validate_durable_ts(
-  const uint64_t &new_durable_ts, const bool &has_durable) const
+timestamp_manager::validate_durable_timestamp(session_simulator *session, uint64_t durable_ts) const
 {
-    /* If durable timestamp was not passed in the config, no validation is needed. */
-    if (!has_durable)
-        return (0);
+    /* The durable timestamp cannot be set before setting the commit timestamp. */
+    if (session->get_commit_timestamp() == 0)
+        WT_SIM_RET_MSG(
+          EINVAL, "a commit timestamp is required before setting a durable timestamp.");
 
-    /* Illegal timestamp value (if less than or equal to 0). Validation fails!  */
-    if ((int64_t)new_durable_ts <= 0)
+    /* The durable timestamp cannot be less than the oldest. */
+    connection_simulator *conn = &connection_simulator::get_connection();
+    uint64_t oldest_ts = conn->get_oldest_ts();
+    if (oldest_ts != 0 && durable_ts < oldest_ts)
         WT_SIM_RET_MSG(EINVAL,
-          "Illegal timestamp value, 'durable timestamp' : '" +
-            std::to_string((int64_t)new_durable_ts) + "' is less than or equal to zero.");
+          "durable timestamp " + std::to_string(durable_ts) +
+            " is less than the oldest timestamp " + std::to_string(oldest_ts));
+
+    /* The durable timestamp must be greater than the stable timestamp. */
+    uint64_t stable_ts = conn->get_stable_ts();
+    if (stable_ts != 0 && durable_ts <= stable_ts)
+        WT_SIM_RET_MSG(EINVAL,
+          "stable timestamp " + std::to_string(stable_ts) + " is less than the stable timestamp " +
+            std::to_string(stable_ts));
+
+    /* The durable timestamp cannot be less than the commit timestamp. */
+    uint64_t commit_ts = session->get_commit_timestamp();
+    if (durable_ts < commit_ts)
+        WT_SIM_RET_MSG(EINVAL,
+          "durable timestamp " + std::to_string(durable_ts) +
+            " is less than the commit timestamp " + std::to_string(commit_ts) +
+            " for this transaction.");
 
     return (0);
 }

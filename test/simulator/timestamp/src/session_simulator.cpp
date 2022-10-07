@@ -111,6 +111,32 @@ session_simulator::commit_transaction(const std::string &config)
         WT_SIM_RET(set_commit_timestamp(commit_ts));
     }
 
+    pos = config_map.find("durable_timestamp");
+    if (pos != config_map.end()) {
+        uint64_t durable_ts = ts_manager->hex_to_decimal(pos->second);
+        if (durable_ts == 0)
+            WT_SIM_RET_MSG(EINVAL, "Illegal durable timestamp: zero not permitted.");
+        config_map.erase(pos);
+        WT_SIM_RET(set_durable_timestamp(durable_ts));
+    }
+
+    /*
+     * If we have a durable timestamp as part of this transaction, use this check if we need to
+     * update the global all durable timestamp. Otherwise use the commit timestamp to update the
+     * global durable.
+     */
+    connection_simulator *conn = &connection_simulator::get_connection();
+    uint64_t all_durable = conn->get_durable_ts();
+    uint64_t candidate_durable_ts = 0;
+    if (_durable_ts != 0)
+        candidate_durable_ts = _durable_ts;
+    else if (_commit_ts != 0)
+        candidate_durable_ts = _commit_ts;
+
+    if (candidate_durable_ts != 0 && candidate_durable_ts > all_durable) {
+        conn->set_durable_timestamp(_durable_ts);
+    }
+
     _txn_running = false;
 
     return (0);
@@ -176,10 +202,16 @@ session_simulator::set_commit_timestamp(uint64_t commit_ts)
     return (0);
 }
 
-void
-session_simulator::set_durable_timestamp(uint64_t ts)
+int
+session_simulator::set_durable_timestamp(uint64_t durable_ts)
 {
-    _durable_ts = ts;
+
+    timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
+    WT_SIM_RET(ts_manager->validate_durable_timestamp(this, durable_ts));
+
+    _durable_ts = durable_ts;
+
+    return (0);
 }
 
 void
@@ -285,7 +317,7 @@ session_simulator::timestamp_transaction(const std::string &config)
         WT_SIM_RET(set_commit_timestamp(commit_ts));
 
     if (durable_ts != 0)
-        set_durable_timestamp(durable_ts);
+        WT_SIM_RET(set_durable_timestamp(durable_ts));
 
     if (prepare_ts != 0)
         set_prepare_timestamp(prepare_ts);
@@ -309,7 +341,7 @@ session_simulator::timestamp_transaction_uint(const std::string &ts_type, uint64
     if (ts_type == "commit")
         WT_SIM_RET(set_commit_timestamp(ts));
     else if (ts_type == "durable")
-        set_durable_timestamp(ts);
+        WT_SIM_RET(set_durable_timestamp(ts));
     else if (ts_type == "prepare")
         set_prepare_timestamp(ts);
     else if (ts_type == "read")
