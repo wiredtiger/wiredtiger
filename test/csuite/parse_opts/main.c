@@ -323,19 +323,20 @@ main(int argc, char *argv[])
 
     if (argc > 1) {
         /*
-         * If the first arg is --parse_opt or --parse_single_opt, then make argv[0] point to
-         * "parse_opt" or "parse_single_opt". This is not used by test scripts, but can be useful
-         * for manual tests.
+         * The first arg must be --parse_opt or --parse_single_opt, we'll make make argv[0] point to
+         * "parse_opt" or "parse_single_opt" so our "check" parser knows what kind of parsing to be
+         * done.  This path is not used by test scripts, but can be useful for manual testing.
          */
-        if (strncmp(argv[1], "--parse", strlen("--parse")) == 0) {
-            argc--;
-            argv++;
-            argv[0] += 2; /* skip past -- */
-            if (strcmp(argv[0], "parse_opts") != 0 && strcmp(argv[0], "parse_single_opt") != 0) {
-                fprintf("Usage: parse_opts [ --parse_opts | --parse_single_opt ] options...\n");
-                exit(EXIT_FAILURE);
-            }
+        if (strcmp(argv[1], "--parse_opts") != 0 && strcmp(argv[1], "--parse_single_opt") != 0) {
+            fprintf(stderr, "Error: parse_opts first argument must be --parse_opts or "
+              "--parse_single_opt, remaining options will be parsed accordinly\n");
+            exit(EXIT_FAILURE);
         }
+
+        argc--;
+        argv++;
+        argv[0] += 2; /* skip past -- */
+
         check(argc, argv, &opts, &fiction_opts);
         report(&opts, &fiction_opts);
         cleanup(&opts, &fiction_opts);
