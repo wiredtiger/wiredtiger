@@ -851,7 +851,6 @@ __cursor_search_neighboring(WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, int *
     btree = CUR2BT(cbt);
     cursor = &cbt->iface;
     session = CUR2S(cbt);
-    WT_UNUSED(valid);
 
     while ((ret = __wt_btcur_next_prefix(cbt, &state->key, false)) != WT_NOTFOUND) {
         WT_RET(ret);
@@ -875,19 +874,23 @@ __cursor_search_neighboring(WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, int *
     if (F_ISSET(cursor, WT_CURSTD_PREFIX_SEARCH))
         return (ret);
 
-    /* The cursor walked off the end of the tree, go back to our stating position. */
-    if (session->isolation == WT_ISO_SNAPSHOT) {
+    /*
+     * We walked off the end of the tree, we need to check records before our original position to
+     * see if they are visible. In snapshot isolation we can restart our search from where we first
+     * searched as no records will appear in between.
+     */
+    if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
         __cursor_state_restore(cursor, state);
         if (btree->type == BTREE_ROW)
             WT_RET(__cursor_row_search(cbt, true, NULL, NULL));
         else
             WT_RET(__cursor_col_search(cbt, NULL, NULL));
 
-        WT_ASSERT(session, cbt->compare != 0);
-#ifdef HAVE_DIAGNOSTIC
-        ret = __wt_cursor_valid(cbt, NULL, cbt->recno, &valid);
-        WT_ASSERT(session, ret != 0 && !valid);
-#endif
+        WT_RET(
+          __wt_cursor_valid(cbt, (cbt->compare == 0 ? cbt->tmp : NULL), cbt->recno, &valid, true));
+
+        if (valid)
+            return (0);
     }
 
     /*
@@ -918,13 +921,7 @@ __btcur_search_near_row_pinned_page(WT_CURSOR_BTREE *cbt, bool *validp)
     leaf_found = false;
     session = CUR2S(cbt);
 
-    /*
-     * If we have a row-store page pinned, search it; if we don't have a page pinned, or the search
-     * of the pinned page doesn't find an exact match, search from the root. Unlike
-     * WT_CURSOR.search, ignore pinned pages in the case of column-store, search-near isn't an
-     * interesting enough case for column-store to add the complexity needed to avoid the tree
-     * search.
-     */
+    /* If we have a row-store page pinned, search it. */
     if (__cursor_page_pinned(cbt, true)) {
         __wt_txn_cursor_op(session);
 
@@ -946,8 +943,8 @@ __btcur_search_near_row_pinned_page(WT_CURSOR_BTREE *cbt, bool *validp)
          */
         if (leaf_found &&
           (cbt->compare == 0 || (cbt->slot != 0 && cbt->slot != cbt->ref->page->entries - 1)))
-            WT_ERR(__wt_cursor_valid(
-              cbt, (cbt->compare == 0 ? cbt->tmp : NULL), WT_RECNO_OOB, &valid, true));
+            WT_RET(__wt_cursor_valid(
+              cbt, (cbt->compare == 0 ? cbt->tmp : NULL), WT_RECNO_OOB, validp, true));
     }
 
     return (0);
@@ -997,10 +994,15 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
     if (WT_CURSOR_BOUNDS_SET(cursor))
         WT_ERR(__btcur_bounds_search_near_reposition(session, cbt));
 
+    /*
+     * For row-store search the pinned page if there is one. Unlike WT_CURSOR.search, ignore pinned
+     * pages in the case of column-store, search-near isn't an interesting enough case for
+     * column-store to add the complexity needed to avoid the tree search.
+     */
     if (btree->type == BTREE_ROW)
         WT_ERR(__btcur_search_near_row_pinned_page(cbt, &valid));
 
-    /* The general case for column and row-store is that we don't have a pinned page. */
+    /* The general case is that valid is false here as we didn't have a pinned page. */
     if (!valid) {
         WT_ERR(__wt_cursor_func_init(cbt, true));
 
