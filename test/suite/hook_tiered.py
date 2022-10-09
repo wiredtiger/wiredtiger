@@ -416,7 +416,7 @@ class TieredPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
         else:
             return wthooks.DefaultPlatformAPI.initialFileName(uri)
 
-    def get_tier_share_percent(self):
+    def getTierSharePercent(self):
         return self.tier_share_percent
 
 

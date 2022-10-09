@@ -78,6 +78,7 @@ class BaseDataSet(object):
     def store_range(self, key, count):
         c = self.open_cursor()
         for i in range(key, key + count):
+            # Flush the data to tiered storage.
             if self.tier_share_value != 0 and self.tier_share_value == i:
                 self.testcase.session.flush_tier('force=true')
             self.store_one_cursor(c, i)

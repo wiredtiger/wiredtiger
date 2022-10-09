@@ -381,7 +381,7 @@ class MultiPlatformAPI(WiredTigerHookPlatformAPI):
         """The tier share generator for this test case."""
         for api in self.apis:
             try:
-                return api.get_tier_share_percent()
+                return api.getTierSharePercent()
             except NotImplementedError:
                 pass
         raise Exception('getTierSharePercent: no implementation')  # should never happen
