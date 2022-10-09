@@ -7485,7 +7485,7 @@ typedef enum {
     WT_VERBOSE_DEBUG_4,     /*!< Low severity messages. */
     WT_VERBOSE_DEBUG_5      /*!< Lowest severity messages. */
 } WT_VERBOSE_LEVEL;
-#define WT_VERBOSE_DEBUG WT_VERBOSE_DEBUG_1 /* Temporary, for compatibility. FIXME WT-9925. */
+#define WT_VERBOSE_DEBUG WT_VERBOSE_DEBUG_1 /* Temporary, for compatibility. FIXME: WT-9925. */
 /*! @} */
 /*
  * Verbose section: END
