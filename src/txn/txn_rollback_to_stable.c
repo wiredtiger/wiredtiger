@@ -387,7 +387,13 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
 
     WT_ERR(__wt_scr_alloc(session, 0, &full_value));
     ret = __wt_page_cell_data_ref(session, page, unpack, full_value);
-    /* Ignore the on page value if it is overflow removed. */
+    /*
+     * We can read overflow removed value if checkpoint has run before rollback to stable. In this
+     * case, we have already appended the on page value to the update chain. At this point, we have
+     * visited the update chain and decided the value is not stable. In addition, checkpoint must
+     * have moved this value to the history store as a full value. Therefore, we can safely ignore
+     * the on page value if it is overflow removed.
+     */
     if (ret == 0)
         WT_ERR(__wt_buf_set(session, full_value, full_value->data, full_value->size));
     else if (ret != WT_RESTART)
