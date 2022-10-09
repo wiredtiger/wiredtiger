@@ -260,7 +260,7 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
         # now, but this is where it would show up.
 
         # Override some platform APIs
-        self.platform_api = TieredPlatformAPI()
+        self.platform_api = TieredPlatformAPI(arg)
 
     # Is this test one we should skip?
     def skip_test(self, test):
@@ -393,6 +393,16 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
 
 # Override some platform APIs for this hook.
 class TieredPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
+    def __init__(self, arg=0):
+        self.tier_share_percent = 0
+        params = []
+        if arg is not None:
+            params = [config.split('=') for config in arg.split(',')]
+
+        for param_key, param_value in params :
+            if param_key == 'populate_share':
+                self.tier_share_percent = param_value
+
     def tableExists(self, name):
         for i in range(1, 9):
             tablename = name + "-000000000{}.wtobj".format(i)
@@ -405,6 +415,9 @@ class TieredPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
             return uri[6:] + '-0000000001.wtobj'
         else:
             return wthooks.DefaultPlatformAPI.initialFileName(uri)
+
+    def get_tier_share_percent(self):
+        return self.tier_share_percent
 
 
 # Every hook file must have a top level initialize function,

@@ -47,6 +47,12 @@ class BaseDataSet(object):
         # If the timestamp generator is not set, get it from the test case.
         self.timestamp = kwargs.get('timestamp', testcase.getTimestamp())
 
+        # Get the tier populate share from the hook.
+        tier_share_percent = testcase.getTierSharePercent()
+        self.tier_share_value = 0
+        if tier_share_percent != 0 and self.rows != 0:
+            self.tier_share_value = int((int(tier_share_percent) / 100) * self.rows)
+
     def create(self):
         self.testcase.session.create(self.uri, 'key_format=' + self.key_format
                                      + ',value_format=' + self.value_format
@@ -72,6 +78,8 @@ class BaseDataSet(object):
     def store_range(self, key, count):
         c = self.open_cursor()
         for i in range(key, key + count):
+            if self.tier_share_value != 0 and self.tier_share_value == i:
+                self.testcase.session.flush_tier('force=true')
             self.store_one_cursor(c, i)
         c.close()
 
