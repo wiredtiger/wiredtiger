@@ -333,7 +333,7 @@ class DefaultPlatformAPI(WiredTigerHookPlatformAPI):
 
     # By default, all the populated data lies in the local storage.
     def getTierSharePercent(self):
-        return None
+        return 0
 
     #def getpopulate_share(self):
 class MultiPlatformAPI(WiredTigerHookPlatformAPI):
