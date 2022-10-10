@@ -2059,6 +2059,8 @@ static int
 __cursor_truncate_fix(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop,
   int (*rmfunc)(WT_CURSOR_BTREE *, const WT_ITEM *, u_int))
 {
+    static const WT_ITEM flcs_zero = {"", 1, NULL, 0, 0};
+
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     uint64_t yield_count, sleep_usecs;
@@ -2091,9 +2093,19 @@ retry:
         value = (const uint8_t *)start->iface.value.data;
         if (*value != 0)
             WT_ERR(rmfunc(start, NULL, WT_UPDATE_TOMBSTONE));
-        else
+        else {
+            /*
+             * To preserve the illusion that deleted values are 0 and that we can therefore delete
+             * them, without violating the system restriction against consecutive tombstones,
+             * generate a dummy value for the new tombstone to delete. Make the dummy value zero for
+             * good measure.
+             */
+            WT_ERR(__cursor_col_modify(start, &flcs_zero, WT_UPDATE_STANDARD));
+            WT_ERR(rmfunc(start, NULL, WT_UPDATE_TOMBSTONE));
+            /* ret = __cursor_col_modify(cbt, NULL, WT_UPDATE_TOMBSTONE); */
             /* Removes skipped because the row is already deleted require a conflict check. */
-            WT_ERR(__curfile_update_check(start));
+            /* WT_ERR(__curfile_update_check(start)); */
+        }
 
         if (stop != NULL && __cursor_equals(start, stop))
             return (0);
