@@ -341,7 +341,7 @@ class WiredTigerTestCase(unittest.TestCase):
     def getTimestamp(self):
         return self.platform_api.getTimestamp()
 
-    # Return the tier share percent for this testcase, or None if there is none.
+    # Return the tier share percent for this testcase, or 0 if there is none.
     def getTierSharePercent(self):
         return self.platform_api.getTierSharePercent()
 

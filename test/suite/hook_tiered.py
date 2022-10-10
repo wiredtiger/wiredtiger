@@ -393,15 +393,15 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
 
 # Override some platform APIs for this hook.
 class TieredPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
-    def __init__(self, arg=0):
+    def __init__(self, arg=None):
         self.tier_share_percent = 0
         params = []
-        if arg is not None:
+        if arg:
             params = [config.split('=') for config in arg.split(',')]
 
         for param_key, param_value in params :
             if param_key == 'tier_populate_share':
-                self.tier_share_percent = param_value
+                self.tier_share_percent = int(param_value)
 
     def tableExists(self, name):
         for i in range(1, 9):

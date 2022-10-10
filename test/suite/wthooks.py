@@ -378,7 +378,7 @@ class MultiPlatformAPI(WiredTigerHookPlatformAPI):
         raise Exception('getTimestamp: no implementation')  # should never happen
 
     def getTierSharePercent(self):
-        """The tier share generator for this test case."""
+        """The tier share value for this test case."""
         for api in self.apis:
             try:
                 return api.getTierSharePercent()

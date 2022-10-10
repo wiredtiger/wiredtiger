@@ -49,9 +49,7 @@ class BaseDataSet(object):
 
         # Get the tier populate share from the hook.
         tier_share_percent = testcase.getTierSharePercent()
-        self.tier_share_value = 0
-        if tier_share_percent != 0 and self.rows != 0:
-            self.tier_share_value = int((int(tier_share_percent) / 100) * self.rows)
+        self.tier_share_value = (tier_share_percent * self.rows) // 100
 
     def create(self):
         self.testcase.session.create(self.uri, 'key_format=' + self.key_format
@@ -80,7 +78,7 @@ class BaseDataSet(object):
         for i in range(key, key + count):
             # Flush the data to tiered storage.
             if self.tier_share_value != 0 and self.tier_share_value == i:
-                self.testcase.session.flush_tier('force=true')
+                self.testcase.session.checkpoint('flush_tier=(enabled,force=true)')
             self.store_one_cursor(c, i)
         c.close()
 
