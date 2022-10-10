@@ -307,8 +307,10 @@ __curversion_next_int(WT_CURSOR *cursor)
             WT_ERR(__wt_illegal_value(session, page->type));
         }
 
-        /* Get the ondisk value. */
-        ret = __wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &cbt->upd_value->tw);
+        /* Get the ondisk value. We may see an overflow removed cell. Ignore it. */
+        WT_ERR_ERROR_OK(
+          __wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &cbt->upd_value->tw),
+          WT_RESTART, true);
         if (ret == 0) {
             if (!WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw)) {
                 durable_stop_ts = version_cursor->upd_durable_stop_ts;
@@ -333,9 +335,8 @@ __curversion_next_int(WT_CURSOR *cursor)
               WT_UPDATE_STANDARD, version_prepare_state, 0, WT_CURVERSION_DISK_IMAGE));
 
             upd_found = true;
-        } else if (ret != WT_RESTART)
-            /* We may see an overflow removed cell. Ignore it. */
-            goto err;
+        } else
+            ret = 0;
 
         F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
     }
