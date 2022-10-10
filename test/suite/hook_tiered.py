@@ -400,7 +400,7 @@ class TieredPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
             params = [config.split('=') for config in arg.split(',')]
 
         for param_key, param_value in params :
-            if param_key == 'populate_share':
+            if param_key == 'tier_populate_share':
                 self.tier_share_percent = param_value
 
     def tableExists(self, name):
