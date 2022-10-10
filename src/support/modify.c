@@ -487,7 +487,8 @@ retry:
          */
         WT_ASSERT(session, cbt->slot != UINT32_MAX);
 
-        ret = __wt_value_return_buf(cbt, cbt->ref, &upd_value->buf, &tw);
+        WT_ERR_ERROR_OK(
+          __wt_value_return_buf(cbt, cbt->ref, &upd_value->buf, &tw), WT_RESTART, true);
 
         /*
          * We race with checkpoint reconciliation removing the overflow items. Retry the read as the
@@ -500,9 +501,7 @@ retry:
         }
 
         /* We should not read overflow removed after retry. */
-        WT_ASSERT(session, ret != WT_RESTART);
-
-        WT_ERR(ret);
+        WT_ASSERT(session, ret == 0);
 
         /*
          * Applying modifies on top of a tombstone is invalid. So if we're using the onpage value,
