@@ -273,6 +273,17 @@ create_database(const char *home, WT_CONNECTION **connp)
     if (GV(DISK_DATA_EXTEND))
         CONFIG_APPEND(p, ",file_extend=(data=8MB)");
 
+    if (GV(DEBUG_REALLOC_EXACT))
+        CONFIG_APPEND(p, ",debug_mode=(realloc_exact=true)");
+
+    /* Configure realloc malloc debug mode. */
+    if (GV(DEBUG_REALLOC_MALLOC)) {
+        if (mmrand(NULL, 0, 1) == 1)
+            CONFIG_APPEND(p, ",debug_mode=(realloc_exact=true,realloc_malloc=true)");
+        else
+            CONFIG_APPEND(p, ",debug_mode=(realloc_malloc=true)");
+    }
+
     /*
      * Run the statistics server and/or maintain statistics in the engine. Sometimes specify a set
      * of sources just to exercise that code.
@@ -598,10 +609,6 @@ wts_stats(void)
     SAP sap;
     WT_CONNECTION *conn;
     WT_SESSION *session;
-
-    /* Ignore statistics if they're not configured. */
-    if (GV(STATISTICS) == 0)
-        return;
 
     conn = g.wts_conn;
     track("stat", 0ULL);

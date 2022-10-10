@@ -505,7 +505,7 @@ commit_transaction(TINFO *tinfo, bool prepared)
         if (prepared)
             lock_readlock(session, &g.prepare_commit_lock);
 
-        ts = __wt_atomic_fetch_addv64(&g.timestamp, 1);
+        ts = __wt_atomic_addv64(&g.timestamp, 1);
         testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_COMMIT, ts));
 
         if (prepared)
@@ -1298,7 +1298,7 @@ apply_bounds(WT_CURSOR *cursor, TABLE *table)
     WT_ITEM key;
     uint32_t lower_keyno, max_rows, upper_keyno;
 
-    /* FIXME-WT-9851: Enable once FLCS is supported. */
+    /* FLCS is not supported with bounds. */
     if (table->type == FIX)
         return;
 
@@ -1359,7 +1359,7 @@ apply_bounds(WT_CURSOR *cursor, TABLE *table)
 static void
 clear_bounds(WT_CURSOR *cursor, TABLE *table)
 {
-    /* FIXME-WT-9851: Enable once FLCS is supported. */
+    /* FLCS is not supported with bounds. */
     if (table->type == FIX)
         return;
 
