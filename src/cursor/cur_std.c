@@ -22,7 +22,7 @@ __curstd_config_value_for(const char *config, const char *var, size_t len)
     return (cfg + len);
 }
 
-#define WT_CONFIG_VALUE_FOR(config, var, cfg) \
+#define CONFIG_VALUE_FOR(config, var, cfg) \
     ((cfg) = __curstd_config_value_for((config), var "=", strlen(var "=")))
 
 /*
@@ -1219,7 +1219,7 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
         WT_ERR_MSG(session, EINVAL, "an empty config is not valid when setting bounds");
 
     /* Action is default to "set". */
-    if (WT_CONFIG_VALUE_FOR(config, "action", cfg) != NULL)
+    if (CONFIG_VALUE_FOR(config, "action", cfg) != NULL)
         have_action = true;
 
     if (!have_action || WT_PREFIX_MATCH(cfg, "set")) {
@@ -1229,13 +1229,13 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
         /* The cursor must have a key set to place the lower or upper bound. */
         WT_ERR(__cursor_checkkey(cursor));
 
-        if (WT_CONFIG_VALUE_FOR(config, "inclusive", cfg) != NULL) {
+        if (CONFIG_VALUE_FOR(config, "inclusive", cfg) != NULL) {
             /* Inclusive is true by default. */
             if (!WT_PREFIX_MATCH(cfg, "true"))
                 inclusive = false;
         }
 
-        if (WT_CONFIG_VALUE_FOR(config, "bound", cfg) == NULL)
+        if (CONFIG_VALUE_FOR(config, "bound", cfg) == NULL)
             WT_ERR_MSG(session, EINVAL,
               "a bound must be specified when setting bounds, either \"lower\" or \"upper\"");
         else if (WT_PREFIX_MATCH(cfg, "upper")) {
