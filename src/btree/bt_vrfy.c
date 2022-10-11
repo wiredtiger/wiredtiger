@@ -269,8 +269,8 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
               session, ret = __verify_tree(session, &btree->root, &addr_unpack, vs));
 
             /*
-             * If the read_corrupt mode was turned on, we may have continued traversing and verifying
-             * the pages of the tree despite encountering an error. Set the error.
+             * If the read_corrupt mode was turned on, we may have continued traversing and
+             * verifying the pages of the tree despite encountering an error. Set the error.
              */
             if (ret == 0 && vs->verify_err != 0)
                 ret = vs->verify_err;
