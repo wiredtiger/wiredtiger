@@ -35,6 +35,9 @@ typedef struct {
     uint64_t depth, depth_internal[100], depth_leaf[100];
 
     WT_ITEM *tmp1, *tmp2, *tmp3, *tmp4; /* Temporary buffers */
+
+    int verify_err;
+    uint64_t corrupt_pages;
 } WT_VSTUFF;
 
 static void __verify_checkpoint_reset(WT_VSTUFF *);
@@ -81,6 +84,8 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
 
     WT_RET(__wt_config_gets(session, cfg, "read_corrupt", &cval));
     vs->read_corrupt = cval.val != 0;
+    vs->verify_err = 0;
+    vs->corrupt_pages = 0;
 
     WT_RET(__wt_config_gets(session, cfg, "stable_timestamp", &cval));
     vs->stable_timestamp = WT_TS_NONE; /* Ignored unless a value has been set */
@@ -262,6 +267,13 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             /* Verify the tree. */
             WT_WITH_PAGE_INDEX(
               session, ret = __verify_tree(session, &btree->root, &addr_unpack, vs));
+
+            /*
+             * If the read_corrupt mode was turned on, we may have continued traversing and verifying
+             * the pages of the tree despite encountering an error. Set the error.
+             */
+            if (ret == 0 && vs->verify_err != 0)
+                ret = vs->verify_err;
 
             /*
              * We have an exclusive lock on the handle, but we're swapping root pages in-and-out of
@@ -595,9 +607,11 @@ celltype_err:
              * If configured, continue traversing through the pages of the tree even after
              * encountering errors in the verification process.
              */
-            if (vs->read_corrupt)
+            if (vs->read_corrupt) {
+                vs->verify_err = ret;
+                vs->corrupt_pages++;
                 continue;
-            else
+            } else
                 WT_RET(ret);
             ret = __verify_tree(session, child_ref, unpack, vs);
             WT_TRET(__wt_page_release(session, child_ref, 0));
@@ -634,9 +648,11 @@ celltype_err:
              * If configured, continue traversing through the pages of the tree even after
              * encountering errors in the verification process.
              */
-            if (vs->read_corrupt)
+            if (vs->read_corrupt) {
+                vs->verify_err = ret;
+                vs->corrupt_pages++;
                 continue;
-            else
+            } else
                 WT_RET(ret);
             ret = __verify_tree(session, child_ref, unpack, vs);
             WT_TRET(__wt_page_release(session, child_ref, 0));
