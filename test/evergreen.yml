@@ -1149,6 +1149,42 @@ tasks:
             set -o verbose
             ${test_env_vars|} test/unittest/unittests
   # End of normal make check test tasks
+  # Reproducer template
+  - &reproducer_task_template
+    name: repro1
+    exec_timeout_secs: 25200
+    tags: ["reproducer"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          # CC is set to the system default "clang" binary here as a workaround. Change it back
+          # to mongodbtoolchain "clang" binary after BUILD-10248 fix.
+          configure_env_vars:
+            CCAS=/opt/mongodbtoolchain/v3/bin/gcc CC=/usr/bin/clang
+            CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+            CFLAGS="-ggdb -fPIC -fno-omit-frame-pointer
+            -I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.2.0/include"
+            CXXFLAGS="-ggdb -fPIC -fno-omit-frame-pointer
+            -I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.2.0/include"
+          posix_configure_flags: --enable-diagnostic --with-builtins=lz4,snappy,zlib
+      - func: "format test script"
+        vars:
+          test_env_vars:
+            ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0"
+            ASAN_SYMBOLIZER_PATH=/usr/lib/llvm-6.0/bin/llvm-symbolizer
+          # Run for 2 hours (2 * 60 = 120 minutes), don't stop at failed tests, use default config
+          format_test_script_args: -t 120
+
+  # Create as many template as you need to parallelize.
+  - <<: *reproducer_task_template
+    name: repro2
+  - <<: *reproducer_task_template
+    name: repro3
+  - <<: *reproducer_task_template
+    name: repro4
+  - <<: *reproducer_task_template
+    name: repro5
 
   # Start of cppsuite test tasks.
   # All cppsuite pull request tasks must supply the relative path to the config file as we are in
@@ -4556,6 +4592,7 @@ buildvariants:
     cmake_generator: Ninja
     make_command: ninja
   tasks:
+    - name: .reproducer
     - name: compile
     - name: unit-test
     - name: format-smoke-test

@@ -307,37 +307,36 @@ __curversion_next_int(WT_CURSOR *cursor)
             WT_ERR(__wt_illegal_value(session, page->type));
         }
 
-        /* Get the ondisk value. We may see an overflow removed cell. Ignore it. */
+        /*
+         * Get the ondisk value. If we see an overflow removed value, return the overflow removed
+         * value for debugging.
+         */
         WT_ERR_ERROR_OK(
           __wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &cbt->upd_value->tw),
-          WT_RESTART, true);
-        if (ret == 0) {
-            if (!WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw)) {
-                durable_stop_ts = version_cursor->upd_durable_stop_ts;
-                stop_ts = version_cursor->upd_stop_ts;
-                stop_txn = version_cursor->upd_stop_txnid;
-            } else {
-                durable_stop_ts = cbt->upd_value->tw.durable_stop_ts;
-                stop_ts = cbt->upd_value->tw.stop_ts;
-                stop_txn = cbt->upd_value->tw.stop_txn;
-            }
+          WT_RESTART, false);
+        if (!WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw)) {
+            durable_stop_ts = version_cursor->upd_durable_stop_ts;
+            stop_ts = version_cursor->upd_stop_ts;
+            stop_txn = version_cursor->upd_stop_txnid;
+        } else {
+            durable_stop_ts = cbt->upd_value->tw.durable_stop_ts;
+            stop_ts = cbt->upd_value->tw.stop_ts;
+            stop_txn = cbt->upd_value->tw.stop_txn;
+        }
 
-            if (tombstone != NULL &&
-              (tombstone->prepare_state == WT_PREPARE_INPROGRESS ||
-                tombstone->prepare_state == WT_PREPARE_LOCKED))
-                version_prepare_state = 1;
-            else
-                version_prepare_state = cbt->upd_value->tw.prepare;
+        if (tombstone != NULL &&
+          (tombstone->prepare_state == WT_PREPARE_INPROGRESS ||
+            tombstone->prepare_state == WT_PREPARE_LOCKED))
+            version_prepare_state = 1;
+        else
+            version_prepare_state = cbt->upd_value->tw.prepare;
 
-            WT_ERR(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT,
-              cbt->upd_value->tw.start_txn, cbt->upd_value->tw.start_ts,
-              cbt->upd_value->tw.durable_start_ts, stop_txn, stop_ts, durable_stop_ts,
-              WT_UPDATE_STANDARD, version_prepare_state, 0, WT_CURVERSION_DISK_IMAGE));
+        WT_ERR(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT,
+          cbt->upd_value->tw.start_txn, cbt->upd_value->tw.start_ts,
+          cbt->upd_value->tw.durable_start_ts, stop_txn, stop_ts, durable_stop_ts,
+          WT_UPDATE_STANDARD, version_prepare_state, 0, WT_CURVERSION_DISK_IMAGE));
 
-            upd_found = true;
-        } else
-            ret = 0;
-
+        upd_found = true;
         F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
     }
 

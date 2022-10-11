@@ -257,7 +257,10 @@ __wt_page_inmem_prepare(WT_SESSION_IMPL *session, WT_REF *ref)
             }
 
             /* Get the value. */
-            WT_ERR(__wt_page_cell_data_ref(session, page, &unpack, value));
+            ret = __wt_page_cell_data_ref(session, page, &unpack, value);
+            /* We cannot read overflow removed value for a prepared update. */
+            WT_ASSERT(session, ret != WT_RESTART);
+            WT_ERR(ret);
 
             /* For each record, create an update to resolve the prepare. */
             for (; rle > 0; --rle, ++recno) {
@@ -301,7 +304,10 @@ __wt_page_inmem_prepare(WT_SESSION_IMPL *session, WT_REF *ref)
 
             /* Get the key/value pair and create an update to resolve the prepare. */
             WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
-            WT_ERR(__wt_page_cell_data_ref(session, page, &unpack, value));
+            ret = __wt_page_cell_data_ref(session, page, &unpack, value);
+            /* We cannot read overflow removed value for a prepared update. */
+            WT_ASSERT(session, ret != WT_RESTART);
+            WT_ERR(ret);
             WT_ERR(__page_inmem_prepare_update(session, value, &unpack, &upd, &size));
             total_size += size;
 
