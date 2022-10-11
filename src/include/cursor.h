@@ -458,6 +458,8 @@ struct __wt_cursor_join {
 struct __wt_cursor_json {
     char *key_buf;              /* JSON formatted string */
     char *value_buf;            /* JSON formatted string */
+    size_t key_size;            /* Holds previously allocated bytes for key */
+    size_t value_size;          /* Holds previously allocated bytes for value */
     WT_CONFIG_ITEM key_names;   /* Names of key columns */
     WT_CONFIG_ITEM value_names; /* Names of value columns */
 };
