@@ -802,6 +802,7 @@ connection_runtime_config = [
             'checkpoint_progress',
             'compact',
             'compact_progress',
+            'config',
             'error_returns',
             'evict',
             'evict_stuck',
