@@ -10,7 +10,7 @@
 
 /*
  * __curstd_config_value_for --
- *     Returns NULL if the string being searcedh for isn't found, or the string after the "=" sign
+ *     Returns NULL if the string being searched for isn't found, or the string after the "=" sign
  *     in the config string.
  */
 static inline char *
