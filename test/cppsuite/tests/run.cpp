@@ -191,10 +191,11 @@ main(int argc, char *argv[])
 
     /* See print_help() for all the different options and their description. */
     for (size_t i = 1; (i < argc) && (error_code == 0); ++i) {
-        if (std::string(argv[i]) == "-h" || std::string(argv[i]) == "--help") {
+        const std::string option = std::string(argv[i]);
+        if (option == "-h" || option == "--help") {
             print_help();
             return 0;
-        } else if (std::string(argv[i]) == "-C") {
+        } else if (option == "-C") {
             if ((i + 1) < argc) {
                 wt_open_config = argv[++i];
                 /* Add a comma to the front if the user didn't supply one. */
@@ -202,7 +203,7 @@ main(int argc, char *argv[])
                     wt_open_config.insert(0, 1, ',');
             } else
                 error_code = -1;
-        } else if (std::string(argv[i]) == "-c") {
+        } else if (option == "-c") {
             if (!config_filename.empty()) {
                 test_harness::logger::log_msg(LOG_ERROR, "Option -C cannot be used with -f");
                 error_code = -1;
@@ -210,7 +211,7 @@ main(int argc, char *argv[])
                 cfg = argv[++i];
             else
                 error_code = -1;
-        } else if (std::string(argv[i]) == "-f") {
+        } else if (option == "-f") {
             if (!cfg.empty()) {
                 test_harness::logger::log_msg(LOG_ERROR, "Option -f cannot be used with -C");
                 error_code = -1;
@@ -218,17 +219,17 @@ main(int argc, char *argv[])
                 config_filename = argv[++i];
             else
                 error_code = -1;
-        } else if (std::string(argv[i]) == "-t") {
+        } else if (option == "-t") {
             if ((i + 1) < argc)
                 test_name = argv[++i];
             else
                 error_code = -1;
-        } else if (std::string(argv[i]) == "-l") {
+        } else if (option == "-l") {
             if ((i + 1) < argc)
                 test_harness::logger::trace_level = std::stoi(argv[++i]);
             else
                 error_code = -1;
-        } else if (std::string(argv[i]) == "--list") {
+        } else if (option == "--list") {
             std::cout << "The tests are:" << std::endl;
             for (const auto &test_name : all_tests)
                 std::cout << "\t" << test_name << std::endl;
