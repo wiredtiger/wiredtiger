@@ -175,7 +175,7 @@ __rec_append_orig_value(
     /* We need the original on-page value for some reader: get a copy. */
     if (!tombstone_globally_visible) {
         WT_ERR(__wt_scr_alloc(session, 0, &tmp));
-        ret = __wt_page_cell_data_ref(session, page, unpack, tmp);
+        ret = __wt_page_cell_data_ref_kv(session, page, unpack, tmp);
         /*
          * We should never see an overflow removed value because we haven't freed the overflown
          * blocks.
