@@ -176,7 +176,9 @@ __rec_append_orig_value(
     if (!tombstone_globally_visible) {
         WT_ERR(__wt_scr_alloc(session, 0, &tmp));
         ret = __wt_page_cell_data_ref(session, page, unpack, tmp);
-        /* We should not see a overflow removed value because we haven't freed any overflow value.
+        /*
+         * We should never see an overflow removed value because we haven't freed the overflown
+         * blocks.
          */
         WT_ASSERT(session, ret != WT_RESTART);
         WT_ERR(ret);
