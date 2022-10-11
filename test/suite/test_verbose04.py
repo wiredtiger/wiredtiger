@@ -93,97 +93,19 @@ class test_verbose04(test_verbose_base):
 
     def test_verbose_level_5(self):
         ckpt_uri = 'table:ckpt_table'
-        # logged_uri = 'table:logged_table'
-        #
-        # Create a collection-like table that is checkpoint durability (that is, logging has been
-        # turned off), and an oplog-like table that is commit-level durability. Add data to each
-        # of them separately and checkpoint so each one has a different stable timestamp.
-        #
-        basecfg = 'key_format=i,value_format=i'
-        # self.session.create(logged_uri, basecfg)
-        self.session.create(ckpt_uri, basecfg + ',log=(enabled=false)')
-        # c_logged = self.session.open_cursor(logged_uri)
+        self.session.create(ckpt_uri, 'key_format=i,value_format=i,log=(enabled=false)')
         c_ckpt = self.session.open_cursor(ckpt_uri)
 
-        # Begin by adding some data.
-        nentries = 10
-        first_range = range(1, nentries)
-        second_range = range(nentries, nentries*2)
-        all_keys = range(1, nentries*2)
-        for i in first_range:
-            self.session.begin_transaction()
-            # c_logged[i] = 1
-            c_ckpt[i] = 1
-            self.session.commit_transaction(
-              'commit_timestamp=' + self.timestamp_str(i))
-        # Set the oldest and stable timestamp to the end.
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(nentries-1) +
-        ',stable_timestamp=' + self.timestamp_str(nentries-1))
+        # Add some data
+        self.session.begin_transaction()
+        c_ckpt[1] = 1
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
 
-        # Add more data but don't advance the stable timestamp.
-        for i in second_range:
-            self.session.begin_transaction()
-            # c_logged[i] = 1
-            c_ckpt[i] = 1
-            self.pr("i: " + str(i))
-            self.session.commit_transaction(
-              'commit_timestamp=' + self.timestamp_str(i))
+        # Set the stable timestamp past the end.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(9))
 
-        # Close and reopen the connection. We cannot use reopen_conn because
-        # we want to test the specific close configuration string.
-        self.close_conn()
-        self.open_conn()
-
-        # Set up our expected data and verify after the reopen.
-        # logged_exp = dict((k, 1) for k in all_keys)
-        # ckpt_exp = dict((k, 1) for k in first_range)
-
-        # self.verify_expected(logged_exp, ckpt_exp)
-
-    # def test_verbose_level_5(self):
-    #     conn_config = 'config_base=false,create,log=(enabled)'
-    #     ckpt_uri = 'table:ckpt_table'
-    #     logged_uri = 'table:logged_table'
-
-    #     #
-    #     # Create a collection-like table that is checkpoint durability (that is, logging has been
-    #     # turned off), and an oplog-like table that is commit-level durability. Add data to each
-    #     # of them separately and checkpoint so each one has a different stable timestamp.
-    #     #
-    #     basecfg = 'key_format=i,value_format=i'
-    #     self.session.create(logged_uri, basecfg)
-    #     self.session.create(ckpt_uri, basecfg + ',log=(enabled=false)')
-    #     c_logged = self.session.open_cursor(logged_uri)
-    #     c_ckpt = self.session.open_cursor(ckpt_uri)
-
-    #     # Begin by adding some data.
-    #     nentries = 10
-    #     first_range = range(1, nentries)
-    #     second_range = range(nentries, nentries*2)
-    #     all_keys = range(1, nentries*2)
-    #     for i in first_range:
-    #         self.session.begin_transaction()
-    #         c_logged[i] = 1
-    #         c_ckpt[i] = 1
-    #         self.session.commit_transaction(
-    #           'commit_timestamp=' + self.timestamp_str(i))
-    #     # Set the oldest and stable timestamp to the end.
-    #     self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(nentries-1) +
-    #     ',stable_timestamp=' + self.timestamp_str(nentries-1))
-
-    #     # Add more data but don't advance the stable timestamp.
-    #     for i in second_range:
-    #         self.session.begin_transaction()
-    #         c_logged[i] = 1
-    #         c_ckpt[i] = 1
-    #         self.pr("i: " + str(i))
-    #         self.session.commit_transaction(
-    #           'commit_timestamp=' + self.timestamp_str(i))
-
-    #     # Close and reopen the connection. We cannot use reopen_conn because
-    #     # we want to test the specific close configuration string.
-    #     self.close_conn()
-    #     self.open_conn()
+        # Run RTS.
+        self.reopen_conn()
 
 if __name__ == '__main__':
     wttest.run()
