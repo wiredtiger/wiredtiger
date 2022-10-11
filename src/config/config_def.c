@@ -1229,7 +1229,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "durable_timestamp=,force=false,oldest_timestamp=,"
     "stable_timestamp=",
     confchk_WT_CONNECTION_set_timestamp, 4},
-  {"WT_CURSOR.bound", "action=,bound=,inclusive=true", confchk_WT_CURSOR_bound, 3},
+  {"WT_CURSOR.bound", "action=set,bound=,inclusive=true", confchk_WT_CURSOR_bound, 3},
   {"WT_CURSOR.close", "", NULL, 0},
   {"WT_CURSOR.reconfigure", "append=false,overwrite=true,prefix_search=false",
     confchk_WT_CURSOR_reconfigure, 3},

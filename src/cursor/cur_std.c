@@ -1199,12 +1199,13 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
     WT_SESSION_IMPL *session;
     int exact;
     char *cfg;
-    bool inclusive;
+    bool inclusive, have_action;
 
     cfg = NULL;
     cbt = (WT_CURSOR_BTREE *)cursor;
     exact = 0;
     inclusive = true;
+    have_action = false;
 
     CURSOR_API_CALL(cursor, session, bound, NULL);
 
@@ -1217,11 +1218,11 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
     if (config == NULL || config[0] == '\0')
         WT_ERR_MSG(session, EINVAL, "an empty config is not valid when setting bounds");
 
-    if (WT_CONFIG_VALUE_FOR(config, "action", cfg) == NULL)
-        WT_ERR_MSG(session, EINVAL,
-          "an action must be specified when setting bounds, either \"clear\" or \"set\"");
+    /* Action is default to "set". */
+    if (WT_CONFIG_VALUE_FOR(config, "action", cfg) != NULL)
+        have_action = true;
 
-    if (WT_PREFIX_MATCH(cfg, "set")) {
+    if (!have_action || WT_PREFIX_MATCH(cfg, "set")) {
         if (WT_CURSOR_IS_POSITIONED(cbt))
             WT_ERR_MSG(session, EINVAL, "setting bounds on a positioned cursor is not allowed");
 
@@ -1292,7 +1293,7 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
         } else
             WT_ERR_MSG(session, EINVAL,
               "a bound must be specified when setting bounds, either \"lower\" or \"upper\"");
-    } else if (WT_PREFIX_MATCH(cfg, "clear")) {
+    } else if (have_action && WT_PREFIX_MATCH(cfg, "clear")) {
         F_CLR(cursor, WT_CURSTD_BOUND_ALL);
         __wt_buf_free(session, &cursor->upper_bound);
         __wt_buf_free(session, &cursor->lower_bound);
@@ -1300,7 +1301,7 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
         WT_CLEAR(cursor->lower_bound);
     } else
         WT_ERR_MSG(session, EINVAL,
-          "an action must be specified when setting bounds, either \"clear\" or \"set\"");
+          "an action of either \"clear\" or \"set\" should be specified when setting bounds");
 err:
     API_END_RET_STAT(session, ret, cursor_bound);
 }

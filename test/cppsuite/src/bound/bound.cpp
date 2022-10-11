@@ -63,7 +63,7 @@ bound::bound(uint64_t key_size_max, bool lower_bound, char start) : bound(key_si
 std::string
 bound::get_config() const
 {
-    return "action=set,bound=" + std::string(_lower_bound ? "lower" : "upper") +
+    return "bound=" + std::string(_lower_bound ? "lower" : "upper") +
       ",inclusive=" + std::string(_inclusive ? "true" : "false");
 }
 

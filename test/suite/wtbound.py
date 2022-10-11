@@ -222,7 +222,7 @@ class bound_base(wttest.WiredTigerTestCase):
 
         # Set key and bounds.    
         cursor.set_key(self.gen_key(key))
-        return cursor.bound("action=set,bound={0}{1}".format(bound_config, inclusive_config))
+        return cursor.bound("bound={0}{1}".format(bound_config, inclusive_config))
     
     def cursor_traversal_bound(self, cursor, lower_key, upper_key, next=None, expected_count=None):
         if next == None:

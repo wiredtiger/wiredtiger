@@ -103,8 +103,8 @@ class test_cursor_bound02(bound_base):
 
         # Test bound API: No key set.
         cursor.reset()
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=set,bound=lower"), '/Invalid argument/')
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=set,bound=upper"), '/Invalid argument/')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=lower"), '/Invalid argument/')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=upper"), '/Invalid argument/')
 
         # Test bound API: Test that the key persists after lower bound call.
         cursor.set_value(self.gen_val("30"))
@@ -121,20 +121,20 @@ class test_cursor_bound02(bound_base):
         cursor.bound("action=clear")
         self.assertEqual(self.set_bounds(cursor, 50, "lower", True), 0)
         self.assertEqual(self.set_bounds(cursor, 50, "upper", True), 0)
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=set,bound=lower,inclusive=false"), '/Invalid argument/')
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=set,bound=upper,inclusive=false"), '/Invalid argument/')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=lower,inclusive=false"), '/Invalid argument/')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=upper,inclusive=false"), '/Invalid argument/')
         
         # Test bound API: Test that only setting one of the bound inclusive config to true, should
         # fail too.
         cursor.bound("action=clear")
         self.assertEqual(self.set_bounds(cursor, 50, "lower", False), 0)
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=set,bound=upper,inclusive=false"), '/Invalid argument/')
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=set,bound=upper,inclusive=true"), '/Invalid argument/')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=upper,inclusive=false"), '/Invalid argument/')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=upper,inclusive=true"), '/Invalid argument/')
 
         cursor.bound("action=clear")
         self.assertEqual(self.set_bounds(cursor, 50, "upper", False), 0)
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=set,bound=lower,inclusive=false"), '/Invalid argument/')
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=set,bound=lower,inclusive=true"), '/Invalid argument/')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=lower,inclusive=false"), '/Invalid argument/')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=lower,inclusive=true"), '/Invalid argument/')
 
 
     def test_bound_api_reset(self):
