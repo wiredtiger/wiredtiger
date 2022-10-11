@@ -234,6 +234,11 @@ main(int argc, char *argv[])
                 test_harness::logger::trace_level = std::stoi(argv[++i]);
             else
                 error_code = -1;
+        } else if (std::string(argv[i]) == "--list") {
+            std::cout << "The tests are:" << std::endl;
+            for (const auto &test_name : all_tests)
+                std::cout << "\t" << test_name << std::endl;
+            return 0;
         } else
             error_code = -1;
     }
