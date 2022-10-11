@@ -116,7 +116,7 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
          */
         if (!__rollback_txn_visible_id(session, upd->txnid) ||
           rollback_timestamp < upd->durable_ts || upd->prepare_state == WT_PREPARE_INPROGRESS) {
-            __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
+            __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
               "rollback to stable update aborted with txnid: %" PRIu64
               " durable timestamp: %s and stable timestamp: %s, prepared: %s",
               upd->txnid, __wt_timestamp_to_string(upd->durable_ts, ts_string[0]),
@@ -511,7 +511,7 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
          */
         if (__rollback_txn_visible_id(session, hs_tw->start_txn) &&
           hs_tw->durable_start_ts <= rollback_timestamp) {
-            __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+            __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
               "history store update valid with time window: %s, type: %" PRIu8
               " and stable timestamp: %s",
               __wt_time_window_to_string(hs_tw, tw_string), type,
@@ -623,7 +623,7 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
     } else {
         WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
         WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
-        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session), "%s", "key removed");
+        __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_5, "%s", "key removed");
     }
 
     if (rip != NULL)
@@ -1234,7 +1234,7 @@ __rollback_abort_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
     }
 
     WT_STAT_CONN_INCR(session, txn_rts_pages_visited);
-    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+    __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
       "%p: page rolled back when page is modified: %s", (void *)ref,
       __wt_page_is_modified(page) ? "true" : "false");
 

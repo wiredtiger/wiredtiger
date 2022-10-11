@@ -111,43 +111,6 @@ class test_verbose02(test_verbose_base):
                 c['multiple'] = 'multiple'
                 c.close()
 
-    # Test that each configurable debug level causes output at that level.
-    def test_verbose_debug(self):
-        self.close_conn()
-        for i in range(3, 6):
-            cfg = 'config:' + str(i)
-            with self.expect_verbose([cfg], ['DEBUG_' + str(i)], self.is_json) as conn:
-                uri = 'table:test_verbose02_debug'
-                session = conn.open_session()
-                session.create(uri, self.collection_cfg)
-                c = session.open_cursor(uri)
-                c['debug'] = 'debug'
-                c.close()
-
-    def test_verbose_level_2(self):
-        self.close_conn()
-
-        with self.expect_verbose(['rts:2'], ['DEBUG_1', 'DEBUG_2'], self.is_json) as conn:
-            self.conn = conn
-            self.session = self.conn.open_session()
-
-            # Create a table
-            uri = "table:test_verbose_level_2"
-            ds = SimpleDataSet(self, uri, 0, key_format='i', value_format="S")
-            ds.populate()
-
-            # Pin stable to timestamp 10.
-            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
-
-            # Insert a key + value after the stable TS.
-            cursor = self.session.open_cursor(uri)
-            self.session.begin_transaction()
-            cursor[1] = "aaaaa" * 100
-            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
-
-            # Persist all the updates in the history store to disk.
-            self.session.checkpoint()
-
     # Test multiple levels specified for a single category.
     def test_verbose_repeated(self):
         self.close_conn()
@@ -208,8 +171,6 @@ class test_verbose02(test_verbose_base):
             c = session.open_cursor(uri)
             c['repeated'] = 'repeated'
             c.close()
-
-        # TODO add test for extra levels
 
     # Test use cases passing invalid verbosity levels, ensuring the appropriate error message is
     # raised.
