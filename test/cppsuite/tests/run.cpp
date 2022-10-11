@@ -108,13 +108,13 @@ print_help()
     std::cout << std::endl;
     std::cout << "OPTIONS" << std::endl;
     std::cout << "\t-h Output a usage message and exit." << std::endl;
-    std::cout << "\t-C Additional wiredtiger open configuration." << std::endl;
+    std::cout << "\t-C Additional WiredTiger open configuration." << std::endl;
     std::cout << "\t-c Test framework configuration. Cannot be used with -f." << std::endl;
     std::cout << "\t-f File that contains the configuration. Cannot be used with -C." << std::endl;
     std::cout << "\t-l Trace level from 0 to 3. "
                  "1 is the default level, all warnings and errors are logged."
               << std::endl;
-    std::cout << "\t--list List all the tests." << std::endl;
+    std::cout << "\t--list List all the tests that can be executed." << std::endl;
     std::cout << "\t-t Test name to be executed." << std::endl;
 }
 
