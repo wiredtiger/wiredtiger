@@ -92,6 +92,7 @@ print_help()
     std::cout << "\trun -c [TEST_FRAMEWORK_CONFIGURATION]" << std::endl;
     std::cout << "\trun -f [FILE]" << std::endl;
     std::cout << "\trun -l [TRACE_LEVEL]" << std::endl;
+    std::cout << "\trun --list" << std::endl;
     std::cout << "\trun -t [TEST_NAME]" << std::endl;
     std::cout << std::endl;
     std::cout << "DESCRIPTION" << std::endl;
@@ -113,6 +114,7 @@ print_help()
     std::cout << "\t-l Trace level from 0 to 3. "
                  "1 is the default level, all warnings and errors are logged."
               << std::endl;
+    std::cout << "\t--list List all the tests." << std::endl;
     std::cout << "\t-t Test name to be executed." << std::endl;
 }
 
@@ -187,17 +189,9 @@ main(int argc, char *argv[])
     /* Set the program name for error messages. */
     (void)testutil_set_progname(argv);
 
-    /* Parse args
-     * -C   : Additional wiredtiger_open configuration.
-     * -c   : Test framework configuration. Cannot be used with -f. If no specific test is specified
-     * to be run, the same configuration will be used for all existing tests.
-     * -f   : Filename that contains the configuration. Cannot be used with -C. If no specific test
-     * is specified to be run, the same configuration will be used for all existing tests.
-     * -l   : Trace level.
-     * -t   : Test to run. All tests are run if not specified.
-     */
+    /* See print_help() for all the different options and their description. */
     for (size_t i = 1; (i < argc) && (error_code == 0); ++i) {
-        if (std::string(argv[i]) == "-h") {
+        if (std::string(argv[i]) == "-h" || std::string(argv[i]) == "--help") {
             print_help();
             return 0;
         } else if (std::string(argv[i]) == "-C") {
