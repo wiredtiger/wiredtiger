@@ -82,17 +82,6 @@ class test_verbose04(test_verbose_base):
         self.assertTrue('DEBUG_2' in output)
         self.cleanStdout()
 
-    def fake_updates_at_ts(self, uri, value, ds, nrows, commit_ts):
-        # Update a large number of records.
-        session = self.session
-        cursor = session.open_cursor(uri)
-        for i in range(1, nrows + 1):
-            session.begin_transaction()
-            cursor[ds.key(i)] = value
-            # session.timestamp_transaction()
-            session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
-        cursor.close()
-
     def walk_at_ts(self, check_value, uri, read_ts):
         session = self.session
         session.begin_transaction()
@@ -126,10 +115,10 @@ class test_verbose04(test_verbose_base):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
 
         # Perform several updates.
-        self.fake_updates_at_ts(uri, value, ds, nrows, 20)
-        self.fake_updates_at_ts(uri, value, ds, nrows, 30)
-        self.fake_updates_at_ts(uri, value, ds, nrows, 40)
-        self.fake_updates_at_ts(uri, value, ds, nrows, 50)
+        self.updates(uri, value, ds, nrows, 20)
+        self.updates(uri, value, ds, nrows, 30)
+        self.updates(uri, value, ds, nrows, 40)
+        self.updates(uri, value, ds, nrows, 50)
 
         # Touch all of our data with a read timestamp > the commit timestamp.
         self.walk_at_ts(value, uri, 21)
@@ -137,7 +126,7 @@ class test_verbose04(test_verbose_base):
         self.walk_at_ts(value, uri, 41)
         self.walk_at_ts(value, uri, 51)
 
-        # Checkpoint to ensure the data is flushed.
+        # Perform a checkpoint and close the connection.
         self.session.checkpoint()
         conn.close()
 
