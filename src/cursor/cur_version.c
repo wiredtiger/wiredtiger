@@ -307,7 +307,10 @@ __curversion_next_int(WT_CURSOR *cursor)
             WT_ERR(__wt_illegal_value(session, page->type));
         }
 
-        /* Get the ondisk value. If we see an overflow removed value, ignore it. */
+        /*
+         * Get the ondisk value. If we see an overflow removed value, ignore it. We shall see the
+         * same value in the history store later.
+         */
         WT_ERR_ERROR_OK(
           __wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &cbt->upd_value->tw),
           WT_RESTART, true);
