@@ -156,7 +156,7 @@ __wt_tiered_flush_work_wait(WT_SESSION_IMPL *session, uint32_t timeout)
             __wt_epoch(session, &now);
         }
         /* We are done if we don't find any work units or exceed the timeout. */
-        done = !found || WT_TIMEDIFF_SEC(now, start) > timeout;
+        done = !found || (WT_TIMEDIFF_SEC(now, start) > timeout);
     }
     return (0);
 }
