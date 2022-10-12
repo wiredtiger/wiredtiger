@@ -84,60 +84,31 @@ class test_verbose04(test_verbose_base):
         self.cleanStdout()
 
     def conn_config(self):
-        config = 'cache_size=50MB,statistics=(all)'
+        config = 'cache_size=50MB'
         return config
 
-    def large_updates(self, uri, value, ds, nrows, prepare, commit_ts):
+    def fake_updates_at_ts(self, uri, value, ds, nrows, commit_ts):
         # Update a large number of records.
         session = self.session
-        try:
-            cursor = session.open_cursor(uri)
-            for i in range(1, nrows + 1):
-                if commit_ts == 0:
-                    session.begin_transaction('no_timestamp=true')
-                else:
-                    session.begin_transaction()
-                cursor[ds.key(i)] = value
-                if commit_ts == 0:
-                    session.commit_transaction()
-                elif prepare:
-                    session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(commit_ts-1))
-                    session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
-                    session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(commit_ts+1))
-                    session.commit_transaction()
-                else:
-                    session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
-            cursor.close()
-        except WiredTigerError as e:
-            rollback_str = wiredtiger_strerror(WT_ROLLBACK)
-            if rollback_str in str(e):
-                session.rollback_transaction()
-            raise(e)
-
-    def check(self, check_value, uri, nrows, flcs_extrarows, read_ts):
-        # In FLCS, deleted values read back as 0, and (at least for now) uncommitted appends
-        # cause zeros to appear under them. If flcs_extrarows isn't None, expect that many
-        # rows of zeros following the regular data.
-        flcs_tolerance = False
-
-        session = self.session
-        if read_ts == 0:
-            session.begin_transaction()
-        else:
-            session.begin_transaction('read_timestamp=' + self.timestamp_str(read_ts))
         cursor = session.open_cursor(uri)
-        count = 0
-        for k, v in cursor:
-            if flcs_tolerance and count >= nrows:
-                self.assertEqual(v, 0)
-            else:
-                self.assertEqual(v, check_value)
-            count += 1
-        session.commit_transaction()
-        self.assertEqual(count, nrows + flcs_extrarows if flcs_tolerance else nrows)
+        for i in range(1, nrows + 1):
+            session.begin_transaction()
+            cursor[ds.key(i)] = value
+            session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(commit_ts-1))
+            session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
+            session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(commit_ts+1))
+            session.commit_transaction()
         cursor.close()
 
-    # test_rollback_to_stable06 and 14
+    def walk_at_ts(self, check_value, uri, read_ts):
+        session = self.session
+        session.begin_transaction()
+        cursor = session.open_cursor(uri)
+        for k, v in cursor:
+            pass
+        session.commit_transaction()
+        cursor.close()
+
     def test_verbose_level_3(self):
         nrows = 1000
 
@@ -148,53 +119,25 @@ class test_verbose04(test_verbose_base):
             key_format='i', value_format='S', config=ds_config)
         ds.populate()
 
-        # value_a = "aaaaa" * 100
-        value_b = "bbbbb" * 100
-        value_c = "ccccc" * 100
-        value_d = "ddddd" * 100
+        value = "aaaaa" * 100
 
         # Pin oldest and stable to timestamp 10.
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +
-            ',stable_timestamp=' + self.timestamp_str(10))
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
 
         # Perform several updates.
-        self.large_updates(uri, value_a, ds, nrows, True, 20)
-        self.large_updates(uri, value_b, ds, nrows, True, 30)
-        self.large_updates(uri, value_c, ds, nrows, True, 40)
-        self.large_updates(uri, value_d, ds, nrows, True, 50)
+        self.fake_updates_at_ts(uri, value, ds, nrows, 20)
+        self.fake_updates_at_ts(uri, value, ds, nrows, 30)
+        self.fake_updates_at_ts(uri, value, ds, nrows, 40)
+        self.fake_updates_at_ts(uri, value, ds, nrows, 50)
 
         # Verify data is visible and correct.
-        self.check(value_a, uri, nrows, None, 21 if True else 20)
-        self.check(value_b, uri, nrows, None, 31 if True else 30)
-        self.check(value_c, uri, nrows, None, 41 if True else 40)
-        self.check(value_d, uri, nrows, None, 51 if True else 50)
+        self.walk_at_ts(value, uri, 21)
+        self.walk_at_ts(value, uri, 31)
+        self.walk_at_ts(value, uri, 41)
+        self.walk_at_ts(value, uri, 51)
 
         # Checkpoint to ensure the data is flushed, then rollback to the stable timestamp.
         self.session.checkpoint()
-        self.conn.rollback_to_stable()
-
-        # Check that all keys are removed.
-        # (For FLCS, at least for now, they will read back as 0, meaning deleted, rather
-        # than disappear.)
-        # self.check(value_a, uri, 0, nrows, 20)
-        # self.check(value_b, uri, 0, nrows, 30)
-        # self.check(value_c, uri, 0, nrows, 40)
-        # self.check(value_d, uri, 0, nrows, 50)
-
-        # stat_cursor = self.session.open_cursor('statistics:', None, None)
-        # calls = stat_cursor[stat.conn.txn_rts][2]
-        # hs_removed = stat_cursor[stat.conn.txn_rts_hs_removed][2]
-        # keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
-        # keys_restored = stat_cursor[stat.conn.txn_rts_keys_restored][2]
-        # pages_visited = stat_cursor[stat.conn.txn_rts_pages_visited][2]
-        # upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
-        # stat_cursor.close()
-
-        # self.assertEqual(calls, 1)
-        # self.assertEqual(keys_restored, 0)
-        # self.assertGreater(pages_visited, 0)
-        # self.assertGreaterEqual(keys_removed, 0)
-        # self.assertGreaterEqual(upd_aborted + hs_removed + keys_removed, nrows * 4)
 
     def test_verbose_level_4_and_5(self):
         self.close_conn()
