@@ -68,9 +68,8 @@ class test_verbose04(test_verbose_base):
         # Insert values with varying timestamps.
         self.updates(uri, value, ds, nrows, 20)
 
-        # Move the oldest and stable timestamps to 40.
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(40) +
-                                ', stable_timestamp=' + self.timestamp_str(40))
+        # Move the stable timestamp past our updates.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
 
         # Update values.
         self.updates(uri, value, ds, nrows, 60)
@@ -83,10 +82,6 @@ class test_verbose04(test_verbose_base):
         self.assertTrue('DEBUG_2' in output)
         self.cleanStdout()
 
-    def conn_config(self):
-        config = 'cache_size=50MB'
-        return config
-
     def fake_updates_at_ts(self, uri, value, ds, nrows, commit_ts):
         # Update a large number of records.
         session = self.session
@@ -94,10 +89,8 @@ class test_verbose04(test_verbose_base):
         for i in range(1, nrows + 1):
             session.begin_transaction()
             cursor[ds.key(i)] = value
-            session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(commit_ts-1))
-            session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
-            session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(commit_ts+1))
-            session.commit_transaction()
+            # session.timestamp_transaction()
+            session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
         cursor.close()
 
     def walk_at_ts(self, check_value, uri, read_ts):
@@ -110,18 +103,26 @@ class test_verbose04(test_verbose_base):
         cursor.close()
 
     def test_verbose_level_3(self):
+        self.close_conn()
+
+        self.cleanStdout()
+        verbose_config = self.create_verbose_configuration(['rts:3'])
+        conn = self.wiredtiger_open(self.home, 'cache_size=50MB,' + verbose_config)
+        session = conn.open_session()
+
+        self.conn = conn
+        self.session = session
+
         nrows = 1000
 
         # Create a table.
         uri = "table:rollback_to_stable06"
-        ds_config = ''
-        ds = SimpleDataSet(self, uri, 0,
-            key_format='i', value_format='S', config=ds_config)
+        ds = SimpleDataSet(self, uri, 0, key_format='i', value_format='S')
         ds.populate()
 
         value = "aaaaa" * 100
 
-        # Pin oldest and stable to timestamp 10.
+        # Pin the stable timestamp to 10.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
 
         # Perform several updates.
@@ -130,14 +131,20 @@ class test_verbose04(test_verbose_base):
         self.fake_updates_at_ts(uri, value, ds, nrows, 40)
         self.fake_updates_at_ts(uri, value, ds, nrows, 50)
 
-        # Verify data is visible and correct.
+        # Touch all of our data with a read timestamp > the commit timestamp.
         self.walk_at_ts(value, uri, 21)
         self.walk_at_ts(value, uri, 31)
         self.walk_at_ts(value, uri, 41)
         self.walk_at_ts(value, uri, 51)
 
-        # Checkpoint to ensure the data is flushed, then rollback to the stable timestamp.
+        # Checkpoint to ensure the data is flushed.
         self.session.checkpoint()
+        conn.close()
+
+        # Possibly a lot of output here, allow many more chars than nlines.
+        output = self.readStdout(self.nlines * 100000)
+        self.assertTrue('DEBUG_3' in output)
+        self.cleanStdout()
 
     def test_verbose_level_4_and_5(self):
         self.close_conn()
