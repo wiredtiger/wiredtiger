@@ -154,7 +154,7 @@ wt_startup(char *config_open)
 
     testutil_check(__wt_snprintf(config_buf, sizeof(config_buf),
       "create,error_prefix=\"%s\",cache_size=5MB%s%s,operation_tracking=(enabled=false),"
-      "statistics=(all),statistics_log=(json,on_close,wait=1)",
+      "statistics=(all),statistics_log=(json,on_close,wait=1),",
       progname, config_open == NULL ? "" : ",", config_open == NULL ? "" : config_open));
     testutil_check(wiredtiger_open(home, &event_handler, config_buf, &conn));
 }
