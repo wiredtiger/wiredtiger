@@ -134,12 +134,12 @@ __wt_tiered_flush_work_wait(WT_SESSION_IMPL *session, uint32_t timeout)
     struct timespec now, start;
     WT_CONNECTION_IMPL *conn;
     WT_TIERED_WORK_UNIT *entry;
-    bool done, found, timed_out;
+    bool done, found;
 
     conn = S2C(session);
     __wt_epoch(session, &start);
     now = start;
-    done = found = timed_out = false;
+    done = found = false;
 
     while (!done) {
         found = false;
@@ -156,14 +156,7 @@ __wt_tiered_flush_work_wait(WT_SESSION_IMPL *session, uint32_t timeout)
             __wt_epoch(session, &now);
         }
         /* We are done if we don't find any work units or exceed the timeout. */
-        if (WT_TIMEDIFF_SEC(now, start) > timeout)
-            timed_out = true;
-        done = !found || timed_out;
-    }
-    if (timed_out) {
-        WT_ASSERT(session, !found);
-        WT_RET(__wt_msg(
-          session, "tiered_flush_work_wait: timed out after %" PRIu32 " seconds", timeout));
+        done = !found || WT_TIMEDIFF_SEC(now, start) > timeout;
     }
     return (0);
 }
