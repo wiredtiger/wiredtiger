@@ -7417,7 +7417,6 @@ typedef enum {
     WT_VERB_CHECKPOINT_PROGRESS,  /*!< Checkpoint progress messages. */
     WT_VERB_COMPACT,              /*!< Compact messages. */
     WT_VERB_COMPACT_PROGRESS,     /*!< Compact progress messages. */
-    WT_VERB_CONFIG,               /*!< Configuration string related messages. */
     WT_VERB_DEFAULT,
     WT_VERB_ERROR_RETURNS,
     WT_VERB_EVICT,                /*!< Eviction messages. */
