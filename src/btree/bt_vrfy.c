@@ -272,7 +272,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              * If the read_corrupt mode was turned on, we may have continued traversing and
              * verifying the pages of the tree despite encountering an error. Set the error.
              */
-            if (ret == 0 && vs->verify_err != 0)
+            if (vs->verify_err != 0)
                 ret = vs->verify_err;
 
             /*
@@ -605,10 +605,11 @@ celltype_err:
 
             /*
              * If configured, continue traversing through the pages of the tree even after
-             * encountering errors in the verification process.
+             * encountering errors reading in the page.
              */
-            if (vs->read_corrupt) {
-                vs->verify_err = ret;
+            if (vs->read_corrupt && ret != 0) {
+                if (vs->verify_err == 0)
+                    vs->verify_err = ret;
                 vs->corrupt_pages++;
                 continue;
             } else
@@ -646,10 +647,11 @@ celltype_err:
 
             /*
              * If configured, continue traversing through the pages of the tree even after
-             * encountering errors in the verification process.
+             * encountering errors reading in the page.
              */
-            if (vs->read_corrupt) {
-                vs->verify_err = ret;
+            if (vs->read_corrupt && ret != 0) {
+                if (vs->verify_err == 0)
+                    vs->verify_err = ret;
                 vs->corrupt_pages++;
                 continue;
             } else

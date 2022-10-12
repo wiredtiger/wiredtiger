@@ -1595,7 +1595,7 @@ methods = {
         type='boolean'),
     Config('read_corrupt', 'false', r'''
         A mode that allows verify to continue reading after encountering a checksum error. It
-        will skip past the corrupt block and continue with the verification process.''',
+        will skip past the corrupt block and continue with the verification process''',
         type='boolean'),
     Config('stable_timestamp', 'false', r'''
         Ensure that no data has a start timestamp after the stable timestamp, to be run after
