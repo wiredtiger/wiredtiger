@@ -1204,6 +1204,18 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
     cfg = NULL;
     cbt = (WT_CURSOR_BTREE *)cursor;
     exact = 0;
+
+    /*
+     * Our API defines "inclusive" as true by default, it also defines "set" as the default action.
+     * This means we can't expect the user to have provided those configurations via the config
+     * string. Normally WiredTiger merges the user provided configuration with the default
+     * configuration, for performance reasons we are skipping this step. As such we need to handle
+     * the cases where the user did and didn't provide the config making up the difference for the
+     * defaults.
+     *
+     * These two booleans provide a mechanism to handle the user not providing the configuration and
+     * still being able to parse it.
+     */
     inclusive = true;
     have_action = false;
 
@@ -1229,11 +1241,9 @@ __wt_cursor_bound(WT_CURSOR *cursor, const char *config)
         /* The cursor must have a key set to place the lower or upper bound. */
         WT_ERR(__cursor_checkkey(cursor));
 
-        if (CONFIG_VALUE_FOR(config, "inclusive", cfg) != NULL) {
-            /* Inclusive is true by default. */
-            if (!WT_PREFIX_MATCH(cfg, "true"))
-                inclusive = false;
-        }
+        /* Inclusive is true by default. */
+        if (CONFIG_VALUE_FOR(config, "inclusive", cfg) != NULL && !WT_PREFIX_MATCH(cfg, "true"))
+            inclusive = false;
 
         if (CONFIG_VALUE_FOR(config, "bound", cfg) == NULL)
             WT_ERR_MSG(session, EINVAL,

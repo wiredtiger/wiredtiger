@@ -609,6 +609,7 @@ bm
 bnd
 bool
 boolean
+booleans
 br
 breakpoint
 bs
