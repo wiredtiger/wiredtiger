@@ -203,6 +203,13 @@ __curindex_reset(WT_CURSOR *cursor)
         WT_TRET((*cp)->reset(*cp));
     }
 
+    /*
+     * The bounded cursor API clears bounds on external calls to cursor->reset. We determine this by
+     * guarding the call to cursor bound reset with the API_USER_ENTRY macro. Doing so prevents
+     * internal API calls from resetting cursor bounds unintentionally, e.g. cursor->remove.
+     */
+    if (API_USER_ENTRY(session))
+        __wt_cursor_bound_reset(cindex->child);
 err:
     API_END_RET(session, ret);
 }
@@ -355,31 +362,26 @@ err:
 static int
 __curindex_bound(WT_CURSOR *cursor, const char *config)
 {
-    WT_CURSOR **cp;
+    WT_CONFIG_ITEM cval;
     WT_CURSOR *child;
     WT_CURSOR_INDEX *cindex;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    u_int i;
 
     cindex = (WT_CURSOR_INDEX *)cursor;
-    JOINABLE_CURSOR_API_CALL(cursor, session, bound, NULL);
-    /* Grab the primary cursor and call bound function. */
     child = cindex->child;
+    JOINABLE_CURSOR_API_CALL_CONF(cursor, session, bound, config, cfg, NULL);
+    WT_ERR(__wt_config_gets(session, cfg, "action", &cval));
 
-    /* Set the child key if the public cursor has a key set. */
-    if (F_ISSET(cursor, WT_CURSTD_KEY_SET))
+    /* When setting bounds, we need to check that the key is set. */
+    if (WT_STRING_MATCH("set", cval.str, cval.len)) {
+        WT_ERR(__cursor_checkkey(cursor));
+
+        /* Point the public cursor to the key in the child. */
         __wt_cursor_set_raw_key(child, &cursor->key);
-    
-    /* Apply bounds on the child and to all of the column groups. */
-    WT_ERR(child->bound(child, config));
-    for (i = 0, cp = cindex->cg_cursors; i < WT_COLGROUPS(cindex->table); i++, cp++) {
-        if (*cp == NULL)    
-            continue;
-        if (F_ISSET(cursor, WT_CURSTD_KEY_SET))
-            __wt_cursor_set_raw_key((*cp), &cursor->key);
-        WT_ERR((*cp)->bound(*cp, config));
     }
+
+    WT_ERR(child->bound(child, config));
 err:
     API_END_RET(session, ret);
 }

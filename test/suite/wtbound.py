@@ -112,7 +112,7 @@ class bound_base(wttest.WiredTigerTestCase):
     def create_session_and_cursor(self, cursor_config=None):
         uri = self.uri + self.file_name
         create_params = 'value_format={},key_format={}'.format(self.value_format, self.key_format)
-        if self.use_colgroup:
+        if self.use_colgroup and self.use_index:
             create_params += self.gen_colgroup_create_param()
         self.session.create(uri, create_params)
 
