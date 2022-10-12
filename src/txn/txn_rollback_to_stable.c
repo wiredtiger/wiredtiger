@@ -623,7 +623,8 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
     } else {
         WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
         WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
-        __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_5, "%s", "key removed");
+        __wt_verbose_level_multi(
+          session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_5, "%s", "key removed");
     }
 
     if (rip != NULL)

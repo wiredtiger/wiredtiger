@@ -2148,13 +2148,9 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
              */
             conn->verbose[ft->flag] = WT_VERBOSE_DEBUG_1;
         else if (sval.type == WT_CONFIG_ITEM_NUM && sval.val >= WT_VERBOSE_INFO &&
-          sval.val <= WT_VERBOSE_DEBUG_5) {
+          sval.val <= WT_VERBOSE_DEBUG_5)
             conn->verbose[ft->flag] = (WT_VERBOSE_LEVEL)sval.val;
-            if (sval.val >= WT_VERBOSE_DEBUG_1) {
-                __wt_verbose_level(session, WT_VERB_CONFIG, (WT_VERBOSE_LEVEL)sval.val,
-                  "%s: foo bar baz", "up to here");
-            }
-        } else
+        else
             /*
              * We only support verbosity values in the form of positive numbers (representing
              * verbosity levels e.g. [checkpoint:1,rts:0]) and boolean expressions (e.g.
