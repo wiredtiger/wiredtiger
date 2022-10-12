@@ -27,16 +27,10 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
-from helper import simulate_crash_restart
 from test_verbose01 import test_verbose_base
+from wiredtiger import stat
 from wtdataset import SimpleDataSet
-from wtscenario import make_scenarios
-from wtthread import checkpoint_thread
-import re, threading
-import wiredtiger, wttest
-
-def mod_val(value, char, location, nbytes=1):
-    return value[0:location] + char + value[location+nbytes:]
+import wttest
 
 # test_verbose04.py
 # Verify extended debug verbose levels (WT_VERBOSE_DEBUG_2 through 5).
@@ -89,9 +83,118 @@ class test_verbose04(test_verbose_base):
         self.assertTrue('DEBUG_2' in output)
         self.cleanStdout()
 
-    # test_rollback_to_stable06,14, and 28
+    def conn_config(self):
+        config = 'cache_size=50MB,statistics=(all)'
+        return config
+
+    def large_updates(self, uri, value, ds, nrows, prepare, commit_ts):
+        # Update a large number of records.
+        session = self.session
+        try:
+            cursor = session.open_cursor(uri)
+            for i in range(1, nrows + 1):
+                if commit_ts == 0:
+                    session.begin_transaction('no_timestamp=true')
+                else:
+                    session.begin_transaction()
+                cursor[ds.key(i)] = value
+                if commit_ts == 0:
+                    session.commit_transaction()
+                elif prepare:
+                    session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(commit_ts-1))
+                    session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
+                    session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(commit_ts+1))
+                    session.commit_transaction()
+                else:
+                    session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
+            cursor.close()
+        except WiredTigerError as e:
+            rollback_str = wiredtiger_strerror(WT_ROLLBACK)
+            if rollback_str in str(e):
+                session.rollback_transaction()
+            raise(e)
+
+    def check(self, check_value, uri, nrows, flcs_extrarows, read_ts):
+        # In FLCS, deleted values read back as 0, and (at least for now) uncommitted appends
+        # cause zeros to appear under them. If flcs_extrarows isn't None, expect that many
+        # rows of zeros following the regular data.
+        flcs_tolerance = False
+
+        session = self.session
+        if read_ts == 0:
+            session.begin_transaction()
+        else:
+            session.begin_transaction('read_timestamp=' + self.timestamp_str(read_ts))
+        cursor = session.open_cursor(uri)
+        count = 0
+        for k, v in cursor:
+            if flcs_tolerance and count >= nrows:
+                self.assertEqual(v, 0)
+            else:
+                self.assertEqual(v, check_value)
+            count += 1
+        session.commit_transaction()
+        self.assertEqual(count, nrows + flcs_extrarows if flcs_tolerance else nrows)
+        cursor.close()
+
+    # test_rollback_to_stable06 and 14
     def test_verbose_level_3(self):
-        pass
+        nrows = 1000
+
+        # Create a table.
+        uri = "table:rollback_to_stable06"
+        ds_config = ''
+        ds = SimpleDataSet(self, uri, 0,
+            key_format='i', value_format='S', config=ds_config)
+        ds.populate()
+
+        # value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
+        value_c = "ccccc" * 100
+        value_d = "ddddd" * 100
+
+        # Pin oldest and stable to timestamp 10.
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +
+            ',stable_timestamp=' + self.timestamp_str(10))
+
+        # Perform several updates.
+        self.large_updates(uri, value_a, ds, nrows, True, 20)
+        self.large_updates(uri, value_b, ds, nrows, True, 30)
+        self.large_updates(uri, value_c, ds, nrows, True, 40)
+        self.large_updates(uri, value_d, ds, nrows, True, 50)
+
+        # Verify data is visible and correct.
+        self.check(value_a, uri, nrows, None, 21 if True else 20)
+        self.check(value_b, uri, nrows, None, 31 if True else 30)
+        self.check(value_c, uri, nrows, None, 41 if True else 40)
+        self.check(value_d, uri, nrows, None, 51 if True else 50)
+
+        # Checkpoint to ensure the data is flushed, then rollback to the stable timestamp.
+        self.session.checkpoint()
+        self.conn.rollback_to_stable()
+
+        # Check that all keys are removed.
+        # (For FLCS, at least for now, they will read back as 0, meaning deleted, rather
+        # than disappear.)
+        # self.check(value_a, uri, 0, nrows, 20)
+        # self.check(value_b, uri, 0, nrows, 30)
+        # self.check(value_c, uri, 0, nrows, 40)
+        # self.check(value_d, uri, 0, nrows, 50)
+
+        # stat_cursor = self.session.open_cursor('statistics:', None, None)
+        # calls = stat_cursor[stat.conn.txn_rts][2]
+        # hs_removed = stat_cursor[stat.conn.txn_rts_hs_removed][2]
+        # keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
+        # keys_restored = stat_cursor[stat.conn.txn_rts_keys_restored][2]
+        # pages_visited = stat_cursor[stat.conn.txn_rts_pages_visited][2]
+        # upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
+        # stat_cursor.close()
+
+        # self.assertEqual(calls, 1)
+        # self.assertEqual(keys_restored, 0)
+        # self.assertGreater(pages_visited, 0)
+        # self.assertGreaterEqual(keys_removed, 0)
+        # self.assertGreaterEqual(upd_aborted + hs_removed + keys_removed, nrows * 4)
 
     def test_verbose_level_4_and_5(self):
         self.close_conn()
