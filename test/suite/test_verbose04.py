@@ -105,7 +105,7 @@ class test_verbose04(test_verbose_base):
         nrows = 1000
 
         # Create a table.
-        uri = "table:rollback_to_stable06"
+        uri = "table:test_verbose_04"
         ds = SimpleDataSet(self, uri, 0, key_format='i', value_format='S')
         ds.populate()
 
@@ -143,7 +143,7 @@ class test_verbose04(test_verbose_base):
         conn = self.wiredtiger_open(self.home, verbose_config)
         session = conn.open_session()
 
-        ckpt_uri = 'table:ckpt_table'
+        ckpt_uri = 'table:test_verbose_04'
         session.create(ckpt_uri, 'key_format=i,value_format=i,log=(enabled=false)')
         c_ckpt = session.open_cursor(ckpt_uri)
 
