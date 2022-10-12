@@ -267,21 +267,19 @@ __wt_json_alloc_unpack(WT_SESSION_IMPL *session, const void *buffer, size_t size
   WT_CURSOR_JSON *json, bool iskey, va_list ap)
 {
     WT_CONFIG_ITEM *names;
-    size_t bytes_allocated, needed;
+    size_t needed;
     char **json_bufp;
 
     if (iskey) {
         names = &json->key_names;
         json_bufp = &json->key_buf;
-        bytes_allocated = json->key_size;
     } else {
         names = &json->value_names;
         json_bufp = &json->value_buf;
-        bytes_allocated = json->value_size;
     }
     needed = 0;
     WT_RET(__json_struct_size(session, buffer, size, fmt, names, iskey, &needed));
-    WT_RET(__wt_realloc_def(session, &bytes_allocated, needed + 1, json_bufp));
+    WT_RET(__wt_realloc_noclear(session, NULL, needed + 1, json_bufp));
     WT_RET(__json_struct_unpackv(
       session, buffer, size, fmt, names, (u_char *)*json_bufp, needed + 1, iskey, ap));
 
