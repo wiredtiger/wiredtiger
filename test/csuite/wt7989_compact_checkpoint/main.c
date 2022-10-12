@@ -45,7 +45,8 @@
  * You may want to add "verbose=[compact,compact_progress]" to the connection config string to get
  * better view on what is happening.
  */
-static const char conn_config[] = "create,cache_size=2GB,statistics=(all)";
+static const char conn_config[] =
+  "create,cache_size=2GB,statistics=(all),statistics_log=(json,on_close,wait=1)";
 static const char table_config_row[] =
   "allocation_size=4KB,leaf_page_max=4KB,key_format=Q,value_format=QQQS";
 static const char table_config_col[] =
@@ -371,7 +372,8 @@ get_file_stats(WT_SESSION *session, const char *uri, uint64_t *file_sz, uint64_t
     char *descr, *str_val, stat_uri[128];
 
     sprintf(stat_uri, "statistics:%s", uri);
-    testutil_check(session->open_cursor(session, stat_uri, NULL, "statistics=(all)", &cur_stat));
+    testutil_check(session->open_cursor(session, stat_uri, NULL,
+      "statistics=(all),statistics_log=(json,on_close,wait=1)", &cur_stat));
 
     /* Get file size. */
     cur_stat->set_key(cur_stat, WT_STAT_DSRC_BLOCK_SIZE);
@@ -414,7 +416,8 @@ get_compact_progress(WT_SESSION *session, const char *uri, uint64_t *pages_revie
     char stat_uri[128];
 
     sprintf(stat_uri, "statistics:%s", uri);
-    testutil_check(session->open_cursor(session, stat_uri, NULL, "statistics=(all)", &cur_stat));
+    testutil_check(session->open_cursor(session, stat_uri, NULL,
+      "statistics=(all),statistics_log=(json,on_close,wait=1)", &cur_stat));
 
     cur_stat->set_key(cur_stat, WT_STAT_DSRC_BTREE_COMPACT_PAGES_REVIEWED);
     testutil_check(cur_stat->search(cur_stat));
