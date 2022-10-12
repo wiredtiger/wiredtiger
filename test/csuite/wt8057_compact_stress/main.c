@@ -473,8 +473,7 @@ get_file_stats(WT_SESSION *session, const char *uri, uint64_t *file_sz, uint64_t
     char *descr, stat_uri[128], *str_val;
 
     testutil_check(__wt_snprintf(stat_uri, sizeof(stat_uri), "statistics:%s", uri));
-    testutil_check(session->open_cursor(session, stat_uri, NULL,
-      "statistics=(all),statistics_log=(json,on_close,wait=1)", &cur_stat));
+    testutil_check(session->open_cursor(session, stat_uri, NULL, "statistics=(all)", &cur_stat));
 
     /* Get file size. */
     cur_stat->set_key(cur_stat, WT_STAT_DSRC_BLOCK_SIZE);

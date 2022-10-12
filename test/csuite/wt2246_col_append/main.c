@@ -104,7 +104,7 @@ main(int argc, char *argv[])
     wt_thread_t idlist[100];
     clock_t ce, cs;
     uint64_t i, id;
-    char buf[100];
+    char buf[256];
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
