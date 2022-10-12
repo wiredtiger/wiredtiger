@@ -524,8 +524,7 @@ get_compact_progress(WT_SESSION *session, const char *uri, uint64_t *pages_revie
     char *descr, *str_val, stat_uri[128];
 
     testutil_check(__wt_snprintf(stat_uri, sizeof(stat_uri), "statistics:%s", uri));
-    testutil_check(session->open_cursor(session, stat_uri, NULL,
-      "statistics=(all),statistics_log=(json,on_close,wait=1)", &cur_stat));
+    testutil_check(session->open_cursor(session, stat_uri, NULL, "statistics=(all)", &cur_stat));
 
     cur_stat->set_key(cur_stat, WT_STAT_DSRC_BTREE_COMPACT_PAGES_REVIEWED);
     testutil_check(cur_stat->search(cur_stat));

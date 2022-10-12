@@ -67,7 +67,7 @@ main(int argc, char *argv[])
 
     testutil_make_work_dir(opts->home);
     testutil_check(wiredtiger_open(opts->home, NULL,
-      "create,session_max=1000,statistics=(all)statistics_log=(json,on_close,wait=1)",
+      "create,session_max=1000,statistics=(all),statistics_log=(json,on_close,wait=1)",
       &opts->conn));
 
     testutil_check(__wt_rwlock_init(NULL, &rwlock));
