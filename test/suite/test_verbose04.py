@@ -28,7 +28,6 @@
 #
 
 from test_verbose01 import test_verbose_base
-from wiredtiger import stat
 from wtdataset import SimpleDataSet
 import wttest
 
