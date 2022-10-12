@@ -53,59 +53,75 @@ class test_verbose04(test_verbose_base):
     def test_verbose_level_2(self):
         self.close_conn()
 
-        with self.expect_verbose(['rts:5'], ['DEBUG_1', 'DEBUG_2'], False) as conn:
-            self.conn = conn
-            self.session = self.conn.open_session()
+        self.cleanStdout()
+        verbose_config = self.create_verbose_configuration(['rts:2'])
+        conn = self.wiredtiger_open(self.home, verbose_config)
+        session = conn.open_session()
 
-            uri = "table:test_verbose04"
-            create_params = 'key_format=i,value_format=S'
-            self.session.create(uri, create_params)
+        self.conn = conn
+        self.session = session
 
-            ds = SimpleDataSet(self, uri, 0, key_format='i', value_format="S")
-            ds.populate()
+        uri = "table:test_verbose04"
+        create_params = 'key_format=i,value_format=S'
+        session.create(uri, create_params)
 
-            nrows = 1000
-            value = 'x' * 1000
+        ds = SimpleDataSet(self, uri, 0, key_format='i', value_format="S")
+        ds.populate()
 
-            # Insert values with varying timestamps.
-            self.updates(uri, value, ds, nrows, 20)
+        nrows = 1000
+        value = 'x' * 1000
 
-            # Move the oldest and stable timestamps to 40.
-            self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(40) +
-                                    ', stable_timestamp=' + self.timestamp_str(40))
+        # Insert values with varying timestamps.
+        self.updates(uri, value, ds, nrows, 20)
 
-            # Update values.
-            self.updates(uri, value, ds, nrows, 60)
+        # Move the oldest and stable timestamps to 40.
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(40) +
+                                ', stable_timestamp=' + self.timestamp_str(40))
 
-            # Perform a checkpoint.
-            self.session.checkpoint('use_timestamp=true')
+        # Update values.
+        self.updates(uri, value, ds, nrows, 60)
+
+        # Perform a checkpoint and close the connection.
+        self.session.checkpoint('use_timestamp=true')
+        conn.close()
+
+        output = self.readStdout(self.nlines)
+        self.assertTrue('DEBUG_2' in output)
+        self.cleanStdout()
 
     # test_rollback_to_stable06,14, and 28
     def test_verbose_level_3(self):
         pass
 
-    def test_verbose_level_4(self):
-        # test_compat01.test_reconfig looks good here
-        # test_checkpoint_snapshot02
-        # test_hs06.test_hs_reads
-        # test_truncate10
-        pass
+    def test_verbose_level_4_and_5(self):
+        self.close_conn()
 
-    def test_verbose_level_5(self):
+        self.cleanStdout()
+        verbose_config = self.create_verbose_configuration(['recovery:5'])
+        conn = self.wiredtiger_open(self.home, verbose_config)
+        session = conn.open_session()
+
         ckpt_uri = 'table:ckpt_table'
-        self.session.create(ckpt_uri, 'key_format=i,value_format=i,log=(enabled=false)')
-        c_ckpt = self.session.open_cursor(ckpt_uri)
+        session.create(ckpt_uri, 'key_format=i,value_format=i,log=(enabled=false)')
+        c_ckpt = session.open_cursor(ckpt_uri)
 
-        # Add some data
-        self.session.begin_transaction()
+        # Add some data.
+        session.begin_transaction()
         c_ckpt[1] = 1
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
+        session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
 
-        # Set the stable timestamp past the end.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(9))
+        # Set the stable timestamp before the data.
+        conn.set_timestamp('stable_timestamp=' + self.timestamp_str(9))
 
-        # Run RTS.
-        self.reopen_conn()
+        # Run recovery.
+        conn.close()
+        conn = self.wiredtiger_open(self.home, verbose_config)
+
+        output = self.readStdout(self.nlines)
+        self.assertTrue('DEBUG_4' in output)
+        self.assertTrue('DEBUG_5' in output)
+        conn.close()
+        self.cleanStdout()
 
 if __name__ == '__main__':
     wttest.run()

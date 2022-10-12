@@ -459,7 +459,7 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
                 WT_ERR(__wt_buf_set(session, full_value, hs_value->data, hs_value->size));
             }
         } else
-            __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+            __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
               "history store update more recent than on-disk update with time window: %s and type: "
               "%" PRIu8,
               __wt_time_window_to_string(hs_tw, tw_string), type);
