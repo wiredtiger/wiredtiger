@@ -111,67 +111,6 @@ class test_verbose02(test_verbose_base):
                 c['multiple'] = 'multiple'
                 c.close()
 
-    # Test multiple levels specified for a single category.
-    def test_verbose_repeated(self):
-        self.close_conn()
-
-        with self.expect_verbose(['config:1,config:1'], ['DEBUG_1'], self.is_json) as conn:
-            uri = 'table:test_verbose02_repeated'
-            session = conn.open_session()
-            session.create(uri, self.collection_cfg)
-            c = session.open_cursor(uri)
-            c['repeated'] = 'repeated'
-            c.close()
-
-        # The right-most setting should apply when verbose entries are repeated..
-        with self.expect_verbose(['config:0,config:1'], ['DEBUG_1'], self.is_json) as conn:
-            uri = 'table:test_verbose02_repeated'
-            session = conn.open_session()
-            session.create(uri, self.collection_cfg)
-            c = session.open_cursor(uri)
-            c['repeated'] = 'repeated'
-            c.close()
-
-        with self.expect_verbose(['config:1,config:0'], ['DEBUG_1'], self.is_json, False) as conn:
-            uri = 'table:test_verbose02_repeated'
-            session = conn.open_session()
-            session.create(uri, self.collection_cfg)
-            c = session.open_cursor(uri)
-            c['repeated'] = 'repeated'
-            c.close()
-
-        with self.expect_verbose(['config:2,config:2'], ['DEBUG_1', 'DEBUG_2'], self.is_json) as conn:
-            uri = 'table:test_verbose02_repeated'
-            session = conn.open_session()
-            session.create(uri, self.collection_cfg)
-            c = session.open_cursor(uri)
-            c['repeated'] = 'repeated'
-            c.close()
-
-        with self.expect_verbose(['config:1,config:2'], ['DEBUG_1', 'DEBUG_2'], self.is_json) as conn:
-            uri = 'table:test_verbose02_repeated'
-            session = conn.open_session()
-            session.create(uri, self.collection_cfg)
-            c = session.open_cursor(uri)
-            c['repeated'] = 'repeated'
-            c.close()
-
-        with self.expect_verbose(['config:-1,config:5'], ['DEBUG_1', 'DEBUG_5'], self.is_json) as conn:
-            uri = 'table:test_verbose02_repeated'
-            session = conn.open_session()
-            session.create(uri, self.collection_cfg)
-            c = session.open_cursor(uri)
-            c['repeated'] = 'repeated'
-            c.close()
-
-        with self.expect_verbose(['config:5,config:0'], [], self.is_json, False) as conn:
-            uri = 'table:test_verbose02_repeated'
-            session = conn.open_session()
-            session.create(uri, self.collection_cfg)
-            c = session.open_cursor(uri)
-            c['repeated'] = 'repeated'
-            c.close()
-
     # Test use cases passing invalid verbosity levels, ensuring the appropriate error message is
     # raised.
     def test_verbose_level_invalid(self):
