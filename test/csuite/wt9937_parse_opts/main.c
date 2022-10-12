@@ -38,7 +38,7 @@
  * These command lines and expected TEST_OPTS appear as the first entries in the driver array below.
  *
  * In the second part of the test, we want to parse additional options. Many test programs need some
- * of options from the fixed set provided by the testutil_parse_opts function, but perhaps needs
+ * options from the fixed set provided by the testutil_parse_opts function, but perhaps need
  * additional options. We have in mind a fictional test program that wants to use the standard
  * testutil parsing for options 'b', 'P', 'T', and 'v', and has added its own options: 'c', 'd',
  * 'e', and 'f', which it stores in a struct below called FICTIONAL_OPTS. Note that its 'd' option
@@ -52,8 +52,8 @@ extern int __wt_optind;   /* argv position, needed to reset __wt_getopt parser *
 extern int __wt_optreset; /* needed to reset the parser internal state */
 
 /*
- * This structure aids in testing testutil_parse_opt. The options here only have meaning to our
- * fictional test program.
+ * This structure aids in testing testutil_parse_single_opt. The options here only have meaning to
+ * our fictional test program.
  */
 typedef struct {
     char *checkpoint_name; /* -c option, takes a string argument */
@@ -65,8 +65,9 @@ typedef struct {
 /*
  * This drives the testing. For each given command_line, there is a matching expected TEST_OPTS
  * structure. When argv[0] is "parse_opts", we are driving testutil_parse_opts. If argv[0] is
- * "parse_opt", then we are parsing some of our "own" options, put into an FICTIONAL_OPTS struct,
- * and using testutil_parse_opt to parse any we don't recognize, those are put into TEST_OPTS.
+ * "parse_single_opt", then we are parsing some of our "own" options, put into an FICTIONAL_OPTS
+ * struct, and using testutil_parse_single_opt to parse any we don't recognize, those are put into
+ * TEST_OPTS.
  */
 typedef struct {
     const char *command_line[10];
@@ -83,31 +84,32 @@ typedef struct {
  *  - our set of "fictional" arguments.
  *
  */
+#define UNUSED_OPTS 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 static TEST_DRIVER driver[] = {
   {{"parse_opts", "-b", "builddir", "-T", "21", NULL},
     {NULL, NULL, {0}, NULL, (char *)"builddir", NULL, 0, NULL, NULL, false, false, false, false, 0,
-      0, 21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+      0, 21, UNUSED_OPTS},
     {NULL, 0, 0, 0}},
 
   {{"parse_opts", "-bbuilddir", "-T21", NULL},
     {NULL, NULL, {0}, NULL, (char *)"builddir", NULL, 0, NULL, NULL, false, false, false, false, 0,
-      0, 21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+      0, 21, UNUSED_OPTS},
     {NULL, 0, 0, 0}},
 
   /* If -PT is used, the tiered_storage source is set to dir_store, even if -Po is not used. */
   {{"parse_opts", "-v", "-PT", NULL},
     {NULL, NULL, {0}, NULL, NULL, (char *)"dir_store", 0, NULL, NULL, false, false, true, true, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+      0, 0, UNUSED_OPTS},
     {NULL, 0, 0, 0}},
 
   {{"parse_opts", "-v", "-Po", "my_store", "-PT", NULL},
     {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+      0, UNUSED_OPTS},
     {NULL, 0, 0, 0}},
 
   {{"parse_opts", "-vPomy_store", "-PT", NULL},
     {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+      0, UNUSED_OPTS},
     {NULL, 0, 0, 0}},
 
   /*
@@ -116,27 +118,27 @@ static TEST_DRIVER driver[] = {
    */
   {{"parse_single_opt", "-vd", "-Pomy_store", "-c", "string_opt", "-PT", NULL},
     {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+      0, UNUSED_OPTS},
     {(char *)"string_opt", true, false, 0}},
 
   {{"parse_single_opt", "-dv", "-Pomy_store", "-cstring_opt", "-PT", NULL},
     {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+      0, UNUSED_OPTS},
     {(char *)"string_opt", true, false, 0}},
 
   {{"parse_single_opt", "-ev", "-cstring_opt", "-Pomy_store", "-PT", "-f", "22", NULL},
     {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+      0, UNUSED_OPTS},
     {(char *)"string_opt", false, true, 22}},
 
   {{"parse_single_opt", "-evd", "-Pomy_store", "-PT", "-f22", NULL},
     {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+      0, UNUSED_OPTS},
     {NULL, true, true, 22}},
 
   {{"parse_single_opt", "-v", "-Pomy_store", "-PT", NULL},
     {NULL, NULL, {0}, NULL, NULL, (char *)"my_store", 0, NULL, NULL, false, false, true, true, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+      0, UNUSED_OPTS},
     {NULL, false, false, 0}},
 };
 
@@ -180,7 +182,8 @@ report(const TEST_OPTS *opts, FICTIONAL_OPTS *fiction_opts)
 
 /*
  * check --
- *     Call testutil_parse_opts and return options.
+ *     Call testutil_parse_opts or use extended parsing with testutil_parse_single_opt and return
+ *     options.
  */
 static void
 check(int argc, char *const *argv, TEST_OPTS *opts, FICTIONAL_OPTS *fiction_opts)
@@ -207,7 +210,7 @@ check(int argc, char *const *argv, TEST_OPTS *opts, FICTIONAL_OPTS *fiction_opts
     } else {
         /*
          * Test of extended parsing, in which we'll parse some options that we know about and rely
-         * on testutil_parse_opt to cover the options it knows about.
+         * on testutil_parse_single_opt to cover the options it knows about.
          */
         testutil_assert(strcmp(prog, "parse_single_opt") == 0);
 
@@ -324,7 +327,7 @@ main(int argc, char *argv[])
     if (argc > 1) {
         /*
          * The first arg must be --parse_opt or --parse_single_opt, we'll make argv[0] point to
-         * "parse_opt" or "parse_single_opt" so our "check" parser knows what kind of parsing to be
+         * "parse_opts" or "parse_single_opt" so our "check" parser knows what kind of parsing to be
          * done. This path is not used by test scripts, but can be useful for manual testing.
          */
         if (strcmp(argv[1], "--parse_opts") != 0 && strcmp(argv[1], "--parse_single_opt") != 0) {
