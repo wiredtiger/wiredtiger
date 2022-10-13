@@ -183,6 +183,12 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.verify('table:' + self.tablename, "read_corrupt"),
             "/WT_SESSION.verify/")
+
+        # It is expected that more than one checksum error is logged given
+        # that we have corrupted the table in multiple locations, but we may
+        # not necessarily detect all three corruptions - e.g. we won't detect
+        # a corruption if we overwrite free space or overwrite a page that is
+        # a child of another page that we overwrite.
         self.assertGreater(self.count_file_contains("stderr.txt",
             "calculated block checksum doesn't match expected checksum"), 1)
 
@@ -242,6 +248,12 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
             errfilename="verifyerr.out", failure=True)
 
         self.check_non_empty_file("verifyerr.out")
+
+        # It is expected that more than one checksum error is logged given
+        # that we have corrupted the table in multiple locations, but we may
+        # not necessarily detect all three corruptions - e.g. we won't detect
+        # a corruption if we overwrite free space or overwrite a page that is
+        # a child of another page that we overwrite.
         self.assertGreater(self.count_file_contains("verifyerr.out",
             "calculated block checksum doesn't match expected checksum"), 1)
 
