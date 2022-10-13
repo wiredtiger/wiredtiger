@@ -16,11 +16,10 @@ static int
 usage(void)
 {
     static const char *options[] = {"-d config",
-      "display underlying information during verification",
-      "-c"
-      "continue to the next page after encountering error during verification",
-      "-s", "verify against the specified timestamp", "-t",
-      "do not clear txn ids during verification", NULL, NULL};
+      "display underlying information during verification", "-c",
+      "continue to the next page after encountering error during verification", "-s",
+      "verify against the specified timestamp", "-t", "do not clear txn ids during verification",
+      NULL, NULL};
 
     util_usage(
       "verify [-s] [-t] [-c] [-d dump_address | dump_blocks | dump_layout | dump_offsets=#,# | "
