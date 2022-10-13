@@ -3370,6 +3370,21 @@ tasks:
         vars:
           perf-test-name: modify-force-update-large-record-btree.wtperf
 
+  - name: perf-test-mongodb-oplog
+    tags: ["btree-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: mongodb-oplog.wtperf
+          maxruns: 3
+          wtarg: -ops ['"load", "insert", "truncate"']
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: mongodb-oplog.wtperf
+
     #########################################
     # Performance Tests for perf-checkpoint #
     #########################################
