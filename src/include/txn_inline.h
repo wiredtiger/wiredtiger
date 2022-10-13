@@ -264,8 +264,10 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
     page_del = ref->page_del;
     if (page_del != NULL) {
         page_del->timestamp = ts;
-        if (commit)
+        if (commit) {
             page_del->durable_timestamp = txn->durable_timestamp;
+            page_del->committed = true;
+        }
         WT_PUBLISH(page_del->prepare_state, prepare_state);
     }
 
