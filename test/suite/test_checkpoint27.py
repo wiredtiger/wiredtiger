@@ -95,8 +95,6 @@ class test_checkpoint27(wttest.WiredTigerTestCase):
             self.session.create(temp_uri, 'key_format={},value_format={}'.format(self.key_format, self.value_format))
             self.large_updates(temp_uri, value_a, ds, 1, 60)
 
-        self.session.checkpoint()
-
         # Open a checkpoint cursor and walk the first table
         self.session.create(stable_uri, 'key_format={},value_format={}'.format(self.key_format, self.value_format))
         cursor = self.session.open_cursor(stable_uri, None, 'checkpoint=WiredTigerCheckpoint')
