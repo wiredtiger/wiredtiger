@@ -387,7 +387,7 @@ inclusion of bounds, such that an early exit is made possible once the current k
 cursor->search_near with a key outside the range will always return a key within the range unless no keys are present.
 
 Clearing the bounds can be done through resetting the cursor with cursor->reset or by passing a clear config to the bounds API call.
-The config can be set to specify clearing lower, upper, or both bounds.
+This will unconditionally clear both bounds.
 
 Example API usage with cursor traversal:
 
