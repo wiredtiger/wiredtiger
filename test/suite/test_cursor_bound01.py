@@ -105,10 +105,8 @@ class test_cursor_bound01(bound_base):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=clear,inclusive=false"),
             '/Invalid argument/')
 
-        # Check that clear with bound configuration works properly.
+        # Check that clear works properly.
         cursor.bound("action=clear")
-        cursor.bound("action=clear,bound=lower")
-        cursor.bound("action=clear,bound=upper")
 
         # Check that largest key doesn't work with bounded cursors.
         cursor.set_key(self.gen_key(1))
