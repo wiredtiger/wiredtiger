@@ -161,4 +161,22 @@ that may not be modified or freed by the application.  If a longer scope
 is required, the application must make a copy of the memory before the
 cursor is re-used, closed or reset.
 
+@section cursor_bound Apply bounds to the cursor
+
+To set bounds on the range of keys a cursor can operate on, use the WT_CURSOR::bound method.
+
+```
+cursor->set_key(cursor, A)
+cursor->bound(cursor, bound=lower)
+```
+
+When setting bounds, the key you're setting does not have to exist or be visible. If there are no available keys,
+that will return WT_NOTFOUND. You can set both or either one of the lower and upper bounds.
+
+Once bounds are set, any record returned by a cursor operation adheres to the bounded range.
+For example, calling the WT_CURSOR::next method on an unpositioned bounded cursor will position it on the lower
+bound rather than the end of the key range.
+
+Using the WT_CURSOR::reset method will clear the bounds.
+
  */

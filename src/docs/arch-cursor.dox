@@ -371,6 +371,40 @@ how many references to closed data handles are freed, we may continue our walk. 
 usually strike a good balance between not having a lot of overhead for sweeps, and keeping up with
 the need to free up shared resources.
 
+@section arch_cursor_bound Bounding cursors
+
+Cursors may have bounds applied to them. This sets a start and stop key for
+the cursor to operate within, known as the lower and upper bounds.
+
+Both or either one of the lower and upper bounds can be set, and the unset bound will be assumed to be off the start or
+end of the key range accordingly. When setting the bounds, the relevant bound is set prior with cursor->set_key.
+This key does not have to exist or be visible in order for bounds setting to succeed.
+
+Cursor operations next, prev, search, and search near support bounds. When performing a traversal such as cursor->next
+or cursor->prev, the cursor will only return keys that are within the bounds that have been set. If search is called on
+a key thats not within bounds, this will result in returning a WT_NOTFOUND. cursor->search_near behaviour is optimised with the
+inclusion of bounds, such that an early exit is made possible once the current key has exceeded the bounds. Calling
+cursor->search_near with a key outside the range will always return a key within the range unless no keys are present.
+
+Clearing the bounds can be done through resetting the cursor with cursor->reset or by passing a clear config to the bounds API call.
+The config can be set to specify clearing lower, upper, or both bounds.
+
+Example API usage with cursor traversal:
+
+```
+cursor->set_key(cursor, A)
+cursor->bound(cursor, bound=lower,inclusive=false)
+cursor->next(cursor)
+```
+
+The bounds API supports these cursor types:
+- File cursor
+- Table cursor
+- Datastore cursor
+- Dump cursor
+- Index cursor
+- JSON cursor
+
 @section arch_cursor_debug_copy Debug copy
 
 When cursors are positioned, their data may point to data in the btree or data allocated in the cursor.
