@@ -1045,16 +1045,16 @@ static inline int
 __wt_txn_read(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, WT_UPDATE *upd)
 {
-    WT_DECL_RET;
     WT_TIME_WINDOW tw;
     WT_UPDATE *prepare_upd, *restored_upd;
-    bool have_stop_tw, is_ovfl_rm, ovfl_retry, prepare_retry;
+    int onpage_read_ret;
+    bool have_stop_tw, onpage_retry, prepare_retry;
 
     prepare_upd = restored_upd = NULL;
-    ovfl_retry = prepare_retry = true;
+    onpage_retry = prepare_retry = true;
 
 retry:
-    is_ovfl_rm = false;
+    onpage_read_ret = 0;
     WT_RET(__wt_txn_read_upd_list_internal(session, cbt, upd, &prepare_upd, &restored_upd));
     if (WT_UPDATE_DATA_VALUE(cbt->upd_value) ||
       (cbt->upd_value->type == WT_UPDATE_MODIFY && cbt->upd_value->skip_buf))
@@ -1083,12 +1083,14 @@ retry:
          */
         have_stop_tw = WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw);
 
-        /* Check the ondisk value. */
-        ret = __wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &tw);
-        if (ret == WT_RESTART)
-            is_ovfl_rm = true;
-        else
-            WT_RET(ret);
+        /*
+         * Check the ondisk value. Don't retry immediately here if we get a WT_RESTART error. If the
+         * onpage value is not visible to us, we will be stuck retrying as we will always get a
+         * WT_RESTART return for this call. Instead only retry after we know the onpage value is
+         * visible to us.
+         */
+        onpage_read_ret = __wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &tw);
+        WT_RET_ERROR_OK(onpage_read_ret, WT_RESTART);
 
         /*
          * If the stop time point is set, that means that there is a tombstone at that time. If it
@@ -1125,8 +1127,8 @@ retry:
             if (cbt->upd_value->skip_buf) {
                 cbt->upd_value->buf.data = NULL;
                 cbt->upd_value->buf.size = 0;
-            } else if (ovfl_retry && is_ovfl_rm) {
-                ovfl_retry = false;
+            } else if (onpage_retry && onpage_read_ret == WT_RESTART) {
+                onpage_retry = false;
                 WT_STAT_CONN_DATA_INCR(session, txn_read_race_overflow_remove);
                 /*
                  * We race with checkpoint reconciliation removing the overflow items. Retry the
@@ -1136,8 +1138,8 @@ retry:
                 goto retry;
             }
 
-            /* We should not read overflow removed after retry. */
-            WT_ASSERT(session, ovfl_retry || !is_ovfl_rm);
+            /* We should not return an overflow removed value. */
+            WT_ASSERT(session, onpage_read_ret == 0);
             cbt->upd_value->tw.durable_start_ts = tw.durable_start_ts;
             cbt->upd_value->tw.start_ts = tw.start_ts;
             cbt->upd_value->tw.start_txn = tw.start_txn;

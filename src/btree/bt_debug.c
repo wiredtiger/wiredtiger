@@ -665,9 +665,8 @@ __debug_cell_kv(
     }
     WT_RET(ds->f(ds, "\n"));
 
-    WT_RET_ERROR_OK(page == NULL ? __wt_dsk_cell_data_ref_kv(session, page_type, unpack, ds->t1) :
-                                   __wt_page_cell_data_ref_kv(session, page, unpack, ds->t1),
-      WT_RESTART);
+    WT_RET(page == NULL ? __wt_dsk_cell_data_ref_kv(session, page_type, unpack, ds->t1) :
+                          __wt_page_cell_data_ref_kv(session, page, unpack, ds->t1));
 
     /* Standard key/value cells. */
     switch (unpack->raw) {

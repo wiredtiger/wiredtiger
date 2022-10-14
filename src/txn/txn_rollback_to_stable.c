@@ -386,8 +386,7 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
       __wt_key_string(session, key->data, key->size, S2BT(session)->key_format, key_string));
 
     WT_ERR(__wt_scr_alloc(session, 0, &full_value));
-    WT_ERR_ERROR_OK(
-      __wt_page_cell_data_ref_kv(session, page, unpack, full_value), WT_RESTART, true);
+    WT_ERR(__wt_page_cell_data_ref_kv(session, page, unpack, full_value));
     /*
      * We can read overflow removed value if checkpoint has run before rollback to stable. In this
      * case, we have already appended the on page value to the update chain. At this point, we have
@@ -395,10 +394,10 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
      * have moved this value to the history store as a full value. Therefore, we can safely ignore
      * the on page value if it is overflow removed.
      */
-    if (ret == 0)
-        WT_ERR(__wt_buf_set(session, full_value, full_value->data, full_value->size));
-    else
+    if (__wt_cell_type_raw(unpack->cell) == WT_CELL_VALUE_OVFL_RM)
         ret = 0;
+    else
+        WT_ERR(__wt_buf_set(session, full_value, full_value->data, full_value->size));
 
     newer_hs_durable_ts = unpack->tw.durable_start_ts;
 

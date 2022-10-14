@@ -1281,18 +1281,13 @@ __wt_dsk_cell_data_ref_kv(
 
 /*
  * __wt_page_cell_data_ref_kv --
- *     Set a buffer to reference the data from an unpacked key value cell. If we see an overflow
- *     removed cell, we have raced with checkpoint freeing the overflow cell. Return restart for the
- *     caller to retry the read.
+ *     Set a buffer to reference the data from an unpacked key value cell.
  */
 static inline int
 __wt_page_cell_data_ref_kv(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK_KV *unpack, WT_ITEM *store)
 {
-    WT_RET(__cell_data_ref(session, page, page->type, (WT_CELL_UNPACK_COMMON *)unpack, store));
-    if (unpack->cell != NULL && __wt_cell_type_raw(unpack->cell) == WT_CELL_VALUE_OVFL_RM)
-        return (WT_RESTART);
-    return (0);
+    return (__cell_data_ref(session, page, page->type, (WT_CELL_UNPACK_COMMON *)unpack, store));
 }
 
 /*

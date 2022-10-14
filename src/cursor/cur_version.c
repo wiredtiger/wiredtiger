@@ -308,8 +308,14 @@ __curversion_next_int(WT_CURSOR *cursor)
         }
 
         /*
-         * Get the ondisk value. If we see an overflow removed value, ignore it. We shall see the
-         * same value in the history store later.
+         * Get the ondisk value. It is possible to see an overflow removed value if checkpoint has
+         * visited this page and freed the underlying overflow blocks. In this case, checkpoint
+         * reconciliation must have also appended the value to the update chain and moved it to the
+         * history store if it is not obsolete. Therefore, we should have already returned it when
+         * walking the update chain or we shall return it later when we scan the history store. If
+         * it is already obsolete, there is no need for use to return it as the version cursor only
+         * ensures to return values that are not obsolete. We can safely ignore the overflow removed
+         * value here.
          */
         WT_ERR_ERROR_OK(
           __wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &cbt->upd_value->tw),

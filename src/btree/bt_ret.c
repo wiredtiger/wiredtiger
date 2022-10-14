@@ -188,7 +188,9 @@ __wt_read_cell_time_window(WT_CURSOR_BTREE *cbt, WT_TIME_WINDOW *tw)
 
 /*
  * __wt_value_return_buf --
- *     Change a buffer to reference an internal original-page return value.
+ *     Change a buffer to reference an internal original-page return value. If we see an overflow
+ *     removed cell, we have raced with checkpoint freeing the overflow cell. Return restart for the
+ *     caller to retry the read.
  */
 int
 __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_WINDOW *tw)
@@ -227,7 +229,10 @@ __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_W
         __wt_row_leaf_value_cell(session, page, rip, &unpack);
         if (tw != NULL)
             WT_TIME_WINDOW_COPY(tw, &unpack.tw);
-        return (__wt_page_cell_data_ref_kv(session, page, &unpack, buf));
+        WT_RET(__wt_page_cell_data_ref_kv(session, page, &unpack, buf));
+        if (__wt_cell_type_raw(unpack.cell) == WT_CELL_VALUE_OVFL_RM)
+            return (WT_RESTART);
+        return (0);
 
     case WT_PAGE_COL_VAR:
         /* Take the value from the original page cell. */
@@ -235,7 +240,10 @@ __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_W
         __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
         if (tw != NULL)
             WT_TIME_WINDOW_COPY(tw, &unpack.tw);
-        return (__wt_page_cell_data_ref_kv(session, page, &unpack, buf));
+        WT_RET(__wt_page_cell_data_ref_kv(session, page, &unpack, buf));
+        if (__wt_cell_type_raw(unpack.cell) == WT_CELL_VALUE_OVFL_RM)
+            return (WT_RESTART);
+        return (0);
 
     case WT_PAGE_COL_FIX:
         /* Take the value from the original page. */
