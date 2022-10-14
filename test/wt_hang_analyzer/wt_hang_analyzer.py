@@ -614,7 +614,7 @@ def main():
         try:
             avoid_asan_dump(pid)
         except Exception as err:
-            root_logger.warning("Error encountered when removing ASAN mappings from core dump %s", err)
+            root_logger.warning("Error encountered when removing ASAN mappings from core dump: %s", err)
             # Ignore permission failures caused by processes we are not interested in
             if 'Permission denied' not in str(err):
                 trapped_exceptions.append(traceback.format_exc())
@@ -624,7 +624,7 @@ def main():
             dbg.dump_info(root_logger, process_logger, pid, process_name, options.dump_core
                           and check_dump_quota(max_dump_size_bytes, dbg.get_dump_ext()))
         except Exception as err:
-            root_logger.info("Error encountered when invoking debugger %s", err)
+            root_logger.info("Error encountered when invoking debugger: %s", err)
             trapped_exceptions.append(traceback.format_exc())
 
     root_logger.info("Done analyzing all processes for hangs")
