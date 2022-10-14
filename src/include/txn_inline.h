@@ -1045,16 +1045,15 @@ static inline int
 __wt_txn_read(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, WT_UPDATE *upd)
 {
+    WT_DECL_RET;
     WT_TIME_WINDOW tw;
     WT_UPDATE *prepare_upd, *restored_upd;
-    int onpage_read_ret;
-    bool have_stop_tw, onpage_retry, prepare_retry;
+    bool have_stop_tw, prepare_retry, read_onpage;
 
     prepare_upd = restored_upd = NULL;
-    onpage_retry = prepare_retry = true;
+    read_onpage = prepare_retry = true;
 
 retry:
-    onpage_read_ret = 0;
     WT_RET(__wt_txn_read_upd_list_internal(session, cbt, upd, &prepare_upd, &restored_upd));
     if (WT_UPDATE_DATA_VALUE(cbt->upd_value) ||
       (cbt->upd_value->type == WT_UPDATE_MODIFY && cbt->upd_value->skip_buf))
@@ -1083,69 +1082,66 @@ retry:
          */
         have_stop_tw = WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw);
 
-        /*
-         * Check the ondisk value. Don't retry immediately here if we get a WT_RESTART error. If the
-         * onpage value is not visible to us, we will be stuck retrying as we will always get a
-         * WT_RESTART return for this call. Instead only retry after we know the onpage value is
-         * visible to us.
-         */
-        onpage_read_ret = __wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &tw);
-        WT_RET_ERROR_OK(onpage_read_ret, WT_RESTART);
+        if (read_onpage) {
+            /*
+             * We may have raced with checkpoint freeing the overflow blocks. Retry from start and
+             * ignore the onpage value the next time. For pages that have remained in memory after a
+             * checkpoint, this will lead us to read every key with an overflow removed onpage value
+             * twice. However, it simplifies the logic and doesn't depend on the assumption that the
+             * cell unpacking code will always return a correct time window even it returns a
+             * WT_RESTART error.
+             */
+            ret = __wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &tw);
+            if (ret == WT_RESTART) {
+                read_onpage = false;
+                goto retry;
+            } else
+                WT_RET(ret);
 
-        /*
-         * If the stop time point is set, that means that there is a tombstone at that time. If it
-         * is not prepared and it is visible to our txn it means we've just spotted a tombstone and
-         * should return "not found", except scanning the history store during rollback to stable
-         * and when we are told to ignore non-globally visible tombstones.
-         */
-        if (!have_stop_tw && __wt_txn_tw_stop_visible(session, &tw) &&
-          !F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE)) {
-            cbt->upd_value->buf.data = NULL;
-            cbt->upd_value->buf.size = 0;
-            cbt->upd_value->tw.durable_stop_ts = tw.durable_stop_ts;
-            cbt->upd_value->tw.stop_ts = tw.stop_ts;
-            cbt->upd_value->tw.stop_txn = tw.stop_txn;
-            cbt->upd_value->tw.prepare = tw.prepare;
-            cbt->upd_value->type = WT_UPDATE_TOMBSTONE;
-            return (0);
-        }
-
-        /* Store the stop time pair of the history store record that is returning. */
-        if (!have_stop_tw && WT_TIME_WINDOW_HAS_STOP(&tw) && WT_IS_HS(session->dhandle)) {
-            cbt->upd_value->tw.durable_stop_ts = tw.durable_stop_ts;
-            cbt->upd_value->tw.stop_ts = tw.stop_ts;
-            cbt->upd_value->tw.stop_txn = tw.stop_txn;
-            cbt->upd_value->tw.prepare = tw.prepare;
-        }
-
-        /*
-         * We return the onpage value in the following cases:
-         * 1. The record is from the history store.
-         * 2. It is visible to the reader.
-         */
-        if (WT_IS_HS(session->dhandle) || __wt_txn_tw_start_visible(session, &tw)) {
-            if (cbt->upd_value->skip_buf) {
+            /*
+             * If the stop time point is set, that means that there is a tombstone at that time. If
+             * it is not prepared and it is visible to our txn it means we've just spotted a
+             * tombstone and should return "not found", except scanning the history store during
+             * rollback to stable and when we are told to ignore non-globally visible tombstones.
+             */
+            if (!have_stop_tw && __wt_txn_tw_stop_visible(session, &tw) &&
+              !F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE)) {
                 cbt->upd_value->buf.data = NULL;
                 cbt->upd_value->buf.size = 0;
-            } else if (onpage_retry && onpage_read_ret == WT_RESTART) {
-                onpage_retry = false;
-                WT_STAT_CONN_DATA_INCR(session, txn_read_race_overflow_remove);
-                /*
-                 * We race with checkpoint reconciliation removing the overflow items. Retry the
-                 * read as the value should now be appended to the update chain by checkpoint
-                 * reconciliation.
-                 */
-                goto retry;
+                cbt->upd_value->tw.durable_stop_ts = tw.durable_stop_ts;
+                cbt->upd_value->tw.stop_ts = tw.stop_ts;
+                cbt->upd_value->tw.stop_txn = tw.stop_txn;
+                cbt->upd_value->tw.prepare = tw.prepare;
+                cbt->upd_value->type = WT_UPDATE_TOMBSTONE;
+                return (0);
             }
 
-            /* We should not return an overflow removed value. */
-            WT_ASSERT(session, onpage_read_ret == 0);
-            cbt->upd_value->tw.durable_start_ts = tw.durable_start_ts;
-            cbt->upd_value->tw.start_ts = tw.start_ts;
-            cbt->upd_value->tw.start_txn = tw.start_txn;
-            cbt->upd_value->tw.prepare = tw.prepare;
-            cbt->upd_value->type = WT_UPDATE_STANDARD;
-            return (0);
+            /* Store the stop time pair of the history store record that is returning. */
+            if (!have_stop_tw && WT_TIME_WINDOW_HAS_STOP(&tw) && WT_IS_HS(session->dhandle)) {
+                cbt->upd_value->tw.durable_stop_ts = tw.durable_stop_ts;
+                cbt->upd_value->tw.stop_ts = tw.stop_ts;
+                cbt->upd_value->tw.stop_txn = tw.stop_txn;
+                cbt->upd_value->tw.prepare = tw.prepare;
+            }
+
+            /*
+             * We return the onpage value in the following cases:
+             * 1. The record is from the history store.
+             * 2. It is visible to the reader.
+             */
+            if (WT_IS_HS(session->dhandle) || __wt_txn_tw_start_visible(session, &tw)) {
+                if (cbt->upd_value->skip_buf) {
+                    cbt->upd_value->buf.data = NULL;
+                    cbt->upd_value->buf.size = 0;
+                }
+
+                cbt->upd_value->tw.durable_start_ts = tw.durable_start_ts;
+                cbt->upd_value->tw.start_ts = tw.start_ts;
+                cbt->upd_value->tw.start_txn = tw.start_txn;
+                cbt->upd_value->tw.prepare = tw.prepare;
+                cbt->upd_value->type = WT_UPDATE_STANDARD;
+                return (0);
+            }
         }
     }
 
