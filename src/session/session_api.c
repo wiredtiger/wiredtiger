@@ -1419,6 +1419,15 @@ err:
     API_END_RET(session, ret);
 }
 
+static void
+__wt_cursor_state_save_tmp(WT_CURSOR *cursor, WT_CURFILE_STATE_TMP *state)
+{
+    WT_ITEM_SET(state->key, cursor->key);
+    WT_ITEM_SET(state->value, cursor->value);
+    state->recno = cursor->recno;
+    state->flags = cursor->flags;
+}
+
 /*
  * __wt_session_range_truncate --
  *     Session handling of a range truncate.
@@ -1430,6 +1439,7 @@ __wt_session_range_truncate(
     WT_DECL_RET;
     int cmp;
     bool local_start;
+    WT_CURFILE_STATE_TMP start_orig, stop_orig;
 
     local_start = false;
     if (uri != NULL) {
@@ -1474,6 +1484,9 @@ __wt_session_range_truncate(
             WT_ERR_MSG(
               session, EINVAL, "the start cursor position is after the stop cursor position");
     }
+
+    __wt_cursor_state_save_tmp(start, &start_orig);
+    __wt_cursor_state_save_tmp(stop, &stop_orig);
 
     /*
      * Truncate does not require keys actually exist so that applications can discard parts of the
@@ -1522,7 +1535,7 @@ __wt_session_range_truncate(
             goto done;
     }
 
-    WT_ERR(__wt_schema_range_truncate(session, start, stop));
+    WT_ERR(__wt_schema_range_truncate(session, start, stop, &start_orig, &stop_orig));
 
 done:
 err:

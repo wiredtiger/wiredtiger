@@ -568,7 +568,7 @@ err:
  *     Begin truncating a range of a file.
  */
 int
-__wt_txn_truncate_log(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop)
+__wt_txn_truncate_log(WT_SESSION_IMPL *session, WT_CURFILE_STATE_TMP *start, WT_CURFILE_STATE_TMP *stop)
 {
     WT_BTREE *btree;
     WT_ITEM *item;
@@ -586,14 +586,16 @@ __wt_txn_truncate_log(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *start, WT_CURSO
         if (start != NULL) {
             op->u.truncate_row.mode = WT_TXN_TRUNC_START;
             item = &op->u.truncate_row.start;
-            WT_RET(__wt_cursor_get_raw_key(&start->iface, item));
+            item = &start->key;
+            /* WT_RET(__wt_cursor_get_raw_key(&start->iface, item)); */
             WT_RET(__wt_buf_set(session, item, item->data, item->size));
         }
         if (stop != NULL) {
             op->u.truncate_row.mode =
               (op->u.truncate_row.mode == WT_TXN_TRUNC_ALL) ? WT_TXN_TRUNC_STOP : WT_TXN_TRUNC_BOTH;
             item = &op->u.truncate_row.stop;
-            WT_RET(__wt_cursor_get_raw_key(&stop->iface, item));
+            /* WT_RET(__wt_cursor_get_raw_key(&stop->iface, item)); */
+            item = &stop->key;
             WT_RET(__wt_buf_set(session, item, item->data, item->size));
         }
     } else {
