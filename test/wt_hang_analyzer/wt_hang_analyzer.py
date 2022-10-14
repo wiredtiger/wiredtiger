@@ -40,7 +40,6 @@ Currently only supports Linux. There are two issues with the MacOS and Windows i
 """
 
 import csv, glob, itertools, logging, tempfile, traceback
-from errno import EPERM
 import os, sys, platform, subprocess, threading
 from distutils import spawn
 from io import BytesIO, TextIOWrapper
