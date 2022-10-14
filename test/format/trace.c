@@ -85,7 +85,7 @@ void
 trace_init(void)
 {
     int retain;
-    char config[100], tracedir[MAX_FORMAT_PATH * 2];
+    char config[256], tracedir[MAX_FORMAT_PATH * 2];
 
     if (!FLD_ISSET(g.trace_flags, TRACE))
         return;
