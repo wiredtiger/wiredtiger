@@ -67,12 +67,15 @@ timestamp_manager::decimal_to_hex(const uint64_t ts)
 }
 
 int
-timestamp_manager::validate_hex_value(const std::string &ts_string)
+timestamp_manager::validate_hex_value(const std::string &ts_string, const std::string ts)
 {
     /* Check that the timestamp string has valid hexadecimal characters. */
     for (auto &ch : ts_string)
         if (!std::isxdigit(ch))
-            WT_SIM_RET_MSG(EINVAL, "Illegal commit timestamp: invalid hex value.");
+            WT_SIM_RET_MSG(EINVAL, "Illegal " + ts + " passed: invalid hex value.");
+
+    if (ts_string == "0")
+        WT_SIM_RET_MSG(EINVAL, "Illegal " + ts + ": zero not permitted.");
 
     return (0);
 }
@@ -106,6 +109,7 @@ timestamp_manager::parse_config(
 /*
  * Validate both oldest and stable timestamps.
  * 1) Validation fails if Illegal timestamp value is passed (if less than or equal to 0).
+ *    This check is performed by the validate_hex_value function in this file.
  * 2) It is a no-op to set the oldest or stable timestamps behind the global
  *    values. Hence, ignore and continue validating.
  * 3) Validation fails if oldest is greater than the stable timestamp.
@@ -122,11 +126,6 @@ timestamp_manager::validate_oldest_and_stable_ts(
 
     /* If config has oldest timestamp */
     if (has_oldest) {
-        /* Cannot proceed any further, if oldest timestamp value <= 0 validation fails! */
-        if ((int64_t)new_oldest_ts <= 0)
-            WT_SIM_RET_MSG(EINVAL,
-              "Illegal timestamp value, 'oldest timestamp' : '" +
-                std::to_string((int64_t)new_oldest_ts) + "' is less than or equal to zero.");
         /* It is a no-op to set the new oldest timestamps behind the current oldest timestamp. */
         if (new_oldest_ts <= conn->get_oldest_ts())
             has_oldest = false;
@@ -134,11 +133,6 @@ timestamp_manager::validate_oldest_and_stable_ts(
 
     /* If config has stable timestamp */
     if (has_stable) {
-        /* Cannot proceed any further, if stable timestamp value <= 0 validation fails! */
-        if ((int64_t)new_stable_ts <= 0)
-            WT_SIM_RET_MSG(EINVAL,
-              "Illegal timestamp value, 'stable timestamp' : '" +
-                std::to_string((int64_t)new_stable_ts) + "' is less than or equal to zero.");
         /* It is a no-op to set the new stable timestamps behind the current stable timestamp. */
         if (new_stable_ts <= conn->get_stable_ts())
             has_stable = false;
@@ -182,6 +176,7 @@ timestamp_manager::validate_oldest_and_stable_ts(
 /*
  * Validate durable timestamp.
  * 1) Validation fails if Illegal timestamp value is passed (if less than or equal to 0).
+ *    This check is performed by the validate_hex_value function in this file.
  */
 int
 timestamp_manager::validate_durable_ts(
@@ -190,12 +185,6 @@ timestamp_manager::validate_durable_ts(
     /* If durable timestamp was not passed in the config, no validation is needed. */
     if (!has_durable)
         return (0);
-
-    /* Illegal timestamp value (if less than or equal to 0). Validation fails!  */
-    if ((int64_t)new_durable_ts <= 0)
-        WT_SIM_RET_MSG(EINVAL,
-          "Illegal timestamp value, 'durable timestamp' : '" +
-            std::to_string((int64_t)new_durable_ts) + "' is less than or equal to zero.");
 
     return (0);
 }

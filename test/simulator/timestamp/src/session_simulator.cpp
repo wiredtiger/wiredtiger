@@ -36,17 +36,23 @@
 #include "error_simulator.h"
 #include "timestamp_manager.h"
 
-session_simulator::session_simulator()
-    : _has_commit_ts(false), _ts_round_prepared(false), _ts_round_read(false), _txn_running(false),
-      _commit_ts(0), _durable_ts(0), _first_commit_ts(0), _prepare_ts(0), _read_ts(0)
-{
-}
+session_simulator::session_simulator() : _txn_running(false) {}
 
 int
 session_simulator::begin_transaction(const std::string &config)
 {
     /* Make sure that the transaction from this session isn't running. */
     assert(!_txn_running);
+
+    /* Reset timestamps */
+    _commit_ts = 0;
+    _durable_ts = 0;
+    _first_commit_ts = 0;
+    _prepare_ts = 0;
+    _read_ts = 0;
+    _has_commit_ts = false;
+    _ts_round_prepared = false;
+    _ts_round_read = false;
 
     timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
     std::map<std::string, std::string> config_map;
@@ -55,30 +61,55 @@ session_simulator::begin_transaction(const std::string &config)
 
     /* Check if the read or prepared timestamp should be rounded up. */
     auto pos = config_map.find("roundup_timestamps");
-    _ts_round_prepared = false;
-    _ts_round_read = false;
     if (pos != config_map.end()) {
         if (pos->second.find("read=true"))
             _ts_round_read = true;
         if (pos->second.find("prepared=true"))
             _ts_round_prepared = true;
-
         config_map.erase(pos);
     }
 
-    /* Set the read timestamp if it provided. */
+    /* Set and validate the read timestamp if it provided. */
     pos = config_map.find("read_timestamp");
     if (pos != config_map.end()) {
+        WT_SIM_RET(ts_manager->validate_hex_value(pos->second, "read timestamp"));
         uint64_t read_ts = ts_manager->hex_to_decimal(pos->second);
-        if (read_ts == 0)
-            WT_SIM_RET_MSG(EINVAL, "Illegal read timestamp: zero not permitted.");
-        config_map.erase(pos);
         set_read_timestamp(read_ts);
+        config_map.erase(pos);
     }
 
-    _txn_running = true;
+    /*
+     * For now, the simulator only supports roundup_timestamp and read_timestamp in the config
+     * string for begin_transaction(). Hence, we ignore ignore_prepare, isolation, name,
+     * no_timestamp, operation_timeout_ms, priority and sync.
+     */
+    pos = config_map.find("ignore_prepare");
+    if (pos != config_map.end())
+        config_map.erase(pos);
 
-    return (config_map.empty() ? 0 : EINVAL);
+    pos = config_map.find("isolation");
+    if (pos != config_map.end())
+        config_map.erase(pos);
+
+    pos = config_map.find("name");
+    if (pos != config_map.end())
+        config_map.erase(pos);
+
+    pos = config_map.find("no_timestamp");
+    if (pos != config_map.end())
+        config_map.erase(pos);
+
+    pos = config_map.find("operation_timeout_ms");
+    if (pos != config_map.end())
+        config_map.erase(pos);
+
+    /* Return an error if any config other than the ones mentioned above are passed. */
+    if (!config_map.empty())
+        return (EINVAL);
+
+    /* Transaction can run successfully if we got to this point. */
+    _txn_running = true;
+    return (0);
 }
 
 void
@@ -103,7 +134,7 @@ session_simulator::commit_transaction(const std::string &config)
 
     auto pos = config_map.find("commit_timestamp");
     if (pos != config_map.end()) {
-        WT_SIM_RET(ts_manager->validate_hex_value(pos->second));
+        WT_SIM_RET(ts_manager->validate_hex_value(pos->second, "commit timestamp"));
         uint64_t commit_ts = ts_manager->hex_to_decimal(pos->second);
         if (commit_ts == 0)
             WT_SIM_RET_MSG(EINVAL, "Illegal commit timestamp: zero not permitted.");
@@ -221,7 +252,7 @@ session_simulator::decode_timestamp_config_map(std::map<std::string, std::string
     timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
     auto pos = config_map.find("commit_timestamp");
     if (pos != config_map.end()) {
-        WT_SIM_RET(ts_manager->validate_hex_value(pos->second));
+        WT_SIM_RET(ts_manager->validate_hex_value(pos->second, "commit timestamp"));
         commit_ts = ts_manager->hex_to_decimal(pos->second);
         if (commit_ts == 0)
             WT_SIM_RET_MSG(EINVAL, "Illegal commit timestamp: zero not permitted.");
@@ -230,7 +261,7 @@ session_simulator::decode_timestamp_config_map(std::map<std::string, std::string
 
     pos = config_map.find("durable_timestamp");
     if (pos != config_map.end()) {
-        WT_SIM_RET(ts_manager->validate_hex_value(pos->second));
+        WT_SIM_RET(ts_manager->validate_hex_value(pos->second, "durable timestamp"));
         durable_ts = ts_manager->hex_to_decimal(pos->second);
         if (durable_ts == 0)
             WT_SIM_RET_MSG(EINVAL, "Illegal durable timestamp: zero not permitted.");
@@ -239,7 +270,7 @@ session_simulator::decode_timestamp_config_map(std::map<std::string, std::string
 
     pos = config_map.find("prepare_timestamp");
     if (pos != config_map.end()) {
-        WT_SIM_RET(ts_manager->validate_hex_value(pos->second));
+        WT_SIM_RET(ts_manager->validate_hex_value(pos->second, "prepare timestamp"));
         prepare_ts = ts_manager->hex_to_decimal(pos->second);
         if (prepare_ts == 0)
             WT_SIM_RET_MSG(EINVAL, "Illegal prepare timestamp: zero not permitted.");
@@ -248,7 +279,7 @@ session_simulator::decode_timestamp_config_map(std::map<std::string, std::string
 
     pos = config_map.find("read_timestamp");
     if (pos != config_map.end()) {
-        WT_SIM_RET(ts_manager->validate_hex_value(pos->second));
+        WT_SIM_RET(ts_manager->validate_hex_value(pos->second, "read timestamp"));
         read_ts = ts_manager->hex_to_decimal(pos->second);
         if (read_ts == 0)
             WT_SIM_RET_MSG(EINVAL, "Illegal read timestamp: zero not permitted.");

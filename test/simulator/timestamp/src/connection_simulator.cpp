@@ -159,6 +159,7 @@ connection_simulator::decode_timestamp_config_map(std::map<std::string, std::str
     timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
     auto pos = config_map.find("oldest_timestamp");
     if (pos != config_map.end()) {
+        WT_SIM_RET(ts_manager->validate_hex_value(pos->second, "oldest timestamp"));
         new_oldest_ts = ts_manager->hex_to_decimal(pos->second);
         has_oldest = true;
         config_map.erase(pos);
@@ -166,6 +167,7 @@ connection_simulator::decode_timestamp_config_map(std::map<std::string, std::str
 
     pos = config_map.find("stable_timestamp");
     if (pos != config_map.end()) {
+        WT_SIM_RET(ts_manager->validate_hex_value(pos->second, "stable timestamp"));
         new_stable_ts = ts_manager->hex_to_decimal(pos->second);
         has_stable = true;
         config_map.erase(pos);
@@ -173,6 +175,7 @@ connection_simulator::decode_timestamp_config_map(std::map<std::string, std::str
 
     pos = config_map.find("durable_timestamp");
     if (pos != config_map.end()) {
+        WT_SIM_RET(ts_manager->validate_hex_value(pos->second, "durable timestamp"));
         new_durable_ts = ts_manager->hex_to_decimal(pos->second);
         has_durable = true;
         config_map.erase(pos);
