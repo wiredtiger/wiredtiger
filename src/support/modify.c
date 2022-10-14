@@ -496,7 +496,6 @@ retry:
          */
         if (onpage_retry && ret == WT_RESTART) {
             onpage_retry = false;
-            WT_STAT_CONN_DATA_INCR(session, txn_read_race_overflow_remove);
             goto retry;
         }
 

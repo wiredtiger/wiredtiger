@@ -230,8 +230,10 @@ __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_W
         if (tw != NULL)
             WT_TIME_WINDOW_COPY(tw, &unpack.tw);
         WT_RET(__wt_page_cell_data_ref_kv(session, page, &unpack, buf));
-        if (__wt_cell_type_raw(unpack.cell) == WT_CELL_VALUE_OVFL_RM)
+        if (__wt_cell_type_raw(unpack.cell) == WT_CELL_VALUE_OVFL_RM) {
+            WT_STAT_CONN_DATA_INCR(session, txn_read_overflow_remove);
             return (WT_RESTART);
+        }
         return (0);
 
     case WT_PAGE_COL_VAR:
@@ -241,8 +243,10 @@ __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_W
         if (tw != NULL)
             WT_TIME_WINDOW_COPY(tw, &unpack.tw);
         WT_RET(__wt_page_cell_data_ref_kv(session, page, &unpack, buf));
-        if (__wt_cell_type_raw(unpack.cell) == WT_CELL_VALUE_OVFL_RM)
+        if (__wt_cell_type_raw(unpack.cell) == WT_CELL_VALUE_OVFL_RM) {
+            WT_STAT_CONN_DATA_INCR(session, txn_read_overflow_remove);
             return (WT_RESTART);
+        }
         return (0);
 
     case WT_PAGE_COL_FIX:

@@ -6436,18 +6436,18 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_PREPARED_UPDATES_KEY_REPEATED	1485
 /*! transaction: Number of prepared updates rolled back */
 #define	WT_STAT_CONN_TXN_PREPARED_UPDATES_ROLLEDBACK	1486
+/*! transaction: number of times overflow removed value is read */
+#define	WT_STAT_CONN_TXN_READ_OVERFLOW_REMOVE		1487
 /*! transaction: prepared transactions */
-#define	WT_STAT_CONN_TXN_PREPARE			1487
+#define	WT_STAT_CONN_TXN_PREPARE			1488
 /*! transaction: prepared transactions committed */
-#define	WT_STAT_CONN_TXN_PREPARE_COMMIT			1488
+#define	WT_STAT_CONN_TXN_PREPARE_COMMIT			1489
 /*! transaction: prepared transactions currently active */
-#define	WT_STAT_CONN_TXN_PREPARE_ACTIVE			1489
+#define	WT_STAT_CONN_TXN_PREPARE_ACTIVE			1490
 /*! transaction: prepared transactions rolled back */
-#define	WT_STAT_CONN_TXN_PREPARE_ROLLBACK		1490
+#define	WT_STAT_CONN_TXN_PREPARE_ROLLBACK		1491
 /*! transaction: query timestamp calls */
-#define	WT_STAT_CONN_TXN_QUERY_TS			1491
-/*! transaction: race to read overflow value */
-#define	WT_STAT_CONN_TXN_READ_RACE_OVERFLOW_REMOVE	1492
+#define	WT_STAT_CONN_TXN_QUERY_TS			1492
 /*! transaction: race to read prepared update retry */
 #define	WT_STAT_CONN_TXN_READ_RACE_PREPARE_UPDATE	1493
 /*! transaction: rollback to stable calls */
@@ -7339,8 +7339,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TXN		2249
 /*! session: object compaction */
 #define	WT_STAT_DSRC_SESSION_COMPACT			2250
-/*! transaction: race to read overflow value */
-#define	WT_STAT_DSRC_TXN_READ_RACE_OVERFLOW_REMOVE	2251
+/*! transaction: number of times overflow removed value is read */
+#define	WT_STAT_DSRC_TXN_READ_OVERFLOW_REMOVE		2251
 /*! transaction: race to read prepared update retry */
 #define	WT_STAT_DSRC_TXN_READ_RACE_PREPARE_UPDATE	2252
 /*!
