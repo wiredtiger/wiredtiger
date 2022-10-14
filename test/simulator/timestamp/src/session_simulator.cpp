@@ -53,6 +53,7 @@ session_simulator::begin_transaction(const std::string &config)
     _has_commit_ts = false;
     _ts_round_prepared = false;
     _ts_round_read = false;
+    _prepared_txn = false;
 
     timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
     std::map<std::string, std::string> config_map;
@@ -74,7 +75,7 @@ session_simulator::begin_transaction(const std::string &config)
     if (pos != config_map.end()) {
         WT_SIM_RET(ts_manager->validate_hex_value(pos->second, "read timestamp"));
         uint64_t read_ts = ts_manager->hex_to_decimal(pos->second);
-        set_read_timestamp(read_ts);
+        WT_SIM_RET(set_read_timestamp(read_ts));
         config_map.erase(pos);
     }
 
@@ -184,9 +185,27 @@ session_simulator::get_ts_round_prepared() const
 }
 
 bool
-session_simulator::get_ts_round_read()
+session_simulator::is_round_read_ts_set() const
 {
-    return _ts_round_read;
+    return (_ts_round_read);
+}
+
+bool
+session_simulator::has_prepare_timestamp()
+{
+    return (_prepare_ts != 0);
+}
+
+bool
+session_simulator::is_txn_prepared() const
+{
+    return (_prepared_txn);
+}
+
+bool
+session_simulator::is_read_ts_set() const
+{
+    return (_read_ts != 0);
 }
 
 int
@@ -217,12 +236,6 @@ void
 session_simulator::set_prepare_timestamp(uint64_t ts)
 {
     _prepare_ts = ts;
-}
-
-bool
-session_simulator::has_prepare_timestamp()
-{
-    return _prepare_ts != 0;
 }
 
 int
