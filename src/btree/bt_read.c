@@ -380,6 +380,9 @@ read:
               !__wt_leaf_page_can_split(session, ref->page))
                 goto skip_evict;
 
+            if (F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT))
+                __wt_abort(session);
+
             /*
              * Forcibly evict pages that are too big.
              */

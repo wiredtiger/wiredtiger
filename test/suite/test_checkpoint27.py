@@ -28,6 +28,9 @@
 
 from wiredtiger import stat, wiredtiger_strerror, WiredTigerError, WT_ROLLBACK
 from wtdataset import SimpleDataSet
+from wtthread import checkpoint_thread
+import threading
+import time
 import wttest
 
 # test_checkpoint27.py
@@ -35,70 +38,110 @@ import wttest
 # We don't allow eviction if we're in a checkpoint cursor transaction, but checkpoint cursors and
 # metadata pages are both a little bit special, so test them together.
 class test_checkpoint27(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=10MB,statistics=(all)'
+    def conn_config(self):
+        return 'statistics=(all),timing_stress_for_test=[checkpoint_slow]'
 
-    def large_updates(self, uri, value, ds, nrows, commit_ts):
-        # Update a large number of records.
-        session = self.session
-        try:
-            cursor = session.open_cursor(uri)
-            for i in range(1, nrows + 1):
-                session.begin_transaction()
-                cursor[ds.key(i)] = value
-                session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
-            cursor.close()
-        except WiredTigerError as e:
-            rollback_str = wiredtiger_strerror(WT_ROLLBACK)
-            if rollback_str in str(e):
-                session.rollback_transaction()
-            raise(e)
+    def large_updates(self, uri, ds, nrows, value):
+        cursor = self.session.open_cursor(uri)
+        self.session.begin_transaction()
+        for i in range(1, nrows + 1):
+            cursor[ds.key(i)] = value
+            if i % 101 == 0:
+                self.session.commit_transaction()
+                self.session.begin_transaction()
+        self.session.commit_transaction()
+        cursor.close()
 
-    def get_stat(self, session, stat):
-        stat_cursor = session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
+    # def get_stat(self, session, stat):
+    #     stat_cursor = session.open_cursor('statistics:')
+    #     val = stat_cursor[stat][2]
+    #     stat_cursor.close()
+    #     return val
+
+    # "expected" is a list of maps from values to counts of values.
+    def check(self, ds, ckpt, expected):
+        if ckpt is None:
+            ckpt = 'WiredTigerCheckpoint'
+        cursor = self.session.open_cursor(ds.uri, None, 'checkpoint=' + ckpt)
+        seen = {}
+        for k, v in cursor:
+            if v in seen:
+                seen[v] += 1
+            else:
+                seen[v] = 1
+        self.assertTrue(seen in expected)
+        cursor.close()
 
     def test_checkpoint_evict_page(self):
         self.key_format='r'
-        self.value_format='8t'
+        self.value_format='S'
 
-        # Create a table that has a checkpoint with a lot of stable data in the history store.
-        stable_uri = "table:test_checkpoint27"
-        nrows = 50000
-        ds = SimpleDataSet(self, stable_uri, 0, key_format=self.key_format,
-                           value_format=self.value_format, config=',allocation_size=512,leaf_page_max=512')
+        uri = 'table:checkpoint27'
+        nrows = 10000
+        morerows = 10000
+
+        # Create a table.
+        ds = SimpleDataSet(
+            self, uri, 0, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
 
-        value_a = 97
-        value_b = 98
-        value_c = 99
-        value_d = 100
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
 
-        # Perform several updates.
-        self.large_updates(stable_uri, value_a, ds, nrows, 10)
-        self.large_updates(stable_uri, value_b, ds, nrows, 20)
-        self.large_updates(stable_uri, value_c, ds, nrows, 30)
-        self.large_updates(stable_uri, value_d, ds, nrows, 40)
-
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(50) +
-            ',stable_timestamp=' + self.timestamp_str(50))
-
-        # Assert that a decent chunk of stuff made it into the history store.
+        # Write some data.
+        self.large_updates(uri, ds, nrows, value_a)
+        # Write this data out now so we aren't waiting for it while trying to
+        # race with the later data.
         self.session.checkpoint()
-        hs_writes = self.get_stat(self.session, stat.conn.cache_hs_insert)
-        self.assertTrue(hs_writes > nrows / 2)
 
-        # Create a lot of tables to generate a large metadata page
+        # Write some more data, and hold the transaction open.
+        session2 = self.conn.open_session()
+        cursor2 = session2.open_cursor(uri)
+        session2.begin_transaction()
+        for i in range(nrows + 1, nrows + morerows + 1):
+            cursor2[ds.key(i)] = value_b
+
+        # Checkpoint in the background.
+        done = threading.Event()
+        ckpt = checkpoint_thread(self.conn, done)
+        try:
+            ckpt.start()
+
+            # Wait for checkpoint to start before committing.
+            ckpt_started = 0
+            while not ckpt_started:
+                stat_cursor = self.session.open_cursor('statistics:', None, None)
+                ckpt_started = stat_cursor[stat.conn.txn_checkpoint_running][2]
+                stat_cursor.close()
+                time.sleep(1)
+
+            session2.commit_transaction()
+        finally:
+            done.set()
+            ckpt.join()
+
+        # There are two states we should be able to produce: one with the original
+        # data and one with the additional data.
+        #
+        # It is ok to see either in the checkpoint (since the checkpoint could
+        # reasonably include or not include the second txn) but not ok to see
+        # an intermediate state.
+        expected_a = { value_a: nrows }
+        expected_b = { value_a: nrows, value_b: morerows }
+        expected = [expected_a, expected_b]
+
+        # Create a lot of tables to generate a large metadata page.
         for i in range(0, 2000):
             temp_uri = 'table:test_checkpoint27_' + str(i)
             self.session.create(temp_uri, 'key_format={},value_format={}'.format(self.key_format, self.value_format))
-            self.large_updates(temp_uri, value_a, ds, 1, 60)
+            self.large_updates(uri, ds, 1, value_a)
+            # if i == 1:
+            #     self.session.checkpoint()
 
-        # Open a checkpoint cursor and walk the first table
-        self.session.create(stable_uri, 'key_format={},value_format={}'.format(self.key_format, self.value_format))
-        cursor = self.session.open_cursor(stable_uri, None, 'checkpoint=WiredTigerCheckpoint')
-        count = 0
-        for k, v in cursor:
-            count += 1
-        self.assertEqual(count, nrows)
+        # Dirty the metadata page on the last table.
+        # TODO this doesn't work.
+        # self.session.checkpoint()
+
+        # Now read the checkpoint.
+        self.session.create(uri, 'key_format={},value_format={}'.format(self.key_format, self.value_format))
+        self.check(ds, None, expected)
