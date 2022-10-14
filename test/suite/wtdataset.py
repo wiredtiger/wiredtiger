@@ -83,6 +83,8 @@ class BaseDataSet(object):
             # Flush the data to tiered storage.
             if self.tier_share_value != 0 and self.tier_share_value == i:
                 self.testcase.session.checkpoint('flush_tier=(enabled,force=true)')
+            # Move the data from local cache to local disk by checkpointing and
+            # re-opening a connection.
             if self.tier_cache_value != 0 and self.tier_cache_value == i:
                 c.close()
                 self.testcase.session.checkpoint('force=true')
