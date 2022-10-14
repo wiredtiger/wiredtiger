@@ -96,12 +96,10 @@ timestamp_manager::parse_config(
 
     while (std::getline(conf, token, ',')) {
         int pos = token.find('=');
-        if (token != "(null)") {
-            if (pos == -1)
-                config_map.insert({trim(token), ""});
-            else
-                config_map.insert({trim(token.substr(0, pos)), trim(token.substr(pos + 1))});
-        }
+        if (pos == -1)
+            config_map.insert({trim(token), ""});
+        else
+            config_map.insert({trim(token.substr(0, pos)), trim(token.substr(pos + 1))});
     }
 }
 

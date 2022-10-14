@@ -95,7 +95,11 @@ call_log_manager::call_log_begin_transaction(const json &call_log_entry)
 {
     const std::string session_id = call_log_entry["session_id"].get<std::string>();
     session_simulator *session = get_session(session_id);
-    const std::string config = call_log_entry["input"]["config"].get<std::string>();
+    std::string config = call_log_entry["input"]["config"].get<std::string>();
+
+    if (config == "(null)")
+        config.clear();
+
     int ret = session->begin_transaction(config);
 
     int ret_expected = call_log_entry["return"]["return_val"].get<int>();
