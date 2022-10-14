@@ -36,13 +36,18 @@ class session_simulator {
     public:
     session_simulator();
     ~session_simulator() = default;
+
+    /* API functions */
+    public:
     int begin_transaction(const std::string &);
     void rollback_transaction();
     int commit_transaction(const std::string &);
-    int decode_timestamp_config_map(
-      std::map<std::string, std::string> &, uint64_t &, uint64_t &, uint64_t &, uint64_t &);
     int timestamp_transaction(const std::string &);
     int timestamp_transaction_uint(const std::string &, uint64_t);
+    int query_timestamp(const std::string &, std::string &, bool &);
+
+    /* Transaction relevant functions. */
+    public:
     uint64_t get_commit_timestamp() const;
     uint64_t get_durable_timestamp() const;
     uint64_t get_first_commit_timestamp() const;
@@ -51,18 +56,21 @@ class session_simulator {
     bool get_ts_round_read();
     bool get_ts_round_prepared() const;
     bool has_prepare_timestamp();
+
+    private:
+    int decode_timestamp_config_map(
+      std::map<std::string, std::string> &, uint64_t &, uint64_t &, uint64_t &, uint64_t &);
     int set_commit_timestamp(uint64_t);
     void set_durable_timestamp(uint64_t);
     void set_prepare_timestamp(uint64_t);
     int set_read_timestamp(uint64_t);
-    int query_timestamp(const std::string &, std::string &, bool &);
 
     public:
     /* Deleted functions should generally be public as it results in better error messages. */
     session_simulator(session_simulator const &) = delete;
     session_simulator &operator=(session_simulator const &) = delete;
 
-    /* Member variables */
+    /* Transaction relevant member variables */
     private:
     bool _has_commit_ts;
     bool _ts_round_prepared;
