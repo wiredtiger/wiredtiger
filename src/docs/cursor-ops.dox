@@ -163,21 +163,43 @@ cursor is re-used, closed or reset.
 
 @section cursor_bound Apply bounds to the cursor
 
-To set bounds on the range of keys a cursor can operate on, use the WT_CURSOR::bound method.
+Cursors may have bounds applied to them. This sets a start and stop key for
+the cursor to operate within, known as the lower and upper bounds.
 
 ```
 cursor->set_key(cursor, A)
 cursor->bound(cursor, bound=lower)
 ```
 
-When setting bounds, the key you're setting does not have to exist or be visible. If there are no available keys,
-that will return WT_NOTFOUND. You can set both or either one of the lower and upper bounds.
+Both or either one of the lower and upper bounds can be set, and the unset bound will be assumed to be off the start or
+end of the key range accordingly. When setting the bounds, the relevant bound is set prior with cursor->set_key.
+This key does not have to exist or be visible in order for bounds setting to succeed.
 
-Once bounds are set, any record returned by a cursor operation adheres to the bounded range.
+Cursor operations next, prev, search, and search near support bounds. When performing a traversal such as cursor->next
+or cursor->prev, the cursor will only return keys that are within the bounds that have been set. For example, calling cursor->next
+on an unpositioned range bounded cursor will position it on the lower bound rather than the end of the key range.
 
-For example, calling the WT_CURSOR::next method on an unpositioned bounded cursor will position it on the lower
-bound rather than the end of the key range.
+Example API usage with cursor traversal:
 
-Using the WT_CURSOR::reset method will clear the bounds.
+```
+cursor->set_key(cursor, A)
+cursor->bound(cursor, bound=lower,inclusive=false)
+cursor->next(cursor)
+```
+
+If search is called on a key thats not within bounds, this will result in returning a WT_NOTFOUND. cursor->search_near behaviour is optimised with the
+inclusion of bounds, such that an early exit is made possible once the current key has exceeded the bounds. Calling
+cursor->search_near with a key outside the range will always return a key within the range unless no keys are present.
+
+Clearing the bounds can be done through resetting the cursor with cursor->reset or by passing a clear config to the bounds API call.
+This will unconditionally clear both bounds.
+
+The bounds API supports these cursor types:
+- File cursor
+- Table cursor
+- Datastore cursor
+- Dump cursor
+- Index cursor
+- JSON cursor
 
  */
