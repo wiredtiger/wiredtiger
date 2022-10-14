@@ -26,6 +26,10 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
         return (false);
 
+    if (F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT))
+        __wt_abort(session);
+        /* return (true); */
+
     /*
      * It's hard to imagine a page with a huge memory footprint that has never been modified, but
      * check to be sure.
