@@ -145,14 +145,29 @@ session_simulator::commit_transaction(const std::string &config)
     if (pos != config_map.end()) {
         WT_SIM_RET(ts_manager->validate_hex_value(pos->second, "commit timestamp"));
         uint64_t commit_ts = ts_manager->hex_to_decimal(pos->second);
-        if (commit_ts == 0)
-            WT_SIM_RET_MSG(EINVAL, "Illegal commit timestamp: zero not permitted.");
-        config_map.erase(pos);
         WT_SIM_RET(set_commit_timestamp(commit_ts));
+        config_map.erase(pos);
     }
 
-    _txn_running = false;
+    pos = config_map.find("durable_timestamp");
+    if (pos != config_map.end()) {
+        config_map.erase(pos);
+    }
 
+    /*
+     * For now, the simulator only supports commit_timestamp and durable_timestamp in the config
+     * string for commit_transaction(). Hence, we ignore operation_timeout_ms and sync.
+     */
+    pos = config_map.find("operation_timeout_ms");
+    if (pos != config_map.end())
+        config_map.erase(pos);
+
+    pos = config_map.find("sync");
+    if (pos != config_map.end())
+        config_map.erase(pos);
+
+    /* Transaction can commit successfully if we got to this point. */
+    _txn_running = false;
     return (0);
 }
 

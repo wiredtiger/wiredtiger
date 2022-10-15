@@ -134,13 +134,17 @@ call_log_manager::call_log_commit_transaction(const json &call_log_entry)
 {
     const std::string session_id = call_log_entry["session_id"].get<std::string>();
     session_simulator *session = get_session(session_id);
-    const std::string config = call_log_entry["input"]["config"].get<std::string>();
+    std::string config = call_log_entry["input"]["config"].get<std::string>();
+
+    if (config == "(null)")
+        config.clear();
 
     int ret = session->commit_transaction(config);
 
     int ret_expected = call_log_entry["return"]["return_val"].get<int>();
     /* The ret value should be equal to the expected ret value. */
     assert(ret == ret_expected);
+
     if (ret != 0)
         throw "commit_transaction for session_id (" + session_id +
           ") failed with return value: " + std::to_string(ret);
