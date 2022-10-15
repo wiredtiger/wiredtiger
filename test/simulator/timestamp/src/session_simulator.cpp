@@ -42,7 +42,8 @@ int
 session_simulator::begin_transaction(const std::string &config)
 {
     /* Make sure that the transaction from this session isn't running. */
-    assert(!_txn_running);
+    if (_txn_running)
+        WT_SIM_RET_MSG(EINVAL, "'begin_transaction' not permitted in a running transaction");
 
     /* Reset timestamps */
     _commit_ts = 0;
@@ -121,20 +122,41 @@ session_simulator::begin_transaction(const std::string &config)
     return (0);
 }
 
-void
-session_simulator::rollback_transaction()
+int
+session_simulator::rollback_transaction(const std::string &config)
 {
     /* Make sure that the transaction from this session is running. */
-    assert(_txn_running);
+    if (!_txn_running)
+        WT_SIM_RET_MSG(EINVAL, "'rollback_transaction' only permitted in a running transaction");
 
+    timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
+    std::map<std::string, std::string> config_map;
+
+    ts_manager->parse_config(config, config_map);
+
+    /*
+     * For now, the simulator does not support operation_timeout_ms in the config string for
+     * rollback_transaction().
+     */
+    auto pos = config_map.find("operation_timeout_ms");
+    if (pos != config_map.end())
+        config_map.erase(pos);
+
+    /* Return an error if any config other than the ones mentioned above are passed. */
+    if (!config_map.empty())
+        return (EINVAL);
+
+    /* Transaction can rollback successfully if we got to this point. */
     _txn_running = false;
+    return (0);
 }
 
 int
 session_simulator::commit_transaction(const std::string &config)
 {
     /* Make sure that the transaction from this session is running. */
-    assert(_txn_running);
+    if (!_txn_running)
+        WT_SIM_RET_MSG(EINVAL, "'commit_transaction' only permitted in a running transaction");
 
     timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
     std::map<std::string, std::string> config_map;
@@ -175,7 +197,8 @@ int
 session_simulator::timestamp_transaction(const std::string &config)
 {
     /* Make sure that the transaction from this session is running. */
-    assert(_txn_running);
+    if (!_txn_running)
+        WT_SIM_RET_MSG(EINVAL, "'timestamp_transaction' only permitted in a running transaction");
 
     /* If no timestamp was supplied, there's nothing to do. */
     if (config.empty())
@@ -213,7 +236,9 @@ int
 session_simulator::timestamp_transaction_uint(const std::string &ts_type, uint64_t ts)
 {
     /* Make sure that the transaction from this session is running. */
-    assert(_txn_running);
+    if (!_txn_running)
+        WT_SIM_RET_MSG(
+          EINVAL, "'timestamp_transaction_uint' only permitted in a running transaction");
 
     /* Zero timestamp is not permitted. */
     if (ts == 0)
@@ -341,6 +366,7 @@ session_simulator::set_commit_timestamp(uint64_t commit_ts)
 {
     timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
     WT_SIM_RET(ts_manager->validate_commit_timestamp(this, commit_ts));
+
     if (!_has_commit_ts) {
         _first_commit_ts = commit_ts;
         _has_commit_ts = true;

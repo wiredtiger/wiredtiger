@@ -227,7 +227,20 @@ call_log_manager::call_log_rollback_transaction(const json &call_log_entry)
 {
     const std::string session_id = call_log_entry["session_id"].get<std::string>();
     session_simulator *session = get_session(session_id);
-    session->rollback_transaction();
+    std::string config = call_log_entry["input"]["config"].get<std::string>();
+
+    if (config == "(null)")
+        config.clear();
+
+    int ret = session->rollback_transaction(config);
+
+    int ret_expected = call_log_entry["return"]["return_val"].get<int>();
+    /* The ret value should be equal to the expected ret value. */
+    assert(ret == ret_expected);
+
+    if (ret != 0)
+        throw "rollback_transaction for session_id (" + session_id +
+          ") failed with return value: " + std::to_string(ret);
 }
 
 void
