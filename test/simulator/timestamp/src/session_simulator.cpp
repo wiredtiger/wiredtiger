@@ -104,6 +104,14 @@ session_simulator::begin_transaction(const std::string &config)
     if (pos != config_map.end())
         config_map.erase(pos);
 
+    pos = config_map.find("sync");
+    if (pos != config_map.end())
+        config_map.erase(pos);
+
+    pos = config_map.find("priority");
+    if (pos != config_map.end())
+        config_map.erase(pos);
+
     /* Return an error if any config other than the ones mentioned above are passed. */
     if (!config_map.empty())
         return (EINVAL);
