@@ -109,11 +109,9 @@ class GDBDumper:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-e', '--executable_path',
-                        help='path to the executable',
-                        required=True)
+                        help='path to the executable')
     parser.add_argument('-c', '--core_path',
-                        help='directory path to the core dumps',
-                        required=True)
+                        help='directory path to the core dumps')
     parser.add_argument('-l', '--lib_path', help='library path')
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('--unit_test', action='store_true', help='Format core dumps from python unit tests')
