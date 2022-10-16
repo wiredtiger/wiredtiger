@@ -110,6 +110,40 @@ class test_cursor_bound01(bound_base):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.largest_key(),
             '/Invalid argument/')
 
+        # Check edge cases with bounds config
+        cursor.set_key(self.gen_key(1))
+        # Setting the bound without providing an action works.
+        self.assertEqual(cursor.bound("bound=lower"), 0)
+        cursor.reset()
+
+        cursor.set_key(self.gen_key(1))
+        # Setting an action without a bound won't work.
+        self.assertEqual(cursor.bound("action=set"), 0)
+        cursor.reset()
+
+        cursor.set_key(self.gen_key(1))
+        # Giving a longer config string works, WT_PREFIX_MATCH will accept it.
+        self.assertEqual(cursor.bound("action=setting, bound=lower"), 0)
+        cursor.reset()
+
+        cursor.set_key(self.gen_key(1))
+        cursor.bound("action=set,bound=lower")
+        # Giving a longer config string works, WT_PREFIX_MATCH will accept it.
+        self.assertEqual(cursor.bound("action=clearing"), 0)
+        cursor.reset()
+
+        cursor.set_key(self.gen_key(1))
+        cursor.bound("action=set,bound=lower")
+        # Giving an invalid action like "dump" won't work.
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=dump"),
+            '/Invalid argument/')
+        cursor.reset()
+
+        cursor.set_key(self.gen_key(1))
+        # Giving a substring of the config string will not work.
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=cl"),
+            '/Invalid argument/')
+
         # Check that setting bounds doesn't work with random cursors. Turn it off with column store as column
         # store doesn't support the next_random config.
         if (self.key_format != 'r'):
