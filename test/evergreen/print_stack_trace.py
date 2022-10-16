@@ -113,22 +113,16 @@ def main():
     parser.add_argument('-c', '--core_path',
                         help='directory path to the core dumps')
     parser.add_argument('-l', '--lib_path', help='library path')
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('--unit_test', action='store_true', help='Format core dumps from python unit tests')
-    group.add_argument('--format', action='store_true', help='Format core dumps from format tests')
     args = parser.parse_args()
 
     # Store the path of the core files as a list.
     core_files = []
-    dump_all = args.unit_test
+    regex = re.compile(r'dump.*core', re.IGNORECASE)
+    core_path = args.core_path
+    if core_path is None:
+        core_path = '.'
 
-    regex = None
-    if (args.format):
-        regex = re.compile(r'dump_t.*core', re.IGNORECASE)
-    elif (args.unit_test):
-        regex = re.compile(r'dump.*python.*core', re.IGNORECASE)
-
-    for root, _, files in os.walk(args.core_path):
+    for root, _, files in os.walk(core_path):
         for file in files:
             if regex.match(file):
                 core_files.append(os.path.join(root, file))
@@ -136,6 +130,7 @@ def main():
     for core_file_path in core_files:
         print(border_msg(core_file_path), flush=True)
 
+        dump_all = True
         # Extract the filename from the core file path, to create a stacktrace output file.
         file_name, _ = os.path.splitext(os.path.basename(core_file_path))
         file_name = file_name + ".stacktrace.txt"
@@ -144,7 +139,7 @@ def main():
             dbg = GDBDumper()
             dbg.dump(args.executable_path, core_file_path, args.lib_path, dump_all, None)
 
-            dbg.dump(args.executable_path, core_file_path, args.lib_path, True, file_name)
+            dbg.dump(args.executable_path, core_file_path, args.lib_path, dump_all, file_name)
         elif sys.platform.startswith('darwin'):
             # FIXME - macOS to be supported in WT-8976
             # dbg = LLDBDumper()
