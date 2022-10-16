@@ -137,21 +137,24 @@ def main():
 
     for core_file_path in core_files:
         print(border_msg(core_file_path), flush=True)
+
+        # Extract the filename from the core file path, to create a stacktrace output file.
+        file_name, _ = os.path.splitext(os.path.basename(core_file_path))
+        file_name = file_name + ".stacktrace.txt"
+
         if sys.platform.startswith('linux'):
             dbg = GDBDumper()
             dbg.dump(args.executable_path, core_file_path, args.lib_path, dump_all, None)
 
-            # Extract the filename from the core file path, to create a stacktrace output file.
-            file_name, _ = os.path.splitext(os.path.basename(core_file_path))
-            dbg.dump(args.executable_path, core_file_path, args.lib_path, True, file_name + ".stacktrace.txt")
+            dbg.dump(args.executable_path, core_file_path, args.lib_path, True, file_name)
         elif sys.platform.startswith('darwin'):
             # FIXME - macOS to be supported in WT-8976
             # dbg = LLDBDumper()
-            # dbg.dump(args.executable_path, core_file_path, dump_all)
+            # dbg.dump(args.executable_path, core_file_path, dump_all, None)
 
             # Extract the filename from the core file path, to create a stacktrace output file.
             # file_name, _ = os.path.splitext(os.path.basename(core_file_path))
-            # dbg.dump(args.executable_path, core_file_path, args.lib_path, dump_all, file_name + ".stacktrace.txt")
+            # dbg.dump(args.executable_path, core_file_path, args.lib_path, dump_all, file_name)
             pass
         elif sys.platform.startswith('win32') or sys.platform.startswith('cygwin'):
             # FIXME - Windows to be supported in WT-8937
