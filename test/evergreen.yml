@@ -590,11 +590,7 @@ functions:
         script: |
           set -o errexit
           set -o verbose
-          # Parse through any failures inside the WT_TEST directory.
-          ${python_binary|python3} ../test/evergreen/print_stack_trace.py --unit_test -e ${python_binary|python3} -c WT_TEST -l .
-
-          # Look through the stress format directory for any coredumps.
-          ${python_binary|python3} ../test/evergreen/print_stack_trace.py --format -e ./test/format/t -c test/format/. -l test/format/.
+          ${python_binary|python3} ../test/evergreen/print_stack_trace.py -l .
     - command: s3.put
       params:
         aws_secret: ${aws_secret}
