@@ -130,6 +130,18 @@ def main():
     for core_file_path in core_files:
         print(border_msg(core_file_path), flush=True)
 
+        # If not specified, derive the binary name from the core dump folder.
+        if args.executable_path is None:
+            dirname = core_file_path.rsplit('/', 1)[0]
+            if 'cppsuite' in core_file_path:
+                executable_path = dirname + "/run"
+            elif 'format' in core_file_path:
+                executable_path = dirname + "/t"
+            else:
+                executable_path = dirname + "/test_" + dirname.rsplit('/', 1)[1]
+        else:
+            executable_path = args.executable_path
+
         dump_all = True
         # Extract the filename from the core file path, to create a stacktrace output file.
         file_name, _ = os.path.splitext(os.path.basename(core_file_path))
@@ -137,17 +149,17 @@ def main():
 
         if sys.platform.startswith('linux'):
             dbg = GDBDumper()
-            dbg.dump(args.executable_path, core_file_path, args.lib_path, dump_all, None)
+            dbg.dump(executable_path, core_file_path, args.lib_path, dump_all, None)
 
-            dbg.dump(args.executable_path, core_file_path, args.lib_path, dump_all, file_name)
+            dbg.dump(executable_path, core_file_path, args.lib_path, dump_all, file_name)
         elif sys.platform.startswith('darwin'):
             # FIXME - macOS to be supported in WT-8976
             # dbg = LLDBDumper()
-            # dbg.dump(args.executable_path, core_file_path, dump_all, None)
+            # dbg.dump(executable_path, core_file_path, dump_all, None)
 
             # Extract the filename from the core file path, to create a stacktrace output file.
             # file_name, _ = os.path.splitext(os.path.basename(core_file_path))
-            # dbg.dump(args.executable_path, core_file_path, args.lib_path, dump_all, file_name)
+            # dbg.dump(executable_path, core_file_path, args.lib_path, dump_all, file_name)
             pass
         elif sys.platform.startswith('win32') or sys.platform.startswith('cygwin'):
             # FIXME - Windows to be supported in WT-8937
