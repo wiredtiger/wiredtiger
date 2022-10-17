@@ -109,7 +109,7 @@ session_simulator::begin_transaction(const std::string &config)
 
     /* Return an error if any config other than the ones mentioned above are passed. */
     if (!config_map.empty())
-        return (EINVAL);
+        WT_SIM_RET_MSG(EINVAL, "Incorrect config passed to 'begin_transaction': '" + config + "'");
 
     /* Transaction can run successfully if we got to this point. */
     _txn_running = true;
@@ -138,7 +138,7 @@ session_simulator::rollback_transaction(const std::string &config)
 
     /* Return an error if any config other than the ones mentioned above are passed. */
     if (!config_map.empty())
-        return (EINVAL);
+        WT_SIM_RET_MSG(EINVAL, "Incorrect config passed to 'rollback_transaction': '" + config + "'");
 
     /* Transaction can rollback successfully if we got to this point. */
     _txn_running = false;
@@ -195,7 +195,7 @@ session_simulator::commit_transaction(const std::string &config)
     /* Return an error if any config other than the ones mentioned above are passed. */
     if (!config_map.empty()) {
         rollback_transaction("");
-        return (EINVAL);
+        WT_SIM_RET_MSG(EINVAL, "Incorrect config passed to 'commit_transaction': '" + config + "'");
     }
 
     /* Transaction can commit successfully if we got to this point. */
