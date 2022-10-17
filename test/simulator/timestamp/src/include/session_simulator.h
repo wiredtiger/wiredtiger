@@ -39,10 +39,10 @@ class session_simulator {
 
     /* API functions */
     public:
-    int begin_transaction(const std::string &);
-    int rollback_transaction(const std::string &);
-    int commit_transaction(const std::string &);
-    int timestamp_transaction(const std::string &);
+    int begin_transaction(const std::string & = "");
+    int rollback_transaction(const std::string & = "");
+    int commit_transaction(const std::string & = "");
+    int timestamp_transaction(const std::string & = "");
     int timestamp_transaction_uint(const std::string &, uint64_t);
     int query_timestamp(const std::string &, std::string &);
 

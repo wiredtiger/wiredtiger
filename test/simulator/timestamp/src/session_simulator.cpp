@@ -135,14 +135,14 @@ session_simulator::commit_transaction(const std::string &config)
     if (pos != config_map.end()) {
         int ret = ts_manager->validate_hex_value(pos->second, "commit timestamp");
         if (ret != 0) {
-            rollback_transaction("");
+            rollback_transaction();
             return (ret);
         }
 
         uint64_t commit_ts = ts_manager->hex_to_decimal(pos->second);
         ret = set_commit_timestamp(commit_ts);
         if (ret != 0) {
-            rollback_transaction("");
+            rollback_transaction();
             return (ret);
         }
     }
