@@ -67,7 +67,7 @@ timestamp_manager::decimal_to_hex(const uint64_t ts)
 }
 
 int
-timestamp_manager::validate_hex_value(const std::string &ts_string, const std::string ts)
+timestamp_manager::validate_hex_value(const std::string &ts_string, const std::string &ts)
 {
     /* Check that the timestamp string has valid hexadecimal characters. */
     for (auto &ch : ts_string)
