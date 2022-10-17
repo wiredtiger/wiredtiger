@@ -1831,9 +1831,6 @@ err:
     if (ret == 0) {
         F_SET(session, WT_SESSION_RESOLVING_TXN);
         ret = __wt_txn_commit(session, cfg);
-#ifdef HAVE_CALL_LOG
-        WT_TRET(__wt_call_log_commit_transaction(session, config, ret));
-#endif
         F_CLR(session, WT_SESSION_RESOLVING_TXN);
     } else if (F_ISSET(txn, WT_TXN_RUNNING)) {
         if (F_ISSET(txn, WT_TXN_PREPARE))
@@ -1844,7 +1841,9 @@ err:
         WT_TRET(__wt_txn_rollback(session, cfg));
         F_CLR(session, WT_SESSION_RESOLVING_TXN);
     }
-
+#ifdef HAVE_CALL_LOG
+    WT_TRET(__wt_call_log_commit_transaction(session, config, ret));
+#endif
     API_END_RET(session, ret);
 }
 

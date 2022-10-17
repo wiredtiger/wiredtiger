@@ -55,9 +55,12 @@ class session_simulator {
     uint64_t get_read_timestamp() const;
     bool is_round_read_ts_set() const;
     bool get_ts_round_prepared() const;
-    bool has_prepare_timestamp();
+    bool has_prepare_timestamp() const;
+    bool has_read_timestamp() const;
+    bool has_first_commit_timestamp() const;
     bool is_read_ts_set() const;
     bool is_txn_prepared() const;
+    bool is_txn_running() const;
 
     private:
     int decode_timestamp_config_map(

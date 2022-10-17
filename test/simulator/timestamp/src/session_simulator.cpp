@@ -165,9 +165,19 @@ session_simulator::commit_transaction(const std::string &config)
 
     auto pos = config_map.find("commit_timestamp");
     if (pos != config_map.end()) {
-        WT_SIM_RET(ts_manager->validate_hex_value(pos->second, "commit timestamp"));
+        int ret = ts_manager->validate_hex_value(pos->second, "commit timestamp");
+        if (ret != 0) {
+            rollback_transaction("");
+            return (ret);
+        }
+
         uint64_t commit_ts = ts_manager->hex_to_decimal(pos->second);
-        WT_SIM_RET(set_commit_timestamp(commit_ts));
+        ret = set_commit_timestamp(commit_ts);
+        if (ret != 0) {
+            rollback_transaction("");
+            return (ret);
+        }
+
         config_map.erase(pos);
     }
 
@@ -187,6 +197,12 @@ session_simulator::commit_transaction(const std::string &config)
     pos = config_map.find("sync");
     if (pos != config_map.end())
         config_map.erase(pos);
+
+    /* Return an error if any config other than the ones mentioned above are passed. */
+    if (!config_map.empty()) {
+        rollback_transaction("");
+        return (EINVAL);
+    }
 
     /* Transaction can commit successfully if we got to this point. */
     _txn_running = false;
@@ -344,15 +360,33 @@ session_simulator::is_round_read_ts_set() const
 }
 
 bool
-session_simulator::has_prepare_timestamp()
+session_simulator::has_prepare_timestamp() const
 {
     return (_prepare_ts != 0);
+}
+
+bool
+session_simulator::has_read_timestamp() const
+{
+    return (_read_ts != 0);
+}
+
+bool
+session_simulator::has_first_commit_timestamp() const
+{
+    return (_first_commit_ts != 0);
 }
 
 bool
 session_simulator::is_txn_prepared() const
 {
     return (_prepared_txn);
+}
+
+bool
+session_simulator::is_txn_running() const
+{
+    return (_txn_running);
 }
 
 bool
@@ -372,10 +406,12 @@ session_simulator::set_commit_timestamp(uint64_t commit_ts)
         _has_commit_ts = true;
     }
 
-    if (_ts_round_prepared && commit_ts < _prepare_ts)
-        _commit_ts = _prepare_ts;
-    else if (commit_ts >= _prepare_ts)
-        _commit_ts = commit_ts;
+    if (has_prepare_timestamp())
+        if (_ts_round_prepared && commit_ts < _prepare_ts)
+            commit_ts = _prepare_ts;
+
+    _commit_ts = commit_ts;
+    _durable_ts = commit_ts;
 
     return (0);
 }
