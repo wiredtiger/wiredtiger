@@ -44,7 +44,7 @@ class session_simulator {
     int commit_transaction(const std::string &);
     int timestamp_transaction(const std::string &);
     int timestamp_transaction_uint(const std::string &, uint64_t);
-    int query_timestamp(const std::string &, std::string &, bool &);
+    int query_timestamp(const std::string &, std::string &);
 
     /* Transaction relevant functions. */
     public:

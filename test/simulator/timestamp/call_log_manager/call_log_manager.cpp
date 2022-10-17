@@ -182,7 +182,7 @@ call_log_manager::call_log_query_timestamp(const json &call_log_entry)
 
     const std::string class_name = call_log_entry["class_name"].get<std::string>();
     std::string hex_ts;
-    bool ts_supported;
+    bool ts_supported = true;
     int ret;
     /*
      * Check whether we're querying a global connection timestamp or a session transaction
@@ -198,10 +198,17 @@ call_log_manager::call_log_query_timestamp(const json &call_log_entry)
 
         ret = _conn->query_timestamp(config, hex_ts, ts_supported);
     } else if (class_name == "session") {
+        /*
+         * A generated call log without a configuration string in the set timestamp entry will have
+         * the string "(null)", default to read.
+         */
+        if (config == "(null)")
+            config = "get=read";
+
         const std::string session_id = call_log_entry["session_id"].get<std::string>();
         session_simulator *session = get_session(session_id);
 
-        ret = session->query_timestamp(config, hex_ts, ts_supported);
+        ret = session->query_timestamp(config, hex_ts);
     }
 
     int ret_expected = call_log_entry["return"]["return_val"].get<int>();

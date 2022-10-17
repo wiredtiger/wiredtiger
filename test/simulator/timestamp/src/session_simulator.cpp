@@ -138,7 +138,8 @@ session_simulator::rollback_transaction(const std::string &config)
 
     /* Return an error if any config other than the ones mentioned above are passed. */
     if (!config_map.empty())
-        WT_SIM_RET_MSG(EINVAL, "Incorrect config passed to 'rollback_transaction': '" + config + "'");
+        WT_SIM_RET_MSG(
+          EINVAL, "Incorrect config passed to 'rollback_transaction': '" + config + "'");
 
     /* Transaction can rollback successfully if we got to this point. */
     _txn_running = false;
@@ -271,26 +272,29 @@ session_simulator::timestamp_transaction_uint(const std::string &ts_type, uint64
 }
 
 int
-session_simulator::query_timestamp(
-  const std::string &config, std::string &hex_ts, bool &ts_supported)
+session_simulator::query_timestamp(const std::string &config, std::string &hex_ts)
 {
     std::string query_timestamp;
     timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
     std::map<std::string, std::string> config_map;
 
-    ts_manager->parse_config(config, config_map);
+    /* For an empty config default to all_durable. */
+    if (config.empty())
+        query_timestamp = "all_durable";
+    else {
+        ts_manager->parse_config(config, config_map);
 
-    /* For query timestamp we only expect one config. */
-    if (config_map.size() != 1)
-        WT_SIM_RET_MSG(EINVAL, "Incorrect config (" + config + ") passed in query timestamp");
+        /* For query timestamp we only expect one config. */
+        if (config_map.size() != 1)
+            WT_SIM_RET_MSG(EINVAL, "Incorrect config (" + config + ") passed in query timestamp");
 
-    auto pos = config_map.find("get");
-    if (pos == config_map.end())
-        WT_SIM_RET_MSG(EINVAL, "Incorrect config (" + config + ") passed in query timestamp");
+        auto pos = config_map.find("get");
+        if (pos == config_map.end())
+            WT_SIM_RET_MSG(EINVAL, "Incorrect config (" + config + ") passed in query timestamp");
 
-    query_timestamp = pos->second;
+        query_timestamp = pos->second;
+    }
 
-    ts_supported = true;
     uint64_t ts;
     if (query_timestamp == "commit")
         ts = _commit_ts;
@@ -300,10 +304,8 @@ session_simulator::query_timestamp(
         ts = _prepare_ts;
     else if (query_timestamp == "read")
         ts = _read_ts;
-    else {
-        ts_supported = false;
+    else
         WT_SIM_RET_MSG(EINVAL, "Incorrect config (" + config + ") passed in query timestamp");
-    }
 
     /* Convert the timestamp from decimal to hex-decimal. */
     hex_ts = ts_manager->decimal_to_hex(ts);
