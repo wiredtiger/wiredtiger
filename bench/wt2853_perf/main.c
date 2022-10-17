@@ -89,6 +89,7 @@ main(int argc, char *argv[])
     char tableconf[128];
     const char *tablename;
 
+    testutil_assert(false);
     opts = &_opts;
     sharedopts = &_sharedopts;
     memset(opts, 0, sizeof(*opts));
