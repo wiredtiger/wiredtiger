@@ -36,7 +36,10 @@
 #include "error_simulator.h"
 #include "timestamp_manager.h"
 
-session_simulator::session_simulator() : _txn_running(false) {}
+session_simulator::session_simulator()
+{
+    reset_txn_level_var();
+}
 
 int
 session_simulator::begin_transaction(const std::string &config)
@@ -45,16 +48,7 @@ session_simulator::begin_transaction(const std::string &config)
     if (_txn_running)
         WT_SIM_RET_MSG(EINVAL, "'begin_transaction' not permitted in a running transaction");
 
-    /* Reset timestamps */
-    _commit_ts = 0;
-    _durable_ts = 0;
-    _first_commit_ts = 0;
-    _prepare_ts = 0;
-    _read_ts = 0;
-    _has_commit_ts = false;
-    _ts_round_prepared = false;
-    _ts_round_read = false;
-    _prepared_txn = false;
+    reset_txn_level_var();
 
     timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
     std::map<std::string, std::string> config_map;
@@ -315,6 +309,21 @@ session_simulator::query_timestamp(
     hex_ts = ts_manager->decimal_to_hex(ts);
 
     return (0);
+}
+
+void
+session_simulator::reset_txn_level_var()
+{
+    _commit_ts = 0;
+    _durable_ts = 0;
+    _first_commit_ts = 0;
+    _prepare_ts = 0;
+    _read_ts = 0;
+    _has_commit_ts = false;
+    _ts_round_prepared = false;
+    _ts_round_read = false;
+    _prepared_txn = false;
+    _txn_running = false;
 }
 
 uint64_t

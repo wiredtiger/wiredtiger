@@ -279,7 +279,8 @@ timestamp_manager::validate_commit_timestamp(session_simulator *session, uint64_
         if (latest_active_read >= commit_ts)
             WT_SIM_RET_MSG(EINVAL,
               "commit timestamp (" + std::to_string(commit_ts) +
-                ") must be after all active read timestamps (" + std::to_string(latest_active_read) + ")");
+                ") must be after all active read timestamps (" +
+                std::to_string(latest_active_read) + ")");
     } else {
         uint64_t prepare_ts = session->get_prepare_timestamp();
         /*
