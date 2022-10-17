@@ -117,17 +117,13 @@ connection_simulator::query_timestamp(
         query_timestamp = "all_durable";
     else {
         std::map<std::string, std::string> config_map;
+        const std::vector<std::string> supported_ops = {"get"};
 
-        ts_manager->parse_config(config, config_map);
-
-        /* For query timestamp we only expect one config. */
-        if (config_map.size() != 1)
-            WT_SIM_RET_MSG(EINVAL, "Incorrect config (" + config + ") passed in query timestamp");
+        WT_SIM_RET_MSG(
+          ts_manager->parse_config(config, config_map, supported_ops, std::vector<std::string>()),
+          "Incorrect config (" + config + ") passed in query_timestamp");
 
         auto pos = config_map.find("get");
-        if (pos == config_map.end())
-            WT_SIM_RET_MSG(EINVAL, "Incorrect config (" + config + ") passed in query timestamp");
-
         query_timestamp = pos->second;
     }
 
@@ -175,7 +171,6 @@ connection_simulator::decode_timestamp_config_map(std::map<std::string, std::str
         WT_SIM_RET(ts_manager->validate_hex_value(pos->second, "oldest timestamp"));
         new_oldest_ts = ts_manager->hex_to_decimal(pos->second);
         has_oldest = true;
-        config_map.erase(pos);
     }
 
     pos = config_map.find("stable_timestamp");
@@ -183,7 +178,6 @@ connection_simulator::decode_timestamp_config_map(std::map<std::string, std::str
         WT_SIM_RET(ts_manager->validate_hex_value(pos->second, "stable timestamp"));
         new_stable_ts = ts_manager->hex_to_decimal(pos->second);
         has_stable = true;
-        config_map.erase(pos);
     }
 
     pos = config_map.find("durable_timestamp");
@@ -191,15 +185,13 @@ connection_simulator::decode_timestamp_config_map(std::map<std::string, std::str
         WT_SIM_RET(ts_manager->validate_hex_value(pos->second, "durable timestamp"));
         new_durable_ts = ts_manager->hex_to_decimal(pos->second);
         has_durable = true;
-        config_map.erase(pos);
     }
     pos = config_map.find("force");
     if (pos != config_map.end()) {
         force = true;
-        config_map.erase(pos);
     }
 
-    return (config_map.empty() ? 0 : EINVAL);
+    return (0);
 }
 
 int
@@ -211,15 +203,18 @@ connection_simulator::set_timestamp(const std::string &config)
 
     timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
     std::map<std::string, std::string> config_map;
+    const std::vector<std::string> supported_ops = {
+      "oldest_timestamp", "stable_timestamp", "durable_timestamp", "force"};
 
-    ts_manager->parse_config(config, config_map);
+    WT_SIM_RET_MSG(
+      ts_manager->parse_config(config, config_map, supported_ops, std::vector<std::string>()),
+      "Incorrect config (" + config + ") passed in set_timestamp");
 
     uint64_t new_stable_ts = 0, new_oldest_ts = 0, new_durable_ts = 0;
     bool has_stable = false, has_oldest = false, has_durable = false, force = false;
 
-    WT_SIM_RET_MSG(decode_timestamp_config_map(config_map, new_oldest_ts, new_stable_ts,
-                     new_durable_ts, has_oldest, has_stable, has_durable, force),
-      "Incorrect config passed to 'set_timestamp': '" + config + "'");
+    decode_timestamp_config_map(config_map, new_oldest_ts, new_stable_ts, new_durable_ts,
+      has_oldest, has_stable, has_durable, force);
 
     if (!force) {
         /* Validate the new durable timestamp. */

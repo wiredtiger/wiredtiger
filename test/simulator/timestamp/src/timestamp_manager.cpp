@@ -28,9 +28,11 @@
 
 #include "timestamp_manager.h"
 
+#include <algorithm>
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #include "connection_simulator.h"
 #include "error_simulator.h"
@@ -90,12 +92,16 @@ timestamp_manager::trim(std::string str)
 }
 
 /* Parse config string to a config map. */
-void
-timestamp_manager::parse_config(
-  const std::string &config, std::map<std::string, std::string> &config_map)
+int
+timestamp_manager::parse_config(const std::string &config,
+  std::map<std::string, std::string> &config_map, const std::vector<std::string> &supported_ops,
+  const std::vector<std::string> &unsupported_ops)
 {
     std::istringstream conf(config);
     std::string token;
+
+    if (config.empty())
+        return (0);
 
     while (std::getline(conf, token, ',')) {
         int pos = token.find('=');
@@ -104,6 +110,20 @@ timestamp_manager::parse_config(
         else
             config_map.insert({trim(token.substr(0, pos)), trim(token.substr(pos + 1))});
     }
+
+    /* Get rid of the unsupported ops. */
+    for (std::string op : unsupported_ops) {
+        auto pos = config_map.find(op);
+        if (pos != config_map.end())
+            config_map.erase(pos);
+    }
+
+    /* Ensure that the elements in the config_map also exist in the supported_ops vector. */
+    for (const auto &op : config_map)
+        if (std::find(supported_ops.begin(), supported_ops.end(), op.first) == supported_ops.end())
+            WT_SIM_RET(EINVAL);
+
+    return (0);
 }
 
 /*
