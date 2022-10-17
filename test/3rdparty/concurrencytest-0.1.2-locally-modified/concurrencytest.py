@@ -42,25 +42,28 @@ _all__ = [
     'partition_tests',
 ]
 
+# This file has been modified from the original concurrencytest-0.1.2 to wait for the child processes
+# preventing defunct processes and to prefix output with the running PID for debuggability.
 
 CPU_COUNT = cpu_count()
 
 def wait_for_children(pids):
     while pids:
         try:
-            # Loop through each child pid to support windows (plus it won't be a large number).
+            # As Windows doesn't support -1 for all children, loop through each child pid explicitly.
             for child_pid in pids:
                 pid, exit_status = os.waitpid(child_pid, os.WNOHANG)
                 exit_code = os.waitstatus_to_exitcode(exit_status)
                 if exit_code != 0:
                     pids.remove(pid)
                     if exit_code > 0:
-                        print("Unexpected exit (" + str(exit_code) + ") for child process (" + str(pid) + ")")
+                        print("[pid:{}]: Unexpected exit ({}) for child process ({})".format(os.getpid(), exit_code, pid))
                     else:
-                        print("Unexpected exit by signal (" + str(abs(exit_code)) + ") for child process (" + str(pid) + ")")
+                        print("[pid:{}]: Unexpected exit by signal ({}) for child process ({})".format(os.getpid(), abs(exit_code), pid))
         except ChildProcessError:
             # No children processes.
             break
+        # Sleep as the waipid is non blocking.
         time.sleep(5)
 
 def fork_for_tests(concurrency_num=CPU_COUNT):
