@@ -598,8 +598,11 @@ __cursor_search_neighboring(WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, int *
         else
             WT_RET(__cursor_col_search(cbt, NULL, NULL));
 
-        WT_RET(
-          __wt_cursor_valid(cbt, (cbt->compare == 0 ? cbt->tmp : NULL), cbt->recno, &valid, true));
+        if (btree->type != BTREE_ROW)
+            WT_RET(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid, true));
+        else
+            WT_RET(__wt_cursor_valid(
+              cbt, (cbt->compare == 0 ? cbt->tmp : NULL), WT_RECNO_OOB, &valid, true));
 
         if (valid)
             return (0);
