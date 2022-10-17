@@ -590,8 +590,11 @@ __cursor_search_neighboring(WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, int *
      * We walked off the end of the tree, we need to check records before our original position to
      * see if they are visible. In snapshot isolation we can restart our search from where we first
      * searched as no records will appear in between.
+     *
+     * Due to the bounded cursor logic potentially changing the search key, we cannot rely on the
+     * saved state.
      */
-    if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
+    if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) && !WT_CURSOR_BOUNDS_SET(cursor)) {
         __cursor_state_restore(cursor, state);
         if (btree->type == BTREE_ROW)
             WT_RET(__cursor_row_search(cbt, true, NULL, NULL));
