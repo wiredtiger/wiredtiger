@@ -73,12 +73,16 @@ typedef struct {
     bool preserve;             /* Don't remove files on exit */
     bool tiered_storage;       /* Configure tiered storage */
     bool verbose;              /* Run in verbose mode */
+    bool tiered_begun;         /* Tiered storage ready */
     uint64_t nrecords;         /* Number of records */
     uint64_t nops;             /* Number of operations */
     uint64_t nthreads;         /* Number of threads */
     uint64_t n_append_threads; /* Number of append threads */
     uint64_t n_read_threads;   /* Number of read threads */
     uint64_t n_write_threads;  /* Number of write threads */
+
+    uint32_t tiered_flush_interval; /* Number of seconds between flush_tiered */
+    time_t tiered_flush_next;   /* Next tiered flush in epoch seconds */
 
     /*
      * Fields commonly shared within a test program. The test cleanup function will attempt to
@@ -385,6 +389,9 @@ void testutil_progress(TEST_OPTS *, const char *);
 #ifndef _WIN32
 void testutil_sleep_wait(uint32_t, pid_t);
 #endif
+void testutil_tiered_begin(TEST_OPTS *);
+void testutil_tiered_flush_complete(TEST_OPTS *, void *);
+void testutil_tiered_sleep(TEST_OPTS *, uint32_t, bool *);
 void testutil_work_dir_from_path(char *, size_t, const char *);
 WT_THREAD_RET thread_append(void *);
 
