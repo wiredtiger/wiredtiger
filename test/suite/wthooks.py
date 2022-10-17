@@ -310,6 +310,14 @@ class WiredTigerHookPlatformAPI(object):
         """The timestamp generator for this test case."""
         raise NotImplementedError('getTimestamp method not implemented')
 
+    def getTierSharePercent(self):
+        """The tier share percentage generator for this test case."""
+        raise NotImplementedError('getTierSharePercent method not implemented')
+
+    def getTierCachePercent(self):
+        """The tier cache percentage generator for this test case."""
+        raise NotImplementedError('getTierCachePercent method not implemented')
+
 class DefaultPlatformAPI(WiredTigerHookPlatformAPI):
     def tableExists(self, name):
         tablename = name + ".wt"
@@ -326,6 +334,14 @@ class DefaultPlatformAPI(WiredTigerHookPlatformAPI):
     # By default, there is no automatic timestamping by test infrastructure classes.
     def getTimestamp(self):
         return None
+
+    # By default, all the populated data lies in the local storage.
+    def getTierSharePercent(self):
+        return 0
+
+    # By default, all the populated data lies in the cache.
+    def getTierCachePercent(self):
+        return 0
 
 class MultiPlatformAPI(WiredTigerHookPlatformAPI):
     def __init__(self, platform_apis):
@@ -367,3 +383,21 @@ class MultiPlatformAPI(WiredTigerHookPlatformAPI):
             except NotImplementedError:
                 pass
         raise Exception('getTimestamp: no implementation')  # should never happen
+
+    def getTierSharePercent(self):
+        """The tier share value for this test case."""
+        for api in self.apis:
+            try:
+                return api.getTierSharePercent()
+            except NotImplementedError:
+                pass
+        raise Exception('getTierSharePercent: no implementation')  # should never happen
+
+    def getTierCachePercent(self):
+        """The tier cache value for this test case."""
+        for api in self.apis:
+            try:
+                return api.getTierCachePercent()
+            except NotImplementedError:
+                pass
+        raise Exception('getTierCachePercent: no implementation')  # should never happen

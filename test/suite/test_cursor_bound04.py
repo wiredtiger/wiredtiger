@@ -56,8 +56,7 @@ class test_cursor_bound04(bound_base):
 
     value_formats = [
         ('string', dict(value_format='S')),
-        # FIX-ME-WT-9589: Fix bug complex colgroups not returning records within bounds.
-        # ('complex-string', dict(value_format='SS')),
+        ('complex-string', dict(value_format='SS')),
     ]
 
     config = [
@@ -69,17 +68,9 @@ class test_cursor_bound04(bound_base):
     def test_bound_special_scenario(self):
         cursor = self.create_session_and_cursor()
 
-        # Test bound api: Test upper bound clearing with only lower bounds.
+        # Test bound api: Test lower bound clearing works.
         self.set_bounds(cursor, 45, "lower")
-        cursor.bound("action=clear,bound=upper")
-        self.assertEqual(cursor.next(), 0)
-        key = cursor.get_key()
-        self.assertEqual(key, self.check_key(45))
-        cursor.reset()
-
-        # Test bound api: Test lower bound clearing with lower bounds works.
-        self.set_bounds(cursor, 45, "lower")
-        cursor.bound("action=clear,bound=lower")
+        cursor.bound("action=clear")
         self.assertEqual(cursor.next(), 0)
         key = cursor.get_key()
         self.assertEqual(key, self.check_key(self.start_key))
