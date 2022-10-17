@@ -134,7 +134,6 @@ class test_cursor_bound01(bound_base):
         cursor.reset()
 
         cursor.set_key(self.gen_key(1))
-        cursor.bound("action=set,bound=lower")
         # Giving an invalid action like "dump" won't work.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=dump"),
             '/an action of either "clear" or "set" should be specified when setting bounds/')
