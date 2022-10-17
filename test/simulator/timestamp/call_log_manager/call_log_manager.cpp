@@ -276,10 +276,12 @@ call_log_manager::call_log_set_timestamp(const json &call_log_entry)
 void
 call_log_manager::call_log_timestamp_transaction(const json &call_log_entry)
 {
-    /* Convert the config char * to a string object. */
-    const std::string config = call_log_entry["input"]["config"].get<std::string>();
     const std::string session_id = call_log_entry["session_id"].get<std::string>();
     session_simulator *session = get_session(session_id);
+    std::string config = call_log_entry["input"]["config"].get<std::string>();
+
+    if (config == "(null)")
+        config.clear();
 
     int ret = session->timestamp_transaction(config);
 
@@ -288,7 +290,7 @@ call_log_manager::call_log_timestamp_transaction(const json &call_log_entry)
     assert(ret == ret_expected);
 
     if (ret != 0)
-        throw "'timestamp_transaction_uint' failed with ret value: '" + std::to_string(ret) +
+        throw "'timestamp_transaction' failed with ret value: '" + std::to_string(ret) +
           "', and config: '" + config + "'";
 }
 

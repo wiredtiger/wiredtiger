@@ -468,8 +468,6 @@ session_simulator::decode_timestamp_config_map(std::map<std::string, std::string
     if (pos != config_map.end()) {
         WT_SIM_RET(ts_manager->validate_hex_value(pos->second, "commit timestamp"));
         commit_ts = ts_manager->hex_to_decimal(pos->second);
-        if (commit_ts == 0)
-            WT_SIM_RET_MSG(EINVAL, "Illegal commit timestamp: zero not permitted.");
         config_map.erase(pos);
     }
 
@@ -477,8 +475,6 @@ session_simulator::decode_timestamp_config_map(std::map<std::string, std::string
     if (pos != config_map.end()) {
         WT_SIM_RET(ts_manager->validate_hex_value(pos->second, "durable timestamp"));
         durable_ts = ts_manager->hex_to_decimal(pos->second);
-        if (durable_ts == 0)
-            WT_SIM_RET_MSG(EINVAL, "Illegal durable timestamp: zero not permitted.");
         config_map.erase(pos);
     }
 
@@ -486,8 +482,6 @@ session_simulator::decode_timestamp_config_map(std::map<std::string, std::string
     if (pos != config_map.end()) {
         WT_SIM_RET(ts_manager->validate_hex_value(pos->second, "prepare timestamp"));
         prepare_ts = ts_manager->hex_to_decimal(pos->second);
-        if (prepare_ts == 0)
-            WT_SIM_RET_MSG(EINVAL, "Illegal prepare timestamp: zero not permitted.");
         config_map.erase(pos);
     }
 
@@ -495,8 +489,6 @@ session_simulator::decode_timestamp_config_map(std::map<std::string, std::string
     if (pos != config_map.end()) {
         WT_SIM_RET(ts_manager->validate_hex_value(pos->second, "read timestamp"));
         read_ts = ts_manager->hex_to_decimal(pos->second);
-        if (read_ts == 0)
-            WT_SIM_RET_MSG(EINVAL, "Illegal read timestamp: zero not permitted.");
         config_map.erase(pos);
     }
 
