@@ -364,6 +364,9 @@ functions:
           echo "$exit_code" > cppsuite_exit_code
           if [ "$exit_code" != 0 ]; then
             echo "[{\"info\":{\"test_name\": \"${test_name}\"},\"metrics\": []}]" > ${test_name}.json
+            # Since we later remove the WiredTiger folder, we need to check for core dumps now.
+            cd ../..
+            ${python_binary|python3} ../test/evergreen/print_stack_trace.py -c test/cppsuite -l .
           fi
           exit 0
     - command: perf.send
