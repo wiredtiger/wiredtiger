@@ -81,11 +81,11 @@ class test_cursor_bound01(bound_base):
 
         # LSM format is not supported with range cursors.
         if self.uri == 'lsm:': 
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=lower"),
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=set,bound=lower"),
                 '/Operation not supported/')
             return
         if self.value_format == '8t':
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=lower"),
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=set,bound=lower"),
                 '/Invalid argument/')
             return
 
@@ -95,22 +95,16 @@ class test_cursor_bound01(bound_base):
 
         # Check that bound configuration works properly.
         cursor.set_key(self.gen_key(1))
-        cursor.bound("bound=lower")
+        cursor.bound("action=set,bound=lower")
         cursor.set_key(self.gen_key(10))
-        cursor.bound("bound=upper")
-
-        # Clear and inclusive configuration are not compatible with each other. 
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=clear,inclusive=true"),
-            '/Invalid argument/')
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=clear,inclusive=false"),
-            '/Invalid argument/')
+        cursor.bound("action=set,bound=upper")
 
         # Check that clear works properly.
         cursor.bound("action=clear")
 
         # Check that largest key doesn't work with bounded cursors.
         cursor.set_key(self.gen_key(1))
-        cursor.bound("bound=lower")
+        cursor.bound("action=set,bound=lower")
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.largest_key(),
             '/Invalid argument/')
 
