@@ -108,7 +108,7 @@ class test_cursor_bound01(bound_base):
         cursor.set_key(self.gen_key(1))
         cursor.bound("action=set,bound=lower")
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.largest_key(),
-            '/Invalid argument/')
+            '/setting bounds is not compatible with cursor largest key/')
 
         # Check edge cases with bounds config
         cursor.set_key(self.gen_key(1))
@@ -118,7 +118,8 @@ class test_cursor_bound01(bound_base):
 
         cursor.set_key(self.gen_key(1))
         # Setting an action without a bound won't work.
-        self.assertEqual(cursor.bound("action=set"), 0)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=set"),
+            '/a bound must be specified when setting bounds, either "lower" or "upper"/')
         cursor.reset()
 
         cursor.set_key(self.gen_key(1))
@@ -136,13 +137,13 @@ class test_cursor_bound01(bound_base):
         cursor.bound("action=set,bound=lower")
         # Giving an invalid action like "dump" won't work.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=dump"),
-            '/Invalid argument/')
+            '/an action of either "clear" or "set" should be specified when setting bounds/')
         cursor.reset()
 
         cursor.set_key(self.gen_key(1))
         # Giving a substring of the config string will not work.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=cl"),
-            '/Invalid argument/')
+            '/an action of either "clear" or "set" should be specified when setting bounds/')
 
         # Check that setting bounds doesn't work with random cursors. Turn it off with column store as column
         # store doesn't support the next_random config.
