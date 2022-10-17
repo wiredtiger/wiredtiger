@@ -117,7 +117,7 @@ def main():
 
     # Store the path of the core files as a list.
     core_files = []
-    regex = re.compile(r'dump_(.*).core', re.IGNORECASE)
+    regex = re.compile(r'dump.*core', re.IGNORECASE)
     core_path = args.core_path
     if core_path is None:
         core_path = '.'
@@ -131,14 +131,19 @@ def main():
         print(border_msg(core_file_path), flush=True)
 
         # If not specified, derive the binary name from the core dump folder.
-        # The executable is usually part of the core name:
-        # dump_<executable>.pid.core
+        # The test/format and cpp suites are different and need specific handling. All the other
+        # tests have an executable that follows the pattern "test_<test_folder>". For example,
+        # the test folder wt2853_perf contains an executable named test_wt2853_perf.
         if args.executable_path is None:
+            # Retrieve the first part of the path without the core name.
             dirname = core_file_path.rsplit('/', 1)[0]
-            # Reuse the previously defined regex to do group matching.
-            result = regex.search(core_file_path)
-            executable_name = result.group(1).rsplit('.', 1)[0]
-            executable_path = dirname + "/" + executable_name
+            if 'cppsuite' in core_file_path:
+                executable_path = dirname + "/run"
+            elif 'format' in core_file_path:
+                executable_path = dirname + "/t"
+            else:
+                test_name = dirname.rsplit('/', 1)[1]
+                executable_path = dirname + "/test_" + test_name
         else:
             executable_path = args.executable_path
 
