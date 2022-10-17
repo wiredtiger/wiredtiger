@@ -187,7 +187,7 @@ cursor->bound(cursor, bound=lower,inclusive=false)
 cursor->next(cursor)
 ```
 
-If search is called on a key thats not within bounds, this will result in returning a WT_NOTFOUND. cursor->search_near behaviour is optimised with the
+If search is called on a key that's not within bounds, this will result in returning a WT_NOTFOUND. cursor->search_near behaviour is optimised with the
 inclusion of bounds, such that an early exit is made possible once the current key has exceeded the bounds. Calling
 cursor->search_near with a key outside the range will always return a key within the range unless no keys are present.
 
