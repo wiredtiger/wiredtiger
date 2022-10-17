@@ -248,9 +248,9 @@ timestamp_manager::validate_commit_timestamp(session_simulator *session, uint64_
             uint64_t first_commit_ts = session->get_first_commit_timestamp();
             if (commit_ts < first_commit_ts)
                 WT_SIM_RET_MSG(EINVAL,
-                  "commit timestamp " + std::to_string(commit_ts) +
-                    " older than the first commit timestamp " + std::to_string(first_commit_ts) +
-                    " for this transaction");
+                  "commit timestamp (" + std::to_string(commit_ts) +
+                    ") older than the first commit timestamp (" + std::to_string(first_commit_ts) +
+                    ") for this transaction");
 
             commit_ts = first_commit_ts;
         }
@@ -261,8 +261,8 @@ timestamp_manager::validate_commit_timestamp(session_simulator *session, uint64_
             uint64_t oldest_ts = conn->get_oldest_ts();
             if (commit_ts < oldest_ts)
                 WT_SIM_RET_MSG(EINVAL,
-                  "commit timestamp " + std::to_string(commit_ts) +
-                    "is less than the oldest timestamp " + std::to_string(oldest_ts));
+                  "commit timestamp (" + std::to_string(commit_ts) +
+                    ") is less than the oldest timestamp (" + std::to_string(oldest_ts) + ")");
         }
 
         /* The commit timestamp should not be less than or equal to the stable timestamp. */
@@ -270,16 +270,16 @@ timestamp_manager::validate_commit_timestamp(session_simulator *session, uint64_
             uint64_t stable_ts = conn->get_stable_ts();
             if (commit_ts <= stable_ts)
                 WT_SIM_RET_MSG(EINVAL,
-                  "commit timestamp " + std::to_string(commit_ts) +
-                    "must be after the stable timestamp " + std::to_string(stable_ts));
+                  "commit timestamp (" + std::to_string(commit_ts) +
+                    ") must be after the stable timestamp (" + std::to_string(stable_ts) + ")");
         }
 
         /* The commit timestamp must be greater than the latest active read timestamp. */
         uint64_t latest_active_read = conn->get_latest_active_read();
         if (latest_active_read >= commit_ts)
             WT_SIM_RET_MSG(EINVAL,
-              "commit timestamp " + std::to_string(commit_ts) +
-                "must be after all active read timestamps " + std::to_string(latest_active_read));
+              "commit timestamp (" + std::to_string(commit_ts) +
+                ") must be after all active read timestamps (" + std::to_string(latest_active_read) + ")");
     } else {
         uint64_t prepare_ts = session->get_prepare_timestamp();
         /*
@@ -294,14 +294,14 @@ timestamp_manager::validate_commit_timestamp(session_simulator *session, uint64_
         if (session->has_prepare_timestamp())
             if (!session->get_ts_round_prepared() && commit_ts < prepare_ts)
                 WT_SIM_RET_MSG(EINVAL,
-                  "commit timestamp " + std::to_string(commit_ts) +
-                    "is less than the prepare timestamp " + std::to_string(prepare_ts) +
-                    " for this transaction.");
+                  "commit timestamp (" + std::to_string(commit_ts) +
+                    ") is less than the prepare timestamp (" + std::to_string(prepare_ts) +
+                    ") for this transaction.");
 
         if (!session->is_txn_prepared())
             WT_SIM_RET_MSG(EINVAL,
-              "commit timestamp " + std::to_string(commit_ts) +
-                " must not be set before transaction is prepared");
+              "commit timestamp (" + std::to_string(commit_ts) +
+                ") must not be set before transaction is prepared");
     }
 
     return (0);
