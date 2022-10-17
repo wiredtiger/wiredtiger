@@ -193,7 +193,7 @@ main(int argc, char *argv[])
     custom_die = format_die; /* Local death handler. */
 
     config = NULL;
-    testutil_assert(false);
+
     (void)testutil_set_progname(argv);
 
     format_process_env();

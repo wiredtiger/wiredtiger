@@ -187,7 +187,6 @@ main(int argc, char *argv[])
       "test_template"};
 
     /* Set the program name for error messages. */
-    testutil_assert(false);
     (void)testutil_set_progname(argv);
 
     /* See print_help() for all the different options and their description. */
