@@ -642,6 +642,9 @@ class bounded_cursor_stress : public test {
         return cursor_traversal_walk(bounded_cursor, normal_cursor, lower_bound, upper_bound, next);
     }
 
+    /*
+     * Walk both normal cursor and bounded cursor to the end of their ranges.
+     */
     int
     cursor_traversal_walk(scoped_cursor &bounded_cursor, scoped_cursor &normal_cursor,
       const bound &lower_bound, const bound &upper_bound, bool next)
@@ -662,9 +665,6 @@ class bounded_cursor_stress : public test {
 
             if (range_ret != 0 && range_ret != WT_NOTFOUND)
                 return range_ret;
-
-            testutil_assert(normal_ret == 0 || normal_ret == WT_NOTFOUND);
-            testutil_assert(range_ret == 0 || range_ret == WT_NOTFOUND);
 
             char *normal_key, *range_key;
             const std::string &lower_key = lower_bound.get_key();
