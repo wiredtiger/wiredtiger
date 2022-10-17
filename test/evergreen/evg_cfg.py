@@ -39,6 +39,10 @@ Usage:
   {progname} check [-t <test_type>] [-v]
   {progname} generate [-t <test_type>] [-v]
   {progname} (-h | --help)
+
+actions:
+  check     Check if any missing tests that should be added into Evergreen configuration.
+  generate  Generate Evergreen configuration for missing tests.
 """.format(progname=PROGNAME)
 
 verbose = False
@@ -304,7 +308,8 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(usage=USAGE, description=DESCRIPTION)
     parser.add_argument("action", help="Action to perform")
-    parser.add_argument("-t", metavar="TEST_TYPE", help="The test type to be checked or generated", default="all")
+    parser.add_argument("-t", metavar="TEST_TYPE",
+                        help="The test type to be checked or generated", default="all")
     parser.add_argument("-v", "--verbose", help="Enable verbose logging", action="store_true")
 
     # Print help if no argument is provided
