@@ -68,6 +68,14 @@ class test_cursor_bound04(bound_base):
     def test_bound_special_scenario(self):
         cursor = self.create_session_and_cursor()
 
+        # Test bound api: Test lower bound clearing works.
+        self.set_bounds(cursor, 45, "lower")
+        cursor.bound("action=clear")
+        self.assertEqual(cursor.next(), 0)
+        key = cursor.get_key()
+        self.assertEqual(key, self.check_key(self.start_key))
+        cursor.reset()
+        
         # Test bound api: Test lower bound setting with positioned cursor.
         self.set_bounds(cursor, 45, "lower")
         self.assertEqual(cursor.next(), 0)
