@@ -643,7 +643,7 @@ class bounded_cursor_stress : public test {
     }
 
     /*
-     * Walk both normal cursor and bounded cursor to the end of their ranges.
+     * Walk both the normal cursor and the bounded cursor to the end of their ranges.
      */
     int
     cursor_traversal_walk(scoped_cursor &bounded_cursor, scoped_cursor &normal_cursor,
@@ -672,6 +672,11 @@ class bounded_cursor_stress : public test {
             /* Early exit if we have reached the end of the table. */
             if (range_ret == WT_NOTFOUND && normal_ret == WT_NOTFOUND)
                 break;
+
+            /* The normal cursor shouldn't have returned WT_NOTFOUND if the range cursor hasn't. */
+            if (range_ret == 0)
+                testutil_assert(normal_ret != WT_NOTFOUND);
+
             /* It is possible that we have reached the end of the bounded range. */
             else if (range_ret == WT_NOTFOUND && normal_ret == 0) {
                 testutil_check(normal_cursor->get_key(normal_cursor.get(), &normal_key));
