@@ -107,8 +107,7 @@ __wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object
 
     TAILQ_FOREACH(chunkchain, &bucket->chainq, next_link) {
         if (memcmp(&chunkchain->hash_id, &hash_id, sizeof(hash_id)) == 0) {
-            /* Found the chain of chunks corresponding to the given object. See if we have the
-             * needed chunk. */
+            /* Found the chain of chunks for the object. See if we have the needed chunk. */
             TAILQ_FOREACH(chunk, &chunkchain->chunks, next_chunk) {
                 if (chunk->valid && chunk->chunk_offset <= offset &&
                     (chunk->chunk_offset + (wt_off_t)chunk->chunk_size) >= (offset + (wt_off_t)size)) {
@@ -181,6 +180,53 @@ __wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object
         /* Increment allocation stats. XXX */
     }
 done:
+    __wt_spin_unlock(session, &chunkcache->bucket_locks[bucket_id]);
+}
+
+/*
+ * Remove the outdated chunk.
+ */
+void
+__wt_chunkcache_remove(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid,
+                       wt_off_t offset, uint32_t size)
+{
+    WT_CHUNKCACHE *chunkcache;
+    WT_CHUNKCACHE_BUCKET *bucket;
+    WT_CHUNKCACHE_CHAIN *chunkchain;
+    WT_CHUNKCACHE_CHUNK *chunk;
+    WT_CHUNKCACHE_HASHID hash_id;
+    uint bucket_id;
+    uint64_t hash;
+
+    chunkcache = &S2C(session)->chunkcache;
+
+    bzero(&hash_id, sizeof(hash_id));
+    hash_id.objectid = objectid;
+    memcpy(&hash_id.objectname, block->name, WT_MIN(strlen(block->name), WT_CHUNKCACHE_NAMEMAX));
+
+    hash = __wt_hash_city64((void*) &hash_id, sizeof(hash_id));
+    bucket_id = (uint)(hash % chunkcache->hashtable_size);
+    bucket = &chunkcache->hashtable[bucket_id];
+
+    __wt_spin_lock(session, &chunkcache->bucket_locks[bucket_id]);
+    printf("\nremove-check: %s(%d), offset=%" PRId64 ", size=%d\n",
+           (char*)&hash_id.objectname, hash_id.objectid, offset, size);
+
+    TAILQ_FOREACH(chunkchain, &bucket->chainq, next_link) {
+        if (memcmp(&chunkchain->hash_id, &hash_id, sizeof(hash_id)) == 0)
+            /* Found the chain of chunks for the object. See if we have the needed chunk. */
+            TAILQ_FOREACH(chunk, &chunkchain->chunks, next_chunk) {
+                if (chunk->valid && chunk->chunk_offset <= offset &&
+                    (chunk->chunk_offset + (wt_off_t)chunk->chunk_size) >= (offset + (wt_off_t)size)) {
+                    /* In theory, a block may span two chunks. In practice, we will never
+                     * return such a chunk to the upper layer. So we can ignore such cases. */
+                    TAILQ_REMOVE(&chunkchain->chunks, chunk, next_chunk);
+                    printf("\nremove: %s(%d), offset=%" PRId64 ", size=%d\n",
+                           (char*)&hash_id.objectname, hash_id.objectid, offset, size);
+                    /* XXX Update cache size and stats */
+                }
+            }
+    }
     __wt_spin_unlock(session, &chunkcache->bucket_locks[bucket_id]);
 }
 

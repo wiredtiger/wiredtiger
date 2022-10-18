@@ -578,6 +578,8 @@ __wt_block_free(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr, 
     __wt_verbose(session, WT_VERB_BLOCK, "free %" PRIu32 ": %" PRIdMAX "/%" PRIdMAX, objectid,
       (intmax_t)offset, (intmax_t)size);
 
+    __wt_chunkcache_remove(session,  block, objectid, offset, size);
+
 #ifdef HAVE_DIAGNOSTIC
     WT_RET(__wt_block_misplaced(
       session, block, "free", offset, size, true, __PRETTY_FUNCTION__, __LINE__));
