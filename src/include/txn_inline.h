@@ -1108,21 +1108,14 @@ retry:
               !F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE)) {
                 cbt->upd_value->buf.data = NULL;
                 cbt->upd_value->buf.size = 0;
-                cbt->upd_value->tw.durable_stop_ts = tw.durable_stop_ts;
-                cbt->upd_value->tw.stop_ts = tw.stop_ts;
-                cbt->upd_value->tw.stop_txn = tw.stop_txn;
-                cbt->upd_value->tw.prepare = tw.prepare;
                 cbt->upd_value->type = WT_UPDATE_TOMBSTONE;
+                WT_TIME_WINDOW_COPY_STOP(&cbt->upd_value->tw, &tw);
                 return (0);
             }
 
             /* Store the stop time pair of the history store record that is returning. */
-            if (!have_stop_tw && WT_TIME_WINDOW_HAS_STOP(&tw) && WT_IS_HS(session->dhandle)) {
-                cbt->upd_value->tw.durable_stop_ts = tw.durable_stop_ts;
-                cbt->upd_value->tw.stop_ts = tw.stop_ts;
-                cbt->upd_value->tw.stop_txn = tw.stop_txn;
-                cbt->upd_value->tw.prepare = tw.prepare;
-            }
+            if (!have_stop_tw && WT_TIME_WINDOW_HAS_STOP(&tw) && WT_IS_HS(session->dhandle))
+                WT_TIME_WINDOW_COPY_STOP(&cbt->upd_value->tw, &tw);
 
             /*
              * We return the onpage value in the following cases:
@@ -1134,12 +1127,9 @@ retry:
                     cbt->upd_value->buf.data = NULL;
                     cbt->upd_value->buf.size = 0;
                 }
-
-                cbt->upd_value->tw.durable_start_ts = tw.durable_start_ts;
-                cbt->upd_value->tw.start_ts = tw.start_ts;
-                cbt->upd_value->tw.start_txn = tw.start_txn;
-                cbt->upd_value->tw.prepare = tw.prepare;
                 cbt->upd_value->type = WT_UPDATE_STANDARD;
+
+                WT_TIME_WINDOW_COPY_START(&cbt->upd_value->tw, &tw);
                 return (0);
             }
         }
