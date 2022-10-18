@@ -341,6 +341,14 @@ class WiredTigerTestCase(unittest.TestCase):
     def getTimestamp(self):
         return self.platform_api.getTimestamp()
 
+    # Return the tier share percent for this testcase, or 0 if there is none.
+    def getTierSharePercent(self):
+        return self.platform_api.getTierSharePercent()
+
+    # Return the tier cache percent for this testcase, or 0 if there is none.
+    def getTierCachePercent(self):
+        return self.platform_api.getTierCachePercent()
+
     def __str__(self):
         # when running with scenarios, if the number_scenarios() method
         # is used, then each scenario is given a number, which can

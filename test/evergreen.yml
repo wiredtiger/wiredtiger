@@ -1846,6 +1846,16 @@ tasks:
         vars:
           test_name: wt8963_insert_stress
 
+  - name: csuite-wt9937-parse-opts-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "csuite test"
+        vars:
+          test_name: wt9937_parse_opts
+
   # End of csuite test tasks
 
   # Start of Python unit test tasks
@@ -2306,10 +2316,9 @@ tasks:
             set -o verbose
             env CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:/opt/java/jdk11/bin:$PATH sh s_release `date +%Y%m%d`
 
+  # Note that the project settings use this task name to compile the documentation during PR
+  # testing, keep this in mind if you decide to change it.
   - name: doc-compile
-    tags: ["pull_request"]
-    run_on:
-    - ubuntu2004-test
     commands:
       - func: "get project"
       - func: "compile wiredtiger docs"
@@ -2411,7 +2420,7 @@ tasks:
           remote_file: wiredtiger/${build_variant}/${revision}/coverage_report_${build_id}-${execution}/1_coverage_report_main.html
 
   - name: tiered-storage-extensions-test
-    tags: ["python", "ext"]
+    tags: ["python"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2423,7 +2432,7 @@ tasks:
           python_binary: $(pwd)/venv/bin/python3
           tiered_storage_test_name: tiered
   - name: tiered-test-small
-    tags: ["pull_request", "python", "ext"]
+    tags: ["pull_request", "python"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2435,7 +2444,7 @@ tasks:
           python_binary: $(pwd)/venv/bin/python3
           tiered_storage_test_name: tiered06
   - name: tiered-unittest-test
-    tags: ["pull_request", "ext"]
+    tags: ["pull_request"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -3980,6 +3989,7 @@ buildvariants:
   tasks:
     - name: ".pull_request !.pull_request_compilers"
     - name: compile
+    - name: doc-compile
     - name: make-check-test
     - name: unit-test
     - name: configure-combinations
@@ -4506,8 +4516,6 @@ buildvariants:
 
 - name: big-endian
   display_name: "~ Big-endian (s390x/zSeries)"
-  modules:
-  - enterprise
   run_on:
   - ubuntu1804-zseries-build
   batchtime: 4320 # 3 days
