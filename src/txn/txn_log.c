@@ -573,8 +573,11 @@ __wt_txn_truncate_log(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *start, WT_CURSO
     WT_BTREE *btree;
     WT_ITEM *item;
     WT_TXN_OP *op;
+    uint64_t start_recno, stop_recno;
 
     btree = S2BT(session);
+    start_recno = WT_RECNO_OOB;
+    stop_recno = WT_RECNO_OOB;
 
     WT_RET(__txn_next_op(session, &op));
 
@@ -586,20 +589,27 @@ __wt_txn_truncate_log(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *start, WT_CURSO
         if (start != NULL) {
             op->u.truncate_row.mode = WT_TXN_TRUNC_START;
             item = &op->u.truncate_row.start;
-            WT_RET(__wt_cursor_get_raw_key(&start->iface, item));
-            WT_RET(__wt_buf_set(session, item, item->data, item->size));
+            WT_RET(__wt_buf_set(session, &start->iface.lower_bound, item->data, item->size));
         }
         if (stop != NULL) {
             op->u.truncate_row.mode =
               (op->u.truncate_row.mode == WT_TXN_TRUNC_ALL) ? WT_TXN_TRUNC_STOP : WT_TXN_TRUNC_BOTH;
             item = &op->u.truncate_row.stop;
-            WT_RET(__wt_cursor_get_raw_key(&stop->iface, item));
-            WT_RET(__wt_buf_set(session, item, item->data, item->size));
+            WT_RET(__wt_buf_set(session, &start->iface.lower_bound, item->data, item->size));
         }
     } else {
+        /* Unpack the raw recno buffer into integer variable. */
+        if (start == NULL)
+            WT_RET(__wt_struct_unpack(
+                session, start->iface.lower_bound.data, start->iface.lower_bound.size, "q", &start_recno));
+
+        if (stop == NULL)
+            WT_RET(__wt_struct_unpack(
+                session, stop->iface.lower_bound.data, stop->iface.lower_bound.size, "q", &stop_recno)); 
+
         op->type = WT_TXN_OP_TRUNCATE_COL;
-        op->u.truncate_col.start = (start == NULL) ? WT_RECNO_OOB : start->recno;
-        op->u.truncate_col.stop = (stop == NULL) ? WT_RECNO_OOB : stop->recno;
+        op->u.truncate_col.start = start_recno;
+        op->u.truncate_col.stop = stop_recno;
     }
 
     /* Write that operation into the in-memory log. */

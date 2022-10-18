@@ -1428,6 +1428,7 @@ __wt_session_range_truncate(
   WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *start, WT_CURSOR *stop)
 {
     WT_DECL_RET;
+    WT_ITEM start_key, stop_key;
     int cmp;
     bool local_start;
 
@@ -1475,6 +1476,16 @@ __wt_session_range_truncate(
               session, EINVAL, "the start cursor position is after the stop cursor position");
     }
 
+    if (start != NULL) {
+        WT_ERR(__wt_cursor_get_raw_key(start, &start_key));
+        WT_ERR(__wt_buf_set(session, &start->lower_bound, start_key.data, start_key.size));
+    }
+
+    if (stop != NULL) {
+        WT_ERR(__wt_cursor_get_raw_key(stop, &stop_key));
+        WT_ERR(__wt_buf_set(session, &stop->lower_bound, stop_key.data, stop_key.size));
+    }
+    
     /*
      * Truncate does not require keys actually exist so that applications can discard parts of the
      * object's name space without knowing exactly what records currently appear in the object. For
