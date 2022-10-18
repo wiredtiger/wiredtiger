@@ -167,18 +167,15 @@ A cursor may have a set of bounds applied to it, this restricts the key range
 that the cursor operates within.
 
 Suppose we have a table with keys A to Z. We can restrict the cursor to only operate over
-keys L->Q. If the cursor walks past key Q, the cursor will enter an un-positioned state having
-walked off the "end" of the table from it's perspective. Additionally should the cursor perform a
+keys L->Q. If the cursor walks past key Q, the cursor will enter an unpositioned state having
+walked off the "end" of the table from its perspective. Additionally should the cursor perform a
 search_near it will only search within the key range of L->Q. This can provide a performance boost
 when operating within tables that have a large number of deleted or invisible records. The cursor
 can have a lower bound set or an upper bound set, or both.
 
-```
-cursor->set_key(cursor, A)
-cursor->bound(cursor, bound=lower)
-```
+@snippet ex_cursor.c cursor bound
 
-Both or either one of the lower and upper bounds can be set, and the unset bound will be assumed to be off the start or
+Both or either one of the lower and upper bounds can be set, and any unset bound will be assumed to be off the start or
 end of the key range accordingly. When setting the bounds, the relevant bound is set prior with cursor->set_key.
 This key does not have to exist or be visible in order for bounds setting to succeed.
 
@@ -186,15 +183,7 @@ Cursor operations next, prev, search, search near, modify, insert, update, and r
 cursor->next or cursor->prev, the cursor will only return keys that are within the bounds that have been set. For example, calling cursor->next
 on an unpositioned range bounded cursor will position it on the lower bound rather than the end of the key range.
 
-Example API usage with cursor traversal:
-
-```
-cursor->set_key(cursor, A)
-cursor->bound(cursor, bound=lower,inclusive=false)
-cursor->next(cursor)
-```
-
-If search is called on a key that's not within bounds, this will result in returning a WT_NOTFOUND. cursor->search_near behaviour is optimised with the
+If search is called on a key that's not within bounds, this will result in returning a WT_NOTFOUND. cursor->search_near behavior is optimized with the
 inclusion of bounds, such that an early exit is made possible once the current key has exceeded the bounds. Calling
 cursor->search_near with a key outside the range will always return a key within the range unless no keys are present.
 

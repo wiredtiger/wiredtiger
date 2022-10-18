@@ -187,7 +187,6 @@ autogen
 automake
 basecfg
 basho
-behaviour
 benchmarking
 bigram
 bindir
@@ -523,7 +522,6 @@ objectsin
 ol
 oltp
 oob
-optimised
 optrack
 optype
 os
