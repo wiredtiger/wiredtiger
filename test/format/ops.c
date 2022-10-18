@@ -1323,9 +1323,9 @@ apply_bounds(WT_CURSOR *cursor, TABLE *table)
         break;
     }
     if (TV(BTREE_REVERSE))
-        testutil_check(cursor->bound(cursor, ,bound=upper"));
+        testutil_check(cursor->bound(cursor, "action=set,bound=upper"));
     else
-        testutil_check(cursor->bound(cursor, ,bound=lower"));
+        testutil_check(cursor->bound(cursor, "action=set,bound=lower"));
 
     /*
      * Generate a random upper key and apply to the upper bound or lower bound depending on the
@@ -1335,19 +1335,19 @@ apply_bounds(WT_CURSOR *cursor, TABLE *table)
 
     /* Retrieve the key/value pair by key. */
     switch (table->type) {
-        case FIX:
-        case VAR:
-            cursor->set_key(cursor, upper_keyno);
-            break;
-        case ROW:
-            key_gen(table, &key, upper_keyno);
-            cursor->set_key(cursor, &key);
-            break;
+    case FIX:
+    case VAR:
+        cursor->set_key(cursor, upper_keyno);
+        break;
+    case ROW:
+        key_gen(table, &key, upper_keyno);
+        cursor->set_key(cursor, &key);
+        break;
     }
     if (TV(BTREE_REVERSE))
-        testutil_check(cursor->bound(cursor, ,bound=upper"));
+        testutil_check(cursor->bound(cursor, "action=set,bound=upper"));
     else
-        testutil_check(cursor->bound(cursor, ,bound=lower"));
+        testutil_check(cursor->bound(cursor, "action=set,bound=lower"));
 
     key_gen_teardown(&key);
 }
