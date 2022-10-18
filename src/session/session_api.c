@@ -1476,6 +1476,10 @@ __wt_session_range_truncate(
               session, EINVAL, "the start cursor position is after the stop cursor position");
     }
 
+    /*
+     * Utilize the cursor lower bound as the temporary buffer to storing the original start and stop
+     * key. We use the original keys for the write-ahead log.
+     */
     if (start != NULL) {
         WT_ERR(__wt_cursor_get_raw_key(start, &start_key));
         WT_ERR(__wt_buf_set(session, &start->lower_bound, start_key.data, start_key.size));
@@ -1485,7 +1489,7 @@ __wt_session_range_truncate(
         WT_ERR(__wt_cursor_get_raw_key(stop, &stop_key));
         WT_ERR(__wt_buf_set(session, &stop->lower_bound, stop_key.data, stop_key.size));
     }
-    
+
     /*
      * Truncate does not require keys actually exist so that applications can discard parts of the
      * object's name space without knowing exactly what records currently appear in the object. For
@@ -1537,7 +1541,11 @@ __wt_session_range_truncate(
 
 done:
 err:
+    /* Clear the temporary buffer that was storing the original start key. */
+    __wt_buf_free(session, &start->lower_bound);
+    WT_CLEAR(start->lower_bound);
     /*
+
      * Close any locally-opened start cursor.
      *
      * Reset application cursors, they've possibly moved and the application cannot use them. Note
@@ -1547,8 +1555,12 @@ err:
         WT_TRET(start->close(start));
     else if (start != NULL)
         WT_TRET(start->reset(start));
-    if (stop != NULL)
+    if (stop != NULL) {
+        /* Clear the temporary buffer that was storing the original stop key. */
+        __wt_buf_free(session, &stop->lower_bound);
+        WT_CLEAR(stop->lower_bound);
         WT_TRET(stop->reset(stop));
+    }
     return (ret);
 }
 
