@@ -191,12 +191,12 @@ inclusion of bounds, such that an early exit is made possible once the current k
 Clearing the bounds can be done through resetting the cursor with \c cursor->reset or by passing a clear config to the bounds API call.
 This will unconditionally clear both bounds.
 
+Bounds API is supported with row-store and variable length column store. Bounds API is not supported with fixed length column store.
+
 The bounds API supports these cursor types:
 - File cursor
 - Table cursor
 - Datastore cursor
 - Dump cursor
-- Index cursor
-- JSON cursor
 
- */
+*/
