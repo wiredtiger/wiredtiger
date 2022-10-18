@@ -589,13 +589,15 @@ __wt_txn_truncate_log(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *start, WT_CURSO
         if (start != NULL) {
             op->u.truncate_row.mode = WT_TXN_TRUNC_START;
             item = &op->u.truncate_row.start;
-            WT_RET(__wt_buf_set(session, item, start->iface.lower_bound.data, start->iface.lower_bound.size));
+            WT_RET(__wt_buf_set(
+              session, item, start->iface.lower_bound.data, start->iface.lower_bound.size));
         }
         if (stop != NULL) {
             op->u.truncate_row.mode =
               (op->u.truncate_row.mode == WT_TXN_TRUNC_ALL) ? WT_TXN_TRUNC_STOP : WT_TXN_TRUNC_BOTH;
             item = &op->u.truncate_row.stop;
-            WT_RET(__wt_buf_set(session, item, stop->iface.lower_bound.data, stop->iface.lower_bound.size));
+            WT_RET(__wt_buf_set(
+              session, item, stop->iface.lower_bound.data, stop->iface.lower_bound.size));
         }
     } else {
         /* Unpack the start and stop raw recno buffer into integer variable. */
