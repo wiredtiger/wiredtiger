@@ -211,21 +211,21 @@ class ExtensionList(list):
 # Custom result class that will prefix the pid in text output (including if it's a child).
 # Only enabled when we are in verbose mode so we don't check that here.
 class PidAwareTextTestResult(unittest.TextTestResult):
+    _thread_prefix = threading.local()
+
     def __init__(self, stream, descriptions, verbosity):
         super(PidAwareTextTestResult, self).__init__(stream, descriptions, verbosity)
-        self._tags = set()
-        self._prefix = "[pid:{}]: ".format(os.getpid())
+        self._thread_prefix.value = "[pid:{}]: ".format(os.getpid())
 
     def tags(self, new_tags, gone_tags):
-        self._tags.update(set(new_tags))
-        self._tags.difference_update(set(gone_tags))
-        for tag in self._tags:
+        # We attach the PID to the thread so we only need the new_tags.
+        for tag in new_tags:
             if tag.startswith("pid:"):
                 pid = tag[len("pid:"):]
-                self._prefix = "[pid:{}/{}]: ".format(os.getpid(), pid)
+                self._thread_prefix.value = "[pid:{}/{}]: ".format(os.getpid(), pid)
 
     def startTest(self, test):
-        self.stream.write(self._prefix)
+        self.stream.write(self._thread_prefix.value)
         super(PidAwareTextTestResult, self).startTest(test)
 
     def getDescription(self, test):
@@ -234,9 +234,10 @@ class PidAwareTextTestResult(unittest.TextTestResult):
     def printErrorList(self, flavour, errors):
         for test, err in errors:
             self.stream.writeln(self.separator1)
-            self.stream.writeln("%s%s: %s" % (self._prefix,flavour,self.getDescription(test)))
+            self.stream.writeln("%s%s: %s" % (self._thread_prefix.value, 
+                flavour, self.getDescription(test)))
             self.stream.writeln(self.separator2)
-            self.stream.writeln("%s%s" % (self._prefix,err))
+            self.stream.writeln("%s%s" % (self._thread_prefix.value, err))
             self.stream.flush()
 
 class WiredTigerTestCase(unittest.TestCase):
