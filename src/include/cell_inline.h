@@ -1209,6 +1209,7 @@ static inline int
 __cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, int page_type,
   WT_CELL_UNPACK_COMMON *unpack, WT_ITEM *store)
 {
+    struct timespec tsp;
     WT_BTREE *btree;
     bool decoded;
     void *huffman;
@@ -1235,6 +1236,13 @@ __cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, int page_type,
             return (0);
         break;
     case WT_CELL_VALUE_OVFL:
+        tsp.tv_sec = 1;
+        tsp.tv_nsec = 0;
+        /*
+         * Encourage checkpoint to race with reading the onpage value. If we have an overflow item,
+         * it may be removed by checkpoint concurrently.
+         */
+        __wt_timing_stress(session, WT_TIMING_STRESS_SLEEP_BEFORE_READ_ONPAGE, &tsp);
         WT_RET(__wt_ovfl_read(session, page, unpack, store, &decoded));
         if (decoded)
             return (0);
