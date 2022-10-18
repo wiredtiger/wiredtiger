@@ -81,8 +81,8 @@ typedef struct {
     uint64_t n_read_threads;   /* Number of read threads */
     uint64_t n_write_threads;  /* Number of write threads */
 
-    uint32_t tiered_flush_interval; /* Number of seconds between flush_tiered */
-    time_t tiered_flush_next;   /* Next tiered flush in epoch seconds */
+    uint64_t tiered_flush_interval_us; /* Microseconds between flush_tier calls */
+    uint64_t tiered_flush_next_us;     /* Next tiered flush in epoch microseconds */
 
     /*
      * Fields commonly shared within a test program. The test cleanup function will attempt to
@@ -90,7 +90,7 @@ typedef struct {
      */
     WT_CONNECTION *conn;
     WT_SESSION *session;
-    bool running;
+    volatile bool running; /* Whether to stop */
     char *uri;
     volatile uint64_t next_threadid;
     uint64_t unique_id;
@@ -378,6 +378,8 @@ void testutil_copy_data(const char *);
 void testutil_copy_file(WT_SESSION *, const char *);
 void testutil_copy_if_exists(WT_SESSION *, const char *);
 void testutil_create_backup_directory(const char *);
+int testutil_general_event_handler(
+  WT_EVENT_HANDLER *, WT_CONNECTION *, WT_SESSION *, WT_EVENT_TYPE, void *);
 void testutil_make_work_dir(const char *);
 void testutil_modify_apply(WT_ITEM *, WT_ITEM *, WT_MODIFY *, int, uint8_t);
 void testutil_parse_begin_opt(int, char *const *, const char *, TEST_OPTS *);

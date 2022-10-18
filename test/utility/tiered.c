@@ -28,20 +28,33 @@
 #include "test_util.h"
 
 /*
+ * timeus --
+ *     Return the number of microseconds since the epoch.
+ */
+static uint64_t
+timeus(void)
+{
+    struct timeval tv;
+
+    testutil_assert_errno(gettimeofday(&tv, NULL) == 0);
+    return ((uint64_t)tv.tv_sec * 1000000 + (uint64_t)tv.tv_usec);
+}
+
+/*
  * testutil_tiered_begin --
  *     Begin processing for a test program that supports tiered storage.
  */
 void
 testutil_tiered_begin(TEST_OPTS *opts)
 {
-    time_t now;
+    uint64_t now;
 
     testutil_assert(!opts->tiered_begun);
     testutil_assert(opts->conn != NULL);
 
-    if (opts->tiered_storage && opts->tiered_flush_interval != 0) {
-        (void)time(&now);
-        opts->tiered_flush_next = now + opts->tiered_flush_interval;
+    if (opts->tiered_storage && opts->tiered_flush_interval_us != 0) {
+        now = timeus();
+        opts->tiered_flush_next_us = now + opts->tiered_flush_interval_us;
     }
     opts->tiered_begun = true;
 }
@@ -49,30 +62,36 @@ testutil_tiered_begin(TEST_OPTS *opts)
 /*
  * testutil_tiered_sleep --
  *     Sleep for a number of seconds, or until it is time to flush_tier, or the process wants to
- * exit.
+ *     exit.
  */
 void
 testutil_tiered_sleep(TEST_OPTS *opts, uint32_t seconds, bool *do_flush_tier)
 {
-    time_t now, wake_time;
+    uint64_t now, wake_time;
     bool do_flush;
 
-    (void)time(&now);
-    wake_time = (time_t)(now + seconds);
+    now = timeus();
+    wake_time = now + 1000000 * seconds;
     do_flush = false;
-    if (do_flush_tier != NULL && opts->tiered_flush_next != 0 && opts->tiered_flush_next < wake_time) {
-        wake_time = opts->tiered_flush_next;
+    if (do_flush_tier != NULL && opts->tiered_flush_next_us != 0 &&
+      opts->tiered_flush_next_us < wake_time) {
+        wake_time = opts->tiered_flush_next_us;
         do_flush = true;
     }
     *do_flush_tier = false;
 
     while (now < wake_time && opts->running) {
-        sleep(1);
-        (void)time(&now);
+        /* Sleep a maximum of one second, so we can make sure we should still be running. */
+        if (now + 1000000 < wake_time)
+            __wt_sleep(1, 0);
+        else
+            __wt_sleep(0, wake_time - now);
+        now = timeus();
     }
     if (opts->running && do_flush) {
+        /* Don't flush again until we know this flush is complete. */
+        opts->tiered_flush_next_us = 0;
         *do_flush_tier = true;
-        opts->tiered_flush_next = 0; /* Don't flush until we know this flush is complete. */
     }
 }
 
@@ -80,12 +99,13 @@ testutil_tiered_sleep(TEST_OPTS *opts, uint32_t seconds, bool *do_flush_tier)
  * testutil_tiered_flush_complete --
  *     Notification that a flush_tier has completed, with the given argument.
  */
-void testutil_tiered_flush_complete(TEST_OPTS *opts, void *arg)
+void
+testutil_tiered_flush_complete(TEST_OPTS *opts, void *arg)
 {
-    time_t now;
+    uint64_t now;
 
     (void)arg;
 
-    (void)time(&now);
-    opts->tiered_flush_next = (time_t)(now + opts->tiered_flush_interval);
+    now = timeus();
+    opts->tiered_flush_next_us = now + opts->tiered_flush_interval_us;
 }

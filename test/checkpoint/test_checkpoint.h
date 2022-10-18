@@ -55,6 +55,7 @@ typedef struct {
 } COOKIE;
 
 typedef struct {
+    TEST_OPTS opts;              /* Shared test options */
     char *home;                  /* Home directory */
     const char *checkpoint_name; /* Checkpoint name */
     WT_CONNECTION *conn;         /* WiredTiger connection */
@@ -65,7 +66,6 @@ typedef struct {
     int ntables;                 /* Number tables configured */
     int ntables_created;         /* Number tables opened */
     int nworkers;                /* Number workers configured */
-    volatile int running;        /* Whether to stop */
     int status;                  /* Exit status */
 
     bool checkpoint_slow_timing_stress;  /* Checkpoint slow timing stress */
@@ -82,7 +82,6 @@ typedef struct {
     bool prepare;                                      /* Use prepare transactions */
     bool race_timestamps;                              /* Async update to oldest timestamp */
 
-    bool tiered;         /* Use tiered storage. Start flush thread */
     bool use_timestamps; /* Use txn timestamps. Start clock thread */
 
     COOKIE *cookies;               /* Per-thread info */
