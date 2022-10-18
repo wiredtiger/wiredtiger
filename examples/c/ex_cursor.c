@@ -90,7 +90,7 @@ int
 cursor_bound(WT_CURSOR *cursor)
 {
     cursor->set_key(cursor, "A");
-    error_check(cursor->bound(cursor, "bound=lower,inclusive=false"));
+    error_check(cursor->bound(cursor, "action=set,bound=lower"));
     return (0);
 }
 /*! [cursor bound] */

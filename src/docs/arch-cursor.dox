@@ -378,15 +378,15 @@ regardless of whether the value associated with the key is visible to the cursor
 
 The lower and upper bound in a cursor is represented as a \c WT_ITEM. The implementation applies bounds through the function
 __wt_cursor_bound which takes the cursor and a config string as arguments. The config string specifies whether the operation is clearing
-or setting the bound, and if a "set" is in progress, whether the bound is a lower or upper bound. There are four flags that can get set
+or setting the bound, and if a "set" is in progress, whether the bound is a lower or upper bound. There are four flags that can be set
 when applying bounds: WT_CURSTD_BOUND_LOWER, WT_CURSTD_BOUND_LOWER_INCLUSIVE, WT_CURSTD_BOUND_UPPER, and WT_CURSTD_BOUND_UPPER_INCLUSIVE.
-When calling __wt_cursor_bound with valid bounds, the respective bound flag gets set and the bound key data saved in the cursor.
+When calling __wt_cursor_bound with valid bounds, the respective bound flag is set and the key held on the cursor is copied into the relevant bound buffer.
 Clearing a cursor's bounds can be done via resetting the cursor or calling bound with the "clear" config which will free both bounds buffers.
 
-Positioning the cursor for traversal with bounds has a separate implementation to place the cursor at the "start" or "end" of the range it can operate
-within - namely, the lower and upper bounds. In cursor->next/prev, the cursor gets positioned with the function __wt_btcur_bounds_position.
-This attempts to position the cursor on the appropriate bound for the direction of traversal (e.g. lower bound for next). If the bound exists, the cursor will be positioned
-on the bound, if not it could be positioned on the closest valid record (meaning within the bounded range), or the record just outside of the range.
+When calling \c cursor->next and \c cursor->prev on an unpositioned cursor, WiredTiger guarantees that the cursor will start walking from either the start or end of the file respectively.
+The range bounded cursor logic continues to uphold this guarantee. Doing so requires additional logic to place the cursor at the start or end of the range. In cursor->next/prev,
+the cursor gets positioned with the function __wt_btcur_bounds_position. This attempts to position the cursor on the appropriate bound for the direction of traversal (e.g. lower bound for next).
+If the bound exists, the cursor will be positioned on the bound, if not it could be positioned on the closest valid record (meaning within the bounded range), or the record just outside of the range.
 In the case it's positioned just outside the range, this is still acceptable as it will be marked as "needing walk", and the following traversal (whether next or
 prev) will continue, returning a record within range at completion.
 
