@@ -373,8 +373,9 @@ the need to free up shared resources.
 
 @section arch_cursor_bound Range bounded cursors
 
-The implementation of bounds brings performance optimizations. Bounds checking detects when a key is out of range and returns WT_NOTFOUND
-regardless of whether the value associated with the key is visible to the cursor. This skips the traversal of unnecessary records.
+Range bounded cursors provide a mechanism for optimizing cursor operations in collections with a large number
+of invisible records. When traversing records the record's key is compared with the bounds set on the cursor and
+the traversal will exit with WT_NOTFOUND regardless of whether the value associated with the cursor is visible.
 
 The lower and upper bound in a cursor is represented as a \c WT_ITEM. The implementation applies bounds through the function
 __wt_cursor_bound which takes the cursor and a config string as arguments. The config string specifies whether the operation is clearing
