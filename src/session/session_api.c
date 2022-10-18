@@ -1481,11 +1481,15 @@ __wt_session_range_truncate(
      * key. We use the original keys for the write-ahead log.
      */
     if (start != NULL) {
+        if (WT_CURSOR_BOUNDS_SET(start))
+            WT_ERR_MSG(session, EINVAL, "cursor with bounds is not compatible with truncate operation.");
         WT_ERR(__wt_cursor_get_raw_key(start, &start_key));
         WT_ERR(__wt_buf_set(session, &start->lower_bound, start_key.data, start_key.size));
     }
 
     if (stop != NULL) {
+        if (WT_CURSOR_BOUNDS_SET(stop))
+            WT_ERR_MSG(session, EINVAL, "cursor with bounds is not compatible with truncate operation.");
         WT_ERR(__wt_cursor_get_raw_key(stop, &stop_key));
         WT_ERR(__wt_buf_set(session, &stop->lower_bound, stop_key.data, stop_key.size));
     }
