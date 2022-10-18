@@ -36,7 +36,7 @@ __chunkcache_alloc(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
 
 static int
 __chunkcache_alloc_chunk(
-  WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK **chunk, wt_off_t offset, uint32_t size)
+  WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK **chunk, wt_off_t offset, size_t size)
 {
     WT_CHUNKCACHE_CHUNK *newchunk;
 
@@ -56,7 +56,7 @@ __chunkcache_alloc_chunk(
     return (0);
 }
 
-static uint32_t
+static size_t
 __chunkcache_admit_size(void)
 {
 #define WT_DEFAULT_CHUNKSIZE 1024*1024*1024
@@ -87,7 +87,7 @@ __wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object
     WT_CHUNKCACHE_HASHID hash_id;
     uint bucket_id;
     uint64_t hash;
-    uint32_t newchunk_size;
+    size_t newchunk_size;
 
     chunkcache = &S2C(session)->chunkcache;
     *chunk_to_read = NULL;
@@ -112,11 +112,8 @@ __wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object
             TAILQ_FOREACH(chunk, &chunkchain->chunks, next_chunk) {
                 if (chunk->valid && chunk->chunk_offset <= offset &&
                     (chunk->chunk_offset + (wt_off_t)chunk->chunk_size) >= (offset + (wt_off_t)size)) {
-                    /* XXX uncomment that
-                       memcpy(dst, chunk->chunk_location + (offset - chunk->chunk_offset), size);
-                    */
-                    (void)dst;
-                    *chunkcache_has_data = false /* XXX true */;
+                    memcpy(dst, chunk->chunk_location + (offset - chunk->chunk_offset), size);
+                    *chunkcache_has_data = true;
                     /* Increment hit statistics. XXX */
 
                     goto done;
@@ -125,15 +122,17 @@ __wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object
             }
             /*
              * The chunk list is present, but the chunk is not there. Do we want to allocate space
-             * for it and insert it?
+             * for it and insert it? By default the chunk size is calculated to be the minimum
+             * of what the size that the chunk cache can admit, but we reduce the chunk size
+             * if the default would cause us to read past the end of the file.
              */
-            if ((newchunk_size = __chunkcache_admit_size()) > 0 &&
+            if ((newchunk_size = WT_MIN(__chunkcache_admit_size(), (size_t)(block->size - offset))) > 0 &&
               __chunkcache_alloc_chunk(session, &newchunk, offset, newchunk_size) == 0) {
-                printf("allocate: %s(%d), offset=%" PRId64 ", size=%d\n",
+                printf("allocate: %s(%d), offset=%" PRId64 ", size=%ld\n",
                        (char*)&hash_id.objectname, hash_id.objectid, offset, newchunk_size);
                 if (chunk == NULL) {
                     TAILQ_INSERT_HEAD(&chunkchain->chunks, newchunk, next_chunk);
-                    printf("insert: %s(%d), offset=0, size=0\n",
+                    printf("insert-first: %s(%d), offset=0, size=0\n",
                            (char*)&hash_id.objectname, hash_id.objectid);
                 }
                 else if (chunk->chunk_offset > newchunk->chunk_offset) {
@@ -174,7 +173,7 @@ __wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object
         TAILQ_INSERT_HEAD(&newchain->chunks, newchunk, next_chunk);
         *chunk_to_read = newchunk;
 
-        printf("allocate: %s(%d), offset=%" PRId64 ", size=%d\n",
+        printf("allocate: %s(%d), offset=%" PRId64 ", size=%ld\n",
                (char*)&hash_id.objectname, hash_id.objectid, offset, newchunk_size);
         printf("insert: %s(%d), offset=0, size=0\n",
                            (char*)&hash_id.objectname, hash_id.objectid);

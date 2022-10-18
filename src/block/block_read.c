@@ -201,17 +201,13 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
      */
     __wt_chunkcache_check(
       session, block, objectid, offset, size, &chunkptr, &chunkcache_has_data, buf->mem);
-    /* XXX Remove the following two lines */
-    if (chunkptr != NULL)
-        __wt_chunkcache_complete_read(chunkptr);
-    /* XXX uncomment this
+
     if (chunkptr != NULL &&
       __wt_read(session, block->fh, offset, chunkptr->chunk_size, chunkptr->chunk_location) == 0) {
         __wt_chunkcache_complete_read(chunkptr);
         memcpy((void *)buf->mem, chunkptr->chunk_location, size);
         chunkcache_has_data = true;
     }
-    */
     if (!chunkcache_has_data)
         WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
 
