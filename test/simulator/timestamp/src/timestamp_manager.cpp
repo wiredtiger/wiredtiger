@@ -103,6 +103,10 @@ timestamp_manager::parse_config(const std::string &config,
     if (config.empty())
         return (0);
 
+    /*
+     * Convert the config string to a map. For instance if the config string is 'read_timestamp=15'.
+     * Then conversion to a map would look like {'read_timestamp' = '15'}.
+     */
     while (std::getline(conf, token, ',')) {
         int pos = token.find('=');
         if (pos == -1)
