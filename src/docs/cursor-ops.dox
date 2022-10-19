@@ -186,7 +186,7 @@ on an unpositioned range bounded cursor will position it on the lower bound rath
 
 If search is called on a key that's not within bounds, this will result in returning a \c WT_NOTFOUND. Calling \c cursor->search_near with a key outside the range
 will always return a key within the range unless no keys are present. \c cursor->search_near can benefit from range bounded cursors, once the cursor
-traverses outside of the bounded range the search_near logic can early exit reducing the overall number of keys visited.
+traverses outside of the bounded range the \c search_near logic can early exit reducing the overall number of keys visited.
 
 Clearing the bounds can be done through resetting the cursor with \c cursor->reset or by passing a clear config to the bounds API call.
 This will unconditionally clear both bounds.
