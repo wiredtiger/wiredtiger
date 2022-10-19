@@ -112,6 +112,31 @@ session_simulator::rollback_transaction(const std::string &config)
 }
 
 int
+session_simulator::prepare_transaction(const std::string &config)
+{
+    /* Make sure that the transaction from this session is running. */
+    if (!_txn_running)
+        WT_SIM_RET_MSG(EINVAL, "'prepare_transaction' only permitted in a running transaction");
+
+    timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
+    std::map<std::string, std::string> config_map;
+
+    const std::vector<std::string> supported_ops = {"prepare_timestamp"};
+    const std::vector<std::string> unsupported_ops;
+
+    WT_SIM_RET_MSG(ts_manager->parse_config(config, supported_ops, unsupported_ops, config_map),
+      "Incorrect config (" + config + ") passed in prepare_transaction");
+
+    auto pos = config_map.find("prepare_timestamp");
+    if (pos != config_map.end()) {
+    }
+
+    _prepared_txn = true;
+
+    return (0);
+}
+
+int
 session_simulator::commit_transaction(const std::string &config)
 {
     /* Make sure that the transaction from this session is running. */

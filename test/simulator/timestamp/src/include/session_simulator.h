@@ -41,6 +41,7 @@ class session_simulator {
     public:
     int begin_transaction(const std::string & = "");
     int rollback_transaction(const std::string & = "");
+    int prepare_transaction(const std::string & = "");
     int commit_transaction(const std::string & = "");
     int timestamp_transaction(const std::string & = "");
     int timestamp_transaction_uint(const std::string &, uint64_t);

@@ -38,6 +38,7 @@ enum class api_method {
     close_session,
     commit_transaction,
     open_session,
+    prepare_transaction,
     query_timestamp,
     rollback_transaction,
     set_timestamp,
@@ -61,6 +62,7 @@ class call_log_manager {
     void call_log_close_session(const json &);
     void call_log_commit_transaction(const json &);
     void call_log_open_session(const json &);
+    void call_log_prepare_transaction(const json &);
     void call_log_query_timestamp(const json &);
     void call_log_rollback_transaction(const json &);
     void call_log_set_timestamp(const json &);
