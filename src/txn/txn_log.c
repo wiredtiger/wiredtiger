@@ -568,7 +568,8 @@ err:
  *     Begin truncating a range of a file.
  */
 int
-__wt_txn_truncate_log(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop)
+__wt_txn_truncate_log(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop, bool local_start)
 {
     WT_BTREE *btree;
     WT_ITEM *item;
@@ -586,7 +587,7 @@ __wt_txn_truncate_log(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *start, WT_CURSO
         op->u.truncate_row.mode = WT_TXN_TRUNC_ALL;
         WT_CLEAR(op->u.truncate_row.start);
         WT_CLEAR(op->u.truncate_row.stop);
-        if (start != NULL) {
+        if (!local_start && start != NULL) {
             op->u.truncate_row.mode = WT_TXN_TRUNC_START;
             item = &op->u.truncate_row.start;
             WT_RET(__wt_buf_set(
@@ -601,7 +602,7 @@ __wt_txn_truncate_log(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *start, WT_CURSO
         }
     } else {
         /* Unpack the start and stop raw recno buffer into integer variable. */
-        if (start != NULL)
+        if (!local_start && start != NULL)
             WT_RET(__wt_struct_unpack(session, start->iface.lower_bound.data,
               start->iface.lower_bound.size, "q", &start_recno));
         if (stop != NULL)

@@ -189,7 +189,10 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
         GET_RECOVERY_CURSOR(session, r, lsnp, fileid, &cursor);
 
         /* Set up the cursors. */
-        if (start_recno == WT_RECNO_OOB) {
+        if (start_recno == WT_RECNO_OOB && stop_recno == WT_RECNO_OOB) {
+            start = NULL;
+            stop = NULL;
+        } else if (start_recno == WT_RECNO_OOB) {
             start = NULL;
             stop = cursor;
         } else if (stop_recno == WT_RECNO_OOB) {
@@ -206,7 +209,12 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
         if (stop != NULL)
             stop->set_key(stop, stop_recno);
 
-        WT_TRET(session->iface.truncate(&session->iface, NULL, start, stop, NULL));
+        if (start == NULL && stop == NULL)
+            WT_TRET(
+              session->iface.truncate(&session->iface, r->files[fileid].uri, NULL, NULL, NULL));
+        else
+            WT_TRET(session->iface.truncate(&session->iface, NULL, start, stop, NULL));
+
         /* If we opened a duplicate cursor, close it now. */
         if (stop != NULL && stop != cursor)
             WT_TRET(stop->close(stop));
@@ -280,7 +288,12 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
         if (stop != NULL)
             __wt_cursor_set_raw_key(stop, &stop_key);
 
-        WT_TRET(session->iface.truncate(&session->iface, NULL, start, stop, NULL));
+        if (start == NULL && stop == NULL)
+            WT_TRET(
+              session->iface.truncate(&session->iface, r->files[fileid].uri, NULL, NULL, NULL));
+        else
+            WT_TRET(session->iface.truncate(&session->iface, NULL, start, stop, NULL));
+
         /* If we opened a duplicate cursor, close it now. */
         if (stop != NULL && stop != cursor)
             WT_TRET(stop->close(stop));
