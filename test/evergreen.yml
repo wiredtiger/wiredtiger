@@ -4308,6 +4308,7 @@ buildvariants:
   display_name: "Cppsuite Stress Tests Ubuntu 20.04"
   batchtime: 720 # twice a day
   run_on:
+  # We run on medium as small has too small a disk.
   - ubuntu2004-medium
   expansions:
     test_env_vars:
