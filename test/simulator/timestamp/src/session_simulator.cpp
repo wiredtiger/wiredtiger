@@ -58,9 +58,9 @@ session_simulator::begin_transaction(const std::string &config)
      * string for begin_transaction(). Hence, we ignore ignore_prepare, isolation, name,
      * no_timestamp, operation_timeout_ms, priority and sync.
      */
-    const std::vector<std::string> supported_ops = {"roundup_timestamps", "read_timestamp"};
+    const std::vector<std::string> supported_ops = {"read_timestamp", "roundup_timestamps"};
     const std::vector<std::string> unsupported_ops = {"ignore_prepare", "isolation", "name",
-      "no_timestamp", "operation_timeout_ms", "sync", "priority"};
+      "no_timestamp", "operation_timeout_ms", "priority", "sync"};
 
     WT_SIM_RET_MSG(ts_manager->parse_config(config, config_map, supported_ops, unsupported_ops),
       "Incorrect config (" + config + ") passed in begin_transaction");
@@ -101,9 +101,10 @@ session_simulator::rollback_transaction(const std::string &config)
      * For now, the simulator does not support operation_timeout_ms in the config string for
      * rollback_transaction().
      */
+    const std::vector<std::string> supported_ops;
     const std::vector<std::string> unsupported_ops = {"operation_timeout_ms"};
     WT_SIM_RET_MSG(
-      ts_manager->parse_config(config, config_map, std::vector<std::string>(), unsupported_ops),
+      ts_manager->parse_config(config, config_map, supported_ops, unsupported_ops),
       "Incorrect config (" + config + ") passed in rollback_transaction");
 
     /* Transaction can rollback successfully if we got to this point. */
@@ -172,9 +173,10 @@ session_simulator::timestamp_transaction(const std::string &config)
 
     const std::vector<std::string> supported_ops = {
       "commit_timestamp", "durable_timestamp", "prepare_timestamp", "read_timestamp"};
+    const std::vector<std::string> unsupported_ops;
 
     WT_SIM_RET_MSG(
-      ts_manager->parse_config(config, config_map, supported_ops, std::vector<std::string>()),
+      ts_manager->parse_config(config, config_map, supported_ops, unsupported_ops),
       "Incorrect config (" + config + ") passed in timestamp_transaction");
 
     uint64_t commit_ts = 0, durable_ts = 0, prepare_ts = 0, read_ts = 0;
@@ -239,9 +241,10 @@ session_simulator::query_timestamp(const std::string &config, std::string &hex_t
     else {
         std::map<std::string, std::string> config_map;
         const std::vector<std::string> supported_ops = {"get"};
+        const std::vector<std::string> unsupported_ops;
 
         WT_SIM_RET_MSG(
-          ts_manager->parse_config(config, config_map, supported_ops, std::vector<std::string>()),
+          ts_manager->parse_config(config, config_map, supported_ops, unsupported_ops),
           "Incorrect config (" + config + ") passed in query_timestamp");
 
         auto pos = config_map.find("get");

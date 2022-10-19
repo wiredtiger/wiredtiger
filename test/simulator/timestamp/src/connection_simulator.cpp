@@ -118,9 +118,10 @@ connection_simulator::query_timestamp(
     else {
         std::map<std::string, std::string> config_map;
         const std::vector<std::string> supported_ops = {"get"};
+        const std::vector<std::string> unsupported_ops;
 
         WT_SIM_RET_MSG(
-          ts_manager->parse_config(config, config_map, supported_ops, std::vector<std::string>()),
+          ts_manager->parse_config(config, config_map, supported_ops, unsupported_ops),
           "Incorrect config (" + config + ") passed in query_timestamp");
 
         auto pos = config_map.find("get");
@@ -204,10 +205,11 @@ connection_simulator::set_timestamp(const std::string &config)
     timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
     std::map<std::string, std::string> config_map;
     const std::vector<std::string> supported_ops = {
-      "oldest_timestamp", "stable_timestamp", "durable_timestamp", "force"};
+      "durable_timestamp", "force", "oldest_timestamp", "stable_timestamp"};
+    const std::vector<std::string> unsupported_ops;
 
     WT_SIM_RET_MSG(
-      ts_manager->parse_config(config, config_map, supported_ops, std::vector<std::string>()),
+      ts_manager->parse_config(config, config_map, supported_ops, unsupported_ops),
       "Incorrect config (" + config + ") passed in set_timestamp");
 
     uint64_t new_stable_ts = 0, new_oldest_ts = 0, new_durable_ts = 0;
