@@ -176,17 +176,17 @@ with the key is visible or not. The cursor can have a lower bound set or an uppe
 
 @snippet ex_cursor.c cursor bound
 
-Both or either one of the lower and upper bounds can be set, and any unset bound will be assumed to be off the start or
-end of the key range accordingly. When setting the bounds, the relevant bound is set prior with \c cursor->set_key.
-This key does not have to exist or be visible in order for bounds setting to succeed.
+Both or either one of the lower and upper bounds can be set, if a bound is not set then the usual start or end of the file applies.
+Given our previous example had we set a lower bound of \c L and no upper bound then our key range would be \c L->Z. When setting the bounds,
+the relevant bound is set prior with \c cursor->set_key. This key does not have to exist or be visible in order for bounds setting to succeed.
 
 Cursor operations next, prev, search, search near, modify, insert, update, and remove support bounds. When performing a traversal such as
 \c cursor->next or \c cursor->prev, the cursor will only return keys that are within the bounds that have been set. For example, calling \c cursor->next
-on an unpositioned range bounded cursor will position it on the lower bound rather than the end of the key range.
+on an unpositioned range bounded cursor will position it on the lower bound rather than the start of the key range.
 
-If search is called on a key that's not within bounds, this will result in returning a \c WT_NOTFOUND. \c cursor->search_near behavior is optimized with the
-inclusion of bounds, such that an early exit is made possible once the current key has exceeded the bounds. Calling
-\c cursor->search_near with a key outside the range will always return a key within the range unless no keys are present.
+If search is called on a key that's not within bounds, this will result in returning a \c WT_NOTFOUND. Calling \c cursor->search_near with a key outside the range
+will always return a key within the range unless no keys are present. \c cursor->search_near can benefit from range bounded cursors, once the cursor
+traverses outside of the bounded range the search_near logic can early exit reducing the overall number of keys visited.
 
 Clearing the bounds can be done through resetting the cursor with \c cursor->reset or by passing a clear config to the bounds API call.
 This will unconditionally clear both bounds.
