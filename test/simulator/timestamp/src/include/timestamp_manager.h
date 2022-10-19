@@ -39,8 +39,8 @@ class timestamp_manager {
     /* Methods */
     public:
     static timestamp_manager &get_timestamp_manager();
-    int parse_config(const std::string &, std::map<std::string, std::string> &,
-      const std::vector<std::string> &, const std::vector<std::string> &);
+    int parse_config(const std::string &, const std::vector<std::string> &,
+      const std::vector<std::string> &, std::map<std::string, std::string> &);
     uint64_t hex_to_decimal(const std::string &);
     std::string decimal_to_hex(const uint64_t);
     int validate_hex_value(const std::string &, const std::string &);

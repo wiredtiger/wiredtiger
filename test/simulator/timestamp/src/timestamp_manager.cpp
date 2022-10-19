@@ -94,8 +94,8 @@ timestamp_manager::trim(std::string str)
 /* Parse config string to a config map. */
 int
 timestamp_manager::parse_config(const std::string &config,
-  std::map<std::string, std::string> &config_map, const std::vector<std::string> &supported_ops,
-  const std::vector<std::string> &unsupported_ops)
+  const std::vector<std::string> &supported_ops, const std::vector<std::string> &unsupported_ops,
+  std::map<std::string, std::string> &config_map)
 {
     std::istringstream conf(config);
     std::string token;
