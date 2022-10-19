@@ -92,10 +92,10 @@ static int
 __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first_upd,
   wt_timestamp_t rollback_timestamp, bool *stable_update_found)
 {
-    WT_UPDATE *stable_upd, *tombstone, *upd;
+    WT_UPDATE *oldest_unstable_hs_upd, *stable_upd, *tombstone, *upd;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
-    stable_upd = tombstone = NULL;
+    oldest_unstable_hs_upd = stable_upd = tombstone = NULL;
     if (stable_update_found != NULL)
         *stable_update_found = false;
     for (upd = first_upd; upd != NULL; upd = upd->next) {
@@ -125,6 +125,9 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
 
             upd->txnid = WT_TXN_ABORTED;
             WT_STAT_CONN_INCR(session, txn_rts_upd_aborted);
+
+            if (F_ISSET(upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS))
+                oldest_unstable_hs_upd = upd;
         } else {
             /* Valid update is found. */
             stable_upd = upd;
@@ -173,7 +176,14 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
         }
         if (stable_update_found != NULL)
             *stable_update_found = true;
-    }
+    } else
+      /*
+       * When stable update cleanup isn't performed make sure any unstable updates in the history
+       * store are removed. An unstable update in the data store will be removed when the page is
+       * next reconciled.
+       */
+      if (oldest_unstable_hs_upd != NULL)
+        WT_RET(__rollback_delete_hs(session, key, oldest_unstable_hs_upd->start_ts));
 
     return (0);
 }
