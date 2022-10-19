@@ -1547,11 +1547,7 @@ __wt_session_range_truncate(
 
 done:
 err:
-    /* Clear the temporary buffer that was storing the original start key. */
-    __wt_buf_free(session, &start->lower_bound);
-    WT_CLEAR(start->lower_bound);
     /*
-
      * Close any locally-opened start cursor.
      *
      * Reset application cursors, they've possibly moved and the application cannot use them. Note
@@ -1559,8 +1555,12 @@ err:
      */
     if (local_start)
         WT_TRET(start->close(start));
-    else if (start != NULL)
+    else if (start != NULL) {
+        /* Clear the temporary buffer that was storing the original start key. */
+        __wt_buf_free(session, &start->lower_bound);
+        WT_CLEAR(start->lower_bound);
         WT_TRET(start->reset(start));
+    }
     if (stop != NULL) {
         /* Clear the temporary buffer that was storing the original stop key. */
         __wt_buf_free(session, &stop->lower_bound);
