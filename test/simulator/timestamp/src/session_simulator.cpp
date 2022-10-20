@@ -464,7 +464,7 @@ session_simulator::set_prepare_timestamp(uint64_t prepare_ts)
         connection_simulator *conn = &connection_simulator::get_connection();
         uint64_t oldest_ts = conn->get_oldest_ts();
         if (prepare_ts < oldest_ts)
-            _prepare_ts = oldest_ts;
+            prepare_ts = oldest_ts;
     }
 
     _prepare_ts = prepare_ts;
