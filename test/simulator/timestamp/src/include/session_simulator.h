@@ -41,6 +41,7 @@ class session_simulator {
     public:
     int begin_transaction(const std::string & = "");
     int rollback_transaction(const std::string & = "");
+    int prepare_transaction(const std::string & = "");
     int commit_transaction(const std::string & = "");
     int timestamp_transaction(const std::string & = "");
     int timestamp_transaction_uint(const std::string &, uint64_t);
@@ -54,6 +55,7 @@ class session_simulator {
     uint64_t get_prepare_timestamp() const;
     uint64_t get_read_timestamp() const;
     bool get_ts_round_prepared() const;
+    bool has_durable_timestamp() const;
     bool has_first_commit_timestamp() const;
     bool has_prepare_timestamp() const;
     bool has_read_timestamp() const;

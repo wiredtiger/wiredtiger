@@ -68,6 +68,7 @@ call_log_manager::api_map_setup()
     _api_map["close_session"] = api_method::close_session;
     _api_map["commit_transaction"] = api_method::commit_transaction;
     _api_map["open_session"] = api_method::open_session;
+    _api_map["prepare_transaction"] = api_method::prepare_transaction;
     _api_map["query_timestamp"] = api_method::query_timestamp;
     _api_map["rollback_transaction"] = api_method::rollback_transaction;
     _api_map["set_timestamp"] = api_method::set_timestamp;
@@ -172,6 +173,27 @@ call_log_manager::call_log_open_session(const json &call_log_entry)
      * session object.
      */
     _session_map.insert(std::pair<std::string, session_simulator *>(session_id, session));
+}
+
+void
+call_log_manager::call_log_prepare_transaction(const json &call_log_entry)
+{
+    const std::string session_id = call_log_entry["session_id"].get<std::string>();
+    session_simulator *session = get_session(session_id);
+    std::string config = call_log_entry["input"]["config"].get<std::string>();
+
+    if (config == "(null)")
+        config.clear();
+
+    int ret = session->prepare_transaction(config);
+
+    int ret_expected = call_log_entry["return"]["return_val"].get<int>();
+    /* The ret value should be equal to the expected ret value. */
+    assert(ret == ret_expected);
+
+    if (ret != 0)
+        throw "prepare_transaction for session_id (" + session_id +
+          ") failed with return value: " + std::to_string(ret);
 }
 
 void
@@ -344,6 +366,9 @@ call_log_manager::process_call_log_entry(const json &call_log_entry)
             break;
         case api_method::open_session:
             call_log_open_session(call_log_entry);
+            break;
+        case api_method::prepare_transaction:
+            call_log_prepare_transaction(call_log_entry);
             break;
         case api_method::query_timestamp:
             call_log_query_timestamp(call_log_entry);

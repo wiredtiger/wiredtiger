@@ -112,6 +112,49 @@ session_simulator::rollback_transaction(const std::string &config)
 }
 
 int
+session_simulator::prepare_transaction(const std::string &config)
+{
+    /* 'prepare_transaction' only permitted to be called once in a running transaction. */
+    if (_prepared_txn)
+        WT_SIM_RET_MSG(EINVAL,
+          "'prepare_transaction' only permitted to be called once in a running transaction");
+
+    /* Make sure that the transaction from this session is running. */
+    if (!_txn_running)
+        WT_SIM_RET_MSG(EINVAL, "'prepare_transaction' only permitted in a running transaction");
+
+    timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
+    std::map<std::string, std::string> config_map;
+
+    const std::vector<std::string> supported_ops = {"prepare_timestamp"};
+    const std::vector<std::string> unsupported_ops;
+
+    WT_SIM_RET_MSG(ts_manager->parse_config(config, supported_ops, unsupported_ops, config_map),
+      "Incorrect config (" + config + ") passed in prepare_transaction");
+
+    auto pos = config_map.find("prepare_timestamp");
+    if (pos != config_map.end()) {
+        WT_SIM_RET(ts_manager->validate_hex_value(pos->second, "prepare timestamp"));
+        uint64_t prepare_ts = ts_manager->hex_to_decimal(pos->second);
+        set_prepare_timestamp(prepare_ts);
+    }
+
+    /* A prepared timestamp should have been set at this point. */
+    if (!has_prepare_timestamp())
+        WT_SIM_RET_MSG(EINVAL, "'prepare_transaction' - prepare timestamp is not set");
+
+    /* Commit timestamp must not be set before transaction is prepared. */
+    if (_has_commit_ts)
+        WT_SIM_RET_MSG(EINVAL,
+          "'prepare_transaction' - commit timestamp must not be set before transaction is "
+          "prepared");
+
+    _prepared_txn = true;
+
+    return (0);
+}
+
+int
 session_simulator::commit_transaction(const std::string &config)
 {
     /* Make sure that the transaction from this session is running. */
@@ -149,6 +192,21 @@ session_simulator::commit_transaction(const std::string &config)
 
     pos = config_map.find("durable_timestamp");
     if (pos != config_map.end()) {
+    }
+
+    if (_prepared_txn) {
+        if (!_has_commit_ts)
+            WT_SIM_RET_MSG(EINVAL, "commit_timestamp is required for a prepared transaction");
+
+        if (!has_durable_timestamp())
+            WT_SIM_RET_MSG(EINVAL, "durable_timestamp is required for a prepared transaction");
+    } else {
+        if (has_prepare_timestamp())
+            WT_SIM_RET_MSG(EINVAL, "prepare timestamp is set for non-prepared transaction");
+
+        if (has_durable_timestamp())
+            WT_SIM_RET_MSG(
+              EINVAL, "durable_timestamp should not be specified for non-prepared transaction");
     }
 
     /* Transaction can commit successfully if we got to this point. */
@@ -321,6 +379,12 @@ bool
 session_simulator::is_round_read_ts_set() const
 {
     return (_ts_round_read);
+}
+
+bool
+session_simulator::has_durable_timestamp() const
+{
+    return (_durable_ts != 0);
 }
 
 bool
