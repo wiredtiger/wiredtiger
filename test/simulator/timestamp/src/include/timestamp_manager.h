@@ -51,6 +51,7 @@ class timestamp_manager {
     int validate_durable_ts(const uint64_t &, const bool &) const;
     int validate_read_timestamp(session_simulator *, const uint64_t) const;
     int validate_commit_timestamp(session_simulator *, uint64_t);
+    int validate_prepare_timestamp(session_simulator *, uint64_t);
 
     private:
     std::string trim(std::string);
