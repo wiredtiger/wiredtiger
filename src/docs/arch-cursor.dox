@@ -382,7 +382,9 @@ The lower and upper bound in a cursor is represented as a \c WT_ITEM. The implem
 or setting the bound, and if a "set" is in progress, whether the bound is a lower or upper bound. There are four flags that can be set
 when applying bounds: \c WT_CURSTD_BOUND_LOWER, \c WT_CURSTD_BOUND_LOWER_INCLUSIVE, \c WT_CURSTD_BOUND_UPPER, and \c WT_CURSTD_BOUND_UPPER_INCLUSIVE.
 When calling \c __wt_cursor_bound with valid bounds, the respective bound flag is set and the key held on the cursor is copied into the relevant bound buffer.
-Clearing a cursor's bounds can be done via resetting the cursor or calling bound with the "clear" config which will free both bounds buffers.
+When a bounds is set, a copy of the bounds key is made and is kept by the cursor.  Thus the memory used for the key when making the \c cursor->bound call
+does not need to be retained by the application. Clearing a cursor's bounds can be done via resetting the cursor or calling bound with the "clear" config
+which will free both bounds buffers.
 
 When calling \c cursor->next and \c cursor->prev on an unpositioned cursor, WiredTiger guarantees that the cursor will start walking from either the start or end of the file respectively.
 The range bounded cursor logic continues to uphold this guarantee. Doing so requires additional logic to place the cursor at the start or end of the range. In \c cursor->next and \c cursor->prev,
