@@ -28,11 +28,11 @@
 #include "test_util.h"
 
 /*
- * timeus --
+ * time_us --
  *     Return the number of microseconds since the epoch.
  */
 static uint64_t
-timeus(void)
+time_us(void)
 {
     struct timeval tv;
 
@@ -53,7 +53,7 @@ testutil_tiered_begin(TEST_OPTS *opts)
     testutil_assert(opts->conn != NULL);
 
     if (opts->tiered_storage && opts->tiered_flush_interval_us != 0) {
-        now = timeus();
+        now = time_us();
         opts->tiered_flush_next_us = now + opts->tiered_flush_interval_us;
     }
     opts->tiered_begun = true;
@@ -70,7 +70,7 @@ testutil_tiered_sleep(TEST_OPTS *opts, uint32_t seconds, bool *do_flush_tier)
     uint64_t now, wake_time;
     bool do_flush;
 
-    now = timeus();
+    now = time_us();
     wake_time = now + 1000000 * seconds;
     do_flush = false;
     if (do_flush_tier != NULL && opts->tiered_flush_next_us != 0 &&
@@ -86,7 +86,7 @@ testutil_tiered_sleep(TEST_OPTS *opts, uint32_t seconds, bool *do_flush_tier)
             __wt_sleep(1, 0);
         else
             __wt_sleep(0, wake_time - now);
-        now = timeus();
+        now = time_us();
     }
     if (opts->running && do_flush) {
         /* Don't flush again until we know this flush is complete. */
@@ -106,6 +106,6 @@ testutil_tiered_flush_complete(TEST_OPTS *opts, void *arg)
 
     (void)arg;
 
-    now = timeus();
+    now = time_us();
     opts->tiered_flush_next_us = now + opts->tiered_flush_interval_us;
 }
