@@ -229,8 +229,9 @@ real_checkpointer(void)
         fflush(stdout);
         if (flush_tier) {
             /*
-             * WT-XXXX: this will need to be called from the general event handler, so we can pass
-             * the flush_tier "cookie".
+             * FIXME: when we change the API to notify that a flush_tier has completed, we'll need
+             * to set up a general event handler and catch that notification, so we can pass the
+             * flush_tier "cookie" to the test utility function.
              */
             testutil_tiered_flush_complete(&g.opts, NULL);
             flush_tier = false;
@@ -262,7 +263,7 @@ real_checkpointer(void)
             /* Random value between 4 and 8 seconds. */
             delay = __wt_random(&rnd) % 5 + 4;
         else
-            /* Just find out out if we should flush_tier. */
+            /* Just find out if we should flush_tier. */
             delay = 0;
         testutil_tiered_sleep(&g.opts, delay, &flush_tier);
     }
