@@ -143,7 +143,7 @@ session_simulator::prepare_transaction(const std::string &config)
     if (!has_prepare_timestamp())
         WT_SIM_RET_MSG(EINVAL, "'prepare_transaction' - prepare timestamp is not set");
 
-    /* commit timestamp must not be set before transaction is prepared. */
+    /* Commit timestamp must not be set before transaction is prepared. */
     if (_has_commit_ts)
         WT_SIM_RET_MSG(EINVAL,
           "'prepare_transaction' - commit timestamp must not be set before transaction is "
