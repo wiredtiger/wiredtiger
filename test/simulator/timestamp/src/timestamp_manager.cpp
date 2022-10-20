@@ -339,7 +339,7 @@ timestamp_manager::validate_commit_timestamp(session_simulator *session, uint64_
  * - Cannot set prepared timestamp more than once.
  * - Commit timestamp should not have been set before the prepare timestamp.
  * - Prepare timestamp must be greater than the latest active read timestamp.
- * - Prepare timestamp canot be less than the stable timestamp unless rounding
+ * - Prepare timestamp cannot be less than the stable timestamp unless rounding
  *   the prepare timestamp is enabled.
  */
 int
@@ -368,8 +368,10 @@ timestamp_manager::validate_prepare_timestamp(session_simulator *session, uint64
             ") must be after all active read timestamps (" + std::to_string(latest_active_read) +
             ")");
 
-    /* Prepare timestamp canot be less than the stable timestamp unless rounding the prepare
-     * timestamp is enabled.*/
+    /*
+     * Prepare timestamp cannot be less than the stable timestamp unless rounding the prepare
+     * timestamp is enabled.
+     */
     uint64_t stable_ts = conn->get_stable_ts();
     if (prepare_ts <= stable_ts)
         if (!session->is_round_prepare_ts_set())
