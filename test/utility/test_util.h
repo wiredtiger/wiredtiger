@@ -49,6 +49,15 @@
 #include "windows_shim.h"
 #endif
 
+#define ENV_CONFIG_TIERED        \
+    ",tiered_storage=(bucket=./" \
+    "bucket,bucket_prefix=pfx-,local_retention=2,name=dir_store)"
+#define ENV_CONFIG_TIERED_EXT                        \
+    ",extensions=(%s/ext/storage_sources/dir_store/" \
+    "libwiredtiger_dir_store.so=(early_load=true))"
+#define ENV_CONFIG_REC_1 \
+    "log=(recover=on,remove=false),statistics=(all),statistics_log=(json,on_close,wait=1)"
+
 /* Generic option parsing structure shared by all test cases. */
 typedef struct {
     char *home;
@@ -58,6 +67,7 @@ typedef struct {
     const char *progname;        /* Truncated program name */
     char *build_dir;             /* Build directory path */
     char *tiered_storage_source; /* Tiered storage source */
+    // char *tiered_storage_ext_config; /* Tiered storage Extension config. */
 
     enum {
         TABLE_NOT_SET = 0, /* Not explicitly set */
@@ -69,7 +79,9 @@ typedef struct {
     FILE *progress_fp; /* Progress tracking file */
     char *progress_file_name;
 
+    bool compat;               /* Compatibility */
     bool do_data_ops;          /* Have schema ops use data */
+    bool inmem;                /* In-memory */
     bool preserve;             /* Don't remove files on exit */
     bool tiered_storage;       /* Configure tiered storage */
     bool verbose;              /* Run in verbose mode */
@@ -385,6 +397,7 @@ void testutil_progress(TEST_OPTS *, const char *);
 #ifndef _WIN32
 void testutil_sleep_wait(uint32_t, pid_t);
 #endif
+void testutil_wiredtiger_open(TEST_OPTS *, char *, WT_EVENT_HANDLER *, WT_CONNECTION **, bool);
 void testutil_work_dir_from_path(char *, size_t, const char *);
 WT_THREAD_RET thread_append(void *);
 

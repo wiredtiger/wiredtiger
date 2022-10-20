@@ -358,6 +358,41 @@ testutil_print_command_line(int argc, char *const *argv)
     printf("\n");
 }
 
+/*
+ * testutil_wiredtiger_open --
+ *     Call wiredtiger_open with the tiered storage configuration if enabled.
+ */
+void
+testutil_wiredtiger_open(TEST_OPTS *opts, char *buf, WT_EVENT_HANDLER *event_handler,
+  WT_CONNECTION **connectionp, bool recovery)
+{
+    FILE *fp;
+    char buf_ext[512], top_level[126];
+
+    if (recovery)
+        strcpy(buf, ENV_CONFIG_REC_1);
+
+    if (opts->tiered_storage) {
+        fp = popen("git rev-parse --show-toplevel", "r");
+        if (fp == NULL)
+            testutil_die(errno, "Could not get the top level directory.");
+        if (fgets(top_level, sizeof(top_level), fp) != NULL) {
+            /* Remove the trailing new line character from the command output. */
+            top_level[strlen(top_level) - 1] = '\0';
+            testutil_check(
+              __wt_snprintf(buf_ext, sizeof(buf_ext), ENV_CONFIG_TIERED_EXT, top_level));
+        }
+        strcat(buf, buf_ext);
+        strcat(buf, ENV_CONFIG_TIERED);
+        /*
+         * FIXME - Fails with SIGABRT when trying to close the file pointer in fclose _IO_proc_close
+         * stack trace.
+         */
+        // pclose(fp);
+    }
+    testutil_check(wiredtiger_open(NULL, event_handler, buf, connectionp));
+}
+
 #ifndef _WIN32
 /*
  * testutil_sleep_wait --
