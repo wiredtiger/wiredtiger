@@ -86,7 +86,7 @@ typedef struct {
 } THREAD_TS;
 static volatile THREAD_TS th_ts[MAX_TH];
 
-TEST_OPTS *opts;
+static TEST_OPTS *opts;
 
 #define ENV_CONFIG_COMPAT ",compatibility=(release=\"2.9\")"
 #define ENV_CONFIG_DEF                                                                             \
@@ -1016,9 +1016,6 @@ main(int argc, char *argv[])
 
     testutil_parse_end_opt(opts);
 
-    if (opts->home == NULL)
-        opts->home = dstrdup("WT_TEST.schema-abort");
-
     testutil_work_dir_from_path(home, sizeof(home), opts->home);
 
     /*
@@ -1288,5 +1285,6 @@ main(int argc, char *argv[])
             testutil_die(errno, "root chdir: %s", home);
         testutil_clean_work_dir(home);
     }
+    testutil_cleanup(opts);
     return (EXIT_SUCCESS);
 }
