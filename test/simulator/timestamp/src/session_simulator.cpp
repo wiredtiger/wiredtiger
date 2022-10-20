@@ -457,7 +457,7 @@ session_simulator::set_prepare_timestamp(uint64_t prepare_ts)
     WT_SIM_RET(ts_manager->validate_prepare_timestamp(this, prepare_ts));
 
     /*
-     * If the given timestamp is earlier than the stable timestamp then round the prepare timestamp
+     * If the given timestamp is earlier than the oldest timestamp then round the prepare timestamp
      * to oldest timestamp if round prepared is true.
      */
     if (_ts_round_prepared) {
