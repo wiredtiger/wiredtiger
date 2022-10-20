@@ -373,6 +373,9 @@ testutil_wiredtiger_open(TEST_OPTS *opts, char *buf, WT_EVENT_HANDLER *event_han
         strcpy(buf, ENV_CONFIG_REC_1);
 
     if (opts->tiered_storage) {
+#ifdef _WIN32
+#define popen _popen
+#endif
         fp = popen("git rev-parse --show-toplevel", "r");
         if (fp == NULL)
             testutil_die(errno, "Could not get the top level directory.");
