@@ -350,7 +350,7 @@ timestamp_manager::validate_prepare_timestamp(session_simulator *session, uint64
         WT_SIM_RET_MSG(
           EINVAL, "Cannot set the prepared timestamp if the transaction is already prepared");
 
-    /* A prepared timestamp should have been set at this point. */
+    /* A prepared timestamp should not have been set at this point. */
     if (session->has_prepare_timestamp())
         WT_SIM_RET_MSG(EINVAL, "Prepare timestamp is already set");
 
