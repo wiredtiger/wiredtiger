@@ -16,21 +16,24 @@ static int
 __chunkcache_alloc(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
 {
     WT_CHUNKCACHE *chunkcache;
+    WT_DECL_RET;
 
     chunkcache = &S2C(session)->chunkcache;
 
     if (chunkcache->type == WT_CHUNKCACHE_DRAM)
-        return (__wt_malloc(session, chunk->chunk_size, &chunk->chunk_location));
+        ret = __wt_malloc(session, chunk->chunk_size, &chunk->chunk_location);
     else {
 #ifdef ENABLE_MEMKIND
         chunk->chunk_location = memkind_malloc(chunkcache->mem_kind, chunk->chunk_size);
         if (chunk->chunk_location == NULL)
-            return (WT_ERROR);
+            ret = WT_ERROR;
 #else
         WT_RET_MSG(session, EINVAL,
           "Chunk cache requires libmemkind, unless it is configured to be in DRAM");
 #endif
     }
+    if (ret == 0)
+        __wt_atomic_add64(&chunkcache->bytes_used, chunk->chunk_size);
     return (0);
 }
 
@@ -57,10 +60,18 @@ __chunkcache_alloc_chunk(
 }
 
 static size_t
-__chunkcache_admit_size(void)
+__chunkcache_admit_size(WT_SESSION_IMPL *session)
 {
-#define WT_DEFAULT_CHUNKSIZE 1024*1024*1024
-    return (WT_DEFAULT_CHUNKSIZE);
+    WT_CHUNKCACHE *chunkcache;
+
+    chunkcache = &S2C(session)->chunkcache;
+
+    if ((chunkcache->bytes_used + WT_CHUNKCACHE_DEFAULT_CHUNKSIZE) < chunkcache->capacity)
+        return (WT_CHUNKCACHE_DEFAULT_CHUNKSIZE);
+
+    __wt_verbose(session, WT_VERB_CHUNKCACHE,
+                 "exceeded chunkcache capacity of %" PRIu64 " bytes", chunkcache->capacity);
+    return 0;
 }
 
 static void
@@ -93,6 +104,9 @@ __wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object
     *chunk_to_read = NULL;
     *chunkcache_has_data = false;
 
+    if (!chunkcache->configured)
+        return;
+
     bzero(&hash_id, sizeof(hash_id));
     hash_id.objectid = objectid;
     memcpy(&hash_id.objectname, block->name, WT_MIN(strlen(block->name), WT_CHUNKCACHE_NAMEMAX));
@@ -102,8 +116,8 @@ __wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object
     bucket = &chunkcache->hashtable[bucket_id];
 
     __wt_spin_lock(session, &chunkcache->bucket_locks[bucket_id]);
-    printf("\ncheck: %s(%d), offset=%" PRId64 ", size=%d\n",
-           (char*)&hash_id.objectname, hash_id.objectid, offset, size);
+    /*printf("\ncheck: %s(%d), offset=%" PRId64 ", size=%d\n",
+      (char*)&hash_id.objectname, hash_id.objectid, offset, size);*/
 
     TAILQ_FOREACH(chunkchain, &bucket->chainq, next_link) {
         if (memcmp(&chunkchain->hash_id, &hash_id, sizeof(hash_id)) == 0) {
@@ -125,7 +139,8 @@ __wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object
              * of what the size that the chunk cache can admit, but we reduce the chunk size
              * if the default would cause us to read past the end of the file.
              */
-            if ((newchunk_size = WT_MIN(__chunkcache_admit_size(), (size_t)(block->size - offset))) > 0 &&
+            if ((newchunk_size = WT_MIN(__chunkcache_admit_size(session),
+                                        (size_t)(block->size - offset))) > 0 &&
               __chunkcache_alloc_chunk(session, &newchunk, offset, newchunk_size) == 0) {
                 printf("allocate: %s(%d), offset=%" PRId64 ", size=%ld\n",
                        (char*)&hash_id.objectname, hash_id.objectid, offset, newchunk_size);
@@ -158,8 +173,9 @@ __wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object
     /*
      * The chunk list for this file and object id is not present. Do we want to allocate it?
      */
-    if ((newchunk_size = __chunkcache_admit_size()) > 0 &&
-      __chunkcache_alloc_chunk(session, &newchunk, offset, newchunk_size) == 0) {
+    if ((newchunk_size =  WT_MIN(__chunkcache_admit_size(session),
+                                 (size_t)(block->size - offset))) > 0 &&
+        __chunkcache_alloc_chunk(session, &newchunk, offset, newchunk_size) == 0) {
         if (__wt_calloc(session, 1, sizeof(WT_CHUNKCACHE_CHAIN), &newchain) != 0) {
             __chunkcache_free_chunk(session, newchunk);
             goto done;
@@ -200,6 +216,9 @@ __wt_chunkcache_remove(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objec
 
     chunkcache = &S2C(session)->chunkcache;
 
+    if (!chunkcache->configured)
+        return;
+
     bzero(&hash_id, sizeof(hash_id));
     hash_id.objectid = objectid;
     memcpy(&hash_id.objectname, block->name, WT_MIN(strlen(block->name), WT_CHUNKCACHE_NAMEMAX));
@@ -238,19 +257,49 @@ int
 __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 {
     WT_CHUNKCACHE *chunkcache;
+    WT_CONFIG_ITEM cval;
     uint i;
 
     chunkcache = &S2C(session)->chunkcache;
 
-    (void)cfg;
-    (void)reconfig;
+    if (chunkcache->type != WT_CHUNKCACHE_UNCONFIGURED && !reconfig)
+        WT_RET_MSG(session, EINVAL, "chunk cache setup requested, but cache is already configured");
+    /* XXX: Fix that */
+    if (reconfig)
+        WT_RET_MSG(session, EINVAL, "reconfiguration of chunk cache not supported");
 
-    printf("NEW CHUNK CACHE SETUP\n");
+    WT_RET(__wt_config_gets(session, cfg, "chunk_cache.enabled", &cval));
+    if (cval.val == 0)
+        return (0);
 
-#define CHUNKCACHE_TABLE_SIZE 1024
+    WT_RET(__wt_config_gets(session, cfg, "chunk_cache.size", &cval));
+    if ((chunkcache->capacity = (uint64_t)cval.val) <= 0)
+        WT_RET_MSG(session, EINVAL, "chunk cache size must be greater than zero");
 
-    chunkcache->type = WT_CHUNKCACHE_DRAM;
-    chunkcache->hashtable_size = CHUNKCACHE_TABLE_SIZE;
+    WT_RET(__wt_config_gets(session, cfg, "block_cache.hashsize", &cval));
+    if ((chunkcache->hashtable_size = (u_int)cval.val) == 0)
+        chunkcache->hashtable_size = WT_CHUNKCACHE_DEFAULT_HASHSIZE;
+    else if (chunkcache->hashtable_size < WT_CHUNKCACHE_MINHASHSIZE ||
+             chunkcache->hashtable_size < WT_CHUNKCACHE_MAXHASHSIZE)
+        WT_RET_MSG(session, EINVAL, "chunk cache hashtable size must be between %d and %d entries",
+                   WT_CHUNKCACHE_MINHASHSIZE, WT_CHUNKCACHE_MAXHASHSIZE);
+
+    WT_RET(__wt_config_gets(session, cfg, "chunk_cache.type", &cval));
+    if (cval.len ==0 ||
+        WT_STRING_MATCH("dram", cval.str, cval.len) || WT_STRING_MATCH("DRAM", cval.str, cval.len))
+        chunkcache->type = WT_CHUNKCACHE_DRAM;
+    else if (WT_STRING_MATCH("file", cval.str, cval.len) ||
+             WT_STRING_MATCH("FILE", cval.str, cval.len)) {
+#ifdef ENABLE_MEMKIND
+        chunkcache->type = WT_CHUNKCACHE_FILE;
+        WT_RET(__wt_config_gets(session, cfg, "chunk_cache.directory_path", &cval));
+        WT_RET(__wt_strndup(session, cval.str, cval.len, &chunkcache->dir_path));
+        if (!__wt_absolute_path(chunkcache->dir_path))
+            WT_RET_MSG(session, EINVAL, "File directory must be an absolute path");
+#else
+        WT_RET_MSG(session, EINVAL, "chunk cache of type FILE requires libmemkind");
+#endif
+    }
 
     WT_RET(__wt_calloc_def(session, chunkcache->hashtable_size, &chunkcache->hashtable));
     WT_RET(__wt_calloc_def(session, chunkcache->hashtable_size, &chunkcache->bucket_locks));
@@ -262,15 +311,16 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
 
     if (chunkcache->type != WT_CHUNKCACHE_DRAM) {
 #ifdef ENABLE_MEMKIND
-        if ((ret = memkind_create_pmem(nvram_device_path, 0, &blkcache->pmem_kind)) != 0)
-            WT_RET_MSG(session, ret, "block cache failed to initialize: memkind_create_pmem");
-
-        WT_RET(__wt_strndup(
-          session, nvram_device_path, strlen(nvram_device_path), &blkcache->nvram_device_path));
-        __wt_free(session, nvram_device_path);
+        if ((ret = memkind_create_pmem(chunkcache->dir_path, 0, &chunkcache->memkind)) != 0)
+            WT_RET_MSG(session, ret, "chunk cache failed to initialize: memkind_create_pmem");
 #else
         WT_RET_MSG(session, EINVAL, "Chunk cache that is not in DRAM requires libmemkind");
 #endif
     }
+
+    chunkcache->configured = true;
+    __wt_verbose(session, WT_VERB_CHUNKCACHE,
+                 "configured cache of type %s, with capacity %" PRIu64 "",
+                 (chunkcache->type == WT_CHUNKCACHE_DRAM)?"DRAM":"FILE", chunkcache->capacity);
     return (0);
 }

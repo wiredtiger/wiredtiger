@@ -492,7 +492,7 @@ connection_runtime_config = [
         Config('size', '0', r'''
             maximum memory to allocate for the block cache''',
             min='0', max='10TB'),
-        Config('hashsize', '0', r'''
+        Config('hashsize', '32768', r'''
             number of buckets in the hashtable that keeps track of blocks''',
             min='512', max='256K'),
         Config('max_percent_overhead', '10', r'''
@@ -553,6 +553,23 @@ connection_runtime_config = [
             seconds to wait between each checkpoint; setting this value above 0 configures
             periodic checkpoints''',
             min='0', max='100000'),
+        ]),
+    Config('chunk_cache', '', r'''
+        chunk cache configuration options''',
+        type='category', subconfig=[
+        Config('directory_path', '', r'''
+            the absolute path to the directory for caching files (for FILE cache type)'''),
+        Config('enabled', 'false', r'''
+            enable chunk cache''',
+            type='boolean'),
+        Config('hashsize', '32', r'''
+            number of buckets in the hashtable that keeps track of chunks''',
+            min='1', max='1024'),
+        Config('size', '0', r'''
+            maximum memory or disk space to allocate for the chunk cache''',
+            min='0', max='10TB'),
+        Config('type', '', r'''
+            cache location: DRAM or FILE (on any file system)'''),
         ]),
     Config('debug_mode', '', r'''
         control the settings of various extended debugging features''',
@@ -799,6 +816,7 @@ connection_runtime_config = [
             'checkpoint',
             'checkpoint_cleanup',
             'checkpoint_progress',
+            'chunkcache',
             'compact',
             'compact_progress',
             'error_returns',

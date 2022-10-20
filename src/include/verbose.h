@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -17,6 +17,7 @@
     "WT_VERB_CHECKPOINT", \
     "WT_VERB_CHECKPOINT_CLEANUP", \
     "WT_VERB_CHECKPOINT_PROGRESS", \
+    "WT_VERB_CHUNKCACHE", \
     "WT_VERB_COMPACT", \
     "WT_VERB_COMPACT_PROGRESS", \
     "WT_VERB_DEFAULT", \

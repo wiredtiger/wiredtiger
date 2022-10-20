@@ -10,8 +10,14 @@
  * WiredTiger's chunk cache. Locally caches chunks of remote objects.
  */
 
-#define WT_CHUNKCACHE_NAMEMAX 50
+#define WT_CHUNKCACHE_DEFAULT_HASHSIZE 32
+#define WT_CHUNKCACHE_DEFAULT_CHUNKSIZE 1024*1024
 #define WT_CHUNKCACHE_DRAM 0
+#define WT_CHUNKCACHE_MINHASHSIZE 1
+#define WT_CHUNKCACHE_MAXHASHSIZE 1024
+#define WT_CHUNKCACHE_NAMEMAX 50
+#define WT_CHUNKCACHE_SSD 1
+#define WT_CHUNKCACHE_UNCONFIGURED 0
 
 struct __wt_chunkcache_hashid {
     char objectname[WT_CHUNKCACHE_NAMEMAX];
@@ -57,8 +63,15 @@ struct __wt_chunkcache {
     /* Hashtable buckets. Locks are per bucket. */
     WT_CHUNKCACHE_BUCKET *hashtable;
     WT_SPINLOCK *bucket_locks;
+#ifdef ENABLE_MEMKIND
+    struct memkind *memkind; /* Lets us use jemalloc over a file */
+#endif
+    uint64_t capacity;
+    bool configured;
+    char *dir_path;   /* The directory to use if we are on a file system */
     uint hashtable_size;
     int type;
+    uint64_t bytes_used; /* Amount of data currently in cache */
 };
 
 /*
