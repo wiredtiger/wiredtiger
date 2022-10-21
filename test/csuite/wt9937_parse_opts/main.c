@@ -84,7 +84,7 @@ typedef struct {
  *  - our set of "fictional" arguments.
  *
  */
-#define UNUSED_OPTS 0, 0, 0, 0, (time_t)0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+#define UNUSED_OPTS 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 static TEST_DRIVER driver[] = {
   {{"parse_opts", "-b", "builddir", "-T", "21", NULL},
     {NULL, NULL, {0}, NULL, (char *)"builddir", NULL, TABLE_NOT_SET, NULL, NULL, false, false, false, false,
