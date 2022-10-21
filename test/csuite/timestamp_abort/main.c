@@ -101,11 +101,12 @@ static uint64_t global_ts = 1;
     "debug_mode=(table_logging=true,checkpoint_retention=5)," \
     "eviction_updates_target=20,eviction_updates_trigger=90," \
     "log=(enabled,file_max=10M,remove=true),session_max=%d,"  \
-    "statistics=(all),statistics_log=(wait=%d,json=true)"
+    "statistics=(all),statistics_log=(wait=%d,json,on_close)"
 #define ENV_CONFIG_TXNSYNC \
     ENV_CONFIG_DEF         \
     ",transaction_sync=(enabled,method=none)"
-#define ENV_CONFIG_REC "log=(recover=on,remove=false),statistics=(all)"
+#define ENV_CONFIG_REC \
+    "log=(recover=on,remove=false),statistics=(all),statistics_log=(json,on_close,wait=1)"
 
 /*
  * A minimum width of 10, along with zero filling, means that all the keys sort according to their
@@ -136,7 +137,7 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 static void handle_conn_close(void);
 static void handle_conn_ready(WT_CONNECTION *);
-static int handle_general(WT_EVENT_HANDLER *, WT_CONNECTION *, WT_SESSION *, WT_EVENT_TYPE);
+static int handle_general(WT_EVENT_HANDLER *, WT_CONNECTION *, WT_SESSION *, WT_EVENT_TYPE, void *);
 
 static WT_CONNECTION *stat_conn = NULL;
 static WT_SESSION *stat_session = NULL;
@@ -220,11 +221,12 @@ handle_conn_ready(WT_CONNECTION *conn)
  *     Function to handle general event callbacks.
  */
 static int
-handle_general(
-  WT_EVENT_HANDLER *handler, WT_CONNECTION *conn, WT_SESSION *session, WT_EVENT_TYPE type)
+handle_general(WT_EVENT_HANDLER *handler, WT_CONNECTION *conn, WT_SESSION *session,
+  WT_EVENT_TYPE type, void *arg)
 {
     WT_UNUSED(handler);
     WT_UNUSED(session);
+    WT_UNUSED(arg);
 
     if (type == WT_EVENT_CONN_CLOSE)
         handle_conn_close();

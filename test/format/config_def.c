@@ -99,6 +99,12 @@ CONFIG configuration_list[] = {
   {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured",
     0x0, 5, 100, 3600, V_GLOBAL_CHECKPOINT_WAIT},
 
+  {"debug.realloc_exact", "reallocation of memory will only provide the exact amount requested",
+    C_BOOL, 0, 0, 0, V_GLOBAL_DEBUG_REALLOC_EXACT},
+
+  {"debug.realloc_malloc", "every realloc call will force a new memory allocation by using malloc",
+    C_BOOL, 5, 0, 0, V_GLOBAL_DEBUG_REALLOC_MALLOC},
+
   {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)",
     C_IGNORE | C_STRING | C_TABLE, 0, 0, 0, V_TABLE_DISK_CHECKSUM},
 
@@ -251,12 +257,6 @@ CONFIG configuration_list[] = {
   {"runs.verify_failure_dump", "configure page dump on repeatable read error",
     C_BOOL | C_IGNORE, 0, 0, 1, V_GLOBAL_RUNS_VERIFY_FAILURE_DUMP},
 
-  {"statistics", "configure statistics",
-    C_BOOL, 20, 0, 0, V_GLOBAL_STATISTICS},
-
-  {"statistics.server", "configure statistics server thread",
-    C_BOOL, 5, 0, 0, V_GLOBAL_STATISTICS_SERVER},
-
   {"stress.aggressive_sweep", "stress aggressive sweep",
     C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_AGGRESSIVE_SWEEP},
 
@@ -286,6 +286,9 @@ CONFIG configuration_list[] = {
 
   {"stress.hs_sweep", "stress history store sweep",
     C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_HS_SWEEP},
+
+  {"stress.sleep_before_read_overflow_onpage", "stress onpage overflow read race with checkpoint",
+    C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE},
 
   {"stress.split_1", "stress splits (#1)",
     C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_SPLIT_1},

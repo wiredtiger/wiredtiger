@@ -177,6 +177,8 @@ configure_timing_stress(char **p, size_t max)
         CONFIG_APPEND(*p, ",history_store_search");
     if (GV(STRESS_HS_SWEEP))
         CONFIG_APPEND(*p, ",history_store_sweep_race");
+    if (GV(STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE))
+        CONFIG_APPEND(*p, ",sleep_before_read_overflow_onpage");
     if (GV(STRESS_SPLIT_1))
         CONFIG_APPEND(*p, ",split_1");
     if (GV(STRESS_SPLIT_2))
@@ -216,7 +218,8 @@ create_database(const char *home, WT_CONNECTION **connp)
       ",checkpoint_sync=false"
       ",error_prefix=\"%s\""
       ",operation_timeout_ms=2000"
-      ",statistics=(all)",
+      ",statistics=(all)"
+      ",statistics_log=(json,on_close,wait=5)",
       GV(CACHE), progname);
 
     /* In-memory configuration. */
@@ -273,16 +276,20 @@ create_database(const char *home, WT_CONNECTION **connp)
     if (GV(DISK_DATA_EXTEND))
         CONFIG_APPEND(p, ",file_extend=(data=8MB)");
 
-    /*
-     * Run the statistics server and/or maintain statistics in the engine. Sometimes specify a set
-     * of sources just to exercise that code.
-     */
-    if (GV(STATISTICS_SERVER)) {
-        if (mmrand(NULL, 0, 20) == 1)
-            CONFIG_APPEND(p, ",statistics_log=(json,on_close,wait=5,sources=(\"file:\"))");
+    if (GV(DEBUG_REALLOC_EXACT))
+        CONFIG_APPEND(p, ",debug_mode=(realloc_exact=true)");
+
+    /* Configure realloc malloc debug mode. */
+    if (GV(DEBUG_REALLOC_MALLOC)) {
+        if (mmrand(NULL, 0, 1) == 1)
+            CONFIG_APPEND(p, ",debug_mode=(realloc_exact=true,realloc_malloc=true)");
         else
-            CONFIG_APPEND(p, ",statistics_log=(json,on_close,wait=5)");
+            CONFIG_APPEND(p, ",debug_mode=(realloc_malloc=true)");
     }
+
+    /* Sometimes specify a set of sources just to exercise that code. */
+    if (mmrand(NULL, 0, 20) == 1)
+        CONFIG_APPEND(p, ",statistics_log=(sources=(\"file:\"))");
 
     /* Optional timing stress. */
     configure_timing_stress(&p, max);
@@ -480,7 +487,8 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
     if (enc != NULL)
         CONFIG_APPEND(p, ",encryption=(name=%s)", enc);
 
-    CONFIG_APPEND(p, ",error_prefix=\"%s\",statistics=(all)", progname);
+    CONFIG_APPEND(
+      p, ",error_prefix=\"%s\",statistics=(all),statistics_log=(json,on_close,wait=5)", progname);
 
     /* Optional timing stress. */
     configure_timing_stress(&p, max);
@@ -598,10 +606,6 @@ wts_stats(void)
     SAP sap;
     WT_CONNECTION *conn;
     WT_SESSION *session;
-
-    /* Ignore statistics if they're not configured. */
-    if (GV(STATISTICS) == 0)
-        return;
 
     conn = g.wts_conn;
     track("stat", 0ULL);

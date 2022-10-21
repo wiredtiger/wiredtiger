@@ -81,11 +81,11 @@ class test_cursor_bound01(bound_base):
 
         # LSM format is not supported with range cursors.
         if self.uri == 'lsm:': 
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=lower"),
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=set,bound=lower"),
                 '/Operation not supported/')
             return
         if self.value_format == '8t':
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=lower"),
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=set,bound=lower"),
                 '/Invalid argument/')
             return
 
@@ -95,20 +95,61 @@ class test_cursor_bound01(bound_base):
 
         # Check that bound configuration works properly.
         cursor.set_key(self.gen_key(1))
-        cursor.bound("bound=lower")
+        cursor.bound("action=set,bound=lower")
         cursor.set_key(self.gen_key(10))
-        cursor.bound("bound=upper")
+        cursor.bound("action=set,bound=upper")
 
-        # Clear and inclusive configuration are not compatible with each other. 
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=clear,inclusive=true"),
-            '/Invalid argument/')
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=clear,inclusive=false"),
-            '/Invalid argument/')
-
-        # Check that clear with bound configuration works properly.
+        # Check that clear works properly.
         cursor.bound("action=clear")
-        cursor.bound("action=clear,bound=lower")
-        cursor.bound("action=clear,bound=upper")
+
+        # Check that largest key doesn't work with bounded cursors.
+        cursor.set_key(self.gen_key(1))
+        cursor.bound("action=set,bound=lower")
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.largest_key(),
+            '/setting bounds is not compatible with cursor largest key/')
+
+        # Check edge cases with bounds config
+        cursor.set_key(self.gen_key(1))
+        # Setting the bound without providing an action works.
+        self.assertEqual(cursor.bound("bound=lower"), 0)
+        cursor.reset()
+
+        cursor.set_key(self.gen_key(1))
+        # Setting an action without a bound won't work.
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=set"),
+            '/a bound must be specified when setting bounds, either "lower" or "upper"/')
+        cursor.reset()
+
+        cursor.set_key(self.gen_key(1))
+        # Giving a longer config string works, WT_PREFIX_MATCH will accept it.
+        self.assertEqual(cursor.bound("action=setting, bound=lower"), 0)
+        cursor.reset()
+
+        cursor.set_key(self.gen_key(1))
+        cursor.bound("action=set,bound=lower")
+        # Giving a longer config string works, WT_PREFIX_MATCH will accept it.
+        self.assertEqual(cursor.bound("action=clearing"), 0)
+        cursor.reset()
+
+        cursor.set_key(self.gen_key(1))
+        # Giving an invalid action like "dump" won't work.
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=dump"),
+            '/an action of either "clear" or "set" should be specified when setting bounds/')
+        cursor.reset()
+
+        cursor.set_key(self.gen_key(1))
+        # Giving a substring of the config string will not work.
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=cl"),
+            '/an action of either "clear" or "set" should be specified when setting bounds/')
+
+        # Check that setting bounds doesn't work with random cursors. Turn it off with column store as column
+        # store doesn't support the next_random config.
+        if (self.key_format != 'r'):
+            cursor = self.session.open_cursor(uri, None, "next_random=true")
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.set_bounds(cursor, 40, "lower"), 
+                '/Operation not supported/')
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.set_bounds(cursor, 60, "upper"), 
+                '/Operation not supported/')
 
 if __name__ == '__main__':
     wttest.run()

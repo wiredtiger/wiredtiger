@@ -872,6 +872,7 @@ conn_dsrc_stats = [
     ##########################################
     # Cursor operations
     ##########################################
+    CursorStat('cursor_bounds_comparisons', 'cursor bounds comparisons performed'),
     CursorStat('cursor_bounds_reset', 'cursor bounds cleared from reset'),
     CursorStat('cursor_bounds_next_early_exit', 'cursor bounds next early exit'),
     CursorStat('cursor_bounds_prev_early_exit', 'cursor bounds prev early exit'),
@@ -966,6 +967,7 @@ conn_dsrc_stats = [
     # Transaction statistics
     ##########################################
     TxnStat('txn_checkpoint_obsolete_applied', 'transaction checkpoints due to obsolete pages'),
+    TxnStat('txn_read_overflow_remove', 'number of times overflow removed value is read'),
     TxnStat('txn_read_race_prepare_update', 'race to read prepared update retry'),
     TxnStat('txn_rts_delete_rle_skipped', 'rollback to stable skipping delete rle'),
     TxnStat('txn_rts_hs_removed', 'rollback to stable updates removed from history store'),
