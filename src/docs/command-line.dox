@@ -486,7 +486,6 @@ wt [-RVv] [-C config] [-E secretkey ] [-h directory] write -a uri value ...
 <br>
 wt [-RVv] [-C config] [-E secretkey ] [-h directory] write [-o] uri key value ...
 
-
 @subsection util_write_options Options
 The following are command-specific options for the \c write command:
 
