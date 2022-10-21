@@ -255,7 +255,8 @@ timestamp_manager::validate_read_timestamp(session_simulator *session, const uin
  * - The commit_ts cannot be less than the oldest timestamp.
  * - The commit timestamp should not be less than or equal to the stable timestamp.
  * For a prepared transaction:
- * - The commit_ts cannot be less than the prepared_ts
+ * - The commit_ts cannot be less than the prepared_ts unless rounding
+ *   the prepare timestamp is enabled.
  * Note: If a prepared timestamp was given in the transaction, then the transaction has to be
  * prepared before commit timestamp is set.
  */
@@ -317,7 +318,7 @@ timestamp_manager::validate_commit_timestamp(session_simulator *session, uint64_
          * commit timestamp to the prepare timestamp of the transaction.
          */
         if (session->has_prepare_timestamp())
-            if (!session->get_ts_round_prepared() && commit_ts < prepare_ts)
+            if (!session->is_round_prepare_ts_set() && commit_ts < prepare_ts)
                 WT_SIM_RET_MSG(EINVAL,
                   "commit timestamp (" + std::to_string(commit_ts) +
                     ") is less than the prepare timestamp (" + std::to_string(prepare_ts) +
@@ -328,6 +329,56 @@ timestamp_manager::validate_commit_timestamp(session_simulator *session, uint64_
               "commit timestamp (" + std::to_string(commit_ts) +
                 ") must not be set before transaction is prepared");
     }
+
+    return (0);
+}
+
+/*
+ * Validate the prepare timestamp. The constraints on the prepare timestamp are:
+ * - Cannot set the prepared timestamp if the transaction is already prepared.
+ * - Cannot set prepared timestamp more than once.
+ * - Commit timestamp should not have been set before the prepare timestamp.
+ * - Prepare timestamp must be greater than the latest active read timestamp.
+ * - Prepare timestamp cannot be less than the stable timestamp unless rounding
+ *   the prepare timestamp is enabled.
+ */
+int
+timestamp_manager::validate_prepare_timestamp(session_simulator *session, uint64_t prepare_ts)
+{
+    /* Cannot set the prepared timestamp if the transaction is already prepared. */
+    if (session->is_txn_prepared())
+        WT_SIM_RET_MSG(
+          EINVAL, "Cannot set the prepared timestamp if the transaction is already prepared");
+
+    /* A prepared timestamp should not have been set at this point. */
+    if (session->has_prepare_timestamp())
+        WT_SIM_RET_MSG(EINVAL, "Prepare timestamp is already set");
+
+    /* Commit timestamp should not have been set before the prepare timestamp. */
+    if (session->has_first_commit_timestamp())
+        WT_SIM_RET_MSG(
+          EINVAL, "Commit timestamp should not have been set before the prepare timestamp");
+
+    connection_simulator *conn = &connection_simulator::get_connection();
+    /* The prepare timestamp must be greater than the latest active read timestamp. */
+    uint64_t latest_active_read = conn->get_latest_active_read();
+    if (latest_active_read >= prepare_ts)
+        WT_SIM_RET_MSG(EINVAL,
+          "prepare timestamp (" + std::to_string(prepare_ts) +
+            ") must be after all active read timestamps (" + std::to_string(latest_active_read) +
+            ")");
+
+    /*
+     * Prepare timestamp cannot be less than the stable timestamp unless rounding the prepare
+     * timestamp is enabled.
+     */
+    uint64_t stable_ts = conn->get_stable_ts();
+    if (prepare_ts <= stable_ts)
+        if (!session->is_round_prepare_ts_set())
+            WT_SIM_RET_MSG(EINVAL,
+              "prepare timestamp (" + std::to_string(prepare_ts) +
+                ") is less than the stable timestamp (" + std::to_string(stable_ts) +
+                ") for this transaction.");
 
     return (0);
 }

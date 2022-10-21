@@ -136,7 +136,7 @@ session_simulator::prepare_transaction(const std::string &config)
     if (pos != config_map.end()) {
         WT_SIM_RET(ts_manager->validate_hex_value(pos->second, "prepare timestamp"));
         uint64_t prepare_ts = ts_manager->hex_to_decimal(pos->second);
-        set_prepare_timestamp(prepare_ts);
+        WT_SIM_RET(set_prepare_timestamp(prepare_ts));
     }
 
     /* A prepared timestamp should have been set at this point. */
@@ -248,7 +248,7 @@ session_simulator::timestamp_transaction(const std::string &config)
         set_durable_timestamp(durable_ts);
 
     if (prepare_ts != 0)
-        set_prepare_timestamp(prepare_ts);
+        WT_SIM_RET(set_prepare_timestamp(prepare_ts));
 
     if (read_ts != 0)
         WT_SIM_RET(set_read_timestamp(read_ts));
@@ -273,7 +273,7 @@ session_simulator::timestamp_transaction_uint(const std::string &ts_type, uint64
     else if (ts_type == "durable")
         set_durable_timestamp(ts);
     else if (ts_type == "prepare")
-        set_prepare_timestamp(ts);
+        WT_SIM_RET(set_prepare_timestamp(ts));
     else if (ts_type == "read")
         WT_SIM_RET(set_read_timestamp(ts));
     else {
@@ -370,7 +370,7 @@ session_simulator::get_read_timestamp() const
 }
 
 bool
-session_simulator::get_ts_round_prepared() const
+session_simulator::is_round_prepare_ts_set() const
 {
     return (_ts_round_prepared);
 }
@@ -450,10 +450,26 @@ session_simulator::set_durable_timestamp(uint64_t ts)
     _durable_ts = ts;
 }
 
-void
-session_simulator::set_prepare_timestamp(uint64_t ts)
+int
+session_simulator::set_prepare_timestamp(uint64_t prepare_ts)
 {
-    _prepare_ts = ts;
+    timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
+    WT_SIM_RET(ts_manager->validate_prepare_timestamp(this, prepare_ts));
+
+    /*
+     * If the given timestamp is earlier than the oldest timestamp then round the prepare timestamp
+     * to oldest timestamp if round prepared is true.
+     */
+    if (_ts_round_prepared) {
+        connection_simulator *conn = &connection_simulator::get_connection();
+        uint64_t oldest_ts = conn->get_oldest_ts();
+        if (prepare_ts < oldest_ts)
+            prepare_ts = oldest_ts;
+    }
+
+    _prepare_ts = prepare_ts;
+
+    return (0);
 }
 
 int

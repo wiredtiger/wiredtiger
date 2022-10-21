@@ -54,13 +54,13 @@ class session_simulator {
     uint64_t get_first_commit_timestamp() const;
     uint64_t get_prepare_timestamp() const;
     uint64_t get_read_timestamp() const;
-    bool get_ts_round_prepared() const;
     bool has_durable_timestamp() const;
     bool has_first_commit_timestamp() const;
     bool has_prepare_timestamp() const;
     bool has_read_timestamp() const;
-    bool is_round_read_ts_set() const;
     bool is_read_ts_set() const;
+    bool is_round_prepare_ts_set() const;
+    bool is_round_read_ts_set() const;
     bool is_txn_prepared() const;
     bool is_txn_running() const;
 
@@ -69,7 +69,7 @@ class session_simulator {
       std::map<std::string, std::string> &, uint64_t &, uint64_t &, uint64_t &, uint64_t &);
     int set_commit_timestamp(uint64_t);
     void set_durable_timestamp(uint64_t);
-    void set_prepare_timestamp(uint64_t);
+    int set_prepare_timestamp(uint64_t);
     int set_read_timestamp(uint64_t);
     void reset_txn_level_var();
 
