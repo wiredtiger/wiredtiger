@@ -131,7 +131,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
             commit_value = b"bbbbb" * 100
             prepare_value = b"ccccc" * 100
 
-        # Three timestamps are required, and they must be in the sequence 'early', 'middle' & 'later'.
+        # Three timestamps are required for this test, and they must be in the sequence 'early', 'middle' & 'later'.
         # Each timestamp is relative to a base, as the timestamp hooks that can be used with this test
         # will use a number of low timestamp values (ie just above 0), and the base offers a way of avoiding an overlap.
         # Setting the base to 1000 should be sufficient to avoid an overlap.
