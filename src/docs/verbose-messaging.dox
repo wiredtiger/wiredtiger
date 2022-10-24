@@ -21,7 +21,7 @@ meanings are:
 @row{\c NOTICE, -1, Messages for significant events in WiredTiger\, usually worth noting. Notice messages are associated with normal runtime operations i.e not produced from any state considered harmful or error-prone.}
 @row{\c INFO, 0, Informational style messages\, usually describing statuses and actions performed by WiredTiger. }
 @row{\c DEBUG_1, 1, Low severity messages\, useful for debugging purposes. }
-@row{\c DEBUG_2, 2, Lower severity messages\, an increase in verbosity from \c DEBUG_1 level. }
+@row{\c DEBUG_2, 2, Lower severity messages\, an increase in verbosity from \c DEBUG_1. }
 @row{\c DEBUG_3, 3, Low severity messages. }
 @row{\c DEBUG_4, 4, Low severity messages. }
 @row{\c DEBUG_5, 5, Lowest severity messages. }
@@ -36,7 +36,7 @@ under ::wiredtiger_open.
 
 Each verbosity category can be individually configured with a verbosity level (as described in @ref verbosity_levels).
 This allowing the end user to fine tune and tailor the verbosity of each category to fit their use case
-e.g configuring WiredTiger's runtime for debugging/monitoring a specific sub-system.
+e.g. configuring WiredTiger's runtime for debugging/monitoring a specific sub-system.
 
 When a category is assigned a verbosity level, any associated message less than or equal to (\c <=) that level will be displayed.
 As an example, configuring the \c checkpoint category with the \c DEBUG_1 verbosity level would display \c checkpoint related messages
@@ -60,7 +60,7 @@ An example configuring a WiredTiger connection with verbosity enabled:
 In the above example:
 - \c api is configured to the \c DEBUG_1 verbosity level.
 - \c version is configured to the \c DEBUG_1 verbosity level. If a category is passed without a verbosity
-level (.e.g \c <code>:0</code>), the category will default to the \c DEBUG_1 level (i.e <code>verbose=[version]</code> is equivalent to <code>verbose=[version:1]</code>).
+level (e.g. \c <code>:0</code>), the category will default to the \c DEBUG_1 level (i.e <code>verbose=[version]</code> is equivalent to <code>verbose=[version:1]</code>).
 - \c write is configured to the \c INFO verbosity level.
 
 When configuring verbosity levels, the lowest value the user can associate with a category is \c 0 (\c INFO). This ensuring
