@@ -68,7 +68,7 @@ class connection_simulator {
     /* Member variables */
     private:
     std::vector<session_simulator *> _session_list;
-    uint64_t _oldest_ts;
-    uint64_t _stable_ts;
-    uint64_t _durable_ts;
+    uint64_t _oldest_ts = 0;
+    uint64_t _stable_ts = 0;
+    uint64_t _durable_ts = 0;
 };
