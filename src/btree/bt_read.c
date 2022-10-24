@@ -30,7 +30,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
      * It's hard to imagine a page with a huge memory footprint that has never been modified, but
      * check to be sure.
      */
-    if (__wt_page_evict_clean(page) && !(F_ISSET(btree->dhandle, WT_DHANDLE_IS_METADATA)))
+    if (__wt_page_evict_clean(page))
         return (false);
 
     /*
@@ -46,7 +46,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
         footprint -= page->dsk->mem_size;
 
     /* Pages are usually small enough, check that first. */
-    if (footprint < btree->splitmempage && !(F_ISSET(btree->dhandle, WT_DHANDLE_IS_METADATA)))
+    if (footprint < btree->splitmempage)
         return (false);
 
     /*
@@ -60,7 +60,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
      * If the page is less than the maximum size and can be split in-memory, let's try that first
      * without forcing the page to evict on release.
      */
-    if (footprint < btree->maxmempage && !(F_ISSET(btree->dhandle, WT_DHANDLE_IS_METADATA))) {
+    if (footprint < btree->maxmempage) {
         if (__wt_leaf_page_can_split(session, page))
             return (true);
         return (false);
@@ -268,7 +268,6 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     uint8_t current_state;
     int force_attempts;
     bool busy, cache_work, evict_skip, stalled, wont_need;
-    bool evict_force_check_passed;
 
     btree = S2BT(session);
     txn = session->txn;
@@ -391,18 +390,7 @@ read:
             /*
              * Forcibly evict pages that are too big.
              */
-            evict_force_check_passed = __evict_force_check(session, ref);
-            /*
-            if (F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT))
-                __wt_abort(session);
-            */
-            if (force_attempts < 10 && evict_force_check_passed) {
-                /*
-                if (F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT))
-                    __wt_abort(session);
-                */
-                /* return (true); */
-
+            if (force_attempts < 10 && __evict_force_check(session, ref)) {
                 ++force_attempts;
                 ret = __wt_page_release_evict(session, ref, 0);
                 /*
