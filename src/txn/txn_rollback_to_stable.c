@@ -178,9 +178,11 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
             *stable_update_found = true;
     } else
       /*
-       * When stable update cleanup isn't performed make sure any unstable updates in the history
-       * store are removed. An unstable update in the data store will be removed when the page is
-       * next reconciled.
+       * When stable update cleanup isn't performed make sure unstable updates that were flushed to
+       * the history store are removed - unstable updates in the data store are removed when the
+       * page is next reconciled. We only remove up to the earliest on-chain update, rather than all
+       * unstable updates in this history store, as we don't know if there are scenarios such as a
+       * reverse modify on-disk we may break.
        *
        * FIXME-WT-10017: WT-9846 is an interim fix while we investigate the impacts of a longer term
        * correction in WT-10017. Once completed this change can be reverted.
