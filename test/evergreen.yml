@@ -1953,7 +1953,7 @@ tasks:
   # The test_prepare_hs03.py test, when run with timestamp hooks, is run multiple times to facilitate
   # catching intermittent problems in the test.
   - name: test-prepare-hs03-hook-timestamp
-    tags: ["pull_request", "python", "unit_test"]
+    tags: ["python"]
     depends_on:
       - name: compile
     commands:
