@@ -160,8 +160,9 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
     "\"failpoint_history_store_delete_key_from_ts\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
-    "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\",\"tiered_flush_finish\"]",
+    "\"sleep_before_read_overflow_onpage\",\"split_1\",\"split_2\","
+    "\"split_3\",\"split_4\",\"split_5\",\"split_6\",\"split_7\","
+    "\"tiered_flush_finish\"]",
     NULL, 0},
   {"verbose", "list", NULL,
     "choices=[\"api\",\"backup\",\"block\",\"block_cache\","
@@ -448,7 +449,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_verify[] = {
   {"do_not_clear_txn_id", "boolean", NULL, NULL, NULL, 0},
   {"dump_address", "boolean", NULL, NULL, NULL, 0}, {"dump_blocks", "boolean", NULL, NULL, NULL, 0},
   {"dump_layout", "boolean", NULL, NULL, NULL, 0}, {"dump_offsets", "list", NULL, NULL, NULL, 0},
-  {"dump_pages", "boolean", NULL, NULL, NULL, 0},
+  {"dump_pages", "boolean", NULL, NULL, NULL, 0}, {"read_corrupt", "boolean", NULL, NULL, NULL, 0},
   {"stable_timestamp", "boolean", NULL, NULL, NULL, 0}, {"strict", "boolean", NULL, NULL, NULL, 0},
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
@@ -909,8 +910,9 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
     "\"failpoint_history_store_delete_key_from_ts\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
-    "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\",\"tiered_flush_finish\"]",
+    "\"sleep_before_read_overflow_onpage\",\"split_1\",\"split_2\","
+    "\"split_3\",\"split_4\",\"split_5\",\"split_6\",\"split_7\","
+    "\"tiered_flush_finish\"]",
     NULL, 0},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2},
@@ -993,8 +995,9 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
     "\"failpoint_history_store_delete_key_from_ts\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
-    "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\",\"tiered_flush_finish\"]",
+    "\"sleep_before_read_overflow_onpage\",\"split_1\",\"split_2\","
+    "\"split_3\",\"split_4\",\"split_5\",\"split_6\",\"split_7\","
+    "\"tiered_flush_finish\"]",
     NULL, 0},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2},
@@ -1075,8 +1078,9 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
     "\"failpoint_history_store_delete_key_from_ts\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
-    "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\",\"tiered_flush_finish\"]",
+    "\"sleep_before_read_overflow_onpage\",\"split_1\",\"split_2\","
+    "\"split_3\",\"split_4\",\"split_5\",\"split_6\",\"split_7\","
+    "\"tiered_flush_finish\"]",
     NULL, 0},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2},
@@ -1155,8 +1159,9 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
     "\"failpoint_history_store_delete_key_from_ts\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
-    "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\",\"tiered_flush_finish\"]",
+    "\"sleep_before_read_overflow_onpage\",\"split_1\",\"split_2\","
+    "\"split_3\",\"split_4\",\"split_5\",\"split_6\",\"split_7\","
+    "\"tiered_flush_finish\"]",
     NULL, 0},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2},
@@ -1328,8 +1333,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
   {"WT_SESSION.verify",
     "do_not_clear_txn_id=false,dump_address=false,dump_blocks=false,"
     "dump_layout=false,dump_offsets=,dump_pages=false,"
-    "stable_timestamp=false,strict=false",
-    confchk_WT_SESSION_verify, 8},
+    "read_corrupt=false,stable_timestamp=false,strict=false",
+    confchk_WT_SESSION_verify, 9},
   {"colgroup.meta",
     "app_metadata=,assert=(commit_timestamp=none,"
     "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"

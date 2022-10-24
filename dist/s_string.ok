@@ -612,6 +612,7 @@ bm
 bnd
 bool
 boolean
+booleans
 boption
 br
 breakpoint
@@ -750,6 +751,7 @@ cursoring
 cursorp
 curstartrecno
 curstat
+curstd
 curtable
 curtiered
 curversion
@@ -1432,7 +1434,6 @@ snprintf
 sp
 spinlock
 spinlocks
-sprintf
 src
 srch
 ss
