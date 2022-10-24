@@ -63,8 +63,8 @@ typedef struct {
 } FICTIONAL_OPTS;
 
 /*
- * The values in this structure maps directly to values in TEST_OPTS, but are only the values that
- * we are changing in our options testing.
+ * The values in this structure map directly to the values in TEST_OPTS that we expect to be
+ * modified by this program.
  */
 typedef struct {
     const char *build_dir;             /* Build directory path */
@@ -346,7 +346,7 @@ main(int argc, char *argv[])
 
             /*
              * Fill our expected test utility options array with only the subset of values we are
-             * expecting to be modified.
+             * expecting to be modified. We expect all the other values to be zeroed or NULL.
              */
             subset = &driver[i].subset_expected;
             WT_CLEAR(expect);
