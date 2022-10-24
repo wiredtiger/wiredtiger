@@ -222,17 +222,17 @@ session_simulator::commit_transaction(const std::string &config)
 
     if (_prepared_txn) {
         if (!_has_commit_ts)
-            WT_SIM_RET_MSG(EINVAL, "commit_timestamp is required for a prepared transaction");
+            WT_SIM_RET_MSG(EINVAL, "commit timestamp is required for a prepared transaction");
 
         if (!is_durable_ts_set())
-            WT_SIM_RET_MSG(EINVAL, "durable_timestamp is required for a prepared transaction");
+            WT_SIM_RET_MSG(EINVAL, "durable timestamp is required for a prepared transaction");
     } else {
         if (has_prepare_timestamp())
             WT_SIM_RET_MSG(EINVAL, "prepare timestamp is set for non-prepared transaction");
 
         if (is_durable_ts_set())
             WT_SIM_RET_MSG(
-              EINVAL, "durable_timestamp should not be specified for non-prepared transaction");
+              EINVAL, "durable timestamp should not be specified for non-prepared transaction");
     }
 
     if (_has_commit_ts || _durable_ts_set) {
