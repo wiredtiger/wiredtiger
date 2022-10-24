@@ -593,7 +593,8 @@ functions:
         script: |
           set -o errexit
           set -o verbose
-          ${python_binary|python3} ../test/evergreen/print_stack_trace.py -l .
+          ${python_binary|python3} ../test/evergreen/print_stack_trace.py -p ${python_binary|python3} -l .
+
     - command: s3.put
       params:
         aws_secret: ${aws_secret}

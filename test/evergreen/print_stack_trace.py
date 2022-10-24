@@ -108,11 +108,13 @@ class GDBDumper:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-e', '--executable_path',
-                        help='path to the executable')
     parser.add_argument('-c', '--core_path',
                         help='directory path to the core dumps')
+    parser.add_argument('-e', '--executable_path',
+                        help='path to the executable')
     parser.add_argument('-l', '--lib_path', help='library path')
+    parser.add_argument('-p', '--python_binary_path',
+                        help='python binary path')
     args = parser.parse_args()
 
     # Store the path of the core files as a list.
