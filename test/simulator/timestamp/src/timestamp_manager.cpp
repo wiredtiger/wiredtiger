@@ -253,7 +253,7 @@ timestamp_manager::validate_read_timestamp(session_simulator *session, const uin
  * For a non-prepared transaction:
  * - The commit_ts cannot be less than the first_commit_timestamp.
  * - The commit_ts cannot be less than the oldest timestamp.
- * - The commit timestamp should not be less than or equal to the stable timestamp.
+ * - The commit timestamp must be after the stable timestamp.
  * For a prepared transaction:
  * - The commit_ts cannot be less than the prepared_ts unless rounding
  *   the prepare timestamp is enabled.
@@ -290,7 +290,7 @@ timestamp_manager::validate_commit_timestamp(session_simulator *session, uint64_
                     ") is less than the oldest timestamp (" + std::to_string(oldest_ts) + ")");
         }
 
-        /* The commit timestamp should not be less than or equal to the stable timestamp. */
+        /* The commit timestamp must be after the stable timestamp. */
         if (conn->has_stable_ts()) {
             uint64_t stable_ts = conn->get_stable_ts();
             if (commit_ts <= stable_ts)
@@ -388,7 +388,7 @@ timestamp_manager::validate_prepare_timestamp(session_simulator *session, uint64
  * - Durable timestamp should not be specified for non-prepared transaction.
  * - Commit timestamp is required before setting a durable timestamp.
  * - The durable timestamp should not be less than the oldest timestamp.
- * - The durable timestamp should not be less than or equal to the stable timestamp.
+ * - The durable timestamp must be after the stable timestamp.
  * - The durable timestamp should not be less than the commit timestamp.
  */
 int
@@ -414,7 +414,7 @@ timestamp_manager::validate_session_durable_timestamp(
                 ") is less than the oldest timestamp (" + std::to_string(oldest_ts) + ")");
     }
 
-    /* The durable timestamp should not be less than or equal to the stable timestamp. */
+    /* The durable timestamp must be after the stable timestamp. */
     if (conn->has_stable_ts()) {
         uint64_t stable_ts = conn->get_stable_ts();
         if (durable_ts <= stable_ts)
