@@ -381,6 +381,12 @@ main(int argc, char *argv[])
 skip_operations:
     locks_destroy(g.wts_conn);
 
+    /*
+     * Verify the objects. Verify closes the underlying handle and discards the statistics, read
+     * them first.
+     */
+    TIMED_MAJOR_OP(wts_verify(g.wts_conn, true));
+
     track("shutting down", 0ULL);
     wts_close(&g.wts_conn);
 
