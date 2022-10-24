@@ -355,6 +355,40 @@ err:
 }
 
 /*
+ * __increment_bound_array --
+ *     Increment the given buffer by one bit. Note: This function can potentially extend the buffer
+ *     by one byte, if there is not enough space to fit the one bit.
+ */
+static inline int
+__increment_bound_array(WT_SESSION_IMPL *session, WT_ITEM *user_item)
+{
+    size_t usz;
+    uint8_t *userp;
+    int i;
+
+    usz = user_item->size;
+    userp = (uint8_t *)user_item->data;
+
+    if (usz <= 0)
+        return (0);
+
+    /*
+     * Use the non-vectorized version for the remaining bytes and for the small key sizes.
+     */
+    for (i = usz - 1; i >= 0 && userp[i] == UINT8_MAX; --i)
+        userp[i] = 0;
+
+    if (i < 0) {
+        WT_RET(__wt_buf_extend(session, user_item, user_item->size + 1));
+        userp = (uint8_t *)user_item->data;
+        userp[0] = 1;
+    } else
+        userp[i] += 1;
+
+    return (0);
+}
+
+/*
  * __curindex_bound --
  *     WT_CURSOR->bound method for the index cursor type.
  *
@@ -382,6 +416,17 @@ __curindex_bound(WT_CURSOR *cursor, const char *config)
     }
 
     WT_ERR(child->bound(child, config));
+
+    /* Check that bound is set with action set configuration. */
+    WT_ERR(__wt_config_gets(session, cfg, "bound", &cval));
+    if (WT_STRING_MATCH("lower", cval.str, cval.len) && F_ISSET(child, WT_CURSTD_BOUND_LOWER) &&
+      !F_ISSET(child, WT_CURSTD_BOUND_LOWER_INCLUSIVE))
+        WT_ERR(__increment_bound_array(session, &child->lower_bound));
+
+    if (WT_STRING_MATCH("upper", cval.str, cval.len) && F_ISSET(child, WT_CURSTD_BOUND_UPPER) &&
+      F_ISSET(child, WT_CURSTD_BOUND_UPPER_INCLUSIVE))
+        WT_ERR(__increment_bound_array(session, &child->upper_bound));
+
 err:
     API_END_RET(session, ret);
 }
