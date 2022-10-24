@@ -373,16 +373,16 @@ __increment_bound_array(WT_SESSION_IMPL *session, WT_ITEM *user_item)
         return (0);
 
     /*
-     * First loop through all max values on the buffer from the end. This is to find the appriopate 
+     * First loop through all max values on the buffer from the end. This is to find the appropriate
      * position to increment add one to the byte. If we encounter a max value, make it zero due to
      * the addition of one bit.
      */
     for (i = usz - 1; i >= 0 && userp[i] == UINT8_MAX; --i)
         userp[i] = 0;
 
-    /* 
+    /*
      * If all of the buffer are max values, extend the buffer by one and add one to the start of the
-     * buffer. Otherwise we have found a position to increment inside the buffer. 
+     * buffer. Otherwise we have found a position to increment inside the buffer.
      */
     if (i < 0) {
         WT_RET(__wt_buf_extend(session, user_item, user_item->size + 1));
@@ -423,13 +423,22 @@ __curindex_bound(WT_CURSOR *cursor, const char *config)
 
     WT_ERR(child->bound(child, config));
 
-    /* Check that bound is set with action set configuration. */
+    /* Check if we have set the lower bound or upper bound. */
     WT_ERR(__wt_config_gets(session, cfg, "bound", &cval));
-    if (WT_STRING_MATCH("lower", cval.str, cval.len) && F_ISSET(child, WT_CURSTD_BOUND_LOWER) &&
+
+    /*
+     * Index tables internally combines the user chosen columns with the key format of the table to
+     * maintain uniqueness between each key. However user's are not aware of the combining the key
+     * format and cannot set bounds based on the combined index format. Therefore WiredTiger needs
+     * to internally fix this by incrementing one bit to the array in two cases:
+     *  1. If the set bound is lower and it is not inclusive.
+     *  2. If the set bound is upper and it is inclusive.
+     */
+    if (WT_STRING_MATCH("lower", cval.str, cval.len) &&
       !F_ISSET(child, WT_CURSTD_BOUND_LOWER_INCLUSIVE))
         WT_ERR(__increment_bound_array(session, &child->lower_bound));
 
-    if (WT_STRING_MATCH("upper", cval.str, cval.len) && F_ISSET(child, WT_CURSTD_BOUND_UPPER) &&
+    if (WT_STRING_MATCH("upper", cval.str, cval.len) &&
       F_ISSET(child, WT_CURSTD_BOUND_UPPER_INCLUSIVE))
         WT_ERR(__increment_bound_array(session, &child->upper_bound));
 
