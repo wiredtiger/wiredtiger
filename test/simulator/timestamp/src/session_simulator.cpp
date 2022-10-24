@@ -358,12 +358,12 @@ session_simulator::reset_txn_level_var()
     _first_commit_ts = 0;
     _prepare_ts = 0;
     _read_ts = 0;
+    _durable_ts_set = false;
     _has_commit_ts = false;
+    _prepared_txn = false;
     _ts_round_prepared = false;
     _ts_round_read = false;
-    _prepared_txn = false;
     _txn_running = false;
-    _durable_ts_set = false;
 }
 
 uint64_t
