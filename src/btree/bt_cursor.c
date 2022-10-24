@@ -587,7 +587,7 @@ __cursor_search_neighboring(WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, int *
         return (ret);
 
     /*
-     * We walked off the end of the tree, we need to check records before our original position to
+     * We walked off the end of the tree. We need to check records before our original position to
      * see if they are visible. In snapshot isolation we can restart our search from where we first
      * searched as no records will appear in between.
      *
