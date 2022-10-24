@@ -61,6 +61,11 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     btree = S2BT(session);
 
     /*
+    if (F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT))
+        __wt_abort(session);
+    */
+
+    /*
      * This function always releases the hazard pointer - ensure that's done regardless of whether
      * we can get exclusive access. Take some care with order of operations: if we release the
      * hazard pointer without first locking the page, it could be evicted in between.
@@ -178,7 +183,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     }
 
     /* No need to reconcile the page if it is from a dead tree or it is clean. */
-    if (!tree_dead && __wt_page_is_modified(page))
+    if (!tree_dead && (__wt_page_is_modified(page) || F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT)))
         WT_ERR(__evict_reconcile(session, ref, flags));
 
     /*
@@ -718,6 +723,11 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
     closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
 
     cache = conn->cache;
+
+    /*
+    if (F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT))
+        __wt_abort(session);
+    */
 
     /*
      * Urgent eviction and forced eviction want two different behaviors for inefficient update

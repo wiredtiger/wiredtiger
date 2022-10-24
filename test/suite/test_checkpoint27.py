@@ -40,6 +40,7 @@ import wttest
 class test_checkpoint27(wttest.WiredTigerTestCase):
     def conn_config(self):
         return 'statistics=(all),timing_stress_for_test=[checkpoint_slow]'
+    table_config = ',memory_page_max=8k,leaf_page_max=4k'
 
     def large_updates(self, uri, ds, nrows, value):
         cursor = self.session.open_cursor(uri)
@@ -62,7 +63,10 @@ class test_checkpoint27(wttest.WiredTigerTestCase):
     def check(self, ds, ckpt, expected):
         if ckpt is None:
             ckpt = 'WiredTigerCheckpoint'
+        # cursor2 = self.session.open_cursor('metadata:', None, 'debug=(release_evict),checkpoint='+ckpt)
         cursor = self.session.open_cursor(ds.uri, None, 'checkpoint=' + ckpt)
+        # cursor2.next()
+        # cursor2.reset()
         seen = {}
         for k, v in cursor:
             if v in seen:
@@ -82,7 +86,7 @@ class test_checkpoint27(wttest.WiredTigerTestCase):
 
         # Create a table.
         ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format)
+            self, uri, 0, key_format=self.key_format, value_format=self.value_format, config=self.table_config)
         ds.populate()
 
         value_a = "aaaaa" * 100
@@ -130,14 +134,22 @@ class test_checkpoint27(wttest.WiredTigerTestCase):
         expected_b = { value_a: nrows, value_b: morerows }
         expected = [expected_a, expected_b]
 
+        app_metadata = value_a * 100
+
         # Create a lot of tables to generate a large metadata page.
         for i in range(0, 2000):
             temp_uri = 'table:test_checkpoint27_' + str(i)
-            self.session.create(temp_uri, 'key_format={},value_format={}'.format(self.key_format, self.value_format))
+            self.session.create(temp_uri, 'key_format={},value_format={},{},app_metadata={}'.format(self.key_format, self.value_format, self.table_config, app_metadata))
             self.large_updates(uri, ds, 1, value_a)
-            # if i == 1:
-            #     self.session.checkpoint()
+            if i % 100 == 0:
+                self.session.create(uri, 'key_format={},value_format={}'.format(self.key_format, self.value_format))
+                self.check(ds, None, expected)
 
+        # md_uri = 'metadata:'
+        # cursor = self.session.open_cursor(md_uri, None, 'debug=(release_evict)')
+        # for i in range(0, 2000):
+        #     cursor.get(i)
+        #     cursor.reset()
         # Dirty the metadata page on the last table.
         # TODO this doesn't work.
         # self.session.checkpoint()
