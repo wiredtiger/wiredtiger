@@ -94,9 +94,9 @@ class test_search_near01(wttest.WiredTigerTestCase):
         cursor2.search_near()
 
         skip_count = self.get_stat(stat.conn.cursor_next_skip_lt_100)
-        # This should be equal to roughly key_count * 2 as we're going to traverse the whole
-        # range forward, and then the whole range backwards.
-        self.assertGreater(skip_count, key_count * 2)
+        # This should be equal to roughly key_count as we're going to traverse the whole
+        # range forward, and then the range backwards from 'aa'.
+        self.assertGreater(skip_count, key_count)
 
         cursor2.reconfigure("prefix_search=true")
         cursor2.set_key('aa')
@@ -315,7 +315,7 @@ class test_search_near01(wttest.WiredTigerTestCase):
         self.assertEqual(prefix_skip_count - skip_count, 3)
         skip_count = prefix_skip_count
 
-        # We early exit here as "cc" is not the last key. 
+        # We early exit here as "cc" is not the last key.
         self.assertEqual(self.get_stat(stat.conn.cursor_search_near_prefix_fast_paths, session2), 1)
 
         session2.rollback_transaction()
