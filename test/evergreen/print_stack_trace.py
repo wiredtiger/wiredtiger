@@ -139,7 +139,14 @@ def main():
         if args.executable_path is None:
             # Retrieve the first part of the path without the core name.
             dirname = core_file_path.rsplit('/', 1)[0]
-            if 'cppsuite' in core_file_path:
+            if dirname.startswith('WT_TEST/test_'):
+                # For core dumps generate by Python tests, we need the executable to be set.
+                if args.python_binary_path is None:
+                    print("The Python binary is not specified!")
+                    continue
+                else:
+                    executable_path = args.python_binary_path
+            elif 'cppsuite' in core_file_path:
                 executable_path = dirname + "/run"
             elif 'format' in core_file_path:
                 executable_path = dirname + "/t"
