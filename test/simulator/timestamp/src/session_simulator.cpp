@@ -177,10 +177,10 @@ session_simulator::commit_transaction(const std::string &config)
     uint64_t commit_ts = 0;
     uint64_t durable_ts = 0;
 
-    if (has_first_commit_timestamp())
+    if (_has_commit_ts)
         commit_ts = _commit_ts;
 
-    if (is_durable_ts_set())
+    if (_durable_ts_set)
         durable_ts = _durable_ts;
 
     int ret;
@@ -427,9 +427,9 @@ session_simulator::has_read_timestamp() const
 }
 
 bool
-session_simulator::has_first_commit_timestamp() const
+session_simulator::is_commit_ts_set() const
 {
-    return (_first_commit_ts != 0);
+    return (_has_commit_ts);
 }
 
 bool

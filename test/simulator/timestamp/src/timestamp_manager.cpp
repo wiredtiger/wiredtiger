@@ -265,7 +265,7 @@ timestamp_manager::validate_commit_timestamp(session_simulator *session, uint64_
 {
 
     if (!session->has_prepare_timestamp()) {
-        if (session->has_first_commit_timestamp()) {
+        if (session->is_commit_ts_set()) {
             /*
              * We cannot set the commit timestamp to be earlier than the first commit timestamp when
              * setting the commit timestamp multiple times within a transaction.
@@ -355,7 +355,7 @@ timestamp_manager::validate_prepare_timestamp(session_simulator *session, uint64
         WT_SIM_RET_MSG(EINVAL, "Prepare timestamp is already set");
 
     /* Commit timestamp should not have been set before the prepare timestamp. */
-    if (session->has_first_commit_timestamp())
+    if (session->is_commit_ts_set())
         WT_SIM_RET_MSG(
           EINVAL, "Commit timestamp should not have been set before the prepare timestamp");
 
@@ -401,7 +401,7 @@ timestamp_manager::validate_session_durable_timestamp(
           EINVAL, "durable timestamp should not be specified for non-prepared transaction");
 
     /* Commit timestamp is required before setting a durable timestamp. */
-    if (!session->has_first_commit_timestamp())
+    if (!session->is_commit_ts_set())
         WT_SIM_RET_MSG(EINVAL, "commit timestamp is required before setting a durable timestamp");
 
     /* The durable timestamp should not be less than the oldest timestamp. */

@@ -54,9 +54,9 @@ class session_simulator {
     uint64_t get_first_commit_timestamp() const;
     uint64_t get_prepare_timestamp() const;
     uint64_t get_read_timestamp() const;
-    bool has_first_commit_timestamp() const;
     bool has_prepare_timestamp() const;
     bool has_read_timestamp() const;
+    bool is_commit_ts_set() const;
     bool is_durable_ts_set() const;
     bool is_read_ts_set() const;
     bool is_round_prepare_ts_set() const;
