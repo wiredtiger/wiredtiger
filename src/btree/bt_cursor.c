@@ -594,7 +594,8 @@ __cursor_search_neighboring(WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, int *
      * Due to the bounded cursor logic potentially changing the search key, we cannot rely on the
      * saved state.
      */
-    if (session->isolation == WT_ISO_SNAPSHOT && F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) && !WT_CURSOR_BOUNDS_SET(cursor)) {
+    if (session->isolation == WT_ISO_SNAPSHOT && F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) &&
+      !WT_CURSOR_BOUNDS_SET(cursor)) {
         __cursor_state_restore(cursor, state);
         if (btree->type == BTREE_ROW)
             WT_RET(__cursor_row_search(cbt, true, NULL, NULL));
