@@ -235,6 +235,12 @@ session_simulator::commit_transaction(const std::string &config)
               EINVAL, "durable_timestamp should not be specified for non-prepared transaction");
     }
 
+    if (_has_commit_ts || _durable_ts_set) {
+        connection_simulator *conn = &connection_simulator::get_connection();
+        if (_durable_ts > conn->get_global_durable_ts())
+            conn->set_global_durable_ts(_durable_ts);
+    }
+
     /* Transaction can commit successfully if we got to this point. */
     _txn_running = false;
     return (0);

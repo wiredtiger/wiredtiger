@@ -71,6 +71,10 @@ timestamp_manager::decimal_to_hex(const uint64_t ts)
 int
 timestamp_manager::validate_hex_value(const std::string &ts_string, const std::string &ts)
 {
+    /* Protect against unexpectedly long hex strings. */
+    if (ts_string.length() > 16)
+        WT_SIM_RET_MSG(EINVAL, ts + " timestamp too long: " + ts_string);
+
     /* Check that the timestamp string has valid hexadecimal characters. */
     for (auto &ch : ts_string)
         if (!std::isxdigit(ch))
