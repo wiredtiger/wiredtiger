@@ -373,11 +373,17 @@ __increment_bound_array(WT_SESSION_IMPL *session, WT_ITEM *user_item)
         return (0);
 
     /*
-     * Use the non-vectorized version for the remaining bytes and for the small key sizes.
+     * First loop through all max values on the buffer from the end. This is to find the appriopate 
+     * position to increment add one to the byte. If we encounter a max value, make it zero due to
+     * the addition of one bit.
      */
     for (i = usz - 1; i >= 0 && userp[i] == UINT8_MAX; --i)
         userp[i] = 0;
 
+    /* 
+     * If all of the buffer are max values, extend the buffer by one and add one to the start of the
+     * buffer. Otherwise we have found a position to increment inside the buffer. 
+     */
     if (i < 0) {
         WT_RET(__wt_buf_extend(session, user_item, user_item->size + 1));
         userp = (uint8_t *)user_item->data;
