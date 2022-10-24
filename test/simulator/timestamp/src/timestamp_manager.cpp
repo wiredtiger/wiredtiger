@@ -139,7 +139,7 @@ timestamp_manager::parse_config(const std::string &config,
  * 3) Validation fails if oldest is greater than the stable timestamp.
  */
 int
-timestamp_manager::validate_oldest_and_stable_ts(
+timestamp_manager::validate_oldest_and_stable_timestamp(
   uint64_t &new_stable_ts, uint64_t &new_oldest_ts, bool &has_oldest, bool &has_stable)
 {
     /* No need to validate timestamps if timestamps are not passed in the config. */
@@ -203,7 +203,7 @@ timestamp_manager::validate_oldest_and_stable_ts(
  *    This check is performed by the validate_hex_value function in this file.
  */
 int
-timestamp_manager::validate_durable_ts(
+timestamp_manager::validate_conn_durable_timestamp(
   const uint64_t &new_durable_ts, const bool &has_durable) const
 {
     /* If durable timestamp was not passed in the config, no validation is needed. */
@@ -343,7 +343,7 @@ timestamp_manager::validate_commit_timestamp(session_simulator *session, uint64_
  *   the prepare timestamp is enabled.
  */
 int
-timestamp_manager::validate_prepare_timestamp(session_simulator *session, uint64_t prepare_ts)
+timestamp_manager::validate_prepare_timestamp(session_simulator *session, uint64_t prepare_ts) const
 {
     /* Cannot set the prepared timestamp if the transaction is already prepared. */
     if (session->is_txn_prepared())
@@ -379,6 +379,57 @@ timestamp_manager::validate_prepare_timestamp(session_simulator *session, uint64
               "prepare timestamp (" + std::to_string(prepare_ts) +
                 ") is less than the stable timestamp (" + std::to_string(stable_ts) +
                 ") for this transaction.");
+
+    return (0);
+}
+
+/*
+ * Validate the durable timestamp. The constraints on the durable timestamp are:
+ * - Durable timestamp should not be specified for non-prepared transaction.
+ * - Commit timestamp is required before setting a durable timestamp.
+ * - The durable timestamp should not be less than the oldest timestamp.
+ * - The durable timestamp should not be less than or equal to the stable timestamp.
+ * - The durable timestamp should not be less than the commit timestamp.
+ */
+int
+timestamp_manager::validate_session_durable_timestamp(
+  session_simulator *session, uint64_t durable_ts)
+{
+    /* Durable timestamp should not be specified for non-prepared transaction. */
+    if (!session->is_txn_prepared())
+        WT_SIM_RET_MSG(
+          EINVAL, "durable timestamp should not be specified for non-prepared transaction");
+
+    /* Commit timestamp is required before setting a durable timestamp. */
+    if (!session->has_first_commit_timestamp())
+        WT_SIM_RET_MSG(EINVAL, "commit timestamp is required before setting a durable timestamp");
+
+    /* The durable timestamp should not be less than the oldest timestamp. */
+    connection_simulator *conn = &connection_simulator::get_connection();
+    if (conn->has_oldest_ts()) {
+        uint64_t oldest_ts = conn->get_oldest_ts();
+        if (durable_ts < oldest_ts)
+            WT_SIM_RET_MSG(EINVAL,
+              "commit timestamp (" + std::to_string(durable_ts) +
+                ") is less than the oldest timestamp (" + std::to_string(oldest_ts) + ")");
+    }
+
+    /* The durable timestamp should not be less than or equal to the stable timestamp. */
+    if (conn->has_stable_ts()) {
+        uint64_t stable_ts = conn->get_stable_ts();
+        if (durable_ts <= stable_ts)
+            WT_SIM_RET_MSG(EINVAL,
+              "commit timestamp (" + std::to_string(durable_ts) +
+                ") must be after the stable timestamp (" + std::to_string(stable_ts) + ")");
+    }
+
+    /* The durable timestamp should not be less than the commit timestamp. */
+    uint64_t commit_ts = session->get_commit_timestamp();
+    if (durable_ts < commit_ts)
+        WT_SIM_RET_MSG(EINVAL,
+          "durable timestamp (" + std::to_string(durable_ts) +
+            ") is less than the commit timestamp (" + std::to_string(commit_ts) +
+            ") in this transaction");
 
     return (0);
 }

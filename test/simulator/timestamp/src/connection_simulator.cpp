@@ -218,10 +218,10 @@ connection_simulator::set_timestamp(const std::string &config)
 
     if (!force) {
         /* Validate the new durable timestamp. */
-        WT_SIM_RET(ts_manager->validate_durable_ts(new_durable_ts, has_durable));
+        WT_SIM_RET(ts_manager->validate_conn_durable_timestamp(new_durable_ts, has_durable));
 
         /* Validate the new oldest and stable timestamp. */
-        WT_SIM_RET(ts_manager->validate_oldest_and_stable_ts(
+        WT_SIM_RET(ts_manager->validate_oldest_and_stable_timestamp(
           new_stable_ts, new_oldest_ts, has_oldest, has_stable));
     }
 
