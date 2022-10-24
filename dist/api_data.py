@@ -784,8 +784,8 @@ connection_runtime_config = [
         'failpoint_eviction_fail_after_reconciliation',
         'failpoint_history_store_delete_key_from_ts', 'history_store_checkpoint_delay',
         'history_store_search', 'history_store_sweep_race', 'prepare_checkpoint_delay',
-        'split_1', 'split_2', 'split_3', 'split_4', 'split_5', 'split_6', 'split_7',
-        'tiered_flush_finish']),
+        'sleep_before_read_overflow_onpage', 'split_1', 'split_2', 'split_3', 'split_4', 'split_5',
+        'split_6', 'split_7', 'tiered_flush_finish']),
     Config('verbose', '[]', r'''
         enable messages for various subsystems and operations. Options are given as a list,
         where each message type can optionally define an associated verbosity level, such as
@@ -1588,6 +1588,10 @@ methods = {
     Config('dump_pages', 'false', r'''
         Display the contents of in-memory pages as they are verified, using the application's
         message handler, intended for debugging''',
+        type='boolean'),
+    Config('read_corrupt', 'false', r'''
+        A mode that allows verify to continue reading after encountering a checksum error. It
+        will skip past the corrupt block and continue with the verification process''',
         type='boolean'),
     Config('stable_timestamp', 'false', r'''
         Ensure that no data has a start timestamp after the stable timestamp, to be run after
