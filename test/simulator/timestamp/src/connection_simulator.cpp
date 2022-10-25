@@ -265,7 +265,7 @@ connection_simulator::set_global_durable_ts(uint64_t ts)
     _durable_ts = ts;
 }
 
-connection_simulator::connection_simulator() {}
+connection_simulator::connection_simulator() : _oldest_ts(0), _stable_ts(0), _durable_ts(0) {}
 
 connection_simulator::~connection_simulator()
 {
