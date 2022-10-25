@@ -394,6 +394,14 @@ __increment_bound_array(WT_SESSION_IMPL *session, WT_ITEM *user_item)
     return (0);
 }
 
+#ifdef HAVE_UNITTEST
+int
+__ut_increment_bound_array(WT_SESSION_IMPL *session, WT_ITEM *user_item)
+{
+    return (__increment_bound_array(session, user_item));
+}
+#endif
+
 /*
  * __curindex_bound --
  *     WT_CURSOR->bound method for the index cursor type.

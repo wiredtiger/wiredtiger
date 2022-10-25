@@ -6,6 +6,7 @@ set(unittest_sources
     tests/test_crc32.cpp
     tests/test_extent_list.cpp
     tests/test_fnv.cpp
+    tests/test_increment_bounds_array.cpp
     tests/test_pow.cpp
     tests/test_reconciliation_tracking.cpp
     tests/test_tailq.cpp

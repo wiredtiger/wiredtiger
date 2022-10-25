@@ -1139,6 +1139,26 @@ tasks:
             set -o errexit
             set -o verbose
             ${test_env_vars|} test/unittest/unittests
+ - name: cmake-build--deps-catch2-src-projects-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: cmake_build/_deps/catch2-src/projects
+ - name: cmake-build--deps-catch2-src-projects-ExtraTests-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: cmake_build/_deps/catch2-src/projects/ExtraTests
   # End of normal make check test tasks
 
   # Start of cppsuite test tasks.
