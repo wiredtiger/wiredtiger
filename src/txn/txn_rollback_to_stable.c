@@ -1283,6 +1283,7 @@ __rollback_to_stable_page_skip(
 {
     WT_PAGE_DELETED *page_del;
     wt_timestamp_t rollback_timestamp;
+    char time_string[WT_TIME_STRING_SIZE];
 
     rollback_timestamp = *(wt_timestamp_t *)context;
     WT_UNUSED(visible_all);
@@ -1312,8 +1313,15 @@ __rollback_to_stable_page_skip(
               page_del == NULL || page_del->prepare_state == WT_PREPARE_INIT ||
                 page_del->prepare_state == WT_PREPARE_RESOLVED);
 
-            __wt_verbose_multi(
-              session, WT_VERB_RECOVERY_RTS(session), "%p: deleted page walk skipped", (void *)ref);
+            if (page_del == NULL) {
+                __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+                  "%p: deleted page walk skipped", (void *)ref);
+            } else {
+                __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+                  "%p: deleted page page_del %s", (void *)ref,
+                  __wt_time_point_to_string(page_del->timestamp, page_del->durable_timestamp,
+                    page_del->txnid, time_string));
+            }
             WT_STAT_CONN_INCR(session, txn_rts_tree_walk_skip_pages);
             *skipp = true;
         }
