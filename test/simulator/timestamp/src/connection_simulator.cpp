@@ -143,7 +143,7 @@ connection_simulator::query_timestamp(
         ts = _durable_ts;
 
         for (auto &session : _session_list) {
-            if (session->is_txn_running()) {
+            if (!session->is_txn_running()) continue;
                 uint64_t durable_ts;
                 if (session->is_durable_ts_set())
                     durable_ts = session->get_durable_timestamp();
