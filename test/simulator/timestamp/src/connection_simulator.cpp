@@ -143,7 +143,7 @@ connection_simulator::query_timestamp(
         ts = _durable_ts;
 
         for (auto &session : _session_list) {
-            if (!session->is_txn_running()) continue;
+            if (session->is_txn_running()) {
                 uint64_t durable_ts;
                 if (session->is_durable_ts_set())
                     durable_ts = session->get_durable_timestamp();
@@ -152,7 +152,7 @@ connection_simulator::query_timestamp(
                         continue;
                     durable_ts = session->get_first_commit_timestamp();
                 } else
-                    continue;;
+                    continue;
 
                 if (ts == 0 || --durable_ts < ts)
                     ts = durable_ts;
