@@ -1230,6 +1230,7 @@ static int
 __rollback_abort_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
 {
     WT_PAGE *page;
+    bool modified;
 
     /*
      * If we have a ref with clean page, find out whether the page has any modifications that are
@@ -1237,16 +1238,15 @@ __rollback_abort_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
      * page may also contain modifications that need rollback.
      */
     page = ref->page;
-    if (!__wt_page_is_modified(page) &&
-      !__rollback_page_needs_abort(session, ref, rollback_timestamp)) {
+    modified = __wt_page_is_modified(page);
+    if (!modified && !__rollback_page_needs_abort(session, ref, rollback_timestamp)) {
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session), "%p: page skipped", (void *)ref);
         return (0);
     }
 
     WT_STAT_CONN_INCR(session, txn_rts_pages_visited);
     __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-      "%p: page rolled back when page is modified: %s", (void *)ref,
-      __wt_page_is_modified(page) ? "true" : "false");
+      "%p: page rolled back when page is modified: %s", (void *)ref, modified ? "true" : "false");
 
     switch (page->type) {
     case WT_PAGE_COL_FIX:
