@@ -1945,7 +1945,7 @@ __session_rollback_transaction(WT_SESSION *wt_session, const char *config)
 
 err:
 #ifdef HAVE_CALL_LOG
-    WT_TRET(__wt_call_log_rollback_transaction(session, ret));
+    WT_TRET(__wt_call_log_rollback_transaction(session, config, ret));
 #endif
     API_END_RET(session, ret);
 }

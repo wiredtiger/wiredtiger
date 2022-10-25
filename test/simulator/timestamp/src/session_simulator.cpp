@@ -174,15 +174,37 @@ session_simulator::commit_transaction(const std::string &config)
     WT_SIM_RET_MSG(ts_manager->parse_config(config, supported_ops, unsupported_ops, config_map),
       "Incorrect config (" + config + ") passed in commit_transaction");
 
+    uint64_t commit_ts = 0;
+    uint64_t durable_ts = 0;
+
+    if (_has_commit_ts)
+        commit_ts = _commit_ts;
+
+    if (_durable_ts_set)
+        durable_ts = _durable_ts;
+
+    int ret;
     auto pos = config_map.find("commit_timestamp");
     if (pos != config_map.end()) {
-        int ret = ts_manager->validate_hex_value(pos->second, "commit timestamp");
+        ret = ts_manager->validate_hex_value(pos->second, "commit timestamp");
         if (ret != 0) {
             rollback_transaction();
             return (ret);
         }
+        commit_ts = ts_manager->hex_to_decimal(pos->second);
+    }
 
-        uint64_t commit_ts = ts_manager->hex_to_decimal(pos->second);
+    pos = config_map.find("durable_timestamp");
+    if (pos != config_map.end()) {
+        ret = ts_manager->validate_hex_value(pos->second, "durable timestamp");
+        if (ret != 0) {
+            rollback_transaction();
+            return (ret);
+        }
+        durable_ts = ts_manager->hex_to_decimal(pos->second);
+    }
+
+    if (commit_ts != 0) {
         ret = set_commit_timestamp(commit_ts);
         if (ret != 0) {
             rollback_transaction();
@@ -190,23 +212,33 @@ session_simulator::commit_transaction(const std::string &config)
         }
     }
 
-    pos = config_map.find("durable_timestamp");
-    if (pos != config_map.end()) {
+    if (durable_ts != 0) {
+        ret = set_durable_timestamp(durable_ts);
+        if (ret != 0) {
+            rollback_transaction();
+            return (ret);
+        }
     }
 
     if (_prepared_txn) {
         if (!_has_commit_ts)
-            WT_SIM_RET_MSG(EINVAL, "commit_timestamp is required for a prepared transaction");
+            WT_SIM_RET_MSG(EINVAL, "commit timestamp is required for a prepared transaction");
 
-        if (!has_durable_timestamp())
-            WT_SIM_RET_MSG(EINVAL, "durable_timestamp is required for a prepared transaction");
+        if (!is_durable_ts_set())
+            WT_SIM_RET_MSG(EINVAL, "durable timestamp is required for a prepared transaction");
     } else {
         if (has_prepare_timestamp())
             WT_SIM_RET_MSG(EINVAL, "prepare timestamp is set for non-prepared transaction");
 
-        if (has_durable_timestamp())
+        if (is_durable_ts_set())
             WT_SIM_RET_MSG(
-              EINVAL, "durable_timestamp should not be specified for non-prepared transaction");
+              EINVAL, "durable timestamp should not be specified for non-prepared transaction");
+    }
+
+    if (_has_commit_ts || _durable_ts_set) {
+        connection_simulator *conn = &connection_simulator::get_connection();
+        if (_durable_ts > conn->get_global_durable_ts())
+            conn->set_global_durable_ts(_durable_ts);
     }
 
     /* Transaction can commit successfully if we got to this point. */
@@ -245,7 +277,7 @@ session_simulator::timestamp_transaction(const std::string &config)
         WT_SIM_RET(set_commit_timestamp(commit_ts));
 
     if (durable_ts != 0)
-        set_durable_timestamp(durable_ts);
+        WT_SIM_RET(set_durable_timestamp(durable_ts));
 
     if (prepare_ts != 0)
         WT_SIM_RET(set_prepare_timestamp(prepare_ts));
@@ -271,7 +303,7 @@ session_simulator::timestamp_transaction_uint(const std::string &ts_type, uint64
     if (ts_type == "commit")
         WT_SIM_RET(set_commit_timestamp(ts));
     else if (ts_type == "durable")
-        set_durable_timestamp(ts);
+        WT_SIM_RET(set_durable_timestamp(ts));
     else if (ts_type == "prepare")
         WT_SIM_RET(set_prepare_timestamp(ts));
     else if (ts_type == "read")
@@ -293,7 +325,7 @@ session_simulator::query_timestamp(const std::string &config, std::string &hex_t
 
     /* For an empty config default to all_durable. */
     if (config.empty())
-        query_timestamp = "all_durable";
+        query_timestamp = "read";
     else {
         std::map<std::string, std::string> config_map;
         const std::vector<std::string> supported_ops = {"get"};
@@ -332,10 +364,11 @@ session_simulator::reset_txn_level_var()
     _first_commit_ts = 0;
     _prepare_ts = 0;
     _read_ts = 0;
+    _durable_ts_set = false;
     _has_commit_ts = false;
+    _prepared_txn = false;
     _ts_round_prepared = false;
     _ts_round_read = false;
-    _prepared_txn = false;
     _txn_running = false;
 }
 
@@ -382,9 +415,9 @@ session_simulator::is_round_read_ts_set() const
 }
 
 bool
-session_simulator::has_durable_timestamp() const
+session_simulator::is_durable_ts_set() const
 {
-    return (_durable_ts != 0);
+    return (_durable_ts_set);
 }
 
 bool
@@ -400,9 +433,9 @@ session_simulator::has_read_timestamp() const
 }
 
 bool
-session_simulator::has_first_commit_timestamp() const
+session_simulator::is_commit_ts_set() const
 {
-    return (_first_commit_ts != 0);
+    return (_has_commit_ts);
 }
 
 bool
@@ -444,10 +477,16 @@ session_simulator::set_commit_timestamp(uint64_t commit_ts)
     return (0);
 }
 
-void
-session_simulator::set_durable_timestamp(uint64_t ts)
+int
+session_simulator::set_durable_timestamp(uint64_t durable_ts)
 {
-    _durable_ts = ts;
+    timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
+    WT_SIM_RET(ts_manager->validate_session_durable_timestamp(this, durable_ts));
+
+    _durable_ts = durable_ts;
+    _durable_ts_set = true;
+
+    return (0);
 }
 
 int

@@ -42,8 +42,10 @@ class connection_simulator {
     session_simulator *open_session();
     void close_session(session_simulator *);
     int set_timestamp(const std::string & = "");
+    void set_global_durable_ts(uint64_t);
     uint64_t get_oldest_ts() const;
     uint64_t get_stable_ts() const;
+    uint64_t get_global_durable_ts() const;
     bool has_oldest_ts() const;
     bool has_stable_ts() const;
     uint64_t get_latest_active_read() const;
