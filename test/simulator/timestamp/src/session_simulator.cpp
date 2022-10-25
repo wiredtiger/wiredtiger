@@ -325,7 +325,7 @@ session_simulator::query_timestamp(const std::string &config, std::string &hex_t
 
     /* For an empty config default to all_durable. */
     if (config.empty())
-        query_timestamp = "all_durable";
+        query_timestamp = "read";
     else {
         std::map<std::string, std::string> config_map;
         const std::vector<std::string> supported_ops = {"get"};
