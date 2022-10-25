@@ -2089,7 +2089,7 @@ tasks:
           unit_test_args: -v 2 -b 10/11
 
   - name: unit-test-long-bucket00
-    tags: ["pull_request", "python", "unit_test"]
+    tags: ["python"]
     depends_on:
     - name: compile
     commands:
@@ -2099,7 +2099,7 @@ tasks:
           unit_test_args: -v 2 --long -b 0/11
 
   - name: unit-test-long-bucket01
-    tags: ["pull_request", "python", "unit_test"]
+    tags: ["python"]
     depends_on:
     - name: compile
     commands:
@@ -2109,7 +2109,7 @@ tasks:
           unit_test_args: -v 2 --long -b 1/11
 
   - name: unit-test-long-bucket02
-    tags: ["pull_request", "python", "unit_test"]
+    tags: ["python"]
     depends_on:
     - name: compile
     commands:
@@ -2119,7 +2119,7 @@ tasks:
           unit_test_args: -v 2 --long -b 2/11
 
   - name: unit-test-long-bucket03
-    tags: ["pull_request", "python", "unit_test"]
+    tags: ["python"]
     depends_on:
     - name: compile
     commands:
@@ -2129,7 +2129,7 @@ tasks:
           unit_test_args: -v 2 --long -b 3/11
 
   - name: unit-test-long-bucket04
-    tags: ["pull_request", "python", "unit_test"]
+    tags: ["python"]
     depends_on:
     - name: compile
     commands:
@@ -2139,7 +2139,7 @@ tasks:
           unit_test_args: -v 2 --long -b 4/11
 
   - name: unit-test-long-bucket05
-    tags: ["pull_request", "python", "unit_test"]
+    tags: ["python"]
     depends_on:
     - name: compile
     commands:
@@ -2149,7 +2149,7 @@ tasks:
           unit_test_args: -v 2 --long -b 5/11
 
   - name: unit-test-long-bucket06
-    tags: ["pull_request", "python", "unit_test"]
+    tags: ["python"]
     depends_on:
     - name: compile
     commands:
@@ -2159,7 +2159,7 @@ tasks:
           unit_test_args: -v 2 --long -b 6/11
 
   - name: unit-test-long-bucket07
-    tags: ["pull_request", "python", "unit_test"]
+    tags: ["python"]
     depends_on:
     - name: compile
     commands:
@@ -2169,7 +2169,7 @@ tasks:
           unit_test_args: -v 2 --long -b 7/11
 
   - name: unit-test-long-bucket08
-    tags: ["pull_request", "python", "unit_test"]
+    tags: ["python"]
     depends_on:
     - name: compile
     commands:
@@ -2179,7 +2179,7 @@ tasks:
           unit_test_args: -v 2 --long -b 8/11
 
   - name: unit-test-long-bucket09
-    tags: ["pull_request", "python", "unit_test"]
+    tags: ["python"]
     depends_on:
     - name: compile
     commands:
@@ -2189,7 +2189,7 @@ tasks:
           unit_test_args: -v 2 --long -b 9/11
 
   - name: unit-test-long-bucket10
-    tags: ["pull_request", "python", "unit_test"]
+    tags: ["python"]
     depends_on:
     - name: compile
     commands:
