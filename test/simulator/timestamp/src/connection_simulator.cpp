@@ -143,20 +143,21 @@ connection_simulator::query_timestamp(
         ts = _durable_ts;
 
         for (auto &session : _session_list) {
-            if (session->is_txn_running()) {
-                uint64_t durable_ts;
-                if (session->is_durable_ts_set())
-                    durable_ts = session->get_durable_timestamp();
-                else if (session->is_commit_ts_set()) {
-                    if (session->is_txn_prepared())
-                        continue;
-                    durable_ts = session->get_first_commit_timestamp();
-                } else
-                    continue;
+            if (!session->is_txn_running())
+                continue;
 
-                if (ts == 0 || --durable_ts < ts)
-                    ts = durable_ts;
-            }
+            uint64_t durable_ts;
+            if (session->is_durable_ts_set())
+                durable_ts = session->get_durable_timestamp();
+            else if (session->is_commit_ts_set()) {
+                if (session->is_txn_prepared())
+                    continue;
+                durable_ts = session->get_first_commit_timestamp();
+            } else
+                continue;
+
+            if (ts == 0 || --durable_ts < ts)
+                ts = durable_ts;
         }
         ts_supported = true;
     } else if (query_timestamp == "oldest_timestamp" || query_timestamp == "oldest") {
