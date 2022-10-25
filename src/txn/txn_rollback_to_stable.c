@@ -1313,12 +1313,12 @@ __rollback_to_stable_page_skip(
               page_del == NULL || page_del->prepare_state == WT_PREPARE_INIT ||
                 page_del->prepare_state == WT_PREPARE_RESOLVED);
 
-            if (page_del == NULL) {
+            if (page_del == NULL)
                 __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
                   "%p: deleted page walk skipped", (void *)ref);
-            } else {
+            else {
                 __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-                  "%p: deleted page page_del %s", (void *)ref,
+                  "%p: deleted page walk skipped page_del %s", (void *)ref,
                   __wt_time_point_to_string(page_del->timestamp, page_del->durable_timestamp,
                     page_del->txnid, time_string));
             }
