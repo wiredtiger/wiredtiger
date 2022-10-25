@@ -307,9 +307,9 @@ cleanup(TEST_OPTS *opts, FICTIONAL_OPTS *fiction_opts)
 int
 main(int argc, char *argv[])
 {
-    TEST_OPTS expect, opts;
     FICTIONAL_OPTS *fiction_expect, fiction_opts;
     SUBSET_TEST_OPTS *subset;
+    TEST_OPTS expect, opts;
     size_t i;
     int nargs;
     char *const *cmd;
