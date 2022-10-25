@@ -123,6 +123,15 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         cursor.close()
         self.session.commit_transaction()
 
+    def get_timestamps(self):
+        timestamp = self.getTimestamp()
+        if timestamp:
+            # Get the next available timestamp values to avoid clashing with timestamp hooks
+            return timestamp.get_incr(), timestamp.get_incr(), timestamp.get_incr()
+        else:
+            # Return three timestamp values that increase in order
+            return 1, 2, 3
+
     def prepare_updates(self, ds, nrows, nsessions, nkeys):
         if self.value_format == '8t':
             commit_value = 98
@@ -132,13 +141,12 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
             prepare_value = b"ccccc" * 100
 
         # Three timestamps are required for this test, and they must be in the sequence 'early', 'middle' & 'later'.
-        # Each timestamp is relative to a base, as the timestamp hooks that can be used with this test
-        # will use a number of low timestamp values (ie just above 0), and the base offers a way of avoiding an overlap.
-        # Setting the base to 1000 should be sufficient to avoid an overlap.
-        timestamp_base = 1000
-        timestamp_early = timestamp_base + 1
-        timestamp_middle = timestamp_base + 3
-        timestamp_later = timestamp_base + 4
+        timestamps = self.get_timestamps()
+        timestamp_early = timestamps[0]
+        timestamp_middle = timestamps[1]
+        timestamp_later = timestamps[2]
+        self.pr("Timestamps: timestamp_early={}, timestamp_middle={}, timestamp_later={}".
+                format(timestamp_early, timestamp_middle, timestamp_later))
 
         # Commit some updates to get eviction and history store fired up
         cursor = self.session.open_cursor(self.uri)
