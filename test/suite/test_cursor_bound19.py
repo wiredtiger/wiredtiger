@@ -66,95 +66,12 @@ class test_cursor_bound18(bound_base):
         ('evict', dict(evict=True))
     ]
 
-    def set_bounds(self, cursor, key, bound_config, inclusive=True):
-        inclusive_config = ""
-        if (not inclusive):
-            inclusive_config = ",inclusive=false"
-        # Set key and bounds.    
-        cursor.set_key(key)
-        return cursor.bound("bound={0}{1}".format(bound_config, inclusive_config))
-
-    def gen_index_create_param(self):
-        create_params = ",columns=("
-        start = 0
-        for _ in self.key_format:
-            create_params += "k{0},".format(str(start)) 
-            start += 1
-
-        start = 0
-        for _ in self.value_format:
-            create_params += "v{0},".format(str(start)) 
-            start += 1
-        create_params += ")"
-
-        if (self.use_colgroup):
-            create_params += ",colgroups=("
-            start = 0
-            for _ in self.value_format:
-                create_params += "g{0},".format(str(start)) 
-                start += 1
-            create_params += ")"
-        return create_params
-
-    def check_val(self, i):
-        list_key = []
-        for key in self.value_format:
-            if key == 'S':
-                list_key.append(str(i))
-            elif key == "r":
-                list_key.append(self.recno(i))
-            elif key == "i":
-                list_key.append(i)
-            elif key == "u":
-                list_key.append(str(i).encode())
-        
-        if (len(self.value_format) == 1):
-            return list_key[0]
-        else:
-            return list_key
-
-    def cursor_traversal_bound(self, cursor, lower_key, upper_key, next=None, expected_count=None):
-        if next == None:
-            next = self.direction
-
-        start_range = self.start_key
-        end_range = self.end_key
-
-        if (upper_key):
-            if (self.gen_val(upper_key) < end_range):
-                end_range = upper_key
-                
-        if (lower_key):
-            if (self.gen_val(lower_key) > start_range):
-                start_range = lower_key
-
-        count = ret = 0
-        while True:
-            if (next):
-                ret = cursor.next()
-            else:
-                ret = cursor.prev()
-            self.assertTrue(ret == 0 or ret == wiredtiger.WT_NOTFOUND)
-            if ret == wiredtiger.WT_NOTFOUND:
-                break
-            count += 1
-            key = cursor.get_key()
-            
-            if (lower_key):
-                self.assertTrue(self.check_val(lower_key) <= key)
-                
-            if (upper_key):
-                self.assertTrue(key <= self.check_val(upper_key))
-            
-        if (expected_count != None):
-            self.assertEqual(expected_count, count)
-        else:
-            self.assertEqual(end_range - start_range + 1, count)
+    scenarios = make_scenarios(types, key_formats, value_formats, config)
 
     def create_session_and_cursor(self, cursor_config=None):
         uri = self.uri + self.file_name
         create_params = 'value_format={},key_format={}'.format(self.value_format, self.key_format)
-        create_params += self.gen_index_create_param()
+        create_params += self.gen_create_param()
         self.session.create(uri, create_params)
 
         # Add in column group.
@@ -181,6 +98,8 @@ class test_cursor_bound18(bound_base):
                 evict_cursor.search()
                 evict_cursor.reset() 
             evict_cursor.close()
+
+        self.index = True
         return cursor      
 
     def test_cursor_index_bounds(self):
@@ -189,8 +108,6 @@ class test_cursor_bound18(bound_base):
         # I need to test that modifications to the keys of the normal table or colgroups should not 
         # work because of bounds.
 
-
-        # For some reason index tables generate keys differently to normal tables.
 
         # Test Index index_cursors bound API support.
         suburi = "index:" + self.file_name + ":i0"
@@ -205,36 +122,34 @@ class test_cursor_bound18(bound_base):
 
         index_cursor = self.session.open_cursor("index:" + self.file_name + ":i0")
 
-        self.start_key = self.gen_val(20)
-        self.end_key = self.gen_val(80)
 
         # Set bounds at lower key 30 and upper key at 50.
-        self.set_bounds(index_cursor, self.gen_val(30), "lower")
-        self.set_bounds(index_cursor, self.gen_val(40), "upper")
+        self.set_bounds(index_cursor, 30, "lower")
+        self.set_bounds(index_cursor, 40, "upper")
         self.cursor_traversal_bound(index_cursor, 30, 40, True, 22)
         self.cursor_traversal_bound(index_cursor, 30, 40, False, 22)
         
         # Test basic search near scenarios.
-        index_cursor.set_key(self.gen_val(20))
+        index_cursor.set_key(self.gen_key(20))
         self.assertEqual(index_cursor.search_near(), 1)
-        self.assertEqual(index_cursor.get_key(), self.check_val(30))
+        self.assertEqual(index_cursor.get_key(), self.check_key(30))
 
-        index_cursor.set_key(self.gen_val(35))
+        index_cursor.set_key(self.gen_key(35))
         self.assertEqual(index_cursor.search_near(), 0)
-        self.assertEqual(index_cursor.get_key(), self.check_val(35))
+        self.assertEqual(index_cursor.get_key(), self.check_key(35))
 
-        index_cursor.set_key(self.gen_val(60))
+        index_cursor.set_key(self.gen_key(60))
         self.assertEqual(index_cursor.search_near(), -1)
-        self.assertEqual(index_cursor.get_key(), self.check_val(40))
+        self.assertEqual(index_cursor.get_key(), self.check_key(40))
 
         # Test basic search scnarios.
-        index_cursor.set_key(self.gen_val(20))
+        index_cursor.set_key(self.gen_key(20))
         self.assertEqual(index_cursor.search(), wiredtiger.WT_NOTFOUND)
         
-        index_cursor.set_key(self.gen_val(35))
+        index_cursor.set_key(self.gen_key(35))
         self.assertEqual(index_cursor.search(), 0)
 
-        index_cursor.set_key(self.gen_val(50))
+        index_cursor.set_key(self.gen_key(50))
         self.assertEqual(index_cursor.search(), wiredtiger.WT_NOTFOUND)
 
         # Test that cursor resets the bounds.
@@ -243,23 +158,23 @@ class test_cursor_bound18(bound_base):
         self.cursor_traversal_bound(index_cursor, None, None, False, 60)
 
         # Test that cursor action clear works and clears the bounds.
-        self.set_bounds(index_cursor, self.gen_val(30), "lower")
-        self.set_bounds(index_cursor, self.gen_val(50), "upper")
+        self.set_bounds(index_cursor, 30, "lower")
+        self.set_bounds(index_cursor, 50, "upper")
         self.assertEqual(index_cursor.bound("action=clear"), 0)
         self.cursor_traversal_bound(index_cursor, None, None, True, 60)
         self.cursor_traversal_bound(index_cursor, None, None, False, 60)
 
         # Test special index case: Lower bound with exclusive
-        self.set_bounds(index_cursor, self.gen_val(30), "lower", False)
-        self.set_bounds(index_cursor, self.gen_val(40), "upper", True)
+        self.set_bounds(index_cursor, 30, "lower", False)
+        self.set_bounds(index_cursor, 40, "upper", True)
         self.cursor_traversal_bound(index_cursor, 30, 40, True, 20)
         self.cursor_traversal_bound(index_cursor, 30, 40, False, 20)
         
-        index_cursor.set_key(self.gen_val(20))
+        index_cursor.set_key(self.gen_key(20))
         self.assertEqual(index_cursor.search_near(), 1)
-        self.assertEqual(index_cursor.get_key(), self.check_val(31))
+        self.assertEqual(index_cursor.get_key(), self.check_key(31))
 
-        index_cursor.set_key(self.gen_val(30))
+        index_cursor.set_key(self.gen_key(30))
         self.assertEqual(index_cursor.search(), wiredtiger.WT_NOTFOUND)
 
         # Test special index case: Test setting the upper bound limit on the largest possible value,

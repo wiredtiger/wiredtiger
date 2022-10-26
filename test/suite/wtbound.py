@@ -108,12 +108,13 @@ class bound_base(wttest.WiredTigerTestCase):
     end_key = 79
     lower_inclusive = True
     upper_inclusive = True
+    index = False
 
     def create_session_and_cursor(self, cursor_config=None):
         uri = self.uri + self.file_name
         create_params = 'value_format={},key_format={}'.format(self.value_format, self.key_format)
-        if self.use_colgroup and self.use_index:
-            create_params += self.gen_colgroup_create_param()
+        if self.use_colgroup or self.use_index:
+            create_params += self.gen_create_param()
         self.session.create(uri, create_params)
 
         # Add in column group.
@@ -138,7 +139,7 @@ class bound_base(wttest.WiredTigerTestCase):
                 evict_cursor.reset() 
         return cursor        
 
-    def gen_colgroup_create_param(self):
+    def gen_create_param(self):
         create_params = ",columns=("
         start = 0
         for _ in self.key_format:
@@ -149,18 +150,24 @@ class bound_base(wttest.WiredTigerTestCase):
         for _ in self.value_format:
             create_params += "v{0},".format(str(start)) 
             start += 1
-        create_params += "),colgroups=("
-
-        start = 0
-        for _ in self.value_format:
-            create_params += "g{0},".format(str(start)) 
-            start += 1
         create_params += ")"
+
+        if (self.use_colgroup):
+            create_params += ",colgroups=("
+            start = 0
+            for _ in self.value_format:
+                create_params += "g{0},".format(str(start)) 
+                start += 1
+            create_params += ")"
         return create_params
 
     def gen_key(self, i):
         tuple_key = []
-        for key in self.key_format:
+        key_format = self.key_format
+        if (self.index):
+            key_format = self.value_format
+
+        for key in key_format:
             if key == 'S' or key == 'u':
                 tuple_key.append(str(i))
             elif key == "r":
@@ -168,7 +175,7 @@ class bound_base(wttest.WiredTigerTestCase):
             elif key == "i":
                 tuple_key.append(i)
         
-        if (len(self.key_format) == 1):
+        if (len(key_format) == 1):
             return tuple_key[0]
         else:
             return tuple(tuple_key)
@@ -190,7 +197,11 @@ class bound_base(wttest.WiredTigerTestCase):
 
     def check_key(self, i):
         list_key = []
-        for key in self.key_format:
+        key_format = self.key_format
+        if (self.index):
+            key_format = self.value_format
+
+        for key in key_format:
             if key == 'S':
                 list_key.append(str(i))
             elif key == "r":
@@ -200,7 +211,7 @@ class bound_base(wttest.WiredTigerTestCase):
             elif key == "u":
                 list_key.append(str(i).encode())
         
-        if (len(self.key_format) == 1):
+        if (len(key_format) == 1):
             return list_key[0]
         else:
             return list_key
