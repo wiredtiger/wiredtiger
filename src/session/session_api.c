@@ -1460,8 +1460,8 @@ __wt_session_range_truncate(
         WT_ERR(__wt_bad_object_type(session, stop->uri));
 
     /*
-     * If both cursors set, check they're correctly ordered with respect to each other. We have to
-     * test this before any search, the search can change the initial cursor position.
+     * If both cursors are set, check they're correctly ordered with respect to each other. We have
+     * to test this before any search, the search can change the initial cursor position.
      *
      * Rather happily, the compare routine will also confirm the cursors reference the same object
      * and the keys are set.
@@ -1482,16 +1482,14 @@ __wt_session_range_truncate(
      */
     if (!local_start && start != NULL) {
         if (WT_CURSOR_BOUNDS_SET(start))
-            WT_ERR_MSG(
-              session, EINVAL, "a cursor with bounds set cannot perform truncate.");
+            WT_ERR_MSG(session, EINVAL, "a cursor with bounds set cannot perform truncate.");
         WT_ERR(__wt_cursor_get_raw_key(start, &start_key));
         WT_ERR(__wt_buf_set(session, &start->lower_bound, start_key.data, start_key.size));
     }
 
     if (stop != NULL) {
         if (WT_CURSOR_BOUNDS_SET(stop))
-            WT_ERR_MSG(
-              session, EINVAL, "a cursor with bounds set cannot perform truncate.");
+            WT_ERR_MSG(session, EINVAL, "a cursor with bounds set cannot perform truncate.");
         WT_ERR(__wt_cursor_get_raw_key(stop, &stop_key));
         WT_ERR(__wt_buf_set(session, &stop->lower_bound, stop_key.data, stop_key.size));
     }

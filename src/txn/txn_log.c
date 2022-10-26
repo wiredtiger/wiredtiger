@@ -587,6 +587,10 @@ __wt_txn_truncate_log(
         op->u.truncate_row.mode = WT_TXN_TRUNC_ALL;
         WT_CLEAR(op->u.truncate_row.start);
         WT_CLEAR(op->u.truncate_row.stop);
+        /*
+         * If the user provided a start cursor key (i.e. local_start is false) then use the original
+         * key provided.
+         */
         if (!local_start && start != NULL) {
             op->u.truncate_row.mode = WT_TXN_TRUNC_START;
             item = &op->u.truncate_row.start;
@@ -601,7 +605,10 @@ __wt_txn_truncate_log(
               session, item, stop->iface.lower_bound.data, stop->iface.lower_bound.size));
         }
     } else {
-        /* Unpack the start and stop raw recno buffer into integer variable. */
+        /*
+         * If the user provided cursors, unpack the original keys that were saved in the cursor's
+         * lower_bound field.
+         */
         if (!local_start && start != NULL)
             WT_RET(__wt_struct_unpack(session, start->iface.lower_bound.data,
               start->iface.lower_bound.size, "q", &start_recno));
