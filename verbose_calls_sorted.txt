@@ -26,45 +26,11 @@ path. the split code does log stuff for every split, but it's a single line
 - going to leave it. bt_sync's per-page operations moved to debug2, but i
 think leaving the per-file stuff as debug1 is ok?
 
-src/conn/conn_api.c:1240:        WT_ERR(__wt_verbose_dump_cache(session));
-src/conn/conn_api.c:1244:        WT_ERR(__wt_verbose_dump_sessions(session, true));
-src/conn/conn_api.c:1248:        WT_ERR(__wt_verbose_dump_handles(session));
-src/conn/conn_api.c:1252:        WT_ERR(__wt_verbose_dump_log(session));
-src/conn/conn_api.c:1256:        WT_ERR(__wt_verbose_dump_sessions(session, false));
-src/conn/conn_api.c:1260:        WT_ERR(__wt_verbose_dump_txn(session));
-src/conn/conn_api.c:2089: * __wt_verbose_config --
-src/conn/conn_api.c:2093:__wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
-src/conn/conn_api.c:2144:             * the event to WT_VERBOSE_DEBUG_1. Correspondingly, all legacy uses of '__wt_verbose',
-src/conn/conn_api.c:2166: * __wt_verbose_dump_sessions --
-src/conn/conn_api.c:2170:__wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
-src/conn/conn_api.c:2215:            WT_ERR(__wt_verbose_dump_txn_one(session, s, 0, NULL));
-src/conn/conn_api.c:2830:    WT_ERR(__wt_verbose_config(session, cfg, false));
-src/conn/conn_api.c:2940:    __wt_verbose(session, WT_VERB_VERSION, "%s", WIREDTIGER_VERSION_STRING);
-src/conn/conn_cache_pool.c:203:    __wt_verbose(session, WT_VERB_SHARED_CACHE,
-src/conn/conn_cache_pool.c:255:    __wt_verbose(session, WT_VERB_SHARED_CACHE, "Added %s to cache pool %s", conn->home, cp->name);
-src/conn/conn_cache_pool.c:309:        __wt_verbose(session, WT_VERB_SHARED_CACHE, "Removing %s from cache pool", entry->home);
-src/conn/conn_cache_pool.c:353:        __wt_verbose(session, WT_VERB_SHARED_CACHE, "%s", "Destroying cache pool");
-src/conn/conn_cache_pool.c:378:            __wt_verbose(
-src/conn/conn_cache_pool.c:512:        __wt_verbose(session, WT_VERB_SHARED_CACHE,
-src/conn/conn_cache_pool.c:517:    __wt_verbose(session, WT_VERB_SHARED_CACHE,
-src/conn/conn_cache_pool.c:549:    if (WT_VERBOSE_ISSET(session, WT_VERB_SHARED_CACHE)) {
-src/conn/conn_cache_pool.c:550:        __wt_verbose(session, WT_VERB_SHARED_CACHE, "%s", "Cache pool distribution: ");
-src/conn/conn_cache_pool.c:551:        __wt_verbose(session, WT_VERB_SHARED_CACHE, "%s",
-src/conn/conn_cache_pool.c:572:        __wt_verbose(session, WT_VERB_SHARED_CACHE,
-src/conn/conn_cache_pool.c:669:            __wt_verbose(session, WT_VERB_SHARED_CACHE, "Allocated %s%" PRIu64 " to %s",
-src/conn/conn_cache_pool.c:710:            __wt_verbose(session, WT_VERB_SHARED_CACHE, "%s", "Cache pool switched manager thread");
-src/conn/conn_cache_pool.c:99:        __wt_verbose(session, WT_VERB_SHARED_CACHE, "Created cache pool %s", cp->name);
-src/conn/conn_dhandle.c:1015: * __wt_verbose_dump_handles --
-src/conn/conn_dhandle.c:1019:__wt_verbose_dump_handles(WT_SESSION_IMPL *session)
-src/conn/conn_log.c:423:    __wt_verbose(session, WT_VERB_LOG, "log_remove: remove to log number %" PRIu32, min_lognum);
-src/conn/conn_log.c:485:        __wt_verbose(session, WT_VERB_LOG, "Missed %" PRIu32 ". Now pre-allocating up to %" PRIu32,
-src/conn/conn_log.c:492:        __wt_verbose(session, WT_VERB_LOG,
-src/conn/conn_log.c:546:    __wt_verbose(
-src/conn/conn_log.c:909:                    __wt_verbose(session, WT_VERB_LOG, "%s",
-src/conn/conn_reconfig.c:423:    WT_ERR(__wt_verbose_config(session, cfg, true));
-src/conn/conn_tiered.c:56:        __wt_verbose(session, WT_VERB_TIERED, "REMOVE_LOCAL: %s at %" PRIu64, object, now);
-src/conn/conn_tiered.c:63:            __wt_verbose(session, WT_VERB_TIERED, "REMOVE_LOCAL: %s in USE, queue again", object);
-src/conn/conn_tiered.c:78:            __wt_verbose(session, WT_VERB_TIERED, "REMOVE_LOCAL: actually remove %s", object);
+conn: leaving the debug_info method, presumably that only gets called by our
+users. cache pool: made the per-entry stuff debug2. conn_log:
+removal/truncation seems to be doing the most logging, and that doesn't seem
+common? conn_tiered: removing local objects seems like it'd be common enough.
+
 src/cursor/cur_backup.c:205:        __wt_verbose(
 src/cursor/cur_backup.c:345:            __wt_verbose(session, WT_VERB_BACKUP, "Free blk[%u] entry", i);
 src/cursor/cur_backup.c:348:        __wt_verbose(session, WT_VERB_BACKUP, "Entry blk[%u] has flags 0x%" PRIx8, i, blk->flags);
