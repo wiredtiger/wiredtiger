@@ -42,7 +42,7 @@ updates message".
 
 log: assuming that opening/renaming/removing a file isn't super frequent.
 
-LSM: assuming tree switches uncommon, flushes and chuck checkpoints common.
+LSM: assuming tree switches uncommon, flushes and chunk checkpoints common.
 
 meta: some stuff logs with the checkpoint progress module, i don't think
 this should be changed since it's not the same as the checkpoint module so
@@ -58,71 +58,10 @@ schema: assuming there could be many more objects than tables.
 
 tiered: assuming object creation more common than schemas or tiers
 
-src/txn/txn.c:1181:        __wt_verbose(session, WT_VERB_TRANSACTION,
-src/txn/txn.c:1188:        __wt_verbose(session, WT_VERB_TRANSACTION,
-src/txn/txn.c:1792:        WT_ERR(__wt_verbose_dump_sessions(session, true));
-src/txn/txn.c:2432:            __wt_verbose(session, WT_VERB_RTS,
-src/txn/txn.c:2499: * __wt_verbose_dump_txn_one --
-src/txn/txn.c:2503:__wt_verbose_dump_txn_one(
-src/txn/txn.c:2569: * __wt_verbose_dump_txn --
-src/txn/txn.c:2573:__wt_verbose_dump_txn(WT_SESSION_IMPL *session)
-src/txn/txn.c:2640:        WT_RET(__wt_verbose_dump_txn_one(session, sess, 0, NULL));
-src/txn/txn.c:491:        if (WT_VERBOSE_ISSET(session, WT_VERB_TRANSACTION) && current_id - oldest_id > 10000 &&
-src/txn/txn.c:493:            __wt_verbose(session, WT_VERB_TRANSACTION,
-src/txn/txn.c:765:    __wt_verbose(session, WT_VERB_TRANSACTION,
-src/txn/txn.c:785:        __wt_verbose(session, WT_VERB_TRANSACTION,
-src/txn/txn_ckpt.c:109:            __wt_verbose(
-src/txn/txn_ckpt.c:425:            __wt_verbose_notice(session, WT_VERB_CHECKPOINT, "%s",
-src/txn/txn_ckpt.c:560:        __wt_verbose(session, WT_VERB_CHECKPOINT_PROGRESS,
-src/txn/txn_ckpt.c:618:    if (!WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT))
-src/txn/txn_ckpt.c:626:    __wt_verbose(session, WT_VERB_CHECKPOINT,
-src/txn/txn_ckpt.c:783:        __wt_verbose_timestamp(
-src/txn/txn_ckpt.c:80:    __wt_verbose(session, WT_VERB_TIERED, "CKPT_FLUSH_TIER: Called force %d", force);
-src/txn/txn_recover.c:109:    __wt_verbose(session, WT_VERB_RECOVERY,                                          \
-src/txn/txn_recover.c:403:    __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL, "Set global recovery timestamp: %s",
-src/txn/txn_recover.c:432:    __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL, "Set global oldest timestamp: %s",
-src/txn/txn_recover.c:590:    __wt_verbose(r->session, WT_VERB_RECOVERY,
-src/txn/txn_recover.c:76:            __wt_verbose(
-src/txn/txn_recover.c:901:    __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL,
-src/txn/txn_recover.c:922:        __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL, "%s",
-src/txn/txn_recover.c:990:        __wt_verbose_multi(session,
-src/txn/txn_rollback_to_stable.c:119:            __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-src/txn/txn_rollback_to_stable.c:1217:    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-src/txn/txn_rollback_to_stable.c:1243:        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session), "%p: page skipped", (void *)ref);
-src/txn/txn_rollback_to_stable.c:1248:    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-src/txn/txn_rollback_to_stable.c:1316:            __wt_verbose_multi(
-src/txn/txn_rollback_to_stable.c:1337:        __wt_verbose_multi(
-src/txn/txn_rollback_to_stable.c:1380:    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-src/txn/txn_rollback_to_stable.c:1457:        WT_TRET(__wt_verbose_dump_txn(session));
-src/txn/txn_rollback_to_stable.c:1526:    __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
-src/txn/txn_rollback_to_stable.c:1596:        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-src/txn/txn_rollback_to_stable.c:1601:        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-src/txn/txn_rollback_to_stable.c:1639:        __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
-src/txn/txn_rollback_to_stable.c:1751:        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-src/txn/txn_rollback_to_stable.c:1784:        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-src/txn/txn_rollback_to_stable.c:1794:        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-src/txn/txn_rollback_to_stable.c:1894:            __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-src/txn/txn_rollback_to_stable.c:1955:    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-src/txn/txn_rollback_to_stable.c:1961:        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-src/txn/txn_rollback_to_stable.c:385:    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session), "rolling back the on-disk key: %s",
-src/txn/txn_rollback_to_stable.c:443:            __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-src/txn/txn_rollback_to_stable.c:473:            __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-src/txn/txn_rollback_to_stable.c:525:            __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-src/txn/txn_rollback_to_stable.c:535:        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-src/txn/txn_rollback_to_stable.c:579:        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-src/txn/txn_rollback_to_stable.c:618:            __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-src/txn/txn_rollback_to_stable.c:637:        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session), "%s", "key removed");
-src/txn/txn_rollback_to_stable.c:705:            __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-src/txn/txn_rollback_to_stable.c:720:        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-src/txn/txn_rollback_to_stable.c:787:            __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-src/txn/txn_rollback_to_stable.c:824:    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session), "removing the key%s: %s",
-src/txn/txn_timestamp.c:300:        __wt_verbose_timestamp(session, pinned_timestamp, "Updated pinned timestamp");
-src/txn/txn_timestamp.c:410:        __wt_verbose_timestamp(session, durable_ts, "Updated global durable timestamp");
-src/txn/txn_timestamp.c:419:        __wt_verbose_timestamp(session, oldest_ts, "Updated global oldest timestamp");
-src/txn/txn_timestamp.c:428:        __wt_verbose_timestamp(session, stable_ts, "Updated global stable timestamp");
-src/txn/txn_timestamp.c:747:                __wt_verbose(session, WT_VERB_TIMESTAMP,
-src/txn/txn_timestamp.c:833:            __wt_verbose_notice(session, WT_VERB_TIMESTAMP,
-src/txn/txn_timestamp.c:850:        __wt_verbose(session, WT_VERB_TIMESTAMP,
+txn: assuming that stuff that happens once per checkpoint is reasonably
+ok. also assuming RTS isn't something where we're sensitive about extra
+logging...
+
 src/include/api.h:67:    __wt_verbose((s), WT_VERB_API, "%s", "CALL: " #h ":" #n)
 src/include/extern.h:1653:extern int __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 src/include/extern.h:1655:extern int __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
