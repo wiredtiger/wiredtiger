@@ -26,12 +26,83 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import bson, codecs, pprint, subprocess, sys
+import bson, codecs, pprint, subprocess, sys, re
+from enum import Enum
+
+### Util functions. ###
+# A basic enum to determine which mode we are operating in.
+class Mode(Enum):
+    DUMP = 1
+    VERIFY = 2
+    PRINTLOG = 3
 
 # Decodes a MongoDB file into a readable format.
 def util_usage():
-    print("Usage: wt_to_mdb_bson <path_to_wt> filename")
+    print("Usage: wt_to_mdb_bson -m {dump|verify|printlog} [-f] [path_to_wt] [filename]")
+    sys.exit(1)
 
+# BSON printer helper.
+def print_bson(bson):
+    return pprint.pformat(bson, indent=1).replace('\n', '\n\t  ')
+
+
+### wt verify. ###
+# A utility function for converting verify byte output into parsible hex.
+def convert_byte(inp):
+    ret = ""
+    idx = 0
+    while True:
+        if idx >= len(inp):
+            break
+        ch = inp[idx]
+        if ord(ch) != 92:
+            ret += ch
+            idx += 1
+            continue
+        lookAhead = inp[idx+1]
+        if ord(lookAhead) != 92:
+            ret += ch + 'x'
+            idx += 1
+            continue
+        ret += ch + ch
+        idx += 2
+    return codecs.escape_decode(ret)[0]
+
+# Converts the output of ./verify -d dump_pages to bson.
+def wt_verify_to_bson(wt_output):
+    pattern = re.compile('V {(.*?)}$')
+    for line in wt_output:
+        matches = pattern.findall(line.strip())
+        if not matches:
+            print(line, end='')
+            continue
+
+        obj = bson.decode_all(convert_byte(matches[0]))[0]
+        print(line, end='')
+        print('\t  %s' % (print_bson(obj),))
+
+### wt printlog. ###
+# Converts the output of ./wt printlog -x.
+# Doesn't convert hex keys as keys currently I don't think they are bsons?
+def wt_printlog_to_bson(wt_output):
+    pattern_value = re.compile('value-hex\": \"(.*)\"')
+    pattern_key = re.compile('key-hex\": \"(.*)\"')
+    for line in wt_output:
+        value_match = pattern_value.search(line)
+        if value_match:
+            value_hex_str = value_match.group(1)
+            value_bytes = bytes.fromhex(value_hex_str)
+            try:
+                bson_obj = bson.decode_all(value_bytes)
+                print('\t\"value-bson\":%s' % (print_bson(bson_obj),))
+            except Exception as e:
+                # If bsons don't appear to be printing uncomment this line for the error reason.
+                #logging.error('Error at %s', 'division', exc_info=e)
+                print('\t\"value-hex\": \"' + value_hex_str + '\"')
+        else:
+            print(line.rstrip())
+
+### wt dump. ###
 # Navigate to the data section of the MongoDB file if it exists.
 def find_data_section(mdb_file_contents):
     for i in range(len(mdb_file_contents)):
@@ -53,24 +124,67 @@ def decode_data_section(mdb_file_contents, data_index):
         obj = bson.decode_all(byt)[0]
 
         print('Key:\t%s' % key)
-        print('Value:\n\t%s' % (pprint.pformat(obj, indent=1).replace('\n', '\n\t'),))
+        print('Value:\n\t%s' % (print_bson(obj),))
 
-def dump_mdb_file(wtpath, filename):
+def wt_dump_to_bson(wt_output):
     # Dump the MongoDB file into hex format.
-    mdb_hex = subprocess.check_output([wtpath, "dump", "-x", "file:" + filename], universal_newlines=True)
-
-    mdb_file_contents = mdb_hex.splitlines()
+    mdb_file_contents = wt_output
     data_index = find_data_section(mdb_file_contents)
     if data_index > 0:
         decode_data_section(mdb_file_contents, data_index)
     else:
         print("Error: No data section was found in the file.")
-        exit()        
+        exit()
 
-if len(sys.argv) != 3:
-    util_usage()
-    exit()
+def execute_wt(mode, wtpath, filename):
+    if mode == Mode.DUMP:
+        return subprocess.check_output(
+            [wtpath, "-r", "dump", "-x", "file:" + filename], universal_newlines=True).splitlines()
+    elif mode == Mode.VERIFY:
+        return subprocess.check_output(
+            [wtpath, "-r", "verify", "-d", "dump_pages", "file:" + filename], universal_newlines=True).splitlines()
+    else:
+        return subprocess.check_output(
+            [wtpath, "-r", "printlog", "-u", "-x"], universal_newlines=True).splitlines()
 
-wtpath = sys.argv[1]
-filename = sys.argv[2]
-dump_mdb_file(wtpath, filename)
+
+def main():
+    if len(sys.argv) < 3:
+        util_usage()
+        exit()
+
+    if sys.argv[1] != '-m':
+        print('A mode must be specified with -m.')
+        util_usage()
+
+    mode_str = sys.argv[2]
+    if mode_str == 'dump':
+        mode = Mode.DUMP
+    elif mode_str == 'verify':
+        mode = Mode.VERIFY
+    elif mode_str == 'printlog':
+        mode = Mode.PRINTLOG
+    else:
+        print('Invalid mode specified.')
+        util_usage()
+
+    # Does the user plan on passing wt's location and a file?
+    if len(sys.argv) > 3:
+        if sys.argv[3] != '-i':
+            print('Invalid option specified.')
+            util_usage()
+        wt_output = execute_wt(mode, sys.argv[4], sys.argv[5])
+    else:
+        # Read in stdout to a string then pass it like the wt_output.
+        wt_output = sys.stdin.readlines()
+
+    if mode == Mode.DUMP:
+        wt_dump_to_bson(wt_output)
+    elif mode == Mode.VERIFY:
+        wt_verify_to_bson(wt_output)
+    else:
+        wt_printlog_to_bson(wt_output)
+
+
+if __name__ == "__main__":
+    main()
