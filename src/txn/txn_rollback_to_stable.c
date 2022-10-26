@@ -94,8 +94,10 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
 {
     WT_UPDATE *stable_upd, *tombstone, *upd;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
+    bool txn_id_visible;
 
     stable_upd = tombstone = NULL;
+    txn_id_visible = false;
     if (stable_update_found != NULL)
         *stable_update_found = false;
     for (upd = first_upd; upd != NULL; upd = upd->next) {
@@ -114,14 +116,18 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
          * of the rollback to stable page read, it instantiates the tombstones on the page.
          * The transaction id validation is ignored in all scenarios except recovery.
          */
-        if (!__rollback_txn_visible_id(session, upd->txnid) ||
-          rollback_timestamp < upd->durable_ts || upd->prepare_state == WT_PREPARE_INPROGRESS) {
+        txn_id_visible = __rollback_txn_visible_id(session, upd->txnid);
+        if (!txn_id_visible || rollback_timestamp < upd->durable_ts ||
+          upd->prepare_state == WT_PREPARE_INPROGRESS) {
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
               "rollback to stable update aborted with txnid: %" PRIu64
-              " durable timestamp: %s and stable timestamp: %s, prepared: %s",
-              upd->txnid, __wt_timestamp_to_string(upd->durable_ts, ts_string[0]),
+              ", txnid not visible: %s, stable timestamp (%s) < durable timestamp (%s): %s, "
+              "prepared: %s",
+              upd->txnid, !txn_id_visible ? "true" : "false",
+              __wt_timestamp_to_string(upd->durable_ts, ts_string[0]),
               __wt_timestamp_to_string(rollback_timestamp, ts_string[1]),
-              rollback_timestamp < upd->durable_ts ? "false" : "true");
+              rollback_timestamp < upd->durable_ts ? "true" : "false",
+              upd->prepare_state == WT_PREPARE_INPROGRESS ? "true" : "false");
 
             upd->txnid = WT_TXN_ABORTED;
             WT_STAT_CONN_INCR(session, txn_rts_upd_aborted);
