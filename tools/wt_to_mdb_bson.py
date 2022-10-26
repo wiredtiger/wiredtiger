@@ -29,7 +29,27 @@
 import bson, codecs, pprint, subprocess, sys, re
 from enum import Enum
 
-### Util functions. ###
+# This script is intended to parse the output of three wt util commands and convert MongoDB bson
+# from hexadecimal or byte format into ascii.
+#
+# It currently works with the following wt util commands:
+# - dump
+# - verify
+# - printlog
+#
+# Those tools each perform a different function, and their usages are varied as such the script
+# needs to handle their output separately. Originally many scripts existed for this purpose, the
+# intent of this script is to provide a single place to perform all bson conversions
+#
+# This script takes input of two forms, either through stdin or the user can pass the wt util
+# location and the filename and the script will execute the required wt util command.
+#
+# Some example usages are:
+#    - ./wt -r dump -x | ./wt_to_mdb_bson -m dump
+#    - ./wt -r verify -d dump_pages | ./wt_to_mdb_bson -m verify
+#    - ./wt_to_mdb_bson -m dump -f ./wt collection.wt
+#    - ./wt_to_mdb_bson -m printlog -f ./wt
+
 # A basic enum to determine which mode we are operating in.
 class Mode(Enum):
     DUMP = 1
@@ -39,14 +59,14 @@ class Mode(Enum):
 # Decodes a MongoDB file into a readable format.
 def util_usage():
     print("Usage: wt_to_mdb_bson -m {dump|verify|printlog} [-f] [path_to_wt] [filename]")
+    print('\t-m the intended mode that the wt util operated in or will be executed using.')
+    print('\t-f the location of the wt util.')
     sys.exit(1)
 
 # BSON printer helper.
 def print_bson(bson):
     return pprint.pformat(bson, indent=1).replace('\n', '\n\t  ')
 
-
-### wt verify. ###
 # A utility function for converting verify byte output into parsible hex.
 def convert_byte(inp):
     ret = ""
@@ -81,9 +101,8 @@ def wt_verify_to_bson(wt_output):
         print(line, end='')
         print('\t  %s' % (print_bson(obj),))
 
-### wt printlog. ###
-# Converts the output of ./wt printlog -x.
-# Doesn't convert hex keys as keys currently I don't think they are bsons?
+# Converts the output of ./wt printlog -x -u.
+# Doesn't convert hex keys as I don't think they're bson.
 def wt_printlog_to_bson(wt_output):
     pattern_value = re.compile('value-hex\": \"(.*)\"')
     pattern_key = re.compile('key-hex\": \"(.*)\"')
@@ -102,8 +121,7 @@ def wt_printlog_to_bson(wt_output):
         else:
             print(line.rstrip())
 
-### wt dump. ###
-# Navigate to the data section of the MongoDB file if it exists.
+# Navigate to the data section of the MongoDB file if it exists for ./wt dump.
 def find_data_section(mdb_file_contents):
     for i in range(len(mdb_file_contents)):
         line = mdb_file_contents[i].strip()
@@ -113,7 +131,7 @@ def find_data_section(mdb_file_contents):
     # No data section was found, return an invalid index.
     return -1
 
-# Decode the keys and values from hex format to a readable BSON format.
+# Decode the keys and values from hex format to a readable BSON format for ./wt dump.
 def decode_data_section(mdb_file_contents, data_index):
     # Loop through the data section and increment by 2, since we parse the K/V pairs.
     for i in range(data_index, len(mdb_file_contents), 2):
@@ -126,6 +144,7 @@ def decode_data_section(mdb_file_contents, data_index):
         print('Key:\t%s' % key)
         print('Value:\n\t%s' % (print_bson(obj),))
 
+# Convert the output of ./wt -r dump -x to bson.
 def wt_dump_to_bson(wt_output):
     # Dump the MongoDB file into hex format.
     mdb_file_contents = wt_output
@@ -136,6 +155,7 @@ def wt_dump_to_bson(wt_output):
         print("Error: No data section was found in the file.")
         exit()
 
+# Call the wt util if required.
 def execute_wt(mode, wtpath, filename):
     if mode == Mode.DUMP:
         return subprocess.check_output(
@@ -146,7 +166,6 @@ def execute_wt(mode, wtpath, filename):
     else:
         return subprocess.check_output(
             [wtpath, "-r", "printlog", "-u", "-x"], universal_newlines=True).splitlines()
-
 
 def main():
     if len(sys.argv) < 3:
@@ -184,7 +203,6 @@ def main():
         wt_verify_to_bson(wt_output)
     else:
         wt_printlog_to_bson(wt_output)
-
 
 if __name__ == "__main__":
     main()
