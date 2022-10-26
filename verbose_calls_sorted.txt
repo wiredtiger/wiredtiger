@@ -42,33 +42,8 @@ updates message".
 
 log: assuming that opening/renaming/removing a file isn't super frequent.
 
-src/lsm/lsm_cursor.c:348:    __wt_verbose(session, WT_VERB_LSM,
-src/lsm/lsm_cursor.c:590:    __wt_verbose(session, WT_VERB_LSM,
-src/lsm/lsm_manager.c:397:                __wt_verbose(session, WT_VERB_LSM_MANAGER,
-src/lsm/lsm_merge.c:115:        __wt_verbose(session, WT_VERB_LSM,
-src/lsm/lsm_merge.c:375:    if (WT_VERBOSE_ISSET(session, WT_VERB_LSM)) {
-src/lsm/lsm_merge.c:376:        __wt_verbose(session, WT_VERB_LSM,
-src/lsm/lsm_merge.c:380:            __wt_verbose(session, WT_VERB_LSM,
-src/lsm/lsm_merge.c:456:    __wt_verbose(session, WT_VERB_LSM, "Bloom size for %" PRIu64 " has %" PRIu64 " items inserted",
-src/lsm/lsm_merge.c:583:            __wt_verbose(session, WT_VERB_LSM, "%s", "Merge aborted due to close");
-src/lsm/lsm_merge.c:585:            __wt_verbose(
-src/lsm/lsm_tree.c:1150:        __wt_verbose(session, WT_VERB_LSM,
-src/lsm/lsm_tree.c:1169:        __wt_verbose(session, WT_VERB_LSM, "COMPACT: Start compacting %s", lsm_tree->name);
-src/lsm/lsm_tree.c:1183:                __wt_verbose(session, WT_VERB_LSM,
-src/lsm/lsm_tree.c:1192:                __wt_verbose(
-src/lsm/lsm_tree.c:1245:    __wt_verbose(session, WT_VERB_LSM, "Compact %s complete, return %d", name, ret);
-src/lsm/lsm_tree.c:729:    __wt_verbose(session, WT_VERB_LSM,
-src/lsm/lsm_work_unit.c:117:        __wt_verbose(session, WT_VERB_LSM, "Flush%s: return chunk %" PRIu32 " of %" PRIu32 ": %s",
-src/lsm/lsm_work_unit.c:367:        __wt_verbose(session, WT_VERB_LSM, "LSM worker %s already on disk", chunk->uri);
-src/lsm/lsm_work_unit.c:381:        __wt_verbose(
-src/lsm/lsm_work_unit.c:389:    __wt_verbose(session, WT_VERB_LSM, "LSM worker flushing %s", chunk->uri);
-src/lsm/lsm_work_unit.c:412:    __wt_verbose(session, WT_VERB_LSM, "LSM worker checkpointing %s", chunk->uri);
-src/lsm/lsm_work_unit.c:457:    __wt_verbose(session, WT_VERB_LSM, "LSM worker checkpointed %s", chunk->uri);
-src/lsm/lsm_work_unit.c:574:    __wt_verbose(session, WT_VERB_LSM,
-src/lsm/lsm_work_unit.c:639:    __wt_verbose(session, WT_VERB_LSM, "Dropped %s", uri);
-src/lsm/lsm_work_unit.c:642:        __wt_verbose(session, WT_VERB_LSM, "LSM worker drop of %s failed with %d", uri, ret);
-src/lsm/lsm_worker.c:21:    __wt_verbose(
-src/lsm/lsm_worker.c:71:            __wt_verbose(session, WT_VERB_LSM, "Flush%s chunk %" PRIu32 " %s",
+LSM: assuming tree switches uncommon, flushes and chuck checkpoints common.
+
 src/meta/meta_ckpt.c:1530:    __wt_verbose(session, WT_VERB_CHECKPOINT_PROGRESS,
 src/meta/meta_ckpt.c:1727:            __wt_verbose(session, WT_VERB_RECOVERY, "Recovery %s %.*s", timestamp_name,
 src/meta/meta_table.c:186:    __wt_verbose(session, WT_VERB_METADATA,
