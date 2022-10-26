@@ -50,22 +50,10 @@ can be left at INFO separately.
 
 os: assumed file reads/writes are more common than open/close
 
-src/reconcile/rec_track.c:134:    if (WT_VERBOSE_ISSET(session, WT_VERB_OVERFLOW))
-src/reconcile/rec_track.c:169:    __wt_verbose(session, WT_VERB_OVERFLOW, "reuse: %s%s%p %s (%s%s%s) {%.*s}",
-src/reconcile/rec_track.c:342:        if (WT_VERBOSE_ISSET(session, WT_VERB_OVERFLOW))
-src/reconcile/rec_track.c:397:        if (WT_VERBOSE_ISSET(session, WT_VERB_OVERFLOW))
-src/reconcile/rec_track.c:439:    if (WT_VERBOSE_ISSET(session, WT_VERB_OVERFLOW))
-src/reconcile/rec_track.c:46:    __wt_verbose(session, WT_VERB_OVERFLOW, "discard: %s%s%p %s", tag == NULL ? "" : tag,
-src/reconcile/rec_track.c:494:    if (WT_VERBOSE_ISSET(session, WT_VERB_OVERFLOW))
-src/reconcile/rec_track.c:89:        if (WT_VERBOSE_ISSET(session, WT_VERB_OVERFLOW))
-src/reconcile/rec_visibility.c:310:        __wt_verbose(session, WT_VERB_TIMESTAMP,
-src/reconcile/rec_write.c:2375:    __wt_verbose(session, WT_VERB_SPLIT, "split: %" PRIu32 " pages", r->multi_next);
-src/reconcile/rec_write.c:2380:            __wt_verbose(session, WT_VERB_SPLIT, "starting key %s",
-src/reconcile/rec_write.c:2386:            __wt_verbose(session, WT_VERB_SPLIT, "starting recno %" PRIu64, multi->key.recno);
-src/reconcile/rec_write.c:2479:    __wt_verbose(session, WT_VERB_RECONCILE, "%p reconciled into %" PRIu32 " pages", (void *)ref,
-src/reconcile/rec_write.c:2547:        if (WT_VERBOSE_ISSET(session, WT_VERB_SPLIT))
-src/reconcile/rec_write.c:43:    __wt_verbose(session, WT_VERB_RECONCILE, "%p reconcile %s (%s%s)", (void *)ref,
-src/reconcile/rec_write.c:450:    __wt_verbose(
+reconcile: assuming that overflow records are reasonably frequently
+modified/used. rec_write: assuming dumping keys is appropriate at a higher
+debug level than seeing which pages were reconciled.
+
 src/schema/schema_drop.c:212:        __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: drop local object %s", tier->name);
 src/schema/schema_drop.c:229:        __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: drop shared object %s", tier->name);
 src/schema/schema_drop.c:244:        __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: remove object %s from metadata", name);
