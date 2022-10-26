@@ -17,19 +17,9 @@ the above two issues.
 block_vrfy: assuming that these are called infrequently/in bad situations,
 so i'm leaving them as DEBUG_1.
 
-src/block_cache/block_cache.c:116:    __wt_verbose(session, WT_VERB_BLKCACHE, "%s:", header);
-src/block_cache/block_cache.c:117:    __wt_verbose(session, WT_VERB_BLKCACHE, "%s", "Reuses \t Number of blocks");
-src/block_cache/block_cache.c:118:    __wt_verbose(session, WT_VERB_BLKCACHE, "%s", "-----------------------------");
-src/block_cache/block_cache.c:120:        __wt_verbose(session, WT_VERB_BLKCACHE, "[%d - %d] \t %u", j * BLKCACHE_HIST_BOUNDARY,
-src/block_cache/block_cache.c:209:    __wt_verbose(session, WT_VERB_BLKCACHE,
-src/block_cache/block_cache.c:22:    if (!WT_VERBOSE_ISSET(session, WT_VERB_BLKCACHE))
-src/block_cache/block_cache.c:32:    __wt_verbose(session, WT_VERB_BLKCACHE, "%s: %s, hash=%" PRIu64, tag, addr_string, hash);
-src/block_cache/block_cache.c:589:    __wt_verbose(session, WT_VERB_BLKCACHE,
-src/block_cache/block_cache.c:611:    __wt_verbose(session, WT_VERB_BLKCACHE,
-src/block_cache/block_cache.c:619:    __wt_verbose(session, WT_VERB_BLKCACHE, "%s", "block cache eviction thread exited");
-src/block_cache/block_mgr.c:45:    __wt_verbose(session, WT_VERB_BLKCACHE, "close: %s", block->name);
-src/block_cache/block_mgr.c:605:    __wt_verbose(
-src/block_cache/block_mgr.c:837:    __wt_verbose(session, WT_VERB_BLKCACHE, "open: %s", uri);
+block manager: i'm assuming that opening files, creating and tearing down
+block caches are relatively uncommon.
+
 src/btree/bt_curnext.c:589:    __wt_verbose_error(session, WT_VERB_OUT_OF_ORDER,
 src/btree/bt_curnext.c:625:    __wt_verbose_error(session, WT_VERB_OUT_OF_ORDER,
 src/btree/bt_debug.c:72:    return (__wt_verbose_config(session, cfg, true));

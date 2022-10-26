@@ -192,9 +192,6 @@ struct __wt_verbose_multi_category {
 #define __wt_verbose(session, category, fmt, ...) \
     __wt_verbose_level(session, category, WT_VERBOSE_LEVEL_DEFAULT, fmt, __VA_ARGS__)
 
-#define __wt_verbose_level(session, category, level, fmt, ...)           \
-    __wt_verbose_level(session, category, level, fmt, __VA_ARGS__)
-
 /*
  * __wt_verbose_level_multi --
  *     Display a verbose message, given a set of multiple verbose categories. A verbose message will
