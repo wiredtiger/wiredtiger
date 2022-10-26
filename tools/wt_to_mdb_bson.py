@@ -39,10 +39,11 @@ from enum import Enum
 #
 # Those tools each perform a different function, and their usages are varied as such the script
 # needs to handle their output separately. Originally many scripts existed for this purpose, the
-# intent of this script is to provide a single place to perform all bson conversions
+# intent of this script is to provide a single place to perform all bson conversions.
 #
 # This script takes input of two forms, either through stdin or the user can pass the wt util
-# location and the filename and the script will execute the required wt util command.
+# location and the filename and the script will execute the required wt util command. When running
+# with -f the script must be executed in the same directory as the database.
 #
 # Some example usages are:
 #    - ./wt -r dump -x | ./wt_to_mdb_bson -m dump
@@ -127,7 +128,7 @@ def find_data_section(mdb_file_contents):
         line = mdb_file_contents[i].strip()
         if line == 'Data':
             return i + 1
-    
+
     # No data section was found, return an invalid index.
     return -1
 
