@@ -784,13 +784,14 @@ connection_runtime_config = [
         'failpoint_eviction_fail_after_reconciliation',
         'failpoint_history_store_delete_key_from_ts', 'history_store_checkpoint_delay',
         'history_store_search', 'history_store_sweep_race', 'prepare_checkpoint_delay',
-        'split_1', 'split_2', 'split_3', 'split_4', 'split_5', 'split_6', 'split_7',
-        'tiered_flush_finish']),
+        'sleep_before_read_overflow_onpage', 'split_1', 'split_2', 'split_3', 'split_4', 'split_5',
+        'split_6', 'split_7', 'tiered_flush_finish']),
     Config('verbose', '[]', r'''
         enable messages for various subsystems and operations. Options are given as a list,
         where each message type can optionally define an associated verbosity level, such as
         <code>"verbose=[evictserver,read:1,rts:0]"</code>. Verbosity levels that can be provided
-        include <code>0</code> (INFO) and <code>1</code> (DEBUG).''',
+        include <code>0</code> (INFO) and <code>1</code> through <code>5</code>, corresponding to
+        (DEBUG_1) to (DEBUG_5).''',
         type='list', choices=[
             'api',
             'backup',
