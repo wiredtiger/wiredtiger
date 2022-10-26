@@ -48,27 +48,8 @@ meta: some stuff logs with the checkpoint progress module, i don't think
 this should be changed since it's not the same as the checkpoint module so
 can be left at INFO separately.
 
-src/os_common/os_fhandle.c:164:    if (!WT_VERBOSE_ISSET(session, WT_VERB_FILEOPS))
-src/os_common/os_fhandle.c:188:    __wt_verbose(session, WT_VERB_FILEOPS, "%s: file-open: type %s%s", name,
-src/os_common/os_fhandle.c:327:    __wt_verbose(session, WT_VERB_FILEOPS, "%s: file-close", fh->name);
-src/os_posix/os_fs.c:1029:    __wt_verbose(session, WT_VERB_FILEOPS,
-src/os_posix/os_fs.c:1066:    __wt_verbose(session, WT_VERB_FILEOPS, "%s, prepare-remap-file: buffer=%p", file_handle->name,
-src/os_posix/os_fs.c:1121:    __wt_verbose(session, WT_VERB_FILEOPS, "%s, remap-file: buffer=%p", file_handle->name,
-src/os_posix/os_fs.c:1148:    __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-unmap: buffer=%p, size=%" PRId64,
-src/os_posix/os_fs.c:346:    __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-close: fd=%d", file_handle->name, pfh->fd);
-src/os_posix/os_fs.c:414:    __wt_verbose(session, WT_VERB_READ, "read: %s, fd=%d, offset=%" PRId64 ", len=%" WT_SIZET_FMT,
-src/os_posix/os_fs.c:459:    __wt_verbose(session, WT_VERB_READ,
-src/os_posix/os_fs.c:567:    __wt_verbose(session, WT_VERB_FILEOPS,
-src/os_posix/os_fs.c:605:    __wt_verbose(session, WT_VERB_WRITE, "write: %s, fd=%d, offset=%" PRId64 ", len=%" WT_SIZET_FMT,
-src/os_posix/os_fs.c:643:    __wt_verbose(session, WT_VERB_WRITE,
-src/os_posix/os_map.c:158:    __wt_verbose(
-src/os_posix/os_map.c:44:    __wt_verbose(
-src/os_posix/os_mtx_cond.c:155:    __wt_verbose(session, WT_VERB_MUTEX, "signal %s", cond->name);
-src/os_posix/os_mtx_cond.c:75:    __wt_verbose(session, WT_VERB_MUTEX, "wait %s", cond->name);
-src/os_win/os_map.c:37:    __wt_verbose(session, WT_VERB_HANDLEOPS, "%s: memory-map: %" WT_SIZET_FMT " bytes",
-src/os_win/os_map.c:83:    __wt_verbose(session, WT_VERB_HANDLEOPS, "%s: memory-unmap: %" WT_SIZET_FMT " bytes",
-src/os_win/os_mtx_cond.c:132:    __wt_verbose(session, WT_VERB_MUTEX, "signal %s", cond->name);
-src/os_win/os_mtx_cond.c:55:    __wt_verbose(session, WT_VERB_MUTEX, "wait %s", cond->name);
+os: assumed file reads/writes are more common than open/close
+
 src/reconcile/rec_track.c:134:    if (WT_VERBOSE_ISSET(session, WT_VERB_OVERFLOW))
 src/reconcile/rec_track.c:169:    __wt_verbose(session, WT_VERB_OVERFLOW, "reuse: %s%s%p %s (%s%s%s) {%.*s}",
 src/reconcile/rec_track.c:342:        if (WT_VERBOSE_ISSET(session, WT_VERB_OVERFLOW))
