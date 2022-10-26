@@ -47,8 +47,6 @@ time_us(void)
 void
 testutil_tiered_begin(TEST_OPTS *opts)
 {
-    uint64_t now;
-
     testutil_assert(!opts->tiered_begun);
     testutil_assert(opts->conn != NULL);
 

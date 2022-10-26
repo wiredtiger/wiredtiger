@@ -159,7 +159,7 @@ checkpointer(void *arg)
  *     Set up a random delay for the next flush_tier.
  */
 static void
-set_flush_tier_delay(WT_RAND_STAT *rnd)
+set_flush_tier_delay(WT_RAND_STATE *rnd)
 {
     /*
      * When we aren't in sweep stress mode, we are checkpointing constantly, and we'll do a flush
