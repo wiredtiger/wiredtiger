@@ -60,8 +60,12 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
          * work unit back on the work queue and keep trying.
          */
         if (__wt_handle_is_open(session, object)) {
+<<<<<<< HEAD
             __wt_verbose_debug2(
               session, WT_VERB_TIERED, "REMOVE_LOCAL: %s in USE, queue again", object);
+=======
+            __wt_verbose_debug2(session, WT_VERB_TIERED, "REMOVE_LOCAL: %s in USE, queue again", object);
+>>>>>>> f47f7632d... check conn/ verbosity
             WT_STAT_CONN_INCR(session, local_objects_inuse);
             /*
              * FIXME-WT-7470: If the object we want to remove is in use this is the place to call
@@ -76,8 +80,12 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
             entry->op_val = now + entry->tiered->bstorage->retain_secs;
             __wt_tiered_push_work(session, entry);
         } else {
+<<<<<<< HEAD
             __wt_verbose_debug2(
               session, WT_VERB_TIERED, "REMOVE_LOCAL: actually remove %s", object);
+=======
+            __wt_verbose_debug2(session, WT_VERB_TIERED, "REMOVE_LOCAL: actually remove %s", object);
+>>>>>>> f47f7632d... check conn/ verbosity
             WT_STAT_CONN_INCR(session, local_objects_removed);
             WT_ERR(__wt_fs_remove(session, object, false));
             /*
