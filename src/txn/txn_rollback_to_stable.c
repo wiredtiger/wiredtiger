@@ -622,7 +622,8 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
             tombstone->durable_ts = hs_tw->durable_stop_ts;
             tombstone->start_ts = hs_tw->stop_ts;
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-              "history store tombstone restored txnid: %" PRIu64 ", start_ts: %s, durable_ts: %s",
+              "history store tombstone restored txnid: %" PRIu64
+              ", start_ts: %s and durable_ts: %s",
               tombstone->txnid, __wt_timestamp_to_string(tombstone->start_ts, ts_string[0]),
               __wt_timestamp_to_string(tombstone->durable_ts, ts_string[1]));
 
