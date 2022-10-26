@@ -29,24 +29,12 @@ think leaving the per-file stuff as debug1 is ok?
 conn: leaving the debug_info method, presumably that only gets called by our
 users. cache pool: made the per-entry stuff debug2. conn_log:
 removal/truncation seems to be doing the most logging, and that doesn't seem
-common? conn_tiered: removing local objects seems like it'd be common enough.
+common? conn_tiered: removing local objects seems like it'd be common
+enough.
 
-src/cursor/cur_backup.c:205:        __wt_verbose(
-src/cursor/cur_backup.c:345:            __wt_verbose(session, WT_VERB_BACKUP, "Free blk[%u] entry", i);
-src/cursor/cur_backup.c:348:        __wt_verbose(session, WT_VERB_BACKUP, "Entry blk[%u] has flags 0x%" PRIx8, i, blk->flags);
-src/cursor/cur_backup.c:358:        __wt_verbose(
-src/cursor/cur_backup.c:374:        __wt_verbose(session, WT_VERB_BACKUP,
-src/cursor/cur_backup.c:379:        __wt_verbose(session, WT_VERB_BACKUP, "Backup id %s using backup slot %u", blk->id_str, i);
-src/cursor/cur_backup.c:413:            __wt_verbose(
-src/cursor/cur_backup.c:418:    __wt_verbose(session, WT_VERB_BACKUP, "Search %.*s not found", (int)cval->len, cval->str);
-src/cursor/cur_backup.c:486:            __wt_verbose(session, WT_VERB_BACKUP, "Backup config set granularity value %" PRIu64,
-src/cursor/cur_backup_incr.c:157:        __wt_verbose(session, WT_VERB_BACKUP, "Set key WT_BACKUP_FILE %s size %" PRIuMAX,
-src/cursor/cur_backup_incr.c:186:                    __wt_verbose(session, WT_VERB_BACKUP,
-src/cursor/cur_backup_incr.c:223:        __wt_verbose(session, WT_VERB_BACKUP,
-src/cursor/cur_backup_incr.c:285:        __wt_verbose(session, WT_VERB_BACKUP, "Forcing full file copies for %s for id %s",
-src/cursor/cur_backup_incr.c:74:        __wt_verbose(session, WT_VERB_BACKUP,
-src/cursor/cur_backup_incr.c:77:        __wt_verbose(session, WT_VERB_BACKUP, "Modified incr block config: \"%s\"", config);
-src/cursor/cur_file.c:538:        __wt_verbose_notice(session, WT_VERB_ERROR_RETURNS, "%s",
+cur_backup: adding IDs seems like it'd be common enough, not too sure
+though.
+
 src/evict/evict_lru.c:1121:            __wt_verbose(session, WT_VERB_EVICTSERVER, "%s", "added worker thread");
 src/evict/evict_lru.c:2056:        __wt_verbose(session, WT_VERB_EVICTSERVER, "select: %p, size %" WT_SIZET_FMT, (void *)page,
 src/evict/evict_lru.c:2064:    __wt_verbose(session, WT_VERB_EVICTSERVER, "%s walk: seen %" PRIu64 ", queued %" PRIu64,
