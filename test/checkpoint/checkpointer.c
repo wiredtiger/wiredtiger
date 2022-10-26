@@ -155,6 +155,25 @@ checkpointer(void *arg)
 }
 
 /*
+ * set_flush_tier_delay --
+ *     Set up a random delay for the next flush_tier.
+ */
+static void
+set_flush_tier_delay(WT_RAND_STAT *rnd)
+{
+    /*
+     * When we aren't in sweep stress mode, we are checkpointing constantly, and we'll do a flush
+     * tier with a random delay between 0 - 10000 microseconds. When we are in sweep stress mode, we
+     * checkpoint between 4 and 8 seconds, so we'll flush between 5 and 15 seconds (that is, 5
+     * million and 15 million microseconds).
+     */
+    if (g.sweep_stress)
+        g.opts.tiered_flush_interval_us = 5 * WT_MILLION + __wt_random(rnd) % (10 * WT_MILLION);
+    else
+        g.opts.tiered_flush_interval_us = __wt_random(rnd) % 10001;
+}
+
+/*
  * real_checkpointer --
  *     Do the work of creating checkpoints and then verifying them. Also responsible for finishing
  *     in a timely fashion.
@@ -197,8 +216,7 @@ real_checkpointer(void)
     testutil_check(__wt_snprintf(
       flush_tier_config, sizeof(flush_tier_config), "flush_tier=(enabled,force),%s", ts_config));
 
-    /* Set up a random delay up to 5000 microseconds for the next flush. */
-    g.opts.tiered_flush_interval_us = __wt_random(&rnd) % 5001;
+    set_flush_tier_delay(&rnd);
 
     while (g.opts.running) {
         /*
@@ -237,8 +255,7 @@ real_checkpointer(void)
             flush_tier = false;
             printf("Finished a flush_tier\n");
 
-            /* Set up a random delay up to 5000 microseconds for the next flush. */
-            g.opts.tiered_flush_interval_us = __wt_random(&rnd) % 5001;
+            set_flush_tier_delay(&rnd);
         }
 
         if (!g.opts.running)

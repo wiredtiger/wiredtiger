@@ -52,10 +52,10 @@ testutil_tiered_begin(TEST_OPTS *opts)
     testutil_assert(!opts->tiered_begun);
     testutil_assert(opts->conn != NULL);
 
-    if (opts->tiered_storage && opts->tiered_flush_interval_us != 0) {
-        now = time_us();
-        opts->tiered_flush_next_us = now + opts->tiered_flush_interval_us;
-    }
+    if (opts->tiered_storage && opts->tiered_flush_interval_us != 0)
+        /* Initialize the time of the next flush_tier. */
+        testutil_tiered_flush_complete(opts, NULL);
+
     opts->tiered_begun = true;
 }
 
