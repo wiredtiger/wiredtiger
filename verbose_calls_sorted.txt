@@ -35,30 +35,10 @@ enough.
 cur_backup: adding IDs seems like it'd be common enough, not too sure
 though.
 
-src/evict/evict_lru.c:1121:            __wt_verbose(session, WT_VERB_EVICTSERVER, "%s", "added worker thread");
-src/evict/evict_lru.c:2056:        __wt_verbose(session, WT_VERB_EVICTSERVER, "select: %p, size %" WT_SIZET_FMT, (void *)page,
-src/evict/evict_lru.c:2064:    __wt_verbose(session, WT_VERB_EVICTSERVER, "%s walk: seen %" PRIu64 ", queued %" PRIu64,
-src/evict/evict_lru.c:2409:                __wt_verbose_debug(
-src/evict/evict_lru.c:240:    if (WT_VERBOSE_ISSET(session, WT_VERB_EVICTSERVER)) {
-src/evict/evict_lru.c:245:        __wt_verbose(session, WT_VERB_EVICTSERVER,
-src/evict/evict_lru.c:2478:            __wt_verbose_notice(session, WT_VERB_TRANSACTION, "%s", session->txn->rollback_reason);
-src/evict/evict_lru.c:2704: * __wt_verbose_dump_cache --
-src/evict/evict_lru.c:2708:__wt_verbose_dump_cache(WT_SESSION_IMPL *session)
-src/evict/evict_lru.c:313:            __wt_verbose(session, WT_VERB_EVICTSERVER, "%s", "sleeping");
-src/evict/evict_lru.c:317:            __wt_verbose(session, WT_VERB_EVICTSERVER, "%s", "waking");
-src/evict/evict_lru.c:361:    __wt_verbose(session, WT_VERB_EVICTSERVER, "%s", "cache eviction thread exiting");
-src/evict/evict_lru.c:433:        if (WT_VERBOSE_ISSET(session, WT_VERB_EVICT_STUCK))
-src/evict/evict_lru.c:441:    if (!WT_VERBOSE_ISSET(session, WT_VERB_EVICT_STUCK))
-src/evict/evict_lru.c:474:        WT_RET(__wt_verbose_dump_txn(session));
-src/evict/evict_lru.c:475:        WT_RET(__wt_verbose_dump_cache(session));
-src/evict/evict_lru.c:478:        if (WT_VERBOSE_ISSET(session, WT_VERB_EVICT_STUCK)) {
-src/evict/evict_lru.c:479:            WT_RET(__wt_verbose_dump_txn(session));
-src/evict/evict_lru.c:480:            WT_RET(__wt_verbose_dump_cache(session));
-src/evict/evict_lru.c:526:    if (WT_VERBOSE_ISSET(session, WT_VERB_EVICTSERVER))
-src/evict/evict_lru.c:563:    __wt_verbose(session, WT_VERB_EVICTSERVER, "%s", "waiting for helper threads");
-src/evict/evict_lru.c:734:        __wt_verbose(session, WT_VERB_EVICTSERVER,
-src/evict/evict_lru.c:796:            __wt_verbose(session, WT_VERB_EVICTSERVER, "%s", "unable to reach eviction goal");
-src/evict/evict_page.c:116:    __wt_verbose(
+evict: assuming the teardown/setup bits are relatively uncommon.
+
+
+
 src/history/hs_rec.c:1002:            __wt_verbose(session, WT_VERB_TIMESTAMP,
 src/history/hs_rec.c:31:    if (!WT_VERBOSE_ISSET(session, WT_VERB_HS) && !WT_VERBOSE_ISSET(session, WT_VERB_HS_ACTIVITY))
 src/history/hs_rec.c:43:    if (WT_VERBOSE_ISSET(session, WT_VERB_HS) ||
