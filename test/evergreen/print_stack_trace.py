@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import argparse
+from asyncio.subprocess import STDOUT
 import itertools
 import os
 import re
@@ -99,7 +100,7 @@ class GDBDumper:
 
         output = None
         if (output_file):
-            output = open(output_file, "w")
+            output = open(output_file, "w+")
         subprocess.run([self.dbg, "--batch", "--quiet"] +
                        list(itertools.chain.from_iterable([['-ex', b] for b in cmds])) +
                        [exe_path, core_path],
@@ -110,18 +111,15 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--core_path',
                         help='directory path to the core dumps')
-    parser.add_argument('-e', '--executable_path',
-                        help='path to the executable')
     parser.add_argument('-l', '--lib_path', help='library path')
     args = parser.parse_args()
 
-    # Store the path of the core files as a list.
+    # If the core_path is not provided then search the current dir.
+    core_path = "." if args.core_path is None else args.core_path
+
+    # Append the path of the core files present in the core path in a list.
     core_files = []
     regex = re.compile(r'dump.*core', re.IGNORECASE)
-    core_path = args.core_path
-    if core_path is None:
-        core_path = '.'
-
     for root, _, files in os.walk(core_path):
         for file in files:
             if regex.match(file):
@@ -130,34 +128,21 @@ def main():
     for core_file_path in core_files:
         print(border_msg(core_file_path), flush=True)
 
-        # If not specified, derive the binary name from the core dump folder.
-        # The test/format and cpp suites are different and need specific handling. All the other
-        # tests have an executable that follows the pattern "test_<test_folder>". For example,
-        # the test folder wt2853_perf contains an executable named test_wt2853_perf.
-        if args.executable_path is None:
-            # Retrieve the first part of the path without the core name.
-            dirname = core_file_path.rsplit('/', 1)[0]
-            if re.match(r'(.\/)?WT_TEST\/test_', dirname):
-                executable_path = sys.executable
-            elif 'cppsuite' in core_file_path:
-                executable_path = dirname + "/run"
-            elif 'format' in core_file_path:
-                executable_path = dirname + "/t"
-            else:
-                test_name = dirname.rsplit('/', 1)[1]
-                executable_path = dirname + "/test_" + test_name
-        else:
-            executable_path = args.executable_path
+        # Get the executable from the core file itself.
+        proc = subprocess.Popen(["file", core_file_path], stdout=subprocess.PIPE)
+        executable_path = str(proc.communicate())
+        start = executable_path.find('execfn: ')
+        end = executable_path.find('platform:')
+        executable_path = executable_path[(start+9):(end-3)]
 
-        dump_all = True
         # Extract the filename from the core file path, to create a stacktrace output file.
         file_name, _ = os.path.splitext(os.path.basename(core_file_path))
         file_name = file_name + ".stacktrace.txt"
 
         if sys.platform.startswith('linux'):
             dbg = GDBDumper()
-            dbg.dump(executable_path, core_file_path, args.lib_path, dump_all, None)
-            dbg.dump(executable_path, core_file_path, args.lib_path, dump_all, file_name)
+            dbg.dump(executable_path, core_file_path, args.lib_path, True, None)
+            dbg.dump(executable_path, core_file_path, args.lib_path, True, file_name)
         elif sys.platform.startswith('darwin'):
             # FIXME - macOS to be supported in WT-8976
             # dbg = LLDBDumper()
