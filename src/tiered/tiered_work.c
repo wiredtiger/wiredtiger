@@ -192,7 +192,7 @@ __wt_tiered_get_flush(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **entryp)
 void
 __wt_tiered_get_drop_local(WT_SESSION_IMPL *session, uint64_t now, WT_TIERED_WORK_UNIT **entryp)
 {
-    __wt_tiered_pop_work(session, WT_TIERED_WORK_DROP_LOCAL, now, entryp);
+    __wt_tiered_pop_work(session, WT_TIERED_WORK_REMOVE_LOCAL, now, entryp);
     return;
 }
 
@@ -203,7 +203,7 @@ __wt_tiered_get_drop_local(WT_SESSION_IMPL *session, uint64_t now, WT_TIERED_WOR
 void
 __wt_tiered_get_drop_shared(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **entryp)
 {
-    __wt_tiered_pop_work(session, WT_TIERED_WORK_DROP_SHARED, 0, entryp);
+    __wt_tiered_pop_work(session, WT_TIERED_WORK_REMOVE_SHARED, 0, entryp);
     return;
 }
 
@@ -235,7 +235,7 @@ __wt_tiered_put_drop_local(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t
     uint64_t now;
 
     WT_RET(__wt_calloc_one(session, &entry));
-    entry->type = WT_TIERED_WORK_DROP_LOCAL;
+    entry->type = WT_TIERED_WORK_REMOVE_LOCAL;
     entry->id = id;
     WT_ASSERT(session, tiered->bstorage != NULL);
     __wt_seconds(session, &now);
@@ -256,7 +256,7 @@ __wt_tiered_put_drop_shared(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_
     WT_TIERED_WORK_UNIT *entry;
 
     WT_RET(__wt_calloc_one(session, &entry));
-    entry->type = WT_TIERED_WORK_DROP_SHARED;
+    entry->type = WT_TIERED_WORK_REMOVE_SHARED;
     entry->id = id;
     entry->tiered = tiered;
     __wt_tiered_push_work(session, entry);
