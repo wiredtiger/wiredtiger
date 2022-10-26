@@ -20,53 +20,12 @@ so i'm leaving them as DEBUG_1.
 block manager: i'm assuming that opening files, creating and tearing down
 block caches are relatively uncommon.
 
-src/btree/bt_curnext.c:589:    __wt_verbose_error(session, WT_VERB_OUT_OF_ORDER,
-src/btree/bt_curnext.c:625:    __wt_verbose_error(session, WT_VERB_OUT_OF_ORDER,
-src/btree/bt_debug.c:72:    return (__wt_verbose_config(session, cfg, true));
-src/btree/bt_handle.c:321:    if (WT_VERBOSE_ISSET(session, WT_VERB_VERSION)) {
-src/btree/bt_handle.c:326:        __wt_verbose(session, WT_VERB_VERSION, "%" PRId64 ".%" PRId64, maj_version, min_version);
-src/btree/bt_handle.c:975:        __wt_verbose_notice(session, WT_VERB_SPLIT,
-src/btree/bt_import.c:134:    __wt_verbose(session, WT_VERB_CHECKPOINT, "import metadata: %s", config);
-src/btree/bt_slvg.c:1107:    __wt_verbose(session, WT_VERB_SALVAGE, "%s and %s require merge",
-src/btree/bt_slvg.c:1168:            __wt_verbose(session, WT_VERB_SALVAGE,
-src/btree/bt_slvg.c:1302:    __wt_verbose(session, WT_VERB_SALVAGE,
-src/btree/bt_slvg.c:1320:        __wt_verbose(session, WT_VERB_SALVAGE, "%s merge inserting %" PRIu64 " missing records",
-src/btree/bt_slvg.c:1522:    __wt_verbose(session, WT_VERB_SALVAGE, "%s and %s range overlap",
-src/btree/bt_slvg.c:1697:    __wt_verbose(session, WT_VERB_SALVAGE, "%s and %s require merge",
-src/btree/bt_slvg.c:1938:            __wt_verbose(session, WT_VERB_SALVAGE, "%s merge discarding leading key %s",
-src/btree/bt_slvg.c:1953:            __wt_verbose(session, WT_VERB_SALVAGE, "%s merge discarding trailing key %s",
-src/btree/bt_slvg.c:2220:            __wt_verbose(session, WT_VERB_SALVAGE, "%s references unavailable overflow page %s",
-src/btree/bt_slvg.c:2413:        __wt_verbose(session, WT_VERB_SALVAGE, "%s unused overflow page",
-src/btree/bt_slvg.c:2476:    __wt_verbose(session, WT_VERB_SALVAGE, "%s blocks discarded: discard freed file bytes %" PRIu32,
-src/btree/bt_slvg.c:485:            __wt_verbose(session, WT_VERB_SALVAGE, "%s page ignored %s",
-src/btree/bt_slvg.c:499:            __wt_verbose(session, WT_VERB_SALVAGE, "%s page failed verify %s",
-src/btree/bt_slvg.c:505:        __wt_verbose(session, WT_VERB_SALVAGE, "tracking %s page, generation %" PRIu64 " %s",
-src/btree/bt_slvg.c:618:            __wt_verbose(session, WT_VERB_SALVAGE, "%s records %" PRIu64 "-%" PRIu64,
-src/btree/bt_slvg.c:645:            __wt_verbose(session, WT_VERB_SALVAGE,
-src/btree/bt_slvg.c:669:        __wt_verbose(session, WT_VERB_SALVAGE, "%s records %" PRIu64 "-%" PRIu64,
-src/btree/bt_slvg.c:697:        __wt_verbose(session, WT_VERB_SALVAGE, "%s start key %s",
-src/btree/bt_slvg.c:701:        __wt_verbose(session, WT_VERB_SALVAGE, "%s stop key %s",
-src/btree/bt_slvg.c:774:            __wt_verbose(session, WT_VERB_SALVAGE, "%s overflow reference %s",
-src/btree/bt_slvg.c:938:    __wt_verbose(session, WT_VERB_SALVAGE, "%s and %s range overlap",
-src/btree/bt_split.c:2075:    __wt_verbose(session, WT_VERB_SPLIT, "%p: split-insert", (void *)ref);
-src/btree/bt_split.c:2184:    __wt_verbose(session, WT_VERB_SPLIT, "%p: split-multi", (void *)ref);
-src/btree/bt_split.c:2220:    __wt_verbose(session, WT_VERB_SPLIT, "%p: reverse-split", (void *)ref);
-src/btree/bt_split.c:2243:    __wt_verbose(session, WT_VERB_SPLIT, "%p: split-rewrite", (void *)ref);
-src/btree/bt_split.c:432:    __wt_verbose(session, WT_VERB_SPLIT,
-src/btree/bt_split.c:841:    __wt_verbose(session, WT_VERB_SPLIT,
-src/btree/bt_split.c:937:    __wt_verbose(session, WT_VERB_SPLIT,
-src/btree/bt_sync.c:139:        __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP, "%p: skipping root page", (void *)ref);
-src/btree/bt_sync.c:145:        __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
-src/btree/bt_sync.c:152:        __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP, "%p: skipping deleted page", (void *)ref);
-src/btree/bt_sync.c:194:        __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
-src/btree/bt_sync.c:209:        __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP, "%p: skipping page", (void *)ref);
-src/btree/bt_sync.c:292:    __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
-src/btree/bt_sync.c:316:    __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
-src/btree/bt_sync.c:390:        __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP, "%p: page walk skipped", (void *)ref);
-src/btree/bt_sync.c:428:    time_start = WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT) ? __wt_clock(session) : 0;
-src/btree/bt_sync.c:652:        __wt_verbose(session, WT_VERB_CHECKPOINT,
-src/btree/bt_vrfy.c:227:        __wt_verbose(session, WT_VERB_VERIFY, "%s: checkpoint %s", name, ckpt->name);
-src/btree/bt_vrfy.c:410:    __wt_verbose(session, WT_VERB_VERIFY, "%s %s", __verify_addr_string(session, ref, vs->tmp1),
+btree: assuming that stuff used in bt_vrfy and bt_slvg are reasonably
+uncommon. also assuming that opening a btree isn't anywhere near the hot
+path. the split code does log stuff for every split, but it's a single line
+- going to leave it. bt_sync's per-page operations moved to debug2, but i
+think leaving the per-file stuff as debug1 is ok?
+
 src/conn/conn_api.c:1240:        WT_ERR(__wt_verbose_dump_cache(session));
 src/conn/conn_api.c:1244:        WT_ERR(__wt_verbose_dump_sessions(session, true));
 src/conn/conn_api.c:1248:        WT_ERR(__wt_verbose_dump_handles(session));
