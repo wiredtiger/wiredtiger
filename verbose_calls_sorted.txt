@@ -56,10 +56,6 @@ debug level than seeing which pages were reconciled.
 
 schema: assuming there could be many more objects than tables.
 
-src/session/session_api.c:683:        __wt_verbose(session, WT_VERB_BACKUP, "Backup cursor config \"%s\"", config);
-src/session/session_compact.c:198:        __wt_verbose_info(session, WT_VERB_COMPACT,
-src/session/session_compact.c:292:                __wt_verbose_info(session, WT_VERB_COMPACT, "%s",
-src/session/session_compact.c:346:        __wt_verbose_warning(
 src/support/err.c:593:    __wt_verbose(session, WT_VERB_ERROR_RETURNS, "%s: %d Error: %d", func, line, err);
 src/support/err.c:621: * __wt_verbose_worker --
 src/support/err.c:625:__wt_verbose_worker(WT_SESSION_IMPL *session, WT_VERBOSE_CATEGORY category, WT_VERBOSE_LEVEL level,
