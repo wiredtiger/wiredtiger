@@ -307,7 +307,7 @@ __tiered_restart_work(WT_SESSION_IMPL *session, WT_TIERED *tiered)
             if (cval.val == 0)
                 WT_ERR(__wt_tiered_put_flush(session, tiered, i));
             else
-                WT_ERR(__wt_tiered_put_drop_local(session, tiered, i));
+                WT_ERR(__wt_tiered_put_remove_local(session, tiered, i));
             __wt_free(session, obj_val);
         }
         __wt_free(session, obj_uri);
@@ -785,8 +785,8 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
         /* Temp code to keep s_all happy. */
         FLD_SET(unused, WT_TIERED_OBJ_LOCAL | WT_TIERED_TREE_UNUSED);
         FLD_SET(unused, WT_TIERED_WORK_FORCE | WT_TIERED_WORK_FREE);
-        WT_ERR(__wt_tiered_put_drop_shared(session, tiered, tiered->current_id));
-        __wt_tiered_get_drop_shared(session, &entry);
+        WT_ERR(__wt_tiered_put_remove_shared(session, tiered, tiered->current_id));
+        __wt_tiered_get_remove_shared(session, &entry);
     }
 #endif
 
