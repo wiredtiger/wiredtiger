@@ -385,13 +385,15 @@ database_operation::update_operation(thread_worker *tc)
         /* Get the cursor associated with the collection. */
         scoped_cursor &cursor = cursors[coll.id];
 
-        /* Choose a random key to update. */
-        testutil_assert(coll.get_key_count() != 0);
-        auto key_id =
-          random_generator::instance().generate_integer<uint64_t>(0, coll.get_key_count() - 1);
-        auto key = tc->pad_string(std::to_string(key_id), tc->key_size);
+        /* Choose a random key to update using a random cursor. */
+        scoped_cursor rnd_cursor = tc->session.open_scoped_cursor(coll.name, "next_random=true");
+        int ret = rnd_cursor->next(rnd_cursor.get());
+        if (ret != 0)
+            testutil_die(ret, "Random cursor failed to find a key");
+        const char *key_str;
+        testutil_check(rnd_cursor->get_key(rnd_cursor.get(), &key_str));
         auto value = random_generator::instance().generate_pseudo_random_string(tc->value_size);
-        if (!tc->update(cursor, coll.id, key, value)) {
+        if (!tc->update(cursor, coll.id, key_str, value)) {
             tc->txn.rollback();
         }
 
