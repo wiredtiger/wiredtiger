@@ -56,36 +56,8 @@ debug level than seeing which pages were reconciled.
 
 schema: assuming there could be many more objects than tables.
 
-src/tiered/tiered_config.c:170:    __wt_verbose(session, WT_VERB_TIERED, "TIERED_CONFIG: bucket %s", conn->bstorage->bucket);
-src/tiered/tiered_config.c:171:    __wt_verbose(
-src/tiered/tiered_handle.c:161:        __wt_verbose(
-src/tiered/tiered_handle.c:209:    __wt_verbose(session, WT_VERB_TIERED, "TIER_CREATE_LOCAL: LOCAL: %s", name);
-src/tiered/tiered_handle.c:212:    __wt_verbose(session, WT_VERB_TIERED, "TIER_CREATE_LOCAL: obj_config: %s : %s", name, cfg[1]);
-src/tiered/tiered_handle.c:239:    __wt_verbose(
-src/tiered/tiered_handle.c:305:            __wt_verbose(session, WT_VERB_TIERED,
-src/tiered/tiered_handle.c:33:    __wt_verbose(session, WT_VERB_TIERED, "NAME_CHECK: check for %s", name);
-src/tiered/tiered_handle.c:345:    __wt_verbose(
-src/tiered/tiered_handle.c:36:    __wt_verbose(session, WT_VERB_TIERED, "NAME_CHECK: Got %d files", (int)obj_count);
-src/tiered/tiered_handle.c:388:        __wt_verbose(
-src/tiered/tiered_handle.c:458:        __wt_verbose(
-src/tiered/tiered_handle.c:463:    __wt_verbose(session, WT_VERB_TIERED, "UPDATE_DH: DONE ret %d", ret);
-src/tiered/tiered_handle.c:487:            __wt_verbose(session, WT_VERB_TIERED, "TIER_SET_META: names[%" PRIu32 "] NULL", i);
-src/tiered/tiered_handle.c:490:        __wt_verbose(session, WT_VERB_TIERED, "TIER_SET_META: names[%" PRIu32 "]: %s", i,
-src/tiered/tiered_handle.c:521:    __wt_verbose(
-src/tiered/tiered_handle.c:545:    __wt_verbose(
-src/tiered/tiered_handle.c:54:        __wt_verbose(session, WT_VERB_TIERED, "NAME_CHECK: %d %s", (int)i, obj_files[i]);
-src/tiered/tiered_handle.c:599:    __wt_verbose(session, WT_VERB_TIERED, "TIER_SWITCH: DONE ret %d", ret);
-src/tiered/tiered_handle.c:659:    __wt_verbose(session, WT_VERB_TIERED, "Generated tiered name: %s", *retp);
-src/tiered/tiered_handle.c:67:            __wt_verbose(
-src/tiered/tiered_handle.c:734:    __wt_verbose(session, WT_VERB_TIERED, "TIERED_OPEN: obj_config %s", tiered->obj_config);
-src/tiered/tiered_handle.c:753:    __wt_verbose(session, WT_VERB_TIERED,
-src/tiered/tiered_handle.c:776:        __wt_verbose(
-src/tiered/tiered_handle.c:798:    __wt_verbose(session, WT_VERB_TIERED, "TIERED_OPEN: Done ret %d", ret);
-src/tiered/tiered_handle.c:844:    __wt_verbose(session, WT_VERB_TIERED, "TIERED_CLOSE: called final %d", (int) final);
-src/tiered/tiered_handle.c:857:    __wt_verbose(session, WT_VERB_TIERED, "TIERED_DISCARD: called final %d", (int) final);
-src/tiered/tiered_handle.c:878:    __wt_verbose(session, WT_VERB_TIERED, "TIERED_TREE_OPEN: Called %s", session->dhandle->name);
-src/tiered/tiered_handle.c:894:        __wt_verbose(
-src/tiered/tiered_handle.c:912:    __wt_verbose(session, WT_VERB_TIERED, "TIERED_TREE_CLOSE: called %s", tiered_tree->iface.name);
+tiered: assuming object creation more common than schemas or tiers
+
 src/txn/txn.c:1181:        __wt_verbose(session, WT_VERB_TRANSACTION,
 src/txn/txn.c:1188:        __wt_verbose(session, WT_VERB_TRANSACTION,
 src/txn/txn.c:1792:        WT_ERR(__wt_verbose_dump_sessions(session, true));
