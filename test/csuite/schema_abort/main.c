@@ -86,9 +86,8 @@ typedef struct {
 } THREAD_TS;
 static volatile THREAD_TS th_ts[MAX_TH];
 
-static TEST_OPTS *opts;
+static TEST_OPTS *opts, _opts;
 
-#define ENV_CONFIG_COMPAT ",compatibility=(release=\"2.9\")"
 #define ENV_CONFIG_DEF                                                                             \
     "create,"                                                                                      \
     "eviction_updates_trigger=95,eviction_updates_target=80,"                                      \
@@ -829,8 +828,6 @@ run_workload(uint32_t nth)
         strcpy(envconf, ENV_CONFIG_DEF);
     else
         strcpy(envconf, ENV_CONFIG_TXNSYNC);
-    if (opts->compat)
-        strcat(envconf, ENV_CONFIG_COMPAT);
 
     /* Open WiredTiger without recovery. */
     testutil_wiredtiger_open(opts, envconf, &event_handler, &conn, false);
@@ -945,7 +942,6 @@ main(int argc, char *argv[])
     struct stat sb;
     FILE *fp;
     REPORT c_rep[MAX_TH], l_rep[MAX_TH], o_rep[MAX_TH];
-    TEST_OPTS _opts;
     WT_CONNECTION *conn;
     WT_CURSOR *cur_coll, *cur_local, *cur_oplog;
     WT_DECL_RET;
@@ -962,6 +958,7 @@ main(int argc, char *argv[])
 
     (void)testutil_set_progname(argv);
 
+    buf[0] = '\0';
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
     tiered = false;

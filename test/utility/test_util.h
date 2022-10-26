@@ -55,8 +55,9 @@
 #define ENV_CONFIG_TIERED_EXT                        \
     ",extensions=(%s/ext/storage_sources/dir_store/" \
     "libwiredtiger_dir_store.so=(early_load=true))"
-#define ENV_CONFIG_REC_1 \
+#define ENV_CONFIG_REC \
     "log=(recover=on,remove=false),statistics=(all),statistics_log=(json,on_close,wait=1)"
+#define ENV_CONFIG_COMPAT ",compatibility=(release=\"2.9\")"
 
 /* Generic option parsing structure shared by all test cases. */
 typedef struct {
@@ -397,7 +398,8 @@ void testutil_progress(TEST_OPTS *, const char *);
 #ifndef _WIN32
 void testutil_sleep_wait(uint32_t, pid_t);
 #endif
-void testutil_wiredtiger_open(TEST_OPTS *, char *, WT_EVENT_HANDLER *, WT_CONNECTION **, bool);
+void testutil_wiredtiger_open(
+  TEST_OPTS *, const char *, WT_EVENT_HANDLER *, WT_CONNECTION **, bool);
 void testutil_work_dir_from_path(char *, size_t, const char *);
 WT_THREAD_RET thread_append(void *);
 
