@@ -314,7 +314,7 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
             /* Don't rely on signals: check periodically. */
             __wt_cond_auto_wait(session, cache->evict_cond, did_work, NULL);
-            __wt_verbose_dump_cache(session, WT_VERB_EVICTSERVER, "%s", "waking");
+            __wt_verbose_debug2(session, WT_VERB_EVICTSERVER, "%s", "waking");
         }
     } else
         WT_ERR(__evict_lru_pages(session, false));
