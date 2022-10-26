@@ -40,108 +40,8 @@ evict: assuming the teardown/setup bits are relatively uncommon.
 HS: we probably want the per-ckpy cache stats? and the "fixing existing
 updates message".
 
-src/include/api.h:67:    __wt_verbose((s), WT_VERB_API, "%s", "CALL: " #h ":" #n)
-src/include/extern.h:1653:extern int __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
-src/include/extern.h:1655:extern int __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
-src/include/extern.h:1657:extern int __wt_verbose_dump_handles(WT_SESSION_IMPL *session)
-src/include/extern.h:1659:extern int __wt_verbose_dump_log(WT_SESSION_IMPL *session)
-src/include/extern.h:1661:extern int __wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
-src/include/extern.h:1663:extern int __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
-src/include/extern.h:1665:extern int __wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_SESSION_IMPL *txn_session,
-src/include/extern.h:1928:extern void __wt_verbose_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t ts, const char *msg);
-src/include/extern.h:1929:extern void __wt_verbose_worker(WT_SESSION_IMPL *session, WT_VERBOSE_CATEGORY category,
-src/include/os_fhandle_inline.h:109:    __wt_verbose(session, WT_VERB_HANDLEOPS, "%s: handle-read: %" WT_SIZET_FMT " at %" PRIuMAX,
-src/include/os_fhandle_inline.h:135:    __wt_verbose(session, WT_VERB_HANDLEOPS, "%s: handle-size", fh->handle->name);
-src/include/os_fhandle_inline.h:154:    __wt_verbose(session, WT_VERB_HANDLEOPS, "%s: handle-truncate: to %" PRIuMAX, fh->handle->name,
-src/include/os_fhandle_inline.h:188:    __wt_verbose(session, WT_VERB_HANDLEOPS, "%s: handle-write: %" WT_SIZET_FMT " at %" PRIuMAX,
-src/include/os_fhandle_inline.h:27:    __wt_verbose(session, WT_VERB_HANDLEOPS, "%s: handle-sync", fh->handle->name);
-src/include/os_fhandle_inline.h:61:    __wt_verbose(session, WT_VERB_HANDLEOPS, "%s: handle-extend: to %" PRIuMAX, fh->handle->name,
-src/include/os_fhandle_inline.h:92:    __wt_verbose(session, WT_VERB_HANDLEOPS, "%s: handle-lock: %s", fh->handle->name,
-src/include/os_fs_inline.h:111:    __wt_verbose(session, WT_VERB_FILEOPS, "%s: file-exist", name);
-src/include/os_fs_inline.h:137:    __wt_verbose(session, WT_VERB_FILEOPS, "%s: file-remove", name);
-src/include/os_fs_inline.h:172:    __wt_verbose(session, WT_VERB_FILEOPS, "%s to %s: file-rename", from, to);
-src/include/os_fs_inline.h:212:    __wt_verbose(session, WT_VERB_FILEOPS, "%s: file-size", name);
-src/include/os_fs_inline.h:35:    __wt_verbose(session, WT_VERB_FILEOPS, "%s: directory-list: prefix %s", dir,
-src/include/os_fs_inline.h:64:    __wt_verbose(session, WT_VERB_FILEOPS, "%s: directory-list-single: prefix %s", dir,
-src/include/txn_inline.h:1433:            __wt_verbose_debug(session, WT_VERB_TRANSACTION,
-src/include/txn_inline.h:1459:                    __wt_verbose_debug(session, WT_VERB_TRANSACTION,
-src/include/txn_inline.h:1465:                    __wt_verbose_debug(session, WT_VERB_TRANSACTION,
-src/include/txn_inline.h:1474:        if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_TRANSACTION, WT_VERBOSE_DEBUG_1)) {
-src/include/txn_inline.h:1486:            __wt_verbose_debug(session, WT_VERB_TRANSACTION, "%s", (const char *)buf->data);
-src/include/verbose.h:112:struct __wt_verbose_multi_category {
-src/include/verbose.h:125:#define WT_VERBOSE_LEVEL_ISSET(session, category, level) (level <= S2C(session)->verbose[category])
-src/include/verbose.h:131:#define WT_VERBOSE_ISSET(session, category) \
-src/include/verbose.h:132:    WT_VERBOSE_LEVEL_ISSET(session, category, WT_VERBOSE_LEVEL_DEFAULT)
-src/include/verbose.h:135: * __wt_verbose_level --
-src/include/verbose.h:138:#define __wt_verbose_level(session, category, level, fmt, ...)               \
-src/include/verbose.h:140:        if (WT_VERBOSE_LEVEL_ISSET(session, category, level))                \
-src/include/verbose.h:141:            __wt_verbose_worker(session, category, level, fmt, __VA_ARGS__); \
-src/include/verbose.h:145: * __wt_verbose_error --
-src/include/verbose.h:146: *     Wrapper to __wt_verbose_level defaulting the verbosity level to WT_VERBOSE_ERROR.
-src/include/verbose.h:148:#define __wt_verbose_error(session, category, fmt, ...) \
-src/include/verbose.h:149:    __wt_verbose_level(session, category, WT_VERBOSE_ERROR, fmt, __VA_ARGS__)
-src/include/verbose.h:152: * __wt_verbose_warning --
-src/include/verbose.h:153: *     Wrapper to __wt_verbose_level defaulting the verbosity level to WT_VERBOSE_WARNING.
-src/include/verbose.h:155:#define __wt_verbose_warning(session, category, fmt, ...) \
-src/include/verbose.h:156:    __wt_verbose_level(session, category, WT_VERBOSE_WARNING, fmt, __VA_ARGS__)
-src/include/verbose.h:159: * __wt_verbose_notice --
-src/include/verbose.h:160: *     Wrapper to __wt_verbose_level defaulting the verbosity level to WT_VERBOSE_NOTICE.
-src/include/verbose.h:162:#define __wt_verbose_notice(session, category, fmt, ...) \
-src/include/verbose.h:163:    __wt_verbose_level(session, category, WT_VERBOSE_NOTICE, fmt, __VA_ARGS__)
-src/include/verbose.h:166: * __wt_verbose_info --
-src/include/verbose.h:167: *     Wrapper to __wt_verbose_level defaulting the verbosity level to WT_VERBOSE_INFO.
-src/include/verbose.h:169:#define __wt_verbose_info(session, category, fmt, ...) \
-src/include/verbose.h:170:    __wt_verbose_level(session, category, WT_VERBOSE_INFO, fmt, __VA_ARGS__)
-src/include/verbose.h:173: * __wt_verbose_debug --
-src/include/verbose.h:174: *     Wrapper to __wt_verbose_level using the default verbosity level.
-src/include/verbose.h:176:#define __wt_verbose_debug(session, category, fmt, ...) \
-src/include/verbose.h:177:    __wt_verbose_level(session, category, WT_VERBOSE_DEBUG_1, fmt, __VA_ARGS__)
-src/include/verbose.h:180: * __wt_verbose --
-src/include/verbose.h:187:#define __wt_verbose(session, category, fmt, ...) \
-src/include/verbose.h:188:    __wt_verbose_level(session, category, WT_VERBOSE_LEVEL_DEFAULT, fmt, __VA_ARGS__)
-src/include/verbose.h:191: * __wt_verbose_level_multi --
-src/include/verbose.h:195:#define __wt_verbose_level_multi(session, multi_category, level, fmt, ...)                    \
-src/include/verbose.h:199:            if (WT_VERBOSE_LEVEL_ISSET(session, multi_category.categories[__v_idx], level)) { \
-src/include/verbose.h:200:                __wt_verbose_worker(                                                          \
-src/include/verbose.h:208: * __wt_verbose_multi --
-src/include/verbose.h:212:#define __wt_verbose_multi(session, multi_category, fmt, ...)                    \
-src/include/verbose.h:216:            if (WT_VERBOSE_ISSET(session, multi_category.categories[__v_idx])) { \
-src/include/verbose.h:217:                __wt_verbose_worker(session, multi_category.categories[__v_idx], \
-src/include/wt_internal.h:372:struct __wt_verbose_multi_category;
-src/include/wt_internal.h:373:typedef struct __wt_verbose_multi_category WT_VERBOSE_MULTI_CATEGORY;
-src/log/log.c:1001:            __wt_verbose_notice(session, WT_VERB_LOG,
-src/log/log.c:1009:        __wt_verbose_notice(session, WT_VERB_LOG,
-src/log/log.c:1015:        __wt_verbose_notice(session, WT_VERB_LOG,
-src/log/log.c:1062:    __wt_verbose(session, WT_VERB_LOG, "log_alloc_prealloc: rename log %s to %s",
-src/log/log.c:1411:        __wt_verbose_notice(
-src/log/log.c:1458:            __wt_verbose_notice(session, WT_VERB_LOG,
-src/log/log.c:1462:            __wt_verbose_notice(session, WT_VERB_LOG,
-src/log/log.c:1509:    __wt_verbose(session, WT_VERB_LOG, "log_allocfile: rename %s to %s",
-src/log/log.c:1536:    __wt_verbose(session, WT_VERB_LOG, "log_remove: remove log %s", (const char *)path->data);
-src/log/log.c:1597:        __wt_verbose(session, WT_VERB_LOG, "log_open: open fh to directory %s", conn->log_path);
-src/log/log.c:1620:    __wt_verbose(
-src/log/log.c:1639:            __wt_verbose_notice(
-src/log/log.c:1704:        __wt_verbose(session, WT_VERB_LOG, "closing old log %s", log->log_close_fh->name);
-src/log/log.c:1710:        __wt_verbose(session, WT_VERB_LOG, "closing log %s", log->log_fh->name);
-src/log/log.c:1717:        __wt_verbose(session, WT_VERB_LOG, "closing log directory %s", log->log_dir_fh->name);
-src/log/log.c:1956:            __wt_verbose(session, WT_VERB_LOG,
-src/log/log.c:1972:            __wt_verbose(session, WT_VERB_LOG,
-src/log/log.c:2007:    __wt_verbose_notice(session, WT_VERB_LOG,
-src/log/log.c:2138:        __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
-src/log/log.c:2170:                __wt_verbose(session, WT_VERB_LOG, "Truncate end of log %" PRIu32 "/%" PRIu32,
-src/log/log.c:2189:                __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
-src/log/log.c:2210:                __wt_verbose(session, WT_VERB_LOG,
-src/log/log.c:2377:        __wt_verbose(session, WT_VERB_LOG,
-src/log/log.c:2755:    __wt_verbose(session, WT_VERB_LOG, "log_printf: %s", (char *)logrec->data + logrec->size);
-src/log/log.c:2801:    __wt_verbose(session, WT_VERB_LOG, "log_flush: flags %#" PRIx32 " LSN %" PRIu32 "/%" PRIu32,
-src/log/log.c:301:        __wt_verbose(session, WT_VERB_LOG,
-src/log/log.c:322:        __wt_verbose(session, WT_VERB_LOG, "log_force_sync: sync %s to LSN %" PRIu32 "/%" PRIu32,
-src/log/log.c:822:    __wt_verbose(session, WT_VERB_LOG, "opening log %s", (const char *)buf->data);
-src/log/log.c:938:        __wt_verbose(session, WT_VERB_LOG, "Log %s found empty log after header", fh->name);
-src/log/log.c:994:        __wt_verbose_notice(session, WT_VERB_LOG,
-src/log/log_slot.c:27:    ret = __wt_verbose_dump_log(session);
-src/log/log_sys.c:90: * __wt_verbose_dump_log --
-src/log/log_sys.c:94:__wt_verbose_dump_log(WT_SESSION_IMPL *session)
+log: assuming that opening/renaming/removing a file isn't super frequent.
+
 src/lsm/lsm_cursor.c:348:    __wt_verbose(session, WT_VERB_LSM,
 src/lsm/lsm_cursor.c:590:    __wt_verbose(session, WT_VERB_LSM,
 src/lsm/lsm_manager.c:397:                __wt_verbose(session, WT_VERB_LSM_MANAGER,
@@ -332,3 +232,72 @@ src/txn/txn_timestamp.c:428:        __wt_verbose_timestamp(session, stable_ts, "
 src/txn/txn_timestamp.c:747:                __wt_verbose(session, WT_VERB_TIMESTAMP,
 src/txn/txn_timestamp.c:833:            __wt_verbose_notice(session, WT_VERB_TIMESTAMP,
 src/txn/txn_timestamp.c:850:        __wt_verbose(session, WT_VERB_TIMESTAMP,
+src/include/api.h:67:    __wt_verbose((s), WT_VERB_API, "%s", "CALL: " #h ":" #n)
+src/include/extern.h:1653:extern int __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
+src/include/extern.h:1655:extern int __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
+src/include/extern.h:1657:extern int __wt_verbose_dump_handles(WT_SESSION_IMPL *session)
+src/include/extern.h:1659:extern int __wt_verbose_dump_log(WT_SESSION_IMPL *session)
+src/include/extern.h:1661:extern int __wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
+src/include/extern.h:1663:extern int __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
+src/include/extern.h:1665:extern int __wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_SESSION_IMPL *txn_session,
+src/include/extern.h:1928:extern void __wt_verbose_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t ts, const char *msg);
+src/include/extern.h:1929:extern void __wt_verbose_worker(WT_SESSION_IMPL *session, WT_VERBOSE_CATEGORY category,
+src/include/os_fhandle_inline.h:109:    __wt_verbose(session, WT_VERB_HANDLEOPS, "%s: handle-read: %" WT_SIZET_FMT " at %" PRIuMAX,
+src/include/os_fhandle_inline.h:135:    __wt_verbose(session, WT_VERB_HANDLEOPS, "%s: handle-size", fh->handle->name);
+src/include/os_fhandle_inline.h:154:    __wt_verbose(session, WT_VERB_HANDLEOPS, "%s: handle-truncate: to %" PRIuMAX, fh->handle->name,
+src/include/os_fhandle_inline.h:188:    __wt_verbose(session, WT_VERB_HANDLEOPS, "%s: handle-write: %" WT_SIZET_FMT " at %" PRIuMAX,
+src/include/os_fhandle_inline.h:27:    __wt_verbose(session, WT_VERB_HANDLEOPS, "%s: handle-sync", fh->handle->name);
+src/include/os_fhandle_inline.h:61:    __wt_verbose(session, WT_VERB_HANDLEOPS, "%s: handle-extend: to %" PRIuMAX, fh->handle->name,
+src/include/os_fhandle_inline.h:92:    __wt_verbose(session, WT_VERB_HANDLEOPS, "%s: handle-lock: %s", fh->handle->name,
+src/include/os_fs_inline.h:111:    __wt_verbose(session, WT_VERB_FILEOPS, "%s: file-exist", name);
+src/include/os_fs_inline.h:137:    __wt_verbose(session, WT_VERB_FILEOPS, "%s: file-remove", name);
+src/include/os_fs_inline.h:172:    __wt_verbose(session, WT_VERB_FILEOPS, "%s to %s: file-rename", from, to);
+src/include/os_fs_inline.h:212:    __wt_verbose(session, WT_VERB_FILEOPS, "%s: file-size", name);
+src/include/os_fs_inline.h:35:    __wt_verbose(session, WT_VERB_FILEOPS, "%s: directory-list: prefix %s", dir,
+src/include/os_fs_inline.h:64:    __wt_verbose(session, WT_VERB_FILEOPS, "%s: directory-list-single: prefix %s", dir,
+src/include/txn_inline.h:1433:            __wt_verbose_debug(session, WT_VERB_TRANSACTION,
+src/include/txn_inline.h:1459:                    __wt_verbose_debug(session, WT_VERB_TRANSACTION,
+src/include/txn_inline.h:1465:                    __wt_verbose_debug(session, WT_VERB_TRANSACTION,
+src/include/txn_inline.h:1474:        if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_TRANSACTION, WT_VERBOSE_DEBUG_1)) {
+src/include/txn_inline.h:1486:            __wt_verbose_debug(session, WT_VERB_TRANSACTION, "%s", (const char *)buf->data);
+src/include/verbose.h:112:struct __wt_verbose_multi_category {
+src/include/verbose.h:125:#define WT_VERBOSE_LEVEL_ISSET(session, category, level) (level <= S2C(session)->verbose[category])
+src/include/verbose.h:131:#define WT_VERBOSE_ISSET(session, category) \
+src/include/verbose.h:132:    WT_VERBOSE_LEVEL_ISSET(session, category, WT_VERBOSE_LEVEL_DEFAULT)
+src/include/verbose.h:135: * __wt_verbose_level --
+src/include/verbose.h:138:#define __wt_verbose_level(session, category, level, fmt, ...)               \
+src/include/verbose.h:140:        if (WT_VERBOSE_LEVEL_ISSET(session, category, level))                \
+src/include/verbose.h:141:            __wt_verbose_worker(session, category, level, fmt, __VA_ARGS__); \
+src/include/verbose.h:145: * __wt_verbose_error --
+src/include/verbose.h:146: *     Wrapper to __wt_verbose_level defaulting the verbosity level to WT_VERBOSE_ERROR.
+src/include/verbose.h:148:#define __wt_verbose_error(session, category, fmt, ...) \
+src/include/verbose.h:149:    __wt_verbose_level(session, category, WT_VERBOSE_ERROR, fmt, __VA_ARGS__)
+src/include/verbose.h:152: * __wt_verbose_warning --
+src/include/verbose.h:153: *     Wrapper to __wt_verbose_level defaulting the verbosity level to WT_VERBOSE_WARNING.
+src/include/verbose.h:155:#define __wt_verbose_warning(session, category, fmt, ...) \
+src/include/verbose.h:156:    __wt_verbose_level(session, category, WT_VERBOSE_WARNING, fmt, __VA_ARGS__)
+src/include/verbose.h:159: * __wt_verbose_notice --
+src/include/verbose.h:160: *     Wrapper to __wt_verbose_level defaulting the verbosity level to WT_VERBOSE_NOTICE.
+src/include/verbose.h:162:#define __wt_verbose_notice(session, category, fmt, ...) \
+src/include/verbose.h:163:    __wt_verbose_level(session, category, WT_VERBOSE_NOTICE, fmt, __VA_ARGS__)
+src/include/verbose.h:166: * __wt_verbose_info --
+src/include/verbose.h:167: *     Wrapper to __wt_verbose_level defaulting the verbosity level to WT_VERBOSE_INFO.
+src/include/verbose.h:169:#define __wt_verbose_info(session, category, fmt, ...) \
+src/include/verbose.h:170:    __wt_verbose_level(session, category, WT_VERBOSE_INFO, fmt, __VA_ARGS__)
+src/include/verbose.h:173: * __wt_verbose_debug --
+src/include/verbose.h:174: *     Wrapper to __wt_verbose_level using the default verbosity level.
+src/include/verbose.h:176:#define __wt_verbose_debug(session, category, fmt, ...) \
+src/include/verbose.h:177:    __wt_verbose_level(session, category, WT_VERBOSE_DEBUG_1, fmt, __VA_ARGS__)
+src/include/verbose.h:180: * __wt_verbose --
+src/include/verbose.h:187:#define __wt_verbose(session, category, fmt, ...) \
+src/include/verbose.h:188:    __wt_verbose_level(session, category, WT_VERBOSE_LEVEL_DEFAULT, fmt, __VA_ARGS__)
+src/include/verbose.h:191: * __wt_verbose_level_multi --
+src/include/verbose.h:195:#define __wt_verbose_level_multi(session, multi_category, level, fmt, ...)                    \
+src/include/verbose.h:199:            if (WT_VERBOSE_LEVEL_ISSET(session, multi_category.categories[__v_idx], level)) { \
+src/include/verbose.h:200:                __wt_verbose_worker(                                                          \
+src/include/verbose.h:208: * __wt_verbose_multi --
+src/include/verbose.h:212:#define __wt_verbose_multi(session, multi_category, fmt, ...)                    \
+src/include/verbose.h:216:            if (WT_VERBOSE_ISSET(session, multi_category.categories[__v_idx])) { \
+src/include/verbose.h:217:                __wt_verbose_worker(session, multi_category.categories[__v_idx], \
+src/include/wt_internal.h:372:struct __wt_verbose_multi_category;
+src/include/wt_internal.h:373:typedef struct __wt_verbose_multi_category WT_VERBOSE_MULTI_CATEGORY;
