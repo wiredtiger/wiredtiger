@@ -1802,13 +1802,19 @@ __rollback_to_stable_btree_apply(
         dhandle_allocated = true;
 
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-          "tree rolled back with durable timestamp: %s, or when tree is modified: %s or "
-          "prepared updates: %s or when durable time is not found: %s or txnid: %" PRIu64
-          " is greater than recovery checkpoint snap min: %s",
+          "tree rolled back because it is modified: %s, or its durable timestamp (%s) > stable "
+          "timestamp (%s): "
+          "%s, or it has prepared updates: %s, or durable "
+          "timestamp is not found: %s, or txnid (%" PRIu64
+          ") > recovery checkpoint snap min (%" PRIu64 "): %s",
+          S2BT(session)->modified ? "true" : "false",
           __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
-          S2BT(session)->modified ? "true" : "false", prepared_updates ? "true" : "false",
-          !durable_ts_found ? "true" : "false", rollback_txnid,
+          __wt_timestamp_to_string(rollback_timestamp, ts_string[1]),
+          max_durable_ts > rollback_timestamp ? "true" : "false",
+          prepared_updates ? "true" : "false", !durable_ts_found ? "true" : "false", rollback_txnid,
+          S2C(session)->recovery_ckpt_snap_min,
           has_txn_updates_gt_than_ckpt_snap ? "true" : "false");
+
         WT_ERR(__rollback_to_stable_btree(session, rollback_timestamp));
     } else
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
