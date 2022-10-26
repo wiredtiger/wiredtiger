@@ -1355,7 +1355,7 @@ __rollback_to_stable_page_skip(
     if (!__rollback_page_needs_abort(session, ref, rollback_timestamp)) {
         *skipp = true;
         __wt_verbose_multi(
-          session, WT_VERB_RECOVERY_RTS(session), "%p: page walk skipped", (void *)ref);
+          session, WT_VERB_RECOVERY_RTS(session), "%p: stable page walk skipped", (void *)ref);
         WT_STAT_CONN_INCR(session, txn_rts_tree_walk_skip_pages);
     }
 
