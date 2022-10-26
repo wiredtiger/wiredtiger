@@ -1258,8 +1258,8 @@ __rollback_abort_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
     }
 
     WT_STAT_CONN_INCR(session, txn_rts_pages_visited);
-    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-      "%p: page rolled back when page is modified: %s", (void *)ref, modified ? "true" : "false");
+    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session), "%p: roll back %s page", (void *)ref,
+      modified ? "modified" : "clean");
 
     switch (page->type) {
     case WT_PAGE_COL_FIX:
