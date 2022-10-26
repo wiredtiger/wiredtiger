@@ -1252,7 +1252,8 @@ __rollback_abort_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
     page = ref->page;
     modified = __wt_page_is_modified(page);
     if (!modified && !__rollback_page_needs_abort(session, ref, rollback_timestamp)) {
-        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session), "%p: page skipped", (void *)ref);
+        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+          "%p: unmodified stable page skipped", (void *)ref);
         return (0);
     }
 
