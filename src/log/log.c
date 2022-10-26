@@ -2752,7 +2752,7 @@ __wt_log_vprintf(WT_SESSION_IMPL *session, const char *fmt, va_list ap)
 
     WT_ERR(__wt_vsnprintf((char *)logrec->data + logrec->size, len, fmt, ap));
 
-    __wt_verbose(session, WT_VERB_LOG, "log_printf: %s", (char *)logrec->data + logrec->size);
+    __wt_verbose_debug3(session, WT_VERB_LOG, "log_printf: %s", (char *)logrec->data + logrec->size);
 
     logrec->size += len;
     WT_ERR(__wt_log_write(session, logrec, NULL, 0));
@@ -2798,7 +2798,7 @@ __wt_log_flush(WT_SESSION_IMPL *session, uint32_t flags)
         WT_RET(__wt_log_flush_lsn(session, &lsn, false));
     }
 
-    __wt_verbose(session, WT_VERB_LOG, "log_flush: flags %#" PRIx32 " LSN %" PRIu32 "/%" PRIu32,
+    __wt_verbose_debug2(session, WT_VERB_LOG, "log_flush: flags %#" PRIx32 " LSN %" PRIu32 "/%" PRIu32,
       flags, lsn.l.file, lsn.l.offset);
     /*
      * If the user wants write-no-sync, there is nothing more to do. If the user wants background
