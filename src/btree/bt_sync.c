@@ -136,7 +136,8 @@ __sync_delete_obsolete_ref(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /* Ignore root pages as they can never be deleted. */
     if (__wt_ref_is_root(ref)) {
-        __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP, "%p: skipping root page", (void *)ref);
+        __wt_verbose_debug2(
+          session, WT_VERB_CHECKPOINT_CLEANUP, "%p: skipping root page", (void *)ref);
         return (0);
     }
 
@@ -149,7 +150,8 @@ __sync_delete_obsolete_ref(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /* Fast-check, ignore deleted pages. */
     if (ref->state == WT_REF_DELETED) {
-        __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP, "%p: skipping deleted page", (void *)ref);
+        __wt_verbose_debug2(
+          session, WT_VERB_CHECKPOINT_CLEANUP, "%p: skipping deleted page", (void *)ref);
         return (0);
     }
 
@@ -387,7 +389,8 @@ __sync_page_skip(
      * timestamp.
      */
     if (addr.type == WT_ADDR_LEAF_NO || addr.ta.newest_stop_durable_ts == WT_TS_NONE) {
-        __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP, "%p: page walk skipped", (void *)ref);
+        __wt_verbose_debug2(
+          session, WT_VERB_CHECKPOINT_CLEANUP, "%p: page walk skipped", (void *)ref);
         WT_STAT_CONN_DATA_INCR(session, cc_pages_walk_skipped);
         *skipp = true;
     }

@@ -2053,8 +2053,8 @@ fast:
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
             internal_pages_queued++;
 
-        __wt_verbose_debug3(session, WT_VERB_EVICTSERVER, "select: %p, size %" WT_SIZET_FMT, (void *)page,
-          page->memory_footprint);
+        __wt_verbose_debug3(session, WT_VERB_EVICTSERVER, "select: %p, size %" WT_SIZET_FMT,
+          (void *)page, page->memory_footprint);
     }
     WT_RET_NOTFOUND_OK(ret);
 
@@ -2406,7 +2406,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
             if (ret == WT_ROLLBACK) {
                 --cache->evict_aggressive_score;
                 WT_STAT_CONN_INCR(session, txn_fail_cache);
-                __wt_verbose_debug(
+                __wt_verbose_debug1(
                   session, WT_VERB_TRANSACTION, "%s", session->txn->rollback_reason);
             }
             WT_ERR(ret);

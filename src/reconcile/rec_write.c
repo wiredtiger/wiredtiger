@@ -2383,7 +2383,8 @@ __rec_split_dump_keys(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         __wt_scr_free(session, &tkey);
     } else
         for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
-            __wt_verbose_debug2(session, WT_VERB_SPLIT, "starting recno %" PRIu64, multi->key.recno);
+            __wt_verbose_debug2(
+              session, WT_VERB_SPLIT, "starting recno %" PRIu64, multi->key.recno);
     return (0);
 }
 

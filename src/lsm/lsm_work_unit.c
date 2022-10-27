@@ -114,8 +114,9 @@ __wt_lsm_get_chunk_to_flush(
         chunk = (evict_chunk != NULL) ? evict_chunk : flush_chunk;
 
     if (chunk != NULL) {
-        __wt_verbose_debug2(session, WT_VERB_LSM, "Flush%s: return chunk %" PRIu32 " of %" PRIu32 ": %s",
-          force ? " w/ force" : "", i, lsm_tree->nchunks, chunk->uri);
+        __wt_verbose_debug2(session, WT_VERB_LSM,
+          "Flush%s: return chunk %" PRIu32 " of %" PRIu32 ": %s", force ? " w/ force" : "", i,
+          lsm_tree->nchunks, chunk->uri);
 
         (void)__wt_atomic_add32(&chunk->refcnt, 1);
     }

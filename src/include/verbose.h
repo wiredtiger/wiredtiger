@@ -170,16 +170,23 @@ struct __wt_verbose_multi_category {
     __wt_verbose_level(session, category, WT_VERBOSE_INFO, fmt, __VA_ARGS__)
 
 /*
- * __wt_verbose_debug --
- *     Wrapper to __wt_verbose_level using the default verbosity level.
+ * __wt_verbose_debug1 --
+ *     Wrapper to __wt_verbose_level using the default debug verbosity level.
  */
-/* TODO replace with debug1 */
-#define __wt_verbose_debug(session, category, fmt, ...) \
+#define __wt_verbose_debug1(session, category, fmt, ...) \
     __wt_verbose_level(session, category, WT_VERBOSE_DEBUG_1, fmt, __VA_ARGS__)
 
+/*
+ * __wt_verbose_debug2 --
+ *     Wrapper to __wt_verbose_level using the DEBUG_2 verbosity level.
+ */
 #define __wt_verbose_debug2(session, category, fmt, ...) \
     __wt_verbose_level(session, category, WT_VERBOSE_DEBUG_2, fmt, __VA_ARGS__)
 
+/*
+ * __wt_verbose_debug3 --
+ *     Wrapper to __wt_verbose_level using the DEBUG_3 verbosity level.
+ */
 #define __wt_verbose_debug3(session, category, fmt, ...) \
     __wt_verbose_level(session, category, WT_VERBOSE_DEBUG_3, fmt, __VA_ARGS__)
 
@@ -191,7 +198,6 @@ struct __wt_verbose_multi_category {
  *     format string and at least one additional argument, there's no portable way to remove the
  *     comma before an empty __VA_ARGS__ value.
  */
-/* TODO this should probably be removed */
 #define __wt_verbose(session, category, fmt, ...) \
     __wt_verbose_level(session, category, WT_VERBOSE_LEVEL_DEFAULT, fmt, __VA_ARGS__)
 
