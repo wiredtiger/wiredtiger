@@ -124,8 +124,8 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
               ", txnid not visible: %s, stable timestamp (%s) < durable timestamp (%s): %s, "
               "prepared: %s",
               upd->txnid, !txn_id_visible ? "true" : "false",
-              __wt_timestamp_to_string(upd->durable_ts, ts_string[0]),
               __wt_timestamp_to_string(rollback_timestamp, ts_string[1]),
+              __wt_timestamp_to_string(upd->durable_ts, ts_string[0]),
               rollback_timestamp < upd->durable_ts ? "true" : "false",
               upd->prepare_state == WT_PREPARE_INPROGRESS ? "true" : "false");
 
