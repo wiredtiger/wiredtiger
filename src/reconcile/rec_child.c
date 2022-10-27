@@ -50,6 +50,12 @@ __rec_child_deleted(
     if (page_del->selected_for_write && !visible_all) {
         cmsp->del = *page_del;
         cmsp->state = WT_CHILD_PROXY;
+        /*
+         * We rely on the next reconciliation to remove the deleted entries if they become globally
+         * visible. Mark the page dirty to ensure we will trigger the next reconciliation on this
+         * page. Otherwise, the deleted pages may never be removed from disk.
+         */
+        r->leave_dirty = true;
         return (0);
     }
 
@@ -128,6 +134,12 @@ __rec_child_deleted(
         cmsp->del = *page_del;
         cmsp->state = WT_CHILD_PROXY;
         page_del->selected_for_write = true;
+        /*
+         * We rely on the next reconciliation to remove the deleted entries if they become globally
+         * visible. Mark the page dirty to ensure we will trigger the next reconciliation on this
+         * page. Otherwise, the deleted pages may never be removed from disk.
+         */
+        r->leave_dirty = true;
         return (0);
     }
 
