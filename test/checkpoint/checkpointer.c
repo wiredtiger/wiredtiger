@@ -162,10 +162,10 @@ static void
 set_flush_tier_delay(WT_RAND_STATE *rnd)
 {
     /*
-     * When we aren't in sweep stress mode, we are checkpointing constantly, and we'll do a flush
-     * tier with a random delay between 0 - 10000 microseconds. When we are in sweep stress mode, we
-     * checkpoint between 4 and 8 seconds, so we'll flush between 5 and 15 seconds (that is, 5
-     * million and 15 million microseconds).
+     * When we are in sweep stress mode, we checkpoint between 4 and 8 seconds, so we'll flush
+     * between 5 and 15 seconds (that is, 5 million and 15 million microseconds). When we aren't in
+     * sweep stress mode, we are checkpointing constantly, and we'll do a flush tier with a random
+     * delay between 0 - 10000 microseconds.
      */
     if (g.sweep_stress)
         g.opts.tiered_flush_interval_us = 5 * WT_MILLION + __wt_random(rnd) % (10 * WT_MILLION);
