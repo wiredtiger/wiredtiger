@@ -364,19 +364,19 @@ testutil_print_command_line(int argc, char *const *argv)
  */
 void
 testutil_wiredtiger_open(TEST_OPTS *opts, const char *config, WT_EVENT_HANDLER *event_handler,
-  WT_CONNECTION **connectionp, bool recovery)
+  WT_CONNECTION **connectionp, bool rerun)
 {
     char buf[1024];
 
     strncpy(buf, config, sizeof(buf));
-    if (recovery)
-        strncat(buf, TESTUTIL_ENV_CONFIG_REC, sizeof(buf) - strlen(buf) - 1);
+    if (rerun)
+        strncat(buf, TESTUTIL_ENV_CONFIG_REC, sizeof(buf));
     else if (opts->compat)
-        strncat(buf, TESTUTIL_ENV_CONFIG_COMPAT, sizeof(buf) - strlen(buf) - 1);
+        strncat(buf, TESTUTIL_ENV_CONFIG_COMPAT, sizeof(buf));
 
     if (opts->tiered_storage) {
-        strncat(buf, TESTUTIL_ENV_CONFIG_TIERED_EXT, sizeof(buf) - strlen(buf) - 1);
-        strncat(buf, TESTUTIL_ENV_CONFIG_TIERED, sizeof(buf) - strlen(buf) - 1);
+        strncat(buf, TESTUTIL_ENV_CONFIG_TIERED_EXT, sizeof(buf));
+        strncat(buf, TESTUTIL_ENV_CONFIG_TIERED, sizeof(buf));
     }
     testutil_check(wiredtiger_open(NULL, event_handler, buf, connectionp));
 }
