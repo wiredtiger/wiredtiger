@@ -229,12 +229,13 @@ thread_worker::truncate(uint64_t collection_id, std::optional<std::string> start
     scoped_cursor start_cursor = session.open_scoped_cursor(coll_name);
     scoped_cursor stop_cursor = session.open_scoped_cursor(coll_name);
     if (start_key.has_value())
-        start_cursor->set_key(start_cursor.get(), start_key);
+        start_cursor->set_key(start_cursor.get(), start_key.value().c_str());
 
     if (stop_key.has_value())
-        stop_cursor->set_key(stop_cursor.get(), stop_key);
+        stop_cursor->set_key(stop_cursor.get(), stop_key.value().c_str());
 
-    ret = session->truncate(session.get(), coll_name.c_str(),
+    ret = session->truncate(session.get(),
+      (start_key.has_value() || stop_key.has_value()) ? nullptr : coll_name.c_str(),
       start_key.has_value() ? start_cursor.get() : nullptr,
       stop_key.has_value() ? stop_cursor.get() : nullptr,
       config.empty() ? nullptr : config.c_str());
