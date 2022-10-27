@@ -210,6 +210,46 @@ thread_worker::remove(scoped_cursor &cursor, uint64_t collection_id, const std::
     return (ret == 0);
 }
 
+bool
+thread_worker::truncate(uint64_t collection_id, std::optional<std::string> start_key,
+  std::optional<std::string> stop_key, const std::string &config)
+{
+    WT_DECL_RET;
+
+    wt_timestamp_t ts = tsm->get_next_ts();
+    ret = txn.set_commit_timestamp(ts);
+    testutil_assert(ret == 0 || ret == EINVAL);
+    if (ret != 0) {
+        txn.set_needs_rollback(true);
+        return (false);
+    }
+
+    const std::string coll_name = database::build_collection_name(collection_id).c_str();
+
+    scoped_cursor start_cursor = session.open_scoped_cursor(coll_name);
+    scoped_cursor stop_cursor = session.open_scoped_cursor(coll_name);
+    if (start_key.has_value())
+        start_cursor->set_key(start_cursor.get(), start_key);
+
+    if (stop_key.has_value())
+        stop_cursor->set_key(stop_cursor.get(), stop_key);
+
+    ret = session->truncate(session.get(), coll_name.c_str(),
+      start_key.has_value() ? start_cursor.get() : nullptr,
+      stop_key.has_value() ? stop_cursor.get() : nullptr,
+      config.empty() ? nullptr : config.c_str());
+
+    if (ret != 0) {
+        if (ret == WT_ROLLBACK) {
+            txn.set_needs_rollback(true);
+            return (false);
+        } else
+            testutil_die(ret, "unhandled error while trying to truncate a key range");
+    }
+
+    return (ret == 0);
+}
+
 void
 thread_worker::sleep()
 {
