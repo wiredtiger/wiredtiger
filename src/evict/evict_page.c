@@ -821,12 +821,10 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
     WT_RET(ret);
 
     /*
-     * Success: assert that the page is clean or is an internal page or reconciliation was
-     * configured to save updates.
+     * Success: assert that the page is clean or reconciliation was configured to save updates.
      */
     WT_ASSERT(session,
-      !__wt_page_is_modified(ref->page) || ref->page->type == WT_PAGE_ROW_INT ||
-        ref->page->type == WT_PAGE_COL_INT || LF_ISSET(WT_REC_HS | WT_REC_IN_MEMORY) ||
+      !__wt_page_is_modified(ref->page) || LF_ISSET(WT_REC_HS | WT_REC_IN_MEMORY) ||
         WT_IS_METADATA(btree->dhandle));
 
     return (0);

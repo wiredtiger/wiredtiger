@@ -362,13 +362,12 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
             S2C(session)->modified = true;
 
         /*
-         * Eviction should only be here if evicting an internal page with deleted entries or
-         * allowing writes to history store or in the in-memory eviction case. Otherwise, we must be
-         * reconciling the metadata (which does not allow history store content).
+         * Eviction should only be here if allowing writes to history store or in the in-memory
+         * eviction case. Otherwise, we must be reconciling the metadata (which does not allow
+         * history store content).
          */
         WT_ASSERT(session,
-          !F_ISSET(r, WT_REC_EVICT) || r->page->type == WT_PAGE_ROW_INT ||
-            r->page->type == WT_PAGE_COL_INT ||
+          !F_ISSET(r, WT_REC_EVICT) ||
             (F_ISSET(r, WT_REC_HS | WT_REC_IN_MEMORY) || WT_IS_METADATA(btree->dhandle)));
     } else {
         /*

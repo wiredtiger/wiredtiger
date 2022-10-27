@@ -52,10 +52,12 @@ __rec_child_deleted(
         cmsp->state = WT_CHILD_PROXY;
         /*
          * We rely on the next reconciliation to remove the deleted entries if they become globally
-         * visible. Mark the page dirty to ensure we will trigger the next reconciliation on this
-         * page. Otherwise, the deleted pages may never be removed from disk.
+         * visible. Mark the page dirty for checkpoint to ensure we will trigger the next
+         * reconciliation on this page. Otherwise, the deleted pages may never be removed from disk.
+         * For eviction, the page is marked dirty the next time it is read into the memory.
          */
-        r->leave_dirty = true;
+        if (!F_ISSET(r, WT_REC_EVICT))
+            r->leave_dirty = true;
         return (0);
     }
 
@@ -131,15 +133,25 @@ __rec_child_deleted(
      * cells to the page. Copy out the current fast-truncate information for that function.
      */
     if (!visible_all) {
+        /*
+         * We rely on the next reconciliation to remove the deleted entries if they become globally
+         * visible. Mark the page dirty for checkpoint to ensure we will trigger the next
+         * reconciliation on this page. Otherwise, the deleted pages may never be removed from disk.
+         * For eviction, the page is marked dirty the next time it is read into the memory.
+         */
+        if (!F_ISSET(r, WT_REC_EVICT))
+            r->leave_dirty = true;
+        /*
+         * Internal pages with deletes that aren't stable cannot be evicted if we don't write the
+         * page_del information, we don't have sufficient information to restore the page's
+         * information if subsequently read (we wouldn't know which transactions should see the
+         * original page and which should see the deleted page).
+         */
+        else if (!__wt_process.fast_truncate_2022)
+            return (__wt_set_return(session, EBUSY));
         cmsp->del = *page_del;
         cmsp->state = WT_CHILD_PROXY;
         page_del->selected_for_write = true;
-        /*
-         * We rely on the next reconciliation to remove the deleted entries if they become globally
-         * visible. Mark the page dirty to ensure we will trigger the next reconciliation on this
-         * page. Otherwise, the deleted pages may never be removed from disk.
-         */
-        r->leave_dirty = true;
         return (0);
     }
 
