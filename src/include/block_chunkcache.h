@@ -68,20 +68,10 @@ struct __wt_chunkcache {
 #endif
     uint64_t capacity;
     bool configured;
+    size_t default_chunk_size;
     char *dir_path;   /* The directory to use if we are on a file system */
     uint hashtable_size;
     int type;
     uint64_t bytes_used; /* Amount of data currently in cache */
 };
 
-/*
- * __wt_chunkcache_complete_read --
- *     The upper layer calls this function once it has completed the read for the chunk. At this
- *     point we mark the chunk as valid. The chunk cannot be accessed before it is set to valid.
- */
-static inline void
-__wt_chunkcache_complete_read(WT_CHUNKCACHE_CHUNK *chunk)
-{
-    /* Atomically mark the chunk as valid */
-    (void)__wt_atomic_addv32(&chunk->valid, 1);
-}
