@@ -366,30 +366,17 @@ void
 testutil_wiredtiger_open(TEST_OPTS *opts, const char *config, WT_EVENT_HANDLER *event_handler,
   WT_CONNECTION **connectionp, bool recovery)
 {
-    FILE *fp;
-    char buf[512], buf_ext[512], top_level_dir[126];
+    char buf[512];
 
-    strcpy(buf, config);
+    strncpy(buf, config, sizeof(buf));
     if (recovery)
-        strcat(buf, ENV_CONFIG_REC);
+        strncat(buf, TESTUTIL_ENV_CONFIG_REC, sizeof(buf) - strlen(buf));
     else if (opts->compat)
-        strcat(buf, ENV_CONFIG_COMPAT);
+        strncat(buf, TESTUTIL_ENV_CONFIG_COMPAT, sizeof(buf) - strlen(buf));
 
     if (opts->tiered_storage) {
-#ifdef _WIN32
-#define popen _popen
-#endif
-        fp = popen("git rev-parse --show-toplevel", "r");
-        if (fp == NULL)
-            testutil_die(errno, "Could not get the top level directory.");
-        if (fgets(top_level_dir, sizeof(top_level_dir), fp) != NULL) {
-            /* Remove the trailing new line character from the command output. */
-            top_level_dir[strlen(top_level_dir) - 1] = '\0';
-            testutil_check(
-              __wt_snprintf(buf_ext, sizeof(buf_ext), ENV_CONFIG_TIERED_EXT, top_level_dir));
-        }
-        strcat(buf, buf_ext);
-        strcat(buf, ENV_CONFIG_TIERED);
+        strncat(buf, TESTUTIL_ENV_CONFIG_TIERED_EXT, sizeof(buf) - strlen(buf));
+        strncat(buf, TESTUTIL_ENV_CONFIG_TIERED, sizeof(buf) - strlen(buf));
     }
     testutil_check(wiredtiger_open(NULL, event_handler, buf, connectionp));
 }

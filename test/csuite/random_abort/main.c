@@ -324,7 +324,7 @@ fill_db(uint32_t nth)
     else
         strcpy(envconf, ENV_CONFIG_TXNSYNC);
     if (compat)
-        strcat(envconf, ENV_CONFIG_COMPAT);
+        strcat(envconf, TESTUTIL_ENV_CONFIG_COMPAT);
 
     testutil_check(wiredtiger_open(NULL, NULL, envconf, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
@@ -394,7 +394,7 @@ recover_and_verify(uint32_t nthreads)
     bool columnar_table, fatal;
 
     printf("Open database, run recovery and verify content\n");
-    testutil_check(wiredtiger_open(NULL, NULL, ENV_CONFIG_REC, &conn));
+    testutil_check(wiredtiger_open(NULL, NULL, TESTUTIL_ENV_CONFIG_REC, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     testutil_check(session->open_cursor(session, col_uri, NULL, NULL, &col_cursor));
     testutil_check(session->open_cursor(session, uri, NULL, NULL, &row_cursor));

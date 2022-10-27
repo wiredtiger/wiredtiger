@@ -49,15 +49,15 @@
 #include "windows_shim.h"
 #endif
 
-#define ENV_CONFIG_TIERED        \
+#define TESTUTIL_ENV_CONFIG_TIERED        \
     ",tiered_storage=(bucket=./" \
     "bucket,bucket_prefix=pfx-,local_retention=2,name=dir_store)"
-#define ENV_CONFIG_TIERED_EXT                        \
-    ",extensions=(%s/ext/storage_sources/dir_store/" \
+#define TESTUTIL_ENV_CONFIG_TIERED_EXT                        \
+    ",extensions=(../../../../ext/storage_sources/dir_store/" \
     "libwiredtiger_dir_store.so=(early_load=true))"
-#define ENV_CONFIG_REC \
+#define TESTUTIL_ENV_CONFIG_REC \
     "log=(recover=on,remove=false),statistics=(all),statistics_log=(json,on_close,wait=1)"
-#define ENV_CONFIG_COMPAT ",compatibility=(release=\"2.9\")"
+#define TESTUTIL_ENV_CONFIG_COMPAT ",compatibility=(release=\"2.9\")"
 
 /* Generic option parsing structure shared by all test cases. */
 typedef struct {
@@ -68,7 +68,6 @@ typedef struct {
     const char *progname;        /* Truncated program name */
     char *build_dir;             /* Build directory path */
     char *tiered_storage_source; /* Tiered storage source */
-    // char *tiered_storage_ext_config; /* Tiered storage Extension config. */
 
     enum {
         TABLE_NOT_SET = 0, /* Not explicitly set */

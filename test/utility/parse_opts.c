@@ -53,7 +53,6 @@ extern int __wt_optreset;
 static void
 parse_tiered_opt(TEST_OPTS *opts)
 {
-    printf("parse_tiered_opt Begin\n");
     switch (*__wt_optarg++) {
     case 'o':
         EXPECT_OPTIONAL_ARG_IN_SUB_PARSE(opts);
