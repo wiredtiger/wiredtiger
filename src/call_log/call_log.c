@@ -276,10 +276,15 @@ __wt_call_log_query_timestamp(
     WT_RET(__wt_snprintf(config_buf, sizeof(config_buf), "\"config\": \"%s\"", config));
     WT_RET(__call_log_print_input(session, 1, config_buf));
 
-    /* The timestamp queried is the output from the original query timestamp API call. */
-    WT_RET(__wt_snprintf(
-      hex_ts_buf, sizeof(hex_ts_buf), "\"timestamp_queried\": \"%s\"", hex_timestamp));
-    WT_RET(__call_log_print_output(session, 1, hex_ts_buf));
+    /* 
+     * The timestamp queried is the output from the original query timestamp API call. Don't output
+     * the timestamp to the call log if the query has failed as it will be a garbage value.
+     */
+    if (ret_val == 0){
+        WT_RET(__wt_snprintf(
+        hex_ts_buf, sizeof(hex_ts_buf), "\"timestamp_queried\": \"%s\"", hex_timestamp));
+        WT_RET(__call_log_print_output(session, 1, hex_ts_buf));
+    }
 
     WT_RET(__wt_call_log_print_return(conn, session, ret_val, ""));
 
