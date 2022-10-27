@@ -82,7 +82,7 @@ class GDBDumper:
         """Find the installed debugger."""
         return which(debugger)
 
-    def dump(self, exe_path: str, core_path: str, lib_path: str, dump_all: bool, output_file: str):
+    def dump(self, exe_path: str, core_path: str, lib_path: str, dump_all: bool):
         """Dump stack trace."""
         if self.dbg is None:
             sys.exit("Debugger gdb not found,"
@@ -98,13 +98,10 @@ class GDBDumper:
             cmds.append("backtrace 30")
         cmds.append("quit")
 
-        output = None
-        if (output_file):
-            output = open(output_file, "w+")
         subprocess.run([self.dbg, "--batch", "--quiet"] +
                        list(itertools.chain.from_iterable([['-ex', b] for b in cmds])) +
                        [exe_path, core_path],
-                       check=True, stdout=output)
+                       check=True)
 
 
 def main():
@@ -113,6 +110,9 @@ def main():
                         help='directory path to the core dumps')
     parser.add_argument('-l', '--lib_path', help='library path')
     args = parser.parse_args()
+
+    # If the lib_path is not provided then search the current dir.
+    lib_path = "." if args.lib_path is None else args.lib_path
 
     # If the core_path is not provided then search the current dir.
     core_path = "." if args.core_path is None else args.core_path
@@ -130,24 +130,24 @@ def main():
 
         # Get the executable from the core file itself.
         proc = subprocess.Popen(["file", core_file_path], stdout=subprocess.PIPE)
-        executable_path = str(proc.communicate())
-        start = executable_path.find('execfn: ')
-        end = executable_path.find('platform:')
-        executable_path = executable_path[(start+9):(end-3)]
+        # The file command prints something similar to:
+        # WT_TEST/test_practice.0/dump_python3.16562.core: ELF 64-bit LSB core file x86-64, version 1 (SYSV),
+        # SVR4-style, from 'python3 /home/ubuntu/wiredtiger/test/suite/run.py -j 1 -p test_practice',
+        # real uid: 1000, effective uid: 1000, real gid: 1000, effective gid: 1000, execfn: '/usr/bin/python3', platform: 'x86_64'
+        output = str(proc.communicate())
 
-        # Extract the filename from the core file path, to create a stacktrace output file.
-        file_name, _ = os.path.splitext(os.path.basename(core_file_path))
-        file_name = file_name + ".stacktrace.txt"
+        # The field of interest is execfn: '/usr/bin/python3' from the example above.
+        start = output.find('execfn: ')
+        # Fetch the value of execfn. This is the executable path!
+        executable_path = re.search(r'\'.*?\'', output[start:]).group(0)
 
         if sys.platform.startswith('linux'):
             dbg = GDBDumper()
-            dbg.dump(executable_path, core_file_path, args.lib_path, True, None)
-            dbg.dump(executable_path, core_file_path, args.lib_path, True, file_name)
+            dbg.dump(executable_path, core_file_path, lib_path, True)
         elif sys.platform.startswith('darwin'):
             # FIXME - macOS to be supported in WT-8976
             # dbg = LLDBDumper()
-            # dbg.dump(executable_path, core_file_path, dump_all, None)
-            # dbg.dump(executable_path, core_file_path, args.lib_path, dump_all, file_name)
+            # dbg.dump(executable_path, core_file_path, lib_path, True)
             pass
         elif sys.platform.startswith('win32') or sys.platform.startswith('cygwin'):
             # FIXME - Windows to be supported in WT-8937
