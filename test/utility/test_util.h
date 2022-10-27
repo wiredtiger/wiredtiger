@@ -49,8 +49,8 @@
 #include "windows_shim.h"
 #endif
 
-#define TESTUTIL_ENV_CONFIG_TIERED        \
-    ",tiered_storage=(bucket=./" \
+#define TESTUTIL_ENV_CONFIG_TIERED \
+    ",tiered_storage=(bucket=./"   \
     "bucket,bucket_prefix=pfx-,local_retention=2,name=dir_store)"
 #define TESTUTIL_ENV_CONFIG_TIERED_EXT                        \
     ",extensions=(../../../../ext/storage_sources/dir_store/" \
