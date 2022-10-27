@@ -150,7 +150,23 @@ __curindex_next(WT_CURSOR *cursor)
     JOINABLE_CURSOR_API_CALL(cursor, session, next, NULL);
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
-    if ((ret = cindex->child->next(cindex->child)) == 0)
+    if (WT_DATA_IN_ITEM(&cindex->child->lower_bound) && !F_ISSET(cindex->child, WT_CURSTD_BOUND_LOWER) && !WT_CURSOR_IS_POSITIONED(((WT_CURSOR_BTREE*)cindex->child))) {
+        while ((ret = cindex->child->next(cindex->child)) == 0) {
+            if (__wt_prefix_match(&cindex->child->lower_bound, &cindex->child->key) < 0)
+                break;
+        }
+        ret = __curindex_move(cindex);
+    } else {
+        if ((ret = cindex->child->next(cindex->child)) == 0) {
+            if (WT_DATA_IN_ITEM(&cindex->child->upper_bound) && !F_ISSET(cindex->child, WT_CURSTD_BOUND_UPPER)) {
+                if (__wt_prefix_match(&cindex->child->upper_bound, &cindex->child->key) < 0) {
+                    ret = WT_NOTFOUND;
+                    goto err;
+                }
+            }
+        }
+    }
+    if (ret == 0)
         ret = __curindex_move(cindex);
 
 err:
@@ -172,7 +188,23 @@ __curindex_prev(WT_CURSOR *cursor)
     JOINABLE_CURSOR_API_CALL(cursor, session, prev, NULL);
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
-    if ((ret = cindex->child->prev(cindex->child)) == 0)
+
+    if (WT_DATA_IN_ITEM(&cindex->child->upper_bound) && !F_ISSET(cindex->child, WT_CURSTD_BOUND_UPPER) && !WT_CURSOR_IS_POSITIONED(((WT_CURSOR_BTREE*)cindex->child))) {
+        while ((ret = cindex->child->prev(cindex->child)) == 0) {
+            if (__wt_prefix_match(&cindex->child->upper_bound, &cindex->child->key) > 0)
+                break;
+        }   
+    } else {
+        if ((ret = cindex->child->prev(cindex->child)) == 0) {
+            if (WT_DATA_IN_ITEM(&cindex->child->lower_bound) && !F_ISSET(cindex->child, WT_CURSTD_BOUND_LOWER)) {
+                if (__wt_prefix_match(&cindex->child->lower_bound, &cindex->child->key) > 0) {
+                    ret = WT_NOTFOUND;
+                    goto err;
+                }
+            }
+        }   
+    }
+    if (ret == 0)
         ret = __curindex_move(cindex);
 
 err:
@@ -208,8 +240,14 @@ __curindex_reset(WT_CURSOR *cursor)
      * guarding the call to cursor bound reset with the API_USER_ENTRY macro. Doing so prevents
      * internal API calls from resetting cursor bounds unintentionally, e.g. cursor->remove.
      */
-    if (API_USER_ENTRY(session))
+    if (API_USER_ENTRY(session)) {
         __wt_cursor_bound_reset(cindex->child);
+        if (WT_DATA_IN_ITEM(&cindex->child->lower_bound))
+            __wt_buf_free(session, &cindex->child->lower_bound);   
+
+        if (WT_DATA_IN_ITEM(&cindex->child->upper_bound))
+            __wt_buf_free(session, &cindex->child->upper_bound);   
+    }
 err:
     API_END_RET(session, ret);
 }
@@ -271,6 +309,20 @@ __curindex_search(WT_CURSOR *cursor)
     if (cmp != 0) {
         ret = WT_NOTFOUND;
         goto err;
+    }
+
+    if (WT_DATA_IN_ITEM(&child->lower_bound) && !F_ISSET(child, WT_CURSTD_BOUND_LOWER)) {
+        if (__wt_prefix_match(&child->lower_bound, &child->key) > 0) {
+            ret = WT_NOTFOUND;
+            goto err;
+        }
+    }
+
+    if (WT_DATA_IN_ITEM(&child->upper_bound) && !F_ISSET(child, WT_CURSTD_BOUND_UPPER)) {
+        if (__wt_prefix_match(&child->upper_bound, &child->key) < 0) {
+            ret = WT_NOTFOUND;
+            goto err;
+        }
     }
 
     WT_ERR(__curindex_move(cindex));
@@ -444,11 +496,13 @@ __curindex_bound(WT_CURSOR *cursor, const char *config)
      */
     if (WT_STRING_MATCH("lower", cval.str, cval.len) &&
       !F_ISSET(child, WT_CURSTD_BOUND_LOWER_INCLUSIVE))
-        WT_ERR(__increment_bound_array(session, &child->lower_bound));
+        F_CLR(child, WT_CURSTD_BOUND_LOWER);
 
     if (WT_STRING_MATCH("upper", cval.str, cval.len) &&
-      F_ISSET(child, WT_CURSTD_BOUND_UPPER_INCLUSIVE))
-        WT_ERR(__increment_bound_array(session, &child->upper_bound));
+      F_ISSET(child, WT_CURSTD_BOUND_UPPER_INCLUSIVE)) {
+        F_CLR(child, WT_CURSTD_BOUND_UPPER);
+        F_CLR(child, WT_CURSTD_BOUND_UPPER_INCLUSIVE);
+      }
 
 err:
     API_END_RET(session, ret);

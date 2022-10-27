@@ -266,6 +266,7 @@ class bound_base(wttest.WiredTigerTestCase):
                 break
             count += 1
             key = cursor.get_key()
+            print(key, self.check_key(lower_key))
 
             if (self.lower_inclusive and lower_key):
                 self.assertTrue(self.check_key(lower_key) <= key)

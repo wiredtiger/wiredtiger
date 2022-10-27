@@ -39,31 +39,31 @@ class test_cursor_bound18(bound_base):
     
     types = [
         ('table', dict(uri='table:', use_colgroup=False)),
-        ('colgroup', dict(uri='table:', use_colgroup=True))
+        #('colgroup', dict(uri='table:', use_colgroup=True))
     ]
 
     key_formats = [
         ('string', dict(key_format='S')),
-        ('var', dict(key_format='r')),
-        ('int', dict(key_format='i')),
-        ('bytes', dict(key_format='u')),
-        ('composite_string', dict(key_format='SSS')),
-        ('composite_int_string', dict(key_format='iS')),
-        ('composite_complex', dict(key_format='iSru')),
+        # ('var', dict(key_format='r')),
+        # ('int', dict(key_format='i')),
+        # ('bytes', dict(key_format='u')),
+        # ('composite_string', dict(key_format='SSS')),
+        # ('composite_int_string', dict(key_format='iS')),
+        # ('composite_complex', dict(key_format='iSru')),
     ]
 
     value_formats = [
         ('string', dict(value_format='S')),
-        ('int', dict(value_format='i')),
-        ('bytes', dict(value_format='u')),
-        ('composite_string', dict(value_format='SSS')),
-        ('composite_int_string', dict(value_format='iS')),
-        ('composite_complex', dict(value_format='iSru')),
+        # ('int', dict(value_format='i')),
+        # ('bytes', dict(value_format='u')),
+        # ('composite_string', dict(value_format='SSS')),
+        # ('composite_int_string', dict(value_format='iS')),
+        # ('composite_complex', dict(value_format='iSru')),
     ]
 
     config = [
         ('no-evict', dict(evict=False)),
-        ('evict', dict(evict=True))
+        # ('evict', dict(evict=True))
     ]
 
     scenarios = make_scenarios(types, key_formats, value_formats, config)
@@ -123,46 +123,46 @@ class test_cursor_bound18(bound_base):
         index_cursor = self.session.open_cursor("index:" + self.file_name + ":i0")
 
 
-        # Set bounds at lower key 30 and upper key at 50.
-        self.set_bounds(index_cursor, 30, "lower")
-        self.set_bounds(index_cursor, 40, "upper")
-        self.cursor_traversal_bound(index_cursor, 30, 40, True, 22)
-        self.cursor_traversal_bound(index_cursor, 30, 40, False, 22)
+        # # Set bounds at lower key 30 and upper key at 50.
+        # self.set_bounds(index_cursor, 30, "lower")
+        # self.set_bounds(index_cursor, 40, "upper")
+        # self.cursor_traversal_bound(index_cursor, 30, 40, True, 22)
+        # self.cursor_traversal_bound(index_cursor, 30, 40, False, 22)
         
-        # Test basic search near scenarios.
-        index_cursor.set_key(self.gen_key(20))
-        self.assertEqual(index_cursor.search_near(), 1)
-        self.assertEqual(index_cursor.get_key(), self.check_key(30))
+        # # Test basic search near scenarios.
+        # # index_cursor.set_key(self.gen_key(20))
+        # # self.assertEqual(index_cursor.search_near(), 1)
+        # # self.assertEqual(index_cursor.get_key(), self.check_key(30))
 
-        index_cursor.set_key(self.gen_key(35))
-        self.assertEqual(index_cursor.search_near(), 0)
-        self.assertEqual(index_cursor.get_key(), self.check_key(35))
+        # # index_cursor.set_key(self.gen_key(35))
+        # # self.assertEqual(index_cursor.search_near(), 0)
+        # # self.assertEqual(index_cursor.get_key(), self.check_key(35))
 
-        index_cursor.set_key(self.gen_key(60))
-        self.assertEqual(index_cursor.search_near(), -1)
-        self.assertEqual(index_cursor.get_key(), self.check_key(40))
+        # # index_cursor.set_key(self.gen_key(60))
+        # # self.assertEqual(index_cursor.search_near(), -1)
+        # # self.assertEqual(index_cursor.get_key(), self.check_key(40))
 
-        # Test basic search scnarios.
-        index_cursor.set_key(self.gen_key(20))
-        self.assertEqual(index_cursor.search(), wiredtiger.WT_NOTFOUND)
+        # # Test basic search scnarios.
+        # index_cursor.set_key(self.gen_key(20))
+        # self.assertEqual(index_cursor.search(), wiredtiger.WT_NOTFOUND)
         
-        index_cursor.set_key(self.gen_key(35))
-        self.assertEqual(index_cursor.search(), 0)
+        # index_cursor.set_key(self.gen_key(35))
+        # self.assertEqual(index_cursor.search(), 0)
 
-        index_cursor.set_key(self.gen_key(50))
-        self.assertEqual(index_cursor.search(), wiredtiger.WT_NOTFOUND)
+        # index_cursor.set_key(self.gen_key(50))
+        # self.assertEqual(index_cursor.search(), wiredtiger.WT_NOTFOUND)
 
-        # Test that cursor resets the bounds.
-        self.assertEqual(index_cursor.reset(), 0)
-        self.cursor_traversal_bound(index_cursor, None, None, True, 60)
-        self.cursor_traversal_bound(index_cursor, None, None, False, 60)
+        # # Test that cursor resets the bounds.
+        # self.assertEqual(index_cursor.reset(), 0)
+        # self.cursor_traversal_bound(index_cursor, None, None, True, 60)
+        # self.cursor_traversal_bound(index_cursor, None, None, False, 60)
 
-        # Test that cursor action clear works and clears the bounds.
-        self.set_bounds(index_cursor, 30, "lower")
-        self.set_bounds(index_cursor, 50, "upper")
-        self.assertEqual(index_cursor.bound("action=clear"), 0)
-        self.cursor_traversal_bound(index_cursor, None, None, True, 60)
-        self.cursor_traversal_bound(index_cursor, None, None, False, 60)
+        # # Test that cursor action clear works and clears the bounds.
+        # self.set_bounds(index_cursor, 30, "lower")
+        # self.set_bounds(index_cursor, 50, "upper")
+        # self.assertEqual(index_cursor.bound("action=clear"), 0)
+        # self.cursor_traversal_bound(index_cursor, None, None, True, 60)
+        # self.cursor_traversal_bound(index_cursor, None, None, False, 60)
 
         # Test special index case: Lower bound with exclusive
         self.set_bounds(index_cursor, 30, "lower", False)
@@ -170,12 +170,12 @@ class test_cursor_bound18(bound_base):
         self.cursor_traversal_bound(index_cursor, 30, 40, True, 20)
         self.cursor_traversal_bound(index_cursor, 30, 40, False, 20)
         
-        index_cursor.set_key(self.gen_key(20))
-        self.assertEqual(index_cursor.search_near(), 1)
-        self.assertEqual(index_cursor.get_key(), self.check_key(31))
+        # index_cursor.set_key(self.gen_key(20))
+        # self.assertEqual(index_cursor.search_near(), 1)
+        # self.assertEqual(index_cursor.get_key(), self.check_key(31))
 
-        index_cursor.set_key(self.gen_key(30))
-        self.assertEqual(index_cursor.search(), wiredtiger.WT_NOTFOUND)
+        # index_cursor.set_key(self.gen_key(30))
+        # self.assertEqual(index_cursor.search(), wiredtiger.WT_NOTFOUND)
 
         # Test special index case: Test setting the upper bound limit on the largest possible value,
         # since WT internally increments the byte array by one.
