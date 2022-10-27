@@ -296,7 +296,7 @@ __tiered_restart_work(WT_SESSION_IMPL *session, WT_TIERED *tiered)
          * flushed in order to stop at the first flushed object in the face of multiple crashes. So
          * check all objects that exist locally.
          *
-         * If the object is flushed but still exists locally, restart the work to drop it after the
+         * If the object is flushed but still exists locally, restart the work to remove it after the
          * local retention period expires.
          */
         if (exist) {
