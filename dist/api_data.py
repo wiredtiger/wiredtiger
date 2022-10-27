@@ -73,9 +73,9 @@ common_runtime_config = [
         are the default, which ensures that once timestamps are used for a key, they are always
         used, and also that multiple updates to a key never use decreasing timestamps and
         \c never which enforces that timestamps are never used for a table. (The \c always,
-        \c key_consistent, and \c ordered choices should not be used, and are retained for
-        backward compatibility.)''',
-        choices=['always', 'key_consistent', 'never', 'none', 'ordered']),
+        \c key_consistent, \c ordered, and \c mixed_mode choices should not be used, and are 
+        retained for backward compatibility.)''',
+        choices=['always', 'key_consistent', 'mixed_mode', 'never', 'none', 'ordered']),
 ]
 
 # Metadata shared by all schema objects
