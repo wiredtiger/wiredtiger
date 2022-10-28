@@ -26,80 +26,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "simulator_interface.h"
+
 #include <iostream>
 #include <sstream>
 #include <string>
-
-#include "connection_simulator.h"
-
-#define RESET "\033[0m"
-#define RED "\033[31m"
-
-int choose_num(int, int, const std::string &);
-void print_border_msg(const std::string &, const std::string &);
-
-void interface_begin_transaction();
-void interface_commit_transaction();
-void interface_prepare_transaction();
-void interface_rollback_transaction();
-void interface_set_timestamp();
-void interface_timestamp_transaction();
-void interface_timestamp_transaction_uint();
-void print_rules();
-
-int
-main(int argc, char *argv[])
-{
-    bool exit = false;
-
-    do {
-        std::cout << std::endl;
-
-        std::cout << "1: set_timestamp()" << std::endl;
-        std::cout << "2: begin_transaction()" << std::endl;
-        std::cout << "3: prepare_transaction()" << std::endl;
-        std::cout << "4: timestamp_transaction()" << std::endl;
-        std::cout << "5: commit_transaction()" << std::endl;
-        std::cout << "6: rollback_transaction()" << std::endl;
-        std::cout << "7: print rules for timestamps" << std::endl;
-        std::cout << "8: exit" << std::endl;
-
-        int choice = choose_num(1, 8, "timestamp_simulator >>");
-
-        try {
-            switch (choice) {
-            case 1:
-                interface_set_timestamp();
-                break;
-            case 2:
-                interface_begin_transaction();
-                break;
-            case 3:
-                interface_prepare_transaction();
-                break;
-            case 4:
-                interface_timestamp_transaction();
-                break;
-            case 5:
-                interface_commit_transaction();
-                break;
-            case 6:
-                interface_rollback_transaction();
-                break;
-            case 7:
-                print_rules();
-                break;
-            case 8:
-                exit = true;
-            }
-        } catch (std::string &exception_str) {
-            print_border_msg("exception: " + exception_str, RED);
-        }
-
-    } while (!exit);
-
-    return (0);
-}
 
 void
 print_border_msg(const std::string &msg, const std::string &color)
@@ -138,6 +69,21 @@ choose_num(int min, int max, const std::string &cli_str)
 }
 
 void
+interface_session_management()
+{
+}
+
+void
+interface_set_timestamp()
+{
+}
+
+void
+interface_conn_query_timestamp()
+{
+}
+
+void
 interface_begin_transaction()
 {
 }
@@ -158,21 +104,82 @@ interface_rollback_transaction()
 }
 
 void
-interface_set_timestamp()
-{
-}
-
-void
 interface_timestamp_transaction()
 {
 }
 
 void
-interface_timestamp_transaction_uint()
+interface_session_query_timestamp()
 {
 }
 
 void
 print_rules()
 {
+}
+
+int
+main(int argc, char *argv[])
+{
+    bool exit = false;
+
+    do {
+        std::cout << std::endl;
+
+        std::cout << "1: Session Management " << std::endl;
+        std::cout << "2: [Conn] set_timestamp()" << std::endl;
+        std::cout << "3: [Conn] query_timestamp()" << std::endl;
+        std::cout << "4: [Session] begin_transaction()" << std::endl;
+        std::cout << "5: [Session] commit_transaction()" << std::endl;
+        std::cout << "6: [Session] prepare_transaction()" << std::endl;
+        std::cout << "7: [Session] rollback_transaction()" << std::endl;
+        std::cout << "8: [Session] timestamp_transaction()" << std::endl;
+        std::cout << "9: [Session] query_timestamp()" << std::endl;
+        std::cout << "10: print rules for timestamps" << std::endl;
+        std::cout << "11: exit" << std::endl;
+
+        int choice = choose_num(1, 11, "timestamp_simulator >>");
+
+        try {
+            switch (choice) {
+            case 1:
+                interface_session_management();
+                break;
+            case 2:
+                interface_set_timestamp();
+                break;
+            case 3:
+                interface_conn_query_timestamp();
+                break;
+            case 4:
+                interface_begin_transaction();
+                break;
+            case 5:
+                interface_commit_transaction();
+                break;
+            case 6:
+                interface_prepare_transaction();
+                break;
+            case 7:
+                interface_rollback_transaction();
+                break;
+            case 8:
+                interface_timestamp_transaction();
+                break;
+            case 9:
+                interface_session_query_timestamp();
+                break;
+            case 10:
+                print_rules();
+                break;
+            case 11:
+                exit = true;
+            }
+        } catch (std::string &exception_str) {
+            print_border_msg("exception: " + exception_str, RED);
+        }
+
+    } while (!exit);
+
+    return (0);
 }
