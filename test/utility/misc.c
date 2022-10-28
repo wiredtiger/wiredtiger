@@ -358,6 +358,29 @@ testutil_print_command_line(int argc, char *const *argv)
     printf("\n");
 }
 
+/*
+ * testutil_wiredtiger_open --
+ *     Call wiredtiger_open with the tiered storage configuration if enabled.
+ */
+void
+testutil_wiredtiger_open(TEST_OPTS *opts, const char *config, WT_EVENT_HANDLER *event_handler,
+  WT_CONNECTION **connectionp, bool rerun)
+{
+    char buf[1024];
+
+    strncpy(buf, config, sizeof(buf));
+    if (rerun)
+        strncat(buf, TESTUTIL_ENV_CONFIG_REC, sizeof(buf) - 1);
+    else if (opts->compat)
+        strncat(buf, TESTUTIL_ENV_CONFIG_COMPAT, sizeof(buf) - 1);
+
+    if (opts->tiered_storage) {
+        strncat(buf, TESTUTIL_ENV_CONFIG_TIERED_EXT, sizeof(buf) - 1);
+        strncat(buf, TESTUTIL_ENV_CONFIG_TIERED, sizeof(buf) - 1);
+    }
+    testutil_check(wiredtiger_open(NULL, event_handler, buf, connectionp));
+}
+
 #ifndef _WIN32
 /*
  * testutil_sleep_wait --
@@ -385,6 +408,19 @@ testutil_sleep_wait(uint32_t seconds, pid_t pid)
     }
 }
 #endif
+
+/*
+ * testutil_time_us --
+ *     Return the number of microseconds since the epoch.
+ */
+uint64_t
+testutil_time_us(WT_SESSION *session)
+{
+    struct timespec ts;
+
+    __wt_epoch((WT_SESSION_IMPL *)session, &ts);
+    return ((uint64_t)ts.tv_sec * WT_MILLION + (uint64_t)ts.tv_nsec / WT_THOUSAND);
+}
 
 /*
  * dcalloc --
