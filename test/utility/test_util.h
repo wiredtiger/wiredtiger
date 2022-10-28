@@ -53,7 +53,7 @@
 typedef struct {
     char *home;
     const char *argv0; /* Exec name */
-    char usage[256];   /* Usage string for this parser */
+    char usage[512];   /* Usage string for this parser */
 
     const char *progname;        /* Truncated program name */
     char *build_dir;             /* Build directory path */
@@ -68,6 +68,13 @@ typedef struct {
 
     FILE *progress_fp; /* Progress tracking file */
     char *progress_file_name;
+
+    WT_RAND_STATE write_rnd;   /* PRNG state for write ops */
+    WT_RAND_STATE read_rnd;    /* PRNG state for read ops */
+    uint64_t write_seed;       /* Random seed for write ops */
+    uint64_t read_seed;        /* Random seed for read ops */
+
+#define TESTUTIL_SEED_FORMAT  "-PSW%" PRIu64 ",R%" PRIu64
 
     bool do_data_ops;          /* Have schema ops use data */
     bool preserve;             /* Don't remove files on exit */
