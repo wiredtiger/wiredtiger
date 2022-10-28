@@ -300,8 +300,6 @@ __delete_redo_window_cleanup_internal(WT_SESSION_IMPL *session, WT_REF *ref)
     bool busy;
     uint64_t sleep_usecs, yield_count;
 
-    sleep_usecs = yield_count = 0;
-
     WT_ASSERT(session, F_ISSET(ref, WT_REF_FLAG_INTERNAL));
     if (ref->page != NULL) {
         WT_INTL_FOREACH_BEGIN (session, ref->page, child) {
@@ -314,7 +312,7 @@ __delete_redo_window_cleanup_internal(WT_SESSION_IMPL *session, WT_REF *ref)
                 __cell_redo_page_del_cleanup(session, ref->page->dsk, child->page_del);
                 /* Move back the page to WT_REF_DELETED by marking it for eviction. */
                 if (child->state == WT_REF_MEM) {
-                    for (;;) {
+                    for (sleep_usecs = yield_count = 0;;) {
                         WT_RET(__wt_hazard_set(session, child, &busy));
                         if (!busy) {
                             WT_RET_BUSY_OK(__wt_page_release_evict(session, child, 0));
@@ -323,6 +321,8 @@ __delete_redo_window_cleanup_internal(WT_SESSION_IMPL *session, WT_REF *ref)
                         /* Wait some time to hopefully have access to the page. */
                         __wt_spin_backoff(&yield_count, &sleep_usecs);
                         // TODO - WT_STAT_CONN_INCRV(session, xxx, sleep_usecs);
+                        if (++yield_count > WT_THOUSAND * 10)
+                            return (EBUSY);
                     }
                 }
             }
