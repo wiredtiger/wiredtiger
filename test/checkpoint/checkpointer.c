@@ -158,7 +158,7 @@ checkpointer(void *arg)
  * set_flush_tier_delay --
  *     Set up a random delay for the next flush_tier.
  */
-static void
+void
 set_flush_tier_delay(WT_RAND_STATE *rnd)
 {
     /*
@@ -251,7 +251,7 @@ real_checkpointer(void)
              * to set up a general event handler and catch that notification, so we can pass the
              * flush_tier "cookie" to the test utility function.
              */
-            testutil_tiered_flush_complete(&g.opts, NULL);
+            testutil_tiered_flush_complete(&g.opts, session, NULL);
             flush_tier = false;
             printf("Finished a flush_tier\n");
 
@@ -282,7 +282,7 @@ real_checkpointer(void)
         else
             /* Just find out if we should flush_tier. */
             delay = 0;
-        testutil_tiered_sleep(&g.opts, delay, &flush_tier);
+        testutil_tiered_sleep(&g.opts, session, delay, &flush_tier);
     }
 
 done:

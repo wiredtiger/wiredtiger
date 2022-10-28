@@ -28,31 +28,25 @@
 #include "test_util.h"
 
 /*
- * time_us --
- *     Return the number of microseconds since the epoch.
- */
-static uint64_t
-time_us(void)
-{
-    struct timeval tv;
-
-    testutil_assert_errno(gettimeofday(&tv, NULL) == 0);
-    return ((uint64_t)tv.tv_sec * 1000000 + (uint64_t)tv.tv_usec);
-}
-
-/*
  * testutil_tiered_begin --
  *     Begin processing for a test program that supports tiered storage.
  */
 void
 testutil_tiered_begin(TEST_OPTS *opts)
 {
+    WT_SESSION *session;
+
     testutil_assert(!opts->tiered_begun);
     testutil_assert(opts->conn != NULL);
 
-    if (opts->tiered_storage && opts->tiered_flush_interval_us != 0)
-        /* Initialize the time of the next flush_tier. */
-        testutil_tiered_flush_complete(opts, NULL);
+    if (opts->tiered_storage && opts->tiered_flush_interval_us != 0) {
+        /*
+         * Initialize the time of the next flush_tier. We need a temporary session to do that.
+         */
+        testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
+        testutil_tiered_flush_complete(opts, session, NULL);
+        testutil_check(session->close(session, NULL));
+    }
 
     opts->tiered_begun = true;
 }
@@ -63,12 +57,12 @@ testutil_tiered_begin(TEST_OPTS *opts)
  *     exit.
  */
 void
-testutil_tiered_sleep(TEST_OPTS *opts, uint32_t seconds, bool *do_flush_tier)
+testutil_tiered_sleep(TEST_OPTS *opts, WT_SESSION *session, uint32_t seconds, bool *do_flush_tier)
 {
     uint64_t now, wake_time;
     bool do_flush;
 
-    now = time_us();
+    now = testutil_time_us(session);
     wake_time = now + 1000000 * seconds;
     do_flush = false;
     if (do_flush_tier != NULL && opts->tiered_flush_next_us != 0 &&
@@ -84,7 +78,7 @@ testutil_tiered_sleep(TEST_OPTS *opts, uint32_t seconds, bool *do_flush_tier)
             __wt_sleep(1, 0);
         else
             __wt_sleep(0, wake_time - now);
-        now = time_us();
+        now = testutil_time_us(session);
     }
     if (opts->running && do_flush) {
         /* Don't flush again until we know this flush is complete. */
@@ -98,12 +92,12 @@ testutil_tiered_sleep(TEST_OPTS *opts, uint32_t seconds, bool *do_flush_tier)
  *     Notification that a flush_tier has completed, with the given argument.
  */
 void
-testutil_tiered_flush_complete(TEST_OPTS *opts, void *arg)
+testutil_tiered_flush_complete(TEST_OPTS *opts, WT_SESSION *session, void *arg)
 {
     uint64_t now;
 
     (void)arg;
 
-    now = time_us();
+    now = testutil_time_us(session);
     opts->tiered_flush_next_us = now + opts->tiered_flush_interval_us;
 }

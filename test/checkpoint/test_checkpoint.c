@@ -343,8 +343,8 @@ wt_connect(const char *config_open)
         /* testutil_tiered_begin needs the connection. */
         g.opts.conn = g.conn;
 
-        /* Set up a random delay up to 5000 microseconds for the next flush. */
-        g.opts.tiered_flush_interval_us = __wt_random(&rnd) % 5001;
+        /* Set up a random delay for the first flush. */
+        set_flush_tier_delay(&rnd);
         testutil_tiered_begin(&g.opts);
     }
 
