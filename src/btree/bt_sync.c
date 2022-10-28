@@ -125,6 +125,7 @@ __sync_delete_obsolete_ref(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ADDR_COPY addr;
     WT_DECL_RET;
     WT_MULTI *multi;
+    WT_PAGE_DELETED *page_del;
     WT_PAGE_MODIFY *mod;
     wt_timestamp_t newest_stop_ts, newest_stop_durable_ts;
     uint64_t newest_stop_txn;
@@ -147,14 +148,26 @@ __sync_delete_obsolete_ref(WT_SESSION_IMPL *session, WT_REF *ref)
         return (0);
     }
 
-    /* Fast-check, ignore deleted pages. */
-    if (ref->state == WT_REF_DELETED) {
-        __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP, "%p: skipping deleted page", (void *)ref);
-        return (0);
-    }
-
     /* Lock the WT_REF. */
     WT_REF_LOCK(session, ref, &previous_state);
+
+    /* Skip non obsolete deleted pages or remove obsolete deleted pages. */
+    if (previous_state == WT_REF_DELETED) {
+        page_del = ref->page_del;
+        if (page_del == NULL ||
+          __wt_txn_visible_all(session, page_del->txnid, page_del->durable_timestamp)) {
+            ret = __wt_page_parent_modify_set(session, ref, true);
+            WT_REF_UNLOCK(ref, previous_state);
+            WT_RET(ret);
+            __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
+              "%p: marking obsolete deleted page parent dirty", (void *)ref);
+        } else {
+            __wt_verbose(
+              session, WT_VERB_CHECKPOINT_CLEANUP, "%p: skipping deleted page", (void *)ref);
+            WT_REF_UNLOCK(ref, previous_state);
+        }
+        return (0);
+    }
 
     /*
      * If the page is on-disk and obsolete, mark the page as deleted and also set the parent page as
@@ -185,8 +198,11 @@ __sync_delete_obsolete_ref(WT_SESSION_IMPL *session, WT_REF *ref)
         }
 
         if (obsolete) {
-            WT_RET(__wt_page_parent_modify_set(session, ref, true));
-            WT_REF_UNLOCK(ref, WT_REF_DELETED);
+            if ((ret = __wt_page_parent_modify_set(session, ref, true)) != 0)
+                WT_REF_UNLOCK(ref, previous_state);
+            else
+                WT_REF_UNLOCK(ref, WT_REF_DELETED);
+            WT_RET(ret);
             WT_STAT_CONN_DATA_INCR(session, cc_pages_removed);
         } else
             WT_REF_UNLOCK(ref, previous_state);
@@ -382,11 +398,8 @@ __sync_page_skip(
     if (!__wt_ref_addr_copy(session, ref, &addr))
         return (0);
 
-    /*
-     * Skip reading the pages that are normal leaf pages or don't have an aggregated durable stop
-     * timestamp.
-     */
-    if (addr.type == WT_ADDR_LEAF_NO || addr.ta.newest_stop_durable_ts == WT_TS_NONE) {
+    /* Skip reading normal leaf pages. */
+    if (addr.type == WT_ADDR_LEAF_NO) {
         __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP, "%p: page walk skipped", (void *)ref);
         WT_STAT_CONN_DATA_INCR(session, cc_pages_walk_skipped);
         *skipp = true;

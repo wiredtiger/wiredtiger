@@ -125,6 +125,13 @@ __rec_child_deleted(
      * cells to the page. Copy out the current fast-truncate information for that function.
      */
     if (!visible_all) {
+        /*
+         * Internal pages with fast truncate info that aren't obsolete cannot be evicted when we
+         * don't write the fast truncate information to disk.
+         */
+        if (F_ISSET(r, WT_REC_EVICT) && !__wt_process.fast_truncate_2022)
+            return (__wt_set_return(session, EBUSY));
+
         cmsp->del = *page_del;
         cmsp->state = WT_CHILD_PROXY;
         page_del->selected_for_write = true;
