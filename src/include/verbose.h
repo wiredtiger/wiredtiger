@@ -191,7 +191,6 @@ struct __wt_verbose_multi_category {
  *     format string and at least one additional argument, there's no portable way to remove the
  *     comma before an empty __VA_ARGS__ value.
  */
-/* TODO this should probably be removed */
 #define __wt_verbose(session, category, fmt, ...) \
     __wt_verbose_level(session, category, WT_VERBOSE_LEVEL_DEFAULT, fmt, __VA_ARGS__)
 
