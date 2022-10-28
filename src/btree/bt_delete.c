@@ -301,7 +301,12 @@ __delete_redo_window_cleanup_internal(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ASSERT(session, F_ISSET(ref, WT_REF_FLAG_INTERNAL));
     if (ref->page != NULL) {
         WT_INTL_FOREACH_BEGIN (session, ref->page, child) {
-            if (child->state == WT_REF_DELETED && child->page_del != NULL)
+            /*
+             * We used to do the cleanup when the state of the child was WT_REF_DELETED, but it can
+             * also be loaded in memory if the page has been read before, thus we no longer need
+             * this check anymore.
+             */
+            if (child->page_del != NULL)
                 __cell_redo_page_del_cleanup(session, ref->page->dsk, child->page_del);
         }
         WT_INTL_FOREACH_END;
