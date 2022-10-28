@@ -351,6 +351,8 @@ PRId
 PRIu
 PRIuXX
 PRNG
+PSR
+PSW
 PTHREAD
 PTR
 PackInputStream
@@ -401,6 +403,7 @@ Resize
 RocksDB
 Rogerio
 Runtime
+Rxxx
 SDK
 SDK's
 SDKOptions
@@ -535,6 +538,7 @@ Wsign
 Wundef
 Wuninitialized
 Wunused
+Wxxx
 XP
 Xcode
 Xcode/

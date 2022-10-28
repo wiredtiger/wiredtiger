@@ -47,12 +47,12 @@ extern int __wt_optreset;
     } while (0)
 
 /*
- * parse_init_rnd --
+ * parse_init_random --
  *     Initialize the random number generator from the seed. If the seed is not yet set, get a
  *     random seed.
  */
 static void
-parse_init_rnd(WT_RAND_STATE *rnd, uint64_t *seedp)
+parse_init_random(WT_RAND_STATE *rnd, uint64_t *seedp)
 {
     if (*seedp == 0) {
         __wt_random_init_seed(NULL, rnd);
@@ -205,8 +205,8 @@ testutil_parse_end_opt(TEST_OPTS *opts)
             opts->tiered_storage_source = dstrdup(DIR_STORE);
 
         /* Initialize the state for the random number generators. */
-        parse_init_rnd(&opts->write_rnd, &opts->write_seed);
-        parse_init_rnd(&opts->read_rnd, &opts->read_seed);
+        parse_init_random(&opts->write_rnd, &opts->write_seed);
+        parse_init_random(&opts->read_rnd, &opts->read_seed);
     }
 }
 
