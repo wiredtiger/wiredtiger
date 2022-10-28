@@ -192,7 +192,7 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
         start = stop = NULL;
         if (start_recno != WT_RECNO_OOB)
             start = cursor;
-        
+
         if (stop_recno != WT_RECNO_OOB) {
             if (start != NULL)
                 WT_ERR(__recovery_cursor(session, r, lsnp, fileid, true, &stop));
