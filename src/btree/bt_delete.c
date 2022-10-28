@@ -293,7 +293,7 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
  *     IDs in the delete info. Since we're called at the end of recovery there's no need to lock the
  *     ref or worry about races.
  */
-static void
+static int
 __delete_redo_window_cleanup_internal(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_REF *child;
@@ -308,9 +308,16 @@ __delete_redo_window_cleanup_internal(WT_SESSION_IMPL *session, WT_REF *ref)
              */
             if (child->page_del != NULL)
                 __cell_redo_page_del_cleanup(session, ref->page->dsk, child->page_del);
+            /*
+             * We still want to make sure reconciliation will remove any stale data, mark it for
+             * eviction.
+             */
+            WT_RET_BUSY_OK(__wt_page_release_evict(session, ref, 0));
+
         }
         WT_INTL_FOREACH_END;
     }
+    return (0);
 }
 
 /*
@@ -355,7 +362,7 @@ __wt_delete_redo_window_cleanup(WT_SESSION_IMPL *session)
     while ((ret = __wt_tree_walk_custom_skip(session, &ref, __delete_redo_window_cleanup_skip, NULL,
               WT_READ_CACHE | WT_READ_VISIBLE_ALL)) == 0 &&
       ref != NULL)
-        WT_WITH_PAGE_INDEX(session, __delete_redo_window_cleanup_internal(session, ref));
+        WT_WITH_PAGE_INDEX(session, ret = __delete_redo_window_cleanup_internal(session, ref));
 
     return (ret);
 }
