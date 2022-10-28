@@ -297,23 +297,35 @@ static int
 __delete_redo_window_cleanup_internal(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_REF *child;
+    bool busy;
+    uint64_t sleep_usecs, yield_count;
+
+    sleep_usecs = yield_count = 0;
 
     WT_ASSERT(session, F_ISSET(ref, WT_REF_FLAG_INTERNAL));
     if (ref->page != NULL) {
         WT_INTL_FOREACH_BEGIN (session, ref->page, child) {
             /*
              * We used to do the cleanup when the state of the child was WT_REF_DELETED, but it can
-             * also be loaded in memory if the page has been read before, thus we no longer need
-             * this check anymore.
+             * also be loaded in memory if the page has been read before, thus we always clean the
+             * page_del structure if it has data.
              */
-            if (child->page_del != NULL)
+            if (child->page_del != NULL) {
                 __cell_redo_page_del_cleanup(session, ref->page->dsk, child->page_del);
-            /*
-             * We still want to make sure reconciliation will remove any stale data, mark it for
-             * eviction.
-             */
-            WT_RET_BUSY_OK(__wt_page_release_evict(session, ref, 0));
-
+                /* Move back the page to WT_REF_DELETED by marking it for eviction. */
+                if (child->state == WT_REF_MEM) {
+                    for (;;) {
+                        WT_RET(__wt_hazard_set(session, child, &busy));
+                        if (!busy) {
+                            WT_RET_BUSY_OK(__wt_page_release_evict(session, child, 0));
+                            break;
+                        }
+                        /* Wait some time to hopefully have access to the page. */
+                        __wt_spin_backoff(&yield_count, &sleep_usecs);
+                        // TODO - WT_STAT_CONN_INCRV(session, xxx, sleep_usecs);
+                    }
+                }
+            }
         }
         WT_INTL_FOREACH_END;
     }
