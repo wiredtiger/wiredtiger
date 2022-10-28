@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -46,9 +46,9 @@ from enum import Enum
 # with -f the script must be executed in the same directory as the database.
 #
 # Some example usages are:
-#    - ./wt -r dump -x | ./wt_to_mdb_bson -m dump
-#    - ./wt -r verify -d dump_pages | ./wt_to_mdb_bson -m verify
-#    - ./wt_to_mdb_bson -m dump -f ./wt collection.wt
+#    - ./wt -r dump -x file:foo.wt | ./wt_to_mdb_bson -m dump
+#    - ./wt -r verify -d dump_pages file:bar.wt | ./wt_to_mdb_bson -m verify
+#    - ./wt_to_mdb_bson -m dump -f ./wt file:foo.wt
 #    - ./wt_to_mdb_bson -m printlog -f ./wt
 
 # A basic enum to determine which mode we are operating in.
@@ -59,7 +59,7 @@ class Mode(Enum):
 
 # Decodes a MongoDB file into a readable format.
 def util_usage():
-    print("Usage: wt_to_mdb_bson -m {dump|verify|printlog} [-f] [path_to_wt] [filename]")
+    print("Usage: wt_to_mdb_bson -m {dump|verify|printlog} [-f] [path_to_wt] [uri]")
     print('\t-m the intended mode that the wt util operated in or will be executed using.')
     print('\t-f the location of the wt util.')
     sys.exit(1)
@@ -106,7 +106,6 @@ def wt_verify_to_bson(wt_output):
 # Doesn't convert hex keys as I don't think they're bson.
 def wt_printlog_to_bson(wt_output):
     pattern_value = re.compile('value-hex\": \"(.*)\"')
-    pattern_key = re.compile('key-hex\": \"(.*)\"')
     for line in wt_output:
         value_match = pattern_value.search(line)
         if value_match:
@@ -157,16 +156,16 @@ def wt_dump_to_bson(wt_output):
         exit()
 
 # Call the wt util if required.
-def execute_wt(mode, wtpath, filename):
+def execute_wt(mode, wtpath, uri):
     if mode == Mode.DUMP:
         return subprocess.check_output(
-            [wtpath, "-r", "dump", "-x", "file:" + filename], universal_newlines=True).splitlines()
+            [wtpath, "-r", "dump", "-x", uri], universal_newlines=True).splitlines()
     elif mode == Mode.VERIFY:
         return subprocess.check_output(
-            [wtpath, "-r", "verify", "-d", "dump_pages", "file:" + filename], universal_newlines=True).splitlines()
+            [wtpath, "-r", "verify", "-d", "dump_pages", uri], universal_newlines=True).splitlines()
     else:
         return subprocess.check_output(
-            [wtpath, "-r", "printlog", "-u", "-x"], universal_newlines=True).splitlines()
+            [wtpath, "-r", "-C", "log=(compressor=snappy,path=journal/)", "printlog", "-u", "-x"], universal_newlines=True).splitlines()
 
 def main():
     if len(sys.argv) < 3:
@@ -190,10 +189,11 @@ def main():
 
     # Does the user plan on passing wt's location and a file?
     if len(sys.argv) > 3:
-        if sys.argv[3] != '-i':
+        if sys.argv[3] != '-f':
             print('Invalid option specified.')
             util_usage()
-        wt_output = execute_wt(mode, sys.argv[4], sys.argv[5])
+        uri = None if mode == Mode.PRINTLOG else sys.argv[5]
+        wt_output = execute_wt(mode, sys.argv[4], uri)
     else:
         # Read in stdout to a string then pass it like the wt_output.
         wt_output = sys.stdin.readlines()
