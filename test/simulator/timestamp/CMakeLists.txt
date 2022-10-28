@@ -16,3 +16,4 @@ target_compile_options(
 
 # Build call log manager.
 add_subdirectory(call_log_manager)
+add_subdirectory(simulator_interface)
