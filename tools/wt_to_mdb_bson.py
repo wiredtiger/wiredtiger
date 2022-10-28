@@ -93,14 +93,11 @@ def convert_byte(inp):
 def wt_verify_to_bson(wt_output):
     pattern = re.compile('V {(.*?)}$')
     for line in wt_output:
-        matches = pattern.findall(line.strip())
-        if not matches:
-            print(line, end='')
-            continue
-
-        obj = bson.decode_all(convert_byte(matches[0]))[0]
         print(line, end='')
-        print('\t  %s' % (print_bson(obj),))
+        matches = pattern.findall(line.strip())
+        if matches:
+            obj = bson.decode_all(convert_byte(matches[0]))[0]
+            print('\t  %s' % (print_bson(obj),))
 
 # Converts the output of ./wt printlog -x -u.
 # Doesn't convert hex keys as I don't think they're bson.
