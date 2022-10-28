@@ -813,6 +813,7 @@ struct __wt_connection_stats {
     int64_t txn_release_blocked;
     int64_t conn_close_blocked_lsm;
     int64_t dhandle_lock_blocked;
+    int64_t fast_truncate_page_blocked;
     int64_t page_index_slot_ref_blocked;
     int64_t prepared_transition_blocked_page;
     int64_t page_busy_blocked;

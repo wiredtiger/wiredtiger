@@ -297,8 +297,8 @@ static int
 __delete_redo_window_cleanup_internal(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_REF *child;
-    bool busy;
     uint64_t sleep_usecs, yield_count;
+    bool busy;
 
     WT_ASSERT(session, F_ISSET(ref, WT_REF_FLAG_INTERNAL));
     if (ref->page != NULL) {
@@ -320,7 +320,7 @@ __delete_redo_window_cleanup_internal(WT_SESSION_IMPL *session, WT_REF *ref)
                         }
                         /* Wait some time to hopefully have access to the page. */
                         __wt_spin_backoff(&yield_count, &sleep_usecs);
-                        // TODO - WT_STAT_CONN_INCRV(session, xxx, sleep_usecs);
+                        WT_STAT_CONN_INCRV(session, fast_truncate_page_blocked, sleep_usecs);
                         if (++yield_count > WT_THOUSAND * 10)
                             return (EBUSY);
                     }

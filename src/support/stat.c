@@ -1684,6 +1684,7 @@ static const char *const __stats_connection_desc[] = {
   "thread-yield: connection close blocked waiting for transaction state stabilization",
   "thread-yield: connection close yielded for lsm manager shutdown",
   "thread-yield: data handle lock yielded",
+  "thread-yield: fast truncate page acquire eviction blocked (usecs)",
   "thread-yield: get reference for page index and slot time sleeping (usecs)",
   "thread-yield: page access yielded due to prepare state change",
   "thread-yield: page acquire busy blocked",
@@ -2283,6 +2284,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_release_blocked = 0;
     stats->conn_close_blocked_lsm = 0;
     stats->dhandle_lock_blocked = 0;
+    stats->fast_truncate_page_blocked = 0;
     stats->page_index_slot_ref_blocked = 0;
     stats->prepared_transition_blocked_page = 0;
     stats->page_busy_blocked = 0;
@@ -2899,6 +2901,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_release_blocked += WT_STAT_READ(from, txn_release_blocked);
     to->conn_close_blocked_lsm += WT_STAT_READ(from, conn_close_blocked_lsm);
     to->dhandle_lock_blocked += WT_STAT_READ(from, dhandle_lock_blocked);
+    to->fast_truncate_page_blocked += WT_STAT_READ(from, fast_truncate_page_blocked);
     to->page_index_slot_ref_blocked += WT_STAT_READ(from, page_index_slot_ref_blocked);
     to->prepared_transition_blocked_page += WT_STAT_READ(from, prepared_transition_blocked_page);
     to->page_busy_blocked += WT_STAT_READ(from, page_busy_blocked);
