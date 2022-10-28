@@ -56,7 +56,7 @@
     ",extensions=(../../../../ext/storage_sources/dir_store/" \
     "libwiredtiger_dir_store.so=(early_load=true))"
 #define TESTUTIL_ENV_CONFIG_REC \
-    "log=(recover=on,remove=false),statistics=(all),statistics_log=(json,on_close,wait=1)"
+    ",log=(recover=on,remove=false),statistics=(all),statistics_log=(json,on_close,wait=1)"
 #define TESTUTIL_ENV_CONFIG_COMPAT ",compatibility=(release=\"2.9\")"
 
 /* Generic option parsing structure shared by all test cases. */
