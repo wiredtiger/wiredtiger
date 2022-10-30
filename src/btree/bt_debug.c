@@ -575,6 +575,13 @@ __debug_cell_int(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unp
     /* Dump timestamps and addresses. */
     switch (unpack->raw) {
     case WT_CELL_ADDR_DEL:
+        if (F_ISSET(dsk, WT_PAGE_FT_UPDATE)) {
+            page_del = &unpack->page_del;
+            WT_RET(ds->f(ds, ", page_del : %s",
+              __wt_time_point_to_string(
+                page_del->timestamp, page_del->durable_timestamp, page_del->txnid, time_string)));
+        }
+    /* FALLTHROUGH */
     case WT_CELL_ADDR_INT:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
@@ -1652,7 +1659,7 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
     if (__wt_ref_addr_copy(session, ref, &addr) && !WT_TIME_AGGREGATE_IS_EMPTY(&addr.ta))
         WT_RET(ds->f(ds, ", %s, %s", __wt_time_aggregate_to_string(&addr.ta, time_string),
           __wt_addr_string(session, addr.addr, addr.size, ds->t1)));
-    if (ref->state == WT_REF_DELETED && ref->page_del != NULL) {
+    if (ref->page_del != NULL) {
         page_del = ref->page_del;
         WT_RET(ds->f(ds, ", page_del : %s",
           __wt_time_point_to_string(
