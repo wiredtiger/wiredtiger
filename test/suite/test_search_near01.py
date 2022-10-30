@@ -94,7 +94,7 @@ class test_search_near01(wttest.WiredTigerTestCase):
         cursor2.search_near()
 
         skip_count = self.get_stat(stat.conn.cursor_next_skip_total)
-        # This should be equal to roughly key_count * 2 as we're going to traverse the whole
+        # This should be equal to roughly key_count - 1 as we're going to traverse the whole
         # range forward, and then the whole range backwards.
         self.assertEqual(skip_count, key_count - 1)
 
@@ -102,7 +102,6 @@ class test_search_near01(wttest.WiredTigerTestCase):
         cursor2.set_key('aa')
         self.assertEqual(cursor2.search_near(), wiredtiger.WT_NOTFOUND)
 
-        # prefix_skip_count = self.get_stat(stat.conn.cursor_next_skip_lt_100)
         prefix_skip_count = self.get_stat(stat.conn.cursor_next_skip_total) + self.get_stat(stat.conn.cursor_prev_skip_total)
         # We should've skipped ~26 - 1 here as we're only looking at the "aa" range.
         self.assertGreaterEqual(prefix_skip_count - skip_count, 25)
