@@ -360,7 +360,7 @@ err:
  *     by one byte, if there is not enough space to fit the one bit.
  */
 static inline int
-__increment_bound_array(WT_SESSION_IMPL *session, WT_ITEM *user_item)
+__increment_bound_array(WT_ITEM *user_item)
 {
     size_t usz;
     uint8_t *userp;
@@ -374,33 +374,22 @@ __increment_bound_array(WT_SESSION_IMPL *session, WT_ITEM *user_item)
 
     /*
      * First loop through all max values on the buffer from the end. This is to find the appropriate
-     * position to increment add one to the byte. If we encounter a max value, make it zero due to
-     * the addition of one bit.
+     * position to increment add one to the byte.
      */
     for (i = usz - 1; i >= 0 && userp[i] == UINT8_MAX; --i)
-        userp[i] = 0;
+        ;
 
     /*
-     * If all of the buffer are max values, extend the buffer by one and add one to the start of the
-     * buffer. Otherwise we have found a position to increment inside the buffer.
+     * If all of the buffer are max values, we don't need to do anything as the key format is a
+     * fixed length format. Ideally we double check that the table format has a fixed length string.
      */
-    if (i < 0) {
-        WT_RET(__wt_buf_extend(session, user_item, user_item->size + 1));
-        userp = (uint8_t *)user_item->data;
-        userp[0] = 1;
-    } else
+    if (i < 0)
+        return (0);
+    else
         userp[i] += 1;
 
     return (0);
 }
-
-#ifdef HAVE_UNITTEST
-int
-__ut_increment_bound_array(WT_SESSION_IMPL *session, WT_ITEM *user_item)
-{
-    return (__increment_bound_array(session, user_item));
-}
-#endif
 
 /*
  * __curindex_bound --
@@ -415,6 +404,7 @@ __curindex_bound(WT_CURSOR *cursor, const char *config)
     WT_CURSOR_INDEX *cindex;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    bool inclusive;
 
     cindex = (WT_CURSOR_INDEX *)cursor;
     child = cindex->child;
@@ -427,12 +417,15 @@ __curindex_bound(WT_CURSOR *cursor, const char *config)
 
         /* Point the public cursor to the key in the child. */
         __wt_cursor_set_raw_key(child, &cursor->key);
+
+        WT_ERR(__wt_config_gets(session, cfg, "inclusive", &cval));
+        inclusive = cval.val != 0;
+
+        /* Check if we have set the lower bound or upper bound. */
+        WT_ERR(__wt_config_gets(session, cfg, "bound", &cval));
     }
 
     WT_ERR(child->bound(child, config));
-
-    /* Check if we have set the lower bound or upper bound. */
-    WT_ERR(__wt_config_gets(session, cfg, "bound", &cval));
 
     /*
      * Index tables internally combines the user chosen columns with the key format of the table to
@@ -442,13 +435,11 @@ __curindex_bound(WT_CURSOR *cursor, const char *config)
      *  1. If the set bound is lower and it is not inclusive.
      *  2. If the set bound is upper and it is inclusive.
      */
-    if (WT_STRING_MATCH("lower", cval.str, cval.len) &&
-      !F_ISSET(child, WT_CURSTD_BOUND_LOWER_INCLUSIVE))
-        WT_ERR(__increment_bound_array(session, &child->lower_bound));
+    if (WT_STRING_MATCH("lower", cval.str, cval.len) && !inclusive)
+        WT_ERR(__increment_bound_array(&child->lower_bound));
 
-    if (WT_STRING_MATCH("upper", cval.str, cval.len) &&
-      F_ISSET(child, WT_CURSTD_BOUND_UPPER_INCLUSIVE))
-        WT_ERR(__increment_bound_array(session, &child->upper_bound));
+    if (WT_STRING_MATCH("upper", cval.str, cval.len) && inclusive)
+        WT_ERR(__increment_bound_array(&child->upper_bound));
 
 err:
     API_END_RET(session, ret);

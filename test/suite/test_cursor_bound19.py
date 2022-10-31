@@ -26,12 +26,12 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest, ctypes
+import wiredtiger, wttest
 from wtscenario import make_scenarios
 from wtbound import bound_base
 
 # test_cursor_bound18.py
-#    Basic cursor bound API\ validation.
+#    Test basic cursor index bounds operations.
 class test_cursor_bound18(bound_base):
     file_name = 'test_cursor_bound18'
     use_index = True
@@ -105,9 +105,6 @@ class test_cursor_bound18(bound_base):
     def test_cursor_index_bounds(self):
         cursor = self.create_session_and_cursor()
         cursor.close()
-        # I need to test that modifications to the keys of the normal table or colgroups should not 
-        # work because of bounds.
-
 
         # Test Index index_cursors bound API support.
         suburi = "index:" + self.file_name + ":i0"
@@ -119,9 +116,7 @@ class test_cursor_bound18(bound_base):
         columns_param += ")"
         self.session.create(suburi, columns_param)
 
-
         index_cursor = self.session.open_cursor("index:" + self.file_name + ":i0")
-
 
         # Set bounds at lower key 30 and upper key at 50.
         self.set_bounds(index_cursor, 30, "lower")
@@ -176,10 +171,6 @@ class test_cursor_bound18(bound_base):
 
         index_cursor.set_key(self.gen_key(30))
         self.assertEqual(index_cursor.search(), wiredtiger.WT_NOTFOUND)
-
-        # Test special index case: Test setting the upper bound limit on the largest possible value,
-        # since WT internally increments the byte array by one.
-        # Not sure how we can test this yet.
                
 if __name__ == '__main__':
     wttest.run()
