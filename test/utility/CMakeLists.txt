@@ -5,6 +5,7 @@ set(sources
     modify.c
     parse_opts.c
     thread.c
+    tiered.c
 )
 
 set(link_type)
