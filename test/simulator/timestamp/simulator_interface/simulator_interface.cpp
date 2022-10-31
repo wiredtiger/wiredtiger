@@ -209,7 +209,7 @@ interface_begin_transaction(session_simulator *session)
             switch (choice) {
             case 1:
                 config += "read_timestamp=";
-                config += get_input("Enter timestamp (in hex): ");
+                config += get_input("Enter read timestamp (in hex): ");
                 break;
             case 2:
                 config += "roundup_timestamps=(read=true)";
@@ -257,11 +257,11 @@ interface_commit_transaction(session_simulator *session)
             switch (choice) {
             case 1:
                 config += "commit_timestamp=";
-                config += get_input("Enter timestamp (in hex): ");
+                config += get_input("Enter commit timestamp (in hex): ");
                 break;
             case 2:
                 config += "durable_timestamp=";
-                config += get_input("Enter timestamp (in hex): ");
+                config += get_input("Enter durable timestamp (in hex): ");
                 break;
             case 3: {
                 int ret = session->commit_transaction(config);
@@ -285,8 +285,44 @@ interface_commit_transaction(session_simulator *session)
 }
 
 void
-interface_prepare_transaction()
+interface_prepare_transaction(session_simulator *session)
 {
+    std::string config = "";
+    std::vector<std::string> options;
+    options.push_back("Prepare timestamp");
+    options.push_back("Run operation");
+    options.push_back("<- go back");
+
+    do {
+        try {
+            print_options(options);
+
+            int choice = choose_num(1, options.size(), "Commit transaction >>");
+
+            switch (choice) {
+            case 1:
+                config += "prepare_timestamp=";
+                config += get_input("Enter prepare timestamp (in hex): ");
+                break;
+            case 2: {
+                int ret = session->prepare_transaction(config);
+
+                if (ret != 0)
+                    throw "prepare_transaction failed with return value: " + std::to_string(ret);
+
+                print_border_msg("- Transaction prepared - " + config, GREEN);
+                break;
+            }
+            case 3:
+            default:
+                return;
+            }
+            config += ",";
+        } catch (const std::string &exception_str) {
+            config = "";
+            print_border_msg("exception: " + exception_str, RED);
+        }
+    } while (true);
 }
 
 void
@@ -301,8 +337,59 @@ interface_rollback_transaction(session_simulator *session)
 }
 
 void
-interface_timestamp_transaction()
+interface_timestamp_transaction(session_simulator *session)
 {
+    std::string config = "";
+    std::vector<std::string> options;
+    options.push_back("Commit timestamp");
+    options.push_back("Durable timestamps");
+    options.push_back("Prepare timestamps");
+    options.push_back("Read timestamps");
+    options.push_back("Run operation");
+    options.push_back("<- go back");
+
+    do {
+        try {
+            print_options(options);
+
+            int choice = choose_num(1, options.size(), "Commit transaction >>");
+
+            switch (choice) {
+            case 1:
+                config += "commit_timestamp=";
+                config += get_input("Enter commit timestamp (in hex): ");
+                break;
+            case 2:
+                config += "durable_timestamp=";
+                config += get_input("Enter durable timestamp (in hex): ");
+                break;
+            case 3:
+                config += "prepare_timestamp=";
+                config += get_input("Enter prepare timestamp (in hex): ");
+                break;
+            case 4:
+                config += "read_timestamp=";
+                config += get_input("Enter read timestamp (in hex): ");
+                break;
+            case 5: {
+                int ret = session->timestamp_transaction(config);
+
+                if (ret != 0)
+                    throw "timestamp_transaction failed with return value: " + std::to_string(ret);
+
+                print_border_msg("- Timestamp set- " + config, GREEN);
+                break;
+            }
+            case 6:
+            default:
+                return;
+            }
+            config += ",";
+        } catch (const std::string &exception_str) {
+            config = "";
+            print_border_msg("exception: " + exception_str, RED);
+        }
+    } while (true);
 }
 
 void
@@ -467,13 +554,13 @@ main(int argc, char *argv[])
             interface_commit_transaction(session);
             break;
         case 6:
-            interface_prepare_transaction();
+            interface_prepare_transaction(session);
             break;
         case 7:
             interface_rollback_transaction(session);
             break;
         case 8:
-            interface_timestamp_transaction();
+            interface_timestamp_transaction(session);
             break;
         case 9:
             interface_session_query_timestamp(session);

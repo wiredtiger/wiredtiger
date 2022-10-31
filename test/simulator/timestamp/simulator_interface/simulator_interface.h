@@ -54,9 +54,9 @@ void interface_conn_query_timestamp(connection_simulator *);
 /* session level methods. */
 void interface_begin_transaction(session_simulator *);
 void interface_commit_transaction(session_simulator *);
-void interface_prepare_transaction();
+void interface_prepare_transaction(session_simulator *);
 void interface_rollback_transaction(session_simulator *);
-void interface_timestamp_transaction();
+void interface_timestamp_transaction(session_simulator *);
 void interface_session_query_timestamp(session_simulator *);
 
 /* Print rules for timestamps. */
