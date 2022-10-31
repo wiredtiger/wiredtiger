@@ -142,10 +142,10 @@ __rec_child_deleted(
         if (!F_ISSET(r, WT_REC_EVICT))
             r->leave_dirty = true;
         /*
-         * Internal pages with deletes that aren't stable cannot be evicted if we don't write the
-         * page_del information, we don't have sufficient information to restore the page's
-         * information if subsequently read (we wouldn't know which transactions should see the
-         * original page and which should see the deleted page).
+         * Internal pages with deletes that aren't globally visible cannot be evicted if we don't
+         * write the page_del information, we don't have sufficient information to restore the
+         * page's information if subsequently read (we wouldn't know which transactions should see
+         * the original page and which should see the deleted page).
          */
         else if (!__wt_process.fast_truncate_2022)
             return (__wt_set_return(session, EBUSY));
