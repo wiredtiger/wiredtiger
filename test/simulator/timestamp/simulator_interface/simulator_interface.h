@@ -35,19 +35,21 @@
 
 #define RESET "\033[0m"
 #define RED "\033[31m"
+#define GREEN "\033[32m"
 #define WHITE "\033[37m"
 
 /* Helper functions. */
 int choose_num(int, int, const std::string &);
 void print_border_msg(const std::string &, const std::string &);
 void print_options(const std::vector<std::string> &);
+const std::string get_input(const std::string &);
 
 /* session management method. */
 void interface_session_management();
 
 /* connection level methods. */
-void interface_set_timestamp();
-void interface_conn_query_timestamp();
+void interface_set_timestamp(connection_simulator *);
+void interface_conn_query_timestamp(connection_simulator *);
 
 /* session level methods. */
 void interface_begin_transaction();

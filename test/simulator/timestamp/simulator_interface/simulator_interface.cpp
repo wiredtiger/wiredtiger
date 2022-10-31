@@ -47,6 +47,7 @@ print_border_msg(const std::string &msg, const std::string &color)
 void
 print_options(const std::vector<std::string> &options)
 {
+    std::cout << std::endl;
     for (int i = 0; i < options.size(); i++)
         std::cout << i + 1 << ": " << options[i] << std::endl;
 }
@@ -76,19 +77,116 @@ choose_num(int min, int max, const std::string &cli_str)
     return (choice);
 }
 
+const std::string
+get_input(const std::string &input_name)
+{
+    std::string input;
+    std::cout << input_name;
+    std::getline(std::cin, input);
+    std::cout << std::endl;
+    return (input);
+}
+
 void
 interface_session_management()
 {
 }
 
 void
-interface_set_timestamp()
+interface_set_timestamp(connection_simulator *conn)
 {
+    std::string config;
+    std::vector<std::string> options;
+    options.push_back("Oldest timestamp");
+    options.push_back("Stable timestamp");
+    options.push_back("All durable timestamp");
+    options.push_back("<- go back");
+
+    do {
+        try {
+            print_options(options);
+
+            int choice = choose_num(1, options.size(), "Set timestamp >>");
+
+            switch (choice) {
+            case 1:
+                config = "oldest_timestamp=";
+                break;
+            case 2:
+                config = "stable_timestamp=";
+                break;
+            case 3:
+                config = "durable_timestamp=";
+                break;
+            case 4:
+            default:
+                return;
+            }
+
+            config += get_input("Enter timestamp (in hex): ");
+
+            int ret = conn->set_timestamp(config);
+
+            if (ret != 0)
+                throw "'set_timestamp' failed with ret value: '" + std::to_string(ret) +
+                  "', and config: '" + config + "'";
+
+            print_border_msg("- Global timestamp set - " + config, GREEN);
+        } catch (const std::string &exception_str) {
+            print_border_msg("exception: " + exception_str, RED);
+        }
+
+    } while (true);
 }
 
 void
-interface_conn_query_timestamp()
+interface_conn_query_timestamp(connection_simulator *conn)
 {
+    std::string config;
+    std::vector<std::string> options;
+    options.push_back("Oldest timestamp");
+    options.push_back("Stable timestamp");
+    options.push_back("All durable timestamp");
+    options.push_back("<- go back");
+
+    do {
+        try {
+            print_options(options);
+
+            int choice = choose_num(1, options.size(), "Query timestamp >>");
+
+            switch (choice) {
+            case 1:
+                config = "get=oldest";
+                break;
+            case 2:
+                config = "get=stable";
+                break;
+            case 3:
+                config = "get=all_durable";
+                break;
+            case 4:
+            default:
+                return;
+            }
+
+            std::string hex_ts;
+            bool ts_supported;
+            int ret = conn->query_timestamp(config, hex_ts, ts_supported);
+
+            if (hex_ts == "0")
+                hex_ts = "not specified";
+
+            if (ret != 0)
+                throw "'query_timestamp' failed with ret value: '" + std::to_string(ret) +
+                  "', and config: '" + config + "'";
+
+            print_border_msg("- Timestamp queried - " + config + ": " + hex_ts, GREEN);
+        } catch (const std::string &exception_str) {
+            print_border_msg("exception: " + exception_str, RED);
+        }
+
+    } while (true);
 }
 
 void
@@ -134,8 +232,6 @@ print_rules()
     options.push_back("<- go back");
 
     do {
-        std::cout << std::endl;
-
         print_options(options);
 
         int choice = choose_num(1, options.size(), "Choose timestamp >>");
@@ -184,8 +280,6 @@ print_rules()
               "The read timestamp must be greater than or equal to the oldest timestamp.", WHITE);
             break;
         case 6:
-            exit = true;
-            break;
         default:
             exit = true;
         }
@@ -195,6 +289,8 @@ print_rules()
 int
 main(int argc, char *argv[])
 {
+    connection_simulator *conn = &connection_simulator::get_connection();
+
     bool exit = false;
     std::vector<std::string> options;
     options.push_back("Session Management");
@@ -210,54 +306,45 @@ main(int argc, char *argv[])
     options.push_back("Exit");
 
     do {
-        std::cout << std::endl;
-
         print_options(options);
 
         int choice = choose_num(1, options.size(), "timestamp_simulator >>");
 
-        try {
-            switch (choice) {
-            case 1:
-                interface_session_management();
-                break;
-            case 2:
-                interface_set_timestamp();
-                break;
-            case 3:
-                interface_conn_query_timestamp();
-                break;
-            case 4:
-                interface_begin_transaction();
-                break;
-            case 5:
-                interface_commit_transaction();
-                break;
-            case 6:
-                interface_prepare_transaction();
-                break;
-            case 7:
-                interface_rollback_transaction();
-                break;
-            case 8:
-                interface_timestamp_transaction();
-                break;
-            case 9:
-                interface_session_query_timestamp();
-                break;
-            case 10:
-                print_rules();
-                break;
-            case 11:
-                exit = true;
-                break;
-            default:
-                exit = true;
-            }
-        } catch (const std::string &exception_str) {
-            print_border_msg("exception: " + exception_str, RED);
+        switch (choice) {
+        case 1:
+            interface_session_management();
+            break;
+        case 2:
+            interface_set_timestamp(conn);
+            break;
+        case 3:
+            interface_conn_query_timestamp(conn);
+            break;
+        case 4:
+            interface_begin_transaction();
+            break;
+        case 5:
+            interface_commit_transaction();
+            break;
+        case 6:
+            interface_prepare_transaction();
+            break;
+        case 7:
+            interface_rollback_transaction();
+            break;
+        case 8:
+            interface_timestamp_transaction();
+            break;
+        case 9:
+            interface_session_query_timestamp();
+            break;
+        case 10:
+            print_rules();
+            break;
+        case 11:
+        default:
+            exit = true;
         }
-
     } while (!exit);
 
     return (0);
