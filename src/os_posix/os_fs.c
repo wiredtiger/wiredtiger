@@ -411,8 +411,9 @@ __posix_file_read(
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-    __wt_verbose_debug2(session, WT_VERB_READ, "read: %s, fd=%d, offset=%" PRId64 ", len=%" WT_SIZET_FMT,
-      file_handle->name, pfh->fd, offset, len);
+    __wt_verbose_debug2(session, WT_VERB_READ,
+      "read: %s, fd=%d, offset=%" PRId64 ", len=%" WT_SIZET_FMT, file_handle->name, pfh->fd, offset,
+      len);
 
     /* Assert direct I/O is aligned and a multiple of the alignment. */
     WT_ASSERT(session,
@@ -602,8 +603,9 @@ __posix_file_write(
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-    __wt_verbose_debug2(session, WT_VERB_WRITE, "write: %s, fd=%d, offset=%" PRId64 ", len=%" WT_SIZET_FMT,
-      file_handle->name, pfh->fd, offset, len);
+    __wt_verbose_debug2(session, WT_VERB_WRITE,
+      "write: %s, fd=%d, offset=%" PRId64 ", len=%" WT_SIZET_FMT, file_handle->name, pfh->fd,
+      offset, len);
 
     /* Assert direct I/O is aligned and a multiple of the alignment. */
     WT_ASSERT(session,
