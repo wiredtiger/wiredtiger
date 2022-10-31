@@ -44,23 +44,23 @@
             return (__ret);     \
     } while (0)
 
-#define WT_TXN_SIM_RET(_txn_error, a) \
-    do {                              \
-        int __ret;                    \
-        if ((__ret = (a)) != 0) {     \
-            _txn_error = true;        \
-            return (__ret);           \
-        }                             \
+#define WT_TXN_SIM_RET(a)         \
+    do {                          \
+        int __ret;                \
+        if ((__ret = (a)) != 0) { \
+            _txn_error = true;    \
+            return (__ret);       \
+        }                         \
     } while (0)
 
-#define WT_TXN_SIM_RET_MSG(_txn_error, a, msg) \
-    do {                                       \
-        int __ret;                             \
-        if ((__ret = (a)) != 0) {              \
-            _txn_error = true;                 \
-            std::cerr << msg << std::endl;     \
-            return (__ret);                    \
-        }                                      \
+#define WT_TXN_SIM_RET_MSG(a, msg)         \
+    do {                                   \
+        int __ret;                         \
+        if ((__ret = (a)) != 0) {          \
+            _txn_error = true;             \
+            std::cerr << msg << std::endl; \
+            return (__ret);                \
+        }                                  \
     } while (0)
 
 /* Error list */
