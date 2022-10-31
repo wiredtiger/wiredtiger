@@ -382,8 +382,11 @@ __sync_page_skip(
     if (!__wt_ref_addr_copy(session, ref, &addr))
         return (0);
 
-    /* Skip reading normal leaf pages. */
-    if (addr.type == WT_ADDR_LEAF_NO) {
+    /*
+     * Skip reading the pages that are normal leaf pages or don't have an aggregated durable stop
+     * timestamp.
+     */
+    if (addr.type == WT_ADDR_LEAF_NO || addr.ta.newest_stop_durable_ts == WT_TS_NONE) {
         __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP, "%p: page walk skipped", (void *)ref);
         WT_STAT_CONN_DATA_INCR(session, cc_pages_walk_skipped);
         *skipp = true;
