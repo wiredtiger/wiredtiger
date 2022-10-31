@@ -300,6 +300,8 @@ __delete_redo_window_cleanup_internal(WT_SESSION_IMPL *session, WT_REF *ref)
     uint64_t sleep_usecs, yield_count;
     bool busy;
 
+    /* This function should be called during recovery only. */
+    WT_ASSERT(session, F_ISSET(S2C(session), WT_CONN_RECOVERING));
     WT_ASSERT(session, F_ISSET(ref, WT_REF_FLAG_INTERNAL));
     if (ref->page != NULL) {
         WT_INTL_FOREACH_BEGIN (session, ref->page, child) {
