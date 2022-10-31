@@ -161,6 +161,12 @@ session_simulator::commit_transaction(const std::string &config)
     if (!_txn_running)
         WT_SIM_RET_MSG(EINVAL, "'commit_transaction' only permitted in a running transaction");
 
+    /* We need to rollback a transaction if it failed earlier. */
+    if (_txn_error) {
+        rollback_transaction();
+        WT_SIM_RET(EINVAL);
+    }
+
     timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
     std::map<std::string, std::string> config_map;
 
@@ -218,12 +224,6 @@ session_simulator::commit_transaction(const std::string &config)
             rollback_transaction();
             return (ret);
         }
-    }
-
-    /* We need to rollback a transaction if it failed earlier. */
-    if (_txn_error) {
-        rollback_transaction();
-        WT_SIM_RET(EINVAL);
     }
 
     if (_prepared_txn) {
@@ -472,12 +472,6 @@ bool
 session_simulator::is_read_ts_set() const
 {
     return (_read_ts != 0);
-}
-
-bool
-session_simulator::is_txn_error() const
-{
-    return (_txn_error);
 }
 
 int

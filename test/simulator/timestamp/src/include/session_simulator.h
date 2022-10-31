@@ -63,7 +63,6 @@ class session_simulator {
     bool is_round_read_ts_set() const;
     bool is_txn_prepared() const;
     bool is_txn_running() const;
-    bool is_txn_error() const;
 
     private:
     int decode_timestamp_config_map(

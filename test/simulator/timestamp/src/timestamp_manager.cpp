@@ -113,6 +113,7 @@ timestamp_manager::parse_config(const std::string &config,
      */
     while (std::getline(conf, token, ',')) {
         int pos = token.find('=');
+        /* Ignore the string if it's empty. This will occur if extra commas are included. */
         if (token != "") {
             if (pos == -1)
                 config_map.insert({trim(token), ""});
