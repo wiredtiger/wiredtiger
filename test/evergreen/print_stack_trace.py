@@ -27,7 +27,6 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import argparse
-from asyncio.subprocess import STDOUT
 import itertools
 import os
 import re
