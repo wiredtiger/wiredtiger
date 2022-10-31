@@ -41,7 +41,11 @@ class test_truncate19(wttest.WiredTigerTestCase):
     format_values = [
         ('string_row', dict(key_format='S', value_format='S')),
     ]
-    scenarios = make_scenarios(format_values)
+    restart = [
+        ('restart', dict(restart=True)),
+        ('no-restart', dict(restart=False)),
+    ]
+    scenarios = make_scenarios(format_values, restart)
 
     def append_rows(self, uri, ds, start_row, nrows, value):
         cursor = self.session.open_cursor(uri)
@@ -79,15 +83,14 @@ class test_truncate19(wttest.WiredTigerTestCase):
         # Reopen the database.
         self.reopen_conn()
 
-        # Session for checkpoint
-        session2 = self.conn.open_session()
-        # Session for long running transaction, to make truncate not globally visible
-        session3 = self.conn.open_session()
-
         trunc_rows = 0
         start_num = 1
         end_num = nrows
         for i in range(1, 50):
+            # Session for checkpoint
+            session2 = self.conn.open_session()
+            # Session for long running transaction, to make truncate not globally visible
+            session3 = self.conn.open_session()
             # Start a long running transaction
             session3.begin_transaction()
             trunc_rows = 10000
@@ -107,11 +110,14 @@ class test_truncate19(wttest.WiredTigerTestCase):
             session3.rollback_transaction()
         
             self.append_rows(uri, ds, end_num, trunc_rows, value_a)
+            if self.restart:
+                session2.checkpoint()
+                # Reopen the database.
+                self.reopen_conn()
 
             end_num = end_num + trunc_rows
             start_num = start_num + trunc_rows
 
-        session2.checkpoint()
         # Ensure the datasize is smaller than 600M
         self.assertGreater(600000000, os.path.getsize("oplog.wt"))
 
