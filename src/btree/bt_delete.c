@@ -309,7 +309,12 @@ __delete_redo_window_cleanup_internal(WT_SESSION_IMPL *session, WT_REF *ref)
              */
             if (child->page_del != NULL) {
                 __cell_redo_page_del_cleanup(session, ref->page->dsk, child->page_del);
-                /* Move back the page to WT_REF_DELETED by marking it for eviction. */
+                /*
+                 * Since the page might be in memory during RTS, the window cleanup may not have any
+                 * work. In order to avoid reading incorrect values later on, move the page back to
+                 * disk by evicting it. When it will be read again, the window cleanup should clear
+                 * any stale data.
+                 */
                 if (child->state == WT_REF_MEM) {
                     for (sleep_usecs = yield_count = 0;;) {
                         WT_RET(__wt_hazard_set(session, child, &busy));
