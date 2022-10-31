@@ -39,7 +39,7 @@ class test_truncate19(wttest.WiredTigerTestCase):
     rand = suite_random.suite_random()
 
     format_values = [
-        ('string_row', dict(key_format='S', value_format='S', extraconfig='')),
+        ('string_row', dict(key_format='S', value_format='S')),
     ]
     scenarios = make_scenarios(format_values)
 
