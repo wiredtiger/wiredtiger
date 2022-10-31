@@ -185,6 +185,9 @@ print_rules()
             break;
         case 6:
             exit = true;
+            break;
+        default:
+            exit = true;
         }
     } while (!exit);
 }
@@ -246,6 +249,9 @@ main(int argc, char *argv[])
                 print_rules();
                 break;
             case 11:
+                exit = true;
+                break;
+            default:
                 exit = true;
             }
         } catch (const std::string &exception_str) {
