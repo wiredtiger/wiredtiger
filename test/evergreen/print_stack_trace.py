@@ -58,6 +58,7 @@ class LLDBDumper:
             sys.exit("Debugger lldb not found,"
                      "skipping dumping of {}".format(core_path))
 
+        cmds = []
         if dump_all:
             cmds.append("thread apply all backtrace -c 30")
         else:
