@@ -31,7 +31,9 @@ from wtscenario import make_scenarios
 from wtbound import bound_base
 
 # test_cursor_bound18.py
-#    Test basic cursor index bounds operations.
+#    Test basic cursor index bounds operations. To test index table formats the populate function
+# has been overriden such that we can have duplicate pair values for each key. This will construct
+# an index table that needs to seperate the duplicate values.
 class test_cursor_bound18(bound_base):
     file_name = 'test_cursor_bound18'
     use_index = True
@@ -118,7 +120,8 @@ class test_cursor_bound18(bound_base):
 
         index_cursor = self.session.open_cursor("index:" + self.file_name + ":i0")
 
-        # Set bounds at lower key 30 and upper key at 50.
+        # Set bounds at lower key 30 and upper key at 50. We have 22 entries here since we
+        # double entries for from 30 up until 41 (upper is set to inclusive).
         self.set_bounds(index_cursor, 30, "lower")
         self.set_bounds(index_cursor, 40, "upper")
         self.cursor_traversal_bound(index_cursor, 30, 40, True, 22)
