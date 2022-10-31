@@ -296,6 +296,7 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 static int
 __delete_redo_window_cleanup_internal(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+    WT_DECL_RET;
     WT_REF *child;
     uint64_t sleep_usecs, yield_count;
     bool busy;
@@ -323,8 +324,14 @@ __delete_redo_window_cleanup_internal(WT_SESSION_IMPL *session, WT_REF *ref)
                         if (!busy) {
                             /* The page is expected to be clean. */
                             WT_ASSERT(session, !__wt_page_is_modified(ref->page));
-                            WT_RET_BUSY_OK(__wt_page_release_evict(session, child, 0));
-                            break;
+                            ret = __wt_page_release_evict(session, child, 0);
+                            /*
+                             * Eviction can fail with EBUSY, in this case, try again, otherwise move
+                             * on to the next page.
+                             */
+                            WT_RET_BUSY_OK(ret);
+                            if (ret == 0)
+                                break;
                         }
                         /* Wait some time to hopefully have access to the page. */
                         __wt_spin_backoff(&yield_count, &sleep_usecs);
