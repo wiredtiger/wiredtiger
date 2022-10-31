@@ -690,6 +690,7 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, u
     WT_PAGE *page;
     WT_UPDATE *upd;
     uint8_t *memp;
+    char time_string[WT_TIME_STRING_SIZE];
     char ts_string[5][WT_TS_INT_STRING_SIZE];
     bool prepared;
 
@@ -724,14 +725,11 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, u
       !__rollback_txn_visible_id(session, vpack->tw.start_txn) ||
       (!WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prepared)) {
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-          "on-disk update with commit timestamp %s aborted because start durable timestamp (%s) > "
-          "stable timestamp "
-          "(%s): %s, or txnid (%" PRIu64
-          ") is not visible: %s, or tw has not stop and is prepared: %s",
-          __wt_timestamp_to_string(vpack->tw.start_ts, ts_string[0]),
-          __wt_timestamp_to_string(vpack->tw.durable_start_ts, ts_string[1]),
-          __wt_timestamp_to_string(rollback_timestamp, ts_string[2]),
-          vpack->tw.durable_start_ts > rollback_timestamp ? "true" : "false", vpack->tw.start_txn,
+          "on-disk update aborted with time window %s. Start durable timestamp > stable timestamp: "
+          "%s, or txnid is not visible: %s, or tw has not stop and is prepared: %s",
+          __wt_time_point_to_string(
+            vpack->tw.start_ts, vpack->tw.durable_start_ts, vpack->tw.start_txn, time_string),
+          vpack->tw.durable_start_ts > rollback_timestamp ? "true" : "false",
           !__rollback_txn_visible_id(session, vpack->tw.start_txn) ? "true" : "false",
           !WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prepared ? "true" : "false");
         if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
