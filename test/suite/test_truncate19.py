@@ -66,13 +66,9 @@ class test_truncate19(wttest.WiredTigerTestCase):
         nrows = 1000000
 
         # Create a table.
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config=self.extraconfig)
+        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
-        ds_dummy = SimpleDataSet(
-            self, 'table:dummy', 0, key_format=self.key_format, value_format=self.value_format,
-            config=self.extraconfig)
+        ds_dummy = SimpleDataSet(self, 'table:dummy', 0, key_format=self.key_format, value_format=self.value_format)
         ds_dummy.populate()
 
         value_a = "aaaaa" * 100
