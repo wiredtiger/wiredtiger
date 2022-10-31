@@ -304,9 +304,8 @@ __delete_redo_window_cleanup_internal(WT_SESSION_IMPL *session, WT_REF *ref)
     if (ref->page != NULL) {
         WT_INTL_FOREACH_BEGIN (session, ref->page, child) {
             /*
-             * We used to do the cleanup when the state of the child was WT_REF_DELETED, but it can
-             * also be loaded in memory if the page has been read before, thus we always clean the
-             * page_del structure if it has data.
+             * Cleanup any page delete structures in the child. At this stage, it can contain stale
+             * data we should not rely on.
              */
             if (child->page_del != NULL) {
                 __cell_redo_page_del_cleanup(session, ref->page->dsk, child->page_del);
