@@ -283,7 +283,7 @@ interface_begin_transaction(session_simulator *session)
                     throw "begin_transaction failed with return value: " + std::to_string(ret);
 
                 print_border_msg("- Transaction started - " + config, GREEN);
-                break;
+                return;
             }
             case 5:
             default:
@@ -293,6 +293,7 @@ interface_begin_transaction(session_simulator *session)
         } catch (const std::string &exception_str) {
             config = "";
             print_border_msg("exception: " + exception_str, RED);
+            return;
         }
     } while (true);
 }
@@ -329,7 +330,7 @@ interface_commit_transaction(session_simulator *session)
                     throw "commit_transaction failed with return value: " + std::to_string(ret);
 
                 print_border_msg("- Transaction committed - " + config, GREEN);
-                break;
+                return;
             }
             case 4:
             default:
@@ -339,6 +340,7 @@ interface_commit_transaction(session_simulator *session)
         } catch (const std::string &exception_str) {
             config = "";
             print_border_msg("exception: " + exception_str, RED);
+            return;
         }
     } while (true);
 }
@@ -370,7 +372,7 @@ interface_prepare_transaction(session_simulator *session)
                     throw "prepare_transaction failed with return value: " + std::to_string(ret);
 
                 print_border_msg("- Transaction prepared - " + config, GREEN);
-                break;
+                return;
             }
             case 3:
             default:
@@ -380,6 +382,7 @@ interface_prepare_transaction(session_simulator *session)
         } catch (const std::string &exception_str) {
             config = "";
             print_border_msg("exception: " + exception_str, RED);
+            return;
         }
     } while (true);
 }
@@ -389,10 +392,15 @@ interface_rollback_transaction(session_simulator *session)
 {
     int ret = session->rollback_transaction();
 
-    if (ret != 0)
-        throw "rollback_transaction failed with return value: " + std::to_string(ret);
+    try {
+        if (ret != 0)
+            throw "rollback_transaction failed with return value: " + std::to_string(ret);
 
-    print_border_msg("- Transaction rolled back - ", GREEN);
+        print_border_msg("- Transaction rolled back - ", GREEN);
+    } catch (const std::string &exception_str) {
+        print_border_msg("exception: " + exception_str, RED);
+        return;
+    }
 }
 
 void
@@ -437,7 +445,7 @@ interface_timestamp_transaction(session_simulator *session)
                     throw "timestamp_transaction failed with return value: " + std::to_string(ret);
 
                 print_border_msg("- Timestamp set- " + config, GREEN);
-                break;
+                return;
             }
             case 6:
             default:
@@ -447,6 +455,7 @@ interface_timestamp_transaction(session_simulator *session)
         } catch (const std::string &exception_str) {
             config = "";
             print_border_msg("exception: " + exception_str, RED);
+            return;
         }
     } while (true);
 }
