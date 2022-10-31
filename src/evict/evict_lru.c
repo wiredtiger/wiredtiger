@@ -2053,8 +2053,8 @@ fast:
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
             internal_pages_queued++;
 
-        __wt_verbose_debug3(session, WT_VERB_EVICTSERVER, "select: %p, size %" WT_SIZET_FMT,
-          (void *)page, page->memory_footprint);
+        __wt_verbose(session, WT_VERB_EVICTSERVER, "select: %p, size %" WT_SIZET_FMT, (void *)page,
+          page->memory_footprint);
     }
     WT_RET_NOTFOUND_OK(ret);
 
