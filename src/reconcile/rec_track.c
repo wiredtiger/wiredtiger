@@ -131,7 +131,7 @@ __wt_ovfl_discard_add(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell)
       session, &track->discard_allocated, track->discard_entries + 1, &track->discard));
     track->discard[track->discard_entries++] = cell;
 
-    if (WT_VERBOSE_LEVEL_ISSETISSET(session, WT_VERB_OVERFLOW, WT_VERBOSE_DEBUG_2))
+    if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_OVERFLOW, WT_VERBOSE_DEBUG_2))
         WT_RET(__ovfl_discard_verbose(session, page, cell, "add"));
 
     return (0);
@@ -339,7 +339,7 @@ __ovfl_reuse_wrapup(WT_SESSION_IMPL *session, WT_PAGE *page)
         WT_ASSERT_ALWAYS(session, !F_ISSET(reuse, WT_OVFL_REUSE_JUST_ADDED),
           "Attempting to reuse dirty overflow record");
 
-        if (WT_VERBOSE_LEVEL_ISSETISSET(session, WT_VERB_OVERFLOW, WT_VERBOSE_DEBUG_2))
+        if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_OVERFLOW, WT_VERBOSE_DEBUG_2))
             WT_RET(__ovfl_reuse_verbose(session, page, reuse, "free"));
 
         WT_RET(bm->free(bm, session, WT_OVFL_REUSE_ADDR(reuse), reuse->addr_size));
@@ -436,7 +436,7 @@ __wt_ovfl_reuse_search(WT_SESSION_IMPL *session, WT_PAGE *page, uint8_t **addrp,
     *addr_sizep = reuse->addr_size;
     F_SET(reuse, WT_OVFL_REUSE_INUSE);
 
-    if (WT_VERBOSE_LEVEL_ISSETISSET(session, WT_VERB_OVERFLOW, WT_VERBOSE_DEBUG_2))
+    if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_OVERFLOW, WT_VERBOSE_DEBUG_2))
         WT_RET(__ovfl_reuse_verbose(session, page, reuse, "reclaim"));
     return (0);
 }
