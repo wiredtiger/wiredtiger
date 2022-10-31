@@ -31,6 +31,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <vector>
 
 void
 print_border_msg(const std::string &msg, const std::string &color)
@@ -41,6 +42,13 @@ print_border_msg(const std::string &msg, const std::string &color)
     std::cout << color << "+" + dash + "+" << RESET << std::endl;
     std::cout << color << "| " << msg << " |" << RESET << std::endl;
     std::cout << color << "+" + dash + "+" << RESET << std::endl;
+}
+
+void
+print_options(const std::vector<std::string> &options)
+{
+    for (int i = 0; i < options.size(); i++)
+        std::cout << i + 1 << ": " << options[i] << std::endl;
 }
 
 int
@@ -122,23 +130,25 @@ int
 main(int argc, char *argv[])
 {
     bool exit = false;
+    std::vector<std::string> options;
+    options.push_back("Session Management");
+    options.push_back("[Conn] set_timestamp()");
+    options.push_back("[Conn] query_timestamp()");
+    options.push_back("[Session] begin_transaction()");
+    options.push_back("[Session] commit_transaction()");
+    options.push_back("[Session] prepare_transaction()");
+    options.push_back("[Session] rollback_transaction()");
+    options.push_back("[Session] timestamp_transaction()");
+    options.push_back("[Session] query_timestamp()");
+    options.push_back("Print rules for timestamps");
+    options.push_back("Exit");
 
     do {
         std::cout << std::endl;
 
-        std::cout << "1: Session Management " << std::endl;
-        std::cout << "2: [Conn] set_timestamp()" << std::endl;
-        std::cout << "3: [Conn] query_timestamp()" << std::endl;
-        std::cout << "4: [Session] begin_transaction()" << std::endl;
-        std::cout << "5: [Session] commit_transaction()" << std::endl;
-        std::cout << "6: [Session] prepare_transaction()" << std::endl;
-        std::cout << "7: [Session] rollback_transaction()" << std::endl;
-        std::cout << "8: [Session] timestamp_transaction()" << std::endl;
-        std::cout << "9: [Session] query_timestamp()" << std::endl;
-        std::cout << "10: print rules for timestamps" << std::endl;
-        std::cout << "11: exit" << std::endl;
+        print_options(options);
 
-        int choice = choose_num(1, 11, "timestamp_simulator >>");
+        int choice = choose_num(1, options.size(), "timestamp_simulator >>");
 
         try {
             switch (choice) {
@@ -175,7 +185,7 @@ main(int argc, char *argv[])
             case 11:
                 exit = true;
             }
-        } catch (std::string &exception_str) {
+        } catch (const std::string &exception_str) {
             print_border_msg("exception: " + exception_str, RED);
         }
 

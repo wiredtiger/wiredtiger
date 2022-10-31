@@ -29,6 +29,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include "connection_simulator.h"
 
@@ -38,6 +39,7 @@
 /* Helper functions. */
 int choose_num(int, int, const std::string &);
 void print_border_msg(const std::string &, const std::string &);
+void print_options(const std::vector<std::string> &);
 
 /* session management method. */
 void interface_session_management();
