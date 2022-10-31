@@ -86,6 +86,7 @@ class session_simulator {
     bool _txn_running;
     bool _prepared_txn;
     bool _durable_ts_set;
+    bool _txn_error;
     uint64_t _commit_ts;
     uint64_t _durable_ts;
     uint64_t _first_commit_ts;

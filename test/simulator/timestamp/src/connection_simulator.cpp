@@ -237,8 +237,8 @@ connection_simulator::set_timestamp(const std::string &config)
     uint64_t new_stable_ts = 0, new_oldest_ts = 0, new_durable_ts = 0;
     bool has_stable = false, has_oldest = false, has_durable = false, force = false;
 
-    decode_timestamp_config_map(config_map, new_oldest_ts, new_stable_ts, new_durable_ts,
-      has_oldest, has_stable, has_durable, force);
+    WT_SIM_RET(decode_timestamp_config_map(config_map, new_oldest_ts, new_stable_ts, new_durable_ts,
+      has_oldest, has_stable, has_durable, force));
 
     if (!force) {
         /* Validate the new durable timestamp. */

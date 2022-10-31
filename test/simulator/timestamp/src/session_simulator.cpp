@@ -129,23 +129,23 @@ session_simulator::prepare_transaction(const std::string &config)
     const std::vector<std::string> supported_ops = {"prepare_timestamp"};
     const std::vector<std::string> unsupported_ops;
 
-    WT_SIM_RET_MSG(ts_manager->parse_config(config, supported_ops, unsupported_ops, config_map),
+    WT_TXN_SIM_RET_MSG(ts_manager->parse_config(config, supported_ops, unsupported_ops, config_map),
       "Incorrect config (" + config + ") passed in prepare_transaction");
 
     auto pos = config_map.find("prepare_timestamp");
     if (pos != config_map.end()) {
-        WT_SIM_RET(ts_manager->validate_hex_value(pos->second, "prepare timestamp"));
+        WT_TXN_SIM_RET(ts_manager->validate_hex_value(pos->second, "prepare timestamp"));
         uint64_t prepare_ts = ts_manager->hex_to_decimal(pos->second);
-        WT_SIM_RET(set_prepare_timestamp(prepare_ts));
+        WT_TXN_SIM_RET(set_prepare_timestamp(prepare_ts));
     }
 
     /* A prepared timestamp should have been set at this point. */
     if (!has_prepare_timestamp())
-        WT_SIM_RET_MSG(EINVAL, "'prepare_transaction' - prepare timestamp is not set");
+        WT_TXN_SIM_RET_MSG(EINVAL, "'prepare_transaction' - prepare timestamp is not set");
 
     /* Commit timestamp must not be set before transaction is prepared. */
     if (_has_commit_ts)
-        WT_SIM_RET_MSG(EINVAL,
+        WT_TXN_SIM_RET_MSG(EINVAL,
           "'prepare_transaction' - commit timestamp must not be set before transaction is "
           "prepared");
 
@@ -160,6 +160,12 @@ session_simulator::commit_transaction(const std::string &config)
     /* Make sure that the transaction from this session is running. */
     if (!_txn_running)
         WT_SIM_RET_MSG(EINVAL, "'commit_transaction' only permitted in a running transaction");
+
+    /* We need to rollback a transaction if it failed earlier. */
+    if (_txn_error) {
+        rollback_transaction();
+        WT_SIM_RET(EINVAL);
+    }
 
     timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
     std::map<std::string, std::string> config_map;
@@ -221,18 +227,26 @@ session_simulator::commit_transaction(const std::string &config)
     }
 
     if (_prepared_txn) {
-        if (!_has_commit_ts)
+        if (!_has_commit_ts) {
+            rollback_transaction();
             WT_SIM_RET_MSG(EINVAL, "commit timestamp is required for a prepared transaction");
+        }
 
-        if (!is_durable_ts_set())
+        if (!is_durable_ts_set()) {
+            rollback_transaction();
             WT_SIM_RET_MSG(EINVAL, "durable timestamp is required for a prepared transaction");
+        }
     } else {
-        if (has_prepare_timestamp())
+        if (has_prepare_timestamp()) {
+            rollback_transaction();
             WT_SIM_RET_MSG(EINVAL, "prepare timestamp is set for non-prepared transaction");
+        }
 
-        if (is_durable_ts_set())
+        if (is_durable_ts_set()) {
+            rollback_transaction();
             WT_SIM_RET_MSG(
               EINVAL, "durable timestamp should not be specified for non-prepared transaction");
+        }
     }
 
     if (_has_commit_ts || _durable_ts_set) {
@@ -264,26 +278,27 @@ session_simulator::timestamp_transaction(const std::string &config)
       "commit_timestamp", "durable_timestamp", "prepare_timestamp", "read_timestamp"};
     const std::vector<std::string> unsupported_ops;
 
-    WT_SIM_RET_MSG(ts_manager->parse_config(config, supported_ops, unsupported_ops, config_map),
+    WT_TXN_SIM_RET_MSG(ts_manager->parse_config(config, supported_ops, unsupported_ops, config_map),
       "Incorrect config (" + config + ") passed in timestamp_transaction");
 
     uint64_t commit_ts = 0, durable_ts = 0, prepare_ts = 0, read_ts = 0;
 
     /* Decode a configuration string that may contain multiple timestamps and store them here. */
-    decode_timestamp_config_map(config_map, commit_ts, durable_ts, prepare_ts, read_ts);
+    WT_TXN_SIM_RET(
+      decode_timestamp_config_map(config_map, commit_ts, durable_ts, prepare_ts, read_ts));
 
     /* Check if the timestamps were included in the configuration string and set them. */
     if (commit_ts != 0)
-        WT_SIM_RET(set_commit_timestamp(commit_ts));
+        WT_TXN_SIM_RET(set_commit_timestamp(commit_ts));
 
     if (durable_ts != 0)
-        WT_SIM_RET(set_durable_timestamp(durable_ts));
+        WT_TXN_SIM_RET(set_durable_timestamp(durable_ts));
 
     if (prepare_ts != 0)
-        WT_SIM_RET(set_prepare_timestamp(prepare_ts));
+        WT_TXN_SIM_RET(set_prepare_timestamp(prepare_ts));
 
     if (read_ts != 0)
-        WT_SIM_RET(set_read_timestamp(read_ts));
+        WT_TXN_SIM_RET(set_read_timestamp(read_ts));
 
     return (0);
 }
@@ -298,18 +313,19 @@ session_simulator::timestamp_transaction_uint(const std::string &ts_type, uint64
 
     /* Zero timestamp is not permitted. */
     if (ts == 0)
-        WT_SIM_RET_MSG(EINVAL, "Illegal " + std::to_string(ts) + " timestamp: zero not permitted.");
+        WT_TXN_SIM_RET_MSG(
+          EINVAL, "Illegal " + std::to_string(ts) + " timestamp: zero not permitted.");
 
     if (ts_type == "commit")
-        WT_SIM_RET(set_commit_timestamp(ts));
+        WT_TXN_SIM_RET(set_commit_timestamp(ts));
     else if (ts_type == "durable")
-        WT_SIM_RET(set_durable_timestamp(ts));
+        WT_TXN_SIM_RET(set_durable_timestamp(ts));
     else if (ts_type == "prepare")
-        WT_SIM_RET(set_prepare_timestamp(ts));
+        WT_TXN_SIM_RET(set_prepare_timestamp(ts));
     else if (ts_type == "read")
-        WT_SIM_RET(set_read_timestamp(ts));
+        WT_TXN_SIM_RET(set_read_timestamp(ts));
     else {
-        WT_SIM_RET_MSG(
+        WT_TXN_SIM_RET_MSG(
           EINVAL, "Invalid timestamp type (" + ts_type + ") passed to timestamp transaction uint.");
     }
 
@@ -370,6 +386,7 @@ session_simulator::reset_txn_level_var()
     _ts_round_prepared = false;
     _ts_round_read = false;
     _txn_running = false;
+    _txn_error = false;
 }
 
 uint64_t
