@@ -124,6 +124,69 @@ interface_session_query_timestamp()
 void
 print_rules()
 {
+    bool exit = false;
+    std::vector<std::string> options;
+    options.push_back("oldest and stable timestamp");
+    options.push_back("commit timestamp");
+    options.push_back("prepare timestamp");
+    options.push_back("durable timestamp");
+    options.push_back("read timestamp");
+    options.push_back("<- go back");
+
+    do {
+        std::cout << std::endl;
+
+        print_options(options);
+
+        int choice = choose_num(1, options.size(), "Choose timestamp >>");
+
+        switch (choice) {
+        case 1:
+            print_border_msg("Timestamp value should be greater than 0.", WHITE);
+            print_border_msg(
+              "It is a no-op to set the oldest or stable timestamps behind the global values.",
+              WHITE);
+            print_border_msg("Oldest must not be greater than the stable timestamp", WHITE);
+            break;
+        case 2:
+            print_border_msg(
+              "The commit_ts cannot be less than the first_commit_timestamp.", WHITE);
+            print_border_msg("The commit_ts cannot be less than the oldest timestamp.", WHITE);
+            print_border_msg("The commit timestamp must be after the stable timestamp.", WHITE);
+            print_border_msg("The commit_ts cannot be less than the prepared_ts", WHITE);
+            break;
+        case 3:
+            print_border_msg(
+              "Cannot set the prepared timestamp if the transaction is already prepared.", WHITE);
+            print_border_msg("Cannot set prepared timestamp more than once.", WHITE);
+            print_border_msg(
+              "Commit timestamp should not have been set before the prepare timestamp.", WHITE);
+            print_border_msg(
+              "Prepare timestamp must be greater than the latest active read timestamp.", WHITE);
+            print_border_msg("Prepare timestamp cannot be less than the stable timestamp", WHITE);
+            break;
+        case 4:
+            print_border_msg(
+              "Durable timestamp should not be specified for non-prepared transaction.", WHITE);
+            print_border_msg(
+              "Commit timestamp is required before setting a durable timestamp.", WHITE);
+            print_border_msg(
+              "The durable timestamp should not be less than the oldest timestamp.", WHITE);
+            print_border_msg("The durable timestamp must be after the stable timestamp.", WHITE);
+            print_border_msg(
+              "The durable timestamp should not be less than the commit timestamp.", WHITE);
+            break;
+        case 5:
+            print_border_msg(
+              "The read timestamp can only be set before a transaction is prepared.", WHITE);
+            print_border_msg("Read timestamps can only be set once.", WHITE);
+            print_border_msg(
+              "The read timestamp must be greater than or equal to the oldest timestamp.", WHITE);
+            break;
+        case 6:
+            exit = true;
+        }
+    } while (!exit);
 }
 
 int

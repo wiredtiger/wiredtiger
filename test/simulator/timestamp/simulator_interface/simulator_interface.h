@@ -35,6 +35,7 @@
 
 #define RESET "\033[0m"
 #define RED "\033[31m"
+#define WHITE "\033[37m"
 
 /* Helper functions. */
 int choose_num(int, int, const std::string &);
@@ -48,7 +49,7 @@ void interface_session_management();
 void interface_set_timestamp();
 void interface_conn_query_timestamp();
 
-/* session level methods */
+/* session level methods. */
 void interface_begin_transaction();
 void interface_commit_transaction();
 void interface_prepare_transaction();
