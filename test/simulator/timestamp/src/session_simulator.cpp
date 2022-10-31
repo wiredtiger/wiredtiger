@@ -121,7 +121,7 @@ session_simulator::prepare_transaction(const std::string &config)
 
     /* Make sure that the transaction from this session is running. */
     if (!_txn_running)
-        WT_TXN_SIM_RET_MSG(_txn_error, EINVAL, "'prepare_transaction' only permitted in a running transaction");
+        WT_SIM_RET_MSG(EINVAL, "'prepare_transaction' only permitted in a running transaction");
 
     timestamp_manager *ts_manager = &timestamp_manager::get_timestamp_manager();
     std::map<std::string, std::string> config_map;
@@ -129,19 +129,22 @@ session_simulator::prepare_transaction(const std::string &config)
     const std::vector<std::string> supported_ops = {"prepare_timestamp"};
     const std::vector<std::string> unsupported_ops;
 
-    WT_TXN_SIM_RET_MSG(_txn_error, ts_manager->parse_config(config, supported_ops, unsupported_ops, config_map),
+    WT_TXN_SIM_RET_MSG(_txn_error,
+      ts_manager->parse_config(config, supported_ops, unsupported_ops, config_map),
       "Incorrect config (" + config + ") passed in prepare_transaction");
 
     auto pos = config_map.find("prepare_timestamp");
     if (pos != config_map.end()) {
-        WT_TXN_SIM_RET(_txn_error, ts_manager->validate_hex_value(pos->second, "prepare timestamp"));
+        WT_TXN_SIM_RET(
+          _txn_error, ts_manager->validate_hex_value(pos->second, "prepare timestamp"));
         uint64_t prepare_ts = ts_manager->hex_to_decimal(pos->second);
         WT_TXN_SIM_RET(_txn_error, set_prepare_timestamp(prepare_ts));
     }
 
     /* A prepared timestamp should have been set at this point. */
     if (!has_prepare_timestamp())
-        WT_TXN_SIM_RET_MSG(_txn_error, EINVAL, "'prepare_transaction' - prepare timestamp is not set");
+        WT_TXN_SIM_RET_MSG(
+          _txn_error, EINVAL, "'prepare_transaction' - prepare timestamp is not set");
 
     /* Commit timestamp must not be set before transaction is prepared. */
     if (_has_commit_ts)
