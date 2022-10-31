@@ -233,12 +233,12 @@ interface_conn_query_timestamp(connection_simulator *conn)
             bool ts_supported;
             int ret = conn->query_timestamp(config, hex_ts, ts_supported);
 
-            if (hex_ts == "0")
-                hex_ts = "not specified";
-
             if (ret != 0)
                 throw "'query_timestamp' failed with ret value: '" + std::to_string(ret) +
                   "', and config: '" + config + "'";
+
+            if (hex_ts == "0")
+                hex_ts = "not specified";
 
             print_border_msg("- Timestamp queried - " + config + ": " + hex_ts, GREEN);
         } catch (const std::string &exception_str) {
@@ -489,12 +489,12 @@ interface_session_query_timestamp(session_simulator *session)
             std::string hex_ts;
             int ret = session->query_timestamp(config, hex_ts);
 
-            if (hex_ts == "0")
-                hex_ts = "not specified";
-
             if (ret != 0)
                 throw "'query_timestamp' failed with ret value: '" + std::to_string(ret) +
                   "', and config: '" + config + "'";
+
+            if (hex_ts == "0")
+                hex_ts = "not specified";
 
             print_border_msg("- Timestamp queried - " + config + ": " + hex_ts, GREEN);
         } catch (const std::string &exception_str) {
