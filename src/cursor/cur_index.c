@@ -356,8 +356,8 @@ err:
 
 /*
  * __increment_bound_array --
- *     Increment the given buffer by one bit. Note: This function can potentially extend the buffer
- *     by one byte, if there is not enough space to fit the one bit.
+ *     Increment the given buffer by one bit. If the all of the values inside the buffer is maxed
+ *     values
  */
 static inline int
 __increment_bound_array(WT_ITEM *user_item)
