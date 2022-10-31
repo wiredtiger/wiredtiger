@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -43,9 +44,12 @@ int choose_num(int, int, const std::string &);
 void print_border_msg(const std::string &, const std::string &);
 void print_options(const std::vector<std::string> &);
 const std::string get_input(const std::string &);
+session_simulator *get_session(
+  const std::map<std::string, session_simulator *> &, const std::string &);
 
 /* session management method. */
-void interface_session_management();
+void interface_session_management(
+  connection_simulator *, std::map<std::string, session_simulator *> &, std::string &);
 
 /* connection level methods. */
 void interface_set_timestamp(connection_simulator *);

@@ -28,7 +28,9 @@
 
 #include "simulator_interface.h"
 
+#include <cassert>
 #include <iostream>
+#include <map>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -87,9 +89,66 @@ get_input(const std::string &input_name)
     return (input);
 }
 
-void
-interface_session_management()
+session_simulator *
+get_session(
+  const std::map<std::string, session_simulator *> &session_map, const std::string &session_to_use)
 {
+    /* session_to_use should not be empty. */
+    assert(!session_to_use.empty());
+
+    /* session_id should exist in the map. */
+    assert(session_map.find(session_to_use) != session_map.end());
+
+    /* Get the session from the session map. */
+    session_simulator *session = session_map.at(session_to_use);
+    assert(session != nullptr);
+    return (session);
+}
+
+void
+interface_session_management(connection_simulator *conn,
+  std::map<std::string, session_simulator *> &session_map, std::string &session_in_use)
+{
+    std::string config;
+    std::vector<std::string> options;
+    options.push_back("Use session");
+    options.push_back("Create session");
+    options.push_back("<- go back");
+
+    do {
+        try {
+            print_border_msg("Listing sessions: ", WHITE);
+            for (const auto &session : session_map)
+                std::cout << session.first << std::endl;
+
+            print_options(options);
+
+            int choice = choose_num(1, options.size(), "Session management >>");
+
+            switch (choice) {
+            case 1: {
+                std::string session_selected = get_input("Which session: ");
+                if (session_map.find(session_selected) == session_map.end())
+                    throw "Session selected (" + session_selected + ") not in the list";
+                session_in_use = session_selected;
+                return;
+            }
+            case 2: {
+                session_simulator *session = conn->open_session();
+                std::string session_name = "Session" + std::to_string((session_map.size() + 1));
+                session_map.insert(
+                  std::pair<std::string, session_simulator *>(session_name, session));
+                break;
+            }
+            case 3:
+            default:
+                return;
+            }
+        } catch (const std::string &exception_str) {
+            print_border_msg("exception: " + exception_str, RED);
+        }
+
+    } while (true);
 }
 
 void
@@ -518,6 +577,10 @@ main(int argc, char *argv[])
     connection_simulator *conn = &connection_simulator::get_connection();
     session_simulator *session = conn->open_session();
 
+    std::map<std::string, session_simulator *> session_map;
+    std::string session_in_use = "Session1";
+    session_map.insert(std::pair<std::string, session_simulator *>(session_in_use, session));
+
     bool exit = false;
     std::vector<std::string> options;
     options.push_back("Session Management");
@@ -533,13 +596,17 @@ main(int argc, char *argv[])
     options.push_back("Exit");
 
     do {
+        session = get_session(session_map, session_in_use);
+
+        print_border_msg("Session in use: " + session_in_use, GREEN);
+
         print_options(options);
 
         int choice = choose_num(1, options.size(), "timestamp_simulator >>");
 
         switch (choice) {
         case 1:
-            interface_session_management();
+            interface_session_management(conn, session_map, session_in_use);
             break;
         case 2:
             interface_set_timestamp(conn);
