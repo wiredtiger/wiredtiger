@@ -321,6 +321,8 @@ __delete_redo_window_cleanup_internal(WT_SESSION_IMPL *session, WT_REF *ref)
                     for (sleep_usecs = yield_count = 0;;) {
                         WT_RET(__wt_hazard_set(session, child, &busy));
                         if (!busy) {
+                            /* The page is expected to be clean. */
+                            WT_ASSERT(session, !__wt_page_is_modified(ref->page));
                             WT_RET_BUSY_OK(__wt_page_release_evict(session, child, 0));
                             break;
                         }
