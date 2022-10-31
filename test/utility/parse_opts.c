@@ -61,6 +61,10 @@ parse_init_random(WT_RAND_STATE *rnd, uint64_t *seedp)
     rnd->v = *seedp;
 }
 
+/*
+ * parse_seed --
+ *     Parse a random number generator seed from the command line.
+ */
 static void
 parse_seed(uint64_t *seedp, const char *seed_str, char **parse_end)
 {
