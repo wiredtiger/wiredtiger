@@ -1480,8 +1480,8 @@ __wt_session_range_truncate(
     }
 
     /*
-     * Use a temporary buffer to store the original start and stop key. We use track the original
-     * keys when tracking the truncate operation for the write-ahead log.
+     * Use temporary buffers to store the original start and stop keys. We track the original keys
+     * for writing the truncate operation in the write-ahead log.
      */
     if (!local_start && start != NULL) {
         WT_ERR(__wt_cursor_get_raw_key(start, &start_key));
