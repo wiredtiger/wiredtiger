@@ -36,7 +36,6 @@ from wtscenario import make_scenarios
 # cleaned up on disk and we are not using excessive disk space.
 class test_truncate19(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
-    rand = suite_random.suite_random()
 
     format_values = [
         ('string_row', dict(key_format='S', value_format='S')),
@@ -61,7 +60,7 @@ class test_truncate19(wttest.WiredTigerTestCase):
         self.session.truncate(None, None, hicursor, None)
         self.session.commit_transaction()
 
-    def test_truncate(self):
+    def test_truncate19(self):
         uri = 'table:oplog'
         nrows = 1000000
 
@@ -75,6 +74,7 @@ class test_truncate19(wttest.WiredTigerTestCase):
 
         # Write some data
         self.append_rows(uri, ds, 1, nrows, value_a)
+        self.session.checkpoint()
 
         # Reopen the database.
         self.reopen_conn()
