@@ -75,6 +75,7 @@ class test_truncate19(wttest.WiredTigerTestCase):
 
         # Write some data
         self.append_rows(uri, ds, 1, nrows, value_a)
+        self.session.checkpoint()
 
         # Reopen the database.
         self.reopen_conn()
