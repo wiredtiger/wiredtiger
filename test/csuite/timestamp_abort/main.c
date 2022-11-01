@@ -622,8 +622,7 @@ run_workload(void)
     if (!opts->compat && !opts->inmem)
         strcat(envconf, ENV_CONFIG_ADD_EVICT_DIRTY);
 
-    printf("wiredtiger_open configuration: %s\n", envconf);
-    testutil_check(wiredtiger_open(NULL, NULL, envconf, &conn));
+    testutil_wiredtiger_open(opts, envconf, NULL, &conn, false);
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /*
