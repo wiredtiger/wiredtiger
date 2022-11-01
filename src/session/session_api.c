@@ -1428,10 +1428,13 @@ __wt_session_range_truncate(
   WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *start, WT_CURSOR *stop)
 {
     WT_DECL_RET;
+    WT_DECL_ITEM(orig_start_key);
+    WT_DECL_ITEM(orig_stop_key);
     WT_ITEM start_key, stop_key;
     int cmp;
     bool local_start;
 
+    orig_start_key = orig_stop_key = NULL;
     local_start = false;
     if (uri != NULL) {
         WT_ASSERT(session, WT_BTREE_PREFIX(uri));
@@ -1481,17 +1484,15 @@ __wt_session_range_truncate(
      * key. We use the original keys for the write-ahead log.
      */
     if (!local_start && start != NULL) {
-        if (WT_CURSOR_BOUNDS_SET(start))
-            WT_ERR_MSG(session, EINVAL, "a cursor with bounds set cannot perform truncate.");
         WT_ERR(__wt_cursor_get_raw_key(start, &start_key));
-        WT_ERR(__wt_buf_set(session, &start->lower_bound, start_key.data, start_key.size));
+        WT_ERR(__wt_scr_alloc(session, 0, &orig_start_key));
+        WT_ERR(__wt_buf_set(session, orig_start_key, start_key.data, start_key.size));
     }
 
     if (stop != NULL) {
-        if (WT_CURSOR_BOUNDS_SET(stop))
-            WT_ERR_MSG(session, EINVAL, "a cursor with bounds set cannot perform truncate.");
         WT_ERR(__wt_cursor_get_raw_key(stop, &stop_key));
-        WT_ERR(__wt_buf_set(session, &stop->lower_bound, stop_key.data, stop_key.size));
+        WT_ERR(__wt_scr_alloc(session, 0, &orig_stop_key));
+        WT_ERR(__wt_buf_set(session, orig_stop_key, stop_key.data, stop_key.size));
     }
 
     /*
@@ -1541,7 +1542,8 @@ __wt_session_range_truncate(
             goto done;
     }
 
-    WT_ERR(__wt_schema_range_truncate(session, start, stop, local_start));
+    WT_ERR(
+      __wt_schema_range_truncate(session, start, stop, local_start, orig_start_key, orig_stop_key));
 
 done:
 err:
@@ -1555,14 +1557,12 @@ err:
         WT_TRET(start->close(start));
     else if (start != NULL) {
         /* Clear the temporary buffer that was storing the original start key. */
-        __wt_buf_free(session, &start->lower_bound);
-        WT_CLEAR(start->lower_bound);
+        __wt_scr_free(session, &orig_start_key);
         WT_TRET(start->reset(start));
     }
     if (stop != NULL) {
         /* Clear the temporary buffer that was storing the original stop key. */
-        __wt_buf_free(session, &stop->lower_bound);
-        WT_CLEAR(stop->lower_bound);
+        __wt_scr_free(session, &orig_stop_key);
         WT_TRET(stop->reset(stop));
     }
     return (ret);
