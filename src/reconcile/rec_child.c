@@ -44,8 +44,8 @@ __rec_child_deleted(
 
     /*
      * If an earlier reconciliation chose to write the fast truncate information to the page, we
-     * should select it regardless of visibility unless it is visible globally visible. This is
-     * important as it is never ok to shift the on-disk value backwards.
+     * should select it regardless of visibility unless it is globally visible. This is important as
+     * it is never ok to shift the on-disk value backwards.
      */
     if (page_del->selected_for_write && !visible_all) {
         cmsp->del = *page_del;
