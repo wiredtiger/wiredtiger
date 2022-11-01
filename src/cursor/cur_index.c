@@ -408,6 +408,8 @@ __curindex_bound(WT_CURSOR *cursor, const char *config)
 
     cindex = (WT_CURSOR_INDEX *)cursor;
     child = cindex->child;
+    inclusive = false;
+
     JOINABLE_CURSOR_API_CALL_CONF(cursor, session, bound, config, cfg, NULL);
     WT_ERR(__wt_config_gets(session, cfg, "action", &cval));
 
