@@ -961,7 +961,7 @@ config_lsm_reset(TABLE *table)
 static void
 config_mirrors(void)
 {
-    u_int i, mirrors;
+    u_int available_tables, i, mirrors;
     char buf[100];
     bool already_set, explicit_mirror;
 
@@ -998,7 +998,13 @@ config_mirrors(void)
     for (i = 1; i <= ntables; ++i)
         if (tables[i]->type != FIX)
             break;
-    if (ntables < 2 || i > ntables) {
+
+    available_tables = ntables;
+    for (i = 1; i <= ntables; ++i)
+        if (tables[i]->v[V_TABLE_RUNS_MIRROR].set && tables[i]->v[V_TABLE_RUNS_MIRROR].v == 0)
+            --available_tables;
+
+    if (available_tables < 2 || i > ntables) {
         if (explicit_mirror)
             WARN("%s", "table selection didn't support mirroring, turning off mirroring");
         return;
