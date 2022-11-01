@@ -1427,9 +1427,9 @@ int
 __wt_session_range_truncate(
   WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *start, WT_CURSOR *stop)
 {
-    WT_DECL_RET;
     WT_DECL_ITEM(orig_start_key);
     WT_DECL_ITEM(orig_stop_key);
+    WT_DECL_RET;
     WT_ITEM start_key, stop_key;
     int cmp;
     bool local_start;
@@ -1480,8 +1480,8 @@ __wt_session_range_truncate(
     }
 
     /*
-     * Utilize the cursor lower bound as the temporary buffer to storing the original start and stop
-     * key. We use the original keys for the write-ahead log.
+     * Use a temporary buffer to store the original start and stop key. We use track the original
+     * keys when tracking the truncate operation for the write-ahead log.
      */
     if (!local_start && start != NULL) {
         WT_ERR(__wt_cursor_get_raw_key(start, &start_key));
