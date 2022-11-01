@@ -368,26 +368,25 @@ __increment_bound_array(WT_ITEM *user_item)
 
     usz = user_item->size;
     userp = (uint8_t *)user_item->data;
-
-    if (usz <= 0)
-        return (0);
-
     /*
      * First loop through all max values on the buffer from the end. This is to find the appropriate
      * position to increment add one to the byte.
      */
-    for (i = usz - 1; i >= 0 && userp[i] == UINT8_MAX; --i)
+    for (i = (int)usz - 1; i >= 0 && userp[i] == UINT8_MAX; --i)
         ;
 
     /*
-     * If all of the buffer are max values, we don't need to do anything as the key format is a
-     * fixed length format. Ideally we double check that the table format has a fixed length string.
+     * If all of the buffer are max values, we don't need to do increment the buffer as the key
+     * format is a fixed length format. Ideally we double check that the table format has a fixed
+     * length string.
      */
     if (i < 0)
         return (0);
-    else
-        userp[i] += 1;
-
+    else {
+        userp[i++] += 1;
+        for (; i < (int)user_item->size; ++i)
+            userp[i] = 0;
+    }
     return (0);
 }
 

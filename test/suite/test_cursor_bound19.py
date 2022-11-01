@@ -30,15 +30,14 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 from wtbound import bound_base
 
-# test_cursor_bound18.py
+# test_cursor_bound19.py
 #    Test basic cursor index bounds operations. To test index table formats the populate function
-# has been overriden such that we can have duplicate pair values for each key. This will construct
-# an index table that needs to seperate the duplicate values.
-class test_cursor_bound18(bound_base):
-    file_name = 'test_cursor_bound18'
+# has duplicate pair values for each key. This will construct an index table that needs to seperate
+# the duplicate values.
+class test_cursor_bound19(bound_base):
+    file_name = 'test_cursor_bound19'
     use_index = True
 
-    
     types = [
         ('table', dict(uri='table:', use_colgroup=False)),
         ('colgroup', dict(uri='table:', use_colgroup=True))
@@ -69,40 +68,6 @@ class test_cursor_bound18(bound_base):
     ]
 
     scenarios = make_scenarios(types, key_formats, value_formats, config)
-
-    def create_session_and_cursor(self, cursor_config=None):
-        uri = self.uri + self.file_name
-        create_params = 'value_format={},key_format={}'.format(self.value_format, self.key_format)
-        create_params += self.gen_create_param()
-        self.session.create(uri, create_params)
-
-        # Add in column group.
-        if self.use_colgroup:
-            for i in range(0, len(self.value_format)):
-                create_params = 'columns=(v{0}),'.format(i)
-                suburi = 'colgroup:{0}:g{1}'.format(self.file_name, i)
-                self.session.create(suburi, create_params)
-
-        cursor = self.session.open_cursor(uri, None, cursor_config)
-        self.session.begin_transaction()
-        count = self.start_key
-        for i in range(self.start_key, self.end_key + 1):
-            cursor[self.gen_key(i)] = self.gen_val(count)
-            # Increase count on every even interval to produce duplicate values.
-            if (i % 2 == 0): 
-                count = count + 1
-        self.session.commit_transaction()
-
-        if (self.evict):
-            evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
-            for i in range(self.start_key, self.end_key):
-                evict_cursor.set_key(self.gen_key(i))
-                evict_cursor.search()
-                evict_cursor.reset() 
-            evict_cursor.close()
-
-        self.index = True
-        return cursor      
 
     def test_cursor_index_bounds(self):
         cursor = self.create_session_and_cursor()

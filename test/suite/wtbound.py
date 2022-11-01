@@ -108,9 +108,10 @@ class bound_base(wttest.WiredTigerTestCase):
     end_key = 79
     lower_inclusive = True
     upper_inclusive = True
-    index = False
+    use_index = False
 
     def create_session_and_cursor(self, cursor_config=None):
+        index = self.use_index
         uri = self.uri + self.file_name
         create_params = 'value_format={},key_format={}'.format(self.value_format, self.key_format)
         if self.use_colgroup or self.use_index:
@@ -127,8 +128,19 @@ class bound_base(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri, None, cursor_config)
         self.session.begin_transaction()
 
-        for i in range(self.start_key, self.end_key + 1):
-            cursor[self.gen_key(i)] = self.gen_val("value" + str(i))
+        if (self.use_index):
+            # Turn use_index off while populating main table, as the variable is used
+            # to generate the key and value for index tables.
+            self.use_index = False
+            count = self.start_key
+            for i in range(self.start_key, self.end_key + 1):
+                cursor[self.gen_key(i)] = self.gen_val(count)
+                # Increase count on every even interval to produce duplicate values.
+                if (i % 2 == 0): 
+                    count = count + 1
+        else:
+            for i in range(self.start_key, self.end_key + 1):
+                cursor[self.gen_key(i)] = self.gen_val("value" + str(i))
         self.session.commit_transaction()
 
         if (self.evict):
@@ -137,6 +149,10 @@ class bound_base(wttest.WiredTigerTestCase):
                 evict_cursor.set_key(self.gen_key(i))
                 evict_cursor.search()
                 evict_cursor.reset() 
+            evict_cursor.close()
+        
+        if (index):
+            self.use_index = True
         return cursor        
 
     def gen_create_param(self):
@@ -164,7 +180,7 @@ class bound_base(wttest.WiredTigerTestCase):
     def gen_key(self, i):
         tuple_key = []
         key_format = self.key_format
-        if (self.index):
+        if (self.use_index):
             key_format = self.value_format
 
         for key in key_format:
@@ -198,7 +214,7 @@ class bound_base(wttest.WiredTigerTestCase):
     def check_key(self, i):
         list_key = []
         key_format = self.key_format
-        if (self.index):
+        if (self.use_index):
             key_format = self.value_format
 
         for key in key_format:
