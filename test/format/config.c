@@ -1001,7 +1001,7 @@ config_mirrors(void)
 
     available_tables = ntables;
     for (i = 1; i <= ntables; ++i)
-        if (tables[i]->v[V_TABLE_RUNS_MIRROR].set && tables[i]->v[V_TABLE_RUNS_MIRROR].v == 0)
+        if (NT_EXPLICIT_OFF(tables[i], RUNS_MIRROR))
             --available_tables;
 
     if (available_tables < 2 || i > ntables) {
