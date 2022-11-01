@@ -136,9 +136,10 @@ __rec_child_deleted(
                 return (__wt_set_return(session, EBUSY));
 
             /*
-             * It is wrong to leave the page clean in checkpoint if we cannot write the deleted
-             * pages to disk in eviction. If we do so, the next eviction will write the non-globally
-             * visible deleted pages to disk leading to the loss of the page_del structure.
+             * It is wrong to leave the page clean after checkpoint if we cannot write the deleted
+             * pages to disk in eviction. If we do so, the next eviction will discard the page
+             * without reconcile it again and we lose the time point information of the non-obsolete
+             * deleted pages.
              */
             r->leave_dirty = true;
         }
