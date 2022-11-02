@@ -114,6 +114,8 @@ static TEST_OPTS *opts, _opts;
  */
 #define KEY_STRINGFORMAT ("%010" PRIu64)
 
+#define SHARED_PARSE_OPTIONS "b:CmP:h:p"
+
 typedef struct {
     uint64_t absent_key; /* Last absent key */
     uint64_t exist_key;  /* First existing key after miss */
@@ -241,7 +243,7 @@ handle_general(WT_EVENT_HANDLER *handler, WT_CONNECTION *conn, WT_SESSION *sessi
 static void
 usage(void)
 {
-    fprintf(stderr, "usage: %s [-h dir] [-T threads] [-t time] [-Cmvz]\n", progname);
+    fprintf(stderr, "usage: %s %s [-T threads] [-t time] [-Cmvz]\n", progname, opts->usage);
     exit(EXIT_FAILURE);
 }
 
@@ -766,9 +768,9 @@ main(int argc, char *argv[])
     timeout = MIN_TIME;
     verify_only = false;
 
-    testutil_parse_begin_opt(argc, argv, "b:CmPTh:pv", opts);
+    testutil_parse_begin_opt(argc, argv, SHARED_PARSE_OPTIONS, opts);
 
-    while ((ch = __wt_getopt(progname, argc, argv, "Cch:LmpsP:T:t:vz")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "cLsT:t:vz" SHARED_PARSE_OPTIONS)) != EOF)
         switch (ch) {
         case 'c':
             /* Variable-length columns only (for now) */
@@ -801,9 +803,8 @@ main(int argc, char *argv[])
             break;
         default:
             /* The option is either one that we're asking testutil to support, or illegal. */
-            if (testutil_parse_single_opt(opts, ch) != 0) {
+            if (testutil_parse_single_opt(opts, ch) != 0)
                 usage();
-            }
         }
     argc -= __wt_optind;
     if (argc != 0)
