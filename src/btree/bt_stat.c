@@ -88,13 +88,13 @@ __stat_tree_walk(WT_SESSION_IMPL *session)
     next_walk = NULL;
 
     /*
-     * Pages read for statistics aren't "useful"; don't update the read generation of pages
-     * already in memory, and if a page is read, set its generation to a low value so it is
-     * evicted quickly. Same as with compact.
+     * Pages read for statistics aren't "useful"; don't update the read generation of pages already
+     * in memory, and if a page is read, set its generation to a low value so it is evicted quickly.
+     * Same as with compact.
      */
-    while (
-      (ret = __wt_tree_walk(session, &next_walk,
-            WT_READ_NO_GEN | WT_READ_WONT_NEED | WT_READ_VISIBLE_ALL)) == 0 && next_walk != NULL) {
+    while ((ret = __wt_tree_walk(session, &next_walk,
+              WT_READ_NO_GEN | WT_READ_WONT_NEED | WT_READ_VISIBLE_ALL)) == 0 &&
+      next_walk != NULL) {
         WT_WITH_PAGE_INDEX(session, ret = __stat_page(session, next_walk->page, stats));
         WT_ERR(ret);
     }

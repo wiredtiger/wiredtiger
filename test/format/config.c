@@ -1145,16 +1145,16 @@ config_statistics(void)
 
     if (!config_explicit(NULL, "statistics.mode")) {
         /* 70% of the time set statistics to fast. */
-	if (mmrand(NULL, 1, 10) < 8)
+        if (mmrand(NULL, 1, 10) < 8)
             config_single(NULL, "statistics.mode=fast", false);
-	else
+        else
             config_single(NULL, "statistics.mode=all", false);
     }
 
     if (!config_explicit(NULL, "statistics_log.sources")) {
-       /* 10% of the time use sources if all. */
-       if (strcmp(GVS(STATISTICS_MODE), "all") == 0 && mmrand(NULL, 1, 10) == 1)
-           config_single(NULL, "statistics_log.sources=file:", false); 
+        /* 10% of the time use sources if all. */
+        if (strcmp(GVS(STATISTICS_MODE), "all") == 0 && mmrand(NULL, 1, 10) == 1)
+            config_single(NULL, "statistics_log.sources=file:", false);
     }
 }
 
