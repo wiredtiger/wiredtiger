@@ -109,6 +109,7 @@ class bound_base(wttest.WiredTigerTestCase):
     lower_inclusive = True
     upper_inclusive = True
     use_index = False
+    use_colgroup = False
 
     def create_session_and_cursor(self, cursor_config=None):
         index = self.use_index
@@ -163,7 +164,10 @@ class bound_base(wttest.WiredTigerTestCase):
             start += 1
 
         start = 0
-        for _ in self.value_format:
+        for v in self.value_format:
+            if v.isdigit():
+                continue
+
             create_params += "v{0},".format(str(start)) 
             start += 1
         create_params += ")"

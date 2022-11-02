@@ -360,7 +360,7 @@ err:
  *     values
  */
 static inline int
-__increment_bound_array(WT_ITEM *user_item)
+__increment_bound_array(WT_ITEM *user_item, bool *increment)
 {
     size_t usz;
     uint8_t *userp;
@@ -380,9 +380,11 @@ __increment_bound_array(WT_ITEM *user_item)
      * format is a fixed length format. Ideally we double check that the table format has a fixed
      * length string.
      */
-    if (i < 0)
+    if (i < 0) {
+        *increment = false;
         return (0);
-    else {
+    } else {
+        *increment = true;
         userp[i++] += 1;
         for (; i < (int)user_item->size; ++i)
             userp[i] = 0;
@@ -403,11 +405,12 @@ __curindex_bound(WT_CURSOR *cursor, const char *config)
     WT_CURSOR_INDEX *cindex;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    bool inclusive;
+    bool inclusive, increment;
 
     cindex = (WT_CURSOR_INDEX *)cursor;
     child = cindex->child;
     inclusive = false;
+    increment = false;
 
     JOINABLE_CURSOR_API_CALL_CONF(cursor, session, bound, config, cfg, NULL);
     WT_ERR(__wt_config_gets(session, cfg, "action", &cval));
@@ -437,11 +440,13 @@ __curindex_bound(WT_CURSOR *cursor, const char *config)
      *  2. If the set bound is upper and it is inclusive.
      */
     if (WT_STRING_MATCH("lower", cval.str, cval.len) && !inclusive)
-        WT_ERR(__increment_bound_array(&child->lower_bound));
+        WT_ERR(__increment_bound_array(&child->lower_bound, &increment));
 
-    if (WT_STRING_MATCH("upper", cval.str, cval.len) && inclusive)
-        WT_ERR(__increment_bound_array(&child->upper_bound));
-
+    if (WT_STRING_MATCH("upper", cval.str, cval.len) && inclusive) {
+        WT_ERR(__increment_bound_array(&child->upper_bound, &increment));
+        // if (!increment)
+        //     WT_ERR(child->bound(child, "action=clear,bound=upper"));
+    }
 err:
     API_END_RET(session, ret);
 }
