@@ -1024,7 +1024,7 @@ ops(void *arg)
             /* For non standalone build, ensure truncation is the only operation in a transaction.
              */
             if (intxn) {
-                commit_transaction(tinfo, prepared);
+                commit_transaction(tinfo, prepared, g.transaction_timestamps_config);
                 begin_transaction(tinfo, "isolation=snapshot");
             }
 #endif
