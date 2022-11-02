@@ -92,10 +92,10 @@ static int
 __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first_upd,
   wt_timestamp_t rollback_timestamp, bool *stable_update_found)
 {
-    WT_UPDATE *oldest_unstable_hs_upd, *stable_upd, *tombstone, *upd;
+    WT_UPDATE *stable_upd, *tombstone, *upd;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
-    oldest_unstable_hs_upd = stable_upd = tombstone = NULL;
+    stable_upd = tombstone = NULL;
     if (stable_update_found != NULL)
         *stable_update_found = false;
     for (upd = first_upd; upd != NULL; upd = upd->next) {
@@ -125,9 +125,6 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
 
             upd->txnid = WT_TXN_ABORTED;
             WT_STAT_CONN_INCR(session, txn_rts_upd_aborted);
-
-            if (F_ISSET(upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS))
-                oldest_unstable_hs_upd = upd;
         } else {
             /* Valid update is found. */
             stable_upd = upd;
@@ -176,19 +173,7 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
         }
         if (stable_update_found != NULL)
             *stable_update_found = true;
-    } else
-      /*
-       * When stable update cleanup isn't performed make sure unstable updates that were flushed to
-       * the history store are removed - unstable updates in the data store are removed when the
-       * page is next reconciled. We only remove up to the earliest on-chain update, rather than all
-       * unstable updates in this history store, as we don't know if there are scenarios such as a
-       * reverse modify on-disk we may break.
-       *
-       * FIXME-WT-10017: WT-9846 is an interim fix while we investigate the impacts of a longer term
-       * correction in WT-10017. Once completed this change can be reverted.
-       */
-      if (oldest_unstable_hs_upd != NULL)
-        WT_RET(__rollback_delete_hs(session, key, oldest_unstable_hs_upd->start_ts));
+    }
 
     return (0);
 }
@@ -227,6 +212,21 @@ __rollback_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_
               session, key, ins->upd, rollback_timestamp, &stable_update_found));
             if (stable_update_found && stable_updates_count != NULL)
                 (*stable_updates_count)++;
+            if (!stable_update_found && page->type == WT_PAGE_ROW_LEAF)
+                /*
+                 * When a new key is added to a page and the page is then checkpointed, updates for
+                 * that key can be present in the History Store while the key isn't present in the
+                 * disk image. RTS will then only remove these updates when there is a stable update
+                 * on-chain. These updates still need removing when no stable updates are on-chain,
+                 * so do so here explicitly. Pass in rollback_timestamp + 1 as __rollback_delete_hs
+                 * removes updates inclusive of the provided timestamp, but we only want to remove
+                 * unstable updates.
+                 *
+                 * FIXME-WT-10017: WT-9846 is an interim fix only for row-store while we investigate
+                 * the impacts of a long term correction in WT-10017. Once completed this change can
+                 * be reverted.
+                 */
+                WT_ERR(__rollback_delete_hs(session, key, rollback_timestamp + 1));
         }
 
 err:

@@ -129,7 +129,11 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
         else:
             self.assertGreaterEqual(upd_aborted + hs_removed + keys_removed, nrows * 4)
 
-        if not self.in_memory:
+        if not self.in_memory and self.key_format == 'i':
+            # FIXME-WT-10017: WT-9846 is a temporary fix only for row store and a 
+            # more complete fix including column store will be made in WT-10017.
+            # Once delivered the key_format == 'i' check is no longer needed.
+            # 
             # Reinsert the same updates with the same timestamps and flush to disk.
             # If the updates have not been correctly removed by RTS WiredTiger will 
             # see the key already exists in the history store and abort. 
