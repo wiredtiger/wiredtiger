@@ -212,7 +212,8 @@ __rollback_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_
               session, key, ins->upd, rollback_timestamp, &stable_update_found));
             if (stable_update_found && stable_updates_count != NULL)
                 (*stable_updates_count)++;
-            if (!stable_update_found && page->type == WT_PAGE_ROW_LEAF)
+            if (!stable_update_found && page->type == WT_PAGE_ROW_LEAF &&
+              !F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
                 /*
                  * When a new key is added to a page and the page is then checkpointed, updates for
                  * that key can be present in the History Store while the key isn't present in the
