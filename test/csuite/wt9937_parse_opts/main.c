@@ -69,8 +69,8 @@ typedef struct {
 typedef struct {
     const char *build_dir;             /* Build directory path */
     const char *tiered_storage_source; /* Tiered storage source */
-    uint64_t write_seed;               /* Random seed for write ops */
-    uint64_t read_seed;                /* Random seed for read ops */
+    uint64_t data_seed;                /* Random seed for data ops */
+    uint64_t extra_seed;               /* Random seed for read ops */
     bool tiered_storage;               /* Configure tiered storage */
     bool verbose;                      /* Run in verbose mode */
     uint64_t nthreads;                 /* Number of threads */
@@ -124,13 +124,13 @@ static TEST_DRIVER driver[] = {
     {NULL, 0, 0, 0}},
 
   /* Setting random seeds can be done together or separately. */
-  {{"parse_opts", "-PT", "-PSR2345,W1234", NULL}, {NULL, "dir_store", 1234, 2345, true, false, 0},
+  {{"parse_opts", "-PT", "-PSE2345,D1234", NULL}, {NULL, "dir_store", 1234, 2345, true, false, 0},
     {NULL, 0, 0, 0}},
 
-  {{"parse_opts", "-PT", "-PSW1234", "-PSR2345", NULL},
+  {{"parse_opts", "-PT", "-PSD1234", "-PSE2345", NULL},
     {NULL, "dir_store", 1234, 2345, true, false, 0}, {NULL, 0, 0, 0}},
 
-  {{"parse_opts", "-PT", "-PSW1234", NULL}, {NULL, "dir_store", 1234, NONZERO, true, false, 0},
+  {{"parse_opts", "-PT", "-PSD1234", NULL}, {NULL, "dir_store", 1234, NONZERO, true, false, 0},
     {NULL, 0, 0, 0}},
 
   /*
@@ -175,8 +175,8 @@ report(const TEST_OPTS *opts, FICTIONAL_OPTS *fiction_opts)
     REPORT_STR(opts, build_dir);
     REPORT_STR(opts, tiered_storage_source);
     REPORT_INT(opts, table_type);
-    REPORT_INT(opts, write_seed);
-    REPORT_INT(opts, read_seed);
+    REPORT_INT(opts, data_seed);
+    REPORT_INT(opts, extra_seed);
     REPORT_INT(opts, do_data_ops);
     REPORT_INT(opts, preserve);
     REPORT_INT(opts, tiered_storage);
@@ -191,7 +191,7 @@ report(const TEST_OPTS *opts, FICTIONAL_OPTS *fiction_opts)
     REPORT_INT(fiction_opts, delete_flag);
     REPORT_INT(fiction_opts, energize_flag);
     REPORT_INT(fiction_opts, fuzziness_option);
-    printf("Seeds: " TESTUTIL_SEED_FORMAT "\n", opts->write_seed, opts->read_seed);
+    printf("Seeds: " TESTUTIL_SEED_FORMAT "\n", opts->data_seed, opts->extra_seed);
 }
 
 /*
@@ -307,8 +307,8 @@ verify_expect(
     VERIFY_STR(opts, expect, build_dir);
     VERIFY_STR(opts, expect, tiered_storage_source);
     VERIFY_INT(opts, expect, table_type);
-    VERIFY_RANDOM_INT(opts, expect, write_seed);
-    VERIFY_RANDOM_INT(opts, expect, read_seed);
+    VERIFY_RANDOM_INT(opts, expect, data_seed);
+    VERIFY_RANDOM_INT(opts, expect, extra_seed);
     VERIFY_INT(opts, expect, do_data_ops);
     VERIFY_INT(opts, expect, preserve);
     VERIFY_INT(opts, expect, tiered_storage);
@@ -393,8 +393,8 @@ main(int argc, char *argv[])
             expect.tiered_storage = subset->tiered_storage;
             expect.verbose = subset->verbose;
             expect.nthreads = subset->nthreads;
-            expect.write_seed = subset->write_seed;
-            expect.read_seed = subset->read_seed;
+            expect.data_seed = subset->data_seed;
+            expect.extra_seed = subset->extra_seed;
 
             fiction_expect = &driver[i].fiction_expected;
             check(nargs, cmd, &opts, &fiction_opts);
