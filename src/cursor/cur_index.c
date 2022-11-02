@@ -444,8 +444,8 @@ __curindex_bound(WT_CURSOR *cursor, const char *config)
 
     if (WT_STRING_MATCH("upper", cval.str, cval.len) && inclusive) {
         WT_ERR(__increment_bound_array(&child->upper_bound, &increment));
-        // if (!increment)
-        //     WT_ERR(child->bound(child, "action=clear,bound=upper"));
+        if (!increment)
+            WT_ERR(child->bound(child, "action=clear,bound=upper"));
     }
 err:
     API_END_RET(session, ret);
