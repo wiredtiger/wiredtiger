@@ -595,7 +595,17 @@ __cursor_search_neighboring(WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, int *
     btree = CUR2BT(cbt);
     cursor = &cbt->iface;
     session = CUR2S(cbt);
-    walk_direction = cbt->compare <= 0;
+
+    /*
+     * Decide which direction walk first based off where we positioned our cursor. If it was
+     * positioned to the right, walk previous. If it was positioned the left, walk next. This biases
+     * towards keys that are visible closer to the original search key. Additionally it allows us to
+     * have confidence that the whole key range was visited when we reposition the cursor below for
+     * snapshot isolation.
+     *
+     * Currently prefix search near expects to walk next first.
+     */
+    walk_direction = F_ISSET(cursor, WT_CURSTD_PREFIX_SEARCH) ? true : cbt->compare <= 0;
 
     ret = __cursor_search_walk(cbt, state, exact, walk_direction);
 
@@ -642,7 +652,8 @@ __cursor_search_neighboring(WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, int *
     }
 
     /*
-     * We walked to the end of the tree without finding a match. Walk backwards instead.
+     * We walked to the end of the tree without finding a match. Walk the opposite direction
+     * instead.
      */
     ret = __cursor_search_walk(cbt, state, exact, !walk_direction);
     return (ret);
