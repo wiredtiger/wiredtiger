@@ -999,6 +999,11 @@ config_mirrors(void)
         if (tables[i]->type != FIX)
             break;
 
+    /*
+     * We also can't mirror if we don't have enough tables that have allowed mirroring. It's
+     * possible for a table to explicitly set config.mirrors=0, check how many tables have done that
+     * and remove them from the count of tables we can use for mirroring.
+     */
     available_tables = ntables;
     for (i = 1; i <= ntables; ++i)
         if (NT_EXPLICIT_OFF(tables[i], RUNS_MIRROR))
