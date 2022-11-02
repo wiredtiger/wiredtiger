@@ -146,11 +146,11 @@ def main():
 
         if sys.platform.startswith('linux'):
             dbg = GDBDumper()
-            dbg.dump(args.executable_path, core_file_path, args.lib_path, False, None)
+            dbg.dump(executable_path, core_file_path, lib_path, False, None)
 
             # Extract the filename from the core file path, to create a stacktrace output file.
             file_name, _ = os.path.splitext(os.path.basename(core_file_path))
-            dbg.dump(args.executable_path, core_file_path, args.lib_path, True, file_name + ".stacktrace.txt")
+            dbg.dump(executable_path, core_file_path, lib_path, True, file_name + ".stacktrace.txt")
         elif sys.platform.startswith('darwin'):
             # FIXME - macOS to be supported in WT-8976
             # dbg = LLDBDumper()
@@ -158,7 +158,7 @@ def main():
 
             # Extract the filename from the core file path, to create a stacktrace output file.
             # file_name, _ = os.path.splitext(os.path.basename(core_file_path))
-            # dbg.dump(args.executable_path, core_file_path, True, file_name + ".stacktrace.txt")
+            # dbg.dump(executable_path, core_file_path, True, file_name + ".stacktrace.txt")
             pass
         elif sys.platform.startswith('win32') or sys.platform.startswith('cygwin'):
             # FIXME - Windows to be supported in WT-8937
