@@ -107,12 +107,16 @@ class test_cursor_bound01(bound_base):
         # Check that clear works properly.
         cursor.bound("action=clear")
 
+        # Index cursors work slightly differently to other cursors, we can early exit here as the
+        # below edge cases don't apply for index cursors.
+        if (self.use_index):
+            return
+
         # Check that largest key doesn't work with bounded cursors.
-        if (not self.use_index):
-            cursor.set_key(self.gen_key(1))
-            cursor.bound("action=set,bound=lower")
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.largest_key(),
-                '/setting bounds is not compatible with cursor largest key/')
+        cursor.set_key(self.gen_key(1))
+        cursor.bound("action=set,bound=lower")
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.largest_key(),
+            '/setting bounds is not compatible with cursor largest key/')
 
         # Check edge cases with bounds config
         cursor.set_key(self.gen_key(1))
