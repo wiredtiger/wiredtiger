@@ -257,7 +257,9 @@ __wt_page_inmem_prepare(WT_SESSION_IMPL *session, WT_REF *ref)
             }
 
             /* Get the value. */
-            WT_ERR(__wt_page_cell_data_ref(session, page, &unpack, value));
+            WT_ERR(__wt_page_cell_data_ref_kv(session, page, &unpack, value));
+            WT_ASSERT_ALWAYS(session, __wt_cell_type_raw(unpack.cell) != WT_CELL_VALUE_OVFL_RM,
+              "Should never read an overflow removed value for a prepared update");
 
             /* For each record, create an update to resolve the prepare. */
             for (; rle > 0; --rle, ++recno) {
@@ -301,7 +303,9 @@ __wt_page_inmem_prepare(WT_SESSION_IMPL *session, WT_REF *ref)
 
             /* Get the key/value pair and create an update to resolve the prepare. */
             WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
-            WT_ERR(__wt_page_cell_data_ref(session, page, &unpack, value));
+            WT_ERR(__wt_page_cell_data_ref_kv(session, page, &unpack, value));
+            WT_ASSERT_ALWAYS(session, __wt_cell_type_raw(unpack.cell) != WT_CELL_VALUE_OVFL_RM,
+              "Should never read an overflow removed value for a prepared update");
             WT_ERR(__page_inmem_prepare_update(session, value, &unpack, &upd, &size));
             total_size += size;
 
@@ -634,6 +638,10 @@ static int
 __inmem_col_int_init_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *home, uint32_t hint,
   void *addr, uint64_t recno, bool internal, bool deleted, WT_PAGE_DELETED *page_del)
 {
+    WT_BTREE *btree;
+
+    btree = S2BT(session);
+
     ref->home = home;
     ref->pindex_hint = hint;
     ref->addr = addr;
@@ -653,6 +661,16 @@ __inmem_col_int_init_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *home, u
             *ref->page_del = *page_del;
         }
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
+
+        /*
+         * If the tree is already dirty and so will be written, mark the page dirty. (We want to
+         * free the deleted pages, but if the handle is read-only or if the application never
+         * modifies the tree, we're not able to do so.)
+         */
+        if (btree->modified) {
+            WT_RET(__wt_page_modify_init(session, home));
+            __wt_page_only_modify_set(session, home);
+        }
     }
 
     return (0);
@@ -807,6 +825,7 @@ __inmem_col_var(
 static int
 __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
 {
+    WT_BTREE *btree;
     WT_CELL_UNPACK_ADDR unpack;
     WT_DECL_ITEM(current);
     WT_DECL_RET;
@@ -814,6 +833,8 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
     WT_REF *ref, **refp;
     uint32_t hint;
     bool overflow_keys;
+
+    btree = S2BT(session);
 
     WT_RET(__wt_scr_alloc(session, 0, &current));
 
@@ -853,7 +874,7 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
              * Instantiate any overflow keys; WiredTiger depends on this, assuming any overflow key
              * is instantiated, and any keys that aren't instantiated cannot be overflow items.
              */
-            WT_ERR(__wt_dsk_cell_data_ref(session, page->type, &unpack, current));
+            WT_ERR(__wt_dsk_cell_data_ref_addr(session, page->type, &unpack, current));
 
             WT_ERR(__wt_row_ikey_incr(session, page, WT_PAGE_DISK_OFFSET(page, unpack.cell),
               current->data, current->size, ref));
@@ -875,6 +896,16 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
                 *ref->page_del = unpack.page_del;
             }
             WT_REF_SET_STATE(ref, WT_REF_DELETED);
+
+            /*
+             * If the tree is already dirty and so will be written, mark the page dirty. (We want to
+             * free the deleted pages, but if the handle is read-only or if the application never
+             * modifies the tree, we're not able to do so.)
+             */
+            if (btree->modified) {
+                WT_ERR(__wt_page_modify_init(session, page));
+                __wt_page_only_modify_set(session, page);
+            }
 
             ref->addr = unpack.cell;
             ++refp;

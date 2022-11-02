@@ -207,7 +207,6 @@ testutil_progress(TEST_OPTS *opts, const char *message)
 void
 testutil_cleanup(TEST_OPTS *opts)
 {
-    int i;
     if (opts->conn != NULL)
         testutil_check(opts->conn->close(opts->conn, NULL));
 
@@ -221,13 +220,7 @@ testutil_cleanup(TEST_OPTS *opts)
     free(opts->progress_file_name);
     free(opts->home);
     free(opts->build_dir);
-    if (opts->tiered_storage) {
-        for (i = 0; i <= opts->nargc; ++i)
-            free(opts->nargv[i]);
-        free(opts->nargv);
-    }
-    if (opts->tiered_storage_source != NULL)
-        free(opts->tiered_storage_source);
+    free(opts->tiered_storage_source);
 }
 
 /*
@@ -365,6 +358,22 @@ testutil_print_command_line(int argc, char *const *argv)
     printf("\n");
 }
 
+/*
+ * testutil_wiredtiger_open --
+ *     Call wiredtiger_open with the tiered storage configuration if enabled.
+ */
+void
+testutil_wiredtiger_open(TEST_OPTS *opts, const char *config, WT_EVENT_HANDLER *event_handler,
+  WT_CONNECTION **connectionp, bool rerun)
+{
+    char buf[1024];
+
+    testutil_check(__wt_snprintf(buf, sizeof(buf), "%s%s%s%s", config,
+      (rerun ? TESTUTIL_ENV_CONFIG_REC : ""), (opts->compat ? TESTUTIL_ENV_CONFIG_COMPAT : ""),
+      (opts->tiered_storage ? TESTUTIL_ENV_CONFIG_TIERED_EXT TESTUTIL_ENV_CONFIG_TIERED : "")));
+    testutil_check(wiredtiger_open(NULL, event_handler, buf, connectionp));
+}
+
 #ifndef _WIN32
 /*
  * testutil_sleep_wait --
@@ -392,6 +401,19 @@ testutil_sleep_wait(uint32_t seconds, pid_t pid)
     }
 }
 #endif
+
+/*
+ * testutil_time_us --
+ *     Return the number of microseconds since the epoch.
+ */
+uint64_t
+testutil_time_us(WT_SESSION *session)
+{
+    struct timespec ts;
+
+    __wt_epoch((WT_SESSION_IMPL *)session, &ts);
+    return ((uint64_t)ts.tv_sec * WT_MILLION + (uint64_t)ts.tv_nsec / WT_THOUSAND);
+}
 
 /*
  * dcalloc --

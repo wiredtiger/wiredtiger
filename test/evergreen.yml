@@ -123,9 +123,8 @@ functions:
           ${SPINLOCK_TYPE|} \
           ${CC_OPTIMIZE_LEVEL|}"
 
-        # This is a workaround until WT-8981 is resolved and we can remove this. The Ubuntu PPC platform does not have ZSTD.
-        # Strip it out.
-        if [ "${build_variant|}" = "ubuntu1804-ppc" ] && [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS" =~ (\-DHAVE_BUILTIN_EXTENSION_ZSTD=1) ]]; then
+        # The RHEL PPC platform does not have ZSTD. Strip it out.
+        if [ "${build_variant|}" = "rhel8-ppc" ] && [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS" =~ (\-DHAVE_BUILTIN_EXTENSION_ZSTD=1) ]]; then
           DEFINED_EVERGREEN_CONFIG_FLAGS=${DEFINED_EVERGREEN_CONFIG_FLAGS/\-DHAVE_BUILTIN_EXTENSION_ZSTD=1/}
         fi
 
@@ -365,6 +364,9 @@ functions:
           echo "$exit_code" > cppsuite_exit_code
           if [ "$exit_code" != 0 ]; then
             echo "[{\"info\":{\"test_name\": \"${test_name}\"},\"metrics\": []}]" > ${test_name}.json
+            # Since we later remove the WiredTiger folder, we need to check for core dumps now.
+            cd ../..
+            ${python_binary|python3} ../test/evergreen/print_stack_trace.py
           fi
           exit 0
     - command: perf.send
@@ -591,18 +593,14 @@ functions:
         script: |
           set -o errexit
           set -o verbose
-          # Parse through any failures inside the WT_TEST directory.
-          ${python_binary|python3} ../test/evergreen/print_stack_trace.py --unit_test -e ${python_binary|python3} -c WT_TEST -l .
+          ${python_binary|python3} ../test/evergreen/print_stack_trace.py
 
-          # Look through the stress format directory for any coredumps.
-          ${python_binary|python3} ../test/evergreen/print_stack_trace.py --format -e ./test/format/t -c test/format/. -l test/format/.
     - command: s3.put
       params:
         aws_secret: ${aws_secret}
         aws_key: ${aws_key}
         local_files_include_filter:
           - wiredtiger/cmake_build/*stacktrace.txt
-          - wiredtiger/cmake_build/test/format/*stacktrace.txt
         bucket: build_external
         permissions: public-read
         content_type: text/plain
@@ -787,14 +785,6 @@ variables:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
 
-  # Configure flags for address sanitizer ppc ubuntu.
-  # FIXME-WT-8981 - Ubuntu PPC tests have been replaced by RHEL8 tests as of WT-8688, but the RHEL8 tests are currently disabled
-  # due to platform issues. On completion of WT-8981 this can be deleted.
-  - &configure_flags_address_sanitizer_clang_with_builtins
-    <<: *configure_flags_with_builtins
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
-    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
-
 #########################################################################################
 # The following stress tests are configured to run for six hours via the "-t 360"
 # argument to format.sh: format-stress-test, format-stress-sanitizer-test, and
@@ -814,7 +804,7 @@ variables:
         vars:
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 360
 
-  - &format-stress-sanitizer-test
+  - &format-stress-sanitizer-ppc-test
     exec_timeout_secs: 25200
     commands:
       - func: "get project"
@@ -823,20 +813,20 @@ variables:
           <<: *configure_flags_address_sanitizer_mongodb_v4_clang_with_builtins
       - func: "format test script"
         vars:
-          format_test_script_args: -t 360
+          # Always disable mmap for PPC due to issues on variant setup.
+          # See https://bugzilla.redhat.com/show_bug.cgi?id=1686261#c10 for the potential cause.
+          format_test_script_args: -t 360 -- -C "mmap=false,mmap_all=false"
           test_env_vars:
             ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0:unmap_shadow_on_exit=1"
             ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
 
-  # FIXME-WT-8981 - Ubuntu PPC tests have been replaced by RHEL8 tests as of WT-8688, but the RHEL8 tests are currently disabled
-  # due to platform issues. On completion of WT-8981 this can be deleted.
-  - &format-stress-sanitizer-test-ppc-ubuntu
+  - &format-stress-sanitizer-test
     exec_timeout_secs: 25200
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          <<: *configure_flags_address_sanitizer_clang_with_builtins
+          <<: *configure_flags_address_sanitizer_mongodb_v4_clang_with_builtins
       - func: "format test script"
         vars:
           format_test_script_args: -t 360
@@ -1308,6 +1298,7 @@ tasks:
   - name: cppsuite-operations-test-stress
     depends_on:
       - name: compile
+    tags: ["cppsuite-stress-test"]
     commands:
       - func: "fetch artifacts"
       - func: "cppsuite test"
@@ -1318,6 +1309,7 @@ tasks:
   - name: cppsuite-hs-cleanup-stress
     depends_on:
       - name: compile
+    tags: ["cppsuite-stress-test"]
     commands:
       - func: "fetch artifacts"
       - func: "cppsuite test"
@@ -1328,6 +1320,7 @@ tasks:
   - name: cppsuite-burst-inserts-stress
     depends_on:
       - name: compile
+    tags: ["cppsuite-stress-test"]
     commands:
       - func: "fetch artifacts"
       - func: "cppsuite test"
@@ -1338,6 +1331,7 @@ tasks:
   - name: cppsuite-bounded-cursor-stress-stress
     depends_on:
       - name: compile
+    tags: ["cppsuite-stress-test"]
     commands:
       - func: "fetch artifacts"
       - func: "cppsuite test"
@@ -1348,6 +1342,7 @@ tasks:
   - name: cppsuite-bounded-cursor-stress-reverse-stress
     depends_on:
       - name: compile
+    tags: ["cppsuite-stress-test"]
     commands:
       - func: "fetch artifacts"
       - func: "cppsuite test"
@@ -1358,6 +1353,7 @@ tasks:
   - name: cppsuite-bounded-cursor-prefix-stat-stress
     depends_on:
       - name: compile
+    tags: ["cppsuite-stress-test"]
     commands:
       - func: "fetch artifacts"
       - func: "cppsuite test"
@@ -1368,6 +1364,7 @@ tasks:
   - name: cppsuite-bounded-cursor-prefix-search-near-stress
     depends_on:
       - name: compile
+    tags: ["cppsuite-stress-test"]
     commands:
       - func: "fetch artifacts"
       - func: "cppsuite test"
@@ -1378,6 +1375,7 @@ tasks:
   - name: cppsuite-bounded-cursor-prefix-indices-stress
     depends_on:
       - name: compile
+    tags: ["cppsuite-stress-test"]
     commands:
       - func: "fetch artifacts"
       - func: "cppsuite test"
@@ -1388,6 +1386,7 @@ tasks:
   - name: cppsuite-search-near-01-stress
     depends_on:
       - name: compile
+    tags: ["cppsuite-stress-test"]
     commands:
       - func: "fetch artifacts"
       - func: "cppsuite test"
@@ -1398,6 +1397,7 @@ tasks:
   - name: cppsuite-search-near-02-stress
     depends_on:
       - name: compile
+    tags: ["cppsuite-stress-test"]
     commands:
       - func: "fetch artifacts"
       - func: "cppsuite test"
@@ -1408,6 +1408,7 @@ tasks:
   - name: cppsuite-search-near-03-stress
     depends_on:
       - name: compile
+    tags: ["cppsuite-stress-test"]
     commands:
       - func: "fetch artifacts"
       - func: "cppsuite test"
@@ -1855,6 +1856,16 @@ tasks:
         vars:
           test_name: wt8963_insert_stress
 
+  - name: csuite-wt9937-parse-opts-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "csuite test"
+        vars:
+          test_name: wt9937_parse_opts
+
   # End of csuite test tasks
 
   # Start of Python unit test tasks
@@ -1937,6 +1948,31 @@ tasks:
       - func: "unit test"
         vars:
           unit_test_args: --hook timestamp
+
+  # The test_prepare_hs03.py test, when run with timestamp hooks, is run multiple times to facilitate
+  # catching intermittent problems in the test.
+  - name: test-prepare-hs03-hook-timestamp
+    tags: ["python"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            cd cmake_build
+            i=0
+            limit=100
+            while ((i < limit)) 
+            do
+              ((i=i+1))
+              echo "Test count: $i"
+              ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py -v 4 test_prepare_hs03.py --hook timestamp
+            done
 
   # Break out Python unit tests into multiple buckets/tasks.  We have a fixed number of buckets,
   # and we use the -b option of the test/suite/run.py script to split up the tests.
@@ -2050,6 +2086,116 @@ tasks:
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -b 10/11
+
+  - name: unit-test-long-bucket00
+    tags: ["python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --long -b 0/11
+
+  - name: unit-test-long-bucket01
+    tags: ["python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --long -b 1/11
+
+  - name: unit-test-long-bucket02
+    tags: ["python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --long -b 2/11
+
+  - name: unit-test-long-bucket03
+    tags: ["python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --long -b 3/11
+
+  - name: unit-test-long-bucket04
+    tags: ["python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --long -b 4/11
+
+  - name: unit-test-long-bucket05
+    tags: ["python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --long -b 5/11
+
+  - name: unit-test-long-bucket06
+    tags: ["python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --long -b 6/11
+
+  - name: unit-test-long-bucket07
+    tags: ["python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --long -b 7/11
+
+  - name: unit-test-long-bucket08
+    tags: ["python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --long -b 8/11
+
+  - name: unit-test-long-bucket09
+    tags: ["python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --long -b 9/11
+
+  - name: unit-test-long-bucket10
+    tags: ["python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --long -b 10/11
   # End of Python unit test tasks
 
   - name: s-all
@@ -2315,10 +2461,9 @@ tasks:
             set -o verbose
             env CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:/opt/java/jdk11/bin:$PATH sh s_release `date +%Y%m%d`
 
+  # Note that the project settings use this task name to compile the documentation during PR
+  # testing, keep this in mind if you decide to change it.
   - name: doc-compile
-    tags: ["pull_request"]
-    run_on:
-    - ubuntu2004-test
     commands:
       - func: "get project"
       - func: "compile wiredtiger docs"
@@ -2420,7 +2565,7 @@ tasks:
           remote_file: wiredtiger/${build_variant}/${revision}/coverage_report_${build_id}-${execution}/1_coverage_report_main.html
 
   - name: tiered-storage-extensions-test
-    tags: ["python", "ext"]
+    tags: ["python"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2432,7 +2577,7 @@ tasks:
           python_binary: $(pwd)/venv/bin/python3
           tiered_storage_test_name: tiered
   - name: tiered-test-small
-    tags: ["pull_request", "python", "ext"]
+    tags: ["pull_request", "python"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2444,7 +2589,7 @@ tasks:
           python_binary: $(pwd)/venv/bin/python3
           tiered_storage_test_name: tiered06
   - name: tiered-unittest-test
-    tags: ["pull_request", "ext"]
+    tags: ["pull_request"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2685,22 +2830,6 @@ tasks:
             ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
           format_test_script_args: -S
 
-  # FIXME-WT-8981 - Ubuntu PPC tests have been replaced by RHEL8 tests as of WT-8688, but the RHEL8 tests are currently disabled
-  # due to platform issues. On completion of WT-8981 this can be deleted.
-  - name: format-asan-smoke-ppc-test
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_address_sanitizer_clang_with_builtins
-      - func: "format test script"
-        # Run smoke tests, don't stop at failed tests, use default config
-        vars:
-          test_env_vars:
-            ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0:unmap_shadow_on_exit=1"
-            ASAN_SYMBOLIZER_PATH=/usr/lib/llvm-6.0/bin/llvm-symbolizer
-          format_test_script_args: -S
-
   - name: format-wtperf-test
     commands:
       - func: "get project"
@@ -2904,9 +3033,8 @@ tasks:
             set -o verbose
             for i in {1..10}; do ${test_env_vars|} ${python_binary|python3} split_stress.py; done
 
-  # The task name is ppc-zseries because this task will be used in both buildVariants
-  - name: format-stress-ppc-zseries-test
-    tags: ["stress-test-ppc-1", "stress-test-zseries-1", "stress-test-ppc-ubuntu"]
+  - name: format-stress-zseries-test
+    tags: ["stress-test-zseries-1"]
     # Set 2.5 hours timeout (60 * 60 * 2.5)
     exec_timeout_secs: 9000
     commands:
@@ -2920,6 +3048,22 @@ tasks:
           #run for 2 hours ( 2 * 60 = 120 minutes), use default config
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 120
 
+  - name: format-stress-ppc-test
+    tags: ["stress-test-ppc-1"]
+    # Set 2.5 hours timeout (60 * 60 * 2.5)
+    exec_timeout_secs: 9000
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+      - func: "format test script"
+        vars:
+          #run for 2 hours ( 2 * 60 = 120 minutes), use default config
+          # Always disable mmap for PPC due to issues on variant setup.
+          # See https://bugzilla.redhat.com/show_bug.cgi?id=1686261#c10 for the potential cause.
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 120 -- -C "mmap=false,mmap_all=false"
 
   - <<: *format-stress-test
     name: format-stress-test-1
@@ -2933,15 +3077,18 @@ tasks:
   - <<: *format-stress-test
     name: format-stress-test-4
     tags: ["stress-test-4"]
-  - <<: *format-stress-sanitizer-test-ppc-ubuntu
-    name: format-stress-sanitizer-test-ppc-ubuntu
-    tags: ["stress-test-ppc-ubuntu"]
+  - <<: *format-stress-sanitizer-ppc-test
+    name: format-stress-sanitizer-ppc-test-1
+    tags: ["stress-test-ppc-1"]
+  - <<: *format-stress-sanitizer-ppc-test
+    name: format-stress-sanitizer-ppc-test-2
+    tags: ["stress-test-ppc-2"]
   - <<: *format-stress-sanitizer-test
     name: format-stress-sanitizer-test-1
-    tags: ["stress-test-sanitizer-1", "stress-test-ppc-1"]
+    tags: ["stress-test-sanitizer-1"]
   - <<: *format-stress-sanitizer-test
     name: format-stress-sanitizer-test-2
-    tags: ["stress-test-sanitizer-2", "stress-test-ppc-2"]
+    tags: ["stress-test-sanitizer-2"]
   - <<: *format-stress-sanitizer-test
     name: format-stress-sanitizer-test-3
     tags: ["stress-test-sanitizer-3"]
@@ -3987,6 +4134,7 @@ buildvariants:
   tasks:
     - name: ".pull_request !.pull_request_compilers"
     - name: compile
+    - name: doc-compile
     - name: make-check-test
     - name: unit-test
     - name: configure-combinations
@@ -3997,6 +4145,7 @@ buildvariants:
     - name: unit-test-hook-tiered
     - name: unit-test-hook-tiered-timestamp
     - name: unit-test-hook-timestamp
+    - name: test-prepare-hs03-hook-timestamp
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
     - name: compile-wtperf
@@ -4290,10 +4439,11 @@ buildvariants:
     - name: many-collection-test
       distros: ubuntu2004-wt-large
 
-- name: cppsuite-stress-tests
-  display_name: "Cppsuite Stress Tests"
-  batchtime: 480 # 3 times a day
+- name: cppsuite-stress-tests-ubuntu
+  display_name: "Cppsuite Stress Tests Ubuntu 20.04"
+  batchtime: 720 # twice a day
   run_on:
+  # We run on medium as small has too small a disk.
   - ubuntu2004-medium
   expansions:
     test_env_vars:
@@ -4306,17 +4456,25 @@ buildvariants:
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
   tasks:
     - name: compile
-    - name: cppsuite-operations-test-stress
-    - name: cppsuite-burst-inserts-stress
-    - name: cppsuite-bounded-cursor-prefix-indices-stress
-    - name: cppsuite-bounded-cursor-prefix-search-near-stress
-    - name: cppsuite-bounded-cursor-prefix-stat-stress
-    - name: cppsuite-bounded-cursor-stress-reverse-stress
-    - name: cppsuite-bounded-cursor-stress-stress
-    - name: cppsuite-hs-cleanup-stress
-    - name: cppsuite-search-near-01-stress
-    - name: cppsuite-search-near-02-stress
-    - name: cppsuite-search-near-03-stress
+    - name: ".cppsuite-stress-test"
+
+- name: cppsuite-stress-tests-arm64
+  display_name: "Cppsuite Stress Tests ARM64"
+  batchtime: 720 # twice a day
+  run_on:
+  - ubuntu2004-arm64-large
+  expansions:
+    test_env_vars:
+      WT_TOPDIR=$(git rev-parse --show-toplevel)
+      WT_BUILDDIR=$WT_TOPDIR/cmake_build
+      LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
+      LD_PRELOAD=$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
+    cmake_generator: Ninja
+    make_command: ninja
+    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
+  tasks:
+    - name: compile
+    - name: ".cppsuite-stress-test"
 
 - name: package
   display_name: "~ Package"
@@ -4489,7 +4647,7 @@ buildvariants:
 - name: little-endian
   display_name: "~ Little-endian (x86)"
   run_on:
-  - ubuntu1804-test
+  - ubuntu1804-large
   batchtime: 4320 # 3 days
   expansions:
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
@@ -4513,8 +4671,6 @@ buildvariants:
 
 - name: big-endian
   display_name: "~ Big-endian (s390x/zSeries)"
-  modules:
-  - enterprise
   run_on:
   - ubuntu1804-zseries-build
   batchtime: 4320 # 3 days
@@ -4536,37 +4692,8 @@ buildvariants:
     - name: verify-datafile-big-endian
     - name: verify-datafile-from-little-endian
 
-# FIXME-WT-8981 - Ubuntu PPC tests have been replaced by RHEL8 tests as of WT-8688, but the RHEL8 tests are currently disabled
-# due to platform issues. On completion of WT-8981 this can be deleted.
-- name: ubuntu1804-ppc
-  display_name: "~ Ubuntu 18.04 PPC"
-  run_on:
-  - ubuntu1804-power8-test
-  batchtime: 120 # 2 hours
-  expansions:
-    format_test_setting: ulimit -c unlimited
-    test_env_vars:
-      WT_BUILDDIR=$(git rev-parse --show-toplevel)/cmake_build
-      LD_LIBRARY_PATH=$WT_BUILDDIR
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
-    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
-    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
-    # Use half number of vCPU to avoid OOM kill failure
-    smp_command: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 2 | bc)
-    cmake_generator: Ninja
-    make_command: ninja
-  tasks:
-    - name: compile
-    - name: unit-test
-    - name: format-smoke-test
-    - name: format-asan-smoke-ppc-test
-    - name: format-wtperf-test
-    - name: ".stress-test-ppc-ubuntu"
-
 - name: rhel8-ppc
   display_name: "~ RHEL8 PPC"
-  # FIXME-WT-8981
-  activate: false
   run_on:
   - rhel81-power8-small
   batchtime: 120 # 2 hours
@@ -4578,10 +4705,11 @@ buildvariants:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
-    # Use half number of vCPU to avoid OOM kill failure
-    smp_command: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 2 | bc)
+    # Use quarter of the vCPUs to avoid OOM kill failure and disk issues on this variant.
+    smp_command: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 4 | bc)
     cmake_generator: Ninja
     make_command: ninja
+    posix_configure_flags: -DENABLE_STRICT=0
   tasks:
     - name: compile
     - name: unit-test

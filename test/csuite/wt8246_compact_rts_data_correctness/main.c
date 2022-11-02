@@ -33,7 +33,6 @@
 
 #define NUM_RECORDS 800000
 
-#define ENV_CONFIG_REC "log=(recover=on,remove=false),statistics=(all)"
 /* Constants and variables declaration. */
 /*
  * You may want to add "verbose=[compact,compact_progress]" to the connection config string to get
@@ -41,7 +40,7 @@
  */
 static const char conn_config[] =
   "create,cache_size=1GB,timing_stress_for_test=[compact_slow],statistics=(all),statistics_log=("
-  "wait=1,json=true,on_close=true)";
+  "json,on_close,wait=1)";
 static const char table_config_row[] =
   "allocation_size=4KB,leaf_page_max=4KB,key_format=Q,value_format=QQQS";
 static const char table_config_col[] =
@@ -181,7 +180,7 @@ run_test(bool column_store, const char *uri, bool preserve)
     printf("Open database and run recovery\n");
 
     /* Open the connection which forces recovery to be run. */
-    testutil_check(wiredtiger_open(home, NULL, ENV_CONFIG_REC, &conn));
+    testutil_check(wiredtiger_open(home, NULL, TESTUTIL_ENV_CONFIG_REC, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /*

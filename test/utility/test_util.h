@@ -49,30 +49,50 @@
 #include "windows_shim.h"
 #endif
 
+#define TESTUTIL_ENV_CONFIG_TIERED \
+    ",tiered_storage=(bucket=./"   \
+    "bucket,bucket_prefix=pfx-,local_retention=2,name=dir_store)"
+#define TESTUTIL_ENV_CONFIG_TIERED_EXT                        \
+    ",extensions=(../../../../ext/storage_sources/dir_store/" \
+    "libwiredtiger_dir_store.so=(early_load=true))"
+#define TESTUTIL_ENV_CONFIG_REC \
+    ",log=(recover=on,remove=false),statistics=(all),statistics_log=(json,on_close,wait=1)"
+#define TESTUTIL_ENV_CONFIG_COMPAT ",compatibility=(release=\"2.9\")"
+
 /* Generic option parsing structure shared by all test cases. */
 typedef struct {
     char *home;
     const char *argv0; /* Exec name */
-    char **nargv;      /* New argument vector */
-    int nargc;         /* New argument count */
+    char usage[512];   /* Usage string for this parser */
 
     const char *progname;        /* Truncated program name */
     char *build_dir;             /* Build directory path */
     char *tiered_storage_source; /* Tiered storage source */
 
     enum {
-        TABLE_COL = 1, /* Fixed-length column store */
-        TABLE_FIX = 2, /* Variable-length column store */
-        TABLE_ROW = 3  /* Row-store */
+        TABLE_NOT_SET = 0, /* Not explicitly set */
+        TABLE_COL = 1,     /* Fixed-length column store */
+        TABLE_FIX = 2,     /* Variable-length column store */
+        TABLE_ROW = 3      /* Row-store */
     } table_type;
 
     FILE *progress_fp; /* Progress tracking file */
     char *progress_file_name;
 
+    WT_RAND_STATE data_rnd;  /* PRNG state for data ops */
+    WT_RAND_STATE extra_rnd; /* PRNG state for extra ops */
+    uint64_t data_seed;      /* Random seed for data ops */
+    uint64_t extra_seed;     /* Random seed for extra ops */
+
+#define TESTUTIL_SEED_FORMAT "-PSD%" PRIu64 ",E%" PRIu64
+
+    bool compat;               /* Compatibility */
     bool do_data_ops;          /* Have schema ops use data */
+    bool inmem;                /* In-memory */
     bool preserve;             /* Don't remove files on exit */
     bool tiered_storage;       /* Configure tiered storage */
     bool verbose;              /* Run in verbose mode */
+    bool tiered_begun;         /* Tiered storage ready */
     uint64_t nrecords;         /* Number of records */
     uint64_t nops;             /* Number of operations */
     uint64_t nthreads;         /* Number of threads */
@@ -80,17 +100,26 @@ typedef struct {
     uint64_t n_read_threads;   /* Number of read threads */
     uint64_t n_write_threads;  /* Number of write threads */
 
+    uint64_t tiered_flush_interval_us; /* Microseconds between flush_tier calls */
+    uint64_t tiered_flush_next_us;     /* Next tiered flush in epoch microseconds */
+
     /*
      * Fields commonly shared within a test program. The test cleanup function will attempt to
      * automatically free and close non-null resources.
      */
     WT_CONNECTION *conn;
     WT_SESSION *session;
-    bool running;
+    volatile bool running; /* Whether to stop */
     char *uri;
     volatile uint64_t next_threadid;
     uint64_t unique_id;
     uint64_t max_inserted_id;
+
+    /* Fields used internally by testutil library. */
+    char **argv; /* Saved argument vector */
+    int argc;    /* Saved argument count */
+    const char *getopts_string;
+
 } TEST_OPTS;
 
 /*
@@ -368,14 +397,25 @@ void testutil_copy_data(const char *);
 void testutil_copy_file(WT_SESSION *, const char *);
 void testutil_copy_if_exists(WT_SESSION *, const char *);
 void testutil_create_backup_directory(const char *);
+int testutil_general_event_handler(
+  WT_EVENT_HANDLER *, WT_CONNECTION *, WT_SESSION *, WT_EVENT_TYPE, void *);
 void testutil_make_work_dir(const char *);
 void testutil_modify_apply(WT_ITEM *, WT_ITEM *, WT_MODIFY *, int, uint8_t);
+void testutil_parse_begin_opt(int, char *const *, const char *, TEST_OPTS *);
+void testutil_parse_end_opt(TEST_OPTS *);
+int testutil_parse_single_opt(TEST_OPTS *, int);
 int testutil_parse_opts(int, char *const *, TEST_OPTS *);
 void testutil_print_command_line(int argc, char *const *argv);
 void testutil_progress(TEST_OPTS *, const char *);
 #ifndef _WIN32
 void testutil_sleep_wait(uint32_t, pid_t);
 #endif
+void testutil_wiredtiger_open(
+  TEST_OPTS *, const char *, WT_EVENT_HANDLER *, WT_CONNECTION **, bool);
+void testutil_tiered_begin(TEST_OPTS *);
+void testutil_tiered_flush_complete(TEST_OPTS *, WT_SESSION *, void *);
+void testutil_tiered_sleep(TEST_OPTS *, WT_SESSION *, uint32_t, bool *);
+uint64_t testutil_time_us(WT_SESSION *);
 void testutil_work_dir_from_path(char *, size_t, const char *);
 WT_THREAD_RET thread_append(void *);
 

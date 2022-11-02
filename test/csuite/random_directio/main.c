@@ -99,15 +99,14 @@ static const char *const uri_rev = "table:rev";
 
 #define KEY_SEP "_" /* Must be one char string */
 
-#define ENV_CONFIG                                        \
-    "create,log=(file_max=10M,enabled),statistics=(all)," \
+#define ENV_CONFIG                                                                              \
+    "create,log=(file_max=10M,enabled),statistics=(all),statistics_log=(json,on_close,wait=1)," \
     "transaction_sync=(enabled,method=%s)"
 #define ENV_CONFIG_TIER \
     ",tiered_storage=(bucket=./bucket,bucket_prefix=pfx-,local_retention=2,name=dir_store)"
 #define ENV_CONFIG_TIER_EXT                                  \
     ",extensions=(%s../../../ext/storage_sources/dir_store/" \
     "libwiredtiger_dir_store.so=(early_load=true))"
-#define ENV_CONFIG_REC "log=(recover=on),statistics=(all)"
 
 /* 64 spaces */
 #define SPACES "                                                                "
@@ -934,7 +933,7 @@ check_db(uint32_t nth, uint32_t datasize, pid_t pid, bool directio, uint32_t fla
     copy_directory(checkdir, savedir, false);
 
     printf("Open database, run recovery and verify content\n");
-    testutil_check(__wt_snprintf(envconf, sizeof(envconf), ENV_CONFIG_REC));
+    testutil_check(__wt_snprintf(envconf, sizeof(envconf), TESTUTIL_ENV_CONFIG_REC));
     if (LF_ISSET(TEST_TIERED)) {
         testutil_check(__wt_snprintf(tierconf, sizeof(tierconf), ENV_CONFIG_TIER_EXT, ""));
         strcat(envconf, tierconf);
