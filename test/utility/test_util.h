@@ -79,12 +79,12 @@ typedef struct {
     FILE *progress_fp; /* Progress tracking file */
     char *progress_file_name;
 
-    WT_RAND_STATE data_rnd;   /* PRNG state for data ops */
-    WT_RAND_STATE extra_rnd;  /* PRNG state for extra ops */
-    uint64_t data_seed;       /* Random seed for data ops */
-    uint64_t extra_seed;      /* Random seed for extra ops */
+    WT_RAND_STATE data_rnd;  /* PRNG state for data ops */
+    WT_RAND_STATE extra_rnd; /* PRNG state for extra ops */
+    uint64_t data_seed;      /* Random seed for data ops */
+    uint64_t extra_seed;     /* Random seed for extra ops */
 
-#define TESTUTIL_SEED_FORMAT "-PSW%" PRIu64 ",R%" PRIu64
+#define TESTUTIL_SEED_FORMAT "-PSD%" PRIu64 ",E%" PRIu64
 
     bool compat;               /* Compatibility */
     bool do_data_ops;          /* Have schema ops use data */

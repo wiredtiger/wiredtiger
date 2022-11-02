@@ -126,6 +126,7 @@ Decrypt
 DeleteFileW
 Destructor
 Deterministically
+Dxxx
 EACCES
 EAGAIN
 EB
@@ -155,6 +156,7 @@ Encryptors
 Enqueue
 Eron
 Exponentiate
+Exxx
 FALLOC
 FALLTHROUGH
 FH
@@ -351,8 +353,8 @@ PRId
 PRIu
 PRIuXX
 PRNG
-PSR
-PSW
+PSD
+PSE
 PTHREAD
 PTR
 PackInputStream
@@ -403,7 +405,6 @@ Resize
 RocksDB
 Rogerio
 Runtime
-Rxxx
 SDK
 SDK's
 SDKOptions
@@ -538,7 +539,6 @@ Wsign
 Wundef
 Wuninitialized
 Wunused
-Wxxx
 XP
 Xcode
 Xcode/
