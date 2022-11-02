@@ -1020,7 +1020,7 @@ ops(void *arg)
          * from lower keys to higher keys or vice-versa).
          */
         if (op == TRUNCATE) {
-#ifdef WT_STANDALONE_BUILD
+#ifndef WT_STANDALONE_BUILD
             /* For non standalone build, ensure truncation is the only operation in a transaction.
              */
             if (intxn) {
@@ -1195,14 +1195,14 @@ skip_operation:
         case 4:           /* 40% */
             __wt_yield(); /* Encourage races */
 #ifdef WT_STANDALONE_BUILD
+            commit_transaction(tinfo, prepared, g.transaction_timestamps_config);
+#else
             /* For non standalone build, ensure truncation is the only operation in a transaction
              * and it is not timestamped. */
             if (op == TRUNCATE)
                 commit_transaction(tinfo, prepared, false);
             else
                 commit_transaction(tinfo, prepared, g.transaction_timestamps_config);
-#else
-            commit_transaction(tinfo, prepared, g.transaction_timestamps_config);
 #endif
             snap_repeat_update(tinfo, true);
             break;
@@ -1213,7 +1213,7 @@ rollback:
             snap_repeat_update(tinfo, false);
             break;
         default:
-#ifdef WT_STANDALONE_BUILD
+#ifndef WT_STANDALONE_BUILD
             /* For non standalone build, ensure truncation is the only operation in a transaction.
              */
             if (op == TRUNCATE) {
