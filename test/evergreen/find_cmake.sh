@@ -12,7 +12,7 @@ CMAKE_VERSION=$CMAKE_MAJOR_VER.$CMAKE_MINOR_VER.$CMAKE_PATCH_VER
 #   https://github.com/mongodb/mongo-c-driver/blob/master/.evergreen/find-cmake.sh
 find_cmake ()
 {
-    if [ ! -z "$CMAKE" ]; then
+    if [ -n "$CMAKE" ]; then
         return 0
     elif [ -f "/Applications/CMake.app/Contents/bin/cmake" ]; then
         CMAKE="/Applications/CMake.app/Contents/bin/cmake"
