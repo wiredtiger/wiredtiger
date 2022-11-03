@@ -41,18 +41,18 @@ rm -f $logfile
 echo "Parsed $# args: test: $wttest runmax: $runmax args: $wtarg" >> $logfile
 
 # Each of these has an entry for each op in ops below.
-avg=(0 0 0 0 0)
-max=(0 0 0 0 0)
-min=(0 0 0 0 0)
-sum=(0 0 0 0 0)
+avg=(0 0 0 0 0 0)
+max=(0 0 0 0 0 0)
+min=(0 0 0 0 0 0)
+sum=(0 0 0 0 0 0)
 # Load needs floating point and bc, handle separately.
-loadindex=6
+loadindex=7
 avg[$loadindex]=0
 max[$loadindex]=0
 min[$loadindex]=0
 sum[$loadindex]=0
-ops=(insert modify read truncate update)
-outp=("Insert count:" "Modify count:" "Read count:" "Truncate count:" "Update count:"  )
+ops=(insert modify read truncate update checkpoint)
+outp=("Insert count:" "Modify count:" "Read count:" "Truncate count:" "Update count:" "Checkpoint count:" )
 outp[$loadindex]="Load time:"
 
 # getval min/max val cur
