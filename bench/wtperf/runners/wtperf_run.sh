@@ -34,9 +34,11 @@ while [[ $# -gt 0 ]] ; do
 done
 
 home=./WT_TEST
-outfile=./wtperf.out
-rm -f $outfile
-echo "Parsed $# args: test: $wttest runmax: $runmax args: $wtarg" >> $outfile
+logfile=./log_wtperf_run.txt
+resultsfile=./results_$(basename "$wttest").txt
+rm -f "$resultsfile"
+rm -f $logfile
+echo "Parsed $# args: test: $wttest runmax: $runmax args: $wtarg" >> $logfile
 
 # Each of these has an entry for each op in ops below.
 avg=(0 0 0 0 0)
@@ -62,7 +64,7 @@ getval()
 	val="$2"
 	cur="$3"
 	ret=$cur
-	echo "getval: get_max $get_max val $val cur $cur" >> $outfile
+	echo "getval: get_max $get_max val $val cur $cur" >> $logfile
 	if test "$get_max" -eq "1"; then
 		if test "$val" -gt "$cur"; then
 			ret=$val
@@ -112,7 +114,7 @@ while test "$run" -le "$runmax"; do
 	fi
 	cur[$loadindex]=$load
 	sum[$loadindex]=$(echo "${sum[$loadindex]} + $load" | bc)
-	echo "cur ${cur[$loadindex]} sum ${sum[$loadindex]}" >> $outfile
+	echo "cur ${cur[$loadindex]} sum ${sum[$loadindex]}" >> $logfile
 	for i in ${!ops[*]}; do
 		l=$(grep "Executed.*${ops[$i]} operations" ./WT_TEST/test.stat)
 		if test "$?" -eq "0"; then
@@ -202,6 +204,9 @@ for i in ${!min[*]}; do
 	fi
 done
 for i in ${!outp[*]}; do
-	echo "${outp[$i]} ${avg[$i]}" >> $outfile
+	echo "${outp[$i]} ${avg[$i]}" >> $logfile
+	if [[ $i -lt $loadindex && "${avg[$i]}" -ne "0" ]]; then
+		echo "${outp[$i]} ${avg[$i]}" >> "$resultsfile"
+	fi
 done
 exit 0
