@@ -1012,7 +1012,7 @@ config_mirrors(void)
 
     /*
      * We also can't mirror if we don't have enough tables that have allowed mirroring. It's
-     * possible for a table to explicitly set runs.mirrors=0, so check how many tables have done
+     * possible for a table to explicitly set runs.mirror=0, so check how many tables have done
      * that and remove them from the count of tables we can use for mirroring.
      */
     available_tables = ntables;
