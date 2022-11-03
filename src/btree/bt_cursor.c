@@ -256,6 +256,10 @@ __wt_cursor_valid(
     session = CUR2S(cbt);
     upd = NULL;
 
+    if (F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY)) {
+        *valid = true;
+        return (0);
+    }
     /*
      * We may be pointing to an insert object, and we may have a page with
      * existing entries.  Insert objects always have associated update
@@ -773,6 +777,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
     cursor = &cbt->iface;
     key_out_of_bounds = false;
     session = CUR2S(cbt);
+    valid = false;
 
     WT_STAT_CONN_DATA_INCR(session, cursor_search);
 
@@ -799,52 +804,32 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
         WT_STAT_CONN_DATA_INCR(session, cursor_bounds_search_early_exit);
         WT_ERR(WT_NOTFOUND);
     }
+
     /*
      * If we have a page pinned, search it; if we don't have a page pinned, or the search of the
      * pinned page doesn't find an exact match, search from the root.
      */
-    valid = false;
     if (__cursor_page_pinned(cbt, true)) {
         __wt_txn_cursor_op(session);
 
-        if (btree->type == BTREE_ROW) {
+        if (btree->type == BTREE_ROW)
             WT_ERR(__cursor_row_search(cbt, false, cbt->ref, &leaf_found));
-            if (leaf_found && cbt->compare == 0) {
-                if (F_ISSET(cursor, WT_CURSTD_KEY_ONLY))
-                    valid = true;
-                else
-                    WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid, false));
-            }
-        } else {
+        else
             WT_ERR(__cursor_col_search(cbt, cbt->ref, &leaf_found));
-            if (leaf_found && cbt->compare == 0) {
-                if (F_ISSET(cursor, WT_CURSTD_KEY_ONLY))
-                    valid = true;
-                else
-                    WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid, false));
-            }
-        }
+
+        if (leaf_found && cbt->compare == 0)
+            WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, cbt->recno, &valid, false));
     }
     if (!valid) {
         WT_ERR(__wt_cursor_func_init(cbt, true));
 
-        if (btree->type == BTREE_ROW) {
+        if (btree->type == BTREE_ROW)
             WT_ERR(__cursor_row_search(cbt, false, NULL, NULL));
-            if (cbt->compare == 0) {
-                if (F_ISSET(cursor, WT_CURSTD_KEY_ONLY))
-                    valid = true;
-                else
-                    WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid, false));
-            }
-        } else {
+        else
             WT_ERR(__cursor_col_search(cbt, NULL, NULL));
-            if (cbt->compare == 0) {
-                if (F_ISSET(cursor, WT_CURSTD_KEY_ONLY))
-                    valid = true;
-                else
-                    WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &valid, false));
-            }
-        }
+
+        if (cbt->compare == 0)
+            WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, cbt->recno, &valid, false));
     }
 
     if (valid)
