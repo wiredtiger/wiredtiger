@@ -569,7 +569,7 @@ err:
  */
 int
 __wt_txn_truncate_log(
-  WT_SESSION_IMPL *session, bool local_start, WT_ITEM *orig_start_key, WT_ITEM *orig_stop_key)
+  WT_SESSION_IMPL *session, WT_ITEM *orig_start_key, WT_ITEM *orig_stop_key, bool local_start)
 {
     WT_BTREE *btree;
     WT_ITEM *item;

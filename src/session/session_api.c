@@ -1543,7 +1543,7 @@ __wt_session_range_truncate(
     }
 
     WT_ERR(
-      __wt_schema_range_truncate(session, start, stop, local_start, orig_start_key, orig_stop_key));
+      __wt_schema_range_truncate(session, start, stop, orig_start_key, orig_stop_key, local_start));
 
 done:
 err:
