@@ -171,7 +171,7 @@ struct __wt_verbose_multi_category {
 
 /*
  * __wt_verbose_debug1 --
- *     Wrapper to __wt_verbose_level using the default verbosity level.
+ *     Wrapper to __wt_verbose_level using the default (DEBUG_1) verbosity level.
  */
 #define __wt_verbose_debug1(session, category, fmt, ...) \
     __wt_verbose_level(session, category, WT_VERBOSE_DEBUG_1, fmt, __VA_ARGS__)
