@@ -40,11 +40,10 @@ while [[ $# -gt 0 ]] ; do
 done
 
 home=./WT_TEST
-logfile=./log_wtperf_run.txt
 resultsfile=./results_$(basename "$wttest").txt
 rm -f "$resultsfile"
-rm -f $logfile
-echo "Parsed $# args: test: $wttest runmax: $runmax args: $wtarg" >> $logfile
+
+echo "$(basename "$wttest"): runmax=$runmax, wtarg='$wtarg'"
 
 # Each of these has an entry for each op in ops below.
 avg=(0 0 0 0 0 0)
@@ -70,7 +69,6 @@ getval()
 	val="$2"
 	cur="$3"
 	ret=$cur
-	echo "getval: get_max $get_max val $val cur $cur" >> $logfile
 	if test "$get_max" -eq "1"; then
 		if test "$val" -gt "$cur"; then
 			ret=$val
@@ -98,6 +96,7 @@ getmin=0
 getmax=1
 run=1
 while test "$run" -le "$runmax"; do
+	echo "Run $run:"
 	if test "$create" -eq "1"; then
 		rm -rf $home
 		mkdir $home
@@ -115,12 +114,12 @@ while test "$run" -le "$runmax"; do
 	l=$(grep "^Load time:" ./WT_TEST/test.stat)
 	if test "$?" -eq "0"; then
 		load=$(echo "$l" | cut -d ' ' -f 3)
+		echo -e "\tload:\t${load}"
 	else
 		load=0
 	fi
 	cur[$loadindex]=$load
 	sum[$loadindex]=$(echo "${sum[$loadindex]} + $load" | bc)
-	echo "cur ${cur[$loadindex]} sum ${sum[$loadindex]}" >> $logfile
 	for i in ${!ops[*]}; do
 		l=$(grep "Executed.*${ops[$i]} operations" ./WT_TEST/test.stat)
 		if test "$?" -eq "0"; then
@@ -129,6 +128,11 @@ while test "$run" -le "$runmax"; do
 			n=0
 		fi
 		cur[$i]=$n
+
+		if [[ $i -eq $loadindex || "${cur[$i]}" -ne "0" ]]; then
+			echo -e "\t${ops[$i]}:\t${cur[$i]}"
+		fi
+
 		sum[$i]=$((n + sum[i]))
 	done
 	#
@@ -170,6 +174,7 @@ while test "$run" -le "$runmax"; do
 			fi
 		done
 		if test "$unstable" -eq "0"; then
+			echo "Test is stable. Stopping after 3 runs"
 			break
 		fi
 	fi
@@ -209,10 +214,11 @@ for i in ${!min[*]}; do
 		avg[$i]=$((s / numruns))
 	fi
 done
+
+echo "Average:"
 for i in ${!outp[*]}; do
-	echo "${outp[$i]} ${avg[$i]}" >> $logfile
-	if [[ $i -lt $loadindex && "${avg[$i]}" -ne "0" ]]; then
-		echo "${outp[$i]} ${avg[$i]}" >> "$resultsfile"
+	if [[ $i -eq $loadindex || "${avg[$i]}" -ne "0" ]]; then
+		echo -e "\t${outp[$i]}\t ${avg[$i]}" | tee -a "$resultsfile"
 	fi
 done
 exit 0
