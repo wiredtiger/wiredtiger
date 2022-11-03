@@ -106,7 +106,7 @@ __recovery_cursor(
  */
 #define GET_RECOVERY_CURSOR(session, r, lsnp, fileid, cp)                            \
     ret = __recovery_cursor(session, r, lsnp, fileid, false, cp);                    \
-    __wt_verbose(session, WT_VERB_RECOVERY,                                          \
+    __wt_verbose_debug2(session, WT_VERB_RECOVERY,                                   \
       "%s op %" PRIu32 " to file %" PRIu32 " at LSN %" PRIu32 "/%" PRIu32,           \
       ret != 0 ? "Error" : cursor == NULL ? "Skipping" : "Applying", optype, fileid, \
       (lsnp)->l.file, (lsnp)->l.offset);                                             \
@@ -1050,6 +1050,7 @@ err:
         WT_TRET(__wt_evict_destroy(session));
 
     WT_TRET(__wt_session_close_internal(session));
+    F_SET(conn, WT_CONN_RECOVERY_COMPLETE);
     F_CLR(conn, WT_CONN_RECOVERING);
 
     return (ret);

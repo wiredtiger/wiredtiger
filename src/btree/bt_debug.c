@@ -545,6 +545,7 @@ __debug_cell_int(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unp
 {
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
+    WT_PAGE_DELETED *page_del;
     WT_SESSION_IMPL *session;
     char time_string[WT_TIME_STRING_SIZE];
 
@@ -562,6 +563,14 @@ __debug_cell_int(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unp
     /* Dump timestamps and addresses. */
     switch (unpack->raw) {
     case WT_CELL_ADDR_DEL:
+        /* Dump the deleted pages transaction ID, commit timestamp, and durable timestamp. */
+        if (F_ISSET(dsk, WT_PAGE_FT_UPDATE)) {
+            page_del = &unpack->page_del;
+            WT_RET(ds->f(ds, ", page_del : %s",
+              __wt_time_point_to_string(
+                page_del->timestamp, page_del->durable_timestamp, page_del->txnid, time_string)));
+        }
+    /* FALLTHROUGH */
     case WT_CELL_ADDR_INT:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
@@ -665,8 +674,8 @@ __debug_cell_kv(
     }
     WT_RET(ds->f(ds, "\n"));
 
-    WT_RET(page == NULL ? __wt_dsk_cell_data_ref(session, page_type, unpack, ds->t1) :
-                          __wt_page_cell_data_ref(session, page, unpack, ds->t1));
+    WT_RET(page == NULL ? __wt_dsk_cell_data_ref_kv(session, page_type, unpack, ds->t1) :
+                          __wt_page_cell_data_ref_kv(session, page, unpack, ds->t1));
 
     /* Standard key/value cells. */
     switch (unpack->raw) {
@@ -1621,6 +1630,7 @@ static int
 __debug_ref(WT_DBG *ds, WT_REF *ref)
 {
     WT_ADDR_COPY addr;
+    WT_PAGE_DELETED *page_del;
     WT_SESSION_IMPL *session;
     char time_string[WT_TIME_STRING_SIZE];
 
@@ -1638,6 +1648,12 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
     if (__wt_ref_addr_copy(session, ref, &addr) && !WT_TIME_AGGREGATE_IS_EMPTY(&addr.ta))
         WT_RET(ds->f(ds, ", %s, %s", __wt_time_aggregate_to_string(&addr.ta, time_string),
           __wt_addr_string(session, addr.addr, addr.size, ds->t1)));
+    if (ref->page_del != NULL) {
+        page_del = ref->page_del;
+        WT_RET(ds->f(ds, ", page_del : %s",
+          __wt_time_point_to_string(
+            page_del->timestamp, page_del->durable_timestamp, page_del->txnid, time_string)));
+    }
     return (ds->f(ds, "\n"));
 }
 #endif

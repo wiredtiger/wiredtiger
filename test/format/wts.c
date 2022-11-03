@@ -177,6 +177,8 @@ configure_timing_stress(char **p, size_t max)
         CONFIG_APPEND(*p, ",history_store_search");
     if (GV(STRESS_HS_SWEEP))
         CONFIG_APPEND(*p, ",history_store_sweep_race");
+    if (GV(STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE))
+        CONFIG_APPEND(*p, ",sleep_before_read_overflow_onpage");
     if (GV(STRESS_SPLIT_1))
         CONFIG_APPEND(*p, ",split_1");
     if (GV(STRESS_SPLIT_2))
@@ -204,7 +206,7 @@ create_database(const char *home, WT_CONNECTION **connp)
     WT_CONNECTION *conn;
     size_t max;
     char config[8 * 1024], *p;
-    const char *s;
+    const char *s, *sources;
 
     p = config;
     max = sizeof(config);
@@ -216,9 +218,15 @@ create_database(const char *home, WT_CONNECTION **connp)
       ",checkpoint_sync=false"
       ",error_prefix=\"%s\""
       ",operation_timeout_ms=2000"
-      ",statistics=(all)"
-      ",statistics_log=(json,on_close,wait=5)",
-      GV(CACHE), progname);
+      ",statistics=(%s)",
+      GV(CACHE), progname, GVS(STATISTICS_MODE));
+
+    /* Statistics log configuration. */
+    sources = GVS(STATISTICS_LOG_SOURCES);
+    if (strcmp(sources, "off") != 0)
+        CONFIG_APPEND(p, ",statistics_log=(json,on_close,wait=5,sources=(\"%s\"))", sources);
+    else
+        CONFIG_APPEND(p, ",statistics_log=(json,on_close,wait=5)");
 
     /* In-memory configuration. */
     if (GV(RUNS_IN_MEMORY) != 0)
@@ -284,10 +292,6 @@ create_database(const char *home, WT_CONNECTION **connp)
         else
             CONFIG_APPEND(p, ",debug_mode=(realloc_malloc=true)");
     }
-
-    /* Sometimes specify a set of sources just to exercise that code. */
-    if (mmrand(NULL, 0, 20) == 1)
-        CONFIG_APPEND(p, ",statistics_log=(sources=(\"file:\"))");
 
     /* Optional timing stress. */
     configure_timing_stress(&p, max);
@@ -486,7 +490,7 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
         CONFIG_APPEND(p, ",encryption=(name=%s)", enc);
 
     CONFIG_APPEND(
-      p, ",error_prefix=\"%s\",statistics=(all),statistics_log=(json,on_close,wait=5)", progname);
+      p, ",error_prefix=\"%s\",statistics=(fast),statistics_log=(json,on_close,wait=5)", progname);
 
     /* Optional timing stress. */
     configure_timing_stress(&p, max);
