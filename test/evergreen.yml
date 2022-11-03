@@ -4707,6 +4707,7 @@ buildvariants:
       LD_LIBRARY_PATH=$WT_BUILDDIR
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
+    ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
     python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
     # Use quarter of the vCPUs to avoid OOM kill failure and disk issues on this variant.
     smp_command: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 4 | bc)
