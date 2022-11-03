@@ -130,7 +130,7 @@ class test_cursor_bound20(bound_base):
         self.assertEqual(index_cursor.search(), wiredtiger.WT_NOTFOUND)
 
     def test_cursor_index_bounds_byte(self):
-        self.value_format = 'u'
+        self.value_format = '2u'
         MAX_BYTE_ARRAY = bytearray()
         MAX_BYTE_ARRAY.insert(0, 0xFF)
         MAX_BYTE_ARRAY.insert(0, 0xFF)
@@ -143,10 +143,10 @@ class test_cursor_bound20(bound_base):
 
         cursor = self.session.open_cursor(uri, None, None)
         self.session.begin_transaction()
-        count = self.start_key
+        count = 0
         for i in range(self.start_key, self.end_key + 1):
             cursor[self.gen_key(i)] = self.gen_uval(count)
-            count = count + 1
+            count = (count + 1) % 20
         self.session.commit_transaction()
         cursor.close()
 
@@ -158,8 +158,8 @@ class test_cursor_bound20(bound_base):
         # function for bytes.
         self.set_bounds(index_cursor, bytes(0), "lower")
         self.set_bounds(index_cursor, MAX_BYTE_ARRAY, "upper")
-        self.cursor_traversal_bound(index_cursor, None, None, True, 24)
-        self.cursor_traversal_bound(index_cursor, None, None, False, 24)
+        self.cursor_traversal_bound(index_cursor, None, None, True)
+        self.cursor_traversal_bound(index_cursor, None, None, False)
         
         # Test basic search near scenarios.
         index_cursor.set_key(MAX_BYTE_ARRAY)
@@ -173,17 +173,11 @@ class test_cursor_bound20(bound_base):
         
         # Test index case: Lower bound with exclusive
         self.set_bounds(index_cursor, MAX_BYTE_ARRAY, "lower", False)
-        self.cursor_traversal_bound(index_cursor, None, None, True, 36)
-        self.cursor_traversal_bound(index_cursor, None, None, False, 36)
+        self.cursor_traversal_bound(index_cursor, None, None, True, 0)
+        self.cursor_traversal_bound(index_cursor, None, None, False, 0)
         
         index_cursor.set_key(MAX_BYTE_ARRAY)
-        self.assertEqual(index_cursor.search_near(), 1)
-        expected_byte_array = bytearray()
-        expected_byte_array.insert(0, 0x0)
-        expected_byte_array.insert(0, 0x0)
-        expected_byte_array.insert(0, 0x0)
-        expected_byte_array = bytes(expected_byte_array)
-        self.assertEqual(index_cursor.get_key(), expected_byte_array)
+        self.assertEqual(index_cursor.search_near(), wiredtiger.WT_NOTFOUND)
 
         index_cursor.set_key(MAX_BYTE_ARRAY)
         self.assertEqual(index_cursor.search(), wiredtiger.WT_NOTFOUND)
