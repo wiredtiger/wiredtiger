@@ -3383,7 +3383,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: mongodb-oplog.wtperf
-          maxruns: 2
+          maxruns: 1
           wtarg: -ops ['"load", "insert", "truncate", "database_size"']
       - func: "upload-perf-test-stats"
         vars:
@@ -3394,15 +3394,11 @@ tasks:
     depends_on:
       - name: compile
     commands:
-      - command: timeout.update
-        params:
-          exec_timeout_secs: 10800
-          timeout_secs: 10800
       - func: "fetch artifacts"
       - func: "run-perf-test"
         vars:
           perf-test-name: mongodb-small-oplog.wtperf
-          maxruns: 2
+          maxruns: 1
           wtarg: -ops ['"load", "insert", "truncate", "database_size"']
       - func: "upload-perf-test-stats"
         vars:
@@ -3413,15 +3409,11 @@ tasks:
     depends_on:
       - name: compile
     commands:
-      - command: timeout.update
-        params:
-          exec_timeout_secs: 10800
-          timeout_secs: 10800
       - func: "fetch artifacts"
       - func: "run-perf-test"
         vars:
           perf-test-name: mongodb-large-oplog.wtperf
-          maxruns: 2
+          maxruns: 1
           wtarg: -ops ['"load", "insert", "truncate", "database_size"']
       - func: "upload-perf-test-stats"
         vars:
@@ -3436,7 +3428,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: mongodb-secondary-apply.wtperf
-          maxruns: 2
+          maxruns: 1
           wtarg: -ops ['"insert"']
       - func: "upload-perf-test-stats"
         vars:
