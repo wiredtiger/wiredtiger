@@ -58,12 +58,12 @@ outp[$loadindex]="Load time:"
 # min == 0, max == 1.
 getval()
 {
-	max="$1"
+	get_max="$1"
 	val="$2"
 	cur="$3"
 	ret=$cur
-	echo "getval: max $max val $val cur $cur" >> $outfile
-	if test "$max" -eq "1"; then
+	echo "getval: get_max $get_max val $val cur $cur" >> $outfile
+	if test "$get_max" -eq "1"; then
 		if test "$val" -gt "$cur"; then
 			ret=$val
 		fi
@@ -75,10 +75,10 @@ getval()
 
 isstable()
 {
-	min="$1"
-	max="$2"
-	tmp=`echo "scale=3; $min * 1.03" | bc`
-	if (($(bc <<< "$tmp < $max") )); then
+	min_val="$1"
+	max_val="$2"
+	tmp=$(echo "scale=3; $min_val * 1.03" | bc)
+	if (($(bc <<< "$tmp < $max_val") )); then
 		ret=0
 	else
 		ret=1
@@ -94,34 +94,34 @@ while test "$run" -le "$runmax"; do
 		rm -rf $home
 		mkdir $home
 	fi
-	LD_PRELOAD=/usr/local/lib/libtcmalloc.so LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib ./wtperf -O $wttest $wtarg
+	LD_PRELOAD=/usr/local/lib/libtcmalloc.so LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib ./wtperf -O "$wttest" "$wtarg"
 	if test "$?" -ne "0"; then
 		exit 1
 	fi
 
 	# Copy the artifacts from the run
-	backup_dir=${home}_$(basename $wttest)_${run}_$(date +"%s")
-	rsync -r -m --include="*Stat*" --include="CONFIG.wtperf" --include="*monitor" --include="latency*" --include="test.stat" --exclude="*" $home/ $backup_dir
+	backup_dir=${home}_$(basename "$wttest")_${run}_$(date +"%s")
+	rsync -r -m --include="*Stat*" --include="CONFIG.wtperf" --include="*monitor" --include="latency*" --include="test.stat" --exclude="*" $home/ "$backup_dir"
 
 	# Load is always using floating point, so handle separately
-	l=`grep "^Load time:" ./WT_TEST/test.stat`
+	l=$(grep "^Load time:" ./WT_TEST/test.stat)
 	if test "$?" -eq "0"; then
-		load=`echo $l | cut -d ' ' -f 3`
+		load=$(echo "$l" | cut -d ' ' -f 3)
 	else
 		load=0
 	fi
 	cur[$loadindex]=$load
-	sum[$loadindex]=`echo "${sum[$loadindex]} + $load" | bc`
+	sum[$loadindex]=$(echo "${sum[$loadindex]} + $load" | bc)
 	echo "cur ${cur[$loadindex]} sum ${sum[$loadindex]}" >> $outfile
 	for i in ${!ops[*]}; do
-		l=`grep "Executed.*${ops[$i]} operations" ./WT_TEST/test.stat`
+		l=$(grep "Executed.*${ops[$i]} operations" ./WT_TEST/test.stat)
 		if test "$?" -eq "0"; then
-			n=`echo $l | cut -d ' ' -f 2`
+			n=$(echo "$l" | cut -d ' ' -f 2)
 		else
 			n=0
 		fi
 		cur[$i]=$n
-		sum[$i]=`expr $n + ${sum[$i]}`
+		sum[$i]=$((n + sum[i]))
 	done
 	#
 	# Keep running track of min and max for each operation type.
@@ -155,7 +155,7 @@ while test "$run" -le "$runmax"; do
 		# Only if all values are stable, we can break.
 		unstable=0
 		for i in ${!min[*]}; do
-			stable=$(isstable ${min[$i]} ${max[$i]})
+			stable=$(isstable "${min[$i]}" "${max[$i]}")
 			if test "$stable" -eq "0"; then
 				unstable=1
 				break
@@ -165,20 +165,20 @@ while test "$run" -le "$runmax"; do
 			break
 		fi
 	fi
-	run=`expr $run + 1`
+	run=$((run + 1))
 done
 
 skipminmax=0
 if test "$runmax" -le "2"; then
-	numruns=$(getval $getmin $run $runmax)
+	numruns=$(getval $getmin $run "$runmax")
 	skipminmax=1
 elif test "$run" -le "$runmax"; then
-	numruns=`expr $run - 2`
+	numruns=$((run - 2))
 else
-	numruns=`expr $runmax - 2`
+	numruns=$((runmax - 2))
 fi
 if test "$numruns" -eq "0"; then
-	$numruns=1
+	numruns=1
 fi
 #
 # The sum contains all runs.  Subtract out the min/max values.
@@ -187,18 +187,18 @@ fi
 for i in ${!min[*]}; do
 	if test "$i" -eq "$loadindex"; then
 		if test "$skipminmax" -eq "0"; then
-			s=`echo "scale=3; ${sum[$i]} - ${min[$i]} - ${max[$i]}" | bc`
+			s=$(echo "scale=3; ${sum[$i]} - ${min[$i]} - ${max[$i]}" | bc)
 		else
 			s=${sum[$i]}
 		fi
-		avg[$i]=`echo "scale=3; $s / $numruns" | bc`
+		avg[$i]=$(echo "scale=3; $s / $numruns" | bc)
 	else
 		if test "$skipminmax" -eq "0"; then
-			s=`expr ${sum[$i]} - ${min[$i]} - ${max[$i]}`
+			s=$((sum[i] - min[i] - max[i]))
 		else
 			s=${sum[$i]}
 		fi
-		avg[$i]=`expr $s / $numruns`
+		avg[$i]=$((s / numruns))
 	fi
 done
 for i in ${!outp[*]}; do
