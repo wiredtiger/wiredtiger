@@ -356,8 +356,9 @@ err:
 
 /*
  * __increment_bound_array --
- *     Increment the given buffer by one bit. If the all of the values inside the buffer is maxed
- *     values
+ *     Increment the given buffer by one bit, and set the increment variable to true. If the all of
+ *     the values inside the buffer is are UINT8_MAX, we do not increment the buffer, and we return
+ *     setting the increment variable to false.
  */
 static inline int
 __increment_bound_array(WT_ITEM *user_item, bool *increment)
@@ -415,7 +416,7 @@ __curindex_bound(WT_CURSOR *cursor, const char *config)
     increment = false;
 
     JOINABLE_CURSOR_API_CALL_CONF(cursor, session, bound, config, cfg, NULL);
-    
+
     /* Save the current state of the bounds in case we fail to apply the new state. */
     WT_ERR(__wt_cursor_bounds_save(session, child, &saved_bounds));
 
