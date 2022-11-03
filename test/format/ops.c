@@ -491,7 +491,7 @@ begin_transaction(TINFO *tinfo, const char *iso_config)
  *     Commit a transaction.
  */
 static void
-commit_transaction(TINFO *tinfo, bool prepared, bool use_timestamp)
+commit_transaction(TINFO *tinfo, bool prepared)
 {
     WT_SESSION *session;
     uint64_t ts;
@@ -501,7 +501,7 @@ commit_transaction(TINFO *tinfo, bool prepared, bool use_timestamp)
     ++tinfo->commit;
 
     ts = 0; /* -Wconditional-uninitialized */
-    if (use_timestamp) {
+    if (g.transaction_timestamps_config) {
         if (prepared)
             lock_readlock(session, &g.prepare_commit_lock);
 
@@ -901,7 +901,7 @@ ops(void *arg)
         if (tinfo->ops > session_op) {
             /* Resolve any running transaction. */
             if (intxn) {
-                commit_transaction(tinfo, false, g.transaction_timestamps_config);
+                commit_transaction(tinfo, false);
                 intxn = false;
             }
 
@@ -1020,14 +1020,6 @@ ops(void *arg)
          * from lower keys to higher keys or vice-versa).
          */
         if (op == TRUNCATE) {
-#ifndef WT_STANDALONE_BUILD
-            /* For non standalone build, ensure truncation is the only operation in a transaction.
-             */
-            if (intxn) {
-                commit_transaction(tinfo, false, g.transaction_timestamps_config);
-                begin_transaction(tinfo, "isolation=snapshot");
-            }
-#endif
             tinfo->last = tinfo->keyno = mmrand(&tinfo->rnd, 1, (u_int)max_rows);
             greater_than = mmrand(&tinfo->rnd, 0, 1) == 1;
             range = max_rows < 20 ? 0 : mmrand(&tinfo->rnd, 0, (u_int)max_rows / 50);
@@ -1194,16 +1186,7 @@ skip_operation:
         case 3:
         case 4:           /* 40% */
             __wt_yield(); /* Encourage races */
-#ifdef WT_STANDALONE_BUILD
-            commit_transaction(tinfo, prepared, g.transaction_timestamps_config);
-#else
-            /* For non standalone build, ensure truncation is the only operation in a transaction
-             * and it is not timestamped. */
-            if (op == TRUNCATE)
-                commit_transaction(tinfo, prepared, false);
-            else
-                commit_transaction(tinfo, prepared, g.transaction_timestamps_config);
-#endif
+            commit_transaction(tinfo, prepared);
             snap_repeat_update(tinfo, true);
             break;
         case 5: /* 10% */
@@ -1211,17 +1194,6 @@ rollback:
             __wt_yield(); /* Encourage races */
             rollback_transaction(tinfo);
             snap_repeat_update(tinfo, false);
-            break;
-        default:
-#ifndef WT_STANDALONE_BUILD
-            /* For non standalone build, ensure truncation is the only operation in a transaction.
-             */
-            if (op == TRUNCATE) {
-                __wt_yield(); /* Encourage races */
-                rollback_transaction(tinfo);
-                snap_repeat_update(tinfo, true);
-            }
-#endif
             break;
         }
 
