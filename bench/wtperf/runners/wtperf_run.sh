@@ -1,16 +1,23 @@
 #!/bin/bash
 
-# wtperf_run.sh - run wtperf regression tests on the Jenkins platform.
+# wtperf_run.sh - Reduce variance in wtperf measurements.
 #
-# The Jenkins machines show variability so we run this script to run
-# each wtperf test several times.  We throw away the min and max
-# number and average the remaining values.  That is the number we
-# give to Jenkins for plotting.  We write these values to a
-# test.average file in the current directory (which is 
-# build_posix/bench/wtperf).
+# Performance tests have a large variability from run to run, so we use this 
+# script to run each wtperf test several times. The script runs a user-defined 
+# number of times, drops the min and max values from each run, and reports the 
+# average of the remaining values to a results_$TESTNAME.txt file in the current 
+# directory. 
+# This script should be run from the same directory containing the wtperf binary.
 #
-# This script should be invoked with the pathname of the wtperf test
-# config to run and the number of runs.
+# Usage:
+# 	wtperf_run.sh test_conf numruns [wtperf_args]
+# 		test_conf:   The path the the wtperf configuration
+# 		rumruns:     How many times to run the test
+# 		wtperf_args: Additional arguments to pass to wtperf. 
+# 					 If NOCREATE is provided the test uses the same DB for 
+# 					 all test runs. If provided it must be the first argument.
+# Example:
+# 	../../../bench/wtperf/runners/wtperf_run.sh ../../../bench/wtperf/runners/checkpoint-stress.wtperf 1
 #
 if test "$#" -lt "2"; then
 	echo "Must specify wtperf test to run and number of runs"
@@ -20,8 +27,7 @@ wttest=$1
 shift # Consume this arg
 runmax=$1
 shift # Consume this arg
-# Jenkins removes the quotes from the passed in arg so deal with an arbitrary
-# number of arguments
+
 wtarg=""
 create=1
 while [[ $# -gt 0 ]] ; do
@@ -150,7 +156,7 @@ while test "$run" -le "$runmax"; do
 	fi
 	#
 	# After 3 runs see if this is a very stable test.  If so, we
-	# can skip the last 2 runs and just use these values.  We
+	# can skip the remaining tests and just use these values.  We
 	# define "very stable" to be that the min and max are within
 	# 3% of each other.
 	if test "$run" -eq "3"; then
