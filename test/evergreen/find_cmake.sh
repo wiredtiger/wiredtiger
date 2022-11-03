@@ -20,6 +20,10 @@ find_cmake ()
     elif [ -f "/opt/cmake/bin/cmake" ]; then
         CMAKE="/opt/cmake/bin/cmake"
         CTEST="/opt/cmake/bin/ctest"
+    # Newer package system can be kept separate from the older "cmake".
+    elif [ -f "/usr/bin/cmake3" ]; then
+        CMAKE=/usr/bin/cmake3
+        CTEST=/usr/bin/ctest3
     elif command -v cmake 2>/dev/null; then
         CMAKE=cmake
         CTEST=ctest
