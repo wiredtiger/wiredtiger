@@ -276,8 +276,7 @@ config_table(TABLE *table, void *arg)
 
 #ifndef WT_STANDALONE_BUILD
     /* Turn off truncate for non-standalone build if timestamp is enabled. */
-    if (config_explicit(table, "ops.truncate") &&
-      (GV(TRANSACTION_TIMESTAMPS) || config_explicit(NULL, "transaction.timestamps")))
+    if (GV(TRANSACTION_TIMESTAMPS) || config_explicit(NULL, "transaction.timestamps"))
         config_off(table, "ops.truncate");
 #endif
 

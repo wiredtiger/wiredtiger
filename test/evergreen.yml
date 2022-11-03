@@ -787,10 +787,6 @@ variables:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
 
-  # Configure to build nonstandalone
-  - &configure_nonstandalone
-    NONSTANDALONE: -DWT_STANDALONE_BUILD=0
-
 #########################################################################################
 # The following stress tests are configured to run for six hours via the "-t 360"
 # argument to format.sh: format-stress-test, format-stress-sanitizer-test, and
@@ -816,8 +812,8 @@ variables:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          <<: *configure_nonstandalone
           <<: *configure_flags_with_builtins
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
           CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
       - func: "format test script"
         vars:
@@ -884,8 +880,8 @@ variables:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          <<: *configure_nonstandalone
           <<: *configure_flags_with_builtins
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
       - func: "recovery stress test script"
         vars:
           times: 25
@@ -989,7 +985,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          <<: *configure_nonstandalone
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
       - func: "upload artifact"
       - func: "cleanup"
 
@@ -1012,7 +1008,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          <<: *configure_nonstandalone
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
       - func: "make check all"
 
   # Start of normal make check test tasks
@@ -1903,7 +1899,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          <<: *configure_nonstandalone
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
       - func: "csuite test"
         vars:
           test_name: wt8963_insert_stress
@@ -3198,8 +3194,8 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          <<: *configure_nonstandalone
           <<: *configure_flags_with_builtins
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
           CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
       - func: "checkpoint stress test"
         vars:
@@ -3227,7 +3223,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          <<: *configure_nonstandalone
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
           CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
       - command: shell.exec
         params:
@@ -3363,8 +3359,8 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          <<: *configure_nonstandalone
           <<: *configure_flags_with_builtins
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
           CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
       - func: "format test script"
@@ -3423,8 +3419,8 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          <<: *configure_nonstandalone
           <<: *configure_flags_with_builtins
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
       - func: "recovery stress test script"
         vars:
@@ -3457,8 +3453,8 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          <<: *configure_nonstandalone
           <<: *configure_flags_with_builtins
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
           CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
       # FIXME-WT-9767
       # - func: "format test script"
