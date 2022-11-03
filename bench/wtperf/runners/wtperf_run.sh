@@ -110,16 +110,6 @@ while test "$run" -le "$runmax"; do
 	backup_dir=${home}_$(basename "$wttest")_${run}_$(date +"%s")
 	rsync -r -m --include="*Stat*" --include="CONFIG.wtperf" --include="*monitor" --include="latency*" --include="test.stat" --exclude="*" $home/ "$backup_dir"
 
-	# Load is always using floating point, so handle separately
-	l=$(grep "^Load time:" ./WT_TEST/test.stat)
-	if test "$?" -eq "0"; then
-		load=$(echo "$l" | cut -d ' ' -f 3)
-		echo -e "\tload:\t${load}"
-	else
-		load=0
-	fi
-	cur[$loadindex]=$load
-	sum[$loadindex]=$(echo "${sum[$loadindex]} + $load" | bc)
 	for i in ${!ops[*]}; do
 		l=$(grep "Executed.*${ops[$i]} operations" ./WT_TEST/test.stat)
 		if test "$?" -eq "0"; then
@@ -135,6 +125,18 @@ while test "$run" -le "$runmax"; do
 
 		sum[$i]=$((n + sum[i]))
 	done
+
+	# Load is always using floating point, so handle separately
+	l=$(grep "^Load time:" ./WT_TEST/test.stat)
+	if test "$?" -eq "0"; then
+		load=$(echo "$l" | cut -d ' ' -f 3)
+		echo -e "\tload:\t${load}"
+	else
+		load=0
+	fi
+	cur[$loadindex]=$load
+	sum[$loadindex]=$(echo "${sum[$loadindex]} + $load" | bc)
+
 	#
 	# Keep running track of min and max for each operation type.
 	#
