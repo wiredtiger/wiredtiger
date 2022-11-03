@@ -147,7 +147,7 @@ def main():
 
         # If the core dump comes from a Python test, we don't need to construct the executable path.
         if "python" not in executable_path.lower():
-            # Use the core dump location to construct find the executable.
+            # The executable is where the core dump is.
             dirname = core_file_path.rsplit('/', 1)[0]
             executable_path = dirname + '/' + executable_path
 
