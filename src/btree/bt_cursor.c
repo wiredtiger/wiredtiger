@@ -339,7 +339,7 @@ __cursor_valid_int_row(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
      *not be visible to us).
      */
     WT_RET(__cursor_valid_int_insert(cbt, key, valid, check_bounds));
-    if (*valid)
+    if (*valid || cbt->ins != NULL)
         return (0);
 
     /* The search function doesn't check for empty pages. */
