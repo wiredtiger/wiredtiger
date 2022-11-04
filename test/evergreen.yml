@@ -1463,6 +1463,127 @@ tasks:
           test_config_filename: configs/bounded_cursor_perf_stress.txt
           test_name: bounded_cursor_perf
 
+  - name: cppsuite-operations-test-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/operations_test_stress.txt
+          test_name: operations_test
+
+  - name: cppsuite-hs-cleanup-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/hs_cleanup_stress.txt
+          test_name: hs_cleanup
+
+  - name: cppsuite-burst-inserts-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/burst_inserts_stress.txt
+          test_name: burst_inserts
+
+  - name: cppsuite-bounded-cursor-stress-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/bounded_cursor_stress_stress.txt
+          test_name: bounded_cursor_stress
+
+  - name: cppsuite-bounded-cursor-stress-reverse-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/bounded_cursor_stress_reverse_stress.txt
+          test_name: bounded_cursor_stress
+
+  - name: cppsuite-bounded-cursor-prefix-stat-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/bounded_cursor_prefix_stat_stress.txt
+          test_name: bounded_cursor_prefix_stat
+
+  - name: cppsuite-bounded-cursor-prefix-search-near-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/bounded_cursor_prefix_search_near_stress.txt
+          test_name: bounded_cursor_prefix_search_near
+
+  - name: cppsuite-bounded-cursor-prefix-indices-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/bounded_cursor_prefix_indices_stress.txt
+          test_name: bounded_cursor_prefix_indices
+
+  - name: cppsuite-search-near-01-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/search_near_01_stress.txt
+          test_name: search_near_01
+
+  - name: cppsuite-search-near-02-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/search_near_02_stress.txt
+          test_name: search_near_02
+
+  - name: cppsuite-search-near-03-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/search_near_03_stress.txt
+          test_name: search_near_03
+
   # End of cppsuite test tasks.
   # Start of csuite test tasks
 
@@ -4746,6 +4867,7 @@ buildvariants:
   tasks:
     - name: compile
     - name: ".cppsuite-stress-test"
+    - name: ".cppsuite-stress-test-nonstandalone"
 
 - name: cppsuite-stress-tests-arm64
   display_name: "Cppsuite Stress Tests ARM64"
