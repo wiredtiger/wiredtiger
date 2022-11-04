@@ -315,6 +315,7 @@ __cursor_valid_row(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
     WT_UPDATE *upd;
     bool key_out_of_bounds;
 
+    *valid = false;
     session = CUR2S(cbt);
     upd = NULL;
     page = cbt->ref->page;
@@ -391,6 +392,7 @@ __cursor_valid_col(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
     WT_UPDATE *upd;
     bool key_out_of_bounds;
 
+    *valid = false;
     key_out_of_bounds = false;
     btree = CUR2BT(cbt);
     session = CUR2S(cbt);
