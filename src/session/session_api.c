@@ -1431,13 +1431,30 @@ __wt_session_range_truncate(
     WT_DECL_ITEM(orig_stop_key);
     WT_DECL_RET;
     WT_ITEM start_key, stop_key;
+    WT_TRUNCATE_INFO *trunc_info, _trunc_info;
     int cmp;
     bool local_start;
 
     orig_start_key = orig_stop_key = NULL;
     local_start = false;
+
+    /* Setup the truncate information structure */
+    trunc_info = &_trunc_info;
+    memset(trunc_info, 0, sizeof(*trunc_info));
+    trunc_info->session = session;
+    trunc_info->uri = uri;
+    trunc_info->start = start;
+    trunc_info->stop = stop;
+    if (uri != NULL && start != NULL)
+        F_SET(trunc_info, WT_TRUNC_EXPLICIT_START);
+    if (uri != NULL && stop != NULL)
+        F_SET(trunc_info, WT_TRUNC_EXPLICIT_STOP);
+    trunc_info->orig_start_key = orig_start_key;
+    trunc_info->orig_stop_key = orig_stop_key;
+
     if (uri != NULL) {
         WT_ASSERT(session, WT_BTREE_PREFIX(uri));
+
         /*
          * A URI file truncate becomes a range truncate where we set a start cursor at the
          * beginning. We already know the NULL stop goes to the end of the range.
@@ -1542,8 +1559,7 @@ __wt_session_range_truncate(
             goto done;
     }
 
-    WT_ERR(
-      __wt_schema_range_truncate(session, start, stop, orig_start_key, orig_stop_key, local_start));
+    WT_ERR(__wt_schema_range_truncate(trunc_info));
 
 done:
 err:
