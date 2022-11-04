@@ -54,6 +54,7 @@ type_string(thread_type type)
     case thread_type::UPDATE:
         return ("update");
     }
+    testutil_die(EINVAL, "unexpected thread_type: %d", static_cast<int>(type));
 }
 
 thread_worker::thread_worker(uint64_t id, thread_type type, configuration *config,

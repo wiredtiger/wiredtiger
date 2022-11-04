@@ -53,5 +53,6 @@ operation_configuration::get_func(database_operation *dbo)
     case thread_type::UPDATE:
         return (std::bind(&database_operation::update_operation, dbo, std::placeholders::_1));
     }
+    testutil_die(EINVAL, "unexpected thread_type: %d", static_cast<int>(type));
 }
 } // namespace test_harness
