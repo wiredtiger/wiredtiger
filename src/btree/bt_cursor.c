@@ -232,11 +232,11 @@ __cursor_fix_implicit(WT_BTREE *btree, WT_CURSOR_BTREE *cbt)
 }
 
 /*
- *  __cursor_valid_int_insert --
+ * __cursor_valid_insert --
  *     Check the insert list for a valid update.
  */
 static int
-__cursor_valid_int_insert(WT_CURSOR_BTREE *cbt, WT_ITEM *key, bool *valid, bool check_bounds)
+__cursor_valid_insert(WT_CURSOR_BTREE *cbt, WT_ITEM *key, bool *valid, bool check_bounds)
 {
     WT_ITEM tmp_key;
     WT_SESSION_IMPL *session;
@@ -275,11 +275,11 @@ __cursor_valid_int_insert(WT_CURSOR_BTREE *cbt, WT_ITEM *key, bool *valid, bool 
 }
 
 /*
- *  __cursor_valid_int_ondisk --
+ * __cursor_valid_ondisk --
  *     Check the ondisk value or history store for a valid update.
  */
 static int
-__cursor_valid_int_ondisk(WT_CURSOR_BTREE *cbt, WT_ITEM *key, WT_UPDATE *upd, bool *valid)
+__cursor_valid_ondisk(WT_CURSOR_BTREE *cbt, WT_ITEM *key, WT_UPDATE *upd, bool *valid)
 {
     WT_SESSION_IMPL *session;
 
@@ -303,11 +303,11 @@ __cursor_valid_int_ondisk(WT_CURSOR_BTREE *cbt, WT_ITEM *key, WT_UPDATE *upd, bo
 }
 
 /*
- *  __cursor_valid_int_row --
+ * __cursor_valid_row --
  *     Determine if a valid update is being referenced by the cursor for row-store.
  */
 static int
-__cursor_valid_int_row(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
+__cursor_valid_row(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
 {
     WT_DECL_ITEM(key);
     WT_PAGE *page;
@@ -338,7 +338,7 @@ __cursor_valid_int_row(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
      *		use the on-page object (which may have an associated update object that may or may
      *not be visible to us).
      */
-    WT_RET(__cursor_valid_int_insert(cbt, key, valid, check_bounds));
+    WT_RET(__cursor_valid_insert(cbt, key, valid, check_bounds));
     if (*valid || cbt->ins != NULL)
         return (0);
 
@@ -372,16 +372,16 @@ __cursor_valid_int_row(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
       page->modify->mod_row_update[cbt->slot] :
       NULL;
 
-    WT_RET(__cursor_valid_int_ondisk(cbt, key, upd, valid));
+    WT_RET(__cursor_valid_ondisk(cbt, key, upd, valid));
     return (0);
 }
 
 /*
- *  __cursor_valid_int_col --
+ * __cursor_valid_col --
  *     Determine if a valid update is being referenced by the cursor for col-store.
  */
 static int
-__cursor_valid_int_col(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
+__cursor_valid_col(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
 {
     WT_BTREE *btree;
     WT_CELL *cell;
@@ -411,7 +411,7 @@ __cursor_valid_int_col(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
      *	else
      *		use the on-page object
      */
-    WT_RET(__cursor_valid_int_insert(cbt, NULL, valid, check_bounds));
+    WT_RET(__cursor_valid_insert(cbt, NULL, valid, check_bounds));
     if (*valid)
         return (0);
 
@@ -484,7 +484,7 @@ __cursor_valid_int_col(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
         upd = cbt->ins ? cbt->ins->upd : NULL;
     }
 
-    WT_RET(__cursor_valid_int_ondisk(cbt, NULL, upd, valid));
+    WT_RET(__cursor_valid_ondisk(cbt, NULL, upd, valid));
     return (0);
 }
 
@@ -514,10 +514,10 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
     switch (CUR2BT(cbt)->type) {
     case BTREE_COL_VAR:
     case BTREE_COL_FIX:
-        WT_RET(__cursor_valid_int_col(cbt, valid, check_bounds));
+        WT_RET(__cursor_valid_col(cbt, valid, check_bounds));
         break;
     case BTREE_ROW:
-        WT_RET(__cursor_valid_int_row(cbt, valid, check_bounds));
+        WT_RET(__cursor_valid_row(cbt, valid, check_bounds));
         break;
     }
 
