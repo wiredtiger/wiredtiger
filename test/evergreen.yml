@@ -364,6 +364,9 @@ functions:
           echo "$exit_code" > cppsuite_exit_code
           if [ "$exit_code" != 0 ]; then
             echo "[{\"info\":{\"test_name\": \"${test_name}\"},\"metrics\": []}]" > ${test_name}.json
+            # Since we later remove the WiredTiger folder, we need to check for core dumps now.
+            cd ../..
+            ${python_binary|python3} ../test/evergreen/print_stack_trace.py
           fi
           exit 0
     - command: perf.send
@@ -590,18 +593,14 @@ functions:
         script: |
           set -o errexit
           set -o verbose
-          # Parse through any failures inside the WT_TEST directory.
-          ${python_binary|python3} ../test/evergreen/print_stack_trace.py --unit_test -e ${python_binary|python3} -c WT_TEST -l .
+          ${python_binary|python3} ../test/evergreen/print_stack_trace.py
 
-          # Look through the stress format directory for any coredumps.
-          ${python_binary|python3} ../test/evergreen/print_stack_trace.py --format -e ./test/format/t -c test/format/. -l test/format/.
     - command: s3.put
       params:
         aws_secret: ${aws_secret}
         aws_key: ${aws_key}
         local_files_include_filter:
           - wiredtiger/cmake_build/*stacktrace.txt
-          - wiredtiger/cmake_build/test/format/*stacktrace.txt
         bucket: build_external
         permissions: public-read
         content_type: text/plain
@@ -3516,6 +3515,70 @@ tasks:
         vars:
           perf-test-name: modify-force-update-large-record-btree.wtperf
 
+    ###############################
+    # Performance Tests for oplog #
+    ###############################
+
+  - name: perf-test-mongodb-oplog
+    tags: ["oplog-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: mongodb-oplog.wtperf
+          maxruns: 1
+          wtarg: -ops ['"load", "insert", "truncate", "database_size"']
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: mongodb-oplog.wtperf
+
+  - name: perf-test-mongodb-small-oplog
+    tags: ["oplog-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: mongodb-small-oplog.wtperf
+          maxruns: 1
+          wtarg: -ops ['"load", "insert", "truncate", "database_size"']
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: mongodb-small-oplog.wtperf
+
+  - name: perf-test-mongodb-large-oplog
+    tags: ["oplog-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: mongodb-large-oplog.wtperf
+          maxruns: 1
+          wtarg: -ops ['"load", "insert", "truncate", "database_size"']
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: mongodb-large-oplog.wtperf
+
+  - name: perf-test-mongodb-secondary-apply
+    tags: ["oplog-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: mongodb-secondary-apply.wtperf
+          maxruns: 1
+          wtarg: -ops ['"insert"']
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: mongodb-secondary-apply.wtperf
+
     #########################################
     # Performance Tests for perf-checkpoint #
     #########################################
@@ -4389,6 +4452,7 @@ buildvariants:
     - name: ".evict-perf"
     - name: ".log-perf"
     - name: ".long-perf"
+    - name: ".oplog-perf"
     - name: many-dhandle-stress
     - name: ".wt2853-perf"
     - name: cppsuite-bounded-cursor-perf-stress
@@ -4415,6 +4479,9 @@ buildvariants:
     - name: Wiredtiger-perf-long-jobs
       execution_tasks:
       - ".long-perf"
+    - name: Wiredtiger-perf-oplog-jobs
+      execution_tasks:
+      - ".oplog-perf"
     - name: WiredTiger-wt2853-perf
       execution_tasks:
       - ".wt2853-perf"
@@ -4559,7 +4626,6 @@ buildvariants:
 
 - name: code-statistics
   display_name: "Code statistics"
-  batchtime: 10080 # 7 days
   run_on:
   - ubuntu2004-test
   expansions:
@@ -4575,6 +4641,7 @@ buildvariants:
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
   tasks:
     - name: coverage-report
+      batchtime: 10080 # 7 days
     - name: cyclomatic-complexity
 
 - name: compatibility-tests-less-frequent

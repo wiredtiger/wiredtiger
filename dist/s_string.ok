@@ -92,6 +92,7 @@ Checksum
 Checksums
 CityHash
 CloseHandle
+CmP
 CmPTh
 Cmvz
 Collet
@@ -126,6 +127,7 @@ Decrypt
 DeleteFileW
 Destructor
 Deterministically
+Dxxx
 EACCES
 EAGAIN
 EB
@@ -155,6 +157,7 @@ Encryptors
 Enqueue
 Eron
 Exponentiate
+Exxx
 FALLOC
 FALLTHROUGH
 FH
@@ -351,6 +354,8 @@ PRId
 PRIu
 PRIuXX
 PRNG
+PSD
+PSE
 PTHREAD
 PTR
 PackInputStream

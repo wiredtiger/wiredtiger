@@ -218,6 +218,22 @@ __rollback_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_
               session, key, ins->upd, rollback_timestamp, &stable_update_found));
             if (stable_update_found && stable_updates_count != NULL)
                 (*stable_updates_count)++;
+            if (!stable_update_found && page->type == WT_PAGE_ROW_LEAF &&
+              !F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+                /*
+                 * When a new key is added to a page and the page is then checkpointed, updates for
+                 * that key can be present in the History Store while the key isn't present in the
+                 * disk image. RTS will then only remove these updates when there is a stable update
+                 * on-chain. These updates still need removing when no stable updates are on-chain,
+                 * so do so here explicitly. Pass in rollback_timestamp + 1 as __rollback_delete_hs
+                 * removes updates inclusive of the provided timestamp, but we only want to remove
+                 * unstable updates.
+                 *
+                 * FIXME-WT-10017: WT-9846 is an interim fix only for row-store while we investigate
+                 * the impacts of a long term correction in WT-10017. Once completed this change can
+                 * be reverted.
+                 */
+                WT_ERR(__rollback_delete_hs(session, key, rollback_timestamp + 1));
         }
 
 err:
@@ -388,7 +404,8 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
     }
 
     WT_ERR(__wt_scr_alloc(session, 0, &key_string));
-    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session), "rolling back the on-disk key: %s",
+    __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
+      "rolling back the on-disk key: %s",
       __wt_key_string(session, key->data, key->size, S2BT(session)->key_format, key_string));
 
     WT_ERR(__wt_scr_alloc(session, 0, &full_value));
@@ -476,7 +493,7 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
                 WT_ERR(__wt_buf_set(session, full_value, hs_value->data, hs_value->size));
             }
         } else
-            __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+            __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
               "history store update more recent than on-disk update with time window: %s and type: "
               "%" PRIu8,
               __wt_time_window_to_string(hs_tw, tw_string), type);
@@ -528,7 +545,7 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
          */
         if (__rollback_txn_visible_id(session, hs_tw->start_txn) &&
           hs_tw->durable_start_ts <= rollback_timestamp) {
-            __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+            __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
               "history store update valid with time window: %s, type: %" PRIu8
               " and stable timestamp: %s",
               __wt_time_window_to_string(hs_tw, tw_string), type,
@@ -640,7 +657,8 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
     } else {
         WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
         WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
-        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session), "%s", "key removed");
+        __wt_verbose_level_multi(
+          session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3, "%s", "key removed");
     }
 
     if (rip != NULL)
@@ -830,8 +848,8 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, u
     }
 
     WT_ERR(__wt_scr_alloc(session, 0, &key_string));
-    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session), "removing the key%s: %s",
-      upd->type == WT_UPDATE_TOMBSTONE ? "" : " tombstone",
+    __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
+      "removing the key%s: %s", upd->type == WT_UPDATE_TOMBSTONE ? "" : " tombstone",
       __wt_key_string(session, key->data, key->size, S2BT(session)->key_format, key_string));
 
     if (rip != NULL)
@@ -1250,14 +1268,14 @@ __rollback_abort_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
     page = ref->page;
     modified = __wt_page_is_modified(page);
     if (!modified && !__rollback_page_needs_abort(session, ref, rollback_timestamp)) {
-        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+        __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
           "%p: unmodified stable page skipped", (void *)ref);
         return (0);
     }
 
     WT_STAT_CONN_INCR(session, txn_rts_pages_visited);
-    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session), "%p: roll back %s page", (void *)ref,
-      modified ? "modified" : "clean");
+    __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
+      "%p: roll back %s page", (void *)ref, modified ? "modified" : "clean");
 
     switch (page->type) {
     case WT_PAGE_COL_FIX:
@@ -1374,7 +1392,7 @@ __rollback_to_stable_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollbac
     ref = NULL;
     while (
       (ret = __wt_tree_walk_custom_skip(session, &ref, __rollback_to_stable_page_skip,
-         &rollback_timestamp, WT_READ_NO_EVICT | WT_READ_WONT_NEED | WT_READ_VISIBLE_ALL)) == 0 &&
+         &rollback_timestamp, WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED)) == 0 &&
       ref != NULL)
         if (F_ISSET(ref, WT_REF_FLAG_LEAF))
             WT_RET(__rollback_abort_updates(session, ref, rollback_timestamp));
