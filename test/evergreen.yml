@@ -4767,6 +4767,12 @@ buildvariants:
     - name: ".stress-test-4"
     - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
+    - name: ".stress-test-1-nonstandalone"
+    - name: ".stress-test-2-nonstandalone"
+    - name: ".stress-test-3-nonstandalone"
+    - name: ".stress-test-4-nonstandalone"
+    - name: ".stress-test-no-barrier-nonstandalone"
+    - name: format-abort-recovery-stress-test-nonstandalone
 
 - name: ubuntu2004-perf-tests
   display_name: Ubuntu 20.04 Performance tests
@@ -4886,6 +4892,7 @@ buildvariants:
   tasks:
     - name: compile
     - name: ".cppsuite-stress-test"
+    - name: ".cppsuite-stress-test-nonstandalone"
 
 - name: package
   display_name: "~ Package"
@@ -5187,3 +5194,7 @@ buildvariants:
     - name: configure-combinations
     - name: format-smoke-test
     - name: tiered-storage-extensions-test
+    - name: compile-nonstandalone
+    - name: make-check-nonstandalone
+    - name: unit-test-nonstandalone
+    - name: unit-test-long-nonstandalone
