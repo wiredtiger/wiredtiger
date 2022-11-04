@@ -201,6 +201,38 @@ testutil_progress(TEST_OPTS *opts, const char *message)
 }
 
 /*
+ * testutil_random_from_random --
+ *     Seed a destination random number generator from a source random number generator. The source
+ *     generator's state is advanced.
+ */
+void
+testutil_random_from_random(WT_RAND_STATE *dest, WT_RAND_STATE *src)
+{
+    testutil_random_from_seed(dest, __wt_random(src));
+}
+
+/*
+ * testutil_random_from_seed --
+ *     Seed a random number generator from a single seed value.
+ */
+void
+testutil_random_from_seed(WT_RAND_STATE *rnd, uint64_t seed)
+{
+    uint32_t lower, upper;
+
+    /*
+     * Our random number generator has two parts that operate independently. We need to seed both
+     * with a non-zero value to get the maximum variation. We may be called with a seed that is less
+     * than 2^32, so we need to work with zeroes in one half of our 64 bit seed.
+     */
+    lower = seed & 0xffffffff;
+    upper = seed >> 32;
+
+    rnd->x.w = (lower == 0 ? upper : lower);
+    rnd->x.z = (upper == 0 ? lower : upper);
+}
+
+/*
  * testutil_cleanup --
  *     Delete the existing work directory and free the options structure.
  */
