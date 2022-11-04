@@ -52,9 +52,6 @@ operation_configuration::get_func(database_operation *dbo)
         return (std::bind(&database_operation::remove_operation, dbo, std::placeholders::_1));
     case thread_type::UPDATE:
         return (std::bind(&database_operation::update_operation, dbo, std::placeholders::_1));
-    default:
-        /* This may cause a separate testutil_die in type_string but that should be okay. */
-        testutil_die(EINVAL, "unexpected thread_type: %s", type_string(type).c_str());
     }
 }
 } // namespace test_harness
