@@ -336,7 +336,7 @@ __cursor_valid_row(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
      *			no exact match
      *	else
      *		use the on-page object (which may have an associated update object that may or may
-     *not be visible to us).
+     *		not be visible to us).
      */
     WT_RET(__cursor_valid_insert(cbt, key, valid, check_bounds));
     if (*valid || cbt->ins != NULL)
@@ -490,7 +490,7 @@ __cursor_valid_col(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
 
 /*
  * __wt_cursor_valid --
- *     Return if the cursor references an valid key/value pair.
+ *     Return if the cursor references a valid key/value pair.
  */
 int
 __wt_cursor_valid(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
