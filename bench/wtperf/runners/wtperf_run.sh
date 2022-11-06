@@ -10,12 +10,12 @@
 # This script should be run from the same directory containing the wtperf binary.
 #
 # Usage:
-# 	wtperf_run.sh test_conf numruns [wtperf_args]
-# 		test_conf:   The path the the wtperf configuration
-# 		rumruns:     How many times to run the test
-# 		wtperf_args: Additional arguments to pass to wtperf. 
-# 					 If NOCREATE is provided the test uses the same DB for 
-# 					 all test runs. If provided it must be the first argument.
+# 	wtperf_run.sh wttest numruns [wtarg]
+# 		wttest:  The path the the wtperf test configuration
+# 		numruns: How many times to run the test
+# 		wtarg:   Additional arguments to pass to wtperf. 
+# 				 If NOCREATE is provided the test uses the same DB for 
+# 				 all test runs. If provided it must be the first argument.
 # Example:
 # 	../../../bench/wtperf/runners/wtperf_run.sh ../../../bench/wtperf/runners/checkpoint-stress.wtperf 1
 #
