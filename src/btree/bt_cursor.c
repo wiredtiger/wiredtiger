@@ -272,7 +272,7 @@ __cursor_valid_insert(WT_CURSOR_BTREE *cbt, WT_ITEM *key, bool *valid, bool chec
 
 /*
  * __cursor_valid_ondisk --
- *     Check the ondisk value or history store for a valid update.
+ *     Check the on-disk value or history store for a valid update.
  */
 static int
 __cursor_valid_ondisk(WT_CURSOR_BTREE *cbt, WT_ITEM *key, WT_UPDATE *upd, bool *valid)
@@ -282,7 +282,7 @@ __cursor_valid_ondisk(WT_CURSOR_BTREE *cbt, WT_ITEM *key, WT_UPDATE *upd, bool *
     session = CUR2S(cbt);
 
     /*
-     * Check for a value on disk or in the history store, passing in any update.
+     * Check for an on-disk value or in the history store, passing in any update.
      *
      * Potentially checking an update chain twice (both here, and above if the insert list is set in
      * the case of column-store), isn't a mistake. In a modify chain, if rollback-to-stable recovers
