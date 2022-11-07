@@ -357,7 +357,7 @@ err:
 /*
  * __increment_bound_array --
  *     Increment the given buffer by one bit, return true if we incremented the buffer or not. If
- *     the all of the values inside the buffer are UINT8_MAX value we do not increment the buffer.
+ *     all of the values inside the buffer are UINT8_MAX value we do not increment the buffer.
  */
 static inline bool
 __increment_bound_array(WT_ITEM *user_item)
