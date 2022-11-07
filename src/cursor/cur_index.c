@@ -356,16 +356,14 @@ err:
 
 /*
  * __increment_bound_array --
- *     Increment the given buffer by one bit, and set the increment variable to true. If the all of
- *     the values inside the buffer is are UINT8_MAX, we do not increment the buffer, and we return
- *     setting the increment variable to false.
+ *     Increment the given buffer by one bit, return true if we incremented the buffer or not. If
+ *     the all of the values inside the buffer are UINT8_MAX value we do not increment the buffer.
  */
-static inline int
-__increment_bound_array(WT_ITEM *user_item, bool *increment)
+static inline bool
+__increment_bound_array(WT_ITEM *user_item)
 {
-    size_t usz;
+    size_t usz, i;
     uint8_t *userp;
-    int i;
 
     usz = user_item->size;
     userp = (uint8_t *)user_item->data;
@@ -373,7 +371,7 @@ __increment_bound_array(WT_ITEM *user_item, bool *increment)
      * First loop through all max values on the buffer from the end. This is to find the appropriate
      * position to increment add one to the byte.
      */
-    for (i = (int)usz - 1; i >= 0 && userp[i] == UINT8_MAX; --i)
+    for (i = usz - 1; i > 0 && userp[i] == UINT8_MAX; --i)
         ;
 
     /*
@@ -381,16 +379,13 @@ __increment_bound_array(WT_ITEM *user_item, bool *increment)
      * format is a fixed length format. Ideally we double check that the table format has a fixed
      * length string.
      */
-    if (i < 0) {
-        *increment = false;
-        return (0);
-    } else {
-        *increment = true;
-        userp[i++] += 1;
-        for (; i < (int)user_item->size; ++i)
-            userp[i] = 0;
-    }
-    return (0);
+    if (i == 0 && userp[i] == UINT8_MAX)
+        return (false);
+
+    userp[i++] += 1;
+    for (; i < usz; ++i)
+        userp[i] = 0;
+    return (true);
 }
 
 /*
@@ -447,7 +442,6 @@ __curindex_bound(WT_CURSOR *cursor, const char *config)
      *  2. If the set bound is upper and it is inclusive.
      */
     if (WT_STRING_MATCH("lower", cval.str, cval.len) && !inclusive) {
-        WT_ERR(__increment_bound_array(&child->lower_bound, &increment));
         /*
          * In the case that we can't increment the lower bound, it means we have reached the max
          * possible key for the lower bound. This is a very tricky case since there isn't a trivial
@@ -456,7 +450,7 @@ __curindex_bound(WT_CURSOR *cursor, const char *config)
          * case we expect no entries to be returned, thus we return it back to the user with an
          * error instead.
          */
-        if (!increment) {
+        if (!__increment_bound_array(&child->lower_bound, &increment)) {
             WT_ERR(__wt_cursor_bounds_restore(session, child, &saved_bounds));
             WT_ERR_MSG(session, EINVAL,
               "Cannot set index cursors with the max possible key as the lower bound");
@@ -464,12 +458,11 @@ __curindex_bound(WT_CURSOR *cursor, const char *config)
     }
 
     if (WT_STRING_MATCH("upper", cval.str, cval.len) && inclusive) {
-        WT_ERR(__increment_bound_array(&child->upper_bound, &increment));
         /*
          * In the case that we can't increment the upper bound, it means we have reached the max
          * possible key for the upper bound. In that case we can just clear upper bound.
          */
-        if (!increment)
+        if (!__increment_bound_array(&child->upper_bound, &increment))
             WT_ERR(child->bound(child, "action=clear,bound=upper"));
     }
 err:
