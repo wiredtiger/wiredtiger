@@ -402,13 +402,12 @@ __curindex_bound(WT_CURSOR *cursor, const char *config)
     WT_CURSOR_INDEX *cindex;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    bool inclusive, increment;
+    bool inclusive;
 
     cindex = (WT_CURSOR_INDEX *)cursor;
     child = cindex->child;
     WT_CLEAR(saved_bounds);
     inclusive = false;
-    increment = false;
 
     JOINABLE_CURSOR_API_CALL_CONF(cursor, session, bound, config, cfg, NULL);
 
@@ -450,7 +449,7 @@ __curindex_bound(WT_CURSOR *cursor, const char *config)
          * case we expect no entries to be returned, thus we return it back to the user with an
          * error instead.
          */
-        if (!__increment_bound_array(&child->lower_bound, &increment)) {
+        if (!__increment_bound_array(&child->lower_bound)) {
             WT_ERR(__wt_cursor_bounds_restore(session, child, &saved_bounds));
             WT_ERR_MSG(session, EINVAL,
               "Cannot set index cursors with the max possible key as the lower bound");
@@ -462,7 +461,7 @@ __curindex_bound(WT_CURSOR *cursor, const char *config)
          * In the case that we can't increment the upper bound, it means we have reached the max
          * possible key for the upper bound. In that case we can just clear upper bound.
          */
-        if (!__increment_bound_array(&child->upper_bound, &increment))
+        if (!__increment_bound_array(&child->upper_bound))
             WT_ERR(child->bound(child, "action=clear,bound=upper"));
     }
 err:
