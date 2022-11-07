@@ -384,8 +384,16 @@ __sync_page_skip(
     if (!__wt_ref_addr_copy(session, ref, &addr))
         return (0);
 
-    /* Skip reading normal leaf pages. */
-    if (addr.type == WT_ADDR_LEAF_NO) {
+    /*
+     * Skip reading the on-disk page when it meets any of the following conditions.
+     * 1. Leaf pages with no overflow keys/values.
+     * 2. Internal pages from non-logged tables with no aggregated stop timestamp.
+     *
+     * FIXME: Read internal pages from non-logged tables when the remove/truncate
+     * operation is performed using no timestamp.
+     */
+    if (addr.type == WT_ADDR_LEAF_NO ||
+      (!F_ISSET(S2BT(session), WT_BTREE_LOGGED) && addr.ta.newest_stop_durable_ts == WT_TS_NONE)) {
         __wt_verbose_debug2(
           session, WT_VERB_CHECKPOINT_CLEANUP, "%p: page walk skipped", (void *)ref);
         WT_STAT_CONN_DATA_INCR(session, cc_pages_walk_skipped);
