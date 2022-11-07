@@ -210,6 +210,12 @@ thread_worker::remove(scoped_cursor &cursor, uint64_t collection_id, const std::
     return (ret == 0);
 }
 
+/*
+ * Truncate takes in the collection_id to perform truncate on, two optional keys corresponding to
+ * the desired start and stop range, and a configuration string. If a start/stop key exists, we open
+ * a cursor and position on that key, otherwise we pass in a null cursor to the truncate API to
+ * indicate we should truncate all the way to the first and/or last key.
+ */
 bool
 thread_worker::truncate(uint64_t collection_id, std::optional<std::string> start_key,
   std::optional<std::string> stop_key, const std::string &config)
@@ -224,7 +230,7 @@ thread_worker::truncate(uint64_t collection_id, std::optional<std::string> start
         return (false);
     }
 
-    const std::string coll_name = database::build_collection_name(collection_id).c_str();
+    const std::string coll_name = db.get_collection(collection_id).name;
 
     scoped_cursor start_cursor = session.open_scoped_cursor(coll_name);
     scoped_cursor stop_cursor = session.open_scoped_cursor(coll_name);
