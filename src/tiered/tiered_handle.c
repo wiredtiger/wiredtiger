@@ -342,7 +342,7 @@ __tiered_create_object(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     cfg[2] = "flush_time=0,flush_timestamp=0";
     WT_ASSERT(session, tiered->obj_config != NULL);
     WT_ERR(__wt_config_merge(session, cfg, NULL, (const char **)&config));
-    __wt_verbose(
+    __wt_verbose_debug2(
       session, WT_VERB_TIERED, "TIER_CREATE_OBJECT: schema create %s : %s", name, config);
     /* Create the new shared object. */
     WT_ERR(__wt_schema_create(session, name, config));
@@ -455,7 +455,7 @@ __tiered_update_dhandles(WT_SESSION_IMPL *session, WT_TIERED *tiered)
         }
         if (tiered->tiers[i].name == NULL)
             continue;
-        __wt_verbose(
+        __wt_verbose_debug2(
           session, WT_VERB_TIERED, "UPDATE_DH: Get dhandle for %s", tiered->tiers[i].name);
         WT_ERR(__tiered_dhandle_setup(session, tiered, i, tiered->tiers[i].name));
     }
@@ -484,11 +484,12 @@ __wt_tiered_set_metadata(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_ITEM *b
       S2C(session)->flush_most_recent, hex_timestamp, tiered->current_id, tiered->oldest_id));
     for (i = 0; i < WT_TIERED_MAX_TIERS; ++i) {
         if (tiered->tiers[i].name == NULL) {
-            __wt_verbose(session, WT_VERB_TIERED, "TIER_SET_META: names[%" PRIu32 "] NULL", i);
+            __wt_verbose(session, WT_VERB_TIERED,
+              "TIER_SET_META: tiered %p names[%" PRIu32 "] NULL", (void *)tiered, i);
             continue;
         }
-        __wt_verbose(session, WT_VERB_TIERED, "TIER_SET_META: names[%" PRIu32 "]: %s", i,
-          tiered->tiers[i].name);
+        __wt_verbose(session, WT_VERB_TIERED, "TIER_SET_META: tiered %p names[%" PRIu32 "]: %s",
+          (void *)tiered, i, tiered->tiers[i].name);
         WT_RET(__wt_buf_catfmt(session, buf, "%s\"%s\"", i == 0 ? "" : ",", tiered->tiers[i].name));
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
@@ -841,7 +842,8 @@ __tiered_cleanup(WT_SESSION_IMPL *session, WT_TIERED *tiered, bool final)
 int
 __wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered, bool final)
 {
-    __wt_verbose(session, WT_VERB_TIERED, "TIERED_CLOSE: called final %d", (int) final);
+    __wt_verbose(session, WT_VERB_TIERED, "TIERED_CLOSE: tiered %p called final %d", (void *)tiered,
+      (int) final);
     __tiered_cleanup(session, tiered, final);
 
     return (__wt_btree_close(session));
@@ -854,7 +856,8 @@ __wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered, bool final)
 int
 __wt_tiered_discard(WT_SESSION_IMPL *session, WT_TIERED *tiered, bool final)
 {
-    __wt_verbose(session, WT_VERB_TIERED, "TIERED_DISCARD: called final %d", (int) final);
+    __wt_verbose(session, WT_VERB_TIERED, "TIERED_DISCARD: tiered %p called final %d",
+      (void *)tiered, (int) final);
     __tiered_cleanup(session, tiered, final);
     return (__wt_btree_discard(session));
 }
