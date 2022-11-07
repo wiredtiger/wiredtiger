@@ -2080,7 +2080,7 @@ tasks:
           unit_test_args: -v 2 --long
 
   - name: unit-test-long-nonstandalone
-    tags: ["python"]
+    tags: ["python", "python-nonstandalone"]
     depends_on:
     - name: compile-nonstandalone
     commands:
@@ -3041,6 +3041,7 @@ tasks:
             ./wtperf -O ./split_heavy.wtperf -o verbose=2
 
   - name: data-validation-stress-test-checkpoint
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -3049,12 +3050,14 @@ tasks:
           run_test_checkpoint_args: -x
 
   - name: data-validation-stress-test-checkpoint-no-timestamp
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
       - func: "run data validation stress test checkpoint"
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -3063,6 +3066,7 @@ tasks:
           run_test_checkpoint_args: -x -s 1
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1-no-timestamp
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -3071,6 +3075,7 @@ tasks:
           run_test_checkpoint_args: -s 1
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s2
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -3079,6 +3084,7 @@ tasks:
           run_test_checkpoint_args: -x -s 2
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -3087,6 +3093,7 @@ tasks:
           run_test_checkpoint_args: -x -s 3
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3-no-timestamp
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -3095,6 +3102,7 @@ tasks:
           run_test_checkpoint_args: -s 3
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s4
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -3103,6 +3111,7 @@ tasks:
           run_test_checkpoint_args: -x -s 4
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -3111,6 +3120,7 @@ tasks:
           run_test_checkpoint_args: -x -s 5
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5-no-timestamp
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -3119,6 +3129,7 @@ tasks:
           run_test_checkpoint_args: -s 5
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s6
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -3127,6 +3138,7 @@ tasks:
           run_test_checkpoint_args: -x -s 6
   
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s7
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -3135,97 +3147,122 @@ tasks:
           run_test_checkpoint_args: -x -s 7
 
   - name: data-validation-stress-test-checkpoint-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
     depends_on:
     - name: compile-nonstandalone
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
+          dependent_task: compile-nonstandalone
           run_test_checkpoint_args: -x
 
   - name: data-validation-stress-test-checkpoint-no-timestamp-nonstandalone
-    depends_on:
-    - name: compile-nonstandalone
-    commands:
-      - func: "run data validation stress test checkpoint"
-
-  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
     depends_on:
     - name: compile-nonstandalone
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
+          dependent_task: compile-nonstandalone
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          dependent_task: compile-nonstandalone
           run_test_checkpoint_args: -x -s 1
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1-no-timestamp-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
     depends_on:
     - name: compile-nonstandalone
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
+          dependent_task: compile-nonstandalone
           run_test_checkpoint_args: -s 1
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s2-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
     depends_on:
     - name: compile-nonstandalone
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
+          dependent_task: compile-nonstandalone
           run_test_checkpoint_args: -x -s 2
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
     depends_on:
     - name: compile-nonstandalone
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
+          dependent_task: compile-nonstandalone
           run_test_checkpoint_args: -x -s 3
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3-no-timestamp-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
     depends_on:
     - name: compile-nonstandalone
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
+          dependent_task: compile-nonstandalone
           run_test_checkpoint_args: -s 3
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s4-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
     depends_on:
     - name: compile-nonstandalone
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
+          dependent_task: compile-nonstandalone
           run_test_checkpoint_args: -x -s 4
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
     depends_on:
     - name: compile-nonstandalone
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
+          dependent_task: compile-nonstandalone
           run_test_checkpoint_args: -x -s 5
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5-no-timestamp-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
     depends_on:
     - name: compile-nonstandalone
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
+          dependent_task: compile-nonstandalone
           run_test_checkpoint_args: -s 5
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s6-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
     depends_on:
     - name: compile-nonstandalone
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
+          dependent_task: compile-nonstandalone
           run_test_checkpoint_args: -x -s 6
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s7-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
     depends_on:
     - name: compile-nonstandalone
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
+          dependent_task: compile-nonstandalone
           run_test_checkpoint_args: -x -s 7
 
   - name: format-failure-configs-test
@@ -4547,36 +4584,15 @@ buildvariants:
     - name: format-mirror-test
     - name: format-smoke-test
     - name: format-failure-configs-test
-    - name: data-validation-stress-test-checkpoint
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1-no-timestamp
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s2
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3-no-timestamp
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s4
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5-no-timestamp
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s6
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s7
-    - name: data-validation-stress-test-checkpoint-no-timestamp
+    - name: ".data-validation-stress-test"
     - name: unittest-test
     - name: tiered-storage-extensions-test
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
     - name: unit-test-nonstandalone
     - name: unit-test-long-nonstandalone
-    - name: data-validation-stress-test-checkpoint-nonstandalone
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1-nonstandalone
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1-no-timestamp-nonstandalone
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s2-nonstandalone
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3-nonstandalone
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3-no-timestamp-nonstandalone
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s4-nonstandalone
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5-nonstandalone
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5-no-timestamp-nonstandalone
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s6-nonstandalone
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s7-nonstandalone
-    - name: data-validation-stress-test-checkpoint-no-timestamp-nonstandalone
+      distros: ubuntu2004-large
+    - name: ".data-validation-stress-test-nonstandalone"
 
 - name: ubuntu2004-asan
   display_name: "! Ubuntu 20.04 ASAN"
@@ -5184,8 +5200,7 @@ buildvariants:
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
     - name: unit-test-long
-      run_on:
-      - ubuntu2004-arm64-large
+      distros: ubuntu2004-arm64-large
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
     - name: wtperf-test
@@ -5198,3 +5213,4 @@ buildvariants:
     - name: make-check-nonstandalone
     - name: unit-test-nonstandalone
     - name: unit-test-long-nonstandalone
+      distros: ubuntu2004-arm64-large
