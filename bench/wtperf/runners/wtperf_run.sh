@@ -11,7 +11,7 @@
 #
 # Usage:
 # 	wtperf_run.sh wttest numruns [wtarg]
-# 		wttest:  The path the the wtperf test configuration
+# 		wttest:  The path the wtperf test configuration
 # 		numruns: How many times to run the test
 # 		wtarg:   Additional arguments to pass to wtperf. 
 # 				 If NOCREATE is provided the test uses the same DB for 
