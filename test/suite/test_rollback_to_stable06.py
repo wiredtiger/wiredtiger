@@ -137,7 +137,5 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
         self.large_updates(uri, value_c, ds, nrows, self.prepare, 40)
         self.large_updates(uri, value_d, ds, nrows, self.prepare, 50)
 
-        self.session.checkpoint()
-
 if __name__ == '__main__':
     wttest.run()
