@@ -259,18 +259,13 @@ __cursor_valid_insert(WT_CURSOR_BTREE *cbt, WT_ITEM *key, bool *valid, bool chec
             WT_RET(__btcur_bounds_contains_key(
               session, &cbt->iface, key, cbt->recno, &key_out_of_bounds, NULL));
 
-        /* The key value pair we were trying to return weren't within the given bounds. */
+        /* The key value pair we were trying to return aren't within the given bounds. */
         if (key_out_of_bounds)
             return (0);
     }
 
     WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
-    if (cbt->upd_value->type != WT_UPDATE_INVALID) {
-        if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE)
-            return (0);
-        *valid = true;
-    }
-
+    *valid = update_type != WT_UPDATE_INVALID && update_type != WT_UPDATE_TOMBSTONE;
     return (0);
 }
 
@@ -294,11 +289,7 @@ __cursor_valid_ondisk(WT_CURSOR_BTREE *cbt, WT_ITEM *key, WT_UPDATE *upd, bool *
      * must use it rather than falling back to the on-disk value as the base update.
      */
     WT_RET(__wt_txn_read(session, cbt, key, cbt->recno, upd));
-    if (cbt->upd_value->type != WT_UPDATE_INVALID) {
-        if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE)
-            return (0);
-        *valid = true;
-    }
+    *valid = update_type != WT_UPDATE_INVALID && update_type != WT_UPDATE_TOMBSTONE;
     return (0);
 }
 
@@ -363,7 +354,7 @@ __cursor_valid_row(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
     if (check_bounds) {
         WT_RET(__btcur_bounds_contains_key(
           session, &cbt->iface, key, WT_RECNO_OOB, &key_out_of_bounds, NULL));
-        /* The key value pair we were trying to return weren't within the given bounds. */
+        /* The key value pair we were trying to return aren't within the given bounds. */
         if (key_out_of_bounds)
             return (0);
     }
