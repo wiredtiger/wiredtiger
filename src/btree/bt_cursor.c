@@ -265,7 +265,8 @@ __cursor_valid_insert(WT_CURSOR_BTREE *cbt, WT_ITEM *key, bool *valid, bool chec
     }
 
     WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
-    *valid = update_type != WT_UPDATE_INVALID && update_type != WT_UPDATE_TOMBSTONE;
+    *valid =
+      cbt->upd_value->type != WT_UPDATE_INVALID && cbt->upd_value->type != WT_UPDATE_TOMBSTONE;
     return (0);
 }
 
@@ -289,7 +290,8 @@ __cursor_valid_ondisk(WT_CURSOR_BTREE *cbt, WT_ITEM *key, WT_UPDATE *upd, bool *
      * must use it rather than falling back to the on-disk value as the base update.
      */
     WT_RET(__wt_txn_read(session, cbt, key, cbt->recno, upd));
-    *valid = update_type != WT_UPDATE_INVALID && update_type != WT_UPDATE_TOMBSTONE;
+    *valid =
+      cbt->upd_value->type != WT_UPDATE_INVALID && cbt->upd_value->type != WT_UPDATE_TOMBSTONE;
     return (0);
 }
 
@@ -328,15 +330,12 @@ __cursor_valid_row(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
      *			no exact match
      *	else
      *		use the on-page object (which may have an associated update object that may or may
-     *		not be visible to us).
+     *		not be visible to us). If there are no entries, exit.
      */
     WT_RET(__cursor_valid_insert(cbt, key, valid, check_bounds));
-    if (*valid || cbt->ins != NULL)
+    if (*valid || cbt->ins != NULL || page->entries == 0)
         return (0);
 
-    /* The search function doesn't check for empty pages. */
-    if (page->entries == 0)
-        return (0);
     /*
      * In case of prepare conflict, the slot might not have a valid value, if the update in the
      * insert list of a new page scanned is in prepared state.
@@ -364,8 +363,7 @@ __cursor_valid_row(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
       page->modify->mod_row_update[cbt->slot] :
       NULL;
 
-    WT_RET(__cursor_valid_ondisk(cbt, key, upd, valid));
-    return (0);
+    return (__cursor_valid_ondisk(cbt, key, upd, valid));
 }
 
 /*
@@ -477,8 +475,7 @@ __cursor_valid_col(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
         upd = cbt->ins ? cbt->ins->upd : NULL;
     }
 
-    WT_RET(__cursor_valid_ondisk(cbt, NULL, upd, valid));
-    return (0);
+    return (__cursor_valid_ondisk(cbt, NULL, upd, valid));
 }
 
 /*
