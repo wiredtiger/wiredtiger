@@ -176,6 +176,17 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
                 F_CLR(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS);
             if (tombstone != NULL)
                 F_CLR(tombstone, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS);
+        } else if (WT_IS_HS(session->dhandle) && stable_upd->type != WT_UPDATE_TOMBSTONE) {
+            /*
+             * History store will have a combination of both tombstone and update/modify types in the
+             * update list to represent time window of an update. When we are aborting the
+             * tombstone, make sure to remove all of the remaining updates also. In most of the
+             * scenarios, there will be only one update present except when the data store is a
+             * prepared commit where it is possible to have more than one update. The existing
+             * on-disk versions are removed while processing the on-disk entries.
+             */
+            for (; stable_upd != NULL; stable_upd = stable_upd->next)
+                stable_upd->txnid = WT_TXN_ABORTED;
         }
         if (stable_update_found != NULL)
             *stable_update_found = true;
@@ -218,22 +229,6 @@ __rollback_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_
               session, key, ins->upd, rollback_timestamp, &stable_update_found));
             if (stable_update_found && stable_updates_count != NULL)
                 (*stable_updates_count)++;
-            if (!stable_update_found && page->type == WT_PAGE_ROW_LEAF &&
-              !F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
-                /*
-                 * When a new key is added to a page and the page is then checkpointed, updates for
-                 * that key can be present in the History Store while the key isn't present in the
-                 * disk image. RTS will then only remove these updates when there is a stable update
-                 * on-chain. These updates still need removing when no stable updates are on-chain,
-                 * so do so here explicitly. Pass in rollback_timestamp + 1 as __rollback_delete_hs
-                 * removes updates inclusive of the provided timestamp, but we only want to remove
-                 * unstable updates.
-                 *
-                 * FIXME-WT-10017: WT-9846 is an interim fix only for row-store while we investigate
-                 * the impacts of a long term correction in WT-10017. Once completed this change can
-                 * be reverted.
-                 */
-                WT_ERR(__rollback_delete_hs(session, key, rollback_timestamp + 1));
         }
 
 err:
@@ -1776,13 +1771,12 @@ __rollback_to_stable_btree_apply(
     }
 
     /*
-     * The rollback to stable will skip the tables during recovery and shutdown in the following
+     * The rollback to stable will skip the tables during recovery in the following
      * conditions.
      * 1. Empty table.
      * 2. Table has timestamped updates without a stable timestamp.
      */
-    if ((F_ISSET(S2C(session), WT_CONN_RECOVERING) ||
-          F_ISSET(S2C(session), WT_CONN_CLOSING_CHECKPOINT)) &&
+    if (F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
       (addr_size == 0 || (rollback_timestamp == WT_TS_NONE && max_durable_ts != WT_TS_NONE))) {
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           "skip rollback to stable on file %s because %s", uri,
@@ -1942,7 +1936,15 @@ __rollback_to_stable_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t ro
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 
-    if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
+    /*
+     * Performing eviction in parallel to a checkpoint can lead to situation where the history store
+     * have more updates than its corresponding data store. Performing history store cleanup at the
+     * end can able to remove any such unstable updates that are written to the history store.
+     *
+     * Do not perform the final pass on the history store in an in-memory configuration as it
+     * doesn't exist.
+     */
+    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
         WT_ERR(__rollback_to_stable_hs_final_pass(session, rollback_timestamp));
 
 err:
