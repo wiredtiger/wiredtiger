@@ -1469,6 +1469,8 @@ tasks:
     tags: ["cppsuite-stress-test-nonstandalone"]
     commands:
       - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
       - func: "cppsuite test"
         vars:
           test_config_filename: configs/operations_test_stress.txt
@@ -1480,6 +1482,8 @@ tasks:
     tags: ["cppsuite-stress-test-nonstandalone"]
     commands:
       - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
       - func: "cppsuite test"
         vars:
           test_config_filename: configs/hs_cleanup_stress.txt
@@ -1491,6 +1495,8 @@ tasks:
     tags: ["cppsuite-stress-test-nonstandalone"]
     commands:
       - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
       - func: "cppsuite test"
         vars:
           test_config_filename: configs/burst_inserts_stress.txt
@@ -1502,6 +1508,8 @@ tasks:
     tags: ["cppsuite-stress-test-nonstandalone"]
     commands:
       - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
       - func: "cppsuite test"
         vars:
           test_config_filename: configs/bounded_cursor_stress_stress.txt
@@ -1513,6 +1521,8 @@ tasks:
     tags: ["cppsuite-stress-test-nonstandalone"]
     commands:
       - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
       - func: "cppsuite test"
         vars:
           test_config_filename: configs/bounded_cursor_stress_reverse_stress.txt
@@ -1524,6 +1534,8 @@ tasks:
     tags: ["cppsuite-stress-test-nonstandalone"]
     commands:
       - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
       - func: "cppsuite test"
         vars:
           test_config_filename: configs/bounded_cursor_prefix_stat_stress.txt
@@ -1535,6 +1547,8 @@ tasks:
     tags: ["cppsuite-stress-test-nonstandalone"]
     commands:
       - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
       - func: "cppsuite test"
         vars:
           test_config_filename: configs/bounded_cursor_prefix_search_near_stress.txt
@@ -1546,6 +1560,8 @@ tasks:
     tags: ["cppsuite-stress-test-nonstandalone"]
     commands:
       - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
       - func: "cppsuite test"
         vars:
           test_config_filename: configs/bounded_cursor_prefix_indices_stress.txt
@@ -1557,6 +1573,8 @@ tasks:
     tags: ["cppsuite-stress-test-nonstandalone"]
     commands:
       - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
       - func: "cppsuite test"
         vars:
           test_config_filename: configs/search_near_01_stress.txt
@@ -1568,6 +1586,8 @@ tasks:
     tags: ["cppsuite-stress-test-nonstandalone"]
     commands:
       - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
       - func: "cppsuite test"
         vars:
           test_config_filename: configs/search_near_02_stress.txt
@@ -1579,6 +1599,8 @@ tasks:
     tags: ["cppsuite-stress-test-nonstandalone"]
     commands:
       - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
       - func: "cppsuite test"
         vars:
           test_config_filename: configs/search_near_03_stress.txt
