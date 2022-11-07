@@ -47,34 +47,6 @@ extern int __wt_optreset;
     } while (0)
 
 /*
- * parse_init_random --
- *     Initialize the Nth random number generator from the seed. If the seed is not yet set, get a
- *     random seed. The random seed is always returned.
- */
-static void
-parse_init_random(WT_RAND_STATE *rnd, uint64_t *seedp, uint32_t n)
-{
-    uint32_t shift;
-
-    if (*seedp == 0) {
-        /*
-         * We'd like to seed our random generator with a 4 byte value. This gives us plenty of
-         * variation for testing, but yet makes the seed more convenient for human use. We generate
-         * an initial "random" seed that we can then manipulate.
-         *
-         * However, the initial "random" seed is not random with respect to time, because it is
-         * based on the system clock. Successive calls to this function may yield the same clock
-         * time on some systems, and that leaves us with the same random seed. So we factor in a "n"
-         * value from the caller to get up to 4 different random seeds.
-         */
-        __wt_random_init_seed(NULL, rnd);
-        shift = 8 * (n % 4);
-        *seedp = ((rnd->v >> shift) & 0xffff);
-    }
-    testutil_random_from_seed(rnd, *seedp);
-}
-
-/*
  * parse_seed --
  *     Parse a random number generator seed from the command line.
  */
@@ -223,8 +195,8 @@ testutil_parse_end_opt(TEST_OPTS *opts)
     }
 
     /* Initialize the state for the random number generators. */
-    parse_init_random(&opts->data_rnd, &opts->data_seed, 0);
-    parse_init_random(&opts->extra_rnd, &opts->extra_seed, 1);
+    testutil_random_init(&opts->data_rnd, &opts->data_seed, 0);
+    testutil_random_init(&opts->extra_rnd, &opts->extra_seed, 1);
 }
 
 /*

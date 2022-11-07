@@ -454,11 +454,11 @@ thread_run(void *arg)
         if (use_ts) {
             /*
              * Our timestamps are derived from which key we are writing, in relation to the entire
-             * set of keys being written. In a given iteration, there are three timestamps
-             * available, though we don't always use the third. The first is used to timestamp the
-             * transaction at the beginning. The second is used to timestamp after an insert is
-             * done. Then, we sometimes want the durable timestamp ahead of the commit timestamp, so
-             * we reserve the last timestamp for that use.
+             * set of keys being written. In a given iteration for each thread, there are three
+             * timestamps available, though we don't always use the third. The first is used to
+             * timestamp the transaction at the beginning. The second is used to timestamp after an
+             * insert is done. Then, we sometimes want the durable timestamp ahead of the commit
+             * timestamp, so we reserve the last timestamp for that use.
              *
              * Set the active timestamp to the first of the three timestamps we'll use.
              */
@@ -844,9 +844,10 @@ main(int argc, char *argv[])
         }
 
         /*
-         * We unconditionally grab a random value. This guarantees that if we run first without
-         * selecting a thread count or random seed, then when we rerun (with the thread count and
-         * random seed that was output), we'll have the same results.
+         * We unconditionally grab a random value to be used for the thread count to keep the RNG in
+         * sync for all runs. If we are run first without having a thread count or random seed
+         * argument, then when we rerun (with the thread count and random seed that was output),
+         * we'll have the same results.
          *
          * We use the data random generator because the number of threads affects the data for this
          * test.
