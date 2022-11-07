@@ -259,7 +259,7 @@ __cursor_valid_insert(WT_CURSOR_BTREE *cbt, WT_ITEM *key, bool *valid, bool chec
             WT_RET(__btcur_bounds_contains_key(
               session, &cbt->iface, key, cbt->recno, &key_out_of_bounds, NULL));
 
-        /* The key value pair we were trying to return aren't within the given bounds. */
+        /* The key we found is out of bounds. */
         if (key_out_of_bounds)
             return (0);
     }
@@ -353,7 +353,7 @@ __cursor_valid_row(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
     if (check_bounds) {
         WT_RET(__btcur_bounds_contains_key(
           session, &cbt->iface, key, WT_RECNO_OOB, &key_out_of_bounds, NULL));
-        /* The key value pair we were trying to return aren't within the given bounds. */
+        /* The key we found is out of bounds. */
         if (key_out_of_bounds)
             return (0);
     }
