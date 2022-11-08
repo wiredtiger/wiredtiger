@@ -463,8 +463,8 @@ thread_run(void *arg)
 
         if (use_ts) {
             /*
-             * Set the active timestamp to the first of the three timestamps we'll use this
-             * iteration.
+             * Set the active timestamp to the first of the three timestamps we reserve for use this
+             * iteration. Use the first reserved timestamp.
              */
             active_ts = RESERVED_TIMESTAMPS_FOR_ITERATION(td->info, i);
             testutil_check(
@@ -508,7 +508,7 @@ thread_run(void *arg)
         if (use_ts) {
             /*
              * Change the timestamp in the middle of the transaction so that we simulate a
-             * secondary.
+             * secondary. This uses our second reserved timestamp.
              */
             ++active_ts;
             testutil_check(
@@ -558,7 +558,10 @@ thread_run(void *arg)
         cur_local->set_value(cur_local, &data);
         testutil_check(cur_local->insert(cur_local));
 
-        /* Save the timestamps and key separately for checking later. */
+        /*
+         * Save the timestamps and key separately for checking later. Optionally use our third
+         * reserved timestamp.
+         */
         if (fprintf(fp, "%" PRIu64 " %" PRIu64 " %" PRIu64 "\n", active_ts,
               durable_ahead_commit ? active_ts + 1 : active_ts, i) < 0)
             testutil_die(EIO, "fprintf");
