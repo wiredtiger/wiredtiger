@@ -119,6 +119,7 @@ functions:
           ${GNU_C_VERSION|} \
           ${GNU_CXX_VERSION|} \
           ${ENABLE_S3|} \
+          ${ENABLE_CPPSUITE|} \
           ${IMPORT_S3_SDK|} \
           ${SPINLOCK_TYPE|} \
           ${CC_OPTIMIZE_LEVEL|}"
@@ -681,7 +682,7 @@ functions:
           fi
           ${virtualenv_binary} -p ${python_binary} venv
           source venv/bin/activate
-          ${pip3_binary} install psutil pygit2
+          ${pip3_binary} install psutil pygit2==1.10.1
           JSON_TASK_INFO='{ "evergreen_task_info": { "is_patch": "'${is_patch}'", "task_id": "'${task_id}'", "distro_id": "'${distro_id}'", "execution": "'${execution}'", "task_name": "'${task_name}'", "version_id": "'${version_id}'", "branch_name": "'${branch_name}'" } }'
           echo "JSON_TASK_INFO: $JSON_TASK_INFO"
           ${test_env_vars|} ${python_binary} ../../../bench/perf_run_py/perf_run.py --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -g "../.." -v -i "$JSON_TASK_INFO" -b -o test_stats/evergreen_out_${perf-test-name}.json ${wtarg}
@@ -784,6 +785,7 @@ variables:
     <<: *configure_flags_with_builtins
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
+    ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
 
 #########################################################################################
 # The following stress tests are configured to run for six hours via the "-t 360"
@@ -2088,7 +2090,8 @@ tasks:
           unit_test_args: -v 2 -b 10/11
 
   - name: unit-test-long-bucket00
-    tags: ["python"]
+    tags: ["python", "unit_test_long"]
+    patch_only: true
     depends_on:
     - name: compile
     commands:
@@ -2098,7 +2101,8 @@ tasks:
           unit_test_args: -v 2 --long -b 0/11
 
   - name: unit-test-long-bucket01
-    tags: ["python"]
+    tags: ["python", "unit_test_long"]
+    patch_only: true
     depends_on:
     - name: compile
     commands:
@@ -2108,7 +2112,8 @@ tasks:
           unit_test_args: -v 2 --long -b 1/11
 
   - name: unit-test-long-bucket02
-    tags: ["python"]
+    tags: ["python", "unit_test_long"]
+    patch_only: true
     depends_on:
     - name: compile
     commands:
@@ -2118,7 +2123,8 @@ tasks:
           unit_test_args: -v 2 --long -b 2/11
 
   - name: unit-test-long-bucket03
-    tags: ["python"]
+    tags: ["python", "unit_test_long"]
+    patch_only: true
     depends_on:
     - name: compile
     commands:
@@ -2128,7 +2134,8 @@ tasks:
           unit_test_args: -v 2 --long -b 3/11
 
   - name: unit-test-long-bucket04
-    tags: ["python"]
+    tags: ["python", "unit_test_long"]
+    patch_only: true
     depends_on:
     - name: compile
     commands:
@@ -2138,7 +2145,8 @@ tasks:
           unit_test_args: -v 2 --long -b 4/11
 
   - name: unit-test-long-bucket05
-    tags: ["python"]
+    tags: ["python", "unit_test_long"]
+    patch_only: true
     depends_on:
     - name: compile
     commands:
@@ -2148,7 +2156,8 @@ tasks:
           unit_test_args: -v 2 --long -b 5/11
 
   - name: unit-test-long-bucket06
-    tags: ["python"]
+    tags: ["python", "unit_test_long"]
+    patch_only: true
     depends_on:
     - name: compile
     commands:
@@ -2158,7 +2167,8 @@ tasks:
           unit_test_args: -v 2 --long -b 6/11
 
   - name: unit-test-long-bucket07
-    tags: ["python"]
+    tags: ["python", "unit_test_long"]
+    patch_only: true
     depends_on:
     - name: compile
     commands:
@@ -2168,7 +2178,8 @@ tasks:
           unit_test_args: -v 2 --long -b 7/11
 
   - name: unit-test-long-bucket08
-    tags: ["python"]
+    tags: ["python", "unit_test_long"]
+    patch_only: true
     depends_on:
     - name: compile
     commands:
@@ -2178,7 +2189,8 @@ tasks:
           unit_test_args: -v 2 --long -b 8/11
 
   - name: unit-test-long-bucket09
-    tags: ["python"]
+    tags: ["python", "unit_test_long"]
+    patch_only: true
     depends_on:
     - name: compile
     commands:
@@ -2188,7 +2200,8 @@ tasks:
           unit_test_args: -v 2 --long -b 9/11
 
   - name: unit-test-long-bucket10
-    tags: ["python"]
+    tags: ["python", "unit_test_long"]
+    patch_only: true
     depends_on:
     - name: compile
     commands:
@@ -3188,10 +3201,9 @@ tasks:
         vars:
           <<: *configure_flags_with_builtins
           CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
-      # FIXME-WT-9767
-      # - func: "format test script"
-      #   vars:
-      #     format_test_script_args: -a -t 30
+      - func: "format test script"
+        vars:
+          format_test_script_args: -a -t 30
 
   - name: many-collection-test
     commands:
@@ -3514,6 +3526,70 @@ tasks:
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: modify-force-update-large-record-btree.wtperf
+
+    ###############################
+    # Performance Tests for oplog #
+    ###############################
+
+  - name: perf-test-mongodb-oplog
+    tags: ["oplog-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: mongodb-oplog.wtperf
+          maxruns: 1
+          wtarg: -ops ['"load", "insert", "truncate", "database_size"']
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: mongodb-oplog.wtperf
+
+  - name: perf-test-mongodb-small-oplog
+    tags: ["oplog-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: mongodb-small-oplog.wtperf
+          maxruns: 1
+          wtarg: -ops ['"load", "insert", "truncate", "database_size"']
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: mongodb-small-oplog.wtperf
+
+  - name: perf-test-mongodb-large-oplog
+    tags: ["oplog-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: mongodb-large-oplog.wtperf
+          maxruns: 1
+          wtarg: -ops ['"load", "insert", "truncate", "database_size"']
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: mongodb-large-oplog.wtperf
+
+  - name: perf-test-mongodb-secondary-apply
+    tags: ["oplog-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: mongodb-secondary-apply.wtperf
+          maxruns: 1
+          wtarg: -ops ['"insert"']
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: mongodb-secondary-apply.wtperf
 
     #########################################
     # Performance Tests for perf-checkpoint #
@@ -4133,6 +4209,7 @@ buildvariants:
     data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000 -C cache_size=100MB
   tasks:
     - name: ".pull_request !.pull_request_compilers"
+    - name: ".unit_test_long"
     - name: compile
     - name: doc-compile
     - name: make-check-test
@@ -4179,7 +4256,7 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
@@ -4190,7 +4267,7 @@ buildvariants:
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0:unmap_shadow_on_exit=1"
       LSAN_OPTIONS="print_suppressions=0:suppressions=$WT_TOPDIR/test/evergreen/asan_leaks.supp"
-      ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
+      ASAN_SYMBOLIZER_PATH=/usr/lib/llvm-10/bin/llvm-symbolizer
       TESTUTIL_BYPASS_ASAN=1
       LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so:$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
       PATH=/opt/mongodbtoolchain/v4/bin:$PATH
@@ -4253,7 +4330,7 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_clang.cmake
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=UBSan
     CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O1
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
@@ -4261,7 +4338,7 @@ buildvariants:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
     test_env_vars:
-      UBSAN_OPTIONS="detect_leaks=1:disable_coredump=0:external_symbolizer_path=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer:abort_on_error=1:print_stacktrace=1"
+      UBSAN_OPTIONS="detect_leaks=1:disable_coredump=0:external_symbolizer_path=/usr/lib/llvm-10/bin/llvm-symbolizer:abort_on_error=1:print_stacktrace=1"
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
@@ -4388,6 +4465,7 @@ buildvariants:
     - name: ".evict-perf"
     - name: ".log-perf"
     - name: ".long-perf"
+    - name: ".oplog-perf"
     - name: many-dhandle-stress
     - name: ".wt2853-perf"
     - name: cppsuite-bounded-cursor-perf-stress
@@ -4414,6 +4492,9 @@ buildvariants:
     - name: Wiredtiger-perf-long-jobs
       execution_tasks:
       - ".long-perf"
+    - name: Wiredtiger-perf-oplog-jobs
+      execution_tasks:
+      - ".oplog-perf"
     - name: WiredTiger-wt2853-perf
       execution_tasks:
       - ".wt2853-perf"
@@ -4533,7 +4614,7 @@ buildvariants:
     cmake_generator: "Unix Makefiles"
     make_command: make
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
   tasks:
     - name: compile
@@ -4558,7 +4639,6 @@ buildvariants:
 
 - name: code-statistics
   display_name: "Code statistics"
-  batchtime: 10080 # 7 days
   run_on:
   - ubuntu2004-test
   expansions:
@@ -4574,6 +4654,7 @@ buildvariants:
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
   tasks:
     - name: coverage-report
+      batchtime: 10080 # 7 days
     - name: cyclomatic-complexity
 
 - name: compatibility-tests-less-frequent
@@ -4704,6 +4785,7 @@ buildvariants:
       LD_LIBRARY_PATH=$WT_BUILDDIR
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
+    ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
     python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
     # Use quarter of the vCPUs to avoid OOM kill failure and disk issues on this variant.
     smp_command: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 4 | bc)
