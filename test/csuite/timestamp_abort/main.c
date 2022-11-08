@@ -115,6 +115,16 @@ static TEST_OPTS *opts, _opts;
 
 #define SHARED_PARSE_OPTIONS "b:CmP:h:p"
 
+/*
+ * We reserve timestamps for each thread for the entire run. The timestamp for the i-th key that a
+ * thread writes is given by the macro below. In a given iteration for each thread, there are three
+ * timestamps available, though we don't always use the third. The first is used to timestamp the
+ * transaction at the beginning. The second is used to timestamp after an insert is done. Then, we
+ * sometimes want the durable timestamp ahead of the commit timestamp, so we reserve the last
+ * timestamp for that use.
+ */
+#define RESERVED_TIMESTAMPS_FOR_ITERATION(threadnum, iter) (((iter)*nth + (threadnum)) * 3 + 1)
+
 typedef struct {
     uint64_t absent_key; /* Last absent key */
     uint64_t exist_key;  /* First existing key after miss */
@@ -453,16 +463,10 @@ thread_run(void *arg)
 
         if (use_ts) {
             /*
-             * Our timestamps are derived from which key we are writing, in relation to the entire
-             * set of keys being written. In a given iteration for each thread, there are three
-             * timestamps available, though we don't always use the third. The first is used to
-             * timestamp the transaction at the beginning. The second is used to timestamp after an
-             * insert is done. Then, we sometimes want the durable timestamp ahead of the commit
-             * timestamp, so we reserve the last timestamp for that use.
-             *
-             * Set the active timestamp to the first of the three timestamps we'll use.
+             * Set the active timestamp to the first of the three timestamps we'll use this
+             * iteration.
              */
-            active_ts = 1 + 3 * (td->info + i * nth);
+            active_ts = RESERVED_TIMESTAMPS_FOR_ITERATION(td->info, i);
             testutil_check(
               __wt_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%" PRIx64, active_ts));
             /*
