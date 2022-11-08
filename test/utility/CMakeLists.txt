@@ -4,7 +4,6 @@ set(sources
     misc.c
     modify.c
     parse_opts.c
-    random.c
     thread.c
     tiered.c
 )
