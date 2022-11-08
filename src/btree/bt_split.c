@@ -502,7 +502,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
     WT_ERR(__split_ref_prepare(session, alloc_index, &locked, false));
 
     /* Encourage a race */
-    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_1);
+    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_1, NULL);
 
     /*
      * Confirm the root page's index hasn't moved, then update it, which makes the split visible to
@@ -513,7 +513,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
     alloc_index = NULL;
 
     /* Encourage a race */
-    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_2);
+    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_2, NULL);
 
     /*
      * Mark the root page with the split generation.
@@ -607,7 +607,7 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
     }
 
     /* Free any backing fast-truncate memory. */
-    __wt_free(session, ref->ft_info.del);
+    __wt_free(session, ref->page_del);
 
     /* Free the backing block and address. */
     WT_TRET(__wt_ref_block_free(session, ref));
@@ -680,8 +680,16 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
             next_ref = pindex->index[i];
             WT_ASSERT(session, next_ref->state != WT_REF_SPLIT);
 
-            /* Protect against including the replaced WT_REF in the list of deleted items. */
+            /*
+             * Protect against including the replaced WT_REF in the list of deleted items. Also, in
+             * VLCS, avoid dropping the leftmost page even if it's deleted, because the namespace
+             * gap that produces causes search to fail. (For other gaps, search just takes the next
+             * page to the left; but for the leftmost page in an internal page that doesn't work
+             * unless we update the internal page's start recno on the fly and restart the search,
+             * which seems like asking for trouble.)
+             */
             if (next_ref != ref && next_ref->state == WT_REF_DELETED &&
+              (btree->type != BTREE_COL_VAR || i != 0) &&
               __wt_delete_page_skip(session, next_ref, true) &&
               WT_REF_CAS_STATE(session, next_ref, WT_REF_DELETED, WT_REF_LOCKED)) {
                 if (scr == NULL)
@@ -753,7 +761,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     WT_NOT_READ(complete, WT_ERR_PANIC);
 
     /* Encourage a race */
-    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_3);
+    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_3, NULL);
 
     /*
      * Confirm the parent page's index hasn't moved then update it, which makes the split visible to
@@ -764,7 +772,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     alloc_index = NULL;
 
     /* Encourage a race */
-    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_4);
+    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_4, NULL);
 
     /*
      * Get a generation for this split, mark the page. This must be after the new index is swapped
@@ -1020,7 +1028,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
     WT_ERR(__split_ref_prepare(session, alloc_index, &locked, true));
 
     /* Encourage a race */
-    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_5);
+    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_5, NULL);
 
     /* Split into the parent. */
     WT_ERR(__split_parent(
@@ -1034,7 +1042,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
     WT_INTL_INDEX_SET(page, replace_index);
 
     /* Encourage a race */
-    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_6);
+    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_6, NULL);
 
     /*
      * Get a generation for this split, mark the parent page. This must be after the new index is
@@ -1156,7 +1164,7 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock, WT_PA
      * (which causes reconciliation to loop until the exclusive lock is resolved). If we want to
      * split the parent, give up to avoid that deadlock.
      */
-    if (!trylock && !__wt_btree_can_evict_dirty(session))
+    if (!trylock && __wt_btree_syncing_by_other_session(session))
         return (__wt_set_return(session, EBUSY));
 
     /*
@@ -1174,7 +1182,7 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock, WT_PA
         parent = ref->home;
 
         /* Encourage races. */
-        __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_7);
+        __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_7, NULL);
 
         /* Page locks live in the modify structure. */
         WT_RET(__wt_page_modify_init(session, parent));
@@ -1271,8 +1279,15 @@ __split_parent_climb(WT_SESSION_IMPL *session, WT_PAGE *page)
      * to a different part of the tree where it will be written; in other words, in one part of the
      * tree we'll skip the newly created insert split chunk, but we'll write it upon finding it in a
      * different part of the tree.
+     *
+     * Historically we allowed checkpoint itself to trigger an internal split here. That wasn't
+     * correct, since if that split climbs the tree above the immediate parent the checkpoint walk
+     * will potentially miss some internal pages. This is wrong as checkpoint needs to reconcile the
+     * entire internal tree structure. Non checkpoint cursor traversal doesn't care the internal
+     * tree structure as they just want to get the next leaf page correctly. Therefore, it is OK to
+     * split concurrently to cursor operations.
      */
-    if (!__wt_btree_can_evict_dirty(session)) {
+    if (WT_BTREE_SYNCING(S2BT(session))) {
         __split_internal_unlock(session, page);
         return (0);
     }
@@ -1357,7 +1372,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
     WT_SAVE_UPD *supd;
-    WT_UPDATE *prev_onpage, *upd;
+    WT_UPDATE *prev_onpage, *upd, *tmp;
     uint64_t recno;
     uint32_t i, slot;
     bool prepare;
@@ -1432,19 +1447,39 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
          */
         if (supd->onpage_upd != NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
             /*
+             * If there is an on-page tombstone we need to remove it as well while performing update
+             * restore eviction.
+             */
+            tmp = supd->onpage_tombstone != NULL ? supd->onpage_tombstone : supd->onpage_upd;
+
+            /*
              * We have decided to restore this update chain so it must have newer updates than the
              * onpage value on it.
              */
-            WT_ASSERT(session, upd != supd->onpage_upd);
+            WT_ASSERT(session, upd != tmp);
+            WT_ASSERT(session, F_ISSET(tmp, WT_UPDATE_DS));
+
             /*
              * Move the pointer to the position before the onpage value and truncate all the updates
              * starting from the onpage value.
              */
-            for (prev_onpage = upd;
-                 prev_onpage->next != NULL && prev_onpage->next != supd->onpage_upd;
+            for (prev_onpage = upd; prev_onpage->next != NULL && prev_onpage->next != tmp;
                  prev_onpage = prev_onpage->next)
                 ;
-            WT_ASSERT(session, prev_onpage->next == supd->onpage_upd);
+            WT_ASSERT(session, prev_onpage->next == tmp);
+#ifdef HAVE_DIAGNOSTIC
+            /*
+             * During update restore eviction we remove anything older than the on-page update,
+             * including the on-page update. However it is possible a tombstone is also written as
+             * the stop time of the on-page value. To handle this we also need to remove the
+             * tombstone from the update chain.
+             *
+             * This assertion checks that there aren't any unexpected updates between that tombstone
+             * and the subsequent value which both make up the on-page value.
+             */
+            for (; tmp != NULL && tmp != supd->onpage_upd; tmp = tmp->next)
+                WT_ASSERT(session, tmp == supd->onpage_tombstone || tmp->txnid == WT_TXN_ABORTED);
+#endif
             prev_onpage->next = NULL;
         }
 
@@ -1527,6 +1562,7 @@ static void
 __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi)
 {
     WT_SAVE_UPD *supd;
+    WT_UPDATE **tmp;
     uint32_t i, slot;
 
     /* If we have saved updates, we must have decided to restore them to the new page. */
@@ -1550,9 +1586,17 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
         } else
             supd->ins->upd = NULL;
 
-        /* Free the updates written to the data store and the history store. */
-        if (supd->onpage_upd != NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
-            __wt_free_update_list(session, &supd->onpage_upd);
+        /*
+         * Free the updates written to the data store and the history store when there exists an
+         * onpage value. It is possible that there can be an onpage tombstone without an onpage
+         * value when the tombstone is globally visible. Do not free them here as it is possible
+         * that the globally visible tombstone is already freed as part of update obsolete check.
+         */
+        if (supd->onpage_upd != NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
+            tmp = supd->onpage_tombstone != NULL ? &supd->onpage_tombstone : &supd->onpage_upd;
+            __wt_free_update_list(session, tmp);
+            supd->onpage_tombstone = supd->onpage_upd = NULL;
+        }
     }
 }
 
@@ -1565,7 +1609,7 @@ static void
 __split_multi_inmem_fail(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT_REF *ref)
 {
     WT_SAVE_UPD *supd;
-    WT_UPDATE *upd;
+    WT_UPDATE *upd, *tmp;
     uint32_t i, slot;
 
     if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
@@ -1586,11 +1630,11 @@ __split_multi_inmem_fail(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mult
                 upd = supd->ins->upd;
 
             WT_ASSERT(session, upd != NULL);
-
-            for (; upd->next != NULL && upd->next != supd->onpage_upd; upd = upd->next)
+            tmp = supd->onpage_tombstone != NULL ? supd->onpage_tombstone : supd->onpage_upd;
+            for (; upd->next != NULL && upd->next != tmp; upd = upd->next)
                 ;
             if (upd->next == NULL)
-                upd->next = supd->onpage_upd;
+                upd->next = tmp;
         }
 
     /*
@@ -1637,8 +1681,8 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
     /* Verify any disk image we have. */
     WT_ASSERT(session,
       multi->disk_image == NULL ||
-        __wt_verify_dsk_image(
-          session, "[page instantiate]", multi->disk_image, 0, &multi->addr, true) == 0);
+        __wt_verify_dsk_image(session, "[page instantiate]", multi->disk_image, 0, &multi->addr,
+          WT_VRFY_DISK_EMPTY_PAGE_OK) == 0);
 
     /* Allocate an underlying WT_REF. */
     WT_RET(__wt_calloc_one(session, refp));
@@ -1736,7 +1780,6 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     WT_ASSERT(session, __wt_leaf_page_can_split(session, page));
     WT_ASSERT(session, __wt_page_is_modified(page));
-    WT_ASSERT(session, ref->ft_info.del == NULL);
 
     F_SET_ATOMIC_16(page, WT_PAGE_SPLIT_INSERT); /* Only split in-memory once. */
 
@@ -1810,9 +1853,9 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     /*
      * Allocation operations completed, we're going to split.
      *
-     * Record the split column-store page record, used in reconciliation.
+     * Record the fixed-length column-store split page record, used in reconciliation.
      */
-    if (type != WT_PAGE_ROW_LEAF) {
+    if (type == WT_PAGE_COL_FIX) {
         WT_ASSERT(session, page->modify->mod_col_split_recno == WT_RECNO_OOB);
         page->modify->mod_col_split_recno = child->ref_recno;
     }
@@ -1942,9 +1985,9 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     /*
      * Failure.
      *
-     * Reset the split column-store page record.
+     * Reset the fixed-length column-store split page record.
      */
-    if (type != WT_PAGE_ROW_LEAF)
+    if (type == WT_PAGE_COL_FIX)
         page->modify->mod_col_split_recno = WT_RECNO_OOB;
 
     /*
@@ -2084,8 +2127,8 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
         __split_multi_inmem_final(session, page, &mod->mod_multi[i]);
 
     /*
-     * Pages with unresolved changes are not marked clean in reconciliation, do it now, then discard
-     * the page.
+     * Page with changes not written in this reconciliation is not marked as clean, do it now, then
+     * discard the page.
      */
     __wt_page_modify_clear(session, page);
     __wt_page_out(session, &page);
@@ -2094,6 +2137,11 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 err:
         for (i = 0; i < new_entries; ++i)
             __split_multi_inmem_fail(session, page, &mod->mod_multi[i], ref_new[i]);
+        /*
+         * Mark the page dirty to ensure it is reconciled again as we free the split disk images if
+         * we fail to instantiate any of them into memory.
+         */
+        __wt_page_modify_set(session, page);
     }
 
     __wt_free(session, ref_new);

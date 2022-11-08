@@ -26,8 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import random
-import wiredtiger, wttest
+import wttest
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
@@ -50,12 +49,11 @@ from wiredtiger import stat
 class test_stat10(wttest.WiredTigerTestCase):
     uri = 'table:test_stat10'
     conn_config = 'statistics=(all)'
-    session_config = 'isolation=snapshot'
 
     format_values = [
         ('column', dict(key_format='r', value_format='u')),
         ('column_fix', dict(key_format='r', value_format='8t')),
-        ('string_row', dict(key_format='S', value_format='u')),
+        ('row_string', dict(key_format='S', value_format='u')),
     ]
 
     oldest_values = [
@@ -209,7 +207,10 @@ class test_stat10(wttest.WiredTigerTestCase):
 
         # column_tws: for FLCS only.
         if self.key_format == 'r' and self.value_format == '8t':
-            if self.oldest > 20:
+            if self.oldest > 30:
+                # Everything should be stable.
+                self.assertEqual(column_tws, 0)
+            elif self.oldest > 20:
                 # Only the deletions show.
                 self.assertEqual(column_tws, 2)
             else:

@@ -26,10 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from helper import copy_wiredtiger_home
-import wiredtiger, wttest, unittest
+import wttest
 from wiredtiger import stat
-from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
 # test_rollback_to_stable15.py
@@ -37,7 +35,6 @@ from wtscenario import make_scenarios
 # update-list for both fixed length and variable length column store.
 # Eviction is set to false, so that everything persists in memory.
 class test_rollback_to_stable15(wttest.WiredTigerTestCase):
-    session_config = 'isolation=snapshot'
     key_format_values = [
         ('column', dict(key_format='r')),
         ('integer-row', dict(key_format='i')),
@@ -58,8 +55,6 @@ class test_rollback_to_stable15(wttest.WiredTigerTestCase):
         config = 'cache_size=200MB,statistics=(all),debug_mode=(eviction=false)'
         if self.in_memory:
             config += ',in_memory=true'
-        else:
-            config += ',in_memory=false'
         return config
 
     def check(self, check_value, uri, nrows, read_ts):
@@ -78,10 +73,12 @@ class test_rollback_to_stable15(wttest.WiredTigerTestCase):
         self.assertEqual(count, nrows)
 
     def test_rollback_to_stable(self):
-        # Create a table.
         uri = "table:rollback_to_stable15"
         nrows = 2000
-        create_params = 'log=(enabled=false),key_format={},value_format={}'.format(self.key_format, self.value_format)
+
+        # Create a table.
+        create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        create_params += ',log=(enabled=false)' if self.in_memory else ''
         self.session.create(uri, create_params)
         cursor = self.session.open_cursor(uri)
 

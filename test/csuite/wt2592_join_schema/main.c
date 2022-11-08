@@ -46,6 +46,10 @@ static POP_RECORD pop_data[] = {{"AU", 1900, 4000000}, {"AU", 1950, 8267337},
   {"UK", 1900, 369000000}, {"UK", 1950, 50127000}, {"UK", 2000, 59522468}, {"USA", 1900, 76212168},
   {"USA", 1950, 150697361}, {"USA", 2000, 301279593}, {"", 0, 0}};
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -72,7 +76,9 @@ main(int argc, char *argv[])
     testutil_check(__wt_snprintf(yearuri, sizeof(yearuri), "index:%s:year", tablename));
     testutil_check(__wt_snprintf(joinuri, sizeof(joinuri), "join:%s", opts->uri));
 
-    testutil_check(wiredtiger_open(opts->home, NULL, "create,cache_size=200M", &opts->conn));
+    testutil_check(wiredtiger_open(opts->home, NULL,
+      "create,cache_size=200M,statistics=(all),statistics_log=(json,on_close,wait=1)",
+      &opts->conn));
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
     testutil_check(session->create(
       session, opts->uri, "key_format=r,value_format=5sHQ,columns=(id,country,year,population)"));

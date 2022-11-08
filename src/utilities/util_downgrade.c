@@ -8,6 +8,10 @@
 
 #include "util.h"
 
+/*
+ * usage --
+ *     Display a usage message for the downgrade command.
+ */
 static int
 usage(void)
 {
@@ -18,6 +22,10 @@ usage(void)
     return (1);
 }
 
+/*
+ * util_downgrade --
+ *     The downgrade command.
+ */
 int
 util_downgrade(WT_SESSION *session, int argc, char *argv[])
 {

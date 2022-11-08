@@ -31,7 +31,7 @@
 #
 
 import wiredtiger, wttest
-from wtdataset import SimpleDataSet, simple_key, simple_value
+from wtdataset import simple_key, simple_value
 from wtscenario import make_scenarios
 
 # Smoke test bulk-load.
@@ -162,7 +162,7 @@ class test_bulk_load(wttest.WiredTigerTestCase):
         for i in [1, 9, 10]:
             cursor.set_key(simple_key(cursor, 1))
             cursor.set_value(simple_value(cursor, 1))
-            msg = '/than previously inserted key/'
+            msg = '/less than or equal to the previously inserted key/'
             self.assertRaisesWithMessage(
                 wiredtiger.WiredTigerError, lambda: cursor.insert(), msg)
 
@@ -200,6 +200,7 @@ class test_bulk_load(wttest.WiredTigerTestCase):
         cursor[simple_key(cursor, 1)] = simple_value(cursor, 1)
         # Close the insert cursor, else we'll get EBUSY.
         cursor.close()
+        self.session.checkpoint()
         msg = '/bulk-load is only supported on newly created objects/'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor(uri, None, "bulk"), msg)

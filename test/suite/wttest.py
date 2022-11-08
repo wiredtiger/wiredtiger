@@ -42,8 +42,36 @@ except ImportError:
     import unittest
 
 from contextlib import contextmanager
-import errno, glob, os, re, shutil, sys, time, traceback
+import errno, glob, os, re, shutil, sys, threading, time, traceback, types
 import wiredtiger, wtscenario, wthooks
+
+# Use as "with timeout(seconds): ....". Argument of 0 means no timeout,
+# and only available (with non-zero argument) on Unix systems.
+class timeout(object):
+    def __init__(self, seconds=0):
+        self.seconds = seconds
+        self.prev_handler = None
+
+    def signal_handler(self, signum, frame):
+        raise(TimeoutError('time for test exceeded {} seconds'.format(self.seconds)))
+
+    def __enter__(self):
+        if self.seconds != 0:
+            try:
+                import signal     # This will fail on non-Unix systems.
+                self.prev_handler = signal.signal(signal.SIGALRM, self.signal_handler)
+                signal.alarm(self.seconds)
+            except Exception as e:
+                raise Exception('The --timeout option is not available on this system: ' + str(e))
+
+    def __exit__(self, typ, value, traceback):
+        if self.seconds != 0:
+            try:
+                import signal     # This will fail on non-Unix systems.
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, self.prev_handler)
+            except Exception as e:
+                raise Exception('The --timeout option is not available on this system: ' + str(e))
 
 def shortenWithEllipsis(s, maxlen):
     if len(s) > maxlen:
@@ -180,10 +208,54 @@ class ExtensionList(list):
             ext = '' if extarg == None else '=' + extarg
             self.append(dirname + '/' + name + ext)
 
+# Custom result class that will prefix the pid in text output (including if it's a child).
+# Only enabled when we are in verbose mode so we don't check that here.
+class PidAwareTextTestResult(unittest.TextTestResult):
+    _thread_prefix = threading.local()
+
+    def __init__(self, stream, descriptions, verbosity):
+        super(PidAwareTextTestResult, self).__init__(stream, descriptions, verbosity)
+        self._thread_prefix.value = "[pid:{}]: ".format(os.getpid())
+
+    def tags(self, new_tags, gone_tags):
+        # We attach the PID to the thread so we only need the new_tags.
+        for tag in new_tags:
+            if tag.startswith("pid:"):
+                pid = tag[len("pid:"):]
+                self._thread_prefix.value = "[pid:{}/{}]: ".format(os.getpid(), pid)
+
+    def startTest(self, test):
+        self.stream.write(self._thread_prefix.value)
+        super(PidAwareTextTestResult, self).startTest(test)
+
+    def getDescription(self, test):
+        return str(test.shortDescription())
+
+    def printErrorList(self, flavour, errors):
+        for test, err in errors:
+            self.stream.writeln(self.separator1)
+            self.stream.writeln("%s%s: %s" % (self._thread_prefix.value, 
+                flavour, self.getDescription(test)))
+            self.stream.writeln(self.separator2)
+            self.stream.writeln("%s%s" % (self._thread_prefix.value, err))
+            self.stream.flush()
+
 class WiredTigerTestCase(unittest.TestCase):
     _globalSetup = False
     _printOnceSeen = {}
     _ttyDescriptor = None   # set this early, to allow tty() to be called any time.
+
+    # We store the current test case in thread local storage.  There are
+    # certain odd cases where this is useful, like hooks, where we don't
+    # have any notion of the current test case.
+    _threadLocal = threading.local()
+
+    # rollbacks_allowed can be overridden to permit more or fewer retries on rollback errors.
+    # We retry tests that get rollback errors in a way that is mostly invisible.
+    # There is a visible difference in that the rollback error's stack trace is recorded
+    # in the results.txt .  If a single test fails more than self.rollbacks_allowed,
+    # we raise an error, and the test fails.
+    rollbacks_allowed = 2
 
     # conn_config can be overridden to add to basic connection configuration.
     # Can be a string or a callable function or lambda expression.
@@ -203,7 +275,8 @@ class WiredTigerTestCase(unittest.TestCase):
     @staticmethod
     def globalSetup(preserveFiles = False, removeAtStart = True, useTimestamp = False,
                     gdbSub = False, lldbSub = False, verbose = 1, builddir = None, dirarg = None,
-                    longtest = False, zstdtest = False, ignoreStdout = False, seedw = 0, seedz = 0, hookmgr = None):
+                    longtest = False, zstdtest = False, ignoreStdout = False, seedw = 0, seedz = 0, 
+                    hookmgr = None, ss_random_prefix = 0, timeout = 0):
         WiredTigerTestCase._preserveFiles = preserveFiles
         d = 'WT_TEST' if dirarg == None else dirarg
         if useTimestamp:
@@ -212,10 +285,12 @@ class WiredTigerTestCase(unittest.TestCase):
             shutil.rmtree(d, ignore_errors=True)
         os.makedirs(d)
         wtscenario.set_long_run(longtest)
+        resultFileName = os.path.join(d, 'results.txt')
         WiredTigerTestCase._parentTestdir = d
         WiredTigerTestCase._builddir = builddir
         WiredTigerTestCase._origcwd = os.getcwd()
-        WiredTigerTestCase._resultfile = open(os.path.join(d, 'results.txt'), "w", 1)  # line buffered
+        WiredTigerTestCase._resultFileName = resultFileName
+        WiredTigerTestCase._resultFile = open(resultFileName, "w", 1)  # line buffered
         WiredTigerTestCase._gdbSubprocess = gdbSub
         WiredTigerTestCase._lldbSubprocess = lldbSub
         WiredTigerTestCase._longtest = longtest
@@ -226,15 +301,38 @@ class WiredTigerTestCase(unittest.TestCase):
         WiredTigerTestCase._stdout = sys.stdout
         WiredTigerTestCase._stderr = sys.stderr
         WiredTigerTestCase._concurrent = False
-        WiredTigerTestCase._globalSetup = True
         WiredTigerTestCase._seeds = [521288629, 362436069]
         WiredTigerTestCase._randomseed = False
+        WiredTigerTestCase._ss_random_prefix = ss_random_prefix
+        WiredTigerTestCase._retriesAfterRollback = 0
+        WiredTigerTestCase._testsRun = 0
+        WiredTigerTestCase._timeout = timeout
         if hookmgr == None:
             hookmgr = wthooks.WiredTigerHookManager()
         WiredTigerTestCase._hookmgr = hookmgr
+        WiredTigerTestCase.hook_names = hookmgr.get_hook_names()
         if seedw != 0 and seedz != 0:
             WiredTigerTestCase._randomseed = True
             WiredTigerTestCase._seeds = [seedw, seedz]
+        WiredTigerTestCase._globalSetup = True
+
+    @staticmethod
+    def finalReport():
+        # We retry tests that get rollback errors in a way that is mostly invisible.
+        # self.rollbacks_allowed makes sure a single test doesn't rollback too many times.
+        # We also want to report an error if the total number of retries in the entire run gets
+        # above a threshold, we use 1%.  To prevent a shorter run (say 50 tests) from tripping
+        # over this if it happens to have 1 or 2 hits, we won't fail unless there's an absolute
+        # quantity of failures above 3.
+        totalTestsRun = WiredTigerTestCase._testsRun
+        totalRetries = WiredTigerTestCase._retriesAfterRollback
+        if totalTestsRun > 0 and totalRetries / totalTestsRun > 0.01 and totalRetries >= 3:
+            raise Exception('Retries from WT_ROLLBACK in test suite: {}/{}, see {} for stack traces'.format(
+                totalRetries, totalTestsRun, WiredTigerTestCase._resultFileName))
+
+    @staticmethod
+    def currentTestCase():
+        return getattr(WiredTigerTestCase._threadLocal, 'currentTestCase', None)
 
     def fdSetUp(self):
         self.captureout = CapturedFd('stdout.txt', 'standard output')
@@ -256,6 +354,32 @@ class WiredTigerTestCase(unittest.TestCase):
         self.skipped = False
         if not self._globalSetup:
             WiredTigerTestCase.globalSetup()
+        self.platform_api = WiredTigerTestCase._hookmgr.get_platform_api()
+
+    # Platform specific functions (may be overridden by hooks):
+
+    # Return true if file(s) for the table with the given base name exist in the file system.
+    # This may have a different implementation when running under certain hooks.
+    def tableExists(self, name):
+        return self.platform_api.tableExists(name)
+
+    # The first filename for this URI.  In the tiered storage
+    # world, this makes a difference, every flush tier creates a
+    # This may have a different implementation when running under certain hooks.
+    def initialFileName(self, name):
+        return self.platform_api.initialFileName(name)
+
+    # Return the WiredTigerTimestamp for this testcase, or None if there is none.
+    def getTimestamp(self):
+        return self.platform_api.getTimestamp()
+
+    # Return the tier share percent for this testcase, or 0 if there is none.
+    def getTierSharePercent(self):
+        return self.platform_api.getTierSharePercent()
+
+    # Return the tier cache percent for this testcase, or 0 if there is none.
+    def getTierCachePercent(self):
+        return self.platform_api.getTierCachePercent()
 
     def __str__(self):
         # when running with scenarios, if the number_scenarios() method
@@ -274,8 +398,12 @@ class WiredTigerTestCase(unittest.TestCase):
         return self.simpleName() + ret_str
 
     def simpleName(self):
-        return "%s.%s.%s" %  (self.__module__,
-                              self.className(), self._testMethodName)
+        # Prefer the saved method name, it's always correct if set.
+        if hasattr(self, '_savedTestMethodName'):
+            methodName = self._savedTestMethodName
+        else:
+            methodName = self._testMethodName
+        return "%s.%s.%s" %  (self.__module__, self.className(), methodName)
 
     def buildDirectory(self):
         return self._builddir
@@ -283,6 +411,33 @@ class WiredTigerTestCase(unittest.TestCase):
     def skipTest(self, reason):
         self.skipped = True
         super(WiredTigerTestCase, self).skipTest(reason)
+
+    # Overridden from unittest.  Run the method, but retry rollback errors, up to a point.
+    # Note that this method first appears in Python 3.7.  When running with an older Python,
+    # this method does not override anything.  The test method is called a different way,
+    # and we will not get any retry behavior.
+    def _callTestMethod(self, method):
+        rollbacksAllowed = self.rollbacks_allowed
+        finished = False
+        WiredTigerTestCase._testsRun += 1
+        while not finished and rollbacksAllowed >= 0:
+            try:
+                with timeout(WiredTigerTestCase._timeout):
+                    method()
+                    finished = True
+            except wiredtiger.WiredTigerRollbackError:
+                WiredTigerTestCase._retriesAfterRollback += 1
+                self.prexception(sys.exc_info())
+                if rollbacksAllowed == 0:
+                    self.pr('rollback error, no more restarts, failing test.')
+                    raise
+                else:
+                    self.pr('rollback error, restarting test.')
+                    self.tearDown(True)
+                    if WiredTigerTestCase._verbose > 2:
+                        print("[pid:{}]: {}: restarting after rollback error".format(os.getpid(), self))
+                    self.setUp()
+                    rollbacksAllowed -= 1
 
     # Construct the expected filename for an extension library and return
     # the name if the file exists.
@@ -411,6 +566,28 @@ class WiredTigerTestCase(unittest.TestCase):
         self.close_conn()
         self.open_conn(directory, config)
 
+    @contextmanager
+    def transaction(self, session=None, begin_config=None, commit_config=None,
+                    commit_timestamp=None, read_timestamp=None, rollback=False):
+        if session == None:
+            session = self.session
+        if commit_timestamp != None:
+            if commit_config != None:
+                raise Exception('transaction: commit_timestamp and commit_config cannot both be set')
+            commit_config = 'commit_timestamp=' + self.timestamp_str(commit_timestamp)
+        if read_timestamp != None:
+            if begin_config != None or commit_config != None:
+                raise Exception('transaction: read_timestamp cannot be set with either ' +
+                    'begin_config, commit_config, commit_timestamp')
+            begin_config = 'read_timestamp=' + self.timestamp_str(read_timestamp)
+
+        session.begin_transaction(begin_config)
+        yield
+        if rollback:
+            session.rollback_transaction()
+        else:
+            session.commit_transaction(commit_config)
+
     def setUp(self):
         if not hasattr(self.__class__, 'wt_ntests'):
             self.__class__.wt_ntests = 0
@@ -436,6 +613,9 @@ class WiredTigerTestCase(unittest.TestCase):
             self.prhead('started in ' + self.testdir, True)
         # tearDown needs connections list, set it here in case the open fails.
         self._connections = []
+        self._failed = None   # set to True/False during teardown.
+
+        self.platform_api.setUp()
         self.origcwd = os.getcwd()
         shutil.rmtree(self.testdir, ignore_errors=True)
         if os.path.exists(self.testdir):
@@ -445,6 +625,7 @@ class WiredTigerTestCase(unittest.TestCase):
         with open('testname.txt', 'w+') as namefile:
             namefile.write(str(self) + '\n')
         self.fdSetUp()
+        self._threadLocal.currentTestCase = self
         # tearDown needs a conn field, set it here in case the open fails.
         self.conn = None
         try:
@@ -472,7 +653,17 @@ class WiredTigerTestCase(unittest.TestCase):
     def checkStdout(self):
         self.captureout.check(self)
 
-    def tearDown(self):
+    def readyDirectoryForRemoval(self, directory):
+        # Make sure any read-only files or directories left behind
+        # are made writeable in preparation for removal.
+        os.chmod(directory, 0o777)
+        for root, dirs, files in os.walk(directory):
+            for d in dirs:
+                os.chmod(os.path.join(root, d), 0o777)
+            for f in files:
+                os.chmod(os.path.join(root, f), 0o666)
+
+    def tearDown(self, dueToRetry=False):
         # This approach works for all our support Python versions and
         # is suggested by one of the answers in:
         # https://stackoverflow.com/questions/4414234/getting-pythons-unittest-results-in-a-teardown-method
@@ -487,7 +678,17 @@ class WiredTigerTestCase(unittest.TestCase):
         failure = self.list2reason(result, 'failures')
         exc_failure = (sys.exc_info() != (None, None, None))
 
-        passed = not error and not failure and not exc_failure
+        self._failed = error or failure or exc_failure
+        passed = not self._failed
+
+        self.platform_api.tearDown()
+
+        # Download the files from the S3 bucket for tiered tests if the test fails or preserve is
+        # turned on.
+        if hasattr(self, 'ss_name') and self.ss_name == 's3_store' and not self.skipped and \
+            (not passed or WiredTigerTestCase._preserveFiles):
+                self.download_objects(self.bucket, self.bucket_prefix)
+                self.pr('downloading s3 files')
 
         self.pr('finishing')
 
@@ -505,37 +706,39 @@ class WiredTigerTestCase(unittest.TestCase):
         self._connections = []
         try:
             self.fdTearDown()
-            self.captureout.check(self)
-            self.captureerr.check(self)
+            if not dueToRetry:
+                self.captureout.check(self)
+                self.captureerr.check(self)
         finally:
             # always get back to original directory
             os.chdir(self.origcwd)
 
-        # Make sure no read-only files or directories were left behind
-        os.chmod(self.testdir, 0o777)
-        for root, dirs, files in os.walk(self.testdir):
-            for d in dirs:
-                os.chmod(os.path.join(root, d), 0o777)
-            for f in files:
-                os.chmod(os.path.join(root, f), 0o666)
         self.pr('passed=' + str(passed))
         self.pr('skipped=' + str(self.skipped))
 
         # Clean up unless there's a failure
+        self.readyDirectoryForRemoval(self.testdir)
         if (passed and (not WiredTigerTestCase._preserveFiles)) or self.skipped:
             shutil.rmtree(self.testdir, ignore_errors=True)
         else:
             self.pr('preserving directory ' + self.testdir)
 
+        self._threadLocal.currentTestCase = None
+
         elapsed = time.time() - self.starttime
         if elapsed > 0.001 and WiredTigerTestCase._verbose >= 2:
-            print("%s: %.2f seconds" % (str(self), elapsed))
+            print("[pid:{}]: {}: {:.2f} seconds".format(os.getpid(), str(self), elapsed))
         if (not passed) and (not self.skipped):
-            print("ERROR in " + str(self))
+            print("[pid:{}]: ERROR in {}".format(os.getpid(), str(self)))
             self.pr('FAIL')
             self.pr('preserving directory ' + self.testdir)
         if WiredTigerTestCase._verbose > 2:
             self.prhead('TEST COMPLETED')
+
+    # Returns None if testcase is running.  If during (or after) tearDown,
+    # will return True or False depending if the test case failed.
+    def failed(self):
+        return self._failed
 
     def backup(self, backup_dir, session=None):
         if session is None:
@@ -662,6 +865,56 @@ class WiredTigerTestCase(unittest.TestCase):
     def timestamp_str(self, t):
         return '%x' % t
 
+    def dropUntilSuccess(self, session, uri, config=None):
+        while True:
+            try:
+                session.drop(uri, config)
+                return
+            except wiredtiger.WiredTigerError as err:
+                if str(err) != os.strerror(errno.EBUSY):
+                    raise err
+                session.checkpoint()
+
+    def verifyUntilSuccess(self, session, uri, config=None):
+        while True:
+            try:
+                session.verify(uri, config)
+                return
+            except wiredtiger.WiredTigerError as err:
+                if str(err) != os.strerror(errno.EBUSY):
+                    raise err
+                session.checkpoint()
+    
+    def renameUntilSuccess(self, session, uri, newUri, config=None):
+        while True:
+            try:
+                session.rename(uri, newUri, config)
+                return
+            except wiredtiger.WiredTigerError as err:
+                if str(err) != os.strerror(errno.EBUSY):
+                    raise err
+                session.checkpoint()
+
+    def upgradeUntilSuccess(self, session, uri, config=None):
+        while True:
+            try:
+                session.upgrade(uri, config)
+                return
+            except wiredtiger.WiredTigerError as err:
+                if str(err) != os.strerror(errno.EBUSY):
+                    raise err
+                session.checkpoint()
+
+    def salvageUntilSuccess(self, session, uri, config=None):
+        while True:
+            try:
+                session.salvage(uri, config)
+                return
+            except wiredtiger.WiredTigerError as err:
+                if str(err) != os.strerror(errno.EBUSY):
+                    raise err
+                session.checkpoint()
+
     def exceptionToStderr(self, expr):
         """
         Used by assertRaisesHavingMessage to convert an expression
@@ -727,14 +980,14 @@ class WiredTigerTestCase(unittest.TestCase):
 
     @staticmethod
     def prout(s):
-        os.write(WiredTigerTestCase._dupout, str.encode(s + '\n'))
+        os.write(WiredTigerTestCase._dupout, str.encode("[pid:{}]: {}\n".format(os.getpid(), s)))
 
     def pr(self, s):
         """
         print a progress line for testing
         """
         msg = '    ' + self.shortid() + ': ' + s
-        WiredTigerTestCase._resultfile.write(msg + '\n')
+        WiredTigerTestCase._resultFile.write(msg + '\n')
 
     def prhead(self, s, *beginning):
         """
@@ -745,12 +998,12 @@ class WiredTigerTestCase(unittest.TestCase):
             msg += '\n'
         msg += '  ' + self.shortid() + ': ' + s
         self.prout(msg)
-        WiredTigerTestCase._resultfile.write(msg + '\n')
+        WiredTigerTestCase._resultFile.write(msg + '\n')
 
     def prexception(self, excinfo):
-        WiredTigerTestCase._resultfile.write('\n')
-        traceback.print_exception(excinfo[0], excinfo[1], excinfo[2], None, WiredTigerTestCase._resultfile)
-        WiredTigerTestCase._resultfile.write('\n')
+        WiredTigerTestCase._resultFile.write('\n')
+        traceback.print_exception(excinfo[0], excinfo[1], excinfo[2], None, WiredTigerTestCase._resultFile)
+        WiredTigerTestCase._resultFile.write('\n')
 
     def recno(self, i):
         """
@@ -766,7 +1019,7 @@ class WiredTigerTestCase(unittest.TestCase):
     def tty(message):
         if WiredTigerTestCase._ttyDescriptor == None:
             WiredTigerTestCase._ttyDescriptor = open('/dev/tty', 'w')
-        WiredTigerTestCase._ttyDescriptor.write(message + '\n')
+        WiredTigerTestCase._ttyDescriptor.write("[pid:{}]: {}\n".format(os.getpid(), message))
 
     def ttyVerbose(self, level, message):
         WiredTigerTestCase.ttyVerbose(level, message)
@@ -822,11 +1075,51 @@ def longtest(description):
     else:
         return runit_decorator
 
+def prevent(what):
+    """
+    Used as a function decorator, for example, @wttest.prevent("timestamp").
+    The decorator indicates that this test function uses some facility (in the
+    example, it uses its own timestamps), and prevents hooks that try to manage
+    timestamps from running the test.
+    """
+    def runit_decorator(func):
+        return func
+    hooks_using = WiredTigerTestCase._hookmgr.hooks_using(what)
+    if len(hooks_using) > 0:
+        return unittest.skip("function uses {}, which is incompatible with hooks: {}".format(what, hooks_using))
+    else:
+        return runit_decorator
+
+def skip_for_hook(hookname, description):
+    """
+    Used as a function decorator, for example, @wttest.skip_for_hook("tiered", "fails at commit_transaction").
+    The decorator indicates that this test function fails with the hook, which should be investigated.
+    """
+    def runit_decorator(func):
+        return func
+    if hookname in WiredTigerTestCase.hook_names:
+        return unittest.skip("because running with hook '{}': {}".format(hookname, description))
+    else:
+        return runit_decorator
+
 def islongtest():
     return WiredTigerTestCase._longtest
 
 def getseed():
     return WiredTigerTestCase._seeds
+
+def getss_random_prefix():
+    return WiredTigerTestCase._ss_random_prefix
+
+# We have to override the ThreadsafeForwardingResult implementation of tags so it gets set immediately
+# which allows us to set the pid of the process on our output stream to make debugging easier.
+def immediate_tags(self, new_tags, gone_tags):
+    self.result.tags(new_tags, gone_tags)
+
+def wrap_result_for_tags(thread_safe_result, thread_number):
+    # We use this technique to override the method instead of extending the class as it allows for less changes.
+    thread_safe_result.tags = types.MethodType(immediate_tags, thread_safe_result)
+    return thread_safe_result
 
 def runsuite(suite, parallel):
     suite_to_run = suite
@@ -835,16 +1128,21 @@ def runsuite(suite, parallel):
         if not WiredTigerTestCase._globalSetup:
             WiredTigerTestCase.globalSetup()
         WiredTigerTestCase._concurrent = True
-        suite_to_run = ConcurrentTestSuite(suite, fork_for_tests(parallel))
+        suite_to_run = ConcurrentTestSuite(suite, fork_for_tests(parallel), wrap_result=wrap_result_for_tags)
     try:
         if WiredTigerTestCase._randomseed:
             WiredTigerTestCase.prout("Starting test suite with seedw={0} and seedz={1}. Rerun this test with -seed {0}.{1} to get the same randomness"
                 .format(str(WiredTigerTestCase._seeds[0]), str(WiredTigerTestCase._seeds[1])))
-        return unittest.TextTestRunner(
-            verbosity=WiredTigerTestCase._verbose).run(suite_to_run)
+        result_class = None
+        if WiredTigerTestCase._verbose > 1:
+            result_class = PidAwareTextTestResult
+        result = unittest.TextTestRunner(
+            verbosity=WiredTigerTestCase._verbose, resultclass=result_class).run(suite_to_run)
+        WiredTigerTestCase.finalReport()
+        return result
     except BaseException as e:
         # This should not happen for regular test errors, unittest should catch everything
-        print('ERROR: running test: ', e)
+        print("[pid:{}]: ERROR: running test: {}".format(os.getpid(), e))
         raise e
 
 def run(name='__main__'):

@@ -30,14 +30,14 @@
 #   Salvage encrypted databases
 #
 
-import os, run, string, codecs
-import wiredtiger, wttest
+import codecs
+import wttest
 
-# If removing this, update test_salvage to not reference here.
-import test_salvage
+# If removing this, update test_salvage01 to not reference here.
+import test_salvage01
 
 # Run the regular salvage test, but with encryption on
-class test_encrypt07(test_salvage.test_salvage):
+class test_encrypt07(test_salvage01.test_salvage01):
 
     uri='table:test_encrypt07'
     sys_encrypt='rotn'

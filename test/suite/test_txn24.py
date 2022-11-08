@@ -31,13 +31,11 @@
 #   cache stuck issue.
 #
 
-import wiredtiger, wttest
-import time
+import wttest
 from wtscenario import make_scenarios
 
 class test_txn24(wttest.WiredTigerTestCase):
 
-    session_config = 'isolation=snapshot'
 
     table_params_values = [
         ('integer-row', dict(key_format='i', value_format='S', extraconfig='')),
@@ -85,7 +83,7 @@ class test_txn24(wttest.WiredTigerTestCase):
 
         # Start a transaction, make an update and keep it running.
         cursor = self.session.open_cursor(uri, None)
-        self.session.begin_transaction('isolation=snapshot')
+        self.session.begin_transaction()
         cursor[1] = new_val
 
         # Start few sessions and transactions, make updates and try committing them.
@@ -116,7 +114,8 @@ class test_txn24(wttest.WiredTigerTestCase):
         cursor4 = session4.open_cursor(uri)
         start_row = 2
         for i in range(0, n_rows // 4):
-            cursor4[start_row] = new_val
+            with self.transaction(session=session4):
+                cursor4[start_row] = new_val
             start_row += 1
 
         # If we have done all operations error free so far, eviction threads have been successful.

@@ -34,7 +34,7 @@
 #   Transactions: test recovery with corrupted log files
 #
 
-import fnmatch, os, shutil, time
+import os, shutil
 from wtscenario import make_scenarios
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
@@ -72,7 +72,7 @@ def copy_for_crash_restart(olddir, newdir):
             shutil.copy(fullname, newdir)
 
 class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
-    base_config = 'log=(archive=false,enabled,file_max=100K),' + \
+    base_config = 'log=(enabled,file_max=100K,remove=false),' + \
                   'transaction_sync=(enabled,method=none),cache_size=1GB,' + \
                   'debug_mode=(corruption_abort=false),'
     conn_config = base_config
@@ -356,7 +356,7 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         self.checks(expect)
 
 class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
-    base_config = 'log=(archive=false,enabled,file_max=100K),' + \
+    base_config = 'log=(enabled,file_max=100K,remove=false),' + \
                   'transaction_sync=(enabled,method=none),cache_size=1GB,' + \
                   'debug_mode=(corruption_abort=false),'
     conn_config = base_config
@@ -401,7 +401,6 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
     openable = [
         "removal:WiredTiger.basecfg",
         "removal:WiredTiger.turtle",
-        "removal:WiredTiger",
         "truncate:WiredTiger",
         "truncate:WiredTiger.basecfg",
         "truncate-middle:WiredTiger",
@@ -509,6 +508,9 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
                     self.reopen_conn(dir, self.conn_config)
                     self.captureout.checkAdditionalPattern(self,
                         'unexpected file WiredTiger.wt found, renamed to WiredTiger.wt.1')
+            elif self.filename == 'WiredTiger' and self.kind == 'truncate':
+                with self.expectedStdoutPattern("WiredTiger version file is empty"):
+                    self.reopen_conn(dir, self.conn_config)
             else:
                 self.reopen_conn(dir, self.conn_config)
             self.close_conn()

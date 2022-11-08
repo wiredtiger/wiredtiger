@@ -8,6 +8,10 @@
 
 #include "util.h"
 
+/*
+ * usage --
+ *     Display a usage message for the upgrade command.
+ */
 static int
 usage(void)
 {
@@ -15,6 +19,10 @@ usage(void)
     return (1);
 }
 
+/*
+ * util_upgrade --
+ *     The upgrade command.
+ */
 int
 util_upgrade(WT_SESSION *session, int argc, char *argv[])
 {

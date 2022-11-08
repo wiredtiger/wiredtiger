@@ -274,7 +274,7 @@ struct __wt_log {
     WT_SPINLOCK log_sync_lock;     /* Locked: Single-thread fsync */
     WT_SPINLOCK log_writelsn_lock; /* Locked: write LSN */
 
-    WT_RWLOCK log_archive_lock; /* Archive and log cursors */
+    WT_RWLOCK log_remove_lock; /* Remove and log cursors */
 
     /* Notify any waiting threads when sync_lsn is updated. */
     WT_CONDVAR *log_sync_cond;
@@ -283,7 +283,7 @@ struct __wt_log {
 
 /*
  * Consolidation array information Our testing shows that the more consolidation we generate the
- * better the performance we see which equates to an active slot slot count of one.
+ * better the performance we see which equates to an active slot count of one.
  *
  * Note: this can't be an array, we impose cache-line alignment and gcc doesn't support that for
  * arrays.
@@ -367,14 +367,12 @@ struct __wt_log_desc {
 /*
  * WiredTiger release version where log format version changed.
  */
-#define WT_LOG_V2_MAJOR 3
-#define WT_LOG_V2_MINOR 0
-#define WT_LOG_V3_MAJOR 3
-#define WT_LOG_V3_MINOR 1
-#define WT_LOG_V4_MAJOR 3
-#define WT_LOG_V4_MINOR 3
-#define WT_LOG_V5_MAJOR 10
-#define WT_LOG_V5_MINOR 0
+// FIXME WT-8681 - According to WT_MIN_STARTUP_VERSION any WT version less then 3.2.0 will not
+// start. Can we drop V2, V3 here?
+#define WT_LOG_V2_VERSION ((WT_VERSION){3, 0, 0})
+#define WT_LOG_V3_VERSION ((WT_VERSION){3, 1, 0})
+#define WT_LOG_V4_VERSION ((WT_VERSION){3, 3, 0})
+#define WT_LOG_V5_VERSION ((WT_VERSION){10, 0, 0})
 
 /*
  * __wt_log_desc_byteswap --

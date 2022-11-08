@@ -43,6 +43,10 @@
 /* Needs to be global for signal handling. */
 static TEST_OPTS *opts, _opts;
 
+/*
+ * page_init --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 page_init(uint64_t n)
 {
@@ -75,6 +79,10 @@ page_init(uint64_t n)
     }
 }
 
+/*
+ * onsig --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 onsig(int signo)
 {
@@ -85,6 +93,10 @@ onsig(int signo)
 #define N_APPEND_THREADS 6
 #define N_RECORDS (20 * WT_MILLION)
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -92,11 +104,7 @@ main(int argc, char *argv[])
     wt_thread_t idlist[100];
     clock_t ce, cs;
     uint64_t i, id;
-    char buf[100];
-
-    /* Bypass this test for valgrind */
-    if (testutil_is_flag_set("TESTUTIL_BYPASS_VALGRIND"))
-        return (EXIT_SUCCESS);
+    char buf[256];
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
@@ -107,7 +115,8 @@ main(int argc, char *argv[])
     testutil_make_work_dir(opts->home);
 
     testutil_check(__wt_snprintf(buf, sizeof(buf),
-      "create,cache_size=%s,eviction=(threads_max=5),statistics=(fast)",
+      "create,cache_size=%s,eviction=(threads_max=5),statistics=(all),"
+      "statistics_log=(json,on_close,wait=1)",
       opts->table_type == TABLE_FIX ? "500MB" : "2GB"));
     testutil_check(wiredtiger_open(opts->home, NULL, buf, &opts->conn));
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
@@ -121,7 +130,8 @@ main(int argc, char *argv[])
 
     /* Force to disk and re-open. */
     testutil_check(opts->conn->close(opts->conn, NULL));
-    testutil_check(wiredtiger_open(opts->home, NULL, NULL, &opts->conn));
+    testutil_check(wiredtiger_open(
+      opts->home, NULL, "statistics=(all),statistics_log=(json,on_close,wait=1)", &opts->conn));
 
     (void)signal(SIGINT, onsig);
 

@@ -120,7 +120,10 @@ restart_read:
         /* Check the update list. */
         WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
     if (cbt->upd_value->type == WT_UPDATE_INVALID)
-        /* Nope. Read the on-disk value and/or history. */
+        /*
+         * Read the on-disk value and/or history. Pass an update list: the update list may contain
+         * the base update for a modify chain after rollback-to-stable, required for correctness.
+         */
         WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, cbt->ins ? cbt->ins->upd : NULL));
     if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE || cbt->upd_value->type == WT_UPDATE_INVALID) {
         /*
@@ -146,8 +149,10 @@ restart_read:
  *     Return the next variable-length entry on the append list.
  */
 static inline int
-__cursor_var_append_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp)
+__cursor_var_append_next(
+  WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool *key_out_of_boundsp)
 {
+    WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
     session = CUR2S(cbt);
@@ -167,9 +172,18 @@ __cursor_var_append_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_
 new_page:
         if (cbt->ins == NULL)
             return (WT_NOTFOUND);
-
         __cursor_set_recno(cbt, WT_INSERT_RECNO(cbt->ins));
+
 restart_read:
+        /*
+         * If an upper bound has been set ensure that the key is within the range, otherwise early
+         * exit.
+         */
+        if ((ret = __wt_btcur_bounds_early_exit(session, cbt, true, key_out_of_boundsp)) ==
+          WT_NOTFOUND)
+            WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
+        WT_RET(ret);
+
         WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
 
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
@@ -194,11 +208,13 @@ restart_read:
  *     Move to the next, variable-length column-store item.
  */
 static inline int
-__cursor_var_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp)
+__cursor_var_next(
+  WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool *key_out_of_boundsp)
 {
     WT_CELL *cell;
     WT_CELL_UNPACK_KV unpack;
     WT_COL *cip;
+    WT_DECL_RET;
     WT_INSERT *ins;
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
@@ -237,6 +253,19 @@ __cursor_var_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skip
 
 new_page:
 restart_read:
+        /*
+         * If an upper bound has been set ensure that the key is within the range, otherwise early
+         * exit. In the case where there is a large set of RLE deleted records it is possible that
+         * calculated recno will be off the end of the page. We don't need to add an additional
+         * check for this case as the next iteration, either on a page or append list will check the
+         * recno and early exit. It does present a potential optimization but to keep the bounded
+         * cursor logic simple we will forego it for now.
+         */
+        if ((ret = __wt_btcur_bounds_early_exit(session, cbt, true, key_out_of_boundsp)) ==
+          WT_NOTFOUND)
+            WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
+        WT_RET(ret);
+
         /* Find the matching WT_COL slot. */
         if ((cip = __col_var_search(cbt->ref, cbt->recno, &rle_start)) == NULL)
             return (WT_NOTFOUND);
@@ -309,6 +338,10 @@ restart_read:
             continue;
         }
 
+        /*
+         * Read the on-disk value and/or history. Pass an update list: the update list may contain
+         * the base update for a modify chain after rollback-to-stable, required for correctness.
+         */
         WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, cbt->ins ? cbt->ins->upd : NULL));
         if (cbt->upd_value->type == WT_UPDATE_INVALID ||
           cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
@@ -321,6 +354,10 @@ restart_read:
          * It is only safe to cache the value for other keys in the same RLE cell if it is globally
          * visible. Otherwise, there might be some older timestamp where the value isn't uniform
          * across the cell. Always set cip_saved so it's easy to tell when we change cells.
+         *
+         * Note: it's important that we're checking the on-disk value for global visibility, and not
+         * whatever __wt_txn_read returned, which might be something else. (If it's something else,
+         * we can't cache it; but in that case the on-disk value cannot be globally visible.)
          */
         cbt->cip_saved = cip;
         if (rle > 1 &&
@@ -350,9 +387,11 @@ restart_read:
  */
 static inline int
 __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp,
-  WT_ITEM *prefix, bool *prefix_key_out_of_bounds)
+  WT_ITEM *prefix, bool *key_out_of_boundsp)
 {
     WT_CELL_UNPACK_KV kpack;
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
     WT_INSERT *ins;
     WT_ITEM *key;
     WT_PAGE *page;
@@ -360,11 +399,12 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skip
     WT_SESSION_IMPL *session;
     bool prefix_search;
 
+    cursor = &cbt->iface;
     key = &cbt->iface.key;
     page = cbt->ref->page;
     session = CUR2S(cbt);
-    *prefix_key_out_of_bounds = false;
-    prefix_search = prefix != NULL && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH);
+    *key_out_of_boundsp = false;
+    prefix_search = prefix != NULL && F_ISSET(cursor, WT_CURSTD_PREFIX_SEARCH);
     *skippedp = 0;
 
     /* If restarting after a prepare conflict, jump to the right spot. */
@@ -417,10 +457,20 @@ restart_read_insert:
              * are visiting is after our prefix.
              */
             if (prefix_search && __wt_prefix_match(prefix, key) < 0) {
-                *prefix_key_out_of_bounds = true;
+                *key_out_of_boundsp = true;
                 WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
                 return (WT_NOTFOUND);
             }
+
+            /*
+             * If an upper bound has been set ensure that the key is within the range, otherwise
+             * early exit.
+             */
+            if ((ret = __wt_btcur_bounds_early_exit(session, cbt, true, key_out_of_boundsp)) ==
+              WT_NOTFOUND)
+                WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
+            WT_RET(ret);
+
             WT_RET(__wt_txn_read_upd_list(session, cbt, ins->upd));
             if (cbt->upd_value->type == WT_UPDATE_INVALID) {
                 ++*skippedp;
@@ -458,16 +508,35 @@ restart_read_insert:
         cbt->slot = cbt->row_iteration_slot / 2 - 1;
 restart_read_page:
         rip = &page->pg_row[cbt->slot];
+        /*
+         * The saved cursor key from the slot is used later to match the prefix match or get the
+         * value from the history store if the on-disk data is not visible.
+         */
         WT_RET(__cursor_row_slot_key_return(cbt, rip, &kpack));
+
         /*
          * If the cursor has prefix search configured we can early exit here if the key that we are
          * visiting is after our prefix.
          */
         if (prefix_search && __wt_prefix_match(prefix, &cbt->iface.key) < 0) {
-            *prefix_key_out_of_bounds = true;
+            *key_out_of_boundsp = true;
             WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
             return (WT_NOTFOUND);
         }
+
+        /*
+         * If an upper bound has been set ensure that the key is within the range, otherwise early
+         * exit.
+         */
+        if ((ret = __wt_btcur_bounds_early_exit(session, cbt, true, key_out_of_boundsp)) ==
+          WT_NOTFOUND)
+            WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_early_exit);
+        WT_RET(ret);
+
+        /*
+         * Read the on-disk value and/or history. Pass an update list: the update list may contain
+         * the base update for a modify chain after rollback-to-stable, required for correctness.
+         */
         WT_RET(
           __wt_txn_read(session, cbt, &cbt->iface.key, WT_RECNO_OOB, WT_ROW_UPDATE(page, rip)));
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
@@ -711,10 +780,15 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
     WT_SESSION_IMPL *session;
     size_t total_skipped, skipped;
     uint32_t flags;
-    bool newpage, prefix_key_out_of_bounds, restart;
+    bool key_out_of_bounds, newpage, restart, need_walk;
+#ifdef HAVE_DIAGNOSTIC
+    bool inclusive_set;
 
+    inclusive_set = false;
+#endif
     cursor = &cbt->iface;
-    prefix_key_out_of_bounds = false;
+    key_out_of_bounds = false;
+    need_walk = false;
     session = CUR2S(cbt);
     total_skipped = 0;
 
@@ -727,6 +801,21 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
     WT_ERR(__wt_cursor_func_init(cbt, false));
+
+    /*
+     * If we have a bound set we should position our cursor appropriately if it isn't already
+     * positioned. It is possible that the positioning function can directly return the record. For
+     * that to happen, the cursor must be placed on a valid record and must be positioned on the
+     * first record within the bounds. If the record is not valid or is not positioned within the
+     * bounds, continue the next traversal logic.
+     */
+    if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER) && !WT_CURSOR_IS_POSITIONED(cbt)) {
+        WT_ERR(__wt_btcur_bounds_position(session, cbt, true, &need_walk));
+        if (!need_walk) {
+            __wt_value_return(cbt, cbt->upd_value);
+            goto done;
+        }
+    }
 
     /*
      * If we aren't already iterating in the right direction, there's some setup to do.
@@ -751,7 +840,7 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
                 ret = __cursor_fix_append_next(cbt, newpage, restart);
                 break;
             case WT_PAGE_COL_VAR:
-                ret = __cursor_var_append_next(cbt, newpage, restart, &skipped);
+                ret = __cursor_var_append_next(cbt, newpage, restart, &skipped, &key_out_of_bounds);
                 total_skipped += skipped;
                 break;
             default:
@@ -762,33 +851,43 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
             F_CLR(cbt, WT_CBT_ITERATE_APPEND);
             if (ret != WT_NOTFOUND)
                 break;
+
+            /*
+             * If we are doing an operation when the cursor has bounds set, we need to check if we
+             * have exited the next function due to the key being out of bounds. If so, we break
+             * instead of walking onto the next page. We're not directly returning here to allow the
+             * cursor to be reset first before we return WT_NOTFOUND.
+             */
+            if (key_out_of_bounds)
+                break;
         } else if (page != NULL) {
             switch (page->type) {
             case WT_PAGE_COL_FIX:
                 ret = __cursor_fix_next(cbt, newpage, restart);
                 break;
             case WT_PAGE_COL_VAR:
-                ret = __cursor_var_next(cbt, newpage, restart, &skipped);
+                ret = __cursor_var_next(cbt, newpage, restart, &skipped, &key_out_of_bounds);
                 total_skipped += skipped;
                 break;
             case WT_PAGE_ROW_LEAF:
-                ret = __cursor_row_next(
-                  cbt, newpage, restart, &skipped, prefix, &prefix_key_out_of_bounds);
+                ret =
+                  __cursor_row_next(cbt, newpage, restart, &skipped, prefix, &key_out_of_bounds);
                 total_skipped += skipped;
-                /*
-                 * If we are doing a search near with prefix key configured, we need to check if we
-                 * have exited the cursor row next function due to a prefix key mismatch. If so, we
-                 * can immediately return WT_NOTFOUND and we do not have to walk onto the next page.
-                 */
-                if (prefix_key_out_of_bounds) {
-                    WT_ASSERT(session, ret == WT_NOTFOUND);
-                    return (WT_NOTFOUND);
-                }
                 break;
             default:
                 WT_ERR(__wt_illegal_value(session, page->type));
             }
             if (ret != WT_NOTFOUND)
+                break;
+
+            /*
+             * If we are doing a search near with prefix key configured or the cursor has bounds
+             * set, we need to check if we have exited the next function due to a prefix key
+             * mismatch or the key is out of bounds. If so, we break instead of walking onto the
+             * next page. We're not directly returning here to allow the cursor to be reset first
+             * before we return WT_NOTFOUND.
+             */
+            if (key_out_of_bounds)
                 break;
 
             /*
@@ -822,6 +921,9 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
         if (F_ISSET(cbt, WT_CBT_READ_ONCE))
             LF_SET(WT_READ_WONT_NEED);
 
+        if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
+            LF_SET(WT_READ_VISIBLE_ALL);
+
         /*
          * If we are running with snapshot isolation, and not interested in returning tombstones, we
          * could potentially skip pages. The skip function looks at the aggregated timestamp
@@ -837,6 +939,7 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
         WT_ERR_TEST(cbt->ref == NULL, WT_NOTFOUND, false);
     }
 
+done:
 err:
     if (total_skipped < 100)
         WT_STAT_CONN_DATA_INCR(session, cursor_next_skip_lt_100);
@@ -860,6 +963,22 @@ err:
          */
         if (!F_ISSET(cbt, WT_CBT_ITERATE_RETRY_PREV))
             ret = __wt_cursor_key_order_check(session, cbt, true);
+
+        if (need_walk) {
+            /*
+             * The bounds positioning code relies on the assumption that if we had to walk then we
+             * can't possibly have walked to the lower bound. We check that assumption here by
+             * comparing the lower bound with our current key or recno. Force inclusive to be false
+             * so we don't consider the bound itself.
+             */
+            inclusive_set = F_ISSET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);
+            F_CLR(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);
+            ret = __wt_compare_bounds(
+              session, cursor, &cbt->iface.key, cbt->recno, false, &key_out_of_bounds);
+            WT_ASSERT(session, ret == 0 && !key_out_of_bounds);
+            if (inclusive_set)
+                F_SET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);
+        }
 #endif
         break;
     case WT_PREPARE_CONFLICT:
@@ -873,6 +992,10 @@ err:
         WT_TRET(__cursor_reset(cbt));
     }
     F_CLR(cbt, WT_CBT_ITERATE_RETRY_PREV);
+
+    if (ret == 0)
+        WT_RET(__wt_btcur_evict_reposition(cbt));
+
     return (ret);
 }
 

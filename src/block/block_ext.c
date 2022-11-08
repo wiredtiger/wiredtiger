@@ -571,7 +571,15 @@ __wt_block_free(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr, 
     WT_RET(__wt_block_addr_unpack(
       session, block, addr, addr_size, &objectid, &offset, &size, &checksum));
 
-    /* We can't reuse free space in an object. */
+    /*
+     * Freeing blocks in a previous object isn't possible in the current architecture. We'd like to
+     * know when a previous object is either completely rewritten (or more likely, empty enough that
+     * rewriting remaining blocks is worth doing). Just knowing which blocks are no longer in use
+     * isn't enough to remove them (because the internal pages have to be rewritten and we don't
+     * know where they are); the simplest solution is probably to keep a count of freed bytes from
+     * each object in the metadata, and when enough of the object is no longer in use, perform a
+     * compaction like process to do any remaining cleanup.
+     */
     if (objectid != block->objectid)
         return (0);
 
@@ -1100,6 +1108,8 @@ __wt_block_extlist_read(
     const uint8_t *p;
     int (*func)(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, wt_off_t, wt_off_t);
 
+    off = size = 0;
+
     /* If there isn't a list, we're done. */
     if (el->offset == WT_BLOCK_INVALID_OFFSET)
         return (0);
@@ -1343,7 +1353,7 @@ __block_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, 
     if (block->verify_layout)
         level = WT_VERBOSE_NOTICE;
     else
-        level = WT_VERBOSE_DEBUG;
+        level = WT_VERBOSE_DEBUG_1;
     __wt_verbose_level(session, WT_VERB_BLOCK, level,
       "%s extent list %s, %" PRIu32 " entries, %s bytes", tag, el->name, el->entries,
       __wt_buf_set_size(session, el->bytes, true, t1));
@@ -1376,3 +1386,29 @@ err:
     __wt_scr_free(session, &t2);
     return (ret);
 }
+
+#ifdef HAVE_UNITTEST
+WT_EXT *
+__ut_block_off_srch_last(WT_EXT **head, WT_EXT ***stack)
+{
+    return (__block_off_srch_last(head, stack));
+}
+
+void
+__ut_block_off_srch(WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off)
+{
+    __block_off_srch(head, off, stack, skip_off);
+}
+
+bool
+__ut_block_first_srch(WT_EXT **head, wt_off_t size, WT_EXT ***stack)
+{
+    return (__block_first_srch(head, size, stack));
+}
+
+void
+__ut_block_size_srch(WT_SIZE **head, wt_off_t size, WT_SIZE ***stack)
+{
+    __block_size_srch(head, size, stack);
+}
+#endif

@@ -1,11 +1,3 @@
-#
-# Public Domain 2014-present MongoDB, Inc.
-# Public Domain 2008-2014 WiredTiger, Inc.
-#  All rights reserved.
-#
-#  See the file LICENSE for redistribution information
-#
-
 include(CheckIncludeFiles)
 include(CheckSymbolExists)
 include(CheckLibraryExists)
@@ -610,6 +602,8 @@ function(parse_filelist_source filelist output_var)
         set(arch_host "POWERPC_HOST")
     elseif(WT_S390X)
         set(arch_host "ZSERIES_HOST")
+    elseif(WT_RISCV64)
+        set(arch_host "RISCV64_HOST")
     endif()
     # Determine platform host for our filelist parse.
     if(WT_POSIX)
@@ -640,6 +634,11 @@ function(parse_filelist_source filelist output_var)
                 # manually tell CMake to ASM compile these files otherwise it will ignore them during
                 # compilation process.
                 if("${file_ext}" STREQUAL ".sx")
+                    if("${CMAKE_C_COMPILER_ID}" MATCHES "[Cc]lang")
+                        # If compiling PPC and ZSERIES assembly with Clang, we need to explicitly pass the language
+                        # type onto the compiler, since the 'sx' extension is unknown.
+                        set_source_files_properties(${file_name} PROPERTIES COMPILE_FLAGS "-x assembler-with-cpp")
+                    endif()
                     set_source_files_properties(${file_name} PROPERTIES LANGUAGE ASM)
                 endif()
             endif()

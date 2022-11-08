@@ -30,30 +30,8 @@ struct __wt_hazard {
 #endif
 };
 
-/*
- * WT_HAZARD_WEAK --
- *	A weak hazard pointer.
- */
-struct __wt_hazard_weak {
-    WT_REF *ref; /* Page reference */
-    bool valid;  /* Is the weak hazard pointer still valid? */
-};
-
-/*
- * WT_HAZARD_WEAK_ARRAY --
- *	A per-session array of weak hazard pointers. These are grown by adding a new array, and are
- *  only freed when the session is closed.
- */
-struct __wt_hazard_weak_array {
-    uint32_t hazard_size;  /* Weak hazard pointer array slots */
-    uint32_t hazard_inuse; /* Weak hazard pointer array slots in-use */
-    uint32_t nhazard;      /* Count of active weak hazard pointers */
-    WT_HAZARD_WEAK_ARRAY *next;
-    WT_HAZARD_WEAK hazard[0]; /* Weak hazard pointer array */
-};
-
 /* Get the connection implementation for a session */
-#define S2C(session) ((WT_CONNECTION_IMPL *)(session)->iface.connection)
+#define S2C(session) ((WT_CONNECTION_IMPL *)((WT_SESSION_IMPL *)(session))->iface.connection)
 
 /* Get the btree for a session */
 #define S2BT(session) ((WT_BTREE *)(session)->dhandle->handle)
@@ -83,6 +61,9 @@ struct __wt_session_impl {
     WT_EVENT_HANDLER *event_handler; /* Application's event handlers */
 
     void *lang_private; /* Language specific private storage */
+
+    void (*format_private)(int, void *); /* Format test program private callback. */
+    void *format_private_arg;
 
     u_int active; /* Non-zero if the session is in-use */
 
@@ -119,6 +100,8 @@ struct __wt_session_impl {
 
     WT_COMPACT_STATE *compact; /* Compaction information */
     enum { WT_COMPACT_NONE = 0, WT_COMPACT_RUNNING, WT_COMPACT_SUCCESS } compact_state;
+
+    WT_IMPORT_LIST *import_list; /* List of metadata entries to import from file. */
 
     u_int hs_cursor_counter; /* Number of open history store cursors */
 
@@ -163,10 +146,19 @@ struct __wt_session_impl {
     void *block_manager; /* Block-manager support */
     int (*block_manager_cleanup)(WT_SESSION_IMPL *);
 
+    const char *hs_checkpoint;     /* History store checkpoint name, during checkpoint cursor ops */
+    uint64_t checkpoint_write_gen; /* Write generation override, during checkpoint cursor ops */
+
     /* Checkpoint handles */
     WT_DATA_HANDLE **ckpt_handle; /* Handle list */
     u_int ckpt_handle_next;       /* Next empty slot */
     size_t ckpt_handle_allocated; /* Bytes allocated */
+
+    /* Named checkpoint drop list, during a checkpoint */
+    WT_ITEM *ckpt_drop_list;
+
+    /* Checkpoint time of current checkpoint, during a checkpoint */
+    uint64_t current_ckpt_sec;
 
     /*
      * Operations acting on handles.
@@ -216,22 +208,21 @@ struct __wt_session_impl {
 #define WT_SESSION_BACKUP_DUP 0x00002u
 #define WT_SESSION_CACHE_CURSORS 0x00004u
 #define WT_SESSION_CAN_WAIT 0x00008u
-#define WT_SESSION_DEBUG_RELEASE_EVICT 0x00010u
-#define WT_SESSION_EVICTION 0x00020u
-#define WT_SESSION_IGNORE_CACHE_SIZE 0x00040u
-#define WT_SESSION_IMPORT 0x00080u
-#define WT_SESSION_IMPORT_REPAIR 0x00100u
-#define WT_SESSION_INTERNAL 0x00200u
-#define WT_SESSION_LOGGING_INMEM 0x00400u
-#define WT_SESSION_NO_DATA_HANDLES 0x00800u
-#define WT_SESSION_NO_LOGGING 0x01000u
+#define WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID 0x00010u
+#define WT_SESSION_DEBUG_RELEASE_EVICT 0x00020u
+#define WT_SESSION_EVICTION 0x00040u
+#define WT_SESSION_IGNORE_CACHE_SIZE 0x00080u
+#define WT_SESSION_IMPORT 0x00100u
+#define WT_SESSION_IMPORT_REPAIR 0x00200u
+#define WT_SESSION_INTERNAL 0x00400u
+#define WT_SESSION_LOGGING_INMEM 0x00800u
+#define WT_SESSION_NO_DATA_HANDLES 0x01000u
 #define WT_SESSION_NO_RECONCILE 0x02000u
 #define WT_SESSION_QUIET_CORRUPT_FILE 0x04000u
-#define WT_SESSION_QUIET_TIERED 0x08000u
-#define WT_SESSION_READ_WONT_NEED 0x10000u
-#define WT_SESSION_RESOLVING_TXN 0x20000u
-#define WT_SESSION_ROLLBACK_TO_STABLE 0x40000u
-#define WT_SESSION_SCHEMA_TXN 0x80000u
+#define WT_SESSION_READ_WONT_NEED 0x08000u
+#define WT_SESSION_RESOLVING_TXN 0x10000u
+#define WT_SESSION_ROLLBACK_TO_STABLE 0x20000u
+#define WT_SESSION_SCHEMA_TXN 0x40000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 
@@ -301,8 +292,6 @@ struct __wt_session_impl {
     uint32_t nhazard;      /* Count of active hazard pointers */
     WT_HAZARD *hazard;     /* Hazard pointer array */
 
-    WT_HAZARD_WEAK_ARRAY *hazard_weak;
-
     /*
      * Operation tracking.
      */
@@ -313,3 +302,8 @@ struct __wt_session_impl {
 
     WT_SESSION_STATS stats;
 };
+
+/* Consider moving this to session_inline.h if it ever appears. */
+#define WT_READING_CHECKPOINT(s)                                       \
+    ((s)->dhandle != NULL && F_ISSET((s)->dhandle, WT_DHANDLE_OPEN) && \
+      WT_DHANDLE_IS_CHECKPOINT((s)->dhandle))

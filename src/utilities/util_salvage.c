@@ -8,6 +8,10 @@
 
 #include "util.h"
 
+/*
+ * usage --
+ *     Display a usage message for the salvage command.
+ */
 static int
 usage(void)
 {
@@ -19,6 +23,10 @@ usage(void)
     return (1);
 }
 
+/*
+ * util_salvage --
+ *     The salvage command.
+ */
 int
 util_salvage(WT_SESSION *session, int argc, char *argv[])
 {

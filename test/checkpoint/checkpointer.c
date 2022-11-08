@@ -30,6 +30,7 @@
 
 static WT_THREAD_RET checkpointer(void *);
 static WT_THREAD_RET clock_thread(void *);
+static WT_THREAD_RET flush_thread(void *);
 static int compare_cursors(WT_CURSOR *, table_type, WT_CURSOR *, table_type);
 static int diagnose_key_error(WT_CURSOR *, table_type, int, WT_CURSOR *, table_type, int);
 static int real_checkpointer(void);
@@ -43,23 +44,25 @@ set_stable(void)
 {
     char buf[128];
 
-    if (g.race_timetamps)
-        testutil_check(__wt_snprintf(
-          buf, sizeof(buf), "stable_timestamp=%x,oldest_timestamp=%x", g.ts_stable, g.ts_stable));
+    if (g.race_timestamps)
+        testutil_check(__wt_snprintf(buf, sizeof(buf),
+          "stable_timestamp=%" PRIx64 ",oldest_timestamp=%" PRIx64, g.ts_stable, g.ts_stable));
     else
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "stable_timestamp=%x", g.ts_stable));
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "stable_timestamp=%" PRIx64, g.ts_stable));
     testutil_check(g.conn->set_timestamp(g.conn, buf));
 }
 
 /*
- * start_checkpoints --
- *     Responsible for creating the checkpoint thread.
+ * start_threads --
+ *     Responsible for creating the service threads.
  */
 void
-start_checkpoints(void)
+start_threads(void)
 {
     set_stable();
     testutil_check(__wt_thread_create(NULL, &g.checkpoint_thread, checkpointer, NULL));
+    if (g.tiered)
+        testutil_check(__wt_thread_create(NULL, &g.flush_thread, flush_thread, NULL));
     if (g.use_timestamps) {
         testutil_check(__wt_rwlock_init(NULL, &g.clock_lock));
         testutil_check(__wt_thread_create(NULL, &g.clock_thread, clock_thread, NULL));
@@ -67,14 +70,23 @@ start_checkpoints(void)
 }
 
 /*
- * end_checkpoints --
- *     Responsible for cleanly shutting down the checkpoint thread.
+ * end_threads --
+ *     Responsible for cleanly shutting down the service threads.
  */
 void
-end_checkpoints(void)
+end_threads(void)
 {
+    if (g.tiered)
+        testutil_check(__wt_thread_join(NULL, &g.flush_thread));
+
+    /* Shutdown checkpoint after flush thread completes because flush depends on checkpoint. */
     testutil_check(__wt_thread_join(NULL, &g.checkpoint_thread));
+
     if (g.use_timestamps) {
+        /*
+         * The clock lock is also used by the checkpoint thread. Now that it has exited it is safe
+         * to destroy that lock.
+         */
         testutil_check(__wt_thread_join(NULL, &g.clock_thread));
         __wt_rwlock_destroy(NULL, &g.clock_lock);
     }
@@ -130,6 +142,47 @@ clock_thread(void *arg)
 }
 
 /*
+ * flush_thread --
+ *     Flush thread to call flush_tier.
+ */
+static WT_THREAD_RET
+flush_thread(void *arg)
+{
+    WT_RAND_STATE rnd;
+    WT_SESSION *wt_session;
+    uint64_t delay;
+    char tid[128];
+
+    WT_UNUSED(arg);
+
+    __wt_random_init(&rnd);
+    testutil_check(g.conn->open_session(g.conn, NULL, NULL, &wt_session));
+
+    testutil_check(__wt_thread_str(tid, sizeof(tid)));
+    printf("flush thread starting: tid: %s\n", tid);
+    fflush(stdout);
+
+    while (g.running) {
+        testutil_check(wt_session->flush_tier(wt_session, NULL));
+        printf("Finished a flush_tier\n");
+        fflush(stdout);
+
+        if (!g.running)
+            goto done;
+        /*
+         * Random value between 5000 and 10000.
+         */
+        delay = __wt_random(&rnd) % 5001;
+        __wt_sleep(0, delay + 5000);
+    }
+
+done:
+    testutil_check(wt_session->close(wt_session, NULL));
+
+    return (WT_THREAD_RET_VALUE);
+}
+
+/*
  * checkpointer --
  *     Checkpoint thread start function.
  */
@@ -142,6 +195,7 @@ checkpointer(void *arg)
 
     testutil_check(__wt_thread_str(tid, sizeof(tid)));
     printf("checkpointer thread starting: tid: %s\n", tid);
+    fflush(stdout);
 
     (void)real_checkpointer();
     return (WT_THREAD_RET_VALUE);
@@ -164,14 +218,13 @@ real_checkpointer(void)
     const char *checkpoint_config;
 
     checkpoint_config = "use_timestamp=false";
-    g.ts_oldest = 0;
     verify_ts = WT_TS_NONE;
 
     if (g.running == 0)
         return (log_print_err("Checkpoint thread started stopped\n", EINVAL, 1));
 
     __wt_random_init(&rnd);
-    while (g.ntables > g.ntables_created)
+    while (g.ntables > g.ntables_created && g.running)
         __wt_yield();
 
     if ((ret = g.conn->open_session(g.conn, NULL, NULL, &session)) != 0)
@@ -191,18 +244,20 @@ real_checkpointer(void)
          * Check for consistency of online data, here we don't expect to see the version at the
          * checkpoint just a consistent view across all tables.
          */
-        if ((ret = verify_consistency(session, WT_TS_NONE)) != 0)
+        if ((ret = verify_consistency(session, WT_TS_NONE, false)) != 0)
             return (log_print_err("verify_consistency (online)", ret, 1));
 
         if (g.use_timestamps) {
-            testutil_check(g.conn->query_timestamp(g.conn, timestamp_buf, "get=stable"));
-            testutil_timestamp_parse(timestamp_buf, &stable_ts);
+            testutil_check(g.conn->query_timestamp(g.conn, timestamp_buf, "get=stable_timestamp"));
+            stable_ts = testutil_timestamp_parse(timestamp_buf);
             oldest_ts = g.ts_oldest;
             if (stable_ts <= oldest_ts)
                 verify_ts = stable_ts;
             else
                 verify_ts = __wt_random(&rnd) % (stable_ts - oldest_ts + 1) + oldest_ts;
-            WT_ORDERED_READ(g.ts_oldest, g.ts_stable);
+            __wt_writelock((WT_SESSION_IMPL *)session, &g.clock_lock);
+            g.ts_oldest = g.ts_stable;
+            __wt_writeunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
         }
 
         /* Execute a checkpoint */
@@ -214,18 +269,18 @@ real_checkpointer(void)
         if (!g.running)
             goto done;
 
-        /*
-         * Verify the content of the checkpoint at the stable timestamp. We can't verify checkpoints
-         * without timestamps as such we don't perform a verification here in the non-timestamped
-         * scenario.
-         */
-        if (g.use_timestamps && (ret = verify_consistency(session, verify_ts)) != 0)
+        /* Verify the checkpoint we just wrote. */
+        if ((ret = verify_consistency(session, WT_TS_NONE, true)) != 0)
+            return (log_print_err("verify_consistency (checkpoint)", ret, 1));
+
+        /* Verify the content of the database at the verify timestamp. */
+        if (g.use_timestamps && (ret = verify_consistency(session, verify_ts, false)) != 0)
             return (log_print_err("verify_consistency (timestamps)", ret, 1));
 
         /* Advance the oldest timestamp to the most recently set stable timestamp. */
         if (g.use_timestamps && g.ts_oldest != 0) {
             testutil_check(__wt_snprintf(
-              timestamp_buf, sizeof(timestamp_buf), "oldest_timestamp=%x", g.ts_oldest));
+              timestamp_buf, sizeof(timestamp_buf), "oldest_timestamp=%" PRIx64, g.ts_oldest));
             testutil_check(g.conn->set_timestamp(g.conn, timestamp_buf));
         }
         /* Random value between 4 and 8 seconds. */
@@ -316,12 +371,13 @@ do_cursor_prev(table_type type, WT_CURSOR *cursor)
  *     The key/values should match across all tables.
  */
 int
-verify_consistency(WT_SESSION *session, wt_timestamp_t verify_ts)
+verify_consistency(WT_SESSION *session, wt_timestamp_t verify_ts, bool use_checkpoint)
 {
     WT_CURSOR **cursors;
     uint64_t key_count;
     int i, reference_table, ret, t_ret;
-    char cfg_buf[128], next_uri[128];
+    char cfg_buf[128], ckpt_buf[128], next_uri[128];
+    const char *ckpt;
 
     ret = t_ret = 0;
     key_count = 0;
@@ -329,16 +385,30 @@ verify_consistency(WT_SESSION *session, wt_timestamp_t verify_ts)
     if (cursors == NULL)
         return (log_print_err("verify_consistency", ENOMEM, 1));
 
-    if (verify_ts != WT_TS_NONE)
-        testutil_check(__wt_snprintf(cfg_buf, sizeof(cfg_buf),
-          "isolation=snapshot,read_timestamp=%" PRIx64 ",roundup_timestamps=read", verify_ts));
-    else
-        testutil_check(__wt_snprintf(cfg_buf, sizeof(cfg_buf), "isolation=snapshot"));
-    testutil_check(session->begin_transaction(session, cfg_buf));
+    if (use_checkpoint) {
+        testutil_check(
+          __wt_snprintf(ckpt_buf, sizeof(ckpt_buf), "checkpoint=%s", g.checkpoint_name));
+        ckpt = ckpt_buf;
+    } else {
+        ckpt = NULL;
+        if (verify_ts != WT_TS_NONE)
+            testutil_check(__wt_snprintf(cfg_buf, sizeof(cfg_buf),
+              "isolation=snapshot,read_timestamp=%" PRIx64 ",roundup_timestamps=read", verify_ts));
+        else
+            testutil_check(__wt_snprintf(cfg_buf, sizeof(cfg_buf), "isolation=snapshot"));
+        testutil_check(session->begin_transaction(session, cfg_buf));
+    }
 
     for (i = 0; i < g.ntables; i++) {
+        /*
+         * TODO: LSM doesn't currently support reading from checkpoints.
+         */
+        if (g.cookies[i].type == LSM && use_checkpoint) {
+            cursors[i] = NULL;
+            continue;
+        }
         testutil_check(__wt_snprintf(next_uri, sizeof(next_uri), "table:__wt%04d", i));
-        if ((ret = session->open_cursor(session, next_uri, NULL, NULL, &cursors[i])) != 0) {
+        if ((ret = session->open_cursor(session, next_uri, NULL, ckpt, &cursors[i])) != 0) {
             (void)log_print_err("verify_consistency:session.open_cursor", ret, 1);
             goto err;
         }
@@ -354,7 +424,8 @@ verify_consistency(WT_SESSION *session, wt_timestamp_t verify_ts)
 
     /* There's no way to verify LSM-only runs. */
     if (cursors[reference_table] == NULL) {
-        printf("LSM-only, skipping checkpoint verification\n");
+        printf("LSM-only, skipping verification\n");
+        fflush(stdout);
         goto err;
     }
 
@@ -402,8 +473,8 @@ verify_consistency(WT_SESSION *session, wt_timestamp_t verify_ts)
             }
         }
     }
-    printf("Finished verifying with %d tables and %" PRIu64 " keys at timestamp %" PRIu64 "\n",
-      g.ntables, key_count, verify_ts);
+    printf("Finished verifying%s with %d tables and %" PRIu64 " keys at timestamp %" PRIu64 "\n",
+      use_checkpoint ? " a checkpoint" : "", g.ntables, key_count, verify_ts);
     fflush(stdout);
 
 err:
@@ -411,7 +482,8 @@ err:
         if (cursors[i] != NULL && (ret = cursors[i]->close(cursors[i])) != 0)
             (void)log_print_err("verify_consistency:cursor close", ret, 1);
     }
-    testutil_check(session->commit_transaction(session, NULL));
+    if (!use_checkpoint)
+        testutil_check(session->commit_transaction(session, NULL));
     free(cursors);
     return (ret);
 }
@@ -492,6 +564,7 @@ mismatch:
     printf("Key/value mismatch: %" PRIu64 "/%s (%" PRIu8 ") from a %s table is not %" PRIu64
            "/%s (%" PRIu8 ") from a %s table\n",
       key1, strval1, fixval1, type_to_string(type1), key2, strval2, fixval2, type_to_string(type2));
+    fflush(stdout);
 
     return (ret);
 

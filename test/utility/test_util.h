@@ -52,22 +52,27 @@
 /* Generic option parsing structure shared by all test cases. */
 typedef struct {
     char *home;
-    const char *argv0;    /* Exec name */
-    const char *progname; /* Truncated program name */
-    char *build_dir;      /* Build directory path */
+    const char *argv0; /* Exec name */
+    char usage[256];   /* Usage string for this parser */
+
+    const char *progname;        /* Truncated program name */
+    char *build_dir;             /* Build directory path */
+    char *tiered_storage_source; /* Tiered storage source */
 
     enum {
-        TABLE_COL = 1, /* Fixed-length column store */
-        TABLE_FIX = 2, /* Variable-length column store */
-        TABLE_ROW = 3  /* Row-store */
+        TABLE_NOT_SET = 0, /* Not explicitly set */
+        TABLE_COL = 1,     /* Fixed-length column store */
+        TABLE_FIX = 2,     /* Variable-length column store */
+        TABLE_ROW = 3      /* Row-store */
     } table_type;
 
     FILE *progress_fp; /* Progress tracking file */
     char *progress_file_name;
 
-    bool preserve;             /* Don't remove files on exit */
-    bool verbose;              /* Run in verbose mode */
     bool do_data_ops;          /* Have schema ops use data */
+    bool preserve;             /* Don't remove files on exit */
+    bool tiered_storage;       /* Configure tiered storage */
+    bool verbose;              /* Run in verbose mode */
     uint64_t nrecords;         /* Number of records */
     uint64_t nops;             /* Number of operations */
     uint64_t nthreads;         /* Number of threads */
@@ -86,6 +91,12 @@ typedef struct {
     volatile uint64_t next_threadid;
     uint64_t unique_id;
     uint64_t max_inserted_id;
+
+    /* Fields used internally by testutil library. */
+    char **argv; /* Saved argument vector */
+    int argc;    /* Saved argument count */
+    const char *getopts_string;
+
 } TEST_OPTS;
 
 /*
@@ -140,6 +151,17 @@ typedef struct {
     } while (0)
 
 /*
+ * testutil_check_error_ok --
+ *     Complain and quit if a function call fails, with specified error ok.
+ */
+#define testutil_check_error_ok(call, e)                                          \
+    do {                                                                          \
+        int __r;                                                                  \
+        if ((__r = (call)) != 0 && (__r != (e)))                                  \
+            testutil_die(__r, "%s/%d: %s", __PRETTY_FUNCTION__, __LINE__, #call); \
+    } while (0)
+
+/*
  * testutil_checkfmt --
  *     Complain and quit if a function call fails, with formatted output.
  */
@@ -152,9 +174,47 @@ typedef struct {
     } while (0)
 
 /*
+ * WT_OP_CHECKPOINT_WAIT --
+ *	If an operation returns EBUSY checkpoint and retry.
+ */
+#define WT_OP_CHECKPOINT_WAIT(session, op)                      \
+    do {                                                        \
+        int __ret;                                              \
+        while ((__ret = (op)) == EBUSY)                         \
+            testutil_check(session->checkpoint(session, NULL)); \
+        testutil_check(__ret);                                  \
+    } while (0)
+
+/*
+ * testutil_drop --
+ *     Drop a table
+ */
+#define testutil_drop(session, uri, config)                            \
+    do {                                                               \
+        int __ret;                                                     \
+        while ((__ret = session->drop(session, uri, config)) == EBUSY) \
+            testutil_check(session->checkpoint(session, NULL));        \
+        testutil_check(__ret);                                         \
+    } while (0)
+
+/*
+ * testutil_verify --
+ *     Verify a table
+ */
+#define testutil_verify(session, uri, config)                            \
+    do {                                                                 \
+        int __ret;                                                       \
+        while ((__ret = session->verify(session, uri, config)) == EBUSY) \
+            testutil_check(session->checkpoint(session, NULL));          \
+        testutil_check(__ret);                                           \
+    } while (0)
+
+/*
  * error_sys_check --
  *     Complain and quit if a function call fails. A special name because it appears in the
  *     documentation. Allow any non-negative values.
+ *
+ * DO NOT USE THIS MACRO IN TEST CODE, IT IS ONLY FOR DOCUMENTATION.
  */
 #define error_sys_check(call)                                                     \
     do {                                                                          \
@@ -168,6 +228,8 @@ typedef struct {
  *     Complain and quit if a function call fails. A special name because it appears in the
  *     documentation. Ignore ENOTSUP to allow library calls which might not be included in any
  *     particular build.
+ *
+ * DO NOT USE THIS MACRO IN TEST CODE, IT IS ONLY FOR DOCUMENTATION.
  */
 #define error_check(call)                                                         \
     do {                                                                          \
@@ -182,6 +244,12 @@ typedef struct {
  *     because it appears in the documentation.
  */
 #define scan_end_check(a) testutil_assert(a)
+
+#ifdef _WIN32
+__declspec(noreturn)
+#endif
+  void testutil_die(int, const char *, ...) WT_GCC_FUNC_ATTRIBUTE((cold))
+    WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 /*
  * u64_to_string --
@@ -238,14 +306,45 @@ u64_to_string_zf(uint64_t n, char *buf, size_t len)
         *--p = '0';
 }
 
+/*
+ * testutil_timestamp_parse --
+ *     Parse a timestamp to an integral value.
+ */
+static inline uint64_t
+testutil_timestamp_parse(const char *str)
+{
+    uint64_t ts;
+    char *p;
+
+    ts = __wt_strtouq(str, &p, 16);
+    testutil_assert((size_t)(p - str) <= WT_TS_HEX_STRING_SIZE);
+    return (ts);
+}
+
+/*
+ * maximum_stable_ts --
+ *     Return the largest usable stable timestamp from a list of n committed timestamps.
+ */
+static inline wt_timestamp_t
+maximum_stable_ts(wt_timestamp_t *commit_timestamps, uint32_t n)
+{
+    wt_timestamp_t commit_ts, ts;
+    uint32_t i;
+
+    for (ts = WT_TS_MAX, i = 0; i < n; i++) {
+        commit_ts = commit_timestamps[i];
+        if (commit_ts == WT_TS_NONE)
+            return (WT_TS_NONE);
+        if (commit_ts < ts)
+            ts = commit_ts;
+    }
+
+    /* Return one less than the earliest in-use timestamp. */
+    return (ts == WT_TS_MAX ? WT_TS_NONE : ts - 1);
+}
+
 /* Allow tests to add their own death handling. */
 extern void (*custom_die)(void);
-
-#ifdef _WIN32
-__declspec(noreturn)
-#endif
-  void testutil_die(int, const char *, ...) WT_GCC_FUNC_ATTRIBUTE((cold))
-    WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 void *dcalloc(size_t, size_t);
 void *dmalloc(size_t);
@@ -268,20 +367,24 @@ void op_cursor(void *);
 void op_drop(void *);
 bool testutil_is_flag_set(const char *);
 void testutil_build_dir(TEST_OPTS *, char *, int);
+void testutil_clean_test_artifacts(const char *);
 void testutil_clean_work_dir(const char *);
 void testutil_cleanup(TEST_OPTS *);
 void testutil_copy_data(const char *);
 void testutil_copy_file(WT_SESSION *, const char *);
+void testutil_copy_if_exists(WT_SESSION *, const char *);
 void testutil_create_backup_directory(const char *);
 void testutil_make_work_dir(const char *);
-void testutil_modify_apply(WT_ITEM *, WT_ITEM *, WT_MODIFY *, int);
+void testutil_modify_apply(WT_ITEM *, WT_ITEM *, WT_MODIFY *, int, uint8_t);
+void testutil_parse_begin_opt(int, char *const *, const char *, TEST_OPTS *);
+void testutil_parse_end_opt(TEST_OPTS *);
+int testutil_parse_single_opt(TEST_OPTS *, int);
 int testutil_parse_opts(int, char *const *, TEST_OPTS *);
 void testutil_print_command_line(int argc, char *const *argv);
 void testutil_progress(TEST_OPTS *, const char *);
 #ifndef _WIN32
 void testutil_sleep_wait(uint32_t, pid_t);
 #endif
-void testutil_timestamp_parse(const char *, uint64_t *);
 void testutil_work_dir_from_path(char *, size_t, const char *);
 WT_THREAD_RET thread_append(void *);
 

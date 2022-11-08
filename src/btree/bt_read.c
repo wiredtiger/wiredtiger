@@ -56,11 +56,15 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
     if (__wt_hazard_count(session, ref) > 1)
         return (false);
 
-    /* If we can do an in-memory split, do it. */
-    if (__wt_leaf_page_can_split(session, page))
-        return (true);
-    if (footprint < btree->maxmempage)
+    /*
+     * If the page is less than the maximum size and can be split in-memory, let's try that first
+     * without forcing the page to evict on release.
+     */
+    if (footprint < btree->maxmempage) {
+        if (__wt_leaf_page_can_split(session, page))
+            return (true);
         return (false);
+    }
 
     /* Bump the oldest ID, we're about to do some visibility checks. */
     WT_IGNORE_RET(__wt_txn_update_oldest(session, 0));
@@ -91,12 +95,9 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_DECL_RET;
     WT_ITEM tmp;
     WT_PAGE *notused;
-    uint64_t time_diff, time_start, time_stop;
     uint32_t page_flags;
     uint8_t previous_state;
-    bool prepare, timer;
-
-    time_start = time_stop = 0;
+    bool prepare;
 
     /*
      * Don't pass an allocated buffer to the underlying block read function, force allocation of new
@@ -116,36 +117,70 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     }
 
     /*
-     * Set the WT_REF_FLAG_READING flag for normal reads. Checkpoints can skip over clean pages
-     * being read into cache, but need to wait for deletes to be resolved (in order for checkpoint
-     * to write the correct version of the page).
+     * Set the WT_REF_FLAG_READING flag for normal reads; this causes reconciliation of the parent
+     * page to skip examining this page in detail and write out a reference to the on-disk version.
+     * Don't do this for deleted pages, as the reconciliation needs to examine the page delete
+     * information. That requires locking the ref, which requires waiting for the read to finish.
+     * (It is possible that always writing out a reference to the on-disk version of the page is
+     * sufficient in this case, but it's not entirely clear; we expect reads of deleted pages to be
+     * rare, so it's better to do the safe thing.)
      */
     if (previous_state == WT_REF_DISK)
         F_SET(ref, WT_REF_FLAG_READING);
 
     /*
      * Get the address: if there is no address, the page was deleted and a subsequent search or
-     * insert is forcing re-creation of the name space.
+     * insert is forcing re-creation of the name space. There can't be page delete information,
+     * because that information is an amendment to an on-disk page; when a page is deleted any page
+     * delete information should expire and be removed before the original on-disk page is actually
+     * discarded.
      */
     if (!__wt_ref_addr_copy(session, ref, &addr)) {
         WT_ASSERT(session, previous_state == WT_REF_DELETED);
-
+        WT_ASSERT(session, ref->page_del == NULL);
         WT_ERR(__wt_btree_new_leaf_page(session, ref));
         goto skip_read;
     }
 
-    /* There's an address, read the backing disk page and build an in-memory version of the page. */
-    timer = !F_ISSET(session, WT_SESSION_INTERNAL);
-    if (timer)
-        time_start = __wt_clock(session);
-    WT_ERR(__wt_bt_read(session, &tmp, addr.addr, addr.size));
-    if (timer) {
-        time_stop = __wt_clock(session);
-        time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
-        WT_STAT_CONN_INCR(session, cache_read_app_count);
-        WT_STAT_CONN_INCRV(session, cache_read_app_time, time_diff);
-        WT_STAT_SESSION_INCRV(session, read_time, time_diff);
+    /*
+     * If the page is deleted and the deletion is globally visible, don't bother reading and
+     * explicitly instantiating the existing page. Get a fresh page and pretend we got it by reading
+     * the on-disk page. Note that it's important to set the instantiated flag on the page so that
+     * reconciling the parent internal page knows it was previously deleted. Otherwise it's possible
+     * to write out a reference to the original page without the deletion, which will cause it to
+     * come back to life unexpectedly.
+     *
+     * Setting the instantiated flag requires a modify structure. We don't need to mark it dirty; if
+     * it gets discarded before something else modifies it, eviction will see the instantiated flag
+     * and set the ref state back to WT_REF_DELETED.
+     *
+     * Skip this optimization in cases that need the obsolete values. To minimize the number of
+     * special cases, use the same test as for skipping instantiation below.
+     */
+    if (previous_state == WT_REF_DELETED &&
+      !F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
+        /*
+         * If the deletion has not yet been found to be globally visible (page_del isn't NULL),
+         * check if it is now, in case we can in fact avoid reading the page. Hide prepared deletes
+         * from this check; if the deletion is prepared we still need to load the page, because the
+         * reader might be reading at a timestamp early enough to not conflict with the prepare.
+         * Update oldest before checking; we're about to read from disk so it's worth doing some
+         * work to avoid that.
+         */
+        WT_ERR(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
+        if (ref->page_del != NULL && __wt_page_del_visible_all(session, ref->page_del, true))
+            __wt_overwrite_and_free(session, ref->page_del);
+
+        if (ref->page_del == NULL) {
+            WT_ERR(__wt_btree_new_leaf_page(session, ref));
+            WT_ERR(__wt_page_modify_init(session, ref->page));
+            ref->page->modify->instantiated = true;
+            goto skip_read;
+        }
     }
+
+    /* There's an address, read the backing disk page and build an in-memory version of the page. */
+    WT_ERR(__wt_blkcache_read(session, &tmp, addr.addr, addr.size));
 
     /*
      * Build the in-memory version of the page. Clear our local reference to the allocated copy of
@@ -164,14 +199,32 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     if (prepare)
         WT_ERR(__wt_page_inmem_prepare(session, ref));
 
-skip_read:
-    switch (previous_state) {
-    case WT_REF_DELETED:
-        /* Move all records to a deleted state. */
-        WT_ERR(__wt_delete_page_instantiate(session, ref));
-        break;
+    /*
+     * In the case of a fast delete, move all of the page's records to a deleted state based on the
+     * fast-delete information. Skip for special commands that don't care about an in-memory state.
+     * (But do set up page->modify and set page->modify->instantiated so evicting the pages while
+     * these commands are working doesn't go off the rails.)
+     *
+     * There are two possible cases: the state was WT_REF_DELETED and page_del was or wasn't NULL.
+     * It used to also be possible for eviction to set the state to WT_REF_DISK while the parent
+     * page nonetheless had a WT_CELL_ADDR_DEL cell. This is not supposed to happen any more, so for
+     * now at least assert it doesn't.
+     *
+     * page_del gets cleared and set to NULL if the deletion is found to be globally visible; this
+     * can happen in any of several places.
+     */
+    WT_ASSERT(
+      session, previous_state != WT_REF_DISK || (ref->page_del == NULL && addr.del_set == false));
+
+    if (previous_state == WT_REF_DELETED) {
+        if (F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
+            WT_ERR(__wt_page_modify_init(session, ref->page));
+            ref->page->modify->instantiated = true;
+        } else
+            WT_ERR(__wt_delete_page_instantiate(session, ref));
     }
 
+skip_read:
     F_CLR(ref, WT_REF_FLAG_READING);
     WT_REF_SET_STATE(ref, WT_REF_MEM);
 
@@ -210,20 +263,17 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     WT_BTREE *btree;
     WT_DECL_RET;
     WT_PAGE *page;
+    WT_TXN *txn;
     uint64_t sleep_usecs, yield_cnt;
     uint8_t current_state;
     int force_attempts;
     bool busy, cache_work, evict_skip, stalled, wont_need;
 
     btree = S2BT(session);
+    txn = session->txn;
 
     if (F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE))
         LF_SET(WT_READ_IGNORE_CACHE_SIZE);
-
-    /* Sanity check flag combinations. */
-    WT_ASSERT(session,
-      !LF_ISSET(WT_READ_DELETED_SKIP) || !LF_ISSET(WT_READ_NO_WAIT) || LF_ISSET(WT_READ_CACHE));
-    WT_ASSERT(session, !LF_ISSET(WT_READ_DELETED_CHECK) || !LF_ISSET(WT_READ_DELETED_SKIP));
 
     /*
      * Ignore reads of pages already known to be in cache, otherwise the eviction server can
@@ -236,10 +286,11 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
          ;) {
         switch (current_state = ref->state) {
         case WT_REF_DELETED:
-            if (LF_ISSET(WT_READ_DELETED_SKIP | WT_READ_NO_WAIT))
+            /* Optionally limit reads to cache-only. */
+            if (LF_ISSET(WT_READ_CACHE | WT_READ_NO_WAIT))
                 return (WT_NOTFOUND);
-            if (LF_ISSET(WT_READ_DELETED_CHECK) &&
-              __wt_delete_page_skip(session, ref, !F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)))
+            if (LF_ISSET(WT_READ_SKIP_DELETED) &&
+              __wt_delete_page_skip(session, ref, !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT)))
                 return (WT_NOTFOUND);
             goto read;
         case WT_REF_DISK:
@@ -252,8 +303,7 @@ read:
              * space in the cache.
              */
             if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
-                WT_RET(__wt_cache_eviction_check(
-                  session, true, !F_ISSET(session->txn, WT_TXN_HAS_ID), NULL));
+                WT_RET(__wt_cache_eviction_check(session, true, txn->mod_count == 0, NULL));
             WT_RET(__page_read(session, ref, flags));
 
             /* We just read a page, don't evict it before we have a chance to use it. */
@@ -328,6 +378,13 @@ read:
              */
             if (F_ISSET(session, WT_SESSION_NO_RECONCILE) &&
               !__wt_leaf_page_can_split(session, ref->page))
+                goto skip_evict;
+
+            /*
+             * Don't evict if we are operating in a transaction on a checkpoint cursor. Eviction
+             * would use the cursor's snapshot, which won't be correct.
+             */
+            if (F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT))
                 goto skip_evict;
 
             /*

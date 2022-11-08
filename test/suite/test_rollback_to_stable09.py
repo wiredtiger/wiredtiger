@@ -28,7 +28,6 @@
 
 import os
 import wiredtiger
-from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 from test_rollback_to_stable01 import test_rollback_to_stable_base
 
@@ -36,7 +35,6 @@ from test_rollback_to_stable01 import test_rollback_to_stable_base
 # Test that rollback to stable does not abort schema operations that are done
 # as they don't have transaction support
 class test_rollback_to_stable09(test_rollback_to_stable_base):
-    session_config = 'isolation=snapshot'
 
     # Don't bother testing FLCS tables as well as they're highly unlikely to
     # behave differently at this level.
@@ -65,8 +63,6 @@ class test_rollback_to_stable09(test_rollback_to_stable_base):
         config = 'cache_size=250MB'
         if self.in_memory:
             config += ',in_memory=true'
-        else:
-            config += ',log=(enabled),in_memory=false'
         return config
 
     def create_table(self, commit_ts):

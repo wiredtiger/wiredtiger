@@ -44,6 +44,10 @@
 
 void populate(TEST_OPTS *opts);
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -65,7 +69,9 @@ main(int argc, char *argv[])
     testutil_make_work_dir(opts->home);
     testutil_progress(opts, "start");
 
-    testutil_check(wiredtiger_open(opts->home, NULL, "create,cache_size=250M", &opts->conn));
+    testutil_check(wiredtiger_open(opts->home, NULL,
+      "create,cache_size=250M,statistics=(all),statistics_log=(json,on_close,wait=1)",
+      &opts->conn));
     testutil_progress(opts, "wiredtiger_open");
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
     testutil_progress(opts, "sessions opened");
@@ -147,6 +153,10 @@ main(int argc, char *argv[])
     return (EXIT_SUCCESS);
 }
 
+/*
+ * populate --
+ *     TODO: Add a comment describing this function.
+ */
 void
 populate(TEST_OPTS *opts)
 {

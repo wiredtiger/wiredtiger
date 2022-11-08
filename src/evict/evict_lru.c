@@ -281,9 +281,9 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     F_SET(session, WT_SESSION_EVICTION);
 
     /*
-     * Cache a history store cursor to avoid deadlock: if an eviction thread thread marks a file
-     * busy and then opens a different file (in this case, the HS file), it can deadlock with a
-     * thread waiting for the first file to drain from the eviction queue. See WT-5946 for details.
+     * Cache a history store cursor to avoid deadlock: if an eviction thread marks a file busy and
+     * then opens a different file (in this case, the HS file), it can deadlock with a thread
+     * waiting for the first file to drain from the eviction queue. See WT-5946 for details.
      */
     WT_ERR(__wt_curhs_cache(session));
     if (conn->evict_server_running && __wt_spin_trylock(session, &cache->evict_pass_lock) == 0) {
@@ -378,12 +378,19 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    uint64_t time_diff_ms;
+#ifdef HAVE_DIAGNOSTIC
+    bool verbose_timeout_flags;
+#endif
 
     /* Assume there has been no progress. */
     *did_work = false;
 
     conn = S2C(session);
     cache = conn->cache;
+#ifdef HAVE_DIAGNOSTIC
+    verbose_timeout_flags = false;
+#endif
 
     /* Evict pages from the cache as needed. */
     WT_RET(__evict_pass(session));
@@ -448,8 +455,21 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
         return (0);
 
     __wt_epoch(session, &now);
-    if (WT_TIMEDIFF_SEC(now, cache->stuck_time) > WT_MINUTE * 5) {
-#if defined(HAVE_DIAGNOSTIC)
+
+#define WT_CACHE_STUCK_TIMEOUT_MS 300000
+    time_diff_ms = WT_TIMEDIFF_MS(now, cache->stuck_time);
+#ifdef HAVE_DIAGNOSTIC
+    /* Enable extra logs 20ms before timing out. */
+    if (!verbose_timeout_flags && time_diff_ms > WT_CACHE_STUCK_TIMEOUT_MS - 20) {
+        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT, WT_VERBOSE_DEBUG_1);
+        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_1);
+        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT_STUCK, WT_VERBOSE_DEBUG_1);
+        verbose_timeout_flags = true;
+    }
+#endif
+
+    if (time_diff_ms > WT_CACHE_STUCK_TIMEOUT_MS) {
+#ifdef HAVE_DIAGNOSTIC
         __wt_err(session, ETIMEDOUT, "Cache stuck for too long, giving up");
         WT_RET(__wt_verbose_dump_txn(session));
         WT_RET(__wt_verbose_dump_cache(session));
@@ -1798,6 +1818,8 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     }
 
     walk_flags = WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN | WT_READ_NO_WAIT;
+    if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
+        walk_flags |= WT_READ_VISIBLE_ALL;
 
     /*
      * Choose a random point in the tree if looking for candidates in a tree with no starting point
@@ -2382,13 +2404,10 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
         if (!F_ISSET(conn, WT_CONN_RECOVERING) && __wt_cache_stuck(session)) {
             ret = __wt_txn_is_blocking(session);
             if (ret == WT_ROLLBACK) {
-                __wt_verbose_debug(
-                  session, WT_VERB_TRANSACTION, "Rollback reason: %s", "Cache full");
                 --cache->evict_aggressive_score;
                 WT_STAT_CONN_INCR(session, txn_fail_cache);
-                if (app_thread)
-                    __wt_verbose_notice(
-                      session, WT_VERB_TRANSACTION, "%s", session->txn->rollback_reason);
+                __wt_verbose_debug(
+                  session, WT_VERB_TRANSACTION, "%s", session->txn->rollback_reason);
             }
             WT_ERR(ret);
         }
@@ -2453,8 +2472,10 @@ err:
         WT_STAT_SESSION_INCRV(session, cache_time, elapsed);
         session->cache_wait_us += elapsed;
         if (cache_max_wait_us != 0 && session->cache_wait_us > cache_max_wait_us) {
-            WT_TRET(WT_CACHE_FULL);
+            WT_TRET(__wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW));
+            --cache->evict_aggressive_score;
             WT_STAT_CONN_INCR(session, cache_timed_out_ops);
+            __wt_verbose_notice(session, WT_VERB_TRANSACTION, "%s", session->txn->rollback_reason);
         }
     }
 
@@ -2566,8 +2587,8 @@ __verbose_dump_cache_single(WT_SESSION_IMPL *session, uint64_t *total_bytesp,
     dhandle = session->dhandle;
     btree = dhandle->handle;
     WT_RET(__wt_msg(session, "%s(%s%s)%s%s:", dhandle->name,
-      dhandle->checkpoint != NULL ? "checkpoint=" : "",
-      dhandle->checkpoint != NULL ? dhandle->checkpoint : "<live>",
+      WT_DHANDLE_IS_CHECKPOINT(dhandle) ? "checkpoint=" : "",
+      WT_DHANDLE_IS_CHECKPOINT(dhandle) ? dhandle->checkpoint : "<live>",
       btree->evict_disabled != 0 ? " eviction disabled" : "",
       btree->evict_disabled_open ? " at open" : ""));
 
@@ -2577,11 +2598,11 @@ __verbose_dump_cache_single(WT_SESSION_IMPL *session, uint64_t *total_bytesp,
      * skipped it.
      */
     if (F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE))
-        return (__wt_msg(session, "  Opened exclusively. Cannot walk tree, skipping."));
+        return (__wt_msg(session, " handle opened exclusively, cannot walk tree, skipping"));
 
     next_walk = NULL;
-    while (__wt_tree_walk(
-             session, &next_walk, WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_WAIT) == 0 &&
+    while (__wt_tree_walk(session, &next_walk,
+             WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_WAIT | WT_READ_VISIBLE_ALL) == 0 &&
       next_walk != NULL) {
         page = next_walk->page;
         size = page->memory_footprint;
@@ -2615,31 +2636,30 @@ __verbose_dump_cache_single(WT_SESSION_IMPL *session, uint64_t *total_bytesp,
         WT_RET(
           __wt_msg(session,
             "internal: "
-            "%" PRIu64 " pages, "
-            "%" PRIu64 "MB, "
+            "%" PRIu64 " pages, %.2f KB, "
             "%" PRIu64 "/%" PRIu64 " clean/dirty pages, "
-            "%" PRIu64 "/%" PRIu64 " clean/dirty MB, "
-            "%" PRIu64 "MB max page, "
-            "%" PRIu64 "MB max dirty page",
-            intl_pages, intl_bytes / WT_MEGABYTE, intl_pages - intl_dirty_pages, intl_dirty_pages,
-            (intl_bytes - intl_dirty_bytes) / WT_MEGABYTE, intl_dirty_bytes / WT_MEGABYTE,
-            intl_bytes_max / WT_MEGABYTE, intl_dirty_bytes_max / WT_MEGABYTE));
+            "%.2f/%.2f clean / dirty KB, "
+            "%.2f KB max page, "
+            "%.2f KB max dirty page ",
+            intl_pages, (double)intl_bytes / WT_KILOBYTE, intl_pages - intl_dirty_pages,
+            intl_dirty_pages, (double)(intl_bytes - intl_dirty_bytes) / WT_KILOBYTE,
+            (double)intl_dirty_bytes / WT_KILOBYTE, (double)intl_bytes_max / WT_KILOBYTE,
+            (double)intl_dirty_bytes_max / WT_KILOBYTE));
     if (leaf_pages == 0)
         WT_RET(__wt_msg(session, "leaf: 0 pages"));
     else
         WT_RET(
           __wt_msg(session,
             "leaf: "
-            "%" PRIu64 " pages, "
-            "%" PRIu64 "MB, "
+            "%" PRIu64 " pages, %.2f KB, "
             "%" PRIu64 "/%" PRIu64 " clean/dirty pages, "
-            "%" PRIu64 "/%" PRIu64 "/%" PRIu64 " clean/dirty/updates MB, "
-            "%" PRIu64 "MB max page, "
-            "%" PRIu64 "MB max dirty page",
-            leaf_pages, leaf_bytes / WT_MEGABYTE, leaf_pages - leaf_dirty_pages, leaf_dirty_pages,
-            (leaf_bytes - leaf_dirty_bytes) / WT_MEGABYTE, leaf_dirty_bytes / WT_MEGABYTE,
-            updates_bytes / WT_MEGABYTE, leaf_bytes_max / WT_MEGABYTE,
-            leaf_dirty_bytes_max / WT_MEGABYTE));
+            "%.2f /%.2f /%.2f clean/dirty/updates KB, "
+            "%.2f KB max page, "
+            "%.2f KB max dirty page",
+            leaf_pages, (double)leaf_bytes / WT_KILOBYTE, leaf_pages - leaf_dirty_pages,
+            leaf_dirty_pages, (double)(leaf_bytes - leaf_dirty_bytes) / WT_KILOBYTE,
+            (double)leaf_dirty_bytes / WT_KILOBYTE, (double)updates_bytes / WT_KILOBYTE,
+            (double)leaf_bytes_max / WT_KILOBYTE, (double)leaf_dirty_bytes_max / WT_KILOBYTE));
 
     *total_bytesp += intl_bytes + leaf_bytes;
     *total_dirty_bytesp += intl_dirty_bytes + leaf_dirty_bytes;
@@ -2691,12 +2711,12 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     double pct;
-    uint64_t total_bytes, total_dirty_bytes, total_updates_bytes;
+    uint64_t total_bytes, total_dirty_bytes, total_updates_bytes, cache_bytes_updates;
     bool needed;
 
     conn = S2C(session);
     cache = conn->cache;
-    total_bytes = total_dirty_bytes = total_updates_bytes = 0;
+    total_bytes = total_dirty_bytes = total_updates_bytes = cache_bytes_updates = 0;
     pct = 0.0; /* [-Werror=uninitialized] */
 
     WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
@@ -2719,15 +2739,15 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
      * Apply the overhead percentage so our total bytes are comparable with the tracked value.
      */
     total_bytes = __wt_cache_bytes_plus_overhead(conn->cache, total_bytes);
+    cache_bytes_updates = __wt_cache_bytes_updates(cache);
 
-    WT_RET(
-      __wt_msg(session, "cache dump: total found: %" PRIu64 "MB vs tracked inuse %" PRIu64 "MB",
-        total_bytes / WT_MEGABYTE, cache->bytes_inmem / WT_MEGABYTE));
-    WT_RET(__wt_msg(session, "total dirty bytes: %" PRIu64 "MB vs tracked dirty %" PRIu64 "MB",
-      total_dirty_bytes / WT_MEGABYTE,
-      (cache->bytes_dirty_intl + cache->bytes_dirty_leaf) / WT_MEGABYTE));
-    WT_RET(__wt_msg(session, "total updates bytes: %" PRIu64 "MB vs tracked updates %" PRIu64 "MB",
-      total_updates_bytes / WT_MEGABYTE, __wt_cache_bytes_updates(cache) / WT_MEGABYTE));
+    WT_RET(__wt_msg(session, "cache dump: total found: %.2f MB vs tracked inuse %.2f MB",
+      (double)total_bytes / WT_MEGABYTE, (double)cache->bytes_inmem / WT_MEGABYTE));
+    WT_RET(__wt_msg(session, "total dirty bytes: %.2f MB vs tracked dirty %.2f MB",
+      (double)total_dirty_bytes / WT_MEGABYTE,
+      (double)(cache->bytes_dirty_intl + cache->bytes_dirty_leaf) / WT_MEGABYTE));
+    WT_RET(__wt_msg(session, "total updates bytes: %.2f MB vs tracked updates %.2f MB",
+      (double)total_updates_bytes / WT_MEGABYTE, (double)cache_bytes_updates / WT_MEGABYTE));
 
     return (0);
 }

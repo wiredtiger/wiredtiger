@@ -38,8 +38,8 @@ static void config_checksum(TABLE *);
 static void config_compression(TABLE *, const char *);
 static void config_directio(void);
 static void config_encryption(void);
-static const char *config_file_type(u_int);
 static bool config_explicit(TABLE *, const char *);
+static const char *config_file_type(u_int);
 static bool config_fix(TABLE *);
 static void config_in_memory(void);
 static void config_in_memory_reset(void);
@@ -47,7 +47,9 @@ static void config_lsm_reset(TABLE *);
 static void config_map_backup_incr(const char *, u_int *);
 static void config_map_checkpoint(const char *, u_int *);
 static void config_map_file_type(const char *, u_int *);
+static void config_mirrors(void);
 static void config_off(TABLE *, const char *);
+static void config_off_all(const char *);
 static void config_pct(TABLE *);
 static void config_transaction(void);
 
@@ -221,6 +223,19 @@ config_table(TABLE *table, void *arg)
     config_table_am(table);
 
     /*
+     * Next, for any values set in the base configuration, export them to this table (where this
+     * table doesn't already have a value set). This is done after picking an access method as the
+     * access method is more complicated, the base value might be set to "row,var", to pick from two
+     * possible access methods, and so we do that before blindly taking any already set values from
+     * the base configuration. Also, don't copy the mirror setting, it's more complicated as well.
+     */
+    if (ntables != 0)
+        for (cp = configuration_list; cp->name != NULL; ++cp)
+            if (F_ISSET(cp, C_TABLE) && cp->off != V_TABLE_RUNS_MIRROR && !table->v[cp->off].set &&
+              tables[0]->v[cp->off].set)
+                config_promote(table, cp, &tables[0]->v[cp->off]);
+
+    /*
      * Build the top-level object name: we're overloading data_source in our configuration, LSM
      * objects are "tables", but files are tested as well.
      */
@@ -233,15 +248,6 @@ config_table(TABLE *table, void *arg)
     testutil_check(
       __wt_snprintf(table->track_prefix, sizeof(table->track_prefix), "table %u", table->id));
 
-    /*
-     * For any values set in the base configuration, export them to this table (where this table
-     * doesn't already have a value set).
-     */
-    if (ntables != 0)
-        for (cp = configuration_list; cp->name != NULL; ++cp)
-            if (F_ISSET(cp, C_TABLE) && !table->v[cp->off].set && tables[0]->v[cp->off].set)
-                config_promote(table, cp, &tables[0]->v[cp->off]);
-
     /* Fill in random values for the rest of the run. */
     config_random(table, true);
 
@@ -251,10 +257,11 @@ config_table(TABLE *table, void *arg)
     table->max_mem_page = MEGABYTE(TV(BTREE_MEMORY_PAGE_MAX));
 
     /*
-     * Keep the number of rows and keys/values small for in-memory runs (overflow items aren't an
-     * issue for in-memory configurations and it helps prevents cache overflow).
+     * Keep the number of rows and keys/values small for in-memory and direct I/O runs (overflow
+     * items aren't an issue for in-memory configurations and it helps prevents cache overflow, and
+     * direct I/O can be so slow the additional I/O for overflow items causes eviction to stall).
      */
-    if (GV(RUNS_IN_MEMORY)) {
+    if (GV(RUNS_IN_MEMORY) || GV(DISK_DIRECT_IO)) {
         if (!config_explicit(table, "runs.rows") && TV(RUNS_ROWS) > 1000000)
             config_single(table, "runs.rows=1000000", false);
         if (!config_explicit(table, "btree.key_max"))
@@ -303,9 +310,6 @@ config_table(TABLE *table, void *arg)
     config_compression(table, "btree.compression");
     config_pct(table);
 
-    /* The number of rows in the table can change, get a local copy of the starting value. */
-    table->rows_current = TV(RUNS_ROWS);
-
     /* Column-store tables require special row insert resolution. */
     if (table->type != ROW)
         g.column_store_config = true;
@@ -328,9 +332,9 @@ config_table(TABLE *table, void *arg)
 void
 config_run(void)
 {
-    config_in_memory(); /* Periodically run in-memory. */
-
     config_random(tables[0], false); /* Configure the remaining global name space. */
+
+    config_in_memory(); /* Periodically run in-memory. */
 
     tables_apply(config_table, NULL); /* Configure the tables. */
 
@@ -341,19 +345,12 @@ config_run(void)
     config_compression(NULL, "logging.compression"); /* Logging compression */
     config_directio();                               /* Direct I/O */
     config_encryption();                             /* Encryption */
+    config_in_memory_reset();                        /* Reset in-memory as needed */
+    config_backward_compatible();                    /* Reset backward compatibility as needed */
+    config_mirrors();                                /* Mirrors */
 
-    /* If doing an in-memory run, make sure we haven't configured something that won't work. */
-    if (GV(RUNS_IN_MEMORY))
-        config_in_memory_reset();
-
-    /*
-     * If built in a branch that doesn't support all current options, or creating a database for
-     * such an environment, strip out configurations that won't work.
-     */
-    if (g.backward_compatible)
-        config_backward_compatible();
-
-    config_cache(); /* Cache */
+    /* Configure the cache last, cache size depends on everything else. */
+    config_cache();
 
     /*
      * Run-length is configured by a number of operations and a timer.
@@ -391,8 +388,8 @@ config_backup_incr(void)
     }
 
     /*
-     * Incremental backup using log files is incompatible with logging archival. Testing log file
-     * archival doesn't seem as useful as testing backup, let the backup configuration override.
+     * Incremental backup using log files is incompatible with automatic log removals. Testing log
+     * file removal doesn't seem as useful as testing backup, let the backup configuration override.
      */
     if (config_explicit(NULL, "backup.incremental")) {
         if (g.backup_incr_flag == INCREMENTAL_LOG)
@@ -403,7 +400,7 @@ config_backup_incr(void)
     }
 
     /*
-     * Choose a type of incremental backup, where the log archival setting can eliminate incremental
+     * Choose a type of incremental backup, where the log remove setting can eliminate incremental
      * backup based on log files.
      */
     switch (mmrand(NULL, 1, 10)) {
@@ -415,9 +412,9 @@ config_backup_incr(void)
     case 4: /* 30% log based incremental */
     case 5:
     case 6:
-        if (!GV(LOGGING_ARCHIVE) || !config_explicit(NULL, "logging.archive")) {
-            if (GV(LOGGING_ARCHIVE))
-                config_off(NULL, "logging.archive");
+        if (!GV(LOGGING_REMOVE) || !config_explicit(NULL, "logging.remove")) {
+            if (GV(LOGGING_REMOVE))
+                config_off(NULL, "logging.remove");
             config_single(NULL, "backup.incremental=log", false);
             break;
         }
@@ -503,6 +500,13 @@ config_backward_compatible_table(TABLE *table, void *arg)
 static void
 config_backward_compatible(void)
 {
+    /*
+     * If built in a branch that doesn't support all current options, or creating a database for
+     * such an environment, strip out configurations that won't work.
+     */
+    if (!g.backward_compatible)
+        return;
+
 #undef BC_CHECK
 #define BC_CHECK(name, flag)                                                               \
     if (GV(flag)) {                                                                        \
@@ -513,7 +517,6 @@ config_backward_compatible(void)
 
     BC_CHECK("disk.mmap_all", DISK_MMAP_ALL);
     BC_CHECK("block_cache", BLOCK_CACHE);
-    BC_CHECK("stress.checkpoint_reserved_txnid_delay", STRESS_CHECKPOINT_RESERVED_TXNID_DELAY);
     BC_CHECK("stress.hs_checkpoint_delay", STRESS_HS_CHECKPOINT_DELAY);
     BC_CHECK("stress.hs_search", STRESS_HS_SEARCH);
     BC_CHECK("stress.hs_sweep", STRESS_HS_SWEEP);
@@ -817,11 +820,15 @@ static void
 config_in_memory(void)
 {
     /*
-     * Configure in-memory before configuring anything else, in-memory has many related
-     * requirements. Don't configure in-memory if there's any incompatible configurations, so we
-     * don't have to configure in-memory every time we configure something like LSM, that's too
-     * painful.
+     * Configure in-memory before anything else, in-memory has many related requirements. Don't
+     * configure in-memory if there's any incompatible configurations, so we don't have to
+     * reconfigure in-memory every time we configure something like LSM, that's too painful.
+     *
+     * Limit the number of tables in any in-memory run, otherwise it's too easy to blow out the
+     * cache.
      */
+    if (ntables > 10)
+        return;
     if (config_explicit(NULL, "backup"))
         return;
     if (config_explicit(NULL, "block_cache"))
@@ -838,11 +845,15 @@ config_in_memory(void)
         return;
     if (config_explicit(NULL, "ops.alter"))
         return;
+    if (config_explicit(NULL, "ops.compaction"))
+        return;
     if (config_explicit(NULL, "ops.hs_cursor"))
         return;
     if (config_explicit(NULL, "ops.salvage"))
         return;
     if (config_explicit(NULL, "ops.verify"))
+        return;
+    if (config_explicit(NULL, "runs.mirror"))
         return;
 
     if (!config_explicit(NULL, "runs.in_memory") && mmrand(NULL, 1, 20) == 1)
@@ -856,6 +867,10 @@ config_in_memory(void)
 static void
 config_in_memory_reset(void)
 {
+    /* If doing an in-memory run, make sure we haven't configured something that won't work. */
+    if (!GV(RUNS_IN_MEMORY))
+        return;
+
     /* Turn off a lot of stuff. */
     if (!config_explicit(NULL, "backup"))
         config_off(NULL, "backup");
@@ -869,6 +884,8 @@ config_in_memory_reset(void)
         config_off(NULL, "logging");
     if (!config_explicit(NULL, "ops.alter"))
         config_off(NULL, "ops.alter");
+    if (!config_explicit(NULL, "ops.compaction"))
+        config_off(NULL, "ops.compaction");
     if (!config_explicit(NULL, "ops.hs_cursor"))
         config_off(NULL, "ops.hs_cursor");
     if (!config_explicit(NULL, "ops.salvage"))
@@ -885,15 +902,15 @@ static void
 config_backup_incr_log_compatibility_check(void)
 {
     /*
-     * Incremental backup using log files is incompatible with logging archival. Disable logging
-     * archival if log incremental backup is set.
+     * Incremental backup using log files is incompatible with automatic log file removal. Disable
+     * logging removal if log incremental backup is set.
      */
-    if (GV(LOGGING_ARCHIVE) && config_explicit(NULL, "logging.archive"))
+    if (GV(LOGGING_REMOVE) && config_explicit(NULL, "logging.remove"))
         WARN("%s",
-          "backup.incremental=log is incompatible with logging.archive, turning off "
-          "logging.archive");
-    if (GV(LOGGING_ARCHIVE))
-        config_off(NULL, "logging.archive");
+          "backup.incremental=log is incompatible with logging.remove, turning off "
+          "logging.remove");
+    if (GV(LOGGING_REMOVE))
+        config_off(NULL, "logging.remove");
 }
 
 /*
@@ -938,6 +955,93 @@ config_lsm_reset(TABLE *table)
 }
 
 /*
+ * config_mirrors --
+ *     Configure table mirroring.
+ */
+static void
+config_mirrors(void)
+{
+    u_int i, mirrors;
+    char buf[100];
+    bool already_set, explicit_mirror;
+
+    /* Check for a CONFIG file that's already set up for mirroring. */
+    for (already_set = false, i = 1; i <= ntables; ++i)
+        if (NTV(tables[i], RUNS_MIRROR)) {
+            already_set = tables[i]->mirror = true;
+            if (g.base_mirror == NULL && tables[i]->type != FIX)
+                g.base_mirror = tables[i];
+        }
+    if (already_set) {
+        if (g.base_mirror == NULL)
+            testutil_die(EINVAL, "no table configured that can act as the base mirror");
+        return;
+    }
+
+    /*
+     * Mirror configuration is potentially confusing: it's a per-table configuration (because it has
+     * to be set for subsequent runs so we can tell which tables are part of the mirror group), but
+     * it's configured on a global basis, causing the random selection of a group of tables for the
+     * mirror group. If it's configured anywhere, it's configured everywhere; otherwise configure it
+     * 20% of the time. Once that's done, turn off all mirroring, it's turned back on for selected
+     * tables.
+     */
+    explicit_mirror = config_explicit(NULL, "runs.mirror");
+    if (!explicit_mirror && mmrand(NULL, 1, 10) < 9)
+        return;
+    config_off_all("runs.mirror");
+
+    /*
+     * We can't mirror if we don't have enough tables. A FLCS table can be a mirror, but it can't be
+     * the source of the bulk-load mirror records. Find the first table we can use as a base.
+     */
+    for (i = 1; i <= ntables; ++i)
+        if (tables[i]->type != FIX)
+            break;
+    if (ntables < 2 || i > ntables) {
+        if (explicit_mirror)
+            WARN("%s", "table selection didn't support mirroring, turning off mirroring");
+        return;
+    }
+
+    /* A custom collator would complicate the cursor traversal when comparing tables. */
+    for (i = 1; i <= ntables; ++i)
+        if (NTV(tables[i], BTREE_REVERSE) && config_explicit(tables[i], "btree.reverse")) {
+            WARN(
+              "%s", "mirroring incompatible with reverse collation, turning off reverse collation");
+            break;
+        }
+    config_off_all("btree.reverse");
+
+    /* Good to go: pick the first non-FLCS table as our base and turn on mirroring. */
+    for (i = 1; i <= ntables; ++i)
+        if (tables[i]->type != FIX)
+            break;
+    tables[i]->mirror = true;
+    config_single(tables[i], "runs.mirror=1", false);
+    g.base_mirror = tables[i];
+
+    /* Pick some number of tables to mirror, then turn on mirroring the next (n-1) tables. */
+    for (mirrors = mmrand(NULL, 2, ntables) - 1, i = 1; i <= ntables; ++i)
+        if (tables[i] != g.base_mirror) {
+            tables[i]->mirror = true;
+            config_single(tables[i], "runs.mirror=1", false);
+            if (--mirrors == 0)
+                break;
+        }
+
+    /*
+     * Give each mirror the same number of rows (it's not necessary, we could treat end-of-table on
+     * a mirror as OK, but this lets us assert matching rows).
+     */
+    testutil_check(
+      __wt_snprintf(buf, sizeof(buf), "runs.rows=%" PRIu32, NTV(g.base_mirror, RUNS_ROWS)));
+    for (i = 1; i <= ntables; ++i)
+        if (tables[i]->mirror && tables[i] != g.base_mirror)
+            config_single(tables[i], buf, false);
+}
+
+/*
  * config_pct --
  *     Configure operation percentages.
  */
@@ -952,7 +1056,6 @@ config_pct(TABLE *table)
     u_int i, max_order, max_slot, n, pct;
     bool slot_available;
 
-#define CONFIG_MODIFY_ENTRY 2
     list[0].name = "ops.pct.delete";
     list[0].vp = &TV(OPS_PCT_DELETE);
     list[0].order = 0;
@@ -993,14 +1096,6 @@ config_pct(TABLE *table)
         for (i = 0; i < WT_ELEMENTS(list); ++i)
             list[i].order = mmrand(NULL, 1, 1000);
         pct = 0;
-    }
-
-    /* Cursor modify isn't possible for fixed-length column store. */
-    if (table->type == FIX) {
-        if (config_explicit(table, "ops.pct.modify") && TV(OPS_PCT_MODIFY) != 0)
-            testutil_die(EINVAL, "WT_CURSOR.modify not supported by fixed-length column store");
-        list[CONFIG_MODIFY_ENTRY].order = 0;
-        *list[CONFIG_MODIFY_ENTRY].vp = 0;
     }
 
     /*
@@ -1050,43 +1145,62 @@ config_transaction(void)
             testutil_die(EINVAL, "prepare is incompatible with logging");
     }
 
-    /* Transaction timestamps are incompatible with implicit transactions. */
+    /* Transaction timestamps are incompatible with implicit transactions, logging and salvage. */
     if (GV(TRANSACTION_TIMESTAMPS) && config_explicit(NULL, "transaction.timestamps")) {
         if (GV(TRANSACTION_IMPLICIT) && config_explicit(NULL, "transaction.implicit"))
             testutil_die(
               EINVAL, "transaction.timestamps is incompatible with implicit transactions");
+        if (GV(OPS_SALVAGE) && config_explicit(NULL, "ops.salvage")) /* FIXME WT-6431 */
+            testutil_die(EINVAL, "transaction.timestamps is incompatible with salvage");
+        if (GV(LOGGING) && config_explicit(NULL, "logging"))
+            testutil_die(EINVAL, "transaction.timestamps is incompatible with logging");
     }
 
     /*
      * Incompatible permanent configurations have been checked, now turn off any incompatible flags.
-     * The choices are inclined to prepare (it's only rarely configured), then timestamps. Note any
-     * of the options may still be set as required for the run, so we still have to check if that's
-     * the case until we run out of combinations (for example, prepare turns off logging, so by the
-     * time we check logging, logging must have been required by the run if both logging and prepare
-     * are still set, so we can just turn off prepare in that case).
+     * Honor the choice if something was set explicitly, next retain a configured prepare (it's not
+     * configured often), then match however timestamps are configured.
      */
+    if (GV(OPS_PREPARE) && config_explicit(NULL, "ops.prepare")) {
+        config_off(NULL, "logging");
+        config_single(NULL, "transaction.timestamps=on", false);
+        config_off(NULL, "transaction.implicit");
+        config_off(NULL, "ops.salvage");
+    }
+    if (GV(TRANSACTION_TIMESTAMPS) && config_explicit(NULL, "transaction.timestamps")) {
+        config_off(NULL, "transaction.implicit");
+        config_off(NULL, "ops.salvage");
+        config_off(NULL, "logging");
+    }
+    if (!GV(TRANSACTION_TIMESTAMPS) && config_explicit(NULL, "transaction.timestamps"))
+        config_off(NULL, "ops.prepare");
+    if (GV(TRANSACTION_IMPLICIT) && config_explicit(NULL, "transaction.implicit")) {
+        config_off(NULL, "transaction.timestamps");
+        config_off(NULL, "ops.prepare");
+    }
+    if (GV(LOGGING) && config_explicit(NULL, "logging")) {
+        config_off(NULL, "transaction.timestamps");
+        config_off(NULL, "ops.prepare");
+    }
+    if (GV(OPS_SALVAGE) && config_explicit(NULL, "ops.salvage")) { /* FIXME WT-6431 */
+        config_off(NULL, "transaction.timestamps");
+        config_off(NULL, "ops.prepare");
+    }
     if (GV(OPS_PREPARE)) {
-        if (!config_explicit(NULL, "logging"))
-            config_off(NULL, "logging");
-        if (!config_explicit(NULL, "transaction.timestamps"))
-            config_single(NULL, "transaction.timestamps=on", false);
+        config_off(NULL, "logging");
+        config_single(NULL, "transaction.timestamps=on", false);
+        config_off(NULL, "transaction.implicit");
+        config_off(NULL, "ops.salvage");
     }
     if (GV(TRANSACTION_TIMESTAMPS)) {
-        if (!config_explicit(NULL, "transaction.implicit"))
-            config_off(NULL, "transaction.implicit");
-        if (!config_explicit(NULL, "ops.salvage"))
-            config_off(NULL, "ops.salvage");
+        config_off(NULL, "transaction.implicit");
+        config_off(NULL, "ops.salvage");
+        config_off(NULL, "logging");
     }
-    if (GV(LOGGING))
+    if (!GV(TRANSACTION_TIMESTAMPS))
         config_off(NULL, "ops.prepare");
-    if (GV(TRANSACTION_IMPLICIT))
-        config_off(NULL, "transaction.timestamps");
-    if (GV(OPS_SALVAGE))
-        config_off(NULL, "transaction.timestamps");
 
-    /* Transaction timestamps configures format behavior, flag it. */
-    if (GV(TRANSACTION_TIMESTAMPS))
-        g.transaction_timestamps_config = true;
+    g.transaction_timestamps_config = GV(TRANSACTION_TIMESTAMPS) != 0;
 }
 
 /*
@@ -1129,16 +1243,24 @@ config_print_one(FILE *fp, CONFIG *cp, CONFIGV *v, const char *prefix)
 {
     const char *cstr;
 
+    /* Historic versions of format expect "none", instead of "off", for a few configurations. */
     if (F_ISSET(cp, C_STRING)) {
-        /* Historic versions of format expect "none", instead of "off", for a few configurations. */
         cstr = v->vstr == NULL ? "off" : v->vstr;
         if (strcmp(cstr, "off") == 0 &&
           (cp->off == V_GLOBAL_DISK_ENCRYPTION || cp->off == V_GLOBAL_LOGGING_COMPRESSION ||
             cp->off == V_TABLE_BTREE_COMPRESSION))
             cstr = "none";
         fprintf(fp, "%s%s=%s\n", prefix, cp->name, cstr);
-    } else
-        fprintf(fp, "%s%s=%" PRIu32 "\n", prefix, cp->name, v->v);
+        return;
+    }
+
+    /* Historic versions of format expect log=(archive), not log=(remove). */
+    if (g.backward_compatible && cp->off == V_GLOBAL_LOGGING_REMOVE) {
+        fprintf(fp, "%slogging.archive=%" PRIu32 "\n", prefix, v->v);
+        return;
+    }
+
+    fprintf(fp, "%s%s=%" PRIu32 "\n", prefix, cp->name, v->v);
 }
 
 /*
@@ -1361,22 +1483,17 @@ config_off(TABLE *table, const char *s)
 }
 
 /*
- * config_value --
- *     String to long helper function.
+ * config_off_all --
+ *     Turn a configuration value off for all possible entries.
  */
-static uint32_t
-config_value(const char *config, const char *p, int match)
+static void
+config_off_all(const char *s)
 {
-    long v;
-    char *endptr;
+    u_int i;
 
-    errno = 0;
-    v = strtol(p, &endptr, 10);
-    if ((errno == ERANGE && (v == LONG_MAX || v == LONG_MIN)) || (errno != 0 && v == 0) ||
-      *endptr != match || v < 0 || v > UINT32_MAX)
-        testutil_die(
-          EINVAL, "%s: %s: illegal numeric value or value out of range", progname, config);
-    return ((uint32_t)v);
+    config_off(tables[0], s);
+    for (i = 1; i <= ntables; ++i)
+        config_off(tables[i], s);
 }
 
 /*
@@ -1520,7 +1637,7 @@ config_single(TABLE *table, const char *s, bool explicit)
         else if (strncmp(equalp, "on", strlen("on")) == 0)
             v1 = 1;
         else {
-            v1 = config_value(s, equalp, '\0');
+            v1 = atou32(s, equalp, '\0');
             if (v1 != 0 && v1 != 1)
                 testutil_die(EINVAL, "%s: %s: value of boolean not 0 or 1", progname, s);
         }
@@ -1549,7 +1666,7 @@ config_single(TABLE *table, const char *s, bool explicit)
      * Get the value and check the range; zero is optionally an out-of-band "don't set this
      * variable" value.
      */
-    v1 = config_value(s, vp1, range == RANGE_NONE ? '\0' : (range == RANGE_FIXED ? '-' : ':'));
+    v1 = atou32(s, vp1, range == RANGE_NONE ? '\0' : (range == RANGE_FIXED ? '-' : ':'));
     if (!(v1 == 0 && F_ISSET(cp, C_ZERO_NOTSET)) && (v1 < cp->min || v1 > cp->maxset)) {
         /*
          * Historically, btree.split_pct support ranges < 50; correct the value.
@@ -1568,7 +1685,7 @@ config_single(TABLE *table, const char *s, bool explicit)
     }
 
     if (range != RANGE_NONE) {
-        v2 = config_value(s, vp2, '\0');
+        v2 = atou32(s, vp2, '\0');
         if (v2 < cp->min || v2 > cp->maxset)
             testutil_die(EINVAL, "%s: %s: value outside min/max values of %" PRIu32 "-%" PRIu32,
               progname, s, cp->min, cp->maxset);
@@ -1721,9 +1838,9 @@ config_explicit(TABLE *table, const char *s)
     if (table != NULL)
         return (table->v[cp->off].set);
 
-    /* Otherwise, check if it's set in any table. */
-    if (ntables == 0)
-        return (tables[0]->v[cp->off].set);
+    /* Otherwise, check if it's set in the base values or in any table. */
+    if (tables[0]->v[cp->off].set)
+        return (true);
     for (i = 1; i < ntables; ++i)
         if (tables[i]->v[cp->off].set)
             return (true);

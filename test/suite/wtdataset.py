@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-import sys
+import wttimestamp
 
 class BaseDataSet(object):
     """
@@ -44,30 +44,73 @@ class BaseDataSet(object):
         self.config = kwargs.get('config', '')
         self.projection = kwargs.get('projection', '')
 
+        # If the timestamp generator is not set, get it from the test case.
+        self.timestamp = kwargs.get('timestamp', testcase.getTimestamp())
+
+        # Get the tier populate share from the hook.
+        tier_share_percent = testcase.getTierSharePercent()
+        self.tier_share_value = (tier_share_percent * self.rows) // 100
+
+        # Get the tier cache share from the hook.
+        tier_cache_percent = testcase.getTierCachePercent()
+        self.tier_cache_value =  (tier_cache_percent * self.rows) // 100
+
     def create(self):
         self.testcase.session.create(self.uri, 'key_format=' + self.key_format
                                      + ',value_format=' + self.value_format
                                      + ',' + self.config)
 
-    def fill(self):
-        c = self.testcase.session.open_cursor(self.uri, None)
-        for i in range(1, self.rows + 1):
-            c[self.key(i)] = self.value(i)
+    def open_cursor(self, uri=None, todup=None, config=None, session=None):
+        if uri == None:
+            uri = self.uri
+        if session == None:
+            session = self.testcase.session
+        c = session.open_cursor(uri, None, config)
+        return wttimestamp.TimestampedCursor(session, c, self.timestamp, self.testcase)
+
+    def truncate(self, uri, c1, c2, config, session=None):
+        if session == None:
+            session = self.testcase.session
+        with wttimestamp.session_timestamped_transaction(session, self.timestamp):
+            return session.truncate(uri, c1, c2, config)
+
+    def store_one_cursor(self, c, i):
+        c[self.key(i)] = self.value(i)
+
+    def store_range(self, key, count):
+        c = self.open_cursor()
+        for i in range(key, key + count):
+            # Flush the data to tiered storage.
+            if self.tier_share_value != 0 and self.tier_share_value == i:
+                self.testcase.session.checkpoint('flush_tier=(enabled,force=true)')
+            # Move the data from local cache to local disk by checkpointing and
+            # re-opening a connection.
+            if self.tier_cache_value != 0 and self.tier_cache_value == i:
+                c.close()
+                self.testcase.session.checkpoint('force=true')
+                self.testcase.reopen_conn()
+                c = self.open_cursor()
+            self.store_one_cursor(c, i)
         c.close()
 
-    def postfill(self):
+    def fill(self):
+        self.store_range(1, self.rows)
+
+    def postfill_create(self):
         pass
 
     @classmethod
     def is_lsm(cls):
         return False
 
-    def populate(self):
+    def populate(self, create=True):
         self.testcase.pr('populate: ' + self.uri + ' with '
                          + str(self.rows) + ' rows')
-        self.create()
+        if create:
+            self.create()
         self.fill()
-        self.postfill()
+        if create:
+            self.postfill_create()
 
     # Create a key for a Simple or Complex data set.
     @staticmethod
@@ -81,6 +124,11 @@ class BaseDataSet(object):
         else:
             raise AssertionError(
                 'key: object has unexpected format: ' + key_format)
+
+    # Deduce the source integer for a key in a Simple or Complex data set.
+    @staticmethod
+    def reverse_key_by_format(key, key_format):
+        return int(key)
 
     # Create a value for a Simple data set.
     @staticmethod
@@ -114,8 +162,7 @@ class BaseDataSet(object):
 
     def check(self):
         self.testcase.pr('check: ' + self.uri)
-        cursor = self.testcase.session.open_cursor(
-            self.uri + self.projection, None, None)
+        cursor = self.open_cursor(self.uri + self.projection)
         self.check_cursor(cursor)
         cursor.close()
 
@@ -182,7 +229,7 @@ class SimpleIndexDataSet(SimpleDataSet):
         BaseDataSet.check(self)
 
         # Check values in the index.
-        idxcursor = self.testcase.session.open_cursor(self.indexname)
+        idxcursor = self.open_cursor(self.indexname)
         for i in range(1, self.rows + 1):
             k = self.key(i)
             v = self.value(i)
@@ -247,7 +294,7 @@ class ComplexDataSet(BaseDataSet):
             session.create('index:' + tablepart + index[0],
                            ',columns=(' + index[1] + '),' + self.config)
 
-    def postfill(self):
+    def postfill_create(self):
         # add some indices after filling the table
         tablepart = self.uri.split(":")[1] + ':'
         session = self.testcase.session
@@ -270,10 +317,16 @@ class ComplexDataSet(BaseDataSet):
     # A value suitable for checking the value returned by a cursor, as
     # cursor.get_value() returns a list.
     def comparable_value(self, i):
-        return [str(i) + ': abcdefghijklmnopqrstuvwxyz'[0:i%26],
-                i,
-                str(i) + ': abcdefghijklmnopqrstuvwxyz'[0:i%23],
-                str(i) + ': abcdefghijklmnopqrstuvwxyz'[0:i%18]]
+        # Most of these columns are the keys for indices.  To make sure our indices
+        # are ordered in a different order than the main btree, we'll reverse some
+        # decimal strings to produce the column values.
+        reversed = str(i)[::-1]
+        reversed18 = str(i*18)[::-1]
+        reversed23 = str(i*23)[::-1]
+        return [reversed + ': abcdefghijklmnopqrstuvwxyz'[0:i%26],    # column2
+                int(reversed),                                        # column3
+                reversed23 + ': abcdefghijklmnopqrstuvwxyz'[0:i%23],  # column4
+                reversed18 + ': abcdefghijklmnopqrstuvwxyz'[0:i%18]]  # column5
 
     # A value suitable for assigning to a cursor, as cursor.set_value() expects
     # a tuple when it is used with a single argument and the value is composite.
@@ -382,7 +435,7 @@ class ProjectionIndexDataSet(BaseDataSet):
         BaseDataSet.check(self)
 
         # Check values in the index.
-        idxcursor = self.testcase.session.open_cursor(
+        idxcursor = self.open_cursor(
             self.indexname + '(v1,k,v2,v0)')
         self.check_index_cursor(idxcursor)
         idxcursor.close()
@@ -392,6 +445,112 @@ class ProjectionIndexDataSet(BaseDataSet):
 
     def index_name(self, i):
         return self.indexname
+
+# A data set based on ComplexDataSet that allows large values (depending on a multiplier),
+# the ability to update keys with different values, and track the expected value for each key.
+class TrackedComplexDataSet(ComplexDataSet):
+    alphabet = 'abcdefghijklmnopqrstuvwxyz'
+
+    def __init__(self, testcase, uri, multiplier, **kwargs):
+        super(TrackedComplexDataSet, self).__init__(testcase, uri, 0, **kwargs)
+        self.multiplier = multiplier
+        self.track_values = dict()
+        self.refstr = ': ' + self.alphabet * multiplier
+
+    def store_count(self, i):
+        try:
+            return self.track_values[i]
+        except:
+            return 0
+
+    # override
+    def store_one_cursor(self, c, i):
+        self.track_values[i] = self.store_count(i) + 1
+        super().store_one_cursor(c, i)
+
+    # Redefine the value stored to get bigger depending on the multiplier,
+    # and to mix up the value depending on how many times it has been updated.
+    #
+    # If multiplier is 0, use the basic value used by ComplexDataSet.
+    # In this case, since it doesn't rely on the number of stores, updates
+    # of the same key will store the same value each time.
+    def comparable_value(self, i):
+        if self.multiplier == 0:
+            return ComplexDataSet.comparable_value(self, i)
+        nstores = self.store_count(i)
+        m = self.multiplier
+        bigi = i * m + nstores
+        return [str(i) + self.refstr[0 : bigi % (26*m)],
+                i,
+                str(i) + self.refstr[0 : bigi % (23*m)],
+                str(i) + self.refstr[0 : bigi % (18*m)]]
+
+    def check_cursor(self, cursor):
+        expect = dict(self.track_values)
+        for key, s1, i2, s3, s4 in cursor:
+            i = BaseDataSet.reverse_key_by_format(key, self.key_format)
+            v = self.value(i)
+            #self.testcase.tty('KEY: {} -> {}'.format(key, i))
+            #self.testcase.tty('GOT: {},{},{},{}'.format(s1, i2, s3, s4))
+            #self.testcase.tty('EXPECT: {}'.format(v))
+            self.testcase.assertEqual(s1, v[0])
+            self.testcase.assertEqual(i2, v[1])
+            self.testcase.assertEqual(s3, v[2])
+            self.testcase.assertEqual(s4, v[3])
+            self.testcase.assertTrue(i in expect)
+            del expect[i]
+        self.testcase.assertEqual(len(expect), 0)
+
+# A data set based on SimpleDataSet that allows large values (depending on a multiplier),
+# the ability to update keys with different values, and track the expected value for each key.
+class TrackedSimpleDataSet(SimpleDataSet):
+    alphabet = 'abcdefghijklmnopqrstuvwxyz'
+
+    def __init__(self, testcase, uri, multiplier, **kwargs):
+        super(TrackedSimpleDataSet, self).__init__(testcase, uri, 0, **kwargs)
+        self.multiplier = multiplier
+        self.track_values = dict()
+        self.refstr = ': ' + self.alphabet * multiplier
+
+    def store_count(self, i):
+        try:
+            return self.track_values[i]
+        except:
+            return 0
+
+    # override
+    def store_one_cursor(self, c, i):
+        self.track_values[i] = self.store_count(i) + 1
+        super().store_one_cursor(c, i)
+
+    # Redefine the value stored to get bigger depending on the multiplier,
+    # and to mix up the value depending on how many times it has been updated.
+    #
+    # If multiplier is 0, use the basic value used by SimpleDataSet.
+    # In this case, since it doesn't rely on the number of stores, updates
+    # of the same key will store the same value each time.
+    def comparable_value(self, i):
+        if self.multiplier == 0:
+            return SimpleDataSet.comparable_value(self, i)
+        nstores = self.store_count(i)
+        m = self.multiplier
+        bigi = i * m + nstores
+        return str(i) + self.refstr[0 : bigi % (26*m)]
+
+    def value(self, i):
+        return self.comparable_value(i)
+
+    def check_cursor(self, cursor):
+        expect = dict(self.track_values)
+        for key, s in cursor:
+            i = BaseDataSet.reverse_key_by_format(key, self.key_format)
+            v = self.value(i)
+            #self.testcase.tty('KEY: {} -> {}'.format(key, i))
+            #self.testcase.tty('GOT: {}'.format(s))
+            #self.testcase.tty('EXPECT: {}'.format(v))
+            self.testcase.assertEqual(s, v)
+            del expect[i]
+        self.testcase.assertEqual(len(expect), 0)
 
 # create a key based on a cursor as a shortcut to creating a SimpleDataSet
 def simple_key(cursor, i):

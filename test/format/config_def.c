@@ -6,9 +6,6 @@ CONFIG configuration_list[] = {
   {"assert.read_timestamp", "assert read_timestamp",
     C_BOOL, 2, 0, 0, V_GLOBAL_ASSERT_READ_TIMESTAMP},
 
-  {"assert.write_timestamp", "set write_timestamp_usage and assert write_timestamp",
-    C_BOOL, 2, 0, 0, V_GLOBAL_ASSERT_WRITE_TIMESTAMP},
-
   {"backup", "configure backups",
     C_BOOL, 20, 0, 0, V_GLOBAL_BACKUP},
 
@@ -102,6 +99,12 @@ CONFIG configuration_list[] = {
   {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured",
     0x0, 5, 100, 3600, V_GLOBAL_CHECKPOINT_WAIT},
 
+  {"debug.realloc_exact", "reallocation of memory will only provide the exact amount requested",
+    C_BOOL, 0, 0, 0, V_GLOBAL_DEBUG_REALLOC_EXACT},
+
+  {"debug.realloc_malloc", "every realloc call will force a new memory allocation by using malloc",
+    C_BOOL, 5, 0, 0, V_GLOBAL_DEBUG_REALLOC_MALLOC},
+
   {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)",
     C_IGNORE | C_STRING | C_TABLE, 0, 0, 0, V_TABLE_DISK_CHECKSUM},
 
@@ -134,7 +137,7 @@ CONFIG configuration_list[] = {
 
 /*
  * 0%
- * FIXME-WT-7510: Temporarily disable import until WT_ROLLBACK error and wt_copy_and_sync error is
+ * FIXME-WT-7418: Temporarily disable import until WT_ROLLBACK error and wt_copy_and_sync error is
  * fixed. It should be (C_BOOL, 20, 0, 0).
  */
   {"import", "import table from newly created database",
@@ -142,9 +145,6 @@ CONFIG configuration_list[] = {
 
   {"logging", "configure logging",
     C_BOOL, 50, 0, 0, V_GLOBAL_LOGGING},
-
-  {"logging.archive", "configure log file archival",
-    C_BOOL, 50, 0, 0, V_GLOBAL_LOGGING_ARCHIVE},
 
   {"logging.compression", "logging compression (off | lz4 | snappy | zlib | zstd)",
     C_IGNORE | C_STRING, 0, 0, 0, V_GLOBAL_LOGGING_COMPRESSION},
@@ -154,6 +154,9 @@ CONFIG configuration_list[] = {
 
   {"logging.prealloc", "configure log file pre-allocation",
     C_BOOL, 50, 0, 0, V_GLOBAL_LOGGING_PREALLOC},
+
+  {"logging.remove", "configure log file removal",
+    C_BOOL, 50, 0, 0, V_GLOBAL_LOGGING_REMOVE},
 
   {"lsm.auto_throttle", "throttle LSM inserts",
     C_BOOL | C_TABLE | C_TYPE_LSM, 90, 0, 0, V_TABLE_LSM_AUTO_THROTTLE},
@@ -203,6 +206,9 @@ CONFIG configuration_list[] = {
   {"ops.pct.write", "update operations (percentage)",
     C_IGNORE | C_TABLE, 0, 0, 100, V_TABLE_OPS_PCT_WRITE},
 
+  {"ops.bound_cursor", "configure bound cursor reads",
+    C_BOOL, 5, 0, 0, V_GLOBAL_OPS_BOUND_CURSOR},
+
   {"ops.prepare", "configure transaction prepare",
     C_BOOL, 5, 0, 0, V_GLOBAL_OPS_PREPARE},
 
@@ -227,6 +233,9 @@ CONFIG configuration_list[] = {
   {"runs.ops", "operations per run",
     0x0, 0, M(2), M(100), V_GLOBAL_RUNS_OPS},
 
+  {"runs.mirror", "mirror tables",
+    C_BOOL | C_IGNORE | C_TABLE, 0, 0, 0, V_TABLE_RUNS_MIRROR},
+
   {"runs.rows", "number of rows",
     C_TABLE, 10, M(1), M(100), V_TABLE_RUNS_ROWS},
 
@@ -248,23 +257,23 @@ CONFIG configuration_list[] = {
   {"runs.verify_failure_dump", "configure page dump on repeatable read error",
     C_BOOL | C_IGNORE, 0, 0, 1, V_GLOBAL_RUNS_VERIFY_FAILURE_DUMP},
 
-  {"statistics", "configure statistics",
-    C_BOOL, 20, 0, 0, V_GLOBAL_STATISTICS},
-
-  {"statistics.server", "configure statistics server thread",
-    C_BOOL, 5, 0, 0, V_GLOBAL_STATISTICS_SERVER},
-
   {"stress.aggressive_sweep", "stress aggressive sweep",
     C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_AGGRESSIVE_SWEEP},
 
   {"stress.checkpoint", "stress checkpoints",
     C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_CHECKPOINT},
 
-  {"stress.checkpoint_reserved_txnid_delay", "stress checkpoint invisible transaction id delay",
-    C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_CHECKPOINT_RESERVED_TXNID_DELAY},
+  {"stress.checkpoint_evict_page", "stress force checkpoint to evict all reconciling pages",
+    C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_CHECKPOINT_EVICT_PAGE},
 
   {"stress.checkpoint_prepare", "stress checkpoint prepare",
     C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_CHECKPOINT_PREPARE},
+
+  {"stress.evict_reposition", "stress evict reposition",
+    C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_EVICT_REPOSITION},
+
+  {"stress.failpoint_eviction_fail_after_reconciliation", "stress failpoint eviction fail after reconciliation",
+    C_BOOL, 30, 0, 0, V_GLOBAL_STRESS_FAILPOINT_EVICTION_FAIL_AFTER_RECONCILIATION},
 
   {"stress.failpoint_hs_delete_key_from_ts", "stress failpoint history store delete key from ts",
     C_BOOL, 30, 0, 0, V_GLOBAL_STRESS_FAILPOINT_HS_DELETE_KEY_FROM_TS},
@@ -277,6 +286,9 @@ CONFIG configuration_list[] = {
 
   {"stress.hs_sweep", "stress history store sweep",
     C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_HS_SWEEP},
+
+  {"stress.sleep_before_read_overflow_onpage", "stress onpage overflow read race with checkpoint",
+    C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE},
 
   {"stress.split_1", "stress splits (#1)",
     C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_SPLIT_1},

@@ -227,10 +227,16 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
 #define WT_PAUSE() __asm__ volatile("isb" ::: "memory")
 
 /*
- * dmb are chosen here because they are sufficient to guarantee the ordering described above. We
- * don't want to use dsbs because they provide a much stronger guarantee of completion which isn't
- * required. Additionally, dsbs synchronize other system activities such as tlb and cache
- * maintenance instructions which is not required in this case.
+ * ARM offers three barrier types:
+ *   isb - instruction synchronization barrier
+ *   dmb - data memory barrier
+ *   dsb - data synchronization barrier
+ *
+ * To implement memory barriers for WiredTiger, we need at-least the dmb. dmb are sufficient to
+ * guarantee the ordering described above. We don't want to use dsbs because they provide a much
+ * stronger guarantee of completion which isn't required. Additionally, dsbs synchronize other
+ * system activities such as tlb and cache maintenance instructions which is not required in this
+ * case.
  *
  * A shareability domain of inner-shareable is selected because all the entities participating in
  * the ordering requirements are CPUs and ordering with respect to other devices or memory-types
@@ -242,11 +248,11 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     } while (0)
 #define WT_READ_BARRIER()                           \
     do {                                            \
-        __asm__ volatile("dsb ishld" ::: "memory"); \
+        __asm__ volatile("dmb ishld" ::: "memory"); \
     } while (0)
 #define WT_WRITE_BARRIER()                          \
     do {                                            \
-        __asm__ volatile("dsb ishst" ::: "memory"); \
+        __asm__ volatile("dmb ishst" ::: "memory"); \
     } while (0)
 
 #elif defined(__s390x__)
@@ -278,6 +284,44 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
 #define WT_WRITE_BARRIER()                 \
     do {                                   \
         __asm__ volatile("" ::: "memory"); \
+    } while (0)
+
+#elif defined(__riscv) && (__riscv_xlen == 64)
+
+/*
+ * There is a `pause` instruction which has been recently adopted for RISC-V but it does not appear
+ * that compilers support it yet. See:
+ *
+ * https://riscv.org/announcements/2021/02/
+ *    risc-v-international-unveils-fast-track-architecture-
+ *    extension-process-and-ratifies-zihintpause-extension
+ *
+ * Once compiler support is ready, this can and should be replaced with `pause` to enable more
+ * efficient spin locks.
+ */
+#define WT_PAUSE() __asm__ volatile("nop" ::: "memory")
+
+/*
+ * The RISC-V fence instruction is documented here:
+ *
+ * https://five-embeddev.com/riscv-isa-manual/latest/memory.html#sec:mm:fence
+ *
+ * On RISC-V, the fence instruction takes explicit flags that indicate the predecessor and successor
+ * sets. Based on the file comment description of WT_READ_BARRIER and WT_WRITE_BARRIER, those
+ * barriers only synchronize read/read and write/write respectively. The predecessor and successor
+ * sets here are selected to match that description.
+ */
+#define WT_FULL_BARRIER()                              \
+    do {                                               \
+        __asm__ volatile("fence rw, rw" ::: "memory"); \
+    } while (0)
+#define WT_READ_BARRIER()                            \
+    do {                                             \
+        __asm__ volatile("fence r, r" ::: "memory"); \
+    } while (0)
+#define WT_WRITE_BARRIER()                           \
+    do {                                             \
+        __asm__ volatile("fence w, w" ::: "memory"); \
     } while (0)
 
 #else

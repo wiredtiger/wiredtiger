@@ -8,6 +8,10 @@
 
 #include "util.h"
 
+/*
+ * usage --
+ *     Display a usage message for the printlog command.
+ */
 static int
 usage(void)
 {
@@ -24,6 +28,10 @@ usage(void)
     return (1);
 }
 
+/*
+ * util_printlog --
+ *     The printlog command.
+ */
 int
 util_printlog(WT_SESSION *session, int argc, char *argv[])
 {

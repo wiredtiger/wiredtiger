@@ -222,6 +222,8 @@ __compact_walk_internal(WT_SESSION_IMPL *session, WT_REF *parent)
     WT_REF *ref;
     bool overall_progress, skipp;
 
+    WT_ASSERT(session, F_ISSET(parent, WT_REF_FLAG_INTERNAL));
+
     ref = NULL; /* [-Wconditional-uninitialized] */
 
     /*
@@ -276,10 +278,12 @@ err:
  *     Skip leaf pages, all we want are internal pages.
  */
 static int
-__compact_walk_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *skipp)
+__compact_walk_page_skip(
+  WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool visible_all, bool *skipp)
 {
     WT_UNUSED(context);
     WT_UNUSED(session);
+    WT_UNUSED(visible_all);
 
     /* All we want are the internal pages. */
     *skipp = F_ISSET(ref, WT_REF_FLAG_LEAF) ? true : false;
@@ -336,6 +340,13 @@ __wt_compact(WT_SESSION_IMPL *session)
         if (++i > 100) {
             bm->compact_progress(bm, session, &msg_count);
             WT_ERR(__wt_session_compact_check_timeout(session));
+            if (session->event_handler->handle_general != NULL) {
+                ret = session->event_handler->handle_general(session->event_handler,
+                  &(S2C(session))->iface, &session->iface, WT_EVENT_COMPACT_CHECK, NULL);
+                /* If the user's handler returned non-zero we return WT_ERROR to the caller. */
+                if (ret != 0)
+                    WT_ERR_MSG(session, WT_ERROR, "compact interrupted by application");
+            }
 
             if (__wt_cache_stuck(session))
                 WT_ERR(EBUSY);
@@ -354,12 +365,20 @@ __wt_compact(WT_SESSION_IMPL *session)
          * already in memory, and if a page is read, set its generation to a low value so it is
          * evicted quickly.
          */
-        WT_ERR(__wt_tree_walk_custom_skip(
-          session, &ref, __compact_walk_page_skip, NULL, WT_READ_NO_GEN | WT_READ_WONT_NEED));
+        WT_ERR(__wt_tree_walk_custom_skip(session, &ref, __compact_walk_page_skip, NULL,
+          WT_READ_NO_GEN | WT_READ_WONT_NEED | WT_READ_VISIBLE_ALL));
         if (ref == NULL)
             break;
 
-        WT_WITH_PAGE_INDEX(session, ret = __compact_walk_internal(session, ref));
+        /*
+         * The compact walk only flags internal pages for review, but there is a rare case where an
+         * WT_REF in the WT_REF_DISK state pointing to an internal page, can transition to a leaf
+         * page when it is being read in. Handle that here, by re-checking the page type now that
+         * the page is in memory.
+         */
+        if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+            WT_WITH_PAGE_INDEX(session, ret = __compact_walk_internal(session, ref));
+
         WT_ERR(ret);
     }
 

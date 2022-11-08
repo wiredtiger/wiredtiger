@@ -28,8 +28,8 @@ extern int __wt_posix_directory_list_single(WT_FILE_SYSTEM *file_system, WT_SESS
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_posix_file_extend(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
   wt_off_t offset) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_posix_map(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void *mapped_regionp,
-  size_t *lenp, void *mapped_cookiep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_posix_map(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void **mapped_regionp,
+  size_t *lenp, void **mapped_cookiep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_posix_map_discard(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void *map,
   size_t length, void *mapped_cookie) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_posix_map_preload(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, const void *map,
@@ -65,3 +65,8 @@ extern void __wt_stream_set_no_buffer(FILE *fp) WT_GCC_FUNC_DECL_ATTRIBUTE((visi
 extern void __wt_thread_id(uintmax_t *id) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_unmap_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session);
 extern void __wt_yield(void) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
+extern void __wt_yield_no_barrier(void) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
+
+#ifdef HAVE_UNITTEST
+
+#endif

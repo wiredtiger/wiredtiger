@@ -32,7 +32,7 @@ __wt_config_collapse(WT_SESSION_IMPL *session, const char **cfg, char **config_r
 
     *config_ret = NULL;
 
-    WT_RET(__wt_scr_alloc(session, 0, &tmp));
+    WT_RET(__wt_scr_alloc(session, 1024, &tmp));
 
     __wt_config_init(session, &cparser, cfg[0]);
     while ((ret = __wt_config_next(&cparser, &k, &v)) == 0) {
@@ -40,14 +40,10 @@ __wt_config_collapse(WT_SESSION_IMPL *session, const char **cfg, char **config_r
             WT_ERR_MSG(session, EINVAL, "Invalid configuration key found: '%s'", k.str);
         WT_ERR(__wt_config_get(session, cfg, &k, &v));
         /* Include the quotes around string keys/values. */
-        if (k.type == WT_CONFIG_ITEM_STRING) {
-            --k.str;
-            k.len += 2;
-        }
-        if (v.type == WT_CONFIG_ITEM_STRING) {
-            --v.str;
-            v.len += 2;
-        }
+        if (k.type == WT_CONFIG_ITEM_STRING)
+            WT_CONFIG_PRESERVE_QUOTES(session, &k);
+        if (v.type == WT_CONFIG_ITEM_STRING)
+            WT_CONFIG_PRESERVE_QUOTES(session, &v);
         WT_ERR(__wt_buf_catfmt(session, tmp, "%.*s=%.*s,", (int)k.len, k.str, (int)v.len, v.str));
     }
 
@@ -112,8 +108,8 @@ __config_merge_scan(
     WT_DECL_RET;
     size_t len;
 
-    WT_ERR(__wt_scr_alloc(session, 0, &kb));
-    WT_ERR(__wt_scr_alloc(session, 0, &vb));
+    WT_ERR(__wt_scr_alloc(session, 1024, &kb));
+    WT_ERR(__wt_scr_alloc(session, 1024, &vb));
 
     __wt_config_init(session, &cparser, value);
     while ((ret = __wt_config_next(&cparser, &k, &v)) == 0) {
@@ -121,14 +117,10 @@ __config_merge_scan(
             WT_ERR_MSG(session, EINVAL, "Invalid configuration key found: '%s'", k.str);
 
         /* Include the quotes around string keys/values. */
-        if (k.type == WT_CONFIG_ITEM_STRING) {
-            --k.str;
-            k.len += 2;
-        }
-        if (v.type == WT_CONFIG_ITEM_STRING) {
-            --v.str;
-            v.len += 2;
-        }
+        if (k.type == WT_CONFIG_ITEM_STRING)
+            WT_CONFIG_PRESERVE_QUOTES(session, &k);
+        if (v.type == WT_CONFIG_ITEM_STRING)
+            WT_CONFIG_PRESERVE_QUOTES(session, &v);
 
         /*
          * !!!

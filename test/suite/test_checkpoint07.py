@@ -29,13 +29,11 @@
 # test_checkpoint07.py
 # Test that the checkpoints timing statistics are populated as expected.
 
-import wiredtiger, wttest
+import wttest
 from wiredtiger import stat
-from wtdataset import SimpleDataSet
 
 class test_checkpoint07(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
-    session_config = 'isolation=snapshot'
+    conn_config = 'cache_size=50MB,statistics=(all)'
 
     def get_stat(self, uri):
         stat_uri = 'statistics:' + uri

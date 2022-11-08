@@ -10,6 +10,10 @@
 
 static int copy(WT_SESSION *, const char *, const char *);
 
+/*
+ * usage --
+ *     Display a usage message for the backup command.
+ */
 static int
 usage(void)
 {
@@ -20,6 +24,10 @@ usage(void)
     return (1);
 }
 
+/*
+ * util_backup --
+ *     The backup command.
+ */
 int
 util_backup(WT_SESSION *session, int argc, char *argv[])
 {
@@ -86,6 +94,10 @@ err:
     return (ret);
 }
 
+/*
+ * copy --
+ *     Copy a file.
+ */
 static int
 copy(WT_SESSION *session, const char *directory, const char *name)
 {

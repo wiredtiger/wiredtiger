@@ -6,6 +6,10 @@ engineer wanting to understand how the storage engine works. The goal
 of this guide is to help both MongoDB engineers and external users
 quickly understand the workings of WiredTiger.
 
+\warning
+The Architecture Guide is not updated in lockstep with the code base and is not
+necessarily correct or complete for any specific release.
+
 The relationships between the software components in WiredTiger are
 illustrated in the diagram below. An arrow originating at Component A
 and pointing to Component B indicates that Component B is used by
@@ -138,8 +142,10 @@ of the documentation.
     - @ref arch-session
     - @ref arch-cursor
     - @ref arch-transaction
+    - @ref arch-timestamp
     - @ref arch-snapshot
     - @ref arch-rts
+    - @ref arch-fast-truncate
 
 - @subpage arch-toc-data-org
     - @ref arch-schema
@@ -157,6 +163,7 @@ of the documentation.
 - @subpage arch-toc-mem-disk
     - @ref arch-block
     - @ref arch-data-file
+    - @ref arch-s3-extension
 
 - @subpage arch-toc-on-disk
     - @ref arch-checkpoint
@@ -196,6 +203,9 @@ of the documentation.
 - Transactions provide a powerful abstraction for multiple threads to
 operate on data concurrently.
 
+@subpage arch-timestamp
+- The timestamp data model.
+
 @subpage arch-snapshot
 - Snapshots are implemented by storing transaction ids committed before
 the transaction started.
@@ -203,6 +213,10 @@ the transaction started.
 @subpage arch-rts
 - Rollback the database to a stable state by removing data that is beyond the
 stable timestamp.
+
+@subpage arch-fast-truncate
+- Delete whole pages at once without reading them, and handling of
+such pages.
 
 */
 
@@ -259,6 +273,10 @@ The block manager manages the reading and writing of disk blocks.
 @subpage arch-data-file
 
 The format of the data file is given by structures in \c block.h .
+
+@subpage arch-s3-extension
+
+The S3 storage source extension manages flushing the data files to and reading from the S3 cloud object store.
 
 */
 

@@ -8,6 +8,10 @@
 
 #include "util.h"
 
+/*
+ * usage --
+ *     Display a usage message for the rename command.
+ */
 static int
 usage(void)
 {
@@ -15,6 +19,10 @@ usage(void)
     return (1);
 }
 
+/*
+ * util_rename --
+ *     The rename command.
+ */
 int
 util_rename(WT_SESSION *session, int argc, char *argv[])
 {

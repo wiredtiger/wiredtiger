@@ -13,19 +13,13 @@ type doxygen > /dev/null 2>&1 || {
 	exit 0
 }
 
+# Don't create Python bytecode files, we don't run this regularly and it gets flagged by git as an
+# untracked file.
+export PYTHONDONTWRITEBYTECODE=1
+
 . ../RELEASE_INFO
 
 e=0
-
-changelog()
-{
-	# convert the top-level NEWS file into a change log page in the docs
-	(echo "WiredTiger Change Log"
-	 echo "====================="
-	 echo
-	 sed -e 's, \([0-9a-f]\{7\}\) , [\1](https://github.com/wiredtiger/wiredtiger/commit/\1) ,g' \
-	     -e 's,\(\(WT\|SERVER\)-[0-9]*\),[\1](https://jira.mongodb.org/browse/\1),g' ../NEWS) > ../src/docs/changelog.md
-}
 
 wtperf_config()
 {
@@ -90,28 +84,29 @@ structurechk()
 	}
 }
 
-asciichk()
-{
-    # Make sure there are only ASCII characters in the input files.
-    # Odd characters can cause our Python filter to fail.
-    (cd ../src/docs && LC_ALL=C grep -n '[^[:print:]	]' *.dox | cat -v) > $t
-    test -s $t && {
-	echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-	echo 'Non-ASCII content in src/docs/*.dox files is not allowed.'
-	sed -e 's/^/	/' < $t
-	echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-	e=1
-    }
-}
-
 spellchk()
 {
 	# If aspell has been installed, run a spell check.
 	type aspell > /dev/null 2>&1 || return
 
 	(cd ../src/docs &&
-	# Separate quoted newlines "line\nline" so "nline" is not reported.
-	sed -e 's/\("[^"]*\)\\n\([^"]*"\)/\1 \2/' -e 's/[@\\]sic  *\([^ ]*\) //g' *.dox | \
+	# - Separate quoted newlines "line\nline" so "nline" is not reported.
+	# - Specifically ignore anything tagged @sic.
+	# - Specifically hide certain valid uses of the strings "curprev",
+	#   "curnext", "dsk", and "vrfy" so we can refer to the source files
+	#   and their function names in the architecture docs without making
+	#   "vrfy" and "dsk" legal spelling words.
+	sed \
+		-e 's/\("[^"]*\)\\n\([^"]*"\)/\1 \2/' \
+		-e 's/[@\\]sic  *\([^ ]*\) //g' \
+		-e 's/bt_curnext\.c/filename.c/g' \
+		-e 's/bt_curprev\.c/filename.c/g' \
+		-e 's/bt_vrfy\.c/filename.c/g' \
+		-e 's/bt_vrfy_dsk\.c/filename.c/g' \
+		-e 's/__verify_dsk_/__verify_disk_/g' \
+		-e 's/__wt_dsk_/__wt_disk_/g' \
+		-e 's/__wt_verify_dsk/__wt_verify_disk/g' \
+	   *.dox | tee yogbert | \
 	aspell --encoding=iso-8859-1 --lang=en_US --personal=./spell.ok list) |
 	sort -u > $t
 	test -s $t && {
@@ -132,11 +127,24 @@ valid_build()
 		echo 'Unreferenced page: see docs/pages.html for the list.'
 		e=1
 	}
+
 	classf=`ls ../docs/struct___* 2>/dev/null`
 	for c in $classf; do
-		echo "$c: Add class to PREDEFINED in src/docs/Doxyfile, then remove docs/*.{html,js} and rebuild"
-
+		echo "$c: Add class to PREDEFINED in src/docs/$doxyfile, then remove docs/*.{html,js} and rebuild"
 	done
+
+	# Complain if \c markdown isn't right.
+	grep '=</code>(' ../docs/*.html > $t
+	test -s $t && {
+	    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	    echo "Some <code> markup fragments are not correctly quoted, the output switched into"
+	    echo "typewrite format and then switched out of typewrite format before the fragment"
+	    echo "was complete. Probably a \\\c command that didn't span a parenthesis character."
+	    echo
+	    cat $t
+	    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	    e=1
+	}
 }
 
 check_docs_data()
@@ -162,7 +170,7 @@ build()
 	# by swig does not have named arguments, but we want to document them
 	# as if they do.
 	(cd ../src/docs &&
-	    (eval cat Doxyfile $filter ; cat <<EOF
+	    (eval cat $doxyfile $filter ; cat <<EOF
 QUIET=YES
 EOF
 ) | doxygen -
@@ -199,6 +207,16 @@ EOF
 	fi
 }
 
+# Do not build the documentation if doxygen version is not compatible.
+v=$(doxygen --version)
+case "$v" in
+    1.8.17) doxyfile="Doxyfile";;
+    1.9.*) doxyfile="Doxyfile.9";;
+    *)
+        echo "$0 skipped: unsupported version of doxygen: $v, not 1.8.17 or 1.9.XX"
+        exit 0
+esac
+
 clean=0
 additional_languages=1
 filter="|sed '/PROJECT_BRIEF/s,=.*,=\"$WIREDTIGER_VERSION\",'"
@@ -210,7 +228,7 @@ while :
 		shift;;
 	-l)	# Generate the top-level landing page in ../docs/top
 		filter="$filter| sed '/GENERATE_MAN/s,=.*,=NO,';"
-		filter="$filter cat top/Doxyfile"
+		filter="$filter cat top/$doxyfile"
 		additional_languages=0
 		shift;;
 	-p)	# Generate PDFs
@@ -231,14 +249,10 @@ while :
 	esac
 done
 
-# Generate the change log
-changelog
-
 # Generate the list of wtperf configuration options.
 wtperf_config
 
 # Spell and structure check the documentation.
-asciichk
 spellchk
 structurechk
 glossarychk
@@ -249,13 +263,6 @@ check_docs_data
 # Do not build the doc if we get warnings.
 if [ $e != 0 ]; then
     exit $e
-fi
-
-# Do not build the documentation if Doxygen version is not compatible.
-v=$(doxygen --version)
-if [ "$v" != "1.8.17" ]; then
-    echo "$0 skipped: unsupported version of doxygen"
-    exit 0
 fi
 
 # Build the documentation.

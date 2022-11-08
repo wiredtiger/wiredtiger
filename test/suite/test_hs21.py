@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import time, re
-import wiredtiger, wttest
+import wttest
 from wtdataset import SimpleDataSet
 from wiredtiger import stat
 from wtscenario import make_scenarios
@@ -42,7 +42,6 @@ class test_hs21(wttest.WiredTigerTestCase):
     # Configure handle sweeping to occur within a specific amount of time.
     conn_config = 'file_manager=(close_handle_minimum=0,close_idle_time=2,close_scan_interval=1),' + \
             'statistics=(all),operation_tracking=(enabled=false)'
-    session_config = 'isolation=snapshot'
     file_name = 'test_hs21'
     numfiles = 10
     nrows = 1000
@@ -146,7 +145,7 @@ class test_hs21(wttest.WiredTigerTestCase):
             # Check that all updates at timestamp 2 are seen.
             self.check(session_read, value1, ds.uri, self.nrows // 2)
 
-        # Perform a series of updates over over files at a later timestamp. Checking the history store data is consistent
+        # Perform a series of updates over files at a later timestamp. Checking the history store data is consistent
         # with old and new timestamps.
         for (_, ds) in active_files:
             # Load more data with a later timestamp.

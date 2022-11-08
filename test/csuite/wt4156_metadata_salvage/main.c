@@ -50,6 +50,10 @@ static bool test_abort = false;
 static bool test_out_of_sync = false;
 static WT_SESSION *wt_session;
 
+/*
+ * handle_message --
+ *     TODO: Add a comment describing this function.
+ */
 static int
 handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *message)
 {
@@ -63,7 +67,7 @@ handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const 
     return (0);
 }
 
-static WT_EVENT_HANDLER event_handler = {handle_message, NULL, NULL, NULL};
+static WT_EVENT_HANDLER event_handler = {handle_message, NULL, NULL, NULL, NULL};
 
 typedef struct table_info {
     const char *name;
@@ -169,7 +173,7 @@ create_data(TABLE_INFO *t)
 }
 
 /*
- * corrupt_metadata --
+ * corrupt_file --
  *     Corrupt the file by scribbling on the provided URI string.
  */
 static void
@@ -288,7 +292,15 @@ verify_metadata(WT_CONNECTION *conn, TABLE_INFO *tables)
         else if (t->verified != true)
             printf("%s not seen in metadata\n", t->name);
         else {
-            testutil_check(wt_session->open_cursor(wt_session, t->name, NULL, NULL, &cursor));
+            if ((ret = wt_session->open_cursor(wt_session, t->name, NULL, NULL, &cursor)) != 0) {
+                /*
+                 * It is possible for the metadata file to contain a table entry and no associated
+                 * file entry as WiredTiger didn't salvage the block associated with the file entry.
+                 */
+                if (ret == ENOENT)
+                    continue;
+                testutil_die(ret, "failed to open cursor on table");
+            }
             while ((ret = cursor->next(cursor)) == 0) {
                 testutil_check(cursor->get_value(cursor, &kv));
                 testutil_assert(strcmp(kv, VALUE) == 0);
@@ -350,7 +362,9 @@ open_with_corruption(const char *sfx)
         testutil_check(__wt_snprintf(buf, sizeof(buf), "%s", home));
 
     /* Don't abort in the diagnostic builds on detecting corruption. */
-    ret = wiredtiger_open(buf, &event_handler, "debug_mode=(corruption_abort=false)", &conn);
+    ret = wiredtiger_open(buf, &event_handler,
+      "debug_mode=(corruption_abort=false),statistics=(all),statistics_log=(json,on_close,wait=1)",
+      &conn);
 
     /*
      * Not all out of sync combinations lead to corruption. We keep the previous checkpoint in the
@@ -364,6 +378,10 @@ open_with_corruption(const char *sfx)
         testutil_check(conn->close(conn, NULL));
 }
 
+/*
+ * open_with_salvage --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 open_with_salvage(const char *sfx, TABLE_INFO *table_data)
 {
@@ -380,7 +398,8 @@ open_with_salvage(const char *sfx, TABLE_INFO *table_data)
         testutil_check(__wt_snprintf(buf, sizeof(buf), "%s.%s", home, sfx));
     else
         testutil_check(__wt_snprintf(buf, sizeof(buf), "%s", home));
-    testutil_check(wiredtiger_open(buf, &event_handler, "salvage=true", &conn));
+    testutil_check(wiredtiger_open(buf, &event_handler,
+      "salvage=true,statistics=(all),statistics_log=(json,on_close,wait=1)", &conn));
     testutil_assert(conn != NULL);
     if (sfx != NULL)
         testutil_check(__wt_snprintf(buf, sizeof(buf), "%s.%s/%s", home, sfx, WT_METAFILE_SLVG));
@@ -396,6 +415,10 @@ open_with_salvage(const char *sfx, TABLE_INFO *table_data)
     testutil_check(conn->close(conn, NULL));
 }
 
+/*
+ * open_normal --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 open_normal(const char *sfx, TABLE_INFO *table_data)
 {
@@ -407,11 +430,16 @@ open_normal(const char *sfx, TABLE_INFO *table_data)
         testutil_check(__wt_snprintf(buf, sizeof(buf), "%s.%s", home, sfx));
     else
         testutil_check(__wt_snprintf(buf, sizeof(buf), "%s", home));
-    testutil_check(wiredtiger_open(buf, &event_handler, NULL, &conn));
+    testutil_check(wiredtiger_open(
+      buf, &event_handler, "statistics=(all),statistics_log=(json,on_close,wait=1)", &conn));
     verify_metadata(conn, &table_data[0]);
     testutil_check(conn->close(conn, NULL));
 }
 
+/*
+ * run_all_verification --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 run_all_verification(const char *sfx, TABLE_INFO *t)
 {
@@ -420,6 +448,10 @@ run_all_verification(const char *sfx, TABLE_INFO *t)
     open_normal(sfx, t);
 }
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -456,7 +488,8 @@ main(int argc, char *argv[])
     home = opts->home;
     testutil_make_work_dir(home);
 
-    testutil_check(wiredtiger_open(home, &event_handler, "create", &opts->conn));
+    testutil_check(wiredtiger_open(home, &event_handler,
+      "create,statistics=(all),statistics_log=(json,on_close,wait=1)", &opts->conn));
 
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &wt_session));
     /*

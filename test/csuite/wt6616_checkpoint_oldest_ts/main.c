@@ -64,14 +64,20 @@ static const char *const ckpt_file = "checkpoint_done";
     "cache_size=50M,"                                         \
     "create,"                                                 \
     "eviction_updates_target=20,eviction_updates_trigger=90," \
-    "log=(archive=true,file_max=10M,enabled),"                \
-    "statistics=(fast),statistics_log=(wait=1,json=true),"    \
+    "log=(enabled,file_max=10M,remove=true),"                 \
+    "statistics=(all),statistics_log=(json,on_close,wait=1)," \
     "timing_stress_for_test=[checkpoint_slow]"
 
-#define ENV_CONFIG_REC "log=(archive=false,recover=on)"
+#define ENV_CONFIG_REC \
+    "log=(recover=on,remove=false),statistics=(all),statistics_log=(json,on_close,wait=1)"
 
 static void handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
+/*
+ * usage --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 usage(void)
 {
@@ -170,7 +176,7 @@ thread_run(void *arg)
         /* Remove the key using a higher timestamp. */
         testutil_check(session->begin_transaction(session, NULL));
         cursor->set_key(cursor, kname);
-        testutil_check(cursor->remove(cursor));
+        testutil_check_error_ok(cursor->remove(cursor), WT_NOTFOUND);
         testutil_check(__wt_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%" PRIx64, ts + 1));
         testutil_check(session->commit_transaction(session, tscfg));
 
@@ -185,11 +191,13 @@ thread_run(void *arg)
     /* NOTREACHED */
 }
 
-/*
- * Child process creates the database and table, and then creates the worker thread to add data
- * until it is killed by the parent.
- */
 static void run_workload(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
+/*
+ * run_workload --
+ *     Child process creates the database and table, and then creates the worker thread to add data
+ *     until it is killed by the parent.
+ */
 static void
 run_workload(void)
 {
@@ -232,7 +240,8 @@ run_workload(void)
 }
 
 /*
- * Signal handler to catch if the child died unexpectedly.
+ * handler --
+ *     Signal handler to catch if the child died unexpectedly.
  */
 static void
 handler(int sig)
@@ -248,6 +257,10 @@ handler(int sig)
 extern int __wt_optind;
 extern char *__wt_optarg;
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -265,15 +278,16 @@ main(int argc, char *argv[])
     char kname[64], statname[1024], tscfg[64];
     char ts_string[WT_TS_HEX_STRING_SIZE];
     const char *working_dir;
-    bool fatal, rand_time;
+    bool fatal, preserve, rand_time;
 
     (void)testutil_set_progname(argv);
 
+    preserve = false;
     rand_time = true;
     timeout = MIN_TIME;
     working_dir = "WT_TEST.wt6616-checkpoint-oldest-ts";
 
-    while ((ch = __wt_getopt(progname, argc, argv, "ch:t:")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "ch:pt:")) != EOF)
         switch (ch) {
         case 'c':
             /* Variable-length columns only (for now) */
@@ -281,6 +295,9 @@ main(int argc, char *argv[])
             break;
         case 'h':
             working_dir = __wt_optarg;
+            break;
+        case 'p':
+            preserve = true;
             break;
         case 't':
             rand_time = false;
@@ -355,12 +372,12 @@ main(int argc, char *argv[])
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /* Get the stable timestamp from the stable timestamp of the last successful checkpoint. */
-    testutil_check(conn->query_timestamp(conn, ts_string, "get=stable"));
-    testutil_timestamp_parse(ts_string, &stable_ts);
+    testutil_check(conn->query_timestamp(conn, ts_string, "get=stable_timestamp"));
+    stable_ts = testutil_timestamp_parse(ts_string);
 
     /* Get the oldest timestamp from the oldest timestamp of the last successful checkpoint. */
-    testutil_check(conn->query_timestamp(conn, ts_string, "get=oldest"));
-    testutil_timestamp_parse(ts_string, &oldest_ts);
+    testutil_check(conn->query_timestamp(conn, ts_string, "get=oldest_timestamp"));
+    oldest_ts = testutil_timestamp_parse(ts_string);
 
     printf("Verify data from oldest timestamp %" PRIu64 " to stable timestamp %" PRIu64 "\n",
       oldest_ts, stable_ts);
@@ -389,5 +406,12 @@ main(int argc, char *argv[])
     if (fatal)
         return (EXIT_FAILURE);
     printf("Verification successful\n");
+    if (!preserve) {
+        testutil_clean_test_artifacts(home);
+        /* At this point $PATH is inside `home`, which we intend to delete. cd to the parent dir. */
+        if (chdir("../") != 0)
+            testutil_die(errno, "root chdir: %s", home);
+        testutil_clean_work_dir(home);
+    }
     return (EXIT_SUCCESS);
 }

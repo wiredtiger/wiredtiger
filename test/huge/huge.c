@@ -59,6 +59,11 @@ static size_t lengths[] = {20,       /* Check configuration */
   0};
 
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
+/*
+ * usage --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 usage(void)
 {
@@ -73,6 +78,10 @@ usage(void)
 #define SIZET_FMT "%Iu" /* size_t format string */
 #endif
 
+/*
+ * run --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 run(CONFIG *cp, int bigkey, size_t bytes)
 {
@@ -98,7 +107,8 @@ run(CONFIG *cp, int bigkey, size_t bytes)
      * Open/create the database, connection, session and cursor; set the cache size large, we don't
      * want to try and evict anything.
      */
-    testutil_check(wiredtiger_open(home, NULL, "create,cache_size=10GB", &conn));
+    testutil_check(wiredtiger_open(home, NULL,
+      "create,cache_size=10GB,statistics=(all),statistics_log=(json,on_close,wait=1)", &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     testutil_check(session->create(session, cp->uri, cp->config));
     testutil_check(session->open_cursor(session, cp->uri, NULL, NULL, &cursor));
@@ -135,6 +145,10 @@ run(CONFIG *cp, int bigkey, size_t bytes)
 extern int __wt_optind;
 extern char *__wt_optarg;
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {

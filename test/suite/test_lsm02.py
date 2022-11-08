@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wtscenario, wttest
+import wttest
 
 # test_lsm02.py
 #    Test LSM schema level operations
@@ -62,13 +62,13 @@ class test_lsm02(wttest.WiredTigerTestCase):
     def test_lsm_rename01(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.add_key(self.uri, 'a', 'a')
-        self.session.rename(self.uri, self.uri + 'renamed', None)
+        self.renameUntilSuccess(self.session, self.uri, self.uri + 'renamed')
         self.verify_key_exists(self.uri + 'renamed', 'a', 'a')
 
     def test_lsm_rename02(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.add_key(self.uri, 'a', 'a')
-        self.session.rename(self.uri, self.uri + 'renamed', None)
+        self.renameUntilSuccess(self.session, self.uri, self.uri + 'renamed')
 
         # Create a new LSM with the original name
         self.session.create(self.uri, 'key_format=S,value_format=S')

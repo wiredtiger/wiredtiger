@@ -8,6 +8,10 @@
 
 #include "util.h"
 
+/*
+ * usage --
+ *     Display a usage message for the alter command.
+ */
 static int
 usage(void)
 {
@@ -15,6 +19,10 @@ usage(void)
     return (1);
 }
 
+/*
+ * util_alter --
+ *     The alter command.
+ */
 int
 util_alter(WT_SESSION *session, int argc, char *argv[])
 {

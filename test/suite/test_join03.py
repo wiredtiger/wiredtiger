@@ -26,8 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os
-import wiredtiger, wttest, run
+import wttest
 
 # test_join03.py
 #    Join operations
@@ -119,7 +118,7 @@ class test_join03(wttest.WiredTigerTestCase):
         c1a.close()
         c1b.close()
         c0.close()
-        self.session.drop('table:join03')
+        self.dropUntilSuccess(self.session, 'table:join03')
 
     # Test joins using CSV fields that are interpreted as different types
     # to make sure all the extractor plumbing used in joins is working.

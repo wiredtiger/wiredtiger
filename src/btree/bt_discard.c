@@ -73,9 +73,9 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
     if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD) || F_ISSET(S2C(session), WT_CONN_CLOSING))
         __wt_page_modify_clear(session, page);
 
-    /* Assert we never discard a dirty page or a page queue for eviction. */
-    WT_ASSERT(session, !__wt_page_is_modified(page));
-    WT_ASSERT(session, !F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU));
+    WT_ASSERT_ALWAYS(session, !__wt_page_is_modified(page), "Attempting to discard dirty page");
+    WT_ASSERT_ALWAYS(session, !F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU),
+      "Attempting to discard page queued for eviction");
 
     /*
      * If a root page split, there may be one or more pages linked from the page; walk the list,
@@ -165,6 +165,13 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
                 break;
             }
             __wt_free(session, multi->supd);
+            /*
+             * Discard the new disk images if they are not NULL. If the new disk images are NULL,
+             * they must have been instantiated into memory. Otherwise, we have a failure in
+             * eviction after reconciliation. If the split code only successfully instantiates a
+             * subset of new pages into memory, free the instantiated pages and the new disk images
+             * of the pages not in memory. We will redo reconciliation next time we visit this page.
+             */
             __wt_free(session, multi->disk_image);
             __wt_free(session, multi->addr.addr);
         }
@@ -174,8 +181,16 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
         /*
          * Discard any replacement address: this memory is usually moved into the parent's WT_REF,
          * but at the root that can't happen.
+         *
+         * Discard the new disk image if it is not NULL. If the new disk image is NULL, it must have
+         * been instantiated into memory. Otherwise, we have a failure in eviction after
+         * reconciliation and later we decide to discard the old disk image without loading the new
+         * disk image into memory. Free the new disk image in this case. If a checkpoint visits this
+         * page, it would write the new disk image even it hasn't been instantiated into memory.
+         * Therefore, no need to reconcile the page again if it remains clean.
          */
         __wt_free(session, mod->mod_replace.addr);
+        __wt_free(session, mod->mod_disk_image);
         break;
     }
 
@@ -215,6 +230,7 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
     __wt_ovfl_discard_free(session, page);
 
     __wt_free(session, page->modify->ovfl_track);
+    __wt_free(session, page->modify->inst_updates);
     __wt_spin_destroy(session, &page->modify->page_lock);
 
     __wt_free(session, page->modify);
@@ -294,7 +310,7 @@ __wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pa
     __wt_ref_addr_free(session, ref);
 
     /* Free any backing fast-truncate memory. */
-    __wt_free(session, ref->ft_info.del);
+    __wt_free(session, ref->page_del);
 
     __wt_overwrite_and_free_len(session, ref, WT_REF_CLEAR_SIZE);
 }

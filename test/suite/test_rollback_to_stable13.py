@@ -25,6 +25,7 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+import wttest
 from helper import simulate_crash_restart
 from test_rollback_to_stable01 import test_rollback_to_stable_base
 from wiredtiger import stat
@@ -35,12 +36,11 @@ from wtscenario import make_scenarios
 # Test the rollback to stable should retain/restore the tombstone from
 # the update list or from the history store for on-disk database.
 class test_rollback_to_stable13(test_rollback_to_stable_base):
-    session_config = 'isolation=snapshot'
 
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
         ('column_fix', dict(key_format='r', value_format='8t')),
-        ('integer_row', dict(key_format='i', value_format='S')),
+        ('row_integer', dict(key_format='i', value_format='S')),
     ]
 
     prepare_values = [
@@ -51,17 +51,17 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
     scenarios = make_scenarios(format_values, prepare_values)
 
     def conn_config(self):
-        config = 'cache_size=50MB,statistics=(all),log=(enabled=true)'
+        config = 'cache_size=50MB,statistics=(all)'
         return config
 
+    @wttest.prevent(["timestamp"])  # prevent the use of hooks that manage timestamps
     def test_rollback_to_stable(self):
         nrows = 1000
 
-        # Create a table without logging.
+        # Create a table.
         uri = "table:rollback_to_stable13"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config='split_pct=50,log=(enabled=false)')
+        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format,
+            config='split_pct=50')
         ds.populate()
 
         if self.value_format == '8t':
@@ -86,9 +86,9 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
 
         # Verify data is visible and correct.
         # (In FLCS, the removed rows should read back as zero.)
-        self.check(value_a, uri, nrows, None, 20)
-        self.check(None, uri, 0, nrows, 30)
-        self.check(value_b, uri, nrows, None, 60)
+        self.check(value_a, uri, nrows, None, 21 if self.prepare else 20)
+        self.check(None, uri, 0, nrows, 31 if self.prepare else 30)
+        self.check(value_b, uri, nrows, None, 61 if self.prepare else 60)
 
         # Pin stable to timestamp 50 if prepare otherwise 40.
         if self.prepare:
@@ -110,14 +110,14 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
         restored_tombstones = stat_cursor[stat.conn.txn_rts_hs_restore_tombstones][2]
         self.assertEqual(restored_tombstones, nrows)
 
+    @wttest.prevent(["timestamp"])  # prevent the use of hooks that manage timestamps
     def test_rollback_to_stable_with_aborted_updates(self):
         nrows = 1000
 
-        # Create a table without logging.
+        # Create a table.
         uri = "table:rollback_to_stable13"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config='split_pct=50,log=(enabled=false)')
+        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format,
+            config='split_pct=50')
         ds.populate()
 
         if self.value_format == '8t':
@@ -162,9 +162,9 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
 
         # Verify data is visible and correct.
         # (In FLCS, the removed rows should read back as zero.)
-        self.check(value_a, uri, nrows, None, 20)
-        self.check(None, uri, 0, nrows, 30)
-        self.check(value_d, uri, nrows, None, 60)
+        self.check(value_a, uri, nrows, None, 21 if self.prepare else 20)
+        self.check(None, uri, 0, nrows, 31 if self.prepare else 30)
+        self.check(value_d, uri, nrows, None, 61 if self.prepare else 60)
 
         # Pin stable to timestamp 50 if prepare otherwise 40.
         if self.prepare:
@@ -186,14 +186,14 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
         restored_tombstones = stat_cursor[stat.conn.txn_rts_hs_restore_tombstones][2]
         self.assertEqual(restored_tombstones, nrows)
 
+    @wttest.prevent(["timestamp"])  # prevent the use of hooks that manage timestamps
     def test_rollback_to_stable_with_history_tombstone(self):
         nrows = 1000
 
-        # Create a table without logging.
+        # Create a table.
         uri = "table:rollback_to_stable13"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config='split_pct=50,log=(enabled=false)')
+        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format,
+            config='split_pct=50')
         ds.populate()
 
         if self.value_format == '8t':
@@ -239,9 +239,9 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
 
         # Verify data is visible and correct.
         # (In FLCS, the removed rows should read back as zero.)
-        self.check(value_a, uri, nrows, None, 20)
-        self.check(None, uri, 0, nrows, 40)
-        self.check(value_c, uri, nrows, None, 60)
+        self.check(value_a, uri, nrows, None, 21 if self.prepare else 20)
+        self.check(None, uri, 0, nrows, 41 if self.prepare else 40)
+        self.check(value_c, uri, nrows, None, 61 if self.prepare else 60)
 
         # Simulate a server crash and restart.
         simulate_crash_restart(self, ".", "RESTART")
@@ -256,13 +256,13 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
         restored_tombstones = stat_cursor[stat.conn.txn_rts_hs_restore_tombstones][2]
         self.assertEqual(restored_tombstones, nrows)
 
+    @wttest.prevent(["timestamp"])  # prevent the use of hooks that manage timestamps
     def test_rollback_to_stable_with_stable_remove(self):
         nrows = 1000
-        # Create a table without logging.
+        # Create a table.
         uri = "table:rollback_to_stable13"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config='split_pct=50,log=(enabled=false)')
+        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format,
+            config='split_pct=50')
         ds.populate()
 
         if self.value_format == '8t':
@@ -295,9 +295,9 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
 
         # Verify data is visible and correct.
         # (In FLCS, the removed rows should read back as zero.)
-        self.check(value_a, uri, nrows, None, 20)
-        self.check(None, uri, 0, nrows, 40)
-        self.check(value_c, uri, nrows, None, 60)
+        self.check(value_a, uri, nrows, None, 21 if self.prepare else 20)
+        self.check(None, uri, 0, nrows, 41 if self.prepare else 40)
+        self.check(value_c, uri, nrows, None, 61 if self.prepare else 60)
 
         self.conn.rollback_to_stable()
         # Perform several updates and checkpoint.

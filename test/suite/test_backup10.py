@@ -27,10 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-import os, shutil
-from helper import compare_files
+import os
 from wtbackup import backup_base
-from wtdataset import simple_key
 from wtscenario import make_scenarios
 
 # test_backup10.py
@@ -43,13 +41,13 @@ class test_backup10(backup_base):
     pfx = 'test_backup'
 
     scenarios = make_scenarios([
-        ('archiving', dict(archive='true')),
-        ('not-archiving', dict(archive='false')),
+        ('removing', dict(remove='true')),
+        ('not-removing', dict(remove='false')),
     ])
 
     # Create a large cache, otherwise this test runs quite slowly.
     def conn_config(self):
-        return 'cache_size=1G,log=(archive=%s,' % self.archive + \
+        return 'cache_size=1G,log=(remove=%s,' % self.remove + \
             'enabled,file_max=%s)' % self.logmax
 
     # Run background inserts while running checkpoints repeatedly.

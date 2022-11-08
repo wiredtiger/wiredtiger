@@ -46,6 +46,10 @@
  */
 static bool expect_panic;
 
+/*
+ * handle_message --
+ *     TODO: Add a comment describing this function.
+ */
 static int
 handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *message)
 {
@@ -72,8 +76,12 @@ handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const 
     return (0);
 }
 
-static WT_EVENT_HANDLER event_handler = {handle_message, NULL, NULL, NULL};
+static WT_EVENT_HANDLER event_handler = {handle_message, NULL, NULL, NULL, NULL};
 
+/*
+ * hs_workload --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 hs_workload(TEST_OPTS *opts, const char *hs_file_max)
 {
@@ -89,7 +97,9 @@ hs_workload(TEST_OPTS *opts, const char *hs_file_max)
     testutil_make_work_dir(opts->home);
 
     testutil_check(__wt_snprintf(open_config, sizeof(open_config),
-      "create,cache_size=50MB,history_store=(file_max=%s)", hs_file_max));
+      "create,cache_size=50MB,history_store=(file_max=%s),statistics=(all),statistics_log=(json,on_"
+      "close,wait=1)",
+      hs_file_max));
 
     testutil_check(wiredtiger_open(opts->home, &event_handler, open_config, &opts->conn));
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
@@ -134,6 +144,10 @@ hs_workload(TEST_OPTS *opts, const char *hs_file_max)
     testutil_check(opts->conn->close(opts->conn, NULL));
 }
 
+/*
+ * test_hs_workload --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 test_hs_workload(TEST_OPTS *opts, const char *hs_file_max)
 {
@@ -171,6 +185,10 @@ test_hs_workload(TEST_OPTS *opts, const char *hs_file_max)
     testutil_assert(status == 0);
 }
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char **argv)
 {

@@ -68,11 +68,12 @@ static bool use_columns = false;
         ++tnext;                                                           \
     } while (0)
 
+static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
 /*
  * usage --
  *     Print usage message and exit.
  */
-static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
 usage(void)
 {
@@ -267,7 +268,7 @@ repeat(WT_SESSION *session, WT_CURSOR *c)
 }
 
 /*
- * reset --
+ * evict --
  *     Force eviction of the underlying page.
  */
 static void
@@ -307,6 +308,10 @@ trace_die(void)
         *__p = '.';                                                                     \
     } while (0)
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -317,7 +322,7 @@ main(int argc, char *argv[])
     int ch;
     char path[1024], table_config[128], value[VALUE_SIZE];
     const char *home, *v;
-    bool no_checkpoint, no_eviction;
+    bool no_checkpoint, no_eviction, preserve;
 
     (void)testutil_set_progname(argv);
     custom_die = trace_die;
@@ -325,7 +330,7 @@ main(int argc, char *argv[])
     __wt_random_init_seed(NULL, &rnd);
     modify_repl_init();
 
-    no_checkpoint = no_eviction = false;
+    no_checkpoint = no_eviction = preserve = false;
     home = "WT_TEST.wt6185_modify_ts";
     while ((ch = __wt_getopt(progname, argc, argv, "Cceh:S:")) != EOF)
         switch (ch) {
@@ -341,6 +346,9 @@ main(int argc, char *argv[])
             break;
         case 'h':
             home = __wt_optarg;
+            break;
+        case 'p':
+            preserve = true;
             break;
         case 'S':
             rnd.v = strtoul(__wt_optarg, NULL, 10);
@@ -359,7 +367,8 @@ main(int argc, char *argv[])
       table_config, sizeof(table_config), "key_format=%s,value_format=S", use_columns ? "r" : "S"));
 
     /* Load 100 records. */
-    testutil_check(wiredtiger_open(path, NULL, "create", &conn));
+    testutil_check(wiredtiger_open(
+      path, NULL, "create,statistics=(all),statistics_log=(json,on_close,wait=1)", &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     testutil_check(session->create(session, "file:xxx", table_config));
     testutil_check(session->open_cursor(session, "file:xxx", NULL, NULL, &c));
@@ -373,7 +382,8 @@ main(int argc, char *argv[])
 
     /* Flush, reopen and verify a record. */
     testutil_check(conn->close(conn, NULL));
-    testutil_check(wiredtiger_open(path, NULL, NULL, &conn));
+    testutil_check(
+      wiredtiger_open(path, NULL, "statistics=(all),statistics_log=(json,on_close,wait=1)", &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     testutil_check(session->create(session, "file:xxx", NULL));
     testutil_check(session->open_cursor(session, "file:xxx", NULL, NULL, &c));
@@ -415,5 +425,8 @@ main(int argc, char *argv[])
     testutil_check(conn->close(conn, NULL));
 
     cleanup();
+
+    if (!preserve)
+        testutil_clean_work_dir(home);
     return (EXIT_SUCCESS);
 }

@@ -26,41 +26,34 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, time, wiredtiger, wttest
-from wiredtiger import stat
+import os, wiredtiger, wttest
+from helper_tiered import get_conn_config, gen_tiered_storage_sources, TieredConfigMixin
+from wtscenario import make_scenarios
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # test_tiered11.py
 #    Test flush time and flush timestamp in metadata.
-class test_tiered11(wttest.WiredTigerTestCase):
+class test_tiered11(wttest.WiredTigerTestCase, TieredConfigMixin):
+
+    storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), 'test_tiered11', tiered_only=True)
+
+    # Make scenarios for different cloud service providers
+    scenarios = make_scenarios(storage_sources)
+
     # If the 'uri' changes all the other names must change with it.
     base = 'test_tiered11-000000000'
-    fileuri_base = 'file:' + base
     nentries = 10
     objuri = 'object:' + base + '1.wtobj'
     tiereduri = "tiered:test_tiered11"
     uri = "table:test_tiered11"
 
-    auth_token = "test_token"
-    bucket = "mybucket"
-    extension_name = "local_store"
-    prefix = "this_pfx"
     def conn_config(self):
-        os.mkdir(self.bucket)
-        self.saved_conn = \
-          'statistics=(all),' + \
-          'tiered_storage=(auth_token=%s,' % self.auth_token + \
-          'bucket=%s,' % self.bucket + \
-          'bucket_prefix=%s,' % self.prefix + \
-          'name=%s)' % self.extension_name 
+        self.saved_conn = get_conn_config(self) + ')'
         return self.saved_conn
 
-    # Load the local store extension.
+    # Load the storage store extension.
     def conn_extensions(self, extlist):
-        # Windows doesn't support dynamically loaded extension libraries.
-        if os.name == 'nt':
-            extlist.skip_if_missing = True
-        extlist.extension('storage_sources', self.extension_name)
+        TieredConfigMixin.conn_extensions(self, extlist)
 
     # Check for a specific string as part of the uri's metadata.
     def check_metadata(self, uri, val_str, match=True):
@@ -83,8 +76,8 @@ class test_tiered11(wttest.WiredTigerTestCase):
         for i in range(start, end):
             self.session.begin_transaction()
             c[i] = i
-            self.session.commit_transaction(
-              'commit_timestamp=' + self.timestamp_str(i))
+            # Jump the commit TS to leave rooom for the stable TS separate from any commit TS.
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(i * 2))
         # Set the oldest and stable timestamp to the end.
         end_ts = self.timestamp_str(end-1)
         self.conn.set_timestamp('oldest_timestamp=' + end_ts + ',stable_timestamp=' + end_ts)
@@ -105,7 +98,7 @@ class test_tiered11(wttest.WiredTigerTestCase):
         new_end_ts = self.add_data(self.nentries)
         # We have a new stable timestamp, but after the checkpoint. Make
         # sure the flush tier records the correct timestamp.
-        self.session.flush_tier(None)
+        self.session.checkpoint('flush_tier=(enabled)')
         # Make sure a new checkpoint doesn't change any of our timestamp info.
         self.session.checkpoint()
 

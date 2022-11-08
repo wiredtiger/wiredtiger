@@ -32,6 +32,10 @@ static const char name[] = "lsm:test";
 #define NUM_DOCS 100000
 #define NUM_QUERIES (NUM_DOCS / 100)
 
+/*
+ * rand_str --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 rand_str(uint64_t i, char *str)
 {
@@ -44,6 +48,10 @@ rand_str(uint64_t i, char *str)
     }
 }
 
+/*
+ * check_str --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 check_str(uint64_t i, char *str, bool mod)
 {
@@ -55,6 +63,10 @@ check_str(uint64_t i, char *str, bool mod)
     testutil_checkfmt(strcmp(str, str2), "strcmp failed, got %s, expected %s", str, str2);
 }
 
+/*
+ * query_docs --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 query_docs(WT_CURSOR *cursor, bool mod)
 {
@@ -70,6 +82,10 @@ query_docs(WT_CURSOR *cursor, bool mod)
     printf("%d documents read\n", NUM_QUERIES);
 }
 
+/*
+ * compact_thread --
+ *     TODO: Add a comment describing this function.
+ */
 static void *
 compact_thread(void *args)
 {
@@ -80,6 +96,10 @@ compact_thread(void *args)
     return (NULL);
 }
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -100,7 +120,9 @@ main(int argc, char *argv[])
     memset(opts, 0, sizeof(*opts));
     testutil_check(testutil_parse_opts(argc, argv, opts));
     testutil_make_work_dir(opts->home);
-    testutil_check(wiredtiger_open(opts->home, NULL, "create,cache_size=200M", &opts->conn));
+    testutil_check(wiredtiger_open(opts->home, NULL,
+      "create,cache_size=200M,statistics=(all),statistics_log=(json,on_close,wait=1)",
+      &opts->conn));
 
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session2));
@@ -156,7 +178,7 @@ main(int argc, char *argv[])
     testutil_check(session2->open_cursor(session2, name, NULL, "next_random=true", &rcursor));
 
     /* Delete all but one document */
-    testutil_check(session->open_cursor(session, name, NULL, "overwrite", &wcursor));
+    testutil_check(session->open_cursor(session, name, NULL, NULL, &wcursor));
     for (i = 0; i < NUM_DOCS - 1; i++) {
         wcursor->set_key(wcursor, i);
         testutil_check(wcursor->remove(wcursor));
@@ -204,7 +226,7 @@ main(int argc, char *argv[])
     testutil_check(pthread_join(thread, NULL));
 
     /* Delete everything. Check for infinite loops */
-    testutil_check(session->open_cursor(session, name, NULL, "overwrite", &wcursor));
+    testutil_check(session->open_cursor(session, name, NULL, NULL, &wcursor));
     for (i = 0; i < NUM_DOCS; i++) {
         wcursor->set_key(wcursor, i);
         testutil_check(wcursor->remove(wcursor));

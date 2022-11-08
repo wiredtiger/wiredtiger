@@ -26,8 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import fnmatch, os, shutil, time
-from helper import copy_wiredtiger_home
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
@@ -38,7 +36,6 @@ from wtscenario import make_scenarios
 class test_prepare10(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=10MB,eviction_dirty_trigger=80,eviction_updates_trigger=80'
-    session_config = 'isolation=snapshot'
 
     format_values = [
         ('column', dict(key_format='r', value_format='u')),

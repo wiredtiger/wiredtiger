@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
+import wttest
 from wtscenario import make_scenarios
 
 # test_rollback_to_stable24.py
@@ -60,12 +60,11 @@ from wtscenario import make_scenarios
 #
 # Don't run it on FLCS because FLCS doesn't do RLE encoding so there's no point.
 class test_rollback_to_stable24(wttest.WiredTigerTestCase):
-    session_config = 'isolation=snapshot'
     conn_config = 'in_memory=false'
 
     key_format_values = [
         ('column', dict(key_format='r')),
-        ('integer_row', dict(key_format='i')),
+        ('row_integer', dict(key_format='i')),
     ]
 
     scenarios = make_scenarios(key_format_values)
@@ -73,14 +72,13 @@ class test_rollback_to_stable24(wttest.WiredTigerTestCase):
     def test_rollback_to_stable24(self):
         # Create a table without logging.
         uri = "table:rollback_to_stable24"
-        format = 'key_format={},value_format=S'.format(self.key_format)
-        self.session.create(uri, format + ', log=(enabled=false)')
+        self.session.create(uri, 'key_format={},value_format=S'.format(self.key_format))
 
-        # Pin oldest timestamp to 10.
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
+        # Pin oldest timestamp to 5.
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(5))
 
-        # Start stable timestamp at 10.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
+        # Start stable timestamp at 5.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(5))
 
         value_a = "aaaaa" * 100
         value_b = "bbbbb" * 100

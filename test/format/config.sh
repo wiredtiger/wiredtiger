@@ -73,8 +73,6 @@ done<<END_OF_INPUT>$fc
 CONFIG configuration_list[] = {
 {"assert.read_timestamp", "assert read_timestamp", C_BOOL, 2, 0, 0}
 
-{"assert.write_timestamp", "set write_timestamp_usage and assert write_timestamp", C_BOOL, 2, 0, 0}
-
 {"backup", "configure backups", C_BOOL, 20, 0, 0}
 
 {"backup.incremental", "backup type (off | block | log)", C_IGNORE | C_STRING, 0, 0, 0}
@@ -137,6 +135,10 @@ CONFIG configuration_list[] = {
 
 {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured", 0x0, 5, 100, 3600}
 
+{"debug.realloc_exact", "reallocation of memory will only provide the exact amount requested", C_BOOL, 0, 0, 0}
+
+{"debug.realloc_malloc", "every realloc call will force a new memory allocation by using malloc", C_BOOL, 5, 0, 0}
+
 {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)", C_IGNORE | C_STRING | C_TABLE, 0, 0, 0}
 
 {"disk.data_extend", "configure data file extension", C_BOOL, 5, 0, 0}
@@ -159,20 +161,20 @@ CONFIG configuration_list[] = {
 
 /*
  * 0%
- * FIXME-WT-7510: Temporarily disable import until WT_ROLLBACK error and wt_copy_and_sync error is
+ * FIXME-WT-7418: Temporarily disable import until WT_ROLLBACK error and wt_copy_and_sync error is
  * fixed. It should be (C_BOOL, 20, 0, 0).
  */
 {"import", "import table from newly created database", C_BOOL, 0, 0, 0}
 
 {"logging", "configure logging", C_BOOL, 50, 0, 0}
 
-{"logging.archive", "configure log file archival", C_BOOL, 50, 0, 0}
-
 {"logging.compression", "logging compression (off | lz4 | snappy | zlib | zstd)", C_IGNORE | C_STRING, 0, 0, 0}
 
 {"logging.file_max", "maximum log file size (KB)", 0x0, 100, 512000, 2097152}
 
 {"logging.prealloc", "configure log file pre-allocation", C_BOOL, 50, 0, 0}
+
+{"logging.remove", "configure log file removal", C_BOOL, 50, 0, 0}
 
 {"lsm.auto_throttle", "throttle LSM inserts", C_BOOL | C_TABLE | C_TYPE_LSM, 90, 0, 0}
 
@@ -206,6 +208,8 @@ CONFIG configuration_list[] = {
 
 {"ops.pct.write", "update operations (percentage)", C_IGNORE | C_TABLE, 0, 0, 100}
 
+{"ops.bound_cursor", "configure bound cursor reads", C_BOOL, 5, 0, 0}
+
 {"ops.prepare", "configure transaction prepare", C_BOOL, 5, 0, 0}
 
 {"ops.random_cursor", "configure random cursor reads", C_BOOL, 10, 0, 0}
@@ -222,6 +226,8 @@ CONFIG configuration_list[] = {
 
 {"runs.ops", "operations per run", 0x0, 0, M(2), M(100)}
 
+{"runs.mirror", "mirror tables", C_BOOL | C_IGNORE | C_TABLE, 0, 0, 0}
+
 {"runs.rows", "number of rows", C_TABLE, 10, M(1), M(100)}
 
 {"runs.source", "data source type (file | lsm | table)", C_IGNORE | C_STRING | C_TABLE, 0, 0, 0}
@@ -236,17 +242,17 @@ CONFIG configuration_list[] = {
 
 {"runs.verify_failure_dump", "configure page dump on repeatable read error", C_BOOL | C_IGNORE, 0, 0, 1}
 
-{"statistics", "configure statistics", C_BOOL, 20, 0, 0}
-
-{"statistics.server", "configure statistics server thread", C_BOOL, 5, 0, 0}
-
 {"stress.aggressive_sweep", "stress aggressive sweep", C_BOOL, 2, 0, 0}
 
 {"stress.checkpoint", "stress checkpoints", C_BOOL, 2, 0, 0}
 
-{"stress.checkpoint_reserved_txnid_delay", "stress checkpoint invisible transaction id delay", C_BOOL, 2, 0, 0}
+{"stress.checkpoint_evict_page", "stress force checkpoint to evict all reconciling pages", C_BOOL, 2, 0, 0}
 
 {"stress.checkpoint_prepare", "stress checkpoint prepare", C_BOOL, 2, 0, 0}
+
+{"stress.evict_reposition", "stress evict reposition", C_BOOL, 2, 0, 0}
+
+{"stress.failpoint_eviction_fail_after_reconciliation", "stress failpoint eviction fail after reconciliation", C_BOOL, 30, 0, 0}
 
 {"stress.failpoint_hs_delete_key_from_ts", "stress failpoint history store delete key from ts", C_BOOL, 30, 0, 0}
 
@@ -255,6 +261,8 @@ CONFIG configuration_list[] = {
 {"stress.hs_search", "stress history store search", C_BOOL, 2, 0, 0}
 
 {"stress.hs_sweep", "stress history store sweep", C_BOOL, 2, 0, 0}
+
+{"stress.sleep_before_read_overflow_onpage", "stress onpage overflow read race with checkpoint", C_BOOL, 2, 0, 0}
 
 {"stress.split_1", "stress splits (#1)", C_BOOL, 2, 0, 0}
 

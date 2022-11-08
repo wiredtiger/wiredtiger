@@ -215,6 +215,14 @@ cursor_ops(WT_SESSION *session)
     /*! [Return the previous record] */
 
     {
+        /*! [Get the table's largest key] */
+        const char *largest_key;
+        error_check(cursor->largest_key(cursor));
+        error_check(cursor->get_key(cursor, &largest_key));
+        /*! [Get the table's largest key] */
+    }
+
+    {
         WT_CURSOR *other = NULL;
         error_check(session->open_cursor(session, NULL, cursor, NULL, &other));
 
@@ -371,16 +379,6 @@ cursor_ops(WT_SESSION *session)
     }
 
     {
-        /*! [Remove a record and fail if DNE] */
-        const char *key = "some key";
-        error_check(
-          session->open_cursor(session, "table:mytable", NULL, "overwrite=false", &cursor));
-        cursor->set_key(cursor, key);
-        error_check(cursor->remove(cursor));
-        /*! [Remove a record and fail if DNE] */
-    }
-
-    {
         /*! [Remove a record] */
         const char *key = "some key";
         error_check(session->open_cursor(session, "table:mytable", NULL, NULL, &cursor));
@@ -390,13 +388,24 @@ cursor_ops(WT_SESSION *session)
     }
 
     {
+        /*! [Remove a record and fail if DNE] */
+        const char *key = "non-existent key";
+        error_check(session->open_cursor(session, "table:mytable", NULL, NULL, &cursor));
+        cursor->set_key(cursor, key);
+        /* We expect to get a WT_NOTFOUND error if we try to remove a record that does not exist. */
+        if ((ret = cursor->remove(cursor)) == WT_NOTFOUND)
+            fprintf(stderr, "cursor.remove: key doesn't exist %s\n", wiredtiger_strerror(ret));
+        else
+            error_check(ret);
+        /*! [Remove a record and fail if DNE] */
+    }
+
+    {
         /*! [Display an error] */
         const char *key = "non-existent key";
         cursor->set_key(cursor, key);
-        if ((ret = cursor->remove(cursor)) != 0) {
+        if ((ret = cursor->remove(cursor)) != 0)
             fprintf(stderr, "cursor.remove: %s\n", wiredtiger_strerror(ret));
-            return (ret);
-        }
         /*! [Display an error] */
     }
 
@@ -404,10 +413,8 @@ cursor_ops(WT_SESSION *session)
         /*! [Display an error thread safe] */
         const char *key = "non-existent key";
         cursor->set_key(cursor, key);
-        if ((ret = cursor->remove(cursor)) != 0) {
+        if ((ret = cursor->remove(cursor)) != 0)
             fprintf(stderr, "cursor.remove: %s\n", cursor->session->strerror(cursor->session, ret));
-            return (ret);
-        }
         /*! [Display an error thread safe] */
     }
 
@@ -737,6 +744,8 @@ session_ops(WT_SESSION *session)
             }
         }
 
+        error_check(session->checkpoint(session, NULL));
+
         /*! [Upgrade a table] */
         error_check(session->upgrade(session, "table:mytable", NULL));
         /*! [Upgrade a table] */
@@ -845,15 +854,17 @@ transaction_ops(WT_SESSION *session_arg)
     {
         /*! [reset snapshot] */
         /*
-         * Resets snapshots for snapshot isolation transactions to update their existing snapshot.
-         * It raises an error when this API is used for isolation other than snapshot isolation
-         * mode.
+         * Get a new read snapshot for the current transaction. This is only permitted for
+         * transactions running with snapshot isolation.
          */
+        const char *value1, *value2; /* For the cursor's string value. */
         error_check(session->open_cursor(session, "table:mytable", NULL, NULL, &cursor));
         error_check(session->begin_transaction(session, "isolation=snapshot"));
         cursor->set_key(cursor, "some-key");
         error_check(cursor->search(cursor));
+        error_check(cursor->get_value(cursor, &value1));
         error_check(session->reset_snapshot(session));
+        error_check(cursor->get_value(cursor, &value2)); /* May be different. */
         error_check(session->commit_transaction(session, NULL));
         /*! [reset snapshot] */
     }
@@ -883,6 +894,22 @@ transaction_ops(WT_SESSION *session_arg)
     error_check(session->begin_transaction(session, NULL));
 
     {
+        /*! [hexadecimal timestamp] */
+        uint64_t ts;
+
+        /* 2 bytes for each byte converted to hexadecimal; sizeof includes the trailing nul byte */
+        char timestamp_buf[sizeof("commit_timestamp=") + 2 * sizeof(uint64_t)];
+
+        (void)snprintf(timestamp_buf, sizeof(timestamp_buf), "commit_timestamp=%x", 20u);
+        error_check(session->timestamp_transaction(session, timestamp_buf));
+
+        error_check(conn->query_timestamp(conn, timestamp_buf, "get=all_durable"));
+        ts = strtoull(timestamp_buf, NULL, 16);
+        /*! [hexadecimal timestamp] */
+        (void)ts;
+    }
+
+    {
         /*! [query timestamp] */
         char timestamp_buf[2 * sizeof(uint64_t) + 1];
 
@@ -894,11 +921,17 @@ transaction_ops(WT_SESSION *session_arg)
 
         error_check(conn->query_timestamp(conn, timestamp_buf, "get=all_durable"));
         /*! [query timestamp] */
+
+        error_check(session->begin_transaction(session, NULL));
+        /*! [transaction timestamp_uint] */
+        error_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_COMMIT, 42));
+        /*! [transaction timestamp_uint] */
+        error_check(session->commit_transaction(session, NULL));
     }
 
-    /*! [set commit timestamp] */
-    error_check(conn->set_timestamp(conn, "commit_timestamp=2a"));
-    /*! [set commit timestamp] */
+    /*! [set durable timestamp] */
+    error_check(conn->set_timestamp(conn, "durable_timestamp=2a"));
+    /*! [set durable timestamp] */
 
     /*! [set oldest timestamp] */
     error_check(conn->set_timestamp(conn, "oldest_timestamp=2a"));
@@ -1125,10 +1158,6 @@ backup(WT_SESSION *session)
       session, "backup:", NULL, "incremental=(enabled,src_id=ID0,this_id=ID1)", &cursor));
     /*! [incremental block backup]*/
     error_check(cursor->close(cursor));
-
-    /*! [backup of a checkpoint]*/
-    error_check(session->checkpoint(session, "drop=(from=June01),name=June01"));
-    /*! [backup of a checkpoint]*/
 }
 
 int

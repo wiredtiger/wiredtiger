@@ -29,8 +29,8 @@
 #include "thread.h"
 
 /*
- * stats
- *	Dump the database/file statistics.
+ * stats --
+ *     Dump the database/file statistics.
  */
 void
 stats(void)

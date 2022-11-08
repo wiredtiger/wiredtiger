@@ -1,11 +1,3 @@
-#
-# Public Domain 2014-present MongoDB, Inc.
-# Public Domain 2008-2014 WiredTiger, Inc.
-#  All rights reserved.
-#
-# See the file LICENSE for redistribution information.
-#
-
 cmake_minimum_required(VERSION 3.10.0)
 
 # Try to use CCACHE if available - speeds up build times.
@@ -25,11 +17,14 @@ include(cmake/helpers.cmake)
 include(cmake/define_libwiredtiger.cmake)
 
 # If the user doesn't manually specify the target ARCH and OS (i.e not cross-compiling)
-# we will infer the target from the host.
+# we will infer the target from the host. This is checked prior to the config option
+# being defined (in base.cmake) since it will prevent it having a default value.
 if(NOT WT_ARCH)
     # Defer to our hosts architecture as our target architecture.
     if ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(x86_64|i686|i386|AMD64)$")
         set(WT_ARCH "x86")
+    elseif ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(arm64|aarch64)$")
+        set(WT_ARCH "aarch64")
     else()
         set(WT_ARCH "${CMAKE_HOST_SYSTEM_PROCESSOR}")
     endif()
@@ -52,15 +47,28 @@ include(cmake/configs/auto.cmake)
 include(cmake/configs/base.cmake)
 
 # Import our third party library definitions.
+include(cmake/third_party/aws_sdk.cmake)
 include(cmake/third_party/gperftools.cmake)
 include(cmake/third_party/lz4.cmake)
-include(cmake/third_party/zstd.cmake)
+include(cmake/third_party/memkind.cmake)
 include(cmake/third_party/snappy.cmake)
-include(cmake/third_party/zlib.cmake)
 include(cmake/third_party/sodium.cmake)
+include(cmake/third_party/zlib.cmake)
+include(cmake/third_party/zstd.cmake)
 
 if(NOT ENABLE_SHARED AND NOT ENABLE_STATIC)
     message(FATAL_ERROR "Both ENABLE_SHARED & ENABLE_STATIC are disabled. Need to enable at least one build flavour.")
+endif()
+
+# Set the C++ 17 standard. Have to use this method to make it consistent across the platforms
+# as cmake is doing funny things with the versions we have (including setting -std on MSVC).
+if(MSVC)
+    set(CMAKE_CXX_STANDARD)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17")
+else()
+    set(CMAKE_CXX_STANDARD 17)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+    set(CMAKE_CXX_EXTENSIONS OFF)
 endif()
 
 if(ENABLE_STRICT)
@@ -80,14 +88,42 @@ if(ENABLE_STRICT)
     endif()
 endif()
 
+if(HAVE_UNITTEST)
+    Include(FetchContent)
+
+    FetchContent_Declare(
+        Catch2
+        GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+        GIT_TAG        v2.13.8
+    )
+
+    # Note, the preferred solution of using FetchContent_MakeAvailable()
+    # is not available in 3.11.0 (it arrived in 3.11.4), so we do some extra steps to achieve the same result.
+    #
+    # See https://cmake.org/cmake/help/v3.23/module/FetchContent.html
+    #
+    # Once we can rely on having 3.11.4 or greater, then the following call can be restored, and the
+    # code between the Start and End comments below can be removed.
+
+    # FetchContent_MakeAvailable(Catch2)
+
+    # Start of code that achieves what FetchContent_MakeAvailable(Catch2) would do.
+    FetchContent_Populate(Catch2)
+    add_subdirectory(${catch2_SOURCE_DIR} ${catch2_BINARY_DIR})
+    # End of code that achieves what FetchContent_MakeAvailable(Catch2) would do.
+endif()
+
+# Enable CTest. Subsequent targets may additionally define their own ctest definitions.
+enable_testing()
+
 # Include the extensions to the build.
 add_subdirectory(ext)
 
 # Collect all the library sources we need to compile from the source filelist.
 parse_filelist_source(${CMAKE_CURRENT_LIST_DIR}/dist/filelist wt_sources)
 if(WT_WIN)
-    list(APPEND wt_source ${CMAKE_SOURCE_DIR}/build_win/wiredtiger.def)
-    set_source_files_properties(${CMAKE_SOURCE_DIR}/build_win/wiredtiger.def PROPERTIES HEADER_FILE_ONLY TRUE)
+    list(APPEND wt_source ${CMAKE_SOURCE_DIR}/cmake/configs/wiredtiger.def)
+    set_source_files_properties(${CMAKE_SOURCE_DIR}/cmake/configs/wiredtiger.def PROPERTIES HEADER_FILE_ONLY TRUE)
 endif()
 
 set(builtin_objs)
@@ -131,6 +167,9 @@ if(WITH_PIC OR ENABLE_SHARED)
     # Append any provided C flags.
     if(COMPILER_DIAGNOSTIC_C_FLAGS)
         target_compile_options(wt_objs PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS})
+    endif()
+    if(ENABLE_MEMKIND)
+        target_include_directories(wt_objs PRIVATE ${HAVE_LIBMEMKIND_INCLUDES})
     endif()
     if(ENABLE_TCMALLOC)
         target_include_directories(wt_objs PRIVATE ${HAVE_LIBTCMALLOC_INCLUDES})
@@ -190,15 +229,17 @@ add_subdirectory(src/utilities)
 # Establish our install target configuration.
 include(cmake/install/install.cmake)
 
-# Enable CTest. Subsequent targets may additionally define their own ctest definitions.
-enable_testing()
 
 if(ENABLE_PYTHON)
-   add_subdirectory(lang/python)
+    add_subdirectory(lang/python)
+    add_subdirectory(bench/workgen)
 endif()
 
 # Build the wiredtiger test suites.
-add_subdirectory(bench/workgen)
 add_subdirectory(bench/wtperf)
+add_subdirectory(bench/wt2853_perf)
 add_subdirectory(examples)
 add_subdirectory(test)
+if(ENABLE_LLVM)
+    add_subdirectory(tools/xray_to_optrack)
+endif()

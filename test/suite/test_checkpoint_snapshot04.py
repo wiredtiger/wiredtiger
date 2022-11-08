@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import fnmatch, os, shutil, threading, time
+import os, shutil
 import wiredtiger, wttest
 from wtbackup import backup_base
 from wtdataset import SimpleDataSet
@@ -45,7 +45,7 @@ class test_checkpoint_snapshot04(backup_base):
     format_values = [
         ('column_fix', dict(key_format='r', value_format='8t')),
         ('column', dict(key_format='r', value_format='S')),
-        ('string_row', dict(key_format='S', value_format='S')),
+        ('row_string', dict(key_format='S', value_format='S')),
     ]
 
     target_backup = [

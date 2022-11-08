@@ -34,6 +34,7 @@ from wtscenario import make_scenarios
 # This test checks that a search_near call with the prefix key
 # configuration will correctly find a key even in cases where the key
 # range is split across multiple pages.
+# FIXME-WT-9142 Remove once prefix search near is deprecated.
 class test_search_near04(wttest.WiredTigerTestCase):
     key_format_values = [
         ('var_string', dict(key_format='S')),
@@ -53,7 +54,7 @@ class test_search_near04(wttest.WiredTigerTestCase):
         self.session.create(uri, 'key_format={},value_format=S'.format(self.key_format))
 
         # Make the keys big enough to span over multiple pages.
-        # key_size can be set to to a lower value so only one page is used and search_near works.
+        # key_size can be set to a lower value so only one page is used and search_near works.
         key_size = 200
 
         cursor = self.session.open_cursor(uri)

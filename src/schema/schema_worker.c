@@ -28,7 +28,7 @@ __wt_exclusive_handle_operation(WT_SESSION_IMPL *session, const char *uri,
         WT_RET(ret);
     }
 
-    WT_RET(__wt_session_get_btree_ckpt(session, uri, cfg, open_flags));
+    WT_RET(__wt_session_get_btree_ckpt(session, uri, cfg, open_flags, NULL, NULL));
     WT_SAVE_DHANDLE(session, ret = file_func(session, cfg));
     WT_TRET(__wt_session_release_dhandle(session));
 
@@ -48,13 +48,6 @@ __wt_schema_tiered_worker(WT_SESSION_IMPL *session, const char *uri,
     WT_DECL_RET;
     WT_TIERED *tiered;
     u_int i;
-
-    /*
-     * If this was an alter operation, we need to alter the configuration for the overall tree and
-     * then reread it so it isn't out of date. TODO not yet supported.
-     */
-    if (FLD_ISSET(open_flags, WT_BTREE_ALTER))
-        WT_RET(ENOTSUP);
 
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, open_flags));
     tiered = (WT_TIERED *)session->dhandle;

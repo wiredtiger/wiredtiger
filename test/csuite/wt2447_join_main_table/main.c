@@ -51,6 +51,10 @@
 
 #define N_RECORDS 10000
 
+/*
+ * get_stat_total --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 get_stat_total(WT_SESSION *session, WT_CURSOR *jcursor, const char *descmatch, uint64_t *pval)
 {
@@ -79,6 +83,10 @@ get_stat_total(WT_SESSION *session, WT_CURSOR *jcursor, const char *descmatch, u
     testutil_assert(match);
 }
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -104,6 +112,8 @@ main(int argc, char *argv[])
         break;
     case TABLE_FIX:
         testutil_die(ENOTSUP, "Fixed-length column store not supported");
+    case TABLE_NOT_SET:
+        testutil_die(ENOTSUP, "Unknown table type (%d)\n", (int)opts->table_type);
     case TABLE_ROW:
         printf("Table type: rows\n");
         break;
@@ -116,7 +126,8 @@ main(int argc, char *argv[])
     testutil_check(__wt_snprintf(index2uri, sizeof(index2uri), "index:%s:index2", tablename));
     testutil_check(__wt_snprintf(joinuri, sizeof(joinuri), "join:%s", opts->uri));
 
-    testutil_check(wiredtiger_open(opts->home, NULL, "statistics=(all),create", &opts->conn));
+    testutil_check(wiredtiger_open(opts->home, NULL,
+      "statistics=(all),statistics_log=(json,on_close,wait=1),create", &opts->conn));
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
 
     testutil_check(__wt_snprintf(table_cfg, sizeof(table_cfg),
@@ -141,8 +152,8 @@ main(int argc, char *argv[])
     free((void *)d.data);
 
     testutil_check(opts->conn->close(opts->conn, NULL));
-    testutil_check(
-      wiredtiger_open(opts->home, NULL, "statistics=(all),create,cache_size=1GB", &opts->conn));
+    testutil_check(wiredtiger_open(opts->home, NULL,
+      "statistics=(all),statistics_log=(json,on_close,wait=1),create,cache_size=1GB", &opts->conn));
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
 
     testutil_check(session->open_cursor(session, index1uri, NULL, NULL, &cursor1));

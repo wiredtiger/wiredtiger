@@ -452,7 +452,7 @@ __clsm_open_cursors(WT_CURSOR_LSM *clsm, bool update, u_int start_chunk, uint32_
         return (0);
 
     ckpt_cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
-    ckpt_cfg[1] = "checkpoint=" WT_CHECKPOINT ",raw";
+    ckpt_cfg[1] = "checkpoint=" WT_CHECKPOINT ",raw,checkpoint_use_history=false";
     ckpt_cfg[2] = NULL;
 
     /*
@@ -1550,28 +1550,33 @@ __clsm_remove(WT_CURSOR *cursor)
 
     clsm = (WT_CURSOR_LSM *)cursor;
 
-    /* Check if the cursor is positioned. */
+    /* Remember if the cursor is currently positioned. */
     positioned = F_ISSET(cursor, WT_CURSTD_KEY_INT);
 
     CURSOR_REMOVE_API_CALL(cursor, session, NULL);
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
-    WT_ERR(__clsm_enter(clsm, false, true));
-
-    if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
-        WT_ERR(__clsm_lookup(clsm, &value));
-        /*
-         * Copy the key out, since the insert resets non-primary chunk cursors which our lookup may
-         * have landed on.
-         */
-        WT_ERR(__cursor_needkey(cursor));
-    }
-    WT_ERR(__clsm_put(session, clsm, &cursor->key, &__tombstone, positioned, false));
 
     /*
-     * If the cursor was positioned, it stays positioned with a key but no no value, otherwise,
-     * there's no position, key or value. This isn't just cosmetic, without a reset, iteration on
-     * this cursor won't start at the beginning/end of the table.
+     * Remove fails if the key doesn't exist, do a search first. This requires a second pair of LSM
+     * enter/leave calls as we search the full stack, but updates are limited to the top-level.
+     */
+    WT_ERR(__clsm_enter(clsm, false, false));
+    WT_ERR(__clsm_lookup(clsm, &value));
+    __clsm_leave(clsm);
+
+    WT_ERR(__clsm_enter(clsm, false, true));
+    /*
+     * Copy the key out, since the insert resets non-primary chunk cursors which our lookup may have
+     * landed on.
+     */
+    WT_ERR(__cursor_needkey(cursor));
+    WT_ERR(__clsm_put(session, clsm, &cursor->key, &__tombstone, true, false));
+
+    /*
+     * If the cursor was positioned, it stays positioned with a key but no value, otherwise, there's
+     * no position, key or value. This isn't just cosmetic, without a reset, iteration on this
+     * cursor won't start at the beginning/end of the table.
      */
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
     if (positioned)
@@ -1686,8 +1691,10 @@ __wt_clsm_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, cons
       __clsm_reserve,                                 /* reserve */
       __wt_cursor_reconfigure,                        /* reconfigure */
       __wt_cursor_notsup,                             /* largest_key */
+      __wt_cursor_config_notsup,                      /* bound */
       __wt_cursor_notsup,                             /* cache */
       __wt_cursor_reopen_notsup,                      /* reopen */
+      __wt_cursor_checkpoint_id,                      /* checkpoint ID */
       __wt_clsm_close);                               /* close */
     WT_CURSOR *cursor;
     WT_CURSOR_LSM *clsm;

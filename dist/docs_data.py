@@ -59,6 +59,15 @@ arch_doc_pages = [
         ['WT_EVICT_ENTRY', 'WT_EVICT_QUEUE'],
         ['src/include/cache.h',
          'src/evict/']),
+    ArchDocPage('arch-fast-truncate',
+        ['WT_PAGE_DELETED'],
+        # It would be nice to have this link to the list of places at the bottom of the page
+        # (since there are a _lot_ of places in the tree that truncate support appears) but
+        # s_docs only accepts source files here. The choices seem to be listing them all
+        # (which loses the fact that bt_delete.c is the main place because it is required to
+        # be sorted into the middle of the list) or just listing bt_delete.c, and the latter
+        # seems like the better choice given the constraints.
+        ['src/btree/bt_delete.c']),
     ArchDocPage('arch-fs-os',
         ['WT_FILE_HANDLE', 'WT_FILE_SYSTEM'],
         ['src/include/os.h', 'src/include/os_fhandle_inline.h',
@@ -87,6 +96,9 @@ arch_doc_pages = [
     ArchDocPage('arch-rts',
         [''],
         ['src/txn/']),
+    ArchDocPage('arch-s3-extension',
+        ['S3_FILE_HANDLE', 'S3_FILE_SYSTEM', 'S3_STORAGE'],
+        ['ext/storage_sources/s3_store/']),
     ArchDocPage('arch-schema',
         ['WT_COLGROUP', 'WT_INDEX', 'WT_LSM_TREE', 'WT_TABLE'],
         ['src/include/intpack_inline.h', 'src/include/packing_inline.h',
@@ -98,6 +110,9 @@ arch_doc_pages = [
     ArchDocPage('arch-snapshot',
         ['WT_TXN'],
         ['src/include/txn.h']),
+    ArchDocPage('arch-timestamp',
+        ['WT_TIME_AGGREGATE', 'WT_TIME_WINDOW'],
+        ['src/include/timestamp.h', 'src/include/timestamp_inline.h']),
     ArchDocPage('arch-transaction',
         ['WT_TXN', 'WT_TXN_GLOBAL', 'WT_TXN_OP', 'WT_TXN_SHARED'],
         ['src/include/txn.h', 'src/include/txn_inline.h', 'src/txn/']),

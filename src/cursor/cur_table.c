@@ -74,7 +74,7 @@ __curextract_insert(WT_CURSOR *cursor)
     ret = cextract->f(cextract->idxc);
 
 err:
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_insert);
 }
 
 /*
@@ -101,10 +101,12 @@ __wt_apply_single_idx(WT_SESSION_IMPL *session, WT_INDEX *idx, WT_CURSOR *cur,
       __wt_cursor_notsup,                             /* update */
       __wt_cursor_notsup,                             /* remove */
       __wt_cursor_notsup,                             /* reserve */
-      __wt_cursor_reconfigure_notsup,                 /* reconfigure */
+      __wt_cursor_config_notsup,                      /* reconfigure */
       __wt_cursor_notsup,                             /* largest_key */
+      __wt_cursor_config_notsup,                      /* bound */
       __wt_cursor_notsup,                             /* cache */
       __wt_cursor_reopen_notsup,                      /* reopen */
+      __wt_cursor_checkpoint_id,                      /* checkpoint ID */
       __wt_cursor_notsup);                            /* close */
     WT_CURSOR_EXTRACTOR extract_cursor;
     WT_DECL_RET;
@@ -206,7 +208,7 @@ __wt_curtable_get_value(WT_CURSOR *cursor, ...)
     va_end(ap);
 
 err:
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_get_value);
 }
 
 /*
@@ -218,6 +220,7 @@ __wt_curtable_set_key(WT_CURSOR *cursor, ...)
 {
     WT_CURSOR **cp, *primary;
     WT_CURSOR_TABLE *ctable;
+    WT_DECL_RET;
     u_int i;
     va_list ap;
 
@@ -226,7 +229,8 @@ __wt_curtable_set_key(WT_CURSOR *cursor, ...)
     primary = *cp++;
 
     va_start(ap, cursor);
-    WT_IGNORE_RET(__wt_cursor_set_keyv(primary, cursor->flags, ap));
+    if ((ret = __wt_cursor_set_keyv(primary, cursor->flags, ap)) != 0)
+        WT_IGNORE_RET(__wt_panic(CUR2S(cursor), ret, "failed to set key"));
     va_end(ap);
 
     if (!F_ISSET(primary, WT_CURSTD_KEY_SET))
@@ -359,9 +363,11 @@ __curtable_next(WT_CURSOR *cursor)
 
     ctable = (WT_CURSOR_TABLE *)cursor;
     JOINABLE_CURSOR_API_CALL(cursor, session, next, NULL);
+    CURSOR_REPOSITION_ENTER(cursor, session);
     APPLY_CG(ctable, next);
 
 err:
+    CURSOR_REPOSITION_END(cursor, session);
     API_END_RET(session, ret);
 }
 
@@ -412,9 +418,11 @@ __curtable_prev(WT_CURSOR *cursor)
 
     ctable = (WT_CURSOR_TABLE *)cursor;
     JOINABLE_CURSOR_API_CALL(cursor, session, prev, NULL);
+    CURSOR_REPOSITION_ENTER(cursor, session);
     APPLY_CG(ctable, prev);
 
 err:
+    CURSOR_REPOSITION_END(cursor, session);
     API_END_RET(session, ret);
 }
 
@@ -425,13 +433,28 @@ err:
 static int
 __curtable_reset(WT_CURSOR *cursor)
 {
+    WT_CURSOR **cp;
     WT_CURSOR_TABLE *ctable;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    u_int i;
 
     ctable = (WT_CURSOR_TABLE *)cursor;
+
     JOINABLE_CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, NULL);
+
     APPLY_CG(ctable, reset);
+
+    /*
+     * The bounded cursor API clears bounds on external calls to cursor->reset. We determine this by
+     * guarding the call to cursor bound reset with the API_USER_ENTRY macro. Doing so prevents
+     * internal API calls from resetting cursor bounds unintentionally, e.g. cursor->remove. In the
+     * case of the table cursor we walk each cursor and directly reset the bounds on them without
+     * going through curfile_reset for that reason.
+     */
+    if (API_USER_ENTRY(session))
+        for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); i++, cp++)
+            __wt_cursor_bound_reset(*cp);
 
 err:
     API_END_RET(session, ret);
@@ -450,9 +473,11 @@ __curtable_search(WT_CURSOR *cursor)
 
     ctable = (WT_CURSOR_TABLE *)cursor;
     JOINABLE_CURSOR_API_CALL(cursor, session, search, NULL);
+    CURSOR_REPOSITION_ENTER(cursor, session);
     APPLY_CG(ctable, search);
 
 err:
+    CURSOR_REPOSITION_END(cursor, session);
     API_END_RET(session, ret);
 }
 
@@ -471,6 +496,8 @@ __curtable_search_near(WT_CURSOR *cursor, int *exact)
 
     ctable = (WT_CURSOR_TABLE *)cursor;
     JOINABLE_CURSOR_API_CALL(cursor, session, search_near, NULL);
+    CURSOR_REPOSITION_ENTER(cursor, session);
+
     cp = ctable->cg_cursors;
     primary = *cp;
     WT_ERR(primary->search_near(primary, exact));
@@ -484,6 +511,7 @@ __curtable_search_near(WT_CURSOR *cursor, int *exact)
     }
 
 err:
+    CURSOR_REPOSITION_END(cursor, session);
     API_END_RET(session, ret);
 }
 
@@ -498,12 +526,15 @@ __curtable_insert(WT_CURSOR *cursor)
     WT_CURSOR_TABLE *ctable;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    uint32_t flag_orig;
+    uint64_t flag_orig;
     u_int i;
 
     ctable = (WT_CURSOR_TABLE *)cursor;
     JOINABLE_CURSOR_UPDATE_API_CALL(cursor, session, insert);
     WT_ERR(__curtable_open_indices(ctable));
+
+    cp = ctable->cg_cursors;
+    primary = *cp++;
 
     /*
      * Split out the first insert, it may be allocating a recno.
@@ -511,23 +542,22 @@ __curtable_insert(WT_CURSOR *cursor)
      * If the table has indices, we also need to know whether this record is replacing an existing
      * record so that the existing index entries can be removed. We discover if this is an overwrite
      * by configuring the primary cursor for no-overwrite, and checking if the insert detects a
-     * duplicate key.
+     * duplicate key. By default, when insert finds a duplicate, it returns the value it found. We
+     * don't want that value to overwrite our own, override that behavior.
      */
-    cp = ctable->cg_cursors;
-    primary = *cp++;
-
     flag_orig = F_MASK(primary, WT_CURSTD_OVERWRITE);
-    if (ctable->table->nindices > 0)
+    if (ctable->table->nindices > 0) {
         F_CLR(primary, WT_CURSTD_OVERWRITE);
+        F_SET(primary, WT_CURSTD_DUP_NO_VALUE);
+    }
     ret = primary->insert(primary);
 
     /*
-     * !!!
-     * WT_CURSOR.insert clears the set internally/externally flags
-     * but doesn't touch the items. We could make a copy each time
-     * for overwrite cursors, but for now we just reset the flags.
+     * WT_CURSOR.insert clears the set internally/externally flags but doesn't touch the items. We
+     * could make a copy each time for overwrite cursors, but for now we just reset the flags.
      */
     F_SET(primary, flag_orig | WT_CURSTD_KEY_EXT | WT_CURSTD_VALUE_EXT);
+    F_CLR(primary, WT_CURSTD_DUP_NO_VALUE);
 
     if (ret == WT_DUPLICATE_KEY && F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
         WT_ERR(__curtable_update(cursor));
@@ -592,9 +622,12 @@ __curtable_update(WT_CURSOR *cursor)
           session, ctable->cg_cursors, ctable->plan, cursor->value_format, value_copy));
         APPLY_CG(ctable, search);
 
-        /* Remove only if the key exists. */
+        /*
+         * Remove if search found a key. The search key existing doesn't mean the value wasn't
+         * previously removed, anticipate a "does not exist" not-found error from the remove.
+         */
         if (ret == 0) {
-            WT_ERR(__apply_idx(ctable, offsetof(WT_CURSOR, remove), true));
+            WT_ERR_NOTFOUND_OK(__apply_idx(ctable, offsetof(WT_CURSOR, remove), true), false);
             WT_ERR(__wt_schema_project_slice(
               session, ctable->cg_cursors, ctable->plan, 0, cursor->value_format, value_copy));
         } else
@@ -637,27 +670,15 @@ __curtable_remove(WT_CURSOR *cursor)
     /* Find the old record so it can be removed from indices */
     if (ctable->table->nindices > 0) {
         APPLY_CG(ctable, search);
-        if (ret == WT_NOTFOUND)
-            goto notfound;
         WT_ERR(ret);
         WT_ERR(__apply_idx(ctable, offsetof(WT_CURSOR, remove), false));
     }
 
     APPLY_CG(ctable, remove);
-    if (ret == WT_NOTFOUND)
-        goto notfound;
     WT_ERR(ret);
 
-notfound:
     /*
-     * If the cursor is configured to overwrite and the record is not found, that is exactly what we
-     * want.
-     */
-    if (ret == WT_NOTFOUND && F_ISSET(primary, WT_CURSTD_OVERWRITE))
-        ret = 0;
-
-    /*
-     * If the cursor was positioned, it stays positioned with a key but no no value, otherwise,
+     * If the cursor was positioned, it stays positioned with a key but has no value, otherwise,
      * there's no position, key or value. This isn't just cosmetic, without a reset, iteration on
      * this cursor won't start at the beginning/end of the table.
      */
@@ -731,8 +752,8 @@ __wt_table_range_truncate(WT_CURSOR_TABLE *start, WT_CURSOR_TABLE *stop)
 
     ctable = (start != NULL) ? start : stop;
     session = CUR2S(ctable);
-    wt_start = &start->iface;
-    wt_stop = &stop->iface;
+    wt_start = start == NULL ? NULL : &start->iface;
+    wt_stop = stop == NULL ? NULL : &stop->iface;
 
     /* Open any indices. */
     WT_RET(__curtable_open_indices(ctable));
@@ -811,6 +832,44 @@ __curtable_largest_key(WT_CURSOR *cursor)
 err:
     if (ret != 0)
         WT_TRET(cursor->reset(cursor));
+    API_END_RET(session, ret);
+}
+
+/*
+ * __curtable_bound --
+ *     WT_CURSOR->bound method for the table cursor type.
+ *
+ */
+static int
+__curtable_bound(WT_CURSOR *cursor, const char *config)
+{
+    WT_CURSOR **cp, *primary;
+    WT_CURSOR_BOUNDS_STATE saved_bounds;
+    WT_CURSOR_TABLE *ctable;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    u_int i;
+
+    WT_CLEAR(saved_bounds);
+    ctable = (WT_CURSOR_TABLE *)cursor;
+    primary = *ctable->cg_cursors;
+    JOINABLE_CURSOR_API_CALL(cursor, session, bound, NULL);
+
+    /* Save the current state of the bounds in case we fail to apply the new state. */
+    WT_ERR(__wt_cursor_bounds_save(session, primary, &saved_bounds));
+
+    /* Call bound function on all column groups. */
+    for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); i++, cp++)
+        WT_ERR((*cp)->bound(*cp, config));
+err:
+    /* If applying bounds fails on one colgroup cursor, restore the previous state. */
+    if (ret != 0)
+        for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); i++, cp++)
+            WT_TRET(__wt_cursor_bounds_restore(session, *cp, &saved_bounds));
+
+    __wt_scr_free(session, &saved_bounds.lower_bound);
+    __wt_scr_free(session, &saved_bounds.upper_bound);
+
     API_END_RET(session, ret);
 }
 
@@ -995,8 +1054,10 @@ __wt_curtable_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
       __curtable_reserve,                               /* reserve */
       __wt_cursor_reconfigure,                          /* reconfigure */
       __curtable_largest_key,                           /* largest_key */
+      __curtable_bound,                                 /* bound */
       __wt_cursor_notsup,                               /* cache */
       __wt_cursor_reopen_notsup,                        /* reopen */
+      __wt_cursor_checkpoint_id,                        /* checkpoint ID */
       __curtable_close);                                /* close */
     WT_CONFIG_ITEM cval;
     WT_CURSOR *cursor;

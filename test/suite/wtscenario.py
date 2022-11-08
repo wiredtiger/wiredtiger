@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import testscenarios
 import suite_random
 
 # wtscenarios.py
@@ -109,6 +108,11 @@ def multiply_scenarios(sep, *args):
     """
     Create the cross product of two lists of scenarios
     """
+
+    # When long_only is specified and True, a scenario is only done in a long run.
+    def has_long_run(dictionary):
+        return 'long_only' in dictionary and dictionary['long_only']
+
     result = None
     for scenes in args:
         if result == None:
@@ -129,13 +133,16 @@ def multiply_scenarios(sep, *args):
                     if 'P' in scena[1] and 'P' in scenb[1]:
                         P = scena[1]['P'] * scenb[1]['P']
                         tdict['P'] = P
-                    total.append((name, tdict))
+
+                    global _is_long_run
+                    if _is_long_run or (not has_long_run(scena[1]) and not has_long_run(scenb[1])):
+                        total.append((name, tdict))
             result = total
     return check_scenarios(result)
 
 def prune_sorter_key(scene):
     """
-    Used by prune_scenerios to extract key for sorting.
+    Used by prune_scenarios to extract key for sorting.
     The key is the saved random value multiplied by
     the probability of choosing.
     """
@@ -146,7 +153,7 @@ def prune_sorter_key(scene):
 
 def prune_resort_key(scene):
     """
-    Used by prune_scenerios to extract the original ordering key for sorting.
+    Used by prune_scenarios to extract the original ordering key for sorting.
     """
     return scene[1]['_order']
 

@@ -34,6 +34,10 @@ __ovfl_discard_verbose(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell, c
     WT_CELL_UNPACK_KV *unpack, _unpack;
     WT_DECL_ITEM(tmp);
 
+    /* Because we dereference the page pointer, it can't be NULL */
+    if (page == NULL)
+        WT_RET(EINVAL);
+
     WT_RET(__wt_scr_alloc(session, 512, &tmp));
 
     unpack = &_unpack;
@@ -332,7 +336,8 @@ __ovfl_reuse_wrapup(WT_SESSION_IMPL *session, WT_PAGE *page)
         }
         *e = reuse->next[0];
 
-        WT_ASSERT(session, !F_ISSET(reuse, WT_OVFL_REUSE_JUST_ADDED));
+        WT_ASSERT_ALWAYS(session, !F_ISSET(reuse, WT_OVFL_REUSE_JUST_ADDED),
+          "Attempting to reuse dirty overflow record");
 
         if (WT_VERBOSE_ISSET(session, WT_VERB_OVERFLOW))
             WT_RET(__ovfl_reuse_verbose(session, page, reuse, "free"));
@@ -556,3 +561,17 @@ __wt_ovfl_track_wrapup_err(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     return (0);
 }
+
+#ifdef HAVE_UNITTEST
+int
+__ut_ovfl_discard_verbose(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell, const char *tag)
+{
+    return (__ovfl_discard_verbose(session, page, cell, tag));
+}
+
+int
+__ut_ovfl_discard_wrapup(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    return (__ovfl_discard_wrapup(session, page));
+}
+#endif

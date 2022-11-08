@@ -42,6 +42,7 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
     WT_BLOCK_CKPT *ci, _ci;
     WT_DECL_RET;
     uint8_t *endp;
+    bool live_open;
 
     /*
      * Sometimes we don't find a root page (we weren't given a checkpoint, or the checkpoint was
@@ -63,16 +64,17 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
         ci = &_ci;
         WT_ERR(__wt_block_ckpt_init(session, ci, "checkpoint"));
     } else {
-/*
- * We depend on the btree level for locking: things will go bad fast if we open the live system in
- * two handles, or salvage, truncate or verify the live/running file.
- */
-#ifdef HAVE_DIAGNOSTIC
+        /*
+         * We depend on the btree level for locking: things will go bad fast if we open the live
+         * system in two handles, or salvage, truncate or verify the live/running file.
+         */
         __wt_spin_lock(session, &block->live_lock);
-        WT_ASSERT(session, block->live_open == false);
+        live_open = block->live_open;
         block->live_open = true;
         __wt_spin_unlock(session, &block->live_lock);
-#endif
+        WT_ERR_ASSERT(
+          session, live_open == false, EBUSY, "%s: attempt to re-open live file", block->name);
+
         ci = &block->live;
         WT_ERR(__wt_block_ckpt_init(session, ci, "live"));
     }
@@ -108,12 +110,12 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
     }
 
     /*
-     * If the checkpoint can be written, that means anything written after the checkpoint is no
-     * longer interesting, truncate the file. Don't bother checking the avail list for a block at
-     * the end of the file, that was done when the checkpoint was first written (re-writing the
-     * checkpoint might possibly make it relevant here, but it's unlikely enough I don't bother).
+     * If the object can be written, that means anything written after the checkpoint is no longer
+     * interesting, truncate the file. Don't bother checking the avail list for a block at the end
+     * of the file, that was done when the checkpoint was first written (re-writing the checkpoint
+     * might possibly make it relevant here, but it's unlikely enough I don't bother).
      */
-    if (!checkpoint && !block->has_objects)
+    if (!checkpoint)
         WT_ERR(__wt_block_truncate(session, block, ci->file_size));
 
     if (0) {
@@ -157,9 +159,7 @@ __wt_block_checkpoint_unload(WT_SESSION_IMPL *session, WT_BLOCK *block, bool che
 
         __wt_spin_lock(session, &block->live_lock);
         __wt_block_ckpt_destroy(session, &block->live);
-#ifdef HAVE_DIAGNOSTIC
         block->live_open = false;
-#endif
         __wt_spin_unlock(session, &block->live_lock);
     }
 
@@ -200,7 +200,7 @@ __wt_block_checkpoint_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
           "%s: an unexpected checkpoint start: the checkpoint has already started or was "
           "configured for salvage",
           block->name);
-        __wt_block_set_readonly(session);
+        __wt_blkcache_set_readonly(session);
         break;
     case WT_CKPT_NONE:
         block->ckpt_state = WT_CKPT_INPROGRESS;
@@ -263,12 +263,15 @@ err:
 
 /*
  * __ckpt_extlist_read --
- *     Read a checkpoints extent lists and copy
+ *     Read a checkpoint's extent lists.
  */
 static int
-__ckpt_extlist_read(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt)
+__ckpt_extlist_read(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt, bool *localp)
 {
     WT_BLOCK_CKPT *ci;
+
+    /* Default to a local file. */
+    *localp = true;
 
     /*
      * Allocate a checkpoint structure, crack the cookie and read the checkpoint's extent lists.
@@ -284,6 +287,13 @@ __ckpt_extlist_read(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt)
     ci = ckpt->bpriv;
     WT_RET(__wt_block_ckpt_init(session, ci, ckpt->name));
     WT_RET(__wt_block_ckpt_unpack(session, block, ckpt->raw.data, ckpt->raw.size, ci));
+
+    /* Extent lists from non-local objects aren't useful, we're going to skip them. */
+    if (ci->root_objectid != block->objectid) {
+        *localp = false;
+        return (0);
+    }
+
     WT_RET(__wt_block_extlist_read(session, block, &ci->alloc, ci->file_size));
     WT_RET(__wt_block_extlist_read(session, block, &ci->discard, ci->file_size));
 
@@ -473,7 +483,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
     WT_CKPT *ckpt, *next_ckpt;
     WT_DECL_RET;
     uint64_t ckpt_size;
-    bool deleting, fatal, locked;
+    bool deleting, fatal, local, locked;
 
     ci = &block->live;
     fatal = locked = false;
@@ -513,7 +523,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
           "%s: an unexpected checkpoint attempt: the checkpoint was never started or has already "
           "completed",
           block->name);
-        __wt_block_set_readonly(session);
+        __wt_blkcache_set_readonly(session);
         break;
     case WT_CKPT_SALVAGE:
         /* Salvage doesn't use the standard checkpoint APIs. */
@@ -541,21 +551,29 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
     __wt_block_extlist_free(session, &ci->ckpt_discard);
 
     /*
-     * To delete a checkpoint, we'll need checkpoint information for it and the subsequent
-     * checkpoint into which it gets rolled; read them from disk before we lock things down.
+     * To delete a checkpoint, we need checkpoint information for it and the subsequent checkpoint
+     * into which it gets rolled; read them from disk before we lock things down.
      */
     deleting = false;
     WT_CKPT_FOREACH (ckptbase, ckpt) {
         if (F_ISSET(ckpt, WT_CKPT_FAKE) || !F_ISSET(ckpt, WT_CKPT_DELETE))
             continue;
-        deleting = true;
 
         /*
          * Read the checkpoint and next checkpoint extent lists if we haven't already read them (we
          * may have already read these extent blocks if there is more than one deleted checkpoint).
+         *
+         * We can only delete checkpoints in the current file. Checkpoints of tiered storage objects
+         * are checkpoints for the logical object, including files that are no longer live. Skip any
+         * checkpoints that aren't local to the live object.
          */
-        if (ckpt->bpriv == NULL)
-            WT_ERR(__ckpt_extlist_read(session, block, ckpt));
+        if (ckpt->bpriv == NULL) {
+            WT_ERR(__ckpt_extlist_read(session, block, ckpt, &local));
+            if (!local)
+                continue;
+        }
+
+        deleting = true;
 
         for (next_ckpt = ckpt + 1;; ++next_ckpt)
             if (!F_ISSET(next_ckpt, WT_CKPT_FAKE))
@@ -564,8 +582,11 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
         /*
          * The "next" checkpoint may be the live tree which has no extent blocks to read.
          */
-        if (next_ckpt->bpriv == NULL && !F_ISSET(next_ckpt, WT_CKPT_ADD))
-            WT_ERR(__ckpt_extlist_read(session, block, next_ckpt));
+        if (next_ckpt->bpriv == NULL && !F_ISSET(next_ckpt, WT_CKPT_ADD)) {
+            WT_ERR(__ckpt_extlist_read(session, block, next_ckpt, &local));
+            WT_ERR_ASSERT(session, local == true, WT_PANIC,
+              "tiered storage checkpoint follows local checkpoint");
+        }
     }
 
     /*
@@ -610,7 +631,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
      * lists, and the freed blocks will then be included when writing the live extent lists.
      */
     WT_CKPT_FOREACH (ckptbase, ckpt) {
-        if (F_ISSET(ckpt, WT_CKPT_FAKE) || !F_ISSET(ckpt, WT_CKPT_DELETE) || block->has_objects)
+        if (F_ISSET(ckpt, WT_CKPT_FAKE) || !F_ISSET(ckpt, WT_CKPT_DELETE))
             continue;
 
         if (WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT))
@@ -762,7 +783,7 @@ live_update:
 err:
     if (ret != 0 && fatal) {
         ret = __wt_panic(session, ret, "%s: fatal checkpoint failure", block->name);
-        __wt_block_set_readonly(session);
+        __wt_blkcache_set_readonly(session);
     }
 
     if (locked)
@@ -919,14 +940,14 @@ __wt_block_checkpoint_resolve(WT_SESSION_IMPL *session, WT_BLOCK *block, bool fa
           "%s: an unexpected checkpoint resolution: the checkpoint was never started or completed, "
           "or configured for salvage",
           block->name);
-        __wt_block_set_readonly(session);
+        __wt_blkcache_set_readonly(session);
         break;
     case WT_CKPT_PANIC_ON_FAILURE:
         if (!failed)
             break;
         ret = __wt_panic(
           session, EINVAL, "%s: the checkpoint failed, the system must restart", block->name);
-        __wt_block_set_readonly(session);
+        __wt_blkcache_set_readonly(session);
         break;
     }
     WT_ERR(ret);
@@ -934,7 +955,7 @@ __wt_block_checkpoint_resolve(WT_SESSION_IMPL *session, WT_BLOCK *block, bool fa
     if ((ret = __wt_block_extlist_merge(session, block, &ci->ckpt_avail, &ci->avail)) != 0) {
         ret = __wt_panic(
           session, ret, "%s: fatal checkpoint failure during extent list merge", block->name);
-        __wt_block_set_readonly(session);
+        __wt_blkcache_set_readonly(session);
     }
     __wt_spin_unlock(session, &block->live_lock);
 
@@ -951,3 +972,12 @@ err:
 
     return (ret);
 }
+
+#ifdef HAVE_UNITTEST
+int
+__ut_ckpt_add_blkmod_entry(
+  WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, wt_off_t offset, wt_off_t len)
+{
+    return (__ckpt_add_blkmod_entry(session, blk_mod, offset, len));
+}
+#endif

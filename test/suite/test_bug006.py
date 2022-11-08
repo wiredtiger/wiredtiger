@@ -30,7 +30,7 @@
 #       Regression tests.
 
 import wiredtiger, wttest
-from wtdataset import SimpleDataSet, simple_key, simple_value
+from wtdataset import simple_key, simple_value
 from wtscenario import make_scenarios
 
 # Check that verify and salvage both raise exceptions if there is an open
@@ -43,6 +43,8 @@ class test_bug006(wttest.WiredTigerTestCase):
     ])
 
     def test_bug006(self):
+        if 'tiered' in self.hook_names:
+            self.skipTest("negative tests for session APIs like drop do not work in tiered storage")
         uri = self.uri + self.name
         self.session.create(uri, 'value_format=S,key_format=S')
         cursor = self.session.open_cursor(uri, None)
@@ -65,14 +67,14 @@ class test_bug006(wttest.WiredTigerTestCase):
         cursor.close()
 
         # Table operations should succeed, the cursor is closed.
-        self.session.rename(uri, self.uri + "new", None)
-        self.session.rename(self.uri + "new", uri, None)
+        self.renameUntilSuccess(self.session, uri, self.uri + "new")
+        self.renameUntilSuccess(self.session, self.uri + "new", uri)
         self.session.salvage(uri, None)
         self.session.truncate(uri, None, None, None)
-        self.session.upgrade(uri, None)
-        self.session.verify(uri, None)
+        self.upgradeUntilSuccess(self.session, uri)
+        self.verifyUntilSuccess(self.session, uri)
 
-        self.session.drop(uri, None)
+        self.dropUntilSuccess(self.session, uri)
 
 if __name__ == '__main__':
     wttest.run()

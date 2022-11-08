@@ -9,6 +9,23 @@
 #include "wt_internal.h"
 
 /*
+ * __curstd_config_value_for --
+ *     Returns NULL if the string being searched for isn't found, or the string after the "=" sign
+ *     in the config string.
+ */
+static inline char *
+__curstd_config_value_for(const char *config, const char *var, size_t len)
+{
+    char *cfg;
+    if ((cfg = strstr(config, var)) == NULL)
+        return (NULL);
+    return (cfg + len);
+}
+
+#define CONFIG_VALUE_FOR(config, var, cfg) \
+    ((cfg) = __curstd_config_value_for((config), var "=", strlen(var "=")))
+
+/*
  * __wt_cursor_noop --
  *     Cursor noop.
  */
@@ -162,11 +179,11 @@ __wt_cursor_search_near_notsup(WT_CURSOR *cursor, int *exact)
 }
 
 /*
- * __wt_cursor_reconfigure_notsup --
- *     Unsupported cursor reconfiguration.
+ * __wt_cursor_config_notsup --
+ *     Unsupported cursor API call which takes config.
  */
 int
-__wt_cursor_reconfigure_notsup(WT_CURSOR *cursor, const char *config)
+__wt_cursor_config_notsup(WT_CURSOR *cursor, const char *config)
 {
     WT_UNUSED(config);
 
@@ -198,6 +215,7 @@ __wt_cursor_set_notsup(WT_CURSOR *cursor)
      * reset all of the cursors in a session. Reconfigure is left open in case it's possible in the
      * future to change these configurations.
      */
+    cursor->bound = __wt_cursor_config_notsup;
     cursor->compare = __wt_cursor_compare_notsup;
     cursor->insert = __wt_cursor_notsup;
     cursor->modify = __wt_cursor_modify_notsup;
@@ -281,10 +299,12 @@ __wt_cursor_get_key(WT_CURSOR *cursor, ...)
 void
 __wt_cursor_set_key(WT_CURSOR *cursor, ...)
 {
+    WT_DECL_RET;
     va_list ap;
 
     va_start(ap, cursor);
-    WT_IGNORE_RET(__wt_cursor_set_keyv(cursor, cursor->flags, ap));
+    if ((ret = __wt_cursor_set_keyv(cursor, cursor->flags, ap)) != 0)
+        WT_IGNORE_RET(__wt_panic(CUR2S(cursor), ret, "failed to set key"));
     va_end(ap);
 }
 
@@ -365,7 +385,7 @@ __wt_cursor_set_raw_value(WT_CURSOR *cursor, WT_ITEM *value)
  *     WT_CURSOR->get_key worker function.
  */
 int
-__wt_cursor_get_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap)
+__wt_cursor_get_keyv(WT_CURSOR *cursor, uint64_t flags, va_list ap)
 {
     WT_DECL_RET;
     WT_ITEM *key;
@@ -405,7 +425,7 @@ __wt_cursor_get_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap)
     }
 
 err:
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_get_key);
 }
 
 /*
@@ -413,7 +433,7 @@ err:
  *     WT_CURSOR->set_key default implementation.
  */
 int
-__wt_cursor_set_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap)
+__wt_cursor_set_keyv(WT_CURSOR *cursor, uint64_t flags, va_list ap)
 {
     WT_DECL_RET;
     WT_ITEM *buf, *item, tmp;
@@ -544,7 +564,7 @@ __wt_cursor_get_valuev(WT_CURSOR *cursor, va_list ap)
         ret = __wt_struct_unpackv(session, cursor->value.data, cursor->value.size, fmt, ap);
 
 err:
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_get_value);
 }
 
 /*
@@ -557,7 +577,7 @@ __wt_cursor_set_value(WT_CURSOR *cursor, ...)
     va_list ap;
 
     va_start(ap, cursor);
-    WT_IGNORE_RET(__wt_cursor_set_valuev(cursor, ap));
+    WT_IGNORE_RET(__wt_cursor_set_valuev(cursor, cursor->value_format, ap));
     va_end(ap);
 }
 
@@ -566,13 +586,13 @@ __wt_cursor_set_value(WT_CURSOR *cursor, ...)
  *     WT_CURSOR->set_value worker implementation.
  */
 int
-__wt_cursor_set_valuev(WT_CURSOR *cursor, va_list ap)
+__wt_cursor_set_valuev(WT_CURSOR *cursor, const char *fmt, va_list ap)
 {
     WT_DECL_RET;
     WT_ITEM *buf, *item, tmp;
     WT_SESSION_IMPL *session;
     size_t sz;
-    const char *fmt, *str;
+    const char *str;
     va_list ap_copy;
 
     buf = &cursor->value;
@@ -589,7 +609,6 @@ __wt_cursor_set_valuev(WT_CURSOR *cursor, va_list ap)
     F_CLR(cursor, WT_CURSTD_VALUE_SET);
 
     /* Fast path some common cases. */
-    fmt = cursor->value_format;
     if (F_ISSET(cursor, WT_CURSOR_RAW_OK | WT_CURSTD_DUMP_JSON) || WT_STREQ(fmt, "u")) {
         item = va_arg(ap, WT_ITEM *);
         sz = item->size;
@@ -604,11 +623,11 @@ __wt_cursor_set_valuev(WT_CURSOR *cursor, va_list ap)
         *(uint8_t *)buf->mem = (uint8_t)va_arg(ap, int);
     } else {
         va_copy(ap_copy, ap);
-        ret = __wt_struct_sizev(session, &sz, cursor->value_format, ap_copy);
+        ret = __wt_struct_sizev(session, &sz, fmt, ap_copy);
         va_end(ap_copy);
         WT_ERR(ret);
         WT_ERR(__wt_buf_initsize(session, buf, sz));
-        WT_ERR(__wt_struct_packv(session, buf->mem, sz, cursor->value_format, ap));
+        WT_ERR(__wt_struct_packv(session, buf->mem, sz, fmt, ap));
     }
     F_SET(cursor, WT_CURSTD_VALUE_EXT);
     buf->size = sz;
@@ -650,6 +669,12 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 
     WT_TRET(cursor->reset(cursor));
 
+    /*
+     * Cursor reset clears bounds on cursors when called externally, we need to clear the bounds
+     * manually when we cache a cursor.
+     */
+    __wt_cursor_bound_reset(cursor);
+
     /* Don't keep buffers allocated for cached cursors. */
     __wt_buf_free(session, &cursor->key);
     __wt_buf_free(session, &cursor->value);
@@ -676,7 +701,8 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
     WT_STAT_CONN_INCR_ATOMIC(session, cursor_cached_count);
     WT_STAT_DATA_DECR(session, cursor_open_count);
     F_SET(cursor, WT_CURSTD_CACHED);
-    return (ret);
+
+    API_RET_STAT(session, ret, cursor_cache);
 }
 
 /*
@@ -785,8 +811,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
     WT_CURSOR *cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
-    uint64_t bucket;
-    uint32_t overwrite_flag;
+    uint64_t bucket, overwrite_flag;
     bool have_config;
 
     if (!F_ISSET(session, WT_SESSION_CACHE_CURSORS))
@@ -927,6 +952,9 @@ __wt_cursor_close(WT_CURSOR *cursor)
     __wt_buf_free(session, &cursor->key);
     __wt_buf_free(session, &cursor->value);
 
+    __wt_buf_free(session, &cursor->lower_bound);
+    __wt_buf_free(session, &cursor->upper_bound);
+
     __wt_free(session, cursor->internal_uri);
     __wt_free(session, cursor->uri);
     __wt_overwrite_and_free(session, cursor);
@@ -949,7 +977,7 @@ __wt_cursor_equals(WT_CURSOR *cursor, WT_CURSOR *other, int *equalp)
     *equalp = (cmp == 0) ? 1 : 0;
 
 err:
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_equals);
 }
 
 /*
@@ -989,7 +1017,7 @@ __cursor_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     ret = cursor->update(cursor);
 
 err:
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_modify);
 }
 
 /*
@@ -1052,9 +1080,8 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    const char *cfg[] = {config, NULL};
 
-    CURSOR_API_CALL(cursor, session, reconfigure, NULL);
+    CURSOR_API_CALL_CONF(cursor, session, reconfigure, config, cfg, NULL);
 
     /* Reconfiguration resets the cursor. */
     WT_ERR(cursor->reset(cursor));
@@ -1110,7 +1137,7 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
     WT_ERR(__cursor_config_debug(cursor, cfg));
 
 err:
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_reconfigure);
 }
 
 /*
@@ -1129,6 +1156,9 @@ __wt_cursor_largest_key(WT_CURSOR *cursor)
     cbt = (WT_CURSOR_BTREE *)cursor;
     key_only = F_ISSET(cursor, WT_CURSTD_KEY_ONLY);
     CURSOR_API_CALL(cursor, session, largest_key, CUR2BT(cbt));
+
+    if (WT_CURSOR_BOUNDS_SET(cursor))
+        WT_ERR_MSG(session, EINVAL, "setting bounds is not compatible with cursor largest key");
 
     WT_ERR(__wt_scr_alloc(session, 0, &key));
 
@@ -1154,7 +1184,191 @@ err:
     __wt_scr_free(session, &key);
     if (ret != 0)
         WT_TRET(cursor->reset(cursor));
-    API_END_RET(session, ret);
+    API_END_RET_STAT(session, ret, cursor_largest_key);
+}
+
+/*
+ * __wt_cursor_bound --
+ *     WT_CURSOR->bound default implementation.
+ */
+int
+__wt_cursor_bound(WT_CURSOR *cursor, const char *config)
+{
+    WT_CURSOR_BTREE *cbt;
+    WT_DECL_RET;
+    WT_ITEM key;
+    WT_SESSION_IMPL *session;
+    int exact;
+    char *cfg;
+    bool inclusive, have_action;
+
+    cfg = NULL;
+    cbt = (WT_CURSOR_BTREE *)cursor;
+    exact = 0;
+
+    /*
+     * Our API defines "inclusive" as true by default, it also defines "set" as the default action.
+     * This means we can't expect the user to have provided those configurations via the config
+     * string. Normally WiredTiger merges the user provided configuration with the default
+     * configuration, for performance reasons we are skipping this step. As such we need to handle
+     * the cases where the user did and didn't provide the config making up the difference for the
+     * defaults.
+     *
+     * These two booleans provide a mechanism to handle the user not providing the configuration and
+     * still being able to parse it.
+     */
+    inclusive = true;
+    have_action = false;
+
+    CURSOR_API_CALL(cursor, session, bound, NULL);
+
+    if (CUR2BT(cursor)->type == BTREE_COL_FIX)
+        WT_ERR_MSG(session, EINVAL, "setting bounds is not compatible with fixed column store");
+
+    if (F_ISSET(cursor, WT_CURSTD_PREFIX_SEARCH))
+        WT_ERR_MSG(session, EINVAL, "setting bounds is not compatible with prefix search");
+
+    if (config == NULL || config[0] == '\0')
+        WT_ERR_MSG(session, EINVAL, "an empty config is not valid when setting or clearing bounds");
+
+    /* Action is default to "set". */
+    if (CONFIG_VALUE_FOR(config, "action", cfg) != NULL)
+        have_action = true;
+
+    if (!have_action || WT_PREFIX_MATCH(cfg, "set")) {
+        if (WT_CURSOR_IS_POSITIONED(cbt))
+            WT_ERR_MSG(session, EINVAL, "setting bounds on a positioned cursor is not allowed");
+
+        /* The cursor must have a key set to place the lower or upper bound. */
+        WT_ERR(__cursor_checkkey(cursor));
+
+        /* Inclusive is true by default. */
+        if (CONFIG_VALUE_FOR(config, "inclusive", cfg) != NULL && !WT_PREFIX_MATCH(cfg, "true"))
+            inclusive = false;
+
+        if (CONFIG_VALUE_FOR(config, "bound", cfg) == NULL)
+            WT_ERR_MSG(session, EINVAL,
+              "a bound must be specified when setting bounds, either \"lower\" or \"upper\"");
+        else if (WT_PREFIX_MATCH(cfg, "upper")) {
+            /*
+             * If the lower bounds are set, make sure that the upper bound is greater than the lower
+             * bound.
+             */
+            WT_ERR(__wt_cursor_get_raw_key(cursor, &key));
+            if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER)) {
+                WT_ERR(__wt_compare(
+                  session, CUR2BT(cursor)->collator, &key, &cursor->lower_bound, &exact));
+                if (exact < 0)
+                    WT_ERR_MSG(session, EINVAL, "The provided cursor bounds are overlapping");
+                /*
+                 * If the lower bound and upper bound are equal, both inclusive flags must be
+                 * specified.
+                 */
+                if (exact == 0 && (!F_ISSET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE) || !inclusive))
+                    WT_ERR_MSG(
+                      session, EINVAL, "The provided cursor bounds are equal but not inclusive");
+            }
+            /* Copy the key over to the upper bound item and set upper bound and inclusive flags. */
+            F_SET(cursor, WT_CURSTD_BOUND_UPPER);
+            if (inclusive)
+                F_SET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE);
+            else
+                F_CLR(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE);
+            WT_ERR(__wt_buf_set(session, &cursor->upper_bound, key.data, key.size));
+        } else if (WT_PREFIX_MATCH(cfg, "lower")) {
+            /*
+             * If the upper bounds are set, make sure that the lower bound is less than the upper
+             * bound.
+             */
+            WT_ERR(__wt_cursor_get_raw_key(cursor, &key));
+            if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER)) {
+                WT_ERR(__wt_compare(
+                  session, CUR2BT(cursor)->collator, &key, &cursor->upper_bound, &exact));
+                if (exact > 0)
+                    WT_ERR_MSG(session, EINVAL, "The provided cursor bounds are overlapping");
+                /*
+                 * If the lower bound and upper bound are equal, both inclusive flags must be
+                 * specified.
+                 */
+                if (exact == 0 && (!F_ISSET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE) || !inclusive))
+                    WT_ERR_MSG(
+                      session, EINVAL, "The provided cursor bounds are equal but not inclusive");
+            }
+            /* Copy the key over to the lower bound item and set upper bound and inclusive flags. */
+            F_SET(cursor, WT_CURSTD_BOUND_LOWER);
+            if (inclusive)
+                F_SET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);
+            else
+                F_CLR(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);
+            WT_ERR(__wt_buf_set(session, &cursor->lower_bound, key.data, key.size));
+        } else
+            WT_ERR_MSG(session, EINVAL,
+              "a bound must be specified when setting bounds, either \"lower\" or \"upper\"");
+    } else if (have_action && WT_PREFIX_MATCH(cfg, "clear")) {
+        F_CLR(cursor, WT_CURSTD_BOUND_ALL);
+        __wt_buf_free(session, &cursor->upper_bound);
+        __wt_buf_free(session, &cursor->lower_bound);
+        WT_CLEAR(cursor->upper_bound);
+        WT_CLEAR(cursor->lower_bound);
+    } else
+        WT_ERR_MSG(session, EINVAL,
+          "an action of either \"clear\" or \"set\" should be specified when setting bounds");
+err:
+    API_END_RET_STAT(session, ret, cursor_bound);
+}
+
+/*
+ * __wt_cursor_bounds_save --
+ *     Save cursor bounds to restore the state.
+ */
+int
+__wt_cursor_bounds_save(
+  WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_CURSOR_BOUNDS_STATE *bounds_state)
+{
+    /* Save the bound flags to the state. */
+    bounds_state->bound_flags = F_MASK(cursor, WT_CURSTD_BOUND_ALL);
+
+    if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER)) {
+        WT_RET(__wt_scr_alloc(session, cursor->lower_bound.size, &bounds_state->lower_bound));
+        WT_RET(__wt_buf_set(
+          session, bounds_state->lower_bound, cursor->lower_bound.data, cursor->lower_bound.size));
+    }
+    if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER)) {
+        WT_RET(__wt_scr_alloc(session, cursor->upper_bound.size, &bounds_state->upper_bound));
+        WT_RET(__wt_buf_set(
+          session, bounds_state->upper_bound, cursor->upper_bound.data, cursor->upper_bound.size));
+    }
+
+    return (0);
+}
+
+/*
+ * __wt_cursor_bounds_restore --
+ *     Restore the cursor's bounds state. We want to change only related flags as we can't guarantee
+ *     the initial flag state of the column group cursors are the same.
+ */
+int
+__wt_cursor_bounds_restore(
+  WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_CURSOR_BOUNDS_STATE *bounds_state)
+{
+    WT_DECL_RET;
+
+    /* Clear all the bound flags. */
+    F_CLR(cursor, WT_CURSTD_BOUND_ALL);
+    /* Set the saved bound flags back to the cursor. */
+    F_SET(cursor, bounds_state->bound_flags);
+
+    if (bounds_state->lower_bound != NULL)
+        if ((ret = __wt_buf_set(session, &cursor->lower_bound, bounds_state->lower_bound->data,
+               bounds_state->lower_bound->size)) != 0)
+            WT_RET_PANIC(session, ret, "Unrecoverable error encountered while restoring bounds");
+
+    if (bounds_state->upper_bound != NULL)
+        if ((ret = __wt_buf_set(session, &cursor->upper_bound, bounds_state->upper_bound->data,
+               bounds_state->upper_bound->size)) != 0)
+            WT_RET_PANIC(session, ret, "Unrecoverable error encountered while restoring bounds");
+
+    return (0);
 }
 
 /*
@@ -1257,7 +1471,7 @@ __wt_cursor_init(
      */
     WT_RET(__wt_config_gets_def(session, cfg, "dump", 0, &cval));
     if (cval.len != 0 && owner == NULL) {
-        uint32_t dump_flag;
+        uint64_t dump_flag;
         if (WT_STRING_MATCH("json", cval.str, cval.len))
             dump_flag = WT_CURSTD_DUMP_JSON;
         else if (WT_STRING_MATCH("print", cval.str, cval.len))

@@ -29,10 +29,8 @@
 # test_compat02.py
 # Check compatibility API
 
-import fnmatch, os
 import wiredtiger, wttest
 from suite_subprocess import suite_subprocess
-from wtdataset import SimpleDataSet, simple_key
 from wtscenario import make_scenarios
 
 class test_compat02(wttest.WiredTigerTestCase, suite_subprocess):
@@ -59,6 +57,7 @@ class test_compat02(wttest.WiredTigerTestCase, suite_subprocess):
 
     compat_create = [
         ('def', dict(create_rel='none', log_create=5)),
+        ('110', dict(create_rel="11.0", log_create=5)),
         ('100', dict(create_rel="10.0", log_create=5)),
         ('33', dict(create_rel="3.3", log_create=4)),
         ('32', dict(create_rel="3.2", log_create=3)),
@@ -69,6 +68,7 @@ class test_compat02(wttest.WiredTigerTestCase, suite_subprocess):
 
     compat_release = [
         ('def_rel', dict(rel='none', log_rel=5)),
+        ('110_rel', dict(rel="11.0", log_rel=5)),
         ('100_rel', dict(rel="10.0", log_rel=5)),
         ('33_rel', dict(rel="3.3", log_rel=4)),
         ('32_rel', dict(rel="3.2", log_rel=3)),
@@ -87,7 +87,7 @@ class test_compat02(wttest.WiredTigerTestCase, suite_subprocess):
     compat_max = [
         ('future_max', dict(max_req=future_rel, log_max=future_logv)),
         ('def_max', dict(max_req='none', log_max=5)),
-        ('100_max', dict(max_req="10.0", log_max=5)),
+        ('110_max', dict(max_req="11.0", log_max=5)),
         ('33_max', dict(max_req="3.3", log_max=4)),
         ('32_max', dict(max_req="3.2", log_max=3)),
         ('30_max', dict(max_req="3.0", log_max=2)),
@@ -115,9 +115,9 @@ class test_compat02(wttest.WiredTigerTestCase, suite_subprocess):
                                prune=100, prunelong=100000)
 
     def conn_config(self):
-        # Set archive false on the home directory.
+        # Set remove=false on the home directory.
         config_str = 'config_base=%s,' % self.basecfg
-        log_str = 'log=(archive=false,enabled,file_max=%s),' % self.logmax
+        log_str = 'log=(enabled,file_max=%s,remove=false),' % self.logmax
         compat_str = ''
         if (self.create_rel != 'none'):
             compat_str += 'compatibility=(release="%s"),' % self.create_rel
@@ -157,7 +157,7 @@ class test_compat02(wttest.WiredTigerTestCase, suite_subprocess):
             compat_str += 'compatibility=(require_min="%s"),' % self.min_req
         if (self.rel != 'none'):
             compat_str += 'compatibility=(release="%s"),' % self.rel
-        log_str = 'log=(enabled,file_max=%s,archive=false),' % self.logmax
+        log_str = 'log=(enabled,file_max=%s,remove=false),' % self.logmax
         restart_config = log_str + compat_str
         self.pr("Restart conn " + restart_config)
 

@@ -147,7 +147,8 @@ __curlog_kv(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 {
     WT_CURSOR_LOG *cl;
     WT_DECL_RET;
-    uint32_t fileid, key_count, opsize, optype, raw;
+    uint64_t raw;
+    uint32_t fileid, key_count, opsize, optype;
 
     cl = (WT_CURSOR_LOG *)cursor;
     /* Temporarily turn off raw so we can do direct cursor operations. */
@@ -232,7 +233,8 @@ __curlog_search(WT_CURSOR *cursor)
     WT_DECL_RET;
     WT_LSN key;
     WT_SESSION_IMPL *session;
-    uint32_t counter, key_file, key_offset, raw;
+    uint64_t raw;
+    uint32_t counter, key_file, key_offset;
 
     cl = (WT_CURSOR_LOG *)cursor;
     /* Temporarily turn off raw so we can do direct cursor operations. */
@@ -297,9 +299,9 @@ __curlog_close(WT_CURSOR *cursor)
 err:
 
     conn = S2C(session);
-    if (F_ISSET(cl, WT_CURLOG_ARCHIVE_LOCK)) {
+    if (F_ISSET(cl, WT_CURLOG_REMOVE_LOCK)) {
         (void)__wt_atomic_sub32(&conn->log_cursors, 1);
-        __wt_readunlock(session, &conn->log->log_archive_lock);
+        __wt_readunlock(session, &conn->log->log_remove_lock);
     }
 
     __wt_free(session, cl->cur_lsn);
@@ -339,10 +341,12 @@ __wt_curlog_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], W
       __wt_cursor_notsup,                             /* update */
       __wt_cursor_notsup,                             /* remove */
       __wt_cursor_notsup,                             /* reserve */
-      __wt_cursor_reconfigure_notsup,                 /* reconfigure */
+      __wt_cursor_config_notsup,                      /* reconfigure */
       __wt_cursor_notsup,                             /* largest_key */
+      __wt_cursor_config_notsup,                      /* bound */
       __wt_cursor_notsup,                             /* cache */
       __wt_cursor_reopen_notsup,                      /* reopen */
+      __wt_cursor_checkpoint_id,                      /* checkpoint ID */
       __curlog_close);                                /* close */
     WT_CURSOR *cursor;
     WT_CURSOR_LOG *cl;
@@ -378,9 +382,9 @@ __wt_curlog_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], W
          */
         WT_ERR(__wt_log_force_write(session, 1, NULL));
 
-        /* Log cursors block archiving. */
-        __wt_readlock(session, &log->log_archive_lock);
-        F_SET(cl, WT_CURLOG_ARCHIVE_LOCK);
+        /* Log cursors block removal. */
+        __wt_readlock(session, &log->log_remove_lock);
+        F_SET(cl, WT_CURLOG_REMOVE_LOCK);
         (void)__wt_atomic_add32(&conn->log_cursors, 1);
     }
 

@@ -55,7 +55,8 @@ static char home[1024]; /* Program working dir */
  * inserted and it records the timestamp that was used for that insertion.
  */
 #define INVALID_KEY UINT64_MAX
-#define MAX_CKPT_INVL 2 /* Maximum interval between checkpoints */
+#define MAX_CKPT_INVL 4 /* Maximum interval between checkpoints */
+#define FLUSH_INVL 3    /* Flush tier on checkpoint about every 3rd time */
 /* Set large, some slow I/O systems take tens of seconds to fsync. */
 #define MAX_STARTUP 30 /* Seconds to start up and set stable */
 #define MAX_TH 12
@@ -75,7 +76,7 @@ static const char *const uri_collection = "table:collection";
 
 static const char *const ckpt_file = "checkpoint_done";
 
-static bool compat, inmem, use_columns, use_ts, use_txn;
+static bool compat, inmem, tiered, use_columns, use_ts, use_txn;
 static volatile bool stable_set;
 static volatile uint64_t global_ts = 1;
 static volatile uint64_t uid = 1;
@@ -86,14 +87,22 @@ typedef struct {
 static volatile THREAD_TS th_ts[MAX_TH];
 
 #define ENV_CONFIG_COMPAT ",compatibility=(release=\"2.9\")"
-#define ENV_CONFIG_DEF                                        \
-    "create,"                                                 \
-    "eviction_updates_trigger=95,eviction_updates_target=80," \
-    "log=(archive=false,file_max=10M,enabled)"
+#define ENV_CONFIG_DEF                                                                             \
+    "create,"                                                                                      \
+    "eviction_updates_trigger=95,eviction_updates_target=80,"                                      \
+    "log=(enabled,file_max=10M,remove=false),statistics=(all),statistics_log=(json,on_close,wait=" \
+    "1)"
+#define ENV_CONFIG_TIER          \
+    ",tiered_storage=(bucket=./" \
+    "bucket,bucket_prefix=pfx-,local_retention=2,name=dir_store)"
+#define ENV_CONFIG_TIER_EXT                                   \
+    ",extensions=(../../../../ext/storage_sources/dir_store/" \
+    "libwiredtiger_dir_store.so=(early_load=true))"
 #define ENV_CONFIG_TXNSYNC \
     ENV_CONFIG_DEF         \
     ",transaction_sync=(enabled,method=none)"
-#define ENV_CONFIG_REC "log=(archive=false,recover=on)"
+#define ENV_CONFIG_REC \
+    "log=(recover=on,remove=false),statistics=(all),statistics_log=(json,on_close,wait=1)"
 
 /*
  * A minimum width of 10, along with zero filling, means that all the keys sort according to their
@@ -129,10 +138,15 @@ typedef struct {
 
 static void sig_handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
+/*
+ * usage --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 usage(void)
 {
-    fprintf(stderr, "usage: %s [-h dir] [-T threads] [-t time] [-Cmvxz]\n", progname);
+    fprintf(stderr, "usage: %s [-h dir] [-T threads] [-t time] [-BCmvxz]\n", progname);
     exit(EXIT_FAILURE);
 }
 
@@ -152,14 +166,15 @@ subtest_error_handler(
 
     /* Filter out errors about bulk load usage - they are annoying */
     if (strstr(message, "bulk-load is only supported on newly") == NULL)
-        fprintf(stderr, "%s", message);
+        fprintf(stderr, "%s\n", message);
     return (0);
 }
 
 static WT_EVENT_HANDLER event_handler = {
   subtest_error_handler, NULL, /* Message handler */
   NULL,                        /* Progress handler */
-  NULL                         /* Close handler */
+  NULL,                        /* Close handler */
+  NULL                         /* General handler */
 };
 
 /*
@@ -171,6 +186,10 @@ static WT_EVENT_HANDLER event_handler = {
  * that we can verify the state of the schema too.
  */
 
+/*
+ * dump_ts --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 dump_ts(uint64_t nth)
 {
@@ -236,7 +255,7 @@ test_bulk_unique(THREAD_DATA *td, int force)
     WT_DECL_RET;
     WT_SESSION *session;
     uint64_t my_uid;
-    char new_uri[64];
+    char dropconf[128], new_uri[64];
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
@@ -258,9 +277,13 @@ test_bulk_unique(THREAD_DATA *td, int force)
     else if (ret != EINVAL)
         testutil_die(ret, "session.open_cursor bulk unique: %s, new_uri");
 
-    while ((ret = session->drop(session, new_uri, force ? "force" : NULL)) != 0)
+    testutil_check(__wt_snprintf(dropconf, sizeof(dropconf), "force=%s", force ? "true" : "false"));
+    /* For testing we want to remove objects too. */
+    if (tiered)
+        strcat(dropconf, ",remove_shared=true");
+    while ((ret = session->drop(session, new_uri, dropconf)) != 0)
         if (ret != EBUSY)
-            testutil_die(ret, "session.drop: %s", new_uri);
+            testutil_die(ret, "session.drop: %s %s", new_uri, dropconf);
 
     if (use_txn && (ret = session->commit_transaction(session, NULL)) != 0 && ret != EINVAL)
         testutil_die(ret, "session.commit bulk unique");
@@ -328,7 +351,7 @@ test_create_unique(THREAD_DATA *td, int force)
     WT_DECL_RET;
     WT_SESSION *session;
     uint64_t my_uid;
-    char new_uri[64];
+    char dropconf[128], new_uri[64];
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
@@ -345,7 +368,12 @@ test_create_unique(THREAD_DATA *td, int force)
     __wt_yield();
     if (use_txn)
         testutil_check(session->begin_transaction(session, NULL));
-    while ((ret = session->drop(session, new_uri, force ? "force" : NULL)) != 0)
+
+    testutil_check(__wt_snprintf(dropconf, sizeof(dropconf), "force=%s", force ? "true" : "false"));
+    /* For testing we want to remove objects too. */
+    if (tiered)
+        strcat(dropconf, ",remove_shared=true");
+    while ((ret = session->drop(session, new_uri, dropconf)) != 0)
         if (ret != EBUSY)
             testutil_die(ret, "session.drop: %s", new_uri);
     if (use_txn && (ret = session->commit_transaction(session, NULL)) != 0 && ret != EINVAL)
@@ -363,12 +391,17 @@ test_drop(THREAD_DATA *td, int force)
 {
     WT_DECL_RET;
     WT_SESSION *session;
+    char dropconf[128];
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
     if (use_txn)
         testutil_check(session->begin_transaction(session, NULL));
-    if ((ret = session->drop(session, uri, force ? "force" : NULL)) != 0)
+    testutil_check(__wt_snprintf(dropconf, sizeof(dropconf), "force=%s", force ? "true" : "false"));
+    /* For testing we want to remove objects too. */
+    if (tiered)
+        strcat(dropconf, ",remove_shared=true");
+    if ((ret = session->drop(session, uri, dropconf)) != 0)
         if (ret != ENOENT && ret != EBUSY)
             testutil_die(ret, "session.drop");
 
@@ -398,6 +431,9 @@ test_upgrade(THREAD_DATA *td)
     WT_DECL_RET;
     WT_SESSION *session;
 
+    /* FIXME-WT-9423 Remove this return when tiered storage supports upgrade. */
+    if (tiered)
+        return;
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
     if ((ret = session->upgrade(session, uri, NULL)) != 0)
@@ -417,6 +453,9 @@ test_verify(THREAD_DATA *td)
     WT_DECL_RET;
     WT_SESSION *session;
 
+    /* FIXME-WT-9423 Remove this return when tiered storage supports verify. */
+    if (tiered)
+        return;
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
     if ((ret = session->verify(session, uri, NULL)) != 0)
@@ -433,8 +472,8 @@ test_verify(THREAD_DATA *td)
 static WT_THREAD_RET
 thread_ts_run(void *arg)
 {
-    WT_SESSION *session;
     THREAD_DATA *td;
+    WT_SESSION *session;
     uint64_t i, last_ts, oldest_ts, this_ts;
     char tscfg[64];
 
@@ -492,13 +531,14 @@ thread_ckpt_run(void *arg)
 {
     struct timespec now, start;
     FILE *fp;
+    THREAD_DATA *td;
     WT_RAND_STATE rnd;
     WT_SESSION *session;
-    THREAD_DATA *td;
     uint64_t ts;
     uint32_t sleep_time;
     int i;
-    bool first_ckpt;
+    char buf[512];
+    bool first_ckpt, flush;
 
     __wt_random_init(&rnd);
 
@@ -507,6 +547,7 @@ thread_ckpt_run(void *arg)
      * Keep a separate file with the records we wrote for checking.
      */
     (void)unlink(ckpt_file);
+    memset(buf, 0, sizeof(buf));
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
     first_ckpt = true;
     ts = 0;
@@ -514,9 +555,10 @@ thread_ckpt_run(void *arg)
      * Keep writing checkpoints until killed by parent.
      */
     __wt_epoch(NULL, &start);
-    for (i = 0;;) {
+    for (i = 1;; ++i) {
         sleep_time = __wt_random(&rnd) % MAX_CKPT_INVL;
         sleep(sleep_time);
+        flush = ((__wt_random(&rnd) % FLUSH_INVL) == 0) ? true : false;
         if (use_ts) {
             ts = global_ts;
             /*
@@ -538,11 +580,18 @@ thread_ckpt_run(void *arg)
                 continue;
             }
         }
+
         /*
-         * Since this is the default, send in this string even if running without timestamps.
+         * Set the configurations. Set use_timestamps regardless of whether timestamps are in use.
+         * Set flush_tier even if tiered is not set in the program as it should be a no-op in that
+         * case. Only report that flush is in use in the program output if tiered is actually being
+         * used however.
          */
-        testutil_check(session->checkpoint(session, "use_timestamp=true"));
-        printf("Checkpoint %d complete.  Minimum ts %" PRIu64 "\n", ++i, ts);
+        testutil_check(__wt_snprintf(
+          buf, sizeof(buf), "use_timestamp=true,%s", flush ? "flush_tier=(enabled)" : ""));
+        testutil_check(session->checkpoint(session, buf));
+        printf("Checkpoint %d complete: Flush: %s. Minimum ts %" PRIu64 "\n", i,
+          flush && tiered ? "YES" : "NO", ts);
         fflush(stdout);
         /*
          * Create the checkpoint file so that the parent process knows at least one checkpoint has
@@ -567,11 +616,11 @@ static WT_THREAD_RET
 thread_run(void *arg)
 {
     FILE *fp;
+    THREAD_DATA *td;
     WT_CURSOR *cur_coll, *cur_local, *cur_oplog;
     WT_ITEM data;
     WT_RAND_STATE rnd;
     WT_SESSION *oplog_session, *session;
-    THREAD_DATA *td;
     uint64_t i, stable_ts;
     char cbuf[MAX_VAL], lbuf[MAX_VAL], obuf[MAX_VAL];
     char kname[64], tscfg[64];
@@ -759,11 +808,13 @@ thread_run(void *arg)
     /* NOTREACHED */
 }
 
-/*
- * Child process creates the database and table, and then creates worker threads to add data until
- * it is killed by the parent.
- */
 static void run_workload(uint32_t) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
+/*
+ * run_workload --
+ *     Child process creates the database and table, and then creates worker threads to add data
+ *     until it is killed by the parent.
+ */
 static void
 run_workload(uint32_t nth)
 {
@@ -772,7 +823,7 @@ run_workload(uint32_t nth)
     THREAD_DATA *td;
     wt_thread_t *thr;
     uint32_t ckpt_id, i, ts_id;
-    char envconf[512], tableconf[128];
+    char envconf[1024], tableconf[128];
 
     thr = dcalloc(nth + 2, sizeof(*thr));
     td = dcalloc(nth + 2, sizeof(THREAD_DATA));
@@ -785,6 +836,10 @@ run_workload(uint32_t nth)
         strcpy(envconf, ENV_CONFIG_TXNSYNC);
     if (compat)
         strcat(envconf, ENV_CONFIG_COMPAT);
+    if (tiered) {
+        strcat(envconf, ENV_CONFIG_TIER_EXT);
+        strcat(envconf, ENV_CONFIG_TIER);
+    }
 
     testutil_check(wiredtiger_open(NULL, &event_handler, envconf, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
@@ -844,7 +899,8 @@ extern int __wt_optind;
 extern char *__wt_optarg;
 
 /*
- * Initialize a report structure. Since zero is a valid key we cannot just clear it.
+ * initialize_rep --
+ *     Initialize a report structure. Since zero is a valid key we cannot just clear it.
  */
 static void
 initialize_rep(REPORT *r)
@@ -854,8 +910,9 @@ initialize_rep(REPORT *r)
 }
 
 /*
- * Print out information if we detect missing records in the middle of the data of a report
- * structure.
+ * print_missing --
+ *     Print out information if we detect missing records in the middle of the data of a report
+ *     structure.
  */
 static void
 print_missing(REPORT *r, const char *fname, const char *msg)
@@ -868,7 +925,8 @@ print_missing(REPORT *r, const char *fname, const char *msg)
 }
 
 /*
- * Signal handler to catch if the child died unexpectedly.
+ * sig_handler --
+ *     Signal handler to catch if the child died unexpectedly.
  */
 static void
 sig_handler(int sig)
@@ -883,6 +941,10 @@ sig_handler(int sig)
     testutil_die(EINVAL, "Child process %" PRIu64 " abnormally exited", (uint64_t)pid);
 }
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -900,14 +962,14 @@ main(int argc, char *argv[])
     uint64_t stable_fp, stable_val;
     uint32_t i, nth, timeout;
     int ch, status;
-    char buf[512], statname[1024];
+    char buf[1024], statname[1024];
     char fname[64], kname[64];
     const char *working_dir;
-    bool fatal, rand_th, rand_time, verify_only;
+    bool fatal, preserve, rand_th, rand_time, verify_only;
 
     (void)testutil_set_progname(argv);
 
-    compat = inmem = false;
+    compat = inmem = tiered = false;
     use_ts = true;
     /*
      * Setting this to false forces us to use internal library code. Allow an override but default
@@ -915,13 +977,17 @@ main(int argc, char *argv[])
      */
     use_txn = false;
     nth = MIN_TH;
+    preserve = false;
     rand_th = rand_time = true;
     timeout = MIN_TIME;
     verify_only = false;
     working_dir = "WT_TEST.schema-abort";
 
-    while ((ch = __wt_getopt(progname, argc, argv, "Cch:mT:t:vxz")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "BCch:mpT:t:vxz")) != EOF)
         switch (ch) {
+        case 'B':
+            tiered = true;
+            break;
         case 'C':
             compat = true;
             break;
@@ -934,6 +1000,9 @@ main(int argc, char *argv[])
             break;
         case 'm':
             inmem = true;
+            break;
+        case 'p':
+            preserve = true;
             break;
         case 'T':
             rand_th = false;
@@ -970,6 +1039,10 @@ main(int argc, char *argv[])
     }
     if (!verify_only) {
         testutil_make_work_dir(home);
+        if (tiered) {
+            testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/bucket", home));
+            testutil_make_work_dir(buf);
+        }
 
         __wt_random_init_seed(NULL, &rnd);
         if (rand_time) {
@@ -983,11 +1056,15 @@ main(int argc, char *argv[])
                 nth = MIN_TH;
         }
 
-        printf("Parent: compatibility: %s, in-mem log sync: %s, timestamp in use: %s\n",
-          compat ? "true" : "false", inmem ? "true" : "false", use_ts ? "true" : "false");
+        printf(
+          "Parent: compatibility: %s, in-mem log sync: %s, timestamp in use: %s, tiered in use: "
+          "%s\n",
+          compat ? "true" : "false", inmem ? "true" : "false", use_ts ? "true" : "false",
+          tiered ? "true" : "false");
         printf("Parent: Create %" PRIu32 " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
-        printf("CONFIG: %s%s%s%s -h %s -T %" PRIu32 " -t %" PRIu32 "\n", progname,
-          compat ? " -C" : "", inmem ? " -m" : "", !use_ts ? " -z" : "", working_dir, nth, timeout);
+        printf("CONFIG: %s%s%s%s%s -h %s -T %" PRIu32 " -t %" PRIu32 "\n", progname,
+          compat ? " -C" : "", inmem ? " -m" : "", tiered ? " -B" : "", !use_ts ? " -z" : "",
+          working_dir, nth, timeout);
         /*
          * Fork a child to insert as many items. We will then randomly kill the child, run recovery
          * and make sure all items we wrote exist after recovery runs.
@@ -1037,10 +1114,15 @@ main(int argc, char *argv[])
     testutil_copy_data(home);
     printf("Open database, run recovery and verify content\n");
 
+    strcpy(buf, ENV_CONFIG_REC);
+    if (tiered) {
+        strcat(buf, ENV_CONFIG_TIER_EXT);
+        strcat(buf, ENV_CONFIG_TIER);
+    }
     /*
      * Open the connection which forces recovery to be run.
      */
-    testutil_check(wiredtiger_open(NULL, &event_handler, ENV_CONFIG_REC, &conn));
+    testutil_check(wiredtiger_open(NULL, &event_handler, buf, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     /*
      * Open a cursor on all the tables.
@@ -1211,5 +1293,12 @@ main(int argc, char *argv[])
     if (fatal)
         return (EXIT_FAILURE);
     printf("%" PRIu64 " records verified\n", count);
+    if (!preserve) {
+        testutil_clean_test_artifacts(home);
+        /* At this point $PATH is inside `home`, which we intend to delete. cd to the parent dir. */
+        if (chdir("../") != 0)
+            testutil_die(errno, "root chdir: %s", home);
+        testutil_clean_work_dir(home);
+    }
     return (EXIT_SUCCESS);
 }

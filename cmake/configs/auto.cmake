@@ -1,11 +1,3 @@
-#
-# Public Domain 2014-present MongoDB, Inc.
-# Public Domain 2008-2014 WiredTiger, Inc.
-#  All rights reserved.
-#
-#  See the file LICENSE for redistribution information
-#
-
 include(cmake/helpers.cmake)
 
 ### Auto configure options and checks that we can infer from our toolchain environment.
@@ -223,6 +215,13 @@ config_func(
     FUNC "timer_create"
     FILES "signal.h;time.h"
     LIBS "rt"
+)
+
+config_lib(
+    HAVE_LIBMEMKIND
+    "memkind library exists."
+    LIB "memkind"
+    HEADER "memkind.h"
 )
 
 config_lib(

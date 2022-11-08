@@ -8,6 +8,10 @@
 
 #include "util.h"
 
+/*
+ * usage --
+ *     Display a usage message for the read command.
+ */
 static int
 usage(void)
 {
@@ -15,6 +19,10 @@ usage(void)
     return (1);
 }
 
+/*
+ * util_read --
+ *     The read command.
+ */
 int
 util_read(WT_SESSION *session, int argc, char *argv[])
 {

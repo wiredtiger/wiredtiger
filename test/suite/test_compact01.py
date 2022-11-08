@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
+import wttest
 from suite_subprocess import suite_subprocess
 from wtdataset import SimpleDataSet, ComplexDataSet
 from wiredtiger import stat
@@ -37,9 +37,10 @@ from wtscenario import make_scenarios
 class test_compact(wttest.WiredTigerTestCase, suite_subprocess):
     name = 'test_compact'
 
-    # Use a small page size because we want to create lots of pages.
-    config = 'allocation_size=512,' +\
-        'leaf_page_max=512,key_format=S'
+    # We don't want to set the page size too small as compaction doesn't work on tables with many
+    # overflow items, furthermore eviction can get very slow with overflow items. We don't want the
+    # page size to be too big either as there won't be enough pages to rewrite.
+    config = 'leaf_page_max=8KB,key_format=S'
     nentries = 50000
 
     # The table is a complex object, give it roughly 5 pages per underlying
@@ -72,13 +73,8 @@ class test_compact(wttest.WiredTigerTestCase, suite_subprocess):
         return statDict
 
     # Test compaction.
+    @wttest.skip_for_hook("timestamp", "removing timestamped items will not free space")
     def test_compact(self):
-        # FIXME-WT-7187
-        # This test is temporarily disabled for OS/X, it fails often, but not consistently.
-        import platform
-        if platform.system() == 'Darwin':
-            self.skipTest('Compaction tests skipped, as they fail on OS/X')
-
         # Populate an object
         uri = self.type + self.name
         ds = self.dataset(self, uri, self.nentries - 1, config=self.config)
@@ -93,11 +89,11 @@ class test_compact(wttest.WiredTigerTestCase, suite_subprocess):
         stat_cursor.close()
 
         # Remove most of the object.
-        c1 = self.session.open_cursor(uri, None)
+        c1 = ds.open_cursor(uri, None)
         c1.set_key(ds.key(5))
-        c2 = self.session.open_cursor(uri, None)
+        c2 = ds.open_cursor(uri, None)
         c2.set_key(ds.key(self.nentries - 5))
-        self.session.truncate(None, c1, c2, None)
+        ds.truncate(None, c1, c2, None)
         c1.close()
         c2.close()
 

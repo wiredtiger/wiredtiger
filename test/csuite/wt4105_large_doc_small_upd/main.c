@@ -36,6 +36,11 @@ static const char *const uri = "table:large";
 #define NUM_DOCS 2
 
 static void on_alarm(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
+/*
+ * on_alarm --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 on_alarm(int signo)
 {
@@ -48,6 +53,10 @@ on_alarm(int signo)
 
 static int ignore_errors = 0;
 
+/*
+ * handle_error --
+ *     TODO: Add a comment describing this function.
+ */
 static int
 handle_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *message)
 {
@@ -65,8 +74,12 @@ handle_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const ch
     return (0);
 }
 
-static WT_EVENT_HANDLER event_handler = {handle_error, NULL, NULL, NULL};
+static WT_EVENT_HANDLER event_handler = {handle_error, NULL, NULL, NULL, NULL};
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -85,7 +98,9 @@ main(int argc, char *argv[])
     testutil_make_work_dir(opts->home);
 
     testutil_check(wiredtiger_open(opts->home, &event_handler,
-      "create,cache_size=1G,statistics_log=(json,wait=1)", &opts->conn));
+      "create,cache_size=1G,statistics_log=(json,wait=1),statistics=(all),statistics_log=(json,on_"
+      "close,wait=1)",
+      &opts->conn));
 
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
     testutil_check(__wt_snprintf(tableconf, sizeof(tableconf),

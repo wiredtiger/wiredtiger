@@ -1,11 +1,3 @@
-#
-# Public Domain 2014-present MongoDB, Inc.
-# Public Domain 2008-2014 WiredTiger, Inc.
-#  All rights reserved.
-#
-# See the file LICENSE for redistribution information.
-#
-
 project(wt C)
 
 set(sources
@@ -43,7 +35,7 @@ target_include_directories(wt
 target_link_libraries(wt wt::wiredtiger)
 
 if(ENABLE_TCMALLOC)
-    target_link_libraries(wt wt::tcmalloc)
+    target_link_libraries(wt wt::wiredtiger wt::tcmalloc)
 endif()
 
 # Our test suite expects `wt` to sit at the top level build directory.

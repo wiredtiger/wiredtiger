@@ -70,6 +70,8 @@ static char home[1024]; /* Program working dir */
 #define RECORDS_FILE "records-%" PRIu32
 /* Include worker threads and prepare extra sessions */
 #define SESSION_MAX (MAX_TH + 3 + MAX_TH * PREPARE_PCT)
+#define STAT_WAIT 1
+#define USEC_STAT 10000
 
 static const char *table_pfx = "table";
 static const char *const uri_collection = "collection";
@@ -80,7 +82,7 @@ static const char *const uri_shadow = "shadow";
 static const char *const ckpt_file = "checkpoint_done";
 
 static bool columns, compat, inmem, stress, use_ts;
-static volatile uint64_t global_ts = 1;
+static uint64_t global_ts = 1;
 
 /*
  * The configuration sets the eviction update and dirty targets at 20% so that on average, each
@@ -98,12 +100,13 @@ static volatile uint64_t global_ts = 1;
     "M,create,"                                               \
     "debug_mode=(table_logging=true,checkpoint_retention=5)," \
     "eviction_updates_target=20,eviction_updates_trigger=90," \
-    "log=(archive=true,file_max=10M,enabled),session_max=%d," \
-    "statistics=(fast),statistics_log=(wait=1,json=true)"
+    "log=(enabled,file_max=10M,remove=true),session_max=%d,"  \
+    "statistics=(all),statistics_log=(wait=%d,json,on_close)"
 #define ENV_CONFIG_TXNSYNC \
     ENV_CONFIG_DEF         \
     ",transaction_sync=(enabled,method=none)"
-#define ENV_CONFIG_REC "log=(archive=false,recover=on)"
+#define ENV_CONFIG_REC \
+    "log=(recover=on,remove=false),statistics=(all),statistics_log=(json,on_close,wait=1)"
 
 /*
  * A minimum width of 10, along with zero filling, means that all the keys sort according to their
@@ -126,11 +129,116 @@ typedef struct {
     uint32_t info;
 } THREAD_DATA;
 
-/* Lock for transactional ops that set or query a timestamp. */
-static pthread_rwlock_t ts_lock;
+static uint32_t nth;                      /* Number of threads. */
+static wt_timestamp_t *active_timestamps; /* Oldest timestamps still in use. */
 
 static void handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
+static void handle_conn_close(void);
+static void handle_conn_ready(WT_CONNECTION *);
+static int handle_general(WT_EVENT_HANDLER *, WT_CONNECTION *, WT_SESSION *, WT_EVENT_TYPE, void *);
+
+static WT_CONNECTION *stat_conn = NULL;
+static WT_SESSION *stat_session = NULL;
+static volatile bool stat_run = false;
+static wt_thread_t stat_th;
+
+static WT_EVENT_HANDLER my_event = {NULL, NULL, NULL, NULL, handle_general};
+/*
+ * stat_func --
+ *     Function to run with the early connection and gather statistics.
+ */
+static WT_THREAD_RET
+stat_func(void *arg)
+{
+    WT_CURSOR *stat_c;
+    int64_t last, value;
+    const char *desc, *pvalue;
+
+    WT_UNUSED(arg);
+    testutil_assert(stat_conn != NULL);
+    testutil_check(stat_conn->open_session(stat_conn, NULL, NULL, &stat_session));
+    desc = pvalue = NULL;
+    /* Start last and value at different numbers so we print the first value, likely 0. */
+    last = -1;
+    value = 0;
+    while (stat_run) {
+        testutil_check(stat_session->open_cursor(stat_session, "statistics:", NULL, NULL, &stat_c));
+
+        /* Pick some statistic that is likely changed during recovery RTS. */
+        stat_c->set_key(stat_c, WT_STAT_CONN_TXN_RTS_PAGES_VISITED);
+        testutil_check(stat_c->search(stat_c));
+        testutil_check(stat_c->get_value(stat_c, &desc, &pvalue, &value));
+        testutil_check(stat_c->close(stat_c));
+        if (desc != NULL && value != last)
+            printf("%s: %" PRId64 "\n", desc, value);
+        last = value;
+        usleep(USEC_STAT);
+    }
+    testutil_check(stat_session->close(stat_session, NULL));
+    return (WT_THREAD_RET_VALUE);
+}
+
+/*
+ * handle_conn_close --
+ *     Function to handle connection close callbacks from WiredTiger.
+ */
+static void
+handle_conn_close(void)
+{
+    /*
+     * Signal the statistics thread to exit and clear the global connection. This function cannot
+     * return until the user thread stops using the connection.
+     */
+    stat_run = false;
+    testutil_check(__wt_thread_join(NULL, &stat_th));
+    stat_conn = NULL;
+}
+
+/*
+ * handle_conn_ready --
+ *     Function to handle connection ready callbacks from WiredTiger.
+ */
+static void
+handle_conn_ready(WT_CONNECTION *conn)
+{
+    int unused;
+
+    /*
+     * Set the global connection for statistics and then start a statistics thread.
+     */
+    unused = 0;
+    testutil_assert(stat_conn == NULL);
+    memset(&stat_th, 0, sizeof(stat_th));
+    stat_conn = conn;
+    stat_run = true;
+    testutil_check(__wt_thread_create(NULL, &stat_th, stat_func, (void *)&unused));
+}
+
+/*
+ * handle_general --
+ *     Function to handle general event callbacks.
+ */
+static int
+handle_general(WT_EVENT_HANDLER *handler, WT_CONNECTION *conn, WT_SESSION *session,
+  WT_EVENT_TYPE type, void *arg)
+{
+    WT_UNUSED(handler);
+    WT_UNUSED(session);
+    WT_UNUSED(arg);
+
+    if (type == WT_EVENT_CONN_CLOSE)
+        handle_conn_close();
+    else if (type == WT_EVENT_CONN_READY)
+        handle_conn_ready(conn);
+    return (0);
+}
+
+/*
+ * usage --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 usage(void)
 {
@@ -145,56 +253,51 @@ usage(void)
 static WT_THREAD_RET
 thread_ts_run(void *arg)
 {
-    WT_DECL_RET;
+    WT_CONNECTION *conn;
     WT_RAND_STATE rnd;
     WT_SESSION *session;
     THREAD_DATA *td;
+    wt_timestamp_t last_ts, ts;
+    uint64_t last_reconfig, now;
     uint32_t rand_op;
     int dbg;
-    char tscfg[64], ts_string[WT_TS_HEX_STRING_SIZE];
-    bool first;
+    char tscfg[64];
 
     td = (THREAD_DATA *)arg;
-    __wt_random_init(&rnd);
+    conn = td->conn;
 
-    testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-    first = true;
-    /* Update the oldest timestamp every 1 millisecond. */
-    for (;;) {
+    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
+
+    __wt_seconds((WT_SESSION_IMPL *)session, &last_reconfig);
+    /* Update the oldest/stable timestamps every 1 millisecond. */
+    for (last_ts = 0;; __wt_sleep(0, 1000)) {
+        /* Get the last committed timestamp periodically in order to update the oldest
+         * timestamp. */
+        ts = maximum_stable_ts(active_timestamps, nth);
+        if (ts == last_ts)
+            continue;
+        last_ts = ts;
+
+        /* Let the oldest timestamp lag 25% of the time. */
+        rand_op = __wt_random(&rnd) % 4;
+        if (rand_op == 1)
+            testutil_check(__wt_snprintf(tscfg, sizeof(tscfg), "stable_timestamp=%" PRIx64, ts));
+        else
+            testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
+              "oldest_timestamp=%" PRIx64 ",stable_timestamp=%" PRIx64, ts, ts));
+        testutil_check(conn->set_timestamp(conn, tscfg));
+
         /*
-         * We get the last committed timestamp periodically in order to update the oldest timestamp,
-         * that requires locking out transactional ops that set or query a timestamp.
+         * Only perform the reconfigure test after statistics have a chance to run. If we do it too
+         * frequently then internal servers like the statistics server get destroyed and restarted
+         * too fast to do any work.
          */
-        testutil_check(pthread_rwlock_wrlock(&ts_lock));
-        ret = td->conn->query_timestamp(td->conn, ts_string, "get=all_durable");
-        testutil_check(pthread_rwlock_unlock(&ts_lock));
-        testutil_assert(ret == 0 || ret == WT_NOTFOUND);
-        if (ret == 0) {
-            rand_op = __wt_random(&rnd) % 4;
-            /*
-             * Periodically let the oldest timestamp lag. Other times set the stable and oldest
-             * timestamps as separate API calls. The rest of the time set them both as one call.
-             */
-            if (rand_op == 0) {
-                testutil_check(
-                  __wt_snprintf(tscfg, sizeof(tscfg), "stable_timestamp=%s", ts_string));
-                testutil_check(td->conn->set_timestamp(td->conn, tscfg));
-                testutil_check(
-                  __wt_snprintf(tscfg, sizeof(tscfg), "oldest_timestamp=%s", ts_string));
-                testutil_check(td->conn->set_timestamp(td->conn, tscfg));
-            } else {
-                if (!first && rand_op == 1)
-                    testutil_check(
-                      __wt_snprintf(tscfg, sizeof(tscfg), "stable_timestamp=%s", ts_string));
-                else
-                    testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
-                      "oldest_timestamp=%s,stable_timestamp=%s", ts_string, ts_string));
-                testutil_check(td->conn->set_timestamp(td->conn, tscfg));
-            }
-            first = false;
+        __wt_seconds((WT_SESSION_IMPL *)session, &now);
+        if (now > last_reconfig + STAT_WAIT + 1) {
             /*
              * Set and reset the checkpoint retention setting on a regular basis. We want to test
-             * racing with the internal archive thread while we're here.
+             * racing with the internal log removal thread while we're here.
              */
             dbg = __wt_random(&rnd) % 2;
             if (dbg == 0)
@@ -203,9 +306,9 @@ thread_ts_run(void *arg)
             else
                 testutil_check(
                   __wt_snprintf(tscfg, sizeof(tscfg), "debug_mode=(checkpoint_retention=5)"));
-            testutil_check(td->conn->reconfigure(td->conn, tscfg));
+            testutil_check(conn->reconfigure(conn, tscfg));
+            last_reconfig = now;
         }
-        __wt_sleep(0, 1000);
     }
     /* NOTREACHED */
 }
@@ -236,7 +339,7 @@ thread_ckpt_run(void *arg)
     (void)unlink(ckpt_file);
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
     first_ckpt = true;
-    for (i = 0;; ++i) {
+    for (i = 1;; ++i) {
         sleep_time = __wt_random(&rnd) % MAX_CKPT_INVL;
         sleep(sleep_time);
         /*
@@ -354,8 +457,8 @@ thread_run(void *arg)
             testutil_check(prepared_session->begin_transaction(prepared_session, NULL));
 
         if (use_ts) {
-            testutil_check(pthread_rwlock_rdlock(&ts_lock));
-            active_ts = __wt_atomic_addv64(&global_ts, 2);
+            /* Allocate two timestamps. */
+            active_ts = __wt_atomic_fetch_addv64(&global_ts, 2);
             testutil_check(
               __wt_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%" PRIx64, active_ts));
             /*
@@ -364,7 +467,6 @@ thread_run(void *arg)
              * collection session in that case would continue to use this timestamp.
              */
             testutil_check(session->timestamp_transaction(session, tscfg));
-            testutil_check(pthread_rwlock_unlock(&ts_lock));
         }
 
         if (columns) {
@@ -462,17 +564,23 @@ rollback:
             if (use_prep)
                 testutil_check(prepared_session->rollback_transaction(prepared_session, NULL));
         }
+
+        /* We're done with the timestamps, allow oldest and stable to move forward. */
+        if (use_ts)
+            WT_PUBLISH(active_timestamps[td->info], active_ts);
     }
     /* NOTREACHED */
 }
 
+static void run_workload(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
 /*
- * Child process creates the database and table, and then creates worker threads to add data until
- * it is killed by the parent.
+ * run_workload --
+ *     Child process creates the database and table, and then creates worker threads to add data
+ *     until it is killed by the parent.
  */
-static void run_workload(uint32_t) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
-run_workload(uint32_t nth)
+run_workload(void)
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
@@ -484,6 +592,7 @@ run_workload(uint32_t nth)
 
     thr = dcalloc(nth + 2, sizeof(*thr));
     td = dcalloc(nth + 2, sizeof(THREAD_DATA));
+    active_timestamps = dcalloc(nth, sizeof(wt_timestamp_t));
 
     /*
      * Size the cache appropriately for the number of threads. Each thread adds keys sequentially to
@@ -497,11 +606,11 @@ run_workload(uint32_t nth)
     if (chdir(home) != 0)
         testutil_die(errno, "Child chdir: %s", home);
     if (inmem)
-        testutil_check(
-          __wt_snprintf(envconf, sizeof(envconf), ENV_CONFIG_DEF, cache_mb, SESSION_MAX));
+        testutil_check(__wt_snprintf(
+          envconf, sizeof(envconf), ENV_CONFIG_DEF, cache_mb, SESSION_MAX, STAT_WAIT));
     else
-        testutil_check(
-          __wt_snprintf(envconf, sizeof(envconf), ENV_CONFIG_TXNSYNC, cache_mb, SESSION_MAX));
+        testutil_check(__wt_snprintf(
+          envconf, sizeof(envconf), ENV_CONFIG_TXNSYNC, cache_mb, SESSION_MAX, STAT_WAIT));
     if (compat)
         strcat(envconf, ENV_CONFIG_ADD_COMPAT);
     if (stress)
@@ -542,9 +651,7 @@ run_workload(uint32_t nth)
      */
     testutil_check(session->close(session, NULL));
 
-    /*
-     * The checkpoint thread and the timestamp threads are added at the end.
-     */
+    /* The checkpoint, timestamp and worker threads are added at the end. */
     ckpt_id = nth;
     td[ckpt_id].conn = conn;
     td[ckpt_id].info = nth;
@@ -582,7 +689,8 @@ extern int __wt_optind;
 extern char *__wt_optarg;
 
 /*
- * Initialize a report structure. Since zero is a valid key we cannot just clear it.
+ * initialize_rep --
+ *     Initialize a report structure. Since zero is a valid key we cannot just clear it.
  */
 static void
 initialize_rep(REPORT *r)
@@ -592,8 +700,9 @@ initialize_rep(REPORT *r)
 }
 
 /*
- * Print out information if we detect missing records in the middle of the data of a report
- * structure.
+ * print_missing --
+ *     Print out information if we detect missing records in the middle of the data of a report
+ *     structure.
  */
 static void
 print_missing(REPORT *r, const char *fname, const char *msg)
@@ -606,7 +715,8 @@ print_missing(REPORT *r, const char *fname, const char *msg)
 }
 
 /*
- * Signal handler to catch if the child died unexpectedly.
+ * handler --
+ *     Signal handler to catch if the child died unexpectedly.
  */
 static void
 handler(int sig)
@@ -621,6 +731,10 @@ handler(int sig)
     testutil_die(EINVAL, "Child process %" PRIu64 " abnormally exited", (uint64_t)pid);
 }
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -635,24 +749,25 @@ main(int argc, char *argv[])
     pid_t pid;
     uint64_t absent_coll, absent_local, absent_oplog, absent_shadow, count, key, last_key;
     uint64_t commit_fp, durable_fp, stable_val;
-    uint32_t i, nth, timeout;
+    uint32_t i, timeout;
     int ch, status, ret;
     const char *working_dir;
     char buf[512], fname[64], kname[64], statname[1024];
     char ts_string[WT_TS_HEX_STRING_SIZE];
-    bool fatal, rand_th, rand_time, verify_only;
+    bool fatal, preserve, rand_th, rand_time, verify_only;
 
     (void)testutil_set_progname(argv);
 
     columns = compat = inmem = stress = false;
     use_ts = true;
     nth = MIN_TH;
+    preserve = false;
     rand_th = rand_time = true;
     timeout = MIN_TIME;
     verify_only = false;
     working_dir = "WT_TEST.timestamp-abort";
 
-    while ((ch = __wt_getopt(progname, argc, argv, "Cch:LmsT:t:vz")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "Cch:LmpsT:t:vz")) != EOF)
         switch (ch) {
         case 'C':
             compat = true;
@@ -669,6 +784,9 @@ main(int argc, char *argv[])
             break;
         case 'm':
             inmem = true;
+            break;
+        case 'p':
+            preserve = true;
             break;
         case 's':
             stress = true;
@@ -700,7 +818,6 @@ main(int argc, char *argv[])
         usage();
 
     testutil_work_dir_from_path(home, sizeof(home), working_dir);
-    testutil_check(pthread_rwlock_init(&ts_lock, NULL));
 
     /*
      * If the user wants to verify they need to tell us how many threads there were so we can find
@@ -744,7 +861,7 @@ main(int argc, char *argv[])
         testutil_assert_errno((pid = fork()) >= 0);
 
         if (pid == 0) { /* child */
-            run_workload(nth);
+            run_workload();
             /* NOTREACHED */
         }
 
@@ -783,12 +900,15 @@ main(int argc, char *argv[])
     /* Copy the data to a separate folder for debugging purpose. */
     testutil_copy_data(home);
 
-    printf("Open database, run recovery and verify content\n");
+    printf("Open database and run recovery\n");
 
     /*
      * Open the connection which forces recovery to be run.
      */
-    testutil_check(wiredtiger_open(NULL, NULL, ENV_CONFIG_REC, &conn));
+    testutil_check(wiredtiger_open(NULL, &my_event, ENV_CONFIG_REC, &conn));
+    printf("Connection open and recovery complete. Verify content\n");
+    /* Sleep to guarantee the statistics thread has enough time to run. */
+    usleep(USEC_STAT + 10);
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     /*
      * Open a cursor on all the tables.
@@ -989,9 +1109,15 @@ main(int argc, char *argv[])
         printf("OPLOG: %" PRIu64 " record(s) absent from %" PRIu64 "\n", absent_oplog, count);
         fatal = true;
     }
-    testutil_check(pthread_rwlock_destroy(&ts_lock));
     if (fatal)
         return (EXIT_FAILURE);
     printf("%" PRIu64 " records verified\n", count);
+    if (!preserve) {
+        testutil_clean_test_artifacts(home);
+        /* At this point $PATH is inside `home`, which we intend to delete. cd to the parent dir. */
+        if (chdir("../") != 0)
+            testutil_die(errno, "root chdir: %s", home);
+        testutil_clean_work_dir(home);
+    }
     return (EXIT_SUCCESS);
 }

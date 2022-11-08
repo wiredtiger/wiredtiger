@@ -31,6 +31,10 @@
  * JIRA ticket reference: WT-2695 Test case description: Smoke-test the CRC.
  */
 
+/*
+ * check --
+ *     TODO: Add a comment describing this function.
+ */
 static inline void
 check(uint32_t hw, uint32_t sw, size_t len, const char *msg)
 {
@@ -39,6 +43,11 @@ check(uint32_t hw, uint32_t sw, size_t len, const char *msg)
 }
 
 #define DATASIZE (128 * 1024)
+
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -53,7 +62,8 @@ main(int argc, char *argv[])
     memset(opts, 0, sizeof(*opts));
     testutil_check(testutil_parse_opts(argc, argv, opts));
     testutil_make_work_dir(opts->home);
-    testutil_check(wiredtiger_open(opts->home, NULL, "create", &opts->conn));
+    testutil_check(wiredtiger_open(opts->home, NULL,
+      "create,statistics=(all),statistics_log=(json,on_close,wait=1)", &opts->conn));
 
     /* Initialize the RNG. */
     __wt_random_init_seed(NULL, &rnd);

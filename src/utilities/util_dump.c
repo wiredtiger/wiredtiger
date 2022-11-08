@@ -6,7 +6,6 @@
  * See the file LICENSE for redistribution information.
  */
 
-#include <assert.h>
 #include "util.h"
 #include "util_dump.h"
 
@@ -28,6 +27,10 @@ static int dup_json_string(const char *, char **);
 static int print_config(WT_SESSION *, const char *, const char *, bool, bool);
 static int time_pair_to_timestamp(WT_SESSION_IMPL *, char *, WT_ITEM *);
 
+/*
+ * usage --
+ *     Display a usage message for the dump command.
+ */
 static int
 usage(void)
 {
@@ -53,6 +56,10 @@ usage(void)
 
 static FILE *fp;
 
+/*
+ * util_dump --
+ *     The dump command.
+ */
 int
 util_dump(WT_SESSION *session, int argc, char *argv[])
 {
@@ -319,7 +326,7 @@ dump_json_end(WT_SESSION *session)
 }
 
 /*
- * dump_json_begin --
+ * dump_json_separator --
  *     Output a separator between two JSON outputs in a list.
  */
 static int
@@ -343,8 +350,8 @@ dump_json_table_end(WT_SESSION *session)
 }
 
 /*
- * dump_add_config
- *	Add a formatted config string to an output buffer.
+ * dump_add_config --
+ *     Add a formatted config string to an output buffer.
  */
 static int
 dump_add_config(WT_SESSION *session, char **bufp, size_t *leftp, const char *fmt, ...)
@@ -414,8 +421,8 @@ dump_projection(WT_SESSION *session, const char *config, WT_CURSOR *cursor, char
 
             /* copy names of projected values */
             p = strchr(cursor->uri, '(');
-            assert(p != NULL);
-            assert(p[strlen(p) - 1] == ')');
+            WT_ASSERT((WT_SESSION_IMPL *)session, p != NULL);
+            WT_ASSERT((WT_SESSION_IMPL *)session, p[strlen(p) - 1] == ')');
             p++;
             if (*p != ')')
                 WT_RET(dump_add_config(session, &newconfig, &len, "%s", ","));
@@ -429,7 +436,7 @@ dump_projection(WT_SESSION *session, const char *config, WT_CURSOR *cursor, char
     if (ret != WT_NOTFOUND)
         return (util_err(session, ret, "WT_CONFIG_PARSER.next"));
 
-    assert(len > 0);
+    WT_ASSERT((WT_SESSION_IMPL *)session, len > 0);
     if ((ret = parser->close(parser)) != 0)
         return (util_err(session, ret, "WT_CONFIG_PARSER.close"));
 
@@ -570,7 +577,8 @@ match:
 }
 
 /*
- * Returns dump type string based on the passed format flags
+ * get_dump_type --
+ *     Returns dump type string based on the passed format flags
  */
 static const char *
 get_dump_type(bool pretty, bool hex, bool json)
@@ -685,24 +693,15 @@ dump_suffix(WT_SESSION *session, bool json)
 static int
 dup_json_string(const char *str, char **result)
 {
-    size_t left, nchars;
+    size_t nchars;
     char *q;
-    const char *p;
 
-    nchars = 0;
-    for (p = str; *p; p++, nchars++)
-        nchars += __wt_json_unpack_char((u_char)*p, NULL, 0, false);
-    q = malloc(nchars + 1);
+    nchars = __wt_json_unpack_str(NULL, 0, (const u_char *)str, strlen(str)) + 1;
+    q = malloc(nchars);
     if (q == NULL)
         return (1);
+    WT_IGNORE_RET(__wt_json_unpack_str((u_char *)q, nchars, (const u_char *)str, strlen(str)));
     *result = q;
-    left = nchars;
-    for (p = str; *p; p++, nchars++) {
-        nchars = __wt_json_unpack_char((u_char)*p, (u_char *)q, left, false);
-        left -= nchars;
-        q += nchars;
-    }
-    *q = '\0';
     return (0);
 }
 

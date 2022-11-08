@@ -69,10 +69,10 @@ struct __wt_addr;
 typedef struct __wt_addr WT_ADDR;
 struct __wt_addr_copy;
 typedef struct __wt_addr_copy WT_ADDR_COPY;
+struct __wt_backup_target;
+typedef struct __wt_backup_target WT_BACKUP_TARGET;
 struct __wt_blkcache;
 typedef struct __wt_blkcache WT_BLKCACHE;
-struct __wt_blkcache_bucket_metadata;
-typedef struct __wt_blkcache_bucket_metadata WT_BLKCACHE_BUCKET_METADATA;
 struct __wt_blkcache_item;
 typedef struct __wt_blkcache_item WT_BLKCACHE_ITEM;
 struct __wt_blkincr;
@@ -83,8 +83,6 @@ struct __wt_block_ckpt;
 typedef struct __wt_block_ckpt WT_BLOCK_CKPT;
 struct __wt_block_desc;
 typedef struct __wt_block_desc WT_BLOCK_DESC;
-struct __wt_block_file_opener;
-typedef struct __wt_block_file_opener WT_BLOCK_FILE_OPENER;
 struct __wt_block_header;
 typedef struct __wt_block_header WT_BLOCK_HEADER;
 struct __wt_block_mods;
@@ -115,6 +113,8 @@ struct __wt_cell_unpack_kv;
 typedef struct __wt_cell_unpack_kv WT_CELL_UNPACK_KV;
 struct __wt_ckpt;
 typedef struct __wt_ckpt WT_CKPT;
+struct __wt_ckpt_snapshot;
+typedef struct __wt_ckpt_snapshot WT_CKPT_SNAPSHOT;
 struct __wt_col;
 typedef struct __wt_col WT_COL;
 struct __wt_col_fix_auxiliary_header;
@@ -147,6 +147,8 @@ struct __wt_connection_stats;
 typedef struct __wt_connection_stats WT_CONNECTION_STATS;
 struct __wt_cursor_backup;
 typedef struct __wt_cursor_backup WT_CURSOR_BACKUP;
+struct __wt_cursor_bounds_state;
+typedef struct __wt_cursor_bounds_state WT_CURSOR_BOUNDS_STATE;
 struct __wt_cursor_btree;
 typedef struct __wt_cursor_btree WT_CURSOR_BTREE;
 struct __wt_cursor_bulk;
@@ -181,10 +183,14 @@ struct __wt_cursor_stat;
 typedef struct __wt_cursor_stat WT_CURSOR_STAT;
 struct __wt_cursor_table;
 typedef struct __wt_cursor_table WT_CURSOR_TABLE;
+struct __wt_cursor_version;
+typedef struct __wt_cursor_version WT_CURSOR_VERSION;
 struct __wt_data_handle;
 typedef struct __wt_data_handle WT_DATA_HANDLE;
 struct __wt_data_handle_cache;
 typedef struct __wt_data_handle_cache WT_DATA_HANDLE_CACHE;
+struct __wt_delete_hs_upd;
+typedef struct __wt_delete_hs_upd WT_DELETE_HS_UPD;
 struct __wt_dlh;
 typedef struct __wt_dlh WT_DLH;
 struct __wt_dsrc_stats;
@@ -209,12 +215,12 @@ struct __wt_fstream;
 typedef struct __wt_fstream WT_FSTREAM;
 struct __wt_hazard;
 typedef struct __wt_hazard WT_HAZARD;
-struct __wt_hazard_weak;
-typedef struct __wt_hazard_weak WT_HAZARD_WEAK;
-struct __wt_hazard_weak_array;
-typedef struct __wt_hazard_weak_array WT_HAZARD_WEAK_ARRAY;
 struct __wt_ikey;
 typedef struct __wt_ikey WT_IKEY;
+struct __wt_import_entry;
+typedef struct __wt_import_entry WT_IMPORT_ENTRY;
+struct __wt_import_list;
+typedef struct __wt_import_list WT_IMPORT_LIST;
 struct __wt_index;
 typedef struct __wt_index WT_INDEX;
 struct __wt_insert;
@@ -335,8 +341,6 @@ struct __wt_thread_group;
 typedef struct __wt_thread_group WT_THREAD_GROUP;
 struct __wt_tiered;
 typedef struct __wt_tiered WT_TIERED;
-struct __wt_tiered_manager;
-typedef struct __wt_tiered_manager WT_TIERED_MANAGER;
 struct __wt_tiered_object;
 typedef struct __wt_tiered_object WT_TIERED_OBJECT;
 struct __wt_tiered_tiers;
@@ -367,6 +371,10 @@ struct __wt_update_vector;
 typedef struct __wt_update_vector WT_UPDATE_VECTOR;
 struct __wt_verbose_multi_category;
 typedef struct __wt_verbose_multi_category WT_VERBOSE_MULTI_CATEGORY;
+struct __wt_verify_info;
+typedef struct __wt_verify_info WT_VERIFY_INFO;
+struct __wt_version;
+typedef struct __wt_version WT_VERSION;
 union __wt_lsn;
 typedef union __wt_lsn WT_LSN;
 union __wt_rand_state;
@@ -382,9 +390,7 @@ typedef uint64_t wt_timestamp_t;
 /*******************************************
  * WiredTiger internal include files.
  *******************************************/
-#if defined(_lint)
-#include "lint.h"
-#elif defined(__GNUC__)
+#if defined(__GNUC__)
 #include "gcc.h"
 #elif defined(_MSC_VER)
 #include "msvc.h"
@@ -444,6 +450,7 @@ typedef uint64_t wt_timestamp_t;
 #include "verbose.h"
 
 #include "session.h" /* required by connection.h */
+#include "version.h" /* required by connection.h */
 #include "connection.h"
 
 #include "extern.h"

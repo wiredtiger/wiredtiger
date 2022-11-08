@@ -14,6 +14,16 @@
 #define WT_TS_NONE 0         /* Beginning of time */
 #define WT_TS_MAX UINT64_MAX /* End of time */
 
+/*
+ * A list of reasons for returning a rollback error from the API. These reasons can be queried via
+ * the session get rollback reason API call. Users of the API could have a dependency on the format
+ * of these messages so changing them must be done with care.
+ */
+#define WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW "transaction rolled back because of cache overflow"
+#define WT_TXN_ROLLBACK_REASON_CONFLICT "conflict between concurrent operations"
+#define WT_TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION \
+    "oldest pinned transaction ID rolled back for eviction"
+
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TXN_LOG_CKPT_CLEANUP 0x01u
 #define WT_TXN_LOG_CKPT_PREPARE 0x02u
@@ -126,6 +136,7 @@ struct __wt_txn_global {
     wt_timestamp_t pinned_timestamp;
     wt_timestamp_t recovery_timestamp;
     wt_timestamp_t stable_timestamp;
+    wt_timestamp_t version_cursor_pinned_timestamp;
     bool has_durable_timestamp;
     bool has_oldest_timestamp;
     bool has_pinned_timestamp;
@@ -153,8 +164,6 @@ struct __wt_txn_global {
     volatile uint32_t checkpoint_id;     /* Checkpoint's session ID */
     WT_TXN_SHARED checkpoint_txn_shared; /* Checkpoint's txn shared state */
     wt_timestamp_t checkpoint_timestamp; /* Checkpoint's timestamp */
-    volatile uint64_t checkpoint_reserved_txn_id; /* A transaction ID reserved by checkpoint for
-                                            prepared transaction resolution. */
 
     volatile uint64_t debug_ops;       /* Debug mode op counter */
     uint64_t debug_rollback;           /* Debug mode rollback */
@@ -196,8 +205,6 @@ typedef enum {
 struct __wt_txn_op {
     WT_BTREE *btree;
     WT_TXN_TYPE type;
-    WT_HAZARD_WEAK *whp;
-
     union {
         /* WT_TXN_OP_BASIC_ROW, WT_TXN_OP_INMEM_ROW */
         struct {
@@ -234,6 +241,8 @@ struct __wt_txn_op {
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
+
+#define WT_TS_VERBOSE_PREFIX "unexpected timestamp usage: "
 
 /*
  * WT_TXN --
@@ -281,6 +290,13 @@ struct __wt_txn {
      */
     wt_timestamp_t prepare_timestamp;
 
+    /*
+     * Timestamps used for reading via a checkpoint cursor instead of txn_shared->read_timestamp and
+     * the current oldest/pinned timestamp, respectively.
+     */
+    wt_timestamp_t checkpoint_read_timestamp;
+    wt_timestamp_t checkpoint_oldest_timestamp;
+
     /* Array of modifications by this transaction. */
     WT_TXN_OP *mod;
     size_t mod_alloc;
@@ -289,14 +305,8 @@ struct __wt_txn {
     u_int prepare_count;
 #endif
 
-    /* This is a temporary feature flag to simplify resolving uncommitted updates. */
-    bool resolve_weak_hazard_updates;
-
     /* Scratch buffer for in-memory log records. */
     WT_ITEM *logrec;
-
-    /* Requested notification when transactions are resolved. */
-    WT_TXN_NOTIFY *notify;
 
     /* Checkpoint status. */
     WT_LSN ckpt_lsn;
@@ -322,37 +332,32 @@ struct __wt_txn {
  */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_TXN_AUTOCOMMIT 0x0000001u
-#define WT_TXN_ERROR 0x0000002u
-#define WT_TXN_HAS_ID 0x0000004u
-#define WT_TXN_HAS_SNAPSHOT 0x0000008u
-#define WT_TXN_HAS_TS_COMMIT 0x0000010u
-#define WT_TXN_HAS_TS_DURABLE 0x0000020u
-#define WT_TXN_HAS_TS_PREPARE 0x0000040u
-#define WT_TXN_IGNORE_PREPARE 0x0000080u
-#define WT_TXN_PREPARE 0x0000100u
-#define WT_TXN_PREPARE_IGNORE_API_CHECK 0x0000200u
-#define WT_TXN_READONLY 0x0000400u
-#define WT_TXN_RUNNING 0x0000800u
-#define WT_TXN_SHARED_TS_DURABLE 0x0001000u
-#define WT_TXN_SHARED_TS_READ 0x0002000u
-#define WT_TXN_SYNC_SET 0x0004000u
-#define WT_TXN_TS_READ_BEFORE_OLDEST 0x0008000u
-#define WT_TXN_TS_ROUND_PREPARED 0x0010000u
-#define WT_TXN_TS_ROUND_READ 0x0020000u
-#define WT_TXN_TS_WRITE_ALWAYS 0x0040000u
-#define WT_TXN_TS_WRITE_KEY_CONSISTENT 0x0080000u
-#define WT_TXN_TS_WRITE_MIXED_MODE 0x0100000u
-#define WT_TXN_TS_WRITE_NEVER 0x0200000u
-#define WT_TXN_TS_WRITE_ORDERED 0x0400000u
-#define WT_TXN_UPDATE 0x0800000u
-#define WT_TXN_VERB_TS_WRITE 0x1000000u
+#define WT_TXN_AUTOCOMMIT 0x00001u
+#define WT_TXN_ERROR 0x00002u
+#define WT_TXN_HAS_ID 0x00004u
+#define WT_TXN_HAS_SNAPSHOT 0x00008u
+#define WT_TXN_HAS_TS_COMMIT 0x00010u
+#define WT_TXN_HAS_TS_DURABLE 0x00020u
+#define WT_TXN_HAS_TS_PREPARE 0x00040u
+#define WT_TXN_IGNORE_PREPARE 0x00080u
+#define WT_TXN_IS_CHECKPOINT 0x00100u
+#define WT_TXN_PREPARE 0x00200u
+#define WT_TXN_PREPARE_IGNORE_API_CHECK 0x00400u
+#define WT_TXN_READONLY 0x00800u
+#define WT_TXN_RUNNING 0x01000u
+#define WT_TXN_SHARED_TS_DURABLE 0x02000u
+#define WT_TXN_SHARED_TS_READ 0x04000u
+#define WT_TXN_SYNC_SET 0x08000u
+#define WT_TXN_TS_NOT_SET 0x10000u
+#define WT_TXN_TS_ROUND_PREPARED 0x20000u
+#define WT_TXN_TS_ROUND_READ 0x40000u
+#define WT_TXN_UPDATE 0x80000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 
     /*
-     * Zero or more bytes of value (the payload) immediately follows the WT_UPDATE structure. We use
-     * a C99 flexible array member which has the semantics we want.
+     * Zero or more bytes of value (the payload) immediately follows the WT_TXN structure. We use a
+     * C99 flexible array member which has the semantics we want.
      */
     uint64_t __snapshot[];
 };

@@ -3,6 +3,9 @@ ACM
 ADDR
 APIs
 ASAN
+ASan
+AWS
+AWS's
 ActiveState
 Adler's
 Atomicity
@@ -29,10 +32,12 @@ Cyclomatic
 DB's
 DBTs
 DCC
+DCLANG
 DCMAKE
 DENABLE
 DHANDLE
 DHAVE
+DNON
 DONTNEED
 DSPINLOCK
 DWT
@@ -51,6 +56,7 @@ ENOTSUP
 EXTLIST
 EmpId
 Encryptors
+FIXME
 FSTREAM
 Facebook
 Facebook's
@@ -110,6 +116,7 @@ PMU
 PPC
 PRELOAD
 PROFDATA
+Powershell
 README
 RLE
 RedHat
@@ -119,6 +126,8 @@ RocksDB
 Roelofs
 RrVv
 Rrx
+SDK
+SDK's
 SCons
 SYSV
 Sanitizer
@@ -127,6 +136,8 @@ SiH
 TSC
 TXID
 TXT
+Timestamping
+Truncations
 UBSAN
 UNC
 URIs
@@ -163,6 +174,7 @@ allocator
 allocators
 allocsize
 ao
+ap
 api
 apiflags
 ar
@@ -245,6 +257,7 @@ customerABC
 customizability
 cv
 cyclomatic
+de
 dN
 dNLen
 dNOff
@@ -259,6 +272,7 @@ dbc
 dbformat
 dbm
 dbt
+deallocated
 decl
 decrement
 decrementing
@@ -273,6 +287,7 @@ dev
 dhandle
 dhandle's
 dhandles
+dir
 disjunction
 disjunctions
 distclean
@@ -289,6 +304,7 @@ dt
 dumpfile
 dup
 dups
+ebusy
 encrypt
 encryptor
 encryptor's
@@ -323,10 +339,12 @@ fileFontColor
 fileID
 fileShadowing
 fileformats
+filehandle
 fileid
 filename
 filesystem
 filesystems
+filesystem's
 fillfactor
 firstname
 flamegraph
@@ -359,6 +377,7 @@ getter
 gid
 github
 gnuplot
+graphviz
 hb
 hotbackup
 href
@@ -376,8 +395,10 @@ iflag
 incr
 indices
 init
+inmem
 inmemory
 insn
+instantiation
 intl
 intpack
 inuse
@@ -454,8 +475,10 @@ mixin
 mixins
 mkdir
 mmap
+modularity
 mpool
 mpoolfile
+msbuild
 msec
 msg
 msgs
@@ -522,6 +545,7 @@ pre
 prealloc
 prepended
 prepends
+presumptively
 prev
 primary's
 printf
@@ -562,6 +586,7 @@ req
 rerequests
 ret
 rf
+riscv
 rmw
 ro
 rotn
@@ -611,6 +636,7 @@ struct
 structs
 subdatabases
 subdirectory
+suboptimal
 subpage
 substring
 subsubsection
@@ -630,7 +656,9 @@ thang
 tid
 timeline
 timelines
+timespan
 timestamp
+timestamping
 timestamps
 toc
 todo
@@ -643,6 +671,7 @@ trackpad
 tradeoffs
 transactional
 transactionally
+truncations
 tt
 txn
 txnid
@@ -670,6 +699,7 @@ util
 valign
 valuefmt
 valuev
+vcxproj
 vec
 versa
 viewable
@@ -682,6 +712,7 @@ whitespace
 wiredtiger
 workQ
 workgen
+wrapup
 writelock
 writelocks
 wrlock

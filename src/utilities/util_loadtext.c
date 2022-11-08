@@ -11,6 +11,10 @@
 static int insert(WT_CURSOR *, const char *, bool);
 static int text(WT_SESSION *, const char *);
 
+/*
+ * usage --
+ *     Display a usage message for the loadtext command.
+ */
 static int
 usage(void)
 {
@@ -21,6 +25,10 @@ usage(void)
     return (1);
 }
 
+/*
+ * util_loadtext --
+ *     The loadtext command.
+ */
 int
 util_loadtext(WT_SESSION *session, int argc, char *argv[])
 {

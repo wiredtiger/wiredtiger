@@ -1,61 +1,40 @@
-#
-# Public Domain 2014-present MongoDB, Inc.
-# Public Domain 2008-2014 WiredTiger, Inc.
-#
-# This is free and unencumbered software released into the public domain.
-#
-# Anyone is free to copy, modify, publish, use, compile, sell, or
-# distribute this software, either in source code form or as a compiled
-# binary, for any purpose, commercial or non-commercial, and by any
-# means.
-#
-# In jurisdictions that recognize copyright laws, the author or authors
-# of this software dedicate any and all copyright interest in the
-# software to the public domain. We make this dedication for the benefit
-# of the public at large and to the detriment of our heirs and
-# successors. We intend this dedication to be an overt act of
-# relinquishment in perpetuity of all present and future rights to this
-# software under copyright law.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-# IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
-# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
-# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-# OTHER DEALINGS IN THE SOFTWARE.
-#
-
 project(cppsuite CXX)
 
 # Create an intermediate static lib.
 add_library(cppsuite_test_harness STATIC
-    test_harness/core/component.cxx
-    test_harness/core/configuration.cxx
-    test_harness/core/throttle.cxx
-    test_harness/util/api_const.cxx
-    test_harness/util/logger.cxx
-    test_harness/util/scoped_connection.cxx
-    test_harness/util/scoped_types.cxx
-    test_harness/workload/database_model.cxx
-    test_harness/workload/database_operation.cxx
-    test_harness/workload/random_generator.cxx
-    test_harness/workload/thread_context.cxx
-    test_harness/workload/workload_tracking.cxx
-    test_harness/workload/workload_validation.cxx
-    test_harness/checkpoint_manager.cxx
-    test_harness/connection_manager.cxx
-    test_harness/runtime_monitor.cxx
-    test_harness/test.cxx
-    test_harness/thread_manager.cxx
-    test_harness/timestamp_manager.cxx
-    test_harness/workload_generator.cxx
+    src/bound/bound.cpp
+    src/bound/bound_set.cpp
+    src/common/constants.cpp
+    src/common/logger.cpp
+    src/common/random_generator.cpp
+    src/common/thread_manager.cpp
+    src/component/component.cpp
+    src/component/execution_timer.cpp
+    src/component/metrics_monitor.cpp
+    src/component/metrics_writer.cpp
+    src/component/operation_tracker.cpp
+    src/component/statistics/cache_limit.cpp
+    src/component/statistics/database_size.cpp
+    src/component/statistics/statistics.cpp
+    src/component/timestamp_manager.cpp
+    src/component/workload_manager.cpp
+    src/main/collection.cpp
+    src/main/configuration.cpp
+    src/main/database.cpp
+    src/main/database_operation.cpp
+    src/main/operation_configuration.cpp
+    src/main/test.cpp
+    src/main/thread_worker.cpp
+    src/main/transaction.cpp
+    src/main/validator.cpp
+    src/storage/connection_manager.cpp
+    src/storage/scoped_cursor.cpp
+    src/storage/scoped_session.cpp
 )
 
 target_include_directories(cppsuite_test_harness PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_options(
     cppsuite_test_harness
-    PUBLIC -std=c++11
     PRIVATE ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
 )
 target_link_libraries(cppsuite_test_harness PRIVATE test_util)
@@ -64,7 +43,7 @@ target_compile_options(cppsuite_test_harness PUBLIC -DEXTSUBPATH="")
 
 # Create the different executables.
 create_test_executable(run
-    SOURCES tests/run.cxx
+    SOURCES tests/run.cpp
     LIBS cppsuite_test_harness
     ADDITIONAL_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/configs
     CXX
@@ -73,15 +52,10 @@ create_test_executable(run
 # If you prefer to not use the run binary you can add a test via this mechanism but it is generally
 # frowned upon.
 create_test_executable(csuite_style_example_test
-    SOURCES tests/csuite_style_example_test.cxx
+    SOURCES tests/csuite_style_example_test.cpp
     LIBS cppsuite_test_harness
     CXX
 )
-
-if(ENABLE_TCMALLOC)
-    target_link_libraries(run wt::tcmalloc)
-    target_link_libraries(csuite_style_example_test wt::tcmalloc)
-endif()
 
 # Test definitions.
 add_test(NAME cppsuite COMMAND ${CMAKE_CURRENT_BINARY_DIR}/run)

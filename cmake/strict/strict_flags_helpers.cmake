@@ -1,11 +1,3 @@
-#
-# Public Domain 2014-present MongoDB, Inc.
-# Public Domain 2008-2014 WiredTiger, Inc.
-#  All rights reserved.
-#
-#  See the file LICENSE for redistribution information
-#
-
 # get_gnu_base_flags(flags)
 # Helper function that generates a set of common GNU flags for a given language.
 #   flags - list of flags.
@@ -214,10 +206,6 @@ function(get_cl_base_flags flags)
 
     # Warning level 3.
     list(APPEND cl_flags "/WX")
-    # Ignore warning about mismatched const qualifiers.
-    list(APPEND cl_flags "/wd4090")
-    # Ignore deprecated functions.
-    list(APPEND cl_flags "/wd4996")
     # Complain about unreferenced format parameter.
     list(APPEND cl_flags "/we4100")
     # Enable security check.

@@ -46,6 +46,10 @@ static uint64_t shared_counter;
 void *thread_rwlock(void *);
 void *thread_dump(void *);
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -62,8 +66,9 @@ main(int argc, char *argv[])
     running = true;
 
     testutil_make_work_dir(opts->home);
-    testutil_check(
-      wiredtiger_open(opts->home, NULL, "create,session_max=1000,statistics=(fast)", &opts->conn));
+    testutil_check(wiredtiger_open(opts->home, NULL,
+      "create,session_max=1000,statistics=(all),statistics_log=(json,on_close,wait=1)",
+      &opts->conn));
 
     testutil_check(__wt_rwlock_init(NULL, &rwlock));
     testutil_check(pthread_rwlock_init(&p_rwlock, NULL));
@@ -88,7 +93,8 @@ main(int argc, char *argv[])
 }
 
 /*
- * Acquire a rwlock, every Nth operation, acquire exclusive.
+ * thread_rwlock --
+ *     Acquire a rwlock, every Nth operation, acquire exclusive.
  */
 void *
 thread_rwlock(void *arg)
@@ -156,6 +162,10 @@ thread_rwlock(void *arg)
     return (NULL);
 }
 
+/*
+ * thread_dump --
+ *     TODO: Add a comment describing this function.
+ */
 void *
 thread_dump(void *arg)
 {

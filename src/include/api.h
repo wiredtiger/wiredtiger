@@ -89,7 +89,7 @@
          * We should not leave any history store cursor open when return from an api call. \
          * However, we cannot do a stricter check before WT-7247 is resolved.              \
          */                                                                                \
-        WT_ASSERT(s, (s)->api_call_counter > 1 || (s)->hs_cursor_counter <= 2);            \
+        WT_ASSERT(s, (s)->api_call_counter > 1 || (s)->hs_cursor_counter <= 3);            \
         /*                                                                                 \
          * No code after this line, otherwise error handling                               \
          * won't be correct.                                                               \
@@ -104,7 +104,6 @@
     do {                                                                    \
         bool __autotxn = false, __update = false;                           \
         API_CALL(s, h, n, dh, config, cfg);                                 \
-        __wt_txn_timestamp_flags(s);                                        \
         __autotxn = !F_ISSET((s)->txn, WT_TXN_AUTOCOMMIT | WT_TXN_RUNNING); \
         if (__autotxn)                                                      \
             F_SET((s)->txn, WT_TXN_AUTOCOMMIT);                             \
@@ -117,7 +116,6 @@
     do {                                                                    \
         bool __autotxn = false, __update = false;                           \
         API_CALL_NOCONF(s, h, n, dh);                                       \
-        __wt_txn_timestamp_flags(s);                                        \
         __autotxn = !F_ISSET((s)->txn, WT_TXN_AUTOCOMMIT | WT_TXN_RUNNING); \
         if (__autotxn)                                                      \
             F_SET((s)->txn, WT_TXN_AUTOCOMMIT);                             \
@@ -158,6 +156,26 @@
 #define API_END_RET(s, ret) \
     API_END(s, ret);        \
     return (ret)
+
+#define API_END_STAT(s, ret, api)                   \
+    do {                                            \
+        if ((ret) != 0 && ((ret) != WT_NOTFOUND)) { \
+            WT_STAT_CONN_DATA_INCR(s, api##_error); \
+        }                                           \
+    } while (0)
+
+#define API_RET_STAT(s, ret, api)  \
+    do {                           \
+        API_END_STAT(s, ret, api); \
+        return ((ret));            \
+    } while (0)
+
+#define API_END_RET_STAT(s, ret, api) \
+    do {                              \
+        API_END_STAT(s, ret, api);    \
+        API_END_RET(s, ret);          \
+    } while (0)
+
 #define API_END_RET_NOTFOUND_MAP(s, ret) \
     API_END(s, ret);                     \
     return ((ret) == WT_NOTFOUND ? ENOENT : (ret))
@@ -170,6 +188,8 @@
 #define API_END_RET_NO_TXN_ERROR(s, ret) \
     API_END(s, 0);                       \
     return ((ret) == WT_NOTFOUND ? ENOENT : (ret))
+
+#define API_USER_ENTRY(s) (s)->api_call_counter == 1
 
 #define CONNECTION_API_CALL(conn, s, n, config, cfg) \
     s = (conn)->default_session;                     \
@@ -218,6 +238,13 @@
     SESSION_API_PREPARE_CHECK(s, WT_CURSOR, n);                                            \
     API_CALL_NOCONF(s, WT_CURSOR, n, ((bt) == NULL) ? NULL : ((WT_BTREE *)(bt))->dhandle); \
     if (F_ISSET(cur, WT_CURSTD_CACHED))                                                    \
+    WT_ERR(__wt_cursor_cached(cur))
+
+#define CURSOR_API_CALL_CONF(cur, s, n, config, cfg, bt)                                         \
+    (s) = CUR2S(cur);                                                                            \
+    SESSION_API_PREPARE_CHECK(s, WT_CURSOR, n);                                                  \
+    API_CALL(s, WT_CURSOR, n, ((bt) == NULL) ? NULL : ((WT_BTREE *)(bt))->dhandle, config, cfg); \
+    if (F_ISSET(cur, WT_CURSTD_CACHED))                                                          \
     WT_ERR(__wt_cursor_cached(cur))
 
 #define CURSOR_API_CALL_PREPARE_ALLOWED(cur, s, n, bt)                                     \
@@ -270,3 +297,25 @@
     TXN_API_END(s, ret, retry)
 
 #define CURSOR_UPDATE_API_END(s, ret) CURSOR_UPDATE_API_END_RETRY(s, ret, true)
+
+#define CURSOR_UPDATE_API_END_RETRY_STAT(s, ret, retry, api) \
+    if ((ret) == WT_PREPARE_CONFLICT)                        \
+        (ret) = WT_ROLLBACK;                                 \
+    API_END_STAT(s, ret, api);                               \
+    TXN_API_END(s, ret, retry)
+
+#define CURSOR_UPDATE_API_END_STAT(s, ret, api) CURSOR_UPDATE_API_END_RETRY_STAT(s, ret, true, api)
+
+/*
+ * Calling certain top level APIs allows for internal repositioning of cursors to facilitate
+ * eviction of hot pages. These macros facilitate tracking when that is OK.
+ */
+#define CURSOR_REPOSITION_ENTER(c, s)                                      \
+    if (FLD_ISSET(S2C(s)->debug_flags, WT_CONN_DEBUG_CURSOR_REPOSITION) && \
+      (s)->api_call_counter == 1)                                          \
+    F_SET((c), WT_CURSTD_EVICT_REPOSITION)
+
+#define CURSOR_REPOSITION_END(c, s)                                        \
+    if (FLD_ISSET(S2C(s)->debug_flags, WT_CONN_DEBUG_CURSOR_REPOSITION) && \
+      (s)->api_call_counter == 1)                                          \
+    F_CLR((c), WT_CURSTD_EVICT_REPOSITION)

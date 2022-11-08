@@ -42,6 +42,10 @@ static char *uri_list[750];
 static char home[HOME_LEN];
 extern char *__wt_optarg;
 
+/*
+ * uri_init --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 uri_init(void)
 {
@@ -79,6 +83,10 @@ uri_init(void)
     testutil_check(session->close(session, NULL));
 }
 
+/*
+ * uri_teardown --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 uri_teardown(void)
 {
@@ -88,6 +96,10 @@ uri_teardown(void)
         free(uri_list[i]);
 }
 
+/*
+ * op --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 op(WT_SESSION *session, WT_RAND_STATE *rnd, WT_CURSOR **cpp)
 {
@@ -108,14 +120,9 @@ op(WT_SESSION *session, WT_RAND_STATE *rnd, WT_CURSOR **cpp)
 
     /* Loop to open an object handle. */
     for (i = __wt_random(rnd) % uris; !done; __wt_yield()) {
-        /*
-         * Use a checkpoint handle for 50% of reads.
-         *
-         * FIXME-WT-5927: Checkpoint cursors are known to have issues in durable history so we've
-         * removing the use of checkpoint handles in this test. As part of WT-5927, we should either
-         * re-enable the testing of checkpoint cursors or remove this comment.
-         */
-        ret = session->open_cursor(session, uri_list[i], NULL, NULL, &cursor);
+        /* Use a checkpoint handle for 50% of reads. */
+        ret = session->open_cursor(session, uri_list[i], NULL,
+          readonly && (i % 2 == 0) ? "checkpoint=WiredTigerCheckpoint" : NULL, &cursor);
         if (ret != EBUSY) {
             testutil_check(ret);
             break;
@@ -148,6 +155,10 @@ op(WT_SESSION *session, WT_RAND_STATE *rnd, WT_CURSOR **cpp)
     (void)__wt_atomic_add64(&worker, 1);
 }
 
+/*
+ * wthread --
+ *     TODO: Add a comment describing this function.
+ */
 static void *
 wthread(void *arg)
 {
@@ -172,6 +183,10 @@ wthread(void *arg)
     return (NULL);
 }
 
+/*
+ * vthread --
+ *     TODO: Add a comment describing this function.
+ */
 static void *
 vthread(void *arg)
 {
@@ -210,6 +225,10 @@ vthread(void *arg)
     return (NULL);
 }
 
+/*
+ * on_alarm --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 on_alarm(int signo)
 {
@@ -218,6 +237,10 @@ on_alarm(int signo)
     done = true;
 }
 
+/*
+ * sweep_stats --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 sweep_stats(void)
 {
@@ -246,6 +269,10 @@ sweep_stats(void)
     }
 }
 
+/*
+ * runone --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 runone(bool config_cache)
 {
@@ -267,7 +294,8 @@ runone(bool config_cache)
       "close_handle_minimum=1,close_idle_time=1,close_scan_interval=1)"
       ", mmap=true"
       ", session_max=%u"
-      ", statistics=(all)",
+      ", statistics=(all)"
+      ", statistics_log=(json,on_close,wait=1)",
       config_cache ? "true" : "false", workers + 100));
     testutil_check(wiredtiger_open(home, NULL, buf, &conn));
 
@@ -298,6 +326,10 @@ runone(bool config_cache)
     testutil_check(conn->close(conn, NULL));
 }
 
+/*
+ * run --
+ *     TODO: Add a comment describing this function.
+ */
 static int
 run(int argc, char *argv[])
 {
@@ -322,13 +354,14 @@ run(int argc, char *argv[])
     WT_RAND_STATE rnd;
     u_int i, n;
     int ch;
-    bool default_home;
+    bool default_home, preserve;
 
     (void)testutil_set_progname(argv);
     __wt_random_init_seed(NULL, &rnd);
 
     default_home = true;
-    while ((ch = __wt_getopt(argv[0], argc, argv, "vh:")) != EOF) {
+    preserve = false;
+    while ((ch = __wt_getopt(argv[0], argc, argv, "vh:p")) != EOF) {
         switch (ch) {
         case 'v':
             verbose = true;
@@ -337,6 +370,9 @@ run(int argc, char *argv[])
             strncpy(home, __wt_optarg, HOME_LEN);
             home[HOME_LEN - 1] = '\0';
             default_home = false;
+            break;
+        case 'p':
+            preserve = true;
             break;
         default:
             fprintf(stderr, "usage: %s [-v]\n", argv[0]);
@@ -358,21 +394,21 @@ run(int argc, char *argv[])
 
     uri_teardown();
 
+    if (!preserve)
+        testutil_clean_work_dir(home);
     return (EXIT_SUCCESS);
 }
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
     bool skip;
 
     skip = false;
-
-    /*
-     * Bypass this test for valgrind. It has a fairly low thread limit.
-     */
-    if (testutil_is_flag_set("TESTUTIL_BYPASS_VALGRIND"))
-        skip = true;
 
 /*
  * Bypass this test for OS X. We periodically see it hang without error, leaving a zombie process

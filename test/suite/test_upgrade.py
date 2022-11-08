@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, time
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet, ComplexDataSet
 from wtscenario import make_scenarios
@@ -53,8 +52,8 @@ class test_upgrade(wttest.WiredTigerTestCase):
                 lambda: self.session.drop(uri, None))
             cursor.close()
 
-        self.session.upgrade(uri, None)
-        self.session.drop(uri)
+        self.upgradeUntilSuccess(self.session, uri)
+        self.dropUntilSuccess(self.session, uri)
 
     # Test upgrade of an object.
     def test_upgrade(self):

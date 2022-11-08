@@ -162,9 +162,6 @@ __txn_oplist_printlog(
 void
 __wt_txn_op_free(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
-    /* The weak pointer should have already been freed. */
-    WT_ASSERT(session, op->whp == NULL);
-
     switch (op->type) {
     case WT_TXN_OP_NONE:
         /*
@@ -254,9 +251,6 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     WT_ITEM *logrec;
     WT_TXN *txn;
     WT_TXN_OP *op;
-    WT_UPDATE *upd;
-    bool set_weak_hazard;
-
     uint32_t fileid;
 
     conn = S2C(session);
@@ -270,45 +264,10 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     fileid = op->btree->id;
 
     /*
-     * We take a weak hazard pointer for an operation if this transaction is marked to be resolving
-     * the uncommitted updates. This is not supported on the metadata, and is only supported on the
-     * row and column store operations.
-     */
-    set_weak_hazard = (txn->resolve_weak_hazard_updates && !WT_IS_METADATA(op->btree->dhandle) &&
-      (op->type == WT_TXN_OP_BASIC_COL || op->type == WT_TXN_OP_INMEM_COL ||
-        op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW));
-
-    /*
-     * This is temporary till we support more cases for resolving uncommitted updates: If there are
-     * older updates to this key by the same transaction, or if there are truncates, for now decide
-     * not to proceed with resolving uncommitted updates. If we decide to stop resolving the
-     * uncommitted updates, we need to clear the weak hazard pointers for the operations that have
-     * taken one.
-     */
-    upd = op->u.op_upd;
-    if (set_weak_hazard && upd != NULL && upd->next != NULL &&
-      (upd->next->txnid == txn->id || F_ISSET(upd->next, WT_UPDATE_RESTORED_FAST_TRUNCATE))) {
-        WT_RET(__wt_txn_op_list_clear_weak_hazard(session));
-        set_weak_hazard = txn->resolve_weak_hazard_updates = false;
-    }
-
-    /* Set the weak hazard pointer for this update. */
-    if (set_weak_hazard) {
-        WT_ASSERT(session, cbt != NULL);
-        WT_RET(__wt_hazard_weak_set(session, cbt->ref, op));
-    }
-
-    if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ||
-      F_ISSET(session, WT_SESSION_NO_LOGGING) ||
-      (F_ISSET(S2BT(session), WT_BTREE_NO_LOGGING) &&
-        !FLD_ISSET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE)))
-        return (0);
-
-    /*
      * If this operation is diagnostic only, set the ignore bit on the fileid so that recovery can
      * skip it.
      */
-    if (F_ISSET(S2BT(session), WT_BTREE_NO_LOGGING) &&
+    if (!F_ISSET(S2BT(session), WT_BTREE_LOGGED) &&
       FLD_ISSET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE))
         FLD_SET(fileid, WT_LOGOP_IGNORE);
 
@@ -425,20 +384,16 @@ int
 __wt_txn_ts_log(WT_SESSION_IMPL *session)
 {
     struct timespec t;
-    WT_CONNECTION_IMPL *conn;
     WT_ITEM *logrec;
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
     wt_timestamp_t commit, durable, first_commit, prepare, read;
 
-    conn = S2C(session);
     txn = session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
-    if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ||
-      F_ISSET(session, WT_SESSION_NO_LOGGING) ||
-      !FLD_ISSET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE))
-        return (0);
+    /* We'd better have a transaction, but we may not have allocated an ID. */
+    WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 
     /*
      * There is a rare usage case of a prepared transaction that has no modifications, but then
@@ -447,9 +402,6 @@ __wt_txn_ts_log(WT_SESSION_IMPL *session)
      */
     if (F_ISSET(txn, WT_TXN_PREPARE) && txn->mod_count == 0)
         return (0);
-
-    /* We'd better have a transaction running. */
-    WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 
     WT_RET(__txn_logrec_init(session));
     logrec = txn->logrec;
@@ -510,7 +462,7 @@ __wt_txn_checkpoint_log(WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_
     case WT_TXN_LOG_CKPT_PREPARE:
         txn->full_ckpt = true;
 
-        if (conn->compat_major >= WT_LOG_V2_MAJOR) {
+        if (__wt_version_gte(conn->compat_version, WT_LOG_V2_VERSION)) {
             /*
              * Write the system log record containing a checkpoint start operation.
              */
@@ -548,10 +500,13 @@ __wt_txn_checkpoint_log(WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_
         txn->ckpt_nsnapshot = txn->snapshot_count;
         recsize = (size_t)txn->ckpt_nsnapshot * WT_INTPACK64_MAXSIZE;
         WT_ERR(__wt_scr_alloc(session, recsize, &txn->ckpt_snapshot));
-        p = txn->ckpt_snapshot->mem;
-        end = p + recsize;
-        for (i = 0; i < txn->snapshot_count; i++)
-            WT_ERR(__wt_vpack_uint(&p, WT_PTRDIFF(end, p), txn->snapshot[i]));
+        end = p = txn->ckpt_snapshot->mem;
+        /* There many not be any snapshot entries. */
+        if (end != NULL) {
+            end += recsize;
+            for (i = 0; i < txn->snapshot_count; i++)
+                WT_ERR(__wt_vpack_uint(&p, WT_PTRDIFF(end, p), txn->snapshot[i]));
+        }
         break;
     case WT_TXN_LOG_CKPT_STOP:
         /*
@@ -582,17 +537,16 @@ __wt_txn_checkpoint_log(WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_
         /*
          * If this full checkpoint completed successfully and there is no hot backup in progress and
          * this is not an unclean recovery, tell the logging subsystem the checkpoint LSN so that it
-         * can archive. Do not update the logging checkpoint LSN if this is during a clean
+         * can remove log files. Do not update the logging checkpoint LSN if this is during a clean
          * connection close, only during a full checkpoint. A clean close may not update any
-         * metadata LSN and we do not want to archive in that case.
+         * metadata LSN and we do not want to remove log files in that case.
          */
         if (conn->hot_backup_start == 0 &&
           (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_RECOVER_DIRTY) ||
             FLD_ISSET(conn->log_flags, WT_CONN_LOG_FORCE_DOWNGRADE)) &&
           txn->full_ckpt)
             __wt_log_ckpt(session, ckpt_lsn);
-
-    /* FALLTHROUGH */
+        /* FALLTHROUGH */
     case WT_TXN_LOG_CKPT_CLEANUP:
         /* Cleanup any allocated resources */
         WT_INIT_LSN(ckpt_lsn);

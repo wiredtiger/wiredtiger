@@ -175,7 +175,12 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
         WT_ERR(__wt_logop_col_remove_unpack(session, pp, end, &fileid, &recno));
         GET_RECOVERY_CURSOR(session, r, lsnp, fileid, &cursor);
         cursor->set_key(cursor, recno);
-        WT_ERR(cursor->remove(cursor));
+        /*
+         * WT_NOTFOUND is an expected error because the checkpoint snapshot we're rolling forward
+         * may race with a remove, resulting in the key not being in the tree, but recovery still
+         * processing the log record of the remove.
+         */
+        WT_ERR_NOTFOUND_OK(cursor->remove(cursor), false);
         break;
 
     case WT_LOGOP_COL_TRUNCATE:
@@ -237,7 +242,12 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
         WT_ERR(__wt_logop_row_remove_unpack(session, pp, end, &fileid, &key));
         GET_RECOVERY_CURSOR(session, r, lsnp, fileid, &cursor);
         __wt_cursor_set_raw_key(cursor, &key);
-        WT_ERR(cursor->remove(cursor));
+        /*
+         * WT_NOTFOUND is an expected error because the checkpoint snapshot we're rolling forward
+         * may race with a remove, resulting in the key not being in the tree, but recovery still
+         * processing the log record of the remove.
+         */
+        WT_ERR_NOTFOUND_OK(cursor->remove(cursor), false);
         break;
 
     case WT_LOGOP_ROW_TRUNCATE:
@@ -364,40 +374,6 @@ __txn_log_recover(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *lsnp, WT_LS
 }
 
 /*
- * __recovery_retrieve_timestamp --
- *     Retrieve a timestamp from the metadata.
- */
-static int
-__recovery_retrieve_timestamp(
-  WT_RECOVERY *r, const char *system_uri, const char *timestamp_name, wt_timestamp_t *timestampp)
-{
-    WT_CONFIG_ITEM cval;
-    WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-    char *sys_config;
-
-    sys_config = NULL;
-
-    session = r->session;
-
-    /* Search the metadata for the system information. */
-    WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, system_uri, &sys_config), false);
-    if (sys_config != NULL) {
-        WT_CLEAR(cval);
-        WT_ERR_NOTFOUND_OK(__wt_config_getones(session, sys_config, timestamp_name, &cval), false);
-        if (cval.len != 0) {
-            __wt_verbose(session, WT_VERB_RECOVERY, "Recovery %s %.*s", timestamp_name,
-              (int)cval.len, cval.str);
-            WT_ERR(__wt_txn_parse_timestamp_raw(session, timestamp_name, timestampp, &cval));
-        }
-    }
-
-err:
-    __wt_free(session, sys_config);
-    return (ret);
-}
-
-/*
  * __recovery_set_checkpoint_timestamp --
  *     Set the checkpoint timestamp as retrieved from the metadata file.
  */
@@ -411,14 +387,12 @@ __recovery_set_checkpoint_timestamp(WT_RECOVERY *r)
 
     session = r->session;
     conn = S2C(session);
+
     /*
      * Read the system checkpoint information from the metadata file and save the stable timestamp
      * of the last checkpoint for later query. This gets saved in the connection.
      */
-    ckpt_timestamp = 0;
-
-    WT_RET(
-      __recovery_retrieve_timestamp(r, WT_SYSTEM_CKPT_URI, WT_SYSTEM_CKPT_TS, &ckpt_timestamp));
+    WT_RET(__wt_meta_read_checkpoint_timestamp(r->session, NULL, &ckpt_timestamp, NULL));
 
     /*
      * Set the recovery checkpoint timestamp and the metadata checkpoint timestamp so that the
@@ -434,7 +408,8 @@ __recovery_set_checkpoint_timestamp(WT_RECOVERY *r)
 
 /*
  * __recovery_set_oldest_timestamp --
- *     Set the oldest timestamp as retrieved from the metadata file.
+ *     Set the oldest timestamp as retrieved from the metadata file. Setting the oldest timestamp
+ *     doesn't automatically set the pinned timestamp.
  */
 static int
 __recovery_set_oldest_timestamp(WT_RECOVERY *r)
@@ -450,10 +425,7 @@ __recovery_set_oldest_timestamp(WT_RECOVERY *r)
      * Read the system checkpoint information from the metadata file and save the oldest timestamp
      * of the last checkpoint for later query. This gets saved in the connection.
      */
-    oldest_timestamp = 0;
-
-    WT_RET(__recovery_retrieve_timestamp(
-      r, WT_SYSTEM_OLDEST_URI, WT_SYSTEM_OLDEST_TS, &oldest_timestamp));
+    WT_RET(__wt_meta_read_checkpoint_oldest(r->session, NULL, &oldest_timestamp, NULL));
     conn->txn_global.oldest_timestamp = oldest_timestamp;
     conn->txn_global.has_oldest_timestamp = oldest_timestamp != WT_TS_NONE;
 
@@ -470,70 +442,36 @@ __recovery_set_oldest_timestamp(WT_RECOVERY *r)
 static int
 __recovery_set_checkpoint_snapshot(WT_SESSION_IMPL *session)
 {
-    WT_CONFIG list;
-    WT_CONFIG_ITEM cval;
-    WT_CONFIG_ITEM k;
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-    uint8_t counter;
-    char *sys_config;
 
-    sys_config = NULL;
     conn = S2C(session);
-    counter = 0;
 
     /*
-     * WiredTiger versions 10.0.1 onward have a valid checkpoint snapshot on-disk. Ignore reading
-     * the on-disk checkpoint snapshot from older versions.
+     * WiredTiger versions 10.0.1 onward have a valid checkpoint snapshot on-disk. There was a bug
+     * in some versions of WiredTiger that are tagged with the 10.0.0 release, which saved the wrong
+     * checkpoint snapshot (see WT-8395), so we ignore the snapshot when it was created with one of
+     * those versions. Versions of WiredTiger prior to 10.0.0 never saved a checkpoint snapshot.
+     * Additionally the turtle file doesn't always exist (for example, backup doesn't include the
+     * turtle file), so there isn't always a WiredTiger version available. If there is no version
+     * available, assume that the snapshot is valid, otherwise restoring from a backup won't work.
      */
-    if (conn->recovery_major < 10 ||
-      (conn->recovery_major == 10 && conn->recovery_minor == 0 && conn->recovery_patch == 0))
+    if (__wt_version_defined(conn->recovery_version) &&
+      __wt_version_lte(conn->recovery_version, (WT_VERSION){10, 0, 0})) {
+        /* Return an empty snapshot. */
+        conn->recovery_ckpt_snap_min = WT_TXN_NONE;
+        conn->recovery_ckpt_snap_max = WT_TXN_NONE;
+        conn->recovery_ckpt_snapshot = NULL;
+        conn->recovery_ckpt_snapshot_count = 0;
         return (0);
+    }
 
     /*
      * Read the system checkpoint information from the metadata file and save the snapshot related
-     * details of the last checkpoint for later query. This gets saved in the connection.
+     * details of the last checkpoint in the connection for later query.
      */
-    WT_ERR_NOTFOUND_OK(
-      __wt_metadata_search(session, WT_SYSTEM_CKPT_SNAPSHOT_URI, &sys_config), false);
-    if (sys_config != NULL) {
-        WT_CLEAR(cval);
-        if (__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_MIN, &cval) == 0 &&
-          cval.len != 0)
-            conn->recovery_ckpt_snap_min = (uint64_t)cval.val;
-
-        if (__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_MAX, &cval) == 0 &&
-          cval.len != 0)
-            conn->recovery_ckpt_snap_max = (uint64_t)cval.val;
-
-        if (__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_COUNT, &cval) == 0 &&
-          cval.len != 0)
-            conn->recovery_ckpt_snapshot_count = (uint32_t)cval.val;
-
-        if (__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT, &cval) == 0 &&
-          cval.len != 0) {
-            __wt_config_subinit(session, &list, &cval);
-            WT_ERR(__wt_calloc_def(
-              session, conn->recovery_ckpt_snapshot_count, &conn->recovery_ckpt_snapshot));
-            while (__wt_config_subget_next(&list, &k) == 0)
-                conn->recovery_ckpt_snapshot[counter++] = (uint64_t)k.val;
-        }
-
-        /*
-         * Make sure that checkpoint snapshot does not have any unexpected value. The recovered
-         * snapshot array should contain the values between recovered snapshot min and recovered
-         * snapshot max.
-         */
-        WT_ASSERT(session,
-          conn->recovery_ckpt_snapshot == NULL ||
-            (conn->recovery_ckpt_snapshot_count == counter &&
-              conn->recovery_ckpt_snapshot[0] == conn->recovery_ckpt_snap_min &&
-              conn->recovery_ckpt_snapshot[counter - 1] < conn->recovery_ckpt_snap_max));
-    }
-
-err:
-    __wt_free(session, sys_config);
-    return (ret);
+    return (__wt_meta_read_checkpoint_snapshot(session, NULL, NULL, &conn->recovery_ckpt_snap_min,
+      &conn->recovery_ckpt_snap_max, &conn->recovery_ckpt_snapshot,
+      &conn->recovery_ckpt_snapshot_count, NULL));
 }
 
 /*
@@ -564,6 +502,44 @@ __recovery_set_ckpt_base_write_gen(WT_RECOVERY *r)
 err:
     __wt_free(session, sys_config);
     return (ret);
+}
+
+/*
+ * __recovery_txn_setup_initial_state --
+ *     Setup the transaction initial state required by rollback to stable.
+ */
+static int
+__recovery_txn_setup_initial_state(WT_SESSION_IMPL *session, WT_RECOVERY *r)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    WT_RET(__recovery_set_checkpoint_snapshot(session));
+
+    /*
+     * Set the checkpoint timestamp and oldest timestamp retrieved from the checkpoint metadata.
+     * These are the stable timestamp and oldest timestamps of the last successful checkpoint.
+     */
+    WT_RET(__recovery_set_checkpoint_timestamp(r));
+    WT_RET(__recovery_set_oldest_timestamp(r));
+
+    /*
+     * Now that timestamps extracted from the checkpoint metadata have been configured, configure
+     * the pinned timestamp.
+     */
+    __wt_txn_update_pinned_timestamp(session, true);
+
+    WT_ASSERT(session,
+      conn->txn_global.has_stable_timestamp == false &&
+        conn->txn_global.stable_timestamp == WT_TS_NONE);
+
+    /* Set the stable timestamp from recovery timestamp. */
+    conn->txn_global.stable_timestamp = conn->txn_global.recovery_timestamp;
+    if (conn->txn_global.stable_timestamp != WT_TS_NONE)
+        conn->txn_global.has_stable_timestamp = true;
+
+    return (0);
 }
 
 /*
@@ -619,8 +595,8 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
       (WT_IS_MAX_LSN(&r->max_ckpt_lsn) || __wt_log_cmp(&lsn, &r->max_ckpt_lsn) > 0))
         WT_ASSIGN_LSN(&r->max_ckpt_lsn, &lsn);
 
-    /* Update the base write gen based on this file's configuration. */
-    if ((ret = __wt_metadata_update_base_write_gen(r->session, config)) != 0)
+    /* Update the base write gen and most recent checkpoint based on this file's configuration. */
+    if ((ret = __wt_metadata_update_connection(r->session, config)) != 0)
         WT_RET_MSG(r->session, ret, "Failed recovery setup for %s: cannot update write gen", uri);
     return (0);
 }
@@ -792,6 +768,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     bool rts_executed;
 
     conn = S2C(session);
+    F_SET(conn, WT_CONN_RECOVERING);
+
     WT_CLEAR(r);
     WT_INIT_LSN(&r.ckpt_lsn);
     config = NULL;
@@ -801,19 +779,19 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     was_backup = F_ISSET(conn, WT_CONN_WAS_BACKUP);
 
     /* We need a real session for recovery. */
-    WT_RET(
-      __wt_open_internal_session(conn, "txn-recover", false, WT_SESSION_NO_LOGGING, 0, &session));
+    WT_RET(__wt_open_internal_session(conn, "txn-recover", false, 0, 0, &session));
     r.session = session;
     WT_MAX_LSN(&r.max_ckpt_lsn);
     WT_MAX_LSN(&r.max_rec_lsn);
     conn->txn_global.recovery_timestamp = conn->txn_global.meta_ckpt_timestamp = WT_TS_NONE;
 
-    F_SET(conn, WT_CONN_RECOVERING);
     WT_ERR(__wt_metadata_search(session, WT_METAFILE_URI, &config));
     WT_ERR(__recovery_setup_file(&r, WT_METAFILE_URI, config));
     WT_ERR(__wt_metadata_cursor_open(session, NULL, &metac));
     metafile = &r.files[WT_METAFILE_ID];
     metafile->c = metac;
+
+    WT_ERR(__recovery_set_ckpt_base_write_gen(&r));
 
     /*
      * If no log was found (including if logging is disabled), or if the last checkpoint was done
@@ -981,17 +959,12 @@ done:
      * that can properly upgrade from 10.0.0 without hitting the problem but only from a clean
      * shutdown of 10.0.0. Earlier releases are not affected by the upgrade issue.
      */
-    if (conn->unclean_shutdown && conn->recovery_major == 10 && conn->recovery_minor == 0 &&
-      conn->recovery_patch == 0)
+    if (conn->unclean_shutdown && __wt_version_eq(conn->recovery_version, (WT_VERSION){10, 0, 0}))
         WT_ERR_MSG(session, WT_ERROR,
           "Upgrading from a WiredTiger version 10.0.0 database that was not shutdown cleanly is "
           "not allowed. Perform a clean shutdown on version 10.0.0 and then upgrade.");
 #endif
-
-    WT_ERR(__recovery_set_checkpoint_timestamp(&r));
-    WT_ERR(__recovery_set_oldest_timestamp(&r));
-    WT_ERR(__recovery_set_checkpoint_snapshot(session));
-    WT_ERR(__recovery_set_ckpt_base_write_gen(&r));
+    WT_ERR(__recovery_txn_setup_initial_state(session, &r));
 
     /*
      * Set the history store file size as it may already exist after a restart.
@@ -1014,20 +987,6 @@ done:
             eviction_started = true;
         }
 
-        WT_ASSERT(session,
-          conn->txn_global.has_stable_timestamp == false &&
-            conn->txn_global.stable_timestamp == WT_TS_NONE);
-
-        /*
-         * Set the stable timestamp from recovery timestamp and process the trees for rollback to
-         * stable.
-         */
-        conn->txn_global.stable_timestamp = conn->txn_global.recovery_timestamp;
-        conn->txn_global.has_stable_timestamp = false;
-
-        if (conn->txn_global.recovery_timestamp != WT_TS_NONE)
-            conn->txn_global.has_stable_timestamp = true;
-
         __wt_verbose_multi(session,
           WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RTS})),
           "performing recovery rollback_to_stable with stable timestamp: %s and oldest timestamp: "
@@ -1049,9 +1008,12 @@ done:
     if (do_checkpoint || rts_executed)
         /*
          * Forcibly log a checkpoint so the next open is fast and keep the metadata up to date with
-         * the checkpoint LSN and archiving.
+         * the checkpoint LSN and removal.
          */
         WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
+
+    /* Remove any backup file now that metadata has been synced. */
+    WT_ERR(__wt_backup_file_remove(session));
 
     /*
      * Update the open dhandles write generations and base write generation with the connection's
@@ -1060,10 +1022,10 @@ done:
      * connection level base write generation number is updated at the end of the recovery
      * checkpoint.
      */
-    __wt_dhandle_update_write_gens(session);
+    WT_ERR(__wt_dhandle_update_write_gens(session));
 
     /*
-     * If we're downgrading and have newer log files, force an archive, no matter what the archive
+     * If we're downgrading and have newer log files, force log removal, no matter what the remove
      * setting is.
      */
     if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_FORCE_DOWNGRADE))

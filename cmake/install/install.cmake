@@ -1,11 +1,3 @@
-#
-# Public Domain 2014-present MongoDB, Inc.
-# Public Domain 2008-2014 WiredTiger, Inc.
-#  All rights reserved.
-#
-#  See the file LICENSE for redistribution information
-#
-
 include(GNUInstallDirs)
 
 # Library installs
@@ -44,6 +36,9 @@ if(WT_POSIX)
     endif()
     if(HAVE_LIBDL)
         set(private_libs "${private_libs} -ldl")
+    endif()
+    if(ENABLE_MEMKIND)
+        set(private_libs "${private_libs} -lmemkind")
     endif()
     if(ENABLE_TCMALLOC)
         set(private_libs "${private_libs} -ltcmalloc")

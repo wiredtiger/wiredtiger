@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import random
-import wiredtiger, wttest
+import wttest
 
 # test_stat09.py
 #    Check oldest active read timestamp statistic
@@ -35,7 +35,6 @@ class test_stat09(wttest.WiredTigerTestCase):
     tablename = 'test_stat09'
     uri = 'table:' + tablename
     conn_config = 'statistics=(all)'
-    session_config = 'isolation=snapshot'
 
     # Check the oldest active read statistic to be at the expected values
     def check_stat_oldest_read(self, statcursor, expected_oldest, all_committed):

@@ -76,7 +76,7 @@ __wt_debug_set_verbose(WT_SESSION_IMPL *session, const char *v)
 
     WT_RET(__wt_snprintf(buf, sizeof(buf), "verbose=[%s]", v));
     cfg[0] = buf;
-    return (__wt_verbose_config(session, cfg));
+    return (__wt_verbose_config(session, cfg, true));
 }
 
 /*
@@ -259,14 +259,28 @@ __debug_config(WT_SESSION_IMPL *session, WT_DBG *ds, const char *ofile, uint32_t
     WT_ERR(__wt_scr_alloc(session, 512, &ds->t2));
 
     /*
-     * Set up history store support, opening a history store cursor on demand. Return error if that
-     * doesn't work, except while running in-memory configuration.
+     * Set up history store support, opening a history store cursor on demand, except while running
+     * in-memory configuration, or when reading a checkpoint that has no corresponding history store
+     * checkpoint.
      */
-    if (!F_ISSET(conn, WT_CONN_IN_MEMORY) && !WT_IS_HS(session->dhandle))
+    if (!F_ISSET(conn, WT_CONN_IN_MEMORY) && !WT_IS_HS(session->dhandle) &&
+      !(WT_READING_CHECKPOINT(session) && session->hs_checkpoint == NULL))
         WT_ERR(__wt_curhs_open(session, NULL, &ds->hs_cursor));
 
     if (ds->hs_cursor != NULL) {
-        F_SET(ds->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+        /*
+         * For debugging dumps, we want to see everything, not just what is currently visible in
+         * whatever arbitrary context we may have inherited. By default, however, suppress obsolete
+         * entries (those with globally visible stop times). For checkpoint cursors, dump those as
+         * well, not because they are more interesting when reading a checkpoint but because the
+         * visible-all test to hide them needs a copy of the checkpoint snapshot and that's not
+         * easily available. (If we are dumping pages from a checkpoint cursor, it is actually
+         * accessible in the cursor; but the logic for substituting it into the session is private
+         * to cur_file.c and I don't want to either change that or paste a second copy of it. Hiding
+         * a few obsolete history store entries isn't worth either of those changes.
+         */
+        F_SET(ds->hs_cursor,
+          WT_READING_CHECKPOINT(session) ? WT_CURSTD_HS_READ_ALL : WT_CURSTD_HS_READ_COMMITTED);
         WT_ERR(__wt_scr_alloc(session, 0, &ds->hs_key));
         WT_ERR(__wt_scr_alloc(session, 0, &ds->hs_value));
     }
@@ -359,14 +373,11 @@ __wt_debug_addr_print(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
 int
 __wt_debug_addr(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, const char *ofile)
 {
-    WT_BM *bm;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
 
-    bm = S2BT(session)->bm;
-
     WT_RET(__wt_scr_alloc(session, 1024, &buf));
-    WT_ERR(bm->read(bm, session, buf, addr, addr_size));
+    WT_ERR(__wt_blkcache_read(session, buf, addr, addr_size));
     ret = __wt_debug_disk(session, buf->mem, ofile, false);
 
 err:
@@ -425,7 +436,7 @@ __wt_debug_offset(
      * unencrypted as necessary).
      */
     WT_RET(__wt_scr_alloc(session, 0, &buf));
-    WT_ERR(__wt_bt_read(session, buf, addr, WT_PTRDIFF(endp, addr)));
+    WT_ERR(__wt_blkcache_read(session, buf, addr, WT_PTRDIFF(endp, addr)));
     ret = __wt_debug_disk(session, buf->mem, ofile, false);
 
 err:
@@ -671,8 +682,8 @@ __debug_cell_kv(
     }
     WT_RET(ds->f(ds, "\n"));
 
-    WT_RET(page == NULL ? __wt_dsk_cell_data_ref(session, page_type, unpack, ds->t1) :
-                          __wt_page_cell_data_ref(session, page, unpack, ds->t1));
+    WT_RET(page == NULL ? __wt_dsk_cell_data_ref_kv(session, page_type, unpack, ds->t1) :
+                          __wt_page_cell_data_ref_kv(session, page, unpack, ds->t1));
 
     if (!F_ISSET(ds, WT_DEBUG_DUMP_APP_DATA))
         return (0);
@@ -1010,12 +1021,28 @@ __wt_debug_cursor_page(void *cursor_arg, const char *ofile)
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    bool did_hs_checkpoint;
 
     cbt = cursor_arg;
     session = CUR2S(cursor_arg);
+    did_hs_checkpoint = false;
+
+    /*
+     * If the cursor is a checkpoint cursor and we don't already have a history store checkpoint
+     * name in the session, substitute the one from this cursor. This allows the dump to print from
+     * the history store, which otherwise will get skipped.
+     */
+    if (cbt->checkpoint_hs_dhandle != NULL && session->hs_checkpoint == NULL) {
+        session->hs_checkpoint = cbt->checkpoint_hs_dhandle->checkpoint;
+        did_hs_checkpoint = true;
+    }
 
     WT_WITH_BTREE(
       session, CUR2BT(cbt), ret = __wt_debug_page(session, NULL, cbt->ref, ofile, false));
+
+    if (did_hs_checkpoint)
+        session->hs_checkpoint = NULL;
+
     return (ret);
 }
 
@@ -1024,7 +1051,7 @@ __wt_debug_cursor_page(void *cursor_arg, const char *ofile)
  *     Dump the history store tree given a user cursor.
  */
 int
-__wt_debug_cursor_tree_hs(void *session_arg, const char *ofile)
+__wt_debug_cursor_tree_hs(void *cursor_arg, const char *ofile)
   WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
     WT_BTREE *hs_btree;
@@ -1032,7 +1059,7 @@ __wt_debug_cursor_tree_hs(void *session_arg, const char *ofile)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
-    session = (WT_SESSION_IMPL *)session_arg;
+    session = CUR2S(cursor_arg);
     WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
     hs_btree = __wt_curhs_get_btree(hs_cursor);
     WT_WITH_BTREE(session, hs_btree, ret = __wt_debug_tree_all(session, NULL, NULL, ofile));
@@ -1605,7 +1632,7 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
         if (prepare_state != NULL)
             WT_RET(ds->f(ds, ", prepare %s", prepare_state));
 
-        WT_RET(ds->f(ds, "\n"));
+        WT_RET(ds->f(ds, ", flags 0x%" PRIx8 "\n", upd->flags));
     }
     return (0);
 }
