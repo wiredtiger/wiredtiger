@@ -66,6 +66,7 @@ config_choice(
         "ppc64le;WT_PPC64;"
         "s390x;WT_S390X;"
         "riscv64;WT_RISCV64;"
+        "loongarch64;WT_LOONGARCH64;"
 )
 
 config_choice(
@@ -258,6 +259,12 @@ config_bool(
     # Specifically throw a fatal error if a user tries to enable the tcmalloc allocator without
     # actually having the library available (as opposed to silently defaulting to OFF).
     DEPENDS_ERROR ON "Failed to find tcmalloc library"
+)
+
+config_bool(
+    ENABLE_CPPSUITE
+    "Build the cppsuite"
+    DEFAULT ON
 )
 
 config_bool(
