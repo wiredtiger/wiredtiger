@@ -385,9 +385,16 @@ __sync_page_skip(
         return (0);
 
     /*
-     * Skip reading the on-disk page when it meets any of the following conditions.
-     * 1. Leaf pages with no overflow keys/values.
-     * 2. Internal pages from non-logged tables with no aggregated stop timestamp.
+     * The checkpoint cleanup fast deletes the obsolete leaf page by marking it as deleted
+     * in the internal page. To achieve this,
+     *
+     * 1. Checkpoint has to read all the internal pages that have obsolete leaf pages.
+     *    To limit the reading of number of internal pages, the aggregated stop durable timestamp
+     *    is checked except when the table is logged. Logged tables do not use timestamps.
+     *
+     * 2. Obsolete leaf pages with overflow keys/values cannot be fast deleted to free
+     *    the overflow blocks. Read the page into cache and mark it dirty to remove the
+     *    overflow blocks during reconciliation.
      *
      * FIXME: Read internal pages from non-logged tables when the remove/truncate
      * operation is performed using no timestamp.
