@@ -64,15 +64,6 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
         if self.in_memory:
             config += ',in_memory=true'
         return config
-    
-    def do_eviction(self, ds, nrows):
-        evict_cursor = self.session.open_cursor(ds.uri, None, "debug=(release_evict)")
-        self.session.begin_transaction()
-        for k in range(1, nrows+1):
-            v = evict_cursor[ds.key(k)]
-            evict_cursor.reset()
-        self.session.rollback_transaction()
-        evict_cursor.close()
 
     def test_rollback_to_stable(self):
         nrows = 1000
@@ -115,9 +106,9 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
         if not self.in_memory:
             self.session.checkpoint()
         
-        # Evict the data to disk
+        # Evict the pages to disk
         if self.evict:
-            self.do_eviction(ds, nrows)
+            self.evict_cursor(uri, nrows, value_d)
 
         self.conn.rollback_to_stable()
 
@@ -160,9 +151,9 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
         if not self.in_memory:
             self.session.checkpoint()
         
-        # Evict the data to disk
+        # Evict the pages to disk
         if self.evict:
-            self.do_eviction(ds, nrows)
+            self.evict_cursor(uri, nrows, value_d)
 
 if __name__ == '__main__':
     wttest.run()
