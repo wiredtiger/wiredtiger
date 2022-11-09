@@ -185,6 +185,17 @@ functions:
           set -o verbose
           echo '#undef HAVE_FTRUNCATE' >> config/wiredtiger_config.h
     - *make_wiredtiger
+  "upload stack trace": &upload_stack_trace
+    command: s3.put
+    params:
+      aws_secret: ${aws_secret}
+      aws_key: ${aws_key}
+      local_files_include_filter:
+        - wiredtiger/cmake_build/*stacktrace.txt
+      bucket: build_external
+      permissions: public-read
+      content_type: text/plain
+      remote_file: wiredtiger/${build_variant}/${revision}/artifacts/
   "run data validation stress test checkpoint":
     - *fetch_artifacts
     - command: shell.exec
