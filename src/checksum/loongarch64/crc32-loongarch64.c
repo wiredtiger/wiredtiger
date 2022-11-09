@@ -26,33 +26,24 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "operation_configuration.h"
+#include <wiredtiger_config.h>
+#include <inttypes.h>
+#include <stddef.h>
 
-#include "src/common/constants.h"
+extern uint32_t __wt_checksum_sw(const void *chunk, size_t len);
 
-namespace test_harness {
-operation_configuration::operation_configuration(configuration *config, thread_type type)
-    : config(config), type(type), thread_count(config->get_int(THREAD_COUNT))
+#if defined(__GNUC__)
+extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
+  __attribute__((visibility("default")));
+#else
+extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t);
+#endif
+
+/*
+ * wiredtiger_crc32c_func --
+ *     WiredTiger: detect CRC hardware and return the checksum function.
+ */
+uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
 {
+    return (__wt_checksum_sw);
 }
-
-std::function<void(thread_worker *)>
-operation_configuration::get_func(database_operation *dbo)
-{
-    switch (type) {
-    case thread_type::CHECKPOINT:
-        return (std::bind(&database_operation::checkpoint_operation, dbo, std::placeholders::_1));
-    case thread_type::CUSTOM:
-        return (std::bind(&database_operation::custom_operation, dbo, std::placeholders::_1));
-    case thread_type::INSERT:
-        return (std::bind(&database_operation::insert_operation, dbo, std::placeholders::_1));
-    case thread_type::READ:
-        return (std::bind(&database_operation::read_operation, dbo, std::placeholders::_1));
-    case thread_type::REMOVE:
-        return (std::bind(&database_operation::remove_operation, dbo, std::placeholders::_1));
-    case thread_type::UPDATE:
-        return (std::bind(&database_operation::update_operation, dbo, std::placeholders::_1));
-    }
-    testutil_die(EINVAL, "unexpected thread_type: %d", static_cast<int>(type));
-}
-} // namespace test_harness
