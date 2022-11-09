@@ -2389,6 +2389,11 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     session_ret->name = NULL;
     session_ret->id = i;
 
+#ifdef HAVE_UNITTEST_ASSERTS
+    session_ret->unittest_assert_hit = false;
+    memset(session->unittest_assert_msg, 0, WT_SESSION_UNITTEST_BUF_LEN);
+#endif
+
     /*
      * Initialize the pseudo random number generator. We're not seeding it, so all of the sessions
      * initialize to the same value and proceed in lock step for the session's life. That's not a

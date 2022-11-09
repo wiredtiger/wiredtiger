@@ -180,7 +180,20 @@
 /*
  * WT_ASSERT_ALWAYS
  *  Assert an expression, abort in both diagnostic and release mode if it fails.
+ *
+ * When unit testing assertions we don't want to call __wt_abort, but we do want to track that we
+ * should have done so.
  */
+#ifdef HAVE_UNITTEST_ASSERTS
+#define WT_ASSERT_ALWAYS(session, exp, failure_reason)                                          \
+    do {                                                                                        \
+        if (!(exp)) {                                                                           \
+            WT_IGNORE_RET(__wt_snprintf((session)->unittest_assert_msg,                         \
+              WT_SESSION_UNITTEST_BUF_LEN, "Assertion '%s' failed: %s", #exp, failure_reason)); \
+            (session)->unittest_assert_hit = true;                                              \
+        }                                                                                       \
+    } while (0)
+#else
 #define WT_ASSERT_ALWAYS(session, exp, failure_reason)                             \
     do {                                                                           \
         if (!(exp)) {                                                              \
@@ -188,3 +201,4 @@
             __wt_abort(session);                                                   \
         }                                                                          \
     } while (0)
+#endif
