@@ -382,6 +382,7 @@ functions:
             ${python_binary|python3} ../test/evergreen/print_stack_trace.py
           fi
           exit 0
+    - *upload_stack_trace
     - command: perf.send
       params:
         file: ./wiredtiger/cmake_build/test/cppsuite/${test_name}.json
@@ -607,17 +608,7 @@ functions:
           set -o errexit
           set -o verbose
           ${python_binary|python3} ../test/evergreen/print_stack_trace.py
-
-    - command: s3.put
-      params:
-        aws_secret: ${aws_secret}
-        aws_key: ${aws_key}
-        local_files_include_filter:
-          - wiredtiger/cmake_build/*stacktrace.txt
-        bucket: build_external
-        permissions: public-read
-        content_type: text/plain
-        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/
+    - *upload_stack_trace
 
   "dump stderr/stdout":
     command: shell.exec
