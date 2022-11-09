@@ -5368,6 +5368,9 @@ buildvariants:
     - name: wtperf-test
     - name: ftruncate-test
     - name: long-test
-    - name: configure-combinations
-    - name: format-smoke-test
-    - name: tiered-storage-extensions-test
+    # FIXME-WT-10212
+    # - name: configure-combinations
+    # FIXME-WT-10214
+    # - name: format-smoke-test
+    # FIXME-WT-10213
+    # - name: tiered-storage-extensions-test
