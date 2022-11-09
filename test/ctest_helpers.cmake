@@ -39,25 +39,22 @@ function(create_test_executable target)
     add_executable(${target} ${CREATE_TEST_SOURCES})
 
     # For MacOS builds we need to generate a dSYM bundle that contains the debug symbols for each 
-    # executable.
-    if (WT_DARWIN AND HAVE_DIAGNOSTIC)
-        if ("${CREATE_TEST_EXECUTABLE_NAME}" STREQUAL "")
-            add_custom_command(
-                TARGET ${target} POST_BUILD
-                COMMAND dsymutil ${target}
-                WORKING_DIRECTORY ${test_binary_dir}
-                COMMENT "Running dsymutil on ${target}"
-                VERBATIM
-            )
+    # executable. The name of the binary will either be the name of the target or some other name
+    # passed to this function. We need to use the correct one for the dsymutil.
+    if (WT_DARWIN)
+        if("${CREATE_TEST_EXECUTABLE_NAME}" STREQUAL "")
+            set(test_name "${target}")
         else()
-            add_custom_command(
-                TARGET ${target} POST_BUILD
-                COMMAND dsymutil ${CREATE_TEST_EXECUTABLE_NAME}
-                WORKING_DIRECTORY ${test_binary_dir}
-                COMMENT "Running dsymutil on ${CREATE_TEST_EXECUTABLE_NAME}"
-                VERBATIM
-            )
+            set(test_name "${CREATE_TEST_EXECUTABLE_NAME}")
         endif()
+
+        add_custom_command(
+            TARGET ${target} POST_BUILD
+            COMMAND dsymutil ${test_name}
+            WORKING_DIRECTORY ${test_binary_dir}
+            COMMENT "Running dsymutil on ${test_name}"
+            VERBATIM
+        )
     endif()
 
     # If we want the output binary to be a different name than the target.

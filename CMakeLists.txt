@@ -211,9 +211,9 @@ if(ENABLE_SHARED)
     # Set the SOVERSION property of the wiredtiger library, so we can export the appropriately versioned symlinks.
     set_target_properties(wiredtiger_shared PROPERTIES SOVERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
 
-    # For MacOS builds we need to generate a dSYM bundle that contains the debug symbols for each 
-    # the WiredTiger library.
-    if (WT_DARWIN AND HAVE_DIAGNOSTIC)
+    # For MacOS builds we need to generate a dSYM bundle that contains the debug symbols for the 
+    # WiredTiger library.
+    if (WT_DARWIN)
         add_custom_command(
             TARGET wiredtiger_shared POST_BUILD
             COMMAND dsymutil libwiredtiger.${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}.dylib
