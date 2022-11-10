@@ -1333,8 +1333,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
   {"WT_SESSION.timestamp_transaction_uint", "", NULL, 0}, {"WT_SESSION.truncate", "", NULL, 0},
   {"WT_SESSION.upgrade", "", NULL, 0},
   {"WT_SESSION.verify",
-    "do_not_clear_txn_id=false,dump_address=false,dump_app_data=false"
-    ",dump_blocks=false,dump_layout=false,dump_offsets=,"
+    "do_not_clear_txn_id=false,dump_address=false,dump_app_data=true,"
+    "dump_blocks=false,dump_layout=false,dump_offsets=,"
     "dump_pages=false,read_corrupt=false,stable_timestamp=false,"
     "strict=false",
     confchk_WT_SESSION_verify, 10},

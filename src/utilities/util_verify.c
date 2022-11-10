@@ -8,12 +8,12 @@
 
 #include "util.h"
 
-  /*
-   * usage --
-   *     Display a usage message for the verify command.
-   */
-  static int
-  usage(void)
+/*
+ * usage --
+ *     Display a usage message for the verify command.
+ */
+static int
+usage(void)
 {
     static const char *options[] = {"-d config",
       "display underlying information during verification", "-c",
@@ -25,7 +25,8 @@
 
     util_usage(
       "verify [-s] [-t] [-c] [-u] [-d dump_address | dump_blocks | dump_layout | dump_offsets=#,# "
-      "| dump_pages] [uri]", "options:", options);
+      "| dump_pages] [uri]",
+      "options:", options);
 
     return (1);
 }
