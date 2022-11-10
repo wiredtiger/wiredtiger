@@ -510,16 +510,26 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
 {
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ITEM *blkcache_item;
-    uint64_t bucket, hash;
+    uint64_t bucket, hash, sleep_usecs, yield_count;
 
     blkcache = &S2C(session)->blkcache;
-
     hash = __wt_hash_city64(addr, addr_size);
     bucket = hash % blkcache->hash_size;
+    sleep_usecs = yield_count = 0;
+
     __wt_spin_lock(session, &blkcache->hash_locks[bucket]);
     TAILQ_FOREACH (blkcache_item, &blkcache->hash[bucket], hashq) {
         if (blkcache_item->addr_size == addr_size && blkcache_item->fid == S2BT(session)->id &&
           memcmp(blkcache_item->addr, addr, addr_size) == 0) {
+            /*
+             * The block might be in use by another thread, wait for it to be released before
+             * freeing it.
+             */
+            while (blkcache_item->ref_count != 0) {
+                __wt_spin_backoff(&yield_count, &sleep_usecs);
+                if (++yield_count > WT_THOUSAND * 10)
+                    return (EBUSY);
+            }
             TAILQ_REMOVE(&blkcache->hash[bucket], blkcache_item, hashq);
             __blkcache_update_ref_histogram(session, blkcache_item, BLKCACHE_RM_FREE);
             __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
