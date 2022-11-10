@@ -529,6 +529,7 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
                 __wt_spin_backoff(&yield_count, &sleep_usecs);
                 if (++yield_count > WT_THOUSAND * 10)
                     return (EBUSY);
+                WT_STAT_CONN_INCRV(session, block_cache_blocks_removed_blocked, sleep_usecs);
             }
             TAILQ_REMOVE(&blkcache->hash[bucket], blkcache_item, hashq);
             __blkcache_update_ref_histogram(session, blkcache_item, BLKCACHE_RM_FREE);
