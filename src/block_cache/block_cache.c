@@ -505,7 +505,7 @@ err:
  * __wt_blkcache_remove --
  *     Remove a block from the cache.
  */
-void
+int
 __wt_blkcache_remove(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
     WT_BLKCACHE *blkcache;
@@ -533,10 +533,11 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
             __wt_overwrite_and_free(session, blkcache_item);
             __blkcache_verbose(
               session, WT_VERBOSE_DEBUG_1, "block removed from cache", hash, addr, addr_size);
-            return;
+            return (0);
         }
     }
     __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
+    return (0);
 }
 
 /*
