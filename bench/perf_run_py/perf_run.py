@@ -188,6 +188,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('-args', '--arguments', help='Additional arguments to pass into the test')
     parser.add_argument('-ops', '--operations', help='List of operations to report metrics for')
     parser.add_argument('-v', '--verbose', action="store_true", help='be verbose')
+    parser.add_argument('-a', '--opts_flag', action='store_true', help='accuracy runs')
     args = parser.parse_args()
 
     if args.verbose:
@@ -238,7 +239,8 @@ def parse_json_args(args: argparse.Namespace) -> Tuple[List[str], List[str], Per
                         run_max=args.runmax,
                         verbose=args.verbose,
                         git_root=args.git_root,
-                        json_info=json_info)
+                        json_info=json_info,
+                        opts_flag=args.opts_flag)
 
     batch_file_contents = None
     if config.batch_file:
@@ -328,6 +330,8 @@ def main():
     args = parse_args()
     (arguments, operations, config, batch_file_contents) = parse_json_args(args=args)
     validate_operations(config=config, batch_file_contents=batch_file_contents, operations=operations)
+    if (config.opts_flag):
+        arguments = ["-o run_time=60"]
     reported_stats = run_perf_tests(config=config,
                                     batch_file_contents=batch_file_contents,
                                     args=args,
@@ -337,3 +341,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
