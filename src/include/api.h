@@ -253,6 +253,15 @@
     if (F_ISSET(cur, WT_CURSTD_CACHED))                                                    \
     WT_ERR(__wt_cursor_cached(cur))
 
+#define API_RETRYABLE(s) do {
+
+#define API_RETRYABLE_END(s, ret)                                                                \
+    if ((ret) != WT_ROLLBACK || F_ISSET((s)->txn, WT_TXN_RUNNING) || (s)->api_call_counter != 1) \
+        break;                                                                                   \
+    (ret) = 0;                                                                                   \
+    }                                                                                            \
+    while (1)
+
 #define JOINABLE_CURSOR_CALL_CHECK(cur) \
     if (F_ISSET(cur, WT_CURSTD_JOINED)) \
     WT_ERR(__wt_curjoin_joined(cur))
