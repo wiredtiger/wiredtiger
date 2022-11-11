@@ -520,6 +520,11 @@ connection_runtime_config = [
         the maximum number of milliseconds an application thread will wait for space to be
         available in cache before giving up. Default will wait forever''',
         min=0),
+    Config('diagnostic_asserts', 'off', r'''
+        enable additional assertions.
+        When \c off only mandatory assertions are enabled.
+        When \c on additional diagnostic assertions are enabled.''',
+        choices=['off', 'on']),
     Config('history_store', '', r'''
         history store configuration options''',
         type='category', subconfig=[
