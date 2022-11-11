@@ -59,7 +59,7 @@ class PerfConfig:
                  verbose: bool = False,
                  git_root: str = None,
                  json_info=None,
-                 opts_flag=None):
+                 improved_accuracy=None):
         if json_info is None:
             json_info = {}
         self.test_type: TestType = test_type
@@ -73,7 +73,7 @@ class PerfConfig:
         self.verbose: bool = verbose
         self.git_root: str = git_root
         self.json_info: dict = json_info
-        self.opts_flag = opts_flag
+        self.improved_accuracy = improved_accuracy
 
     def to_value_dict(self):
         as_dict = {'exec_path': self.exec_path,
@@ -86,5 +86,5 @@ class PerfConfig:
                    'verbose': self.verbose,
                    'git_root': self.git_root,
                    'json_info': self.json_info,
-                   'opts_flag': self.opts_flag}
+                   'improved_accuracy': self.improved_accuracy}
         return as_dict

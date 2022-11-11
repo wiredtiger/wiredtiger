@@ -3668,7 +3668,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: small-lsm.wtperf
-          maxruns: 1
+          maxruns: 3
           wtarg: -ops ['"load", "read"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -3792,7 +3792,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: medium-btree.wtperf
-          maxruns: 1
+          maxruns: 3
           wtarg: -ops ['"load", "read"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -3807,7 +3807,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: medium-btree-backup.wtperf
-          maxruns: 1
+          maxruns: 3
           wtarg: -ops ['"load", "read"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -3837,7 +3837,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: update-only-btree.wtperf
-          maxruns: 1
+          maxruns: 3
           wtarg: -ops ['"update"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -3867,7 +3867,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: update-large-record-btree.wtperf
-          maxruns: 1
+          maxruns: 3
           wtarg: -ops ['"load", "update"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -3882,7 +3882,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: modify-large-record-btree.wtperf
-          maxruns: 1
+          maxruns: 3
           wtarg: -ops ['"load", "modify"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -3897,7 +3897,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: modify-force-update-large-record-btree.wtperf
-          maxruns: 1
+          maxruns: 3
           wtarg: -ops ['"load", "modify"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -4924,7 +4924,7 @@ buildvariants:
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: Ninja
     make_command: ninja
-    improved_accuracy: '--opts_flag'
+    improved_accuracy: '--improved_accuracy'
     max_runs_acc: 5
   tasks:
     - name: compile
@@ -4937,8 +4937,6 @@ buildvariants:
     - name: ".log-perf"
     - name: ".long-perf"
     - name: ".oplog-perf"
-    - name: many-dhandle-stress
-    - name: ".wt2853-perf"
     - name: cppsuite-bounded-cursor-perf-stress
   display_tasks:
     - name: Wiredtiger-perf-btree-jobs

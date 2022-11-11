@@ -139,7 +139,7 @@ def configure_for_extra_accuracy(config: PerfConfig, arguments: List[str]):
     
     config.run_max = new_run_max
 
-    if(arguments):
+    if arguments:
         for (i, arg) in enumerate(arguments):
             if arg.startswith("-o "):
                 if "run_time=" in arg:
@@ -150,10 +150,9 @@ def configure_for_extra_accuracy(config: PerfConfig, arguments: List[str]):
                     return
                     
     # Arguments is of None type - initialise.
+    # There is no `-o` argument yet. Add one.
     if not(arguments):
         arguments = []
-
-    # Else there is no `-o` argument yet. Add one.
     arguments += [f"-o {new_run_time}"]
 
 def run_test_wrapper(config: PerfConfig, index: int = 0, arguments: List[str] = None):
