@@ -510,12 +510,12 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
 {
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ITEM *blkcache_item;
-    uint64_t bucket, hash, sleep_usecs, yield_count;
+    uint64_t bucket, hash, sleep_usecs, total_usecs, yield_count;
 
     blkcache = &S2C(session)->blkcache;
     hash = __wt_hash_city64(addr, addr_size);
     bucket = hash % blkcache->hash_size;
-    sleep_usecs = yield_count = 0;
+    sleep_usecs = total_usecs = yield_count = 0;
 
     __wt_spin_lock(session, &blkcache->hash_locks[bucket]);
     TAILQ_FOREACH (blkcache_item, &blkcache->hash[bucket], hashq) {
@@ -535,8 +535,9 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
              */
             while (blkcache_item->ref_count != 0) {
                 __wt_spin_backoff(&yield_count, &sleep_usecs);
-                WT_STAT_CONN_INCRV(session, block_cache_blocks_removed_blocked, sleep_usecs);
+                total_usecs += sleep_usecs;
             }
+            WT_STAT_CONN_INCRV(session, block_cache_blocks_removed_blocked, total_usecs);
             __blkcache_free(session, blkcache_item->data);
             __wt_overwrite_and_free(session, blkcache_item);
             __blkcache_verbose(
