@@ -445,6 +445,17 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
         session->cache_max_wait_us = (uint64_t)(cval.val * WT_THOUSAND);
     WT_ERR_NOTFOUND_OK(ret, false);
 
+    if ((ret = __wt_config_getones(session, config, "diagnostic_asserts", &cval)) == 0) {
+        if (WT_STRING_MATCH("connection", cval.str, cval.len))
+            session->diagnostic_asserts_level = DIAG_ASSERTS_CONN;
+        else if (WT_STRING_MATCH("off", cval.str, cval.len))
+            session->diagnostic_asserts_level = DIAG_ASSERTS_OFF;
+        else if (WT_STRING_MATCH("on", cval.str, cval.len))
+            session->diagnostic_asserts_level = DIAG_ASSERTS_ON;
+        else
+            WT_ERR_MSG(session, WT_NOTFOUND, "Invalid value provided for diagnostic_asserts");
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
 err:
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
@@ -2393,6 +2404,8 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     session_ret->unittest_assert_hit = false;
     memset(session->unittest_assert_msg, 0, WT_SESSION_UNITTEST_BUF_LEN);
 #endif
+
+    session_ret->diagnostic_asserts_level = DIAG_ASSERTS_CONN;
 
     /*
      * Initialize the pseudo random number generator. We're not seeding it, so all of the sessions

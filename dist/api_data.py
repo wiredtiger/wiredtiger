@@ -1030,6 +1030,12 @@ session_config = [
         available in cache before giving up. Default value will be the global setting of the
         connection config''',
         min=0),
+    Config('diagnostic_asserts', 'connection', r'''
+        enable additional assertions.
+        When \c off only mandatory assertions are enabled.
+        When \c on additional diagnostic assertions are enabled.
+        When set to \c connection this setting is inherited from the connection''',
+        choices=['off', 'on', 'connection']),
     Config('ignore_cache_size', 'false', r'''
         when set, operations performed by this session ignore the cache size and are not blocked
         when the cache is full. Note that use of this option for operations that create cache
