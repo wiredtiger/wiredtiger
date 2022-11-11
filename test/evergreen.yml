@@ -3668,7 +3668,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: small-lsm.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"load", "read"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -3683,7 +3683,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: medium-lsm.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"load", "read"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -3698,7 +3698,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: medium-lsm-compact.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"load", "read"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -3713,7 +3713,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: medium-multi-lsm.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"load", "read", "update"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -3728,7 +3728,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: parallel-pop-lsm.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"load"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -3743,7 +3743,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: update-lsm.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"load", "read", "update", "insert"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -3762,7 +3762,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: small-btree.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"load", "read"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -3777,7 +3777,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: small-btree-backup.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"load", "read"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -3792,7 +3792,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: medium-btree.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"load", "read"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -3807,7 +3807,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: medium-btree-backup.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"load", "read"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -3822,7 +3822,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: parallel-pop-btree.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"load"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -3837,7 +3837,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: update-only-btree.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"update"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -3852,7 +3852,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: update-btree.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: ${improved_accuracy|} "-bf ../../../bench/wtperf/runners/update-btree.json" 
       - func: "upload-perf-test-stats"
         vars:
@@ -3867,7 +3867,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: update-large-record-btree.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"load", "update"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -3882,7 +3882,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: modify-large-record-btree.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"load", "modify"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -3897,7 +3897,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: modify-force-update-large-record-btree.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"load", "modify"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -3916,7 +3916,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: mongodb-oplog.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"load", "insert", "truncate", "database_size"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -3931,7 +3931,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: mongodb-small-oplog.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"load", "insert", "truncate", "database_size"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -3946,7 +3946,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: mongodb-large-oplog.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"load", "insert", "truncate", "database_size"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -3961,7 +3961,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: mongodb-secondary-apply.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"insert"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -3980,7 +3980,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: update-checkpoint-btree.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: ${improved_accuracy|} "-bf ../../../bench/wtperf/runners/update-checkpoint.json"
       - func: "upload-perf-test-stats"
         vars:
@@ -4015,7 +4015,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: overflow-10k.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"load", "read", "update"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -4030,7 +4030,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: overflow-130k.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"load", "read", "update"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -4045,7 +4045,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: parallel-pop-stress.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"load"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -4060,7 +4060,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: update-grow-stress.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"update"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -4075,7 +4075,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: update-shrink-stress.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"update"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -4090,7 +4090,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: update-delta-mix1.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"update"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -4105,7 +4105,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: update-delta-mix2.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"update"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -4120,7 +4120,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: update-delta-mix3.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"update"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -4135,12 +4135,12 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: multi-btree-zipfian-populate.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: ${improved_accuracy|}
       - func: "run-perf-test"
         vars:
           perf-test-name: multi-btree-zipfian-workload.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           no_create: true
           wtarg: -ops ['"read"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
@@ -4156,7 +4156,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: many-table-stress.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: ${improved_accuracy|}
 
   - name: perf-test-many-table-stress-backup
@@ -4168,7 +4168,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: many-table-stress-backup.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: ${improved_accuracy|}
 
   - name: perf-test-evict-fairness
@@ -4180,7 +4180,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: evict-fairness.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -args ['"-C statistics_log=(wait=10000,on_close=true,json=false,sources=[file:])", "-o reopen_connection=false"'] -ops ['"eviction_page_seen"'] ${improved_accuracy|}
       - func: "validate-expected-stats"
         vars:
@@ -4197,7 +4197,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: evict-btree-stress-multi.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"warnings", "top5_latencies_read_update"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -4216,7 +4216,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: evict-btree.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"load", "read"'] ${improved_accuracy|} 
       - func: "upload-perf-test-stats"
         vars:
@@ -4231,7 +4231,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: evict-btree-1.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"read"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -4247,7 +4247,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: evict-lsm.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"load", "read"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -4263,7 +4263,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: evict-lsm-1.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"read"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -4282,7 +4282,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: log.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -ops ['"update", "min_max_update_throughput"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -4297,7 +4297,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: log.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -args ['"-C log=(enabled,file_max=1M)"'] -ops ['"update"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -4312,7 +4312,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: log.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -args ['"-C checkpoint=(wait=0)"'] -ops ['"update"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -4327,7 +4327,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: log.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -args ['"-C log=(enabled,file_max=1M,prealloc=false)"'] -ops ['"update"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -4342,7 +4342,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: log.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -args ['"-C log=(enabled,file_max=1M,zero_fill=true)"'] -ops ['"update"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -4357,7 +4357,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: log.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -args ['"-C log=(enabled,file_max=1M),session_max=256", "-o threads=((count=128,updates=1))"'] -ops ['"update"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -4380,7 +4380,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: 500m-btree-populate.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -args ['"-C create,statistics=(fast),statistics_log=(json,wait=1,sources=[file:])"'] -ops ['"load", "warnings", "max_latency_insert"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -4411,7 +4411,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: 500m-btree-50r50u.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           no_create: true
           wtarg: -args ['"-C create,statistics=(fast),statistics_log=(json,wait=1,sources=[file:])"'] -ops ['"read", "update", "warnings", "max_latency_read_update"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
@@ -4438,7 +4438,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: 500m-btree-50r50u-backup.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           no_create: true
           wtarg: -args ['"-C create,statistics=(fast),statistics_log=(json,wait=1,sources=[file:])"'] -ops ['"read", "update", "warnings", "max_latency_read_update"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
@@ -4465,7 +4465,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: 500m-btree-80r20u.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           no_create: true
           wtarg: -args ['"-C create,statistics=(fast),statistics_log=(json,wait=1,sources=[file:])"'] -ops ['"read", "update", "warnings", "max_latency_read_update"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
@@ -4492,7 +4492,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: 500m-btree-rdonly.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           no_create: true
           wtarg: -args ['"-C create,statistics=(fast),statistics_log=(json,wait=1,sources=[file:])"'] -ops ['"read", "warnings", "max_latency_read_update", "min_max_read_throughput"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
@@ -4509,7 +4509,7 @@ tasks:
       - func: "run-perf-test"
         vars:
           perf-test-name: checkpoint-stress.wtperf
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: -args ['"-C create,statistics=(fast),statistics_log=(json,wait=1,sources=[file:])"'] -ops ['"update", "checkpoint"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
@@ -4526,7 +4526,7 @@ tasks:
           exec_path: ${python_binary}
           perf-test-path: ../../../bench/workgen/runner
           perf-test-name: many-dhandle-stress.py
-          maxruns: ${max_runs_acc|1}
+          maxruns: 1
           wtarg: ${improved_accuracy|} -ops ['"max_latency_create", "max_latency_drop", "max_latency_drop_diff", "max_latency_insert_micro_sec", "max_latency_read_micro_sec", "max_latency_update_micro_sec", "warning_idle", "warning_idle_create", "warning_idle_drop", "warning_insert", "warning_operations", "warning_read", "warning_update"']
       - func: "upload-perf-test-stats"
         vars:

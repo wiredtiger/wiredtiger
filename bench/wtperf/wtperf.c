@@ -2361,7 +2361,7 @@ start_run(WTPERF *wtperf)
         total_ops = wtperf->insert_ops + wtperf->modify_ops + wtperf->read_ops + wtperf->update_ops;
 
         run_time = opts->run_time == 0 ? 1 : opts->run_time;
-
+        printf("Run time set to: %u", run_time);
         lprintf(wtperf, 0, 1,
           "Executed %" PRIu64 " insert operations (%" PRIu64 "%%) %" PRIu64 " ops/sec",
           wtperf->insert_ops, (wtperf->insert_ops * 100) / total_ops,
