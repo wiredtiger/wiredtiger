@@ -149,7 +149,6 @@ def configure_for_extra_accuracy(config: PerfConfig, arguments: List[str]):
                     arguments[i] = arg + "," + new_run_time
                     return
                     
-    # Arguments is of None type - initialise.
     # There is no `-o` argument yet. Add one.
     if not(arguments):
         arguments = []

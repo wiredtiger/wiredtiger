@@ -4873,7 +4873,6 @@ buildvariants:
     - name: ".oplog-perf"
     - name: many-dhandle-stress
     - name: ".wt2853-perf"
-    - name: cppsuite-bounded-cursor-perf-stress
   display_tasks:
     - name: Wiredtiger-perf-btree-jobs
       execution_tasks:
@@ -4964,10 +4963,7 @@ buildvariants:
     - name: Wiredtiger-perf-oplog-jobs
       execution_tasks:
       - ".oplog-perf"
-    - name: WiredTiger-wt2853-perf
-      execution_tasks:
-      - ".wt2853-perf"
-
+      
 - name: large-scale-tests
   display_name: "Large scale tests"
   batchtime: 480 # 3 times a day
