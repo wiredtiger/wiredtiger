@@ -521,16 +521,6 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
     TAILQ_FOREACH (blkcache_item, &blkcache->hash[bucket], hashq) {
         if (blkcache_item->addr_size == addr_size && blkcache_item->fid == S2BT(session)->id &&
           memcmp(blkcache_item->addr, addr, addr_size) == 0) {
-            /*
-             * The block might be in use by another thread, wait for it to be released before
-             * freeing it.
-             */
-            while (blkcache_item->ref_count != 0) {
-                __wt_spin_backoff(&yield_count, &sleep_usecs);
-                if (++yield_count > WT_THOUSAND * 10)
-                    return (EBUSY);
-                WT_STAT_CONN_INCRV(session, block_cache_blocks_removed_blocked, sleep_usecs);
-            }
             TAILQ_REMOVE(&blkcache->hash[bucket], blkcache_item, hashq);
             __blkcache_update_ref_histogram(session, blkcache_item, BLKCACHE_RM_FREE);
             __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
@@ -539,7 +529,14 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
             WT_STAT_CONN_INCR(session, block_cache_blocks_removed);
             (void)__wt_atomic_sub64(&blkcache->bytes_used, blkcache_item->data_size);
             blkcache->removals++;
-            WT_ASSERT(session, blkcache_item->ref_count == 0);
+            /*
+             * The block might be in use by another thread, wait for it to be released before
+             * freeing it.
+             */
+            while (blkcache_item->ref_count != 0) {
+                __wt_spin_backoff(&yield_count, &sleep_usecs);
+                WT_STAT_CONN_INCRV(session, block_cache_blocks_removed_blocked, sleep_usecs);
+            }
             __blkcache_free(session, blkcache_item->data);
             __wt_overwrite_and_free(session, blkcache_item);
             __blkcache_verbose(
