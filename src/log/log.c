@@ -2572,6 +2572,15 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, ui
     int64_t release_size;
     uint32_t fill_size, force, rdup_len;
     bool free_slot;
+#ifdef HAVE_DIAGNOSTIC
+    uint32_t dbg_i, waits;
+    struct timespec dbg[10];
+    WT_LSN dbg_lsn[10];
+
+    memset(dbg, 0, sizeof(dbg));
+    memset(dbg_lsn, 0, sizeof(dbg_lsn));
+    dbg_i = waits = 0;
+#endif
 
     conn = S2C(session);
     log = conn->log;
@@ -2681,8 +2690,17 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, ui
     }
     if (LF_ISSET(WT_LOG_FLUSH)) {
         /* Wait for our writes to reach the OS */
+#ifdef HAVE_DIAGNOSTIC
+        while (__wt_log_cmp(&log->write_lsn, &lsn) <= 0 && myslot.slot->slot_error == 0) {
+            dbg_i = waits++ % 10;
+            __wt_epoch(session, &dbg[dbg_i]);
+            dbg_lsn[dbg_i] = log->write_lsn;
+            __wt_cond_wait(session, log->log_write_cond, 10000, NULL);
+        }
+#else
         while (__wt_log_cmp(&log->write_lsn, &lsn) <= 0 && myslot.slot->slot_error == 0)
             __wt_cond_wait(session, log->log_write_cond, 10000, NULL);
+#endif
     } else if (LF_ISSET(WT_LOG_FSYNC)) {
         /* Wait for our writes to reach disk */
         while (__wt_log_cmp(&log->sync_lsn, &lsn) <= 0 && myslot.slot->slot_error == 0)
