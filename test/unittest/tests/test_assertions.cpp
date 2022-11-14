@@ -13,7 +13,7 @@
 #include "wrappers/connection_wrapper.h"
 #include "wt_internal.h"
 
-/* Assert that a WT assertion has fired with the expected message, then clear the flag and message. */
+/* Assert that a WT assertion fired with the expected message, then clear the flag and message. */
 void
 expect_assertion(WT_SESSION_IMPL *session, std::string expected_message)
 {
@@ -36,6 +36,9 @@ TEST_CASE("Simple implementation of unit testing WT_ASSERT_ALWAYS", "[assertions
 {
     ConnectionWrapper conn(DB_HOME);
     WT_SESSION_IMPL *session = conn.createSession();
+
+    // Check that the new session has set up our test fields correctly.
+    expect_no_assertion(session);
 
     SECTION("Basic WT_ASSERT_ALWAYS tests")
     {
