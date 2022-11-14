@@ -1490,6 +1490,8 @@ struct __wt_addr_copy {
     uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
     uint8_t size;
 
+    WT_PAGE_STAT ps; /* Page information including row and byte counts */
+
     WT_TIME_AGGREGATE ta;
 
     WT_PAGE_DELETED del; /* Fast-truncate page information */

@@ -125,10 +125,22 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
     ((void *)((uint8_t *)(dsk) + WT_PAGE_HEADER_BYTE_SIZE(btree)))
 
 /*
+ * WT_PAGE_STAT --
+ *	A structure to hold page information such as row and byte counts.
+ */
+struct __wt_page_stat {
+    /* These informational values can be negative to signify that they are invalid. */
+    int64_t byte_count;
+    int64_t row_count;
+};
+
+/*
  * WT_ADDR --
  *	An in-memory structure to hold a block's location.
  */
 struct __wt_addr {
+    WT_PAGE_STAT ps; /* Page information including row and byte counts */
+
     WT_TIME_AGGREGATE ta;
 
     uint8_t *addr; /* Block-manager's cookie */

@@ -200,6 +200,8 @@ struct __wt_cell_unpack_common {
 struct __wt_cell_unpack_addr {
     WT_CELL_COMMON_FIELDS;
 
+    WT_PAGE_STAT ps; /* Page information including row and byte counts */
+
     WT_TIME_AGGREGATE ta; /* Address validity window */
 
     WT_PAGE_DELETED page_del; /* Fast-truncate information */
