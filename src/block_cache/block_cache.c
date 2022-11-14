@@ -524,11 +524,8 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
             TAILQ_REMOVE(&blkcache->hash[bucket], blkcache_item, hashq);
             __blkcache_update_ref_histogram(session, blkcache_item, BLKCACHE_RM_FREE);
             __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
-            WT_STAT_CONN_DECRV(session, block_cache_bytes, blkcache_item->data_size);
-            WT_STAT_CONN_DECR(session, block_cache_blocks);
-            WT_STAT_CONN_INCR(session, block_cache_blocks_removed);
             (void)__wt_atomic_sub64(&blkcache->bytes_used, blkcache_item->data_size);
-            blkcache->removals++;
+            WT_STAT_CONN_DECRV(session, block_cache_bytes, blkcache_item->data_size);
             /*
              * The block might be in use by another thread, wait for it to be released before
              * freeing it.
@@ -540,6 +537,9 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
             WT_STAT_CONN_INCRV(session, block_cache_blocks_removed_blocked, total_usecs);
             __blkcache_free(session, blkcache_item->data);
             __wt_overwrite_and_free(session, blkcache_item);
+            blkcache->removals++;
+            WT_STAT_CONN_INCR(session, block_cache_blocks_removed);
+            WT_STAT_CONN_DECR(session, block_cache_blocks);
             __blkcache_verbose(
               session, WT_VERBOSE_DEBUG_1, "block removed from cache", hash, addr, addr_size);
             return;
