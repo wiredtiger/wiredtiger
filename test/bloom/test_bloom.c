@@ -65,6 +65,7 @@ main(int argc, char *argv[])
 {
     int ch;
 
+    testutil_assert(false);
     (void)testutil_set_progname(argv);
 
     /* Set default configuration values. */
