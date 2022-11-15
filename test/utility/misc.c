@@ -158,7 +158,6 @@ testutil_deduce_build_dir(TEST_OPTS *opts)
 
     testutil_check(__wt_snprintf(path, sizeof(path), "%s/%s", pwd, opts->argv0));
 
-    printf("PATH - %s\n", path);
     token = strtok(path, "/");
 
     while (token != NULL) {
@@ -170,7 +169,6 @@ testutil_deduce_build_dir(TEST_OPTS *opts)
 
         if (stat(stat_path, &stats) == 0) {
             opts->build_dir = dstrdup(token_path);
-            printf("Build Dir - %s\n", opts->build_dir);
             return;
         }
         token = strtok(NULL, "/");
