@@ -834,15 +834,12 @@ int
 __wt_session_count(WT_SESSION *wt_session, const char *uri, int64_t *count)
 {
     WT_DECL_RET;
-    WT_SESSION_IMPL *session;
 
     WT_UNUSED(uri);
-
-    session = (WT_SESSION_IMPL *)wt_session;
-    if (!__wt_process.page_stats_2022)
-        ret = __wt_session_notsup(session);
+    WT_UNUSED(wt_session);
 
     *count = -1;
+
     return (ret);
 }
 

@@ -40,11 +40,11 @@ class test_count01(wttest.WiredTigerTestCase, suite_subprocess):
     def test_count_api(self):
         self.session.create(self.uri, 'key_format=i,value_format=i')
 
-        count = 0
+        count = wiredtiger.int64_t_ptr()
         ret = self.session.count(self.uri, count)
 
         self.assertEqual(ret, 0)
-        self.assertEqual(count, -1)
+        self.assertEqual(count.value(), -1)
 
 
 if __name__ == '__main__':
