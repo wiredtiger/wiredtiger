@@ -194,7 +194,6 @@ main(int argc, char *argv[])
 
     config = NULL;
 
-    testutil_assert(false);
     (void)testutil_set_progname(argv);
 
     format_process_env();
