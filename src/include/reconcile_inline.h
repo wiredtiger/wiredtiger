@@ -392,7 +392,7 @@ __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *add
     }
 
     val->cell_len =
-      __wt_cell_pack_addr(session, &val->cell, cell_type, recno, page_del, ta, val->buf.size);
+      __wt_cell_pack_addr(session, &val->cell, cell_type, recno, page_del, &addr->ps, ta, val->buf.size);
     val->len = val->cell_len + val->buf.size;
 }
 
