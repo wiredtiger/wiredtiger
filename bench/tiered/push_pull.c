@@ -28,13 +28,10 @@
 #include "test_util.h"
 
 /*
- * This test executes two test cases:
- * - One with WT_TIMING_STRESS_CHECKPOINT_SLOW flag. It adds 10 seconds sleep before each
- * checkpoint.
- * - Another test case synchronizes compact and checkpoint threads by forcing them to wait
- * until both threads have started.
- * The reason we have two tests here is that they give different output when configured
- * with "verbose=[compact,compact_progress]". There's a chance these two cases are different.
+ * This test is to calculate benchmarks for tiered storage:
+ * - This test populates tables of different sizes, say 100K, 1MB, 10MB,
+ * 100MB and checkpoints with/without flush call and calculates time taken for
+ * populate and checkpoint.
  */
 
 #define NUM_RECORDS 500
@@ -46,16 +43,8 @@ static const char conn_config[] =
   "create,cache_size=2GB,statistics=(all),statistics_log=(json,on_close,wait=1)";
 static const char table_config_row[] = "leaf_page_max=64KB,key_format=i,value_format=S";
 static char data_str[202] = "";
-static uint64_t ready_counter;
 
 static TEST_OPTS *opts, _opts;
-
-/* Structures definition. */
-struct thread_data {
-    WT_CONNECTION *conn;
-    const char *uri;
-    bool stress_test;
-};
 
 /* Forward declarations. */
 static void get_file_size(const char *, int64_t *);
@@ -132,8 +121,6 @@ run_test_clean(const char *suffix, uint64_t num_records, bool flush)
 {
     char home_full[HOME_BUF_SIZE];
 
-    ready_counter = 0;
-
     printf("\n");
     printf("Running %s test \n", suffix);
     testutil_assert(sizeof(home_full) > strlen(opts->home) + strlen(suffix) + 2);
@@ -188,6 +175,7 @@ run_test(const char *home, uint64_t num_records, bool flush)
     sleep(2);
 
     get_file_size(home, &file_size);
+    testutil_assert(diff_sec > 0);
     printf("File Size - %" PRIi64 ", Throughput - %f MB/second\n", file_size,
       ((file_size / diff_sec) / MB));
 }
