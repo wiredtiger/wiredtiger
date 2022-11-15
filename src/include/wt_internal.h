@@ -443,6 +443,7 @@ typedef uint64_t wt_timestamp_t;
 #include "optrack.h"
 #include "os.h"
 #include "reconcile.h"
+#include "rollback_to_stable.h"
 #include "schema.h"
 #include "thread_group.h"
 #include "tiered.h"
