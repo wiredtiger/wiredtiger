@@ -88,10 +88,10 @@ print_help()
     std::cout << std::endl;
     std::cout << "SYNOPSIS" << std::endl;
     std::cout << "\trun [OPTIONS]" << std::endl;
-    std::cout << "\trun -H [HOME]" << std::endl;
     std::cout << "\trun -C [WIREDTIGER_OPEN_CONFIGURATION]" << std::endl;
     std::cout << "\trun -c [TEST_FRAMEWORK_CONFIGURATION]" << std::endl;
     std::cout << "\trun -f [FILE]" << std::endl;
+    std::cout << "\trun -H [HOME]" << std::endl;
     std::cout << "\trun -l [TRACE_LEVEL]" << std::endl;
     std::cout << "\trun --list" << std::endl;
     std::cout << "\trun -t [TEST_NAME]" << std::endl;
@@ -108,11 +108,11 @@ print_help()
       << std::endl;
     std::cout << std::endl;
     std::cout << "OPTIONS" << std::endl;
-    std::cout << "\t-h Output a usage message and exit." << std::endl;
-    std::cout << "\t-H Specifies the database home directory." << std::endl;
     std::cout << "\t-C Additional WiredTiger open configuration." << std::endl;
     std::cout << "\t-c Test framework configuration. Cannot be used with -f." << std::endl;
     std::cout << "\t-f File that contains the configuration. Cannot be used with -C." << std::endl;
+    std::cout << "\t-H Specifies the database home directory." << std::endl;
+    std::cout << "\t-h Output a usage message and exit." << std::endl;
     std::cout << "\t-l Trace level from 0 to 3. "
                  "1 is the default level, all warnings and errors are logged."
               << std::endl;
