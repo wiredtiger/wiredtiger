@@ -728,7 +728,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 }
 
 /*
- o __txn_prepare_rollback_restore_hs_update --
+ * __txn_prepare_rollback_restore_hs_update --
  *     Restore the history store update to the update chain before roll back prepared update evicted
  *     to disk
  */
