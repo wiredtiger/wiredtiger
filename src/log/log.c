@@ -1859,6 +1859,8 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
         *freep = 1;
     release_buffered = WT_LOG_SLOT_RELEASED_BUFFERED(slot->slot_state);
     release_bytes = release_buffered + slot->slot_unbuffered;
+    slot->rel_sess = session;
+    slot->rel_flags = slot->flags;
 
     /*
      * Checkpoints can be configured based on amount of log written. Add in this log record to the
@@ -2573,13 +2575,9 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, ui
     uint32_t fill_size, force, rdup_len;
     bool free_slot;
 #ifdef HAVE_DIAGNOSTIC
-    uint32_t dbg_i, waits;
-    struct timespec dbg[10];
-    WT_LSN dbg_lsn[10];
+    WT_LOGSLOT dbgslot[4];
 
-    memset(dbg, 0, sizeof(dbg));
-    memset(dbg_lsn, 0, sizeof(dbg_lsn));
-    dbg_i = waits = 0;
+    memset(dbgslot, 0, sizeof(dbgslot));
 #endif
 
     conn = S2C(session);
@@ -2655,6 +2653,9 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, ui
      * The only time joining a slot should ever return an error is if it detects a panic.
      */
     __wt_log_slot_join(session, rdup_len, flags, &myslot);
+#ifdef HAVE_DIAGNOSTIC
+    dbgslot[0] = *myslot.slot;
+#endif
     /*
      * If the addition of this record crosses the buffer boundary, switch in a new slot.
      */
@@ -2673,10 +2674,16 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, ui
         myslot.slot->slot_error = ret;
     WT_ASSERT(session, ret == 0);
     if (WT_LOG_SLOT_DONE(release_size)) {
+#ifdef HAVE_DIAGNOSTIC
+        dbgslot[1] = *myslot.slot;
+#endif
         WT_ERR(__wt_log_release(session, myslot.slot, &free_slot));
         if (free_slot)
             __wt_log_slot_free(session, myslot.slot);
     } else if (force) {
+#ifdef HAVE_DIAGNOSTIC
+        dbgslot[2] = *myslot.slot;
+#endif
         /*
          * If we are going to wait for this slot to get written, signal the log server thread.
          *
@@ -2690,19 +2697,14 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, ui
     }
     if (LF_ISSET(WT_LOG_FLUSH)) {
         /* Wait for our writes to reach the OS */
-#ifdef HAVE_DIAGNOSTIC
-        while (__wt_log_cmp(&log->write_lsn, &lsn) <= 0 && myslot.slot->slot_error == 0) {
-            dbg_i = waits++ % 10;
-            __wt_epoch(session, &dbg[dbg_i]);
-            dbg_lsn[dbg_i] = log->write_lsn;
-            __wt_cond_wait(session, log->log_write_cond, 10000, NULL);
-        }
-#else
         while (__wt_log_cmp(&log->write_lsn, &lsn) <= 0 && myslot.slot->slot_error == 0)
             __wt_cond_wait(session, log->log_write_cond, 10000, NULL);
-#endif
     } else if (LF_ISSET(WT_LOG_FSYNC)) {
         /* Wait for our writes to reach disk */
+#ifdef HAVE_DIAGNOSTIC
+        /* NOTE: the slot could be reused and contain unrelated information. Copy it anyway. */
+        dbgslot[3] = *myslot.slot;
+#endif
         while (__wt_log_cmp(&log->sync_lsn, &lsn) <= 0 && myslot.slot->slot_error == 0)
             __wt_cond_wait(session, log->log_sync_cond, 10000, NULL);
     }
