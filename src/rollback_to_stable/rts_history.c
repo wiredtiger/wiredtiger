@@ -9,12 +9,12 @@
 #include "wt_internal.h"
 
 /*
- * __wt_rollback_delete_hs --
+ * __wt_rts_history_delete_hs --
  *     Delete the updates for a key in the history store until the first update (including) that is
  *     larger than or equal to the specified timestamp.
  */
 int
-__wt_rollback_delete_hs(WT_SESSION_IMPL *session, WT_ITEM *key, wt_timestamp_t ts)
+__wt_rts_history_delete_hs(WT_SESSION_IMPL *session, WT_ITEM *key, wt_timestamp_t ts)
 {
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(hs_key);
@@ -72,11 +72,11 @@ err:
 }
 
 /*
- * __wt_rollback_to_stable_btree_hs_truncate --
+ * __wt_rts_history_btree_hs_truncate --
  *     Wipe all history store updates for the btree (non-timestamped tables)
  */
 int
-__wt_rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_id)
+__wt_rts_history_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_id)
 {
     WT_CURSOR *hs_cursor_start, *hs_cursor_stop;
     WT_DECL_ITEM(hs_key);
@@ -149,12 +149,12 @@ err:
 }
 
 /*
- * __wt_rollback_to_stable_hs_final_pass --
+ * __wt_rts_history_final_pass --
  *     Perform rollback to stable on the history store to remove any entries newer than the stable
  *     timestamp.
  */
 int
-__wt_rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
+__wt_rts_history_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
 {
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM cval, durableval, key;
@@ -198,16 +198,16 @@ __wt_rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t r
      * durable start/stop timestamp is greater than the rollback timestamp. But skip if there is no
      * stable timestamp.
      *
-     * Note that the corresponding code in __rollback_to_stable_btree_apply also checks whether
-     * there _are_ timestamped updates by checking max_durable_ts; that check is redundant here for
-     * several reasons, the most immediate being that max_durable_ts cannot be none (zero) because
-     * it's greater than rollback_timestamp, which is itself greater than zero.
+     * Note that the corresponding code for RTS btree apply also checks whether there _are_
+     * timestamped updates by checking max_durable_ts; that check is redundant here for several
+     * reasons, the most immediate being that max_durable_ts cannot be none (zero) because it's
+     * greater than rollback_timestamp, which is itself greater than zero.
      */
     if (max_durable_ts > rollback_timestamp && rollback_timestamp != WT_TS_NONE) {
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           "tree rolled back with durable timestamp: %s",
           __wt_timestamp_to_string(max_durable_ts, ts_string[0]));
-        WT_TRET(__wt_rollback_to_stable_btree(session, rollback_timestamp));
+        WT_TRET(__wt_rts_btree_walk_btree(session, rollback_timestamp));
     } else
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           "tree skipped with durable timestamp: %s and stable timestamp: %s",
@@ -221,8 +221,7 @@ __wt_rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t r
      */
     if (F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE) && conn->partial_backup_remove_ids != NULL)
         for (i = 0; conn->partial_backup_remove_ids[i] != 0; ++i)
-            WT_ERR(__wt_rollback_to_stable_btree_hs_truncate(
-              session, conn->partial_backup_remove_ids[i]));
+            WT_ERR(__wt_rts_history_btree_hs_truncate(session, conn->partial_backup_remove_ids[i]));
 err:
     if (session->dhandle != NULL)
         WT_TRET(__wt_session_release_dhandle(session));

@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __wt_rollback_to_stable_check --
+ * __wt_rts_global_check --
  *     Check to the extent possible that the rollback request is reasonable.
  */
 int
-__wt_rollback_to_stable_check(WT_SESSION_IMPL *session)
+__wt_rts_global_check(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -72,11 +72,11 @@ __wt_rollback_to_stable_check(WT_SESSION_IMPL *session)
 }
 
 /*
- * __rollback_progress_msg --
+ * __rts_global_progress_msg --
  *     Log a verbose message about the progress of the current rollback to stable.
  */
 static void
-__rollback_progress_msg(WT_SESSION_IMPL *session, struct timespec rollback_start,
+__rts_global_progress_msg(WT_SESSION_IMPL *session, struct timespec rollback_start,
   uint64_t rollback_count, uint64_t *rollback_msg_count)
 {
     struct timespec cur_time;
@@ -97,12 +97,12 @@ __rollback_progress_msg(WT_SESSION_IMPL *session, struct timespec rollback_start
 }
 
 /*
- * __wt_rollback_to_stable_btree_apply_all --
+ * __wt_rts_global_btree_apply_all --
  *     Perform rollback to stable to all files listed in the metadata, apart from the metadata and
  *     history store files.
  */
 int
-__wt_rollback_to_stable_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
+__wt_rts_global_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
 {
     struct timespec rollback_timer;
     WT_CURSOR *cursor;
@@ -118,14 +118,14 @@ __wt_rollback_to_stable_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t
     WT_RET(__wt_metadata_cursor(session, &cursor));
     while ((ret = cursor->next(cursor)) == 0) {
         /* Log a progress message. */
-        __rollback_progress_msg(session, rollback_timer, rollback_count, &rollback_msg_count);
+        __rts_global_progress_msg(session, rollback_timer, rollback_count, &rollback_msg_count);
         ++rollback_count;
 
         WT_ERR(cursor->get_key(cursor, &uri));
         WT_ERR(cursor->get_value(cursor, &config));
 
         F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
-        ret = __wt_rollback_to_stable_btree_apply(session, uri, config, rollback_timestamp);
+        ret = __wt_rts_btree_walk_btree_apply(session, uri, config, rollback_timestamp);
         F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
 
         /*
@@ -143,7 +143,7 @@ __wt_rollback_to_stable_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t
     WT_ERR_NOTFOUND_OK(ret, false);
 
     if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
-        WT_ERR(__wt_rollback_to_stable_hs_final_pass(session, rollback_timestamp));
+        WT_ERR(__wt_rts_history_final_pass(session, rollback_timestamp));
 
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));

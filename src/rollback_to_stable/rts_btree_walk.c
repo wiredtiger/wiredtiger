@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __rollback_to_stable_check_btree_modified --
+ * __rts_btree_walk_check_btree_modified --
  *     Check that the rollback to stable btree is modified or not.
  */
 static int
-__rollback_to_stable_check_btree_modified(WT_SESSION_IMPL *session, const char *uri, bool *modified)
+__rts_btree_walk_check_btree_modified(WT_SESSION_IMPL *session, const char *uri, bool *modified)
 {
     WT_DECL_RET;
 
@@ -23,11 +23,11 @@ __rollback_to_stable_check_btree_modified(WT_SESSION_IMPL *session, const char *
 }
 
 /*
- * __rollback_to_stable_page_skip --
+ * __rts_btree_walk_page_skip --
  *     Skip if rollback to stable doesn't require reading this page.
  */
 static int
-__rollback_to_stable_page_skip(
+__rts_btree_walk_page_skip(
   WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool visible_all, bool *skipp)
 {
     WT_PAGE_DELETED *page_del;
@@ -51,7 +51,7 @@ __rollback_to_stable_page_skip(
       WT_REF_CAS_STATE(session, ref, WT_REF_DELETED, WT_REF_LOCKED)) {
         page_del = ref->page_del;
         if (page_del == NULL ||
-          (__wt_rollback_txn_visible_id(session, page_del->txnid) &&
+          (__wt_rts_visibility_txn_visible_id(session, page_del->txnid) &&
             page_del->durable_timestamp <= rollback_timestamp)) {
             /*
              * We should never see a prepared truncate here; not at recovery time because prepared
@@ -88,7 +88,7 @@ __rollback_to_stable_page_skip(
      * that is, eviction ignores WT_REF_DISK pages and no other thread is reading pages, this page
      * cannot change state from on-disk to something else.
      */
-    if (!__wt_rollback_page_needs_abort(session, ref, rollback_timestamp)) {
+    if (!__wt_rts_visibility_page_needs_abort(session, ref, rollback_timestamp)) {
         *skipp = true;
         __wt_verbose_multi(
           session, WT_VERB_RECOVERY_RTS(session), "%p: stable page walk skipped", (void *)ref);
@@ -99,11 +99,11 @@ __rollback_to_stable_page_skip(
 }
 
 /*
- * __rollback_to_stable_btree_walk --
+ * __rts_btree_walk --
  *     Called for each open handle - choose to either skip or wipe the commits
  */
 static int
-__rollback_to_stable_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
+__rts_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
 {
     WT_DECL_RET;
     WT_REF *ref;
@@ -111,21 +111,21 @@ __rollback_to_stable_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollbac
     /* Walk the tree, marking commits aborted where appropriate. */
     ref = NULL;
     while (
-      (ret = __wt_tree_walk_custom_skip(session, &ref, __rollback_to_stable_page_skip,
+      (ret = __wt_tree_walk_custom_skip(session, &ref, __rts_btree_walk_page_skip,
          &rollback_timestamp, WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED)) == 0 &&
       ref != NULL)
         if (F_ISSET(ref, WT_REF_FLAG_LEAF))
-            WT_RET(__wt_rollback_abort_updates(session, ref, rollback_timestamp));
+            WT_RET(__wt_rts_btree_abort_updates(session, ref, rollback_timestamp));
 
     return (ret);
 }
 
 /*
- * __wt_rollback_to_stable_btree_apply --
+ * __wt_rts_btree_walk_btree_apply --
  *     Perform rollback to stable on a single file.
  */
 int
-__wt_rollback_to_stable_btree_apply(
+__wt_rts_btree_walk_btree_apply(
   WT_SESSION_IMPL *session, const char *uri, const char *config, wt_timestamp_t rollback_timestamp)
 {
     WT_CONFIG ckptconf;
@@ -227,7 +227,7 @@ __wt_rollback_to_stable_btree_apply(
      */
     WT_WITHOUT_DHANDLE(session,
       WT_WITH_HANDLE_LIST_READ_LOCK(
-        session, (ret = __rollback_to_stable_check_btree_modified(session, uri, &modified))));
+        session, (ret = __rts_btree_walk_check_btree_modified(session, uri, &modified))));
 
     WT_ERR_NOTFOUND_OK(ret, false);
 
@@ -257,7 +257,7 @@ __wt_rollback_to_stable_btree_apply(
           S2C(session)->recovery_ckpt_snap_min,
           has_txn_updates_gt_than_ckpt_snap ? "true" : "false");
 
-        WT_ERR(__wt_rollback_to_stable_btree(session, rollback_timestamp));
+        WT_ERR(__wt_rts_btree_walk_btree(session, rollback_timestamp));
     } else
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           "%s: tree skipped with durable timestamp: %s and stable timestamp: %s or txnid: %" PRIu64,
@@ -277,7 +277,7 @@ __wt_rollback_to_stable_btree_apply(
       !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
         WT_ERR(__wt_config_getones(session, config, "id", &cval));
         btree_id = (uint32_t)cval.val;
-        WT_ERR(__wt_rollback_to_stable_btree_hs_truncate(session, btree_id));
+        WT_ERR(__wt_rts_history_btree_hs_truncate(session, btree_id));
     }
 
 err:
@@ -287,11 +287,11 @@ err:
 }
 
 /*
- * __wt_rollback_to_stable_btree --
+ * __wt_rts_btree_walk_btree --
  *     Called for each object handle - choose to either skip or wipe the commits
  */
 int
-__wt_rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
+__wt_rts_btree_walk_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
 {
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
@@ -316,5 +316,5 @@ __wt_rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_
     if (btree->root.page == NULL)
         return (0);
 
-    return (__rollback_to_stable_btree_walk(session, rollback_timestamp));
+    return (__rts_btree_walk(session, rollback_timestamp));
 }
