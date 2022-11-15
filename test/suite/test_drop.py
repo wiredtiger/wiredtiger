@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os
 import wiredtiger, wttest
 from helper import confirm_does_not_exist
 from wtdataset import SimpleDataSet, ComplexDataSet
@@ -95,7 +94,6 @@ class test_drop(wttest.WiredTigerTestCase):
         lsmuri = 'lsm:' + self.name
         confirm_does_not_exist(self, uri)
         self.session.drop(uri, 'force')
-        os.abort()
         self.assertRaises(
             wiredtiger.WiredTigerError, lambda: self.session.drop(uri, None))
         self.session.drop(cguri, 'force')
