@@ -230,6 +230,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_begin_transaction_roundup_timest
     {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_begin_transaction[] = {
+  {"evict_skip", "boolean", NULL, NULL, NULL, 0},
   {"ignore_prepare", "string", NULL, "choices=[\"false\",\"force\",\"true\"]", NULL, 0},
   {"isolation", "string", NULL,
     "choices=[\"read-uncommitted\",\"read-committed\","
@@ -258,6 +259,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_checkpoint[] = {
 static const WT_CONFIG_CHECK confchk_WT_SESSION_commit_transaction[] = {
   {"commit_timestamp", "string", NULL, NULL, NULL, 0},
   {"durable_timestamp", "string", NULL, NULL, NULL, 0},
+  {"evict_skip", "boolean", NULL, NULL, NULL, 0},
   {"operation_timeout_ms", "int", NULL, "min=1", NULL, 0},
   {"sync", "string", NULL, "choices=[\"off\",\"on\"]", NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
@@ -434,6 +436,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_reconfigure[] = {
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_rollback_transaction[] = {
+  {"evict_skip", "boolean", NULL, NULL, NULL, 0},
   {"operation_timeout_ms", "int", NULL, "min=1", NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_salvage[] = {
@@ -1248,19 +1251,20 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "write_timestamp_usage=none",
     confchk_WT_SESSION_alter, 11},
   {"WT_SESSION.begin_transaction",
-    "ignore_prepare=false,isolation=,name=,no_timestamp=false,"
-    "operation_timeout_ms=0,priority=0,read_timestamp=,"
-    "roundup_timestamps=(prepared=false,read=false),sync=",
-    confchk_WT_SESSION_begin_transaction, 9},
+    "evict_skip=false,ignore_prepare=false,isolation=,name=,"
+    "no_timestamp=false,operation_timeout_ms=0,priority=0,"
+    "read_timestamp=,roundup_timestamps=(prepared=false,read=false),"
+    "sync=",
+    confchk_WT_SESSION_begin_transaction, 10},
   {"WT_SESSION.checkpoint",
     "drop=,flush_tier=(enabled=false,force=false,sync=true,timeout=0)"
     ",force=false,name=,target=,use_timestamp=true",
     confchk_WT_SESSION_checkpoint, 6},
   {"WT_SESSION.close", "", NULL, 0},
   {"WT_SESSION.commit_transaction",
-    "commit_timestamp=,durable_timestamp=,operation_timeout_ms=0,"
-    "sync=",
-    confchk_WT_SESSION_commit_transaction, 4},
+    "commit_timestamp=,durable_timestamp=,evict_skip=false,"
+    "operation_timeout_ms=0,sync=",
+    confchk_WT_SESSION_commit_transaction, 5},
   {"WT_SESSION.compact", "timeout=1200", confchk_WT_SESSION_compact, 1},
   {"WT_SESSION.create",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
@@ -1320,8 +1324,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     confchk_WT_SESSION_reconfigure, 5},
   {"WT_SESSION.rename", "", NULL, 0}, {"WT_SESSION.reset", "", NULL, 0},
   {"WT_SESSION.reset_snapshot", "", NULL, 0},
-  {"WT_SESSION.rollback_transaction", "operation_timeout_ms=0",
-    confchk_WT_SESSION_rollback_transaction, 1},
+  {"WT_SESSION.rollback_transaction", "evict_skip=false,operation_timeout_ms=0",
+    confchk_WT_SESSION_rollback_transaction, 2},
   {"WT_SESSION.salvage", "force=false", confchk_WT_SESSION_salvage, 1},
   {"WT_SESSION.strerror", "", NULL, 0},
   {"WT_SESSION.timestamp_transaction",

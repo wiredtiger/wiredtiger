@@ -1004,6 +1004,7 @@ session_stats = [
     SessionStat('bytes_read', 'bytes read into cache'),
     SessionStat('bytes_write', 'bytes written from cache'),
     SessionStat('cache_time', 'time waiting for cache (usecs)'),
+    SessionStat('evict_help_skipped', 'number of times eviction was skipped for the transaction'),
     SessionStat('lock_dhandle_wait', 'dhandle lock wait time (usecs)'),
     SessionStat('lock_schema_wait', 'schema lock wait time (usecs)'),
     SessionStat('txn_bytes_dirty', 'dirty bytes in this txn'),

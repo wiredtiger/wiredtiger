@@ -31,7 +31,7 @@ from unittest import skip
 import wiredtiger, wttest
 
 # test_stat08.py
-#    Session statistics for bytes read into the cache.
+#    Test various session statistics.
 class test_stat08(wttest.WiredTigerTestCase):
 
     nentries = 100000
@@ -80,11 +80,17 @@ class test_stat08(wttest.WiredTigerTestCase):
         self.session = self.conn.open_session("debug=(release_evict_page=true)")
         self.session.create("table:test_stat08", "key_format=i,value_format=S")
         cursor =  self.session.open_cursor('table:test_stat08', None, None)
+
+        # Change and monitor the eviction skip on the transaction in this test.
+        evict_skip_before = self.get_stat(wiredtiger.stat.session.evict_help_skipped)
+        self.assertEqual(evict_skip_before, 0)
+        begin_skip = False
         self.session.begin_transaction()
         txn_dirty = self.get_stat(wiredtiger.stat.session.txn_bytes_dirty)
         cache_dirty = self.get_cstat(wiredtiger.stat.conn.cache_bytes_dirty)
         self.assertEqual(txn_dirty, 0)
         self.assertLessEqual(txn_dirty, cache_dirty)
+
         # Write the entries.
         for i in range(1, self.nentries):
             txn_dirty_before = self.get_stat(wiredtiger.stat.session.txn_bytes_dirty)
@@ -97,8 +103,39 @@ class test_stat08(wttest.WiredTigerTestCase):
                 cache_dirty_txn = self.get_cstat(wiredtiger.stat.conn.cache_bytes_dirty)
                 # Make sure the txn's dirty bytes doesn't exceed the cache.
                 self.assertLessEqual(txn_dirty_after, cache_dirty_txn)
-                self.session.rollback_transaction()
-                self.session.begin_transaction()
+                txn_dirty = self.get_stat(wiredtiger.stat.session.txn_bytes_dirty)
+
+                # Check txn eviction help statistics from previous begin.
+                evict_skip_after = self.get_stat(wiredtiger.stat.session.evict_help_skipped)
+                if begin_skip:
+                    self.assertLess(evict_skip_before, evict_skip_after)
+                else:
+                    self.assertEqual(evict_skip_before, evict_skip_after)
+
+                # Set up and check statistics from this rollback. Initialize to the value we
+                # just read to use before the rollback.
+                evict_skip_before = evict_skip_after
+                roll_skip = (i % 300 == 0)
+                if roll_skip:
+                    cfg = 'evict_skip=true'
+                else:
+                    cfg = 'evict_skip=false'
+                self.session.rollback_transaction(cfg)
+                evict_skip_after = self.get_stat(wiredtiger.stat.session.evict_help_skipped)
+                if roll_skip:
+                    self.assertLess(evict_skip_before, evict_skip_after)
+                else:
+                    self.assertEqual(evict_skip_before, evict_skip_after)
+
+                # Initialize for the next loop.
+                evict_skip_before = evict_skip_after
+                begin_skip = (i % 400 == 0)
+                if begin_skip:
+                    cfg = 'evict_skip=true'
+                else:
+                    cfg = 'evict_skip=false'
+                self.session.begin_transaction(cfg)
+
                 txn_dirty = self.get_stat(wiredtiger.stat.session.txn_bytes_dirty)
                 self.assertEqual(txn_dirty, 0)
         self.session.commit_transaction()

@@ -502,11 +502,12 @@ done:
 }
 
 /*
- * __txn_config_operation_timeout --
- *     Configure a transactions operation timeout duration.
+ * __txn_config_common --
+ *     Configure a transaction's operation during or after resolution. This function and these
+ *     configuration settings are common among begin, commit or rollback.
  */
 static int
-__txn_config_operation_timeout(WT_SESSION_IMPL *session, const char *cfg[], bool start_timer)
+__txn_config_common(WT_SESSION_IMPL *session, const char *cfg[], bool start_timer)
 {
     WT_CONFIG_ITEM cval;
     WT_TXN *txn;
@@ -515,6 +516,17 @@ __txn_config_operation_timeout(WT_SESSION_IMPL *session, const char *cfg[], bool
 
     if (cfg == NULL)
         return (0);
+
+    /*
+     * Check if eviction is allowed. Although the configuration is on the transaction, we set the
+     * flag on the session. The calls for checking the cache are outside the active time of the
+     * transaction, so transaction flags are often cleared.
+     */
+    WT_RET(__wt_config_gets_def(session, cfg, "evict_skip", 0, &cval));
+    if (cval.val)
+        F_SET(session, WT_SESSION_NO_TXN_EVICT);
+    else
+        F_CLR(session, WT_SESSION_NO_TXN_EVICT);
 
     /* Retrieve the maximum operation time, defaulting to the database-wide configuration. */
     WT_RET(__wt_config_gets_def(session, cfg, "operation_timeout_ms", 0, &cval));
@@ -558,8 +570,7 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
           WT_ISO_SNAPSHOT :
           WT_STRING_MATCH("read-committed", cval.str, cval.len) ? WT_ISO_READ_COMMITTED :
                                                                   WT_ISO_READ_UNCOMMITTED;
-
-    WT_ERR(__txn_config_operation_timeout(session, cfg, false));
+    WT_ERR(__txn_config_common(session, cfg, false));
 
     /*
      * The default sync setting is inherited from the connection, but can be overridden by an
@@ -717,7 +728,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 }
 
 /*
- * __txn_prepare_rollback_restore_hs_update --
+ o __txn_prepare_rollback_restore_hs_update --
  *     Restore the history store update to the update chain before roll back prepared update evicted
  *     to disk
  */
@@ -1536,8 +1547,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) || txn->mod_count == 0);
 
-    /* Configure the timeout for this commit operation. */
-    WT_ERR(__txn_config_operation_timeout(session, cfg, true));
+    WT_ERR(__txn_config_common(session, cfg, true));
 
     /*
      * Clear the prepared round up flag if the transaction is not prepared. There is no rounding up
@@ -2000,8 +2010,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 
-    /* Configure the timeout for this rollback operation. */
-    WT_TRET(__txn_config_operation_timeout(session, cfg, true));
+    WT_TRET(__txn_config_common(session, cfg, true));
 
     /*
      * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each

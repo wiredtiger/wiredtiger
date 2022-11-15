@@ -1722,6 +1722,8 @@ struct __wt_session {
 	 *
 	 * @param session the session handle
 	 * @configstart{WT_SESSION.begin_transaction, see dist/api_data.py}
+	 * @config{evict_skip, if true this thread will not be used to help with eviction before or
+	 * during this transaction., a boolean flag; default \c false.}
 	 * @config{ignore_prepare, whether to ignore updates by other prepared transactions when
 	 * doing of read operations of this transaction.  When \c true\, forces the transaction to
 	 * be read-only.  Use \c force to ignore prepared updates and permit writes (see @ref
@@ -1797,6 +1799,8 @@ struct __wt_session {
 	 * Required for the commit of a prepared transaction\, and otherwise not permitted.  The
 	 * value must also be after the current oldest and stable timestamps and must not be older
 	 * than the commit timestamp.  See @ref timestamp_prepare., a string; default empty.}
+	 * @config{evict_skip, if true this thread will not be used to help with eviction after this
+	 * transaction resolves., a boolean flag; default \c false.}
 	 * @config{operation_timeout_ms, when non-zero\, a requested limit on the time taken to
 	 * complete operations in this transaction.  Time is measured in real time milliseconds from
 	 * the start of each WiredTiger API call.  There is no guarantee any operation will not take
@@ -1852,6 +1856,8 @@ struct __wt_session {
 	 *
 	 * @param session the session handle
 	 * @configstart{WT_SESSION.rollback_transaction, see dist/api_data.py}
+	 * @config{evict_skip, if true this thread will not be used to help with eviction after this
+	 * transaction resolves., a boolean flag; default \c false.}
 	 * @config{operation_timeout_ms, when non-zero\, a requested limit on the time taken to
 	 * complete operations in this transaction.  Time is measured in real time milliseconds from
 	 * the start of each WiredTiger API call.  There is no guarantee any operation will not take
@@ -7409,14 +7415,16 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_SESSION_LOCK_DHANDLE_WAIT		4002
 /*! session: dirty bytes in this txn */
 #define	WT_STAT_SESSION_TXN_BYTES_DIRTY			4003
+/*! session: number of times eviction was skipped for the transaction */
+#define	WT_STAT_SESSION_EVICT_HELP_SKIPPED		4004
 /*! session: page read from disk to cache time (usecs) */
-#define	WT_STAT_SESSION_READ_TIME			4004
+#define	WT_STAT_SESSION_READ_TIME			4005
 /*! session: page write from cache to disk time (usecs) */
-#define	WT_STAT_SESSION_WRITE_TIME			4005
+#define	WT_STAT_SESSION_WRITE_TIME			4006
 /*! session: schema lock wait time (usecs) */
-#define	WT_STAT_SESSION_LOCK_SCHEMA_WAIT		4006
+#define	WT_STAT_SESSION_LOCK_SCHEMA_WAIT		4007
 /*! session: time waiting for cache (usecs) */
-#define	WT_STAT_SESSION_CACHE_TIME			4007
+#define	WT_STAT_SESSION_CACHE_TIME			4008
 /*! @} */
 /*
  * Statistics section: END

@@ -451,6 +451,12 @@ __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool readonly, bo
     if (F_ISSET(session->txn, WT_TXN_PREPARE))
         return (0);
 
+    /* If the transaction has turned off eviction explicitly don't evict. */
+    if (F_ISSET(session, WT_SESSION_NO_TXN_EVICT)) {
+        WT_STAT_SESSION_INCR(session, evict_help_skipped);
+        return (0);
+    }
+
     /*
      * If the transaction is a checkpoint cursor transaction, don't try to evict. Because eviction
      * keeps the current transaction snapshot, and the snapshot in a checkpoint cursor transaction
