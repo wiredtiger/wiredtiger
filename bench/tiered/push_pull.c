@@ -39,7 +39,6 @@
 
 #define NUM_RECORDS 500
 #define HOME_BUF_SIZE 512
-#define STAT_BUF_SIZE 128
 #define MB (1024 * 1024)
 
 /* Constants and variables declaration. */
@@ -59,7 +58,7 @@ struct thread_data {
 };
 
 /* Forward declarations. */
-static void get_file_stats(WT_SESSION *);
+static void get_file_size(const char *, int64_t *);
 static void run_test_clean(const char *, uint64_t, bool);
 static void run_test(const char *, uint64_t, bool);
 static void populate(WT_SESSION *, uint64_t);
@@ -112,8 +111,8 @@ main(int argc, char *argv[])
 static double
 difftime_msec(struct timeval t0, struct timeval t1)
 {
-    return (t1.tv_sec - t0.tv_sec) * (float)WT_THOUSAND +
-      (t1.tv_usec - t0.tv_usec) / (float)WT_THOUSAND;
+    return (t1.tv_sec - t0.tv_sec) * (double)WT_THOUSAND +
+      (t1.tv_usec - t0.tv_usec) / (double)WT_THOUSAND;
 }
 
 static double
@@ -156,6 +155,8 @@ run_test(const char *home, uint64_t num_records, bool flush)
     struct timeval start, end;
 
     char buf[1024];
+    double diff_sec;
+    int64_t file_size;
 
     WT_CONNECTION *conn;
     WT_SESSION *session;
@@ -172,7 +173,7 @@ run_test(const char *home, uint64_t num_records, bool flush)
     /* Create and populate table. Checkpoint the data after that. */
     testutil_check(session->create(session, opts->uri, table_config_row));
 
-    testutil_check(__wt_snprintf(buf, sizeof(buf), flush ? "flush_tier=(enabled)" : ""));
+    testutil_check(__wt_snprintf(buf, sizeof(buf), flush ? "flush_tier=(enabled,force=true)" : ""));
 
     gettimeofday(&start, 0);
     populate(session, num_records);
@@ -181,11 +182,14 @@ run_test(const char *home, uint64_t num_records, bool flush)
     testutil_check(session->checkpoint(session, buf));
     gettimeofday(&end, 0);
 
-    printf("Code executed in %f ms, %f s\n", difftime_msec(start, end), difftime_sec(start, end));
+    diff_sec = difftime_sec(start, end);
+    printf("Code executed in %f ms, %f s\n", difftime_msec(start, end), diff_sec);
 
     sleep(2);
 
-    get_file_stats(session);
+    get_file_size(home, &file_size);
+    printf("File Size - %" PRIi64 ", Throughput - %f MB/second\n", file_size,
+      ((file_size / diff_sec) / MB));
 }
 
 /*
@@ -219,31 +223,49 @@ populate(WT_SESSION *session, uint64_t num_records)
 }
 
 /*
- * get_file_stats --
- *     TODO: Add a comment describing this function.
+ * get_file_size --
+ *     TODO: Retrieve the file size of the table.
  */
 static void
-get_file_stats(WT_SESSION *session)
+get_file_size(const char *home, int64_t *file_size)
 {
-    WT_CURSOR *cur_stat;
-    char *descr, *str_val, stat_uri[STAT_BUF_SIZE];
-    uint64_t file_sz;
+    struct stat stats;
 
+    char path[512], pwd[512], token_path[512], stat_path[1512];
+    char *token;
+    const char *tablename;
+
+    size_t len;
+
+    token_path[0] = '\0';
+    tablename = strchr(opts->uri, ':');
+    testutil_assert(tablename != NULL);
+    tablename++;
+
+    if (getcwd(pwd, sizeof(pwd)) == NULL)
+        testutil_die(ENOENT, "No such directory");
+
+    testutil_check(__wt_snprintf(path, sizeof(path), "%s/%s", pwd, opts->argv0));
+
+    token = strtok(path, "/");
+
+    while (token != NULL) {
+        len = strlen(token);
+        strncat(token_path, "/", len);
+        strncat(token_path, token, len);
+
+        if (opts->tiered_storage)
+            testutil_check(__wt_snprintf(stat_path, sizeof(stat_path), "%s/%s/%s-0000000001.wtobj",
+              token_path, home, tablename));
+        else
+            testutil_check(__wt_snprintf(
+              stat_path, sizeof(stat_path), "%s/%s/%s.wt", token_path, home, tablename));
+
+        if (stat(stat_path, &stats) == 0) {
+            *file_size = stats.st_size;
+            return;
+        }
+        token = strtok(NULL, "/");
+    }
     return;
-
-    testutil_check(__wt_snprintf(stat_uri, STAT_BUF_SIZE, "statistics:%s", opts->uri));
-    testutil_check(session->open_cursor(session, stat_uri, NULL, "statistics=(all)", &cur_stat));
-
-    // testutil_check(stat_session->open_cursor(stat_session, "statistics:", NULL, NULL, &stat_c));
-
-    /* Get file size. */
-    cur_stat->set_key(cur_stat, WT_STAT_DSRC_BLOCK_SIZE);
-    testutil_check(cur_stat->search(cur_stat));
-    testutil_check(cur_stat->get_value(cur_stat, &descr, &str_val, &file_sz));
-
-    printf("File Size - %" PRIu64 "\n", file_sz);
-    printf("File Size Float - %.2f MB\n", file_sz / (double)MB);
-
-    testutil_check(cur_stat->close(cur_stat));
-    cur_stat = NULL;
 }

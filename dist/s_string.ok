@@ -1460,6 +1460,7 @@ strerror
 strftime
 strget
 strlen
+strncat
 strncpy
 strndup
 strnlen
