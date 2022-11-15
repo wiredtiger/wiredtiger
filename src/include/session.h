@@ -203,6 +203,7 @@ struct __wt_session_impl {
     char unittest_assert_msg[WT_SESSION_UNITTEST_BUF_LEN];
 #endif
 
+    /* Runtime flag to determine whether diagnostic asserts are executed or not. */
     WT_SESSION_DIAGNOSTIC_ASSERTS_LEVEL diagnostic_asserts_level;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
