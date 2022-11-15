@@ -52,6 +52,13 @@ typedef TAILQ_HEAD(__wt_cursor_list, __wt_cursor) WT_CURSOR_LIST;
 
 /* Maximum number of buckets to visit during cursor sweep. */
 #define WT_SESSION_CURSOR_SWEEP_MAX 32
+
+typedef enum {
+    DIAG_ASSERTS_CONN = 0, /* Inherit value from the connection */
+    DIAG_ASSERTS_OFF = 1,  /* Off */
+    DIAG_ASSERTS_ON = 2,   /* On */
+} WT_SESSION_DIAGNOSTIC_ASSERTS_LEVEL;
+
 /*
  * WT_SESSION_IMPL --
  *	Implementation of WT_SESSION.
@@ -195,6 +202,9 @@ struct __wt_session_impl {
     bool unittest_assert_hit;
     char unittest_assert_msg[WT_SESSION_UNITTEST_BUF_LEN];
 #endif
+
+    /* Runtime flag to determine whether diagnostic asserts are executed or not. */
+    WT_SESSION_DIAGNOSTIC_ASSERTS_LEVEL diagnostic_asserts_level;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_SESSION_LOCKED_CHECKPOINT 0x0001u

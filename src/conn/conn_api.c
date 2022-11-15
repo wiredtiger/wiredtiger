@@ -1947,6 +1947,28 @@ err:
 }
 
 /*
+ * __wt_diagnostic_asserts_config --
+ *     Set diagnostic assertions configuration.
+ */
+int
+__wt_diagnostic_asserts_config(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    WT_RET(__wt_config_gets(session, cfg, "diagnostic_asserts", &cval));
+    if (WT_STRING_MATCH("off", cval.str, cval.len))
+        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_DIAGNOSTIC_ASSERTS);
+    else if (WT_STRING_MATCH("on", cval.str, cval.len))
+        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_DIAGNOSTIC_ASSERTS);
+    else
+        WT_RET_MSG(session, WT_NOTFOUND, "Invalid value provided for diagnostic_asserts");
+    return (0);
+}
+
+/*
  * __wt_debug_mode_config --
  *     Set debugging configuration.
  */
@@ -2830,6 +2852,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_verbose_config(session, cfg, false));
     WT_ERR(__wt_timing_stress_config(session, cfg));
     WT_ERR(__wt_blkcache_setup(session, cfg, false));
+    WT_ERR(__wt_diagnostic_asserts_config(session, cfg));
     WT_ERR(__wt_conn_optrack_setup(session, cfg, false));
     WT_ERR(__conn_session_size(session, cfg, &conn->session_size));
     WT_ERR(__wt_config_gets(session, cfg, "session_scratch_max", &cval));

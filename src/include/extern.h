@@ -672,6 +672,8 @@ extern int __wt_desc_write(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsi
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_dhandle_update_write_gens(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_diagnostic_asserts_config(WT_SESSION_IMPL *session, const char *cfg[])
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_direct_io_size_check(WT_SESSION_IMPL *session, const char **cfg,
   const char *config_name, uint32_t *allocsizep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_encrypt(WT_SESSION_IMPL *session, WT_KEYED_ENCRYPTOR *kencryptor, size_t skip,
