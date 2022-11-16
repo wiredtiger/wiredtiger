@@ -147,31 +147,31 @@ testutil_deduce_build_dir(TEST_OPTS *opts)
 {
     struct stat stats;
 
-    char path[512], pwd[512], token_path[512], stat_path[512];
+    char path[512], pwd[512], stat_path[512];
     char *token;
-    size_t len;
-
-    token_path[0] = '\0';
+    int index;
 
     if (getcwd(pwd, sizeof(pwd)) == NULL)
         testutil_die(ENOENT, "No such directory");
 
-    testutil_check(__wt_snprintf(path, sizeof(path), "%s/%s", pwd, opts->argv0));
+    /* This condition is when the full path name is used for argv0. */
+    if (opts->argv0[0] == '/')
+        testutil_check(__wt_snprintf(path, sizeof(path), "%s", opts->argv0));
+    else
+        testutil_check(__wt_snprintf(path, sizeof(path), "%s/%s", pwd, opts->argv0));
 
-    token = strtok(path, "/");
+    token = strrchr(path, '/');
+    while (strlen(path) > 0) {
+        index = token - path;
+        path[index] = '\0';
 
-    while (token != NULL) {
-        len = strlen(token);
-        strncat(token_path, "/", len);
-        strncat(token_path, token, len);
-
-        testutil_check(__wt_snprintf(stat_path, sizeof(stat_path), "%s/wt", token_path));
+        testutil_check(__wt_snprintf(stat_path, sizeof(stat_path), "%s/wt", path));
 
         if (stat(stat_path, &stats) == 0) {
-            opts->build_dir = dstrdup(token_path);
+            opts->build_dir = dstrdup(path);
             return;
         }
-        token = strtok(NULL, "/");
+        token = strrchr(path, '/');
     }
     return;
 }
@@ -413,7 +413,7 @@ testutil_wiredtiger_open(TEST_OPTS *opts, const char *home, const char *config,
     testutil_check(__wt_snprintf(buf, sizeof(buf), "%s%s%s%s", config,
       (rerun ? TESTUTIL_ENV_CONFIG_REC : ""), (opts->compat ? TESTUTIL_ENV_CONFIG_COMPAT : ""),
       (opts->tiered_storage ? tiered_ext_cfg : "")));
-    printf("wiredtiger_open configuration: %s\n", buf);
+    // printf("wiredtiger_open configuration: %s\n", buf);
     testutil_check(wiredtiger_open(home, event_handler, buf, connectionp));
 }
 

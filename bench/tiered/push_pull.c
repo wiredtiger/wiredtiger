@@ -34,19 +34,20 @@
  * populate and checkpoint.
  */
 
-#define NUM_RECORDS 500
 #define HOME_BUF_SIZE 512
-#define MB (1024 * 1024)
+#define MAX_TIERED_FILES 10
+#define NUM_RECORDS 500
 
 /* Constants and variables declaration. */
 static const char conn_config[] =
   "create,cache_size=2GB,statistics=(all),statistics_log=(json,on_close,wait=1)";
 static const char table_config_row[] = "leaf_page_max=64KB,key_format=i,value_format=S";
-static char data_str[202] = "";
+static char data_str[200] = "";
 
 static TEST_OPTS *opts, _opts;
 
 /* Forward declarations. */
+static void compute_tiered_file_size(const char *, const char *, const char *, int64_t *);
 static void get_file_size(const char *, int64_t *);
 static void run_test_clean(const char *, uint64_t, bool);
 static void run_test(const char *, uint64_t, bool);
@@ -68,25 +69,27 @@ main(int argc, char *argv[])
     flush = false;
     for (i = 0; i < 2; ++i) {
 
-        printf("Flush === %d\n", flush);
+        printf("============================================\n");
+        printf("Flush call %s\n", flush ? "enabled" : "disabled");
+        printf("============================================\n");
 
         /*
-         * First, run test with 100K file size. Row store case.
+         * Run test with 100K file size. Row store case.
          */
         run_test_clean("100K", NUM_RECORDS, flush);
 
         /*
-         * First, run test with 1Mb file size. Row store case.
+         * Run test with 1Mb file size. Row store case.
          */
         run_test_clean("1M", NUM_RECORDS * 10, flush);
 
         /*
-         * First, run test with 10 Mb file size. Row store case.
+         * Run test with 10 Mb file size. Row store case.
          */
         run_test_clean("10M", NUM_RECORDS * 100, flush);
 
         /*
-         * First, run test with 100 Mb file size. Row store case.
+         * Run test with 100 Mb file size. Row store case.
          */
         run_test_clean("100M", NUM_RECORDS * 1000, flush);
         flush = true;
@@ -121,10 +124,9 @@ run_test_clean(const char *suffix, uint64_t num_records, bool flush)
 {
     char home_full[HOME_BUF_SIZE];
 
-    printf("\n");
     printf("Running %s test \n", suffix);
-    testutil_assert(sizeof(home_full) > strlen(opts->home) + strlen(suffix) + 2);
-    testutil_check(__wt_snprintf(home_full, HOME_BUF_SIZE, "%s.%s.%d", opts->home, suffix, flush));
+
+    testutil_check(__wt_snprintf(home_full, HOME_BUF_SIZE, "%s_%s_%d", opts->home, suffix, flush));
     run_test(home_full, num_records, flush);
 
     /* Cleanup */
@@ -164,20 +166,16 @@ run_test(const char *home, uint64_t num_records, bool flush)
 
     gettimeofday(&start, 0);
     populate(session, num_records);
-    printf("Checkpoint buf : %s\n", buf);
 
     testutil_check(session->checkpoint(session, buf));
     gettimeofday(&end, 0);
 
     diff_sec = difftime_sec(start, end);
-    printf("Code executed in %f ms, %f s\n", difftime_msec(start, end), diff_sec);
-
-    sleep(2);
 
     get_file_size(home, &file_size);
     testutil_assert(diff_sec > 0);
-    printf("File Size - %" PRIi64 ", Throughput - %f MB/second\n", file_size,
-      ((file_size / diff_sec) / MB));
+    printf("Bytes Written - %" PRIi64 ", Time took - %f seconds, Throughput - %f MB/second\n",
+      file_size, diff_sec, ((file_size / diff_sec) / WT_MEGABYTE));
 }
 
 /*
@@ -211,6 +209,30 @@ populate(WT_SESSION *session, uint64_t num_records)
 }
 
 /*
+ * compute_tiered_file_size --
+ *     TODO: Iterate over all the tiered files and compute file size..
+ */
+static void
+compute_tiered_file_size(
+  const char *home, const char *path, const char *tablename, int64_t *file_size)
+{
+    char stat_path[512];
+    int index;
+    struct stat stats;
+
+    for (index = 2; index < MAX_TIERED_FILES; ++index) {
+        testutil_check(__wt_snprintf(
+          stat_path, sizeof(stat_path), "%s/%s/%s-%10.10d.wtobj", path, home, tablename, index));
+
+        /* Return if the stat fails that means the file does not exist. */
+        if (stat(stat_path, &stats) == 0)
+            *file_size += stats.st_size;
+        else
+            return;
+    }
+}
+
+/*
  * get_file_size --
  *     TODO: Retrieve the file size of the table.
  */
@@ -219,13 +241,11 @@ get_file_size(const char *home, int64_t *file_size)
 {
     struct stat stats;
 
-    char path[512], pwd[512], token_path[512], stat_path[1512];
+    char path[512], pwd[512], stat_path[512];
     char *token;
     const char *tablename;
+    int index;
 
-    size_t len;
-
-    token_path[0] = '\0';
     tablename = strchr(opts->uri, ':');
     testutil_assert(tablename != NULL);
     tablename++;
@@ -233,27 +253,33 @@ get_file_size(const char *home, int64_t *file_size)
     if (getcwd(pwd, sizeof(pwd)) == NULL)
         testutil_die(ENOENT, "No such directory");
 
-    testutil_check(__wt_snprintf(path, sizeof(path), "%s/%s", pwd, opts->argv0));
+    /* This condition is when the full path name is used for argv0. */
+    if (opts->argv0[0] == '/')
+        testutil_check(__wt_snprintf(path, sizeof(path), "%s", opts->argv0));
+    else
+        testutil_check(__wt_snprintf(path, sizeof(path), "%s/%s", pwd, opts->argv0));
 
-    token = strtok(path, "/");
+    token = strrchr(path, '/');
 
-    while (token != NULL) {
-        len = strlen(token);
-        strncat(token_path, "/", len);
-        strncat(token_path, token, len);
+    while (strlen(path) > 0) {
+        index = token - path;
+        path[index] = '\0';
 
         if (opts->tiered_storage)
-            testutil_check(__wt_snprintf(stat_path, sizeof(stat_path), "%s/%s/%s-0000000001.wtobj",
-              token_path, home, tablename));
-        else
             testutil_check(__wt_snprintf(
-              stat_path, sizeof(stat_path), "%s/%s/%s.wt", token_path, home, tablename));
+              stat_path, sizeof(stat_path), "%s/%s/%s-0000000001.wtobj", path, home, tablename));
+        else
+            testutil_check(
+              __wt_snprintf(stat_path, sizeof(stat_path), "%s/%s/%s.wt", path, home, tablename));
 
         if (stat(stat_path, &stats) == 0) {
             *file_size = stats.st_size;
+            /* For tiered storage iterate all the files and compute the file size. */
+            if (opts->tiered_storage)
+                compute_tiered_file_size(home, path, tablename, file_size);
             return;
         }
-        token = strtok(NULL, "/");
+        token = strrchr(path, '/');
     }
     return;
 }
