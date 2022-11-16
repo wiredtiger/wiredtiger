@@ -15,3 +15,25 @@
     (F_ISSET(S2C(session), WT_CONN_RECOVERING) ?                                                   \
         WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RTS})) : \
         WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RTS})))
+
+/*
+ * WT_ROLLBACK_TO_STABLE --
+ *	Rollback to stable singleton, contains the interface to rollback to stable along
+ *	with context used by rollback to stable.
+ */
+struct __wt_rollback_to_stable {
+    /* Methods */
+    int (*rollback_to_stable_one)(WT_SESSION_IMPL *, const char *, bool *);
+    int (*rollback_to_stable)(WT_SESSION_IMPL *, const char *[], bool);
+
+    WT_BLOCK *block; /* Underlying file */
+
+    void *map; /* Mapped region */
+    size_t maplen;
+    void *mapped_cookie;
+
+    /*
+     * There's only a single block manager handle that can be written, all others are checkpoints.
+     */
+    bool is_live; /* The live system */
+};

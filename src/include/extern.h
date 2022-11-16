@@ -1290,10 +1290,6 @@ extern int __wt_remove_if_exists(WT_SESSION_IMPL *session, const char *name, boo
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_reset_blkmod(WT_SESSION_IMPL *session, const char *orig_config, WT_ITEM *buf)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_row_ikey(WT_SESSION_IMPL *session, uint32_t cell_offset, const void *key,
   size_t size, WT_REF *ref) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_row_ikey_alloc(WT_SESSION_IMPL *session, uint32_t cell_offset, const void *key,
@@ -1317,14 +1313,14 @@ extern int __wt_row_search(WT_CURSOR_BTREE *cbt, WT_ITEM *srch_key, bool insert,
   bool leaf_safe, bool *leaf_foundp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_rts_btree_abort_updates(WT_SESSION_IMPL *session, WT_REF *ref,
   wt_timestamp_t rollback_timestamp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_rts_btree_walk_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_rts_btree_walk_btree_apply(
   WT_SESSION_IMPL *session, const char *uri, const char *config, wt_timestamp_t rollback_timestamp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_rts_global_btree_apply_all(WT_SESSION_IMPL *session,
-  wt_timestamp_t rollback_timestamp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_rts_global_check(WT_SESSION_IMPL *session)
+extern int __wt_rts_check(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_rts_history_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_id)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1882,6 +1878,7 @@ extern void __wt_rec_dictionary_free(WT_SESSION_IMPL *session, WT_RECONCILE *r);
 extern void __wt_rec_dictionary_reset(WT_RECONCILE *r);
 extern void __wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref);
 extern void __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref);
+extern void __wt_rollback_to_stable_init(WT_CONNECTION_IMPL *conn);
 extern void __wt_root_ref_init(
   WT_SESSION_IMPL *session, WT_REF *root_ref, WT_PAGE *root, bool is_recno);
 extern void __wt_rwlock_destroy(WT_SESSION_IMPL *session, WT_RWLOCK *l);

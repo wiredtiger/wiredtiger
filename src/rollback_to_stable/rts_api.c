@@ -9,47 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __wt_rollback_to_stable_one --
- *     Perform rollback to stable on a single object.
- */
-int
-__wt_rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
-{
-    WT_DECL_RET;
-    wt_timestamp_t rollback_timestamp;
-    char *config;
-
-    /*
-     * This is confusing: the caller's boolean argument "skip" stops the schema-worker loop from
-     * processing this object and any underlying objects it may have (for example, a table with
-     * multiple underlying file objects). We rollback-to-stable all of the file objects an object
-     * may contain, so set the caller's skip argument to true on all file objects, else set the
-     * caller's skip argument to false so our caller continues down the tree of objects.
-     */
-    *skipp = WT_BTREE_PREFIX(uri);
-    if (!*skipp)
-        return (0);
-
-    WT_RET(__wt_metadata_search(session, uri, &config));
-
-    /* Read the stable timestamp once, when we first start up. */
-    WT_ORDERED_READ(rollback_timestamp, S2C(session)->txn_global.stable_timestamp);
-
-    F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
-    ret = __wt_rts_btree_walk_btree_apply(session, uri, config, rollback_timestamp);
-    F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
-
-    __wt_free(session, config);
-
-    return (ret);
-}
-
-/*
- * __rollback_to_stable --
+ * __rollback_to_stable_int --
  *     Rollback all modifications with timestamps more recent than the passed in timestamp.
  */
 static int
-__rollback_to_stable(WT_SESSION_IMPL *session, bool no_ckpt)
+__rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -120,11 +84,47 @@ err:
 }
 
 /*
- * __wt_rollback_to_stable --
+ * __rollback_to_stable_one --
+ *     Perform rollback to stable on a single object.
+ */
+static int
+__rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
+{
+    WT_DECL_RET;
+    wt_timestamp_t rollback_timestamp;
+    char *config;
+
+    /*
+     * This is confusing: the caller's boolean argument "skip" stops the schema-worker loop from
+     * processing this object and any underlying objects it may have (for example, a table with
+     * multiple underlying file objects). We rollback-to-stable all of the file objects an object
+     * may contain, so set the caller's skip argument to true on all file objects, else set the
+     * caller's skip argument to false so our caller continues down the tree of objects.
+     */
+    *skipp = WT_BTREE_PREFIX(uri);
+    if (!*skipp)
+        return (0);
+
+    WT_RET(__wt_metadata_search(session, uri, &config));
+
+    /* Read the stable timestamp once, when we first start up. */
+    WT_ORDERED_READ(rollback_timestamp, S2C(session)->txn_global.stable_timestamp);
+
+    F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
+    ret = __wt_rts_btree_walk_btree_apply(session, uri, config, rollback_timestamp);
+    F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
+
+    __wt_free(session, config);
+
+    return (ret);
+}
+
+/*
+ * __rollback_to_stable --
  *     Rollback the database to the stable timestamp.
  */
-int
-__wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
+static int
+__rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
 {
     WT_DECL_RET;
 
@@ -141,10 +141,28 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckp
 
     WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 1);
     WT_WITH_CHECKPOINT_LOCK(
-      session, WT_WITH_SCHEMA_LOCK(session, ret = __rollback_to_stable(session, no_ckpt)));
+      session, WT_WITH_SCHEMA_LOCK(session, ret = __rollback_to_stable_int(session, no_ckpt)));
     WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 0);
 
     WT_TRET(__wt_session_close_internal(session));
 
     return (ret);
+}
+
+/*
+ * __wt_rollback_to_stable_init --
+ *     Initialize the data structures for the rollback to stable subsystem
+ */
+void
+__wt_rollback_to_stable_init(WT_CONNECTION_IMPL *conn)
+{
+    /*
+     * Setup the pointer so the data structure can be accessed easily while avoiding the need to do
+     * explicit memory management.
+     */
+    conn->rts = &conn->_rts;
+
+    /* Setup function pointers */
+    conn->rts->rollback_to_stable = __rollback_to_stable;
+    conn->rts->rollback_to_stable_one = __rollback_to_stable_one;
 }
