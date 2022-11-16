@@ -140,8 +140,6 @@ struct __wt_page_stat {
  *	An in-memory structure to hold a block's location.
  */
 struct __wt_addr {
-    WT_PAGE_STAT ps; /* Page information including row and byte counts */
-
     WT_TIME_AGGREGATE ta;
 
     uint8_t *addr; /* Block-manager's cookie */
@@ -160,6 +158,8 @@ struct __wt_addr {
      * correctly (not free'd on error, for example).
      */
     uint8_t reuse;
+
+    WT_PAGE_STAT ps; /* Page information including row and byte counts */
 };
 
 /*
