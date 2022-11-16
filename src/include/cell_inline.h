@@ -707,8 +707,7 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
     copy.len = 0; /* [-Wconditional-uninitialized] */
     copy.v = 0;   /* [-Wconditional-uninitialized] */
 
-    ps = &unpack_addr->ps;
-    WT_PAGE_STAT_INIT(ps);
+    ps = unpack_addr == NULL ? NULL : &unpack_addr->ps;
 
     if (unpack_addr == NULL) {
         unpack = (WT_CELL_UNPACK_COMMON *)unpack_value;
@@ -719,6 +718,7 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
         WT_ASSERT(session, unpack_value == NULL);
 
         unpack = (WT_CELL_UNPACK_COMMON *)unpack_addr;
+        WT_PAGE_STAT_INIT(ps);
         ta = &unpack_addr->ta;
         WT_TIME_AGGREGATE_INIT(ta);
         tw = NULL;
