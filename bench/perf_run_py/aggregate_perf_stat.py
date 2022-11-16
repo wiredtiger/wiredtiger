@@ -33,7 +33,8 @@ import glob
 
 def main():
     """
-    Aggregate and output perf results in a csv file bla bla
+    Aggregate and output perf results in a CSV file. This script expects that 
+    all desired stat files exist in a single folder named perf_stats.
     """
 
     f = open("all_stats.csv", "w")
