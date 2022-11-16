@@ -3044,7 +3044,7 @@ static const char *const __stats_session_desc[] = {
   "session: bytes written from cache",
   "session: dhandle lock wait time (usecs)",
   "session: dirty bytes in this txn",
-  "session: number of times eviction was skipped for the transaction",
+  "session: number of times application eviction was turned off",
   "session: page read from disk to cache time (usecs)",
   "session: page write from cache to disk time (usecs)",
   "session: schema lock wait time (usecs)",

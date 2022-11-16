@@ -1606,9 +1606,9 @@ methods = {
 
 'WT_SESSION.begin_transaction' : Method([
     Config('evict_skip', 'false', r'''
-        if true this thread will not be used to help with eviction before or during this
+        if true this thread will not be used to help with eviction during this
         transaction''',
-        type='boolean'),
+        type='boolean', undoc=True),
     Config('ignore_prepare', 'false', r'''
         whether to ignore updates by other prepared transactions when doing of read operations
         of this transaction. When \c true, forces the transaction to be read-only. Use \c force
@@ -1680,7 +1680,7 @@ methods = {
     Config('evict_skip', 'false', r'''
         if true this thread will not be used to help with eviction after this
         transaction resolves''',
-        type='boolean'),
+        type='boolean', undoc=True),
     Config('operation_timeout_ms', '0', r'''
         when non-zero, a requested limit on the time taken to complete operations in this
         transaction. Time is measured in real time milliseconds from the start of each WiredTiger
@@ -1734,7 +1734,7 @@ methods = {
     Config('evict_skip', 'false', r'''
         if true this thread will not be used to help with eviction after this
         transaction resolves''',
-        type='boolean'),
+        type='boolean', undoc=True),
     Config('operation_timeout_ms', '0', r'''
         when non-zero, a requested limit on the time taken to complete operations in this
         transaction. Time is measured in real time milliseconds from the start of each WiredTiger
