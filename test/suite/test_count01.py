@@ -40,9 +40,8 @@ class test_count01(wttest.WiredTigerTestCase):
         self.session.create(self.uri, 'key_format=i,value_format=i')
 
         count = wiredtiger.int64_t_ptr()
-        ret = self.session.count(self.uri, count)
-
-        self.assertEqual(ret, 0)
+        self.assertRaisesException(
+             wiredtiger.WiredTigerError, lambda: self.session.count(self.uri, count))
         self.assertEqual(count.value(), -1)
 
 

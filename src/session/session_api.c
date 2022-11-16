@@ -838,8 +838,9 @@ __wt_session_count(WT_SESSION *wt_session, const char *uri, int64_t *count)
     WT_UNUSED(uri);
     WT_UNUSED(wt_session);
 
-    ret = 0;
     *count = -1;
+    if (*count == -1)
+        ret = WT_NOTFOUND;
 
     return (ret);
 }
