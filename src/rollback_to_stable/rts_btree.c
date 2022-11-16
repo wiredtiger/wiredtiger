@@ -150,7 +150,7 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
                  * that key can be present in the History Store while the key isn't present in the
                  * disk image. RTS will then only remove these updates when there is a stable update
                  * on-chain. These updates still need removing when no stable updates are on-chain,
-                 * so do so here explicitly. Pass in rollback_timestamp + 1 as __rollback_delete_hs
+                 * so do so here explicitly. Pass in rollback_timestamp + 1 as history store cleanup
                  * removes updates inclusive of the provided timestamp, but we only want to remove
                  * unstable updates.
                  *

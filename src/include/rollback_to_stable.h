@@ -25,15 +25,4 @@ struct __wt_rollback_to_stable {
     /* Methods */
     int (*rollback_to_stable_one)(WT_SESSION_IMPL *, const char *, bool *);
     int (*rollback_to_stable)(WT_SESSION_IMPL *, const char *[], bool);
-
-    WT_BLOCK *block; /* Underlying file */
-
-    void *map; /* Mapped region */
-    size_t maplen;
-    void *mapped_cookie;
-
-    /*
-     * There's only a single block manager handle that can be written, all others are checkpoints.
-     */
-    bool is_live; /* The live system */
 };
