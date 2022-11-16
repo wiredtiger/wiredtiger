@@ -225,13 +225,11 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
         WT_IGNORE_RET(__wt_vpack_uint(&p, 0, recno));
     }
 
-    /*
-     * If passed page stat information, append the row and byte counts.
-     */
+    /* If passed page stat information, append the row and byte counts. */
     if (ps != NULL && __wt_process.page_stats_2022) {
-        if (ps->byte_count != WT_STAT_NONE)
+        if (WT_PAGE_STAT_HAS_BYTE_COUNT(ps))
             WT_IGNORE_RET(__wt_vpack_int(&p, 0, ps->byte_count));
-        if (ps->row_count != WT_STAT_NONE)
+        if (WT_PAGE_STAT_HAS_ROW_COUNT(ps))
             WT_IGNORE_RET(__wt_vpack_int(&p, 0, ps->row_count));
     }
 
