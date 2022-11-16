@@ -30,10 +30,9 @@
 #   Tests WT_SESSION->count
 #
 
-from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 
-class test_count01(wttest.WiredTigerTestCase, suite_subprocess):
+class test_count01(wttest.WiredTigerTestCase):
     tablename = 'test_count01'
     uri = 'table:' + tablename
 
