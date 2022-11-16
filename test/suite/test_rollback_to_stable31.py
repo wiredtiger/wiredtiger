@@ -35,6 +35,7 @@ from wtscenario import make_scenarios
 # Check what happens with RTS if you never set the stable timestamp.
 
 class test_rollback_to_stable31(test_rollback_to_stable_base):
+    conn_config = 'verbose=(rts:3)'
 
     format_values = [
         ('column', dict(key_format='r', value_format='S')),

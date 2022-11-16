@@ -35,7 +35,6 @@ from wtscenario import make_scenarios
 # Test that update restore eviction correctly removes an on-disk
 # tombstone. Previously it would trigger an assertion in reconciliation.
 class test_rollback_to_stable32(test_rollback_to_stable_base):
-
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
         ('column_fix', dict(key_format='r', value_format='8t')),
@@ -50,7 +49,7 @@ class test_rollback_to_stable32(test_rollback_to_stable_base):
     scenarios = make_scenarios(format_values, prepare_values)
 
     def conn_config(self):
-        config = 'cache_size=100MB,statistics=(all)'
+        config = 'cache_size=100MB,statistics=(all),verbose=(rts:3)'
         return config
 
     def test_rollback_to_stable_with_update_restore_evict(self):

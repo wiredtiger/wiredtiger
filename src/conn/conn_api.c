@@ -2105,7 +2105,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
       {"mutex", WT_VERB_MUTEX}, {"out_of_order", WT_VERB_OUT_OF_ORDER},
       {"overflow", WT_VERB_OVERFLOW}, {"read", WT_VERB_READ}, {"reconcile", WT_VERB_RECONCILE},
       {"recovery", WT_VERB_RECOVERY}, {"recovery_progress", WT_VERB_RECOVERY_PROGRESS},
-      {"rts", WT_VERB_RTS}, {"salvage", WT_VERB_SALVAGE}, {"shared_cache", WT_VERB_SHARED_CACHE},
+      {"rts", WT_VERB_RTS}, {"rts_dryrun", WT_VERB_RTS_DRYRUN}, {"salvage", WT_VERB_SALVAGE}, {"shared_cache", WT_VERB_SHARED_CACHE},
       {"split", WT_VERB_SPLIT}, {"temporary", WT_VERB_TEMPORARY},
       {"thread_group", WT_VERB_THREAD_GROUP}, {"timestamp", WT_VERB_TIMESTAMP},
       {"tiered", WT_VERB_TIERED}, {"transaction", WT_VERB_TRANSACTION}, {"verify", WT_VERB_VERIFY},

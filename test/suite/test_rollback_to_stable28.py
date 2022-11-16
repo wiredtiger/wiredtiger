@@ -40,7 +40,7 @@ from test_rollback_to_stable01 import test_rollback_to_stable_base
 # the proper write generation number and we don't end up reading stale
 # transaction ID's stored on the page.
 class test_rollback_to_stable28(test_rollback_to_stable_base):
-    conn_config = 'statistics=(all)'
+    conn_config = 'statistics=(all),verbose=(rts:3)'
     # Recovery connection config: The debug mode is only effective on high cache pressure as WiredTiger can potentially decide
     # to do an update restore evict on a page when the cache pressure requirements are not met.
     # This means setting eviction target low and cache size low.

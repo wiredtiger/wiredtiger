@@ -7476,6 +7476,7 @@ typedef enum {
     WT_VERB_RECOVERY,             /*!< Recovery messages. */
     WT_VERB_RECOVERY_PROGRESS,    /*!< Recovery progress messages. */
     WT_VERB_RTS,                  /*!< RTS messages. */
+    WT_VERB_RTS_DRYRUN,           /*!< RTS dry-run output. */
     WT_VERB_SALVAGE,              /*!< Salvage messages. */
     WT_VERB_SHARED_CACHE,
     WT_VERB_SPLIT,

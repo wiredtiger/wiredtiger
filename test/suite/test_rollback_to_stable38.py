@@ -37,7 +37,7 @@ from wtscenario import make_scenarios
 # Test using fast truncate to delete the whole tree of records from the history store
 
 class test_rollback_to_stable38(wttest.WiredTigerTestCase):
-    conn_config = 'statistics=(all),cache_size=50MB'
+    conn_config = 'statistics=(all),cache_size=50MB,verbose=(rts:3)'
     session_config = 'isolation=snapshot'
 
     format_values = [

@@ -55,7 +55,7 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
     scenarios = make_scenarios(in_memory_values, format_values, restart_options)
 
     def conn_config(self):
-        config = 'cache_size=50MB,statistics=(all),eviction_dirty_trigger=10,' \
+        config = 'verbose=(rts:3),cache_size=50MB,statistics=(all),eviction_dirty_trigger=10,' \
                  'eviction_updates_trigger=10'
         if self.in_memory:
             config += ',in_memory=true'

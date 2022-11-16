@@ -51,8 +51,8 @@ class test_rollback_to_stable27(test_rollback_to_stable_base):
 
     def conn_config(self):
         if self.in_memory:
-            return 'in_memory=true'
-        return ''
+            return 'verbose=(rts:3),in_memory=true'
+        return 'verbose=(rts:3)'
 
     # Evict the page to force reconciliation.
     def evict(self, uri, key, check_value):

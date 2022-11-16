@@ -67,7 +67,7 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
         include=keep)
 
     def conn_config(self):
-        config = 'cache_size=200MB,statistics=(all)'
+        config = 'verbose=(rts:3),cache_size=200MB,statistics=(all)'
         if self.in_memory:
             config += ',in_memory=true'
         else:

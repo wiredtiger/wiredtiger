@@ -55,7 +55,7 @@ class test_rollback_to_stable39(test_rollback_to_stable_base):
     scenarios = make_scenarios(format_values, prepare_values)
 
     def conn_config(self):
-        config = 'cache_size=25MB,statistics=(all),statistics_log=(json,on_close,wait=1)'
+        config = 'verbose=(rts:3),cache_size=25MB,statistics=(all),statistics_log=(json,on_close,wait=1)'
         if self.restart_config:
             config += ',timing_stress_for_test=[checkpoint_slow]'
         else:

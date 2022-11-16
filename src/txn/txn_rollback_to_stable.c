@@ -119,7 +119,7 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
         txn_id_visible = __rollback_txn_visible_id(session, upd->txnid);
         if (!txn_id_visible || rollback_timestamp < upd->durable_ts ||
           upd->prepare_state == WT_PREPARE_INPROGRESS) {
-            __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+            __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
               "rollback to stable update aborted with txnid: %" PRIu64
               ", txnid not visible: %s, or stable timestamp (%s) < durable timestamp (%s): %s, or "
               "prepare state (%d) is in progress: %s",
@@ -1486,13 +1486,18 @@ __rollback_to_stable_check(WT_SESSION_IMPL *session)
      * A new cursor may be positioned or a transaction may start after we return from this call and
      * callers should be aware of this limitation.
      */
-    if (cursor_active)
+    if (cursor_active) {
+        __wt_verbose_debug5(session, WT_VERB_RTS_DRYRUN, "%s", "[rts_check] failed: active cursors");
         WT_RET_MSG(session, EBUSY, "rollback_to_stable illegal with active file cursors");
+    }
     if (txn_active) {
         ret = EBUSY;
+        __wt_verbose_debug5(session, WT_VERB_RTS_DRYRUN, "%s", "[rts_check] failed: active transactions");
         WT_TRET(__wt_verbose_dump_txn(session));
         WT_RET_MSG(session, ret, "rollback_to_stable illegal with active transactions");
     }
+
+    __wt_verbose_debug5(session, WT_VERB_RTS_DRYRUN, "%s", "[rts_check] OK");
     return (0);
 }
 
@@ -1981,7 +1986,13 @@ __rollback_to_stable(WT_SESSION_IMPL *session, bool no_ckpt)
      * As part of the below function call, the oldest transaction id and pinned timestamps are
      * updated.
      */
-    WT_ERR(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
+    ret = __wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT);
+    if (ret != 0) {
+        __wt_verbose_debug5(session, WT_VERB_RTS_DRYRUN, "%s", "[rts] failed txn_update_oldest");
+        goto err;
+    } else {
+        /* TODO */
+    }
 
     WT_ASSERT_ALWAYS(session,
       (txn_global->has_pinned_timestamp || !txn_global->has_oldest_timestamp),
@@ -2036,14 +2047,18 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckp
 
     WT_UNUSED(cfg);
 
+    __wt_verbose_debug5(session, WT_VERB_RTS_DRYRUN, "%s", "[rts_begin]");
     /*
      * Don't use the connection's default session: we are working on data handles and (a) don't want
      * to cache all of them forever, plus (b) can't guarantee that no other method will be called
      * concurrently. Copy parent session no logging option to the internal session to make sure that
      * rollback to stable doesn't generate log records.
      */
-    WT_RET(
-      __wt_open_internal_session(S2C(session), "txn rollback_to_stable", true, 0, 0, &session));
+    ret = __wt_open_internal_session(S2C(session), "txn rollback_to_stable", true, 0, 0, &session);
+    if (ret != 0) {
+        __wt_verbose_debug5(session, WT_VERB_RTS_DRYRUN, "%s", "[rts_end] failed to open internal session");
+        return (ret);
+    }
 
     WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 1);
     WT_WITH_CHECKPOINT_LOCK(
@@ -2052,5 +2067,6 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckp
 
     WT_TRET(__wt_session_close_internal(session));
 
+    /* __wt_verbose_debug5(session, WT_VERB_RTS_DRYRUN, "%s", "[rts_end] OK"); */
     return (ret);
 }

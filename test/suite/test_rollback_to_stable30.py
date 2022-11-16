@@ -33,6 +33,8 @@ from wtscenario import make_scenarios
 # test_rollback_to_stable30.py
 # Test RTS fails with active transactions and the subsequent transaction resolution succeeds.
 class test_rollback_to_stable30(wttest.WiredTigerTestCase):
+    conn_config = 'verbose=(rts:3)'
+
     scenarios = make_scenarios([
         ('table-f', dict(keyfmt='r', valfmt='8t', dataset=SimpleDataSet)),
         ('table-r', dict(keyfmt='r', valfmt='S', dataset=SimpleDataSet)),

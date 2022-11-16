@@ -51,7 +51,7 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
     scenarios = make_scenarios(format_values, prepare_values)
 
     def conn_config(self):
-        config = 'cache_size=50MB,statistics=(all)'
+        config = 'cache_size=50MB,statistics=(all),verbose=(rts:3)'
         return config
 
     @wttest.prevent(["timestamp"])  # prevent the use of hooks that manage timestamps
