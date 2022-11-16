@@ -190,11 +190,10 @@ table_load(TABLE *base, TABLE *table)
             break;
         }
 
-        report_progress = (keyno < 5000 && keyno % 10 == 0) ||
-          keyno % 5000 ==
-            0
-            /* Report on progress. */
-            if (report_progress) track(track_buf, keyno);
+        report_progress = (keyno < 5000 && keyno % 10 == 0) || keyno % 5000 == 0;
+        /* Report on progress. */
+        if (report_progress)
+            track(track_buf, keyno);
 
         /*
          * When first starting up, restart the enclosing transaction every 10 operations so we never
