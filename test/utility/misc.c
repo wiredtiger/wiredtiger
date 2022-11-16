@@ -162,7 +162,7 @@ testutil_deduce_build_dir(TEST_OPTS *opts)
 
     token = strrchr(path, '/');
     while (strlen(path) > 0) {
-        index = token - path;
+        index = (int)(token - path);
         path[index] = '\0';
 
         testutil_check(__wt_snprintf(stat_path, sizeof(stat_path), "%s/wt", path));

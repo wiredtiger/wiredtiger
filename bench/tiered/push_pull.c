@@ -100,19 +100,25 @@ main(int argc, char *argv[])
     return (EXIT_SUCCESS);
 }
 
+/*
+ * difftime_msecs --
+ *     Return the time in msecs.
+ */
 static double
-difftime_msec(struct timeval t0, struct timeval t1)
+difftime_msecs(struct timeval t0, struct timeval t1)
 {
     return (t1.tv_sec - t0.tv_sec) * (double)WT_THOUSAND +
       (t1.tv_usec - t0.tv_usec) / (double)WT_THOUSAND;
 }
 
+/*
+ * difftime_sec --
+ *     Return the time in seconds.
+ */
 static double
 difftime_sec(struct timeval t0, struct timeval t1)
 {
-    // return (t1.tv_sec - t0.tv_sec) * (double)WT_MILLION + (t1.tv_usec - t0.tv_usec) /
-    // (double)WT_MILLION;
-    return difftime_msec(t0, t1) / (double)WT_THOUSAND;
+    return difftime_msecs(t0, t1) / (double)WT_THOUSAND;
 }
 
 /*
@@ -182,7 +188,7 @@ run_test(const char *home, uint64_t num_records, bool flush)
 
 /*
  * populate --
- *     TODO: Add a comment describing this function.
+ *     Populate the table.
  */
 static void
 populate(WT_SESSION *session, uint64_t num_records)
@@ -212,11 +218,10 @@ populate(WT_SESSION *session, uint64_t num_records)
 
 /*
  * compute_tiered_file_size --
- *     TODO: Iterate over all the tiered files and compute file size..
+ *     Iterate over all the tiered files and compute file size..
  */
 static void
-compute_tiered_file_size(
-  const char *home, const char *tablename, int64_t *file_size)
+compute_tiered_file_size(const char *home, const char *tablename, int64_t *file_size)
 {
     char stat_path[512];
     int index;
@@ -236,7 +241,7 @@ compute_tiered_file_size(
 
 /*
  * get_file_size --
- *     TODO: Retrieve the file size of the table.
+ *     Retrieve the file size of the table.
  */
 static void
 get_file_size(const char *home, int64_t *file_size)
@@ -251,11 +256,10 @@ get_file_size(const char *home, int64_t *file_size)
     tablename++;
 
     if (opts->tiered_storage)
-        testutil_check(__wt_snprintf(
-            stat_path, sizeof(stat_path), "%s/%s-0000000001.wtobj", home, tablename));
-    else
         testutil_check(
-            __wt_snprintf(stat_path, sizeof(stat_path), "%s/%s.wt", home, tablename));
+          __wt_snprintf(stat_path, sizeof(stat_path), "%s/%s-0000000001.wtobj", home, tablename));
+    else
+        testutil_check(__wt_snprintf(stat_path, sizeof(stat_path), "%s/%s.wt", home, tablename));
 
     if (stat(stat_path, &stats) == 0) {
         *file_size = stats.st_size;
