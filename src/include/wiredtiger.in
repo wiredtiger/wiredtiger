@@ -7409,7 +7409,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_SESSION_LOCK_DHANDLE_WAIT		4002
 /*! session: dirty bytes in this txn */
 #define	WT_STAT_SESSION_TXN_BYTES_DIRTY			4003
-/*! session: number of times application eviction was turned off */
+/*!
+ * session: number of times application eviction was skipped because it
+ * was turned off
+ */
 #define	WT_STAT_SESSION_EVICT_HELP_SKIPPED		4004
 /*! session: page read from disk to cache time (usecs) */
 #define	WT_STAT_SESSION_READ_TIME			4005
