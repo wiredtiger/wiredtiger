@@ -49,7 +49,7 @@ class test_rollback_to_stable17(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(format_values, in_memory_values)
 
     def conn_config(self):
-        config = 'verbose=(rts:3),cache_size=200MB,statistics=(all)'
+        config = 'cache_size=200MB,statistics=(all)'
         if self.in_memory:
             config += ',in_memory=true'
         return config

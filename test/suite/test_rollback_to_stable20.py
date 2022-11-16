@@ -45,7 +45,7 @@ class test_rollback_to_stable20(test_rollback_to_stable_base):
     scenarios = make_scenarios(format_values)
 
     def conn_config(self):
-        config = 'verbose=(rts:3),cache_size=50MB,statistics=(all)'
+        config = 'cache_size=50MB,statistics=(all)'
         return config
 
     def test_rollback_to_stable(self):

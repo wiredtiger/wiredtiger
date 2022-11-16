@@ -38,7 +38,7 @@ from test_rollback_to_stable01 import test_rollback_to_stable_base
 # test_rollback_to_stable35.py
 # Test that log is flushed for all writes that occurred in the checkpoint.
 class test_rollback_to_stable35(test_rollback_to_stable_base):
-    conn_config = 'verbose=(rts:3)'
+
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
         ('column_fix', dict(key_format='r', value_format='8t')),

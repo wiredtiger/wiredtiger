@@ -39,7 +39,7 @@ from wtdataset import SimpleDataSet
 # history store itself is always row-store) so it doesn't seem necessary or worthwhile to run
 # this explicitly on VLCS or FLCS.
 class test_rollback_to_stable22(test_rollback_to_stable_base):
-    conn_config = 'verbose=(rts:3),cache_size=100MB'
+    conn_config = 'cache_size=100MB'
     prepare = False
 
     def test_rollback_to_stable(self):

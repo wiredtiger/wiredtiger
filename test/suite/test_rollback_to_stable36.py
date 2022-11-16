@@ -38,7 +38,7 @@ from wtscenario import make_scenarios
 # everything else on the page is.
 
 class test_rollback_to_stable36(wttest.WiredTigerTestCase):
-    conn_config = 'statistics=(all),verbose=(rts:3)'
+    conn_config = 'statistics=(all)'
     session_config = 'isolation=snapshot'
 
     # Hook to run using remove instead of truncate for reference. This should not alter the

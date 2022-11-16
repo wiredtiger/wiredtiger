@@ -53,9 +53,6 @@ class test_durable_rollback_to_stable(wttest.WiredTigerTestCase, suite_subproces
 
     scenarios = make_scenarios(types, format_values, include=keep)
 
-    def conn_config(self):
-        return 'cache_size=100MB,statistics=(all),verbose=(rts:3)'
-
     # Test durable timestamp.
     def test_durable_rollback_to_stable(self):
 

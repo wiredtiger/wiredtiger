@@ -42,7 +42,6 @@
     "WT_VERB_RECOVERY", \
     "WT_VERB_RECOVERY_PROGRESS", \
     "WT_VERB_RTS", \
-    "WT_VERB_RTS_DRYRUN", \
     "WT_VERB_SALVAGE", \
     "WT_VERB_SHARED_CACHE", \
     "WT_VERB_SPLIT", \
@@ -190,13 +189,6 @@ struct __wt_verbose_multi_category {
  */
 #define __wt_verbose_debug3(session, category, fmt, ...) \
     __wt_verbose_level(session, category, WT_VERBOSE_DEBUG_3, fmt, __VA_ARGS__)
-
-/*
- * __wt_verbose_debug5 --
- *     Wrapper to __wt_verbose_level using the DEBUG_5 level.
- */
-#define __wt_verbose_debug5(session, category, fmt, ...) \
-    __wt_verbose_level(session, category, WT_VERBOSE_DEBUG_5, fmt, __VA_ARGS__)
 
 /*
  * __wt_verbose --

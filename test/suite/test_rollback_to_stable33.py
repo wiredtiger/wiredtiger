@@ -44,7 +44,7 @@ class test_rollback_to_stable33(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(format_values, logged)
 
     # Configure an in-memory database.
-    conn_config = 'in_memory=true,verbose=(rts:3)'
+    conn_config = 'in_memory=true'
 
     # Smoke test RTS on in-memory databases.
     def test_rollback_to_stable33(self):
