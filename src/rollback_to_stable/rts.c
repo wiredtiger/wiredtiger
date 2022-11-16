@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __wt_rts_global_check --
+ * __wt_rts_check --
  *     Check to the extent possible that the rollback request is reasonable.
  */
 int
-__wt_rts_global_check(WT_SESSION_IMPL *session)
+__wt_rts_check(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -72,11 +72,11 @@ __wt_rts_global_check(WT_SESSION_IMPL *session)
 }
 
 /*
- * __rts_global_progress_msg --
+ * __rts_progress_msg --
  *     Log a verbose message about the progress of the current rollback to stable.
  */
 static void
-__rts_global_progress_msg(WT_SESSION_IMPL *session, struct timespec rollback_start,
+__rts_progress_msg(WT_SESSION_IMPL *session, struct timespec rollback_start,
   uint64_t rollback_count, uint64_t *rollback_msg_count)
 {
     struct timespec cur_time;
@@ -97,12 +97,12 @@ __rts_global_progress_msg(WT_SESSION_IMPL *session, struct timespec rollback_sta
 }
 
 /*
- * __wt_rts_global_btree_apply_all --
+ * __wt_rts_btree_apply_all --
  *     Perform rollback to stable to all files listed in the metadata, apart from the metadata and
  *     history store files.
  */
 int
-__wt_rts_global_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
+__wt_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
 {
     struct timespec rollback_timer;
     WT_CURSOR *cursor;
@@ -118,7 +118,7 @@ __wt_rts_global_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollbac
     WT_RET(__wt_metadata_cursor(session, &cursor));
     while ((ret = cursor->next(cursor)) == 0) {
         /* Log a progress message. */
-        __rts_global_progress_msg(session, rollback_timer, rollback_count, &rollback_msg_count);
+        __rts_progress_msg(session, rollback_timer, rollback_count, &rollback_msg_count);
         ++rollback_count;
 
         WT_ERR(cursor->get_key(cursor, &uri));

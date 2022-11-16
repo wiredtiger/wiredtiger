@@ -66,7 +66,7 @@ __rollback_to_stable(WT_SESSION_IMPL *session, bool no_ckpt)
      */
     F_SET(session, WT_SESSION_ROLLBACK_TO_STABLE);
 
-    WT_ERR(__wt_rts_global_check(session));
+    WT_ERR(__wt_rts_check(session));
 
     /*
      * Update the global time window state to have consistent view from global visibility rules for
@@ -100,7 +100,7 @@ __rollback_to_stable(WT_SESSION_IMPL *session, bool no_ckpt)
           conn->recovery_ckpt_snap_min, conn->recovery_ckpt_snap_max,
           conn->recovery_ckpt_snapshot_count);
 
-    WT_ERR(__wt_rts_global_btree_apply_all(session, rollback_timestamp));
+    WT_ERR(__wt_rts_btree_apply_all(session, rollback_timestamp));
 
     /* Rollback the global durable timestamp to the stable timestamp. */
     txn_global->has_durable_timestamp = txn_global->has_stable_timestamp;

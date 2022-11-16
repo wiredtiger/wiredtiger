@@ -196,7 +196,7 @@ src/session/session_dhandle.c
 src/rollback_to_stable/rts_api.c
 src/rollback_to_stable/rts_btree.c
 src/rollback_to_stable/rts_btree_walk.c
-src/rollback_to_stable/rts_global.c
+src/rollback_to_stable/rts.c
 src/rollback_to_stable/rts_history.c
 src/rollback_to_stable/rts_visibility.c
 src/support/cond_auto.c
