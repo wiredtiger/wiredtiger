@@ -350,6 +350,8 @@ struct __wt_connection_stats {
     int64_t lsm_work_units_done;
     int64_t lsm_work_units_created;
     int64_t lsm_work_queue_max;
+    int64_t autocommit_readonly_retry;
+    int64_t autocommit_update_retry;
     int64_t block_cache_blocks_update;
     int64_t block_cache_bytes_update;
     int64_t block_cache_blocks_evicted;
@@ -365,6 +367,7 @@ struct __wt_connection_stats {
     int64_t block_cache_misses;
     int64_t block_cache_bypass_chkpt;
     int64_t block_cache_blocks_removed;
+    int64_t block_cache_blocks_removed_blocked;
     int64_t block_cache_blocks;
     int64_t block_cache_blocks_insert_read;
     int64_t block_cache_blocks_insert_write;
@@ -916,6 +919,8 @@ struct __wt_dsrc_stats {
     int64_t lsm_checkpoint_throttle;
     int64_t lsm_merge_throttle;
     int64_t bloom_size;
+    int64_t autocommit_readonly_retry;
+    int64_t autocommit_update_retry;
     int64_t block_extension;
     int64_t block_alloc;
     int64_t block_free;

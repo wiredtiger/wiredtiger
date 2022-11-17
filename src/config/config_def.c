@@ -1266,6 +1266,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "operation_timeout_ms=0,sync=",
     confchk_WT_SESSION_commit_transaction, 5},
   {"WT_SESSION.compact", "timeout=1200", confchk_WT_SESSION_compact, 1},
+  {"WT_SESSION.count", "", NULL, 0},
   {"WT_SESSION.create",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
