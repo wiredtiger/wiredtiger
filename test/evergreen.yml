@@ -4525,7 +4525,9 @@ buildvariants:
   display_name: "~ RHEL8 PPC"
   # FIXME-WT-8981
   activate: false
-  tags: ["disabled"] # needed by periodic builds to get this builder disabled
+  # The tasks in this buildvariant are disabled, but periodic builds don't respect the `activate: false` flag set above.
+  # Instead, configure the periodic builds to ignore buildvariants with the `disabled` tag.
+  tags: ["disabled"]
   run_on:
   - rhel81-power8-small
   batchtime: 120 # 2 hours
