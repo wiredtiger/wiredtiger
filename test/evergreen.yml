@@ -40,6 +40,14 @@ functions:
       remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${dependent_task|compile}_${build_id}.tgz
       bucket: build_external
       extract_to: ${destination|wiredtiger}
+  "fetch perf stats": 
+    command: s3.get
+    params:
+      aws_key: ${aws_key}
+      aws_secret: ${aws_secret}
+      remote_file: "wiredtiger/${build_variant}/${revision}/perf-test-${test_name}-${build_id}-${execution}/evergreen_out_${test_name}.wtperf.json"
+      bucket: build_external
+      local_file: "perf_stats/evergreen_out_${test_name}.wtperf.json"
   "fetch endian format artifacts" :
     - command: s3.get
       params:
@@ -732,6 +740,26 @@ functions:
         permissions: public-read
         content_type: text/html
         remote_file: wiredtiger/${build_variant}/${revision}/${task_name}-${build_id}-${execution}/
+
+  "aggregate-perf-stats":
+    - command: shell.exec
+      params:
+        shell: bash
+        script: |
+          set -o errexit
+          set -o verbose
+          # Collect all perf stats into a single file
+          python3 wiredtiger/bench/perf_run_py/aggregate_perf_stat.py
+    # Push the aggregated results to the 'Files' tab of the task in Evergreen
+    - command: s3.put
+      params:
+        aws_secret: ${aws_secret}
+        aws_key: ${aws_key}
+        local_files_include_filter: all_stats.csv
+        bucket: build_external
+        permissions: public-read
+        content_type: text/html
+        remote_file: wiredtiger/${build_variant}/${revision}/${task_name}-${build_id}-${execution}/  
 
   "validate-expected-stats":
     - command: shell.exec
@@ -4649,6 +4677,137 @@ tasks:
         vars:
           test_path: bench/wt2853_perf/wt2853_perf
 
+###################################################
+# Aggregate statistics for all performance tests  #
+###################################################
+
+  - name: aggregate-perf-stats
+    depends_on:
+      - name: ".lsm-perf"
+      - name: ".btree-perf"
+      - name: ".oplog-perf"
+      - name: perf-test-update-checkpoint-btree
+      - name: ".stress-perf !perf-test-many-table-stress !perf-test-many-table-stress-backup !perf-test-evict-fairness" 
+      - name: ".evict-perf"
+      - name: ".log-perf"
+      - name: perf-test-long-checkpoint-stress
+    commands:
+      - func: "get project"
+      - command: shell.exec
+        params:
+          shell: bash
+          script: |
+            mkdir perf_stats
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "small-lsm"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "medium-lsm"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "medium-lsm-compact"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "medium-multi-lsm"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "parallel-pop-lsm"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "update-lsm"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "small-btree"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "small-btree-backup"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "medium-btree"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "medium-btree-backup"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "parallel-pop-btree"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "update-only-btree"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "update-btree"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "update-large-record-btree"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "modify-large-record-btree"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "modify-force-update-large-record-btree"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "mongodb-oplog"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "mongodb-small-oplog"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "mongodb-large-oplog"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "mongodb-secondary-apply"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "update-checkpoint-btree"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "overflow-10k"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "overflow-130k"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "parallel-pop-stress"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "update-grow-stress"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "update-shrink-stress"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "update-delta-mix1"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "update-delta-mix2"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "update-delta-mix3"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "multi-btree-zipfian-workload" 
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "evict-btree-stress-multi"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "evict-btree"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "evict-btree-1"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "log"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "checkpoint-stress"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "many-dhandle-stress"
+      - func: "aggregate-perf-stats" 
+
 #######################################
 #            Buildvariants            #
 #######################################
@@ -4992,7 +5151,6 @@ buildvariants:
     cmake_generator: Ninja
     make_command: ninja
     improved_accuracy: '--improved_accuracy'
-    max_runs_acc: 5
   tasks:
     - name: compile
     - name: ".btree-perf"
@@ -5004,6 +5162,7 @@ buildvariants:
     - name: ".log-perf"
     - name: ".long-perf"
     - name: ".oplog-perf"
+    - name: "aggregate-perf-stats"
   display_tasks:
     - name: Wiredtiger-perf-btree-jobs
       execution_tasks:
