@@ -26,7 +26,7 @@ static bool __rollback_txn_visible_id(WT_SESSION_IMPL *session, uint64_t id);
  *     larger than or equal to the specified timestamp.
  */
 static int
-__rollback_delete_hs(WT_SESSION_IMPL *session, WT_ITEM *key, wt_timestamp_t ts)
+__rollback_delete_hs(WT_SESSION_IMPL *session, WT_ITEM *key, wt_timestamp_t ts, bool dryrun)
 {
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(hs_key);
@@ -63,7 +63,8 @@ __rollback_delete_hs(WT_SESSION_IMPL *session, WT_ITEM *key, wt_timestamp_t ts)
         if (hs_tw->stop_ts <= ts)
             break;
 
-        WT_ERR(hs_cursor->remove(hs_cursor));
+        if (!dryrun)
+            WT_ERR(hs_cursor->remove(hs_cursor));
         WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
 
         /*
@@ -90,7 +91,7 @@ err:
  */
 static int
 __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first_upd,
-  wt_timestamp_t rollback_timestamp, bool *stable_update_found)
+  wt_timestamp_t rollback_timestamp, bool *stable_update_found, bool dryrun)
 {
     WT_UPDATE *stable_upd, *tombstone, *upd;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
@@ -129,7 +130,8 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
               rollback_timestamp < upd->durable_ts ? "true" : "false", upd->prepare_state,
               upd->prepare_state == WT_PREPARE_INPROGRESS ? "true" : "false");
 
-            upd->txnid = WT_TXN_ABORTED;
+            if (!dryrun)
+                upd->txnid = WT_TXN_ABORTED;
             WT_STAT_CONN_INCR(session, txn_rts_upd_aborted);
         } else {
             /* Valid update is found. */
@@ -166,16 +168,18 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
              * case, it is enough to delete everything up until to the tombstone timestamp.
              */
             WT_RET(__rollback_delete_hs(
-              session, key, stable_upd == NULL ? tombstone->start_ts : stable_upd->start_ts));
+              session, key, stable_upd == NULL ? tombstone->start_ts : stable_upd->start_ts, dryrun));
 
             /*
              * Clear the history store flags for the first stable update. Otherwise, it will not be
              * moved to history store again.
              */
-            if (stable_upd != NULL)
-                F_CLR(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS);
-            if (tombstone != NULL)
-                F_CLR(tombstone, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS);
+            if (!dryrun) {
+                if (stable_upd != NULL)
+                    F_CLR(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS);
+                if (tombstone != NULL)
+                    F_CLR(tombstone, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS);
+            }
         }
         if (stable_update_found != NULL)
             *stable_update_found = true;
@@ -191,7 +195,7 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
  */
 static int
 __rollback_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *head,
-  wt_timestamp_t rollback_timestamp, uint32_t *stable_updates_count)
+  wt_timestamp_t rollback_timestamp, uint32_t *stable_updates_count, bool dryrun)
 {
     WT_DECL_ITEM(key);
     WT_DECL_RET;
@@ -215,7 +219,8 @@ __rollback_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_
                 key->size = WT_PTRDIFF(memp, key->data);
             }
             WT_ERR(__rollback_abort_update(
-              session, key, ins->upd, rollback_timestamp, &stable_update_found));
+              session, key, ins->upd, rollback_timestamp, &stable_update_found, dryrun));
+            /* TODO check if we want stats to update in dryrun mode. I think it'll depend on the stat. */
             if (stable_update_found && stable_updates_count != NULL)
                 (*stable_updates_count)++;
             if (!stable_update_found && page->type == WT_PAGE_ROW_LEAF &&
@@ -233,7 +238,7 @@ __rollback_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_
                  * the impacts of a long term correction in WT-10017. Once completed this change can
                  * be reverted.
                  */
-                WT_ERR(__rollback_delete_hs(session, key, rollback_timestamp + 1));
+                WT_ERR(__rollback_delete_hs(session, key, rollback_timestamp + 1, dryrun));
         }
 
 err:
@@ -259,7 +264,7 @@ __rollback_has_stable_update(WT_UPDATE *upd)
  *     Add the provided update to the head of the update list.
  */
 static inline int
-__rollback_col_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, uint64_t recno)
+__rollback_col_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, uint64_t recno, bool dryrun)
 {
     WT_CURSOR_BTREE cbt;
     WT_DECL_RET;
@@ -271,11 +276,13 @@ __rollback_col_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, uin
     WT_ERR(__wt_col_search(&cbt, recno, ref, true, NULL));
 
     /* Apply the modification. */
+    if (!dryrun) {
 #ifdef HAVE_DIAGNOSTIC
-    WT_ERR(__wt_col_modify(&cbt, recno, NULL, upd, WT_UPDATE_INVALID, true, false));
+        WT_ERR(__wt_col_modify(&cbt, recno, NULL, upd, WT_UPDATE_INVALID, true, false));
 #else
-    WT_ERR(__wt_col_modify(&cbt, recno, NULL, upd, WT_UPDATE_INVALID, true));
+        WT_ERR(__wt_col_modify(&cbt, recno, NULL, upd, WT_UPDATE_INVALID, true));
 #endif
+    }
 
 err:
     /* Free any resources that may have been cached in the cursor. */
@@ -289,7 +296,7 @@ err:
  *     Add the provided update to the head of the update list.
  */
 static inline int
-__rollback_row_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, WT_ITEM *key)
+__rollback_row_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, WT_ITEM *key, bool dryrun)
 {
     WT_CURSOR_BTREE cbt;
     WT_DECL_RET;
@@ -301,11 +308,13 @@ __rollback_row_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, WT_
     WT_ERR(__wt_row_search(&cbt, key, true, ref, true, NULL));
 
     /* Apply the modification. */
+    if (!dryrun) {
 #ifdef HAVE_DIAGNOSTIC
-    WT_ERR(__wt_row_modify(&cbt, key, NULL, upd, WT_UPDATE_INVALID, true, false));
+        WT_ERR(__wt_row_modify(&cbt, key, NULL, upd, WT_UPDATE_INVALID, true, false));
 #else
-    WT_ERR(__wt_row_modify(&cbt, key, NULL, upd, WT_UPDATE_INVALID, true));
+        WT_ERR(__wt_row_modify(&cbt, key, NULL, upd, WT_UPDATE_INVALID, true));
 #endif
+    }
 
 err:
     /* Free any resources that may have been cached in the cursor. */
@@ -348,7 +357,7 @@ __rollback_txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
  */
 static int
 __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, uint64_t recno,
-  WT_ITEM *row_key, WT_CELL_UNPACK_KV *unpack, wt_timestamp_t rollback_timestamp)
+  WT_ITEM *row_key, WT_CELL_UNPACK_KV *unpack, wt_timestamp_t rollback_timestamp, bool dryrun)
 {
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(full_value);
@@ -571,7 +580,8 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
         first_record = false;
 #endif
 
-        WT_ERR(hs_cursor->remove(hs_cursor));
+        if (!dryrun)
+            WT_ERR(hs_cursor->remove(hs_cursor));
         WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
         WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts_unstable);
     }
@@ -662,16 +672,17 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
     }
 
     if (rip != NULL)
-        WT_ERR(__rollback_row_modify(session, ref, upd, key));
+        WT_ERR(__rollback_row_modify(session, ref, upd, key, dryrun));
     else
-        WT_ERR(__rollback_col_modify(session, ref, upd, recno));
+        WT_ERR(__rollback_col_modify(session, ref, upd, recno, dryrun));
 
     /* Finally remove that update from history store. */
     if (valid_update_found) {
         /* Avoid freeing the updates while still in use if hs_cursor->remove fails. */
         upd = tombstone = NULL;
 
-        WT_ERR(hs_cursor->remove(hs_cursor));
+        if (!dryrun)
+            WT_ERR(hs_cursor->remove(hs_cursor));
         WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
         WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts);
     }
@@ -699,7 +710,7 @@ err:
 static int
 __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, uint64_t recno,
   WT_ITEM *row_key, WT_CELL_UNPACK_KV *vpack, wt_timestamp_t rollback_timestamp,
-  bool *is_ondisk_stable)
+  bool *is_ondisk_stable, bool dryrun)
 {
     WT_DECL_ITEM(key);
     WT_DECL_ITEM(key_string);
@@ -752,7 +763,7 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, u
           !WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prepared ? "true" : "false");
         if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
             return (__rollback_ondisk_fixup_key(
-              session, ref, rip, recno, row_key, vpack, rollback_timestamp));
+              session, ref, rip, recno, row_key, vpack, rollback_timestamp, dryrun));
         else {
             /*
              * In-memory database don't have a history store to provide a stable update, so remove
@@ -777,7 +788,7 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, u
             WT_ASSERT(session, prepared == true);
             if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
                 return (__rollback_ondisk_fixup_key(
-                  session, ref, rip, recno, row_key, vpack, rollback_timestamp));
+                  session, ref, rip, recno, row_key, vpack, rollback_timestamp, dryrun));
             else {
                 /*
                  * In-memory database don't have a history store to provide a stable update, so
@@ -853,9 +864,9 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, u
       __wt_key_string(session, key->data, key->size, S2BT(session)->key_format, key_string));
 
     if (rip != NULL)
-        WT_ERR(__rollback_row_modify(session, ref, upd, key));
+        WT_ERR(__rollback_row_modify(session, ref, upd, key, dryrun));
     else
-        WT_ERR(__rollback_col_modify(session, ref, upd, recno));
+        WT_ERR(__rollback_col_modify(session, ref, upd, recno, dryrun));
 
     if (0) {
 err:
@@ -873,7 +884,7 @@ err:
  *     timestamp.
  */
 static int
-__rollback_abort_col_var(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
+__rollback_abort_col_var(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp, bool dryrun)
 {
     WT_CELL *kcell;
     WT_CELL_UNPACK_KV unpack;
@@ -900,7 +911,7 @@ __rollback_abort_col_var(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
 
         if ((inshead = WT_COL_UPDATE(page, cip)) != NULL)
             WT_RET(__rollback_abort_insert_list(
-              session, page, inshead, rollback_timestamp, &stable_updates_count));
+              session, page, inshead, rollback_timestamp, &stable_updates_count, dryrun));
 
         if (page->dsk != NULL) {
             /* Unpack the cell. We need its RLE count whether or not we're going to iterate it. */
@@ -944,7 +955,7 @@ __rollback_abort_col_var(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
                         /* Process all the keys before this update. */
                         while (recno + j < ins_recno) {
                             WT_RET(__rollback_abort_ondisk_kv(session, ref, NULL, recno + j, NULL,
-                              &unpack, rollback_timestamp, &is_ondisk_stable));
+                              &unpack, rollback_timestamp, &is_ondisk_stable, dryrun));
                             /* We can stop right away if the on-disk version is stable. */
                             if (is_ondisk_stable) {
                                 if (rle > 1)
@@ -961,7 +972,7 @@ __rollback_abort_col_var(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
                 /* Process the rest of the keys. */
                 while (j < rle) {
                     WT_RET(__rollback_abort_ondisk_kv(session, ref, NULL, recno + j, NULL, &unpack,
-                      rollback_timestamp, &is_ondisk_stable));
+                      rollback_timestamp, &is_ondisk_stable, dryrun));
                     /* We can stop right away if the on-disk version is stable. */
                     if (is_ondisk_stable) {
                         if (rle > 1)
@@ -978,7 +989,7 @@ stop:
 
     /* Review the append list */
     if ((inshead = WT_COL_APPEND(page)) != NULL)
-        WT_RET(__rollback_abort_insert_list(session, page, inshead, rollback_timestamp, NULL));
+        WT_RET(__rollback_abort_insert_list(session, page, inshead, rollback_timestamp, NULL, dryrun));
 
     return (0);
 }
@@ -989,7 +1000,7 @@ stop:
  */
 static int
 __rollback_abort_col_fix_one(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t tw,
-  uint32_t recno_offset, wt_timestamp_t rollback_timestamp)
+  uint32_t recno_offset, wt_timestamp_t rollback_timestamp, bool dryrun)
 {
     WT_BTREE *btree;
     WT_CELL *cell;
@@ -1010,7 +1021,7 @@ __rollback_abort_col_fix_one(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t tw,
     unpack.size = 1;
 
     return (__rollback_abort_ondisk_kv(session, ref, NULL, page->dsk->recno + recno_offset, NULL,
-      &unpack, rollback_timestamp, NULL));
+      &unpack, rollback_timestamp, NULL, dryrun));
 }
 
 /*
@@ -1019,7 +1030,7 @@ __rollback_abort_col_fix_one(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t tw,
  *     timestamp.
  */
 static int
-__rollback_abort_col_fix(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
+__rollback_abort_col_fix(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp, bool dryrun)
 {
     WT_INSERT *ins;
     WT_INSERT_HEAD *inshead;
@@ -1036,7 +1047,7 @@ __rollback_abort_col_fix(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
      * we'll need to iterate over all the keys anyway.
      */
     if ((inshead = WT_COL_UPDATE_SINGLE(page)) != NULL)
-        WT_RET(__rollback_abort_insert_list(session, page, inshead, rollback_timestamp, NULL));
+        WT_RET(__rollback_abort_insert_list(session, page, inshead, rollback_timestamp, NULL, dryrun));
 
     /*
      * Iterate over all the keys, stopping only on keys that (a) have a time window on disk, and
@@ -1060,7 +1071,7 @@ __rollback_abort_col_fix(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
               (recno_offset = page->pg_fix_tws[tw].recno_offset) < ins_recno_offset) {
 
                 WT_RET(
-                  __rollback_abort_col_fix_one(session, ref, tw, recno_offset, rollback_timestamp));
+                       __rollback_abort_col_fix_one(session, ref, tw, recno_offset, rollback_timestamp, dryrun));
                 tw++;
             }
             /* If this key has a stable update, skip over it. */
@@ -1072,13 +1083,13 @@ __rollback_abort_col_fix(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
     /* Process the rest of the keys with time windows. */
     while (tw < numtws) {
         recno_offset = page->pg_fix_tws[tw].recno_offset;
-        WT_RET(__rollback_abort_col_fix_one(session, ref, tw, recno_offset, rollback_timestamp));
+        WT_RET(__rollback_abort_col_fix_one(session, ref, tw, recno_offset, rollback_timestamp, dryrun));
         tw++;
     }
 
     /* Review the append list. */
     if ((inshead = WT_COL_APPEND(page)) != NULL)
-        WT_RET(__rollback_abort_insert_list(session, page, inshead, rollback_timestamp, NULL));
+        WT_RET(__rollback_abort_insert_list(session, page, inshead, rollback_timestamp, NULL, dryrun));
 
     return (0);
 }
@@ -1088,7 +1099,7 @@ __rollback_abort_col_fix(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
  *     Abort updates on a row leaf page with timestamps newer than the rollback timestamp.
  */
 static int
-__rollback_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
+__rollback_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp, bool dryrun)
 {
     WT_CELL_UNPACK_KV *vpack, _vpack;
     WT_DECL_ITEM(key);
@@ -1108,7 +1119,7 @@ __rollback_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
      * Review the insert list for keys before the first entry on the disk page.
      */
     if ((insert = WT_ROW_INSERT_SMALLEST(page)) != NULL)
-        WT_ERR(__rollback_abort_insert_list(session, page, insert, rollback_timestamp, NULL));
+        WT_ERR(__rollback_abort_insert_list(session, page, insert, rollback_timestamp, NULL, dryrun));
 
     /*
      * Review updates that belong to keys that are on the disk image, as well as for keys inserted
@@ -1119,13 +1130,13 @@ __rollback_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
         if ((upd = WT_ROW_UPDATE(page, rip)) != NULL) {
             WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
             WT_ERR(
-              __rollback_abort_update(session, key, upd, rollback_timestamp, &stable_update_found));
+                   __rollback_abort_update(session, key, upd, rollback_timestamp, &stable_update_found, dryrun));
             have_key = true;
         } else
             have_key = false;
 
         if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
-            WT_ERR(__rollback_abort_insert_list(session, page, insert, rollback_timestamp, NULL));
+            WT_ERR(__rollback_abort_insert_list(session, page, insert, rollback_timestamp, NULL, dryrun));
 
         /*
          * If there is no stable update found in the update list, abort any on-disk value.
@@ -1134,7 +1145,7 @@ __rollback_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
             vpack = &_vpack;
             __wt_row_leaf_value_cell(session, page, rip, vpack);
             WT_ERR(__rollback_abort_ondisk_kv(
-              session, ref, rip, 0, have_key ? key : NULL, vpack, rollback_timestamp, NULL));
+              session, ref, rip, 0, have_key ? key : NULL, vpack, rollback_timestamp, NULL, dryrun));
         }
     }
 
@@ -1255,7 +1266,7 @@ __rollback_page_needs_abort(
  *     Abort updates on this page newer than the timestamp.
  */
 static int
-__rollback_abort_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
+__rollback_abort_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp, bool dryrun)
 {
     WT_PAGE *page;
     bool modified;
@@ -1279,13 +1290,13 @@ __rollback_abort_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
 
     switch (page->type) {
     case WT_PAGE_COL_FIX:
-        WT_RET(__rollback_abort_col_fix(session, ref, rollback_timestamp));
+        WT_RET(__rollback_abort_col_fix(session, ref, rollback_timestamp, dryrun));
         break;
     case WT_PAGE_COL_VAR:
-        WT_RET(__rollback_abort_col_var(session, ref, rollback_timestamp));
+        WT_RET(__rollback_abort_col_var(session, ref, rollback_timestamp, dryrun));
         break;
     case WT_PAGE_ROW_LEAF:
-        WT_RET(__rollback_abort_row_leaf(session, ref, rollback_timestamp));
+        WT_RET(__rollback_abort_row_leaf(session, ref, rollback_timestamp, dryrun));
         break;
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
@@ -1296,6 +1307,7 @@ __rollback_abort_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
         WT_RET(__wt_illegal_value(session, page->type));
     }
 
+    /* TODO I think causing reconciliation for dry-run mode is undesirable. Check this. */
     /* Mark the page as dirty to reconcile the page. */
     if (page->modify)
         __wt_page_modify_set(session, page);
@@ -1383,7 +1395,7 @@ __rollback_to_stable_page_skip(
  *     Called for each open handle - choose to either skip or wipe the commits
  */
 static int
-__rollback_to_stable_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
+__rollback_to_stable_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp, bool dryrun)
 {
     WT_DECL_RET;
     WT_REF *ref;
@@ -1395,7 +1407,7 @@ __rollback_to_stable_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollbac
          &rollback_timestamp, WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED)) == 0 &&
       ref != NULL)
         if (F_ISSET(ref, WT_REF_FLAG_LEAF))
-            WT_RET(__rollback_abort_updates(session, ref, rollback_timestamp));
+            WT_RET(__rollback_abort_updates(session, ref, rollback_timestamp, dryrun));
 
     return (ret);
 }
@@ -1405,7 +1417,7 @@ __rollback_to_stable_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollbac
  *     Called for each object handle - choose to either skip or wipe the commits
  */
 static int
-__rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
+__rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp, bool dryrun)
 {
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
@@ -1430,7 +1442,7 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
     if (btree->root.page == NULL)
         return (0);
 
-    return (__rollback_to_stable_btree_walk(session, rollback_timestamp));
+    return (__rollback_to_stable_btree_walk(session, rollback_timestamp, dryrun));
 }
 
 /*
@@ -1501,7 +1513,7 @@ __rollback_to_stable_check(WT_SESSION_IMPL *session)
  *     Wipe all history store updates for the btree (non-timestamped tables)
  */
 static int
-__rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_id)
+__rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_id, bool dryrun)
 {
     WT_CURSOR *hs_cursor_start, *hs_cursor_stop;
     WT_DECL_ITEM(hs_key);
@@ -1554,8 +1566,9 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
         hs_cursor_stop->get_key(hs_cursor_stop, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter);
     } while (hs_btree_id != btree_id);
 
-    WT_ERR(
-      truncate_session->truncate(truncate_session, NULL, hs_cursor_start, hs_cursor_stop, NULL));
+    if (!dryrun)
+        WT_ERR(
+               truncate_session->truncate(truncate_session, NULL, hs_cursor_start, hs_cursor_stop, NULL));
 
     WT_STAT_CONN_DATA_INCR(session, cache_hs_btree_truncate);
 
@@ -1579,7 +1592,7 @@ err:
  *     timestamp.
  */
 static int
-__rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
+__rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp, bool dryrun)
 {
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM cval, durableval, key;
@@ -1632,7 +1645,7 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           "tree rolled back with durable timestamp: %s",
           __wt_timestamp_to_string(max_durable_ts, ts_string[0]));
-        WT_TRET(__rollback_to_stable_btree(session, rollback_timestamp));
+        WT_TRET(__rollback_to_stable_btree(session, rollback_timestamp, dryrun));
     } else
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           "tree skipped with durable timestamp: %s and stable timestamp: %s",
@@ -1647,7 +1660,7 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
     if (F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE) && conn->partial_backup_remove_ids != NULL)
         for (i = 0; conn->partial_backup_remove_ids[i] != 0; ++i)
             WT_ERR(
-              __rollback_to_stable_btree_hs_truncate(session, conn->partial_backup_remove_ids[i]));
+                   __rollback_to_stable_btree_hs_truncate(session, conn->partial_backup_remove_ids[i], dryrun));
 err:
     if (session->dhandle != NULL)
         WT_TRET(__wt_session_release_dhandle(session));
@@ -1700,7 +1713,7 @@ __rollback_to_stable_check_btree_modified(WT_SESSION_IMPL *session, const char *
  */
 static int
 __rollback_to_stable_btree_apply(
-  WT_SESSION_IMPL *session, const char *uri, const char *config, wt_timestamp_t rollback_timestamp)
+WT_SESSION_IMPL *session, const char *uri, const char *config, wt_timestamp_t rollback_timestamp, bool dryrun)
 {
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM cval, value, key;
@@ -1831,7 +1844,7 @@ __rollback_to_stable_btree_apply(
           S2C(session)->recovery_ckpt_snap_min,
           has_txn_updates_gt_than_ckpt_snap ? "true" : "false");
 
-        WT_ERR(__rollback_to_stable_btree(session, rollback_timestamp));
+        WT_ERR(__rollback_to_stable_btree(session, rollback_timestamp, dryrun));
     } else
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           "%s: tree skipped with durable timestamp: %s and stable timestamp: %s or txnid: %" PRIu64,
@@ -1851,7 +1864,7 @@ __rollback_to_stable_btree_apply(
       !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
         WT_ERR(__wt_config_getones(session, config, "id", &cval));
         btree_id = (uint32_t)cval.val;
-        WT_ERR(__rollback_to_stable_btree_hs_truncate(session, btree_id));
+        WT_ERR(__rollback_to_stable_btree_hs_truncate(session, btree_id, dryrun));
     }
 
 err:
@@ -1865,7 +1878,7 @@ err:
  *     Perform rollback to stable on a single object.
  */
 int
-__wt_rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
+__wt_rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp, bool dryrun)
 {
     WT_DECL_RET;
     wt_timestamp_t rollback_timestamp;
@@ -1888,7 +1901,7 @@ __wt_rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *ski
     WT_ORDERED_READ(rollback_timestamp, S2C(session)->txn_global.stable_timestamp);
 
     F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
-    ret = __rollback_to_stable_btree_apply(session, uri, config, rollback_timestamp);
+    ret = __rollback_to_stable_btree_apply(session, uri, config, rollback_timestamp, dryrun);
     F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
 
     __wt_free(session, config);
@@ -1902,7 +1915,7 @@ __wt_rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *ski
  *     history store files.
  */
 static int
-__rollback_to_stable_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
+__rollback_to_stable_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp, bool dryrun)
 {
     struct timespec rollback_timer;
     WT_CURSOR *cursor;
@@ -1925,7 +1938,7 @@ __rollback_to_stable_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t ro
         WT_ERR(cursor->get_value(cursor, &config));
 
         F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
-        ret = __rollback_to_stable_btree_apply(session, uri, config, rollback_timestamp);
+        ret = __rollback_to_stable_btree_apply(session, uri, config, rollback_timestamp, dryrun);
         F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
 
         /*
@@ -1942,8 +1955,9 @@ __rollback_to_stable_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t ro
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 
+    /* TODO check if this is OK in dry-run mode. */
     if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
-        WT_ERR(__rollback_to_stable_hs_final_pass(session, rollback_timestamp));
+        WT_ERR(__rollback_to_stable_hs_final_pass(session, rollback_timestamp, dryrun));
 
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
@@ -1955,7 +1969,7 @@ err:
  *     Rollback all modifications with timestamps more recent than the passed in timestamp.
  */
 static int
-__rollback_to_stable(WT_SESSION_IMPL *session, bool no_ckpt)
+__rollback_to_stable(WT_SESSION_IMPL *session, bool no_ckpt, bool dryrun)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -1981,6 +1995,7 @@ __rollback_to_stable(WT_SESSION_IMPL *session, bool no_ckpt)
      * As part of the below function call, the oldest transaction id and pinned timestamps are
      * updated.
      */
+    /* TODO I think this is safe from dry-run mode, not 100% confident though. */
     WT_ERR(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 
     WT_ASSERT_ALWAYS(session,
@@ -2006,18 +2021,21 @@ __rollback_to_stable(WT_SESSION_IMPL *session, bool no_ckpt)
           conn->recovery_ckpt_snap_min, conn->recovery_ckpt_snap_max,
           conn->recovery_ckpt_snapshot_count);
 
-    WT_ERR(__rollback_to_stable_btree_apply_all(session, rollback_timestamp));
+    WT_ERR(__rollback_to_stable_btree_apply_all(session, rollback_timestamp, dryrun));
 
     /* Rollback the global durable timestamp to the stable timestamp. */
-    txn_global->has_durable_timestamp = txn_global->has_stable_timestamp;
-    txn_global->durable_timestamp = txn_global->stable_timestamp;
+    /* TODO also not 100% confident that this is bad in dry-run mode. */
+    if (!dryrun) {
+        txn_global->has_durable_timestamp = txn_global->has_stable_timestamp;
+        txn_global->durable_timestamp = txn_global->stable_timestamp;
+    }
 
     /*
      * If the configuration is not in-memory, forcibly log a checkpoint after rollback to stable to
      * ensure that both in-memory and on-disk versions are the same unless caller requested for no
      * checkpoint.
      */
-    if (!F_ISSET(conn, WT_CONN_IN_MEMORY) && !no_ckpt)
+    if (!F_ISSET(conn, WT_CONN_IN_MEMORY) && !no_ckpt && !dryrun)
         WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
 
 err:
@@ -2030,7 +2048,7 @@ err:
  *     Rollback the database to the stable timestamp.
  */
 int
-__wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
+__wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt, bool dryrun)
 {
     WT_DECL_RET;
 
@@ -2047,7 +2065,7 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckp
 
     WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 1);
     WT_WITH_CHECKPOINT_LOCK(
-      session, WT_WITH_SCHEMA_LOCK(session, ret = __rollback_to_stable(session, no_ckpt)));
+      session, WT_WITH_SCHEMA_LOCK(session, ret = __rollback_to_stable(session, no_ckpt, dryrun)));
     WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 0);
 
     WT_TRET(__wt_session_close_internal(session));
