@@ -3968,7 +3968,7 @@ tasks:
         vars:
           perf-test-name: update-btree.wtperf
           maxruns: 1
-          wtarg: ${improved_accuracy|} "-bf ../../../bench/wtperf/runners/update-btree.json" 
+          wtarg: "-bf ../../../bench/wtperf/runners/update-btree.json ${improved_accuracy|} " 
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-btree.wtperf
@@ -4096,7 +4096,7 @@ tasks:
         vars:
           perf-test-name: update-checkpoint-btree.wtperf
           maxruns: 1
-          wtarg: ${improved_accuracy|} "-bf ../../../bench/wtperf/runners/update-checkpoint.json"
+          wtarg: "-bf ../../../bench/wtperf/runners/update-checkpoint.json ${improved_accuracy|}"
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-checkpoint-btree.wtperf
@@ -4112,7 +4112,7 @@ tasks:
         vars:
           perf-test-name: update-checkpoint-lsm.wtperf
           maxruns: 1
-          wtarg: ${improved_accuracy|} "-bf ../../../bench/wtperf/runners/update-checkpoint.json" 
+          wtarg: "-bf ../../../bench/wtperf/runners/update-checkpoint.json ${improved_accuracy|}" 
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-checkpoint-lsm.wtperf
