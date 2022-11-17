@@ -949,6 +949,7 @@ ThreadRunner::op_run(Operation *op)
     Track *track;
     tint_t tint = op->_table._internal->_tint;
     WT_CURSOR *cursor;
+    WT_ITEM item;
     WT_DECL_RET;
     uint64_t recno;
     uint64_t range;
@@ -1042,12 +1043,24 @@ ThreadRunner::op_run(Operation *op)
     // be retried.
     if (op->is_table_op()) {
         op->kv_gen(this, true, 100, recno, _keybuf);
-        cursor->set_key(cursor, _keybuf);
+        if(std::string(cursor->key_format) == "u") {
+            item.data = _keybuf;
+            item.size = strlen(_keybuf);
+            cursor->set_key(cursor, &item);
+        } else {
+            cursor->set_key(cursor, _keybuf);
+        }
         if (OP_HAS_VALUE(op)) {
             uint64_t compressibility =
               op->_table.options.random_value ? 0 : op->_table.options.value_compressibility;
             op->kv_gen(this, false, compressibility, recno, _valuebuf);
-            cursor->set_value(cursor, _valuebuf);
+            if(std::string(cursor->value_format) == "u") {
+                item.data = _valuebuf;
+                item.size = strlen(_valuebuf);
+                cursor->set_value(cursor, &item);
+            } else {
+                cursor->set_value(cursor, _valuebuf);
+            }
         }
     }
     // Retry on rollback until success.
