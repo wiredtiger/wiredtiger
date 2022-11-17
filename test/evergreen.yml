@@ -4500,7 +4500,6 @@ buildvariants:
   display_name: "~ Ubuntu 18.04 PPC"
   run_on:
   - ubuntu1804-power8-test
-  tags: 
   batchtime: 120 # 2 hours
   expansions:
     format_test_setting: ulimit -c unlimited
