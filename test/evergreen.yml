@@ -4079,7 +4079,7 @@ tasks:
           wtarg: -ops ['"insert"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
-          perf-test-name: mongodb-secondary-apply.wtperf 
+          perf-test-name: mongodb-secondary-apply.wtperf
 
     #########################################
     # Performance Tests for perf-checkpoint #
@@ -4381,7 +4381,7 @@ tasks:
           wtarg: -ops ['"read"'] ${improved_accuracy|}
       - func: "upload-perf-test-stats"
         vars:
-          perf-test-name: evict-lsm-1.wtperf 
+          perf-test-name: evict-lsm-1.wtperf
 
     ###########################################
     # Performance Tests for log consolidation #
@@ -4682,32 +4682,15 @@ tasks:
 ###################################################
 
   - name: aggregate-perf-stats
-    tags: ["aggregate-perf"]
     depends_on:
       - name: ".lsm-perf"
       - name: ".btree-perf"
       - name: ".oplog-perf"
       - name: perf-test-update-checkpoint-btree
-      - name: perf-test-overflow-10k
-      - name: perf-test-overflow-130k
-      - name: perf-test-parallel-pop-stress
-      - name: perf-test-update-grow-stress 
-      - name: perf-test-update-shrink-stress
-      - name: perf-test-update-delta-mix1
-      - name: perf-test-update-delta-mix2
-      - name: perf-test-update-delta-mix3
-      - name: perf-test-multi-btree-zipfian
-      - name: perf-test-evict-btree-stress-multi
-      - name: perf-test-evict-btree
-      - name: perf-test-evict-btree-1
+      - name: ".stress-perf !perf-test-many-table-stress !perf-test-many-table-stress-backup !perf-test-evict-fairness" 
+      - name: ".evict-perf"
       - name: ".log-perf"
-      - name: perf-test-long-500m-btree-populate
-      - name: perf-test-long-500m-btree-50r50u
-      - name: perf-test-long-500m-btree-50r50u-backup
-      - name: perf-test-long-500m-btree-80r20u
-      - name: perf-test-long-500m-btree-rdonly
       - name: perf-test-long-checkpoint-stress
-      - name: many-dhandle-stress
     commands:
       - func: "get project"
       - command: shell.exec
@@ -4810,25 +4793,13 @@ tasks:
           test_name: "evict-btree-stress-multi"
       - func: "fetch perf stats" 
         vars:
+          test_name: "evict-btree"
+      - func: "fetch perf stats" 
+        vars:
           test_name: "evict-btree-1"
       - func: "fetch perf stats" 
         vars:
           test_name: "log"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "500m-btree-populate"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "500m-btree-50r50u"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "500m-btree-50r50u-backup"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "500m-btree-80r20u"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "500m-btree-rdonly"
       - func: "fetch perf stats" 
         vars:
           test_name: "checkpoint-stress"
@@ -5180,7 +5151,6 @@ buildvariants:
     cmake_generator: Ninja
     make_command: ninja
     improved_accuracy: '--improved_accuracy'
-    max_runs_acc: 5
   tasks:
     - name: compile
     - name: ".btree-perf"
