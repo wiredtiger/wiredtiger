@@ -123,7 +123,7 @@ table_load(TABLE *base, TABLE *table)
         if (base == NULL)
             val_gen(table, NULL, &value, &bitv, keyno);
         else {
-            testutil_assert(read_op(base_cursor, NEXT, NULL) == 0);
+            testutil_check(read_op(base_cursor, NEXT, NULL));
             testutil_check(base_cursor->get_value(base_cursor, &value));
             val_to_flcs(table, &value, &bitv);
         }
