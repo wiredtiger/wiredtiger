@@ -1043,7 +1043,7 @@ ThreadRunner::op_run(Operation *op)
     // be retried.
     if (op->is_table_op()) {
         op->kv_gen(this, true, 100, recno, _keybuf);
-        if(std::string(cursor->key_format) == "u") {
+        if (std::string(cursor->key_format) == "u") {
             item.data = _keybuf;
             item.size = strlen(_keybuf);
             cursor->set_key(cursor, &item);
@@ -1054,7 +1054,7 @@ ThreadRunner::op_run(Operation *op)
             uint64_t compressibility =
               op->_table.options.random_value ? 0 : op->_table.options.value_compressibility;
             op->kv_gen(this, false, compressibility, recno, _valuebuf);
-            if(std::string(cursor->value_format) == "u") {
+            if (std::string(cursor->value_format) == "u") {
                 item.data = _valuebuf;
                 item.size = strlen(_valuebuf);
                 cursor->set_value(cursor, &item);
