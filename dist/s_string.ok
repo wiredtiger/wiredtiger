@@ -384,6 +384,7 @@ RECNO
 REF's
 REFs
 RET
+RETRYABLE
 RHEL
 RLE
 RLEs
@@ -1284,6 +1285,7 @@ packv
 pagedump
 pageref
 pagesize
+pagestat
 param
 parens
 pareto

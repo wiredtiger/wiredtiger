@@ -1297,6 +1297,8 @@ methods = {
         type='int'),
 ]),
 
+'WT_SESSION.count' : Method([]), 
+
 'WT_SESSION.create' : Method(file_config + lsm_config + tiered_config +
         source_meta + index_only_config + table_only_config + [
     Config('exclusive', 'false', r'''
