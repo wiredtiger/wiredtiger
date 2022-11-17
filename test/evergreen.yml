@@ -4687,7 +4687,7 @@ tasks:
       - name: ".btree-perf"
       - name: ".oplog-perf !perf-test-mongodb-large-oplog"
       - name: perf-test-update-checkpoint-btree
-      - name: ".stress-perf !perf-test-many-table-stress !perf-test-many-table-stress-backup !perf-test-evict-fairness" 
+      - name: ".stress-perf !perf-test-many-table-stress !perf-test-many-table-stress-backup !perf-test-evict-fairness !perf-test-multi-btree-zipfian" 
       - name: ".evict-perf"
       - name: ".log-perf"
       - name: perf-test-long-checkpoint-stress
