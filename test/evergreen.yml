@@ -4684,9 +4684,8 @@ tasks:
 
   - name: aggregate-perf-stats
     depends_on:
-      - name: ".lsm-perf"
       - name: ".btree-perf"
-      - name: ".oplog-perf"
+      - name: ".oplog-perf !perf-test-mongodb-large-oplog"
       - name: perf-test-update-checkpoint-btree
       - name: ".stress-perf !perf-test-many-table-stress !perf-test-many-table-stress-backup !perf-test-evict-fairness" 
       - name: ".evict-perf"
@@ -4699,24 +4698,6 @@ tasks:
           shell: bash
           script: |
             mkdir perf_stats
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "small-lsm"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "medium-lsm"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "medium-lsm-compact"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "medium-multi-lsm"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "parallel-pop-lsm"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "update-lsm"
       - func: "fetch perf stats" 
         vars:
           test_name: "small-btree"
@@ -4753,9 +4734,6 @@ tasks:
       - func: "fetch perf stats" 
         vars:
           test_name: "mongodb-small-oplog"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "mongodb-large-oplog"
       - func: "fetch perf stats" 
         vars:
           test_name: "mongodb-secondary-apply"
@@ -5105,7 +5083,7 @@ buildvariants:
     - name: Wiredtiger-perf-btree-jobs
       execution_tasks:
       - ".btree-perf"
-    # Disable LSM perf tests till the support for LSM is restored.
+    # FIXME-WT-8867: Disable LSM perf tests till the support for LSM is restored.
     # - name: Wiredtiger-perf-lsm-jobs
     #   execution_tasks:
     #   - ".lsm-perf"
@@ -5155,7 +5133,7 @@ buildvariants:
   tasks:
     - name: compile
     - name: ".btree-perf"
-    # Disable LSM perf tests till the support for LSM is restored.
+    # FIXME-WT-8867: Disable LSM perf tests till the support for LSM is restored.
     # - name: ".lsm-perf"
     - name: ".stress-perf"
     - name: ".checkpoint-perf"
