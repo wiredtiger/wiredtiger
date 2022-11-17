@@ -4500,6 +4500,7 @@ buildvariants:
   display_name: "~ Ubuntu 18.04 PPC"
   run_on:
   - ubuntu1804-power8-test
+  tags: 
   batchtime: 120 # 2 hours
   expansions:
     format_test_setting: ulimit -c unlimited
@@ -4525,6 +4526,7 @@ buildvariants:
   display_name: "~ RHEL8 PPC"
   # FIXME-WT-8981
   activate: false
+  tags: ["disabled"] # needed by periodic builds to get this builder disabled
   run_on:
   - rhel81-power8-small
   batchtime: 120 # 2 hours
