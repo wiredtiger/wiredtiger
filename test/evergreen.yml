@@ -4766,9 +4766,6 @@ tasks:
           test_name: "update-delta-mix3"
       - func: "fetch perf stats" 
         vars:
-          test_name: "multi-btree-zipfian-workload" 
-      - func: "fetch perf stats" 
-        vars:
           test_name: "evict-btree-stress-multi"
       - func: "fetch perf stats" 
         vars:
