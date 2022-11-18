@@ -17,9 +17,9 @@ static int
 __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first_upd,
   wt_timestamp_t rollback_timestamp, bool *stable_update_found)
 {
-    bool dryrun;
     WT_UPDATE *stable_upd, *tombstone, *upd;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
+    bool dryrun;
     bool txn_id_visible;
 
     dryrun = S2C(session)->rts->dryrun;
@@ -179,9 +179,9 @@ err:
 static inline int
 __rts_btree_col_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, uint64_t recno)
 {
-    bool dryrun;
     WT_CURSOR_BTREE cbt;
     WT_DECL_RET;
+    bool dryrun;
 
     dryrun = S2C(session)->rts->dryrun;
 
@@ -214,9 +214,9 @@ err:
 static inline int
 __rts_btree_row_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, WT_ITEM *key)
 {
-    bool dryrun;
     WT_CURSOR_BTREE cbt;
     WT_DECL_RET;
+    bool dryrun;
 
     dryrun = S2C(session)->rts->dryrun;
 
@@ -251,7 +251,6 @@ static int
 __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, uint64_t recno,
   WT_ITEM *row_key, WT_CELL_UNPACK_KV *unpack, wt_timestamp_t rollback_timestamp)
 {
-    bool dryrun;
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(full_value);
     WT_DECL_ITEM(hs_key);
@@ -269,6 +268,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
     uint8_t type;
     char ts_string[4][WT_TS_INT_STRING_SIZE];
     char tw_string[WT_TIME_STRING_SIZE];
+    bool dryrun;
     bool valid_update_found;
 #ifdef HAVE_DIAGNOSTIC
     bool first_record;

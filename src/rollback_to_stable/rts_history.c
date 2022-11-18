@@ -16,11 +16,11 @@
 int
 __wt_rts_history_delete_hs(WT_SESSION_IMPL *session, WT_ITEM *key, wt_timestamp_t ts)
 {
-    bool dryrun;
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(hs_key);
     WT_DECL_RET;
     WT_TIME_WINDOW *hs_tw;
+    bool dryrun;
 
     dryrun = S2C(session)->rts->dryrun;
 
@@ -82,7 +82,6 @@ err:
 int
 __wt_rts_history_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_id)
 {
-    bool dryrun;
     WT_CURSOR *hs_cursor_start, *hs_cursor_stop;
     WT_DECL_ITEM(hs_key);
     WT_DECL_RET;
@@ -90,6 +89,7 @@ __wt_rts_history_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_id)
     wt_timestamp_t hs_start_ts;
     uint64_t hs_counter;
     uint32_t hs_btree_id;
+    bool dryrun;
 
     dryrun = S2C(session)->rts->dryrun;
 
@@ -137,8 +137,8 @@ __wt_rts_history_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_id)
     } while (hs_btree_id != btree_id);
 
     if (!dryrun)
-        WT_ERR(
-          truncate_session->truncate(truncate_session, NULL, hs_cursor_start, hs_cursor_stop, NULL));
+        WT_ERR(truncate_session->truncate(
+          truncate_session, NULL, hs_cursor_start, hs_cursor_stop, NULL));
 
     WT_STAT_CONN_DATA_INCR(session, cache_hs_btree_truncate);
 
