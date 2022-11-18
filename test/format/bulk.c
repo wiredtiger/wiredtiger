@@ -190,21 +190,22 @@ table_load(TABLE *base, TABLE *table)
             break;
         }
 
+        /*
+         * When first starting up, report the progress for every 10 keys in the first 5K keys. After
+         * 5K records, report every 5K keys.
+         */
         report_progress = (keyno < 5000 && keyno % 10 == 0) || keyno % 5000 == 0;
         /* Report on progress. */
         if (report_progress)
             track(track_buf, keyno);
 
         /*
-         * When first starting up, restart the enclosing transaction every 10 operations so we never
-         * end up with an empty object. After 5K records, restart the transaction every 5K records
-         * so we don't overflow the cache.
-         *
-         * If we are loading a mirrored table, commit after every operation to ensure that we are
+         * If we are loading a mirrored table, commit after every 10 operation to ensure that we are
          * not generating excessive cache pressure and we can successfully load the same content as
-         * the base table.
+         * the base table. Otherwise, commit if we report progress.
          */
-        if (g.transaction_timestamps_config && (report_progress || base != NULL)) {
+        if (g.transaction_timestamps_config &&
+          (report_progress || (base != NULL && keyno % 10 == 0))) {
             bulk_commit_transaction(session);
             committed_keyno = keyno;
             bulk_begin_transaction(session);
