@@ -322,9 +322,9 @@ def run_perf_tests(config: PerfConfig,
                 print("Batch test {}: Arguments: {}, Operations: {}".
                       format(index,  content["arguments"], content["operations"]))
             perf_stats = PerfStatCollection(content["operations"])
-            if (config.improved_accuracy):
-                arguments = configure_for_extra_accuracy(config, content["arguments"])
             if not args.reuse:
+                if (config.improved_accuracy):
+                    arguments = configure_for_extra_accuracy(config, content["arguments"])
                 run_test_wrapper(config=config, index=index, arguments=content["arguments"])
             reported_stats += process_results(config, perf_stats, index=index)
     else:
