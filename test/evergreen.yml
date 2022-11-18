@@ -4789,9 +4789,6 @@ tasks:
       - func: "fetch perf stats" 
         vars:
           test_name: "log"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "many-dhandle-stress"
       - func: "aggregate-perf-stats" 
 
 #######################################
