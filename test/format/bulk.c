@@ -200,12 +200,11 @@ table_load(TABLE *base, TABLE *table)
             track(track_buf, keyno);
 
         /*
-         * If we are loading a mirrored table, commit after every 10 operation to ensure that we are
-         * not generating excessive cache pressure and we can successfully load the same content as
-         * the base table. Otherwise, commit if we report progress.
+         * If we are loading a mirrored table, commit after each operation to ensure that we are not
+         * generating excessive cache pressure and we can successfully load the same content as the
+         * base table. Otherwise, commit if we report progress.
          */
-        if (g.transaction_timestamps_config &&
-          (report_progress || (base != NULL && keyno % 10 == 0))) {
+        if (g.transaction_timestamps_config && (report_progress || base != NULL)) {
             bulk_commit_transaction(session);
             committed_keyno = keyno;
             bulk_begin_transaction(session);
