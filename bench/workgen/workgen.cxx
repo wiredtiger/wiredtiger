@@ -958,6 +958,7 @@ ThreadRunner::op_run(Operation *op)
     uint64_t time_us;
     char buf[BUF_SIZE];
 
+    WT_CLEAR(item);
     track = NULL;
     cursor = NULL;
     recno = 0;
