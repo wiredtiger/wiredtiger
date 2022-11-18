@@ -4704,7 +4704,6 @@ tasks:
       - name: ".stress-perf !perf-test-many-table-stress !perf-test-many-table-stress-backup !perf-test-evict-fairness !perf-test-multi-btree-zipfian" 
       - name: ".evict-perf"
       - name: ".log-perf"
-      - name: perf-test-long-checkpoint-stress
     commands:
       - func: "get project"
       - command: shell.exec
@@ -4790,9 +4789,6 @@ tasks:
       - func: "fetch perf stats" 
         vars:
           test_name: "log"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "checkpoint-stress"
       - func: "fetch perf stats" 
         vars:
           test_name: "many-dhandle-stress"
