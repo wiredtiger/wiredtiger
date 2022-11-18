@@ -1582,89 +1582,32 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
- * __wt_page_del_visible_all --
- *     Check if a truncate operation is visible to everyone and the data under it is obsolete.
- */
-static inline bool
-__wt_page_del_visible_all(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, bool hide_prepared)
-{
-    uint8_t prepare_state;
-
-    /*
-     * Like other visible_all checks, use the durable timestamp to avoid complications: there is
-     * potentially a window where a prepared and committed transaction can be visible but not yet
-     * durable, and in that window the changes under it are not obsolete yet.
-     *
-     * The hide_prepared argument causes prepared but not committed transactions to be treated as
-     * invisible. (Apparently prepared and uncommitted transactions can be visible_all, but we need
-     * to not see them in some cases; for example, prepared deletions can't exist on disk because
-     * the on-disk format doesn't have space for the extra "I'm prepared" bit, so we avoid seeing
-     * them in reconciliation. Similarly, we can't skip over a page just because a transaction has
-     * deleted it and prepared; only committed transactions are suitable.)
-     *
-     * In all cases, the ref owning the page_deleted structure should be locked and its pre-lock
-     * state should be WT_REF_DELETED. This prevents the page from being instantiated while we look
-     * at it, and locks out other operations that might simultaneously discard the structure (either
-     * after checking visibility, or because its transaction aborted).
-     */
-
-    /* If the page delete info is NULL, the deletion was previously found to be globally visible. */
-    if (page_del == NULL)
-        return (true);
-
-    /*
-     * committed flag indicates whether truncate transaction is committed or not. In case of
-     * prepared transaction, truncate operation is committed in two phases. In the first phase
-     * prepared state is set to resolved and in the later phase the committed flag of all fast
-     * truncated pages is set to true. The two phase design is to handle any page split cases, when
-     * a fast truncated page is read back and later that page split, in which case all the new split
-     * pages will not have page_del info.
-     *
-     * There is a window between setting the prepared state to resolved and setting the committed
-     * flag to true. Hence if committed flag is not set, consider it as not committed irrespective
-     * of visibility check, to avoid checking visibility when transaction commit is in progress.
-     */
-    if (!page_del->committed)
-        return (false);
-
-    /* We discard page_del on transaction abort, so should never see an aborted one. */
-    WT_ASSERT(session, page_del->txnid != WT_TXN_ABORTED);
-
-    if (hide_prepared) {
-        WT_ORDERED_READ(prepare_state, page_del->prepare_state);
-        if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
-            return (false);
-    }
-
-    return (__wt_txn_visible_all(session, page_del->txnid, page_del->durable_timestamp));
-}
-
-/*
  * __wt_page_del_visible --
- *     Return if a truncate operation is visible to the caller. The same considerations apply as in
- *     the visible_all version.
+ *     Return if a truncate operation is visible. Check can be for either global visibility or for
+ *     just caller, which could be controlled through check_global_visibility.
  */
 static inline bool
-__wt_page_del_visible(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, bool hide_prepared)
+__wt_page_del_visible(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, bool hide_prepared,
+  bool check_global_visibility)
 {
     uint8_t prepare_state;
 
-    /* If the page delete info is NULL, the deletion was previously found to be globally visible. */
     if (page_del == NULL)
         return (true);
+
     /*
-     * committed flag indicates whether truncate transaction is committed or not. In case of
-     * prepared transaction, truncate operation is committed in two phases. In the first phase
-     * prepared state is set to resolved and in the later phase the committed flag of all fast
-     * truncated pages is set to true. The two phase design is to handle any page split cases, when
-     * a fast truncated page is read back and later that page split, in which case all the new split
-     * pages will not have page_del info.
+     * Check whether truncate transaction is committed or not. In case of prepared transaction,
+     * truncate operation is committed in two phases. In the first phase prepared state is set to
+     * resolved and in the later phase the committed flag of all fast truncated pages is set to
+     * true. The two phase design is to handle any page split cases, when a fast truncated page is
+     * read back and later that page split, in which case all the new split pages will not have
+     * page_del info.
      *
      * There is a window between setting the prepared state to resolved and setting the committed
      * flag to true. Hence if committed flag is not set, consider it as not committed irrespective
      * of visibility check, to avoid checking visibility when transaction commit is in progress.
      */
-    if (!page_del->committed)
+    if (!__wt_page_del_committed(page_del))
         return (false);
 
     /* We discard page_del on transaction abort, so should never see an aborted one. */
@@ -1676,7 +1619,10 @@ __wt_page_del_visible(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, bool 
             return (false);
     }
 
-    return (__wt_txn_visible(session, page_del->txnid, page_del->timestamp));
+    if (check_global_visibility)
+        return (__wt_txn_visible_all(session, page_del->txnid, page_del->durable_timestamp));
+    else
+        return (__wt_txn_visible(session, page_del->txnid, page_del->timestamp));
 }
 
 /*
@@ -2304,7 +2250,8 @@ __wt_btcur_skip_page(
      * In all cases, make use of the option to __wt_page_del_visible to hide prepared transactions,
      * as we shouldn't skip pages where the deletion is prepared but not committed.
      */
-    if (previous_state == WT_REF_DELETED && __wt_page_del_visible(session, ref->page_del, true)) {
+    if (previous_state == WT_REF_DELETED &&
+      __wt_page_del_visible(session, ref->page_del, true, false)) {
         *skipp = true;
         goto unlock;
     }
@@ -2318,7 +2265,7 @@ __wt_btcur_skip_page(
           (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page))) &&
       __wt_ref_addr_copy(session, ref, &addr)) {
         /* If there's delete information in the disk address, we can use it. */
-        if (addr.del_set && __wt_page_del_visible(session, &addr.del, true)) {
+        if (addr.del_set && __wt_page_del_visible(session, &addr.del, true, false)) {
             *skipp = true;
             goto unlock;
         }

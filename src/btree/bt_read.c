@@ -168,7 +168,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
          * work to avoid that.
          */
         WT_ERR(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
-        if (ref->page_del != NULL && __wt_page_del_visible_all(session, ref->page_del, true))
+        if (ref->page_del != NULL && __wt_page_del_visible(session, ref->page_del, true, true))
             __wt_overwrite_and_free(session, ref->page_del);
 
         if (ref->page_del == NULL) {

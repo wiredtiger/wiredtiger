@@ -32,15 +32,13 @@ __rec_child_deleted(
         return (__wt_ref_block_free(session, ref));
 
     /*
-     * Check visibility. If the truncation is visible to us, we'll also want to know if it's visible
-     * to everyone. Use the special-case logic in __wt_page_del_visible to hide prepared truncations
-     * as we can't write them to disk.
+     * Check visibility. If the truncation is globally visible, if not, is it visible to us. Use the
+     * special-case logic in __wt_page_del_visible to hide prepared truncations as we can't write
+     * them to disk.
      */
-    if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
-        visible = __wt_page_del_visible(session, page_del, true);
-        visible_all = visible ? __wt_page_del_visible_all(session, page_del, true) : false;
-    } else
-        visible = visible_all = __wt_page_del_visible_all(session, page_del, true);
+    visible = visible_all = __wt_page_del_visible(session, page_del, true, true);
+    if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) && !visible)
+        visible = __wt_page_del_visible(session, page_del, true, false);
 
     /*
      * If an earlier reconciliation chose to write the fast truncate information to the page, we

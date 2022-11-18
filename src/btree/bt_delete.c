@@ -364,6 +364,7 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 {
     bool discard, skip;
 
+    WT_UNUSED(visible_all);
     /*
      * Deleted pages come from several possible sources (as described at the top of this file).
      *
@@ -391,12 +392,9 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
      * discard the page_del info either, as doing so leads to dropping the on-disk page and if the
      * prepared transaction rolls back we'd then be in trouble.
      */
-    if (visible_all)
-        skip = discard = __wt_page_del_visible_all(session, ref->page_del, true);
-    else {
-        skip = __wt_page_del_visible(session, ref->page_del, true);
-        discard = skip ? __wt_page_del_visible_all(session, ref->page_del, true) : false;
-    }
+    skip = discard = __wt_page_del_visible(session, ref->page_del, true, true);
+    if (!discard)
+        skip = __wt_page_del_visible(session, ref->page_del, true, true);
 
     /*
      * The fast-truncate structure can be freed as soon as the delete is globally visible: it is
