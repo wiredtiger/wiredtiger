@@ -25,4 +25,7 @@ struct __wt_rollback_to_stable {
     /* Methods */
     int (*rollback_to_stable_one)(WT_SESSION_IMPL *, const char *, bool *);
     int (*rollback_to_stable)(WT_SESSION_IMPL *, const char *[], bool);
+
+    /* Configuration */
+    bool dryrun;
 };

@@ -17,9 +17,12 @@ static int
 __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first_upd,
   wt_timestamp_t rollback_timestamp, bool *stable_update_found)
 {
+    bool dryrun;
     WT_UPDATE *stable_upd, *tombstone, *upd;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool txn_id_visible;
+
+    dryrun = S2C(session)->rts->dryrun;
 
     stable_upd = tombstone = NULL;
     txn_id_visible = false;
@@ -54,7 +57,8 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
               rollback_timestamp < upd->durable_ts ? "true" : "false", upd->prepare_state,
               upd->prepare_state == WT_PREPARE_INPROGRESS ? "true" : "false");
 
-            upd->txnid = WT_TXN_ABORTED;
+            if (!dryrun)
+                upd->txnid = WT_TXN_ABORTED;
             WT_STAT_CONN_INCR(session, txn_rts_upd_aborted);
         } else {
             /* Valid update is found. */
@@ -97,10 +101,12 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
              * Clear the history store flags for the first stable update. Otherwise, it will not be
              * moved to history store again.
              */
-            if (stable_upd != NULL)
-                F_CLR(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS);
-            if (tombstone != NULL)
-                F_CLR(tombstone, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS);
+            if (!dryrun) {
+                if (stable_upd != NULL)
+                    F_CLR(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS);
+                if (tombstone != NULL)
+                    F_CLR(tombstone, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS);
+            }
         }
         if (stable_update_found != NULL)
             *stable_update_found = true;
@@ -173,8 +179,11 @@ err:
 static inline int
 __rts_btree_col_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, uint64_t recno)
 {
+    bool dryrun;
     WT_CURSOR_BTREE cbt;
     WT_DECL_RET;
+
+    dryrun = S2C(session)->rts->dryrun;
 
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
@@ -183,11 +192,13 @@ __rts_btree_col_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, ui
     WT_ERR(__wt_col_search(&cbt, recno, ref, true, NULL));
 
     /* Apply the modification. */
+    if (!dryrun) {
 #ifdef HAVE_DIAGNOSTIC
-    WT_ERR(__wt_col_modify(&cbt, recno, NULL, upd, WT_UPDATE_INVALID, true, false));
+        WT_ERR(__wt_col_modify(&cbt, recno, NULL, upd, WT_UPDATE_INVALID, true, false));
 #else
-    WT_ERR(__wt_col_modify(&cbt, recno, NULL, upd, WT_UPDATE_INVALID, true));
+        WT_ERR(__wt_col_modify(&cbt, recno, NULL, upd, WT_UPDATE_INVALID, true));
 #endif
+    }
 
 err:
     /* Free any resources that may have been cached in the cursor. */
@@ -203,8 +214,11 @@ err:
 static inline int
 __rts_btree_row_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, WT_ITEM *key)
 {
+    bool dryrun;
     WT_CURSOR_BTREE cbt;
     WT_DECL_RET;
+
+    dryrun = S2C(session)->rts->dryrun;
 
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
@@ -213,11 +227,13 @@ __rts_btree_row_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, WT
     WT_ERR(__wt_row_search(&cbt, key, true, ref, true, NULL));
 
     /* Apply the modification. */
+    if (!dryrun) {
 #ifdef HAVE_DIAGNOSTIC
-    WT_ERR(__wt_row_modify(&cbt, key, NULL, upd, WT_UPDATE_INVALID, true, false));
+        WT_ERR(__wt_row_modify(&cbt, key, NULL, upd, WT_UPDATE_INVALID, true, false));
 #else
-    WT_ERR(__wt_row_modify(&cbt, key, NULL, upd, WT_UPDATE_INVALID, true));
+        WT_ERR(__wt_row_modify(&cbt, key, NULL, upd, WT_UPDATE_INVALID, true));
 #endif
+    }
 
 err:
     /* Free any resources that may have been cached in the cursor. */
@@ -235,6 +251,7 @@ static int
 __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, uint64_t recno,
   WT_ITEM *row_key, WT_CELL_UNPACK_KV *unpack, wt_timestamp_t rollback_timestamp)
 {
+    bool dryrun;
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(full_value);
     WT_DECL_ITEM(hs_key);
@@ -256,6 +273,8 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
 #ifdef HAVE_DIAGNOSTIC
     bool first_record;
 #endif
+
+    dryrun = S2C(session)->rts->dryrun;
 
     page = ref->page;
 
@@ -352,7 +371,8 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
               "history store stop is obsolete with time window: %s and pinned timestamp: %s",
               __wt_time_window_to_string(hs_tw, tw_string),
               __wt_timestamp_to_string(pinned_ts, ts_string[0]));
-            WT_ERR(hs_cursor->remove(hs_cursor));
+            if (!dryrun)
+                WT_ERR(hs_cursor->remove(hs_cursor));
             WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
             continue;
         }
@@ -456,7 +476,8 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
         first_record = false;
 #endif
 
-        WT_ERR(hs_cursor->remove(hs_cursor));
+        if (!dryrun)
+            WT_ERR(hs_cursor->remove(hs_cursor));
         WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
         WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts_unstable);
     }
@@ -556,7 +577,8 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
         /* Avoid freeing the updates while still in use if hs_cursor->remove fails. */
         upd = tombstone = NULL;
 
-        WT_ERR(hs_cursor->remove(hs_cursor));
+        if (!dryrun)
+            WT_ERR(hs_cursor->remove(hs_cursor));
         WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
         WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts);
     }
