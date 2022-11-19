@@ -30,6 +30,7 @@ struct __wt_chunkcache_hashid {
 struct __wt_chunkcache_chunk {
     TAILQ_ENTRY(__wt_chunkcache_chunk) next_chunk;
 
+    struct __wt_chunklist_head *my_queuehead_ptr;
     wt_off_t chunk_offset;
     size_t chunk_size;
     char *chunk_location;

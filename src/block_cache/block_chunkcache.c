@@ -54,7 +54,7 @@ __chunkcache_admit_size(WT_SESSION_IMPL *session)
 
 static int
 __chunkcache_alloc_chunk(
-  WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK **chunk, wt_off_t offset,  WT_BLOCK *block)
+    WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK **chunk, wt_off_t offset,  WT_BLOCK *block, struct __wt_chunklist_head *qptr)
 {
     WT_CHUNKCACHE *chunkcache;
     WT_CHUNKCACHE_CHUNK *newchunk;
@@ -80,6 +80,7 @@ __chunkcache_alloc_chunk(
                                         chunkcache->default_chunk_size);
     newchunk->chunk_size = WT_MIN(chunk_size,
                                   (size_t)(block->size - newchunk->chunk_offset));
+    newchunk->my_queuehead_ptr = qptr;
 
     printf("offset-convert: from %" PRIu64 " to %" PRIu64 "\n", offset, newchunk->chunk_offset);
     printf("chunk size = %ld\n",  newchunk->chunk_size);
@@ -157,7 +158,7 @@ __wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object
              * of what the size that the chunk cache can admit, but we reduce the chunk size
              * if the default would cause us to read past the end of the file.
              */
-            if (__chunkcache_alloc_chunk(session, &newchunk, offset, block) == 0) {
+            if (__chunkcache_alloc_chunk(session, &newchunk, offset, block, &chunkchain->chunks) == 0) {
                 printf("allocate: %s(%d), offset=%" PRId64 ", size=%ld\n",
                        (char*)&hash_id.objectname, hash_id.objectid, newchunk->chunk_offset,
                        newchunk->chunk_size);
@@ -190,16 +191,16 @@ __wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object
     /*
      * The chunk list for this file and object id is not present. Do we want to allocate it?
      */
-    if (__chunkcache_alloc_chunk(session, &newchunk, offset, block) == 0) {
-        if (__wt_calloc(session, 1, sizeof(WT_CHUNKCACHE_CHAIN), &newchain) != 0) {
-            __chunkcache_free_chunk(session, newchunk);
-            goto done;
-        }
+    if (__wt_calloc(session, 1, sizeof(WT_CHUNKCACHE_CHAIN), &newchain) == 0) {
         newchain->hash_id = hash_id;
         TAILQ_INSERT_HEAD(&bucket->chainq, newchain, next_link);
 
         /* Insert the new chunk. */
         TAILQ_INIT(&(newchain->chunks));
+
+        if (__chunkcache_alloc_chunk(session, &newchunk, offset, block, &(newchain->chunks)) != 0)
+            goto done;
+
         TAILQ_INSERT_HEAD(&newchain->chunks, newchunk, next_chunk);
         *chunk_to_read = newchunk;
 
@@ -273,6 +274,7 @@ __wt_chunkcache_remove(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objec
     uint64_t hash;
 
     chunkcache = &S2C(session)->chunkcache;
+    chunk = NULL;
 
     if (!chunkcache->configured)
         return;
@@ -305,6 +307,10 @@ __wt_chunkcache_remove(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objec
             }
     }
     __wt_spin_unlock(session, &chunkcache->bucket_locks[bucket_id]);
+
+    if (chunk != NULL)
+        __chunkcache_free_chunk(session, chunk);
+
 }
 
 /*
