@@ -2247,6 +2247,19 @@ tasks:
               ${test_env_vars|} ./test_fops
             fi
 
+  - name: bench-tiered-push-pull
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/bench/tiered"
+          script: |
+            set -o errexit
+            set -o verbose
+            ${test_env_vars|} ./test_push_pull
+
   - name: compatibility-test-for-newer-releases
     commands:
       - func: "get project"
@@ -4238,6 +4251,7 @@ buildvariants:
     - name: data-validation-stress-test-checkpoint-no-timestamp
     - name: unittest-test
     - name: tiered-storage-extensions-test
+    - name: bench-tiered-push-pull
 
 - name: ubuntu2004-asan
   display_name: "! Ubuntu 20.04 ASAN"

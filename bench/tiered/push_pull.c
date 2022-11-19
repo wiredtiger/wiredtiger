@@ -56,9 +56,9 @@ static void run_test_clean(const char *, uint64_t, bool);
 static void run_test(const char *, uint64_t, bool, int);
 static void populate(WT_SESSION *, uint64_t);
 
-double avg_time_array[MAX_RUN];
-double avg_throughput_array[MAX_RUN];
-int64_t avg_filesize_array[MAX_RUN];
+static double avg_time_array[MAX_RUN];
+static double avg_throughput_array[MAX_RUN];
+static int64_t avg_filesize_array[MAX_RUN];
 
 /*
  * main --
@@ -142,7 +142,8 @@ run_test_clean(const char *suffix, uint64_t num_records, bool flush)
     int64_t avg_file_size;
     int counter;
 
-    avg_file_size = avg_time = avg_throughput = 0;
+    avg_file_size = 0;
+    avg_time = avg_throughput = 0;
 
     for (counter = 0; counter < MAX_RUN; ++counter) {
         testutil_check(__wt_snprintf(
