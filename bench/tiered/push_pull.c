@@ -35,6 +35,7 @@
  */
 
 #define HOME_BUF_SIZE 512
+#define MAX_RUN 10
 #define MAX_TIERED_FILES 10
 #define NUM_RECORDS 500
 
@@ -47,11 +48,17 @@ static char data_str[200] = "";
 static TEST_OPTS *opts, _opts;
 
 /* Forward declarations. */
+
+static void compute_wt_file_size(const char *, const char *, int64_t *);
 static void compute_tiered_file_size(const char *, const char *, int64_t *);
 static void get_file_size(const char *, int64_t *);
 static void run_test_clean(const char *, uint64_t, bool);
-static void run_test(const char *, uint64_t, bool);
+static void run_test(const char *, uint64_t, bool, int);
 static void populate(WT_SESSION *, uint64_t);
+
+double avg_time_array[MAX_RUN];
+double avg_throughput_array[MAX_RUN];
+int64_t avg_filesize_array[MAX_RUN];
 
 /*
  * main --
@@ -67,31 +74,33 @@ main(int argc, char *argv[])
     testutil_check(testutil_parse_opts(argc, argv, opts));
 
     flush = false;
+    printf("The below benchmarks are average of %d runs\n", MAX_RUN);
     for (i = 0; i < 2; ++i) {
 
-        printf("============================================\n");
-        printf("Flush call %s\n", (opts->tiered_storage && flush) ? "enabled" : "disabled");
-        printf("============================================\n");
+        printf("############################################\n");
+        printf(
+          "            Flush call %s\n", (opts->tiered_storage && flush) ? "enabled" : "disabled");
+        printf("############################################\n");
 
         /*
          * Run test with 100K file size. Row store case.
          */
-        run_test_clean("100K", NUM_RECORDS, flush);
+        run_test_clean("100KB", NUM_RECORDS, flush);
 
         /*
          * Run test with 1Mb file size. Row store case.
          */
-        run_test_clean("1M", NUM_RECORDS * 10, flush);
+        run_test_clean("1MB", NUM_RECORDS * 10, flush);
 
         /*
          * Run test with 10 Mb file size. Row store case.
          */
-        run_test_clean("10M", NUM_RECORDS * 100, flush);
+        run_test_clean("10MB", NUM_RECORDS * 100, flush);
 
         /*
          * Run test with 100 Mb file size. Row store case.
          */
-        run_test_clean("100M", NUM_RECORDS * 1000, flush);
+        run_test_clean("100MB", NUM_RECORDS * 1000, flush);
         flush = true;
     }
 
@@ -129,15 +138,30 @@ static void
 run_test_clean(const char *suffix, uint64_t num_records, bool flush)
 {
     char home_full[HOME_BUF_SIZE];
+    double avg_time, avg_throughput;
+    int64_t avg_file_size;
+    int counter;
 
-    printf("Running %s test \n", suffix);
+    avg_file_size = avg_time = avg_throughput = 0;
 
-    testutil_check(__wt_snprintf(home_full, HOME_BUF_SIZE, "%s_%s_%d", opts->home, suffix, flush));
-    run_test(home_full, num_records, flush);
+    for (counter = 0; counter < MAX_RUN; ++counter) {
+        testutil_check(__wt_snprintf(
+          home_full, HOME_BUF_SIZE, "%s_%s_%d_%d", opts->home, suffix, flush, counter));
+        run_test(home_full, num_records, flush, counter);
 
-    /* Cleanup */
-    if (!opts->preserve)
-        testutil_clean_work_dir(home_full);
+        /* Cleanup */
+        if (!opts->preserve)
+            testutil_clean_work_dir(home_full);
+    }
+
+    for (counter = 0; counter < MAX_RUN; ++counter) {
+        avg_time += avg_time_array[counter];
+        avg_throughput += avg_throughput_array[counter];
+        avg_file_size += avg_filesize_array[counter];
+    }
+
+    printf("Bytes Written- %" PRIi64 " (~%s), Time took- %.3f seconds, Throughput- %.3f MB/second\n",
+      avg_file_size / MAX_RUN, suffix, avg_time / MAX_RUN, avg_throughput / MAX_RUN);
 }
 
 /*
@@ -145,7 +169,7 @@ run_test_clean(const char *suffix, uint64_t num_records, bool flush)
  *     TODO: Add a comment describing this function.
  */
 static void
-run_test(const char *home, uint64_t num_records, bool flush)
+run_test(const char *home, uint64_t num_records, bool flush, int counter)
 {
     struct timeval start, end;
 
@@ -156,6 +180,7 @@ run_test(const char *home, uint64_t num_records, bool flush)
     WT_CONNECTION *conn;
     WT_SESSION *session;
 
+    file_size = 0;
     testutil_make_work_dir(home);
     if (opts->tiered_storage) {
         testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/bucket", home));
@@ -178,12 +203,15 @@ run_test(const char *home, uint64_t num_records, bool flush)
 
     diff_sec = difftime_sec(start, end);
 
+    /* Sleep to guarantee the tables are created to read the size. */
     sleep(1);
 
     get_file_size(home, &file_size);
     testutil_assert(diff_sec > 0);
-    printf("Bytes Written - %" PRIi64 ", Time took - %f seconds, Throughput - %f MB/second\n",
-      file_size, diff_sec, ((file_size / diff_sec) / WT_MEGABYTE));
+
+    avg_time_array[counter] = diff_sec;
+    avg_throughput_array[counter] = ((file_size / diff_sec) / WT_MEGABYTE);
+    avg_filesize_array[counter] = file_size;
 }
 
 /*
@@ -227,7 +255,7 @@ compute_tiered_file_size(const char *home, const char *tablename, int64_t *file_
     int index;
     struct stat stats;
 
-    for (index = 2; index < MAX_TIERED_FILES; ++index) {
+    for (index = 1; index < MAX_TIERED_FILES; ++index) {
         testutil_check(__wt_snprintf(
           stat_path, sizeof(stat_path), "%s/%s-%10.10d.wtobj", home, tablename, index));
 
@@ -240,15 +268,29 @@ compute_tiered_file_size(const char *home, const char *tablename, int64_t *file_
 }
 
 /*
+ * compute_wt_file_size --
+ *     Compute wt file size.
+ */
+static void
+compute_wt_file_size(const char *home, const char *tablename, int64_t *file_size)
+{
+    char stat_path[512];
+    struct stat stats;
+
+    testutil_check(__wt_snprintf(stat_path, sizeof(stat_path), "%s/%s.wt", home, tablename));
+    if (stat(stat_path, &stats) == 0)
+        *file_size = stats.st_size;
+    else
+        testutil_die(ENOENT, "%s does not exist", stat_path);
+}
+
+/*
  * get_file_size --
  *     Retrieve the file size of the table.
  */
 static void
 get_file_size(const char *home, int64_t *file_size)
 {
-    struct stat stats;
-
-    char stat_path[512];
     const char *tablename;
 
     tablename = strchr(opts->uri, ':');
@@ -256,16 +298,7 @@ get_file_size(const char *home, int64_t *file_size)
     tablename++;
 
     if (opts->tiered_storage)
-        testutil_check(
-          __wt_snprintf(stat_path, sizeof(stat_path), "%s/%s-0000000001.wtobj", home, tablename));
+        compute_tiered_file_size(home, tablename, file_size);
     else
-        testutil_check(__wt_snprintf(stat_path, sizeof(stat_path), "%s/%s.wt", home, tablename));
-
-    if (stat(stat_path, &stats) == 0) {
-        *file_size = stats.st_size;
-        /* For tiered storage iterate all the files and compute the file size. */
-        if (opts->tiered_storage)
-            compute_tiered_file_size(home, tablename, file_size);
-        return;
-    }
+        compute_wt_file_size(home, tablename, file_size);
 }
