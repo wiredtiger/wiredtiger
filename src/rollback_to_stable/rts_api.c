@@ -126,9 +126,12 @@ __rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
 static int
 __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
 {
+    WT_CONFIG_ITEM cval;
     WT_DECL_RET;
+    bool dryrun;
 
-    WT_UNUSED(cfg);
+    WT_RET_NOTFOUND_OK(__wt_config_gets(session, cfg, "dryrun", &cval));
+    dryrun = cval.val != 0;
 
     /*
      * Don't use the connection's default session: we are working on data handles and (a) don't want
@@ -138,6 +141,8 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
      */
     WT_RET(
       __wt_open_internal_session(S2C(session), "txn rollback_to_stable", true, 0, 0, &session));
+
+    S2C(session)->rts->dryrun = dryrun;
 
     WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 1);
     WT_WITH_CHECKPOINT_LOCK(
