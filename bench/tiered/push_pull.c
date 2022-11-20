@@ -161,7 +161,8 @@ run_test_clean(const char *suffix, uint64_t num_records, bool flush)
         avg_file_size += avg_filesize_array[counter];
     }
 
-    printf("Bytes Written- %" PRIi64 " (~%s), Time took- %.3f seconds, Throughput- %.3f MB/second\n",
+    printf("Bytes Written- %" PRIi64
+           " (~%s), Time took- %.3f seconds, Throughput- %.3f MB/second\n",
       avg_file_size / MAX_RUN, suffix, avg_time / MAX_RUN, avg_throughput / MAX_RUN);
 }
 
