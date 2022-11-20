@@ -46,7 +46,10 @@ functions:
     params:
       aws_key: ${aws_key}
       aws_secret: ${aws_secret}
-      remote_file: "wiredtiger/${build_variant}/${revision}/perf-test-${test_name}-${build_id}-${execution}/evergreen_out_${test_name}.wtperf.json"
+      # Note that this path doesn't include ${execution}. This file is identical to the one 
+      # displayed on the Files page of the task, but located in a separate folder so `fetch perf stats` 
+      # can handle when a task fails and has to be restarted.
+      remote_file: "wiredtiger/${build_variant}/${revision}/perf-test-${test_name}-${build_id}/evergreen_out_${test_name}.wtperf.json"
       bucket: build_external
       local_file: "perf_stats/evergreen_out_${test_name}.wtperf.json"
   "fetch endian format artifacts" :
@@ -740,6 +743,17 @@ functions:
         permissions: public-read
         content_type: text/html
         remote_file: wiredtiger/${build_variant}/${revision}/${task_name}-${build_id}-${execution}/
+    # Also save the evergreen results to a second folder that ignores ${execution}.
+    # This allows `fetch perf stats` to work even if this task needs to be restarted.
+    - command: s3.put
+      params:
+        aws_secret: ${aws_secret}
+        aws_key: ${aws_key}
+        local_files_include_filter: wiredtiger/cmake_build/bench/wtperf/test_stats/evergreen_out_${perf-test-name}.json
+        bucket: build_external
+        permissions: public-read
+        content_type: text/html
+        remote_file: wiredtiger/${build_variant}/${revision}/${task_name}-${build_id}/
 
   "aggregate-perf-stats":
     - command: shell.exec
@@ -3968,7 +3982,7 @@ tasks:
         vars:
           perf-test-name: update-btree.wtperf
           maxruns: 1
-          wtarg: ${improved_accuracy|} "-bf ../../../bench/wtperf/runners/update-btree.json" 
+          wtarg: "-bf ../../../bench/wtperf/runners/update-btree.json ${improved_accuracy|} " 
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-btree.wtperf
@@ -4096,7 +4110,7 @@ tasks:
         vars:
           perf-test-name: update-checkpoint-btree.wtperf
           maxruns: 1
-          wtarg: ${improved_accuracy|} "-bf ../../../bench/wtperf/runners/update-checkpoint.json"
+          wtarg: "-bf ../../../bench/wtperf/runners/update-checkpoint.json ${improved_accuracy|}"
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-checkpoint-btree.wtperf
@@ -4112,7 +4126,7 @@ tasks:
         vars:
           perf-test-name: update-checkpoint-lsm.wtperf
           maxruns: 1
-          wtarg: ${improved_accuracy|} "-bf ../../../bench/wtperf/runners/update-checkpoint.json" 
+          wtarg: "-bf ../../../bench/wtperf/runners/update-checkpoint.json ${improved_accuracy|}" 
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-checkpoint-lsm.wtperf
@@ -4684,14 +4698,12 @@ tasks:
 
   - name: aggregate-perf-stats
     depends_on:
-      - name: ".lsm-perf"
       - name: ".btree-perf"
-      - name: ".oplog-perf"
+      - name: ".oplog-perf !perf-test-mongodb-large-oplog"
       - name: perf-test-update-checkpoint-btree
-      - name: ".stress-perf !perf-test-many-table-stress !perf-test-many-table-stress-backup !perf-test-evict-fairness" 
+      - name: ".stress-perf !perf-test-many-table-stress !perf-test-many-table-stress-backup !perf-test-evict-fairness !perf-test-multi-btree-zipfian" 
       - name: ".evict-perf"
       - name: ".log-perf"
-      - name: perf-test-long-checkpoint-stress
     commands:
       - func: "get project"
       - command: shell.exec
@@ -4699,24 +4711,6 @@ tasks:
           shell: bash
           script: |
             mkdir perf_stats
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "small-lsm"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "medium-lsm"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "medium-lsm-compact"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "medium-multi-lsm"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "parallel-pop-lsm"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "update-lsm"
       - func: "fetch perf stats" 
         vars:
           test_name: "small-btree"
@@ -4755,9 +4749,6 @@ tasks:
           test_name: "mongodb-small-oplog"
       - func: "fetch perf stats" 
         vars:
-          test_name: "mongodb-large-oplog"
-      - func: "fetch perf stats" 
-        vars:
           test_name: "mongodb-secondary-apply"
       - func: "fetch perf stats" 
         vars:
@@ -4788,9 +4779,6 @@ tasks:
           test_name: "update-delta-mix3"
       - func: "fetch perf stats" 
         vars:
-          test_name: "multi-btree-zipfian-workload" 
-      - func: "fetch perf stats" 
-        vars:
           test_name: "evict-btree-stress-multi"
       - func: "fetch perf stats" 
         vars:
@@ -4801,12 +4789,6 @@ tasks:
       - func: "fetch perf stats" 
         vars:
           test_name: "log"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "checkpoint-stress"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "many-dhandle-stress"
       - func: "aggregate-perf-stats" 
 
 #######################################
@@ -5105,7 +5087,7 @@ buildvariants:
     - name: Wiredtiger-perf-btree-jobs
       execution_tasks:
       - ".btree-perf"
-    # Disable LSM perf tests till the support for LSM is restored.
+    # FIXME-WT-8867: Disable LSM perf tests till the support for LSM is restored.
     # - name: Wiredtiger-perf-lsm-jobs
     #   execution_tasks:
     #   - ".lsm-perf"
@@ -5155,7 +5137,7 @@ buildvariants:
   tasks:
     - name: compile
     - name: ".btree-perf"
-    # Disable LSM perf tests till the support for LSM is restored.
+    # FIXME-WT-8867: Disable LSM perf tests till the support for LSM is restored.
     # - name: ".lsm-perf"
     - name: ".stress-perf"
     - name: ".checkpoint-perf"

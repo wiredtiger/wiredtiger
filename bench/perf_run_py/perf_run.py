@@ -124,7 +124,7 @@ def detailed_perf_stats(config: PerfConfig, reported_stats: List[PerfStat]):
 
     return as_dict
 
-def configure_for_extra_accuracy(config: PerfConfig, arguments: List[str]):
+def configure_for_extra_accuracy(config: PerfConfig, arguments: List[str]) -> List[str]:
     """
     When the `extra_accuracy` flag is set we want to run each test multiple times to 
     ensure a more stable result. However, this can take a lot of time for longer tests 
@@ -153,6 +153,7 @@ def configure_for_extra_accuracy(config: PerfConfig, arguments: List[str]):
     if not(arguments):
         arguments = []
     arguments += [f"-o {new_run_time}"]
+    return arguments
 
 def run_test_wrapper(config: PerfConfig, index: int = 0, arguments: List[str] = None):
     for test_run in range(config.run_max):
@@ -320,13 +321,17 @@ def run_perf_tests(config: PerfConfig,
             if args.verbose:
                 print("Batch test {}: Arguments: {}, Operations: {}".
                       format(index,  content["arguments"], content["operations"]))
-                perf_stats = PerfStatCollection(content["operations"])
-                if not args.reuse:
-                    run_test_wrapper(config=config, index=index, arguments=content["arguments"])
-                reported_stats += process_results(config, perf_stats, index=index)
+            perf_stats = PerfStatCollection(content["operations"])
+            if not args.reuse:
+                if (config.improved_accuracy):
+                    arguments = configure_for_extra_accuracy(config, content["arguments"])
+                run_test_wrapper(config=config, index=index, arguments=content["arguments"])
+            reported_stats += process_results(config, perf_stats, index=index)
     else:
         perf_stats = PerfStatCollection(operations)
         if not args.reuse:
+            if (config.improved_accuracy):
+                arguments = configure_for_extra_accuracy(config, arguments)
             run_test_wrapper(config=config, index=0, arguments=arguments)
         reported_stats = process_results(config, perf_stats)
 
@@ -359,8 +364,6 @@ def main():
     args = parse_args()
     (arguments, operations, config, batch_file_contents) = parse_json_args(args=args)
     validate_operations(config=config, batch_file_contents=batch_file_contents, operations=operations)
-    if (config.improved_accuracy):
-            configure_for_extra_accuracy(config, arguments)
     reported_stats = run_perf_tests(config=config,
                                     batch_file_contents=batch_file_contents,
                                     args=args,
