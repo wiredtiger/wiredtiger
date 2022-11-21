@@ -31,6 +31,10 @@ class Stat:
     def __cmp__(self, other):
         return cmp(self.desc.lower(), other.desc.lower())
 
+class AutoCommitStat(Stat):
+    prefix = 'autocommit'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, AutoCommitStat.prefix, desc, flags)
 class BlockCacheStat(Stat):
     prefix = 'block-cache'
     def __init__(self, name, desc, flags=''):
@@ -187,6 +191,7 @@ conn_stats = [
     BlockCacheStat('block_cache_blocks_insert_read', 'total blocks inserted on read path'),
     BlockCacheStat('block_cache_blocks_insert_write', 'total blocks inserted on write path'),
     BlockCacheStat('block_cache_blocks_removed', 'removed blocks'),
+    BlockCacheStat('block_cache_blocks_removed_blocked', 'time sleeping to remove block (usecs)'),
     BlockCacheStat('block_cache_blocks_update', 'cached blocks updated'),
     BlockCacheStat('block_cache_bypass_chkpt', 'number of put bypasses on checkpoint I/O'),
     BlockCacheStat('block_cache_bypass_filesize', 'file size causing bypass'),
@@ -803,6 +808,12 @@ dsrc_stats = sorted(dsrc_stats, key=attrgetter('desc'))
 # CONNECTION AND DATA SOURCE statistics
 ##########################################
 conn_dsrc_stats = [
+    ##########################################
+    # Autocommit statistics
+    ##########################################
+    AutoCommitStat('autocommit_readonly_retry', 'retries for readonly operations'),
+    AutoCommitStat('autocommit_update_retry', 'retries for update operations'),
+
     ##########################################
     # Cache and eviction statistics
     ##########################################

@@ -12,6 +12,7 @@ pre:
   - func: "cleanup"
 post:
   - func: "dump stacktraces"
+  - func: "upload stacktraces"
   - func: "dump stderr/stdout"
   - func: "upload artifact"
     vars:
@@ -106,6 +107,7 @@ functions:
           ${CMAKE_INSTALL_PREFIX|} \
           ${CMAKE_PREFIX_PATH|} \
           ${CMAKE_TOOLCHAIN_FILE|} \
+          ${NONSTANDALONE|} \
           ${ENABLE_SHARED|} \
           ${ENABLE_STATIC|} \
           ${HAVE_BUILTIN_EXTENSION_LZ4|} \
@@ -184,6 +186,25 @@ functions:
           set -o verbose
           echo '#undef HAVE_FTRUNCATE' >> config/wiredtiger_config.h
     - *make_wiredtiger
+  "dump stacktraces": &dump_stacktraces
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/cmake_build"
+      script: |
+        set -o errexit
+        set -o verbose
+        ${python_binary|python3} ../test/evergreen/print_stack_trace.py
+  "upload stacktraces": &upload_stacktraces
+    command: s3.put
+    params:
+      aws_secret: ${aws_secret}
+      aws_key: ${aws_key}
+      local_files_include_filter:
+        - wiredtiger/cmake_build/*stacktrace.txt
+      bucket: build_external
+      permissions: public-read
+      content_type: text/plain
+      remote_file: wiredtiger/${build_variant}/${revision}/artifacts/
   "run data validation stress test checkpoint":
     - *fetch_artifacts
     - command: shell.exec
@@ -365,11 +386,11 @@ functions:
           echo "$exit_code" > cppsuite_exit_code
           if [ "$exit_code" != 0 ]; then
             echo "[{\"info\":{\"test_name\": \"${test_name}\"},\"metrics\": []}]" > ${test_name}.json
-            # Since we later remove the WiredTiger folder, we need to check for core dumps now.
-            cd ../..
-            ${python_binary|python3} ../test/evergreen/print_stack_trace.py
           fi
           exit 0
+    # Since we later remove the WiredTiger folder, we need to check for core dumps now.
+    - *dump_stacktraces
+    - *upload_stacktraces
     - command: perf.send
       params:
         file: ./wiredtiger/cmake_build/test/cppsuite/${test_name}.json
@@ -587,26 +608,6 @@ functions:
         display_name: WT Hang Analyzer Output - Execution ${execution}
         remote_file: wiredtiger/${build_variant}/${revision}/wt_hang_analyzer/wt-hang-analyzer_${task_name}_${build_id}${postfix|}.tgz
 
-  "dump stacktraces":
-    - command: shell.exec
-      params:
-        working_dir: "wiredtiger/cmake_build"
-        script: |
-          set -o errexit
-          set -o verbose
-          ${python_binary|python3} ../test/evergreen/print_stack_trace.py
-
-    - command: s3.put
-      params:
-        aws_secret: ${aws_secret}
-        aws_key: ${aws_key}
-        local_files_include_filter:
-          - wiredtiger/cmake_build/*stacktrace.txt
-        bucket: build_external
-        permissions: public-read
-        content_type: text/plain
-        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/
-
   "dump stderr/stdout":
     command: shell.exec
     params:
@@ -806,6 +807,19 @@ variables:
         vars:
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 360
 
+  - &format-stress-test-nonstandalone
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+      - func: "format test script"
+        vars:
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 360
+
   - &format-stress-sanitizer-ppc-test
     exec_timeout_secs: 25200
     commands:
@@ -861,6 +875,18 @@ variables:
         vars:
           times: 25
 
+  - &recovery-stress-test-nonstandalone
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+      - func: "recovery stress test script"
+        vars:
+          times: 25
+
 #######################################
 #               Tasks                 #
 #######################################
@@ -904,14 +930,6 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           HAVE_FTRUNCATE: -DHAVE_FTRUNCATE=0
-      - func: "upload artifact"
-      - func: "cleanup"
-
-  - name: compile-wtperf
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
       - func: "upload artifact"
       - func: "cleanup"
 
@@ -962,6 +980,16 @@ tasks:
           CLANG_C_VERSION: -DCLANG_C_VERSION=8
           CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=8
 
+  # Base compile for nonstandalone build
+  - name: compile-nonstandalone
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+      - func: "upload artifact"
+      - func: "cleanup"
+
   - name: make-check-test
     commands:
       - func: "get project"
@@ -974,6 +1002,14 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           HAVE_FTRUNCATE: -DHAVE_FTRUNCATE=0
+      - func: "make check all"
+
+  - name: make-check-nonstandalone
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
       - func: "make check all"
 
   # Start of normal make check test tasks
@@ -1428,6 +1464,149 @@ tasks:
           test_config_filename: configs/bounded_cursor_perf_stress.txt
           test_name: bounded_cursor_perf
 
+  - name: cppsuite-operations-test-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/operations_test_stress.txt
+          test_name: operations_test
+
+  - name: cppsuite-hs-cleanup-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/hs_cleanup_stress.txt
+          test_name: hs_cleanup
+
+  - name: cppsuite-burst-inserts-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/burst_inserts_stress.txt
+          test_name: burst_inserts
+
+  - name: cppsuite-bounded-cursor-stress-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/bounded_cursor_stress_stress.txt
+          test_name: bounded_cursor_stress
+
+  - name: cppsuite-bounded-cursor-stress-reverse-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/bounded_cursor_stress_reverse_stress.txt
+          test_name: bounded_cursor_stress
+
+  - name: cppsuite-bounded-cursor-prefix-stat-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/bounded_cursor_prefix_stat_stress.txt
+          test_name: bounded_cursor_prefix_stat
+
+  - name: cppsuite-bounded-cursor-prefix-search-near-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/bounded_cursor_prefix_search_near_stress.txt
+          test_name: bounded_cursor_prefix_search_near
+
+  - name: cppsuite-bounded-cursor-prefix-indices-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/bounded_cursor_prefix_indices_stress.txt
+          test_name: bounded_cursor_prefix_indices
+
+  - name: cppsuite-search-near-01-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/search_near_01_stress.txt
+          test_name: search_near_01
+
+  - name: cppsuite-search-near-02-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/search_near_02_stress.txt
+          test_name: search_near_02
+
+  - name: cppsuite-search-near-03-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/search_near_03_stress.txt
+          test_name: search_near_03
+
   # End of cppsuite test tasks.
   # Start of csuite test tasks
 
@@ -1858,6 +2037,17 @@ tasks:
         vars:
           test_name: wt8963_insert_stress
 
+  - name: csuite-wt8963-insert-stress-test-nonstandalone
+    tags: ["stress-test-1-nonstandalone"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+      - func: "csuite test"
+        vars:
+          test_name: wt8963_insert_stress
+
   - name: csuite-wt9937-parse-opts-test
     tags: ["pull_request"]
     depends_on:
@@ -1880,6 +2070,18 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test"
 
+  - name: unit-test-nonstandalone
+    tags: ["python"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook nonstandalone
+
   - name: unit-test-zstd
     tags: ["python"]
     depends_on:
@@ -1899,6 +2101,18 @@ tasks:
       - func: "unit test"
         vars:
           unit_test_args: -v 2 --long
+
+  - name: unit-test-long-nonstandalone
+    tags: ["python", "python-nonstandalone"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --long --hook nonstandalone
 
   - name: unit-linux-no-ftruncate-test
     tags: ["python"]
@@ -2090,7 +2304,8 @@ tasks:
           unit_test_args: -v 2 -b 10/11
 
   - name: unit-test-long-bucket00
-    tags: ["python"]
+    tags: ["python", "unit_test_long"]
+    patch_only: true
     depends_on:
     - name: compile
     commands:
@@ -2100,7 +2315,8 @@ tasks:
           unit_test_args: -v 2 --long -b 0/11
 
   - name: unit-test-long-bucket01
-    tags: ["python"]
+    tags: ["python", "unit_test_long"]
+    patch_only: true
     depends_on:
     - name: compile
     commands:
@@ -2110,7 +2326,8 @@ tasks:
           unit_test_args: -v 2 --long -b 1/11
 
   - name: unit-test-long-bucket02
-    tags: ["python"]
+    tags: ["python", "unit_test_long"]
+    patch_only: true
     depends_on:
     - name: compile
     commands:
@@ -2120,7 +2337,8 @@ tasks:
           unit_test_args: -v 2 --long -b 2/11
 
   - name: unit-test-long-bucket03
-    tags: ["python"]
+    tags: ["python", "unit_test_long"]
+    patch_only: true
     depends_on:
     - name: compile
     commands:
@@ -2130,9 +2348,11 @@ tasks:
           unit_test_args: -v 2 --long -b 3/11
 
   - name: unit-test-long-bucket04
-    tags: ["python"]
+    tags: ["python", "unit_test_long"]
+    patch_only: true
     depends_on:
     - name: compile
+    run_on: ubuntu2004-medium
     commands:
       - func: "fetch artifacts"
       - func: "unit test"
@@ -2140,7 +2360,8 @@ tasks:
           unit_test_args: -v 2 --long -b 4/11
 
   - name: unit-test-long-bucket05
-    tags: ["python"]
+    tags: ["python", "unit_test_long"]
+    patch_only: true
     depends_on:
     - name: compile
     commands:
@@ -2150,7 +2371,8 @@ tasks:
           unit_test_args: -v 2 --long -b 5/11
 
   - name: unit-test-long-bucket06
-    tags: ["python"]
+    tags: ["python", "unit_test_long"]
+    patch_only: true
     depends_on:
     - name: compile
     commands:
@@ -2160,7 +2382,8 @@ tasks:
           unit_test_args: -v 2 --long -b 6/11
 
   - name: unit-test-long-bucket07
-    tags: ["python"]
+    tags: ["python", "unit_test_long"]
+    patch_only: true
     depends_on:
     - name: compile
     commands:
@@ -2170,7 +2393,8 @@ tasks:
           unit_test_args: -v 2 --long -b 7/11
 
   - name: unit-test-long-bucket08
-    tags: ["python"]
+    tags: ["python", "unit_test_long"]
+    patch_only: true
     depends_on:
     - name: compile
     commands:
@@ -2180,7 +2404,8 @@ tasks:
           unit_test_args: -v 2 --long -b 8/11
 
   - name: unit-test-long-bucket09
-    tags: ["python"]
+    tags: ["python", "unit_test_long"]
+    patch_only: true
     depends_on:
     - name: compile
     commands:
@@ -2190,7 +2415,8 @@ tasks:
           unit_test_args: -v 2 --long -b 9/11
 
   - name: unit-test-long-bucket10
-    tags: ["python"]
+    tags: ["python", "unit_test_long"]
+    patch_only: true
     depends_on:
     - name: compile
     commands:
@@ -2652,11 +2878,11 @@ tasks:
 
   - name: wtperf-test
     depends_on:
-      - name: compile-wtperf
+      - name: compile
     commands:
       - func: "fetch artifacts"
         vars:
-          dependent_task: compile-wtperf
+          dependent_task: compile
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build"
@@ -2863,6 +3089,7 @@ tasks:
             ./wtperf -O ./split_heavy.wtperf -o verbose=2
 
   - name: data-validation-stress-test-checkpoint
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -2871,12 +3098,14 @@ tasks:
           run_test_checkpoint_args: -x
 
   - name: data-validation-stress-test-checkpoint-no-timestamp
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
       - func: "run data validation stress test checkpoint"
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -2885,6 +3114,7 @@ tasks:
           run_test_checkpoint_args: -x -s 1
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1-no-timestamp
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -2893,6 +3123,7 @@ tasks:
           run_test_checkpoint_args: -s 1
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s2
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -2901,6 +3132,7 @@ tasks:
           run_test_checkpoint_args: -x -s 2
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -2909,6 +3141,7 @@ tasks:
           run_test_checkpoint_args: -x -s 3
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3-no-timestamp
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -2917,6 +3150,7 @@ tasks:
           run_test_checkpoint_args: -s 3
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s4
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -2925,6 +3159,7 @@ tasks:
           run_test_checkpoint_args: -x -s 4
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -2933,6 +3168,7 @@ tasks:
           run_test_checkpoint_args: -x -s 5
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5-no-timestamp
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -2941,6 +3177,7 @@ tasks:
           run_test_checkpoint_args: -s 5
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s6
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -2949,11 +3186,131 @@ tasks:
           run_test_checkpoint_args: -x -s 6
   
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s7
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
+          run_test_checkpoint_args: -x -s 7
+
+  - name: data-validation-stress-test-checkpoint-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          dependent_task: compile-nonstandalone
+          run_test_checkpoint_args: -x
+
+  - name: data-validation-stress-test-checkpoint-no-timestamp-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          dependent_task: compile-nonstandalone
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          dependent_task: compile-nonstandalone
+          run_test_checkpoint_args: -x -s 1
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1-no-timestamp-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          dependent_task: compile-nonstandalone
+          run_test_checkpoint_args: -s 1
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s2-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          dependent_task: compile-nonstandalone
+          run_test_checkpoint_args: -x -s 2
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          dependent_task: compile-nonstandalone
+          run_test_checkpoint_args: -x -s 3
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3-no-timestamp-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          dependent_task: compile-nonstandalone
+          run_test_checkpoint_args: -s 3
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s4-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          dependent_task: compile-nonstandalone
+          run_test_checkpoint_args: -x -s 4
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          dependent_task: compile-nonstandalone
+          run_test_checkpoint_args: -x -s 5
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5-no-timestamp-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          dependent_task: compile-nonstandalone
+          run_test_checkpoint_args: -s 5
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s6-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          dependent_task: compile-nonstandalone
+          run_test_checkpoint_args: -x -s 6
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s7-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          dependent_task: compile-nonstandalone
           run_test_checkpoint_args: -x -s 7
 
   - name: format-failure-configs-test
@@ -3033,12 +3390,46 @@ tasks:
           times: 1       # No of times to run the loop
           no_of_procs: 10 # No of processes to run in the background
 
+  - name: checkpoint-stress-test-nonstandalone
+    tags: ["stress-test-1-nonstandalone"]
+    exec_timeout_secs: 86400
+    commands:
+      - command: timeout.update
+        params:
+          timeout_secs: 86400
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+      - func: "checkpoint stress test"
+        vars:
+          times: 1       # No of times to run the loop
+          no_of_procs: 10 # No of processes to run in the background
+
   - name: split-stress-test
     tags: ["stress-test-1", "stress-test-zseries-1"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/bench/workgen/runner"
+          script: |
+            set -o errexit
+            set -o verbose
+            for i in {1..10}; do ${test_env_vars|} ${python_binary|python3} split_stress.py; done
+
+  - name: split-stress-test-nonstandalone
+    tags: ["stress-test-1-nonstandalone"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
           CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
       - command: shell.exec
         params:
@@ -3092,6 +3483,18 @@ tasks:
   - <<: *format-stress-test
     name: format-stress-test-4
     tags: ["stress-test-4"]
+  - <<: *format-stress-test-nonstandalone
+    name: format-stress-test-1-nonstandalone
+    tags: ["stress-test-1-nonstandalone"]
+  - <<: *format-stress-test-nonstandalone
+    name: format-stress-test-2-nonstandalone
+    tags: ["stress-test-2-nonstandalone"]
+  - <<: *format-stress-test-nonstandalone
+    name: format-stress-test-3-nonstandalone
+    tags: ["stress-test-3-nonstandalone"]
+  - <<: *format-stress-test-nonstandalone
+    name: format-stress-test-4-nonstandalone
+    tags: ["stress-test-4-nonstandalone"]
   - <<: *format-stress-sanitizer-ppc-test
     name: format-stress-sanitizer-ppc-test-1
     tags: ["stress-test-ppc-1"]
@@ -3131,6 +3534,15 @@ tasks:
   - <<: *recovery-stress-test
     name: recovery-stress-test-3
     tags: ["stress-test-3", "stress-test-zseries-3"]
+  - <<: *recovery-stress-test-nonstandalone
+    name: recovery-stress-test-1-nonstandalone
+    tags: ["stress-test-1-nonstandalone"]
+  - <<: *recovery-stress-test-nonstandalone
+    name: recovery-stress-test-2-nonstandalone
+    tags: ["stress-test-2-nonstandalone"]
+  - <<: *recovery-stress-test-nonstandalone
+    name: recovery-stress-test-3-nonstandalone
+    tags: ["stress-test-3-nonstandalone"]
 
   - name: format-stress-test-no-barrier
     tags: ["stress-test-no-barrier"]
@@ -3140,6 +3552,21 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           <<: *configure_flags_with_builtins
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+          NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
+      - func: "format test script"
+        vars:
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 360
+
+  - name: format-stress-test-no-barrier-nonstandalone
+    tags: ["stress-test-no-barrier-nonstandalone"]
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
           CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
       - func: "format test script"
@@ -3191,6 +3618,20 @@ tasks:
         vars:
           times: 25
 
+  - name: recovery-stress-test-no-barrier-nonstandalone
+    tags: ["stress-test-no-barrier-nonstandalone"]
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+          NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
+      - func: "recovery stress test script"
+        vars:
+          times: 25
+
   - name: format-abort-recovery-stress-test
     commands:
       # Allow 30 minutes beyond test runtime because recovery under load can cause the test to
@@ -3206,6 +3647,24 @@ tasks:
       - func: "format test script"
         vars:
           format_test_script_args: -a -t 30
+
+  - name: format-abort-recovery-stress-test-nonstandalone
+    commands:
+      # Allow 30 minutes beyond test runtime because recovery under load can cause the test to
+      # run longer.
+      - command: timeout.update
+        params:
+          exec_timeout_secs: 3600
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+      # FIXME-WT-9767
+      # - func: "format test script"
+      #   vars:
+      #     format_test_script_args: -a -t 30
 
   - name: many-collection-test
     commands:
@@ -4211,6 +4670,7 @@ buildvariants:
     data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000 -C cache_size=100MB
   tasks:
     - name: ".pull_request !.pull_request_compilers"
+    - name: ".unit_test_long"
     - name: compile
     - name: doc-compile
     - name: make-check-test
@@ -4226,7 +4686,6 @@ buildvariants:
     - name: test-prepare-hs03-hook-timestamp
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
-    - name: compile-wtperf
     - name: ftruncate-test
     - name: long-test
     - name: unit-test-long
@@ -4237,21 +4696,16 @@ buildvariants:
     - name: format-mirror-test
     - name: format-smoke-test
     - name: format-failure-configs-test
-    - name: data-validation-stress-test-checkpoint
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1-no-timestamp
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s2
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3-no-timestamp
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s4
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5-no-timestamp
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s6
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s7
-    - name: data-validation-stress-test-checkpoint-no-timestamp
+    - name: ".data-validation-stress-test"
     - name: unittest-test
     - name: tiered-storage-extensions-test
     - name: bench-tiered-push-pull
+    - name: compile-nonstandalone
+    - name: make-check-nonstandalone
+    - name: unit-test-nonstandalone
+    - name: unit-test-long-nonstandalone
+      distros: ubuntu2004-large
+    - name: ".data-validation-stress-test-nonstandalone"
 
 - name: ubuntu2004-asan
   display_name: "! Ubuntu 20.04 ASAN"
@@ -4407,6 +4861,12 @@ buildvariants:
     - name: ".stress-test-sanitizer-3"
     - name: ".stress-test-sanitizer-4"
     - name: format-abort-recovery-stress-test
+    - name: ".stress-test-1-nonstandalone"
+    - name: ".stress-test-2-nonstandalone"
+    - name: ".stress-test-3-nonstandalone"
+    - name: ".stress-test-4-nonstandalone"
+    - name: ".stress-test-no-barrier-nonstandalone"
+    - name: format-abort-recovery-stress-test-nonstandalone
 
 # When running the Python tests on this variant tcmalloc must be preloaded otherwise the wiredtiger library
 # fails to load and resolve its dependency.
@@ -4436,6 +4896,12 @@ buildvariants:
     - name: ".stress-test-4"
     - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
+    - name: ".stress-test-1-nonstandalone"
+    - name: ".stress-test-2-nonstandalone"
+    - name: ".stress-test-3-nonstandalone"
+    - name: ".stress-test-4-nonstandalone"
+    - name: ".stress-test-no-barrier-nonstandalone"
+    - name: format-abort-recovery-stress-test-nonstandalone
 
 - name: ubuntu2004-perf-tests
   display_name: Ubuntu 20.04 Performance tests
@@ -4539,7 +5005,9 @@ buildvariants:
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
   tasks:
     - name: compile
+    - name: compile-nonstandalone
     - name: ".cppsuite-stress-test"
+    - name: ".cppsuite-stress-test-nonstandalone"
 
 - name: cppsuite-stress-tests-arm64
   display_name: "Cppsuite Stress Tests ARM64"
@@ -4557,7 +5025,9 @@ buildvariants:
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
   tasks:
     - name: compile
+    - name: compile-nonstandalone
     - name: ".cppsuite-stress-test"
+    - name: ".cppsuite-stress-test-nonstandalone"
 
 - name: package
   display_name: "~ Package"
@@ -4633,7 +5103,6 @@ buildvariants:
       distros: rhel80-large
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
-    - name: compile-wtperf
     - name: wtperf-test
     - name: ftruncate-test
     - name: long-test
@@ -4705,10 +5174,10 @@ buildvariants:
     - name: fops
     - name: unittest-test
 
-- name: macos-1014
-  display_name: "OS X 10.14"
+- name: macos-1100
+  display_name: "macOS 11.00"
   run_on:
-  - macos-1014
+  - macos-1100
   batchtime: 120 # 2 hours
   expansions:
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
@@ -4851,14 +5320,17 @@ buildvariants:
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
     - name: unit-test-long
-      run_on:
-      - ubuntu2004-arm64-large
+      distros: ubuntu2004-arm64-large
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
-    - name: compile-wtperf
     - name: wtperf-test
     - name: ftruncate-test
     - name: long-test
     - name: configure-combinations
     - name: format-smoke-test
     - name: tiered-storage-extensions-test
+    - name: compile-nonstandalone
+    - name: make-check-nonstandalone
+    - name: unit-test-nonstandalone
+    - name: unit-test-long-nonstandalone
+      distros: ubuntu2004-arm64-large
