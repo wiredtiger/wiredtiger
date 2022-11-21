@@ -57,9 +57,10 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
               rollback_timestamp < upd->durable_ts ? "true" : "false", upd->prepare_state,
               upd->prepare_state == WT_PREPARE_INPROGRESS ? "true" : "false");
 
-            if (!dryrun)
+            if (!dryrun) {
                 upd->txnid = WT_TXN_ABORTED;
-            WT_STAT_CONN_INCR(session, txn_rts_upd_aborted);
+                WT_STAT_CONN_INCR(session, txn_rts_upd_aborted);
+            }
         } else {
             /* Valid update is found. */
             stable_upd = upd;
@@ -371,9 +372,10 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
               "history store stop is obsolete with time window: %s and pinned timestamp: %s",
               __wt_time_window_to_string(hs_tw, tw_string),
               __wt_timestamp_to_string(pinned_ts, ts_string[0]));
-            if (!dryrun)
+            if (!dryrun) {
                 WT_ERR(hs_cursor->remove(hs_cursor));
-            WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
+                WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
+            }
             continue;
         }
 
@@ -476,10 +478,11 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
         first_record = false;
 #endif
 
-        if (!dryrun)
+        if (!dryrun) {
             WT_ERR(hs_cursor->remove(hs_cursor));
-        WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
-        WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts_unstable);
+            WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
+            WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts_unstable);
+        }
     }
 
     /*
@@ -515,7 +518,8 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
          * rollback to stable operation.
          */
         F_SET(upd, WT_UPDATE_RESTORED_FROM_HS);
-        WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_restore_updates);
+        if (!dryrun)
+            WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_restore_updates);
 
         /*
          * We have a tombstone on the original update chain and it is stable according to the
@@ -558,11 +562,13 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
 
             tombstone->next = upd;
             upd = tombstone;
-            WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_restore_tombstones);
+            if (!dryrun)
+                WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_restore_tombstones);
         }
     } else {
         WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
-        WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
+        if (!dryrun)
+            WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
         __wt_verbose_level_multi(
           session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3, "%s", "key removed");
     }
@@ -577,10 +583,11 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
         /* Avoid freeing the updates while still in use if hs_cursor->remove fails. */
         upd = tombstone = NULL;
 
-        if (!dryrun)
+        if (!dryrun) {
             WT_ERR(hs_cursor->remove(hs_cursor));
-        WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
-        WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts);
+            WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
+            WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts);
+        }
     }
 
     if (0) {
@@ -617,10 +624,11 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
     uint8_t *memp;
     char time_string[WT_TIME_STRING_SIZE];
     char ts_string[5][WT_TS_INT_STRING_SIZE];
-    bool prepared;
+    bool dryrun, prepared;
 
     page = ref->page;
     upd = NULL;
+    dryrun = S2C(session)->rts->dryrun;
 
     /* Initialize the on-disk stable version flag. */
     if (is_ondisk_stable != NULL)
@@ -643,7 +651,8 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
               __wt_timestamp_to_string(vpack->tw.stop_ts, ts_string[3]),
               __wt_timestamp_to_string(rollback_timestamp, ts_string[4]));
             WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
-            WT_STAT_CONN_DATA_INCR(session, txn_rts_sweep_hs_keys);
+            if (!dryrun)
+                WT_STAT_CONN_DATA_INCR(session, txn_rts_sweep_hs_keys);
         } else
             return (0);
     } else if (vpack->tw.durable_start_ts > rollback_timestamp ||
@@ -668,7 +677,8 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
              * rollback timestamp; thus, deleting it is the correct response.
              */
             WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
-            WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
+            if (!dryrun)
+                WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
         }
     } else if (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) &&
       (vpack->tw.durable_stop_ts > rollback_timestamp ||
@@ -691,7 +701,8 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
                  * remove the key.
                  */
                 WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
-                WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
+                if (!dryrun)
+                    WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
             }
         } else {
             /*
@@ -717,7 +728,8 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
             upd->durable_ts = vpack->tw.durable_start_ts;
             upd->start_ts = vpack->tw.start_ts;
             F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
-            WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_restored);
+            if (!dryrun)
+                WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_restored);
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
               "key restored with commit timestamp: %s, durable timestamp: %s, stable timestamp: "
               "%s, "
