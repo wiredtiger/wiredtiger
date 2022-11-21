@@ -1861,6 +1861,8 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
     release_bytes = release_buffered + slot->slot_unbuffered;
     slot->rel_sess = session;
     slot->rel_flags = slot->flags;
+    WT_FULL_BARRIER();
+    WT_ASSERT(session, slot->rel_flags == slot->flags);
 
     /*
      * Checkpoints can be configured based on amount of log written. Add in this log record to the
