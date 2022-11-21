@@ -1045,26 +1045,28 @@ ThreadRunner::op_run(Operation *op)
     if (op->is_table_op()) {
         op->kv_gen(this, true, 100, recno, _keybuf);
         const std::string key_format(cursor->key_format);
-        ASSERT(key_format == "u" || key_format == "S");
-        if (key_format == "u") {
+        if (key_format == "S") {
+            cursor->set_key(cursor, _keybuf);
+        } else if (key_format == "u") {
             item.data = _keybuf;
             item.size = strlen(_keybuf);
             cursor->set_key(cursor, &item);
         } else {
-            cursor->set_key(cursor, _keybuf);
+            THROW("The key format ('" << key_format << "') must be 'u' or 'S'.");
         }
         if (OP_HAS_VALUE(op)) {
             uint64_t compressibility =
               op->_table.options.random_value ? 0 : op->_table.options.value_compressibility;
             op->kv_gen(this, false, compressibility, recno, _valuebuf);
             const std::string value_format(cursor->value_format);
-            ASSERT(value_format == "u" || value_format == "S");
-            if (value_format == "u") {
+            if (value_format == "S") {
+                cursor->set_value(cursor, _valuebuf);
+            } else if (value_format == "u") {
                 item.data = _valuebuf;
                 item.size = strlen(_valuebuf);
                 cursor->set_value(cursor, &item);
             } else {
-                cursor->set_value(cursor, _valuebuf);
+                THROW("The value format ('" << value_format << "') must be 'u' or 'S'.");
             }
         }
     }
