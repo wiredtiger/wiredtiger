@@ -130,8 +130,16 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
     WT_DECL_RET;
     bool dryrun;
 
-    WT_RET_NOTFOUND_OK(__wt_config_gets(session, cfg, "dryrun", &cval));
-    dryrun = cval.val != 0;
+    /*
+     * Explicit null-check because internal callers (startup/shutdown) do not enter via the API, and
+     * don't get default values installed in the config string.
+     */
+    if (cfg != NULL) {
+        WT_RET_NOTFOUND_OK(__wt_config_gets(session, cfg, "dryrun", &cval));
+        dryrun = cval.val != 0;
+    } else {
+        dryrun = false;
+    }
 
     /*
      * Don't use the connection's default session: we are working on data handles and (a) don't want
