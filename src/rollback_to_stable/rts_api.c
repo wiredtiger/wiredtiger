@@ -120,6 +120,16 @@ __rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
 }
 
 /*
+ * __rollback_to_stable_finalize --
+ *     Reset a connection's RTS structure in preparation for the next call.
+ */
+static void
+__rollback_to_stable_finalize(WT_ROLLBACK_TO_STABLE *rts)
+{
+    rts->dryrun = false;
+}
+
+/*
  * __rollback_to_stable --
  *     Rollback the database to the stable timestamp.
  */
@@ -156,6 +166,8 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
     WT_WITH_CHECKPOINT_LOCK(
       session, WT_WITH_SCHEMA_LOCK(session, ret = __rollback_to_stable_int(session, no_ckpt)));
     WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 0);
+
+    __rollback_to_stable_finalize(S2C(session)->rts);
 
     WT_TRET(__wt_session_close_internal(session));
 
