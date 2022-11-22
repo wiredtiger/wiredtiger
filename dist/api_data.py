@@ -1891,7 +1891,7 @@ methods = {
 
 'WT_CONNECTION.rollback_to_stable' : Method([
     Config('dryrun', 'false', r'''
-        perform all the usual checks associated with RTS, but don't modify any data.''',
+        perform the checks associated with RTS, but don't modify any data.''',
         type='boolean'),
 ]),
 

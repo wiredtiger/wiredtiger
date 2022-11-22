@@ -22,10 +22,10 @@
  *	with context used by rollback to stable.
  */
 struct __wt_rollback_to_stable {
-    /* Methods */
+    /* Methods. */
     int (*rollback_to_stable_one)(WT_SESSION_IMPL *, const char *, bool *);
     int (*rollback_to_stable)(WT_SESSION_IMPL *, const char *[], bool);
 
-    /* Configuration */
+    /* Configuration. */
     bool dryrun;
 };

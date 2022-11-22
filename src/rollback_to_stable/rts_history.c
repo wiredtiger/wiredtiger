@@ -59,7 +59,7 @@ __wt_rts_history_delete_hs(WT_SESSION_IMPL *session, WT_ITEM *key, wt_timestamp_
             WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
 
             /*
-             * The globally visible start time window's are cleared during history store
+             * The globally visible start time windows are cleared during history store
              * reconciliation. Treat them also as a stable entry removal from the history store.
              */
             if (hs_tw->start_ts == ts || hs_tw->start_ts == WT_TS_NONE)

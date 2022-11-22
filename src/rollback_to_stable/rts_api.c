@@ -175,10 +175,10 @@ __wt_rollback_to_stable_init(WT_CONNECTION_IMPL *conn)
      */
     conn->rts = &conn->_rts;
 
-    /* Setup function pointers */
+    /* Setup function pointers. */
     conn->rts->rollback_to_stable = __rollback_to_stable;
     conn->rts->rollback_to_stable_one = __rollback_to_stable_one;
 
-    /* Setup variables */
+    /* Setup variables. */
     conn->rts->dryrun = false;
 }

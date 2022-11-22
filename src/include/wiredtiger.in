@@ -2644,8 +2644,8 @@ struct __wt_connection {
 	 *
 	 * @param connection the connection handle
 	 * @configstart{WT_CONNECTION.rollback_to_stable, see dist/api_data.py}
-	 * @config{dryrun, perform all the usual checks associated with RTS\, but don't modify any
-	 * data., a boolean flag; default \c false.}
+	 * @config{dryrun, perform the checks associated with RTS\, but don't modify any data., a
+	 * boolean flag; default \c false.}
 	 * @configend
 	 * @errors
 	 * An error should occur only in the case of a system problem, and an application typically
