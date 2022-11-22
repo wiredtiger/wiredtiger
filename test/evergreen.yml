@@ -4698,12 +4698,14 @@ tasks:
 
   - name: aggregate-perf-stats
     depends_on:
-      - name: ".btree-perf"
-      - name: ".oplog-perf !perf-test-mongodb-large-oplog"
-      - name: perf-test-update-checkpoint-btree
-      - name: ".stress-perf !perf-test-many-table-stress !perf-test-many-table-stress-backup !perf-test-evict-fairness !perf-test-multi-btree-zipfian" 
-      - name: ".evict-perf"
-      - name: ".log-perf"
+      - name: perf-test-medium-btree
+      - name: perf-test-medium-btree-backup
+      - name: perf-test-mongodb-oplog
+      - name: perf-test-mongodb-small-oplog
+      - name: perf-test-mongodb-secondary-apply
+      - name: perf-test-evict-btree
+      - name: perf-test-evict-btree-1
+      - name: perf-test-log
     commands:
       - func: "get project"
       - command: shell.exec
@@ -4713,34 +4715,10 @@ tasks:
             mkdir perf_stats
       - func: "fetch perf stats" 
         vars:
-          test_name: "small-btree"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "small-btree-backup"
-      - func: "fetch perf stats" 
-        vars:
           test_name: "medium-btree"
       - func: "fetch perf stats" 
         vars:
           test_name: "medium-btree-backup"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "parallel-pop-btree"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "update-only-btree"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "update-btree"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "update-large-record-btree"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "modify-large-record-btree"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "modify-force-update-large-record-btree"
       - func: "fetch perf stats" 
         vars:
           test_name: "mongodb-oplog"
@@ -4750,36 +4728,6 @@ tasks:
       - func: "fetch perf stats" 
         vars:
           test_name: "mongodb-secondary-apply"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "update-checkpoint-btree"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "overflow-10k"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "overflow-130k"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "parallel-pop-stress"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "update-grow-stress"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "update-shrink-stress"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "update-delta-mix1"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "update-delta-mix2"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "update-delta-mix3"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "evict-btree-stress-multi"
       - func: "fetch perf stats" 
         vars:
           test_name: "evict-btree"
@@ -5136,42 +5084,15 @@ buildvariants:
     improved_accuracy: '--improved_accuracy'
   tasks:
     - name: compile
-    - name: ".btree-perf"
-    # FIXME-WT-8867: Disable LSM perf tests till the support for LSM is restored.
-    # - name: ".lsm-perf"
-    - name: ".stress-perf"
-    - name: ".checkpoint-perf"
-    - name: ".evict-perf"
-    - name: ".log-perf"
-    - name: ".long-perf"
-    - name: ".oplog-perf"
+    - name: perf-test-medium-btree
+    - name: perf-test-medium-btree-backup
+    - name: perf-test-mongodb-oplog
+    - name: perf-test-mongodb-small-oplog
+    - name: perf-test-mongodb-secondary-apply
+    - name: perf-test-evict-btree
+    - name: perf-test-evict-btree-1
+    - name: perf-test-log
     - name: "aggregate-perf-stats"
-  display_tasks:
-    - name: Wiredtiger-perf-btree-jobs
-      execution_tasks:
-      - ".btree-perf"
-    # Disable LSM perf tests till the support for LSM is restored.
-    # - name: Wiredtiger-perf-lsm-jobs
-    #   execution_tasks:
-    #   - ".lsm-perf"
-    - name: Wiredtiger-perf-stress-jobs
-      execution_tasks:
-      - ".stress-perf"
-    - name: Wiredtiger-perf-checkpoint-jobs
-      execution_tasks:
-      - ".checkpoint-perf"
-    - name: Wiredtiger-perf-evict-jobs
-      execution_tasks:
-      - ".evict-perf"
-    - name: Wiredtiger-perf-log-jobs
-      execution_tasks:
-      - ".log-perf"
-    - name: Wiredtiger-perf-long-jobs
-      execution_tasks:
-      - ".long-perf"
-    - name: Wiredtiger-perf-oplog-jobs
-      execution_tasks:
-      - ".oplog-perf"
 
 - name: large-scale-tests
   display_name: "Large scale tests"
