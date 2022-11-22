@@ -705,7 +705,7 @@ __wt_log_fill(
 
     WT_STAT_CONN_INCRV(session, log_bytes_written, record->size);
     if (lsnp != NULL) {
-        *lsnp = myslot->slot->slot_start_lsn;
+        WT_ASSIGN_LSN(lsnp, &myslot->slot->slot_start_lsn);
         lsnp->l.offset += (uint32_t)myslot->offset;
     }
 err:
@@ -1976,11 +1976,11 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
             __wt_verbose(session, WT_VERB_LOG,
               "log_release: sync log %s to LSN %" PRIu32 "/%" PRIu32, log->log_fh->name,
               sync_lsn.l.file, sync_lsn.l.offset);
-            WT_STAT_CONN_INCR(session, log_sync);
             time_start = __wt_clock(session);
             WT_ERR(__wt_fsync(session, log->log_fh, true));
             time_stop = __wt_clock(session);
             fsync_duration_usecs = WT_CLOCKDIFF_US(time_stop, time_start);
+            WT_STAT_CONN_INCR(session, log_sync);
             WT_STAT_CONN_INCRV(session, log_sync_duration, fsync_duration_usecs);
             WT_ASSIGN_LSN(&log->sync_lsn, &sync_lsn);
             __wt_cond_signal(session, log->log_sync_cond);
@@ -2713,7 +2713,7 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, ui
 
 err:
     if (ret == 0 && lsnp != NULL)
-        *lsnp = lsn;
+        WT_ASSIGN_LSN(lsnp, &lsn);
     /*
      * If we're synchronous and some thread had an error, we don't know if our write made it out to
      * the file or not. The error could be before or after us. So, if anyone got an error, we report
