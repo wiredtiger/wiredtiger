@@ -132,7 +132,7 @@ difftime_sec(struct timeval t0, struct timeval t1)
 
 /*
  * run_test_clean --
- *     TODO: Add a comment describing this function.
+ *     This function runs the test for configured number of times to compute the average time taken.
  */
 static void
 run_test_clean(const char *suffix, uint64_t num_records, bool flush)
@@ -168,7 +168,8 @@ run_test_clean(const char *suffix, uint64_t num_records, bool flush)
 
 /*
  * run_test --
- *     TODO: Add a comment describing this function.
+ *     This function runs the actual test and checkpoints with/without flush call based on the
+ *     parameter.
  */
 static void
 run_test(const char *home, uint64_t num_records, bool flush, int counter)
@@ -182,7 +183,6 @@ run_test(const char *home, uint64_t num_records, bool flush, int counter)
     WT_CONNECTION *conn;
     WT_SESSION *session;
 
-    file_size = 0;
     testutil_make_work_dir(home);
     if (opts->tiered_storage) {
         testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/bucket", home));
@@ -257,6 +257,7 @@ compute_tiered_file_size(const char *home, const char *tablename, int64_t *file_
     int index;
     struct stat stats;
 
+    *file_size = 0;
     for (index = 1; index < MAX_TIERED_FILES; ++index) {
         testutil_check(__wt_snprintf(
           stat_path, sizeof(stat_path), "%s/%s-%10.10d.wtobj", home, tablename, index));
@@ -279,6 +280,7 @@ compute_wt_file_size(const char *home, const char *tablename, int64_t *file_size
     char stat_path[512];
     struct stat stats;
 
+    *file_size = 0;
     testutil_check(__wt_snprintf(stat_path, sizeof(stat_path), "%s/%s.wt", home, tablename));
     if (stat(stat_path, &stats) == 0)
         *file_size = stats.st_size;
