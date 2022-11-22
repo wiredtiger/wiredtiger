@@ -38,9 +38,9 @@ struct __wt_dbg {
     WT_ITEM *t1, *t2; /* Temporary space */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_DEBUG_DUMP_APP_DATA 0x1u /* Dump application data when walking the tree */
-#define WT_DEBUG_TREE_LEAF 0x2u     /* Debug leaf pages */
-#define WT_DEBUG_TREE_WALK 0x4u     /* Descend the tree */
+#define WT_DEBUG_TREE_LEAF 0x1u /* Debug leaf pages */
+#define WT_DEBUG_TREE_WALK 0x2u /* Descend the tree */
+#define WT_DEBUG_UNREDACT 0x4u  /* Dump application data when walking the tree */
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
@@ -134,9 +134,9 @@ __debug_item_key(WT_DBG *ds, const char *tag, const void *data_arg, size_t size)
 
     session = ds->session;
     return (ds->f(ds, "\t%s%s{%s}\n", tag == NULL ? "" : tag, tag == NULL ? "" : " ",
-      F_ISSET(ds, WT_DEBUG_DUMP_APP_DATA) ?
+      F_ISSET(ds, WT_DEBUG_UNREDACT) ?
         __wt_key_string(session, data_arg, size, ds->key_format, ds->t1) :
-        "redacted"));
+        "REDACTED"));
 }
 
 /*
@@ -157,8 +157,8 @@ __debug_item_value(WT_DBG *ds, const char *tag, const void *data_arg, size_t siz
         return (ds->f(ds, "\t%s%s{%s}\n", tag == NULL ? "" : tag, tag == NULL ? "" : " ",
           __wt_buf_set_printable(session, data_arg, size, false, ds->t1)));
 
-    if (!F_ISSET(ds, WT_DEBUG_DUMP_APP_DATA))
-        return (ds->f(ds, "\t%s%s{redacted}\n", tag == NULL ? "" : tag, tag == NULL ? "" : " "));
+    if (!F_ISSET(ds, WT_DEBUG_UNREDACT))
+        return (ds->f(ds, "\t%s%s{REDACTED}\n", tag == NULL ? "" : tag, tag == NULL ? "" : " "));
 
     /*
      * If the format is 'S', it's a string and our version of it may not yet be nul-terminated.
@@ -477,12 +477,12 @@ __debug_hs_cursor(WT_DBG *ds, WT_CURSOR *hs_cursor)
           "\t"
           "hs-modify: %s\n",
           __wt_time_window_to_string(&cbt->upd_value->tw, time_string)));
-        if (F_ISSET(ds, WT_DEBUG_DUMP_APP_DATA)) {
+        if (F_ISSET(ds, WT_DEBUG_UNREDACT)) {
             WT_RET(ds->f(ds, "\tV "));
             WT_RET(__debug_modify(ds, ds->hs_value->data));
             WT_RET(ds->f(ds, "\n"));
         } else
-            WT_RET(ds->f(ds, "\tV {redacted}\n"));
+            WT_RET(ds->f(ds, "\tV {REDACTED}\n"));
         break;
     case WT_UPDATE_STANDARD:
         WT_RET(ds->f(ds,
@@ -632,10 +632,10 @@ __debug_cell_kv(
     if (unpack->cell == NULL)
         return (__debug_item(ds, tag, "zero-length", strlen("zero-length")));
 
-    if (F_ISSET(ds, WT_DEBUG_DUMP_APP_DATA))
+    if (F_ISSET(ds, WT_DEBUG_UNREDACT))
         WT_RET(ds->f(ds, "\t%s: len %" PRIu32, __wt_cell_type_string(unpack->raw), unpack->size));
     else
-        WT_RET(ds->f(ds, "\t%s: {redacted}", __wt_cell_type_string(unpack->raw)));
+        WT_RET(ds->f(ds, "\t%s: {REDACTED}", __wt_cell_type_string(unpack->raw)));
 
     /* Dump per-disk page type information. */
     switch (page_type) {
@@ -686,7 +686,7 @@ __debug_cell_kv(
     WT_RET(page == NULL ? __wt_dsk_cell_data_ref_kv(session, page_type, unpack, ds->t1) :
                           __wt_page_cell_data_ref_kv(session, page, unpack, ds->t1));
 
-    if (!F_ISSET(ds, WT_DEBUG_DUMP_APP_DATA))
+    if (!F_ISSET(ds, WT_DEBUG_UNREDACT))
         return (0);
 
     /* Standard key/value cells. */
@@ -785,7 +785,7 @@ __wt_debug_disk(
     uint32_t flags;
 
     ds = &_ds;
-    flags = dump_app_data ? WT_DEBUG_DUMP_APP_DATA : 0;
+    flags = dump_app_data ? WT_DEBUG_UNREDACT : 0;
     WT_RET(__debug_config(session, ds, ofile, flags));
 
     WT_ERR(ds->f(ds, "%s page", __wt_page_type_string(dsk->type)));
@@ -952,7 +952,7 @@ __wt_debug_tree_all(void *session_arg, WT_BTREE *btree, WT_REF *ref, const char 
 
     WT_WITH_BTREE(session, btree,
       ret = __debug_tree(
-        session, ref, ofile, WT_DEBUG_DUMP_APP_DATA | WT_DEBUG_TREE_LEAF | WT_DEBUG_TREE_WALK));
+        session, ref, ofile, WT_DEBUG_UNREDACT | WT_DEBUG_TREE_LEAF | WT_DEBUG_TREE_WALK));
     return (ret);
 }
 
@@ -974,7 +974,7 @@ __wt_debug_tree(void *session_arg, WT_BTREE *btree, WT_REF *ref, const char *ofi
         btree = S2BT(session);
 
     WT_WITH_BTREE(session, btree,
-      ret = __debug_tree(session, ref, ofile, WT_DEBUG_DUMP_APP_DATA | WT_DEBUG_TREE_WALK));
+      ret = __debug_tree(session, ref, ofile, WT_DEBUG_UNREDACT | WT_DEBUG_TREE_WALK));
     return (ret);
 }
 
@@ -1275,12 +1275,12 @@ __debug_page_col_fix(WT_DBG *ds, WT_REF *ref)
         numtws = WT_COL_FIX_TWS_SET(page) ? page->pg_fix_numtws : 0;
 
         WT_COL_FIX_FOREACH_BITS (btree, dsk, v, i) {
-            if (F_ISSET(ds, WT_DEBUG_DUMP_APP_DATA)) {
+            if (F_ISSET(ds, WT_DEBUG_UNREDACT)) {
                 WT_RET(ds->f(ds, "\t%" PRIu64 "\t{", recno));
                 WT_RET(__debug_hex_byte(ds, v));
                 WT_RET(ds->f(ds, "}"));
             } else
-                WT_RET(ds->f(ds, "\t%" PRIu64 "\t{redacted}", recno));
+                WT_RET(ds->f(ds, "\t%" PRIu64 "\t{REDACTED}", recno));
             if (curtw < numtws && recno - ref->ref_recno == page->pg_fix_tws[curtw].recno_offset) {
                 cell = WT_COL_FIX_TW_CELL(page, &page->pg_fix_tws[curtw]);
                 __wt_cell_unpack_kv(ds->session, page->dsk, cell, &unpack);
@@ -1292,10 +1292,10 @@ __debug_page_col_fix(WT_DBG *ds, WT_REF *ref)
 
             /* Check for a match on the update list. */
             if (ins != NULL && WT_INSERT_RECNO(ins) == recno) {
-                if (F_ISSET(ds, WT_DEBUG_DUMP_APP_DATA))
+                if (F_ISSET(ds, WT_DEBUG_UNREDACT))
                     WT_RET(ds->f(ds, "\tupdate %" PRIu64 "\n", WT_INSERT_RECNO(ins)));
                 else
-                    WT_RET(ds->f(ds, "\tupdate {redacted}\n"));
+                    WT_RET(ds->f(ds, "\tupdate {REDACTED}\n"));
                 WT_RET(__debug_update(ds, ins->upd, true));
                 ins = WT_SKIP_NEXT(ins);
             }
@@ -1484,10 +1484,10 @@ __debug_col_skip(
     session = ds->session;
 
     WT_SKIP_FOREACH (ins, head) {
-        if (F_ISSET(ds, WT_DEBUG_DUMP_APP_DATA))
+        if (F_ISSET(ds, WT_DEBUG_UNREDACT))
             WT_RET(ds->f(ds, "\t%s %" PRIu64 "\n", tag, WT_INSERT_RECNO(ins)));
         else
-            WT_RET(ds->f(ds, "\t%s {redacted}\n", tag));
+            WT_RET(ds->f(ds, "\t%s {REDACTED}\n", tag));
         WT_RET(__debug_update(ds, ins->upd, hexbyte));
 
         if (!WT_IS_HS(session->dhandle) && hs_cursor != NULL) {
@@ -1568,18 +1568,18 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
             WT_RET(ds->f(ds, "\tvalue {invalid}\n"));
             break;
         case WT_UPDATE_MODIFY:
-            if (F_ISSET(ds, WT_DEBUG_DUMP_APP_DATA)) {
+            if (F_ISSET(ds, WT_DEBUG_UNREDACT)) {
                 WT_RET(ds->f(ds, "\tvalue {modify: "));
                 WT_RET(__debug_modify(ds, upd->data));
                 WT_RET(ds->f(ds, "}\n"));
             } else
-                WT_RET(ds->f(ds, "\tvalue {modify redacted}\n"));
+                WT_RET(ds->f(ds, "\tvalue {modify REDACTED}\n"));
             break;
         case WT_UPDATE_RESERVE:
             WT_RET(ds->f(ds, "\tvalue {reserve}\n"));
             break;
         case WT_UPDATE_STANDARD:
-            if (hexbyte && F_ISSET(ds, WT_DEBUG_DUMP_APP_DATA)) {
+            if (hexbyte && F_ISSET(ds, WT_DEBUG_UNREDACT)) {
                 WT_RET(ds->f(ds, "\t{"));
                 WT_RET(__debug_hex_byte(ds, *upd->data));
                 WT_RET(ds->f(ds, "}\n"));
