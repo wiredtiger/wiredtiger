@@ -29,19 +29,26 @@ struct __wt_chunkcache_hashid {
  */
 struct __wt_chunkcache_chunk {
     TAILQ_ENTRY(__wt_chunkcache_chunk) next_chunk;
+    TAILQ_ENTRY(__wt_chunkcache_chunk) next_LRU_item;
 
     struct __wt_chunklist_head *my_queuehead_ptr;
     wt_off_t chunk_offset;
     size_t chunk_size;
     char *chunk_location;
     uint32_t valid;
+    uint bucket_id;  /* Lets us find the corresponding bucket for quick removal */
+
 };
 
+/*
+ * A list of chunks for a given object. This list is part of a queue of object
+ * chains that collided in the same bucket.
+ */
 struct __wt_chunkcache_chain {
     TAILQ_ENTRY(__wt_chunkcache_chain) next_link;
     /* File name and object ID uniquely identify local and remote objects. */
-    WT_CHUNKCACHE_HASHID hash_id;
     TAILQ_HEAD(__wt_chunklist_head, __wt_chunkcache_chunk) chunks;
+    WT_CHUNKCACHE_HASHID hash_id;
 };
 
 /*
@@ -50,7 +57,7 @@ struct __wt_chunkcache_chain {
  * chunk lists hashing to the same bucket a chunk chain.
  */
 struct __wt_chunkcache_bucket {
-    /* This queue contains all objects that collided in this hash bucket */
+    /* This queue contains queues for all objects that collided in this hash bucket */
     TAILQ_HEAD(__wt_chunkchain_head, __wt_chunkcache_chain) chainq;
 };
 
@@ -64,6 +71,8 @@ struct __wt_chunkcache {
     /* Hashtable buckets. Locks are per bucket. */
     WT_CHUNKCACHE_BUCKET *hashtable;
     WT_SPINLOCK *bucket_locks;
+    WT_SPINLOCK chunkcache_lru_lock; /* Locks the LRU queue */
+    TAILQ_HEAD(__wt_chunkcache_LRU, __wt_chunkcache_chunk) chunkcache_lru_list;
 #ifdef ENABLE_MEMKIND
     struct memkind *memkind; /* Lets us use jemalloc over a file */
 #endif

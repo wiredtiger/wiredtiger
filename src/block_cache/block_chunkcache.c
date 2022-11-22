@@ -37,12 +37,46 @@ __chunkcache_alloc_space(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
     return (0);
 }
 
+#define IN_QUEUE(head, elm, field) do {
+
+} while (0)
+
+static bool
+__chunkcache_evict_one(WT_SESSION_IMPL *session)
+{
+    WT_CHUNKCACHE *chunkcache;
+
+    chunkcache = &S2C(session)->chunkcache;
+
+    /*
+     * We must remove the evicted chunk from the LRU list and from its chunk chain.
+     * We must lock the chunk chain before we lock the LRU list. But to get the
+     * pointer to the evicted chunk, we must lock the LRU list. We resolve this
+     * circularity as follows:
+     *
+     * 1. We lock the LRU list and get the pointer to the chunk at the list's tail
+     *    and unlock the LRU list.
+     * 2. We lock the chunk's chain.
+     * 3. We re-lock the LRU list.
+     * 4. If the chunk is still in the LRU list and in its chunkchain, we remove it from
+     *    these. Otherwise we fail to evict.
+     */
+    
+
+
+
+}
+
 static size_t
 __chunkcache_admit_size(WT_SESSION_IMPL *session)
 {
     WT_CHUNKCACHE *chunkcache;
 
     chunkcache = &S2C(session)->chunkcache;
+
+    /* Try evicting a chunk if we have exceeded capacity */
+    if ((chunkcache->bytes_used + WT_CHUNKCACHE_DEFAULT_CHUNKSIZE) < chunkcache->capacity)
+        __chunkcache_evict(session);
 
     if ((chunkcache->bytes_used + WT_CHUNKCACHE_DEFAULT_CHUNKSIZE) < chunkcache->capacity)
         return (WT_CHUNKCACHE_DEFAULT_CHUNKSIZE);
@@ -54,7 +88,8 @@ __chunkcache_admit_size(WT_SESSION_IMPL *session)
 
 static int
 __chunkcache_alloc_chunk(
-    WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK **chunk, wt_off_t offset,  WT_BLOCK *block, struct __wt_chunklist_head *qptr)
+    WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK **chunk, wt_off_t offset,  WT_BLOCK *block,
+    struct __wt_chunklist_head *qptr, uint bucket_id)
 {
     WT_CHUNKCACHE *chunkcache;
     WT_CHUNKCACHE_CHUNK *newchunk;
@@ -81,6 +116,7 @@ __chunkcache_alloc_chunk(
     newchunk->chunk_size = WT_MIN(chunk_size,
                                   (size_t)(block->size - newchunk->chunk_offset));
     newchunk->my_queuehead_ptr = qptr;
+    newchunk->bucket_id = bucket_id;
 
     printf("offset-convert: from %" PRIu64 " to %" PRIu64 "\n", offset, newchunk->chunk_offset);
     printf("chunk size = %ld\n",  newchunk->chunk_size);
@@ -148,6 +184,12 @@ __wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object
                     *chunkcache_has_data = true;
                     /* Increment hit statistics. XXX */
 
+                    /* Move to the head of the LRU list */
+                    __wt_spin_lock(session, &chunkcache->chunkcache_LRU_lock);
+                    TAILQ_REMOVE(&chunkcache->chunkcache_lru_list, chunk, next_LRU_item);
+                    TAILQ_INSERT_HEAD(&chunkcache->chunkcache_lru_list, chunk, next_LRU_item);
+                    __wt_spin_unlock(session, &chunkcache->chunkcache_LRU_lock);
+
                     goto done;
                 } else if (chunk->chunk_offset > offset)
                     break;
@@ -158,7 +200,8 @@ __wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object
              * of what the size that the chunk cache can admit, but we reduce the chunk size
              * if the default would cause us to read past the end of the file.
              */
-            if (__chunkcache_alloc_chunk(session, &newchunk, offset, block, &chunkchain->chunks) == 0) {
+            if (__chunkcache_alloc_chunk(session, &newchunk, offset, block,
+                                         &chunkchain->chunks, bucket_id) == 0) {
                 printf("allocate: %s(%d), offset=%" PRId64 ", size=%ld\n",
                        (char*)&hash_id.objectname, hash_id.objectid, newchunk->chunk_offset,
                        newchunk->chunk_size);
@@ -198,7 +241,8 @@ __wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object
         /* Insert the new chunk. */
         TAILQ_INIT(&(newchain->chunks));
 
-        if (__chunkcache_alloc_chunk(session, &newchunk, offset, block, &(newchain->chunks)) != 0)
+        if (__chunkcache_alloc_chunk(session, &newchunk, offset, block,
+                                     &(newchain->chunks), bucket_id) != 0)
             goto done;
 
         TAILQ_INSERT_HEAD(&newchain->chunks, newchunk, next_chunk);
@@ -226,10 +270,11 @@ void
 __wt_chunkcache_complete_read(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk, wt_off_t offset,
                               uint32_t size, void *dst, bool *chunkcache_has_data)
 {
+    WT_CHUNKCACHE *chunkcache;
     WT_CHUNKCACHE_CHUNK *next_chunk;
     size_t copy_size1, copy_size2;
 
-    (void) session;
+    chunkcache = &S2C(session)->chunkcache;
     *chunkcache_has_data = false;
 
     WT_ASSERT(session, offset > 0);
@@ -256,10 +301,34 @@ __wt_chunkcache_complete_read(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chu
             *chunkcache_has_data = true;
         }
     }
+
+    /* Insert at the head of the LRU list */
+    __wt_spin_lock(session, &chunkcache->chunkcache_LRU_lock);
+    TAILQ_INSERT_HEAD(&chunkcache->chunkcache_lru_list, chunk, next_LRU_item);
+    __wt_spin_unlock(session, &chunkcache->chunkcache_LRU_lock);
 }
 
+
 /*
- * Remove the outdated chunk.
+ * Remove a chunk from its chunk chain.
+ */
+static void
+__chunkcache_remove_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
+{
+    WT_CHUNKCACHE *chunkcache;
+
+    chunkcache = &S2C(session)->chunkcache;
+
+    /* Lock the bucket and then remove the chunk from the chain */
+    __wt_spin_lock(session, &chunkcache->bucket_locks[chunk->bucket_id]);
+    TAILQ_REMOVE(chunk->my_queuehead_ptr, chunk, next_chunk);
+    __wt_spin_unlock(session, &chunkcache->bucket_locks[chunk->bucket_id]);
+
+}
+
+
+/*
+ * Remove the chunk containing an outdated block.
  */
 void
 __wt_chunkcache_remove(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid,
@@ -297,9 +366,14 @@ __wt_chunkcache_remove(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objec
             TAILQ_FOREACH(chunk, &chunkchain->chunks, next_chunk) {
                 if (chunk->valid && chunk->chunk_offset <= offset &&
                     (chunk->chunk_offset + (wt_off_t)chunk->chunk_size) >= (offset + (wt_off_t)size)) {
-                    /* In theory, a block may span two chunks. In practice, we will never
-                     * return such a chunk to the upper layer. So we can ignore such cases. */
+                    /* XXX. FIX THIS.
+                     * In theory, a block may span two chunks. In practice, we will never
+                     * return such a chunk to the upper layer. So we can ignore such cases.
+                     */
                     TAILQ_REMOVE(&chunkchain->chunks, chunk, next_chunk);
+                    __wt_spin_lock(session, &chunkcache->chunkcache_LRU_lock);
+                    TAILQ_REMOVE(&chunkcache->chunkcache_lru_list, chunk, next_LRU_item);
+                    __wt_spin_unlock(session, &chunkcache->chunkcache_LRU_lock);
                     printf("\nremove: %s(%d), offset=%" PRId64 ", size=%d\n",
                            (char*)&hash_id.objectname, hash_id.objectid, offset, size);
                     /* XXX Update cache size and stats */
@@ -364,6 +438,8 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
         WT_RET_MSG(session, EINVAL, "chunk cache of type FILE requires libmemkind");
 #endif
     }
+
+    WT_RET(__wt_spin_init(session, &chunkcache->chunkcache_lru_lock, "chunkcache LRU lock"));
 
     WT_RET(__wt_calloc_def(session, chunkcache->hashtable_size, &chunkcache->hashtable));
     WT_RET(__wt_calloc_def(session, chunkcache->hashtable_size, &chunkcache->bucket_locks));
