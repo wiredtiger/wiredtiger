@@ -132,7 +132,7 @@ def configure_for_extra_accuracy(config: PerfConfig, arguments: List[str]) -> Li
     """
 
     new_run_max = 5
-    new_run_time="run_time=120"
+    new_run_time="run_time=240"
     print("==================")
     print(f"Extra accuracy flag set. Overriding runmax to {new_run_max} and setting -o {new_run_time}")
     print("==================")
