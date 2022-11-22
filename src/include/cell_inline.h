@@ -935,11 +935,9 @@ copy_cell_restart:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
         /* Unpack the row and/or byte counts if the chunk of data includes it. */
-        if (F_ISSET(dsk, WT_PAGE_STAT_ROWBYTE)) {
-            if (WT_PAGE_STAT_HAS_BYTE_COUNT(&unpack_addr->ps))
-                WT_RET(__wt_vunpack_int(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ps->byte_count));
-            if (WT_PAGE_STAT_HAS_ROW_COUNT(&unpack_addr->ps))
-                WT_RET(__wt_vunpack_int(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ps->row_count));
+        if (ps != NULL && F_ISSET(dsk, WT_PAGE_STAT_ROWBYTE) && __wt_process.page_stats_2022) {
+            WT_RET(__wt_vunpack_int(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ps->byte_count));
+            WT_RET(__wt_vunpack_int(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ps->row_count));
         }
         /* FALLTHROUGH */
     case WT_CELL_KEY:
