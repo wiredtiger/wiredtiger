@@ -223,6 +223,7 @@ functions:
 
           # Run Python testing for all tiered tests.
           ${test_env_vars|} python3 ../test/suite/run.py -j $(nproc) ${tiered_storage_test_name}
+
   "compile wiredtiger docs":
     - command: shell.exec
       params:
@@ -3967,7 +3968,7 @@ tasks:
         vars:
           perf-test-name: update-btree.wtperf
           maxruns: 1
-          wtarg: ${improved_accuracy|} "-bf ../../../bench/wtperf/runners/update-btree.json" 
+          wtarg: "-bf ../../../bench/wtperf/runners/update-btree.json ${improved_accuracy|}"
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-btree.wtperf
@@ -4095,7 +4096,7 @@ tasks:
         vars:
           perf-test-name: update-checkpoint-btree.wtperf
           maxruns: 1
-          wtarg: ${improved_accuracy|} "-bf ../../../bench/wtperf/runners/update-checkpoint.json"
+          wtarg: "-bf ../../../bench/wtperf/runners/update-checkpoint.json ${improved_accuracy|}"
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-checkpoint-btree.wtperf
@@ -4111,7 +4112,7 @@ tasks:
         vars:
           perf-test-name: update-checkpoint-lsm.wtperf
           maxruns: 1
-          wtarg: ${improved_accuracy|} "-bf ../../../bench/wtperf/runners/update-checkpoint.json" 
+          wtarg: "-bf ../../../bench/wtperf/runners/update-checkpoint.json ${improved_accuracy|}"
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-checkpoint-lsm.wtperf
@@ -4682,32 +4683,13 @@ tasks:
 ###################################################
 
   - name: aggregate-perf-stats
-    tags: ["aggregate-perf"]
     depends_on:
-      - name: ".lsm-perf"
       - name: ".btree-perf"
-      - name: ".oplog-perf"
+      - name: ".oplog-perf !perf-test-mongodb-large-oplog"
       - name: perf-test-update-checkpoint-btree
-      - name: perf-test-overflow-10k
-      - name: perf-test-overflow-130k
-      - name: perf-test-parallel-pop-stress
-      - name: perf-test-update-grow-stress 
-      - name: perf-test-update-shrink-stress
-      - name: perf-test-update-delta-mix1
-      - name: perf-test-update-delta-mix2
-      - name: perf-test-update-delta-mix3
-      - name: perf-test-multi-btree-zipfian
-      - name: perf-test-evict-btree-stress-multi
-      - name: perf-test-evict-btree
-      - name: perf-test-evict-btree-1
+      - name: ".stress-perf !perf-test-many-table-stress !perf-test-many-table-stress-backup !perf-test-evict-fairness !perf-test-multi-btree-zipfian" 
+      - name: ".evict-perf"
       - name: ".log-perf"
-      - name: perf-test-long-500m-btree-populate
-      - name: perf-test-long-500m-btree-50r50u
-      - name: perf-test-long-500m-btree-50r50u-backup
-      - name: perf-test-long-500m-btree-80r20u
-      - name: perf-test-long-500m-btree-rdonly
-      - name: perf-test-long-checkpoint-stress
-      - name: many-dhandle-stress
     commands:
       - func: "get project"
       - command: shell.exec
@@ -4715,24 +4697,6 @@ tasks:
           shell: bash
           script: |
             mkdir perf_stats
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "small-lsm"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "medium-lsm"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "medium-lsm-compact"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "medium-multi-lsm"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "parallel-pop-lsm"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "update-lsm"
       - func: "fetch perf stats" 
         vars:
           test_name: "small-btree"
@@ -4766,12 +4730,9 @@ tasks:
       - func: "fetch perf stats" 
         vars:
           test_name: "mongodb-oplog"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "mongodb-small-oplog"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "mongodb-large-oplog"
+      # - func: "fetch perf stats" 
+      #   vars:
+      #     test_name: "mongodb-small-oplog"
       - func: "fetch perf stats" 
         vars:
           test_name: "mongodb-secondary-apply"
@@ -4804,37 +4765,16 @@ tasks:
           test_name: "update-delta-mix3"
       - func: "fetch perf stats" 
         vars:
-          test_name: "multi-btree-zipfian-workload" 
+          test_name: "evict-btree-stress-multi"
       - func: "fetch perf stats" 
         vars:
-          test_name: "evict-btree-stress-multi"
+          test_name: "evict-btree"
       - func: "fetch perf stats" 
         vars:
           test_name: "evict-btree-1"
       - func: "fetch perf stats" 
         vars:
           test_name: "log"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "500m-btree-populate"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "500m-btree-50r50u"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "500m-btree-50r50u-backup"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "500m-btree-80r20u"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "500m-btree-rdonly"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "checkpoint-stress"
-      - func: "fetch perf stats" 
-        vars:
-          test_name: "many-dhandle-stress"
       - func: "aggregate-perf-stats" 
 
 #######################################
@@ -5126,7 +5066,6 @@ buildvariants:
     - name: ".log-perf"
     - name: ".long-perf"
     - name: ".oplog-perf"
-    - name: many-dhandle-stress
     - name: ".wt2853-perf"
     - name: cppsuite-bounded-cursor-perf-stress
   display_tasks:
@@ -5449,6 +5388,36 @@ buildvariants:
     - name: unit-test
     - name: fops
 
+- name: macos-1100-perf-tests
+  display_name: "OS X 11.00 Performance Tests"
+  run_on:
+  - macos-1100
+  batchtime: 120 # 2 hours
+  expansions:
+    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
+    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    pip3_binary: '/opt/mongodbtoolchain/v3/bin/pip3'
+    virtualenv_binary: '/opt/mongodbtoolchain/v3/bin/virtualenv'
+    smp_command: -j $(sysctl -n hw.logicalcpu)
+    cmake_generator: "Unix Makefiles"
+    make_command: make
+    test_env_vars:
+      WT_BUILDDIR=$(git rev-parse --show-toplevel)/cmake_build
+      DYLD_LIBRARY_PATH=$WT_BUILDDIR
+    # Must disable TCMALLOC as it may be picked up locally and its not on all hosts.
+    posix_configure_flags: -DENABLE_TCMALLOC=0
+    improved_accuracy: '--improved_accuracy'
+  tasks:
+    - name: compile
+    - name: perf-test-medium-btree
+    - name: perf-test-medium-btree-backup
+    - name: perf-test-mongodb-oplog
+    - name: perf-test-mongodb-small-oplog
+    - name: perf-test-evict-btree
+    - name: perf-test-evict-btree-1
+    - name: perf-test-log
+    - name: "aggregate-perf-stats"
+      
 - name: little-endian
   display_name: "~ Little-endian (x86)"
   run_on:
@@ -5587,3 +5556,33 @@ buildvariants:
     - name: unit-test-nonstandalone
     - name: unit-test-long-nonstandalone
       distros: ubuntu2004-arm64-large
+
+- name: ubuntu2004-arm64-perf-tests
+  display_name: "~ Ubuntu 20.04 ARM64 Performance Tests"
+  run_on:
+  - ubuntu2004-arm64-large
+  batchtime: 1440 # 24 hours
+  expansions:
+    test_env_vars:
+      WT_TOPDIR=$(git rev-parse --show-toplevel)
+      WT_BUILDDIR=$WT_TOPDIR/cmake_build
+      LD_LIBRARY_PATH=$WT_BUILDDIR
+    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
+    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    pip3_binary: '/opt/mongodbtoolchain/v3/bin/pip3'
+    virtualenv_binary: '/opt/mongodbtoolchain/v3/bin/virtualenv'
+    smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
+    cmake_generator: Ninja
+    make_command: ninja
+    improved_accuracy: '--improved_accuracy'
+  tasks:
+    - name: compile
+    - name: perf-test-medium-btree
+    - name: perf-test-medium-btree-backup
+    - name: perf-test-mongodb-oplog
+    - name: perf-test-mongodb-small-oplog
+    - name: perf-test-mongodb-secondary-apply
+    - name: perf-test-evict-btree
+    - name: perf-test-evict-btree-1
+    - name: perf-test-log
+    - name: "aggregate-perf-stats"

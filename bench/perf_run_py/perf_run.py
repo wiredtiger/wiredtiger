@@ -171,7 +171,7 @@ def run_test(config: PerfConfig, test_run: int, index: int = 0, arguments: List[
         arguments=arguments,
         test_arg=config.test_type.get_test_arg(config.test),
         home_arg=config.test_type.get_home_arg(test_home))
-
+        
     try:
         proc = subprocess.run(command_line, check=True,
                               stdout=subprocess.PIPE,
