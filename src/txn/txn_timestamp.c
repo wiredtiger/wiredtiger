@@ -167,12 +167,13 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
          * concurrent transactions.
          */
         if (!txn_global->has_durable_timestamp) {
-            *tsp = 0;
+            *tsp = WT_TS_NONE;
             return (0);
         }
-        ts = txn_global->durable_timestamp;
 
         __wt_readlock(session, &txn_global->rwlock);
+
+        ts = txn_global->durable_timestamp;
 
         /* Walk the array of concurrent transactions. */
         WT_ORDERED_READ(session_cnt, conn->session_cnt);
