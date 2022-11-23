@@ -48,6 +48,7 @@ struct __wt_rec_chunk {
     uint64_t recno;
     WT_ITEM key;
     WT_TIME_AGGREGATE ta;
+    WT_PAGE_STAT ps;
 
     /* Saved minimum split-size boundary information. */
     uint32_t min_entries;

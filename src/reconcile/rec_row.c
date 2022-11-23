@@ -266,6 +266,7 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         __wt_rec_image_copy(session, r, key);
         __wt_rec_image_copy(session, r, val);
         WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &addr->ta);
+        WT_PAGE_STAT_MERGE(&r->cur_ptr->ps, &addr->ps);
 
         /* Update compression state. */
         __rec_key_state_update(r, false);
@@ -289,6 +290,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_IKEY *ikey;
     WT_PAGE *child;
     WT_PAGE_DELETED *page_del;
+    WT_PAGE_STAT ps, *source_ps;
     WT_REC_KV *key, *val;
     WT_REF *ref;
     WT_TIME_AGGREGATE ft_ta, *source_ta, ta;
@@ -401,12 +403,14 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             page_del = cms.state == WT_CHILD_PROXY ? &cms.del : NULL;
             __wt_rec_cell_build_addr(session, r, addr, NULL, WT_RECNO_OOB, page_del);
             source_ta = &addr->ta;
+            source_ps = &addr->ps;
         } else if (cms.state == WT_CHILD_PROXY) {
             /* Proxy cells require additional information in the address cell. */
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
             page_del = &cms.del;
             __wt_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del);
             source_ta = &vpack->ta;
+            source_ps = &vpack->ps;
         } else {
             /*
              * The transaction ids are cleared after restart. Repack the cell with new validity
@@ -429,6 +433,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                 val->len = val->buf.size;
             }
             source_ta = &vpack->ta;
+            source_ps = &vpack->ps;
         }
 
         /*
@@ -436,6 +441,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          * in the internal page's aggregate information for RTS to find it.
          */
         WT_TIME_AGGREGATE_COPY(&ta, source_ta);
+        WT_PAGE_STAT_COPY(&ps, source_ps);
         if (page_del != NULL)
             WT_TIME_AGGREGATE_UPDATE_PAGE_DEL(session, &ft_ta, page_del);
         WT_CHILD_RELEASE_ERR(session, cms.hazard, ref);
@@ -457,6 +463,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         if (page_del != NULL)
             WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &ft_ta);
         WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &ta);
+        WT_PAGE_STAT_MERGE(&r->cur_ptr->ps, &ps);
 
         /* Update compression state. */
         __rec_key_state_update(r, false);
@@ -497,6 +504,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 {
     WT_BTREE *btree;
     WT_CURSOR_BTREE *cbt;
+    WT_PAGE_STAT ps;
     WT_REC_KV *key, *val;
     WT_TIME_WINDOW tw;
     WT_UPDATE *upd;
@@ -605,6 +613,9 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
             __wt_rec_image_copy(session, r, val);
         }
         WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &tw);
+
+        ps.row_count = 1;
+        WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
 
         /* Update compression state. */
         __rec_key_state_update(r, ovfl_key);
