@@ -1061,7 +1061,9 @@ __wt_rts_btree_abort_updates(
   WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
 {
     WT_PAGE *page;
-    bool modified;
+    bool dryrun, modified;
+
+    dryrun = S2C(session)->rts->dryrun;
 
     /*
      * If we have a ref with clean page, find out whether the page has any modifications that are
@@ -1100,7 +1102,7 @@ __wt_rts_btree_abort_updates(
     }
 
     /* Mark the page as dirty to reconcile the page. */
-    if (page->modify)
+    if (!dryrun && page->modify)
         __wt_page_modify_set(session, page);
     return (0);
 }

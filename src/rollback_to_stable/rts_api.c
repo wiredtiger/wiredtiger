@@ -20,9 +20,11 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t rollback_timestamp;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
+    bool dryrun;
 
     conn = S2C(session);
     txn_global = &conn->txn_global;
+    dryrun = conn->rts->dryrun;
 
     /*
      * Rollback to stable should ignore tombstones in the history store since it needs to scan the
@@ -75,7 +77,7 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
      * ensure that both in-memory and on-disk versions are the same unless caller requested for no
      * checkpoint.
      */
-    if (!F_ISSET(conn, WT_CONN_IN_MEMORY) && !no_ckpt)
+    if (!F_ISSET(conn, WT_CONN_IN_MEMORY) && !no_ckpt && !dryrun)
         WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
 
 err:
