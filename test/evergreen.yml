@@ -5340,6 +5340,8 @@ buildvariants:
       WT_BUILDDIR=$(git rev-parse --show-toplevel)/cmake_build
       DYLD_LIBRARY_PATH=$WT_BUILDDIR
     # Must disable TCMALLOC as it may be picked up locally and its not on all hosts.
+    CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O3
+    HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
     posix_configure_flags: -DENABLE_TCMALLOC=0
     improved_accuracy: '--improved_accuracy'
   tasks:
@@ -5348,6 +5350,8 @@ buildvariants:
     - name: perf-test-medium-btree-backup
     - name: perf-test-mongodb-oplog
     - name: perf-test-mongodb-small-oplog
+    # FIXME-BUILD-16428: Re-enable once snappy is installed on mac platforms.
+    # - name: perf-test-mongodb-secondary-apply
     - name: perf-test-evict-btree
     - name: perf-test-evict-btree-1
     - name: perf-test-log
@@ -5505,6 +5509,8 @@ buildvariants:
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     pip3_binary: '/opt/mongodbtoolchain/v3/bin/pip3'
+    CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O3
+    HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
     virtualenv_binary: '/opt/mongodbtoolchain/v3/bin/virtualenv'
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: Ninja
