@@ -12,8 +12,6 @@ static int __log_newfile(WT_SESSION_IMPL *, bool, bool *);
 static int __log_openfile(WT_SESSION_IMPL *, uint32_t, uint32_t, WT_FH **);
 static int __log_truncate(WT_SESSION_IMPL *, WT_LSN *, bool, bool);
 static int __log_write_internal(WT_SESSION_IMPL *, WT_ITEM *, WT_LSN *, uint32_t);
-static int __log_fsync_dir(WT_SESSION_IMPL *, WT_LSN *, const char *);
-static int __log_fsync_file(WT_SESSION_IMPL *, WT_LSN *, const char *, bool);
 
 #define WT_LOG_COMPRESS_SKIP (offsetof(WT_LOG_RECORD, record))
 #define WT_LOG_ENCRYPT_SKIP (offsetof(WT_LOG_RECORD, record))
@@ -222,6 +220,78 @@ __log_fs_write(
 }
 
 /*
+ * __log_fsync_dir --
+ *     Perform fsync of log->log_dir_fh. Requires log->log_sync_lock to be held by the caller.
+ */
+static int
+__log_fsync_dir(WT_SESSION_IMPL *session, WT_LSN *min_lsn, const char *method)
+{
+    WT_LOG *log;
+    uint64_t fsync_duration_usecs, time_start, time_stop;
+
+    log = S2C(session)->log;
+
+    if (log->sync_dir_lsn.l.file < min_lsn->l.file) {
+        WT_ASSERT(session, log->log_dir_fh != NULL);
+        __wt_verbose(session, WT_VERB_LOG, "%s: sync directory %s to LSN %" PRIu32 "/%" PRIu32,
+          method, log->log_dir_fh->name, min_lsn->l.file, min_lsn->l.offset);
+        time_start = __wt_clock(session);
+        WT_RET(__wt_fsync(session, log->log_dir_fh, true));
+        time_stop = __wt_clock(session);
+        fsync_duration_usecs = WT_CLOCKDIFF_US(time_stop, time_start);
+        WT_ASSIGN_LSN(&log->sync_dir_lsn, min_lsn);
+        WT_STAT_CONN_INCR(session, log_sync_dir);
+        WT_STAT_CONN_INCRV(session, log_sync_dir_duration, fsync_duration_usecs);
+    }
+
+    return (0);
+}
+
+/*
+ * __log_fsync_file --
+ *     Perform fsync of log->log_fh if use_own_fh is false. If use_own_fh is true, perform fsync of
+ *     the file specified in min_lsn (will obtain a new file handle to that log file and close it).
+ *     Requires log->log_sync_lock to be held by the caller.
+ */
+static int
+__log_fsync_file(WT_SESSION_IMPL *session, WT_LSN *min_lsn, const char *method, bool use_own_fh)
+{
+    WT_DECL_RET;
+    WT_FH *log_fh;
+    WT_LOG *log;
+    uint64_t fsync_duration_usecs, time_start, time_stop;
+
+    log = S2C(session)->log;
+    log_fh = NULL;
+
+    if (__wt_log_cmp(&log->sync_lsn, min_lsn) < 0) {
+        /*
+         * Get our own file handle to the log file if requested as it is possible for the file
+         * handle in the log structure to change out from under us and either be NULL or point to a
+         * different file than we want.
+         */
+        if (use_own_fh)
+            WT_ERR(__log_openfile(session, min_lsn->l.file, 0, &log_fh));
+        else
+            log_fh = log->log_fh;
+        __wt_verbose(session, WT_VERB_LOG, "%s: sync %s to LSN %" PRIu32 "/%" PRIu32, method,
+          log_fh->name, min_lsn->l.file, min_lsn->l.offset);
+        time_start = __wt_clock(session);
+        WT_ERR(__wt_fsync(session, log_fh, true));
+        time_stop = __wt_clock(session);
+        fsync_duration_usecs = WT_CLOCKDIFF_US(time_stop, time_start);
+        WT_ASSIGN_LSN(&log->sync_lsn, min_lsn);
+        WT_STAT_CONN_INCR(session, log_sync);
+        WT_STAT_CONN_INCRV(session, log_sync_duration, fsync_duration_usecs);
+        __wt_cond_signal(session, log->log_sync_cond);
+    }
+err:
+    if (use_own_fh && log_fh != NULL)
+        WT_TRET(__wt_close(session, &log_fh));
+    return (ret);
+}
+
+/*
  * __wt_log_ckpt --
  *     Record the given LSN as the checkpoint LSN and signal the removal thread as needed.
  */
@@ -299,9 +369,8 @@ __wt_log_force_sync(WT_SESSION_IMPL *session, WT_LSN *min_lsn)
     WT_ERR(__log_fsync_dir(session, min_lsn, "log_force_sync"));
 
     /*
-     * Sync the log file if needed. Get our own file handle to the log file. It is possible for the
-     * file handle in the log structure to change out from under us and either be NULL or point to a
-     * different file than we want.
+     * Sync the log file if needed. Use a new file handle to the log file by setting use_own_fh to
+     * true.
      */
     WT_ERR(__log_fsync_file(session, min_lsn, "log_force_sync", true));
 err:
@@ -1928,16 +1997,15 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
          * Check if we have to sync the parent directory. Some combinations of sync flags may result
          * in the log file not yet stable in its parent directory. Do that now if needed.
          */
-        if (F_ISSET(slot, WT_SLOT_SYNC_DIR)) {
+        if (F_ISSET(slot, WT_SLOT_SYNC_DIR))
             WT_ERR(__log_fsync_dir(session, &sync_lsn, "log_release"));
-        }
 
         /*
          * Sync the log file if needed.
          */
-        if (F_ISSET(slot, WT_SLOT_SYNC)) {
+        if (F_ISSET(slot, WT_SLOT_SYNC))
             WT_ERR(__log_fsync_file(session, &sync_lsn, "log_release", false));
-        }
+
         /*
          * Clear the flags before leaving the loop.
          */
@@ -2782,69 +2850,4 @@ __wt_log_flush(WT_SESSION_IMPL *session, uint32_t flags)
     if (LF_ISSET(WT_LOG_FSYNC))
         WT_RET(__wt_log_force_sync(session, &lsn));
     return (0);
-}
-
-/*
- * __log_fsync_dir --
- *     Perform fsync of log->log_dir_fh. Requires log->log_sync_lock to be held by the caller.
- */
-int
-__log_fsync_dir(WT_SESSION_IMPL *session, WT_LSN *min_lsn, const char *method)
-{
-    WT_LOG *log;
-    uint64_t fsync_duration_usecs, time_start, time_stop;
-
-    log = S2C(session)->log;
-
-    if (log->sync_dir_lsn.l.file < min_lsn->l.file) {
-        WT_ASSERT(session, log->log_dir_fh != NULL);
-        __wt_verbose(session, WT_VERB_LOG, "%s: sync directory %s to LSN %" PRIu32 "/%" PRIu32,
-          method, log->log_dir_fh->name, min_lsn->l.file, min_lsn->l.offset);
-        time_start = __wt_clock(session);
-        WT_RET(__wt_fsync(session, log->log_dir_fh, true));
-        time_stop = __wt_clock(session);
-        fsync_duration_usecs = WT_CLOCKDIFF_US(time_stop, time_start);
-        WT_ASSIGN_LSN(&log->sync_dir_lsn, min_lsn);
-        WT_STAT_CONN_INCR(session, log_sync_dir);
-        WT_STAT_CONN_INCRV(session, log_sync_dir_duration, fsync_duration_usecs);
-    }
-
-    return (0);
-}
-
-/*
- * __log_fsync_file --
- *     use a new file handle to perform the fsync.
- */
-int
-__log_fsync_file(WT_SESSION_IMPL *session, WT_LSN *min_lsn, const char *method, bool use_own_fh)
-{
-    WT_DECL_RET;
-    WT_FH *log_fh;
-    WT_LOG *log;
-    uint64_t fsync_duration_usecs, time_start, time_stop;
-
-    log = S2C(session)->log;
-    log_fh = NULL;
-
-    if (__wt_log_cmp(&log->sync_lsn, min_lsn) < 0) {
-        if (use_own_fh)
-            WT_ERR(__log_openfile(session, min_lsn->l.file, 0, &log_fh));
-        else
-            log_fh = log->log_fh;
-        __wt_verbose(session, WT_VERB_LOG, "%s: sync %s to LSN %" PRIu32 "/%" PRIu32, method,
-          log_fh->name, min_lsn->l.file, min_lsn->l.offset);
-        time_start = __wt_clock(session);
-        WT_ERR(__wt_fsync(session, log_fh, true));
-        time_stop = __wt_clock(session);
-        fsync_duration_usecs = WT_CLOCKDIFF_US(time_stop, time_start);
-        WT_ASSIGN_LSN(&log->sync_lsn, min_lsn);
-        WT_STAT_CONN_INCR(session, log_sync);
-        WT_STAT_CONN_INCRV(session, log_sync_duration, fsync_duration_usecs);
-        __wt_cond_signal(session, log->log_sync_cond);
-    }
-err:
-    if (use_own_fh && log_fh != NULL)
-        WT_TRET(__wt_close(session, &log_fh));
-    return (ret);
 }
