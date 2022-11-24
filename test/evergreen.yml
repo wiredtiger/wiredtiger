@@ -2473,6 +2473,19 @@ tasks:
               ${test_env_vars|} ./test_fops
             fi
 
+  - name: bench-tiered-push-pull
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/bench/tiered"
+          script: |
+            set -o errexit
+            set -o verbose
+            ${test_env_vars|} ./test_push_pull
+
   - name: compatibility-test-for-newer-releases
     commands:
       - func: "get project"
@@ -4686,6 +4699,7 @@ buildvariants:
     - name: ".data-validation-stress-test"
     - name: unittest-test
     - name: tiered-storage-extensions-test
+    - name: bench-tiered-push-pull
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
     - name: unit-test-nonstandalone
@@ -5160,10 +5174,10 @@ buildvariants:
     - name: fops
     - name: unittest-test
 
-- name: macos-1014
-  display_name: "OS X 10.14"
+- name: macos-1100
+  display_name: "macOS 11.00"
   run_on:
-  - macos-1014
+  - macos-1100
   batchtime: 120 # 2 hours
   expansions:
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
