@@ -5339,9 +5339,9 @@ buildvariants:
     test_env_vars:
       WT_BUILDDIR=$(git rev-parse --show-toplevel)/cmake_build
       DYLD_LIBRARY_PATH=$WT_BUILDDIR
-    # Must disable TCMALLOC as it may be picked up locally and its not on all hosts.
     CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O3
     HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
+    # Must disable TCMALLOC as it may be picked up locally and its not on all hosts.
     posix_configure_flags: -DENABLE_TCMALLOC=0
     improved_accuracy: '--improved_accuracy'
   tasks:
