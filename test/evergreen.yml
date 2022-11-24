@@ -5361,8 +5361,7 @@ buildvariants:
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
     - name: unit-test-long
-      run_on:
-      - amazon2-arm64-large
+      distros: amazon2-arm64-large
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
     - name: wtperf-test
