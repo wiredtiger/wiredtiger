@@ -29,7 +29,7 @@ struct __wt_chunkcache_hashid {
  */
 struct __wt_chunkcache_chunk {
     TAILQ_ENTRY(__wt_chunkcache_chunk) next_chunk;
-    TAILQ_ENTRY(__wt_chunkcache_chunk) next_LRU_item;
+    TAILQ_ENTRY(__wt_chunkcache_chunk) next_lru_item;
 
     struct __wt_chunklist_head *my_queuehead_ptr;
     wt_off_t chunk_offset;
@@ -37,7 +37,7 @@ struct __wt_chunkcache_chunk {
     char *chunk_location;
     uint32_t valid;
     uint bucket_id;  /* Lets us find the corresponding bucket for quick removal */
-
+    bool chunk_in_eviction;
 };
 
 /*
@@ -72,7 +72,7 @@ struct __wt_chunkcache {
     WT_CHUNKCACHE_BUCKET *hashtable;
     WT_SPINLOCK *bucket_locks;
     WT_SPINLOCK chunkcache_lru_lock; /* Locks the LRU queue */
-    TAILQ_HEAD(__wt_chunkcache_LRU, __wt_chunkcache_chunk) chunkcache_lru_list;
+    TAILQ_HEAD(__wt_chunkcache_lru, __wt_chunkcache_chunk) chunkcache_lru_list;
 #ifdef ENABLE_MEMKIND
     struct memkind *memkind; /* Lets us use jemalloc over a file */
 #endif

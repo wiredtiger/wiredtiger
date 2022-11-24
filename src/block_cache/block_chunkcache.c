@@ -37,34 +37,44 @@ __chunkcache_alloc_space(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
     return (0);
 }
 
-#define IN_QUEUE(head, elm, field) do {
-
-} while (0)
 
 static bool
 __chunkcache_evict_one(WT_SESSION_IMPL *session)
 {
     WT_CHUNKCACHE *chunkcache;
+    WT_CHUNKCACHE_CHUNK *chunk_to_evict;
 
     chunkcache = &S2C(session)->chunkcache;
 
     /*
      * We must remove the evicted chunk from the LRU list and from its chunk chain.
-     * We must lock the chunk chain before we lock the LRU list. But to get the
-     * pointer to the evicted chunk, we must lock the LRU list. We resolve this
-     * circularity as follows:
+     * We must lock the chunk chain before we lock the LRU list. But to find the
+     * queue where the to-be-evicted chunk lives, we must look inside the LRU list.
+     * We resolve this circularity as follows:
      *
      * 1. We lock the LRU list and get the pointer to the chunk at the list's tail
-     *    and unlock the LRU list.
+     *    and unlock the LRU list. We mark that chunk as being evicted. That prevents
+     *    other code from freeing the chunk before we do.
      * 2. We lock the chunk's chain.
      * 3. We re-lock the LRU list.
      * 4. If the chunk is still in the LRU list and in its chunkchain, we remove it from
      *    these. Otherwise we fail to evict.
      */
-    
+    __wt_spin_lock(session, &chunkcache->chunkcache_lru_lock);
+    chunk_to_evict = TAILQ_LAST(&chunkcache->chunkcache_lru_list, __wt_chunkcache_lru);
+    if (chunk_to_evict != NULL)
+        TAILQ_REMOVE(&chunkcache->chunkcache_lru_list, chunk_to_evict, next_lru_item);
+    __wt_spin_unlock(session, &chunkcache->chunkcache_lru_lock);
 
+    if (chunk_to_evict == NULL)
+        return false;
 
+    __chunkcache_remove_chunk(chunk_to_evict);
 
+    /* Free the chunk */
+    XXX
+
+    return true;
 }
 
 static size_t
@@ -184,12 +194,16 @@ __wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object
                     *chunkcache_has_data = true;
                     /* Increment hit statistics. XXX */
 
-                    /* Move to the head of the LRU list */
-                    __wt_spin_lock(session, &chunkcache->chunkcache_LRU_lock);
-                    TAILQ_REMOVE(&chunkcache->chunkcache_lru_list, chunk, next_LRU_item);
-                    TAILQ_INSERT_HEAD(&chunkcache->chunkcache_lru_list, chunk, next_LRU_item);
-                    __wt_spin_unlock(session, &chunkcache->chunkcache_LRU_lock);
-
+                    /*
+                     * Move to the head of the LRU list if we find the chunk in that list.
+                     * If the chunk was not in the LRU list, then it is being evicted;
+                     * we let it being evicted.
+                     */
+                    if (__chunkcache_remove_chunk_lru(session, chunk)) {
+                        __wt_spin_lock(session, &chunkcache->chunkcache_lru_lock);
+                        TAILQ_INSERT_HEAD(&chunkcache->chunkcache_lru_list, chunk, next_lru_item);
+                        __wt_spin_unlock(session, &chunkcache->chunkcache_lru_lock);
+                    }
                     goto done;
                 } else if (chunk->chunk_offset > offset)
                     break;
@@ -290,7 +304,7 @@ __wt_chunkcache_complete_read(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chu
         *chunkcache_has_data = true;
     } else {
         /* This is the case where the block overlaps two chunks */
-        if ((next_chunk = (WT_CHUNKCACHE_CHUNK *)TAILQ_NEXT(chunk,next_chunk)) != NULL &&
+        if ((next_chunk = (WT_CHUNKCACHE_CHUNK *)TAILQ_NEXT(chunk, next_chunk)) != NULL &&
             next_chunk->chunk_offset == (chunk->chunk_offset + (wt_off_t)chunk->chunk_size)) {
             /* The next chunk is the continuation of the current one. Copy data in two steps */
             copy_size1 = (size_t)chunk->chunk_offset + chunk->chunk_size - (size_t)offset;
@@ -303,14 +317,37 @@ __wt_chunkcache_complete_read(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chu
     }
 
     /* Insert at the head of the LRU list */
-    __wt_spin_lock(session, &chunkcache->chunkcache_LRU_lock);
-    TAILQ_INSERT_HEAD(&chunkcache->chunkcache_lru_list, chunk, next_LRU_item);
-    __wt_spin_unlock(session, &chunkcache->chunkcache_LRU_lock);
+    __wt_spin_lock(session, &chunkcache->chunkcache_lru_lock);
+    TAILQ_INSERT_HEAD(&chunkcache->chunkcache_lru_list, chunk, next_lru_item);
+    __wt_spin_unlock(session, &chunkcache->chunkcache_lru_lock);
 }
 
 
 /*
- * Remove a chunk from its chunk chain.
+ * Remove the chunk from the LRU list.
+ */
+static bool
+__chunkcache_remove_chunk_lru(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
+{
+    WT_CHUNKCACHE *chunkcache;
+    bool removed;
+
+    chunkcache = &S2C(session)->chunkcache;
+    removed = false;
+
+     __wt_spin_lock(session, &chunkcache->chunkcache_lru_lock);
+    if (TAILQ_NEXT(chunk, next_lru_item) != NULL ||
+        TAILQ_PREV(chunk, __wt_chunklist_head, next_lru_item) != NULL) {
+        TAILQ_REMOVE(&chunkcache->chunkcache_lru_list, chunk, next_lru_item);
+        removed = true;
+    }
+    __wt_spin_unlock(session, &chunkcache->chunkcache_lru_lock);
+    return removed;
+}
+
+
+/*
+ * Remove the chunk from its chunk chain.
  */
 static void
 __chunkcache_remove_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
@@ -321,11 +358,12 @@ __chunkcache_remove_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
 
     /* Lock the bucket and then remove the chunk from the chain */
     __wt_spin_lock(session, &chunkcache->bucket_locks[chunk->bucket_id]);
-    TAILQ_REMOVE(chunk->my_queuehead_ptr, chunk, next_chunk);
+    if (TAILQ_NEXT(chunk, next_chunk) != NULL ||
+        TAILQ_PREV(chunk, __wt_chunklist_head, next_chunk) != NULL)
+        TAILQ_REMOVE(chunk->my_queuehead_ptr, chunk, next_chunk);
     __wt_spin_unlock(session, &chunkcache->bucket_locks[chunk->bucket_id]);
 
 }
-
 
 /*
  * Remove the chunk containing an outdated block.
@@ -371,9 +409,9 @@ __wt_chunkcache_remove(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objec
                      * return such a chunk to the upper layer. So we can ignore such cases.
                      */
                     TAILQ_REMOVE(&chunkchain->chunks, chunk, next_chunk);
-                    __wt_spin_lock(session, &chunkcache->chunkcache_LRU_lock);
-                    TAILQ_REMOVE(&chunkcache->chunkcache_lru_list, chunk, next_LRU_item);
-                    __wt_spin_unlock(session, &chunkcache->chunkcache_LRU_lock);
+
+                    __chunkcache_remove_chunk_lru(session, chunk);
+
                     printf("\nremove: %s(%d), offset=%" PRId64 ", size=%d\n",
                            (char*)&hash_id.objectname, hash_id.objectid, offset, size);
                     /* XXX Update cache size and stats */
