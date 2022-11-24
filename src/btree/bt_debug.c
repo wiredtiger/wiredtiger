@@ -133,6 +133,7 @@ __debug_item_key(WT_DBG *ds, const char *tag, const void *data_arg, size_t size)
     WT_SESSION_IMPL *session;
 
     session = ds->session;
+
     return (ds->f(ds, "\t%s%s{%s}\n", tag == NULL ? "" : tag, tag == NULL ? "" : " ",
       F_ISSET(ds, WT_DEBUG_UNREDACT) ?
         __wt_key_string(session, data_arg, size, ds->key_format, ds->t1) :
