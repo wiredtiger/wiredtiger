@@ -24,6 +24,7 @@ __txn_op_log_row_key_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 
     cursor = &cbt->iface;
     WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_SET));
+    cmp = 0;
 
     memset(&key, 0, sizeof(key));
 

@@ -818,6 +818,7 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *addr_
     size_t result_len;
 
     btree = S2BT(session);
+    result_len = 0;
 
     /* Checkpoint calls are different than standard calls. */
     WT_ASSERT(session,

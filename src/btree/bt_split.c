@@ -64,6 +64,7 @@ __split_verify_intl_key_order(WT_SESSION_IMPL *session, WT_PAGE *page)
     int cmp;
 
     btree = S2BT(session);
+    cmp = 0;
 
     switch (page->type) {
     case WT_PAGE_COL_INT:
