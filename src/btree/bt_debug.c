@@ -686,6 +686,7 @@ __debug_cell_kv(
     WT_RET(page == NULL ? __wt_dsk_cell_data_ref_kv(session, page_type, unpack, ds->t1) :
                           __wt_page_cell_data_ref_kv(session, page, unpack, ds->t1));
 
+    /* If redacting user data, we're done after dumping the header. */
     if (!F_ISSET(ds, WT_DEBUG_UNREDACT))
         return (0);
 
@@ -952,7 +953,7 @@ __wt_debug_tree_all(void *session_arg, WT_BTREE *btree, WT_REF *ref, const char 
 
     WT_WITH_BTREE(session, btree,
       ret = __debug_tree(
-        session, ref, ofile, WT_DEBUG_UNREDACT | WT_DEBUG_TREE_LEAF | WT_DEBUG_TREE_WALK));
+        session, ref, ofile, WT_DEBUG_TREE_LEAF | WT_DEBUG_TREE_WALK | WT_DEBUG_UNREDACT));
     return (ret);
 }
 
@@ -974,7 +975,7 @@ __wt_debug_tree(void *session_arg, WT_BTREE *btree, WT_REF *ref, const char *ofi
         btree = S2BT(session);
 
     WT_WITH_BTREE(session, btree,
-      ret = __debug_tree(session, ref, ofile, WT_DEBUG_UNREDACT | WT_DEBUG_TREE_WALK));
+      ret = __debug_tree(session, ref, ofile, WT_DEBUG_TREE_WALK | WT_DEBUG_UNREDACT));
     return (ret);
 }
 
@@ -993,7 +994,7 @@ __wt_debug_page(
 
     flags = WT_DEBUG_TREE_LEAF;
     if (dump_app_data)
-        LF_SET(WT_DEBUG_TREE_LEAF);
+        LF_SET(WT_DEBUG_UNREDACT);
 
     /*
      * Allow an explicit btree as an argument, as one may not yet be set on the session.
@@ -1454,6 +1455,7 @@ __debug_page_row_leaf(WT_DBG *ds, WT_PAGE *page)
     WT_ROW_FOREACH (page, rip, i) {
         WT_RET(__wt_row_leaf_key(session, page, rip, ds->key, false));
         WT_RET(__debug_item_key(ds, "K", ds->key->data, ds->key->size));
+
         __wt_row_leaf_value_cell(session, page, rip, unpack);
         WT_RET(__debug_cell_kv(ds, page, WT_PAGE_ROW_LEAF, "V", unpack));
 
