@@ -2673,8 +2673,6 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
      */
     WT_ASSERT_ALWAYS(session, !WT_IS_HS(btree->dhandle) && !WT_IS_METADATA(btree->dhandle),
       "Attempting to write updates from the history store or metadata file into the history store");
-    /* Flag as unused for non diagnostic builds. */
-    WT_UNUSED(btree);
 
     /*
      * Delete the updates left in the history store by prepared rollback first before moving updates
