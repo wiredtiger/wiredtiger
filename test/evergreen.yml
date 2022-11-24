@@ -4739,6 +4739,50 @@ tasks:
           test_name: "log"
       - func: "aggregate-perf-stats" 
 
+  - name: aggregate-perf-stats-macos
+    depends_on:
+      - name: perf-test-medium-btree
+      - name: perf-test-medium-btree-backup
+      - name: perf-test-mongodb-oplog
+      - name: perf-test-mongodb-small-oplog
+      - name: perf-test-mongodb-secondary-apply
+      - name: perf-test-evict-btree
+      - name: perf-test-evict-btree-1
+      - name: perf-test-log
+    commands:
+      - func: "get project"
+      - command: shell.exec
+        params:
+          shell: bash
+          script: |
+            mkdir perf_stats
+      - func: "fetch perf stats"  
+        vars:
+          test_name: "medium-btree" 
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "medium-btree-backup" 
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "mongodb-oplog" 
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "mongodb-small-oplog" 
+      # FIXME-BUILD-16428: Re-enable once snappy is installed on mac platforms.
+      # - func: "fetch perf stats" 
+      #   vars:
+      #     test_name: "mongodb-secondary-apply"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "evict-btree"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "evict-btree-1"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "log"
+      - func: "aggregate-perf-stats" 
+
 #######################################
 #            Buildvariants            #
 #######################################
@@ -5350,12 +5394,10 @@ buildvariants:
     - name: perf-test-medium-btree-backup
     - name: perf-test-mongodb-oplog
     - name: perf-test-mongodb-small-oplog
-    # FIXME-BUILD-16428: Re-enable once snappy is installed on mac platforms.
-    # - name: perf-test-mongodb-secondary-apply
     - name: perf-test-evict-btree
     - name: perf-test-evict-btree-1
     - name: perf-test-log
-    - name: "aggregate-perf-stats"
+    - name: "aggregate-perf-stats-macos"
 
 - name: little-endian
   display_name: "~ Little-endian (x86)"
