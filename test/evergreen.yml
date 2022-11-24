@@ -5374,3 +5374,8 @@ buildvariants:
     # - name: format-smoke-test
     # FIXME-WT-10213
     # - name: tiered-storage-extensions-test
+    - name: compile-nonstandalone
+    - name: make-check-nonstandalone
+    - name: unit-test-nonstandalone
+    - name: unit-test-long-nonstandalone
+      distros: amazon2-arm64-large
