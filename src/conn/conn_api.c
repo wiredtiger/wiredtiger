@@ -1963,8 +1963,18 @@ __wt_diagnostic_asserts_config(WT_SESSION_IMPL *session, const char *cfg[])
         FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_DIAGNOSTIC_ASSERTS);
     else if (WT_STRING_MATCH("on", cval.str, cval.len))
         FLD_SET(conn->debug_flags, WT_CONN_DEBUG_DIAGNOSTIC_ASSERTS);
-    else
-        WT_RET_MSG(session, WT_NOTFOUND, "Invalid value provided for diagnostic_asserts");
+    else {
+        if (cval.len > 0)
+            WT_RET_MSG(session, WT_NOTFOUND, "Invalid value provided for diagnostic_asserts");
+        else
+#ifdef HAVE_DIAGNOSTIC
+            /* Default to on in HAVE_DIAGNOSTIC mode */
+            FLD_SET(conn->debug_flags, WT_CONN_DEBUG_DIAGNOSTIC_ASSERTS);
+#else
+            /* Default to off when not in HAVE_DIAGNOSTIC mode */
+            FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_DIAGNOSTIC_ASSERTS);
+#endif
+    }
     return (0);
 }
 
