@@ -4738,14 +4738,15 @@ tasks:
         vars:
           test_name: "log"
       - func: "aggregate-perf-stats" 
-
+  
+  # Once BUILD-16428 is fixed, replace all instances of this task with aggregate-perf-stats
+  # since that will also run perf-test-mongodb-secondary-apply once re-enabled.
   - name: aggregate-perf-stats-macos
     depends_on:
       - name: perf-test-medium-btree
       - name: perf-test-medium-btree-backup
       - name: perf-test-mongodb-oplog
       - name: perf-test-mongodb-small-oplog
-      - name: perf-test-mongodb-secondary-apply
       - name: perf-test-evict-btree
       - name: perf-test-evict-btree-1
       - name: perf-test-log
@@ -4768,10 +4769,6 @@ tasks:
       - func: "fetch perf stats" 
         vars:
           test_name: "mongodb-small-oplog" 
-      # FIXME-BUILD-16428: Re-enable once snappy is installed on mac platforms.
-      # - func: "fetch perf stats" 
-      #   vars:
-      #     test_name: "mongodb-secondary-apply"
       - func: "fetch perf stats" 
         vars:
           test_name: "evict-btree"
@@ -5394,6 +5391,8 @@ buildvariants:
     - name: perf-test-medium-btree-backup
     - name: perf-test-mongodb-oplog
     - name: perf-test-mongodb-small-oplog
+    # FIXME-BUILD-16428: Re-enable once snappy is installed on mac platforms.
+    # - name: perf-test-mongodb-secondary-apply
     - name: perf-test-evict-btree
     - name: perf-test-evict-btree-1
     - name: perf-test-log
