@@ -123,7 +123,7 @@
     __wt_panic(session, EINVAL, "%s: 0x%" PRIxMAX, \
       "encountered an illegal file format or internal value", (uintmax_t)(v))
 
-/* Branch prediction hints. likely. */
+/* Branch prediction hints. If an expression is likely to return true/false we can use this information to improve performance at runtime. */
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
 
