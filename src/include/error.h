@@ -125,11 +125,15 @@
 
 /*
  * Branch prediction hints. If an expression is likely to return true/false we can use this
- * information to improve performance at runtime.
+ * information to improve performance at runtime. This is only supported for GNU compilers.
  */
-#define likely(x) __builtin_expect(!!(x), 1)
-#define unlikely(x) __builtin_expect(!!(x), 0)
-
+#if defined(__GNUC__)
+#define LIKELY(x) __builtin_expect(!!(x), 1)
+#define UNLIKELY(x) __builtin_expect(!!(x), 0)
+#else
+#define LIKELY(x) (x)
+#define UNLIKELY(x) (x)
+#endif
 /*
  * TRIGGER_ABORT --
  *  Abort the program.
@@ -174,7 +178,7 @@
  */
 #define DIAGNOSTIC_ASSERTS_ENABLED(session)                                        \
     (session != NULL) &&                                                           \
-      (likely((session)->diagnostic_asserts_level == DIAG_ASSERTS_CONN) ?          \
+      (LIKELY((session)->diagnostic_asserts_level == DIAG_ASSERTS_CONN) ?          \
           FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_DIAGNOSTIC_ASSERTS) : \
           (session)->diagnostic_asserts_level == DIAG_ASSERTS_ON)
 
@@ -186,8 +190,8 @@
  */
 #define WT_ASSERT(session, exp)                                           \
     do {                                                                  \
-        if (unlikely(DIAGNOSTIC_ASSERTS_ENABLED(session)))                \
-            if (unlikely(!(exp))) {                                       \
+        if (UNLIKELY(DIAGNOSTIC_ASSERTS_ENABLED(session)))                \
+            if (UNLIKELY(!(exp))) {                                       \
                 TRIGGER_ABORT(session, exp, "Expression returned false"); \
             }                                                             \
     } while (0)
@@ -198,7 +202,7 @@
  */
 #define WT_ASSERT_ALWAYS(session, exp, ...)           \
     do {                                              \
-        if (unlikely(!(exp))) {                       \
+        if (UNLIKELY(!(exp))) {                       \
             TRIGGER_ABORT(session, exp, __VA_ARGS__); \
         }                                             \
     } while (0)
@@ -210,7 +214,7 @@
  */
 #define WT_ERR_ASSERT(session, exp, v, ...)               \
     do {                                                  \
-        if (unlikely(!(exp))) {                           \
+        if (UNLIKELY(!(exp))) {                           \
             if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {    \
                 TRIGGER_ABORT(session, exp, __VA_ARGS__); \
             } else                                        \
@@ -225,7 +229,7 @@
  */
 #define WT_RET_ASSERT(session, exp, v, ...)               \
     do {                                                  \
-        if (unlikely(!(exp))) {                           \
+        if (UNLIKELY(!(exp))) {                           \
             if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {    \
                 TRIGGER_ABORT(session, exp, __VA_ARGS__); \
             } else                                        \
@@ -240,7 +244,7 @@
  */
 #define WT_RET_PANIC_ASSERT(session, exp, v, ...)         \
     do {                                                  \
-        if (unlikely(!(exp))) {                           \
+        if (UNLIKELY(!(exp))) {                           \
             if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {    \
                 TRIGGER_ABORT(session, exp, __VA_ARGS__); \
             } else                                        \
