@@ -524,9 +524,9 @@ connection_runtime_config = [
         enable additional assertions.
         When \c off only mandatory assertions are enabled.
         When \c on additional diagnostic assertions are enabled.
-        The default value is controlled by the compilation flag \c HAVE_DIAGNOSTIC. 
-        When \c HAVE_DIAGNOSTIC=1 this flag is \c on. 
-        When \c HAVE_DIAGNOSTIC=0 this flag is \c off''',
+        The default value is determined by the compilation flag \c HAVE_DIAGNOSTIC. 
+        When \c HAVE_DIAGNOSTIC=1 this flag defaults to \c on. 
+        When \c HAVE_DIAGNOSTIC=0 this flag defaults to \c off''',
         choices=['off', 'on']),
     Config('history_store', '', r'''
         history store configuration options''',

@@ -123,7 +123,10 @@
     __wt_panic(session, EINVAL, "%s: 0x%" PRIxMAX, \
       "encountered an illegal file format or internal value", (uintmax_t)(v))
 
-/* Branch prediction hints. If an expression is likely to return true/false we can use this information to improve performance at runtime. */
+/*
+ * Branch prediction hints. If an expression is likely to return true/false we can use this
+ * information to improve performance at runtime.
+ */
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
 
@@ -148,8 +151,8 @@
          * Normally these are two errx messages, but we need to stitch them both together into \
          * unittest_assert_msg. To do so insert the second message immediately after the first \
          */                                                                                    \
-        _offset = (size_t)__wt_snprintf((session)->unittest_assert_msg,                        \
-          WT_SESSION_UNITTEST_BUF_LEN, "Assertion '%s' failed: ", #exp);                       \
+        WT_IGNORE_RET(__wt_snprintf_len_set((session)->unittest_assert_msg,                    \
+          WT_SESSION_UNITTEST_BUF_LEN, &_offset, "Assertion '%s' failed: ", #exp));            \
         WT_IGNORE_RET(__wt_snprintf((session)->unittest_assert_msg + _offset,                  \
           WT_SESSION_UNITTEST_BUF_LEN - _offset, __VA_ARGS__));                                \
                                                                                                \
