@@ -184,12 +184,12 @@
  *
  * FIXME-WT-10045 - WT_ASSERT should now always take an error message as an argument.
  */
-#define WT_ASSERT(session, exp)                            \
-    do {                                                   \
-        if (unlikely(DIAGNOSTIC_ASSERTS_ENABLED(session))) \
-            if (unlikely(!(exp))) {                        \
-                TRIGGER_ABORT(session, exp, "");           \
-            }                                              \
+#define WT_ASSERT(session, exp)                                           \
+    do {                                                                  \
+        if (unlikely(DIAGNOSTIC_ASSERTS_ENABLED(session)))                \
+            if (unlikely(!(exp))) {                                       \
+                TRIGGER_ABORT(session, exp, "Expression returned false"); \
+            }                                                             \
     } while (0)
 
 /*
