@@ -468,12 +468,18 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         if (page_del != NULL)
             WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &ft_ta);
         WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &ta);
-        WT_PAGE_STAT_MERGE(&r->cur_ptr->ps, &ps);
+        WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
 
         /* Update compression state. */
         __rec_key_state_update(r, false);
     }
     WT_INTL_FOREACH_END;
+
+    /* Reset the page stat value for the page if any of its children had invalid stat values. */
+    if (r->cur_ptr->ps.reset_byte_count)
+        r->cur_ptr->ps.byte_count = WT_STAT_NONE;
+    if (r->cur_ptr->ps.reset_row_count)
+        r->cur_ptr->ps.row_count = WT_STAT_NONE;
 
     /* Write the remnant page. */
     return (__wt_rec_split_finish(session, r));

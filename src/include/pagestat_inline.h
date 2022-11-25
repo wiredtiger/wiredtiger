@@ -40,16 +40,24 @@
     } while (0)
 
 /* Update the page stat structure */
-#define WT_PAGE_STAT_UPDATE(ps, update)                                                    \
-    do {                                                                                   \
-        /* Update byte count */                                                            \
-        if ((ps)->byte_count == WT_STAT_NONE && (update)->byte_count != WT_STAT_NONE)      \
-            (ps)->byte_count = (update)->byte_count;                                       \
-        else if ((ps)->byte_count != WT_STAT_NONE && (update)->byte_count != WT_STAT_NONE) \
-            (ps)->byte_count += (update)->byte_count;                                      \
-        /* Update row count */                                                             \
-        if ((ps)->row_count == WT_STAT_NONE && (update)->row_count != WT_STAT_NONE)        \
-            (ps)->row_count = (update)->row_count;                                         \
-        else if ((ps)->row_count != WT_STAT_NONE && (update)->row_count != WT_STAT_NONE)   \
-            (ps)->row_count += (update)->row_count;                                        \
+#define WT_PAGE_STAT_UPDATE(ps, update)                   \
+    do {                                                  \
+        /* Update byte count */                           \
+        if ((update)->byte_count == WT_STAT_NONE)         \
+            (ps)->reset_byte_count = true;                \
+        else {                                            \
+            if ((ps)->byte_count == WT_STAT_NONE)         \
+                (ps)->byte_count = (update)->byte_count;  \
+            else if ((ps)->byte_count != WT_STAT_NONE)    \
+                (ps)->byte_count += (update)->byte_count; \
+        }                                                 \
+        /* Update row count */                            \
+        if ((update)->row_count == WT_STAT_NONE)          \
+            (ps)->reset_row_count = true;                 \
+        else {                                            \
+            if ((ps)->row_count == WT_STAT_NONE)          \
+                (ps)->row_count = (update)->row_count;    \
+            else if ((ps)->row_count != WT_STAT_NONE)     \
+                (ps)->row_count += (update)->row_count;   \
+        }                                                 \
     } while (0)
