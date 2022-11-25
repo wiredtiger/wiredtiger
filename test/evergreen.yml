@@ -4738,6 +4738,47 @@ tasks:
         vars:
           test_name: "log"
       - func: "aggregate-perf-stats" 
+  
+  # Once BUILD-16428 is fixed, replace all instances of this task with aggregate-perf-stats
+  # since that will also run perf-test-mongodb-secondary-apply once re-enabled.
+  - name: aggregate-perf-stats-macos
+    depends_on:
+      - name: perf-test-medium-btree
+      - name: perf-test-medium-btree-backup
+      - name: perf-test-mongodb-oplog
+      - name: perf-test-mongodb-small-oplog
+      - name: perf-test-evict-btree
+      - name: perf-test-evict-btree-1
+      - name: perf-test-log
+    commands:
+      - func: "get project"
+      - command: shell.exec
+        params:
+          shell: bash
+          script: |
+            mkdir perf_stats
+      - func: "fetch perf stats"  
+        vars:
+          test_name: "medium-btree" 
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "medium-btree-backup" 
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "mongodb-oplog" 
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "mongodb-small-oplog" 
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "evict-btree"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "evict-btree-1"
+      - func: "fetch perf stats" 
+        vars:
+          test_name: "log"
+      - func: "aggregate-perf-stats" 
 
 #######################################
 #            Buildvariants            #
@@ -5323,6 +5364,40 @@ buildvariants:
     - name: unit-test
     - name: fops
 
+- name: macos-1100-perf-tests
+  display_name: "OS X 11.00 Performance Tests"
+  run_on:
+  - macos-1100
+  batchtime: 120 # 2 hours
+  expansions:
+    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
+    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    pip3_binary: '/opt/mongodbtoolchain/v3/bin/pip3'
+    virtualenv_binary: '/opt/mongodbtoolchain/v3/bin/virtualenv'
+    smp_command: -j $(sysctl -n hw.logicalcpu)
+    cmake_generator: "Unix Makefiles"
+    make_command: make
+    test_env_vars:
+      WT_BUILDDIR=$(git rev-parse --show-toplevel)/cmake_build
+      DYLD_LIBRARY_PATH=$WT_BUILDDIR
+    CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O3
+    HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
+    # Must disable TCMALLOC as it may be picked up locally and its not on all hosts.
+    posix_configure_flags: -DENABLE_TCMALLOC=0
+    improved_accuracy: '--improved_accuracy'
+  tasks:
+    - name: compile
+    - name: perf-test-medium-btree
+    - name: perf-test-medium-btree-backup
+    - name: perf-test-mongodb-oplog
+    - name: perf-test-mongodb-small-oplog
+    # FIXME-BUILD-16428: Re-enable once snappy is installed on mac platforms.
+    # - name: perf-test-mongodb-secondary-apply
+    - name: perf-test-evict-btree
+    - name: perf-test-evict-btree-1
+    - name: perf-test-log
+    - name: "aggregate-perf-stats-macos"
+
 - name: little-endian
   display_name: "~ Little-endian (x86)"
   run_on:
@@ -5461,3 +5536,36 @@ buildvariants:
     - name: unit-test-nonstandalone
     - name: unit-test-long-nonstandalone
       distros: ubuntu2004-arm64-large
+
+- name: ubuntu2004-arm64-perf-tests
+  display_name: "~ Ubuntu 20.04 ARM64 Performance Tests"
+  run_on:
+  - ubuntu2004-arm64-large
+  batchtime: 1440 # 24 hours
+  expansions:
+    test_env_vars:
+      WT_TOPDIR=$(git rev-parse --show-toplevel)
+      WT_BUILDDIR=$WT_TOPDIR/cmake_build
+      LD_LIBRARY_PATH=$WT_BUILDDIR
+    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
+    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    pip3_binary: '/opt/mongodbtoolchain/v3/bin/pip3'
+    CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O3
+    HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
+    virtualenv_binary: '/opt/mongodbtoolchain/v3/bin/virtualenv'
+    smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
+    cmake_generator: Ninja
+    make_command: ninja
+    improved_accuracy: '--improved_accuracy'
+  tasks:
+    - name: compile
+    - name: perf-test-medium-btree
+    - name: perf-test-medium-btree-backup
+    - name: perf-test-mongodb-oplog
+    - name: perf-test-mongodb-small-oplog
+    - name: perf-test-mongodb-secondary-apply
+    - name: perf-test-evict-btree
+    - name: perf-test-evict-btree-1
+    - name: perf-test-log
+    - name: "aggregate-perf-stats"
+    
