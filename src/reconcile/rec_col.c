@@ -297,12 +297,9 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
             if (cms.state == WT_CHILD_PROXY || F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
                 /*
                  * Need to build a proxy (page-deleted) cell or rebuild the cell with updated time
-                 * info. If we don't have page-delete information already, propagate any that exists
-                 * in the cell. This can be needed if we get back WT_CHILD_ORIGINAL and the time
-                 * window gets cleared.
+                 * info.
                  */
-                if (page_del == NULL && vpack->type == WT_CELL_ADDR_DEL)
-                    page_del = &vpack->page_del;
+                WT_ASSERT(session, vpack->type != WT_CELL_ADDR_DEL || page_del != NULL);
                 __wt_rec_cell_build_addr(session, r, NULL, vpack, ref->ref_recno, page_del);
             } else {
                 /* Copy the entire existing cell, including any page-delete information. */
@@ -1315,7 +1312,7 @@ __wt_rec_col_var(
          * where the new value happens (?) to match a Huffman- encoded value in a previous or next
          * record.
          */
-        WT_ERR(__wt_dsk_cell_data_ref(session, WT_PAGE_COL_VAR, vpack, orig));
+        WT_ERR(__wt_dsk_cell_data_ref_kv(session, WT_PAGE_COL_VAR, vpack, orig));
 
 record_loop:
         /*
@@ -1403,7 +1400,7 @@ record_loop:
                      * Original is an overflow item; we used it for a key and now we need another
                      * copy; read it into memory.
                      */
-                    WT_ERR(__wt_dsk_cell_data_ref(session, WT_PAGE_COL_VAR, vpack, orig));
+                    WT_ERR(__wt_dsk_cell_data_ref_kv(session, WT_PAGE_COL_VAR, vpack, orig));
 
                     ovfl_state = OVFL_IGNORE;
                 /* FALLTHROUGH */

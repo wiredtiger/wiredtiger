@@ -33,7 +33,10 @@ if(WT_POSIX)
     add_subdirectory(salvage)
     add_subdirectory(syscall)
     add_subdirectory(thread)
-    add_subdirectory(cppsuite)
+
+    if(ENABLE_CPPSUITE)
+        add_subdirectory(cppsuite)
+    endif()
 
     if(ENABLE_LLVM)
         # The fuzz test only works with llvm compilers. Restrict compilation of this test to only

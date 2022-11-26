@@ -92,6 +92,8 @@ Checksum
 Checksums
 CityHash
 CloseHandle
+CmP
+CmPTh
 Cmvz
 Collet
 Comparator
@@ -125,6 +127,7 @@ Decrypt
 DeleteFileW
 Destructor
 Deterministically
+Dxxx
 EACCES
 EAGAIN
 EB
@@ -154,6 +157,7 @@ Encryptors
 Enqueue
 Eron
 Exponentiate
+Exxx
 FALLOC
 FALLTHROUGH
 FH
@@ -350,6 +354,8 @@ PRId
 PRIu
 PRIuXX
 PRNG
+PSD
+PSE
 PTHREAD
 PTR
 PackInputStream
@@ -357,6 +363,7 @@ PackOutputStream
 Pandis
 Phong
 PlatformSDK
+Pomy
 Posix
 PostgreSQL
 Postrun
@@ -377,6 +384,7 @@ RECNO
 REF's
 REFs
 RET
+RETRYABLE
 RHEL
 RLE
 RLEs
@@ -416,6 +424,7 @@ STEC
 STL
 STR
 STRUCT
+SYSCALL
 Scalability
 Scalable
 Sedgewick
@@ -591,6 +600,7 @@ batchSize
 bb
 bba
 bbb
+bbuilddir
 bcr
 beginthreadex
 bigram
@@ -609,6 +619,8 @@ bm
 bnd
 bool
 boolean
+booleans
+boption
 br
 breakpoint
 bs
@@ -746,6 +758,7 @@ cursoring
 cursorp
 curstartrecno
 curstat
+curstd
 curtable
 curtiered
 curversion
@@ -763,6 +776,7 @@ datalen
 datasets
 datasource
 datastore
+dbar
 dbc
 dbs
 dcalloc
@@ -830,6 +844,7 @@ dsync
 dumpcmp
 dumpfile
 dup
+dv
 eee
 eg
 egrep
@@ -853,6 +868,8 @@ errhandler
 errno
 errx
 esc
+ev
+evd
 eventv
 evictable
 evictserver
@@ -1094,6 +1111,7 @@ llvm
 loadtext
 loc
 localTime
+localid
 localkey
 localtime
 localvalue
@@ -1262,10 +1280,12 @@ other's
 oversized
 ovfl
 ownp
+pR
 packv
 pagedump
 pageref
 pagesize
+pagestat
 param
 parens
 pareto
@@ -1424,7 +1444,6 @@ snprintf
 sp
 spinlock
 spinlocks
-sprintf
 src
 srch
 ss
@@ -1444,6 +1463,7 @@ strerror
 strftime
 strget
 strlen
+strncat
 strncpy
 strndup
 strnlen
@@ -1554,6 +1574,7 @@ unhandled
 unicode
 uninstantiated
 unistd
+unittest
 unlink
 unlinked
 unmap
@@ -1592,6 +1613,8 @@ util
 utils
 uu
 vN
+vPomy
+vW
 va
 valgrind
 validator
@@ -1600,6 +1623,7 @@ valuev
 vanishingly
 variable's
 variadic
+vd
 vdata
 vec
 vectorized

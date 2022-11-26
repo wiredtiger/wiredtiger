@@ -210,6 +210,17 @@ if(ENABLE_SHARED)
     )
     # Set the SOVERSION property of the wiredtiger library, so we can export the appropriately versioned symlinks.
     set_target_properties(wiredtiger_shared PROPERTIES SOVERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
+
+    # For MacOS builds we need to generate a dSYM bundle that contains the debug symbols for the 
+    # WiredTiger library.
+    if (WT_DARWIN)
+        add_custom_command(
+            TARGET wiredtiger_shared POST_BUILD
+            COMMAND dsymutil libwiredtiger.${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}.dylib
+            COMMENT "Running dsymutil on libwiredtiger.${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}.dylib"
+            VERBATIM
+        )
+    endif()
 endif()
 
 # Define an alias target for the WiredTiger library. This being a general target other
@@ -237,6 +248,7 @@ endif()
 
 # Build the wiredtiger test suites.
 add_subdirectory(bench/wtperf)
+add_subdirectory(bench/tiered)
 add_subdirectory(bench/wt2853_perf)
 add_subdirectory(examples)
 add_subdirectory(test)

@@ -409,6 +409,7 @@ resolve()
 	running=0
 	list=$(ls $home | grep '^RUNDIR.[0-9]*.log')
 	for i in $list; do
+		check_timer
 		# Note the directory may not yet exist, only the log file.
 		dir="$home/${i%.*}"
 		log="$home/$i"
@@ -560,6 +561,7 @@ format()
 	count_jobs=$(($count_jobs + 1))
 	dir="$home/RUNDIR.$count_jobs"
 	log="$dir.log"
+	live_record_command=""
 
 	args=""
 	if [[ $smoke_test -ne 0 ]]; then
@@ -586,10 +588,10 @@ format()
 	# This script is typically left running until a failure is hit. To avoid filling up the
 	# disk, we should avoid keeping recordings from successful runs.
 	if [[ ! -z $live_record_binary ]]; then
-		live_record_binary="$live_record_binary --save-on=error"
+		live_record_command="$live_record_binary --save-on error"
 	fi
 
-	cmd="$live_record_binary $format_binary -c "$config" -h "$dir" $trace $args quiet=1"
+	cmd="$live_record_command $format_binary -c "$config" -h "$dir" $trace $args quiet=1"
 	msg "$cmd"
 
 	# Disassociate the command from the shell script so we can exit and let the command
@@ -610,8 +612,11 @@ format()
 
 seconds=$((minutes * 60))
 start_time="$(date -u +%s)"
-while :; do
-	# Check if our time has expired.
+elapsed=0
+
+# Check if our time has expired. Updates force_quit if the timer has expired.
+check_timer()
+{
 	[[ $seconds -ne 0 ]] && {
 		now="$(date -u +%s)"
 		elapsed=$(($now - $start_time))
@@ -620,6 +625,10 @@ while :; do
 		[[ $elapsed -ge $seconds ]] &&
 			force_quit_reason "run timed out at $(date), after $elapsed seconds"
 	}
+}
+
+while :; do
+	check_timer
 
 	# Check if we're only running the smoke-tests and we're done.
 	[[ $smoke_test -ne 0 ]] && [[ $smoke_next -ge ${#smoke_list[@]} ]] && quit=1

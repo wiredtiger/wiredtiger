@@ -288,11 +288,14 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
 
     if (page->modify != NULL) {
         /*
-         * If this is an application thread that is running in a txn, keep track of its dirty bytes
-         * in the session statistic.
+         * For application threads, track the transaction bytes added to cache usage. We want to
+         * capture only the application's own changes to page data structures. Exclude changes to
+         * internal pages or changes that are the result of the application thread being co-opted
+         * into eviction work.
          */
         if (!F_ISSET(session, WT_SESSION_INTERNAL) &&
-          F_ISSET(session->txn, WT_TXN_RUNNING | WT_TXN_HAS_ID))
+          F_ISSET(session->txn, WT_TXN_RUNNING | WT_TXN_HAS_ID) &&
+          __wt_session_gen(session, WT_GEN_EVICT) == 0)
             WT_STAT_SESSION_INCRV(session, txn_bytes_dirty, size);
         if (!WT_PAGE_IS_INTERNAL(page) && !btree->lsm_primary) {
             (void)__wt_atomic_add64(&cache->bytes_updates, size);
@@ -1491,6 +1494,8 @@ struct __wt_addr_copy {
 
     WT_PAGE_DELETED del; /* Fast-truncate page information */
     bool del_set;
+
+    WT_PAGE_STAT ps; /* Page information including row and byte counts */
 };
 
 /*

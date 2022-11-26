@@ -174,6 +174,8 @@ extern u_int ntables;
     ((table)->v[V_TABLE_##off].vstr == NULL ? "off" : (table)->v[V_TABLE_##off].vstr)
 #define TV(off) NTV(table, off)
 #define TVS(off) NTVS(table, off)
+#define NT_EXPLICIT_SET(table, off) ((table)->v[V_TABLE_##off].set)
+#define NT_EXPLICIT_OFF(table, off) (NT_EXPLICIT_SET(table, off) && !NTV(table, off))
 
 #define DATASOURCE(table, ds) (strcmp((table)->v[V_TABLE_RUNS_SOURCE].vstr, ds) == 0)
 
@@ -197,7 +199,7 @@ typedef struct {
 #define TRACE_READ 0x10u
 #define TRACE_TIMESTAMP 0x20u
 #define TRACE_TXN 0x40u
-#define TRACE_ALL (TRACE_BULK & TRACE_CURSOR & TRACE_READ & TRACE_TIMESTAMP & TRACE_TXN)
+#define TRACE_ALL (TRACE_BULK | TRACE_CURSOR | TRACE_READ | TRACE_TIMESTAMP | TRACE_TXN)
     uint8_t trace_flags;
 
     int trace_retain;

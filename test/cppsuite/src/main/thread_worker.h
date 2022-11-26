@@ -29,6 +29,7 @@
 #ifndef THREAD_WORKER_H
 #define THREAD_WORKER_H
 
+#include <optional>
 #include <string>
 
 #include "database.h"
@@ -40,7 +41,7 @@
 #include "transaction.h"
 
 namespace test_harness {
-enum thread_type { CHECKPOINT, CUSTOM, INSERT, READ, REMOVE, UPDATE };
+enum class thread_type { CHECKPOINT, CUSTOM, INSERT, READ, REMOVE, UPDATE };
 
 const std::string type_string(thread_type type);
 
@@ -83,6 +84,15 @@ class thread_worker {
      * needs to be rolled back.
      */
     bool remove(scoped_cursor &cursor, uint64_t collection_id, const std::string &key);
+
+    /*
+     * Generic truncate function.
+     *
+     * Return true if the operation was successful, a return value of false implies the transaction
+     * needs to be rolled back.
+     */
+    bool truncate(uint64_t collection_id, std::optional<std::string> start_key,
+      std::optional<std::string> stop_key, const std::string &config);
     void sleep();
     bool running() const;
 

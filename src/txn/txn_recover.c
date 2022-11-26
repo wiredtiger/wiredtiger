@@ -106,7 +106,7 @@ __recovery_cursor(
  */
 #define GET_RECOVERY_CURSOR(session, r, lsnp, fileid, cp)                            \
     ret = __recovery_cursor(session, r, lsnp, fileid, false, cp);                    \
-    __wt_verbose(session, WT_VERB_RECOVERY,                                          \
+    __wt_verbose_debug2(session, WT_VERB_RECOVERY,                                   \
       "%s op %" PRIu32 " to file %" PRIu32 " at LSN %" PRIu32 "/%" PRIu32,           \
       ret != 0 ? "Error" : cursor == NULL ? "Skipping" : "Applying", optype, fileid, \
       (lsnp)->l.file, (lsnp)->l.offset);                                             \
@@ -189,15 +189,15 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
         GET_RECOVERY_CURSOR(session, r, lsnp, fileid, &cursor);
 
         /* Set up the cursors. */
-        if (start_recno == WT_RECNO_OOB) {
-            start = NULL;
-            stop = cursor;
-        } else if (stop_recno == WT_RECNO_OOB) {
+        start = stop = NULL;
+        if (start_recno != WT_RECNO_OOB)
             start = cursor;
-            stop = NULL;
-        } else {
-            start = cursor;
-            WT_ERR(__recovery_cursor(session, r, lsnp, fileid, true, &stop));
+
+        if (stop_recno != WT_RECNO_OOB) {
+            if (start != NULL)
+                WT_ERR(__recovery_cursor(session, r, lsnp, fileid, true, &stop));
+            else
+                stop = cursor;
         }
 
         /* Set the keys. */
@@ -206,7 +206,17 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
         if (stop != NULL)
             stop->set_key(stop, stop_recno);
 
-        WT_TRET(session->iface.truncate(&session->iface, NULL, start, stop, NULL));
+        /*
+         * If the truncate log doesn't have a recorded start and stop recno, truncate the whole file
+         * using the URI. Otherwise use the positioned start or stop cursors to truncate a range of
+         * the file.
+         */
+        if (start == NULL && stop == NULL)
+            WT_TRET(
+              session->iface.truncate(&session->iface, r->files[fileid].uri, NULL, NULL, NULL));
+        else
+            WT_TRET(session->iface.truncate(&session->iface, NULL, start, stop, NULL));
+
         /* If we opened a duplicate cursor, close it now. */
         if (stop != NULL && stop != cursor)
             WT_TRET(stop->close(stop));
@@ -280,7 +290,17 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
         if (stop != NULL)
             __wt_cursor_set_raw_key(stop, &stop_key);
 
-        WT_TRET(session->iface.truncate(&session->iface, NULL, start, stop, NULL));
+        /*
+         * If the truncate log doesn't have a recorded start and stop key, truncate the whole file
+         * using the URI. Otherwise use the positioned start or stop cursors to truncate a range of
+         * the file.
+         */
+        if (start == NULL && stop == NULL)
+            WT_TRET(
+              session->iface.truncate(&session->iface, r->files[fileid].uri, NULL, NULL, NULL));
+        else
+            WT_TRET(session->iface.truncate(&session->iface, NULL, start, stop, NULL));
+
         /* If we opened a duplicate cursor, close it now. */
         if (stop != NULL && stop != cursor)
             WT_TRET(stop->close(stop));
@@ -408,7 +428,8 @@ __recovery_set_checkpoint_timestamp(WT_RECOVERY *r)
 
 /*
  * __recovery_set_oldest_timestamp --
- *     Set the oldest timestamp as retrieved from the metadata file.
+ *     Set the oldest timestamp as retrieved from the metadata file. Setting the oldest timestamp
+ *     doesn't automatically set the pinned timestamp.
  */
 static int
 __recovery_set_oldest_timestamp(WT_RECOVERY *r)
@@ -504,6 +525,44 @@ err:
 }
 
 /*
+ * __recovery_txn_setup_initial_state --
+ *     Setup the transaction initial state required by rollback to stable.
+ */
+static int
+__recovery_txn_setup_initial_state(WT_SESSION_IMPL *session, WT_RECOVERY *r)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    WT_RET(__recovery_set_checkpoint_snapshot(session));
+
+    /*
+     * Set the checkpoint timestamp and oldest timestamp retrieved from the checkpoint metadata.
+     * These are the stable timestamp and oldest timestamps of the last successful checkpoint.
+     */
+    WT_RET(__recovery_set_checkpoint_timestamp(r));
+    WT_RET(__recovery_set_oldest_timestamp(r));
+
+    /*
+     * Now that timestamps extracted from the checkpoint metadata have been configured, configure
+     * the pinned timestamp.
+     */
+    __wt_txn_update_pinned_timestamp(session, true);
+
+    WT_ASSERT(session,
+      conn->txn_global.has_stable_timestamp == false &&
+        conn->txn_global.stable_timestamp == WT_TS_NONE);
+
+    /* Set the stable timestamp from recovery timestamp. */
+    conn->txn_global.stable_timestamp = conn->txn_global.recovery_timestamp;
+    if (conn->txn_global.stable_timestamp != WT_TS_NONE)
+        conn->txn_global.has_stable_timestamp = true;
+
+    return (0);
+}
+
+/*
  * __recovery_setup_file --
  *     Set up the recovery slot for a file, track the largest file ID, and update the base write gen
  *     based on the file's configuration.
@@ -556,8 +615,8 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
       (WT_IS_MAX_LSN(&r->max_ckpt_lsn) || __wt_log_cmp(&lsn, &r->max_ckpt_lsn) > 0))
         WT_ASSIGN_LSN(&r->max_ckpt_lsn, &lsn);
 
-    /* Update the base write gen based on this file's configuration. */
-    if ((ret = __wt_metadata_update_base_write_gen(r->session, config)) != 0)
+    /* Update the base write gen and most recent checkpoint based on this file's configuration. */
+    if ((ret = __wt_metadata_update_connection(r->session, config)) != 0)
         WT_RET_MSG(r->session, ret, "Failed recovery setup for %s: cannot update write gen", uri);
     return (0);
 }
@@ -925,10 +984,7 @@ done:
           "Upgrading from a WiredTiger version 10.0.0 database that was not shutdown cleanly is "
           "not allowed. Perform a clean shutdown on version 10.0.0 and then upgrade.");
 #endif
-
-    WT_ERR(__recovery_set_checkpoint_timestamp(&r));
-    WT_ERR(__recovery_set_oldest_timestamp(&r));
-    WT_ERR(__recovery_set_checkpoint_snapshot(session));
+    WT_ERR(__recovery_txn_setup_initial_state(session, &r));
 
     /*
      * Set the history store file size as it may already exist after a restart.
@@ -951,20 +1007,6 @@ done:
             eviction_started = true;
         }
 
-        WT_ASSERT(session,
-          conn->txn_global.has_stable_timestamp == false &&
-            conn->txn_global.stable_timestamp == WT_TS_NONE);
-
-        /*
-         * Set the stable timestamp from recovery timestamp and process the trees for rollback to
-         * stable.
-         */
-        conn->txn_global.stable_timestamp = conn->txn_global.recovery_timestamp;
-        conn->txn_global.has_stable_timestamp = false;
-
-        if (conn->txn_global.recovery_timestamp != WT_TS_NONE)
-            conn->txn_global.has_stable_timestamp = true;
-
         __wt_verbose_multi(session,
           WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RTS})),
           "performing recovery rollback_to_stable with stable timestamp: %s and oldest timestamp: "
@@ -972,7 +1014,7 @@ done:
           __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string[0]),
           __wt_timestamp_to_string(conn->txn_global.oldest_timestamp, ts_string[1]));
         rts_executed = true;
-        WT_ERR(__wt_rollback_to_stable(session, NULL, true));
+        WT_ERR(conn->rts->rollback_to_stable(session, NULL, true));
     }
 
     /*
@@ -989,6 +1031,9 @@ done:
          * the metadata up to date with the checkpoint LSN and removal.
          */
         WT_ERR(session->iface.checkpoint(&session->iface, NULL));
+
+    /* Remove any backup file now that metadata has been synced. */
+    WT_ERR(__wt_backup_file_remove(session));
 
     /*
      * Update the open dhandles write generations and base write generation with the connection's
@@ -1025,6 +1070,7 @@ err:
         WT_TRET(__wt_evict_destroy(session));
 
     WT_TRET(__wt_session_close_internal(session));
+    F_SET(conn, WT_CONN_RECOVERY_COMPLETE);
     F_CLR(conn, WT_CONN_RECOVERING);
 
     return (ret);

@@ -52,7 +52,7 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
 
     ci = NULL;
 
-    if (WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT))
+    if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_CHECKPOINT, WT_VERBOSE_DEBUG_1))
         __wt_ckpt_verbose(session, block, "load", NULL, addr, addr_size);
 
     /*
@@ -159,9 +159,7 @@ __wt_block_checkpoint_unload(WT_SESSION_IMPL *session, WT_BLOCK *block, bool che
 
         __wt_spin_lock(session, &block->live_lock);
         __wt_block_ckpt_destroy(session, &block->live);
-#ifdef HAVE_DIAGNOSTIC
         block->live_open = false;
-#endif
         __wt_spin_unlock(session, &block->live_lock);
     }
 
@@ -636,7 +634,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
         if (F_ISSET(ckpt, WT_CKPT_FAKE) || !F_ISSET(ckpt, WT_CKPT_DELETE))
             continue;
 
-        if (WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT))
+        if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_CHECKPOINT, WT_VERBOSE_DEBUG_2))
             __wt_ckpt_verbose(session, block, "delete", ckpt->name, ckpt->raw.data, ckpt->raw.size);
 
         /*
@@ -909,7 +907,7 @@ __ckpt_update(
     WT_RET(__wt_block_ckpt_pack(session, block, &endp, ci, false));
     ckpt->raw.size = WT_PTRDIFF(endp, ckpt->raw.mem);
 
-    if (WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT))
+    if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_CHECKPOINT, WT_VERBOSE_DEBUG_2))
         __wt_ckpt_verbose(session, block, "create", ckpt->name, ckpt->raw.data, ckpt->raw.size);
 
     return (0);

@@ -363,11 +363,13 @@ __curtable_next(WT_CURSOR *cursor)
 
     ctable = (WT_CURSOR_TABLE *)cursor;
     JOINABLE_CURSOR_API_CALL(cursor, session, next, NULL);
+    API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
     APPLY_CG(ctable, next);
 
 err:
     CURSOR_REPOSITION_END(cursor, session);
+    API_RETRYABLE_END(session, ret);
     API_END_RET(session, ret);
 }
 
@@ -418,11 +420,13 @@ __curtable_prev(WT_CURSOR *cursor)
 
     ctable = (WT_CURSOR_TABLE *)cursor;
     JOINABLE_CURSOR_API_CALL(cursor, session, prev, NULL);
+    API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
     APPLY_CG(ctable, prev);
 
 err:
     CURSOR_REPOSITION_END(cursor, session);
+    API_RETRYABLE_END(session, ret);
     API_END_RET(session, ret);
 }
 
@@ -433,22 +437,28 @@ err:
 static int
 __curtable_reset(WT_CURSOR *cursor)
 {
-    WT_CURSOR *primary;
+    WT_CURSOR **cp;
     WT_CURSOR_TABLE *ctable;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    u_int i;
 
     ctable = (WT_CURSOR_TABLE *)cursor;
-    /* Grab the primary cursor to reset the bounds. */
-    primary = *ctable->cg_cursors;
 
     JOINABLE_CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, NULL);
 
     APPLY_CG(ctable, reset);
 
-    /* If a user calls cursor reset also reset the bounds. */
+    /*
+     * The bounded cursor API clears bounds on external calls to cursor->reset. We determine this by
+     * guarding the call to cursor bound reset with the API_USER_ENTRY macro. Doing so prevents
+     * internal API calls from resetting cursor bounds unintentionally, e.g. cursor->remove. In the
+     * case of the table cursor we walk each cursor and directly reset the bounds on them without
+     * going through curfile_reset for that reason.
+     */
     if (API_USER_ENTRY(session))
-        __wt_cursor_bound_reset(primary);
+        for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); i++, cp++)
+            __wt_cursor_bound_reset(*cp);
 
 err:
     API_END_RET(session, ret);
@@ -467,11 +477,13 @@ __curtable_search(WT_CURSOR *cursor)
 
     ctable = (WT_CURSOR_TABLE *)cursor;
     JOINABLE_CURSOR_API_CALL(cursor, session, search, NULL);
+    API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
     APPLY_CG(ctable, search);
 
 err:
     CURSOR_REPOSITION_END(cursor, session);
+    API_RETRYABLE_END(session, ret);
     API_END_RET(session, ret);
 }
 
@@ -490,6 +502,7 @@ __curtable_search_near(WT_CURSOR *cursor, int *exact)
 
     ctable = (WT_CURSOR_TABLE *)cursor;
     JOINABLE_CURSOR_API_CALL(cursor, session, search_near, NULL);
+    API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
 
     cp = ctable->cg_cursors;
@@ -506,6 +519,7 @@ __curtable_search_near(WT_CURSOR *cursor, int *exact)
 
 err:
     CURSOR_REPOSITION_END(cursor, session);
+    API_RETRYABLE_END(session, ret);
     API_END_RET(session, ret);
 }
 
@@ -837,18 +851,33 @@ err:
 static int
 __curtable_bound(WT_CURSOR *cursor, const char *config)
 {
-    WT_CURSOR *primary;
+    WT_CURSOR **cp, *primary;
+    WT_CURSOR_BOUNDS_STATE saved_bounds;
     WT_CURSOR_TABLE *ctable;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    u_int i;
 
+    WT_CLEAR(saved_bounds);
     ctable = (WT_CURSOR_TABLE *)cursor;
+    primary = *ctable->cg_cursors;
     JOINABLE_CURSOR_API_CALL(cursor, session, bound, NULL);
 
-    /* Grab the primary cursor and call bound function. */
-    primary = *ctable->cg_cursors;
-    WT_ERR(primary->bound(primary, config));
+    /* Save the current state of the bounds in case we fail to apply the new state. */
+    WT_ERR(__wt_cursor_bounds_save(session, primary, &saved_bounds));
+
+    /* Call bound function on all column groups. */
+    for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); i++, cp++)
+        WT_ERR((*cp)->bound(*cp, config));
 err:
+    /* If applying bounds fails on one colgroup cursor, restore the previous state. */
+    if (ret != 0)
+        for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); i++, cp++)
+            WT_TRET(__wt_cursor_bounds_restore(session, *cp, &saved_bounds));
+
+    __wt_scr_free(session, &saved_bounds.lower_bound);
+    __wt_scr_free(session, &saved_bounds.upper_bound);
+
     API_END_RET(session, ret);
 }
 

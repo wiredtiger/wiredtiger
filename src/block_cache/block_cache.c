@@ -13,13 +13,13 @@
  *     Block cache verbose logging.
  */
 static inline void
-__blkcache_verbose(
-  WT_SESSION_IMPL *session, const char *tag, uint64_t hash, const uint8_t *addr, size_t addr_size)
+__blkcache_verbose(WT_SESSION_IMPL *session, WT_VERBOSE_LEVEL level, const char *tag, uint64_t hash,
+  const uint8_t *addr, size_t addr_size)
 {
     WT_DECL_ITEM(tmp);
     const char *addr_string;
 
-    if (!WT_VERBOSE_ISSET(session, WT_VERB_BLKCACHE))
+    if (!WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_BLKCACHE, level))
         return;
 
     /*
@@ -29,7 +29,8 @@ __blkcache_verbose(
     addr_string = __wt_scr_alloc(session, 0, &tmp) == 0 ?
       __wt_addr_string(session, addr, addr_size, tmp) :
       "[unable to format addr]";
-    __wt_verbose(session, WT_VERB_BLKCACHE, "%s: %s, hash=%" PRIu64, tag, addr_string, hash);
+    __wt_verbose_level(
+      session, WT_VERB_BLKCACHE, level, "%s: %s, hash=%" PRIu64, tag, addr_string, hash);
     __wt_scr_free(session, &tmp);
 }
 
@@ -373,10 +374,12 @@ __wt_blkcache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_siz
         *blkcache_retp = blkcache_item;
         *foundp = *skip_cache_putp = true;
         WT_STAT_CONN_INCR(session, block_cache_hits);
-        __blkcache_verbose(session, "block found in cache", hash, addr, addr_size);
+        __blkcache_verbose(
+          session, WT_VERBOSE_DEBUG_2, "block found in cache", hash, addr, addr_size);
     } else {
         WT_STAT_CONN_INCR(session, block_cache_misses);
-        __blkcache_verbose(session, "block not found in cache", hash, addr, addr_size);
+        __blkcache_verbose(
+          session, WT_VERBOSE_DEBUG_2, "block not found in cache", hash, addr, addr_size);
     }
 }
 
@@ -460,7 +463,8 @@ __wt_blkcache_put(
 
                 WT_STAT_CONN_INCRV(session, block_cache_bytes_update, data->size);
                 WT_STAT_CONN_INCR(session, block_cache_blocks_update);
-                __blkcache_verbose(session, "block already in cache", hash, addr, addr_size);
+                __blkcache_verbose(
+                  session, WT_VERBOSE_DEBUG_2, "block already in cache", hash, addr, addr_size);
                 goto err;
             }
 
@@ -487,7 +491,8 @@ __wt_blkcache_put(
         WT_STAT_CONN_INCR(session, block_cache_blocks_insert_read);
     }
 
-    __blkcache_verbose(session, "block inserted in cache", hash, addr, addr_size);
+    __blkcache_verbose(
+      session, WT_VERBOSE_DEBUG_1, "block inserted in cache", hash, addr, addr_size);
     return (0);
 
 err:
@@ -505,12 +510,13 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
 {
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ITEM *blkcache_item;
-    uint64_t bucket, hash;
+    uint64_t bucket, hash, sleep_usecs, total_usecs, yield_count;
 
     blkcache = &S2C(session)->blkcache;
-
     hash = __wt_hash_city64(addr, addr_size);
     bucket = hash % blkcache->hash_size;
+    sleep_usecs = total_usecs = yield_count = 0;
+
     __wt_spin_lock(session, &blkcache->hash_locks[bucket]);
     TAILQ_FOREACH (blkcache_item, &blkcache->hash[bucket], hashq) {
         if (blkcache_item->addr_size == addr_size && blkcache_item->fid == S2BT(session)->id &&
@@ -518,15 +524,24 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
             TAILQ_REMOVE(&blkcache->hash[bucket], blkcache_item, hashq);
             __blkcache_update_ref_histogram(session, blkcache_item, BLKCACHE_RM_FREE);
             __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
-            WT_STAT_CONN_DECRV(session, block_cache_bytes, blkcache_item->data_size);
-            WT_STAT_CONN_DECR(session, block_cache_blocks);
-            WT_STAT_CONN_INCR(session, block_cache_blocks_removed);
             (void)__wt_atomic_sub64(&blkcache->bytes_used, blkcache_item->data_size);
-            blkcache->removals++;
-            WT_ASSERT(session, blkcache_item->ref_count == 0);
+            WT_STAT_CONN_DECRV(session, block_cache_bytes, blkcache_item->data_size);
+            /*
+             * The block might be in use by another thread, wait for it to be released before
+             * freeing it.
+             */
+            while (blkcache_item->ref_count != 0) {
+                __wt_spin_backoff(&yield_count, &sleep_usecs);
+                total_usecs += sleep_usecs;
+            }
+            WT_STAT_CONN_INCRV(session, block_cache_blocks_removed_blocked, total_usecs);
             __blkcache_free(session, blkcache_item->data);
             __wt_overwrite_and_free(session, blkcache_item);
-            __blkcache_verbose(session, "block removed from cache", hash, addr, addr_size);
+            blkcache->removals++;
+            WT_STAT_CONN_INCR(session, block_cache_blocks_removed);
+            WT_STAT_CONN_DECR(session, block_cache_blocks);
+            __blkcache_verbose(
+              session, WT_VERBOSE_DEBUG_1, "block removed from cache", hash, addr, addr_size);
             return;
         }
     }

@@ -51,6 +51,7 @@ static void config_mirrors(void);
 static void config_off(TABLE *, const char *);
 static void config_off_all(const char *);
 static void config_pct(TABLE *);
+static void config_statistics(void);
 static void config_transaction(void);
 
 /*
@@ -274,6 +275,19 @@ config_table(TABLE *table, void *arg)
             config_single(table, "btree.value_min=20", false);
     }
 
+#ifndef WT_STANDALONE_BUILD
+    /*
+     * Non-standalone builds do not support writing fast truncate information to disk, as this
+     * information is required to rollback any unstable fast truncate operation.
+     *
+     * To avoid this problem to occur during the test, disable the truncate operation whenever
+     * timestamp or prepare is enabled.
+     */
+    if (GV(TRANSACTION_TIMESTAMPS) || config_explicit(NULL, "transaction.timestamps") ||
+      GV(OPS_PREPARE) || config_explicit(NULL, "ops.prepare"))
+        config_off(table, "ops.truncate");
+#endif
+
     /*
      * Key/value minimum/maximum are related, correct unless specified by the configuration. Key
      * sizes are a row-store consideration: column-store doesn't store keys, a constant of 8 will
@@ -348,6 +362,7 @@ config_run(void)
     config_in_memory_reset();                        /* Reset in-memory as needed */
     config_backward_compatible();                    /* Reset backward compatibility as needed */
     config_mirrors();                                /* Mirrors */
+    config_statistics();                             /* Statistics */
 
     /* Configure the cache last, cache size depends on everything else. */
     config_cache();
@@ -517,7 +532,6 @@ config_backward_compatible(void)
 
     BC_CHECK("disk.mmap_all", DISK_MMAP_ALL);
     BC_CHECK("block_cache", BLOCK_CACHE);
-    BC_CHECK("stress.checkpoint_reserved_txnid_delay", STRESS_CHECKPOINT_RESERVED_TXNID_DELAY);
     BC_CHECK("stress.hs_checkpoint_delay", STRESS_HS_CHECKPOINT_DELAY);
     BC_CHECK("stress.hs_search", STRESS_HS_SEARCH);
     BC_CHECK("stress.hs_sweep", STRESS_HS_SWEEP);
@@ -962,7 +976,7 @@ config_lsm_reset(TABLE *table)
 static void
 config_mirrors(void)
 {
-    u_int i, mirrors;
+    u_int available_tables, i, mirrors;
     char buf[100];
     bool already_set, explicit_mirror;
 
@@ -976,6 +990,13 @@ config_mirrors(void)
     if (already_set) {
         if (g.base_mirror == NULL)
             testutil_die(EINVAL, "no table configured that can act as the base mirror");
+        /*
+         * Assume that mirroring is already configured if one of the tables has explicitly
+         * configured it on. This isn't optimal since there could still be other tables that haven't
+         * set it at all (and might be usable as extra mirrors), but that's an uncommon scenario and
+         * it lets us avoid a bunch of extra logic around figuring out whether we have an acceptable
+         * minimum number of tables.
+         */
         return;
     }
 
@@ -988,20 +1009,40 @@ config_mirrors(void)
      * tables.
      */
     explicit_mirror = config_explicit(NULL, "runs.mirror");
-    if (!explicit_mirror && mmrand(NULL, 1, 10) < 9)
+    if (!explicit_mirror && mmrand(NULL, 1, 10) < 9) {
+        config_off_all("runs.mirror");
         return;
-    config_off_all("runs.mirror");
+    }
 
     /*
      * We can't mirror if we don't have enough tables. A FLCS table can be a mirror, but it can't be
      * the source of the bulk-load mirror records. Find the first table we can use as a base.
      */
     for (i = 1; i <= ntables; ++i)
-        if (tables[i]->type != FIX)
+        if (tables[i]->type != FIX && !NT_EXPLICIT_OFF(tables[i], RUNS_MIRROR))
             break;
-    if (ntables < 2 || i > ntables) {
+
+    if (i > ntables) {
         if (explicit_mirror)
             WARN("%s", "table selection didn't support mirroring, turning off mirroring");
+        config_off_all("runs.mirror");
+        return;
+    }
+
+    /*
+     * We also can't mirror if we don't have enough tables that have allowed mirroring. It's
+     * possible for a table to explicitly set tableX.runs.mirror=0, so check how many tables have
+     * done that and remove them from the count of tables we can use for mirroring.
+     */
+    available_tables = ntables;
+    for (i = 1; i <= ntables; ++i)
+        if (NT_EXPLICIT_OFF(tables[i], RUNS_MIRROR))
+            --available_tables;
+
+    if (available_tables < 2) {
+        if (explicit_mirror)
+            WARN("%s", "not enough tables left mirroring enabled, turning off mirroring");
+        config_off_all("runs.mirror");
         return;
     }
 
@@ -1014,22 +1055,28 @@ config_mirrors(void)
         }
     config_off_all("btree.reverse");
 
-    /* Good to go: pick the first non-FLCS table as our base and turn on mirroring. */
+    /* Good to go: pick the first non-FLCS table that allows mirroring as our base. */
     for (i = 1; i <= ntables; ++i)
-        if (tables[i]->type != FIX)
+        if (tables[i]->type != FIX && !NT_EXPLICIT_OFF(tables[i], RUNS_MIRROR))
             break;
     tables[i]->mirror = true;
     config_single(tables[i], "runs.mirror=1", false);
     g.base_mirror = tables[i];
 
-    /* Pick some number of tables to mirror, then turn on mirroring the next (n-1) tables. */
-    for (mirrors = mmrand(NULL, 2, ntables) - 1, i = 1; i <= ntables; ++i)
+    /*
+     * Pick some number of tables to mirror, then turn on mirroring the next (n-1) tables, where
+     * allowed.
+     */
+    for (mirrors = mmrand(NULL, 2, ntables) - 1, i = 1; i <= ntables; ++i) {
+        if (NT_EXPLICIT_OFF(tables[i], RUNS_MIRROR))
+            continue;
         if (tables[i] != g.base_mirror) {
             tables[i]->mirror = true;
             config_single(tables[i], "runs.mirror=1", false);
             if (--mirrors == 0)
                 break;
         }
+    }
 
     /*
      * Give each mirror the same number of rows (it's not necessary, we could treat end-of-table on
@@ -1132,6 +1179,32 @@ config_pct(TABLE *table)
 }
 
 /*
+ * config_statistics --
+ *     Statistics configuration.
+ */
+static void
+config_statistics(void)
+{
+    /* Sources is only applicable when the mode is all. */
+    if (strcmp(GVS(STATISTICS_MODE), "all") != 0 && strcmp(GVS(STATISTICS_LOG_SOURCES), "off") != 0)
+        testutil_die(EINVAL, "statistics sources requires mode to be all");
+
+    if (!config_explicit(NULL, "statistics.mode")) {
+        /* 70% of the time set statistics to fast. */
+        if (mmrand(NULL, 1, 10) < 8)
+            config_single(NULL, "statistics.mode=fast", false);
+        else
+            config_single(NULL, "statistics.mode=all", false);
+    }
+
+    if (!config_explicit(NULL, "statistics_log.sources")) {
+        /* 10% of the time use sources if all. */
+        if (strcmp(GVS(STATISTICS_MODE), "all") == 0 && mmrand(NULL, 1, 10) == 1)
+            config_single(NULL, "statistics_log.sources=file:", false);
+    }
+}
+
+/*
  * config_transaction --
  *     Transaction configuration.
  */
@@ -1179,8 +1252,10 @@ config_transaction(void)
         config_off(NULL, "transaction.timestamps");
         config_off(NULL, "ops.prepare");
     }
-    if (GV(LOGGING) && config_explicit(NULL, "logging"))
+    if (GV(LOGGING) && config_explicit(NULL, "logging")) {
+        config_off(NULL, "transaction.timestamps");
         config_off(NULL, "ops.prepare");
+    }
     if (GV(OPS_SALVAGE) && config_explicit(NULL, "ops.salvage")) { /* FIXME WT-6431 */
         config_off(NULL, "transaction.timestamps");
         config_off(NULL, "ops.prepare");

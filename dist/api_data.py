@@ -581,10 +581,6 @@ connection_runtime_config = [
             to happen more aggressively. This includes but is not limited to not skewing newest,
             not favoring leaf pages, and modifying the eviction score mechanism.''',
             type='boolean'),
-        Config('flush_checkpoint', 'false', r'''
-            if true, call a system wide checkpoint immediately after a flush_tier completes to
-            force objects out to disk so that a flush_tier can work single-threaded''',
-            type='boolean'),
         Config('log_retention', '0', r'''
             adjust log removal to retain at least this number of log files.
             (Warning: this option can remove log files required for recovery if no checkpoints
@@ -596,6 +592,9 @@ connection_runtime_config = [
         Config('realloc_exact', 'false', r'''
             if true, reallocation of memory will only provide the exact amount requested. This
             will help with spotting memory allocation issues more easily.''',
+            type='boolean'),
+        Config('realloc_malloc', 'false', r'''
+            if true, every realloc call will force a new memory allocation by using malloc.''',
             type='boolean'),
         Config('rollback_error', '0', r'''
             return a WT_ROLLBACK error from a transaction operation about every Nth operation
@@ -780,17 +779,19 @@ connection_runtime_config = [
         stress testing of WiredTiger.''',
         type='list', undoc=True,
         choices=[
-        'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page',
-        'checkpoint_reserved_txnid_delay', 'checkpoint_slow', 'checkpoint_stop', 'compact_slow',
-        'evict_reposition', 'failpoint_eviction_fail_after_reconciliation', 
+        'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page', 'checkpoint_slow',
+        'checkpoint_stop', 'compact_slow', 'evict_reposition',
+        'failpoint_eviction_fail_after_reconciliation',
         'failpoint_history_store_delete_key_from_ts', 'history_store_checkpoint_delay',
-        'history_store_search', 'history_store_sweep_race', 'prepare_checkpoint_delay', 'split_1',
-        'split_2', 'split_3', 'split_4', 'split_5', 'split_6', 'split_7', 'tiered_flush_finish']),
+        'history_store_search', 'history_store_sweep_race', 'prepare_checkpoint_delay',
+        'sleep_before_read_overflow_onpage', 'split_1', 'split_2', 'split_3', 'split_4', 'split_5',
+        'split_6', 'split_7', 'tiered_flush_finish']),
     Config('verbose', '[]', r'''
         enable messages for various subsystems and operations. Options are given as a list,
         where each message type can optionally define an associated verbosity level, such as
         <code>"verbose=[evictserver,read:1,rts:0]"</code>. Verbosity levels that can be provided
-        include <code>0</code> (INFO) and <code>1</code> (DEBUG).''',
+        include <code>0</code> (INFO) and <code>1</code> through <code>5</code>, corresponding to
+        (DEBUG_1) to (DEBUG_5).''',
         type='list', choices=[
             'api',
             'backup',
@@ -1207,18 +1208,15 @@ cursor_bound_config = [
     Config('action', 'set', r'''
         configures whether this call into the API will set or clear range bounds on the given
         cursor. It takes one of two values, "set" or "clear". If "set" is specified then "bound"
-        must also be specified. If "clear" is specified without any bounds then both bounds will
-        be cleared. The keys relevant to the given bound must have been set prior to the call using
-        WT_CURSOR::set_key. This configuration is currently a work in progress and should not be
-        used.''',
+        must also be specified. The keys relevant to the given bound must have been set prior to the
+        call using WT_CURSOR::set_key.''',
         choices=['clear','set']),
     Config('inclusive', 'true', r'''
-        configures whether the given bound is inclusive or not. This configuration is currently a
-        work in progress and should not be used.''',
+        configures whether the given bound is inclusive or not.''',
         type='boolean'),
     Config('bound', '', r'''
         configures which bound is being operated on. It takes one of two values, "lower" or "upper".
-        This configuration is currently a work in progress and should not be used.''',
+        ''',
         choices=['lower','upper']),
 ]
 
@@ -1287,6 +1285,8 @@ methods = {
         in compact may exceed the configured value. A value of zero disables the timeout''',
         type='int'),
 ]),
+
+'WT_SESSION.count' : Method([]), 
 
 'WT_SESSION.create' : Method(file_config + lsm_config + tiered_config +
         source_meta + index_only_config + table_only_config + [
@@ -1576,6 +1576,11 @@ methods = {
         Display page addresses, time windows, and page types as pages are verified, using the
         application's message handler, intended for debugging''',
         type='boolean'),
+    Config('dump_app_data', 'false', r'''
+        Display application data as pages or blocks are verified, using the application's message
+        handler, intended for debugging. Disabling this does not guarantee that no user data will
+        be output''',
+        type='boolean'),
     Config('dump_blocks', 'false', r'''
         Display the contents of on-disk blocks as they are verified, using the application's
         message handler, intended for debugging''',
@@ -1591,6 +1596,10 @@ methods = {
     Config('dump_pages', 'false', r'''
         Display the contents of in-memory pages as they are verified, using the application's
         message handler, intended for debugging''',
+        type='boolean'),
+    Config('read_corrupt', 'false', r'''
+        A mode that allows verify to continue reading after encountering a checksum error. It
+        will skip past the corrupt block and continue with the verification process''',
         type='boolean'),
     Config('stable_timestamp', 'false', r'''
         Ensure that no data has a start timestamp after the stable timestamp, to be run after
@@ -1739,6 +1748,31 @@ methods = {
         dropped if open in a cursor. While a hot backup is in progress, checkpoints created
         prior to the start of the backup cannot be dropped''',
         type='list'),
+    Config('flush_tier', '', r'''
+        configure flushing objects to tiered storage after checkpoint''',
+        type='category', subconfig= [
+            Config('enabled', 'false', r'''
+                if true, perform one iteration of object switching and flushing objects to
+                tiered storage''',
+                type='boolean'),
+            Config('force', 'false', r'''
+                if false (the default), flush_tier of any individual object may be skipped if the
+                underlying object has not been modified since the previous flush_tier. If true,
+                this option forces the flush_tier''',
+                type='boolean'),
+            Config('sync', 'true', r'''
+                wait for all objects to be flushed to the shared storage to the level specified.
+                When false, do not wait for any objects to be written to the tiered storage system
+                but return immediately after generating the objects and work units for an internal
+                thread.  When true, the caller waits until all work queued for this call to be
+                completely processed before returning''',
+                type='boolean'),
+            Config('timeout', '0', r'''
+                amount of time, in seconds, to wait for flushing of objects to complete.
+                WiredTiger returns EBUSY if the timeout is reached. A value of zero disables
+                the timeout''',
+                type='int'),
+    ]),
     Config('force', 'false', r'''
         if false (the default), checkpoints may be skipped if the underlying object has not been
         modified. If true, this option forces the checkpoint''',

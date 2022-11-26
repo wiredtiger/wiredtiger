@@ -71,6 +71,7 @@ static char home[1024]; /* Program working dir */
 /* Include worker threads and prepare extra sessions */
 #define SESSION_MAX (MAX_TH + 3 + MAX_TH * PREPARE_PCT)
 #define STAT_WAIT 1
+#define USEC_STAT 10000
 
 static const char *table_pfx = "table";
 static const char *const uri_collection = "collection";
@@ -80,8 +81,10 @@ static const char *const uri_shadow = "shadow";
 
 static const char *const ckpt_file = "checkpoint_done";
 
-static bool columns, compat, inmem, stress, use_ts;
+static bool columns, stress, use_ts;
 static uint64_t global_ts = 1;
+
+static TEST_OPTS *opts, _opts;
 
 /*
  * The configuration sets the eviction update and dirty targets at 20% so that on average, each
@@ -90,7 +93,6 @@ static uint64_t global_ts = 1;
  * side, the eviction update and dirty triggers are 90%, so application threads aren't involved in
  * eviction until we're close to running out of cache.
  */
-#define ENV_CONFIG_ADD_COMPAT ",compatibility=(release=\"2.9\")"
 #define ENV_CONFIG_ADD_EVICT_DIRTY ",eviction_dirty_target=20,eviction_dirty_trigger=90"
 #define ENV_CONFIG_ADD_STRESS ",timing_stress_for_test=[prepare_checkpoint_delay]"
 
@@ -100,11 +102,10 @@ static uint64_t global_ts = 1;
     "debug_mode=(table_logging=true,checkpoint_retention=5)," \
     "eviction_updates_target=20,eviction_updates_trigger=90," \
     "log=(enabled,file_max=10M,remove=true),session_max=%d,"  \
-    "statistics=(fast),statistics_log=(wait=%d,json=true)"
+    "statistics=(all),statistics_log=(wait=%d,json,on_close)"
 #define ENV_CONFIG_TXNSYNC \
     ENV_CONFIG_DEF         \
     ",transaction_sync=(enabled,method=none)"
-#define ENV_CONFIG_REC "log=(recover=on,remove=false)"
 
 /*
  * A minimum width of 10, along with zero filling, means that all the keys sort according to their
@@ -112,6 +113,8 @@ static uint64_t global_ts = 1;
  * values and that has the same effect.
  */
 #define KEY_STRINGFORMAT ("%010" PRIu64)
+
+#define SHARED_PARSE_OPTIONS "b:CmP:h:p"
 
 typedef struct {
     uint64_t absent_key; /* Last absent key */
@@ -133,6 +136,106 @@ static wt_timestamp_t *active_timestamps; /* Oldest timestamps still in use. */
 static void handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
+static void handle_conn_close(void);
+static void handle_conn_ready(WT_CONNECTION *);
+static int handle_general(WT_EVENT_HANDLER *, WT_CONNECTION *, WT_SESSION *, WT_EVENT_TYPE, void *);
+
+static WT_CONNECTION *stat_conn = NULL;
+static WT_SESSION *stat_session = NULL;
+static volatile bool stat_run = false;
+static wt_thread_t stat_th;
+
+static WT_EVENT_HANDLER my_event = {NULL, NULL, NULL, NULL, handle_general};
+/*
+ * stat_func --
+ *     Function to run with the early connection and gather statistics.
+ */
+static WT_THREAD_RET
+stat_func(void *arg)
+{
+    WT_CURSOR *stat_c;
+    int64_t last, value;
+    const char *desc, *pvalue;
+
+    WT_UNUSED(arg);
+    testutil_assert(stat_conn != NULL);
+    testutil_check(stat_conn->open_session(stat_conn, NULL, NULL, &stat_session));
+    desc = pvalue = NULL;
+    /* Start last and value at different numbers so we print the first value, likely 0. */
+    last = -1;
+    value = 0;
+    while (stat_run) {
+        testutil_check(stat_session->open_cursor(stat_session, "statistics:", NULL, NULL, &stat_c));
+
+        /* Pick some statistic that is likely changed during recovery RTS. */
+        stat_c->set_key(stat_c, WT_STAT_CONN_TXN_RTS_PAGES_VISITED);
+        testutil_check(stat_c->search(stat_c));
+        testutil_check(stat_c->get_value(stat_c, &desc, &pvalue, &value));
+        testutil_check(stat_c->close(stat_c));
+        if (desc != NULL && value != last)
+            printf("%s: %" PRId64 "\n", desc, value);
+        last = value;
+        usleep(USEC_STAT);
+    }
+    testutil_check(stat_session->close(stat_session, NULL));
+    return (WT_THREAD_RET_VALUE);
+}
+
+/*
+ * handle_conn_close --
+ *     Function to handle connection close callbacks from WiredTiger.
+ */
+static void
+handle_conn_close(void)
+{
+    /*
+     * Signal the statistics thread to exit and clear the global connection. This function cannot
+     * return until the user thread stops using the connection.
+     */
+    stat_run = false;
+    testutil_check(__wt_thread_join(NULL, &stat_th));
+    stat_conn = NULL;
+}
+
+/*
+ * handle_conn_ready --
+ *     Function to handle connection ready callbacks from WiredTiger.
+ */
+static void
+handle_conn_ready(WT_CONNECTION *conn)
+{
+    int unused;
+
+    /*
+     * Set the global connection for statistics and then start a statistics thread.
+     */
+    unused = 0;
+    testutil_assert(stat_conn == NULL);
+    memset(&stat_th, 0, sizeof(stat_th));
+    stat_conn = conn;
+    stat_run = true;
+    testutil_check(__wt_thread_create(NULL, &stat_th, stat_func, (void *)&unused));
+}
+
+/*
+ * handle_general --
+ *     Function to handle general event callbacks.
+ */
+static int
+handle_general(WT_EVENT_HANDLER *handler, WT_CONNECTION *conn, WT_SESSION *session,
+  WT_EVENT_TYPE type, void *arg)
+{
+    WT_UNUSED(handler);
+    WT_UNUSED(session);
+    WT_UNUSED(arg);
+
+    if (type == WT_EVENT_CONN_CLOSE)
+        handle_conn_close();
+    else if (type == WT_EVENT_CONN_READY)
+        handle_conn_ready(conn);
+    return (0);
+}
+
 /*
  * usage --
  *     TODO: Add a comment describing this function.
@@ -140,7 +243,7 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
 usage(void)
 {
-    fprintf(stderr, "usage: %s [-h dir] [-T threads] [-t time] [-Cmvz]\n", progname);
+    fprintf(stderr, "usage: %s %s [-T threads] [-t time] [-Cmvz]\n", progname, opts->usage);
     exit(EXIT_FAILURE);
 }
 
@@ -170,7 +273,8 @@ thread_ts_run(void *arg)
     __wt_seconds((WT_SESSION_IMPL *)session, &last_reconfig);
     /* Update the oldest/stable timestamps every 1 millisecond. */
     for (last_ts = 0;; __wt_sleep(0, 1000)) {
-        /* Get the last committed timestamp periodically in order to update the oldest timestamp. */
+        /* Get the last committed timestamp periodically in order to update the oldest
+         * timestamp. */
         ts = maximum_stable_ts(active_timestamps, nth);
         if (ts == last_ts)
             continue;
@@ -406,11 +510,13 @@ thread_run(void *arg)
         }
         if ((ret = cur_shadow->insert(cur_shadow)) == WT_ROLLBACK)
             goto rollback;
+        testutil_check(ret);
         data.size = __wt_random(&rnd) % MAX_VAL;
         data.data = obuf;
         cur_oplog->set_value(cur_oplog, &data);
         if ((ret = cur_oplog->insert(cur_oplog)) == WT_ROLLBACK)
             goto rollback;
+        testutil_check(ret);
         if (use_prep) {
             /*
              * Run with prepare every once in a while. And also yield after prepare sometimes too.
@@ -502,14 +608,14 @@ run_workload(void)
 
     if (chdir(home) != 0)
         testutil_die(errno, "Child chdir: %s", home);
-    if (inmem)
+    if (opts->inmem)
         testutil_check(__wt_snprintf(
           envconf, sizeof(envconf), ENV_CONFIG_DEF, cache_mb, SESSION_MAX, STAT_WAIT));
     else
         testutil_check(__wt_snprintf(
           envconf, sizeof(envconf), ENV_CONFIG_TXNSYNC, cache_mb, SESSION_MAX, STAT_WAIT));
-    if (compat)
-        strcat(envconf, ENV_CONFIG_ADD_COMPAT);
+    if (opts->compat)
+        strcat(envconf, TESTUTIL_ENV_CONFIG_COMPAT);
     if (stress)
         strcat(envconf, ENV_CONFIG_ADD_STRESS);
 
@@ -517,11 +623,10 @@ run_workload(void)
      * The eviction dirty target and trigger configurations are not compatible with certain other
      * configurations.
      */
-    if (!compat && !inmem)
+    if (!opts->compat && !opts->inmem)
         strcat(envconf, ENV_CONFIG_ADD_EVICT_DIRTY);
 
-    printf("wiredtiger_open configuration: %s\n", envconf);
-    testutil_check(wiredtiger_open(NULL, NULL, envconf, &conn));
+    testutil_wiredtiger_open(opts, NULL, envconf, NULL, &conn, false);
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /*
@@ -648,42 +753,33 @@ main(int argc, char *argv[])
     uint64_t commit_fp, durable_fp, stable_val;
     uint32_t i, timeout;
     int ch, status, ret;
-    const char *working_dir;
-    char buf[512], fname[64], kname[64], statname[1024];
+    char buf[512], fname[64], kname[64], statname[1024], bucket[512];
     char ts_string[WT_TS_HEX_STRING_SIZE];
-    bool fatal, preserve, rand_th, rand_time, verify_only;
+    bool fatal, rand_th, rand_time, verify_only;
 
     (void)testutil_set_progname(argv);
 
-    columns = compat = inmem = stress = false;
+    buf[0] = '\0';
+    opts = &_opts;
+    memset(opts, 0, sizeof(*opts));
+
+    columns = stress = false;
     use_ts = true;
     nth = MIN_TH;
-    preserve = false;
     rand_th = rand_time = true;
     timeout = MIN_TIME;
     verify_only = false;
-    working_dir = "WT_TEST.timestamp-abort";
 
-    while ((ch = __wt_getopt(progname, argc, argv, "Cch:LmpsT:t:vz")) != EOF)
+    testutil_parse_begin_opt(argc, argv, SHARED_PARSE_OPTIONS, opts);
+
+    while ((ch = __wt_getopt(progname, argc, argv, "cLsT:t:vz" SHARED_PARSE_OPTIONS)) != EOF)
         switch (ch) {
-        case 'C':
-            compat = true;
-            break;
         case 'c':
             /* Variable-length columns only (for now) */
             columns = true;
             break;
-        case 'h':
-            working_dir = __wt_optarg;
-            break;
         case 'L':
             table_pfx = "lsm";
-            break;
-        case 'm':
-            inmem = true;
-            break;
-        case 'p':
-            preserve = true;
             break;
         case 's':
             stress = true;
@@ -708,13 +804,17 @@ main(int argc, char *argv[])
             use_ts = false;
             break;
         default:
-            usage();
+            /* The option is either one that we're asking testutil to support, or illegal. */
+            if (testutil_parse_single_opt(opts, ch) != 0)
+                usage();
         }
     argc -= __wt_optind;
     if (argc != 0)
         usage();
 
-    testutil_work_dir_from_path(home, sizeof(home), working_dir);
+    testutil_parse_end_opt(opts);
+
+    testutil_work_dir_from_path(home, sizeof(home), opts->home);
 
     /*
      * If the user wants to verify they need to tell us how many threads there were so we can find
@@ -726,6 +826,11 @@ main(int argc, char *argv[])
     }
     if (!verify_only) {
         testutil_make_work_dir(home);
+
+        if (opts->tiered_storage) {
+            testutil_check(__wt_snprintf(bucket, sizeof(bucket), "%s/bucket", home));
+            testutil_make_work_dir(bucket);
+        }
 
         __wt_random_init_seed(NULL, &rnd);
         if (rand_time) {
@@ -742,12 +847,12 @@ main(int argc, char *argv[])
         printf(
           "Parent: compatibility: %s, in-mem log sync: %s, add timing stress: %s, timestamp in "
           "use: %s\n",
-          compat ? "true" : "false", inmem ? "true" : "false", stress ? "true" : "false",
-          use_ts ? "true" : "false");
+          opts->compat ? "true" : "false", opts->inmem ? "true" : "false",
+          stress ? "true" : "false", use_ts ? "true" : "false");
         printf("Parent: Create %" PRIu32 " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
         printf("CONFIG: %s%s%s%s%s%s -h %s -T %" PRIu32 " -t %" PRIu32 "\n", progname,
-          compat ? " -C" : "", columns ? " -c" : "", inmem ? " -m" : "", stress ? " -s" : "",
-          !use_ts ? " -z" : "", working_dir, nth, timeout);
+          opts->compat ? " -C" : "", columns ? " -c" : "", opts->inmem ? " -m" : "",
+          stress ? " -s" : "", !use_ts ? " -z" : "", opts->home, nth, timeout);
         /*
          * Fork a child to insert as many items. We will then randomly kill the child, run recovery
          * and make sure all items we wrote exist after recovery runs.
@@ -797,12 +902,16 @@ main(int argc, char *argv[])
     /* Copy the data to a separate folder for debugging purpose. */
     testutil_copy_data(home);
 
-    printf("Open database, run recovery and verify content\n");
+    printf("Open database and run recovery\n");
 
     /*
      * Open the connection which forces recovery to be run.
      */
-    testutil_check(wiredtiger_open(NULL, NULL, ENV_CONFIG_REC, &conn));
+    testutil_wiredtiger_open(opts, NULL, buf, &my_event, &conn, true);
+
+    printf("Connection open and recovery complete. Verify content\n");
+    /* Sleep to guarantee the statistics thread has enough time to run. */
+    usleep(USEC_STAT + 10);
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     /*
      * Open a cursor on all the tables.
@@ -898,7 +1007,7 @@ main(int argc, char *argv[])
                  * If we don't find a record, the durable timestamp written to our file better be
                  * larger than the saved one.
                  */
-                if (!inmem && durable_fp != 0 && durable_fp <= stable_val) {
+                if (!opts->inmem && durable_fp != 0 && durable_fp <= stable_val) {
                     printf("%s: COLLECTION no record with key %" PRIu64
                            " record durable ts %" PRIu64 " <= stable ts %" PRIu64 "\n",
                       fname, key, durable_fp, stable_val);
@@ -926,7 +1035,7 @@ main(int argc, char *argv[])
                  */
                 c_rep[i].exist_key = key;
                 fatal = true;
-            } else if (!inmem && commit_fp != 0 && commit_fp > stable_val) {
+            } else if (!opts->inmem && commit_fp != 0 && commit_fp > stable_val) {
                 /*
                  * If we found a record, the commit timestamp written to our file better be no
                  * larger than the checkpoint one.
@@ -945,7 +1054,7 @@ main(int argc, char *argv[])
             if ((ret = cur_local->search(cur_local)) != 0) {
                 if (ret != WT_NOTFOUND)
                     testutil_die(ret, "search");
-                if (!inmem)
+                if (!opts->inmem)
                     printf("%s: LOCAL no record with key %" PRIu64 "\n", fname, key);
                 absent_local++;
                 if (l_rep[i].first_miss == INVALID_KEY)
@@ -964,7 +1073,7 @@ main(int argc, char *argv[])
             if ((ret = cur_oplog->search(cur_oplog)) != 0) {
                 if (ret != WT_NOTFOUND)
                     testutil_die(ret, "search");
-                if (!inmem)
+                if (!opts->inmem)
                     printf("%s: OPLOG no record with key %" PRIu64 "\n", fname, key);
                 absent_oplog++;
                 if (o_rep[i].first_miss == INVALID_KEY)
@@ -987,26 +1096,26 @@ main(int argc, char *argv[])
         print_missing(&o_rep[i], fname, "OPLOG");
     }
     testutil_check(conn->close(conn, NULL));
-    if (!inmem && absent_coll) {
+    if (!opts->inmem && absent_coll) {
         printf("COLLECTION: %" PRIu64 " record(s) absent from %" PRIu64 "\n", absent_coll, count);
         fatal = true;
     }
-    if (!inmem && absent_shadow) {
+    if (!opts->inmem && absent_shadow) {
         printf("SHADOW: %" PRIu64 " record(s) absent from %" PRIu64 "\n", absent_shadow, count);
         fatal = true;
     }
-    if (!inmem && absent_local) {
+    if (!opts->inmem && absent_local) {
         printf("LOCAL: %" PRIu64 " record(s) absent from %" PRIu64 "\n", absent_local, count);
         fatal = true;
     }
-    if (!inmem && absent_oplog) {
+    if (!opts->inmem && absent_oplog) {
         printf("OPLOG: %" PRIu64 " record(s) absent from %" PRIu64 "\n", absent_oplog, count);
         fatal = true;
     }
     if (fatal)
         return (EXIT_FAILURE);
     printf("%" PRIu64 " records verified\n", count);
-    if (!preserve) {
+    if (!opts->preserve) {
         testutil_clean_test_artifacts(home);
         /* At this point $PATH is inside `home`, which we intend to delete. cd to the parent dir. */
         if (chdir("../") != 0)

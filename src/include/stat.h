@@ -349,6 +349,8 @@ struct __wt_connection_stats {
     int64_t lsm_work_units_done;
     int64_t lsm_work_units_created;
     int64_t lsm_work_queue_max;
+    int64_t autocommit_readonly_retry;
+    int64_t autocommit_update_retry;
     int64_t block_cache_blocks_update;
     int64_t block_cache_bytes_update;
     int64_t block_cache_blocks_evicted;
@@ -364,6 +366,7 @@ struct __wt_connection_stats {
     int64_t block_cache_misses;
     int64_t block_cache_bypass_chkpt;
     int64_t block_cache_blocks_removed;
+    int64_t block_cache_blocks_removed_blocked;
     int64_t block_cache_blocks;
     int64_t block_cache_blocks_insert_read;
     int64_t block_cache_blocks_insert_write;
@@ -564,6 +567,7 @@ struct __wt_connection_stats {
     int64_t cursor_cached_count;
     int64_t cursor_bound_error;
     int64_t cursor_bounds_reset;
+    int64_t cursor_bounds_comparisons;
     int64_t cursor_bounds_next_unpositioned;
     int64_t cursor_bounds_next_early_exit;
     int64_t cursor_bounds_prev_unpositioned;
@@ -591,8 +595,8 @@ struct __wt_connection_stats {
     int64_t cursor_next;
     int64_t cursor_next_error;
     int64_t cursor_next_hs_tombstone;
-    int64_t cursor_next_skip_ge_100;
     int64_t cursor_next_skip_lt_100;
+    int64_t cursor_next_skip_ge_100;
     int64_t cursor_next_random_error;
     int64_t cursor_restart;
     int64_t cursor_prev;
@@ -769,6 +773,7 @@ struct __wt_connection_stats {
     int64_t rec_split_stashed_bytes;
     int64_t rec_split_stashed_objects;
     int64_t local_objects_inuse;
+    int64_t flush_tier_fail;
     int64_t flush_tier;
     int64_t flush_tier_skipped;
     int64_t flush_tier_switched;
@@ -824,6 +829,7 @@ struct __wt_connection_stats {
     int64_t txn_prepared_updates_committed;
     int64_t txn_prepared_updates_key_repeated;
     int64_t txn_prepared_updates_rolledback;
+    int64_t txn_read_overflow_remove;
     int64_t txn_prepare;
     int64_t txn_prepare_commit;
     int64_t txn_prepare_active;
@@ -912,6 +918,8 @@ struct __wt_dsrc_stats {
     int64_t lsm_checkpoint_throttle;
     int64_t lsm_merge_throttle;
     int64_t bloom_size;
+    int64_t autocommit_readonly_retry;
+    int64_t autocommit_update_retry;
     int64_t block_extension;
     int64_t block_alloc;
     int64_t block_free;
@@ -1059,6 +1067,7 @@ struct __wt_dsrc_stats {
     int64_t cursor_create;
     int64_t cursor_bound_error;
     int64_t cursor_bounds_reset;
+    int64_t cursor_bounds_comparisons;
     int64_t cursor_bounds_next_unpositioned;
     int64_t cursor_bounds_next_early_exit;
     int64_t cursor_bounds_prev_unpositioned;
@@ -1077,8 +1086,8 @@ struct __wt_dsrc_stats {
     int64_t cursor_modify_error;
     int64_t cursor_next_error;
     int64_t cursor_next_hs_tombstone;
-    int64_t cursor_next_skip_ge_100;
     int64_t cursor_next_skip_lt_100;
+    int64_t cursor_next_skip_ge_100;
     int64_t cursor_next_random_error;
     int64_t cursor_prev_error;
     int64_t cursor_prev_hs_tombstone;
@@ -1150,6 +1159,7 @@ struct __wt_dsrc_stats {
     int64_t rec_time_window_stop_ts;
     int64_t rec_time_window_stop_txn;
     int64_t session_compact;
+    int64_t txn_read_overflow_remove;
     int64_t txn_read_race_prepare_update;
     int64_t txn_rts_hs_stop_older_than_newer_start;
     int64_t txn_rts_inconsistent_ckpt;

@@ -12,6 +12,7 @@ pre:
   - func: "cleanup"
 post:
   - func: "dump stacktraces"
+  - func: "upload stacktraces"
   - func: "dump stderr/stdout"
   - func: "upload artifact"
     vars:
@@ -106,6 +107,7 @@ functions:
           ${CMAKE_INSTALL_PREFIX|} \
           ${CMAKE_PREFIX_PATH|} \
           ${CMAKE_TOOLCHAIN_FILE|} \
+          ${NONSTANDALONE|} \
           ${ENABLE_SHARED|} \
           ${ENABLE_STATIC|} \
           ${HAVE_BUILTIN_EXTENSION_LZ4|} \
@@ -119,13 +121,13 @@ functions:
           ${GNU_C_VERSION|} \
           ${GNU_CXX_VERSION|} \
           ${ENABLE_S3|} \
+          ${ENABLE_CPPSUITE|} \
           ${IMPORT_S3_SDK|} \
           ${SPINLOCK_TYPE|} \
           ${CC_OPTIMIZE_LEVEL|}"
 
-        # This is a workaround until WT-8981 is resolved and we can remove this. The Ubuntu PPC platform does not have ZSTD.
-        # Strip it out.
-        if [ "${build_variant|}" = "ubuntu1804-ppc" ] && [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS" =~ (\-DHAVE_BUILTIN_EXTENSION_ZSTD=1) ]]; then
+        # The RHEL PPC platform does not have ZSTD. Strip it out.
+        if [ "${build_variant|}" = "rhel8-ppc" ] && [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS" =~ (\-DHAVE_BUILTIN_EXTENSION_ZSTD=1) ]]; then
           DEFINED_EVERGREEN_CONFIG_FLAGS=${DEFINED_EVERGREEN_CONFIG_FLAGS/\-DHAVE_BUILTIN_EXTENSION_ZSTD=1/}
         fi
 
@@ -184,6 +186,25 @@ functions:
           set -o verbose
           echo '#undef HAVE_FTRUNCATE' >> config/wiredtiger_config.h
     - *make_wiredtiger
+  "dump stacktraces": &dump_stacktraces
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/cmake_build"
+      script: |
+        set -o errexit
+        set -o verbose
+        ${python_binary|python3} ../test/evergreen/print_stack_trace.py
+  "upload stacktraces": &upload_stacktraces
+    command: s3.put
+    params:
+      aws_secret: ${aws_secret}
+      aws_key: ${aws_key}
+      local_files_include_filter:
+        - wiredtiger/cmake_build/*stacktrace.txt
+      bucket: build_external
+      permissions: public-read
+      content_type: text/plain
+      remote_file: wiredtiger/${build_variant}/${revision}/artifacts/
   "run data validation stress test checkpoint":
     - *fetch_artifacts
     - command: shell.exec
@@ -367,6 +388,9 @@ functions:
             echo "[{\"info\":{\"test_name\": \"${test_name}\"},\"metrics\": []}]" > ${test_name}.json
           fi
           exit 0
+    # Since we later remove the WiredTiger folder, we need to check for core dumps now.
+    - *dump_stacktraces
+    - *upload_stacktraces
     - command: perf.send
       params:
         file: ./wiredtiger/cmake_build/test/cppsuite/${test_name}.json
@@ -584,30 +608,6 @@ functions:
         display_name: WT Hang Analyzer Output - Execution ${execution}
         remote_file: wiredtiger/${build_variant}/${revision}/wt_hang_analyzer/wt-hang-analyzer_${task_name}_${build_id}${postfix|}.tgz
 
-  "dump stacktraces":
-    - command: shell.exec
-      params:
-        working_dir: "wiredtiger/cmake_build"
-        script: |
-          set -o errexit
-          set -o verbose
-          # Parse through any failures inside the WT_TEST directory.
-          ${python_binary|python3} ../test/evergreen/print_stack_trace.py --unit_test -e ${python_binary|python3} -c WT_TEST -l .
-
-          # Look through the stress format directory for any coredumps.
-          ${python_binary|python3} ../test/evergreen/print_stack_trace.py --format -e ./test/format/t -c test/format/. -l test/format/.
-    - command: s3.put
-      params:
-        aws_secret: ${aws_secret}
-        aws_key: ${aws_key}
-        local_files_include_filter:
-          - wiredtiger/cmake_build/*stacktrace.txt
-          - wiredtiger/cmake_build/test/format/*stacktrace.txt
-        bucket: build_external
-        permissions: public-read
-        content_type: text/plain
-        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/
-
   "dump stderr/stdout":
     command: shell.exec
     params:
@@ -683,7 +683,7 @@ functions:
           fi
           ${virtualenv_binary} -p ${python_binary} venv
           source venv/bin/activate
-          ${pip3_binary} install psutil pygit2
+          ${pip3_binary} install psutil pygit2==1.10.1
           JSON_TASK_INFO='{ "evergreen_task_info": { "is_patch": "'${is_patch}'", "task_id": "'${task_id}'", "distro_id": "'${distro_id}'", "execution": "'${execution}'", "task_name": "'${task_name}'", "version_id": "'${version_id}'", "branch_name": "'${branch_name}'" } }'
           echo "JSON_TASK_INFO: $JSON_TASK_INFO"
           ${test_env_vars|} ${python_binary} ../../../bench/perf_run_py/perf_run.py --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -g "../.." -v -i "$JSON_TASK_INFO" -b -o test_stats/evergreen_out_${perf-test-name}.json ${wtarg}
@@ -786,14 +786,7 @@ variables:
     <<: *configure_flags_with_builtins
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
-
-  # Configure flags for address sanitizer ppc ubuntu.
-  # FIXME-WT-8981 - Ubuntu PPC tests have been replaced by RHEL8 tests as of WT-8688, but the RHEL8 tests are currently disabled
-  # due to platform issues. On completion of WT-8981 this can be deleted.
-  - &configure_flags_address_sanitizer_clang_with_builtins
-    <<: *configure_flags_with_builtins
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
-    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
+    ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
 
 #########################################################################################
 # The following stress tests are configured to run for six hours via the "-t 360"
@@ -814,7 +807,20 @@ variables:
         vars:
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 360
 
-  - &format-stress-sanitizer-test
+  - &format-stress-test-nonstandalone
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+      - func: "format test script"
+        vars:
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 360
+
+  - &format-stress-sanitizer-ppc-test
     exec_timeout_secs: 25200
     commands:
       - func: "get project"
@@ -823,20 +829,20 @@ variables:
           <<: *configure_flags_address_sanitizer_mongodb_v4_clang_with_builtins
       - func: "format test script"
         vars:
-          format_test_script_args: -t 360
+          # Always disable mmap for PPC due to issues on variant setup.
+          # See https://bugzilla.redhat.com/show_bug.cgi?id=1686261#c10 for the potential cause.
+          format_test_script_args: -t 360 -- -C "mmap=false,mmap_all=false"
           test_env_vars:
             ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0:unmap_shadow_on_exit=1"
             ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
 
-  # FIXME-WT-8981 - Ubuntu PPC tests have been replaced by RHEL8 tests as of WT-8688, but the RHEL8 tests are currently disabled
-  # due to platform issues. On completion of WT-8981 this can be deleted.
-  - &format-stress-sanitizer-test-ppc-ubuntu
+  - &format-stress-sanitizer-test
     exec_timeout_secs: 25200
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          <<: *configure_flags_address_sanitizer_clang_with_builtins
+          <<: *configure_flags_address_sanitizer_mongodb_v4_clang_with_builtins
       - func: "format test script"
         vars:
           format_test_script_args: -t 360
@@ -865,6 +871,18 @@ variables:
       - func: "compile wiredtiger"
         vars:
           <<: *configure_flags_with_builtins
+      - func: "recovery stress test script"
+        vars:
+          times: 25
+
+  - &recovery-stress-test-nonstandalone
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
       - func: "recovery stress test script"
         vars:
           times: 25
@@ -915,14 +933,6 @@ tasks:
       - func: "upload artifact"
       - func: "cleanup"
 
-  - name: compile-wtperf
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-      - func: "upload artifact"
-      - func: "cleanup"
-
   - name: compile-gcc
     tags: ["pull_request", "pull_request_compilers"]
     commands:
@@ -970,6 +980,16 @@ tasks:
           CLANG_C_VERSION: -DCLANG_C_VERSION=8
           CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=8
 
+  # Base compile for nonstandalone build
+  - name: compile-nonstandalone
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+      - func: "upload artifact"
+      - func: "cleanup"
+
   - name: make-check-test
     commands:
       - func: "get project"
@@ -982,6 +1002,14 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           HAVE_FTRUNCATE: -DHAVE_FTRUNCATE=0
+      - func: "make check all"
+
+  - name: make-check-nonstandalone
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
       - func: "make check all"
 
   # Start of normal make check test tasks
@@ -1245,7 +1273,7 @@ tasks:
           test_config_filename: configs/bounded_cursor_perf_default.txt
           test_name: bounded_cursor_perf
 
-  - name: cppsuite-cursor-bound-01-default
+  - name: cppsuite-bounded-cursor-stress-default
     tags: ["pull_request"]
     depends_on:
       - name: compile
@@ -1254,10 +1282,10 @@ tasks:
       - func: "cppsuite test"
         vars:
           test_config: debug_mode=(cursor_copy=true)
-          test_config_filename: configs/cursor_bound_01_default.txt
-          test_name: cursor_bound_01
+          test_config_filename: configs/bounded_cursor_stress_default.txt
+          test_name: bounded_cursor_stress
 
-  - name: cppsuite-cursor-bound-01-reverse-default
+  - name: cppsuite-bounded-cursor-stress-reverse-default
     tags: ["pull_request"]
     depends_on:
       - name: compile
@@ -1266,10 +1294,10 @@ tasks:
       - func: "cppsuite test"
         vars:
           test_config: debug_mode=(cursor_copy=true)
-          test_config_filename: configs/cursor_bound_01_reverse_default.txt
-          test_name: cursor_bound_01
+          test_config_filename: configs/bounded_cursor_stress_reverse_default.txt
+          test_name: bounded_cursor_stress
 
-  - name: cppsuite-cursor-bound-02-default
+  - name: cppsuite-bounded-cursor-prefix-stat-default
     tags: ["pull_request"]
     depends_on:
       - name: compile
@@ -1278,10 +1306,10 @@ tasks:
       - func: "cppsuite test"
         vars:
           test_config: debug_mode=(cursor_copy=true)
-          test_config_filename: configs/cursor_bound_02_default.txt
-          test_name: cursor_bound_02
+          test_config_filename: configs/bounded_cursor_prefix_stat_default.txt
+          test_name: bounded_cursor_prefix_stat
 
-  - name: cppsuite-cursor-bound-03-default
+  - name: bounded-cursor-prefix-search-near-default
     tags: ["pull_request"]
     depends_on:
       - name: compile
@@ -1290,10 +1318,10 @@ tasks:
       - func: "cppsuite test"
         vars:
           test_config: debug_mode=(cursor_copy=true)
-          test_config_filename: configs/cursor_bound_03_default.txt
-          test_name: cursor_bound_03
+          test_config_filename: configs/bounded_cursor_prefix_search_near_default.txt
+          test_name: bounded_cursor_prefix_search_near
 
-  - name: cppsuite-cursor-bound-04-default
+  - name: bounded-cursor-prefix-indices-default
     tags: ["pull_request"]
     depends_on:
       - name: compile
@@ -1302,12 +1330,13 @@ tasks:
       - func: "cppsuite test"
         vars:
           test_config: debug_mode=(cursor_copy=true)
-          test_config_filename: configs/cursor_bound_04_default.txt
-          test_name: cursor_bound_04
+          test_config_filename: configs/bounded_cursor_prefix_indices_default.txt
+          test_name: bounded_cursor_prefix_indices
 
   - name: cppsuite-operations-test-stress
     depends_on:
       - name: compile
+    tags: ["cppsuite-stress-test"]
     commands:
       - func: "fetch artifacts"
       - func: "cppsuite test"
@@ -1318,6 +1347,7 @@ tasks:
   - name: cppsuite-hs-cleanup-stress
     depends_on:
       - name: compile
+    tags: ["cppsuite-stress-test"]
     commands:
       - func: "fetch artifacts"
       - func: "cppsuite test"
@@ -1328,6 +1358,7 @@ tasks:
   - name: cppsuite-burst-inserts-stress
     depends_on:
       - name: compile
+    tags: ["cppsuite-stress-test"]
     commands:
       - func: "fetch artifacts"
       - func: "cppsuite test"
@@ -1335,59 +1366,65 @@ tasks:
           test_config_filename: configs/burst_inserts_stress.txt
           test_name: burst_inserts
 
-  - name: cppsuite-cursor-bound-01-stress
+  - name: cppsuite-bounded-cursor-stress-stress
     depends_on:
       - name: compile
+    tags: ["cppsuite-stress-test"]
     commands:
       - func: "fetch artifacts"
       - func: "cppsuite test"
         vars:
-          test_config_filename: configs/cursor_bound_01_stress.txt
-          test_name: cursor_bound_01
+          test_config_filename: configs/bounded_cursor_stress_stress.txt
+          test_name: bounded_cursor_stress
 
-  - name: cppsuite-cursor-bound-01-reverse-stress
+  - name: cppsuite-bounded-cursor-stress-reverse-stress
     depends_on:
       - name: compile
+    tags: ["cppsuite-stress-test"]
     commands:
       - func: "fetch artifacts"
       - func: "cppsuite test"
         vars:
-          test_config_filename: configs/cursor_bound_01_reverse_stress.txt
-          test_name: cursor_bound_01
+          test_config_filename: configs/bounded_cursor_stress_reverse_stress.txt
+          test_name: bounded_cursor_stress
 
-  - name: cppsuite-cursor-bound-02-stress
+  - name: cppsuite-bounded-cursor-prefix-stat-stress
     depends_on:
       - name: compile
+    tags: ["cppsuite-stress-test"]
     commands:
       - func: "fetch artifacts"
       - func: "cppsuite test"
         vars:
-          test_config_filename: configs/cursor_bound_02_stress.txt
-          test_name: cursor_bound_02
+          test_config_filename: configs/bounded_cursor_prefix_stat_stress.txt
+          test_name: bounded_cursor_prefix_stat
 
-  - name: cppsuite-cursor-bound-03-stress
+  - name: cppsuite-bounded-cursor-prefix-search-near-stress
     depends_on:
       - name: compile
+    tags: ["cppsuite-stress-test"]
     commands:
       - func: "fetch artifacts"
       - func: "cppsuite test"
         vars:
-          test_config_filename: configs/cursor_bound_03_stress.txt
-          test_name: cursor_bound_03
+          test_config_filename: configs/bounded_cursor_prefix_search_near_stress.txt
+          test_name: bounded_cursor_prefix_search_near
 
-  - name: cppsuite-cursor-bound-04-stress
+  - name: cppsuite-bounded-cursor-prefix-indices-stress
     depends_on:
       - name: compile
+    tags: ["cppsuite-stress-test"]
     commands:
       - func: "fetch artifacts"
       - func: "cppsuite test"
         vars:
-          test_config_filename: configs/cursor_bound_04_stress.txt
-          test_name: cursor_bound_04
+          test_config_filename: configs/bounded_cursor_prefix_indices_stress.txt
+          test_name: bounded_cursor_prefix_indices
 
   - name: cppsuite-search-near-01-stress
     depends_on:
       - name: compile
+    tags: ["cppsuite-stress-test"]
     commands:
       - func: "fetch artifacts"
       - func: "cppsuite test"
@@ -1398,6 +1435,7 @@ tasks:
   - name: cppsuite-search-near-02-stress
     depends_on:
       - name: compile
+    tags: ["cppsuite-stress-test"]
     commands:
       - func: "fetch artifacts"
       - func: "cppsuite test"
@@ -1408,6 +1446,7 @@ tasks:
   - name: cppsuite-search-near-03-stress
     depends_on:
       - name: compile
+    tags: ["cppsuite-stress-test"]
     commands:
       - func: "fetch artifacts"
       - func: "cppsuite test"
@@ -1424,6 +1463,149 @@ tasks:
         vars:
           test_config_filename: configs/bounded_cursor_perf_stress.txt
           test_name: bounded_cursor_perf
+
+  - name: cppsuite-operations-test-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/operations_test_stress.txt
+          test_name: operations_test
+
+  - name: cppsuite-hs-cleanup-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/hs_cleanup_stress.txt
+          test_name: hs_cleanup
+
+  - name: cppsuite-burst-inserts-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/burst_inserts_stress.txt
+          test_name: burst_inserts
+
+  - name: cppsuite-bounded-cursor-stress-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/bounded_cursor_stress_stress.txt
+          test_name: bounded_cursor_stress
+
+  - name: cppsuite-bounded-cursor-stress-reverse-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/bounded_cursor_stress_reverse_stress.txt
+          test_name: bounded_cursor_stress
+
+  - name: cppsuite-bounded-cursor-prefix-stat-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/bounded_cursor_prefix_stat_stress.txt
+          test_name: bounded_cursor_prefix_stat
+
+  - name: cppsuite-bounded-cursor-prefix-search-near-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/bounded_cursor_prefix_search_near_stress.txt
+          test_name: bounded_cursor_prefix_search_near
+
+  - name: cppsuite-bounded-cursor-prefix-indices-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/bounded_cursor_prefix_indices_stress.txt
+          test_name: bounded_cursor_prefix_indices
+
+  - name: cppsuite-search-near-01-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/search_near_01_stress.txt
+          test_name: search_near_01
+
+  - name: cppsuite-search-near-02-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/search_near_02_stress.txt
+          test_name: search_near_02
+
+  - name: cppsuite-search-near-03-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/search_near_03_stress.txt
+          test_name: search_near_03
 
   # End of cppsuite test tasks.
   # Start of csuite test tasks
@@ -1855,6 +2037,27 @@ tasks:
         vars:
           test_name: wt8963_insert_stress
 
+  - name: csuite-wt8963-insert-stress-test-nonstandalone
+    tags: ["stress-test-1-nonstandalone"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+      - func: "csuite test"
+        vars:
+          test_name: wt8963_insert_stress
+
+  - name: csuite-wt9937-parse-opts-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "csuite test"
+        vars:
+          test_name: wt9937_parse_opts
+
   # End of csuite test tasks
 
   # Start of Python unit test tasks
@@ -1866,6 +2069,18 @@ tasks:
     commands:
       - func: "fetch artifacts"
       - func: "unit test"
+
+  - name: unit-test-nonstandalone
+    tags: ["python"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook nonstandalone
 
   - name: unit-test-zstd
     tags: ["python"]
@@ -1887,6 +2102,18 @@ tasks:
         vars:
           unit_test_args: -v 2 --long
 
+  - name: unit-test-long-nonstandalone
+    tags: ["python", "python-nonstandalone"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --long --hook nonstandalone
+
   - name: unit-linux-no-ftruncate-test
     tags: ["python"]
     depends_on:
@@ -1907,6 +2134,62 @@ tasks:
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -R cursor13 join02 join07 schema03 timestamp22
+
+  - name: unit-test-hook-tiered
+    tags: ["python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook tiered
+
+  - name: unit-test-hook-tiered-timestamp
+    tags: ["python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook tiered --hook timestamp
+
+  - name: unit-test-hook-timestamp
+    tags: ["python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook timestamp
+
+  # The test_prepare_hs03.py test, when run with timestamp hooks, is run multiple times to facilitate
+  # catching intermittent problems in the test.
+  - name: test-prepare-hs03-hook-timestamp
+    tags: ["python"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            cd cmake_build
+            i=0
+            limit=100
+            while ((i < limit)) 
+            do
+              ((i=i+1))
+              echo "Test count: $i"
+              ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py -v 4 test_prepare_hs03.py --hook timestamp
+            done
+
   # Break out Python unit tests into multiple buckets/tasks.  We have a fixed number of buckets,
   # and we use the -b option of the test/suite/run.py script to split up the tests.
 
@@ -2019,6 +2302,128 @@ tasks:
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -b 10/11
+
+  - name: unit-test-long-bucket00
+    tags: ["python", "unit_test_long"]
+    patch_only: true
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --long -b 0/11
+
+  - name: unit-test-long-bucket01
+    tags: ["python", "unit_test_long"]
+    patch_only: true
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --long -b 1/11
+
+  - name: unit-test-long-bucket02
+    tags: ["python", "unit_test_long"]
+    patch_only: true
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --long -b 2/11
+
+  - name: unit-test-long-bucket03
+    tags: ["python", "unit_test_long"]
+    patch_only: true
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --long -b 3/11
+
+  - name: unit-test-long-bucket04
+    tags: ["python", "unit_test_long"]
+    patch_only: true
+    depends_on:
+    - name: compile
+    run_on: ubuntu2004-medium
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --long -b 4/11
+
+  - name: unit-test-long-bucket05
+    tags: ["python", "unit_test_long"]
+    patch_only: true
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --long -b 5/11
+
+  - name: unit-test-long-bucket06
+    tags: ["python", "unit_test_long"]
+    patch_only: true
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --long -b 6/11
+
+  - name: unit-test-long-bucket07
+    tags: ["python", "unit_test_long"]
+    patch_only: true
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --long -b 7/11
+
+  - name: unit-test-long-bucket08
+    tags: ["python", "unit_test_long"]
+    patch_only: true
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --long -b 8/11
+
+  - name: unit-test-long-bucket09
+    tags: ["python", "unit_test_long"]
+    patch_only: true
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --long -b 9/11
+
+  - name: unit-test-long-bucket10
+    tags: ["python", "unit_test_long"]
+    patch_only: true
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --long -b 10/11
   # End of Python unit test tasks
 
   - name: s-all
@@ -2067,6 +2472,19 @@ tasks:
             else
               ${test_env_vars|} ./test_fops
             fi
+
+  - name: bench-tiered-push-pull
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/bench/tiered"
+          script: |
+            set -o errexit
+            set -o verbose
+            ${test_env_vars|} ./test_push_pull
 
   - name: compatibility-test-for-newer-releases
     commands:
@@ -2284,10 +2702,9 @@ tasks:
             set -o verbose
             env CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:/opt/java/jdk11/bin:$PATH sh s_release `date +%Y%m%d`
 
+  # Note that the project settings use this task name to compile the documentation during PR
+  # testing, keep this in mind if you decide to change it.
   - name: doc-compile
-    tags: ["pull_request"]
-    run_on:
-    - ubuntu2004-test
     commands:
       - func: "get project"
       - func: "compile wiredtiger docs"
@@ -2389,7 +2806,7 @@ tasks:
           remote_file: wiredtiger/${build_variant}/${revision}/coverage_report_${build_id}-${execution}/1_coverage_report_main.html
 
   - name: tiered-storage-extensions-test
-    tags: ["python", "ext"]
+    tags: ["python"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2401,7 +2818,7 @@ tasks:
           python_binary: $(pwd)/venv/bin/python3
           tiered_storage_test_name: tiered
   - name: tiered-test-small
-    tags: ["pull_request", "python", "ext"]
+    tags: ["pull_request", "python"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2413,7 +2830,7 @@ tasks:
           python_binary: $(pwd)/venv/bin/python3
           tiered_storage_test_name: tiered06
   - name: tiered-unittest-test
-    tags: ["pull_request", "ext"]
+    tags: ["pull_request"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2461,11 +2878,11 @@ tasks:
 
   - name: wtperf-test
     depends_on:
-      - name: compile-wtperf
+      - name: compile
     commands:
       - func: "fetch artifacts"
         vars:
-          dependent_task: compile-wtperf
+          dependent_task: compile
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build"
@@ -2654,22 +3071,6 @@ tasks:
             ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
           format_test_script_args: -S
 
-  # FIXME-WT-8981 - Ubuntu PPC tests have been replaced by RHEL8 tests as of WT-8688, but the RHEL8 tests are currently disabled
-  # due to platform issues. On completion of WT-8981 this can be deleted.
-  - name: format-asan-smoke-ppc-test
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_address_sanitizer_clang_with_builtins
-      - func: "format test script"
-        # Run smoke tests, don't stop at failed tests, use default config
-        vars:
-          test_env_vars:
-            ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0:unmap_shadow_on_exit=1"
-            ASAN_SYMBOLIZER_PATH=/usr/lib/llvm-6.0/bin/llvm-symbolizer
-          format_test_script_args: -S
-
   - name: format-wtperf-test
     commands:
       - func: "get project"
@@ -2688,6 +3089,7 @@ tasks:
             ./wtperf -O ./split_heavy.wtperf -o verbose=2
 
   - name: data-validation-stress-test-checkpoint
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -2696,12 +3098,14 @@ tasks:
           run_test_checkpoint_args: -x
 
   - name: data-validation-stress-test-checkpoint-no-timestamp
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
       - func: "run data validation stress test checkpoint"
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -2710,6 +3114,7 @@ tasks:
           run_test_checkpoint_args: -x -s 1
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1-no-timestamp
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -2718,6 +3123,7 @@ tasks:
           run_test_checkpoint_args: -s 1
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s2
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -2726,6 +3132,7 @@ tasks:
           run_test_checkpoint_args: -x -s 2
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -2734,6 +3141,7 @@ tasks:
           run_test_checkpoint_args: -x -s 3
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3-no-timestamp
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -2742,6 +3150,7 @@ tasks:
           run_test_checkpoint_args: -s 3
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s4
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -2750,6 +3159,7 @@ tasks:
           run_test_checkpoint_args: -x -s 4
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -2758,6 +3168,7 @@ tasks:
           run_test_checkpoint_args: -x -s 5
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5-no-timestamp
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -2766,6 +3177,7 @@ tasks:
           run_test_checkpoint_args: -s 5
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s6
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
@@ -2774,11 +3186,131 @@ tasks:
           run_test_checkpoint_args: -x -s 6
   
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s7
+    tags: ["data-validation-stress-test"]
     depends_on:
     - name: compile
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
+          run_test_checkpoint_args: -x -s 7
+
+  - name: data-validation-stress-test-checkpoint-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          dependent_task: compile-nonstandalone
+          run_test_checkpoint_args: -x
+
+  - name: data-validation-stress-test-checkpoint-no-timestamp-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          dependent_task: compile-nonstandalone
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          dependent_task: compile-nonstandalone
+          run_test_checkpoint_args: -x -s 1
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1-no-timestamp-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          dependent_task: compile-nonstandalone
+          run_test_checkpoint_args: -s 1
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s2-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          dependent_task: compile-nonstandalone
+          run_test_checkpoint_args: -x -s 2
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          dependent_task: compile-nonstandalone
+          run_test_checkpoint_args: -x -s 3
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3-no-timestamp-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          dependent_task: compile-nonstandalone
+          run_test_checkpoint_args: -s 3
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s4-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          dependent_task: compile-nonstandalone
+          run_test_checkpoint_args: -x -s 4
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          dependent_task: compile-nonstandalone
+          run_test_checkpoint_args: -x -s 5
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5-no-timestamp-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          dependent_task: compile-nonstandalone
+          run_test_checkpoint_args: -s 5
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s6-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          dependent_task: compile-nonstandalone
+          run_test_checkpoint_args: -x -s 6
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s7-nonstandalone
+    tags: ["data-validation-stress-test-nonstandalone"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          dependent_task: compile-nonstandalone
           run_test_checkpoint_args: -x -s 7
 
   - name: format-failure-configs-test
@@ -2858,6 +3390,24 @@ tasks:
           times: 1       # No of times to run the loop
           no_of_procs: 10 # No of processes to run in the background
 
+  - name: checkpoint-stress-test-nonstandalone
+    tags: ["stress-test-1-nonstandalone"]
+    exec_timeout_secs: 86400
+    commands:
+      - command: timeout.update
+        params:
+          timeout_secs: 86400
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+      - func: "checkpoint stress test"
+        vars:
+          times: 1       # No of times to run the loop
+          no_of_procs: 10 # No of processes to run in the background
+
   - name: split-stress-test
     tags: ["stress-test-1", "stress-test-zseries-1"]
     commands:
@@ -2873,9 +3423,24 @@ tasks:
             set -o verbose
             for i in {1..10}; do ${test_env_vars|} ${python_binary|python3} split_stress.py; done
 
-  # The task name is ppc-zseries because this task will be used in both buildVariants
-  - name: format-stress-ppc-zseries-test
-    tags: ["stress-test-ppc-1", "stress-test-zseries-1", "stress-test-ppc-ubuntu"]
+  - name: split-stress-test-nonstandalone
+    tags: ["stress-test-1-nonstandalone"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/bench/workgen/runner"
+          script: |
+            set -o errexit
+            set -o verbose
+            for i in {1..10}; do ${test_env_vars|} ${python_binary|python3} split_stress.py; done
+
+  - name: format-stress-zseries-test
+    tags: ["stress-test-zseries-1"]
     # Set 2.5 hours timeout (60 * 60 * 2.5)
     exec_timeout_secs: 9000
     commands:
@@ -2889,6 +3454,22 @@ tasks:
           #run for 2 hours ( 2 * 60 = 120 minutes), use default config
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 120
 
+  - name: format-stress-ppc-test
+    tags: ["stress-test-ppc-1"]
+    # Set 2.5 hours timeout (60 * 60 * 2.5)
+    exec_timeout_secs: 9000
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+      - func: "format test script"
+        vars:
+          #run for 2 hours ( 2 * 60 = 120 minutes), use default config
+          # Always disable mmap for PPC due to issues on variant setup.
+          # See https://bugzilla.redhat.com/show_bug.cgi?id=1686261#c10 for the potential cause.
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 120 -- -C "mmap=false,mmap_all=false"
 
   - <<: *format-stress-test
     name: format-stress-test-1
@@ -2902,15 +3483,30 @@ tasks:
   - <<: *format-stress-test
     name: format-stress-test-4
     tags: ["stress-test-4"]
-  - <<: *format-stress-sanitizer-test-ppc-ubuntu
-    name: format-stress-sanitizer-test-ppc-ubuntu
-    tags: ["stress-test-ppc-ubuntu"]
+  - <<: *format-stress-test-nonstandalone
+    name: format-stress-test-1-nonstandalone
+    tags: ["stress-test-1-nonstandalone"]
+  - <<: *format-stress-test-nonstandalone
+    name: format-stress-test-2-nonstandalone
+    tags: ["stress-test-2-nonstandalone"]
+  - <<: *format-stress-test-nonstandalone
+    name: format-stress-test-3-nonstandalone
+    tags: ["stress-test-3-nonstandalone"]
+  - <<: *format-stress-test-nonstandalone
+    name: format-stress-test-4-nonstandalone
+    tags: ["stress-test-4-nonstandalone"]
+  - <<: *format-stress-sanitizer-ppc-test
+    name: format-stress-sanitizer-ppc-test-1
+    tags: ["stress-test-ppc-1"]
+  - <<: *format-stress-sanitizer-ppc-test
+    name: format-stress-sanitizer-ppc-test-2
+    tags: ["stress-test-ppc-2"]
   - <<: *format-stress-sanitizer-test
     name: format-stress-sanitizer-test-1
-    tags: ["stress-test-sanitizer-1", "stress-test-ppc-1"]
+    tags: ["stress-test-sanitizer-1"]
   - <<: *format-stress-sanitizer-test
     name: format-stress-sanitizer-test-2
-    tags: ["stress-test-sanitizer-2", "stress-test-ppc-2"]
+    tags: ["stress-test-sanitizer-2"]
   - <<: *format-stress-sanitizer-test
     name: format-stress-sanitizer-test-3
     tags: ["stress-test-sanitizer-3"]
@@ -2938,6 +3534,15 @@ tasks:
   - <<: *recovery-stress-test
     name: recovery-stress-test-3
     tags: ["stress-test-3", "stress-test-zseries-3"]
+  - <<: *recovery-stress-test-nonstandalone
+    name: recovery-stress-test-1-nonstandalone
+    tags: ["stress-test-1-nonstandalone"]
+  - <<: *recovery-stress-test-nonstandalone
+    name: recovery-stress-test-2-nonstandalone
+    tags: ["stress-test-2-nonstandalone"]
+  - <<: *recovery-stress-test-nonstandalone
+    name: recovery-stress-test-3-nonstandalone
+    tags: ["stress-test-3-nonstandalone"]
 
   - name: format-stress-test-no-barrier
     tags: ["stress-test-no-barrier"]
@@ -2947,6 +3552,21 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           <<: *configure_flags_with_builtins
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+          NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
+      - func: "format test script"
+        vars:
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 360
+
+  - name: format-stress-test-no-barrier-nonstandalone
+    tags: ["stress-test-no-barrier-nonstandalone"]
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
           CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
       - func: "format test script"
@@ -2998,6 +3618,20 @@ tasks:
         vars:
           times: 25
 
+  - name: recovery-stress-test-no-barrier-nonstandalone
+    tags: ["stress-test-no-barrier-nonstandalone"]
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+          NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
+      - func: "recovery stress test script"
+        vars:
+          times: 25
+
   - name: format-abort-recovery-stress-test
     commands:
       # Allow 30 minutes beyond test runtime because recovery under load can cause the test to
@@ -3009,6 +3643,23 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           <<: *configure_flags_with_builtins
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+      - func: "format test script"
+        vars:
+          format_test_script_args: -a -t 30
+
+  - name: format-abort-recovery-stress-test-nonstandalone
+    commands:
+      # Allow 30 minutes beyond test runtime because recovery under load can cause the test to
+      # run longer.
+      - command: timeout.update
+        params:
+          exec_timeout_secs: 3600
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
           CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
       # FIXME-WT-9767
       # - func: "format test script"
@@ -3336,6 +3987,70 @@ tasks:
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: modify-force-update-large-record-btree.wtperf
+
+    ###############################
+    # Performance Tests for oplog #
+    ###############################
+
+  - name: perf-test-mongodb-oplog
+    tags: ["oplog-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: mongodb-oplog.wtperf
+          maxruns: 1
+          wtarg: -ops ['"load", "insert", "truncate", "database_size"']
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: mongodb-oplog.wtperf
+
+  - name: perf-test-mongodb-small-oplog
+    tags: ["oplog-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: mongodb-small-oplog.wtperf
+          maxruns: 1
+          wtarg: -ops ['"load", "insert", "truncate", "database_size"']
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: mongodb-small-oplog.wtperf
+
+  - name: perf-test-mongodb-large-oplog
+    tags: ["oplog-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: mongodb-large-oplog.wtperf
+          maxruns: 1
+          wtarg: -ops ['"load", "insert", "truncate", "database_size"']
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: mongodb-large-oplog.wtperf
+
+  - name: perf-test-mongodb-secondary-apply
+    tags: ["oplog-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: mongodb-secondary-apply.wtperf
+          maxruns: 1
+          wtarg: -ops ['"insert"']
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: mongodb-secondary-apply.wtperf
 
     #########################################
     # Performance Tests for perf-checkpoint #
@@ -3945,6 +4660,7 @@ buildvariants:
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
+      LD_PRELOAD=$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
@@ -3954,7 +4670,9 @@ buildvariants:
     data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000 -C cache_size=100MB
   tasks:
     - name: ".pull_request !.pull_request_compilers"
+    - name: ".unit_test_long"
     - name: compile
+    - name: doc-compile
     - name: make-check-test
     - name: unit-test
     - name: configure-combinations
@@ -3962,9 +4680,12 @@ buildvariants:
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
     - name: unit-test-random-seed
+    - name: unit-test-hook-tiered
+    - name: unit-test-hook-tiered-timestamp
+    - name: unit-test-hook-timestamp
+    - name: test-prepare-hs03-hook-timestamp
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
-    - name: compile-wtperf
     - name: ftruncate-test
     - name: long-test
     - name: unit-test-long
@@ -3975,27 +4696,23 @@ buildvariants:
     - name: format-mirror-test
     - name: format-smoke-test
     - name: format-failure-configs-test
-    - name: data-validation-stress-test-checkpoint
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1-no-timestamp
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s2
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3-no-timestamp
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s4
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5-no-timestamp
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s6
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s7
-    - name: data-validation-stress-test-checkpoint-no-timestamp
+    - name: ".data-validation-stress-test"
     - name: unittest-test
     - name: tiered-storage-extensions-test
+    - name: bench-tiered-push-pull
+    - name: compile-nonstandalone
+    - name: make-check-nonstandalone
+    - name: unit-test-nonstandalone
+    - name: unit-test-long-nonstandalone
+      distros: ubuntu2004-large
+    - name: ".data-validation-stress-test-nonstandalone"
 
 - name: ubuntu2004-asan
   display_name: "! Ubuntu 20.04 ASAN"
   run_on:
   - ubuntu2004-test
   expansions:
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
@@ -4006,9 +4723,9 @@ buildvariants:
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0:unmap_shadow_on_exit=1"
       LSAN_OPTIONS="print_suppressions=0:suppressions=$WT_TOPDIR/test/evergreen/asan_leaks.supp"
-      ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
+      ASAN_SYMBOLIZER_PATH=/usr/lib/llvm-10/bin/llvm-symbolizer
       TESTUTIL_BYPASS_ASAN=1
-      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
+      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so:$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
       PATH=/opt/mongodbtoolchain/v4/bin:$PATH
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
   tasks:
@@ -4069,7 +4786,7 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_clang.cmake
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=UBSan
     CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O1
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
@@ -4077,12 +4794,12 @@ buildvariants:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
     test_env_vars:
-      UBSAN_OPTIONS="detect_leaks=1:disable_coredump=0:external_symbolizer_path=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer:abort_on_error=1:print_stacktrace=1"
-      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
+      UBSAN_OPTIONS="detect_leaks=1:disable_coredump=0:external_symbolizer_path=/usr/lib/llvm-10/bin/llvm-symbolizer:abort_on_error=1:print_stacktrace=1"
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
+      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so:$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
   tasks:
     - name: clang-analyzer
     - name: compile
@@ -4108,6 +4825,11 @@ buildvariants:
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
+    test_env_vars:
+      WT_TOPDIR=$(git rev-parse --show-toplevel)
+      WT_BUILDDIR=$WT_TOPDIR/cmake_build
+      LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
+      LD_PRELOAD=$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
   tasks:
     - name: ".pull_request_compilers"
 
@@ -4119,11 +4841,11 @@ buildvariants:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
     test_env_vars:
-      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
+      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so:$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
@@ -4139,6 +4861,12 @@ buildvariants:
     - name: ".stress-test-sanitizer-3"
     - name: ".stress-test-sanitizer-4"
     - name: format-abort-recovery-stress-test
+    - name: ".stress-test-1-nonstandalone"
+    - name: ".stress-test-2-nonstandalone"
+    - name: ".stress-test-3-nonstandalone"
+    - name: ".stress-test-4-nonstandalone"
+    - name: ".stress-test-no-barrier-nonstandalone"
+    - name: format-abort-recovery-stress-test-nonstandalone
 
 # When running the Python tests on this variant tcmalloc must be preloaded otherwise the wiredtiger library
 # fails to load and resolve its dependency.
@@ -4153,7 +4881,7 @@ buildvariants:
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
-      LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libeatmydata.so:$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so.4
+      LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libeatmydata.so:$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
@@ -4168,6 +4896,12 @@ buildvariants:
     - name: ".stress-test-4"
     - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
+    - name: ".stress-test-1-nonstandalone"
+    - name: ".stress-test-2-nonstandalone"
+    - name: ".stress-test-3-nonstandalone"
+    - name: ".stress-test-4-nonstandalone"
+    - name: ".stress-test-no-barrier-nonstandalone"
+    - name: format-abort-recovery-stress-test-nonstandalone
 
 - name: ubuntu2004-perf-tests
   display_name: Ubuntu 20.04 Performance tests
@@ -4199,6 +4933,7 @@ buildvariants:
     - name: ".evict-perf"
     - name: ".log-perf"
     - name: ".long-perf"
+    - name: ".oplog-perf"
     - name: many-dhandle-stress
     - name: ".wt2853-perf"
     - name: cppsuite-bounded-cursor-perf-stress
@@ -4225,6 +4960,9 @@ buildvariants:
     - name: Wiredtiger-perf-long-jobs
       execution_tasks:
       - ".long-perf"
+    - name: Wiredtiger-perf-oplog-jobs
+      execution_tasks:
+      - ".oplog-perf"
     - name: WiredTiger-wt2853-perf
       execution_tasks:
       - ".wt2853-perf"
@@ -4243,38 +4981,53 @@ buildvariants:
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
+      LD_PRELOAD=$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
     upload_source_dir: mongo-tests/largescale/many-collection-artifacts
     upload_filename: many-collection.tgz
   tasks:
     - name: many-collection-test
       distros: ubuntu2004-wt-large
 
-- name: cppsuite-stress-tests
-  display_name: "Cppsuite Stress Tests"
-  batchtime: 480 # 3 times a day
+- name: cppsuite-stress-tests-ubuntu
+  display_name: "Cppsuite Stress Tests Ubuntu 20.04"
+  batchtime: 720 # twice a day
   run_on:
+  # We run on medium as small has too small a disk.
   - ubuntu2004-medium
   expansions:
     test_env_vars:
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
+      LD_PRELOAD=$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
     cmake_generator: Ninja
     make_command: ninja
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
   tasks:
     - name: compile
-    - name: cppsuite-operations-test-stress
-    - name: cppsuite-burst-inserts-stress
-    - name: cppsuite-cursor-bound-01-stress
-    - name: cppsuite-cursor-bound-01-reverse-stress
-    - name: cppsuite-cursor-bound-02-stress
-    - name: cppsuite-cursor-bound-03-stress
-    - name: cppsuite-cursor-bound-04-stress
-    - name: cppsuite-hs-cleanup-stress
-    - name: cppsuite-search-near-01-stress
-    - name: cppsuite-search-near-02-stress
-    - name: cppsuite-search-near-03-stress
+    - name: compile-nonstandalone
+    - name: ".cppsuite-stress-test"
+    - name: ".cppsuite-stress-test-nonstandalone"
+
+- name: cppsuite-stress-tests-arm64
+  display_name: "Cppsuite Stress Tests ARM64"
+  batchtime: 720 # twice a day
+  run_on:
+  - ubuntu2004-arm64-large
+  expansions:
+    test_env_vars:
+      WT_TOPDIR=$(git rev-parse --show-toplevel)
+      WT_BUILDDIR=$WT_TOPDIR/cmake_build
+      LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
+      LD_PRELOAD=$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
+    cmake_generator: Ninja
+    make_command: ninja
+    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
+  tasks:
+    - name: compile
+    - name: compile-nonstandalone
+    - name: ".cppsuite-stress-test"
+    - name: ".cppsuite-stress-test-nonstandalone"
 
 - name: package
   display_name: "~ Package"
@@ -4301,11 +5054,11 @@ buildvariants:
   - ubuntu2004-test
   expansions:
     test_env_vars:
-      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
-      LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
+      LD_LIBRARY_PATH=$WT_BUILDDIR
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
     cmake_generator: Ninja
@@ -4324,16 +5077,16 @@ buildvariants:
   - rhel80-test
   expansions:
     test_env_vars:
-      LD_PRELOAD=/usr/local/lib/libeatmydata.so
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      LD_PRELOAD=/usr/local/lib/libeatmydata.so
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
-      LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
+      LD_LIBRARY_PATH=$WT_BUILDDIR
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     cmake_generator: "Unix Makefiles"
     make_command: make
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
   tasks:
     - name: compile
@@ -4350,7 +5103,6 @@ buildvariants:
       distros: rhel80-large
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
-    - name: compile-wtperf
     - name: wtperf-test
     - name: ftruncate-test
     - name: long-test
@@ -4358,22 +5110,22 @@ buildvariants:
 
 - name: code-statistics
   display_name: "Code statistics"
-  batchtime: 10080 # 7 days
   run_on:
   - ubuntu2004-test
   expansions:
     test_env_vars:
-      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
-      LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
+      LD_LIBRARY_PATH=$WT_BUILDDIR
+      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
     make_command: ninja
     cmake_generator: Ninja
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
   tasks:
     - name: coverage-report
+      batchtime: 10080 # 7 days
     - name: cyclomatic-complexity
 
 - name: compatibility-tests-less-frequent
@@ -4422,10 +5174,10 @@ buildvariants:
     - name: fops
     - name: unittest-test
 
-- name: macos-1014
-  display_name: "OS X 10.14"
+- name: macos-1100
+  display_name: "macOS 11.00"
   run_on:
-  - macos-1014
+  - macos-1100
   batchtime: 120 # 2 hours
   expansions:
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
@@ -4447,7 +5199,7 @@ buildvariants:
 - name: little-endian
   display_name: "~ Little-endian (x86)"
   run_on:
-  - ubuntu1804-test
+  - ubuntu1804-large
   batchtime: 4320 # 3 days
   expansions:
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
@@ -4471,8 +5223,6 @@ buildvariants:
 
 - name: big-endian
   display_name: "~ Big-endian (s390x/zSeries)"
-  modules:
-  - enterprise
   run_on:
   - ubuntu1804-zseries-build
   batchtime: 4320 # 3 days
@@ -4494,37 +5244,8 @@ buildvariants:
     - name: verify-datafile-big-endian
     - name: verify-datafile-from-little-endian
 
-# FIXME-WT-8981 - Ubuntu PPC tests have been replaced by RHEL8 tests as of WT-8688, but the RHEL8 tests are currently disabled
-# due to platform issues. On completion of WT-8981 this can be deleted.
-- name: ubuntu1804-ppc
-  display_name: "~ Ubuntu 18.04 PPC"
-  run_on:
-  - ubuntu1804-power8-test
-  batchtime: 120 # 2 hours
-  expansions:
-    format_test_setting: ulimit -c unlimited
-    test_env_vars:
-      WT_BUILDDIR=$(git rev-parse --show-toplevel)/cmake_build
-      LD_LIBRARY_PATH=$WT_BUILDDIR
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
-    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
-    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
-    # Use half number of vCPU to avoid OOM kill failure
-    smp_command: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 2 | bc)
-    cmake_generator: Ninja
-    make_command: ninja
-  tasks:
-    - name: compile
-    - name: unit-test
-    - name: format-smoke-test
-    - name: format-asan-smoke-ppc-test
-    - name: format-wtperf-test
-    - name: ".stress-test-ppc-ubuntu"
-
 - name: rhel8-ppc
   display_name: "~ RHEL8 PPC"
-  # FIXME-WT-8981
-  activate: false
   run_on:
   - rhel81-power8-small
   batchtime: 120 # 2 hours
@@ -4535,11 +5256,13 @@ buildvariants:
       LD_LIBRARY_PATH=$WT_BUILDDIR
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
+    ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
     python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
-    # Use half number of vCPU to avoid OOM kill failure
-    smp_command: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 2 | bc)
+    # Use quarter of the vCPUs to avoid OOM kill failure and disk issues on this variant.
+    smp_command: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 4 | bc)
     cmake_generator: Ninja
     make_command: ninja
+    posix_configure_flags: -DENABLE_STRICT=0
   tasks:
     - name: compile
     - name: unit-test
@@ -4597,14 +5320,17 @@ buildvariants:
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
     - name: unit-test-long
-      run_on:
-      - ubuntu2004-arm64-large
+      distros: ubuntu2004-arm64-large
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
-    - name: compile-wtperf
     - name: wtperf-test
     - name: ftruncate-test
     - name: long-test
     - name: configure-combinations
     - name: format-smoke-test
     - name: tiered-storage-extensions-test
+    - name: compile-nonstandalone
+    - name: make-check-nonstandalone
+    - name: unit-test-nonstandalone
+    - name: unit-test-long-nonstandalone
+      distros: ubuntu2004-arm64-large

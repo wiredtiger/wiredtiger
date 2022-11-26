@@ -39,7 +39,7 @@ bulk_begin_transaction(WT_SESSION *session)
 
     /* Writes require snapshot isolation. */
     wt_wrap_begin_transaction(session, NULL);
-    ts = __wt_atomic_fetch_addv64(&g.timestamp, 1);
+    ts = __wt_atomic_addv64(&g.timestamp, 1);
     testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_READ, ts));
 }
 
@@ -52,7 +52,7 @@ bulk_commit_transaction(WT_SESSION *session)
 {
     uint64_t ts;
 
-    ts = __wt_atomic_fetch_addv64(&g.timestamp, 1);
+    ts = __wt_atomic_addv64(&g.timestamp, 1);
     testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_COMMIT, ts));
     testutil_check(session->commit_transaction(session, NULL));
 
@@ -86,7 +86,7 @@ table_load(TABLE *base, TABLE *table)
     uint32_t committed_keyno, keyno, rows_current, v;
     uint8_t bitv;
     char config[100], track_buf[128];
-    bool is_bulk;
+    bool is_bulk, report_progress;
 
     conn = g.wts_conn;
 
@@ -123,7 +123,7 @@ table_load(TABLE *base, TABLE *table)
         if (base == NULL)
             val_gen(table, NULL, &value, &bitv, keyno);
         else {
-            testutil_assert(read_op(base_cursor, NEXT, NULL) == 0);
+            testutil_check(read_op(base_cursor, NEXT, NULL));
             testutil_check(base_cursor->get_value(base_cursor, &value));
             val_to_flcs(table, &value, &bitv);
         }
@@ -161,8 +161,12 @@ table_load(TABLE *base, TABLE *table)
          * row counter and continue.
          */
         if ((ret = cursor->insert(cursor)) != 0) {
-            testutil_assertfmt(
-              ret == WT_CACHE_FULL || ret == WT_ROLLBACK, "WT_CURSOR.insert failed: %d", ret);
+            /*
+             * We cannot fail when loading mirrored table. Otherwise, we will encounter data
+             * mismatch in the future.
+             */
+            testutil_assertfmt(base == NULL && (ret == WT_CACHE_FULL || ret == WT_ROLLBACK),
+              "WT_CURSOR.insert failed: %d", ret);
 
             if (g.transaction_timestamps_config) {
                 bulk_rollback_transaction(session);
@@ -187,19 +191,23 @@ table_load(TABLE *base, TABLE *table)
         }
 
         /*
-         * When first starting up, restart the enclosing transaction every 10 operations so we never
-         * end up with an empty object. After 5K records, restart the transaction every 5K records
-         * so we don't overflow the cache.
+         * When first starting up, report the progress for every 10 keys in the first 5K keys. After
+         * 5K records, report every 5K keys.
          */
-        if ((keyno < 5000 && keyno % 10 == 0) || keyno % 5000 == 0) {
-            /* Report on progress. */
+        report_progress = (keyno < 5000 && keyno % 10 == 0) || keyno % 5000 == 0;
+        /* Report on progress. */
+        if (report_progress)
             track(track_buf, keyno);
 
-            if (g.transaction_timestamps_config) {
-                bulk_commit_transaction(session);
-                committed_keyno = keyno;
-                bulk_begin_transaction(session);
-            }
+        /*
+         * If we are loading a mirrored table, commit after each operation to ensure that we are not
+         * generating excessive cache pressure and we can successfully load the same content as the
+         * base table. Otherwise, commit if we report progress.
+         */
+        if (g.transaction_timestamps_config && (report_progress || base != NULL)) {
+            bulk_commit_transaction(session);
+            committed_keyno = keyno;
+            bulk_begin_transaction(session);
         }
     }
 

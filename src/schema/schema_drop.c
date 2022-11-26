@@ -181,7 +181,7 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
     WT_DATA_HANDLE *tier;
     WT_DECL_RET;
     WT_TIERED *tiered;
-    u_int i;
+    u_int i, localid;
     const char *filename, *name;
     bool exist, locked, remove_files, remove_shared;
 
@@ -208,8 +208,10 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
      * metadata only.
      */
     tier = tiered->tiers[WT_TIERED_INDEX_LOCAL].tier;
+    localid = tiered->current_id;
     if (tier != NULL) {
-        __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: drop local object %s", tier->name);
+        __wt_verbose_debug2(
+          session, WT_VERB_TIERED, "DROP_TIERED: drop %u local object %s", localid, tier->name);
         WT_WITHOUT_DHANDLE(session,
           WT_WITH_HANDLE_LIST_WRITE_LOCK(
             session, ret = __wt_conn_dhandle_close_all(session, tier->name, true, force)));
@@ -226,14 +228,24 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
     /* Close any dhandle and remove any tier: entry from metadata. */
     tier = tiered->tiers[WT_TIERED_INDEX_SHARED].tier;
     if (tier != NULL) {
-        __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: drop shared object %s", tier->name);
+        __wt_verbose_debug2(
+          session, WT_VERB_TIERED, "DROP_TIERED: drop shared object %s", tier->name);
         WT_WITHOUT_DHANDLE(session,
           WT_WITH_HANDLE_LIST_WRITE_LOCK(
             session, ret = __wt_conn_dhandle_close_all(session, tier->name, true, force)));
         WT_ERR(ret);
         WT_ERR(__wt_metadata_remove(session, tier->name));
         tiered->tiers[WT_TIERED_INDEX_SHARED].tier = NULL;
-    }
+    } else
+        /*
+         * If we don't have a shared tier we better be on the first object.
+         *
+         * FIXME-WT-10112: This assertion fails on every run of test_base04 and should be re-added
+         * once the root cause is fixed.
+         *
+         * WT_ASSERT(session, localid == 1);
+         */
+        WT_UNUSED(localid);
 
     /*
      * We remove all metadata entries for both the file and object versions of an object. The local
@@ -241,11 +253,13 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
      */
     for (i = tiered->oldest_id; i < tiered->current_id; ++i) {
         WT_ERR(__wt_tiered_name(session, &tiered->iface, i, WT_TIERED_NAME_LOCAL, &name));
-        __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: remove object %s from metadata", name);
+        __wt_verbose_debug2(
+          session, WT_VERB_TIERED, "DROP_TIERED: remove object %s from metadata", name);
         WT_ERR_NOTFOUND_OK(__wt_metadata_remove(session, name), false);
         __wt_free(session, name);
         WT_ERR(__wt_tiered_name(session, &tiered->iface, i, WT_TIERED_NAME_OBJECT, &name));
-        __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: remove object %s from metadata", name);
+        __wt_verbose_debug2(
+          session, WT_VERB_TIERED, "DROP_TIERED: remove object %s from metadata", name);
         WT_ERR_NOTFOUND_OK(__wt_metadata_remove(session, name), false);
         if (remove_files && tier != NULL) {
             filename = name;

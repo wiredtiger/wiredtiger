@@ -15,6 +15,8 @@ static const char *const __stats_dsrc_desc[] = {
   "LSM: sleep for LSM checkpoint throttle",
   "LSM: sleep for LSM merge throttle",
   "LSM: total size of bloom filters",
+  "autocommit: retries for readonly operations",
+  "autocommit: retries for update operations",
   "block-manager: allocations requiring file extension",
   "block-manager: blocks allocated",
   "block-manager: blocks freed",
@@ -175,6 +177,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: create calls",
   "cursor: cursor bound calls that return an error",
   "cursor: cursor bounds cleared from reset",
+  "cursor: cursor bounds comparisons performed",
   "cursor: cursor bounds next called on an unpositioned cursor",
   "cursor: cursor bounds next early exit",
   "cursor: cursor bounds prev called on an unpositioned cursor",
@@ -193,8 +196,8 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: cursor modify calls that return an error",
   "cursor: cursor next calls that return an error",
   "cursor: cursor next calls that skip due to a globally visible history store tombstone",
+  "cursor: cursor next calls that skip greater than 1 and fewer than 100 entries",
   "cursor: cursor next calls that skip greater than or equal to 100 entries",
-  "cursor: cursor next calls that skip less than 100 entries",
   "cursor: cursor next random calls that return an error",
   "cursor: cursor prev calls that return an error",
   "cursor: cursor prev calls that skip due to a globally visible history store tombstone",
@@ -266,6 +269,7 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: records written including a stop timestamp",
   "reconciliation: records written including a stop transaction ID",
   "session: object compaction",
+  "transaction: number of times overflow removed value is read",
   "transaction: race to read prepared update retry",
   "transaction: rollback to stable history store records with stop timestamps older than newer "
   "records",
@@ -332,6 +336,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->lsm_checkpoint_throttle = 0;
     stats->lsm_merge_throttle = 0;
     stats->bloom_size = 0;
+    stats->autocommit_readonly_retry = 0;
+    stats->autocommit_update_retry = 0;
     stats->block_extension = 0;
     stats->block_alloc = 0;
     stats->block_free = 0;
@@ -479,6 +485,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_create = 0;
     stats->cursor_bound_error = 0;
     stats->cursor_bounds_reset = 0;
+    stats->cursor_bounds_comparisons = 0;
     stats->cursor_bounds_next_unpositioned = 0;
     stats->cursor_bounds_next_early_exit = 0;
     stats->cursor_bounds_prev_unpositioned = 0;
@@ -497,8 +504,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_modify_error = 0;
     stats->cursor_next_error = 0;
     stats->cursor_next_hs_tombstone = 0;
-    stats->cursor_next_skip_ge_100 = 0;
     stats->cursor_next_skip_lt_100 = 0;
+    stats->cursor_next_skip_ge_100 = 0;
     stats->cursor_next_random_error = 0;
     stats->cursor_prev_error = 0;
     stats->cursor_prev_hs_tombstone = 0;
@@ -570,6 +577,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_time_window_stop_ts = 0;
     stats->rec_time_window_stop_txn = 0;
     stats->session_compact = 0;
+    stats->txn_read_overflow_remove = 0;
     stats->txn_read_race_prepare_update = 0;
     stats->txn_rts_hs_stop_older_than_newer_start = 0;
     stats->txn_rts_inconsistent_ckpt = 0;
@@ -610,6 +618,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->lsm_checkpoint_throttle += from->lsm_checkpoint_throttle;
     to->lsm_merge_throttle += from->lsm_merge_throttle;
     to->bloom_size += from->bloom_size;
+    to->autocommit_readonly_retry += from->autocommit_readonly_retry;
+    to->autocommit_update_retry += from->autocommit_update_retry;
     to->block_extension += from->block_extension;
     to->block_alloc += from->block_alloc;
     to->block_free += from->block_free;
@@ -772,6 +782,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_create += from->cursor_create;
     to->cursor_bound_error += from->cursor_bound_error;
     to->cursor_bounds_reset += from->cursor_bounds_reset;
+    to->cursor_bounds_comparisons += from->cursor_bounds_comparisons;
     to->cursor_bounds_next_unpositioned += from->cursor_bounds_next_unpositioned;
     to->cursor_bounds_next_early_exit += from->cursor_bounds_next_early_exit;
     to->cursor_bounds_prev_unpositioned += from->cursor_bounds_prev_unpositioned;
@@ -791,8 +802,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_modify_error += from->cursor_modify_error;
     to->cursor_next_error += from->cursor_next_error;
     to->cursor_next_hs_tombstone += from->cursor_next_hs_tombstone;
-    to->cursor_next_skip_ge_100 += from->cursor_next_skip_ge_100;
     to->cursor_next_skip_lt_100 += from->cursor_next_skip_lt_100;
+    to->cursor_next_skip_ge_100 += from->cursor_next_skip_ge_100;
     to->cursor_next_random_error += from->cursor_next_random_error;
     to->cursor_prev_error += from->cursor_prev_error;
     to->cursor_prev_hs_tombstone += from->cursor_prev_hs_tombstone;
@@ -865,6 +876,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_time_window_stop_ts += from->rec_time_window_stop_ts;
     to->rec_time_window_stop_txn += from->rec_time_window_stop_txn;
     to->session_compact += from->session_compact;
+    to->txn_read_overflow_remove += from->txn_read_overflow_remove;
     to->txn_read_race_prepare_update += from->txn_read_race_prepare_update;
     to->txn_rts_hs_stop_older_than_newer_start += from->txn_rts_hs_stop_older_than_newer_start;
     to->txn_rts_inconsistent_ckpt += from->txn_rts_inconsistent_ckpt;
@@ -898,6 +910,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->lsm_checkpoint_throttle += WT_STAT_READ(from, lsm_checkpoint_throttle);
     to->lsm_merge_throttle += WT_STAT_READ(from, lsm_merge_throttle);
     to->bloom_size += WT_STAT_READ(from, bloom_size);
+    to->autocommit_readonly_retry += WT_STAT_READ(from, autocommit_readonly_retry);
+    to->autocommit_update_retry += WT_STAT_READ(from, autocommit_update_retry);
     to->block_extension += WT_STAT_READ(from, block_extension);
     to->block_alloc += WT_STAT_READ(from, block_alloc);
     to->block_free += WT_STAT_READ(from, block_free);
@@ -1070,6 +1084,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_create += WT_STAT_READ(from, cursor_create);
     to->cursor_bound_error += WT_STAT_READ(from, cursor_bound_error);
     to->cursor_bounds_reset += WT_STAT_READ(from, cursor_bounds_reset);
+    to->cursor_bounds_comparisons += WT_STAT_READ(from, cursor_bounds_comparisons);
     to->cursor_bounds_next_unpositioned += WT_STAT_READ(from, cursor_bounds_next_unpositioned);
     to->cursor_bounds_next_early_exit += WT_STAT_READ(from, cursor_bounds_next_early_exit);
     to->cursor_bounds_prev_unpositioned += WT_STAT_READ(from, cursor_bounds_prev_unpositioned);
@@ -1089,8 +1104,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_modify_error += WT_STAT_READ(from, cursor_modify_error);
     to->cursor_next_error += WT_STAT_READ(from, cursor_next_error);
     to->cursor_next_hs_tombstone += WT_STAT_READ(from, cursor_next_hs_tombstone);
-    to->cursor_next_skip_ge_100 += WT_STAT_READ(from, cursor_next_skip_ge_100);
     to->cursor_next_skip_lt_100 += WT_STAT_READ(from, cursor_next_skip_lt_100);
+    to->cursor_next_skip_ge_100 += WT_STAT_READ(from, cursor_next_skip_ge_100);
     to->cursor_next_random_error += WT_STAT_READ(from, cursor_next_random_error);
     to->cursor_prev_error += WT_STAT_READ(from, cursor_prev_error);
     to->cursor_prev_hs_tombstone += WT_STAT_READ(from, cursor_prev_hs_tombstone);
@@ -1167,6 +1182,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_time_window_stop_ts += WT_STAT_READ(from, rec_time_window_stop_ts);
     to->rec_time_window_stop_txn += WT_STAT_READ(from, rec_time_window_stop_txn);
     to->session_compact += WT_STAT_READ(from, session_compact);
+    to->txn_read_overflow_remove += WT_STAT_READ(from, txn_read_overflow_remove);
     to->txn_read_race_prepare_update += WT_STAT_READ(from, txn_read_race_prepare_update);
     to->txn_rts_hs_stop_older_than_newer_start +=
       WT_STAT_READ(from, txn_rts_hs_stop_older_than_newer_start);
@@ -1194,6 +1210,8 @@ static const char *const __stats_connection_desc[] = {
   "LSM: tree maintenance operations executed",
   "LSM: tree maintenance operations scheduled",
   "LSM: tree queue hit maximum",
+  "autocommit: retries for readonly operations",
+  "autocommit: retries for update operations",
   "block-cache: cached blocks updated",
   "block-cache: cached bytes updated",
   "block-cache: evicted blocks",
@@ -1209,6 +1227,7 @@ static const char *const __stats_connection_desc[] = {
   "block-cache: number of misses",
   "block-cache: number of put bypasses on checkpoint I/O",
   "block-cache: removed blocks",
+  "block-cache: time sleeping to remove block (usecs)",
   "block-cache: total blocks",
   "block-cache: total blocks inserted on read path",
   "block-cache: total blocks inserted on write path",
@@ -1426,6 +1445,7 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cached cursor count",
   "cursor: cursor bound calls that return an error",
   "cursor: cursor bounds cleared from reset",
+  "cursor: cursor bounds comparisons performed",
   "cursor: cursor bounds next called on an unpositioned cursor",
   "cursor: cursor bounds next early exit",
   "cursor: cursor bounds prev called on an unpositioned cursor",
@@ -1453,8 +1473,8 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor next calls",
   "cursor: cursor next calls that return an error",
   "cursor: cursor next calls that skip due to a globally visible history store tombstone",
+  "cursor: cursor next calls that skip greater than 1 and fewer than 100 entries",
   "cursor: cursor next calls that skip greater than or equal to 100 entries",
-  "cursor: cursor next calls that skip less than 100 entries",
   "cursor: cursor next random calls that return an error",
   "cursor: cursor operation restarted",
   "cursor: cursor prev calls",
@@ -1632,6 +1652,7 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: split bytes currently awaiting free",
   "reconciliation: split objects currently awaiting free",
   "session: attempts to remove a local object and the object is in use",
+  "session: flush_tier failed calls",
   "session: flush_tier operation calls",
   "session: flush_tier tables skipped due to no checkpoint",
   "session: flush_tier tables switched",
@@ -1687,6 +1708,7 @@ static const char *const __stats_connection_desc[] = {
   "transaction: Number of prepared updates committed",
   "transaction: Number of prepared updates repeated on the same key",
   "transaction: Number of prepared updates rolled back",
+  "transaction: number of times overflow removed value is read",
   "transaction: prepared transactions",
   "transaction: prepared transactions committed",
   "transaction: prepared transactions currently active",
@@ -1808,6 +1830,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->lsm_work_units_done = 0;
     stats->lsm_work_units_created = 0;
     stats->lsm_work_queue_max = 0;
+    stats->autocommit_readonly_retry = 0;
+    stats->autocommit_update_retry = 0;
     stats->block_cache_blocks_update = 0;
     stats->block_cache_bytes_update = 0;
     stats->block_cache_blocks_evicted = 0;
@@ -1823,6 +1847,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_cache_misses = 0;
     stats->block_cache_bypass_chkpt = 0;
     stats->block_cache_blocks_removed = 0;
+    stats->block_cache_blocks_removed_blocked = 0;
     stats->block_cache_blocks = 0;
     stats->block_cache_blocks_insert_read = 0;
     stats->block_cache_blocks_insert_write = 0;
@@ -2023,6 +2048,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cursor_cached_count */
     stats->cursor_bound_error = 0;
     stats->cursor_bounds_reset = 0;
+    stats->cursor_bounds_comparisons = 0;
     stats->cursor_bounds_next_unpositioned = 0;
     stats->cursor_bounds_next_early_exit = 0;
     stats->cursor_bounds_prev_unpositioned = 0;
@@ -2050,8 +2076,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cursor_next = 0;
     stats->cursor_next_error = 0;
     stats->cursor_next_hs_tombstone = 0;
-    stats->cursor_next_skip_ge_100 = 0;
     stats->cursor_next_skip_lt_100 = 0;
+    stats->cursor_next_skip_ge_100 = 0;
     stats->cursor_next_random_error = 0;
     stats->cursor_restart = 0;
     stats->cursor_prev = 0;
@@ -2228,6 +2254,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing rec_split_stashed_bytes */
     /* not clearing rec_split_stashed_objects */
     stats->local_objects_inuse = 0;
+    stats->flush_tier_fail = 0;
     stats->flush_tier = 0;
     stats->flush_tier_skipped = 0;
     stats->flush_tier_switched = 0;
@@ -2283,6 +2310,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_prepared_updates_committed = 0;
     stats->txn_prepared_updates_key_repeated = 0;
     stats->txn_prepared_updates_rolledback = 0;
+    stats->txn_read_overflow_remove = 0;
     stats->txn_prepare = 0;
     stats->txn_prepare_commit = 0;
     stats->txn_prepare_active = 0;
@@ -2378,6 +2406,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->lsm_work_units_done += WT_STAT_READ(from, lsm_work_units_done);
     to->lsm_work_units_created += WT_STAT_READ(from, lsm_work_units_created);
     to->lsm_work_queue_max += WT_STAT_READ(from, lsm_work_queue_max);
+    to->autocommit_readonly_retry += WT_STAT_READ(from, autocommit_readonly_retry);
+    to->autocommit_update_retry += WT_STAT_READ(from, autocommit_update_retry);
     to->block_cache_blocks_update += WT_STAT_READ(from, block_cache_blocks_update);
     to->block_cache_bytes_update += WT_STAT_READ(from, block_cache_bytes_update);
     to->block_cache_blocks_evicted += WT_STAT_READ(from, block_cache_blocks_evicted);
@@ -2393,6 +2423,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_cache_misses += WT_STAT_READ(from, block_cache_misses);
     to->block_cache_bypass_chkpt += WT_STAT_READ(from, block_cache_bypass_chkpt);
     to->block_cache_blocks_removed += WT_STAT_READ(from, block_cache_blocks_removed);
+    to->block_cache_blocks_removed_blocked +=
+      WT_STAT_READ(from, block_cache_blocks_removed_blocked);
     to->block_cache_blocks += WT_STAT_READ(from, block_cache_blocks);
     to->block_cache_blocks_insert_read += WT_STAT_READ(from, block_cache_blocks_insert_read);
     to->block_cache_blocks_insert_write += WT_STAT_READ(from, block_cache_blocks_insert_write);
@@ -2624,6 +2656,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_cached_count += WT_STAT_READ(from, cursor_cached_count);
     to->cursor_bound_error += WT_STAT_READ(from, cursor_bound_error);
     to->cursor_bounds_reset += WT_STAT_READ(from, cursor_bounds_reset);
+    to->cursor_bounds_comparisons += WT_STAT_READ(from, cursor_bounds_comparisons);
     to->cursor_bounds_next_unpositioned += WT_STAT_READ(from, cursor_bounds_next_unpositioned);
     to->cursor_bounds_next_early_exit += WT_STAT_READ(from, cursor_bounds_next_early_exit);
     to->cursor_bounds_prev_unpositioned += WT_STAT_READ(from, cursor_bounds_prev_unpositioned);
@@ -2652,8 +2685,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_next += WT_STAT_READ(from, cursor_next);
     to->cursor_next_error += WT_STAT_READ(from, cursor_next_error);
     to->cursor_next_hs_tombstone += WT_STAT_READ(from, cursor_next_hs_tombstone);
-    to->cursor_next_skip_ge_100 += WT_STAT_READ(from, cursor_next_skip_ge_100);
     to->cursor_next_skip_lt_100 += WT_STAT_READ(from, cursor_next_skip_lt_100);
+    to->cursor_next_skip_ge_100 += WT_STAT_READ(from, cursor_next_skip_ge_100);
     to->cursor_next_random_error += WT_STAT_READ(from, cursor_next_random_error);
     to->cursor_restart += WT_STAT_READ(from, cursor_restart);
     to->cursor_prev += WT_STAT_READ(from, cursor_prev);
@@ -2838,6 +2871,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_split_stashed_bytes += WT_STAT_READ(from, rec_split_stashed_bytes);
     to->rec_split_stashed_objects += WT_STAT_READ(from, rec_split_stashed_objects);
     to->local_objects_inuse += WT_STAT_READ(from, local_objects_inuse);
+    to->flush_tier_fail += WT_STAT_READ(from, flush_tier_fail);
     to->flush_tier += WT_STAT_READ(from, flush_tier);
     to->flush_tier_skipped += WT_STAT_READ(from, flush_tier_skipped);
     to->flush_tier_switched += WT_STAT_READ(from, flush_tier_switched);
@@ -2896,6 +2930,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_prepared_updates_committed += WT_STAT_READ(from, txn_prepared_updates_committed);
     to->txn_prepared_updates_key_repeated += WT_STAT_READ(from, txn_prepared_updates_key_repeated);
     to->txn_prepared_updates_rolledback += WT_STAT_READ(from, txn_prepared_updates_rolledback);
+    to->txn_read_overflow_remove += WT_STAT_READ(from, txn_read_overflow_remove);
     to->txn_prepare += WT_STAT_READ(from, txn_prepare);
     to->txn_prepare_commit += WT_STAT_READ(from, txn_prepare_commit);
     to->txn_prepare_active += WT_STAT_READ(from, txn_prepare_active);
