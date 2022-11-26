@@ -39,8 +39,6 @@ __wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
      */
     conn->default_session = session;
 
-    __wt_seconds(session, &conn->ckpt_most_recent);
-
     /*
      * Publish: there must be a barrier to ensure the connection structure fields are set before
      * other threads read from the pointer.
@@ -53,6 +51,7 @@ __wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
     /* Initialize transaction support. */
     WT_RET(__wt_txn_global_init(session, cfg));
 
+    __wt_rollback_to_stable_init(conn);
     WT_STAT_CONN_SET(session, dh_conn_handle_size, sizeof(WT_DATA_HANDLE));
     return (0);
 }
@@ -105,9 +104,6 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 
     /* Close open data handles. */
     WT_TRET(__wt_conn_dhandle_discard(session));
-
-    /* Close the checkpoint reserved session. */
-    WT_TRET(__wt_checkpoint_reserved_session_destroy(session));
 
     /* Shut down metadata tracking. */
     WT_TRET(__wt_meta_track_destroy(session));
@@ -249,9 +245,6 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Start the optional capacity thread. */
     WT_RET(__wt_capacity_server_create(session, cfg));
-
-    /* Initialize checkpoint reserved session, required for the checkpoint operation. */
-    WT_RET(__wt_checkpoint_reserved_session_init(session));
 
     /* Start the optional checkpoint thread. */
     WT_RET(__wt_checkpoint_server_create(session, cfg));

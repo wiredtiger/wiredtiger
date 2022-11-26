@@ -35,8 +35,8 @@
 
 namespace test_harness {
 void
-validator::validate(const std::string &operation_table_name, const std::string &schema_table_name,
-  const std::vector<uint64_t> &known_collection_ids)
+validator::validate(
+  const std::string &operation_table_name, const std::string &schema_table_name, database &db)
 {
     WT_DECL_RET;
     wt_timestamp_t tracked_timestamp;
@@ -50,6 +50,8 @@ validator::validate(const std::string &operation_table_name, const std::string &
 
     scoped_session session = connection_manager::instance().create_session();
     scoped_cursor cursor = session.open_scoped_cursor(operation_table_name);
+
+    const std::vector<uint64_t> known_collection_ids = db.get_collection_ids();
 
     /*
      * Default validation depends on specific fields being present in the tracking table. If the
@@ -133,6 +135,9 @@ validator::validate(const std::string &operation_table_name, const std::string &
              * the current collection and can now validate it.
              */
             verify_collection(session, current_collection_id, current_collection_records);
+
+            logger::log_msg(
+              LOG_INFO, "Verified collection {" + std::to_string(current_collection_id) + "}.");
 
             /* Begin processing the next collection. */
             current_collection_id = tracked_collection_id;

@@ -101,7 +101,7 @@ static uint32_t flush_calls = 1;
     "debug_mode=(table_logging=true,checkpoint_retention=5)," \
     "eviction_updates_target=20,eviction_updates_trigger=90," \
     "log=(enabled,file_max=10M,remove=true),session_max=%d,"  \
-    "statistics=(fast),statistics_log=(wait=1,json=true),"    \
+    "statistics=(all),statistics_log=(json,on_close,wait=1)," \
     "tiered_storage=(bucket=%s,bucket_prefix=%s,"             \
     "local_retention=%d,interval=%d,name=dir_store)"
 #define ENV_CONFIG_TXNSYNC                                \
@@ -109,7 +109,9 @@ static uint32_t flush_calls = 1;
     ",eviction_dirty_target=20,eviction_dirty_trigger=90" \
     ",transaction_sync=(enabled,method=none)"
 /* Set the flush_checkpoint debug mode so that the parent can call flush_tier alone. */
-#define ENV_CONFIG_REC "log=(recover=on,remove=false),debug_mode=(flush_checkpoint)"
+#define ENV_CONFIG_ADD_REC                                                                         \
+    "log=(recover=on,remove=false),debug_mode=(flush_checkpoint),statistics=(all),statistics_log=" \
+    "(json,on_close,wait=1)"
 
 /*
  * A minimum width of 10, along with zero filling, means that all the keys sort according to their
@@ -131,11 +133,6 @@ typedef struct {
     uint32_t info;
 } THREAD_DATA;
 
-/*
- * TODO: WT-7833 Lock to coordinate inserts and flush_tier. This lock should be removed when that
- * ticket is fixed. Flush_tier should be able to run with ongoing operations.
- */
-static pthread_rwlock_t flush_lock;
 static uint32_t nth;                      /* Number of threads. */
 static wt_timestamp_t *active_timestamps; /* Oldest timestamps still in use. */
 
@@ -267,9 +264,7 @@ thread_flush_run(void *arg)
          * Currently not testing any of the flush tier configuration strings other than defaults. We
          * expect the defaults are what MongoDB wants for now.
          */
-        testutil_check(pthread_rwlock_wrlock(&flush_lock));
         testutil_check(session->flush_tier(session, NULL));
-        testutil_check(pthread_rwlock_unlock(&flush_lock));
         printf("Flush tier %" PRIu32 " completed.\n", i);
         fflush(stdout);
         /*
@@ -302,14 +297,12 @@ thread_run(void *arg)
     uint64_t i, active_ts;
     char cbuf[MAX_VAL], lbuf[MAX_VAL], obuf[MAX_VAL];
     char kname[64], tscfg[64], uri[128];
-    bool locked;
 
     __wt_random_init(&rnd);
     memset(cbuf, 0, sizeof(cbuf));
     memset(lbuf, 0, sizeof(lbuf));
     memset(obuf, 0, sizeof(obuf));
     memset(kname, 0, sizeof(kname));
-    locked = false;
 
     td = (THREAD_DATA *)arg;
     /*
@@ -374,8 +367,6 @@ thread_run(void *arg)
         data.size = __wt_random(&rnd) % MAX_VAL;
         data.data = cbuf;
         cur_coll->set_value(cur_coll, &data);
-        testutil_check(pthread_rwlock_rdlock(&flush_lock));
-        locked = true;
         if ((ret = cur_coll->insert(cur_coll)) == WT_ROLLBACK)
             goto rollback;
         testutil_check(ret);
@@ -407,8 +398,6 @@ thread_run(void *arg)
         data.data = lbuf;
         cur_local->set_value(cur_local, &data);
         testutil_check(cur_local->insert(cur_local));
-        testutil_check(pthread_rwlock_unlock(&flush_lock));
-        locked = false;
 
         /* Save the timestamps and key separately for checking later. */
         if (fprintf(fp, "%" PRIu64 " %" PRIu64 " %" PRIu64 "\n", active_ts, active_ts, i) < 0)
@@ -417,10 +406,6 @@ thread_run(void *arg)
         if (0) {
 rollback:
             testutil_check(session->rollback_transaction(session, NULL));
-            if (locked) {
-                testutil_check(pthread_rwlock_unlock(&flush_lock));
-                locked = false;
-            }
         }
 
         /* We're done with the timestamps, allow oldest and stable to move forward. */
@@ -729,8 +714,6 @@ main(int argc, char *argv[])
     testutil_check(testutil_parse_opts(argc, argv, opts));
     testutil_build_dir(opts, build_dir, 512);
 
-    testutil_check(pthread_rwlock_init(&flush_lock, NULL));
-
     testutil_work_dir_from_path(home, sizeof(home), working_dir);
     /*
      * If the user wants to verify they need to tell us how many threads there were so we can find
@@ -819,7 +802,7 @@ main(int argc, char *argv[])
     printf("Open database, run recovery and verify content\n");
 
     /* Open the connection which forces recovery to be run. */
-    testutil_check(__wt_snprintf(envconf, sizeof(envconf), ENV_CONFIG_REC));
+    testutil_check(__wt_snprintf(envconf, sizeof(envconf), ENV_CONFIG_ADD_REC));
 
     testutil_check(__wt_snprintf(extconf, sizeof(extconf), ",extensions=(%s/%s=(early_load=true))",
       build_dir, WT_STORAGE_LIB));
@@ -1011,7 +994,6 @@ main(int argc, char *argv[])
         printf("OPLOG: %" PRIu64 " record(s) absent from %" PRIu64 "\n", absent_oplog, count);
         fatal = true;
     }
-    testutil_check(pthread_rwlock_destroy(&flush_lock));
     if (fatal)
         return (EXIT_FAILURE);
     printf("%" PRIu64 " records verified\n", count);

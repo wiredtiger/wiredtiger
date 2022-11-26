@@ -102,7 +102,7 @@ class test_tiered07(wttest.WiredTigerTestCase, TieredConfigMixin):
         if (self.first_ckpt):
             self.session.checkpoint()
         self.pr('After data, call flush_tier')
-        self.session.flush_tier(None)
+        self.session.checkpoint('flush_tier=(enabled)')
         if (not self.first_ckpt):
             self.session.checkpoint()
 
@@ -136,10 +136,9 @@ class test_tiered07(wttest.WiredTigerTestCase, TieredConfigMixin):
         # If we didn't do a checkpoint before the flush_tier then creating with the same name
         # will succeed because no bucket objects were created. 
         if (self.first_ckpt):
-            msg = "/already exists/"
             self.pr('check cannot create with same name')
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                lambda:self.assertEquals(self.session.create(self.uri, 'key_format=S'), 0), msg)
+            self.assertRaises(wiredtiger.WiredTigerError,
+                lambda:self.session.create(self.uri, 'key_format=S'))
         else:
             self.session.create(self.uri, 'key_format=S')
 

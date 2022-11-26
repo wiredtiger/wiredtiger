@@ -33,8 +33,8 @@ from wtbound import bound_base
 # test_cursor_bound04.py
 # Test the next() and prev() calls in the cursor bound API. There are two scenarios that are
 # tested in this python test.
-#   2. Test combination scenarios of using next() and prev() together.
-#   3. Test clearing bounds and special scenarios of the cursor API usage.
+#   1. Test combination scenarios of using next() and prev() together.
+#   2. Test clearing bounds and special scenarios of the cursor API usage.
 class test_cursor_bound04(bound_base):
     file_name = 'test_cursor_bound04'
 
@@ -44,10 +44,9 @@ class test_cursor_bound04(bound_base):
         ('colgroup', dict(uri='table:', use_colgroup=True))
     ]
 
-    key_format_values = [
+    key_formats = [
         ('string', dict(key_format='S')),
-        # FIXME-WT-9474: Uncomment once column store is implemented.
-        #('var', dict(key_format='r')),
+        ('var', dict(key_format='r')),
         ('int', dict(key_format='i')),
         ('bytes', dict(key_format='u')),
         ('composite_string', dict(key_format='SSS')),
@@ -55,57 +54,28 @@ class test_cursor_bound04(bound_base):
         ('composite_complex', dict(key_format='iSru')),
     ]
 
+    value_formats = [
+        ('string', dict(value_format='S')),
+        ('complex-string', dict(value_format='SS')),
+    ]
+
     config = [
         ('evict', dict(evict=True)),
         ('no-evict', dict(evict=False))
     ]
-    scenarios = make_scenarios(types, key_format_values, config)
-
-    def create_session_and_cursor(self):
-        uri = self.uri + self.file_name
-        create_params = 'value_format=S,key_format={}'.format(self.key_format)
-        if self.use_colgroup:
-            create_params += self.gen_colgroup_create_param()
-        self.session.create(uri, create_params)
-        # Add in column group.
-        if self.use_colgroup:
-            create_params = 'columns=(v),'
-            suburi = 'colgroup:{0}:g0'.format(self.file_name)
-            self.session.create(suburi, create_params)
-
-        cursor = self.session.open_cursor(uri)
-        self.session.begin_transaction()
-        for i in range(self.start_key, self.end_key + 1):
-            cursor[self.gen_key(i)] = "value" + str(i)
-        self.session.commit_transaction()
-
-        if (self.evict):
-            evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
-            for i in range(self.start_key, self.end_key):
-                evict_cursor.set_key(self.gen_key(i))
-                evict_cursor.search()
-                evict_cursor.reset() 
-        return cursor
+    scenarios = make_scenarios(types, key_formats, value_formats, config)
 
     def test_bound_special_scenario(self):
         cursor = self.create_session_and_cursor()
 
-        # Test bound api: Test upper bound clearing with only lower bounds.
+        # Test bound api: Test lower bound clearing works.
         self.set_bounds(cursor, 45, "lower")
-        cursor.bound("action=clear,bound=upper")
-        self.assertEqual(cursor.next(), 0)
-        key = cursor.get_key()
-        self.assertEqual(key, self.check_key(45))
-        cursor.reset()
-
-        # Test bound api: Test lower bound clearing with lower bounds works.
-        self.set_bounds(cursor, 45, "lower")
-        cursor.bound("action=clear,bound=lower")
+        cursor.bound("action=clear")
         self.assertEqual(cursor.next(), 0)
         key = cursor.get_key()
         self.assertEqual(key, self.check_key(self.start_key))
         cursor.reset()
-
+        
         # Test bound api: Test lower bound setting with positioned cursor.
         self.set_bounds(cursor, 45, "lower")
         self.assertEqual(cursor.next(), 0)
@@ -182,7 +152,7 @@ class test_cursor_bound04(bound_base):
         key = cursor.get_key()
         self.assertEqual(key, self.check_key(55))
         self.assertEqual(cursor.bound("action=clear"), 0)
-        self.cursor_traversal_bound(cursor, None, None, True, self.end_key - 55 - 1)
+        self.cursor_traversal_bound(cursor, None, None, True,  self.end_key - 55)
         cursor.reset()
 
         self.set_bounds(cursor, 55, "upper")
@@ -190,14 +160,14 @@ class test_cursor_bound04(bound_base):
         key = cursor.get_key()
         self.assertEqual(key, self.check_key(self.start_key))
         self.assertEqual(cursor.bound("action=clear"), 0)
-        self.cursor_traversal_bound(cursor, None, None, True,  self.end_key - self.start_key - 1)
+        self.cursor_traversal_bound(cursor, None, None, True,  self.end_key - self.start_key)
         cursor.reset()
         cursor.close()
 
     def test_bound_combination_scenario(self):
         cursor = self.create_session_and_cursor()
 
-        # Test that basic cases of setting lower bound and performing combination of next() and
+        # Test basic cases of setting lower bound and performing combination of next() and
         # prev() calls.
         self.set_bounds(cursor, 45, "lower")
         self.assertEqual(cursor.next(), 0)
@@ -211,7 +181,7 @@ class test_cursor_bound04(bound_base):
         self.assertEqual(key, self.check_key(45))
         self.assertEqual(cursor.prev(), wiredtiger.WT_NOTFOUND)
 
-        # Test that basic cases of setting upper bound and performing combination of next() and
+        # Test basic cases of setting upper bound and performing combination of next() and
         # prev() calls.
         self.set_bounds(cursor, 60, "upper")
         self.assertEqual(cursor.prev(), 0)
@@ -250,7 +220,7 @@ class test_cursor_bound04(bound_base):
         key = cursor.get_key()
         self.assertEqual(key, self.check_key(45))
         self.assertEqual(cursor.bound("action=clear"), 0)
-        self.cursor_traversal_bound(cursor, None, None, False,  45 - self.start_key - 1)
+        self.cursor_traversal_bound(cursor, None, None, False,  45 - self.start_key)
         cursor.reset()
 
         self.set_bounds(cursor, 45, "upper")
@@ -258,7 +228,7 @@ class test_cursor_bound04(bound_base):
         key = cursor.get_key()
         self.assertEqual(key, self.check_key(45))
         self.assertEqual(cursor.bound("action=clear"), 0)
-        self.cursor_traversal_bound(cursor, None, None, True,  self.end_key - 45 - 1)
+        self.cursor_traversal_bound(cursor, None, None, True,  self.end_key - 45)
         cursor.reset()
 
         cursor.close()

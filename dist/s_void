@@ -40,6 +40,7 @@ func_ok()
 	    -e '/int __cursor_fix_implicit$/d' \
 	    -e '/int __delete_redo_window_cleanup_skip$/d' \
 	    -e '/int __handle_close_default$/d' \
+	    -e '/int __handle_general_default$/d' \
 	    -e '/int __handle_progress_default$/d' \
 	    -e '/int __im_file_close$/d' \
 	    -e '/int __im_file_lock$/d' \
@@ -108,6 +109,7 @@ func_ok()
 	    -e '/int fail_fs_exist$/d' \
 	    -e '/int fail_fs_simulate_fail$/d' \
 	    -e '/int fail_fs_terminate$/d' \
+	    -e '/int handle_general$/d' \
 	    -e '/int handle_message$/d' \
 	    -e '/int handle_progress$/d' \
 	    -e '/int index_compare_S$/d' \
@@ -176,6 +178,7 @@ for f in `find bench ext src test -name '*.c' -o -name '*_inline.h'`; do
 	    -e '/WT_CURSOR_NEEDKEY(/d' \
 	    -e '/WT_CURSOR_NEEDVALUE(/d' \
 	    -e '/WT_ERR[A-Z_]*(/d' \
+	    -e '/WT_PAGE_ALLOC_AND_SWAP(/d' \
 	    -e '/WT_PANIC[A-Z_]*(/d' \
 	    -e '/WT_RET[A-Z_]*(/d' \
 	    -e '/WT_SIZE_CHECK_PACK(/d' \
@@ -203,6 +206,7 @@ for f in `find bench ext src test -name '*.c' -o -name '*_inline.h'`; do
 	    -e '/[_A-Z]*_API_CALL[_A-Z]*(/d' \
 	    -e '/WT_CURSOR_NEEDKEY/d' \
 	    -e '/WT_CURSOR_NEEDVALUE/d' \
+	    -e '/WT_PAGE_ALLOC_AND_SWAP(/d' \
 	    -e '/WT_ERR/d' \
 	    -e '/WT_SYSCALL.*ret/d' \
 	    -e '/WT_TRET/d' \

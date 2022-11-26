@@ -139,6 +139,45 @@ testutil_clean_work_dir(const char *dir)
 }
 
 /*
+ * testutil_deduce_build_dir --
+ *     Deduce the build directory.
+ */
+void
+testutil_deduce_build_dir(TEST_OPTS *opts)
+{
+    struct stat stats;
+
+    char path[512], pwd[512], stat_path[512];
+    char *token;
+    int index;
+
+    if (getcwd(pwd, sizeof(pwd)) == NULL)
+        testutil_die(ENOENT, "No such directory");
+
+    /* This condition is when the full path name is used for argv0. */
+    if (opts->argv0[0] == '/')
+        testutil_check(__wt_snprintf(path, sizeof(path), "%s", opts->argv0));
+    else
+        testutil_check(__wt_snprintf(path, sizeof(path), "%s/%s", pwd, opts->argv0));
+
+    token = strrchr(path, '/');
+    while (strlen(path) > 0) {
+        testutil_assert(token != NULL);
+        index = (int)(token - path);
+        path[index] = '\0';
+
+        testutil_check(__wt_snprintf(stat_path, sizeof(stat_path), "%s/wt", path));
+
+        if (stat(stat_path, &stats) == 0) {
+            opts->build_dir = dstrdup(path);
+            return;
+        }
+        token = strrchr(path, '/');
+    }
+    return;
+}
+
+/*
  * testutil_build_dir --
  *     Get the build directory.
  */
@@ -220,6 +259,7 @@ testutil_cleanup(TEST_OPTS *opts)
     free(opts->progress_file_name);
     free(opts->home);
     free(opts->build_dir);
+    free(opts->tiered_storage_source);
 }
 
 /*
@@ -305,6 +345,20 @@ testutil_copy_file(WT_SESSION *session, const char *name)
 }
 
 /*
+ * testutil_copy_if_exists --
+ *     Copy a file into a directory if it exists.
+ */
+void
+testutil_copy_if_exists(WT_SESSION *session, const char *name)
+{
+    bool exist;
+
+    testutil_check(__wt_fs_exist((WT_SESSION_IMPL *)session, name, &exist));
+    if (exist)
+        testutil_copy_file(session, name);
+}
+
+/*
  * testutil_is_flag_set --
  *     Return if an environment variable flag is set.
  */
@@ -343,6 +397,27 @@ testutil_print_command_line(int argc, char *const *argv)
     printf("\n");
 }
 
+/*
+ * testutil_wiredtiger_open --
+ *     Call wiredtiger_open with the tiered storage configuration if enabled.
+ */
+void
+testutil_wiredtiger_open(TEST_OPTS *opts, const char *home, const char *config,
+  WT_EVENT_HANDLER *event_handler, WT_CONNECTION **connectionp, bool rerun)
+{
+    char buf[1024], tiered_ext_cfg[512];
+
+    if (opts->tiered_storage)
+        testutil_check(__wt_snprintf(tiered_ext_cfg, sizeof(tiered_ext_cfg),
+          TESTUTIL_ENV_CONFIG_TIERED_EXT TESTUTIL_ENV_CONFIG_TIERED, opts->build_dir));
+
+    testutil_check(__wt_snprintf(buf, sizeof(buf), "%s%s%s%s", config,
+      (rerun ? TESTUTIL_ENV_CONFIG_REC : ""), (opts->compat ? TESTUTIL_ENV_CONFIG_COMPAT : ""),
+      (opts->tiered_storage ? tiered_ext_cfg : "")));
+    // printf("wiredtiger_open configuration: %s\n", buf);
+    testutil_check(wiredtiger_open(home, event_handler, buf, connectionp));
+}
+
 #ifndef _WIN32
 /*
  * testutil_sleep_wait --
@@ -370,6 +445,19 @@ testutil_sleep_wait(uint32_t seconds, pid_t pid)
     }
 }
 #endif
+
+/*
+ * testutil_time_us --
+ *     Return the number of microseconds since the epoch.
+ */
+uint64_t
+testutil_time_us(WT_SESSION *session)
+{
+    struct timespec ts;
+
+    __wt_epoch((WT_SESSION_IMPL *)session, &ts);
+    return ((uint64_t)ts.tv_sec * WT_MILLION + (uint64_t)ts.tv_nsec / WT_THOUSAND);
+}
 
 /*
  * dcalloc --

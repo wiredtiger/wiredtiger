@@ -131,7 +131,8 @@ test::run()
     db_create_config += _args.wt_open_config;
 
     /* Create connection. */
-    connection_manager::instance().create(db_create_config, DEFAULT_DIR);
+    connection_manager::instance().create(
+      db_create_config, _args.home.empty() ? DEFAULT_DIR : _args.home);
 
     /* Initiate the load stage of each component. */
     for (const auto &it : _components)
@@ -170,8 +171,7 @@ test::run()
     if (_operation_tracker->enabled()) {
         std::unique_ptr<configuration> tracking_config(_config->get_subconfig(OPERATION_TRACKER));
         this->validate(_operation_tracker->get_operation_table_name(),
-          _operation_tracker->get_schema_table_name(),
-          _workload_manager->get_database().get_collection_ids());
+          _operation_tracker->get_schema_table_name(), _workload_manager->get_database());
     }
 
     /* Log perf stats. */

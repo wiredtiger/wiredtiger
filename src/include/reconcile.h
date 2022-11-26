@@ -62,6 +62,19 @@ struct __wt_rec_chunk {
     /* For fixed-length column store, track where the time windows start and how many we have. */
     uint32_t aux_start_offset;
     uint32_t auxentries;
+
+    WT_PAGE_STAT ps;
+};
+
+/*
+ * WT_DELETE_HS_UPD --
+ *	Update that needs to be deleted from the history store.
+ */
+struct __wt_delete_hs_upd {
+    WT_INSERT *ins; /* Insert list reference */
+    WT_ROW *rip;    /* Original on-page reference */
+    WT_UPDATE *upd;
+    WT_UPDATE *tombstone;
 };
 
 /*
@@ -227,6 +240,15 @@ struct __wt_reconcile {
     size_t supd_allocated;
     size_t supd_memsize; /* Size of saved update structures */
 
+    /*
+     * List of updates to be deleted from the history store. While reviewing updates for each page,
+     * we save the updates that needs to be deleted from history store here, and then delete them
+     * after we have built the disk image.
+     */
+    WT_DELETE_HS_UPD *delete_hs_upd; /* Updates to delete from history store */
+    uint32_t delete_hs_upd_next;
+    size_t delete_hs_upd_allocated;
+
     /* List of pages we've written so far. */
     WT_MULTI *multi;
     uint32_t multi_next;
@@ -302,6 +324,8 @@ struct __wt_reconcile {
      */
     bool hs_clear_on_tombstone;
     WT_CURSOR *hs_cursor;
+
+    WT_PAGE_STAT ps;
 };
 
 typedef struct {

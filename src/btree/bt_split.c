@@ -245,10 +245,15 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
     if (ref_addr != NULL && !__wt_off_page(from_home, ref_addr)) {
         __wt_cell_unpack_addr(session, from_home->dsk, (WT_CELL *)ref_addr, &unpack);
         WT_RET(__wt_calloc_one(session, &addr));
+        WT_PAGE_STAT_COPY(&addr->ps, &unpack.ps);
         WT_TIME_AGGREGATE_COPY(&addr->ta, &unpack.ta);
         WT_ERR(__wt_memdup(session, unpack.data, unpack.size, &addr->addr));
         addr->size = (uint8_t)unpack.size;
         switch (unpack.raw) {
+        case WT_CELL_ADDR_DEL:
+            /* Could only have been fast-truncated if there were no overflow items. */
+            addr->type = WT_ADDR_LEAF_NO;
+            break;
         case WT_CELL_ADDR_INT:
             addr->type = WT_ADDR_INT;
             break;
@@ -502,7 +507,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
     WT_ERR(__split_ref_prepare(session, alloc_index, &locked, false));
 
     /* Encourage a race */
-    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_1);
+    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_1, NULL);
 
     /*
      * Confirm the root page's index hasn't moved, then update it, which makes the split visible to
@@ -513,7 +518,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
     alloc_index = NULL;
 
     /* Encourage a race */
-    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_2);
+    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_2, NULL);
 
     /*
      * Mark the root page with the split generation.
@@ -607,7 +612,7 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
     }
 
     /* Free any backing fast-truncate memory. */
-    __wt_free(session, ref->ft_info.del);
+    __wt_free(session, ref->page_del);
 
     /* Free the backing block and address. */
     WT_TRET(__wt_ref_block_free(session, ref));
@@ -680,8 +685,16 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
             next_ref = pindex->index[i];
             WT_ASSERT(session, next_ref->state != WT_REF_SPLIT);
 
-            /* Protect against including the replaced WT_REF in the list of deleted items. */
+            /*
+             * Protect against including the replaced WT_REF in the list of deleted items. Also, in
+             * VLCS, avoid dropping the leftmost page even if it's deleted, because the namespace
+             * gap that produces causes search to fail. (For other gaps, search just takes the next
+             * page to the left; but for the leftmost page in an internal page that doesn't work
+             * unless we update the internal page's start recno on the fly and restart the search,
+             * which seems like asking for trouble.)
+             */
             if (next_ref != ref && next_ref->state == WT_REF_DELETED &&
+              (btree->type != BTREE_COL_VAR || i != 0) &&
               __wt_delete_page_skip(session, next_ref, true) &&
               WT_REF_CAS_STATE(session, next_ref, WT_REF_DELETED, WT_REF_LOCKED)) {
                 if (scr == NULL)
@@ -753,7 +766,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     WT_NOT_READ(complete, WT_ERR_PANIC);
 
     /* Encourage a race */
-    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_3);
+    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_3, NULL);
 
     /*
      * Confirm the parent page's index hasn't moved then update it, which makes the split visible to
@@ -764,7 +777,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     alloc_index = NULL;
 
     /* Encourage a race */
-    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_4);
+    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_4, NULL);
 
     /*
      * Get a generation for this split, mark the page. This must be after the new index is swapped
@@ -1020,7 +1033,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
     WT_ERR(__split_ref_prepare(session, alloc_index, &locked, true));
 
     /* Encourage a race */
-    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_5);
+    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_5, NULL);
 
     /* Split into the parent. */
     WT_ERR(__split_parent(
@@ -1034,7 +1047,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
     WT_INTL_INDEX_SET(page, replace_index);
 
     /* Encourage a race */
-    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_6);
+    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_6, NULL);
 
     /*
      * Get a generation for this split, mark the parent page. This must be after the new index is
@@ -1174,7 +1187,7 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock, WT_PA
         parent = ref->home;
 
         /* Encourage races. */
-        __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_7);
+        __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_7, NULL);
 
         /* Page locks live in the modify structure. */
         WT_RET(__wt_page_modify_init(session, parent));
@@ -1673,8 +1686,8 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
     /* Verify any disk image we have. */
     WT_ASSERT(session,
       multi->disk_image == NULL ||
-        __wt_verify_dsk_image(
-          session, "[page instantiate]", multi->disk_image, 0, &multi->addr, true) == 0);
+        __wt_verify_dsk_image(session, "[page instantiate]", multi->disk_image, 0, &multi->addr,
+          WT_VRFY_DISK_EMPTY_PAGE_OK) == 0);
 
     /* Allocate an underlying WT_REF. */
     WT_RET(__wt_calloc_one(session, refp));
@@ -1719,6 +1732,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
     if (multi->addr.addr != NULL) {
         WT_RET(__wt_calloc_one(session, &addr));
         ref->addr = addr;
+        WT_PAGE_STAT_COPY(&addr->ps, &multi->addr.ps);
         WT_TIME_AGGREGATE_COPY(&addr->ta, &multi->addr.ta);
         WT_RET(__wt_memdup(session, multi->addr.addr, multi->addr.size, &addr->addr));
         addr->size = multi->addr.size;
@@ -1772,7 +1786,6 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     WT_ASSERT(session, __wt_leaf_page_can_split(session, page));
     WT_ASSERT(session, __wt_page_is_modified(page));
-    WT_ASSERT(session, ref->ft_info.del == NULL);
 
     F_SET_ATOMIC_16(page, WT_PAGE_SPLIT_INSERT); /* Only split in-memory once. */
 
@@ -1846,9 +1859,9 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     /*
      * Allocation operations completed, we're going to split.
      *
-     * Record the split column-store page record, used in reconciliation.
+     * Record the fixed-length column-store split page record, used in reconciliation.
      */
-    if (type != WT_PAGE_ROW_LEAF) {
+    if (type == WT_PAGE_COL_FIX) {
         WT_ASSERT(session, page->modify->mod_col_split_recno == WT_RECNO_OOB);
         page->modify->mod_col_split_recno = child->ref_recno;
     }
@@ -1978,9 +1991,9 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     /*
      * Failure.
      *
-     * Reset the split column-store page record.
+     * Reset the fixed-length column-store split page record.
      */
-    if (type != WT_PAGE_ROW_LEAF)
+    if (type == WT_PAGE_COL_FIX)
         page->modify->mod_col_split_recno = WT_RECNO_OOB;
 
     /*
@@ -2120,8 +2133,8 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
         __split_multi_inmem_final(session, page, &mod->mod_multi[i]);
 
     /*
-     * Pages with unresolved changes are not marked clean in reconciliation, do it now, then discard
-     * the page.
+     * Page with changes not written in this reconciliation is not marked as clean, do it now, then
+     * discard the page.
      */
     __wt_page_modify_clear(session, page);
     __wt_page_out(session, &page);
@@ -2130,6 +2143,11 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 err:
         for (i = 0; i < new_entries; ++i)
             __split_multi_inmem_fail(session, page, &mod->mod_multi[i], ref_new[i]);
+        /*
+         * Mark the page dirty to ensure it is reconciled again as we free the split disk images if
+         * we fail to instantiate any of them into memory.
+         */
+        __wt_page_modify_set(session, page);
     }
 
     __wt_free(session, ref_new);

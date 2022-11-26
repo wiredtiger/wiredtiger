@@ -318,9 +318,12 @@ dir_store_get_directory(const char *home, const char *s, ssize_t len, bool creat
         dirname = strndup(s, (size_t)len + 1); /* Room for null */
     else {
         buflen = (size_t)len + strlen(home) + 2; /* Room for slash, null */
-        if ((dirname = malloc(buflen)) != NULL)
-            if (snprintf(dirname, buflen, "%s/%.*s", home, (int)len, s) >= (int)buflen)
+        if ((dirname = malloc(buflen)) != NULL) {
+            if (snprintf(dirname, buflen, "%s/%.*s", home, (int)len, s) >= (int)buflen) {
+                free(dirname);
                 return (EINVAL);
+            }
+        }
     }
     if (dirname == NULL)
         return (ENOMEM);
@@ -398,8 +401,10 @@ dir_store_path(WT_FILE_SYSTEM *file_system, const char *dir, const char *name, c
     len = strlen(dir) + strlen(name) + 2;
     if ((p = malloc(len)) == NULL)
         return (dir_store_err(FS2DS(file_system), NULL, ENOMEM, "dir_store_path"));
-    if (snprintf(p, len, "%s/%s", dir, name) >= (int)len)
-        return (dir_store_err(FS2DS(file_system), NULL, EINVAL, "overflow sprintf"));
+    if (snprintf(p, len, "%s/%s", dir, name) >= (int)len) {
+        free(p);
+        return (dir_store_err(FS2DS(file_system), NULL, EINVAL, "overflow snprintf"));
+    }
     *pathp = p;
     return (ret);
 }
@@ -429,6 +434,7 @@ dir_store_stat(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
     if (ret != 0 && errno == ENOENT) {
         /* It's not in the cache, try the bucket directory. */
         free(path);
+        path = NULL;
         if ((ret = dir_store_bucket_path(file_system, name, &path)) != 0)
             goto err;
         ret = stat(path, statp);
@@ -637,7 +643,7 @@ dir_store_file_copy(DIR_STORE *dir_store, WT_SESSION *session, const char *src_p
          * It is normal and possible that the source file was dropped. Don't print out an error
          * message in that case, but still return the ENOENT error value.
          */
-        if ((ret != 0 && ret != ENOENT) || (ret == ENOENT && !enoent_okay))
+        if ((ret == ENOENT && !enoent_okay) || (ret != 0))
             ret = dir_store_err(dir_store, session, ret, "%s: cannot open for read", src_path);
         goto err;
     }
@@ -762,7 +768,7 @@ dir_store_flush_finish(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
         goto err;
     }
     /* Set the file to readonly in the cache. */
-    if (ret == 0 && (ret = chmod(dest_path, 0444)) < 0)
+    if ((ret = chmod(dest_path, 0444)) < 0)
         ret =
           dir_store_err(dir_store, session, errno, "%s: ss_flush_finish chmod failed", dest_path);
 err:

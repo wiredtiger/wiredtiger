@@ -237,12 +237,12 @@ __wt_evict_server_wake(WT_SESSION_IMPL *session)
     conn = S2C(session);
     cache = conn->cache;
 
-    if (WT_VERBOSE_ISSET(session, WT_VERB_EVICTSERVER)) {
+    if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_2)) {
         uint64_t bytes_inuse, bytes_max;
 
         bytes_inuse = __wt_cache_bytes_inuse(cache);
         bytes_max = conn->cache_size;
-        __wt_verbose(session, WT_VERB_EVICTSERVER,
+        __wt_verbose_debug2(session, WT_VERB_EVICTSERVER,
           "waking, bytes inuse %s max (%" PRIu64 "MB %s %" PRIu64 "MB)",
           bytes_inuse <= bytes_max ? "<=" : ">", bytes_inuse / WT_MEGABYTE,
           bytes_inuse <= bytes_max ? "<=" : ">", bytes_max / WT_MEGABYTE);
@@ -310,11 +310,11 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
               F_ISSET(thread, WT_THREAD_RUN))
                 __wt_yield();
         else {
-            __wt_verbose(session, WT_VERB_EVICTSERVER, "%s", "sleeping");
+            __wt_verbose_debug2(session, WT_VERB_EVICTSERVER, "%s", "sleeping");
 
             /* Don't rely on signals: check periodically. */
             __wt_cond_auto_wait(session, cache->evict_cond, did_work, NULL);
-            __wt_verbose(session, WT_VERB_EVICTSERVER, "%s", "waking");
+            __wt_verbose_debug2(session, WT_VERB_EVICTSERVER, "%s", "waking");
         }
     } else
         WT_ERR(__evict_lru_pages(session, false));
@@ -379,18 +379,12 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     uint64_t time_diff_ms;
-#ifdef HAVE_DIAGNOSTIC
-    bool verbose_timeout_flags;
-#endif
 
     /* Assume there has been no progress. */
     *did_work = false;
 
     conn = S2C(session);
     cache = conn->cache;
-#ifdef HAVE_DIAGNOSTIC
-    verbose_timeout_flags = false;
-#endif
 
     /* Evict pages from the cache as needed. */
     WT_RET(__evict_pass(session));
@@ -458,13 +452,13 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 
 #define WT_CACHE_STUCK_TIMEOUT_MS 300000
     time_diff_ms = WT_TIMEDIFF_MS(now, cache->stuck_time);
+
 #ifdef HAVE_DIAGNOSTIC
     /* Enable extra logs 20ms before timing out. */
-    if (!verbose_timeout_flags && time_diff_ms > WT_CACHE_STUCK_TIMEOUT_MS - 20) {
-        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT, WT_VERBOSE_DEBUG);
-        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG);
-        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT_STUCK, WT_VERBOSE_DEBUG);
-        verbose_timeout_flags = true;
+    if (time_diff_ms > WT_CACHE_STUCK_TIMEOUT_MS - 20) {
+        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT, WT_VERBOSE_DEBUG_1);
+        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_1);
+        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT_STUCK, WT_VERBOSE_DEBUG_1);
     }
 #endif
 
@@ -731,7 +725,7 @@ __evict_pass(WT_SESSION_IMPL *session)
         if (!__evict_update_work(session))
             break;
 
-        __wt_verbose(session, WT_VERB_EVICTSERVER,
+        __wt_verbose_debug2(session, WT_VERB_EVICTSERVER,
           "Eviction pass with: Max: %" PRIu64 " In use: %" PRIu64 " Dirty: %" PRIu64,
           conn->cache_size, cache->bytes_inmem, cache->bytes_dirty_intl + cache->bytes_dirty_leaf);
 
@@ -2061,7 +2055,7 @@ fast:
     *slotp += (u_int)(evict - start);
     WT_STAT_CONN_INCRV(session, cache_eviction_pages_queued, (u_int)(evict - start));
 
-    __wt_verbose(session, WT_VERB_EVICTSERVER, "%s walk: seen %" PRIu64 ", queued %" PRIu64,
+    __wt_verbose_debug2(session, WT_VERB_EVICTSERVER, "%s walk: seen %" PRIu64 ", queued %" PRIu64,
       session->dhandle->name, pages_seen, pages_queued);
 
     /*
@@ -2406,7 +2400,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
             if (ret == WT_ROLLBACK) {
                 --cache->evict_aggressive_score;
                 WT_STAT_CONN_INCR(session, txn_fail_cache);
-                __wt_verbose_debug(
+                __wt_verbose_debug1(
                   session, WT_VERB_TRANSACTION, "%s", session->txn->rollback_reason);
             }
             WT_ERR(ret);

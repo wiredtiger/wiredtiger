@@ -24,6 +24,9 @@
  * Deleted cells are place-holders for column-store files, where entries cannot
  * be removed in order to preserve the record count.
  *
+ * Note that deleted value cells (WT_CELL_DEL) are different from deleted-address
+ * cells (WT_CELL_ADDR_DEL).
+ *
  * Here's the cell use by page type:
  *
  * WT_PAGE_ROW_INT (row-store internal page):
@@ -132,7 +135,7 @@
  */
 struct __wt_cell {
     /*
-     * Maximum of 98 bytes:
+     * Maximum of 116 bytes:
      *  1: cell descriptor byte
      *  1: prefix compression count
      *  1: secondary descriptor byte
@@ -140,13 +143,14 @@ struct __wt_cell {
      * 18: 2 transaction IDs	(uint64_t encoding, max 9 bytes)
      *  9: associated 64-bit value	(uint64_t encoding, max 9 bytes)
      * 27: fast-delete information (transaction ID, 2 timestamps)
+     * 18: page stat information (int64_t encoding, 2 counts, max 9 bytes)
      *  5: data length		(uint32_t encoding, max 5 bytes)
      *
      * This calculation is pessimistic: the prefix compression count and 64V value overlap, and the
      * validity window, 64V value, fast-delete information and data length are all optional in some
      * or even most cases.
      */
-    uint8_t __chunk[98];
+    uint8_t __chunk[116];
 };
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
@@ -200,6 +204,8 @@ struct __wt_cell_unpack_addr {
     WT_TIME_AGGREGATE ta; /* Address validity window */
 
     WT_PAGE_DELETED page_del; /* Fast-truncate information */
+
+    WT_PAGE_STAT ps; /* Page information including row and byte counts */
 };
 
 /*

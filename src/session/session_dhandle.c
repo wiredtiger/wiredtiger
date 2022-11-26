@@ -161,17 +161,17 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
          * thread has it locked for real.
          */
         if (F_ISSET(dhandle, WT_DHANDLE_OPEN) && (!want_exclusive || lock_busy)) {
-            __wt_readlock(session, &dhandle->rwlock);
+            WT_WITH_DHANDLE(session, dhandle, __wt_session_dhandle_readlock(session));
             if (F_ISSET(dhandle, WT_DHANDLE_DEAD)) {
                 *is_deadp = true;
-                __wt_readunlock(session, &dhandle->rwlock);
+                WT_WITH_DHANDLE(session, dhandle, __wt_session_dhandle_readunlock(session));
                 return (0);
             }
 
             is_open = F_ISSET(dhandle, WT_DHANDLE_OPEN);
             if (is_open && !want_exclusive)
                 return (0);
-            __wt_readunlock(session, &dhandle->rwlock);
+            WT_WITH_DHANDLE(session, dhandle, __wt_session_dhandle_readunlock(session));
         } else
             is_open = false;
 
@@ -180,10 +180,11 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
          * subtlety here: if we race with another thread that successfully opens the file, we don't
          * want to block waiting to get exclusive access.
          */
-        if ((ret = __wt_try_writelock(session, &dhandle->rwlock)) == 0) {
+        WT_WITH_DHANDLE(session, dhandle, ret = __wt_session_dhandle_try_writelock(session));
+        if (ret == 0) {
             if (F_ISSET(dhandle, WT_DHANDLE_DEAD)) {
                 *is_deadp = true;
-                __wt_writeunlock(session, &dhandle->rwlock);
+                WT_WITH_DHANDLE(session, dhandle, __wt_session_dhandle_writeunlock(session));
                 return (0);
             }
 
@@ -192,7 +193,7 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
              */
             if (F_ISSET(dhandle, WT_DHANDLE_OPEN) && !want_exclusive) {
                 lock_busy = false;
-                __wt_writeunlock(session, &dhandle->rwlock);
+                WT_WITH_DHANDLE(session, dhandle, __wt_session_dhandle_writeunlock(session));
                 continue;
             }
 
@@ -273,9 +274,9 @@ __wt_session_release_dhandle(WT_SESSION_IMPL *session)
     if (locked) {
         if (write_locked) {
             F_CLR(dhandle, WT_DHANDLE_EXCLUSIVE);
-            __wt_writeunlock(session, &dhandle->rwlock);
+            WT_WITH_DHANDLE(session, dhandle, __wt_session_dhandle_writeunlock(session));
         } else
-            __wt_readunlock(session, &dhandle->rwlock);
+            WT_WITH_DHANDLE(session, dhandle, __wt_session_dhandle_readunlock(session));
     }
 
     session->dhandle = NULL;
@@ -461,15 +462,15 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
      * actually zero in a newer, currently running checkpoint, because then they must have always
      * been zero.)
      *
-     * This scheme relies on the fact we take steps to make sure that the checkpoint wall clock time
-     * does not run backward, and that successive checkpoints are never given the same wall clock
-     * time. Note that we use the write generation to ignore wall clock times from previous database
-     * opens (all such are treated as 0) -- anything from a previous database open can't have been
-     * produced by a currently running checkpoint and can be presumed to match. This is done so we
-     * don't get in trouble if the system clock moves backwards between runs, and also to avoid
-     * possible issues if the checkpoint clock runs forward. (See notes about that in txn_ckpt.c.)
-     * Furthermore, this avoids any confusion potentially caused by older versions not including the
-     * checkpoint time in the snapshot and timestamp metadata.
+     * This scheme relies on the fact that the checkpoint wall clock time always moves forward. Each
+     * checkpoint is given a wall clock time at least one second greater than the previous
+     * checkpoint. Before recovery, we load the time of the last successful checkpoint in the
+     * previous database so we can ensure checkpoint times increase across restarts. This avoids
+     * trouble if the system clock moves backwards between runs, and also avoids possible issues if
+     * the checkpoint clock runs forward. (See comment about that in
+     * __txn_checkpoint_establish_time().) When reading from a previous database, the checkpoint
+     * time in the snapshot and timestamp metadata default to zero if not present, avoiding
+     * confusion caused by older versions that don't include these values.
      *
      * Also note that only the exact name "WiredTigerCheckpoint" needs to be resolved. Requests to
      * open specific versions, such as "WiredTigerCheckpoint.6", must be looked up like named
@@ -579,10 +580,7 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
              * collection of checkpoint cursors they opened on different files all came from the
              * same global checkpoint or not. This is the same problem as checking if the history
              * store checkpoint and data store checkpoint match, so the wall time is the right thing
-             * to use for it. Note that it will be 0 for all checkpoints from before this run;
-             * however, it is impossible to open the same checkpoint name twice and get two
-             * different checkpoints from before the current database run, since the newer one must
-             * have just been created.
+             * to use for it.
              */
             ckpt_snapshot->ckpt_id = snapshot_time;
         }
@@ -756,6 +754,57 @@ __session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *che
 }
 
 /*
+ * __wt_session_dhandle_readlock --
+ *     Acquire read lock for the session's current dhandle.
+ */
+void
+__wt_session_dhandle_readlock(WT_SESSION_IMPL *session)
+{
+    WT_ASSERT(session, session->dhandle != NULL);
+    __wt_readlock(session, &session->dhandle->rwlock);
+}
+
+/*
+ * __wt_session_dhandle_readunlock --
+ *     Release read lock for the session's current dhandle.
+ */
+void
+__wt_session_dhandle_readunlock(WT_SESSION_IMPL *session)
+{
+    WT_ASSERT(session, session->dhandle != NULL);
+    __wt_readunlock(session, &session->dhandle->rwlock);
+}
+
+/*
+ * __wt_session_dhandle_writeunlock --
+ *     Release write lock for the session's current dhandle.
+ */
+void
+__wt_session_dhandle_writeunlock(WT_SESSION_IMPL *session)
+{
+    WT_ASSERT(session, session->dhandle != NULL);
+    WT_ASSERT(session, FLD_ISSET(session->dhandle->lock_flags, WT_DHANDLE_LOCK_WRITE));
+    FLD_CLR(session->dhandle->lock_flags, WT_DHANDLE_LOCK_WRITE);
+    __wt_writeunlock(session, &session->dhandle->rwlock);
+}
+
+/*
+ * __wt_session_dhandle_try_writelock --
+ *     Try to acquire write lock for the session's current dhandle.
+ */
+int
+__wt_session_dhandle_try_writelock(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+
+    WT_ASSERT(session, session->dhandle != NULL);
+    if ((ret = __wt_try_writelock(session, &session->dhandle->rwlock)) == 0)
+        FLD_SET(session->dhandle->lock_flags, WT_DHANDLE_LOCK_WRITE);
+
+    return (ret);
+}
+
+/*
  * __wt_session_get_dhandle --
  *     Get a data handle for the given name, set session->dhandle. Optionally if we opened a
  *     checkpoint return its checkpoint order number.
@@ -798,7 +847,7 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
             dhandle->excl_session = NULL;
             dhandle->excl_ref = 0;
             F_CLR(dhandle, WT_DHANDLE_EXCLUSIVE);
-            __wt_writeunlock(session, &dhandle->rwlock);
+            WT_WITH_DHANDLE(session, dhandle, __wt_session_dhandle_writeunlock(session));
 
             WT_WITH_SCHEMA_LOCK(
               session, ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags));
@@ -818,7 +867,7 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
         dhandle->excl_session = NULL;
         dhandle->excl_ref = 0;
         F_CLR(dhandle, WT_DHANDLE_EXCLUSIVE);
-        __wt_writeunlock(session, &dhandle->rwlock);
+        WT_WITH_DHANDLE(session, dhandle, __wt_session_dhandle_writeunlock(session));
         WT_RET(ret);
     }
 

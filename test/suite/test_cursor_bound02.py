@@ -33,7 +33,7 @@ from wtbound import bound_base
 # test_cursor_bound02.py
 #    Test that setting bounds of different key formats works in the cursor bound API. Make
 # sure that WiredTiger complains when the upper and lower bounds overlap and that clearing the 
-# bounds through the bound API and reset calls work appriopately.
+# bounds through the bound API and reset calls work appropriately.
 class test_cursor_bound02(bound_base):
     file_name = 'test_cursor_bound02'
 
@@ -43,10 +43,9 @@ class test_cursor_bound02(bound_base):
         ('colgroup', dict(uri='table:', use_colgroup=True))
     ]
 
-    key_format_values = [
+    key_formats = [
         ('string', dict(key_format='S')),
-        # FIXME-WT-9474: Uncomment once column store is implemented.
-        #('var', dict(key_format='r')),
+        ('var', dict(key_format='r')),
         ('int', dict(key_format='i')),
         ('bytes', dict(key_format='u')),
         ('composite_string', dict(key_format='SSS')),
@@ -54,23 +53,30 @@ class test_cursor_bound02(bound_base):
         ('composite_complex', dict(key_format='iSru')),
     ]
 
+    value_formats = [
+        ('string', dict(value_format='S')),
+        ('complex-string', dict(value_format='SS')),
+    ]
+
     inclusive = [
         ('inclusive', dict(inclusive=True)),
         ('no-inclusive', dict(inclusive=False))
     ]
-    scenarios = make_scenarios(types, key_format_values, inclusive)
+    scenarios = make_scenarios(types, key_formats, value_formats, inclusive)
 
     def test_bound_api(self):
         uri = self.uri + self.file_name
-        create_params = 'value_format=S,key_format={}'.format(self.key_format)
+        create_params = 'value_format={},key_format={}'.format(self.value_format, self.key_format)
         if self.use_colgroup:
-            create_params += self.gen_colgroup_create_param()
+            create_params += self.gen_create_param()
         self.session.create(uri, create_params)
-        # Add in column group.
+
+        # Add in column groups.
         if self.use_colgroup:
-            create_params = 'columns=(v),'
-            suburi = 'colgroup:{0}:g0'.format(self.file_name)
-            self.session.create(suburi, create_params)
+            for i in range(0, len(self.value_format)):
+                create_params = 'columns=(v{0}),'.format(i)
+                suburi = 'colgroup:{0}:g{1}'.format(self.file_name, i)
+                self.session.create(suburi, create_params)
 
         cursor = self.session.open_cursor(uri)
 
@@ -79,10 +85,10 @@ class test_cursor_bound02(bound_base):
         cursor.set_key(self.gen_key(90))
         self.assertEqual(self.set_bounds(cursor, 90, "upper"), 0)
 
-        # Test bound API: Upper bound < lower bound.
+        # Test bound API: setting upper bound < lower bound is invalid.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.set_bounds(cursor, 30, "upper"), '/Invalid argument/')
 
-        # Test bound API: Lower bound > upper bound.
+        # Test bound API: setting lower bound > upper bound is invalid.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.set_bounds(cursor, 95, "lower"), '/Invalid argument/')
 
         # Test bound API: Test setting lower bound to 20, which would succeed setting upper
@@ -101,16 +107,16 @@ class test_cursor_bound02(bound_base):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=upper"), '/Invalid argument/')
 
         # Test bound API: Test that the key persists after lower bound call.
-        cursor.set_value("30")
+        cursor.set_value(self.gen_val("30"))
         self.assertEqual(self.set_bounds(cursor, 30, "lower"), 0)
         cursor.insert()
 
         # Test bound API: Test that the key persists after upper bound call.
-        cursor.set_value("90")
+        cursor.set_value(self.gen_val("90"))
         self.assertEqual(self.set_bounds(cursor, 90, "upper"), 0)
         cursor.insert()
 
-        # Test bound API: that if lower bound is equal to the upper bound, that both bounds needs to
+        # Test bound API: Test that if lower bound is equal to the upper bound, both bounds needs to
         # have inclusive configured. 
         cursor.bound("action=clear")
         self.assertEqual(self.set_bounds(cursor, 50, "lower", True), 0)
@@ -118,7 +124,7 @@ class test_cursor_bound02(bound_base):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=lower,inclusive=false"), '/Invalid argument/')
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=upper,inclusive=false"), '/Invalid argument/')
         
-        # Test bound API: Test that only setting one of the bound inclusive config to true, should
+        # Test bound API: Test that setting only one of the bound inclusive configs to true should
         # fail too.
         cursor.bound("action=clear")
         self.assertEqual(self.set_bounds(cursor, 50, "lower", False), 0)
@@ -133,15 +139,16 @@ class test_cursor_bound02(bound_base):
 
     def test_bound_api_reset(self):
         uri = self.uri + self.file_name
-        create_params = 'value_format=S,key_format={}'.format(self.key_format)
+        create_params = 'value_format={},key_format={}'.format(self.value_format, self.key_format)
         if self.use_colgroup:
-            create_params += self.gen_colgroup_create_param()
+            create_params += self.gen_create_param()
         self.session.create(uri, create_params)
-        # Add in column group.
+        # Add in column groups.
         if self.use_colgroup:
-            create_params = 'columns=(v),'
-            suburi = 'colgroup:{0}:g0'.format(self.file_name)
-            self.session.create(suburi, create_params)
+            for i in range(0, len(self.value_format)):
+                create_params = 'columns=(v{0}),'.format(i)
+                suburi = 'colgroup:{0}:g{1}'.format(self.file_name, i)
+                self.session.create(suburi, create_params)
         cursor = self.session.open_cursor(uri)
 
         self.assertEqual(self.set_bounds(cursor, 30, "lower"), 0)
@@ -168,7 +175,7 @@ class test_cursor_bound02(bound_base):
         self.assertEqual(self.set_bounds(cursor, 90, "lower"), 0)
         self.assertEqual(self.set_bounds(cursor, 99, "upper"), 0)
 
-        # Test bound API: Make sure that a clear and reset works sequentially.
+        # Test bound API: Make sure that clear and reset works regardless of the order its called.
         cursor.reset()
         self.assertEqual(cursor.bound("action=clear"), 0)
 
@@ -185,31 +192,22 @@ class test_cursor_bound02(bound_base):
 
     def test_bound_api_clear(self):
         uri = self.uri + self.file_name
-        create_params = 'value_format=S,key_format={}'.format(self.key_format)
+        create_params = 'value_format={},key_format={}'.format(self.value_format, self.key_format)
         if self.use_colgroup:
-            create_params += self.gen_colgroup_create_param()
+            create_params += self.gen_create_param()
         self.session.create(uri, create_params)
-        # Add in column group.
+        # Add in column groups.
         if self.use_colgroup:
-            create_params = 'columns=(v),'
-            suburi = 'colgroup:{0}:g0'.format(self.file_name)
-            self.session.create(suburi, create_params)
+            for i in range(0, len(self.value_format)):
+                create_params = 'columns=(v{0}),'.format(i)
+                suburi = 'colgroup:{0}:g{1}'.format(self.file_name, i)
+                self.session.create(suburi, create_params)
         cursor = self.session.open_cursor(uri)
 
         self.assertEqual(self.set_bounds(cursor, 30, "lower"), 0)
         cursor.set_key(self.gen_key(90))
         self.assertEqual(self.set_bounds(cursor, 90, "upper"), 0)
 
-        # Test bound API: Test that clearing the lower bound works.
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.set_bounds(cursor, 10, "upper"), '/Invalid argument/')
-        self.assertEqual(cursor.bound("action=clear,bound=lower"), 0)
-        self.assertEqual(self.set_bounds(cursor, 10, "upper"), 0)
-
-        # Test bound API: Test that clearing the upper bound works. 
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.set_bounds(cursor, 99, "lower"), '/Invalid argument/')
-        self.assertEqual(cursor.bound("action=clear,bound=upper"), 0)
-        self.assertEqual(self.set_bounds(cursor, 99, "lower"), 0)
-    
         # Test bound API: Test that clearing both of the bounds works. 
         cursor.reset()
         self.assertEqual(self.set_bounds(cursor, 50, "upper"), 0)

@@ -122,8 +122,14 @@ transaction::rollback(const std::string &config)
 void
 transaction::try_rollback(const std::string &config)
 {
-    if (can_rollback())
+    if (_in_txn)
         rollback(config);
+}
+
+int64_t
+transaction::get_target_op_count() const
+{
+    return _target_op_count;
 }
 
 /*
@@ -150,12 +156,6 @@ transaction::set_needs_rollback(bool rollback)
 bool
 transaction::can_commit()
 {
-    return (!_needs_rollback && can_rollback());
-}
-
-bool
-transaction::can_rollback()
-{
-    return (_in_txn && _op_count >= _target_op_count);
+    return (!_needs_rollback && _in_txn && _op_count >= _target_op_count);
 }
 } // namespace test_harness

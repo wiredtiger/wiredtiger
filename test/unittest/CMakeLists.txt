@@ -2,6 +2,7 @@ project(unittest CXX)
 
 set(unittest_sources
     tests/main.cpp
+    tests/test_bounds_restore.cpp
     tests/test_crc32.cpp
     tests/test_extent_list.cpp
     tests/test_fnv.cpp
@@ -31,16 +32,12 @@ create_test_executable(unittests
     CXX
 )
 
-set_target_properties(unittests PROPERTIES CXX_STANDARD 17)
 target_compile_options(
     unittests
     PRIVATE ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
 )
 
 target_link_libraries(unittests Catch2::Catch2)
-if(ENABLE_TCMALLOC)
-    target_link_libraries(unittests wt::tcmalloc)
-endif()
 
 add_test(NAME unittest COMMAND ${CMAKE_CURRENT_BINARY_DIR}/unittests)
 set_tests_properties(unittest PROPERTIES LABELS "check;unittest")

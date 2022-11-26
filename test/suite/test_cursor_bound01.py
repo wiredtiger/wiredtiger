@@ -28,10 +28,11 @@
 
 import wiredtiger, wttest
 from wtscenario import make_scenarios
+from wtbound import bound_base
 
 # test_cursor_bound01.py
 #    Basic cursor bound API validation.
-class test_cursor_bound01(wttest.WiredTigerTestCase):
+class test_cursor_bound01(bound_base):
     file_name = 'test_cursor_bound01'
 
     types = [
@@ -39,14 +40,24 @@ class test_cursor_bound01(wttest.WiredTigerTestCase):
         ('table', dict(uri='table:', use_index = False, use_colgroup = False)),
         ('lsm', dict(uri='lsm:', use_index = False, use_colgroup = False)),
         ('colgroup', dict(uri='table:', use_index = False, use_colgroup = False)),
-        #FIXME: Turn on once index cursor bound implementation is done.
-        #('index', dict(uri='table:', use_index = True)), 
+        ('index', dict(uri='table:', use_index = True, use_colgroup = False)), 
     ]
-    scenarios = make_scenarios(types)
+
+    format_values = [
+        ('string', dict(key_format='S',value_format='S')),
+        ('var', dict(key_format='r',value_format='S')),
+        ('fix', dict(key_format='r',value_format='8t'))
+    ]
+
+    scenarios = make_scenarios(types,format_values)
 
     def test_bound_api(self):
+        # LSM doesn't support column store type, therefore we can just return early here.
+        if (self.key_format == 'r' and self.uri == 'lsm:'):
+            return
+
         uri = self.uri + self.file_name
-        create_params = 'value_format=S,key_format=i'
+        create_params = 'value_format={},key_format={}'.format(self.value_format, self.key_format)
         if self.use_index or self.use_colgroup:
             create_params += ",columns=(k,v)"
         if self.use_colgroup:
@@ -68,9 +79,13 @@ class test_cursor_bound01(wttest.WiredTigerTestCase):
             cursor = self.session.open_cursor(uri)
 
         # LSM format is not supported with range cursors.
-        if self.uri == 'lsm:':
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("bound=lower"),
-                '/Unsupported cursor operation/')
+        if self.uri == 'lsm:': 
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=set,bound=lower"),
+                '/Operation not supported/')
+            return
+        if self.value_format == '8t':
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=set,bound=lower"),
+                '/Invalid argument/')
             return
 
         # Cursor bound API should return EINVAL if no configurations are passed in.
@@ -78,21 +93,73 @@ class test_cursor_bound01(wttest.WiredTigerTestCase):
             '/Invalid argument/')
 
         # Check that bound configuration works properly.
-        cursor.set_key(0)
-        cursor.bound("bound=lower")
-        cursor.set_key(10)
-        cursor.bound("bound=upper")
+        if (self.use_index):
+            cursor.set_key(self.gen_val(1))
+            cursor.bound("bound=lower")
+            cursor.set_key(self.gen_val(10))
+            cursor.bound("bound=upper")
+        else:
+            cursor.set_key(self.gen_key(1))
+            cursor.bound("bound=lower")
+            cursor.set_key(self.gen_key(10))
+            cursor.bound("bound=upper")
 
-        # Clear and inclusive configuration are not compatible with each other. 
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=clear,inclusive=true"),
-            '/Invalid argument/')
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=clear,inclusive=false"),
-            '/Invalid argument/')
-
-        # Check that clear with bound configuration works properly.
+        # Check that clear works properly.
         cursor.bound("action=clear")
-        cursor.bound("action=clear,bound=lower")
-        cursor.bound("action=clear,bound=upper")
+
+        # Index cursors work slightly differently to other cursors, we can early exit here as the
+        # below edge cases don't apply for index cursors.
+        if (self.use_index):
+            return
+
+        # Check that largest key doesn't work with bounded cursors.
+        cursor.set_key(self.gen_key(1))
+        cursor.bound("action=set,bound=lower")
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.largest_key(),
+            '/setting bounds is not compatible with cursor largest key/')
+
+        # Check edge cases with bounds config
+        cursor.set_key(self.gen_key(1))
+        # Setting the bound without providing an action works.
+        self.assertEqual(cursor.bound("bound=lower"), 0)
+        cursor.reset()
+
+        cursor.set_key(self.gen_key(1))
+        # Setting an action without a bound won't work.
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=set"),
+            '/a bound must be specified when setting bounds, either "lower" or "upper"/')
+        cursor.reset()
+
+        cursor.set_key(self.gen_key(1))
+        # Giving a longer config string works, WT_PREFIX_MATCH will accept it.
+        self.assertEqual(cursor.bound("action=setting, bound=lower"), 0)
+        cursor.reset()
+
+        cursor.set_key(self.gen_key(1))
+        cursor.bound("action=set,bound=lower")
+        # Giving a longer config string works, WT_PREFIX_MATCH will accept it.
+        self.assertEqual(cursor.bound("action=clearing"), 0)
+        cursor.reset()
+
+        cursor.set_key(self.gen_key(1))
+        # Giving an invalid action like "dump" won't work.
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=dump"),
+            '/an action of either "clear" or "set" should be specified when setting bounds/')
+        cursor.reset()
+
+        cursor.set_key(self.gen_key(1))
+        # Giving a substring of the config string will not work.
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=cl"),
+            '/an action of either "clear" or "set" should be specified when setting bounds/')
+
+        # Check that setting bounds doesn't work with random cursors. Turn it off with column store as column
+        # store doesn't support the next_random config.
+        if (self.key_format != 'r'):
+            cursor = self.session.open_cursor(uri, None, "next_random=true")
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.set_bounds(cursor, 40, "lower"), 
+                '/Operation not supported/')
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.set_bounds(cursor, 60, "upper"), 
+                '/Operation not supported/')
 
 if __name__ == '__main__':
     wttest.run()

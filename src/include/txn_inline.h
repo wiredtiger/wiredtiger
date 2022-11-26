@@ -231,22 +231,25 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
 
     /*
      * Timestamps and prepare state are in the page deleted structure for truncates, or in the
-     * updates in the case of instantiated pages. In the case of instantiated pages we may also need
-     * to update the page deleted structure saved in page->modify.
+     * updates list in the case of instantiated pages. We also need to update any page deleted
+     * structure in the ref.
      *
-     * Only two cases are possible. First: the state is WT_REF_DELETED. In this case ft_info.del
-     * cannot be NULL yet because an uncommitted operation cannot have reached global visibility.
-     * Otherwise: there is an uncommitted delete operation we're handling, so the page can't be in a
-     * non-deleted state, and the tree can't be readonly. Therefore the page must have been
+     * Only two cases are possible. First: the state is WT_REF_DELETED. In this case page_del cannot
+     * be NULL yet because an uncommitted operation cannot have reached global visibility. (Or at
+     * least, global visibility in the sense we need to use it for truncations, in which prepared
+     * and uncommitted transactions are not visible.)
+     *
+     * Otherwise: there is an uncommitted delete operation we're handling, so the page must have
+     * been deleted at some point, and the tree can't be readonly. Therefore the page must have been
      * instantiated, the state must be WT_REF_MEM, and there should be an update list in
-     * ft_info.update. (But just in case, allow the update list to be null. Perhaps the page was
-     * truncated when all items on it were already deleted, so no tombstones were created during
-     * instantiation.)
+     * mod->inst_updates. (But just in case, allow the update list to be null.) There might be a
+     * non-null page_del structure to update, depending on whether the page has been reconciled
+     * since it was deleted and then instantiated.
      */
-    if (previous_state == WT_REF_DELETED)
-        page_del = ref->ft_info.del;
-    else {
-        if ((updp = ref->ft_info.update) != NULL)
+    if (previous_state != WT_REF_DELETED) {
+        WT_ASSERT(session, previous_state == WT_REF_MEM);
+        WT_ASSERT(session, ref->page != NULL && ref->page->modify != NULL);
+        if ((updp = ref->page->modify->inst_updates) != NULL)
             for (; *updp != NULL; ++updp) {
                 (*updp)->start_ts = ts;
                 /*
@@ -257,9 +260,8 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
                 if (commit)
                     (*updp)->durable_ts = txn->durable_timestamp;
             }
-        WT_ASSERT(session, ref->page != NULL && ref->page->modify != NULL);
-        page_del = ref->page->modify->page_del;
     }
+    page_del = ref->page_del;
     if (page_del != NULL) {
         page_del->timestamp = ts;
         if (commit)
@@ -289,28 +291,31 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
 
     /*
      * Timestamps are in the page deleted structure for truncates, or in the updates in the case of
-     * instantiated pages. Both commit and durable timestamps need to be updated.
+     * instantiated pages. We also need to update any page deleted structure in the ref. Both commit
+     * and durable timestamps need to be updated.
      *
-     * Only two cases are possible. First: the state is WT_REF_DELETED. In this case ft_info.del
-     * cannot be NULL yet because an uncommitted operation cannot have reached global visibility.
-     * Otherwise: there is an uncommitted delete operation we're handling, so the page can't be in a
-     * non-deleted state, and the tree can't be readonly. Therefore the page must have been
+     * Only two cases are possible. First: the state is WT_REF_DELETED. In this case page_del cannot
+     * be NULL yet because an uncommitted operation cannot have reached global visibility. (Or at
+     * least, global visibility in the sense we need to use it for truncations, in which prepared
+     * and uncommitted transactions are not visible.)
+     *
+     * Otherwise: there is an uncommitted delete operation we're handling, so the page must have
+     * been deleted at some point, and the tree can't be readonly. Therefore the page must have been
      * instantiated, the state must be WT_REF_MEM, and there should be an update list in
-     * ft_info.update. (But just in case, allow the update list to be null. Perhaps the page was
-     * truncated when all items on it were already deleted, so no tombstones were created during
-     * instantiation.)
+     * mod->inst_updates. (But just in case, allow the update list to be null.) There might be a
+     * non-null page_del structure to update, depending on whether the page has been reconciled
+     * since it was deleted and then instantiated.
      */
-    if (previous_state == WT_REF_DELETED)
-        page_del = ref->ft_info.del;
-    else {
-        if ((updp = ref->ft_info.update) != NULL)
+    if (previous_state != WT_REF_DELETED) {
+        WT_ASSERT(session, previous_state == WT_REF_MEM);
+        WT_ASSERT(session, ref->page != NULL && ref->page->modify != NULL);
+        if ((updp = ref->page->modify->inst_updates) != NULL)
             for (; *updp != NULL; ++updp) {
                 (*updp)->start_ts = txn->commit_timestamp;
                 (*updp)->durable_ts = txn->durable_timestamp;
             }
-        WT_ASSERT(session, ref->page != NULL && ref->page->modify != NULL);
-        page_del = ref->page->modify->page_del;
     }
+    page_del = ref->page_del;
     if (page_del != NULL && page_del->timestamp == WT_TS_NONE) {
         page_del->timestamp = txn->commit_timestamp;
         page_del->durable_timestamp = txn->durable_timestamp;
@@ -437,7 +442,7 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
      * This access to the WT_PAGE_DELETED structure is safe; caller has the WT_REF locked, and in
      * fact just allocated the structure to fill in.
      */
-    ref->ft_info.del->txnid = txn->id;
+    ref->page_del->txnid = txn->id;
     __wt_txn_op_set_timestamp(session, op);
 
     if (__wt_log_op(session))
@@ -1040,12 +1045,13 @@ static inline int
 __wt_txn_read(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, WT_UPDATE *upd)
 {
+    WT_DECL_RET;
     WT_TIME_WINDOW tw;
     WT_UPDATE *prepare_upd, *restored_upd;
-    bool have_stop_tw, retry;
+    bool have_stop_tw, prepare_retry, read_onpage;
 
     prepare_upd = restored_upd = NULL;
-    retry = true;
+    read_onpage = prepare_retry = true;
 
 retry:
     WT_RET(__wt_txn_read_upd_list_internal(session, cbt, upd, &prepare_upd, &restored_upd));
@@ -1076,57 +1082,62 @@ retry:
          */
         have_stop_tw = WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw);
 
-        /* Check the ondisk value. */
-        WT_RET(__wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &tw));
+        if (read_onpage) {
+            /*
+             * We may have raced with checkpoint freeing the overflow blocks. Retry from start and
+             * ignore the onpage value the next time. For pages that have remained in memory after a
+             * checkpoint, this will lead us to read every key with an overflow removed onpage value
+             * twice. However, it simplifies the logic and doesn't depend on the assumption that the
+             * cell unpacking code will always return a correct time window even it returns a
+             * WT_RESTART error.
+             */
+            ret = __wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &tw);
+            if (ret == WT_RESTART) {
+                read_onpage = false;
+                goto retry;
+            } else
+                WT_RET(ret);
 
-        /*
-         * If the stop time point is set, that means that there is a tombstone at that time. If it
-         * is not prepared and it is visible to our txn it means we've just spotted a tombstone and
-         * should return "not found", except scanning the history store during rollback to stable
-         * and when we are told to ignore non-globally visible tombstones.
-         */
-        if (!have_stop_tw && __wt_txn_tw_stop_visible(session, &tw) &&
-          !F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE)) {
-            cbt->upd_value->buf.data = NULL;
-            cbt->upd_value->buf.size = 0;
-            cbt->upd_value->tw.durable_stop_ts = tw.durable_stop_ts;
-            cbt->upd_value->tw.stop_ts = tw.stop_ts;
-            cbt->upd_value->tw.stop_txn = tw.stop_txn;
-            cbt->upd_value->tw.prepare = tw.prepare;
-            cbt->upd_value->type = WT_UPDATE_TOMBSTONE;
-            return (0);
-        }
-
-        /* Store the stop time pair of the history store record that is returning. */
-        if (!have_stop_tw && WT_TIME_WINDOW_HAS_STOP(&tw) && WT_IS_HS(session->dhandle)) {
-            cbt->upd_value->tw.durable_stop_ts = tw.durable_stop_ts;
-            cbt->upd_value->tw.stop_ts = tw.stop_ts;
-            cbt->upd_value->tw.stop_txn = tw.stop_txn;
-            cbt->upd_value->tw.prepare = tw.prepare;
-        }
-
-        /*
-         * We return the onpage value in the following cases:
-         * 1. The record is from the history store.
-         * 2. It is visible to the reader.
-         */
-        if (WT_IS_HS(session->dhandle) || __wt_txn_tw_start_visible(session, &tw)) {
-            if (cbt->upd_value->skip_buf) {
+            /*
+             * If the stop time point is set, that means that there is a tombstone at that time. If
+             * it is not prepared and it is visible to our txn it means we've just spotted a
+             * tombstone and should return "not found", except scanning the history store during
+             * rollback to stable and when we are told to ignore non-globally visible tombstones.
+             */
+            if (!have_stop_tw && __wt_txn_tw_stop_visible(session, &tw) &&
+              !F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE)) {
                 cbt->upd_value->buf.data = NULL;
                 cbt->upd_value->buf.size = 0;
+                cbt->upd_value->type = WT_UPDATE_TOMBSTONE;
+                WT_TIME_WINDOW_COPY_STOP(&cbt->upd_value->tw, &tw);
+                return (0);
             }
-            cbt->upd_value->tw.durable_start_ts = tw.durable_start_ts;
-            cbt->upd_value->tw.start_ts = tw.start_ts;
-            cbt->upd_value->tw.start_txn = tw.start_txn;
-            cbt->upd_value->tw.prepare = tw.prepare;
-            cbt->upd_value->type = WT_UPDATE_STANDARD;
-            return (0);
+
+            /* Store the stop time pair of the history store record that is returning. */
+            if (!have_stop_tw && WT_TIME_WINDOW_HAS_STOP(&tw) && WT_IS_HS(session->dhandle))
+                WT_TIME_WINDOW_COPY_STOP(&cbt->upd_value->tw, &tw);
+
+            /*
+             * We return the onpage value in the following cases:
+             * 1. The record is from the history store.
+             * 2. It is visible to the reader.
+             */
+            if (WT_IS_HS(session->dhandle) || __wt_txn_tw_start_visible(session, &tw)) {
+                if (cbt->upd_value->skip_buf) {
+                    cbt->upd_value->buf.data = NULL;
+                    cbt->upd_value->buf.size = 0;
+                }
+                cbt->upd_value->type = WT_UPDATE_STANDARD;
+
+                WT_TIME_WINDOW_COPY_START(&cbt->upd_value->tw, &tw);
+                return (0);
+            }
         }
     }
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
     if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
-        __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH);
+        __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH, NULL);
         WT_RET(__wt_hs_find_upd(session, S2BT(session)->id, key, cbt->iface.value_format, recno,
           cbt->upd_value, &cbt->upd_value->buf));
     }
@@ -1141,10 +1152,10 @@ retry:
      */
     if (prepare_upd != NULL) {
         WT_ASSERT(session, F_ISSET(prepare_upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS));
-        if (retry &&
+        if (prepare_retry &&
           (prepare_upd->txnid == WT_TXN_ABORTED ||
             prepare_upd->prepare_state == WT_PREPARE_RESOLVED)) {
-            retry = false;
+            prepare_retry = false;
             /* Clean out any stale value before performing the retry. */
             __wt_upd_value_clear(cbt->upd_value);
             WT_STAT_CONN_DATA_INCR(session, txn_read_race_prepare_update);
@@ -1352,7 +1363,7 @@ static inline int
 __wt_txn_search_check(WT_SESSION_IMPL *session)
 {
     WT_TXN *txn;
-    uint32_t flags;
+    uint16_t flags;
     const char *name;
 
     txn = session->txn;
@@ -1419,7 +1430,7 @@ __wt_txn_modify_block(
     F_CLR(txn, WT_TXN_IGNORE_PREPARE);
     for (; upd != NULL && !__wt_txn_upd_visible(session, upd); upd = upd->next) {
         if (upd->txnid != WT_TXN_ABORTED) {
-            __wt_verbose_debug(session, WT_VERB_TRANSACTION,
+            __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
               "Conflict with update with txn id %" PRIu64 " at timestamp: %s", upd->txnid,
               __wt_timestamp_to_string(upd->start_ts, ts_string));
             rollback = true;
@@ -1445,13 +1456,13 @@ __wt_txn_modify_block(
             if (WT_TIME_WINDOW_HAS_STOP(&tw)) {
                 rollback = !__wt_txn_tw_stop_visible(session, &tw);
                 if (rollback)
-                    __wt_verbose_debug(session, WT_VERB_TRANSACTION,
+                    __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
                       "Conflict with update %" PRIu64 " at stop timestamp: %s", tw.stop_txn,
                       __wt_timestamp_to_string(tw.stop_ts, ts_string));
             } else {
                 rollback = !__wt_txn_tw_start_visible(session, &tw);
                 if (rollback)
-                    __wt_verbose_debug(session, WT_VERB_TRANSACTION,
+                    __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
                       "Conflict with update %" PRIu64 " at start timestamp: %s", tw.start_txn,
                       __wt_timestamp_to_string(tw.start_ts, ts_string));
             }
@@ -1460,7 +1471,7 @@ __wt_txn_modify_block(
 
     if (rollback) {
         /* Dump information about the txn snapshot. */
-        if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_TRANSACTION, WT_VERBOSE_DEBUG)) {
+        if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_TRANSACTION, WT_VERBOSE_DEBUG_1)) {
             WT_ERR(__wt_scr_alloc(session, 1024, &buf));
             WT_ERR(__wt_buf_fmt(session, buf,
               "snapshot_min=%" PRIu64 ", snapshot_max=%" PRIu64 ", snapshot_count=%" PRIu32,
@@ -1472,7 +1483,7 @@ __wt_txn_modify_block(
                       __wt_buf_catfmt(session, buf, "%" PRIu64 ",", txn->snapshot[snap_count]));
                 WT_ERR(__wt_buf_catfmt(session, buf, "%" PRIu64 "]", txn->snapshot[snap_count]));
             }
-            __wt_verbose_debug(session, WT_VERB_TRANSACTION, "%s", (const char *)buf->data);
+            __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "%s", (const char *)buf->data);
         }
 
         WT_STAT_CONN_DATA_INCR(session, txn_update_conflict);

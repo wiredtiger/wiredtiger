@@ -209,15 +209,18 @@ class test_checkpoint_target(wttest.WiredTigerTestCase):
     ])
 
     def update(self, uri, ds, value):
-        cursor = self.session.open_cursor(uri, None, "overwrite")
+        cursor = ds.open_cursor(uri, None, "overwrite")
         cursor[ds.key(10)] = value
         cursor.close()
 
     def check(self, uri, ds, value):
-        cursor = self.session.open_cursor(uri, None, "checkpoint=checkpoint-1")
+        cursor = ds.open_cursor(uri, None, "checkpoint=checkpoint-1")
         self.assertEquals(cursor[ds.key(10)], value)
         cursor.close()
 
+    # FIXME-WT-9902
+    @wttest.skip_for_hook("tiered", "strange interaction with tiered and named checkpoints using target")
+    @wttest.skip_for_hook("timestamp", "strange interaction with timestamps and named checkpoints using target")
     def test_checkpoint_target(self):
         # Create 3 objects, change one record to an easily recognizable string.
         uri = self.uri + '1'
@@ -295,7 +298,7 @@ class test_checkpoint_last(wttest.WiredTigerTestCase):
 
         for value in ('FIRST', 'SECOND', 'THIRD', 'FOURTH', 'FIFTH'):
             # Update the object.
-            cursor = self.session.open_cursor(uri, None, "overwrite")
+            cursor = ds.open_cursor(uri, None, "overwrite")
             cursor[ds.key(10)] = value
             cursor.close()
 
@@ -303,7 +306,7 @@ class test_checkpoint_last(wttest.WiredTigerTestCase):
             self.session.checkpoint()
 
             # Verify the "last" checkpoint sees the correct value.
-            cursor = self.session.open_cursor(
+            cursor = ds.open_cursor(
                 uri, None, "checkpoint=WiredTigerCheckpoint")
             self.assertEquals(cursor[ds.key(10)], value)
             # Don't close the checkpoint cursor, we want it to remain open until

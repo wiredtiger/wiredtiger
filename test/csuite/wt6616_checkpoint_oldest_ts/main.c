@@ -65,10 +65,8 @@ static const char *const ckpt_file = "checkpoint_done";
     "create,"                                                 \
     "eviction_updates_target=20,eviction_updates_trigger=90," \
     "log=(enabled,file_max=10M,remove=true),"                 \
-    "statistics=(fast),statistics_log=(wait=1,json=true),"    \
+    "statistics=(all),statistics_log=(json,on_close,wait=1)," \
     "timing_stress_for_test=[checkpoint_slow]"
-
-#define ENV_CONFIG_REC "log=(recover=on,remove=false)"
 
 static void handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
@@ -367,7 +365,7 @@ main(int argc, char *argv[])
     printf("Open database and run recovery\n");
 
     /* Open the connection which forces recovery to be run. */
-    testutil_check(wiredtiger_open(NULL, NULL, ENV_CONFIG_REC, &conn));
+    testutil_check(wiredtiger_open(NULL, NULL, TESTUTIL_ENV_CONFIG_REC, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /* Get the stable timestamp from the stable timestamp of the last successful checkpoint. */

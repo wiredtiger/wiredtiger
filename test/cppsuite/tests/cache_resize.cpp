@@ -163,13 +163,12 @@ class cache_resize : public test {
         }
 
         /* Make sure the last transaction is rolled back now the work is finished. */
-        if (tc->txn.active())
-            tc->txn.rollback();
+        tc->txn.try_rollback();
     }
 
     void
-    validate(const std::string &operation_table_name, const std::string &,
-      const std::vector<uint64_t> &) override final
+    validate(
+      const std::string &operation_table_name, const std::string &, database &) override final
     {
         bool first_record = true;
         int ret;

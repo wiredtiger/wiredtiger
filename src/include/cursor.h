@@ -296,6 +296,12 @@ struct __wt_cursor_config {
     WT_CURSOR iface;
 };
 
+struct __wt_cursor_bounds_state {
+    WT_ITEM *lower_bound;
+    WT_ITEM *upper_bound;
+    uint64_t bound_flags;
+};
+
 struct __wt_cursor_data_source {
     WT_CURSOR iface;
 
@@ -586,6 +592,13 @@ struct __wt_cursor_version {
 
 #define WT_CURSOR_RAW_OK \
     (WT_CURSTD_DUMP_HEX | WT_CURSTD_DUMP_PRETTY | WT_CURSTD_DUMP_PRINT | WT_CURSTD_RAW)
+
+/*
+ * This macro provides a consistent way of checking if a cursor has either its lower or upper bound
+ * set.
+ */
+#define WT_CURSOR_BOUNDS_SET(cursor) \
+    F_ISSET((cursor), WT_CURSTD_BOUND_LOWER | WT_CURSTD_BOUND_UPPER)
 
 /*
  * A positioned cursor must have a page, this is a requirement of the cursor logic within the

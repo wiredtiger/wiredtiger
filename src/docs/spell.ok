@@ -137,6 +137,7 @@ TSC
 TXID
 TXT
 Timestamping
+Truncations
 UBSAN
 UNC
 URIs
@@ -376,6 +377,7 @@ getter
 gid
 github
 gnuplot
+graphviz
 hb
 hotbackup
 href
@@ -393,6 +395,7 @@ iflag
 incr
 indices
 init
+inmem
 inmemory
 insn
 instantiation
@@ -441,6 +444,7 @@ loc
 logc
 lookup
 lookups
+loongarch
 lrtf
 lru
 lsm
@@ -472,6 +476,7 @@ mixin
 mixins
 mkdir
 mmap
+modularity
 mpool
 mpoolfile
 msbuild
@@ -541,6 +546,7 @@ pre
 prealloc
 prepended
 prepends
+presumptively
 prev
 primary's
 printf
@@ -631,6 +637,7 @@ struct
 structs
 subdatabases
 subdirectory
+suboptimal
 subpage
 substring
 subsubsection
@@ -665,6 +672,7 @@ trackpad
 tradeoffs
 transactional
 transactionally
+truncations
 tt
 txn
 txnid
@@ -705,6 +713,7 @@ whitespace
 wiredtiger
 workQ
 workgen
+wrapup
 writelock
 writelocks
 wrlock
