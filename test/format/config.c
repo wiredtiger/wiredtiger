@@ -263,8 +263,10 @@ config_table(TABLE *table, void *arg)
      * direct I/O can be so slow the additional I/O for overflow items causes eviction to stall).
      */
     if (GV(RUNS_IN_MEMORY) || GV(DISK_DIRECT_IO)) {
-        if (!config_explicit(table, "runs.rows") && TV(RUNS_ROWS) > 1000000)
+        if (!config_explicit(table, "runs.in_memory") && TV(RUNS_ROWS) > 1000000) {
+            WARN("correcting runs.rows value to 1000000 as runs.in_memory=1");
             config_single(table, "runs.rows=1000000", false);
+	}
         if (!config_explicit(table, "btree.key_max"))
             config_single(table, "btree.key_max=32", false);
         if (!config_explicit(table, "btree.key_min"))
