@@ -859,8 +859,10 @@ struct __wt_session {
 	 * @config{ ),,}
 	 * @config{diagnostic_asserts, enable additional assertions.  When \c off only mandatory
 	 * assertions are enabled.  When \c on additional diagnostic assertions are enabled.  When
-	 * set to \c connection this setting is inherited from the connection., a string\, chosen
-	 * from the following options: \c "off"\, \c "on"\, \c "connection"; default \c connection.}
+	 * set to \c connection this setting is inherited from the connection.  This flag defaults
+	 * to \c connection.  When WiredTiger is compiled with HAVE_DIAGNOSTIC=1 this flag is hard
+	 * set to \c on and cannot be configured., a string\, chosen from the following options: \c
+	 * "off"\, \c "on"\, \c "connection"; default empty.}
 	 * @config{ignore_cache_size, when set\, operations performed by this session ignore the
 	 * cache size and are not blocked when the cache is full.  Note that use of this option for
 	 * operations that create cache pressure can starve ordinary sessions that obey the cache
@@ -2278,11 +2280,10 @@ struct __wt_connection {
 	 * flag; default \c false.}
 	 * @config{ ),,}
 	 * @config{diagnostic_asserts, enable additional assertions.  When \c off only mandatory
-	 * assertions are enabled.  When \c on additional diagnostic assertions are enabled.  The
-	 * default value is determined by the compilation flag \c HAVE_DIAGNOSTIC. When \c
-	 * HAVE_DIAGNOSTIC=1 this flag defaults to \c on.  When \c HAVE_DIAGNOSTIC=0 this flag
-	 * defaults to \c off., a string\, chosen from the following options: \c "off"\, \c "on";
-	 * default empty.}
+	 * assertions are enabled.  When \c on additional diagnostic assertions are enabled.  This
+	 * flag defaults to \c off.  When WiredTiger is compiled with HAVE_DIAGNOSTIC=1 this flag is
+	 * hard set to \c on and cannot be configured., a string\, chosen from the following
+	 * options: \c "off"\, \c "on"; default empty.}
 	 * @config{error_prefix, prefix string for error messages., a string; default empty.}
 	 * @config{eviction = (, eviction configuration options., a set of related configuration
 	 * options defined as follows.}
@@ -2558,8 +2559,10 @@ struct __wt_connection {
 	 * @config{ ),,}
 	 * @config{diagnostic_asserts, enable additional assertions.  When \c off only mandatory
 	 * assertions are enabled.  When \c on additional diagnostic assertions are enabled.  When
-	 * set to \c connection this setting is inherited from the connection., a string\, chosen
-	 * from the following options: \c "off"\, \c "on"\, \c "connection"; default \c connection.}
+	 * set to \c connection this setting is inherited from the connection.  This flag defaults
+	 * to \c connection.  When WiredTiger is compiled with HAVE_DIAGNOSTIC=1 this flag is hard
+	 * set to \c on and cannot be configured., a string\, chosen from the following options: \c
+	 * "off"\, \c "on"\, \c "connection"; default empty.}
 	 * @config{ignore_cache_size, when set\, operations performed by this session ignore the
 	 * cache size and are not blocked when the cache is full.  Note that use of this option for
 	 * operations that create cache pressure can starve ordinary sessions that obey the cache
@@ -3015,10 +3018,10 @@ struct __wt_connection {
  * eviction., a boolean flag; default \c false.}
  * @config{ ),,}
  * @config{diagnostic_asserts, enable additional assertions.  When \c off only mandatory assertions
- * are enabled.  When \c on additional diagnostic assertions are enabled.  The default value is
- * determined by the compilation flag \c HAVE_DIAGNOSTIC. When \c HAVE_DIAGNOSTIC=1 this flag
- * defaults to \c on.  When \c HAVE_DIAGNOSTIC=0 this flag defaults to \c off., a string\, chosen
- * from the following options: \c "off"\, \c "on"; default empty.}
+ * are enabled.  When \c on additional diagnostic assertions are enabled.  This flag defaults to \c
+ * off.  When WiredTiger is compiled with HAVE_DIAGNOSTIC=1 this flag is hard set to \c on and
+ * cannot be configured., a string\, chosen from the following options: \c "off"\, \c "on"; default
+ * empty.}
  * @config{direct_io, Use \c O_DIRECT on POSIX systems\, and \c FILE_FLAG_NO_BUFFERING on Windows to
  * access files.  Options are given as a list\, such as <code>"direct_io=[data]"</code>. Configuring
  * \c direct_io requires care; see @ref tuning_system_buffer_cache_direct_io for important warnings.

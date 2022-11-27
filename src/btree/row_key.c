@@ -420,14 +420,6 @@ __wt_row_ikey(
          */
         WT_ASSERT(session, oldv == 0 || (oldv & WT_IK_FLAG) != 0);
         WT_ASSERT(session, ref->state != WT_REF_SPLIT);
-        /*
-         * FIXME-WT-10044 - This is an example of coupling between our previous implementation of
-         * WT_ASSERT and HAVE_DIAGNOSTIC. We previously assumed that WT_ASSERT code always ran when
-         * HAVE_DIAGNOSTIC=1, but now it's possible to turn off diagnostic_asserts via a session or
-         * connection reconfigure, which in this case causes a segfault due to the CAS below not
-         * running. This is a rare case though - we're highly unlikely to ever turn off diagnostic
-         * asserts while also compiling with HAVE_DIAGNOSTIC=1.
-         */
         WT_ASSERT(session, __wt_atomic_cas_ptr(&ref->ref_ikey, (WT_IKEY *)oldv, ikey));
     }
 #else

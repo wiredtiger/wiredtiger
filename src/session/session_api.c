@@ -446,6 +446,12 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
     WT_ERR_NOTFOUND_OK(ret, false);
 
     if ((ret = __wt_config_getones(session, config, "diagnostic_asserts", &cval)) == 0) {
+#ifdef HAVE_DIAGNOSTIC
+        if (cval.len > 0)
+            WT_ERR_MSG(session, WT_NOTFOUND,
+              "WiredTiger has been compiled with HAVE_DIAGNOSTIC=1 and diagnostic_asserts are "
+              "always enabled. This cannot be configured.");
+#else
         if (WT_STRING_MATCH("connection", cval.str, cval.len))
             session->diagnostic_asserts_level = DIAG_ASSERTS_CONN;
         else if (WT_STRING_MATCH("off", cval.str, cval.len))
@@ -454,6 +460,7 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
             session->diagnostic_asserts_level = DIAG_ASSERTS_ON;
         else
             WT_ERR_MSG(session, WT_NOTFOUND, "Invalid value provided for diagnostic_asserts");
+#endif
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 err:
