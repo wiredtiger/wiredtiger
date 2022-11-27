@@ -2412,6 +2412,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_BTREE *btree;
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
+    WT_PAGE_STAT ps;
     WT_REF *ref;
     WT_TIME_AGGREGATE ta;
     uint32_t i;
@@ -2421,6 +2422,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     bm = btree->bm;
     mod = page->modify;
     ref = r->ref;
+    WT_PAGE_STAT_INIT(&ps);
     WT_TIME_AGGREGATE_INIT(&ta);
     previous_ref_state = 0;
 
@@ -2503,7 +2505,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          */
         ref = r->ref;
         if (__wt_ref_is_root(ref)) {
-            __wt_checkpoint_tree_reconcile_update(session, &ta);
+            __wt_checkpoint_tree_reconcile_update(session, &ta, &ps);
             WT_RET(bm->checkpoint(bm, session, NULL, btree->ckpt, false));
         }
 
@@ -2544,7 +2546,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             mod->mod_disk_image = r->multi->disk_image;
             r->multi->disk_image = NULL;
         } else {
-            __wt_checkpoint_tree_reconcile_update(session, &r->multi->addr.ta);
+            __wt_checkpoint_tree_reconcile_update(session, &r->multi->addr.ta, &r->multi->addr.ps);
             WT_RET(__rec_write(session, r->wrapup_checkpoint, NULL, NULL, NULL, true,
               F_ISSET(r, WT_REC_CHECKPOINT), r->wrapup_checkpoint_compressed));
         }

@@ -1763,7 +1763,8 @@ extern void __wt_cache_stats_update(WT_SESSION_IMPL *session);
 extern void __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type);
 extern void __wt_checkpoint_progress(WT_SESSION_IMPL *session, bool closing);
 extern void __wt_checkpoint_signal(WT_SESSION_IMPL *session, wt_off_t logsize);
-extern void __wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta);
+extern void __wt_checkpoint_tree_reconcile_update(
+  WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta, WT_PAGE_STAT *ps);
 extern void __wt_ckpt_verbose(WT_SESSION_IMPL *session, WT_BLOCK *block, const char *tag,
   const char *ckpt_name, const uint8_t *ckpt_string, size_t ckpt_size);
 extern void __wt_cond_auto_wait(

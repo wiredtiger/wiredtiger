@@ -110,6 +110,8 @@ struct __wt_track {
         } col;
     } u;
 
+    WT_PAGE_STAT ps; /* Page information including row and byte counts */
+
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TRACK_CHECK_START 0x1u /* Row: initial key updated */
 #define WT_TRACK_CHECK_STOP 0x2u  /* Row: last key updated */
@@ -574,12 +576,14 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
     WT_COL_FIX_AUXILIARY_HEADER auxhdr;
     WT_DECL_RET;
     WT_PAGE *page;
+    WT_PAGE_STAT ps;
     WT_TIME_WINDOW stable_tw;
     WT_TRACK *trk;
     uint64_t stop_recno;
     uint32_t cell_num;
 
     page = NULL;
+    WT_PAGE_STAT_INIT(&ps);
     WT_TIME_WINDOW_INIT(&stable_tw);
     trk = NULL;
 
@@ -676,7 +680,15 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
     case WT_PAGE_ROW_LEAF:
         WT_TIME_AGGREGATE_INIT_MERGE(&trk->trk_ta);
         WT_CELL_FOREACH_KV (session, dsk, unpack) {
-            WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &unpack.tw);
+            switch (unpack.type) {
+            case WT_CELL_KEY:
+                ps.row_count = 1;
+                WT_PAGE_STAT_UPDATE(&trk->ps, &ps);
+                break;
+            default:
+                WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &unpack.tw);
+                break;
+            }
         }
         WT_CELL_FOREACH_END;
 
@@ -1225,6 +1237,8 @@ __slvg_col_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
 
         WT_ERR(__wt_calloc_one(session, &addr));
         WT_TIME_AGGREGATE_COPY(&addr->ta, &trk->trk_ta);
+        addr->ps.byte_count = trk->trk_size;
+        addr->ps.row_count = trk->ps.row_count;
         WT_ERR(__wt_memdup(session, trk->trk_addr, trk->trk_addr_size, &addr->addr));
         addr->size = trk->trk_addr_size;
         addr->type = trk->trk_ovfl_cnt == 0 ? WT_ADDR_LEAF_NO : WT_ADDR_LEAF;
@@ -1831,6 +1845,8 @@ __slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
 
         WT_ERR(__wt_calloc_one(session, &addr));
         WT_TIME_AGGREGATE_COPY(&addr->ta, &trk->trk_ta);
+        addr->ps.byte_count = trk->trk_size;
+        addr->ps.row_count = trk->ps.row_count;
         WT_ERR(__wt_memdup(session, trk->trk_addr, trk->trk_addr_size, &addr->addr));
         addr->size = trk->trk_addr_size;
         addr->type = trk->trk_ovfl_cnt == 0 ? WT_ADDR_LEAF_NO : WT_ADDR_LEAF;

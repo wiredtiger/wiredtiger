@@ -2054,7 +2054,8 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
  *     Update a checkpoint based on reconciliation results.
  */
 void
-__wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta)
+__wt_checkpoint_tree_reconcile_update(
+  WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta, WT_PAGE_STAT *ps)
 {
     WT_BTREE *btree;
     WT_CKPT *ckpt, *ckptbase;
@@ -2072,6 +2073,7 @@ __wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, WT_TIME_AGGREGAT
             ckpt->write_gen = btree->write_gen;
             ckpt->run_write_gen = btree->run_write_gen;
             WT_TIME_AGGREGATE_COPY(&ckpt->ta, ta);
+            WT_PAGE_STAT_COPY(&ckpt->ps, ps);
         }
 }
 
@@ -2146,6 +2148,7 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
     WT_LSN ckptlsn;
+    WT_PAGE_STAT ps;
     WT_TIME_AGGREGATE ta;
     bool fake_ckpt, resolve_bm;
 
@@ -2156,6 +2159,7 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
     conn = S2C(session);
     dhandle = session->dhandle;
     fake_ckpt = resolve_bm = false;
+    WT_PAGE_STAT_INIT(&ps);
     WT_TIME_AGGREGATE_INIT(&ta);
 
     /*
@@ -2177,7 +2181,7 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
      * tears.
      */
     if (is_checkpoint && btree->original) {
-        __wt_checkpoint_tree_reconcile_update(session, &ta);
+        __wt_checkpoint_tree_reconcile_update(session, &ta, &ps);
 
         fake_ckpt = true;
         goto fake;
