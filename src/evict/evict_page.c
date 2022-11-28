@@ -581,8 +581,14 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
              * the special-case logic for prepared transactions in __wt_page_del_visible; prepared
              * transactions aren't committed so they'll fail the first check.
              */
-            visible = __wt_page_del_visible(
-              session, child->page_del, false, F_ISSET(session, WT_SESSION_EVICTION));
+            if (!__wt_page_del_committed(child->page_del))
+                visible = false;
+            else if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
+                visible = __wt_page_del_visible(session, child->page_del, false, false);
+            else if (F_ISSET(session, WT_SESSION_EVICTION))
+                visible = true;
+            else
+                visible = __wt_page_del_visible(session, child->page_del, false, true);
 
             /* FIXME-WT-9780: is there a reason this doesn't use WT_REF_UNLOCK? */
             child->state = WT_REF_DELETED;

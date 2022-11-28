@@ -1607,7 +1607,7 @@ __wt_page_del_visible(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, bool 
      * flag to true. Hence if committed flag is not set, consider it as not committed irrespective
      * of visibility check, to avoid checking visibility when transaction commit is in progress.
      */
-    if (!__wt_page_del_committed(page_del))
+    if (!page_del->committed)
         return (false);
 
     /* We discard page_del on transaction abort, so should never see an aborted one. */
