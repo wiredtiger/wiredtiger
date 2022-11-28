@@ -833,16 +833,38 @@ err:
 int
 __wt_session_count(WT_SESSION *wt_session, const char *uri, int64_t *count)
 {
+    WT_CKPT ckpt;
     WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    WT_TABLE *table;
+    int64_t row_count;
+    u_int i;
 
-    WT_UNUSED(uri);
-    WT_UNUSED(wt_session);
+    session = (WT_SESSION_IMPL *)wt_session;
+    table = NULL;
 
-    *count = -1;
-    if (*count == -1)
-        ret = WT_NOTFOUND;
+    SESSION_API_CALL_NOCONF(session, count);
+    row_count = *count = -1;
+    if (WT_PREFIX_MATCH(uri, "file:")) {
+        if ((ret = __wt_meta_checkpoint(session, uri, NULL, &ckpt)) != 0)
+            WT_ERR(ret == WT_NOTFOUND ? ENOENT : ret);
 
-    return (ret);
+        *count = ckpt.ps.row_count;
+    } else if (WT_PREFIX_SKIP(uri, "table:")) {
+        if ((ret = __wt_schema_get_table(session, uri, strlen(uri), false, 0, &table)) != 0)
+            WT_ERR(ret == WT_NOTFOUND ? ENOENT : ret);
+
+        /* Set the number of rows from one column group, sum the column group byte counts. */
+        for (i = 0; i < WT_COLGROUPS(table); i++) {
+            row_count = -1;
+            WT_ERR(__wt_session_count(wt_session, table->cgroups[i]->source, &row_count));
+        }
+        *count = row_count;
+    } else
+        ret = __wt_bad_object_type(session, uri);
+
+err:
+    API_END_RET(session, ret);
 }
 
 /*

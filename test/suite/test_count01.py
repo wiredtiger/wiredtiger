@@ -31,16 +31,39 @@
 #
 
 import wiredtiger, wttest
+from wtdataset import SimpleDataSet
+from wtscenario import make_scenarios
 
 class test_count01(wttest.WiredTigerTestCase):
     tablename = 'test_count01'
-    uri = 'table:' + tablename
+
+    keyfmt = [
+        ('integer-row', dict(keyfmt='i')),
+        ('column', dict(keyfmt='r')),
+    ]
+
+    types = [
+        ('file', dict(uri='file:' + tablename)),
+        ('table', dict(uri='table:' + tablename)),
+    ]
+    scenarios = make_scenarios(keyfmt, types)
 
     def test_count_api(self):
         self.session.create(self.uri, 'key_format=i,value_format=i')
-       
-        self.assertRaisesException(
-            wiredtiger.WiredTigerError, lambda: self.session.count(self.uri))
+        c = self.session.open_cursor(self.uri, None, None)
+
+        size='allocation_size=512,internal_page_max=512'
+        ds = SimpleDataSet(self, self.uri, 3000, config=size, key_format=self.keyfmt)
+
+        # Insert some values and persist them to disk.
+        for i in range (0, 2000):
+            c[ds.key(i)] = i
+        c.close()
+
+        self.session.checkpoint()
+
+        # Check that the number of records stored in the page stat matches.
+        self.assertEqual(self.session.count(self.uri), 2000)
 
 
 if __name__ == '__main__':

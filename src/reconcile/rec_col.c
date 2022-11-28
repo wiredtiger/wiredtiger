@@ -56,18 +56,23 @@ __wt_bulk_insert_fix(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
 {
     WT_BTREE *btree;
     WT_CURSOR *cursor;
+    WT_PAGE_STAT ps;
     WT_RECONCILE *r;
     WT_TIME_WINDOW tw;
 
     r = cbulk->reconcile;
     btree = S2BT(session);
     cursor = &cbulk->cbt.iface;
+    WT_PAGE_STAT_INIT(&ps);
 
     WT_RET(__rec_col_fix_bulk_insert_split_check(cbulk));
     __bit_setv(
       r->first_free, cbulk->entry, btree->bitcnt, deleted ? 0 : ((uint8_t *)cursor->value.data)[0]);
     ++cbulk->entry;
     ++r->recno;
+
+    ps.row_count = 1;
+    WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
 
     /*
      * Initialize the time aggregate that's going into the parent page. It's necessary to update an
@@ -88,6 +93,7 @@ __wt_bulk_insert_fix_bitmap(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 {
     WT_BTREE *btree;
     WT_CURSOR *cursor;
+    WT_PAGE_STAT ps;
     WT_RECONCILE *r;
     WT_TIME_WINDOW tw;
     uint32_t entries, offset, page_entries, page_size;
@@ -96,6 +102,7 @@ __wt_bulk_insert_fix_bitmap(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     r = cbulk->reconcile;
     btree = S2BT(session);
     cursor = &cbulk->cbt.iface;
+    WT_PAGE_STAT_INIT(&ps);
 
     if (((r->recno - 1) * btree->bitcnt) & 0x7)
         WT_RET_MSG(session, EINVAL, "Bulk bitmap load not aligned on a byte boundary");
@@ -109,6 +116,8 @@ __wt_bulk_insert_fix_bitmap(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
         memcpy(r->first_free + offset, data, page_size);
         cbulk->entry += page_entries;
         r->recno += page_entries;
+        ps.row_count = page_entries;
+        WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
     }
 
     /* Initialize the time aggregate that's going into the parent page. See note above. */
@@ -125,12 +134,14 @@ int
 __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool deleted)
 {
     WT_BTREE *btree;
+    WT_PAGE_STAT ps;
     WT_RECONCILE *r;
     WT_REC_KV *val;
     WT_TIME_WINDOW tw;
 
     r = cbulk->reconcile;
     btree = S2BT(session);
+    WT_PAGE_STAT_INIT(&ps);
     WT_TIME_WINDOW_INIT(&tw);
 
     val = &r->v;
@@ -158,6 +169,9 @@ __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
 
     /* Initialize the time aggregate that's going into the parent page. See note above. */
     WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &tw);
+
+    ps.row_count = (int64_t)cbulk->rle;
+    WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
 
     /* Update the starting record number in case we split. */
     r->recno += cbulk->rle;
@@ -198,6 +212,7 @@ __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         /* Copy the value onto the page. */
         __wt_rec_image_copy(session, r, val);
         WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &addr->ta);
+        WT_PAGE_STAT_MERGE(&r->cur_ptr->ps, &addr->ps);
     }
     return (0);
 }
@@ -216,6 +231,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
     WT_DECL_RET;
     WT_PAGE *child, *page;
     WT_PAGE_DELETED *page_del;
+    WT_PAGE_STAT ps;
     WT_REC_KV *val;
     WT_REF *ref;
     WT_TIME_AGGREGATE ft_ta, ta;
@@ -223,6 +239,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
     btree = S2BT(session);
     page = pageref->page;
     child = NULL;
+    WT_PAGE_STAT_INIT(&ps);
     WT_TIME_AGGREGATE_INIT(&ta);
     WT_TIME_AGGREGATE_INIT_MERGE(&ft_ta);
 
@@ -292,6 +309,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
         if (addr != NULL) {
             __wt_rec_cell_build_addr(session, r, addr, NULL, ref->ref_recno, page_del);
             WT_TIME_AGGREGATE_COPY(&ta, &addr->ta);
+            WT_PAGE_STAT_COPY(&ps, &addr->ps);
         } else {
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
             if (cms.state == WT_CHILD_PROXY || F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
@@ -309,6 +327,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
                 val->len = val->buf.size;
             }
             WT_TIME_AGGREGATE_COPY(&ta, &vpack->ta);
+            WT_PAGE_STAT_COPY(&ps, &vpack->ps);
         }
         if (page_del != NULL)
             WT_TIME_AGGREGATE_UPDATE_PAGE_DEL(session, &ft_ta, page_del);
@@ -323,8 +342,15 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
         if (page_del != NULL)
             WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &ft_ta);
         WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &ta);
+        WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
     }
     WT_INTL_FOREACH_END;
+
+    /* Reset the page stat value for the page if any of its children had invalid stat values. */
+    if (r->cur_ptr->ps.reset_byte_count)
+        r->cur_ptr->ps.byte_count = WT_STAT_NONE;
+    if (r->cur_ptr->ps.reset_row_count)
+        r->cur_ptr->ps.row_count = WT_STAT_NONE;
 
     /* Write the remnant page. */
     return (__wt_rec_split_finish(session, r));
@@ -471,6 +497,7 @@ __wt_rec_col_fix(
     WT_DECL_RET;
     WT_INSERT *ins;
     WT_PAGE *page;
+    WT_PAGE_STAT ps;
     WT_UPDATE *upd;
     WT_UPDATE_SELECT upd_select;
     uint64_t curstartrecno, i, rawbitmapsize, origstartrecno, recno;
@@ -478,6 +505,7 @@ __wt_rec_col_fix(
     uint8_t val;
 
     btree = S2BT(session);
+    WT_PAGE_STAT_INIT(&ps);
     /*
      * Blank the unpack record in case we need to use it before unpacking anything into it. The
      * visibility code currently only uses the value and the time window, and asserts about the
@@ -941,6 +969,9 @@ __wt_rec_col_fix(
              * No need to have a minimum split size boundary, all pages are filled 100% except the
              * last, allowing it to grow in the future.
              */
+            ps.row_count = entry;
+            WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
+
             __wt_rec_incr(session, r, entry, __bitstr_size((size_t)entry * btree->bitcnt));
 
             /* If there are entries we didn't write timestamps for, aggregate a stable timestamp. */
@@ -969,6 +1000,9 @@ __wt_rec_col_fix(
         if (ins == NULL)
             break;
     }
+
+    ps.row_count = entry;
+    WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
 
     /* Update the counters. */
     __wt_rec_incr(session, r, entry, __bitstr_size((size_t)entry * btree->bitcnt));
@@ -1110,6 +1144,7 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
   WT_ITEM *value, WT_TIME_WINDOW *tw, uint64_t rle, bool deleted, bool *ovfl_usedp)
 {
     WT_BTREE *btree;
+    WT_PAGE_STAT ps;
     WT_REC_KV *val;
 
     if (ovfl_usedp != NULL)
@@ -1117,6 +1152,7 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
 
     btree = S2BT(session);
     val = &r->v;
+    WT_PAGE_STAT_INIT(&ps);
 
     /*
      * Occasionally, salvage needs to discard records from the beginning or end of the page, and
@@ -1172,6 +1208,9 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
         WT_RET(__wt_rec_dict_replace(session, r, tw, rle, val));
     __wt_rec_image_copy(session, r, val);
     WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, tw);
+
+    ps.row_count = (int64_t)rle;
+    WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
 
     /* Update the starting record number in case we split. */
     r->recno += rle;
