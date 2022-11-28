@@ -125,9 +125,9 @@
 
 /*
  * Branch prediction hints. If an expression is likely to return true/false we can use this
- * information to improve performance at runtime. This is only supported for GNU compilers.
+ * information to improve performance at runtime. This is not supported for MSVC compilers.
  */
-#if defined(__GNUC__)
+#if !defined(_MSC_VER)
 #define LIKELY(x) __builtin_expect(!!(x), 1)
 #define UNLIKELY(x) __builtin_expect(!!(x), 0)
 #else
