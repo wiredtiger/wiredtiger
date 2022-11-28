@@ -69,6 +69,7 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
     /* Rollback the global durable timestamp to the stable timestamp. */
     txn_global->has_durable_timestamp = txn_global->has_stable_timestamp;
     txn_global->durable_timestamp = txn_global->stable_timestamp;
+    WT_ASSERT(session, txn_global->stable_timestamp == rollback_timestamp);
 
     /*
      * If the configuration is not in-memory, forcibly log a checkpoint after rollback to stable to
@@ -90,9 +91,12 @@ err:
 static int
 __rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     wt_timestamp_t rollback_timestamp;
     char *config;
+
+    conn = S2C(session);
 
     /*
      * This is confusing: the caller's boolean argument "skip" stops the schema-worker loop from
@@ -108,11 +112,13 @@ __rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
     WT_RET(__wt_metadata_search(session, uri, &config));
 
     /* Read the stable timestamp once, when we first start up. */
-    WT_ORDERED_READ(rollback_timestamp, S2C(session)->txn_global.stable_timestamp);
+    WT_ORDERED_READ(rollback_timestamp, conn->txn_global.stable_timestamp);
 
     F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
     ret = __wt_rts_btree_walk_btree_apply(session, uri, config, rollback_timestamp);
     F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
+
+    WT_ASSERT(session, conn->txn_global.stable_timestamp == rollback_timestamp);
 
     __wt_free(session, config);
 
