@@ -42,12 +42,7 @@ err:
  */
 int
 __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, WT_UPDATE *upd_arg,
-  u_int modify_type, bool exclusive
-#ifdef HAVE_DIAGNOSTIC
-  ,
-  bool restore
-#endif
-)
+  u_int modify_type, bool exclusive, bool restore)
 {
     WT_DECL_RET;
     WT_INSERT *ins;
