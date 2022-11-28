@@ -56,8 +56,8 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session)
 {
     WT_CURSOR *cursor, *cursor_tmp;
     WT_CURSOR_LIST *cached_list;
-    WT_DECL_RET;
     WT_DATA_HANDLE *saved_dhandle;
+    WT_DECL_RET;
     uint64_t now;
     uint32_t position;
     int i, t_ret, nbuckets, nexamined, nclosed;
