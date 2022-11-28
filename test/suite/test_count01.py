@@ -36,6 +36,7 @@ from wtscenario import make_scenarios
 
 class test_count01(wttest.WiredTigerTestCase):
     tablename = 'test_count01'
+    tablename2 = 'test'
 
     keyfmt = [
         ('integer-row', dict(keyfmt='i')),
@@ -64,6 +65,21 @@ class test_count01(wttest.WiredTigerTestCase):
 
         # Check that the number of records stored in the page stat matches.
         self.assertEqual(self.session.count(self.uri), 2000)
+
+    def test_count_api_empty(self):
+        self.session.create(self.uri, 'key_format=i,value_format=i')
+        c = self.session.open_cursor(self.uri, None, None)
+
+        size='allocation_size=512,internal_page_max=512'
+        ds = SimpleDataSet(self, self.uri, 3000, config=size, key_format=self.keyfmt)
+        c.close()
+
+        # Persist the empty table to disk.
+        self.session.checkpoint()
+
+        # Check that querying for the row count of an empty table triggers an error.
+        self.assertRaisesException(
+             wiredtiger.WiredTigerError, lambda: self.session.count(self.uri))
 
 
 if __name__ == '__main__':

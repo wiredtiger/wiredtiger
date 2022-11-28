@@ -861,7 +861,11 @@ __wt_session_count(WT_SESSION *wt_session, const char *uri, int64_t *count)
         }
         *count = row_count;
     } else
-        ret = __wt_bad_object_type(session, uri);
+        WT_ERR(__wt_bad_object_type(session, uri));
+
+    /* Set the return value to WT_NOTFOUND if there is no valid row count. */
+    if (*count == -1)
+        ret = WT_NOTFOUND;
 
 err:
     API_END_RET(session, ret);
