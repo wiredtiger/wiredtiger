@@ -139,8 +139,9 @@ struct __wt_page_stat {
      * A page's page stat information may need to be reset if we find that any of its children do
      * not have valid page stat values.
      */
-    bool reset_byte_count;
-    bool reset_row_count;
+#define WT_RESET_BYTE_COUNT 0x1u
+#define WT_RESET_ROW_COUNT 0x2u
+    uint8_t flags;
 };
 
 /*

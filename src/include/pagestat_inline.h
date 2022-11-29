@@ -44,7 +44,7 @@
     do {                                                  \
         /* Update byte count */                           \
         if ((update)->byte_count == WT_STAT_NONE)         \
-            (ps)->reset_byte_count = true;                \
+            F_SET(ps, WT_RESET_BYTE_COUNT);               \
         else {                                            \
             if ((ps)->byte_count == WT_STAT_NONE)         \
                 (ps)->byte_count = (update)->byte_count;  \
@@ -53,7 +53,7 @@
         }                                                 \
         /* Update row count */                            \
         if ((update)->row_count == WT_STAT_NONE)          \
-            (ps)->reset_row_count = true;                 \
+            F_SET(ps, WT_RESET_ROW_COUNT);                \
         else {                                            \
             if ((ps)->row_count == WT_STAT_NONE)          \
                 (ps)->row_count = (update)->row_count;    \

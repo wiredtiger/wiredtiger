@@ -347,9 +347,9 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
     WT_INTL_FOREACH_END;
 
     /* Reset the page stat value for the page if any of its children had invalid stat values. */
-    if (r->cur_ptr->ps.reset_byte_count)
+    if (FLD_ISSET(r->cur_ptr->ps.flags, WT_RESET_BYTE_COUNT))
         r->cur_ptr->ps.byte_count = WT_STAT_NONE;
-    if (r->cur_ptr->ps.reset_row_count)
+    if (FLD_ISSET(r->cur_ptr->ps.flags, WT_RESET_ROW_COUNT))
         r->cur_ptr->ps.row_count = WT_STAT_NONE;
 
     /* Write the remnant page. */
