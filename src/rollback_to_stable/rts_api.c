@@ -8,6 +8,19 @@
 
 #include "wt_internal.h"
 
+static void
+__rts_assert_timestamps_unchanged(WT_SESSION_IMPL *session, wt_timestamp_t old_pinned, wt_timestamp_t old_stable)
+{
+#ifdef HAVE_DIAGNOSTIC
+    WT_ASSERT(session, S2C(session)->txn_global.pinned_timestamp == old_pinned);
+    WT_ASSERT(session, S2C(session)->txn_global.stable_timestamp == old_stable);
+#else
+    WT_UNUSED(session);
+    WT_UNUSED(old_pinned);
+    WT_UNUSED(old_stable);
+#endif
+}
+
 /*
  * __rollback_to_stable_int --
  *     Rollback all modifications with timestamps more recent than the passed in timestamp.
@@ -70,8 +83,7 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
     /* Rollback the global durable timestamp to the stable timestamp. */
     txn_global->has_durable_timestamp = txn_global->has_stable_timestamp;
     txn_global->durable_timestamp = txn_global->stable_timestamp;
-    WT_ASSERT(session, txn_global->stable_timestamp == rollback_timestamp);
-    WT_ASSERT(session, txn_global->pinned_timestamp == pinned_timestamp);
+    __rts_assert_timestamps_unchanged(session, pinned_timestamp, rollback_timestamp);
 
     /*
      * If the configuration is not in-memory, forcibly log a checkpoint after rollback to stable to
@@ -121,8 +133,7 @@ __rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
     ret = __wt_rts_btree_walk_btree_apply(session, uri, config, rollback_timestamp);
     F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
 
-    WT_ASSERT(session, conn->txn_global.stable_timestamp == rollback_timestamp);
-    WT_ASSERT(session, conn->txn_global.pinned_timestamp == pinned_timestamp);
+    __rts_assert_timestamps_unchanged(session, pinned_timestamp, rollback_timestamp);
 
     __wt_free(session, config);
 
