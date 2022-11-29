@@ -1333,6 +1333,18 @@ tasks:
           test_config_filename: configs/bounded_cursor_prefix_indices_default.txt
           test_name: bounded_cursor_prefix_indices
 
+  - name: cppsuite-reverse-split-default
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config: debug_mode=(cursor_copy=true)
+          test_config_filename: configs/reverse_split_default.txt
+          test_name: reverse_split
+
   - name: cppsuite-operations-test-stress
     depends_on:
       - name: compile
@@ -1463,6 +1475,16 @@ tasks:
         vars:
           test_config_filename: configs/bounded_cursor_perf_stress.txt
           test_name: bounded_cursor_perf
+
+  - name: cppsuite-reverse-split-stress
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/reverse_split_stress.txt
+          test_name: reverse_split
 
   - name: cppsuite-operations-test-stress-nonstandalone
     depends_on:
