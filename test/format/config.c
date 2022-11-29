@@ -263,8 +263,18 @@ config_table(TABLE *table, void *arg)
      * direct I/O can be so slow the additional I/O for overflow items causes eviction to stall).
      */
     if (GV(RUNS_IN_MEMORY) || GV(DISK_DIRECT_IO)) {
-        if (!config_explicit(table, "runs.rows") && TV(RUNS_ROWS) > 1000000)
-            config_single(table, "runs.rows=1000000", false);
+        /*
+         * Always limit the row count if its greater that 1,000,000 and in memory wasn't explicitly
+         * set. Direct IO is always explicitly set, never limit the row count because the user has
+         * taken control..
+         */
+        if (GV(RUNS_IN_MEMORY) && TV(RUNS_ROWS) > 1000000 &&
+          config_explicit(NULL, "runs.in_memory")) {
+            WARN("limiting table%" PRIu32
+                 ".runs.rows to 1,000,000 as runs.in_memory has been automatically enabled",
+              table->id)
+            config_single(table, "runs.rows=1000000", config_explicit(table, "runs.rows"));
+        }
         if (!config_explicit(table, "btree.key_max"))
             config_single(table, "btree.key_max=32", false);
         if (!config_explicit(table, "btree.key_min"))
@@ -871,8 +881,14 @@ config_in_memory(void)
     if (config_explicit(NULL, "runs.mirror"))
         return;
 
-    if (!config_explicit(NULL, "runs.in_memory") && mmrand(NULL, 1, 20) == 1)
+    if (!config_explicit(NULL, "runs.in_memory") && mmrand(NULL, 1, 20) == 1) {
         config_single(NULL, "runs.in_memory=1", false);
+        if (NTV(tables[0], RUNS_ROWS) > 1000000) {
+            WARN("%s",
+              "limiting runs.rows to 1,000,000 as runs.in_memory has been automatically enabled");
+            config_single(NULL, "runs.rows=1000000", config_explicit(NULL, "runs.rows"));
+        }
+    }
 }
 
 /*
