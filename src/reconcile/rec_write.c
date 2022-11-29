@@ -2147,6 +2147,9 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
             r->wrapup_checkpoint = compressed_image;
             r->wrapup_checkpoint_compressed = true;
         }
+
+        r->ps.byte_count = chunk->ps.byte_count;
+        r->ps.row_count = chunk->ps.row_count;
         return (0);
     }
 
