@@ -18,7 +18,7 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_TXN_GLOBAL *txn_global;
-    wt_timestamp_t rollback_timestamp;
+    wt_timestamp_t pinned_timestamp, rollback_timestamp;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     conn = S2C(session);
@@ -52,6 +52,7 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
      * without a lock would violate protocol.
      */
     WT_ORDERED_READ(rollback_timestamp, txn_global->stable_timestamp);
+    WT_ORDERED_READ(pinned_timestamp, txn_global->pinned_timestamp);
     __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
       "performing rollback to stable with stable timestamp: %s and oldest timestamp: %s",
       __wt_timestamp_to_string(rollback_timestamp, ts_string[0]),
@@ -70,6 +71,7 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
     txn_global->has_durable_timestamp = txn_global->has_stable_timestamp;
     txn_global->durable_timestamp = txn_global->stable_timestamp;
     WT_ASSERT(session, txn_global->stable_timestamp == rollback_timestamp);
+    WT_ASSERT(session, txn_global->pinned_timestamp == pinned_timestamp);
 
     /*
      * If the configuration is not in-memory, forcibly log a checkpoint after rollback to stable to
@@ -93,7 +95,7 @@ __rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    wt_timestamp_t rollback_timestamp;
+    wt_timestamp_t pinned_timestamp, rollback_timestamp;
     char *config;
 
     conn = S2C(session);
@@ -113,12 +115,14 @@ __rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
 
     /* Read the stable timestamp once, when we first start up. */
     WT_ORDERED_READ(rollback_timestamp, conn->txn_global.stable_timestamp);
+    WT_ORDERED_READ(pinned_timestamp, conn->txn_global.pinned_timestamp);
 
     F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
     ret = __wt_rts_btree_walk_btree_apply(session, uri, config, rollback_timestamp);
     F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
 
     WT_ASSERT(session, conn->txn_global.stable_timestamp == rollback_timestamp);
+    WT_ASSERT(session, conn->txn_global.pinned_timestamp == pinned_timestamp);
 
     __wt_free(session, config);
 
