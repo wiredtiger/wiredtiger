@@ -36,29 +36,36 @@ from wtscenario import make_scenarios
 
 class test_count01(wttest.WiredTigerTestCase):
     tablename = 'test_count01'
-    tablename2 = 'test'
 
-    keyfmt = [
-        ('integer-row', dict(keyfmt='i')),
-        ('column', dict(keyfmt='r')),
+    format = [
+        ('integer-row', dict(key_format='i', value_format='i')),
+        # ('integer-string', dict(key_format='S', value_format='S')),
+        # ('col-var', dict(key_format='r', value_format='i')),
+        # ('col-fix', dict(key_format='r', value_format='8t')),
     ]
 
     types = [
         ('file', dict(uri='file:' + tablename)),
         ('table', dict(uri='table:' + tablename)),
     ]
-    scenarios = make_scenarios(keyfmt, types)
+    scenarios = make_scenarios(format, types)
 
     def test_count_api(self):
-        self.session.create(self.uri, 'key_format=i,value_format=i')
+        create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        self.session.create(self.uri, create_params)
         c = self.session.open_cursor(self.uri, None, None)
 
         size='allocation_size=512,internal_page_max=512'
-        ds = SimpleDataSet(self, self.uri, 3000, config=size, key_format=self.keyfmt)
+        ds = SimpleDataSet(self, self.uri, 3000, config=size, key_format=self.key_format, value_format=self.value_format)
 
         # Insert some values and persist them to disk.
         for i in range (0, 2000):
-            c[ds.key(i)] = i
+            if self.value_format == 'S':
+                value = str(i)
+            else:
+                value = i
+
+            c[ds.key(i)] = value
         c.close()
 
         self.session.checkpoint()
@@ -67,11 +74,12 @@ class test_count01(wttest.WiredTigerTestCase):
         self.assertEqual(self.session.count(self.uri), 2000)
 
     def test_count_api_empty(self):
-        self.session.create(self.uri, 'key_format=i,value_format=i')
+        create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        self.session.create(self.uri, create_params)
         c = self.session.open_cursor(self.uri, None, None)
 
         size='allocation_size=512,internal_page_max=512'
-        ds = SimpleDataSet(self, self.uri, 3000, config=size, key_format=self.keyfmt)
+        ds = SimpleDataSet(self, self.uri, 3000, config=size, key_format=self.key_format, value_format=self.value_format)
         c.close()
 
         # Persist the empty table to disk.
@@ -79,7 +87,7 @@ class test_count01(wttest.WiredTigerTestCase):
 
         # Check that querying for the row count of an empty table triggers an error.
         self.assertRaisesException(
-             wiredtiger.WiredTigerError, lambda: self.session.count(self.uri))
+            wiredtiger.WiredTigerError, lambda: self.session.count(self.uri))
 
 
 if __name__ == '__main__':
