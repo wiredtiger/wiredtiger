@@ -818,6 +818,7 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *addr_
     size_t result_len;
 
     btree = S2BT(session);
+    result_len = 0;
 
     /* Checkpoint calls are different than standard calls. */
     WT_ASSERT(session,
@@ -2672,8 +2673,6 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
      */
     WT_ASSERT_ALWAYS(session, !WT_IS_HS(btree->dhandle) && !WT_IS_METADATA(btree->dhandle),
       "Attempting to write updates from the history store or metadata file into the history store");
-    /* Flag as unused for non diagnostic builds. */
-    WT_UNUSED(btree);
 
     /*
      * Delete the updates left in the history store by prepared rollback first before moving updates

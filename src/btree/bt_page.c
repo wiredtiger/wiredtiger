@@ -553,6 +553,7 @@ __inmem_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp, size_t
 
     btree = S2BT(session);
     dsk = page->dsk;
+    tmp = 0;
     prepare = false;
 
     page->pg_fix_bitf = WT_PAGE_HEADER_BYTE(btree, dsk);
