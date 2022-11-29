@@ -723,8 +723,8 @@ ThreadRunner::open_all()
     typedef WT_CURSOR *WT_CURSOR_PTR;
     for (const auto& kv: _table_usage) {
         tint_t tindex = kv.first;
-        const char *uri = _icontext->_table_names[tindex].c_str();
-        WT_RET(_session->open_cursor(_session, uri, NULL, NULL, &_cursors[tindex]));
+        const std::string uri(_icontext->_table_names[tindex]);
+        WT_RET(_session->open_cursor(_session, uri.c_str(), NULL, NULL, &_cursors[tindex]));
     }
     return (0);
 }
