@@ -132,7 +132,7 @@ struct ThreadRunner {
     typedef enum {
 	USAGE_READ = 0x1, USAGE_WRITE = 0x2, USAGE_MIXED = 0x4 } Usage;
     std::map<tint_t, uint32_t> _table_usage;       // value is Usage
-    WT_CURSOR **_cursors;                          // indexed by tint_t
+    std::map<tint_t, WT_CURSOR*> _cursors;         // indexed by tint_t
     volatile bool _stop;
     WT_SESSION *_session;
     char *_keybuf;

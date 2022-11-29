@@ -681,7 +681,7 @@ ThreadRunner::ThreadRunner()
     : _errno(0), _exception(), _thread(NULL), _context(NULL), _icontext(NULL), _workload(NULL),
       _wrunner(NULL), _rand_state(NULL), _throttle(NULL), _throttle_ops(0), _throttle_limit(0),
       _in_transaction(false), _start_time_us(0), _op_time_us(0), _number(0), _stats(false),
-      _table_usage(), _cursors(NULL), _stop(false), _session(NULL), _keybuf(NULL), _valuebuf(NULL),
+      _table_usage(), _cursors(), _stop(false), _session(NULL), _keybuf(NULL), _valuebuf(NULL),
       _repeat(false)
 {
 }
@@ -721,13 +721,8 @@ int
 ThreadRunner::open_all()
 {
     typedef WT_CURSOR *WT_CURSOR_PTR;
-    if (_cursors != NULL)
-        delete _cursors;
-    _cursors = new WT_CURSOR_PTR[_icontext->_tint_last + 1];
-    memset(_cursors, 0, sizeof(WT_CURSOR *) * (_icontext->_tint_last + 1));
-    for (std::map<uint32_t, uint32_t>::iterator i = _table_usage.begin(); i != _table_usage.end();
-         i++) {
-        uint32_t tindex = i->first;
+    for (const auto& kv: _table_usage) {
+        tint_t tindex = kv.first;
         const char *uri = _icontext->_table_names[tindex].c_str();
         WT_RET(_session->open_cursor(_session, uri, NULL, NULL, &_cursors[tindex]));
     }
@@ -755,10 +750,6 @@ ThreadRunner::free_all()
     if (_rand_state != NULL) {
         workgen_random_free(_rand_state);
         _rand_state = NULL;
-    }
-    if (_cursors != NULL) {
-        delete _cursors;
-        _cursors = NULL;
     }
     if (_keybuf != NULL) {
         delete _keybuf;
