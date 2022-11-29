@@ -2303,6 +2303,13 @@ Workload::run(WT_CONNECTION *conn)
     return (runner.run(conn));
 }
 
+int
+Workload::create_table(const std::string& uri)
+{
+    WorkloadRunner runner(this);
+    return (runner.create_table(uri));
+}
+
 WorkloadRunner::WorkloadRunner(Workload *workload)
     : _workload(workload), _trunners(workload->_threads.size()), _report_out(&std::cout), _start(),
       stopping(false)
@@ -2310,6 +2317,11 @@ WorkloadRunner::WorkloadRunner(Workload *workload)
     ts_clear(_start);
 }
 WorkloadRunner::~WorkloadRunner() {}
+
+int
+WorkloadRunner::create_table(const std::string& uri) {
+    return 0;
+}
 
 int
 WorkloadRunner::run(WT_CONNECTION *conn)

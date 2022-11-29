@@ -114,6 +114,7 @@
 %enddef
 
 InterruptableFunction(workgen::execute)
+InterruptableFunction(workgen::Workload::create_table)
 InterruptableFunction(workgen::Workload::run)
 
 %module workgen

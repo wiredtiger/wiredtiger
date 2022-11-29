@@ -285,6 +285,7 @@ struct WorkloadRunner {
 
     WorkloadRunner(Workload *);
     ~WorkloadRunner();
+    int create_table(const std::string& uri);
     int run(WT_CONNECTION *conn);
     int increment_timestamp(WT_CONNECTION *conn);
     int start_table_idle_cycle(WT_CONNECTION *conn);
