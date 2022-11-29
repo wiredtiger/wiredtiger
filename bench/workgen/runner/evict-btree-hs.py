@@ -162,6 +162,6 @@ workload.options.max_latency=50000
 ret = workload.run(conn)
 assert ret == 0, ret
 
-latency_filename = homedir + "/latency.out"
+latency_filename = os.path.join(context.args.home, "latency.out")
 latency.workload_latency(workload, latency_filename)
 conn.close()

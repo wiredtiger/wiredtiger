@@ -79,7 +79,6 @@ context = Context()
 ## cache_size=20GB
 conn_config="create,cache_size=1GB,session_max=1000,eviction=(threads_min=4,threads_max=8),log=(enabled=false),transaction_sync=(enabled=false),checkpoint_sync=true,checkpoint=(wait=60),statistics=(fast),statistics_log=(json,wait=1)"
 table_config="allocation_size=4k,memory_page_max=10MB,prefix_compression=false,split_pct=90,leaf_page_max=32k,internal_page_max=16k,type=file,block_compressor=snappy"
-conn_config += extensions_config(['compressors/snappy'])
 conn = context.wiredtiger_open(conn_config)
 s = conn.open_session()
 
@@ -121,7 +120,7 @@ workload = Workload(context, threads)
 ##workload.options.run_time = 3600
 workload.options.run_time = 30
 workload.options.report_interval = 1
-workload.options.sample_interval = 5
+workload.options.sample_interval_ms = 5000
 workload.options.sample_rate = 1
 print('heavy stress workload:')
 ret = workload.run(conn)

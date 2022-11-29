@@ -101,7 +101,7 @@ conn = context.wiredtiger_open(conn_config)
 s = conn.open_session()
 
 tables = []
-for name_ext, compress_config in compression_opts.iteritems():
+for name_ext, compress_config in compression_opts.items():
     tname = "table:test_" + name_ext
     s.create(tname, 'key_format=S,value_format=S,' + table_config + "," + compress_config)
     table = Table(tname)
@@ -129,7 +129,7 @@ threads = ins_thread * 2 + upd_thread * 10
 workload = Workload(context, threads)
 workload.options.run_time = 60
 workload.options.report_interval = 1
-workload.options.sample_interval = 1
+workload.options.sample_interval_ms = 1000
 workload.options.sample_rate = 1
 print('Update heavy workload:')
 ret = workload.run(conn)
