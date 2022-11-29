@@ -35,7 +35,7 @@
  */
 
 #define HOME_BUF_SIZE 512
-#define MAX_RUN 10
+#define MAX_RUN 5
 #define MAX_TIERED_FILES 10
 #define NUM_RECORDS 500
 
@@ -78,10 +78,14 @@ main(int argc, char *argv[])
     printf("The below benchmarks are average of %d runs\n", MAX_RUN);
     for (i = 0; i < 2; ++i) {
 
-        printf("############################################\n");
         printf(
-          "            Flush call %s\n", (opts->tiered_storage && flush) ? "enabled" : "disabled");
-        printf("############################################\n");
+          "########################################################################################"
+          "\n");
+        printf("                                 Flush call %s\n",
+          (opts->tiered_storage && flush) ? "enabled" : "disabled");
+        printf(
+          "########################################################################################"
+          "\n");
 
         /*
          * Run test with 100K file size. Row store case.
@@ -158,6 +162,7 @@ run_test_clean(const char *suffix, uint32_t num_records, bool flush)
         testutil_clean_work_dir(home_full);
     }
 
+    /* Compute the average */
     for (counter = 0; counter < MAX_RUN; ++counter) {
         avg_wtime += avg_wtime_arr[counter];
         avg_rtime += avg_rtime_arr[counter];
@@ -166,9 +171,9 @@ run_test_clean(const char *suffix, uint32_t num_records, bool flush)
         avg_file_size += avg_filesize_array[counter];
     }
 
-    printf("Bytes- %" PRIu64
-           " (~%s), W_Time- %.3f seconds, W_Throughput- %.3f MB/second, R_Time- %.3f seconds, "
-           "R_Throughput- %.3f MB/second\n",
+    printf("Records in Bytes- %" PRIu64
+           " (~%s), W_Time- %.3f secs, W_Tput- %.3f MB/sec, R_Time- %.3f secs, "
+           "R_Tput- %.3f MB/sec\n",
       avg_file_size / MAX_RUN, suffix, avg_wtime / MAX_RUN, avg_wthroughput / MAX_RUN,
       avg_rtime / MAX_RUN, avg_rthroughput / MAX_RUN);
 }
@@ -203,7 +208,7 @@ recover_verify(const char *home, uint32_t num_records, uint64_t file_size, int c
     testutil_wiredtiger_open(opts, home, buf, NULL, &conn, true, true);
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    //srand((unsigned long)getpid() + num_records);
+    // srand((unsigned long)getpid() + num_records);
     srand((uint32_t)getpid() + num_records);
     str_len = sizeof(data_str) / sizeof(data_str[0]);
     for (i = 0; i < str_len - 1; i++)
