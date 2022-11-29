@@ -35,7 +35,7 @@
  */
 
 #define HOME_BUF_SIZE 512
-#define MAX_RUN 5
+#define MAX_RUN 10
 #define MAX_TIERED_FILES 10
 #define NUM_RECORDS 500
 
@@ -49,17 +49,17 @@ static TEST_OPTS *opts, _opts;
 static bool read_data = true;
 /* Forward declarations. */
 
-static void compute_wt_file_size(const char *, const char *, int64_t *);
-static void compute_tiered_file_size(const char *, const char *, int64_t *);
-static void get_file_size(const char *, int64_t *);
-static void recover_verify(const char *, uint64_t, int64_t, int);
-static void run_test_clean(const char *, uint64_t, bool);
-static void run_test(const char *, uint64_t, bool, int);
-static void populate(WT_SESSION *, uint64_t);
+static void compute_wt_file_size(const char *, const char *, uint64_t *);
+static void compute_tiered_file_size(const char *, const char *, uint64_t *);
+static void get_file_size(const char *, uint64_t *);
+static void recover_verify(const char *, uint32_t, uint64_t, int);
+static void run_test_clean(const char *, uint32_t, bool);
+static void run_test(const char *, uint32_t, bool, int);
+static void populate(WT_SESSION *, uint32_t);
 
 static double avg_wtime_arr[MAX_RUN], avg_rtime_arr[MAX_RUN], avg_wthroughput_arr[MAX_RUN],
   avg_rthroughput_arr[MAX_RUN];
-static int64_t avg_filesize_array[MAX_RUN];
+static uint64_t avg_filesize_array[MAX_RUN];
 
 /*
  * main --
@@ -136,11 +136,11 @@ difftime_sec(struct timeval t0, struct timeval t1)
  *     This function runs the test for configured number of times to compute the average time taken.
  */
 static void
-run_test_clean(const char *suffix, uint64_t num_records, bool flush)
+run_test_clean(const char *suffix, uint32_t num_records, bool flush)
 {
     char home_full[HOME_BUF_SIZE];
     double avg_wtime, avg_rtime, avg_wthroughput, avg_rthroughput;
-    int64_t avg_file_size;
+    uint64_t avg_file_size;
     int counter;
 
     avg_file_size = 0;
@@ -166,7 +166,7 @@ run_test_clean(const char *suffix, uint64_t num_records, bool flush)
         avg_file_size += avg_filesize_array[counter];
     }
 
-    printf("Bytes- %" PRIi64
+    printf("Bytes- %" PRIu64
            " (~%s), W_Time- %.3f seconds, W_Throughput- %.3f MB/second, R_Time- %.3f seconds, "
            "R_Throughput- %.3f MB/second\n",
       avg_file_size / MAX_RUN, suffix, avg_wtime / MAX_RUN, avg_wthroughput / MAX_RUN,
@@ -178,7 +178,7 @@ run_test_clean(const char *suffix, uint64_t num_records, bool flush)
  *     Open wiredtiger and validate the data.
  */
 static void
-recover_verify(const char *home, uint64_t num_records, int64_t file_size, int counter)
+recover_verify(const char *home, uint32_t num_records, uint64_t file_size, int counter)
 {
     struct timeval start, end;
 
@@ -203,7 +203,8 @@ recover_verify(const char *home, uint64_t num_records, int64_t file_size, int co
     testutil_wiredtiger_open(opts, home, buf, NULL, &conn, true, true);
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    srand((unsigned int)getpid() + num_records);
+    //srand((unsigned long)getpid() + num_records);
+    srand((uint32_t)getpid() + num_records);
     str_len = sizeof(data_str) / sizeof(data_str[0]);
     for (i = 0; i < str_len - 1; i++)
         data_str[i] = 'a' + (uint32_t)rand() % 26;
@@ -244,13 +245,13 @@ recover_verify(const char *home, uint64_t num_records, int64_t file_size, int co
  *     parameter.
  */
 static void
-run_test(const char *home, uint64_t num_records, bool flush, int counter)
+run_test(const char *home, uint32_t num_records, bool flush, int counter)
 {
     struct timeval start, end;
 
     char buf[1024];
     double diff_sec;
-    int64_t file_size;
+    uint64_t file_size;
 
     WT_CONNECTION *conn;
     WT_SESSION *session;
@@ -299,14 +300,12 @@ run_test(const char *home, uint64_t num_records, bool flush, int counter)
  *     Populate the table.
  */
 static void
-populate(WT_SESSION *session, uint64_t num_records)
+populate(WT_SESSION *session, uint32_t num_records)
 {
     WT_CURSOR *cursor;
     uint64_t i, str_len;
-    unsigned int seed;
 
-    seed = (unsigned int)getpid() + num_records;
-    srand(seed);
+    srand((uint32_t)getpid() + num_records);
 
     str_len = sizeof(data_str) / sizeof(data_str[0]);
     for (i = 0; i < str_len - 1; i++)
@@ -330,7 +329,7 @@ populate(WT_SESSION *session, uint64_t num_records)
  *     Iterate over all the tiered files and compute file size..
  */
 static void
-compute_tiered_file_size(const char *home, const char *tablename, int64_t *file_size)
+compute_tiered_file_size(const char *home, const char *tablename, uint64_t *file_size)
 {
     char stat_path[512];
     int index;
@@ -343,7 +342,7 @@ compute_tiered_file_size(const char *home, const char *tablename, int64_t *file_
 
         /* Return if the stat fails that means the file does not exist. */
         if (stat(stat_path, &stats) == 0)
-            *file_size += stats.st_size;
+            *file_size += (uint64_t)stats.st_size;
         else
             return;
     }
@@ -354,7 +353,7 @@ compute_tiered_file_size(const char *home, const char *tablename, int64_t *file_
  *     Compute wt file size.
  */
 static void
-compute_wt_file_size(const char *home, const char *tablename, int64_t *file_size)
+compute_wt_file_size(const char *home, const char *tablename, uint64_t *file_size)
 {
     char stat_path[512];
     struct stat stats;
@@ -362,7 +361,7 @@ compute_wt_file_size(const char *home, const char *tablename, int64_t *file_size
     *file_size = 0;
     testutil_check(__wt_snprintf(stat_path, sizeof(stat_path), "%s/%s.wt", home, tablename));
     if (stat(stat_path, &stats) == 0)
-        *file_size = stats.st_size;
+        *file_size = (uint64_t)stats.st_size;
     else
         testutil_die(ENOENT, "%s does not exist", stat_path);
 }
@@ -372,7 +371,7 @@ compute_wt_file_size(const char *home, const char *tablename, int64_t *file_size
  *     Retrieve the file size of the table.
  */
 static void
-get_file_size(const char *home, int64_t *file_size)
+get_file_size(const char *home, uint64_t *file_size)
 {
     const char *tablename;
 
