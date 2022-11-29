@@ -2320,7 +2320,20 @@ WorkloadRunner::~WorkloadRunner() {}
 
 int
 WorkloadRunner::create_table(const std::string& uri) {
-    return 0;
+    ContextInternal *icontext = _workload->_context->_internal;
+
+    if (icontext->_tint.count(uri) != 0)
+        THROW("The table " << uri << " already exists.");
+
+    tint_t tint = workgen_atomic_add32(&icontext->_tint_last, 1);
+    icontext->_tint[uri] = tint;
+    icontext->_table_names[tint] = uri;
+
+    icontext->create_all();
+
+    // TODO - Create a cursor?
+
+    return (0);
 }
 
 int
