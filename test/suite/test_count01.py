@@ -39,9 +39,10 @@ class test_count01(wttest.WiredTigerTestCase):
 
     format = [
         ('integer-row', dict(key_format='i', value_format='i')),
-        # ('integer-string', dict(key_format='S', value_format='S')),
-        # ('col-var', dict(key_format='r', value_format='i')),
-        # ('col-fix', dict(key_format='r', value_format='8t')),
+        ('string-row', dict(key_format='S', value_format='S')),
+        ('col-var', dict(key_format='r', value_format='i')),
+        ('string-col-var', dict(key_format='r', value_format='S')),
+        ('col-fix', dict(key_format='r', value_format='8t')),
     ]
 
     types = [
@@ -49,6 +50,11 @@ class test_count01(wttest.WiredTigerTestCase):
         ('table', dict(uri='table:' + tablename)),
     ]
     scenarios = make_scenarios(format, types)
+
+    def create_key(self, i):
+        if self.key_format == 'S':
+            return str(i)
+        return i
 
     def test_count_api(self):
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
@@ -59,13 +65,15 @@ class test_count01(wttest.WiredTigerTestCase):
         ds = SimpleDataSet(self, self.uri, 3000, config=size, key_format=self.key_format, value_format=self.value_format)
 
         # Insert some values and persist them to disk.
-        for i in range (0, 2000):
+        for i in range (1, 2001):
             if self.value_format == 'S':
                 value = str(i)
+            elif self.value_format == '8t':
+                value = i % 100
             else:
                 value = i
 
-            c[ds.key(i)] = value
+            c[self.create_key(i)] = value
         c.close()
 
         self.session.checkpoint()
@@ -88,7 +96,6 @@ class test_count01(wttest.WiredTigerTestCase):
         # Check that querying for the row count of an empty table triggers an error.
         self.assertRaisesException(
             wiredtiger.WiredTigerError, lambda: self.session.count(self.uri))
-
 
 if __name__ == '__main__':
     wttest.run()
