@@ -8,8 +8,13 @@
 
 #include "wt_internal.h"
 
+/*
+ * __rts_assert_timestamps_unchanged --
+ *     Wrapper for some diagnostic assertions related to timestamps.
+ */
 static void
-__rts_assert_timestamps_unchanged(WT_SESSION_IMPL *session, wt_timestamp_t old_pinned, wt_timestamp_t old_stable)
+__rts_assert_timestamps_unchanged(
+  WT_SESSION_IMPL *session, wt_timestamp_t old_pinned, wt_timestamp_t old_stable)
 {
 #ifdef HAVE_DIAGNOSTIC
     WT_ASSERT(session, S2C(session)->txn_global.pinned_timestamp == old_pinned);
