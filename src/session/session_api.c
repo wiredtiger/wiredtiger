@@ -56,10 +56,8 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session)
 {
     WT_CURSOR *cursor, *cursor_tmp;
     WT_CURSOR_LIST *cached_list;
-    WT_DECL_RET;
-#ifdef HAVE_DIAGNOSTIC
     WT_DATA_HANDLE *saved_dhandle;
-#endif
+    WT_DECL_RET;
     uint64_t now;
     uint32_t position;
     int i, t_ret, nbuckets, nexamined, nclosed;
@@ -79,9 +77,7 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session)
     position = session->cursor_sweep_position;
     productive = true;
     nbuckets = nexamined = nclosed = 0;
-#ifdef HAVE_DIAGNOSTIC
     saved_dhandle = session->dhandle;
-#endif
 
     /* Turn off caching so that cursor close doesn't try to cache. */
     F_CLR(session, WT_SESSION_CACHE_CURSORS);

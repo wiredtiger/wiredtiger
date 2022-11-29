@@ -31,6 +31,7 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     WT_ASSERT(session, S2BT(session)->evict_ref != ref);
 
+#ifdef HAVE_DIAGNOSTIC
     /*
      * Make sure no other thread has a hazard pointer on the page we are about to discard. This is
      * complicated by the fact that readers publish their hazard pointer before re-checking the page
@@ -38,6 +39,7 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
      * hazard pointer, wait for it to be cleared.
      */
     WT_ASSERT(session, __wt_hazard_check_assert(session, ref, true));
+#endif
 
     /* Check we are not evicting an accessible internal page with an active split generation. */
     WT_ASSERT(session,
@@ -347,11 +349,13 @@ __wt_free_ref_index(WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE_INDEX *pind
     for (i = 0; i < pindex->entries; ++i) {
         ref = pindex->index[i];
 
+#ifdef HAVE_DIAGNOSTIC
         /*
          * Used when unrolling splits and other error paths where there should never have been a
          * hazard pointer taken.
          */
         WT_ASSERT(session, __wt_hazard_check_assert(session, ref, false));
+#endif
 
         __wt_free_ref(session, ref, page->type, free_pages);
     }
