@@ -113,7 +113,8 @@ ins_ops = operations(Operation.OP_INSERT, tables, Key(Key.KEYGEN_APPEND, 20), Va
 thread = Thread(ins_ops * icount)
 pop_workload = Workload(context, thread)
 print('populate:')
-pop_workload.run(conn)
+ret = pop_workload.run(conn)
+assert ret == 0, ret
 
 ins_ops = operations(Operation.OP_INSERT, tables, Key(Key.KEYGEN_APPEND, 20), Value(500), 0)
 upd_ops = operations(Operation.OP_UPDATE, tables, Key(Key.KEYGEN_UNIFORM, 20), Value(500), 0)
@@ -131,4 +132,5 @@ workload.options.report_interval = 1
 workload.options.sample_interval = 1
 workload.options.sample_rate = 1
 print('Update heavy workload:')
-workload.run(conn)
+ret = workload.run(conn)
+assert ret == 0, ret
