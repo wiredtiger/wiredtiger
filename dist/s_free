@@ -1,7 +1,7 @@
 #! /bin/sh
 
 t=__wt.$$
-#trap 'rm -f $t' 0 1 2 3 13 15
+trap 'rm -f $t' 0 1 2 3 13 15
 
 # Complain if someone uses free in the library, other than the one call
 # in os_common/os_alloc.c:wt_free_int. Strip out files in the utility directory.
