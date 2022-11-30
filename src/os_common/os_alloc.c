@@ -144,8 +144,7 @@ __realloc_func(WT_SESSION_IMPL *session, size_t *bytes_allocated_ret, size_t byt
             WT_RET_MSG(session, __wt_errno(), "memory allocation of %" WT_SIZET_FMT " bytes failed",
               bytes_to_allocate);
         memcpy(p, tmpp, *bytes_allocated_ret);
-        memset((uint8_t *)tmpp, WT_DEBUG_BYTE, bytes_allocated);
-        free(tmpp);
+        __wt_overwrite_and_free_len(session, tmpp, bytes_allocated);
     } else {
         if ((p = realloc(p, bytes_to_allocate)) == NULL)
             WT_RET_MSG(session, __wt_errno(), "memory allocation of %" WT_SIZET_FMT " bytes failed",
