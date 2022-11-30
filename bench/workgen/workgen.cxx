@@ -415,7 +415,8 @@ Context::operator=(const Context &other)
 }
 
 ContextInternal::ContextInternal()
-    : _tint(), _table_names(), _table_runtime(), _tint_last(0), _context_count(0)
+    : _tint(), _table_names(), _table_runtime(NULL), _runtime_alloced(0), _tint_last(0),
+      _context_count(0)
 {
     uint32_t count;
     if ((count = workgen_atomic_add32(&context_count, 1)) != 1)
@@ -423,12 +424,23 @@ ContextInternal::ContextInternal()
     _context_count = count;
 }
 
+ContextInternal::~ContextInternal()
+{
+    if (_table_runtime != NULL)
+        delete _table_runtime;
+}
+
 int
 ContextInternal::create_all()
 {
-    if (_table_runtime.size() < _tint_last) {
+    if (_runtime_alloced < _tint_last) {
         // The array references are 1-based, we'll waste one entry.
-        _table_runtime.reserve(_tint_last + 1);
+        TableRuntime *new_table_runtime = new TableRuntime[_tint_last + 1];
+        for (uint32_t i = 0; i < _runtime_alloced; i++)
+            new_table_runtime[i + 1] = _table_runtime[i + 1];
+        delete _table_runtime;
+        _table_runtime = new_table_runtime;
+        _runtime_alloced = _tint_last;
     }
     return (0);
 }

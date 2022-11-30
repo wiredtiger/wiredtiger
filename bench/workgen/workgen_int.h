@@ -201,13 +201,14 @@ struct TableRuntime {
 struct ContextInternal {
     std::map<std::string, tint_t> _tint;           // maps uri -> tint_t
     std::map<tint_t, std::string> _table_names;    // reverse mapping
-    std::vector<TableRuntime> _table_runtime;      // entries per tint_t
+    TableRuntime *_table_runtime;                  // # entries per tint_t
+    uint32_t _runtime_alloced;                     // length of _table_runtime
     tint_t _tint_last;                             // last tint allocated
     // unique id per context, to work with multiple contexts, starts at 1.
     uint32_t _context_count;
 
     ContextInternal();
-    ~ContextInternal() = default;
+    ~ContextInternal();
     int create_all();
 };
 
