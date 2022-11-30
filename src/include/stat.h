@@ -539,6 +539,13 @@ struct __wt_connection_stats {
     int64_t cc_pages_removed;
     int64_t cc_pages_walk_skipped;
     int64_t cc_pages_visited;
+    int64_t chunk_cache_exceeded_capacity;
+    int64_t chunk_cache_chunks_evicted;
+    int64_t chunk_cache_lookups;
+    int64_t chunk_cache_hits;
+    int64_t chunk_cache_chunks_invalidated;
+    int64_t chunk_cache_bytes;
+    int64_t chunk_cache_chunks;
     int64_t cond_auto_wait_reset;
     int64_t cond_auto_wait;
     int64_t cond_auto_wait_skipped;

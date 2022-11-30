@@ -520,16 +520,25 @@ connection_runtime_config = [
         the maximum number of milliseconds an application thread will wait for space to be
         available in cache before giving up. Default will wait forever''',
         min=0),
-    Config('history_store', '', r'''
-        history store configuration options''',
+    Config('chunk_cache', '', r'''
+        chunk cache configuration options''',
         type='category', subconfig=[
-        Config('file_max', '0', r'''
-            the maximum number of bytes that WiredTiger is allowed to use for its history store
-            mechanism. If the history store file exceeds this size, a panic will be triggered. The
-            default value means that the history store file is unbounded and may use as much
-            space as the filesystem will accommodate. The minimum non-zero setting is 100MB.''',
-            # !!! Must match WT_HS_FILE_MIN
-            min='0')
+        Config('capacity', '0', r'''
+            maximum memory to allocate for the chunk cache''',
+            min='0', max='100TB'),
+        Config('chunk_size', '1MB', r'''
+            size of cached chunks''',
+            min='512KB', max='100GB'),
+        Config('enabled', 'false', r'''
+            enable chunk cache''',
+            type='boolean'),
+        Config('device_path', '', r'''
+            the absolute path to the file system or a block device used as cache location'''),
+        Config('hashsize', '32', r'''
+            number of buckets in the hashtable that keeps track of objects''',
+            min='32', max='512K'),
+        Config('type', '', r'''
+            cache location: DRAM or FILE (file system or block device)'''),
         ]),
     Config('cache_overhead', '8', r'''
         assume the heap allocator overhead is the specified percentage, and adjust the cache
@@ -553,23 +562,6 @@ connection_runtime_config = [
             seconds to wait between each checkpoint; setting this value above 0 configures
             periodic checkpoints''',
             min='0', max='100000'),
-        ]),
-    Config('chunk_cache', '', r'''
-        chunk cache configuration options''',
-        type='category', subconfig=[
-        Config('directory_path', '', r'''
-            the absolute path to the directory for caching files (for FILE cache type)'''),
-        Config('enabled', 'false', r'''
-            enable chunk cache''',
-            type='boolean'),
-        Config('hashsize', '32', r'''
-            number of buckets in the hashtable that keeps track of chunks''',
-            min='1', max='1024'),
-        Config('size', '0', r'''
-            maximum memory or disk space to allocate for the chunk cache''',
-            min='0', max='10TB'),
-        Config('type', '', r'''
-            cache location: DRAM or FILE (on any file system)'''),
         ]),
     Config('debug_mode', '', r'''
         control the settings of various extended debugging features''',
@@ -706,6 +698,17 @@ connection_runtime_config = [
         Config('close_scan_interval', '10', r'''
             interval in seconds at which to check for files that are inactive and close them''',
             min=1, max=100000),
+        ]),
+    Config('history_store', '', r'''
+        history store configuration options''',
+        type='category', subconfig=[
+        Config('file_max', '0', r'''
+            the maximum number of bytes that WiredTiger is allowed to use for its history store
+            mechanism. If the history store file exceeds this size, a panic will be triggered. The
+            default value means that the history store file is unbounded and may use as much
+            space as the filesystem will accommodate. The minimum non-zero setting is 100MB.''',
+            # !!! Must match WT_HS_FILE_MIN
+            min='0')
         ]),
     Config('io_capacity', '', r'''
         control how many bytes per second are written and read. Exceeding the capacity results

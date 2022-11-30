@@ -57,9 +57,10 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_checkpoint_subconfigs[] = {
   {"wait", "int", NULL, "min=0,max=100000", NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_chunk_cache_subconfigs[] = {
-  {"directory_path", "string", NULL, NULL, NULL, 0}, {"enabled", "boolean", NULL, NULL, NULL, 0},
-  {"hashsize", "int", NULL, "min=1,max=1024", NULL, 0},
-  {"size", "int", NULL, "min=0,max=10TB", NULL, 0}, {"type", "string", NULL, NULL, NULL, 0},
+  {"capacity", "int", NULL, "min=0,max=100TB", NULL, 0},
+  {"chunk_size", "int", NULL, "min=512KB,max=100GB", NULL, 0},
+  {"device_path", "string", NULL, NULL, NULL, 0}, {"enabled", "boolean", NULL, NULL, NULL, 0},
+  {"hashsize", "int", NULL, "min=32,max=512K", NULL, 0}, {"type", "string", NULL, NULL, NULL, 0},
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure_compatibility_subconfigs[] = {
@@ -128,7 +129,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
   {"cache_overhead", "int", NULL, "min=0,max=30", NULL, 0},
   {"cache_size", "int", NULL, "min=1MB,max=10TB", NULL, 0},
   {"checkpoint", "category", NULL, NULL, confchk_wiredtiger_open_checkpoint_subconfigs, 2},
-  {"chunk_cache", "category", NULL, NULL, confchk_wiredtiger_open_chunk_cache_subconfigs, 5},
+  {"chunk_cache", "category", NULL, NULL, confchk_wiredtiger_open_chunk_cache_subconfigs, 6},
   {"compatibility", "category", NULL, NULL,
     confchk_WT_CONNECTION_reconfigure_compatibility_subconfigs, 1},
   {"debug_mode", "category", NULL, NULL, confchk_wiredtiger_open_debug_mode_subconfigs, 12},
@@ -861,7 +862,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
   {"cache_size", "int", NULL, "min=1MB,max=10TB", NULL, 0},
   {"checkpoint", "category", NULL, NULL, confchk_wiredtiger_open_checkpoint_subconfigs, 2},
   {"checkpoint_sync", "boolean", NULL, NULL, NULL, 0},
-  {"chunk_cache", "category", NULL, NULL, confchk_wiredtiger_open_chunk_cache_subconfigs, 5},
+  {"chunk_cache", "category", NULL, NULL, confchk_wiredtiger_open_chunk_cache_subconfigs, 6},
   {"compatibility", "category", NULL, NULL, confchk_wiredtiger_open_compatibility_subconfigs, 3},
   {"config_base", "boolean", NULL, NULL, NULL, 0}, {"create", "boolean", NULL, NULL, NULL, 0},
   {"debug_mode", "category", NULL, NULL, confchk_wiredtiger_open_debug_mode_subconfigs, 12},
@@ -947,7 +948,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
   {"cache_size", "int", NULL, "min=1MB,max=10TB", NULL, 0},
   {"checkpoint", "category", NULL, NULL, confchk_wiredtiger_open_checkpoint_subconfigs, 2},
   {"checkpoint_sync", "boolean", NULL, NULL, NULL, 0},
-  {"chunk_cache", "category", NULL, NULL, confchk_wiredtiger_open_chunk_cache_subconfigs, 5},
+  {"chunk_cache", "category", NULL, NULL, confchk_wiredtiger_open_chunk_cache_subconfigs, 6},
   {"compatibility", "category", NULL, NULL, confchk_wiredtiger_open_compatibility_subconfigs, 3},
   {"config_base", "boolean", NULL, NULL, NULL, 0}, {"create", "boolean", NULL, NULL, NULL, 0},
   {"debug_mode", "category", NULL, NULL, confchk_wiredtiger_open_debug_mode_subconfigs, 12},
@@ -1033,7 +1034,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
   {"cache_size", "int", NULL, "min=1MB,max=10TB", NULL, 0},
   {"checkpoint", "category", NULL, NULL, confchk_wiredtiger_open_checkpoint_subconfigs, 2},
   {"checkpoint_sync", "boolean", NULL, NULL, NULL, 0},
-  {"chunk_cache", "category", NULL, NULL, confchk_wiredtiger_open_chunk_cache_subconfigs, 5},
+  {"chunk_cache", "category", NULL, NULL, confchk_wiredtiger_open_chunk_cache_subconfigs, 6},
   {"compatibility", "category", NULL, NULL, confchk_wiredtiger_open_compatibility_subconfigs, 3},
   {"debug_mode", "category", NULL, NULL, confchk_wiredtiger_open_debug_mode_subconfigs, 12},
   {"direct_io", "list", NULL, "choices=[\"checkpoint\",\"data\",\"log\"]", NULL, 0},
@@ -1115,7 +1116,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
   {"cache_size", "int", NULL, "min=1MB,max=10TB", NULL, 0},
   {"checkpoint", "category", NULL, NULL, confchk_wiredtiger_open_checkpoint_subconfigs, 2},
   {"checkpoint_sync", "boolean", NULL, NULL, NULL, 0},
-  {"chunk_cache", "category", NULL, NULL, confchk_wiredtiger_open_chunk_cache_subconfigs, 5},
+  {"chunk_cache", "category", NULL, NULL, confchk_wiredtiger_open_chunk_cache_subconfigs, 6},
   {"compatibility", "category", NULL, NULL, confchk_wiredtiger_open_compatibility_subconfigs, 3},
   {"debug_mode", "category", NULL, NULL, confchk_wiredtiger_open_debug_mode_subconfigs, 12},
   {"direct_io", "list", NULL, "choices=[\"checkpoint\",\"data\",\"log\"]", NULL, 0},
@@ -1212,13 +1213,13 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "full_target=95,hashsize=32768,max_percent_overhead=10,"
     "nvram_path=,percent_file_in_dram=50,size=0,system_ram=0,type=),"
     "cache_max_wait_ms=0,cache_overhead=8,cache_size=100MB,"
-    "checkpoint=(log_size=0,wait=0),chunk_cache=(directory_path=,"
-    "enabled=false,hashsize=32,size=0,type=),compatibility=(release=)"
-    ",debug_mode=(checkpoint_retention=0,corruption_abort=true,"
-    "cursor_copy=false,cursor_reposition=false,eviction=false,"
-    "flush_checkpoint=false,log_retention=0,realloc_exact=false,"
-    "rollback_error=0,slow_checkpoint=false,table_logging=false,"
-    "update_restore_evict=false),error_prefix=,"
+    "checkpoint=(log_size=0,wait=0),chunk_cache=(capacity=0,"
+    "chunk_size=1MB,device_path=,enabled=false,hashsize=32,type=),"
+    "compatibility=(release=),debug_mode=(checkpoint_retention=0,"
+    "corruption_abort=true,cursor_copy=false,cursor_reposition=false,"
+    "eviction=false,flush_checkpoint=false,log_retention=0,"
+    "realloc_exact=false,rollback_error=0,slow_checkpoint=false,"
+    "table_logging=false,update_restore_evict=false),error_prefix=,"
     "eviction=(threads_max=8,threads_min=1),"
     "eviction_checkpoint_target=1,eviction_dirty_target=5,"
     "eviction_dirty_trigger=20,eviction_target=80,eviction_trigger=95"
@@ -1491,16 +1492,16 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "buffer_alignment=-1,builtin_extension_config=,cache_cursors=true"
     ",cache_max_wait_ms=0,cache_overhead=8,cache_size=100MB,"
     "checkpoint=(log_size=0,wait=0),checkpoint_sync=true,"
-    "chunk_cache=(directory_path=,enabled=false,hashsize=32,size=0,"
-    "type=),compatibility=(release=,require_max=,require_min=),"
-    "config_base=true,create=false,debug_mode=(checkpoint_retention=0"
-    ",corruption_abort=true,cursor_copy=false,cursor_reposition=false"
-    ",eviction=false,flush_checkpoint=false,log_retention=0,"
-    "realloc_exact=false,rollback_error=0,slow_checkpoint=false,"
-    "table_logging=false,update_restore_evict=false),direct_io=,"
-    "encryption=(keyid=,name=,secretkey=),error_prefix=,"
-    "eviction=(threads_max=8,threads_min=1),"
-    "eviction_checkpoint_target=1,eviction_dirty_target=5,"
+    "chunk_cache=(capacity=0,chunk_size=1MB,device_path=,"
+    "enabled=false,hashsize=32,type=),compatibility=(release=,"
+    "require_max=,require_min=),config_base=true,create=false,"
+    "debug_mode=(checkpoint_retention=0,corruption_abort=true,"
+    "cursor_copy=false,cursor_reposition=false,eviction=false,"
+    "flush_checkpoint=false,log_retention=0,realloc_exact=false,"
+    "rollback_error=0,slow_checkpoint=false,table_logging=false,"
+    "update_restore_evict=false),direct_io=,encryption=(keyid=,name=,"
+    "secretkey=),error_prefix=,eviction=(threads_max=8,threads_min=1)"
+    ",eviction_checkpoint_target=1,eviction_dirty_target=5,"
     "eviction_dirty_trigger=20,eviction_target=80,eviction_trigger=95"
     ",eviction_updates_target=0,eviction_updates_trigger=0,"
     "exclusive=false,extensions=,file_extend=,"
@@ -1533,16 +1534,16 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "buffer_alignment=-1,builtin_extension_config=,cache_cursors=true"
     ",cache_max_wait_ms=0,cache_overhead=8,cache_size=100MB,"
     "checkpoint=(log_size=0,wait=0),checkpoint_sync=true,"
-    "chunk_cache=(directory_path=,enabled=false,hashsize=32,size=0,"
-    "type=),compatibility=(release=,require_max=,require_min=),"
-    "config_base=true,create=false,debug_mode=(checkpoint_retention=0"
-    ",corruption_abort=true,cursor_copy=false,cursor_reposition=false"
-    ",eviction=false,flush_checkpoint=false,log_retention=0,"
-    "realloc_exact=false,rollback_error=0,slow_checkpoint=false,"
-    "table_logging=false,update_restore_evict=false),direct_io=,"
-    "encryption=(keyid=,name=,secretkey=),error_prefix=,"
-    "eviction=(threads_max=8,threads_min=1),"
-    "eviction_checkpoint_target=1,eviction_dirty_target=5,"
+    "chunk_cache=(capacity=0,chunk_size=1MB,device_path=,"
+    "enabled=false,hashsize=32,type=),compatibility=(release=,"
+    "require_max=,require_min=),config_base=true,create=false,"
+    "debug_mode=(checkpoint_retention=0,corruption_abort=true,"
+    "cursor_copy=false,cursor_reposition=false,eviction=false,"
+    "flush_checkpoint=false,log_retention=0,realloc_exact=false,"
+    "rollback_error=0,slow_checkpoint=false,table_logging=false,"
+    "update_restore_evict=false),direct_io=,encryption=(keyid=,name=,"
+    "secretkey=),error_prefix=,eviction=(threads_max=8,threads_min=1)"
+    ",eviction_checkpoint_target=1,eviction_dirty_target=5,"
     "eviction_dirty_trigger=20,eviction_target=80,eviction_trigger=95"
     ",eviction_updates_target=0,eviction_updates_trigger=0,"
     "exclusive=false,extensions=,file_extend=,"
@@ -1576,15 +1577,16 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "buffer_alignment=-1,builtin_extension_config=,cache_cursors=true"
     ",cache_max_wait_ms=0,cache_overhead=8,cache_size=100MB,"
     "checkpoint=(log_size=0,wait=0),checkpoint_sync=true,"
-    "chunk_cache=(directory_path=,enabled=false,hashsize=32,size=0,"
-    "type=),compatibility=(release=,require_max=,require_min=),"
-    "debug_mode=(checkpoint_retention=0,corruption_abort=true,"
-    "cursor_copy=false,cursor_reposition=false,eviction=false,"
-    "flush_checkpoint=false,log_retention=0,realloc_exact=false,"
-    "rollback_error=0,slow_checkpoint=false,table_logging=false,"
-    "update_restore_evict=false),direct_io=,encryption=(keyid=,name=,"
-    "secretkey=),error_prefix=,eviction=(threads_max=8,threads_min=1)"
-    ",eviction_checkpoint_target=1,eviction_dirty_target=5,"
+    "chunk_cache=(capacity=0,chunk_size=1MB,device_path=,"
+    "enabled=false,hashsize=32,type=),compatibility=(release=,"
+    "require_max=,require_min=),debug_mode=(checkpoint_retention=0,"
+    "corruption_abort=true,cursor_copy=false,cursor_reposition=false,"
+    "eviction=false,flush_checkpoint=false,log_retention=0,"
+    "realloc_exact=false,rollback_error=0,slow_checkpoint=false,"
+    "table_logging=false,update_restore_evict=false),direct_io=,"
+    "encryption=(keyid=,name=,secretkey=),error_prefix=,"
+    "eviction=(threads_max=8,threads_min=1),"
+    "eviction_checkpoint_target=1,eviction_dirty_target=5,"
     "eviction_dirty_trigger=20,eviction_target=80,eviction_trigger=95"
     ",eviction_updates_target=0,eviction_updates_trigger=0,"
     "extensions=,file_extend=,file_manager=(close_handle_minimum=250,"
@@ -1616,15 +1618,16 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "buffer_alignment=-1,builtin_extension_config=,cache_cursors=true"
     ",cache_max_wait_ms=0,cache_overhead=8,cache_size=100MB,"
     "checkpoint=(log_size=0,wait=0),checkpoint_sync=true,"
-    "chunk_cache=(directory_path=,enabled=false,hashsize=32,size=0,"
-    "type=),compatibility=(release=,require_max=,require_min=),"
-    "debug_mode=(checkpoint_retention=0,corruption_abort=true,"
-    "cursor_copy=false,cursor_reposition=false,eviction=false,"
-    "flush_checkpoint=false,log_retention=0,realloc_exact=false,"
-    "rollback_error=0,slow_checkpoint=false,table_logging=false,"
-    "update_restore_evict=false),direct_io=,encryption=(keyid=,name=,"
-    "secretkey=),error_prefix=,eviction=(threads_max=8,threads_min=1)"
-    ",eviction_checkpoint_target=1,eviction_dirty_target=5,"
+    "chunk_cache=(capacity=0,chunk_size=1MB,device_path=,"
+    "enabled=false,hashsize=32,type=),compatibility=(release=,"
+    "require_max=,require_min=),debug_mode=(checkpoint_retention=0,"
+    "corruption_abort=true,cursor_copy=false,cursor_reposition=false,"
+    "eviction=false,flush_checkpoint=false,log_retention=0,"
+    "realloc_exact=false,rollback_error=0,slow_checkpoint=false,"
+    "table_logging=false,update_restore_evict=false),direct_io=,"
+    "encryption=(keyid=,name=,secretkey=),error_prefix=,"
+    "eviction=(threads_max=8,threads_min=1),"
+    "eviction_checkpoint_target=1,eviction_dirty_target=5,"
     "eviction_dirty_trigger=20,eviction_target=80,eviction_trigger=95"
     ",eviction_updates_target=0,eviction_updates_trigger=0,"
     "extensions=,file_extend=,file_manager=(close_handle_minimum=250,"

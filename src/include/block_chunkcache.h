@@ -37,7 +37,7 @@ struct __wt_chunkcache_chunk {
     char *chunk_location;
     uint32_t valid;
     uint bucket_id;  /* Lets us find the corresponding bucket for quick removal */
-    bool chunk_in_eviction;
+    bool being_evicted;
 };
 
 /*
@@ -77,9 +77,10 @@ struct __wt_chunkcache {
     struct memkind *memkind; /* Lets us use jemalloc over a file */
 #endif
     uint64_t capacity;
+    bool chunkcache_exiting;
     bool configured;
     size_t default_chunk_size;
-    char *dir_path;   /* The directory to use if we are on a file system */
+    char *dev_path;   /* The storage path to use if we are on a file system or a block device */
     uint hashtable_size;
     int type;
     uint64_t bytes_used; /* Amount of data currently in cache */
