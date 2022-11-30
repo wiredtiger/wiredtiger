@@ -119,7 +119,7 @@ static uint32_t context_count = 0;
 static void *
 thread_runner_main(void *arg)
 {
-    ThreadRunner *runner = (ThreadRunner *)arg;
+    ThreadRunner *runner = static_cast<ThreadRunner *>(arg);
     try {
         runner->_errno = runner->run();
     } catch (WorkgenException &wge) {
@@ -132,7 +132,7 @@ static void *
 thread_workload(void *arg)
 {
 
-    WorkloadRunnerConnection *runnerConnection = (WorkloadRunnerConnection *)arg;
+    WorkloadRunnerConnection *runnerConnection = static_cast<WorkloadRunnerConnection *>(arg);
     WorkloadRunner *runner = runnerConnection->runner;
     WT_CONNECTION *connection = runnerConnection->connection;
 
@@ -148,7 +148,7 @@ thread_workload(void *arg)
 static void *
 thread_idle_table_cycle_workload(void *arg)
 {
-    WorkloadRunnerConnection *runnerConnection = (WorkloadRunnerConnection *)arg;
+    WorkloadRunnerConnection *runnerConnection = static_cast<WorkloadRunnerConnection *>(arg);
     WT_CONNECTION *connection = runnerConnection->connection;
     WorkloadRunner *runner = runnerConnection->runner;
 
@@ -273,7 +273,7 @@ WorkloadRunner::increment_timestamp(WT_CONNECTION *conn)
 static void *
 monitor_main(void *arg)
 {
-    Monitor *monitor = (Monitor *)arg;
+    Monitor *monitor = static_cast<Monitor *>(arg);
     try {
         monitor->_errno = monitor->run();
     } catch (WorkgenException &wge) {
@@ -1434,7 +1434,7 @@ Operation::init_internal(OperationInternal *other)
         if (other == nullptr)
             _internal = new CheckpointOperationInternal();
         else
-            _internal = new CheckpointOperationInternal(*(CheckpointOperationInternal *)other);
+            _internal = new CheckpointOperationInternal(*static_cast<CheckpointOperationInternal *>(other));
         break;
     case OP_INSERT:
     case OP_REMOVE:
@@ -1443,7 +1443,7 @@ Operation::init_internal(OperationInternal *other)
         if (other == nullptr)
             _internal = new TableOperationInternal();
         else
-            _internal = new TableOperationInternal(*(TableOperationInternal *)other);
+            _internal = new TableOperationInternal(*static_cast<TableOperationInternal *>(other));
         break;
     case OP_LOG_FLUSH:
         _internal = new LogFlushOperationInternal();
@@ -1459,7 +1459,7 @@ Operation::init_internal(OperationInternal *other)
         if (other == nullptr)
             _internal = new SleepOperationInternal();
         else
-            _internal = new SleepOperationInternal(*(SleepOperationInternal *)other);
+            _internal = new SleepOperationInternal(*static_cast<SleepOperationInternal *>(other));
         break;
     default:
         ASSERT(false);
