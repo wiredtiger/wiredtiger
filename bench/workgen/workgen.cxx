@@ -721,9 +721,13 @@ int
 ThreadRunner::open_all()
 {
     typedef WT_CURSOR *WT_CURSOR_PTR;
-    for (const auto& kv: _table_usage) {
+    for (const auto &kv : _table_usage) {
         tint_t tindex = kv.first;
-        const std::string uri(_icontext->_table_names[tindex]);
+        std::string uri;
+        {
+            const std::lock_guard<std::mutex> lock(_wrunner->_mutex);
+            uri = _icontext->_table_names[tindex];
+        }
         WT_RET(_session->open_cursor(_session, uri.c_str(), NULL, NULL, &_cursors[tindex]));
     }
     return (0);
@@ -852,13 +856,16 @@ ThreadRunner::op_create_all(Operation *op, size_t &keysize, size_t &valuesize)
 
             // We are single threaded in this function, so do not have
             // to worry about locking.
-            if (_icontext->_tint.count(uri) == 0) {
-                // TODO: don't use atomic add, it's overkill.
-                tint = workgen_atomic_add32(&_icontext->_tint_last, 1);
-                _icontext->_tint[uri] = tint;
-                _icontext->_table_names[tint] = uri;
-            } else
-                tint = _icontext->_tint[uri];
+            {
+                const std::lock_guard<std::mutex> lock(_wrunner->_mutex);
+                if (_icontext->_tint.count(uri) == 0) {
+                    // TODO: don't use atomic add, it's overkill.
+                    tint = workgen_atomic_add32(&_icontext->_tint_last, 1);
+                    _icontext->_tint[uri] = tint;
+                    _icontext->_table_names[tint] = uri;
+                } else
+                    tint = _icontext->_tint[uri];
+            }
             op->_table._internal->_tint = tint;
         }
         uint32_t usage_flags = CONTAINER_VALUE(_table_usage, op->_table._internal->_tint, 0);
@@ -2316,7 +2323,7 @@ Workload::run(WT_CONNECTION *conn)
 }
 
 int
-Workload::create_table(const std::string& uri)
+Workload::create_table(const std::string &uri)
 {
     WorkloadRunner runner(this);
     return (runner.create_table(uri));
@@ -2331,20 +2338,17 @@ WorkloadRunner::WorkloadRunner(Workload *workload)
 WorkloadRunner::~WorkloadRunner() {}
 
 int
-WorkloadRunner::create_table(const std::string& uri) {
+WorkloadRunner::create_table(const std::string &uri)
+{
     ContextInternal *icontext = _workload->_context->_internal;
-
-    if (icontext->_tint.count(uri) != 0)
-        THROW("The table " << uri << " already exists.");
-
-    tint_t tint = workgen_atomic_add32(&icontext->_tint_last, 1);
-    icontext->_tint[uri] = tint;
-    icontext->_table_names[tint] = uri;
-
-    icontext->create_all();
-
-    // TODO - Create a cursor?
-
+    {
+        const std::lock_guard<std::mutex> lock(_mutex);
+        if (icontext->_tint.count(uri) != 0)
+            THROW("The table " << uri << " already exists.");
+        tint_t tint = workgen_atomic_add32(&icontext->_tint_last, 1);
+        icontext->_tint[uri] = tint;
+        icontext->_table_names[tint] = uri;
+    }
     return (0);
 }
 

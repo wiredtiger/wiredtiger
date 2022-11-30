@@ -29,6 +29,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <mutex>
 #include <set>
 extern "C" {
 #include <unistd.h>
@@ -283,6 +284,7 @@ struct WorkloadRunner {
     std::string _wt_home;
     timespec _start;
     bool stopping;
+    std::mutex _mutex;
 
     WorkloadRunner(Workload *);
     ~WorkloadRunner();
