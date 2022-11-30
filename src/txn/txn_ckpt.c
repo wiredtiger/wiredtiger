@@ -2181,6 +2181,8 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
      * tears.
      */
     if (is_checkpoint && btree->original) {
+        if (__wt_process.page_stats_2022)
+                ps.byte_count = ps.row_count = 0;
         __wt_checkpoint_tree_reconcile_update(session, &ta, &ps);
 
         fake_ckpt = true;

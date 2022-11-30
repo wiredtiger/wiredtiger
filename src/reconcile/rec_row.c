@@ -465,7 +465,8 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         if (page_del != NULL)
             WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &ft_ta);
         WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &ta);
-        WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
+        if (__wt_process.page_stats_2022)
+            WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
 
         /* Update compression state. */
         __rec_key_state_update(r, false);

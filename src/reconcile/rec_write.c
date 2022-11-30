@@ -2507,6 +2507,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          */
         ref = r->ref;
         if (__wt_ref_is_root(ref)) {
+            if (__wt_process.page_stats_2022)
+                ps.byte_count = ps.row_count = 0;
+
             __wt_checkpoint_tree_reconcile_update(session, &ta, &ps);
             WT_RET(bm->checkpoint(bm, session, NULL, btree->ckpt, false));
         }
