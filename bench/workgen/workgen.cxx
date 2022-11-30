@@ -2322,11 +2322,11 @@ Workload::run(WT_CONNECTION *conn)
     return (runner.run(conn));
 }
 
-int
+void
 Workload::create_table(const std::string &uri)
 {
     WorkloadRunner runner(this);
-    return (runner.create_table(uri));
+    runner.create_table(uri);
 }
 
 WorkloadRunner::WorkloadRunner(Workload *workload)
@@ -2337,7 +2337,7 @@ WorkloadRunner::WorkloadRunner(Workload *workload)
 }
 WorkloadRunner::~WorkloadRunner() {}
 
-int
+void
 WorkloadRunner::create_table(const std::string &uri)
 {
     ContextInternal *icontext = _workload->_context->_internal;
@@ -2349,7 +2349,6 @@ WorkloadRunner::create_table(const std::string &uri)
         icontext->_tint[uri] = tint;
         icontext->_table_names[tint] = uri;
     }
-    return (0);
 }
 
 int

@@ -489,7 +489,7 @@ struct Workload {
 	}
 	os << "]";
     }
-    int create_table(const std::string& uri);
+    void create_table(const std::string& uri);
     int run(WT_CONNECTION *conn);
 };
 
