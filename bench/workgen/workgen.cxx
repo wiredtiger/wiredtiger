@@ -64,9 +64,9 @@ extern "C" {
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) < (b) ? (b) : (a))
-#define TIMESPEC_DOUBLE(ts) ((double)(ts).tv_sec + ts.tv_nsec * 0.000000001)
+#define TIMESPEC_DOUBLE(ts) (static_cast<double>((ts).tv_sec) + ts.tv_nsec * 0.000000001)
 #define PCT(n, total) ((total) == 0 ? 0 : ((n)*100) / (total))
-#define OPS_PER_SEC(ops, ts) (int)((ts) == 0 ? 0.0 : (ops) / TIMESPEC_DOUBLE(ts))
+#define OPS_PER_SEC(ops, ts) static_cast<int>((ts) == 0 ? 0.0 : (ops) / TIMESPEC_DOUBLE(ts))
 
 // Get the value of a STL container, even if it is not present
 #define CONTAINER_VALUE(container, idx, dfault) \
@@ -84,12 +84,12 @@ extern "C" {
         }                                                                             \
     } while (0)
 
-#define THROW_ERRNO(e, args)                             \
-    do {                                                 \
-        std::stringstream __sstm;                        \
-        __sstm << args;                                  \
-        WorkgenException __wge(e, __sstm.str().c_str()); \
-        throw(__wge);                                    \
+#define THROW_ERRNO(e, args)                     \
+    do {                                         \
+        std::stringstream __sstm;                \
+        __sstm << args;                          \
+        WorkgenException __wge(e, __sstm.str()); \
+        throw(__wge);                            \
     } while (0)
 
 #define THROW(args) THROW_ERRNO(0, args)
@@ -162,15 +162,13 @@ thread_idle_table_cycle_workload(void *arg)
 }
 
 int
-WorkloadRunner::check_timing(const char *name, uint64_t last_interval)
+WorkloadRunner::check_timing(const std::string &name, uint64_t last_interval)
 {
     WorkloadOptions *options = &_workload->options;
-    int msg_err;
-    const char *str;
-
-    msg_err = 0;
+    int msg_err = 0;
 
     if (last_interval > options->max_idle_table_cycle) {
+        std::string str;
         if (options->max_idle_table_cycle_fatal) {
             msg_err = ETIMEDOUT;
             str = "ERROR";
@@ -189,12 +187,10 @@ int
 WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn)
 {
     WT_SESSION *session;
-    WT_CURSOR *cursor;
-    uint64_t start, stop, last_interval;
+    uint64_t start, stop;
     int ret, cycle_count;
     char uri[BUF_SIZE];
 
-    cycle_count = 0;
     if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0) {
         THROW("Error Opening a Session.");
     }
@@ -210,12 +206,13 @@ WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn)
             THROW("Table create failed in start_table_idle_cycle.");
         }
         workgen_clock(&stop);
-        last_interval = ns_to_sec(stop - start);
+        uint64_t last_interval = ns_to_sec(stop - start);
         if ((ret = check_timing("CREATE", last_interval)) != 0)
             THROW_ERRNO(ret, "WT_SESSION->create timeout.");
         start = stop;
 
         /* Open and close cursor. */
+        WT_CURSOR *cursor;
         if ((ret = session->open_cursor(session, uri, NULL, NULL, &cursor)) != 0) {
             THROW("Cursor open failed.");
         }
@@ -303,18 +300,17 @@ power64(int base, int exp)
     return result;
 }
 
-OptionsList::OptionsList() : _option_map() {}
 OptionsList::OptionsList(const OptionsList &other) : _option_map(other._option_map) {}
 
 void
-OptionsList::add_option(const char *name, const std::string typestr, const char *desc)
+OptionsList::add_option(const std::string &name, const std::string typestr, const std::string &desc)
 {
     TypeDescPair pair(typestr, desc);
     _option_map[name] = pair;
 }
 
 void
-OptionsList::add_int(const char *name, int default_value, const char *desc)
+OptionsList::add_int(const std::string &name, int default_value, const std::string &desc)
 {
     std::stringstream sstm;
     sstm << "int, default=" << default_value;
@@ -322,7 +318,7 @@ OptionsList::add_int(const char *name, int default_value, const char *desc)
 }
 
 void
-OptionsList::add_bool(const char *name, bool default_value, const char *desc)
+OptionsList::add_bool(const std::string &name, bool default_value, const std::string &desc)
 {
     std::stringstream sstm;
     sstm << "boolean, default=" << (default_value ? "true" : "false");
@@ -330,7 +326,7 @@ OptionsList::add_bool(const char *name, bool default_value, const char *desc)
 }
 
 void
-OptionsList::add_double(const char *name, double default_value, const char *desc)
+OptionsList::add_double(const std::string &name, double default_value, const std::string &desc)
 {
     std::stringstream sstm;
     sstm << "double, default=" << default_value;
@@ -338,7 +334,8 @@ OptionsList::add_double(const char *name, double default_value, const char *desc
 }
 
 void
-OptionsList::add_string(const char *name, const std::string &default_value, const char *desc)
+OptionsList::add_string(
+  const std::string &name, const std::string &default_value, const std::string &desc)
 {
     std::stringstream sstm;
     sstm << "string, default=\"" << default_value << "\"";
@@ -382,23 +379,21 @@ OptionsList::help() const
 }
 
 std::string
-OptionsList::help_description(const char *option_name) const
+OptionsList::help_description(const std::string &option_name) const
 {
-    const std::string key(option_name);
-    if (_option_map.count(key) == 0)
-        return (std::string(""));
+    if (_option_map.count(option_name) == 0)
+        return ("");
     else
-        return (_option_map.find(key)->second.second);
+        return (_option_map.find(option_name)->second.second);
 }
 
 std::string
-OptionsList::help_type(const char *option_name) const
+OptionsList::help_type(const std::string &option_name) const
 {
-    const std::string key(option_name);
-    if (_option_map.count(key) == 0)
-        return std::string("");
+    if (_option_map.count(option_name) == 0)
+        return ("");
     else
-        return (_option_map.find(key)->second.first);
+        return (_option_map.find(option_name)->second.first);
 }
 
 Context::Context() : _verbose(false), _internal(new ContextInternal()) {}
@@ -449,7 +444,6 @@ Monitor::Monitor(WorkloadRunner &wrunner)
     : _errno(0), _exception(), _wrunner(wrunner), _stop(false), _handle(), _out(NULL), _json(NULL)
 {
 }
-Monitor::~Monitor() {}
 
 int
 Monitor::run()
@@ -460,13 +454,12 @@ Monitor::run()
     Stats prev_totals;
     WorkloadOptions *options = &_wrunner._workload->options;
     uint64_t latency_max = (uint64_t)options->max_latency * THOUSAND;
-    bool first_iteration;
+    bool first_iteration = true;
 
     // Format header of the table in _out stream.
     if (_out != NULL)
         _format_out_header();
 
-    first_iteration = true;
     workgen_version(version, sizeof(version));
     Stats prev_interval;
 
@@ -675,7 +668,6 @@ ParetoOptions::ParetoOptions(const ParetoOptions &other)
       _options(other._options)
 {
 }
-ParetoOptions::~ParetoOptions() {}
 
 ThreadRunner::ThreadRunner()
     : _errno(0), _exception(), _thread(NULL), _context(NULL), _icontext(NULL), _workload(NULL),
@@ -694,8 +686,6 @@ ThreadRunner::~ThreadRunner()
 int
 ThreadRunner::create_all(WT_CONNECTION *conn)
 {
-    size_t keysize, valuesize;
-
     WT_RET(close_all());
     ASSERT(_session == NULL);
     if (_thread->options.synchronized)
@@ -707,8 +697,9 @@ ThreadRunner::create_all(WT_CONNECTION *conn)
     _throttle_ops = 0;
     _throttle_limit = 0;
     _in_transaction = 0;
-    keysize = 1;
-    valuesize = 1;
+
+    size_t keysize = 1;
+    size_t valuesize = 1;
     op_create_all(&_thread->_op, keysize, valuesize);
     _keybuf = new char[keysize];
     _valuebuf = new char[valuesize];
@@ -728,8 +719,8 @@ ThreadRunner::open_all()
     for (std::map<uint32_t, uint32_t>::iterator i = _table_usage.begin(); i != _table_usage.end();
          i++) {
         uint32_t tindex = i->first;
-        const char *uri = _icontext->_table_names[tindex].c_str();
-        WT_RET(_session->open_cursor(_session, uri, NULL, NULL, &_cursors[tindex]));
+        const std::string uri(_icontext->_table_names[tindex]);
+        WT_RET(_session->open_cursor(_session, uri.c_str(), NULL, NULL, &_cursors[tindex]));
     }
     return (0);
 }
@@ -839,8 +830,6 @@ ThreadRunner::get_static_counts(Stats &stats)
 void
 ThreadRunner::op_create_all(Operation *op, size_t &keysize, size_t &valuesize)
 {
-    tint_t tint;
-
     op->create_all();
     if (op->is_table_op()) {
         op->kv_compute_max(true, false);
@@ -856,6 +845,8 @@ ThreadRunner::op_create_all(Operation *op, size_t &keysize, size_t &valuesize)
         if (op->_table._internal->_context_count != 0 &&
           op->_table._internal->_context_count != _icontext->_context_count)
             THROW("multiple Contexts not supported");
+
+        tint_t tint;
         if ((tint = op->_table._internal->_tint) == 0) {
             std::string uri = op->_table._uri;
 
@@ -891,21 +882,18 @@ ThreadRunner::op_create_all(Operation *op, size_t &keysize, size_t &valuesize)
 static uint64_t
 pareto_calculation(uint32_t randint, uint64_t recno_max, ParetoOptions &pareto)
 {
-    double S1, S2, U;
-    uint32_t result;
-    double r;
-
-    r = (double)randint;
+    double r = static_cast<double>(randint);
     if (pareto.range_high != 1.0 || pareto.range_low != 0.0) {
         if (pareto.range_high <= pareto.range_low || pareto.range_high > 1.0 ||
           pareto.range_low < 0.0)
             THROW("Pareto illegal range");
-        r = (pareto.range_low * (double)UINT32_MAX) + r * (pareto.range_high - pareto.range_low);
+        r = (pareto.range_low * static_cast<double>(UINT32_MAX)) +
+          r * (pareto.range_high - pareto.range_low);
     }
-    S1 = (-1 / PARETO_SHAPE);
-    S2 = recno_max * (pareto.param / 100.0) * (PARETO_SHAPE - 1);
-    U = 1 - r / (double)UINT32_MAX; // interval [0, 1)
-    result = (uint64_t)((pow(U, S1) - 1) * S2);
+    double S1 = (-1 / PARETO_SHAPE);
+    double S2 = recno_max * (pareto.param / 100.0) * (PARETO_SHAPE - 1);
+    double U = 1 - r / static_cast<double>(UINT32_MAX); // interval [0, 1)
+    uint32_t result = (uint64_t)((pow(U, S1) - 1) * S2);
 
     // This Pareto calculation chooses out of range values less than 20%
     // of the time, depending on pareto_param.  For param of 0, it is
@@ -927,7 +915,6 @@ uint64_t
 ThreadRunner::op_get_key_recno(Operation *op, uint64_t range, tint_t tint)
 {
     uint64_t recno_count;
-    uint32_t rval;
 
     (void)op;
     if (range > 0)
@@ -937,7 +924,7 @@ ThreadRunner::op_get_key_recno(Operation *op, uint64_t range, tint_t tint)
     if (recno_count == 0)
         // The file has no entries, returning 0 forces a WT_NOTFOUND return.
         return (0);
-    rval = random_value();
+    uint32_t rval = random_value();
     if (op->_key._keytype == Key::KEYGEN_PARETO)
         rval = pareto_calculation(rval, recno_count, op->_key._pareto);
     return (rval % recno_count + 1); // recnos are one-based.
@@ -1215,7 +1202,7 @@ ThreadRunner::random_signed()
 {
     uint32_t r = random_value();
     int sign = ((r & 0x1) == 0 ? 1 : -1);
-    return ((r * sign) / (float)UINT32_MAX);
+    return ((r * sign) / static_cast<float>(UINT32_MAX));
 }
 
 Throttle::Throttle(ThreadRunner &runner, double throttle, double throttle_burst)
@@ -1236,8 +1223,6 @@ Throttle::Throttle(ThreadRunner &runner, double throttle, double throttle_burst)
     _ops_per_div = (uint64_t)ceill(_throttle / THROTTLE_PER_SEC);
 }
 
-Throttle::~Throttle() {}
-
 // Each time throttle is called, we sleep and return a number of operations to
 // perform next.  To implement this we keep a time calculation in _next_div set
 // initially to the current time + 1/THROTTLE_PER_SEC.  Each call to throttle
@@ -1255,8 +1240,6 @@ Throttle::~Throttle() {}
 int
 Throttle::throttle(uint64_t op_count, uint64_t *op_limit)
 {
-    uint64_t ops;
-    int64_t sleep_ms;
     timespec now;
 
     workgen_epoch(&now);
@@ -1270,7 +1253,7 @@ Throttle::throttle(uint64_t op_count, uint64_t *op_limit)
 
         // Sleep until the next division, but potentially with some randomness.
         if (now < _next_div) {
-            sleep_ms = ts_ms(_next_div - now);
+            int64_t sleep_ms = ts_ms(_next_div - now);
             sleep_ms += (_ms_per_div * _burst * _runner.random_signed());
             if (sleep_ms > 0) {
                 DEBUG_CAPTURE(_runner, ", sleep=" << sleep_ms);
@@ -1280,6 +1263,7 @@ Throttle::throttle(uint64_t op_count, uint64_t *op_limit)
         _next_div = ts_add_ms(_next_div, _ms_per_div);
     }
 
+    uint64_t ops;
     if (_burst == 0.0)
         ops = _ops_left_this_second;
     else
@@ -1328,7 +1312,6 @@ ThreadOptions::ThreadOptions(const ThreadOptions &other)
       _options(other._options)
 {
 }
-ThreadOptions::~ThreadOptions() {}
 
 void
 ThreadListWrapper::extend(const ThreadListWrapper &other)
@@ -1357,12 +1340,8 @@ ThreadListWrapper::multiply(const int n)
 }
 
 Thread::Thread() : options(), _op() {}
-
 Thread::Thread(const Operation &op) : options(), _op(op) {}
-
 Thread::Thread(const Thread &other) : options(other.options), _op(other._op) {}
-
-Thread::~Thread() {}
 
 void
 Thread::describe(std::ostream &os) const
@@ -1414,7 +1393,7 @@ Operation::Operation(const Operation &other)
     init_internal(other._internal);
 }
 
-Operation::Operation(OpType optype, const char *config)
+Operation::Operation(OpType optype, const std::string &config)
     : _optype(optype), _internal(NULL), _table(), _key(), _value(), _config(config),
       transaction(NULL), _group(NULL), _repeatgroup(0), _timed(0.0)
 {
@@ -1577,14 +1556,10 @@ Operation::is_table_op() const
 void
 Operation::kv_compute_max(bool iskey, bool has_random)
 {
-    uint64_t max;
-    int size;
-    TableOperationInternal *internal;
-
     ASSERT(is_table_op());
-    internal = (TableOperationInternal *)_internal;
+    TableOperationInternal *internal = static_cast<TableOperationInternal *>(_internal);
 
-    size = iskey ? _key._size : _value._size;
+    int size = iskey ? _key._size : _value._size;
     if (size == 0)
         size = iskey ? _table.options.key_size : _table.options.value_size;
 
@@ -1597,6 +1572,7 @@ Operation::kv_compute_max(bool iskey, bool has_random)
             THROW("Random keys not allowed");
     }
 
+    uint64_t max;
     if (size > 1)
         max = power64(10, (size - 1)) - 1;
     else
@@ -1614,10 +1590,8 @@ Operation::kv_compute_max(bool iskey, bool has_random)
 void
 Operation::kv_size_buffer(bool iskey, size_t &maxsize) const
 {
-    TableOperationInternal *internal;
-
     ASSERT(is_table_op());
-    internal = (TableOperationInternal *)_internal;
+    TableOperationInternal *internal = static_cast<TableOperationInternal *>(_internal);
 
     if (iskey) {
         if ((size_t)internal->_keysize > maxsize)
@@ -1632,15 +1606,11 @@ void
 Operation::kv_gen(
   ThreadRunner *runner, bool iskey, uint64_t compressibility, uint64_t n, char *result) const
 {
-    TableOperationInternal *internal;
-    uint_t max;
-    uint_t size;
-
     ASSERT(is_table_op());
-    internal = (TableOperationInternal *)_internal;
+    TableOperationInternal *internal = static_cast<TableOperationInternal *>(_internal);
 
-    size = iskey ? internal->_keysize : internal->_valuesize;
-    max = iskey ? internal->_keymax : internal->_valuemax;
+    uint_t size = iskey ? internal->_keysize : internal->_valuesize;
+    uint_t max = iskey ? internal->_keymax : internal->_valuemax;
     if (n > max)
         THROW((iskey ? "Key" : "Value") << " (" << n << ") too large for size (" << size << ")");
     /* Setup the buffer, defaulting to zero filled. */
@@ -1720,12 +1690,10 @@ LogFlushOperationInternal::run(ThreadRunner *runner, WT_SESSION *session)
 void
 SleepOperationInternal::parse_config(const std::string &config)
 {
-    const char *configp;
-    char *endp;
+    if (!config.empty())
+        _sleepvalue = std::stof(config);
 
-    configp = config.c_str();
-    _sleepvalue = strtod(configp, &endp);
-    if (configp == endp || *endp != '\0' || _sleepvalue < 0.0)
+    if (config.empty() || _sleepvalue < 0.0)
         THROW(
           "sleep operation requires a configuration string as "
           "a non-negative float, e.g. '1.5'");
@@ -1734,14 +1702,15 @@ SleepOperationInternal::parse_config(const std::string &config)
 int
 SleepOperationInternal::run(ThreadRunner *runner, WT_SESSION *session)
 {
-    uint64_t endtime;
-    uint64_t now, now_us;
-
     (void)runner;  /* not used */
     (void)session; /* not used */
 
+    uint64_t now;
     workgen_clock(&now);
-    now_us = ns_to_us(now);
+
+    uint64_t now_us = ns_to_us(now);
+    uint64_t endtime;
+
     if (runner->_thread->options.synchronized)
         endtime = runner->_op_time_us + secs_us(_sleepvalue);
     else
@@ -2065,8 +2034,6 @@ Stats::Stats(const Stats &other)
 {
 }
 
-Stats::~Stats() {}
-
 void
 Stats::add(Stats &other, bool reset)
 {
@@ -2201,10 +2168,9 @@ TableOptions::TableOptions(const TableOptions &other)
       range(other.range), _options(other._options)
 {
 }
-TableOptions::~TableOptions() {}
 
 Table::Table() : options(), _uri(), _internal(new TableInternal()) {}
-Table::Table(const char *uri) : options(), _uri(uri), _internal(new TableInternal()) {}
+Table::Table(const std::string &uri) : options(), _uri(uri), _internal(new TableInternal()) {}
 Table::Table(const Table &other)
     : options(other.options), _uri(other._uri), _internal(new TableInternal(*other._internal))
 {
@@ -2233,7 +2199,6 @@ TableInternal::TableInternal(const TableInternal &other)
     : _tint(other._tint), _context_count(other._context_count)
 {
 }
-TableInternal::~TableInternal() {}
 
 WorkloadOptions::WorkloadOptions()
     : max_latency(0), report_file("workload.stat"), report_interval(0), run_time(0),
@@ -2284,7 +2249,6 @@ WorkloadOptions::WorkloadOptions(const WorkloadOptions &other)
       sample_rate(other.sample_rate), _options(other._options)
 {
 }
-WorkloadOptions::~WorkloadOptions() {}
 
 Workload::Workload(Context *context, const ThreadListWrapper &tlw)
     : options(), stats(), _context(context), _threads(tlw._threads)
@@ -2305,7 +2269,6 @@ Workload::Workload(const Workload &other)
     : options(other.options), stats(other.stats), _context(other._context), _threads(other._threads)
 {
 }
-Workload::~Workload() {}
 
 Workload &
 Workload::operator=(const Workload &other)
@@ -2330,14 +2293,12 @@ WorkloadRunner::WorkloadRunner(Workload *workload)
 {
     ts_clear(_start);
 }
-WorkloadRunner::~WorkloadRunner() {}
 
 int
 WorkloadRunner::run(WT_CONNECTION *conn)
 {
     WT_DECL_RET;
     WorkloadOptions *options = &_workload->options;
-    std::ofstream report_out;
 
     _wt_home = conn->get_home(conn);
 
@@ -2346,12 +2307,16 @@ WorkloadRunner::run(WT_CONNECTION *conn)
         THROW(
           "Workload.options.timestamp_advance must be positive if either "
           "Workload.options.oldest_timestamp_lag or Workload.options.stable_timestamp_lag is set");
+
     if (options->sample_interval_ms > 0 && options->sample_rate <= 0)
         THROW("Workload.options.sample_rate must be positive");
+
+    std::ofstream report_out;
     if (!options->report_file.empty()) {
-        open_report_file(report_out, options->report_file.c_str(), "Workload.options.report_file");
+        open_report_file(report_out, options->report_file, "Workload.options.report_file");
         _report_out = &report_out;
     }
+
     WT_ERR(create_all(conn, _workload->_context));
     WT_ERR(open_all());
     WT_ERR(ThreadRunner::cross_check(_trunners));
@@ -2372,7 +2337,8 @@ WorkloadRunner::open_all()
 }
 
 void
-WorkloadRunner::open_report_file(std::ofstream &of, const char *filename, const char *desc)
+WorkloadRunner::open_report_file(
+  std::ofstream &of, const std::string &filename, const std::string &desc)
 {
     std::stringstream sstm;
 
@@ -2455,34 +2421,28 @@ WorkloadRunner::final_report(timespec &totalsecs)
 int
 WorkloadRunner::run_all(WT_CONNECTION *conn)
 {
-    void *status;
-    std::vector<pthread_t> thread_handles;
-    Stats counts(false);
-    WorkgenException *exception;
-    WorkloadOptions *options = &_workload->options;
-    WorkloadRunnerConnection *runnerConnection;
-    WorkloadRunnerConnection *createDropTableCycle;
-    Monitor monitor(*this);
-    std::ofstream monitor_out;
-    std::ofstream monitor_json;
-    std::ostream &out = *_report_out;
-    pthread_t time_thandle, idle_table_thandle;
     WT_DECL_RET;
 
-    runnerConnection = createDropTableCycle = NULL;
+    Stats counts(false);
     for (size_t i = 0; i < _trunners.size(); i++)
         _trunners[i].get_static_counts(counts);
+
+    std::ostream &out = *_report_out;
     out << "Starting workload: " << _trunners.size() << " threads, ";
     counts.report(out);
     out << std::endl;
 
     // Start all threads
+    WorkloadOptions *options = &_workload->options;
+    Monitor monitor(*this);
+    std::ofstream monitor_out;
+    std::ofstream monitor_json;
     if (options->sample_interval_ms > 0) {
         open_report_file(monitor_out, "monitor", "monitor output file");
         monitor._out = &monitor_out;
 
         if (!options->sample_file.empty()) {
-            open_report_file(monitor_json, options->sample_file.c_str(), "sample JSON output file");
+            open_report_file(monitor_json, options->sample_file, "sample JSON output file");
             monitor._json = &monitor_json;
         }
 
@@ -2492,6 +2452,8 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
         }
     }
 
+    void *status;
+    std::vector<pthread_t> thread_handles;
     for (size_t i = 0; i < _trunners.size(); i++) {
         pthread_t thandle;
         ThreadRunner *runner = &_trunners[i];
@@ -2511,6 +2473,8 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
     }
 
     // Start Timestamp increment thread
+    pthread_t time_thandle;
+    WorkloadRunnerConnection *runnerConnection = nullptr;
     if (options->oldest_timestamp_lag > 0 || options->stable_timestamp_lag > 0) {
 
         runnerConnection = new WorkloadRunnerConnection();
@@ -2528,6 +2492,8 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
     }
 
     // Start Idle table cycle thread
+    pthread_t idle_table_thandle;
+    WorkloadRunnerConnection *createDropTableCycle = nullptr;
     if (options->max_idle_table_cycle > 0) {
 
         createDropTableCycle = new WorkloadRunnerConnection();
@@ -2601,7 +2567,7 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
     stopping = true;
 
     // wait for all threads
-    exception = NULL;
+    WorkgenException *exception = nullptr;
     for (size_t i = 0; i < _trunners.size(); i++) {
         WT_TRET(pthread_join(thread_handles[i], &status));
         if (_trunners[i]._errno != 0)

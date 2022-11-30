@@ -72,19 +72,18 @@ struct WorkgenTimeStamp {
 // int errno, so this is useful primarily for notifying the caller about
 // failures in constructors.
 struct WorkgenException {
-    std::string _str;
-    WorkgenException() : _str() {}
-    WorkgenException(int err, const char *msg = NULL) : _str() {
+    WorkgenException() = default;
+    WorkgenException(int err, const std::string& msg) {
 	if (err != 0)
 	    _str += wiredtiger_strerror(err);
-	if (msg != NULL) {
+	if (!msg.empty()) {
 	    if (!_str.empty())
-		_str += ": ";
-	    _str += msg;
-	}
+                _str += ": ";
+            _str += msg;
+        }
     }
-    WorkgenException(const WorkgenException &other) : _str(other._str) {}
-    ~WorkgenException() {}
+    ~WorkgenException() = default;
+    std::string _str;
 };
 
 struct Throttle {
@@ -101,7 +100,7 @@ struct Throttle {
     bool _started;
 
     Throttle(ThreadRunner &runner, double throttle, double burst);
-    ~Throttle();
+    ~Throttle() = default;
 
     // Called with the number of operations since the last throttle.
     // Sleeps for any needed amount and returns the number operations the
@@ -177,7 +176,7 @@ struct Monitor {
     std::ostream *_json;
 
     Monitor(WorkloadRunner &wrunner);
-    ~Monitor();
+    ~Monitor() = default;
     int run();
 
 private:
@@ -271,7 +270,7 @@ struct TableInternal {
 
     TableInternal();
     TableInternal(const TableInternal &other);
-    ~TableInternal();
+    ~TableInternal() = default;
 };
 
 // An instance of this class only exists for the duration of one call to a
@@ -285,11 +284,11 @@ struct WorkloadRunner {
     bool stopping;
 
     WorkloadRunner(Workload *);
-    ~WorkloadRunner();
+    ~WorkloadRunner() = default;
     int run(WT_CONNECTION *conn);
     int increment_timestamp(WT_CONNECTION *conn);
     int start_table_idle_cycle(WT_CONNECTION *conn);
-    int check_timing(const char *name, uint64_t last_interval);
+    int check_timing(const std::string& name, uint64_t last_interval);
 
 private:
     int close_all();
@@ -297,7 +296,7 @@ private:
     void final_report(timespec &);
     void get_stats(Stats *stats);
     int open_all();
-    void open_report_file(std::ofstream &, const char *, const char *);
+    void open_report_file(std::ofstream &, const std::string&, const std::string&);
     void report(time_t, time_t, Stats *stats);
     int run_all(WT_CONNECTION *conn);
 
