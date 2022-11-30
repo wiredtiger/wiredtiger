@@ -187,28 +187,32 @@ int
 WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn)
 {
     WT_SESSION *session;
-    uint64_t start, stop;
-    int ret, cycle_count;
-    char uri[BUF_SIZE];
-
-    if ((ret = conn->open_session(conn, nullptr, nullptr, &session)) != 0) {
-        THROW("Error Opening a Session.");
+    if (conn->open_session(conn, nullptr, nullptr, &session) != 0) {
+        THROW("Error opening a session.");
     }
 
-    for (cycle_count = 0; !stopping; ++cycle_count) {
+    int ret;
+    char uri[BUF_SIZE];
+    for (int cycle_count = 0; !stopping; ++cycle_count) {
         snprintf(uri, BUF_SIZE, "table:test_cycle%04d", cycle_count);
 
+        uint64_t start;
         workgen_clock(&start);
+
         /* Create a table. */
         if ((ret = session->create(session, uri, "key_format=S,value_format=S")) != 0) {
             if (ret == EBUSY)
                 continue;
             THROW("Table create failed in start_table_idle_cycle.");
         }
+
+        uint64_t stop;
         workgen_clock(&stop);
+
         uint64_t last_interval = ns_to_sec(stop - start);
         if ((ret = check_timing("CREATE", last_interval)) != 0)
             THROW_ERRNO(ret, "WT_SESSION->create timeout.");
+
         start = stop;
 
         /* Open and close cursor. */
@@ -219,6 +223,7 @@ WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn)
         if ((ret = cursor->close(cursor)) != 0) {
             THROW("Cursor close failed.");
         }
+
         workgen_clock(&stop);
         last_interval = ns_to_sec(stop - start);
         if ((ret = check_timing("CURSOR", last_interval)) != 0)
@@ -1434,7 +1439,8 @@ Operation::init_internal(OperationInternal *other)
         if (other == nullptr)
             _internal = new CheckpointOperationInternal();
         else
-            _internal = new CheckpointOperationInternal(*static_cast<CheckpointOperationInternal *>(other));
+            _internal =
+              new CheckpointOperationInternal(*static_cast<CheckpointOperationInternal *>(other));
         break;
     case OP_INSERT:
     case OP_REMOVE:
@@ -1470,7 +1476,7 @@ bool
 Operation::combinable() const
 {
     return (_group != nullptr && _repeatgroup == 1 && _timed == 0.0 && transaction == nullptr &&
-      _config == "");
+      _config.empty());
 }
 
 void
