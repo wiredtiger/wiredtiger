@@ -3636,6 +3636,7 @@ buildvariants:
       --enable-diagnostic
       --enable-python
       --enable-zlib
+      --enable-zstd
       --enable-snappy
       --enable-strict
       --enable-static
@@ -3686,7 +3687,6 @@ buildvariants:
       -DHAVE_DIAGNOSTIC=1
       -DENABLE_PYTHON=1
       -DENABLE_ZLIB=1
-      -DENABLE_ZSTD=1
       -DENABLE_SNAPPY=1
       -DENABLE_STRICT=1
       -DENABLE_TCMALLOC=1
