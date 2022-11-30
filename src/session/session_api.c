@@ -830,7 +830,7 @@ err:
  * __wt_session_count --
  *     WT_SESSION->count method.
  */
-int
+static int
 __wt_session_count(WT_SESSION *wt_session, const char *uri, int64_t *count)
 {
     WT_CKPT ckpt;

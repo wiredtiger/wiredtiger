@@ -576,14 +576,12 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
     WT_COL_FIX_AUXILIARY_HEADER auxhdr;
     WT_DECL_RET;
     WT_PAGE *page;
-    WT_PAGE_STAT ps;
     WT_TIME_WINDOW stable_tw;
     WT_TRACK *trk;
     uint64_t stop_recno;
     uint32_t cell_num;
 
     page = NULL;
-    WT_PAGE_STAT_INIT(&ps);
     WT_TIME_WINDOW_INIT(&stable_tw);
     trk = NULL;
 
@@ -682,8 +680,7 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
         WT_CELL_FOREACH_KV (session, dsk, unpack) {
             switch (unpack.type) {
             case WT_CELL_KEY:
-                ps.row_count = 1;
-                WT_PAGE_STAT_UPDATE(&trk->ps, &ps);
+                WT_PAGE_STAT_ROW_INCR(&trk->ps);
                 break;
             default:
                 WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &unpack.tw);

@@ -177,7 +177,6 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 {
     WT_BTREE *btree;
     WT_CURSOR *cursor;
-    WT_PAGE_STAT ps;
     WT_RECONCILE *r;
     WT_REC_KV *key, *val;
     WT_TIME_WINDOW tw;
@@ -186,7 +185,6 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     r = cbulk->reconcile;
     btree = S2BT(session);
     cursor = &cbulk->cbt.iface;
-    WT_PAGE_STAT_INIT(&ps);
     WT_TIME_WINDOW_INIT(&tw);
 
     key = &r->k;
@@ -226,8 +224,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     }
     WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &tw);
 
-    ps.row_count = 1;
-    WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
+    WT_PAGE_STAT_ROW_INCR(&r->cur_ptr->ps);
 
     /* Update compression state. */
     __rec_key_state_update(r, ovfl_key);
@@ -475,12 +472,6 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     }
     WT_INTL_FOREACH_END;
 
-    /* Reset the page stat value for the page if any of its children had invalid stat values. */
-    if (FLD_ISSET(r->cur_ptr->ps.flags, WT_RESET_BYTE_COUNT))
-        r->cur_ptr->ps.byte_count = WT_STAT_NONE;
-    if (FLD_ISSET(r->cur_ptr->ps.flags, WT_RESET_ROW_COUNT))
-        r->cur_ptr->ps.row_count = WT_STAT_NONE;
-
     /* Write the remnant page. */
     return (__wt_rec_split_finish(session, r));
 
@@ -515,7 +506,6 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 {
     WT_BTREE *btree;
     WT_CURSOR_BTREE *cbt;
-    WT_PAGE_STAT ps;
     WT_REC_KV *key, *val;
     WT_TIME_WINDOW tw;
     WT_UPDATE *upd;
@@ -531,8 +521,6 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
     val = &r->v;
 
     upd = NULL;
-
-    WT_PAGE_STAT_INIT(&ps);
 
     for (; ins != NULL; ins = WT_SKIP_NEXT(ins)) {
         WT_RET(__wt_rec_upd_select(session, r, ins, NULL, NULL, &upd_select));
@@ -627,8 +615,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
         }
         WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &tw);
 
-        ps.row_count = 1;
-        WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
+        WT_PAGE_STAT_ROW_INCR(&r->cur_ptr->ps);
 
         /* Update compression state. */
         __rec_key_state_update(r, ovfl_key);
@@ -688,7 +675,6 @@ __wt_rec_row_leaf(
     WT_IKEY *ikey;
     WT_INSERT *ins;
     WT_PAGE *page;
-    WT_PAGE_STAT ps;
     WT_REC_KV *key, *val;
     WT_ROW *rip;
     WT_TIME_WINDOW *twp;
@@ -714,8 +700,6 @@ __wt_rec_row_leaf(
 
     cbt = &r->update_modify_cbt;
     cbt->iface.session = (WT_SESSION *)session;
-
-    WT_PAGE_STAT_INIT(&ps);
 
     WT_RET(__wt_rec_split_init(session, r, page, 0, btree->maxleafpage_precomp, 0));
 
@@ -1012,8 +996,7 @@ slow:
         }
         WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, twp);
 
-        ps.row_count = 1;
-        WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
+        WT_PAGE_STAT_ROW_INCR(&r->cur_ptr->ps);
 
         /* Update compression state. */
         __rec_key_state_update(r, ovfl_key);

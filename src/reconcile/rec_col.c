@@ -56,14 +56,12 @@ __wt_bulk_insert_fix(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
 {
     WT_BTREE *btree;
     WT_CURSOR *cursor;
-    WT_PAGE_STAT ps;
     WT_RECONCILE *r;
     WT_TIME_WINDOW tw;
 
     r = cbulk->reconcile;
     btree = S2BT(session);
     cursor = &cbulk->cbt.iface;
-    WT_PAGE_STAT_INIT(&ps);
 
     WT_RET(__rec_col_fix_bulk_insert_split_check(cbulk));
     __bit_setv(
@@ -71,8 +69,7 @@ __wt_bulk_insert_fix(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
     ++cbulk->entry;
     ++r->recno;
 
-    ps.row_count = 1;
-    WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
+    WT_PAGE_STAT_ROW_INCR(&r->cur_ptr->ps);
 
     /*
      * Initialize the time aggregate that's going into the parent page. It's necessary to update an
@@ -345,12 +342,6 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
         WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
     }
     WT_INTL_FOREACH_END;
-
-    /* Reset the page stat value for the page if any of its children had invalid stat values. */
-    if (FLD_ISSET(r->cur_ptr->ps.flags, WT_RESET_BYTE_COUNT))
-        r->cur_ptr->ps.byte_count = WT_STAT_NONE;
-    if (FLD_ISSET(r->cur_ptr->ps.flags, WT_RESET_ROW_COUNT))
-        r->cur_ptr->ps.row_count = WT_STAT_NONE;
 
     /* Write the remnant page. */
     return (__wt_rec_split_finish(session, r));

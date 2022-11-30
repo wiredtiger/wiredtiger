@@ -39,25 +39,45 @@
             (ps)->row_count += (merge)->row_count;                                   \
     } while (0)
 
-/* Update the page stat structure */
-#define WT_PAGE_STAT_UPDATE(ps, update)                   \
-    do {                                                  \
-        /* Update byte count */                           \
-        if ((update)->byte_count == WT_STAT_NONE)         \
-            F_SET(ps, WT_RESET_BYTE_COUNT);               \
-        else {                                            \
-            if ((ps)->byte_count == WT_STAT_NONE)         \
-                (ps)->byte_count = (update)->byte_count;  \
-            else if ((ps)->byte_count != WT_STAT_NONE)    \
-                (ps)->byte_count += (update)->byte_count; \
-        }                                                 \
-        /* Update row count */                            \
-        if ((update)->row_count == WT_STAT_NONE)          \
-            F_SET(ps, WT_RESET_ROW_COUNT);                \
-        else {                                            \
-            if ((ps)->row_count == WT_STAT_NONE)          \
-                (ps)->row_count = (update)->row_count;    \
-            else if ((ps)->row_count != WT_STAT_NONE)     \
-                (ps)->row_count += (update)->row_count;   \
-        }                                                 \
+/*
+ * Update the page stat structure. For both the byte and row counts, we want to reset the page stat
+ * value for the page if any of its children that were merged in had invalid stat values.
+ */
+#define WT_PAGE_STAT_UPDATE(ps, update)                       \
+    do {                                                      \
+        /* Update byte count */                               \
+        if ((F_ISSET(ps, WT_RESET_BYTE_COUNT)))               \
+            (ps)->byte_count = WT_STAT_NONE;                  \
+        else {                                                \
+            if ((update)->byte_count == WT_STAT_NONE)         \
+                F_SET(ps, WT_RESET_BYTE_COUNT);               \
+            else {                                            \
+                if ((ps)->byte_count == WT_STAT_NONE)         \
+                    (ps)->byte_count = (update)->byte_count;  \
+                else if ((ps)->byte_count != WT_STAT_NONE)    \
+                    (ps)->byte_count += (update)->byte_count; \
+            }                                                 \
+        }                                                     \
+        /* Update row count */                                \
+        if (F_ISSET(ps, WT_RESET_ROW_COUNT))                  \
+            (ps)->row_count = WT_STAT_NONE;                   \
+        else {                                                \
+            if ((update)->row_count == WT_STAT_NONE)          \
+                F_SET(ps, WT_RESET_ROW_COUNT);                \
+            else {                                            \
+                if ((ps)->row_count == WT_STAT_NONE)          \
+                    (ps)->row_count = (update)->row_count;    \
+                else if ((ps)->row_count != WT_STAT_NONE)     \
+                    (ps)->row_count += (update)->row_count;   \
+            }                                                 \
+        }                                                     \
+    } while (0)
+
+/* Increment the row count of a page stat structure */
+#define WT_PAGE_STAT_ROW_INCR(ps)            \
+    do {                                     \
+        if ((ps)->row_count == WT_STAT_NONE) \
+            (ps)->row_count = 1;             \
+        else                                 \
+            (ps)->row_count++;               \
     } while (0)
