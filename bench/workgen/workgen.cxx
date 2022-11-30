@@ -2348,6 +2348,7 @@ WorkloadRunner::create_table(const std::string &uri)
         tint_t tint = workgen_atomic_add32(&icontext->_tint_last, 1);
         icontext->_tint[uri] = tint;
         icontext->_table_names[tint] = uri;
+        icontext->create_all();
     }
 }
 
