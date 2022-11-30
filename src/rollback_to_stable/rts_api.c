@@ -10,7 +10,7 @@
 
 /*
  * __rts_assert_timestamps_unchanged --
- *     Wrapper for some diagnostic assertions related to timestamps.
+ *     Wrapper for some diagnostic assertions related to global timestamps.
  */
 static void
 __rts_assert_timestamps_unchanged(
