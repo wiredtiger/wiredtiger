@@ -38,7 +38,6 @@ workload_manager=
         op_rate=60s,
     )
 ),
-# Operation tracker is disabled.
 operation_tracker=
 (
     enabled=false,

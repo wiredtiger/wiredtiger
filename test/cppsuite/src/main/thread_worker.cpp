@@ -60,7 +60,8 @@ type_string(thread_type type)
 thread_worker::thread_worker(uint64_t id, thread_type type, configuration *config,
   scoped_session &&created_session, timestamp_manager *timestamp_manager,
   operation_tracker *op_tracker, database &dbase)
-    : thread_worker(id, type, config, std::move(created_session), timestamp_manager, op_tracker, dbase, nullptr)
+    : thread_worker(
+        id, type, config, std::move(created_session), timestamp_manager, op_tracker, dbase, nullptr)
 {
 }
 
