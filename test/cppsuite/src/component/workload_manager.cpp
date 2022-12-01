@@ -95,8 +95,8 @@ workload_manager::run()
         for (size_t i = 0; i < it.thread_count && _running; ++i) {
             thread_worker *tc = new thread_worker(thread_id++, it.type, it.config,
               connection_manager::instance().create_session(), _timestamp_manager,
-              _operation_tracker, _database);
-            tc->set_barrier(barrier_ptr);
+              _operation_tracker, _database, barrier_ptr);
+            //tc->set_barrier(barrier_ptr);
             _workers.push_back(tc);
             _thread_manager.add_thread(it.get_func(_database_operation), tc);
         }

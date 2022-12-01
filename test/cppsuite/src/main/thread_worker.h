@@ -54,6 +54,10 @@ class thread_worker {
       scoped_session &&created_session, timestamp_manager *timestamp_manager,
       operation_tracker *op_tracker, database &dbase);
 
+    thread_worker(uint64_t id, thread_type type, configuration *config,
+      scoped_session &&created_session, timestamp_manager *timestamp_manager,
+      operation_tracker *op_tracker, database &dbase, std::shared_ptr<barrier> barrier_ptr);
+
     virtual ~thread_worker() = default;
 
     void finish();
@@ -98,11 +102,6 @@ class thread_worker {
     void sleep();
     bool running() const;
     void sync();
-    void
-    set_barrier(std::shared_ptr<barrier> barrier)
-    {
-        _barrier = barrier;
-    }
 
     public:
     const int64_t collection_count;
@@ -121,7 +120,7 @@ class thread_worker {
     operation_tracker *op_tracker;
 
     private:
-    std::shared_ptr<barrier> _barrier;
+    std::shared_ptr<barrier> _barrier = nullptr;
 
     bool _running = true;
     uint64_t _sleep_time_ms = 1000;
