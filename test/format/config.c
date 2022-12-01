@@ -887,7 +887,7 @@ config_in_memory(void)
         if (NTV(tables[0], RUNS_ROWS) > 1000000) {
             WARN("%s",
               "limiting runs.rows to 1,000,000 as runs.in_memory has been automatically enabled");
-            config_single(NULL, "runs.rows=1000000", false);
+            config_single(NULL, "runs.rows=1000000", true);
         }
     }
 }
