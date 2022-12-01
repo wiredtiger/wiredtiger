@@ -214,8 +214,8 @@ __sync_evict_inmem_obsolete_ref(WT_SESSION_IMPL *session, WT_REF *ref)
 
 /*
  * __sync_delete_ondisk_obsolete_ref --
- *     Check whether the on-disk ref is obsolete according to the newest stop time point and handle
- *     the obsolete page by either remove it.
+ *     Check whether the on-disk ref is obsolete according to the newest stop time point and remove
+ *     it.
  */
 static int
 __sync_delete_ondisk_obsolete_ref(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state)
