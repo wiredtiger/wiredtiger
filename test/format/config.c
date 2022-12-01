@@ -276,10 +276,12 @@ config_table(TABLE *table, void *arg)
     }
 
     /*
-     * Limit the rows to 1000000 if the realloc exact config is on, otherwise bulk load will take
-     * too much time as we need to do realloc for every new entry appended to an array.
+     * Limit the rows to 1000000 if the realloc exact and realloc malloc configs are on. Realloc
+     * exact config allocates the exact amount of memory, which causes a new realloc call every time
+     * we append to a an array. Realloc malloc turns a single realloc call to a malloc, a memcpy,
+     * and a free. The combination of both will greatly slow the execution.
      */
-    if (GV(DEBUG_REALLOC_EXACT) && TV(RUNS_ROWS) > 1000000)
+    if (GV(DEBUG_REALLOC_EXACT) && GV(DEBUG_REALLOC_MALLOC) && TV(RUNS_ROWS) > 1000000)
         config_single(table, "runs.rows=1000000", false);
 
 #ifndef WT_STANDALONE_BUILD
