@@ -203,7 +203,7 @@ __sync_evict_inmem_obsolete_ref(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_STAT_CONN_DATA_INCR(session, cc_pages_evict);
     }
 
-    __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
+    __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
       "%p in-memory page obsolete check: %s %s"
       "obsolete, stop time point %s",
       (void *)ref, tag, obsolete ? "" : "not ",
@@ -218,67 +218,75 @@ __sync_evict_inmem_obsolete_ref(WT_SESSION_IMPL *session, WT_REF *ref)
  *     it.
  */
 static int
-__sync_delete_ondisk_obsolete_ref(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state)
+__sync_delete_ondisk_obsolete_ref(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_ADDR_COPY addr;
+    WT_DECL_RET;
     WT_PAGE_DELETED *page_del;
     wt_timestamp_t newest_stop_ts, newest_stop_durable_ts;
     uint64_t newest_stop_txn;
+    uint8_t previous_state;
     char tp_string[WT_TP_STRING_SIZE];
     bool obsolete;
+
+    WT_REF_LOCK(session, ref, &previous_state);
 
     /* Skip non obsolete deleted pages or remove obsolete deleted pages. */
     if (previous_state == WT_REF_DELETED) {
         page_del = ref->page_del;
         if (page_del == NULL ||
           __wt_txn_visible_all(session, page_del->txnid, page_del->durable_timestamp)) {
-            WT_RET(__wt_page_parent_modify_set(session, ref, true));
-            __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
-              "%p: marking obsolete deleted page parent dirty", (void *)ref);
+            if ((ret = __wt_page_parent_modify_set(session, ref, true)) == 0)
+                __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
+                  "%p: marking obsolete deleted page parent dirty", (void *)ref);
         } else
-            __wt_verbose(
+            __wt_verbose_debug2(
               session, WT_VERB_CHECKPOINT_CLEANUP, "%p: skipping deleted page", (void *)ref);
-        return (0);
-    }
-
-    /*
-     * If the page is on-disk and obsolete, mark the page as deleted and also set the parent page as
-     * dirty. This is to ensure the parent is written during the checkpoint and the child page
-     * discarded.
-     */
-    newest_stop_durable_ts = newest_stop_ts = WT_TS_NONE;
-    newest_stop_txn = WT_TXN_NONE;
-    obsolete = false;
-
-    /*
-     * There should be an address, but simply skip any page where we don't find one. Also skip the
-     * pages that have overflow keys as part of fast delete flow. These overflow keys pages are
-     * handled as an in-memory obsolete page flow.
-     */
-    if (__wt_ref_addr_copy(session, ref, &addr) && addr.type == WT_ADDR_LEAF_NO) {
+    } else if (previous_state == WT_REF_DISK) {
         /*
-         * Max stop timestamp is possible only when the prepared update is written to the data
-         * store.
+         * If the page is on-disk and obsolete, mark the page as deleted and also set the parent
+         * page as dirty. This is to ensure the parent is written during the checkpoint and the
+         * child page discarded.
          */
-        newest_stop_ts = addr.ta.newest_stop_ts;
-        newest_stop_durable_ts =
-          addr.ta.newest_stop_ts == WT_TS_MAX ? WT_TS_MAX : addr.ta.newest_stop_durable_ts;
-        newest_stop_txn = addr.ta.newest_stop_txn;
-        obsolete = __wt_txn_visible_all(session, newest_stop_txn, newest_stop_durable_ts);
+        newest_stop_durable_ts = newest_stop_ts = WT_TS_NONE;
+        newest_stop_txn = WT_TXN_NONE;
+        obsolete = false;
+
+        /*
+         * There should be an address, but simply skip any page where we don't find one. Also skip
+         * the pages that have overflow keys as part of fast delete flow. These overflow keys pages
+         * are handled as an in-memory obsolete page flow.
+         */
+        if (__wt_ref_addr_copy(session, ref, &addr) && addr.type == WT_ADDR_LEAF_NO) {
+            /*
+             * Max stop timestamp is possible only when the prepared update is written to the data
+             * store.
+             */
+            newest_stop_ts = addr.ta.newest_stop_ts;
+            newest_stop_durable_ts =
+              addr.ta.newest_stop_ts == WT_TS_MAX ? WT_TS_MAX : addr.ta.newest_stop_durable_ts;
+            newest_stop_txn = addr.ta.newest_stop_txn;
+            obsolete = __wt_txn_visible_all(session, newest_stop_txn, newest_stop_durable_ts);
+        }
+
+        __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
+          "%p on-disk page obsolete check: %s"
+          "obsolete, stop time point %s",
+          (void *)ref, obsolete ? "" : "not ",
+          __wt_time_point_to_string(
+            newest_stop_ts, newest_stop_durable_ts, newest_stop_txn, tp_string));
+
+        if (obsolete && ((ret = __wt_page_parent_modify_set(session, ref, true)) == 0)) {
+            __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
+              "%p: marking obsolete disk page parent dirty", (void *)ref);
+            WT_REF_UNLOCK(ref, WT_REF_DELETED);
+            WT_STAT_CONN_DATA_INCR(session, cc_pages_removed);
+            return (0);
+        }
     }
 
-    if (obsolete) {
-        WT_RET(__wt_page_parent_modify_set(session, ref, true));
-        WT_STAT_CONN_DATA_INCR(session, cc_pages_removed);
-    }
-
-    __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
-      "%p on-disk page obsolete check: %s"
-      "obsolete, stop time point %s",
-      (void *)ref, obsolete ? "" : "not ",
-      __wt_time_point_to_string(
-        newest_stop_ts, newest_stop_durable_ts, newest_stop_txn, tp_string));
-    return (0);
+    WT_REF_UNLOCK(ref, previous_state);
+    return (ret);
 }
 
 /*
@@ -290,7 +298,6 @@ static int
 __sync_delete_obsolete_ref(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_DECL_RET;
-    uint8_t previous_state;
     bool busy;
 
     /* Ignore root pages as they can never be deleted. */
@@ -307,18 +314,15 @@ __sync_delete_obsolete_ref(WT_SESSION_IMPL *session, WT_REF *ref)
         return (0);
     }
 
-    /* Lock the WT_REF. */
-    WT_REF_LOCK(session, ref, &previous_state);
-    if (previous_state == WT_REF_DELETED || previous_state == WT_REF_DISK)
-        ret = __sync_delete_ondisk_obsolete_ref(session, ref, previous_state);
-    WT_REF_UNLOCK(ref, previous_state);
-    WT_RET(ret);
+    /* Check for the on-disk obsolete ref. */
+    if (ref->state == WT_REF_DELETED || ref->state == WT_REF_DISK)
+        WT_RET(__sync_delete_ondisk_obsolete_ref(session, ref));
 
     /*
      * Ignore pages that aren't in-memory for some reason other than they're on-disk, for example,
      * they might have split or been deleted while we were locking the WT_REF.
      */
-    if (previous_state != WT_REF_MEM) {
+    if (ref->state != WT_REF_MEM) {
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP, "%p: skipping page", (void *)ref);
         return (0);
     }
