@@ -47,11 +47,12 @@ typedef TAILQ_HEAD(__wt_cursor_list, __wt_cursor) WT_CURSOR_LIST;
 /* Number of cursors cached to trigger cursor sweep. */
 #define WT_SESSION_CURSOR_SWEEP_COUNTDOWN 40
 
-/* Minimum number of buckets to visit during cursor sweep. */
+/* Minimum number of buckets to visit during a regular cursor sweep. */
 #define WT_SESSION_CURSOR_SWEEP_MIN 5
 
-/* Maximum number of buckets to visit during cursor sweep. */
-#define WT_SESSION_CURSOR_SWEEP_MAX 32
+/* Maximum number of buckets to visit during a regular cursor sweep. */
+#define WT_SESSION_CURSOR_SWEEP_MAX 64
+
 /*
  * WT_SESSION_IMPL --
  *	Implementation of WT_SESSION.
@@ -82,8 +83,8 @@ struct __wt_session_impl {
     /*
      * Each session keeps a cache of data handles. The set of handles can grow quite large so we
      * maintain both a simple list and a hash table of lists. The hash table key is based on a hash
-     * of the data handle's URI. The hash table list is kept in allocated memory that lives across
-     * session close - so it is declared further down.
+     * of the data handle's URI. The hash table list is kept in allocated memory until a session
+     * is closed, when it is freed. It is declared further down.
      */
     /* Session handle reference list */
     TAILQ_HEAD(__dhandles, __wt_data_handle_cache) dhandles;
@@ -94,7 +95,8 @@ struct __wt_session_impl {
     u_int ncursors;                  /* Count of active file cursors. */
     uint32_t cursor_sweep_position;  /* Position in cursor_cache for sweep */
     uint32_t cursor_sweep_countdown; /* Countdown to cursor sweep */
-    uint64_t last_cursor_sweep;      /* Last sweep for dead cursors */
+    uint64_t last_cursor_sweep;      /* Last regular sweep for dead cursors */
+    uint64_t last_cursor_big_sweep;  /* Last big sweep for dead cursors */
 
     WT_CURSOR_BACKUP *bkp_cursor; /* Hot backup cursor */
 

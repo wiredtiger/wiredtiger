@@ -754,7 +754,8 @@ __wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool *rel
      */
     if (--session->cursor_sweep_countdown == 0) {
         session->cursor_sweep_countdown = WT_SESSION_CURSOR_SWEEP_COUNTDOWN;
-        WT_RET(__wt_session_cursor_cache_sweep(session));
+        WT_RET(__wt_session_cursor_cache_sweep(session, false));
+        __wt_session_dhandle_sweep(session);
     }
 
     /*
