@@ -191,15 +191,15 @@ WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn)
         THROW("Error opening a session.");
     }
 
-    int ret;
-    char uri[BUF_SIZE];
     for (int cycle_count = 0; !stopping; ++cycle_count) {
+        char uri[BUF_SIZE];
         snprintf(uri, BUF_SIZE, "table:test_cycle%04d", cycle_count);
 
         uint64_t start;
         workgen_clock(&start);
 
         /* Create a table. */
+        int ret;
         if ((ret = session->create(session, uri, "key_format=S,value_format=S")) != 0) {
             if (ret == EBUSY)
                 continue;
