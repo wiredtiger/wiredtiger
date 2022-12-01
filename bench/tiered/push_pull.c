@@ -411,7 +411,7 @@ calculate_std_deviation(const double *arr)
     }
     mean = sum / MAX_RUN;
     for (i = 0; i < MAX_RUN; ++i) {
-        SD += pow(arr[i] - mean, 2);
+        std_dev += pow(arr[i] - mean, 2);
     }
-    return sqrt(SD / MAX_RUN);
+    return sqrt(std_dev / MAX_RUN);
 }
