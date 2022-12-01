@@ -30,6 +30,7 @@ add_library(cppsuite_test_harness STATIC
     src/storage/connection_manager.cpp
     src/storage/scoped_cursor.cpp
     src/storage/scoped_session.cpp
+    src/util/barrier.cpp
 )
 
 target_include_directories(cppsuite_test_harness PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
