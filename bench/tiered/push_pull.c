@@ -26,6 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 #include "test_util.h"
+#include <math.h>
 
 /*
  * This test is to calculate benchmarks for tiered storage:
@@ -49,6 +50,7 @@ static TEST_OPTS *opts, _opts;
 static bool read_data = true;
 /* Forward declarations. */
 
+static double calculate_std_deviation(const double *);
 static void compute_wt_file_size(const char *, const char *, uint64_t *);
 static void compute_tiered_file_size(const char *, const char *, uint64_t *);
 static void get_file_size(const char *, uint64_t *);
@@ -76,12 +78,13 @@ main(int argc, char *argv[])
 
     flush = false;
     printf("The below benchmarks are average of %d runs\n", MAX_RUN);
+
     for (i = 0; i < 2; ++i) {
 
         printf(
           "########################################################################################"
           "\n");
-        printf("                                 Flush call %s\n",
+        printf("                        Checkpoint is done with flush_tier %s\n",
           (opts->tiered_storage && flush) ? "enabled" : "disabled");
         printf(
           "########################################################################################"
@@ -172,10 +175,12 @@ run_test_clean(const char *suffix, uint32_t num_records, bool flush)
     }
 
     printf("Records in Bytes- %" PRIu64
-           " (~%s), W_Time- %.3f secs, W_Tput- %.3f MB/sec, R_Time- %.3f secs, "
+           " (~%s), W_Time- %.3f secs (SD- %.3f), W_Tput- %.3f MB/sec (SD- %.3f), R_Time- %.3f "
+           "secs (SD- %.3f), "
            "R_Tput- %.3f MB/sec\n",
-      avg_file_size / MAX_RUN, suffix, avg_wtime / MAX_RUN, avg_wthroughput / MAX_RUN,
-      avg_rtime / MAX_RUN, avg_rthroughput / MAX_RUN);
+      avg_file_size / MAX_RUN, suffix, avg_wtime / MAX_RUN, calculate_std_deviation(avg_wtime_arr),
+      avg_wthroughput / MAX_RUN, calculate_std_deviation(avg_wthroughput_arr), avg_rtime / MAX_RUN,
+      calculate_std_deviation(avg_rtime_arr), avg_rthroughput / MAX_RUN);
 }
 
 /*
@@ -388,4 +393,25 @@ get_file_size(const char *home, uint64_t *file_size)
         compute_tiered_file_size(home, tablename, file_size);
     else
         compute_wt_file_size(home, tablename, file_size);
+}
+
+/*
+ * calculate_std_deviation --
+ *     Calculate and return the standard deviation of the argument array.
+ */
+static double
+calculate_std_deviation(const double *arr)
+{
+    double sum, mean, std_dev;
+    int i;
+
+    sum = mean = std_dev = 0.0;
+    for (i = 0; i < MAX_RUN; ++i) {
+        sum += arr[i];
+    }
+    mean = sum / MAX_RUN;
+    for (i = 0; i < MAX_RUN; ++i) {
+        SD += pow(arr[i] - mean, 2);
+    }
+    return sqrt(SD / MAX_RUN);
 }
