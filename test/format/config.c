@@ -276,8 +276,8 @@ config_table(TABLE *table, void *arg)
     }
 
     /*
-     * Limit the rows to 1000000 if the config is on, otherwise bulk load will take too much time as
-     * we need to do realloc for every new entry to an array.
+     * Limit the rows to 1000000 if the realloc exact config is on, otherwise bulk load will take
+     * too much time as we need to do realloc for every new entry appended to an array.
      */
     if (GV(DEBUG_REALLOC_EXACT) && TV(RUNS_ROWS) > 1000000)
         config_single(table, "runs.rows=1000000", false);
