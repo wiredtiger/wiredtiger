@@ -30,6 +30,7 @@
 import threading as pythread
 import random
 import string
+import time
 
 from runner import *
 from wiredtiger import *
@@ -43,26 +44,19 @@ def generate_random_string(length):
     return str
 
 
-def create(context, interval_sec, table_config):
+def create(session, workload, table_config):
 
-    session = connection.open_session()
-    thread = Thread()
-    workload = Workload(context, thread)
+    # Generate a random name.
+    name_length = 10
+    table_name = "table:" + generate_random_string(name_length)
 
-    while not thread_exit.is_set():
-
-        # Generate a random name.
-        name_length = 10
-        table_name = "table:" + generate_random_string(name_length)
-
-        try:
-            session.create(table_name, table_config)
-            workload.create_table(table_name)
-        # Collision may occur.
-        except RuntimeError as e:
-            assert "already exists" in str(e).lower()
-        finally:
-            thread_exit.wait(interval_sec)
+    try:
+        session.create(table_name, table_config)
+        # This indicates Workgen a new table exists.
+        workload.create_table(table_name)
+    # Collision may occur.
+    except RuntimeError as e:
+        assert "already exists" in str(e).lower()
 
 
 context = Context()
@@ -70,28 +64,26 @@ context = Context()
 connection = context.wiredtiger_open("create")
 session = connection.open_session()
 
-# Spawn a thread to create new tables during the workload.
-create_interval_sec = 1
+# Create a table.
 table_config = 'key_format=S,value_format=S'
-
-threads = []
-thread_exit = pythread.Event()
-create_thread = pythread.Thread(target=create, args=(context, create_interval_sec, table_config))
-threads.append(create_thread)
-create_thread.start()
-
-# Create a table and work on it for some time.
 table_name = 'table:simple'
 session.create(table_name, table_config)
 
+# Work on the table for some time.
 ops = Operation(Operation.OP_INSERT, Table(table_name), Key(Key.KEYGEN_APPEND, 10), Value(40))
 thread = Thread(ops)
 workload = Workload(context, thread)
 workload.options.run_time = 10
 
-ret = workload.run(connection)
-assert ret == 0, ret
+# Start the workload.
+workload_thread = pythread.Thread(target=workload.run, args=([connection]))
+workload_thread.start()
 
-thread_exit.set()
-for thread in threads:
-    thread.join()
+# Create tables while the workload is running.
+create_interval_sec = 1
+
+while workload_thread.is_alive():
+    create(session, workload, table_config)
+    time.sleep(create_interval_sec)
+
+workload_thread.join()
