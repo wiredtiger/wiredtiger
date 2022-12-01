@@ -25,13 +25,15 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
-
 #include "workload_manager.h"
 
 #include "src/common/constants.h"
 #include "src/common/logger.h"
 #include "src/main/operation_configuration.h"
 #include "src/storage/connection_manager.h"
+#include "src/util/barrier.h"
+
+#include <memory>
 
 namespace test_harness {
 workload_manager::workload_manager(configuration *configuration, database_operation *db_operation,
@@ -88,10 +90,13 @@ workload_manager::run()
             logger::log_msg(LOG_INFO,
               "workload_manager: Creating " + std::to_string(it.thread_count) + " " +
                 type_string(it.type) + " threads.");
+        /* Create a synchronisation object. */
+        std::shared_ptr<barrier> barrier_ptr = std::make_shared<barrier>(it.thread_count);
         for (size_t i = 0; i < it.thread_count && _running; ++i) {
             thread_worker *tc = new thread_worker(thread_id++, it.type, it.config,
               connection_manager::instance().create_session(), _timestamp_manager,
               _operation_tracker, _database);
+            tc->set_barrier(barrier_ptr);
             _workers.push_back(tc);
             _thread_manager.add_thread(it.get_func(_database_operation), tc);
         }

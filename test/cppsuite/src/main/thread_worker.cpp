@@ -260,6 +260,12 @@ thread_worker::sleep()
     std::this_thread::sleep_for(std::chrono::milliseconds(_sleep_time_ms));
 }
 
+void
+thread_worker::sync()
+{
+    _barrier->wait();
+}
+
 bool
 thread_worker::running() const
 {

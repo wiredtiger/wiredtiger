@@ -1,7 +1,6 @@
 # This workload is inserts content continuously and truncates off the start of the file.
 # The truncations truncate up to 80% of the file each time.
-#duration_seconds=60,
-duration_seconds=3600,
+duration_seconds=7200,
 cache_size_mb=256,
 compression_enabled=true,
 timestamp_manager=
@@ -23,7 +22,7 @@ workload_manager=
     insert_config=
     (
         key_size=50,
-        op_rate= 8ms,
+        op_rate= 1ms,
         ops_per_transaction=(max=30,min=0),
         thread_count=5,
         value_size=100000

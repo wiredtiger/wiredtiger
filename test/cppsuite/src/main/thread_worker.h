@@ -30,6 +30,7 @@
 #define THREAD_WORKER_H
 
 #include <optional>
+#include <memory>
 #include <string>
 
 #include "database.h"
@@ -39,6 +40,7 @@
 #include "src/storage/scoped_cursor.h"
 #include "src/storage/scoped_session.h"
 #include "transaction.h"
+#include "src/util/barrier.h"
 
 namespace test_harness {
 enum class thread_type { CHECKPOINT, CUSTOM, INSERT, READ, REMOVE, UPDATE };
@@ -95,6 +97,12 @@ class thread_worker {
       std::optional<std::string> stop_key, const std::string &config);
     void sleep();
     bool running() const;
+    void sync();
+    void
+    set_barrier(std::shared_ptr<barrier> barrier)
+    {
+        _barrier = barrier;
+    }
 
     public:
     const int64_t collection_count;
@@ -113,6 +121,8 @@ class thread_worker {
     operation_tracker *op_tracker;
 
     private:
+    std::shared_ptr<barrier> _barrier;
+
     bool _running = true;
     uint64_t _sleep_time_ms = 1000;
 };
