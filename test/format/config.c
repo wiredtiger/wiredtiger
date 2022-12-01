@@ -275,6 +275,13 @@ config_table(TABLE *table, void *arg)
             config_single(table, "btree.value_min=20", false);
     }
 
+    /*
+     * Limit the rows to 1000000 if the config is on, otherwise bulk load will take too much time as
+     * we need to do realloc for every new entry to an array.
+     */
+    if (GV(DEBUG_REALLOC_EXACT) && TV(RUNS_ROWS) > 1000000)
+        config_single(table, "runs.rows=1000000", false);
+
 #ifndef WT_STANDALONE_BUILD
     /*
      * Non-standalone builds do not support writing fast truncate information to disk, as this
