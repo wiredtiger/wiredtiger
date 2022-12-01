@@ -88,7 +88,7 @@ class reverse_split : public test {
                 continue;
             }
             if (tc->txn.commit())
-                logger::log_msg(LOG_DEBUG,
+                logger::log_msg(LOG_TRACE,
                   "thread {" + std::to_string(tc->id) + "} committed truncation of " +
                     std::to_string(end_key_id - min_key_id) + " records.");
             else
