@@ -268,7 +268,7 @@ config_table(TABLE *table, void *arg)
          * set. Direct IO is always explicitly set, never limit the row count because the user has
          * taken control.
          */
-        if (GV(RUNS_IN_MEMORY) && TV(RUNS_ROWS) > 1000000 &&
+        if (GV(RUNS_IN_MEMORY) && TV(RUNS_ROWS) > WT_MILLION &&
           config_explicit(NULL, "runs.in_memory")) {
             WARN("limiting table%" PRIu32
                  ".runs.rows to 1,000,000 as runs.in_memory has been automatically enabled",
@@ -884,7 +884,7 @@ config_in_memory(void)
     if (!config_explicit(NULL, "runs.in_memory") && mmrand(NULL, 1, 20) == 1) {
         config_single(NULL, "runs.in_memory=1", false);
         /* Use table[0] to access the global value (RUN_ROWS is a table value). */
-        if (NTV(tables[0], RUNS_ROWS) > 1000000) {
+        if (NTV(tables[0], RUNS_ROWS) > WT_MILLION) {
             WARN("%s",
               "limiting runs.rows to 1,000,000 as runs.in_memory has been automatically enabled");
             config_single(NULL, "runs.rows=1000000", true);
