@@ -296,9 +296,9 @@ config_table(TABLE *table, void *arg)
           !config_explicit(NULL, "debug.realloc_malloc")) &&
       GV(DEBUG_REALLOC_EXACT) && GV(DEBUG_REALLOC_MALLOC) && TV(RUNS_ROWS) > WT_MILLION) {
         config_single(table, "runs.rows=1000000", true);
-        WARN("limiting table%" PRIu32
-             ".runs.rows to 1,000,000 as realloc_exact, or realloc_malloc, or runs.rows has been "
-             "automatically set",
+        WARN(
+          "limiting table%" PRIu32
+          ".runs.rows to 1,000,000 if realloc_exact or realloc_malloc has been automatically set",
           table->id);
     }
 
@@ -389,8 +389,8 @@ config_run(void)
          */
         config_single(NULL, "runs.tables=5", true);
         WARN(
-          "limiting runs.tables to %d as realloc_exact, or realloc_malloc, or runs.rows has been "
-          "automatically set",
+          "limiting runs.tables to %d if realloc_exact or realloc_malloc has been automatically "
+          "set",
           5);
     }
 
