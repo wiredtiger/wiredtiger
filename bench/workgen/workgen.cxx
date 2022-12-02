@@ -1369,6 +1369,7 @@ Operation::Operation(OpType optype, Table table, Key key, Value value)
     : _optype(optype), _internal(nullptr), _table(table), _key(key), _value(value), _config(),
       transaction(nullptr), _group(nullptr), _repeatgroup(0), _timed(0.0), _random_table(false)
 {
+    ASSERT(is_table_op());
     init_internal(nullptr);
     size_check();
 }
@@ -1377,6 +1378,7 @@ Operation::Operation(OpType optype, Table table, Key key)
     : _optype(optype), _internal(nullptr), _table(table), _key(key), _value(), _config(),
       transaction(nullptr), _group(nullptr), _repeatgroup(0), _timed(0.0), _random_table(false)
 {
+    ASSERT(is_table_op());
     init_internal(nullptr);
     size_check();
 }
@@ -1385,6 +1387,7 @@ Operation::Operation(OpType optype, Table table)
     : _optype(optype), _internal(nullptr), _table(table), _key(), _value(), _config(),
       transaction(nullptr), _group(nullptr), _repeatgroup(0), _timed(0.0), _random_table(false)
 {
+    ASSERT(is_table_op());
     init_internal(nullptr);
     size_check();
 }
@@ -1393,6 +1396,7 @@ Operation::Operation(OpType optype, Key key, Value value)
     : _optype(optype), _internal(nullptr), _table(), _key(key), _value(value), _config(),
       transaction(nullptr), _group(nullptr), _repeatgroup(0), _timed(0.0), _random_table(true)
 {
+    ASSERT(is_table_op());
     init_internal(nullptr);
 }
 
@@ -1411,6 +1415,7 @@ Operation::Operation(OpType optype, const std::string &config)
     : _optype(optype), _internal(nullptr), _table(), _key(), _value(), _config(config),
       transaction(nullptr), _group(nullptr), _repeatgroup(0), _timed(0.0), _random_table(false)
 {
+    ASSERT(!is_table_op());
     init_internal(nullptr);
 }
 
