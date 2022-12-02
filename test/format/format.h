@@ -116,6 +116,7 @@ typedef struct {
     uint32_t v; /* integral value */
     char *vstr; /* string value */
     bool set;   /* value explicitly set */
+    bool range;
 } CONFIGV;
 
 typedef enum { FIX, ROW, VAR } table_type;
