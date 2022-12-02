@@ -944,7 +944,7 @@ int
 ThreadRunner::op_run(Operation *op)
 {
     Track *track;
-    tint_t tint = op->_table._internal->_tint;
+    tint_t tint;
     WT_CURSOR *cursor;
     WT_ITEM item;
     WT_DECL_RET;
@@ -954,6 +954,7 @@ ThreadRunner::op_run(Operation *op)
     timespec start_time;
     uint64_t time_us;
     char buf[BUF_SIZE];
+    std::string table_uri;
 
     WT_CLEAR(item);
     track = nullptr;
@@ -961,7 +962,7 @@ ThreadRunner::op_run(Operation *op)
     recno = 0;
     own_cursor = false;
     retry_op = true;
-    range = op->_table.options.range;
+    range = op->_random_table ? 0 : op->_table.options.range;
     if (_throttle != nullptr) {
         while (_throttle_ops >= _throttle_limit && !_in_transaction && !_stop) {
             // Calling throttle causes a sleep until the next time division,
@@ -975,6 +976,20 @@ ThreadRunner::op_run(Operation *op)
         }
         if (op->is_table_op())
             ++_throttle_ops;
+    }
+
+    // Find a table to operate on.
+    if (op->_random_table) {
+        size_t num_tables = _icontext->_table_names.size();
+
+        if (num_tables == 0)
+            goto err;
+
+        tint = (random_value() % num_tables) + 1;
+        table_uri = _icontext->_table_names[tint];
+    } else {
+        tint = op->_table._internal->_tint;
+        table_uri = op->_table._uri;
     }
 
     // A potential race: thread1 is inserting, and increments
@@ -1019,7 +1034,7 @@ ThreadRunner::op_run(Operation *op)
         break;
     }
     if ((op->_internal->_flags & WORKGEN_OP_REOPEN) != 0) {
-        WT_ERR(_session->open_cursor(_session, op->_table._uri.c_str(), nullptr, nullptr, &cursor));
+        WT_ERR(_session->open_cursor(_session, table_uri.c_str(), nullptr, nullptr, &cursor));
         own_cursor = true;
     } else
         cursor = _cursors[tint];
@@ -1027,7 +1042,7 @@ ThreadRunner::op_run(Operation *op)
     measure_latency = track != nullptr && track->ops != 0 && track->track_latency() &&
       (track->ops % _workload->options.sample_rate == 0);
 
-    VERBOSE(*this, "OP " << op->_optype << " " << op->_table._uri.c_str() << ", recno=" << recno);
+    VERBOSE(*this, "OP " << op->_optype << " " << table_uri.c_str() << ", recno=" << recno);
     uint64_t start;
     if (measure_latency)
         workgen_clock(&start);
@@ -1052,8 +1067,9 @@ ThreadRunner::op_run(Operation *op)
             THROW("The key format ('" << key_format << "') must be 'u' or 'S'.");
         }
         if (OP_HAS_VALUE(op)) {
-            uint64_t compressibility =
-              op->_table.options.random_value ? 0 : op->_table.options.value_compressibility;
+            uint64_t compressibility = 0;
+            if (!op->_random_table && !op->_table.options.random_value)
+                compressibility = op->_table.options.value_compressibility;
             op->kv_gen(this, false, compressibility, recno, _valuebuf);
             const std::string value_format(cursor->value_format);
             if (value_format == "S") {
