@@ -840,7 +840,7 @@ ThreadRunner::op_create_all(Operation *op, size_t &keysize, size_t &valuesize)
     if (op->is_table_op()) {
         op->kv_compute_max(true, false);
         if (OP_HAS_VALUE(op))
-            op->kv_compute_max(false, op->_table.options.random_value);
+            op->kv_compute_max(false, op->_random_table ? false : op->_table.options.random_value);
         if (op->_key._keytype == Key::KEYGEN_PARETO && op->_key._pareto.param == 0)
             THROW("Key._pareto value must be set if KEYGEN_PARETO specified");
         op->kv_size_buffer(true, keysize);
@@ -848,31 +848,35 @@ ThreadRunner::op_create_all(Operation *op, size_t &keysize, size_t &valuesize)
 
         // Note: to support multiple contexts we'd need a generation
         // count whenever we execute.
-        if (op->_table._internal->_context_count != 0 &&
+        if (!op->_random_table && op->_table._internal->_context_count != 0 &&
           op->_table._internal->_context_count != _icontext->_context_count)
             THROW("multiple Contexts not supported");
 
-        tint_t tint;
-        if ((tint = op->_table._internal->_tint) == 0) {
-            std::string uri = op->_table._uri;
+        // If the operation is supposed to work on random tables, its Table is not defined yet.
+        if (!op->_random_table) {
 
-            // We are single threaded in this function, so do not have
-            // to worry about locking.
-            if (_icontext->_tint.count(uri) == 0) {
-                // TODO: don't use atomic add, it's overkill.
-                tint = workgen_atomic_add32(&_icontext->_tint_last, 1);
-                _icontext->_tint[uri] = tint;
-                _icontext->_table_names[tint] = uri;
-            } else
-                tint = _icontext->_tint[uri];
-            op->_table._internal->_tint = tint;
+            if (op->_table._internal->_tint == 0) {
+                // We are single threaded in this function, so do not have
+                // to worry about locking.
+                const std::string uri = op->_table._uri;
+                tint_t tint;
+                if (_icontext->_tint.count(uri) == 0) {
+                    // TODO: don't use atomic add, it's overkill.
+                    tint = workgen_atomic_add32(&_icontext->_tint_last, 1);
+                    _icontext->_tint[uri] = tint;
+                    _icontext->_table_names[tint] = uri;
+                } else
+                    tint = _icontext->_tint[uri];
+                op->_table._internal->_tint = tint;
+            }
+
+            uint32_t usage_flags = CONTAINER_VALUE(_table_usage, op->_table._internal->_tint, 0);
+            if (op->_optype == Operation::OP_SEARCH)
+                usage_flags |= ThreadRunner::USAGE_READ;
+            else
+                usage_flags |= ThreadRunner::USAGE_WRITE;
+            _table_usage[op->_table._internal->_tint] = usage_flags;
         }
-        uint32_t usage_flags = CONTAINER_VALUE(_table_usage, op->_table._internal->_tint, 0);
-        if (op->_optype == Operation::OP_SEARCH)
-            usage_flags |= ThreadRunner::USAGE_READ;
-        else
-            usage_flags |= ThreadRunner::USAGE_WRITE;
-        _table_usage[op->_table._internal->_tint] = usage_flags;
     }
     if (op->_group != nullptr)
         for (std::vector<Operation>::iterator i = op->_group->begin(); i != op->_group->end(); i++)
