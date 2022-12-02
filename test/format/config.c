@@ -39,7 +39,6 @@ static void config_compression(TABLE *, const char *);
 static void config_directio(void);
 static void config_encryption(void);
 static bool config_explicit(TABLE *, const char *);
-static bool config_range(TABLE *, const char *);
 static const char *config_file_type(u_int);
 static bool config_fix(TABLE *);
 static void config_in_memory(void);
@@ -294,11 +293,9 @@ config_table(TABLE *table, void *arg)
      * execution.
      */
     if ((!config_explicit(NULL, "debug.realloc_exact") ||
-          !config_explicit(NULL, "debug.realloc_malloc") || !config_explicit(NULL, "runs.rows") ||
-          config_range(NULL, "runs.rows")) &&
-      GV(DEBUG_REALLOC_EXACT) && GV(DEBUG_REALLOC_MALLOC) &&
-      NTV(tables[0], RUNS_ROWS) > WT_MILLION) {
-        config_single(tables[0], "runs.rows=1000000", false);
+          !config_explicit(NULL, "debug.realloc_malloc")) &&
+      GV(DEBUG_REALLOC_EXACT) && GV(DEBUG_REALLOC_MALLOC) && TV(RUNS_ROWS) > WT_MILLION) {
+        config_single(table, "runs.rows=1000000", true);
         WARN("limiting table%" PRIu32
              ".runs.rows to 1,000,000 as realloc_exact, or realloc_malloc, or runs.rows has been "
              "automatically set",
@@ -383,15 +380,14 @@ config_run(void)
      * explicitly set to reduce the running time to acceptable level.
      */
     if ((!config_explicit(NULL, "debug.realloc_exact") ||
-          !config_explicit(NULL, "debug.realloc_malloc") || !config_explicit(NULL, "runs.tables") ||
-          config_range(NULL, "runs.tables")) &&
+          !config_explicit(NULL, "debug.realloc_malloc")) &&
       GV(DEBUG_REALLOC_EXACT) && GV(DEBUG_REALLOC_MALLOC) && ntables > 5) {
         ntables = 5;
         /*
          * This has not effect just to overwrite the config in memory so that we can dump the
          * correct config.
          */
-        config_single(NULL, "runs.tables=5", false);
+        config_single(NULL, "runs.tables=5", true);
         WARN(
           "limiting runs.tables to %d as realloc_exact, or realloc_malloc, or runs.rows has been "
           "automatically set",
@@ -1977,41 +1973,6 @@ config_explicit(TABLE *table, const char *s)
         return (true);
     for (i = 1; i < ntables; ++i)
         if (tables[i]->v[cp->off].set)
-            return (true);
-    return (false);
-}
-
-/*
- * config_range --
- *     Return if a configuration entry is explicitly set as a range.
- */
-static bool
-config_range(TABLE *table, const char *s)
-{
-    CONFIG *cp;
-    u_int i;
-
-    /* Look up the configuration option. */
-    cp = config_find(s, strlen(s), true);
-
-    /*
-     * If it's a global option, assert our caller didn't ask for a table value, and return if it's
-     * set as a range in the base values.
-     */
-    if (!F_ISSET(cp, C_TABLE)) {
-        testutil_assert(table == NULL);
-        return (tables[0]->v[cp->off].range);
-    }
-
-    /* If checking a single table, the table argument is non-NULL. */
-    if (table != NULL)
-        return (table->v[cp->off].range);
-
-    /* Otherwise, check if it's set in the base values or in any table. */
-    if (tables[0]->v[cp->off].range)
-        return (true);
-    for (i = 1; i < ntables; ++i)
-        if (tables[i]->v[cp->off].range)
             return (true);
     return (false);
 }
