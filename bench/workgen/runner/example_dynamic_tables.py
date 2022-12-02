@@ -102,11 +102,9 @@ workload_thread = ThreadWithReturnValue(target=workload.run, args=([connection])
 workload_thread.start()
 
 # Create tables while the workload is running.
-create_interval_sec = 1
-
 while workload_thread.is_alive():
     create(session, workload, table_config)
-    time.sleep(create_interval_sec)
+    time.sleep(1)
 
 assert workload_thread.join() == 0
 
