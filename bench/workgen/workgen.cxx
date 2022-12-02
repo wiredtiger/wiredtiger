@@ -2293,7 +2293,9 @@ Workload::run(WT_CONNECTION *conn)
     return (runner.run(conn));
 }
 
-const std::vector<std::string> Workload::get_tables() {
+const std::vector<std::string>
+Workload::get_tables()
+{
     WorkloadRunner runner(this);
     std::vector<std::string> uris;
     {
