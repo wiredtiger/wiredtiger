@@ -1838,9 +1838,6 @@ config_single(TABLE *table, const char *s, bool explicit)
 
     v->v = v1;
     v->set = explicit;
-    v->range = range != RANGE_NONE;
-    /* Range parameter is explicit set. */
-    testutil_assert(!v->range || explicit);
 
     if (strncmp(s, "runs.tables", strlen("runs.tables")) == 0)
         config_table_extend((uint32_t)v1);
