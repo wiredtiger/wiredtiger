@@ -273,7 +273,7 @@ config_table(TABLE *table, void *arg)
           config_explicit(NULL, "runs.in_memory")) {
             WARN("limiting table%" PRIu32
                  ".runs.rows to 1,000,000 as runs.in_memory has been automatically enabled",
-              table->id)
+              table->id);
             config_single(table, "runs.rows=1000000", false);
         }
         if (!config_explicit(table, "btree.key_max"))
@@ -284,24 +284,6 @@ config_table(TABLE *table, void *arg)
             config_single(table, "btree.value_max=80", false);
         if (!config_explicit(table, "btree.value_min"))
             config_single(table, "btree.value_min=20", false);
-    }
-
-    /*
-     * Limit the rows to 1000000 if the realloc exact and realloc malloc configs are on and not all
-     * explicitly set. Realloc exact config allocates the exact amount of memory, which causes a new
-     * realloc call every time we append to a an array. Realloc malloc turns a single realloc call
-     * to a malloc, a memcpy, and a free. The combination of both will significantly slow the
-     * execution.
-     */
-    if ((!config_explicit(NULL, "debug.realloc_exact") ||
-          !config_explicit(NULL, "debug.realloc_malloc") || !config_explicit(NULL, "runs.rows") ||
-          config_range(NULL, "runs.rows")) &&
-      GV(DEBUG_REALLOC_EXACT) && GV(DEBUG_REALLOC_MALLOC) && TV(RUNS_ROWS) > WT_MILLION) {
-        config_single(table, "runs.rows=1000000", false);
-        WARN("limiting table%" PRIu32
-             ".runs.rows to 1,000,000 as realloc_exact, or realloc_malloc, or runs.rows has been "
-             "automatically set",
-          table->id)
     }
 
 #ifndef WT_STANDALONE_BUILD
@@ -378,6 +360,25 @@ config_run(void)
     config_random(tables[0], false); /* Configure the remaining global name space. */
 
     /*
+     * Limit the rows to 1000000 if the realloc exact and realloc malloc configs are on and not all
+     * explicitly set. Realloc exact config allocates the exact amount of memory, which causes a new
+     * realloc call every time we append to an array. Realloc malloc turns a single realloc call to
+     * a malloc, a memcpy, and a free. The combination of both will significantly slow the
+     * execution.
+     */
+    if ((!config_explicit(NULL, "debug.realloc_exact") ||
+          !config_explicit(NULL, "debug.realloc_malloc") || !config_explicit(NULL, "runs.rows") ||
+          config_range(NULL, "runs.rows")) &&
+      GV(DEBUG_REALLOC_EXACT) && GV(DEBUG_REALLOC_MALLOC) &&
+      NTV(tables[0], RUNS_ROWS) > WT_MILLION) {
+        config_single(tables[0], "runs.rows=1000000", false);
+        WARN(
+          "limiting runs.rows to %d as realloc_exact, or realloc_malloc, or runs.rows has been "
+          "automatically set",
+          WT_MILLION);
+    }
+
+    /*
      * Limit the number of tables to 5 if realloc exact and realloc malloc are both on and not all
      * explicitly set to reduce the running time to acceptable level.
      */
@@ -391,10 +392,10 @@ config_run(void)
          * correct config.
          */
         config_single(NULL, "runs.tables=5", false);
-        WARN("limiting table%" PRIu32
-             ".runs.tables to 5 as realloc_exact, or realloc_malloc, or runs.rows has been "
-             "automatically set",
-          table->id)
+        WARN(
+          "limiting runs.tables to %d as realloc_exact, or realloc_malloc, or runs.rows has been "
+          "automatically set",
+          5);
     }
 
     config_in_memory(); /* Periodically run in-memory. */
