@@ -83,7 +83,8 @@ class reverse_split : public test {
             uint64_t end_key_id = random_generator::instance().generate_integer<uint64_t>(
               min_key_id, min_key_id + ((key_count - min_key_id) / 1.2));
             std::string end_key = tc->pad_string(std::to_string(end_key_id), tc->key_size);
-            if (!tc->truncate(coll.id, key_str, end_key, "")) {
+            /* If we generate an invalid range or our truncate fails rollback the transaction. */
+            if (min_key_id == end_key_id || !tc->truncate(coll.id, key_str, end_key, "")) {
                 tc->txn.rollback();
                 continue;
             }
