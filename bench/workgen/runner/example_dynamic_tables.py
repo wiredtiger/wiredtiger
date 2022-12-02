@@ -39,15 +39,14 @@ from workgen import *
 
 class ThreadWithReturnValue(pythread.Thread):
 
-    def __init__(self, group=None, target=None, name=None,
-                 args=(), kwargs={}, Verbose=None):
+    def __init__(self, group=None, target=None, name=None, args=(), kwargs={}):
         pythread.Thread.__init__(self, group, target, name, args, kwargs)
         self._return = None
 
     def run(self):
         if self._target is not None:
-            self._return = self._target(*self._args,
-                                                **self._kwargs)
+            self._return = self._target(*self._args, **self._kwargs)
+            
     def join(self, *args):
         pythread.Thread.join(self, *args)
         return self._return
@@ -101,7 +100,6 @@ workload.options.run_time = 10
 # Start the workload.
 workload_thread = ThreadWithReturnValue(target=workload.run, args=([connection]))
 workload_thread.start()
-assert workload_thread.join() == 0 
 
 # Create tables while the workload is running.
 create_interval_sec = 1
@@ -110,7 +108,7 @@ while workload_thread.is_alive():
     create(session, workload, table_config)
     time.sleep(create_interval_sec)
 
-workload_thread.join()
+assert workload_thread.join() == 0
 
 # Check tables match between Python and Workgen.
 workgen_tables = workload.get_tables()
