@@ -122,6 +122,7 @@ InterruptableFunction(workgen::Workload::run)
 
 %template(OpList) std::vector<workgen::Operation>;
 %template(ThreadList) std::vector<workgen::Thread>;
+%template(StringList) std::vector<std::string>;
 %array_class(uint32_t, uint32Array);
 %array_class(long, longArray);
 

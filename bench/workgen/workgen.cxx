@@ -2293,6 +2293,18 @@ Workload::run(WT_CONNECTION *conn)
     return (runner.run(conn));
 }
 
+const std::vector<std::string> Workload::get_tables() {
+    WorkloadRunner runner(this);
+    std::vector<std::string> uris;
+    {
+        const std::lock_guard<std::mutex> lock(runner._mutex);
+        for (const auto &kv : _context->_internal->_tint) {
+            uris.push_back(kv.first);
+        }
+    }
+    return uris;
+}
+
 void
 Workload::create_table(const std::string &uri)
 {

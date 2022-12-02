@@ -46,6 +46,8 @@ def generate_random_string(length):
 
 def create(session, workload, table_config):
 
+    global tables
+
     # Generate a random name.
     name_length = 10
     table_name = "table:" + generate_random_string(name_length)
@@ -54,6 +56,7 @@ def create(session, workload, table_config):
         session.create(table_name, table_config)
         # This indicates Workgen a new table exists.
         workload.create_table(table_name)
+        tables.append(table_name)
     # Collision may occur.
     except RuntimeError as e:
         assert "already exists" in str(e).lower()
@@ -64,10 +67,14 @@ context = Context()
 connection = context.wiredtiger_open("create")
 session = connection.open_session()
 
+# List of all tables.
+tables = []
+
 # Create a table.
 table_config = 'key_format=S,value_format=S'
 table_name = 'table:simple'
 session.create(table_name, table_config)
+tables.append(table_name)
 
 # Work on the table for some time.
 ops = Operation(Operation.OP_INSERT, Table(table_name), Key(Key.KEYGEN_APPEND, 10), Value(40))
@@ -87,3 +94,10 @@ while workload_thread.is_alive():
     time.sleep(create_interval_sec)
 
 workload_thread.join()
+
+# Check tables match between Python and Workgen.
+workgen_tables = workload.get_tables()
+
+assert len(tables) == len(workgen_tables)
+for t in tables:
+    assert t in workgen_tables
