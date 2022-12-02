@@ -37,6 +37,22 @@ from wiredtiger import *
 from workgen import *
 
 
+class ThreadWithReturnValue(pythread.Thread):
+
+    def __init__(self, group=None, target=None, name=None,
+                 args=(), kwargs={}, Verbose=None):
+        pythread.Thread.__init__(self, group, target, name, args, kwargs)
+        self._return = None
+
+    def run(self):
+        if self._target is not None:
+            self._return = self._target(*self._args,
+                                                **self._kwargs)
+    def join(self, *args):
+        pythread.Thread.join(self, *args)
+        return self._return
+
+
 def generate_random_string(length):
     assert length > 0
     characters = string.ascii_letters + string.digits
@@ -83,8 +99,9 @@ workload = Workload(context, thread)
 workload.options.run_time = 10
 
 # Start the workload.
-workload_thread = pythread.Thread(target=workload.run, args=([connection]))
+workload_thread = ThreadWithReturnValue(target=workload.run, args=([connection]))
 workload_thread.start()
+assert workload_thread.join() == 0 
 
 # Create tables while the workload is running.
 create_interval_sec = 1
