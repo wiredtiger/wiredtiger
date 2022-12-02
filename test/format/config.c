@@ -276,12 +276,15 @@ config_table(TABLE *table, void *arg)
     }
 
     /*
-     * Limit the rows to 1000000 if the realloc exact and realloc malloc configs are on. Realloc
-     * exact config allocates the exact amount of memory, which causes a new realloc call every time
-     * we append to a an array. Realloc malloc turns a single realloc call to a malloc, a memcpy,
-     * and a free. The combination of both will significantly slow the execution.
+     * Limit the rows to 1000000 if the realloc exact and realloc malloc configs are on and not all
+     * explicitly set. Realloc exact config allocates the exact amount of memory, which causes a new
+     * realloc call every time we append to a an array. Realloc malloc turns a single realloc call
+     * to a malloc, a memcpy, and a free. The combination of both will significantly slow the
+     * execution.
      */
-    if (GV(DEBUG_REALLOC_EXACT) && GV(DEBUG_REALLOC_MALLOC) && TV(RUNS_ROWS) > 1000000)
+    if ((!config_explicit(NULL, "debug.realloc_exact") ||
+          !config_explicit(NULL, "debug.realloc_malloc")) &&
+      GV(DEBUG_REALLOC_EXACT) && GV(DEBUG_REALLOC_MALLOC) && TV(RUNS_ROWS) > 1000000)
         config_single(table, "runs.rows=1000000", false);
 
 #ifndef WT_STANDALONE_BUILD
@@ -1652,6 +1655,14 @@ config_single(TABLE *table, const char *s, bool explicit)
         if (strncmp(s, "table", strlen("table")) == 0) {
             errno = 0;
             ntable = strtoul(s + strlen("table"), &endptr, 10);
+            /*
+             * Limit the number of tables to 5 if realloc exact and realloc malloc are both on and
+             * not all set explicitly to reduce the running time to acceptable level.
+             */
+            if ((!config_explicit(NULL, "debug.realloc_exact") ||
+                  !config_explicit(NULL, "debug.realloc_malloc")) &&
+              GV(DEBUG_REALLOC_EXACT) && GV(DEBUG_REALLOC_MALLOC) && ntable > 5)
+                ntable = 5;
             testutil_assert(errno == 0 && endptr[0] == '.');
             config_table_extend((uint32_t)ntable);
             table = tables[ntable];
