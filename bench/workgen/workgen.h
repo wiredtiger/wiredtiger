@@ -301,6 +301,7 @@ struct Operation {
     std::vector<Operation> *_group;
     int _repeatgroup;
     double _timed;
+    bool _random_table;
 
     Operation();
     Operation(OpType optype, Table table, Key key, Value value);

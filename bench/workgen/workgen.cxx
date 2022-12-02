@@ -1360,14 +1360,14 @@ Thread::describe(std::ostream &os) const
 
 Operation::Operation()
     : _optype(OP_NONE), _internal(nullptr), _table(), _key(), _value(), _config(),
-      transaction(nullptr), _group(nullptr), _repeatgroup(0), _timed(0.0)
+      transaction(nullptr), _group(nullptr), _repeatgroup(0), _timed(0.0), _random_table(false)
 {
     init_internal(nullptr);
 }
 
 Operation::Operation(OpType optype, Table table, Key key, Value value)
     : _optype(optype), _internal(nullptr), _table(table), _key(key), _value(value), _config(),
-      transaction(nullptr), _group(nullptr), _repeatgroup(0), _timed(0.0)
+      transaction(nullptr), _group(nullptr), _repeatgroup(0), _timed(0.0), _random_table(false)
 {
     init_internal(nullptr);
     size_check();
@@ -1375,7 +1375,7 @@ Operation::Operation(OpType optype, Table table, Key key, Value value)
 
 Operation::Operation(OpType optype, Table table, Key key)
     : _optype(optype), _internal(nullptr), _table(table), _key(key), _value(), _config(),
-      transaction(nullptr), _group(nullptr), _repeatgroup(0), _timed(0.0)
+      transaction(nullptr), _group(nullptr), _repeatgroup(0), _timed(0.0), _random_table(false)
 {
     init_internal(nullptr);
     size_check();
@@ -1383,7 +1383,7 @@ Operation::Operation(OpType optype, Table table, Key key)
 
 Operation::Operation(OpType optype, Table table)
     : _optype(optype), _internal(nullptr), _table(table), _key(), _value(), _config(),
-      transaction(nullptr), _group(nullptr), _repeatgroup(0), _timed(0.0)
+      transaction(nullptr), _group(nullptr), _repeatgroup(0), _timed(0.0), _random_table(false)
 {
     init_internal(nullptr);
     size_check();
@@ -1392,7 +1392,8 @@ Operation::Operation(OpType optype, Table table)
 Operation::Operation(const Operation &other)
     : _optype(other._optype), _internal(nullptr), _table(other._table), _key(other._key),
       _value(other._value), _config(other._config), transaction(other.transaction),
-      _group(other._group), _repeatgroup(other._repeatgroup), _timed(other._timed)
+      _group(other._group), _repeatgroup(other._repeatgroup), _timed(other._timed),
+      _random_table(other._random_table)
 {
     // Creation and destruction of _group and transaction is managed
     // by Python.
@@ -1401,7 +1402,7 @@ Operation::Operation(const Operation &other)
 
 Operation::Operation(OpType optype, const std::string &config)
     : _optype(optype), _internal(nullptr), _table(), _key(), _value(), _config(config),
-      transaction(nullptr), _group(nullptr), _repeatgroup(0), _timed(0.0)
+      transaction(nullptr), _group(nullptr), _repeatgroup(0), _timed(0.0), _random_table(false)
 {
     init_internal(nullptr);
 }
@@ -1423,6 +1424,7 @@ Operation::operator=(const Operation &other)
     _group = other._group;
     _repeatgroup = other._repeatgroup;
     _timed = other._timed;
+    _random_table = other._random_table;
     delete _internal;
     _internal = nullptr;
     init_internal(other._internal);
