@@ -1033,7 +1033,7 @@ ThreadRunner::op_run(Operation *op)
         recno = 0;
         break;
     }
-    if ((op->_internal->_flags & WORKGEN_OP_REOPEN) != 0) {
+    if (op->_random_table || ((op->_internal->_flags & WORKGEN_OP_REOPEN) != 0)) {
         WT_ERR(_session->open_cursor(_session, table_uri.c_str(), nullptr, nullptr, &cursor));
         own_cursor = true;
     } else
