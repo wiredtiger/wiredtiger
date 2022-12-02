@@ -1657,7 +1657,7 @@ config_single(TABLE *table, const char *s, bool explicit)
             ntable = strtoul(s + strlen("table"), &endptr, 10);
             /*
              * Limit the number of tables to 5 if realloc exact and realloc malloc are both on and
-             * not all set explicitly to reduce the running time to acceptable level.
+             * not all explicitly set to reduce the running time to acceptable level.
              */
             if ((!config_explicit(NULL, "debug.realloc_exact") ||
                   !config_explicit(NULL, "debug.realloc_malloc")) &&
