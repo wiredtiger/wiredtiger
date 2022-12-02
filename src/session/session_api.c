@@ -62,8 +62,8 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session, bool big_sweep)
     WT_DATA_HANDLE *saved_dhandle;
 #endif
     uint64_t now, sweep_max, sweep_min;
-    uint32_t i, nclosed, position;
-    int t_ret, nbuckets, nexamined;
+    uint32_t i, nbuckets, nclosed, nexamined, position;
+    int t_ret;
     bool productive;
 
     if (!F_ISSET(session, WT_SESSION_CACHE_CURSORS))
@@ -107,7 +107,7 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session, bool big_sweep)
 
     position = session->cursor_sweep_position;
     productive = true;
-    nbuckets = nexamined = nclosed = 0;
+    nbuckets = nclosed = nexamined = 0;
 #ifdef HAVE_DIAGNOSTIC
     saved_dhandle = session->dhandle;
 #endif
