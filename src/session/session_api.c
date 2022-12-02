@@ -75,18 +75,18 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session, bool big_sweep)
      * Periodically sweep for dead cursors; if we've swept recently, don't do it again.
      *
      * Each call of this sweep function visits all the cursors in some number of buckets used by the
-     * cursor cache. This determines if any of the visited cursors reference dead or dying data
-     * handles and should be fully closed and evicted from the cache. Evicting a cursor from the
-     * cursor cache has the important effect of freeing a reference to the associated data handle.
-     * Data handles can be closed and marked dead, but cannot be freed until all referencing
-     * sessions give up their references. So sweeping the cursor cache (for all sessions!) is a
-     * prerequisite for the connection data handle sweep to find handles that can be freed.
+     * cursor cache. If any of the visited cursors reference dead or dying data handles those
+     * cursors are fully closed and removed from the cache. Removing a cursor from the cursor cache
+     * has the important effect of freeing a reference to the associated data handle. Data handles
+     * can be closed and marked dead, but cannot be freed until all referencing sessions give up
+     * their references. So sweeping the cursor cache (for all sessions!) is a prerequisite for the
+     * connection data handle sweep to find handles that can be freed.
      *
-     * So how many buckets to visit? This function is called in two ways. When a session reset is
-     * done, this is called with big_sweep being true. We are not in a performant path when doing a
-     * reset, so if enough time has passed, we'll walk through a minium of a quarter of the buckets,
-     * and as long as we're making progress finding enough cursors to close, we'll continue on, up
-     * to the entire set of buckets.
+     * We determine the number of buckets to visit based on how this function is called. When a
+     * session reset is done, this function is called with big_sweep set to true. We are not in a
+     * performance path when doing a reset, so if enough time has passed, we'll walk through a
+     * minimum of a quarter of the buckets, and as long as we're making progress finding enough
+     * cursors to close, we'll continue on, up to the entire set of buckets.
      *
      * When we're called in a fast path (releasing a closed cursor to the cache), big_sweep is
      * false, and we start with a small set of buckets to look at and quit when we stop making
