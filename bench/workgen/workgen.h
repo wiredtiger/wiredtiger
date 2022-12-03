@@ -310,6 +310,7 @@ struct Operation {
     Operation(OpType optype, Table table);
     // Constructor with no table implies the use of random tables.
     Operation(OpType optype, Key key, Value value);
+    Operation(OpType optype);
     // Constructor with string applies to NOOP, SLEEP, CHECKPOINT
     Operation(OpType optype, const std::string& config);
     Operation(const Operation &other);
