@@ -926,7 +926,6 @@ ThreadRunner::op_get_key_recno(Operation *op, uint64_t range, tint_t tint)
 {
     uint64_t recno_count;
 
-    (void)op;
     if (range > 0)
         recno_count = range;
     else
@@ -1743,7 +1742,6 @@ SleepOperationInternal::parse_config(const std::string &config)
 int
 SleepOperationInternal::run(ThreadRunner *runner, WT_SESSION *session)
 {
-    (void)runner;  /* not used */
     (void)session; /* not used */
 
     uint64_t now;
