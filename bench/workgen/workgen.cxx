@@ -930,12 +930,17 @@ ThreadRunner::op_get_key_recno(Operation *op, uint64_t range, tint_t tint)
         recno_count = range;
     else
         recno_count = _icontext->_table_runtime[tint]._max_recno;
+
     if (recno_count == 0)
         // The file has no entries, returning 0 forces a WT_NOTFOUND return.
         return (0);
-    uint32_t rval = random_value();
+
+    uint32_t rval;
     if (op->_key._keytype == Key::KEYGEN_PARETO)
         rval = pareto_calculation(rval, recno_count, op->_key._pareto);
+    else
+        rval = random_value();
+
     return (rval % recno_count + 1); // recnos are one-based.
 }
 
