@@ -838,9 +838,10 @@ ThreadRunner::op_create_all(Operation *op, size_t &keysize, size_t &valuesize)
 {
     op->create_all();
     if (op->is_table_op()) {
-        op->kv_compute_max(true, false);
+        op->kv_compute_max(this, true, op->_random_kv);
         if (OP_HAS_VALUE(op))
-            op->kv_compute_max(false, op->_random_table ? false : op->_table.options.random_value);
+            op->kv_compute_max(
+              this, false, op->_random_table ? op->_random_kv : op->_table.options.random_value);
         if (op->_key._keytype == Key::KEYGEN_PARETO && op->_key._pareto.param == 0)
             THROW("Key._pareto value must be set if KEYGEN_PARETO specified");
         op->kv_size_buffer(true, keysize);
@@ -1431,7 +1432,8 @@ Operation::Operation(OpType optype, Key key, Value value)
 
 Operation::Operation(OpType optype)
     : _optype(optype), _internal(nullptr), _table(), _key(), _value(), _config(),
-      transaction(nullptr), _group(nullptr), _repeatgroup(0), _timed(0.0), _random_table(true), _random_kv(true)
+      transaction(nullptr), _group(nullptr), _repeatgroup(0), _timed(0.0), _random_table(true),
+      _random_kv(true)
 {
     ASSERT(is_table_op());
     init_internal(nullptr);
@@ -1614,20 +1616,28 @@ Operation::is_table_op() const
 }
 
 void
-Operation::kv_compute_max(bool iskey, bool has_random)
+Operation::kv_compute_max(ThreadRunner *runner, bool iskey, bool has_random)
 {
     ASSERT(is_table_op());
     TableOperationInternal *internal = static_cast<TableOperationInternal *>(_internal);
 
-    int size = iskey ? _key._size : _value._size;
-    if (size == 0)
-        size = iskey ? _table.options.key_size : _table.options.value_size;
+    int min_size_key = 2;
+    int min_size_value = 1;
+    int size;
+    if (_random_kv) {
+        // TODO - Need a range for the key/value.
+        size = (runner->random_value() % 1000) + (iskey ? min_size_key : min_size_value);
+    } else {
+        size = iskey ? _key._size : _value._size;
+        if (size == 0)
+            size = iskey ? _table.options.key_size : _table.options.value_size;
+    }
 
-    if (iskey && size < 2)
+    if (iskey && size < min_size_key)
         THROW("Key.size too small for table '" << _table._uri << "'");
-    if (!iskey && size < 1)
+    if (!iskey && size < min_size_value)
         THROW("Value.size too small for table '" << _table._uri << "'");
-    if (has_random) {
+    if (has_random && !_random_kv) {
         if (iskey)
             THROW("Random keys not allowed");
     }
@@ -1711,7 +1721,7 @@ Operation::kv_gen(
 void
 Operation::size_check() const
 {
-    if (is_table_op()) {
+    if (is_table_op() && !_random_kv) {
         if (_key._size == 0 && _table.options.key_size == 0)
             THROW("operation requires a key size");
         if (OP_HAS_VALUE(this) && _value._size == 0 && _table.options.value_size == 0)

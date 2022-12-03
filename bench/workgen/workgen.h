@@ -326,7 +326,7 @@ struct Operation {
     void create_all();
     void get_static_counts(Stats &stats, int multiplier);
     bool is_table_op() const;
-    void kv_compute_max(bool iskey, bool has_random);
+    void kv_compute_max(ThreadRunner *runner, bool iskey, bool has_random);
     void kv_gen(ThreadRunner *runner, bool iskey, uint64_t compressibility,
        uint64_t n, char *result) const;
     void kv_size_buffer(bool iskey, size_t &size) const;
