@@ -1722,9 +1722,10 @@ void
 Operation::size_check() const
 {
     if (is_table_op() && !_random_kv) {
-        if (_key._size == 0 && _table.options.key_size == 0)
+        if (_key._size == 0 && !_random_table && _table.options.key_size == 0)
             THROW("operation requires a key size");
-        if (OP_HAS_VALUE(this) && _value._size == 0 && _table.options.value_size == 0)
+        if (OP_HAS_VALUE(this) && _value._size == 0 && !_random_table &&
+          _table.options.value_size == 0)
             THROW("operation requires a value size");
     }
 }
