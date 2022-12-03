@@ -302,6 +302,7 @@ struct Operation {
     int _repeatgroup;
     double _timed;
     bool _random_table;
+    bool _random_kv;
 
     Operation();
     Operation(OpType optype, Table table, Key key, Value value);
