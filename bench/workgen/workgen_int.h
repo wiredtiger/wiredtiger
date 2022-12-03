@@ -152,7 +152,6 @@ struct ThreadRunner {
 
     void op_create_all(Operation *, size_t &keysize, size_t &valuesize);
     uint64_t op_get_key_recno(Operation *, uint64_t range, tint_t tint);
-    void op_get_static_counts(Operation *, Stats &, int);
     int op_run(Operation *);
     float random_signed();
     uint32_t random_value();
