@@ -213,21 +213,16 @@ __sync_evict_inmem_obsolete_ref(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
- * __sync_delete_ondisk_obsolete_ref --
- *     Check whether the on-disk ref is obsolete according to the newest stop time point and remove
- *     it.
+ * __sync_deleted_obsolete_ref_cleanup --
+ *     Check whether the deleted ref is obsolete according to the newest stop time point and mark
+ *     its parent page dirty to remove it.
  */
 static int
-__sync_delete_ondisk_obsolete_ref(WT_SESSION_IMPL *session, WT_REF *ref)
+__sync_deleted_obsolete_ref_cleanup(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    WT_ADDR_COPY addr;
     WT_DECL_RET;
     WT_PAGE_DELETED *page_del;
-    wt_timestamp_t newest_stop_ts, newest_stop_durable_ts;
-    uint64_t newest_stop_txn;
     uint8_t previous_state;
-    char tp_string[WT_TP_STRING_SIZE];
-    bool obsolete;
 
     WT_REF_LOCK(session, ref, &previous_state);
 
@@ -242,7 +237,31 @@ __sync_delete_ondisk_obsolete_ref(WT_SESSION_IMPL *session, WT_REF *ref)
         } else
             __wt_verbose_debug2(
               session, WT_VERB_CHECKPOINT_CLEANUP, "%p: skipping deleted page", (void *)ref);
-    } else if (previous_state == WT_REF_DISK) {
+    }
+
+    WT_REF_UNLOCK(ref, previous_state);
+    return (ret);
+}
+
+/*
+ * __sync_disk_obsolete_ref_cleanup --
+ *     Check whether the on-disk ref is obsolete according to the newest stop time point and mark
+ *     its parent page dirty by changing the ref status as deleted.
+ */
+static int
+__sync_disk_obsolete_ref_cleanup(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_ADDR_COPY addr;
+    WT_DECL_RET;
+    wt_timestamp_t newest_stop_ts, newest_stop_durable_ts;
+    uint64_t newest_stop_txn;
+    uint8_t previous_state;
+    char tp_string[WT_TP_STRING_SIZE];
+    bool obsolete;
+
+    WT_REF_LOCK(session, ref, &previous_state);
+
+    if (previous_state == WT_REF_DISK) {
         /*
          * If the page is on-disk and obsolete, mark the page as deleted and also set the parent
          * page as dirty. This is to ensure the parent is written during the checkpoint and the
@@ -314,9 +333,11 @@ __sync_delete_obsolete_ref(WT_SESSION_IMPL *session, WT_REF *ref)
         return (0);
     }
 
-    /* Check for the on-disk obsolete ref. */
-    if (ref->state == WT_REF_DELETED || ref->state == WT_REF_DISK)
-        WT_RET(__sync_delete_ondisk_obsolete_ref(session, ref));
+    /* Check for the deleted/on-disk obsolete ref. */
+    if (ref->state == WT_REF_DELETED)
+        WT_RET(__sync_deleted_obsolete_ref_cleanup(session, ref));
+    if (ref->state == WT_REF_DISK)
+        WT_RET(__sync_disk_obsolete_ref_cleanup(session, ref));
 
     /*
      * Ignore pages that aren't in-memory for some reason other than they're on-disk, for example,
