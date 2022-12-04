@@ -26,7 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#pramga once
+#pragma once
 
 #include <condition_variable>
 #include <mutex>
