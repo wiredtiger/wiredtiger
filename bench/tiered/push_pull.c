@@ -54,7 +54,7 @@ static double calculate_std_deviation(const double *);
 static void compute_wt_file_size(const char *, const char *, uint64_t *);
 static void compute_tiered_file_size(const char *, const char *, uint64_t *);
 static void get_file_size(const char *, uint64_t *);
-static void recover_verify(const char *, uint32_t, uint64_t, int);
+static void recover_validate(const char *, uint32_t, uint64_t, int);
 static void run_test_clean(const char *, uint32_t, bool);
 static void run_test(const char *, uint32_t, bool, int);
 static void populate(WT_SESSION *, uint32_t);
@@ -174,21 +174,22 @@ run_test_clean(const char *suffix, uint32_t num_records, bool flush)
         avg_file_size += avg_filesize_array[counter];
     }
 
-    printf("Records in Bytes- %" PRIu64
-           " (~%s), W_Time- %.3f secs (SD- %.3f), W_Tput- %.3f MB/sec (SD- %.3f), R_Time- %.3f "
-           "secs (SD- %.3f), "
-           "R_Tput- %.3f MB/sec\n",
+    printf("Bytes transferred: %" PRIu64
+           " (~%s), W_Time: %.3f secs (SD %.3f), W_Tput: %.3f MB/sec (SD %.3f), R_Time: %.3f "
+           "secs (SD %.3f), "
+           "R_Tput: %.3f MB/sec (SD %.3f)\n",
       avg_file_size / MAX_RUN, suffix, avg_wtime / MAX_RUN, calculate_std_deviation(avg_wtime_arr),
       avg_wthroughput / MAX_RUN, calculate_std_deviation(avg_wthroughput_arr), avg_rtime / MAX_RUN,
-      calculate_std_deviation(avg_rtime_arr), avg_rthroughput / MAX_RUN);
+      calculate_std_deviation(avg_rtime_arr), avg_rthroughput / MAX_RUN,
+      calculate_std_deviation(avg_rthroughput_arr));
 }
 
 /*
- * recover_verify --
+ * recover_validate --
  *     Open wiredtiger and validate the data.
  */
 static void
-recover_verify(const char *home, uint32_t num_records, uint64_t file_size, int counter)
+recover_validate(const char *home, uint32_t num_records, uint64_t file_size, int counter)
 {
     struct timeval start, end;
 
@@ -302,7 +303,7 @@ run_test(const char *home, uint32_t num_records, bool flush, int counter)
     avg_filesize_array[counter] = file_size;
 
     if (read_data)
-        recover_verify(home, num_records, file_size, counter);
+        recover_validate(home, num_records, file_size, counter);
 }
 
 /*
