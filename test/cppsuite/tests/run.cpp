@@ -34,19 +34,19 @@
 #include "src/main/test.h"
 
 #include "bounded_cursor_perf.cpp"
+#include "bounded_cursor_prefix_indices.cpp"
+#include "bounded_cursor_prefix_search_near.cpp"
+#include "bounded_cursor_prefix_stat.cpp"
+#include "bounded_cursor_stress.cpp"
 #include "burst_inserts.cpp"
 #include "cache_resize.cpp"
-#include "bounded_cursor_stress.cpp"
-#include "bounded_cursor_prefix_stat.cpp"
-#include "bounded_cursor_prefix_search_near.cpp"
-#include "bounded_cursor_prefix_indices.cpp"
 #include "hs_cleanup.cpp"
 #include "operations_test.cpp"
+#include "reverse_split.cpp"
 #include "search_near_01.cpp"
 #include "search_near_02.cpp"
 #include "search_near_03.cpp"
 #include "test_template.cpp"
-#include "reverse_split.cpp"
 
 extern "C" {
 #include "test_util.h"
@@ -140,10 +140,6 @@ run_test(const std::string &test_name, const std::string &config, const std::str
 
     if (test_name == "bounded_cursor_perf")
         bounded_cursor_perf(args).run();
-    else if (test_name == "burst_inserts")
-        burst_inserts(args).run();
-    else if (test_name == "cache_resize")
-        cache_resize(args).run();
     else if (test_name == "bounded_cursor_prefix_indices")
         bounded_cursor_prefix_indices(args).run();
     else if (test_name == "bounded_cursor_prefix_search_near")
@@ -152,10 +148,16 @@ run_test(const std::string &test_name, const std::string &config, const std::str
         bounded_cursor_prefix_stat(args).run();
     else if (test_name == "bounded_cursor_stress")
         bounded_cursor_stress(args).run();
+    else if (test_name == "burst_inserts")
+        burst_inserts(args).run();
+    else if (test_name == "cache_resize")
+        cache_resize(args).run();
     else if (test_name == "hs_cleanup")
         hs_cleanup(args).run();
     else if (test_name == "operations_test")
         operations_test(args).run();
+    else if (test_name == "reverse_split")
+        reverse_split(args).run();
     else if (test_name == "search_near_01")
         search_near_01(args).run();
     else if (test_name == "search_near_02")
@@ -164,8 +166,6 @@ run_test(const std::string &test_name, const std::string &config, const std::str
         search_near_03(args).run();
     else if (test_name == "test_template")
         test_template(args).run();
-    else if (test_name == "reverse_split")
-        reverse_split(args).run();
     else {
         test_harness::logger::log_msg(LOG_ERROR, "Test not found: " + test_name);
         error_code = -1;
