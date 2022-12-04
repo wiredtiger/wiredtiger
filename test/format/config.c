@@ -264,16 +264,16 @@ config_table(TABLE *table, void *arg)
      */
     if (GV(RUNS_IN_MEMORY) || GV(DISK_DIRECT_IO)) {
         /*
-         * Always limit the row count if its greater that 1,000,000 and in memory wasn't explicitly
-         * set. Direct IO is always explicitly set, never limit the row count because the user has
-         * taken control.
+         * Always limit the row count if its greater than one million and in memory wasn't
+         * explicitly set. Direct IO is always explicitly set, never limit the row count because the
+         * user has taken control.
          */
         if (GV(RUNS_IN_MEMORY) && TV(RUNS_ROWS) > WT_MILLION &&
           config_explicit(NULL, "runs.in_memory")) {
             WARN("limiting table%" PRIu32
-                 ".runs.rows to 1,000,000 as runs.in_memory has been automatically enabled",
+                 ".runs.rows to one million as runs.in_memory has been automatically enabled",
               table->id);
-            config_single(table, "runs.rows=1000000", false);
+            config_single(table, "runs.rows=" STR(WT_MILLION), false);
         }
         if (!config_explicit(table, "btree.key_max"))
             config_single(table, "btree.key_max=32", false);
@@ -286,19 +286,19 @@ config_table(TABLE *table, void *arg)
     }
 
     /*
-     * Limit the rows to 1000000 if the realloc exact and realloc malloc configs are on and not all
-     * explicitly set. Realloc exact config allocates the exact amount of memory, which causes a new
-     * realloc call every time we append to an array. Realloc malloc turns a single realloc call to
-     * a malloc, a memcpy, and a free. The combination of both will significantly slow the
+     * Limit the rows to one million if the realloc exact and realloc malloc configs are on and not
+     * all explicitly set. Realloc exact config allocates the exact amount of memory, which causes a
+     * new realloc call every time we append to an array. Realloc malloc turns a single realloc call
+     * to a malloc, a memcpy, and a free. The combination of both will significantly slow the
      * execution.
      */
     if ((!config_explicit(NULL, "debug.realloc_exact") ||
           !config_explicit(NULL, "debug.realloc_malloc")) &&
       GV(DEBUG_REALLOC_EXACT) && GV(DEBUG_REALLOC_MALLOC) && TV(RUNS_ROWS) > WT_MILLION) {
-        config_single(table, "runs.rows=1000000", true);
+        config_single(table, "runs.rows=" STR(WT_MILLION), true);
         WARN(
           "limiting table%" PRIu32
-          ".runs.rows to 1,000,000 if realloc_exact or realloc_malloc has been automatically set",
+          ".runs.rows to one million if realloc_exact or realloc_malloc has been automatically set",
           table->id);
     }
 
@@ -376,22 +376,22 @@ config_run(void)
     config_random(tables[0], false); /* Configure the remaining global name space. */
 
     /*
-     * Limit the number of tables to 5 if realloc exact and realloc malloc are both on and not all
-     * explicitly set to reduce the running time to acceptable level.
+     * Limit the number of tables to REALLOC_MAX_TABLES if realloc exact and realloc malloc are both
+     * on and not all explicitly set to reduce the running time to acceptable level.
      */
     if ((!config_explicit(NULL, "debug.realloc_exact") ||
           !config_explicit(NULL, "debug.realloc_malloc")) &&
-      GV(DEBUG_REALLOC_EXACT) && GV(DEBUG_REALLOC_MALLOC) && ntables > 5) {
-        ntables = 5;
+      GV(DEBUG_REALLOC_EXACT) && GV(DEBUG_REALLOC_MALLOC) && ntables > REALLOC_MAX_TABLES) {
+        ntables = REALLOC_MAX_TABLES;
         /*
-         * This has not effect just to overwrite the config in memory so that we can dump the
-         * correct config.
+         * The following config_single has no effect. It is just to overwrite the config in memory
+         * so that we can dump the correct config.
          */
-        config_single(NULL, "runs.tables=5", true);
+        config_single(NULL, "runs.tables=" STR(REALLOC_MAX_TABLES), true);
         WARN(
           "limiting runs.tables to %d if realloc_exact or realloc_malloc has been automatically "
           "set",
-          5);
+          REALLOC_MAX_TABLES);
     }
 
     config_in_memory(); /* Periodically run in-memory. */
@@ -922,8 +922,8 @@ config_in_memory(void)
         /* Use table[0] to access the global value (RUN_ROWS is a table value). */
         if (NTV(tables[0], RUNS_ROWS) > WT_MILLION) {
             WARN("%s",
-              "limiting runs.rows to 1,000,000 as runs.in_memory has been automatically enabled");
-            config_single(NULL, "runs.rows=1000000", true);
+              "limiting runs.rows to one million as runs.in_memory has been automatically enabled");
+            config_single(NULL, "runs.rows=" STR(WT_MILLION), true);
         }
     }
 }
