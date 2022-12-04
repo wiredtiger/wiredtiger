@@ -26,10 +26,10 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef BARRIER_H
-#define BARRIER_H
-#include <mutex>
+#pramga once
+
 #include <condition_variable>
+#include <mutex>
 
 namespace test_harness {
 
@@ -42,6 +42,8 @@ namespace test_harness {
  */
 class barrier {
     public:
+    barrier(barrier const &) = default;
+    ~barrier() = default;
     explicit barrier(std::size_t i_count);
     void wait();
 
@@ -53,4 +55,3 @@ class barrier {
     std::size_t _generation;
 };
 } // namespace test_harness
-#endif

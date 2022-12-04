@@ -40,8 +40,12 @@ class reverse_split : public test {
     public:
     reverse_split(test_args &args) : test(args)
     {
-        /* Add split timing stresses to the conn_open config. */
-        if (args.wt_open_config == "") {
+        /*
+         * Add split timing stresses to the conn_open config if the user supplied configuration is
+         * empty. It's easier doing that than figuring out whether they already specified the same
+         * configuration and then adding ours on the end.
+         */
+        if (args.wt_open_config.empty()) {
             std::string stress;
             if (random_generator::instance().generate_bool())
                 stress = "timing_stress_for_test=[split_3]";
@@ -65,7 +69,11 @@ class reverse_split : public test {
         scoped_cursor write_cursor = std::move(tc->session.open_scoped_cursor(coll.name));
 
         while (tc->running()) {
-            /* Synchronise across our truncate threads so they don't diverge over time. */
+            /*
+             * Synchronize across our truncate threads so they don't diverge over time. This results
+             * in a more bursty truncation workload. All threads truncate at roughly the same time
+             * which means in theory more eviction, or reverse splits happen at the same time.
+             */
             tc->sync();
             testutil_check(write_cursor->reset(write_cursor.get()));
             tc->txn.begin();
@@ -79,7 +87,7 @@ class reverse_split : public test {
             const std::string key_str(key);
             uint64_t min_key_id = std::stoi(key_str);
             uint64_t key_count = coll.get_key_count();
-            /* Truncate up to 80% of the range. */
+            /* Truncate up to 83% of the range. */
             uint64_t end_key_id = random_generator::instance().generate_integer<uint64_t>(
               min_key_id, min_key_id + ((key_count - min_key_id) / 1.2));
             std::string end_key = tc->pad_string(std::to_string(end_key_id), tc->key_size);

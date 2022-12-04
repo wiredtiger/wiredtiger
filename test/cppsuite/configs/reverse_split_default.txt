@@ -1,8 +1,9 @@
 # This workload inserts content continuously and truncates off the start of the file.
-# The truncations truncate up to 80% of the file each time.
+# The truncations truncate up to 83% of the file each time.
+# The default config intends to be a shorter configuration that tests the functionality of the test.
+# It is is largely copied from the stress config.
 duration_seconds=30,
 cache_size_mb=256,
-# Compression is required otherwise the disk of the host fills up.
 compression_enabled=true,
 timestamp_manager=
 (
