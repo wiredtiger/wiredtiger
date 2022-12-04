@@ -1437,6 +1437,11 @@ Operation::Operation(OpType optype)
 {
     ASSERT(is_table_op());
     init_internal(nullptr);
+    // TODO - Do I need to set this here for now?
+    // _key._keytype = Key::KEYGEN_PARETO;
+    // _key._pareto.range_low = 0;
+    // _key._pareto.range_high = 1;
+    // _key._pareto.param = 20;
 }
 
 Operation::Operation(const Operation &other)
