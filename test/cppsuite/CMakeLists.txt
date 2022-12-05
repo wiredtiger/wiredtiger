@@ -9,6 +9,7 @@ add_library(cppsuite_test_harness STATIC
     src/common/random_generator.cpp
     src/common/thread_manager.cpp
     src/component/component.cpp
+    src/component/execution_timer.cpp
     src/component/metrics_monitor.cpp
     src/component/metrics_writer.cpp
     src/component/operation_tracker.cpp
@@ -29,8 +30,6 @@ add_library(cppsuite_test_harness STATIC
     src/storage/connection_manager.cpp
     src/storage/scoped_cursor.cpp
     src/storage/scoped_session.cpp
-    src/util/barrier.cpp
-    src/util/execution_timer.cpp
 )
 
 target_include_directories(cppsuite_test_harness PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
