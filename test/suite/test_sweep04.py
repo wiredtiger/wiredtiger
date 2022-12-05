@@ -29,7 +29,10 @@
 # test_sweep04.py
 # Test lots of tables with more steadily created and dropped.
 # A core group of tables is used most often and hangs around.
-#
+# Test that the total number of dhandles, while increasing,
+# starts to level off, that is, the sweeps are keeping up.
+# Then test that if we only access the core tables for a while,
+# the total number of dhandles comes back done to a small number.
 
 import time
 from suite_random import suite_random
@@ -67,11 +70,11 @@ class test_sweep04(wttest.WiredTigerTestCase):
 
     # Configuration values for the run. If any of these values are changed,
     # the simulation will run, but the acceptance criteria may fail at the end.
-    core_tables = 10               # Number of core tables that always exist
-    transient_tables = 100         # Number of transient tables at any time
-    transient_examined = 10        # Number of transient tables opened at a time
-    ratio_examined = 0.01          # The chance that transient tables are examined
-    transient_table_max = 10000    # defines the length of the run
+    core_tables = 10               # Number of core tables that always exist.
+    transient_tables = 100         # Number of transient tables at any time.
+    transient_examined = 10        # Number of transient tables opened at a time.
+    ratio_examined = 0.01          # The chance that transient tables are examined.
+    transient_table_max = 10000    # Defines the length of the run.
     numkv = 1                      # Number of k/v pairs. Shouldn't matter for this test.
     nsessions = 100                # Number of sessions in our pool.
 
@@ -81,9 +84,11 @@ class test_sweep04(wttest.WiredTigerTestCase):
 
     create_params = 'key_format=i,value_format=i'
 
+    # Create a uri for one of the core tables
     def core_uri(self, i):
         return '%s-c.%d' % (self.uri, i)
 
+    # Create a uri for one of the transient tables
     def transient_uri(self, i):
         return '%s-t.%d' % (self.uri, i)
 
@@ -94,6 +99,9 @@ class test_sweep04(wttest.WiredTigerTestCase):
             c[k+1] = 1
         c.close()
 
+    # Access a set of tables in some minimal way that ensures its
+    # dhandle is at least momentarily in use.  "uri_maker" is a
+    # function that is used to create the uri.
     def examine(self, session, uri_maker, start, count):
         for i in range(0, count):
             c = session.open_cursor(uri_maker(start + i))
@@ -103,6 +111,8 @@ class test_sweep04(wttest.WiredTigerTestCase):
     def test_big_run(self):
         # populate
         r = suite_random()
+
+        # Create the set of core tables
         for i in range(0, self.core_tables):
             self.create_table(self.core_uri(i))
 
@@ -154,28 +164,35 @@ class test_sweep04(wttest.WiredTigerTestCase):
             # closing by the connection sweep.
             big = 1000000   # any large number works
             if stressing and r.rand32() % big > big * self.ratio_examined:
-                # look at transient tables
-                t = r.rand_range(available_transient, available_transient + self.transient_tables - self.transient_examined)
-                self.examine(rand_session, self.transient_uri, t, self.transient_examined)
+                # Access "count" transient tables, starting at table "tnum".
+                count = self.transient_examined
+                tnum = r.rand_range(available_transient, available_transient + self.transient_tables - count)
+                self.examine(rand_session, self.transient_uri, tnum, count)
             else:
-                # look at a core table
-                t = r.rand_range(0, self.core_tables)
-                self.examine(rand_session, self.core_uri, t, 1)
+                # Access a single core table, numbered "tnum".
+                tnum = r.rand_range(0, self.core_tables)
+                self.examine(rand_session, self.core_uri, tnum, 1)
 
             if loopcount % 100 == 99:
+                # Gather statistics about the number of dhandles, to be checked at
+                # the end of the run.
                 stat_cursor = self.session.open_cursor('statistics:', None, None)
-                close = stat_cursor[stat.conn.dh_sweep_close][2]
-                remove = stat_cursor[stat.conn.dh_sweep_remove][2]
-                sweep = stat_cursor[stat.conn.dh_sweeps][2]
-                sclose = stat_cursor[stat.conn.dh_session_handles][2]
-                ssweep = stat_cursor[stat.conn.dh_session_sweeps][2]
-                tod = stat_cursor[stat.conn.dh_sweep_tod][2]
-                ref = stat_cursor[stat.conn.dh_sweep_ref][2]
+
+                # Enable for detailed output.
+                if False:
+                    close = stat_cursor[stat.conn.dh_sweep_close][2]
+                    remove = stat_cursor[stat.conn.dh_sweep_remove][2]
+                    sweep = stat_cursor[stat.conn.dh_sweeps][2]
+                    sclose = stat_cursor[stat.conn.dh_session_handles][2]
+                    ssweep = stat_cursor[stat.conn.dh_session_sweeps][2]
+                    tod = stat_cursor[stat.conn.dh_sweep_tod][2]
+                    ref = stat_cursor[stat.conn.dh_sweep_ref][2]
+                    self.pr(('DHANDLE STATS: close={}, remove={}, sweep={}, session_handles={}, '+
+                             'session_sweeps={}, sweep_tod={}, sweep_ref={}').format(
+                                 close, remove, sweep, sclose, ssweep, tod, ref))
+
                 dhandles = stat_cursor[stat.conn.dh_conn_handle_count][2]
                 files_open = stat_cursor[stat.conn.file_open][2]
-                self.pr(('DHANDLE STATS: close={}, remove={}, sweep={}, session_handles={}, '+
-                         'session_sweeps={}, sweep_tod={}, sweep_ref={}').format(
-                             close, remove, sweep, sclose, ssweep, tod, ref))
                 self.pr('  dhandle_count={}'.format(dhandles))
                 self.pr('  file_open={}'.format(files_open))
                 dhandle_counts.append(dhandles)
@@ -188,9 +205,11 @@ class test_sweep04(wttest.WiredTigerTestCase):
             rand_session.reset()
             self.session.reset()
 
+        # The run is finished, process and check the dhandle counts we've collected.
+        #
         # Half the run is dhandle growth, and the second half should see a decline.
         # If everything is working right in the first half of the run, we should start
-        # to see the number of dhandles start to asymptote. So we check the slope of
+        # to see the number of dhandles start to reach an asymptote. So we check the slope of
         # the dhandle line in the second quarter to see that is the case.  In the second
         # half of the run, where we aren't accessing the transient tables, those references
         # should free up, and we should see an asymptote at the end much closer to the
@@ -214,10 +233,14 @@ class test_sweep04(wttest.WiredTigerTestCase):
 
         # Note, we don't check the first half average, it's likely to be big, but its size
         # depends on many factors. The important thing is that the slope has flattened out.
+        # Even with variations due to sweep timing, the slope shouldn't be greater than
+        # 15.0 (dhandles per 100 times through the loop).
         self.assertLess(abs(q2_slope), q1_slope)
         self.assertLess(abs(q2_slope), 15.0)
 
-        # At the end of the run, we expect a pretty flat slope and a pretty small number of dhandles.
+        # At the end of the run, we expect a pretty flat slope and a pretty small number
+        # of dhandles. A slope of 5.0 (dhandles per 100 times though the loop) is rather
+        # flat and still leaves room for some variation.
         self.assertLess(abs(end_run_slope), 5.0)
         self.assertLess(end_run_avg, self.core_tables + self.transient_tables + 20)
 
