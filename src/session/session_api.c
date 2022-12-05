@@ -82,16 +82,14 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session, bool big_sweep)
      * their references. So sweeping the cursor cache (for all sessions!) is a prerequisite for the
      * connection data handle sweep to find handles that can be freed.
      *
-     * We determine the number of buckets to visit based on how this function is called. When a
-     * session reset is done, this function is called with big_sweep set to true. We are not in a
-     * performance path when doing a reset, so if enough time has passed, we'll walk through a
-     * minimum of a quarter of the buckets, and as long as we're making progress finding enough
-     * cursors to close, we'll continue on, up to the entire set of buckets.
+     * We determine the number of buckets to visit based on how this function is called. When
+     * big_sweep is true and enough time has passed, walk through at least a quarter of the buckets,
+     * and as long as there is progress finding enough cursors to close, continue on, up to the
+     * entire set of buckets.
      *
-     * When we're called in a fast path (releasing a closed cursor to the cache), big_sweep is
-     * false, and we start with a small set of buckets to look at and quit when we stop making
-     * progress or when we reach the maximum configured. This way, we amortize the work of the sweep
-     * over many calls in the performance path.
+     * When big_sweep is false, we start with a small set of buckets to look at and quit when we
+     * stop making progress or when we reach the maximum configured. This way, we amortize the work
+     * of the sweep over many calls in a performance path.
      */
     __wt_seconds(session, &now);
     if (big_sweep && now - session->last_cursor_big_sweep >= 30) {
@@ -1157,7 +1155,10 @@ __session_reset(WT_SESSION *wt_session)
 
     WT_TRET(__wt_session_reset_cursors(session, true));
 
-    /* Run the session sweeps. */
+    /*
+     * Run the session sweeps. Run the cursor cache sweep with "big" option to sweep more, as we're
+     * not in a performance path.
+     */
     session->cursor_sweep_countdown = WT_SESSION_CURSOR_SWEEP_COUNTDOWN;
     WT_TRET(__wt_session_cursor_cache_sweep(session, true));
     __wt_session_dhandle_sweep(session);
