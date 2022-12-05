@@ -920,8 +920,10 @@ ThreadRunner::op_get_key_recno(Operation *op, uint64_t range, tint_t tint)
     (void)op;
     if (range > 0)
         recno_count = range;
-    else
+    else {
+        const std::lock_guard<std::mutex> lock(_wrunner->_mutex);
         recno_count = _icontext->_table_runtime[tint]._max_recno;
+    }
     if (recno_count == 0)
         // The file has no entries, returning 0 forces a WT_NOTFOUND return.
         return (0);
@@ -983,8 +985,10 @@ ThreadRunner::op_run(Operation *op)
         break;
     case Operation::OP_INSERT:
         track = &_stats.insert;
-        if (op->_key._keytype == Key::KEYGEN_APPEND || op->_key._keytype == Key::KEYGEN_AUTO)
+        if (op->_key._keytype == Key::KEYGEN_APPEND || op->_key._keytype == Key::KEYGEN_AUTO) {
+            const std::lock_guard<std::mutex> lock(_wrunner->_mutex);
             recno = workgen_atomic_add64(&_icontext->_table_runtime[tint]._max_recno, 1);
+        }
         else
             recno = op_get_key_recno(op, range, tint);
         break;
