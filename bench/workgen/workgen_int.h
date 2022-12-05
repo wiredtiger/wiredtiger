@@ -209,7 +209,7 @@ struct ContextInternal {
 
     ContextInternal();
     ~ContextInternal();
-    int create_all();
+    int create_all(std::recursive_mutex&);
 };
 
 struct OperationInternal {
@@ -283,7 +283,7 @@ struct WorkloadRunner {
     std::string _wt_home;
     timespec _start;
     bool stopping;
-    std::mutex _mutex;
+    std::recursive_mutex _mutex;
 
     WorkloadRunner(Workload *);
     ~WorkloadRunner() = default;

@@ -431,9 +431,10 @@ ContextInternal::~ContextInternal()
 }
 
 int
-ContextInternal::create_all()
+ContextInternal::create_all(std::recursive_mutex& mutex)
 {
     if (_runtime_alloced < _tint_last) {
+        const std::lock_guard<std::recursive_mutex> lock(mutex);
         // The array references are 1-based, we'll waste one entry.
         TableRuntime *new_table_runtime = new TableRuntime[_tint_last + 1];
         for (uint32_t i = 0; i < _runtime_alloced; i++)
@@ -722,7 +723,7 @@ ThreadRunner::open_all()
         tint_t tindex = kv.first;
         std::string uri;
         {
-            const std::lock_guard<std::mutex> lock(_wrunner->_mutex);
+            const std::lock_guard<std::recursive_mutex> lock(_wrunner->_mutex);
             uri = _icontext->_table_names[tindex];
         }
         WT_RET(_session->open_cursor(_session, uri.c_str(), nullptr, nullptr, &_cursors[tindex]));
@@ -851,7 +852,7 @@ ThreadRunner::op_create_all(Operation *op, size_t &keysize, size_t &valuesize)
         if ((tint = op->_table._internal->_tint) == 0) {
             std::string uri = op->_table._uri;
             {
-                const std::lock_guard<std::mutex> lock(_wrunner->_mutex);
+                const std::lock_guard<std::recursive_mutex> lock(_wrunner->_mutex);
                 if (_icontext->_tint.count(uri) == 0) {
                     // TODO: don't use atomic add, it's overkill.
                     tint = workgen_atomic_add32(&_icontext->_tint_last, 1);
@@ -921,7 +922,7 @@ ThreadRunner::op_get_key_recno(Operation *op, uint64_t range, tint_t tint)
     if (range > 0)
         recno_count = range;
     else {
-        const std::lock_guard<std::mutex> lock(_wrunner->_mutex);
+        const std::lock_guard<std::recursive_mutex> lock(_wrunner->_mutex);
         recno_count = _icontext->_table_runtime[tint]._max_recno;
     }
     if (recno_count == 0)
@@ -986,7 +987,7 @@ ThreadRunner::op_run(Operation *op)
     case Operation::OP_INSERT:
         track = &_stats.insert;
         if (op->_key._keytype == Key::KEYGEN_APPEND || op->_key._keytype == Key::KEYGEN_AUTO) {
-            const std::lock_guard<std::mutex> lock(_wrunner->_mutex);
+            const std::lock_guard<std::recursive_mutex> lock(_wrunner->_mutex);
             recno = workgen_atomic_add64(&_icontext->_table_runtime[tint]._max_recno, 1);
         }
         else
@@ -2300,7 +2301,7 @@ Workload::get_tables()
     WorkloadRunner runner(this);
     std::vector<std::string> uris;
     {
-        const std::lock_guard<std::mutex> lock(runner._mutex);
+        const std::lock_guard<std::recursive_mutex> lock(runner._mutex);
         for (const auto &kv : _context->_internal->_tint) {
             uris.push_back(kv.first);
         }
@@ -2327,13 +2328,13 @@ WorkloadRunner::create_table(const std::string &uri)
 {
     ContextInternal *icontext = _workload->_context->_internal;
     {
-        const std::lock_guard<std::mutex> lock(_mutex);
+        const std::lock_guard<std::recursive_mutex> lock(_mutex);
         if (icontext->_tint.count(uri) != 0)
             THROW("The table " << uri << " already exists.");
         tint_t tint = workgen_atomic_add32(&icontext->_tint_last, 1);
         icontext->_tint[uri] = tint;
         icontext->_table_names[tint] = uri;
-        icontext->create_all();
+        icontext->create_all(_mutex);
     }
 }
 
@@ -2413,7 +2414,7 @@ WorkloadRunner::create_all(WT_CONNECTION *conn, Context *context)
         // TODO: recover from partial failure here
         WT_RET(runner->create_all(conn));
     }
-    WT_RET(context->_internal->create_all());
+    WT_RET(context->_internal->create_all(_mutex));
     return (0);
 }
 
