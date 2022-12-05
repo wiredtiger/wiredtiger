@@ -4,7 +4,6 @@
 # It is is largely copied from the stress config.
 duration_seconds=30,
 cache_size_mb=256,
-compression_enabled=true,
 timestamp_manager=
 (
     enabled=true,
