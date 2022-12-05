@@ -574,6 +574,10 @@ err:
     __wt_scr_free(session, &key_string);
     if (hs_cursor != NULL)
         WT_TRET(hs_cursor->close(hs_cursor));
+    if (dryrun) {
+        WT_ASSERT(session, !valid_update_found || upd == NULL);
+        __wt_free_update_list(session, &upd);
+    }
     return (ret);
 }
 
