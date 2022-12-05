@@ -1467,6 +1467,7 @@ tasks:
           test_name: search_near_03
 
   - name: cppsuite-bounded-cursor-perf-stress
+    tags: ["cppsuite-stress-test"]
     depends_on:
       - name: compile
     commands:
@@ -1477,6 +1478,7 @@ tasks:
           test_name: bounded_cursor_perf
 
   - name: cppsuite-reverse-split-stress
+    tags: ["cppsuite-stress-test"]
     depends_on:
       - name: compile
     commands:
@@ -1628,6 +1630,19 @@ tasks:
         vars:
           test_config_filename: configs/search_near_03_stress.txt
           test_name: search_near_03
+
+  - name: cppsuite-reverse-split-stress-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/reverse_split_stress.txt
+          test_name: reverse_split
 
   # End of cppsuite test tasks.
   # Start of csuite test tasks
