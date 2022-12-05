@@ -27,6 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
+# This workload simulates the continuous creation of tables.
+
 import threading as pythread
 import random
 import string
