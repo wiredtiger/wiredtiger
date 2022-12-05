@@ -172,11 +172,13 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
      * Explicit null-check because internal callers (startup/shutdown) do not enter via the API, and
      * don't get default values installed in the config string.
      */
+    dryrun = false;
     if (cfg != NULL) {
-        WT_RET_NOTFOUND_OK(__wt_config_gets(session, cfg, "dryrun", &cval));
-        dryrun = cval.val != 0;
-    } else {
-        dryrun = false;
+        ret = __wt_config_gets(session, cfg, "dryrun", &cval);
+        if (ret == 0)
+            dryrun = cval.val != 0;
+        if (ret != WT_NOTFOUND)
+            WT_RET(ret);
     }
 
     /*
