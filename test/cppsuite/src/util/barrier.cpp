@@ -29,7 +29,10 @@
 #include "barrier.h"
 
 namespace test_harness {
-barrier::barrier(std::size_t thread_count) : _threshold(thread_count), _count(thread_count), _generation(0) {}
+barrier::barrier(std::size_t thread_count)
+    : _threshold(thread_count), _count(thread_count), _generation(0)
+{
+}
 
 void
 barrier::wait()

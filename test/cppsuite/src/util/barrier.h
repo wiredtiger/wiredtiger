@@ -42,7 +42,8 @@ namespace test_harness {
  */
 class barrier {
     public:
-    barrier(barrier const &) = default;
+    /* Mutexes have a deleted copy constructor so we need to as well. */
+    barrier(barrier const &) = delete;
     ~barrier() = default;
     explicit barrier(std::size_t thread_count);
     void wait();
