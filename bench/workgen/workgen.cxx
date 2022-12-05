@@ -850,9 +850,6 @@ ThreadRunner::op_create_all(Operation *op, size_t &keysize, size_t &valuesize)
         tint_t tint;
         if ((tint = op->_table._internal->_tint) == 0) {
             std::string uri = op->_table._uri;
-
-            // We are single threaded in this function, so do not have
-            // to worry about locking.
             {
                 const std::lock_guard<std::mutex> lock(_wrunner->_mutex);
                 if (_icontext->_tint.count(uri) == 0) {
