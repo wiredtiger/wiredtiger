@@ -98,7 +98,7 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session, bool big_sweep)
         session->last_cursor_big_sweep = session->last_cursor_sweep = now;
         sweep_min = conn->hash_size / 4;
         sweep_max = conn->hash_size;
-    } else if (now - session->last_cursor_sweep < 1) {
+    } else if (now - session->last_cursor_sweep >= 1) {
         session->last_cursor_sweep = now;
         sweep_min = WT_SESSION_CURSOR_SWEEP_MIN;
         sweep_max = WT_SESSION_CURSOR_SWEEP_MAX;
