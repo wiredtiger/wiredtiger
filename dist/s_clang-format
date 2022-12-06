@@ -47,19 +47,33 @@ if test $? -ne 0; then
 	download_clang_format
 fi
 
+exclude=true
 case $# in
 0)
-	# Get all source files that aren't in s_clang-format.list.
-	search=`find bench examples ext src test -name '*.[ch]' -o -name '*.cxx' -o -name '*.cpp'`
-	for f in `cat dist/s_clang-format.list`; do
-		search=`echo "$search" | sed "\#$f#d"`
-	done;;
+	# Get all source files that are modified according to git.
+	search=`git diff --name-only develop | grep -E '.*\.[chp]+$'`
+    ;;
 1)
-	search="$1";;
+    # If the -a option is specified then find every source file.
+    if [ $1 == "-a" ]; then
+        search=`find bench examples ext src test -name '*.[ch]' -o -name '*.cxx' -o -name '*.cpp'`
+    else
+        search="$1"
+        exclude=false
+    fi
+    ;;
 *)
-	echo "usage: $0 [file]"
-	exit 1;;
+	echo "usage: $0 [-a] [file]"
+    echo "-a apply clang format to all source files"
+	exit 1
+    ;;
 esac
+
+if [ "$exclude" == true ]; then
+    for f in `cat dist/s_clang-format.list`; do
+		search=`echo "$search" | sed "\#$f#d"`
+	done
+fi
 
 # Don't format inplace with -i flag.
 # We want to be able to detect modifications.
