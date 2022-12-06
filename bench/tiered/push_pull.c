@@ -202,6 +202,7 @@ recover_validate(const char *home, uint32_t num_records, uint64_t file_size, int
 
     WT_CONNECTION *conn;
     WT_CURSOR *cursor;
+    WT_RAND_STATE rnd;
     WT_SESSION *session;
 
     /* Copy the data to a separate folder for debugging purpose. */
@@ -214,11 +215,11 @@ recover_validate(const char *home, uint32_t num_records, uint64_t file_size, int
     testutil_wiredtiger_open(opts, home, buf, NULL, &conn, true, true);
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    // srand((unsigned long)getpid() + num_records);
-    srand((uint32_t)getpid() + num_records);
+    /* Seed the random number generator */
+    rnd.v = (uint32_t)getpid() + num_records;
     str_len = sizeof(data_str) / sizeof(data_str[0]);
     for (i = 0; i < str_len - 1; i++)
-        data_str[i] = 'a' + (uint32_t)rand() % 26;
+        data_str[i] = 'a' + (uint32_t)__wt_random(&rnd) % 26;
 
     data_str[str_len - 1] = '\0';
 
@@ -314,13 +315,16 @@ static void
 populate(WT_SESSION *session, uint32_t num_records)
 {
     WT_CURSOR *cursor;
+    WT_RAND_STATE rnd;
+
     uint64_t i, str_len;
 
-    srand((uint32_t)getpid() + num_records);
+    /* Seed the random number generator */
+    rnd.v = (uint32_t)getpid() + num_records;
 
     str_len = sizeof(data_str) / sizeof(data_str[0]);
     for (i = 0; i < str_len - 1; i++)
-        data_str[i] = 'a' + (uint32_t)rand() % 26;
+        data_str[i] = 'a' + (uint32_t)__wt_random(&rnd) % 26;
 
     data_str[str_len - 1] = '\0';
 
