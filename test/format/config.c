@@ -264,15 +264,15 @@ config_table(TABLE *table, void *arg)
      */
     if (GV(RUNS_IN_MEMORY) || GV(DISK_DIRECT_IO)) {
         /*
-         * Always limit the row count if its greater than one million and in memory wasn't
+         * Always limit the row count if it's greater than one million and in memory wasn't
          * explicitly set. Direct IO is always explicitly set, never limit the row count because the
          * user has taken control.
          */
         if (GV(RUNS_IN_MEMORY) && TV(RUNS_ROWS) > WT_MILLION &&
           config_explicit(NULL, "runs.in_memory")) {
             WARN("limiting table%" PRIu32
-                 ".runs.rows to one million as runs.in_memory has been automatically enabled",
-              table->id);
+                 ".runs.rows to %d as runs.in_memory has been automatically enabled",
+              table->id, WT_MILLION);
             config_single(table, "runs.rows=" STR(WT_MILLION), false);
         }
         if (!config_explicit(table, "btree.key_max"))
@@ -296,10 +296,9 @@ config_table(TABLE *table, void *arg)
           !config_explicit(NULL, "debug.realloc_malloc")) &&
       GV(DEBUG_REALLOC_EXACT) && GV(DEBUG_REALLOC_MALLOC) && TV(RUNS_ROWS) > WT_MILLION) {
         config_single(table, "runs.rows=" STR(WT_MILLION), true);
-        WARN(
-          "limiting table%" PRIu32
-          ".runs.rows to one million if realloc_exact or realloc_malloc has been automatically set",
-          table->id);
+        WARN("limiting table%" PRIu32
+             ".runs.rows to %d if realloc_exact or realloc_malloc has been automatically set",
+          table->id, WT_MILLION);
     }
 
 #ifndef WT_STANDALONE_BUILD
@@ -377,7 +376,7 @@ config_run(void)
 
     /*
      * Limit the number of tables to REALLOC_MAX_TABLES if realloc exact and realloc malloc are both
-     * on and not all explicitly set to reduce the running time to acceptable level.
+     * on and not all explicitly set to reduce the running time to an acceptable level.
      */
     if ((!config_explicit(NULL, "debug.realloc_exact") ||
           !config_explicit(NULL, "debug.realloc_malloc")) &&
@@ -921,8 +920,8 @@ config_in_memory(void)
         config_single(NULL, "runs.in_memory=1", false);
         /* Use table[0] to access the global value (RUN_ROWS is a table value). */
         if (NTV(tables[0], RUNS_ROWS) > WT_MILLION) {
-            WARN("%s",
-              "limiting runs.rows to one million as runs.in_memory has been automatically enabled");
+            WARN("limiting runs.rows to %d as runs.in_memory has been automatically enabled",
+              WT_MILLION);
             config_single(NULL, "runs.rows=" STR(WT_MILLION), true);
         }
     }
