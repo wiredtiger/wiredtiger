@@ -259,6 +259,21 @@ struct __wt_cursor {
 	 */
 	int __F(get_value)(WT_CURSOR *cursor, ...);
 
+        /*!
+	 * Get the key and value for the current record.
+         *
+	 * @snippet ex_all.c Get the cursor's raw value
+	 *
+	 * @param cursor the cursor handle
+	 * @param ... pointers to hold value fields corresponding to
+	 * WT_CURSOR::value_format.
+	 * The API does not validate the argument types passed in; the caller is
+	 * responsible for passing the correct argument types according to
+	 * WT_CURSOR::value_format.
+	 * @errors
+         */
+        int __F(get_raw_key_value)(WT_CURSOR *cursor, WT_ITEM* key, WT_ITEM* value);
+
 	/*!
 	 * Set the key for the next operation.
 	 *
