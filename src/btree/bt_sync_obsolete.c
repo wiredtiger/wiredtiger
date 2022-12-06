@@ -20,6 +20,7 @@ __sync_obsolete_inmem_evict(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     wt_timestamp_t newest_stop_ts, newest_stop_durable_ts;
+    WT_TIME_AGGREGATE newest_ta;
     uint64_t newest_stop_txn;
     uint32_t i;
     char tp_string[WT_TP_STRING_SIZE];
@@ -35,9 +36,13 @@ __sync_obsolete_inmem_evict(WT_SESSION_IMPL *session, WT_REF *ref)
     if (__wt_page_is_modified(ref->page))
         return (0);
 
-    newest_stop_durable_ts = newest_stop_ts = WT_TS_NONE;
-    newest_stop_txn = WT_TXN_NONE;
-    obsolete = ovfl_items = false;
+    /*
+     * Initialize the time aggregate via the merge initializer, so that stop visibility is
+     * copied across correctly. That is we need the stop timestamp/transaction IDs to start as
+     * none, otherwise we'd never mark anything as obsolete.
+     */
+    WT_TIME_AGGREGATE_INIT_MERGE(&newest_ta);
+    do_visibility_check = obsolete = ovfl_items = false;
 
     mod = ref->page->modify;
     if (mod != NULL && mod->rec_result == WT_PM_REC_EMPTY) {
@@ -49,38 +54,32 @@ __sync_obsolete_inmem_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 
         /* Calculate the max stop time point by traversing all multi addresses. */
         for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
-            newest_stop_txn = WT_MAX(newest_stop_txn, multi->addr.ta.newest_stop_txn);
-            newest_stop_ts = WT_MAX(newest_stop_ts, multi->addr.ta.newest_stop_ts);
-            newest_stop_durable_ts = WT_MAX(newest_stop_durable_ts,
-              multi->addr.ta.newest_stop_ts == WT_TS_MAX ? WT_TS_MAX :
-                                                           multi->addr.ta.newest_stop_durable_ts);
+            WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(&newest_ta, &multi->addr.ta);
             if (multi->addr.type == WT_ADDR_LEAF)
                 ovfl_items = true;
         }
-        obsolete = __wt_txn_visible_all(session, newest_stop_txn, newest_stop_durable_ts);
+        do_visibility_check = true;
     } else if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE) {
         tag = "reconciled replacement block";
 
-        newest_stop_txn = mod->mod_replace.ta.newest_stop_txn;
-        newest_stop_ts = mod->mod_replace.ta.newest_stop_ts;
-        newest_stop_durable_ts = mod->mod_replace.ta.newest_stop_ts == WT_TS_MAX ?
-          WT_TS_MAX :
-          mod->mod_replace.ta.newest_stop_durable_ts;
+        WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(&newest_ta, &mod->mod_replace.ta);
         if (mod->mod_replace.type == WT_ADDR_LEAF)
             ovfl_items = true;
-        obsolete = __wt_txn_visible_all(session, newest_stop_txn, newest_stop_durable_ts);
+        do_visibility_check = true;
     } else if (__wt_ref_addr_copy(session, ref, &addr)) {
         tag = "WT_REF address";
 
-        newest_stop_txn = addr.ta.newest_stop_txn;
-        newest_stop_ts = addr.ta.newest_stop_ts;
-        newest_stop_durable_ts =
-          addr.ta.newest_stop_ts == WT_TS_MAX ? WT_TS_MAX : addr.ta.newest_stop_durable_ts;
+        WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(&newest_ta, &addr.ta);
         if (addr.type == WT_ADDR_LEAF)
             ovfl_items = true;
-        obsolete = __wt_txn_visible_all(session, newest_stop_txn, newest_stop_durable_ts);
+        do_visibility_check = true;
     } else
         tag = "unexpected page state";
+
+    if (do_visibility_check)
+        obsolete = __wt_txn_visible_all(session, newest_ta.newest_stop_txn,
+              newest_stop.newest_stop_ts == WT_TS_MAX ?
+              WT_TS_MAX : newest_stop.newest_stop_durable_ts);
 
     if (obsolete) {
         /*
@@ -142,6 +141,7 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
 {
     WT_ADDR_COPY addr;
     WT_DECL_RET;
+    WT_TIME_AGGREGATE newest_ta;
     wt_timestamp_t newest_stop_ts, newest_stop_durable_ts;
     uint64_t newest_stop_txn;
     uint8_t previous_state;
@@ -156,8 +156,7 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
          * page as dirty. This is to ensure the parent is written during the checkpoint and the
          * child page discarded.
          */
-        newest_stop_durable_ts = newest_stop_ts = WT_TS_NONE;
-        newest_stop_txn = WT_TXN_NONE;
+        WT_TIME_AGGREGATE_INIT_MERGE(&newest_ta);
         obsolete = false;
 
         /*
@@ -170,11 +169,10 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
              * Max stop timestamp is possible only when the prepared update is written to the data
              * store.
              */
-            newest_stop_ts = addr.ta.newest_stop_ts;
-            newest_stop_durable_ts =
-              addr.ta.newest_stop_ts == WT_TS_MAX ? WT_TS_MAX : addr.ta.newest_stop_durable_ts;
-            newest_stop_txn = addr.ta.newest_stop_txn;
-            obsolete = __wt_txn_visible_all(session, newest_stop_txn, newest_stop_durable_ts);
+            WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(&newest_ta, &addr.ta);
+            obsolete = __wt_txn_visible_all(session, newest_ta.newest_stop_txn,
+                  newest_stop.newest_stop_ts == WT_TS_MAX ?
+                  WT_TS_MAX : newest_stop.newest_stop_durable_ts);
         }
 
         __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
