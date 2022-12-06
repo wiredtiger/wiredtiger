@@ -431,7 +431,7 @@ ContextInternal::~ContextInternal()
 }
 
 int
-ContextInternal::create_all(std::recursive_mutex& mutex)
+ContextInternal::create_all(std::recursive_mutex &mutex)
 {
     if (_runtime_alloced < _tint_last) {
         const std::lock_guard<std::recursive_mutex> lock(mutex);
@@ -989,8 +989,7 @@ ThreadRunner::op_run(Operation *op)
         if (op->_key._keytype == Key::KEYGEN_APPEND || op->_key._keytype == Key::KEYGEN_AUTO) {
             const std::lock_guard<std::recursive_mutex> lock(_wrunner->_mutex);
             recno = workgen_atomic_add64(&_icontext->_table_runtime[tint]._max_recno, 1);
-        }
-        else
+        } else
             recno = op_get_key_recno(op, range, tint);
         break;
     case Operation::OP_LOG_FLUSH:
