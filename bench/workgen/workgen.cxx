@@ -416,10 +416,12 @@ Context::operator=(const Context &other)
 
 ContextInternal::ContextInternal()
     : _tint(), _table_names(), _table_runtime(nullptr), _runtime_alloced(0), _tint_last(0),
-      _context_count(0)
+      _dyn_tint(), _dyn_table_names(), _dyn_table_runtime(nullptr), _dyn_tint_last(0),
+      _context_count(0), _mutex(new std::mutex())
 {
-    uint32_t count;
-    if ((count = workgen_atomic_add32(&context_count, 1)) != 1)
+    _dyn_table_runtime = new std::vector<TableRuntime>();
+    uint32_t count = workgen_atomic_add32(&context_count, 1);
+    if (count != 1)
         THROW("multiple Contexts not supported");
     _context_count = count;
 }
@@ -428,6 +430,8 @@ ContextInternal::~ContextInternal()
 {
     if (_table_runtime != nullptr)
         delete _table_runtime;
+    if (_dyn_table_runtime != nullptr)
+        delete _dyn_table_runtime;
 }
 
 int
@@ -838,9 +842,11 @@ ThreadRunner::op_create_all(Operation *op, size_t &keysize, size_t &valuesize)
 {
     op->create_all();
     if (op->is_table_op()) {
+
         op->kv_compute_max(true, false);
         if (OP_HAS_VALUE(op))
             op->kv_compute_max(false, op->_table.options.random_value);
+
         if (op->_key._keytype == Key::KEYGEN_PARETO && op->_key._pareto.param == 0)
             THROW("Key._pareto value must be set if KEYGEN_PARETO specified");
         op->kv_size_buffer(true, keysize);
@@ -848,31 +854,35 @@ ThreadRunner::op_create_all(Operation *op, size_t &keysize, size_t &valuesize)
 
         // Note: to support multiple contexts we'd need a generation
         // count whenever we execute.
-        if (op->_table._internal->_context_count != 0 &&
+        if (!op->_random_table && op->_table._internal->_context_count != 0 &&
           op->_table._internal->_context_count != _icontext->_context_count)
             THROW("multiple Contexts not supported");
 
-        tint_t tint;
-        if ((tint = op->_table._internal->_tint) == 0) {
-            std::string uri = op->_table._uri;
+        if (!op->_random_table) {
 
-            // We are single threaded in this function, so do not have
-            // to worry about locking.
-            if (_icontext->_tint.count(uri) == 0) {
-                // TODO: don't use atomic add, it's overkill.
-                tint = workgen_atomic_add32(&_icontext->_tint_last, 1);
-                _icontext->_tint[uri] = tint;
-                _icontext->_table_names[tint] = uri;
-            } else
-                tint = _icontext->_tint[uri];
-            op->_table._internal->_tint = tint;
+            tint_t tint = op->_table._internal->_tint;
+            if (tint == 0) {
+                std::string uri = op->_table._uri;
+
+                // We are single threaded in this function, so do not have
+                // to worry about locking.
+                if (_icontext->_tint.count(uri) == 0) {
+                    // TODO: don't use atomic add, it's overkill.
+                    tint = workgen_atomic_add32(&_icontext->_tint_last, 1);
+                    _icontext->_tint[uri] = tint;
+                    _icontext->_table_names[tint] = uri;
+                } else
+                    tint = _icontext->_tint[uri];
+                op->_table._internal->_tint = tint;
+            }
+
+            uint32_t usage_flags = CONTAINER_VALUE(_table_usage, op->_table._internal->_tint, 0);
+            if (op->_optype == Operation::OP_SEARCH)
+                usage_flags |= ThreadRunner::USAGE_READ;
+            else
+                usage_flags |= ThreadRunner::USAGE_WRITE;
+            _table_usage[op->_table._internal->_tint] = usage_flags;
         }
-        uint32_t usage_flags = CONTAINER_VALUE(_table_usage, op->_table._internal->_tint, 0);
-        if (op->_optype == Operation::OP_SEARCH)
-            usage_flags |= ThreadRunner::USAGE_READ;
-        else
-            usage_flags |= ThreadRunner::USAGE_WRITE;
-        _table_usage[op->_table._internal->_tint] = usage_flags;
     }
     if (op->_group != nullptr)
         for (std::vector<Operation>::iterator i = op->_group->begin(); i != op->_group->end(); i++)
@@ -925,8 +935,13 @@ ThreadRunner::op_get_key_recno(Operation *op, uint64_t range, tint_t tint)
     (void)op;
     if (range > 0)
         recno_count = range;
-    else
-        recno_count = _icontext->_table_runtime[tint]._max_recno;
+    else {
+        if (op->_random_table) {
+            const std::lock_guard<std::mutex> lock(*_icontext->_mutex);
+            recno_count = _icontext->_dyn_table_runtime->at(tint)._max_recno;
+        } else
+            recno_count = _icontext->_table_runtime[tint]._max_recno;
+    }
     if (recno_count == 0)
         // The file has no entries, returning 0 forces a WT_NOTFOUND return.
         return (0);
@@ -940,7 +955,7 @@ int
 ThreadRunner::op_run(Operation *op)
 {
     Track *track;
-    tint_t tint = op->_table._internal->_tint;
+    tint_t tint;
     WT_CURSOR *cursor;
     WT_ITEM item;
     WT_DECL_RET;
@@ -950,6 +965,7 @@ ThreadRunner::op_run(Operation *op)
     timespec start_time;
     uint64_t time_us;
     char buf[BUF_SIZE];
+    std::string table_uri;
 
     WT_CLEAR(item);
     track = nullptr;
@@ -973,6 +989,21 @@ ThreadRunner::op_run(Operation *op)
             ++_throttle_ops;
     }
 
+    // Find a table to operate on.
+    if (op->_random_table) {
+        const std::lock_guard<std::mutex> lock(*_icontext->_mutex);
+        size_t num_tables = _icontext->_dyn_table_names.size();
+
+        if (num_tables == 0)
+            goto err;
+
+        tint = (random_value() % num_tables);
+        table_uri = _icontext->_dyn_table_names.at(tint);
+    } else {
+        tint = op->_table._internal->_tint;
+        table_uri = op->_table._uri;
+    }
+
     // A potential race: thread1 is inserting, and increments
     // Context->_recno[] for fileX.wt. thread2 is doing one of
     // remove/search/update and grabs the new value of Context->_recno[]
@@ -988,9 +1019,15 @@ ThreadRunner::op_run(Operation *op)
         break;
     case Operation::OP_INSERT:
         track = &_stats.insert;
-        if (op->_key._keytype == Key::KEYGEN_APPEND || op->_key._keytype == Key::KEYGEN_AUTO)
-            recno = workgen_atomic_add64(&_icontext->_table_runtime[tint]._max_recno, 1);
-        else
+        if (op->_key._keytype == Key::KEYGEN_APPEND || op->_key._keytype == Key::KEYGEN_AUTO) {
+            if (op->_random_table) {
+                const std::lock_guard<std::mutex> lock(*_icontext->_mutex);
+                recno =
+                  workgen_atomic_add64(&_icontext->_dyn_table_runtime->at(tint)._max_recno, 1);
+            } else {
+                recno = workgen_atomic_add64(&_icontext->_table_runtime[tint]._max_recno, 1);
+            }
+        } else
             recno = op_get_key_recno(op, range, tint);
         break;
     case Operation::OP_LOG_FLUSH:
@@ -1014,8 +1051,8 @@ ThreadRunner::op_run(Operation *op)
         recno = 0;
         break;
     }
-    if ((op->_internal->_flags & WORKGEN_OP_REOPEN) != 0) {
-        WT_ERR(_session->open_cursor(_session, op->_table._uri.c_str(), nullptr, nullptr, &cursor));
+    if (op->_random_table || ((op->_internal->_flags & WORKGEN_OP_REOPEN) != 0)) {
+        WT_ERR(_session->open_cursor(_session, table_uri.c_str(), nullptr, nullptr, &cursor));
         own_cursor = true;
     } else
         cursor = _cursors[tint];
@@ -1023,7 +1060,7 @@ ThreadRunner::op_run(Operation *op)
     measure_latency = track != nullptr && track->ops != 0 && track->track_latency() &&
       (track->ops % _workload->options.sample_rate == 0);
 
-    VERBOSE(*this, "OP " << op->_optype << " " << op->_table._uri.c_str() << ", recno=" << recno);
+    VERBOSE(*this, "OP " << op->_optype << " " << table_uri.c_str() << ", recno=" << recno);
     uint64_t start;
     if (measure_latency)
         workgen_clock(&start);
@@ -1577,17 +1614,29 @@ Operation::kv_compute_max(bool iskey, bool has_random)
     TableOperationInternal *internal = static_cast<TableOperationInternal *>(_internal);
 
     int size = iskey ? _key._size : _value._size;
-    if (size == 0)
-        size = iskey ? _table.options.key_size : _table.options.value_size;
+    if (size == 0) {
+        if (_random_table) {
+            const std::string err_msg("Cannot have a size of " + std::to_string(size) +
+              " with the usage of dynamic tables.");
+            THROW(err_msg);
+        } else {
+            size = iskey ? _table.options.key_size : _table.options.value_size;
+        }
+    }
+
+    std::string err_msg;
+    err_msg = iskey ? "Key" : "Value";
+    err_msg += " too small";
+    if (!_random_table)
+        err_msg += " for table " + _table._uri;
 
     if (iskey && size < 2)
-        THROW("Key.size too small for table '" << _table._uri << "'");
+        THROW(err_msg);
     if (!iskey && size < 1)
-        THROW("Value.size too small for table '" << _table._uri << "'");
-    if (has_random) {
-        if (iskey)
-            THROW("Random keys not allowed");
-    }
+        THROW(err_msg);
+
+    if (has_random && iskey)
+        THROW("Random keys not allowed");
 
     uint64_t max;
     if (size > 1)
