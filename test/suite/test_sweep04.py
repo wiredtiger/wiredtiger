@@ -32,7 +32,7 @@
 # Test that the total number of dhandles, while increasing,
 # starts to level off, that is, the sweeps are keeping up.
 # Then test that if we only access the core tables for a while,
-# the total number of dhandles comes back done to a small number.
+# the total number of dhandles comes back down to a small number.
 
 import time
 from suite_random import suite_random
@@ -54,7 +54,7 @@ def average_slope(y):
         return [y[0], 0]  # there's no slope
 
     average = sum(y) / n
-    x = range(1, n + 1)  # the implied x axis, steadily increasing integers.
+    x = range(1, n + 1)  # The implied x axis, steadily increasing integers.
 
     # Here's a formula for least squares slope:
     #   https://www.mathsisfun.com/data/least-squares-regression.html
@@ -116,20 +116,20 @@ class test_sweep04(wttest.WiredTigerTestCase):
         for i in range(0, self.core_tables):
             self.create_table(self.core_uri(i))
 
-        created_transient = 0    # running total of transients created
-        available_transient = 0  # the next available transient number
+        created_transient = 0    # Running total of transients created.
+        available_transient = 0  # The next available transient number.
 
-        # Create the initial batch of transient tables
+        # Create the initial batch of transient tables.
         while created_transient < self.transient_tables:
             self.create_table(self.transient_uri(created_transient))
             created_transient += 1
 
-        # Open all the session we'll use in advance
+        # Open all the session we'll use in advance.
         sessions = []
         for i in range(self.nsessions):
             sessions.append(self.conn.open_session())
 
-        # We keep the dhandle counts for each time we get stats
+        # We keep the dhandle counts for each time we get stats.
         dhandle_counts = []
 
         # The big loop: For half the run, we are stressing by accessing both core tables
@@ -162,7 +162,7 @@ class test_sweep04(wttest.WiredTigerTestCase):
             # In the stress part of the run, some small fraction (given by ratio_examined) will
             # look at the transient tables.  Looking at these rarely makes them candidates for
             # closing by the connection sweep.
-            big = 1000000   # any large number works
+            big = 1000000   # Any large number works.
             if stressing and r.rand32() % big > big * self.ratio_examined:
                 # Access "count" transient tables, starting at table "tnum".
                 count = self.transient_examined
