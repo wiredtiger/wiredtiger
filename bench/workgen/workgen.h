@@ -301,6 +301,8 @@ struct Operation {
     std::vector<Operation> *_group;
     int _repeatgroup;
     double _timed;
+    // Indicates whether a table is selected randomly to be worked on.
+    bool _random_table;
 
     Operation();
     Operation(OpType optype, Table table, Key key, Value value);
