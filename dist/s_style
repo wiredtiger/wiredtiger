@@ -11,13 +11,25 @@ if test $? -eq 0; then
 	xp="-P 20"
 fi
 
+# s_style by default is only applied to files which changed according to git. To run against all
+# files use -a.
+
+search_str="git diff --name-only develop | grep -E '.*\.[acdehimnopsyx]+$'"
+single_file=0
+if [ $# -eq 1 ]; then
+    if [ "$1" = "-a" ]; then
+        search_str="find bench examples ext src test -name '*.[chsy]' -o -name '*.in' \
+            -o -name '*.dox' -o -name '*.cpp' -o -name '*.py' -o -name '*.cmake'"
+    else
+        single_file=1
+    fi
+fi
+
 # s_style is re-entrant, when run with no parameters it calls itself
 # again for each file that needs checking.
-if [ $# -ne 1 ]; then
-	cd ..
-
-	find bench examples ext src test \
-	    -name '*.[chsy]' -o -name '*.in' -o -name '*.dox' -o -name '*.cxx' -o -name '*.cpp' -o -name '*.py' -o -name '*.cmake' -o -name '*.i' |
+if [ "$single_file" -ne 1 ]; then
+    cd ..
+    eval $search_str |
 	sed -e '/Makefile.in/d' \
 	    -e '/test\/3rdparty/d' \
 	    -e '/test\/checksum\/power8/d' \
