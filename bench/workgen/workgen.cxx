@@ -2354,11 +2354,39 @@ Workload::run(WT_CONNECTION *conn)
     return (runner.run(conn));
 }
 
+void
+Workload::create_table(const std::string &uri)
+{
+    WorkloadRunner runner(this);
+    runner.create_table(uri);
+}
+
 WorkloadRunner::WorkloadRunner(Workload *workload)
     : _workload(workload), _trunners(workload->_threads.size()), _report_out(&std::cout), _start(),
       stopping(false)
 {
     ts_clear(_start);
+}
+
+void
+WorkloadRunner::create_table(const std::string &uri)
+{
+    ContextInternal *icontext = _workload->_context->_internal;
+    const std::lock_guard<std::mutex> lock(*icontext->_mutex);
+
+    if (icontext->_tint.count(uri) > 0 || icontext->_dyn_tint.count(uri) > 0) {
+        const std::string err_msg("The table " + uri + " already exists.");
+        THROW(err_msg);
+    }
+
+    tint_t tint = icontext->_dyn_tint_last;
+    icontext->_dyn_tint[uri] = tint;
+    icontext->_dyn_table_names[tint] = uri;
+
+    ASSERT(tint == icontext->_dyn_table_runtime->size());
+    icontext->_dyn_table_runtime->push_back(TableRuntime());
+
+    ++icontext->_dyn_tint_last;
 }
 
 int

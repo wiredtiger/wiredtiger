@@ -25,10 +25,10 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
+#include <map>
 #include <ostream>
 #include <string>
 #include <vector>
-#include <map>
 
 // For convenience: A type exposed to Python that cannot be negative.
 typedef unsigned int uint_t;
@@ -493,6 +493,7 @@ struct Workload {
 	}
 	os << "]";
     }
+    void create_table(const std::string& uri);
     int run(WT_CONNECTION *conn);
 };
 
