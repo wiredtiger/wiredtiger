@@ -308,6 +308,8 @@ struct Operation {
     Operation(OpType optype, Table table, Key key, Value value);
     Operation(OpType optype, Table table, Key key);
     Operation(OpType optype, Table table);
+    // Operation working on random tables.
+    Operation(OpType optype, Key key, Value value);
     // Constructor with string applies to NOOP, SLEEP, CHECKPOINT
     Operation(OpType optype, const std::string& config);
     Operation(const Operation &other);

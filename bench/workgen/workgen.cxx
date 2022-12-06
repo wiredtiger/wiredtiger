@@ -1389,6 +1389,14 @@ Operation::Operation(OpType optype, Table table)
     size_check();
 }
 
+Operation::Operation(OpType optype, Key key, Value value)
+    : _optype(optype), _internal(nullptr), _table(), _key(key), _value(value), _config(),
+      transaction(nullptr), _group(nullptr), _repeatgroup(0), _timed(0.0), _random_table(true)
+{
+    init_internal(nullptr);
+    size_check();
+}
+
 Operation::Operation(const Operation &other)
     : _optype(other._optype), _internal(nullptr), _table(other._table), _key(other._key),
       _value(other._value), _config(other._config), transaction(other.transaction),
