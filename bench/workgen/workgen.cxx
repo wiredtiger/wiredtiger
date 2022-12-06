@@ -2368,6 +2368,24 @@ WorkloadRunner::WorkloadRunner(Workload *workload)
     ts_clear(_start);
 }
 
+const std::vector<std::string>
+Workload::get_tables()
+{
+    WorkloadRunner runner(this);
+    ContextInternal *icontext = _context->_internal;
+    std::vector<std::string> uris;
+    {
+        for (const auto &kv : icontext->_tint) {
+            uris.push_back(kv.first);
+        }
+        const std::lock_guard<std::mutex> lock(*icontext->_mutex);
+        for (const auto &kv : icontext->_dyn_tint) {
+            uris.push_back(kv.first);
+        }
+    }
+    return uris;
+}
+
 void
 WorkloadRunner::create_table(const std::string &uri)
 {
