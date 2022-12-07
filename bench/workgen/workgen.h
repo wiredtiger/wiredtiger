@@ -494,6 +494,7 @@ struct Workload {
 	os << "]";
     }
     void create_table(const std::string& uri);
+    void drop_table(const std::string& uri);
     const std::vector<std::string> get_tables();
     int run(WT_CONNECTION *conn);
 };
