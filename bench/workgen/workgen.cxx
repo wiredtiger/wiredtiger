@@ -2408,6 +2408,33 @@ Workload::get_tables()
     return uris;
 }
 
+const std::vector<std::string>
+Workload::garbage_collection()
+{
+    ContextInternal *icontext = _context->_internal;
+    const std::lock_guard<std::mutex> lock(*icontext->_dyn_mutex);
+    std::vector<std::string> uris;
+
+    for (size_t i = 0; i != icontext->_dyn_tables_delete.size();) {
+        // The table might still be in use.
+        const std::string uri(icontext->_dyn_tables_delete.at(i));
+        if (icontext->_dyn_table_in_use[uri] != 0) {
+            ++i;
+            continue;
+        }
+
+        // Delete all local data related to the table.
+        icontext->_dyn_table_in_use.erase(uri);
+        icontext->_dyn_tables_delete.erase(icontext->_dyn_tables_delete.begin() + i);
+        tint_t tint = icontext->_dyn_tint.at(uri);
+        icontext->_dyn_tint.erase(uri);
+        icontext->_dyn_table_names.erase(tint);
+        // TODO - _dyn_table_runtime
+        uris.push_back(uri);
+    }
+    return uris;
+}
+
 void
 WorkloadRunner::create_table(const std::string &uri)
 {
