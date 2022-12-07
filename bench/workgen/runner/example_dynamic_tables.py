@@ -98,11 +98,15 @@ value = Value(40)
 op = Operation(Operation.OP_INSERT, Table(table_name), key, value)
 thread = Thread(op)
 
-# Create an operation that works on random tables.
-op_rnd = Operation(Operation.OP_INSERT, key, value)
-thread_rnd = Thread(op_rnd)
+# Create operations that work on random tables.
+op_ins_rnd = Operation(Operation.OP_INSERT, key, value)
+op_upd_rnd = Operation(Operation.OP_UPDATE, key, value)
+op_read_rnd = Operation(Operation.OP_SEARCH, key, value)
+thread_ins_rnd = Thread(op_ins_rnd * 10)
+thread_upd_rnd = Thread(op_upd_rnd * 10)
+thread_read_rnd = Thread(op_read_rnd * 10)
 
-workload = Workload(context, thread + thread_rnd)
+workload = Workload(context, thread + thread_ins_rnd + thread_upd_rnd + thread_read_rnd)
 workload.options.run_time = 10
 
 # Start the workload.
