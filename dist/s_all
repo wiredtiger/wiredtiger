@@ -13,6 +13,7 @@ type python > /dev/null 2>&1 || {
 
 echo 'dist/s_all run started...'
 
+fast=0
 force=
 reconf=0
 errmode=0
@@ -28,6 +29,10 @@ while :
 	-f)	# Force versions to be updated
 		force="-f"
 		shift;;
+    -F) # Run fast.
+        echo "s_all: running in fast mode."
+        fast=1
+        shift;;
 	*)
 		break;;
 	esac
@@ -83,8 +88,16 @@ run "python log.py"
 run "python stat.py"
 run "python verbose.py"
 run "sh ./s_copyright"
-run "sh ./s_style -a"
-run "./s_clang-format -a"
+if [ $fast ]; then
+    run "sh ./s_style"
+else
+    run "sh ./s_style -a"
+fi
+if [ $fast ]; then
+    run "./s_clang-format"
+else
+    run "./s_clang-format -a"
+fi
 run "python prototypes.py"
 run "sh ./s_typedef -b"
 run "python test_tag.py"
