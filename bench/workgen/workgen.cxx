@@ -1016,9 +1016,7 @@ ThreadRunner::op_run(Operation *op)
         track = &_stats.insert;
         if (op->_key._keytype == Key::KEYGEN_APPEND || op->_key._keytype == Key::KEYGEN_AUTO) {
             if (op->_random_table) {
-                // Holding a mutex is not necessary here as it is simply doing an atomic access. In
-                // the case where more would need to be done on the dynamic table data structures,
-                // locking would be necessary.
+                const std::lock_guard<std::mutex> lock(*_icontext->_dyn_mutex);
                 recno = workgen_atomic_add64(&_icontext->_dyn_table_runtime.at(tint)._max_recno, 1);
             } else {
                 recno = workgen_atomic_add64(&_icontext->_table_runtime[tint]._max_recno, 1);
