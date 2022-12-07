@@ -842,7 +842,6 @@ ThreadRunner::op_create_all(Operation *op, size_t &keysize, size_t &valuesize)
 {
     op->create_all();
     if (op->is_table_op()) {
-
         op->kv_compute_max(true, false);
         if (OP_HAS_VALUE(op))
             op->kv_compute_max(false, op->_table.options.random_value);
@@ -859,7 +858,6 @@ ThreadRunner::op_create_all(Operation *op, size_t &keysize, size_t &valuesize)
             THROW("multiple Contexts not supported");
 
         if (!op->_random_table) {
-
             tint_t tint = op->_table._internal->_tint;
             if (tint == 0) {
                 std::string uri = op->_table._uri;

@@ -38,9 +38,7 @@ from runner import *
 from wiredtiger import *
 from workgen import *
 
-
 class ThreadWithReturnValue(pythread.Thread):
-
     def __init__(self, group=None, target=None, name=None, args=(), kwargs={}):
         pythread.Thread.__init__(self, group, target, name, args, kwargs)
         self._return = None
@@ -52,16 +50,13 @@ class ThreadWithReturnValue(pythread.Thread):
         pythread.Thread.join(self, *args)
         return self._return
 
-
 def generate_random_string(length):
     assert length > 0
     characters = string.ascii_letters + string.digits
     str = ''.join(random.choice(characters) for _ in range(length))
     return str
 
-
 def create(session, workload, table_config):
-
     global tables
 
     # Generate a random name.
@@ -76,9 +71,7 @@ def create(session, workload, table_config):
     except RuntimeError as e:
         assert "already exists" in str(e).lower()
 
-
 context = Context()
-
 connection = context.wiredtiger_open("create")
 session = connection.open_session()
 
