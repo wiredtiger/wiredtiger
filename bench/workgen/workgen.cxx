@@ -1618,8 +1618,7 @@ Operation::kv_compute_max(bool iskey, bool has_random)
     int size = iskey ? _key._size : _value._size;
     if (size == 0) {
         if (_random_table) {
-            const std::string err_msg("Cannot have a size of " + std::to_string(size) +
-              " with the usage of dynamic tables.");
+            const std::string err_msg("Cannot have a size of 0 with the usage of dynamic tables.");
             THROW(err_msg);
         } else {
             size = iskey ? _table.options.key_size : _table.options.value_size;
