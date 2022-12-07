@@ -210,7 +210,7 @@ struct ContextInternal {
     // Dedicated to tables that can be created or removed during the workload.
     std::map<std::string, tint_t> _dyn_tint;
     std::map<tint_t, std::string> _dyn_table_names;
-    std::vector<TableRuntime> *_dyn_table_runtime;
+    std::vector<TableRuntime> _dyn_table_runtime;
     tint_t _dyn_tint_last;
     // This mutex should be used to protect the access to the dynamic tables data.
     std::mutex* _dyn_mutex;

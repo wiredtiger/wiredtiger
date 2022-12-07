@@ -416,10 +416,9 @@ Context::operator=(const Context &other)
 
 ContextInternal::ContextInternal()
     : _tint(), _table_names(), _table_runtime(nullptr), _runtime_alloced(0), _tint_last(0),
-      _dyn_tint(), _dyn_table_names(), _dyn_table_runtime(nullptr), _dyn_tint_last(0),
-      _context_count(0), _dyn_mutex(new std::mutex())
+      _dyn_tint(), _dyn_table_names(), _dyn_table_runtime(), _dyn_tint_last(0), _context_count(0),
+      _dyn_mutex(new std::mutex())
 {
-    _dyn_table_runtime = new std::vector<TableRuntime>();
     uint32_t count = workgen_atomic_add32(&context_count, 1);
     if (count != 1)
         THROW("multiple Contexts not supported");
@@ -430,8 +429,6 @@ ContextInternal::~ContextInternal()
 {
     if (_table_runtime != nullptr)
         delete _table_runtime;
-    if (_dyn_table_runtime != nullptr)
-        delete _dyn_table_runtime;
 }
 
 int
@@ -936,7 +933,7 @@ ThreadRunner::op_get_key_recno(Operation *op, uint64_t range, tint_t tint)
     else {
         if (op->_random_table) {
             const std::lock_guard<std::mutex> lock(*_icontext->_dyn_mutex);
-            recno_count = _icontext->_dyn_table_runtime->at(tint)._max_recno;
+            recno_count = _icontext->_dyn_table_runtime.at(tint)._max_recno;
         } else
             recno_count = _icontext->_table_runtime[tint]._max_recno;
     }
@@ -1022,8 +1019,7 @@ ThreadRunner::op_run(Operation *op)
                 // Holding a mutex is not necessary here as it is simply doing an atomic access. In
                 // the case where more would need to be done on the dynamic table data structures,
                 // locking would be necessary.
-                recno =
-                  workgen_atomic_add64(&_icontext->_dyn_table_runtime->at(tint)._max_recno, 1);
+                recno = workgen_atomic_add64(&_icontext->_dyn_table_runtime.at(tint)._max_recno, 1);
             } else {
                 recno = workgen_atomic_add64(&_icontext->_table_runtime[tint]._max_recno, 1);
             }
@@ -2400,8 +2396,8 @@ WorkloadRunner::create_table(const std::string &uri)
     icontext->_dyn_tint[uri] = tint;
     icontext->_dyn_table_names[tint] = uri;
 
-    ASSERT(tint == icontext->_dyn_table_runtime->size());
-    icontext->_dyn_table_runtime->push_back(TableRuntime());
+    ASSERT(tint == icontext->_dyn_table_runtime.size());
+    icontext->_dyn_table_runtime.push_back(TableRuntime());
 
     ++icontext->_dyn_tint_last;
 }
