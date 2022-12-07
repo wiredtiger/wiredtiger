@@ -36,6 +36,7 @@
 #define __STDC_FORMAT_MACROS
 #endif
 
+#include <algorithm>
 #include <iomanip>
 #include <iostream>
 #include <fstream>
@@ -992,8 +993,21 @@ ThreadRunner::op_run(Operation *op)
         if (num_tables == 0)
             goto err;
 
-        tint = (random_value() % num_tables);
-        table_uri = _icontext->_dyn_table_names.at(tint);
+        // Select a random key.
+        auto it = _icontext->_dyn_tint.begin();
+        std::advance(it, random_value() % _icontext->_dyn_tint.size());
+        const std::string uri(it->first);
+
+        // Make sure the table is not marked for deletion.
+        bool marked_deleted =
+          std::find(_icontext->_dyn_tables_delete.begin(), _icontext->_dyn_tables_delete.end(),
+            uri) != _icontext->_dyn_tables_delete.end();
+        if (!marked_deleted) {
+            ++_icontext->_dyn_table_in_use[uri];
+            table_uri = uri;
+        } else {
+            goto err;
+        }
     } else {
         tint = op->_table._internal->_tint;
         table_uri = op->_table._uri;
@@ -1215,6 +1229,14 @@ err:
         }
         _in_transaction = false;
     }
+
+    // For operations on random tables, if a table has been selected, decrement the reference
+    // counter.
+    if (op->_random_table && !table_uri.empty()) {
+        const std::lock_guard<std::mutex> lock(*_icontext->_dyn_mutex);
+        --_icontext->_dyn_table_in_use[table_uri];
+    }
+
     return (ret);
 }
 
