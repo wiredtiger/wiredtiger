@@ -81,7 +81,8 @@
 #define FORMAT_PAD_BYTE '-'  /* modify pad byte */
 #define MAX_MODIFY_ENTRIES 5 /* maximum change vectors */
 #define REALLOC_MAX_TABLES 5 /* maximum number of tables with realloc_exact and realloc_malloc */
-#define STR(x) #x
+#define STR(s) #s
+#define XSTR(s) STR(s)
 
 /*
  * Abstract lock that lets us use either pthread reader-writer locks or WiredTiger's own (likely

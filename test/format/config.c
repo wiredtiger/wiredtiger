@@ -273,7 +273,7 @@ config_table(TABLE *table, void *arg)
             WARN("limiting table%" PRIu32
                  ".runs.rows to %d as runs.in_memory has been automatically enabled",
               table->id, WT_MILLION);
-            config_single(table, "runs.rows=" STR(WT_MILLION), false);
+            config_single(table, "runs.rows=" XSTR(WT_MILLION), false);
         }
         if (!config_explicit(table, "btree.key_max"))
             config_single(table, "btree.key_max=32", false);
@@ -295,7 +295,7 @@ config_table(TABLE *table, void *arg)
     if ((!config_explicit(NULL, "debug.realloc_exact") ||
           !config_explicit(NULL, "debug.realloc_malloc")) &&
       GV(DEBUG_REALLOC_EXACT) && GV(DEBUG_REALLOC_MALLOC) && TV(RUNS_ROWS) > WT_MILLION) {
-        config_single(table, "runs.rows=" STR(WT_MILLION), true);
+        config_single(table, "runs.rows=" XSTR(WT_MILLION), true);
         WARN("limiting table%" PRIu32
              ".runs.rows to %d if realloc_exact or realloc_malloc has been automatically set",
           table->id, WT_MILLION);
@@ -386,7 +386,7 @@ config_run(void)
          * The following config_single has no effect. It is just to overwrite the config in memory
          * so that we can dump the correct config.
          */
-        config_single(NULL, "runs.tables=" STR(REALLOC_MAX_TABLES), true);
+        config_single(NULL, "runs.tables=" XSTR(REALLOC_MAX_TABLES), true);
         WARN(
           "limiting runs.tables to %d if realloc_exact or realloc_malloc has been automatically "
           "set",
@@ -922,7 +922,7 @@ config_in_memory(void)
         if (NTV(tables[0], RUNS_ROWS) > WT_MILLION) {
             WARN("limiting runs.rows to %d as runs.in_memory has been automatically enabled",
               WT_MILLION);
-            config_single(NULL, "runs.rows=" STR(WT_MILLION), true);
+            config_single(NULL, "runs.rows=" XSTR(WT_MILLION), true);
         }
     }
 }
