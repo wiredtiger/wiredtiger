@@ -417,7 +417,7 @@ Context::operator=(const Context &other)
 ContextInternal::ContextInternal()
     : _tint(), _table_names(), _table_runtime(nullptr), _runtime_alloced(0), _tint_last(0),
       _dyn_tint(), _dyn_table_names(), _dyn_table_runtime(nullptr), _dyn_tint_last(0),
-      _context_count(0), _mutex(new std::mutex())
+      _context_count(0), _dyn_mutex(new std::mutex())
 {
     _dyn_table_runtime = new std::vector<TableRuntime>();
     uint32_t count = workgen_atomic_add32(&context_count, 1);
@@ -937,7 +937,7 @@ ThreadRunner::op_get_key_recno(Operation *op, uint64_t range, tint_t tint)
         recno_count = range;
     else {
         if (op->_random_table) {
-            const std::lock_guard<std::mutex> lock(*_icontext->_mutex);
+            const std::lock_guard<std::mutex> lock(*_icontext->_dyn_mutex);
             recno_count = _icontext->_dyn_table_runtime->at(tint)._max_recno;
         } else
             recno_count = _icontext->_table_runtime[tint]._max_recno;
@@ -991,7 +991,7 @@ ThreadRunner::op_run(Operation *op)
 
     // Find a table to operate on.
     if (op->_random_table) {
-        const std::lock_guard<std::mutex> lock(*_icontext->_mutex);
+        const std::lock_guard<std::mutex> lock(*_icontext->_dyn_mutex);
         size_t num_tables = _icontext->_dyn_table_names.size();
 
         if (num_tables == 0)
@@ -2379,7 +2379,7 @@ Workload::get_tables()
         for (const auto &kv : icontext->_tint) {
             uris.push_back(kv.first);
         }
-        const std::lock_guard<std::mutex> lock(*icontext->_mutex);
+        const std::lock_guard<std::mutex> lock(*icontext->_dyn_mutex);
         for (const auto &kv : icontext->_dyn_tint) {
             uris.push_back(kv.first);
         }
@@ -2391,7 +2391,7 @@ void
 WorkloadRunner::create_table(const std::string &uri)
 {
     ContextInternal *icontext = _workload->_context->_internal;
-    const std::lock_guard<std::mutex> lock(*icontext->_mutex);
+    const std::lock_guard<std::mutex> lock(*icontext->_dyn_mutex);
 
     if (icontext->_tint.count(uri) > 0 || icontext->_dyn_tint.count(uri) > 0) {
         const std::string err_msg("The table " + uri + " already exists.");
