@@ -35,7 +35,7 @@ __sync_obsolete_inmem_evict(WT_SESSION_IMPL *session, WT_REF *ref)
         return (0);
 
     /*
-     * Initialize the time aggregate via the merge initializer, so that stop visibility is copied
+     * Initialize the time aggregate via the merge initialization, so that stop visibility is copied
      * across correctly. That is we need the stop timestamp/transaction IDs to start as none,
      * otherwise we'd never mark anything as obsolete.
      */
@@ -75,8 +75,8 @@ __sync_obsolete_inmem_evict(WT_SESSION_IMPL *session, WT_REF *ref)
         tag = "unexpected page state";
 
     if (do_visibility_check)
-        obsolete = __wt_txn_visible_all(session, newest_ta.newest_stop_txn,
-          newest_ta.newest_stop_ts == WT_TS_MAX ? WT_TS_MAX : newest_ta.newest_stop_durable_ts);
+        obsolete = __wt_txn_visible_all(
+          session, newest_ta.newest_stop_txn, newest_ta.newest_stop_durable_ts);
 
     if (obsolete) {
         /*
@@ -157,8 +157,8 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
          * store.
          */
         WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &newest_ta, &addr.ta);
-        obsolete = __wt_txn_visible_all(session, newest_ta.newest_stop_txn,
-          newest_ta.newest_stop_ts == WT_TS_MAX ? WT_TS_MAX : newest_ta.newest_stop_durable_ts);
+        obsolete = __wt_txn_visible_all(
+          session, newest_ta.newest_stop_txn, newest_ta.newest_stop_durable_ts);
     }
 
     __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
