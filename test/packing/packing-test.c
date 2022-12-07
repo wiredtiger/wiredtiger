@@ -35,6 +35,7 @@
 static int
 check(const char *fmt, ...)
 {
+    WT_DECL_RET;
     size_t len;
     char buf[200], *end, *p;
     va_list ap;
@@ -42,22 +43,26 @@ check(const char *fmt, ...)
     len = 0; /* -Werror=maybe-uninitialized */
 
     va_start(ap, fmt);
-    WT_RET(__wt_struct_sizev(NULL, &len, fmt, ap));
+    WT_TRET(__wt_struct_sizev(NULL, &len, fmt, ap));
     va_end(ap);
+
+    WT_RET(ret);
 
     if (len < 1 || len >= sizeof(buf))
         testutil_die(EINVAL, "Unexpected length from __wt_struct_sizev");
 
     va_start(ap, fmt);
-    WT_RET(__wt_struct_packv(NULL, buf, sizeof(buf), fmt, ap));
+    WT_TRET(__wt_struct_packv(NULL, buf, sizeof(buf), fmt, ap));
     va_end(ap);
+
+    WT_RET(ret);
 
     printf("%s ", fmt);
     for (p = buf, end = p + len; p < end; p++)
         printf("%02x", (u_char)*p & 0xff);
     printf("\n");
 
-    return (0);
+    return (ret);
 }
 
 /*
