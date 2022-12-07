@@ -14,11 +14,11 @@ fi
 # s_style by default is only applied to files which changed according to git. To run against all
 # files use -a.
 
-search_str="git diff --name-only develop | grep -E '.*\.[acdehimnopsyx]+$'"
+search_str="git diff --name-only develop | grep -E '\.(c|h|cpp|y|py|dox|cmake)$'"
 single_file=0
 if [ $# -eq 1 ]; then
     if [ "$1" = "-a" ]; then
-        search_str="find bench examples ext src test -name '*.[chsy]' -o -name '*.in' \
+        search_str="find bench examples ext src test -name '*.[ch]' -o -name '*.in' \
             -o -name '*.dox' -o -name '*.cpp' -o -name '*.py' -o -name '*.cmake'"
     else
         single_file=1

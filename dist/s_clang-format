@@ -51,12 +51,12 @@ exclude=true
 case $# in
 0)
 	# Get all source files that are modified according to git.
-	search=`git diff --name-only develop | grep -E '.*\.[chp]+$'`
+	search=`git diff --name-only develop | grep -E '\.(c|h|cpp)$'`
     ;;
 1)
     # If the -a option is specified then find every source file.
     if [ $1 == "-a" ]; then
-        search=`find bench examples ext src test -name '*.[ch]' -o -name '*.cxx' -o -name '*.cpp'`
+        search=`find bench examples ext src test -name '*.[ch]' -o -name '*.cpp'`
     else
         search="$1"
         exclude=false
