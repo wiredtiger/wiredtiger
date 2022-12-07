@@ -30,7 +30,7 @@
 
 /*
  * check --
- *     TODO: Add a comment describing this function.
+ *     Pack data.
  */
 static int
 check(const char *fmt, ...)
@@ -67,7 +67,7 @@ check(const char *fmt, ...)
 
 /*
  * main --
- *     TODO: Add a comment describing this function.
+ *     Test valid and invalid format strings to pack data.
  */
 int
 main(int argc, char *argv[])
