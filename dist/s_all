@@ -29,10 +29,10 @@ while :
 	-f)	# Force versions to be updated
 		force="-f"
 		shift;;
-    -F) # Run fast.
-        echo "dist/s_all running in fast mode..."
-        fast=1
-        shift;;
+	-F) # Run fast.
+		echo "dist/s_all running in fast mode..."
+		fast=1
+		shift;;
 	*)
 		break;;
 	esac
