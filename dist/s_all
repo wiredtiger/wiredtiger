@@ -30,7 +30,7 @@ while :
 		force="-f"
 		shift;;
     -F) # Run fast.
-        echo "s_all: running in fast mode."
+        echo "dist/s_all running in fast mode..."
         fast=1
         shift;;
 	*)
@@ -89,14 +89,14 @@ run "python stat.py"
 run "python verbose.py"
 run "sh ./s_copyright"
 if [ $fast ]; then
-    run "sh ./s_style"
+    run "sh ./s_style -F"
 else
-    run "sh ./s_style -a"
+    run "sh ./s_style"
 fi
 if [ $fast ]; then
-    run "./s_clang-format"
+    run "./s_clang-format -F"
 else
-    run "./s_clang-format -a"
+    run "./s_clang-format"
 fi
 run "python prototypes.py"
 run "sh ./s_typedef -b"
