@@ -7,13 +7,11 @@
  */
 
 #include <catch2/catch.hpp>
-#include <iostream>
-
-#include "../utils.h"
 #include "wiredtiger.h"
+#include "wt_internal.h"
+#include "../utils.h"
 #include "../wrappers/connection_wrapper.h"
 #include "../wrappers/item_wrapper.h"
-#include "wt_internal.h"
 
 
 void init_wt_item(WT_ITEM& item) {
@@ -23,6 +21,7 @@ void init_wt_item(WT_ITEM& item) {
     item.memsize = 0;
     item.flags = 0;
 }
+
 
 int insert_key_value(WT_CURSOR* cursor, const char* key, const char* value) {
     item_wrapper item_key(key);
@@ -77,7 +76,7 @@ bool require_get_raw_key_value(WT_CURSOR* cursor,
 
 TEST_CASE("Cursor: get_raw_key_and_value()", "[cursor]")
 {
-    ConnectionWrapper conn("get_raw_key_and_value");
+    ConnectionWrapper conn(DB_HOME);
     WT_SESSION_IMPL *session_impl = conn.createSession();
     std::string uri = "table:cursor_test";
 
