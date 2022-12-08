@@ -12,9 +12,11 @@ set(unittest_sources
     tests/utils.cpp
     tests/block/test_bitstring.cpp
     tests/block/test_block_ckpt.cpp
+    tests/cursors/test_cursor_get_raw_key_and_value.cpp
     tests/packing/test_intpack.cpp
     tests/wrappers/block_mods.cpp
     tests/wrappers/connection_wrapper.cpp
+    tests/wrappers/item_wrapper.cpp
     tests/wrappers/mock_connection.cpp
     tests/wrappers/mock_session.cpp
 )
