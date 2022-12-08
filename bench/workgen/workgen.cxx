@@ -1005,6 +1005,7 @@ ThreadRunner::op_run(Operation *op)
         if (!marked_deleted) {
             ++_icontext->_dyn_table_in_use[uri];
             table_uri = uri;
+            tint = _icontext->_dyn_tint[uri];
         } else {
             goto err;
         }
