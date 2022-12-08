@@ -8,13 +8,12 @@ if [ $# -eq 0 ]
 fi
 
 # Check the test name
-if [[ $1 =~ ^[0-9a-zA-Z_-]+$ ]] && ! [[ ${1::1} =~ ^[0-9] ]] && ! [[ $1 = *" "* ]];then
+if [[ $1 =~ ^[0-9a-zA-Z_-]+$ ]];then
     echo "Generating test: $1..."
 else
-    echo "Invalid test name. Must not start with a number or contain spaces. Only alphanumeric characters are allowed. \"_\" and \"-\" can be used too."
+    echo "Invalid test name. Only alphanumeric characters are allowed. \"_\" and \"-\" can be used too."
     exit 128
 fi
-
 # Check if the test already exists.
 FILE=tests/$1.cpp
 if test -f "$FILE"; then
