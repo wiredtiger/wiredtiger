@@ -33,19 +33,21 @@ int insert_key_value(WT_CURSOR* cursor, const char* key, const char* value) {
 }
 
 
-//void require_get_key_value(WT_CURSOR* cursor,
-//  const char* expected_key, const char* expected_value) {
-//    const char* key   = nullptr;
-//    const char* value = nullptr;
-//    REQUIRE(cursor->get_key(cursor, &key) == 0);
-//    REQUIRE(cursor->get_value(cursor, &value) == 0);
-//    std::cout << "key = " << key << ", value = " << value << std::endl;
-//
-//    REQUIRE(key != nullptr);
-//    REQUIRE(value != nullptr);
-//    REQUIRE(strcmp(key, expected_key) == 0);
-//    REQUIRE(strcmp(value, expected_value) == 0);
-//}
+bool require_get_key_value(WT_CURSOR* cursor,
+  const char* expected_key, const char* expected_value) {
+    const char* key   = nullptr;
+    const char* value = nullptr;
+    REQUIRE(cursor->get_key(cursor, &key) == 0);
+    REQUIRE(cursor->get_value(cursor, &value) == 0);
+
+    bool keys_match = strcmp(key, expected_key) == 0;
+    bool values_match = strcmp(value, expected_value) == 0;
+    REQUIRE(keys_match);
+    REQUIRE(values_match);
+
+    return keys_match && values_match;
+}
+
 
 bool require_get_raw_key_value(WT_CURSOR* cursor,
   const char* expected_key, const char* expected_value) {
@@ -93,7 +95,7 @@ TEST_CASE("Cursor: get_raw_key_and_value()", "[cursor]")
     REQUIRE(insert_key_value(cursor, "key4", "value4") == 0);
     REQUIRE(insert_key_value(cursor, "key5", "value5") == 0);
 
-    // Check the values
+    // Check the values using get_raw_key_value
     REQUIRE(cursor->reset(cursor) == 0);
     REQUIRE(cursor->next(cursor) == 0);
     REQUIRE(require_get_raw_key_value(cursor, "key1", "value1"));
@@ -106,6 +108,21 @@ TEST_CASE("Cursor: get_raw_key_and_value()", "[cursor]")
     REQUIRE(cursor->next(cursor) == 0);
     REQUIRE(require_get_raw_key_value(cursor, "key5", "value5"));
     REQUIRE(cursor->next(cursor) == WT_NOTFOUND);
+
+    // Check the values using get_key and get_value
+    REQUIRE(cursor->reset(cursor) == 0);
+    REQUIRE(cursor->next(cursor) == 0);
+    REQUIRE(require_get_key_value(cursor, "key1", "value1"));
+    REQUIRE(cursor->next(cursor) == 0);
+    REQUIRE(require_get_key_value(cursor, "key2", "value2"));
+    REQUIRE(cursor->next(cursor) == 0);
+    REQUIRE(require_get_key_value(cursor, "key3", "value3"));
+    REQUIRE(cursor->next(cursor) == 0);
+    REQUIRE(require_get_key_value(cursor, "key4", "value4"));
+    REQUIRE(cursor->next(cursor) == 0);
+    REQUIRE(require_get_key_value(cursor, "key5", "value5"));
+    REQUIRE(cursor->next(cursor) == WT_NOTFOUND);
+
     REQUIRE(cursor->close(cursor) == 0);
 
     REQUIRE(session->close(session, nullptr) == 0);
