@@ -65,7 +65,7 @@ def create(session, workload, table_config):
     try:
         session.create(table_name, table_config)
         # This indicates Workgen a new table exists.
-        workload.create_table(table_name)
+        workload.add_table(table_name)
         tables.append(table_name)
     # Collision may occur.
     except RuntimeError as e:
@@ -76,7 +76,7 @@ def drop(workload, table_name):
 
     try:
         # Mark the table for deletion in Workgen.
-        workload.drop_table(table_name)
+        workload.remove_table(table_name)
         # Delete local data.
         tables.remove(table_name)
     except RuntimeError as e:

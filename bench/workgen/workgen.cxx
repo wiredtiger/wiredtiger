@@ -2370,17 +2370,17 @@ Workload::run(WT_CONNECTION *conn)
 }
 
 void
-Workload::create_table(const std::string &uri)
+Workload::add_table(const std::string &uri)
 {
     WorkloadRunner runner(this);
-    runner.create_table(uri);
+    runner.add_table(uri);
 }
 
 void
-Workload::drop_table(const std::string &uri)
+Workload::remove_table(const std::string &uri)
 {
     WorkloadRunner runner(this);
-    runner.drop_table(uri);
+    runner.remove_table(uri);
 }
 
 WorkloadRunner::WorkloadRunner(Workload *workload)
@@ -2436,7 +2436,7 @@ Workload::garbage_collection()
 }
 
 void
-WorkloadRunner::create_table(const std::string &uri)
+WorkloadRunner::add_table(const std::string &uri)
 {
     ContextInternal *icontext = _workload->_context->_internal;
     const std::lock_guard<std::mutex> lock(*icontext->_dyn_mutex);
@@ -2457,7 +2457,7 @@ WorkloadRunner::create_table(const std::string &uri)
 }
 
 void
-WorkloadRunner::drop_table(const std::string &uri)
+WorkloadRunner::remove_table(const std::string &uri)
 {
     ContextInternal *icontext = _workload->_context->_internal;
 
