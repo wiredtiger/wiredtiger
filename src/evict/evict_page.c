@@ -129,6 +129,10 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
         __wt_session_gen_enter(session, WT_GEN_EVICT);
     }
 
+#ifdef HAVE_DIAGNOSTIC
+    WT_CLEAR(session->evict_timeline);
+    session->evict_timeline.evict_start = __wt_clock(session);
+#endif
     /*
      * Track how long forcible eviction took. Immediately increment the forcible eviction counter,
      * we might do an in-memory split and not an eviction, which skips the other statistics.
@@ -269,6 +273,12 @@ err:
     }
 
 done:
+#ifdef HAVE_DIAGNOSTIC
+    session->evict_timeline.evict_finish = __wt_clock(session);
+    if (WT_CLOCKDIFF_SEC(
+          session->evict_timeline.evict_finish, session->evict_timeline.evict_start) > 60)
+        __wt_verbose_warning(session, WT_VERB_EVICT, "%s", "Eviction takes more than 1 minute.");
+#endif
     /* Leave any local eviction generation. */
     if (local_gen)
         __wt_session_gen_leave(session, WT_GEN_EVICT);

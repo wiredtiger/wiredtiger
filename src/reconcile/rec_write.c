@@ -235,6 +235,11 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     WT_RET(__rec_init(session, ref, flags, salvage, &session->reconcile));
     r = session->reconcile;
 
+#ifdef HAVE_DIAGNOSTIC
+    if (F_ISSET(r, WT_REC_EVICT))
+        session->evict_timeline.build_disk_image_start = __wt_clock(session);
+#endif
+
     /* Reconcile the page. */
     switch (page->type) {
     case WT_PAGE_COL_FIX:
@@ -261,6 +266,11 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         ret = __wt_illegal_value(session, page->type);
         break;
     }
+
+#ifdef HAVE_DIAGNOSTIC
+    if (F_ISSET(r, WT_REC_EVICT))
+        session->evict_timeline.build_disk_image_finish = __wt_clock(session);
+#endif
 
     /*
      * If we failed, don't bail out yet; we still need to update stats and tidy up.
@@ -2407,6 +2417,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 {
     WT_BM *bm;
     WT_BTREE *btree;
+    WT_DECL_RET;
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     WT_REF *ref;
@@ -2426,8 +2437,18 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
      * visible when reconciling this page, copy them into the database's history store. This can
      * fail, so try before clearing the page's previous reconciliation state.
      */
-    if (F_ISSET(r, WT_REC_HS))
-        WT_RET(__rec_hs_wrapup(session, r));
+    if (F_ISSET(r, WT_REC_HS)) {
+#ifdef HAVE_DIAGNOSTIC
+        if (F_ISSET(r, WT_REC_EVICT))
+            session->evict_timeline.hs_wrapup_start = __wt_clock(session);
+#endif
+        ret = __rec_hs_wrapup(session, r);
+#ifdef HAVE_DIAGNOSTIC
+        if (F_ISSET(r, WT_REC_EVICT))
+            session->evict_timeline.hs_wrapup_finish = __wt_clock(session);
+#endif
+        WT_RET(ret);
+    }
 
     /*
      * Wrap up overflow tracking. If we are about to create a checkpoint, the system must be

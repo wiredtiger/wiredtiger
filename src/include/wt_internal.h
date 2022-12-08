@@ -199,6 +199,8 @@ struct __wt_evict_entry;
 typedef struct __wt_evict_entry WT_EVICT_ENTRY;
 struct __wt_evict_queue;
 typedef struct __wt_evict_queue WT_EVICT_QUEUE;
+struct __wt_evict_timeline;
+typedef struct __wt_evict_timeline WT_EVICT_TIMELINE;
 struct __wt_ext;
 typedef struct __wt_ext WT_EXT;
 struct __wt_extlist;

@@ -136,6 +136,19 @@ struct __wt_session_impl {
         const char *func; /* Allocating function, line */
         int line;
     } * scratch_track;
+
+    /*
+     * Record the important timestamps of each stage in an eviction. If an eviction takes a long
+     * time and times out, we can trace the time usage of each stage from this information.
+     */
+    struct __wt_evict_timeline {
+        uint64_t evict_start;
+        uint64_t build_disk_image_start;
+        uint64_t build_disk_image_finish;
+        uint64_t hs_wrapup_start;
+        uint64_t hs_wrapup_finish;
+        uint64_t evict_finish;
+    } evict_timeline;
 #endif
 
     WT_ITEM err; /* Error buffer */
