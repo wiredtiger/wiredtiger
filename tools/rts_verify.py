@@ -19,6 +19,32 @@ class PrepareState(Enum):
     PREPARE_LOCKED = 2
     PREPARE_RESOLVED = 3
 
+class Timestamp():
+    def __init__(self, start, stop):
+        self.start = start
+        self.stop = stop
+
+    def __eq__(self, other):
+        return self.start == other.start and self.stop == other.stop
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __lt__(self, rhs):
+        return ((self.start, self.stop) < (rhs.start, rhs.stop))
+
+    def __le__(self, rhs):
+        return self.__lt__(rhs) or self.__eq__(rhs)
+
+    def __gt__(self, rhs):
+        return ((self.start, self.stop) > (rhs.start, rhs.stop))
+
+    def __ge__(self, rhs):
+        return self.__gt__(rhs) or self.__eq__(rhs)
+
+    def __repr__(self):
+        return f"({self.start}, {self.stop})"
+
 class Update:
     def __init__(self, update_type, line):
         self.type = update_type
@@ -39,8 +65,9 @@ class Update:
         matches = re.search('stable_timestamp=\((\d+), (\d+)\)', line)
         if matches is None:
             raise Exception("failed to parse init string")
-        self.stable_start = int(matches.group(1))
-        self.stable_stop = int(matches.group(2))
+        stable_start = int(matches.group(1))
+        stable_stop = int(matches.group(2))
+        self.stable = Timestamp(stable_start, stable_stop)
 
     def init_tree(self, line):
         matches = re.search('file:([\w_\.]+).*modified=(\w+).*durable_timestamp=\((\d+), (\d+)\).*>.*stable_timestamp=\((\d+), (\d+)\): (\w+).*has_prepared_updates=(\w+).*durable_timestamp_not_found=(\w+).*txnid=(\d+).*recovery_checkpoint_snap_min=(\d+): (\w+)', line)
@@ -51,10 +78,12 @@ class Update:
 
         self.modified = matches.group(2).lower() == "true"
 
-        self.durable_start = int(matches.group(3))
-        self.durable_stop = int(matches.group(4))
-        self.stable_start = int(matches.group(5))
-        self.stable_stop = int(matches.group(6))
+        durable_start = int(matches.group(3))
+        durable_stop = int(matches.group(4))
+        self.durable = Timestamp(durable_start, durable_stop)
+        stable_start = int(matches.group(5))
+        stable_stop = int(matches.group(6))
+        self.stable = Timestamp(stable_start, stable_stop)
         self.durable_gt_stable = matches.group(7).lower() == "true"
 
         self.has_prepared_updates = matches.group(8).lower() == "true"
@@ -95,11 +124,13 @@ class Update:
         self.txnid = int(matches.group(2))
         self.txnid_not_visible = matches.group(3).lower() == "true"
 
-        self.stable_start = int(matches.group(4))
-        self.stable_stop = int(matches.group(5))
+        stable_start = int(matches.group(4))
+        stable_stop = int(matches.group(5))
+        self.stable = Timestamp(stable_start, stable_stop)
 
-        self.durable_start = int(matches.group(6))
-        self.durable_stop = int(matches.group(7))
+        durable_start = int(matches.group(6))
+        durable_stop = int(matches.group(7))
+        self.durable = Timestamp(durable_start, durable_stop)
 
         self.stable_lt_durable = matches.group(8).lower() == "true"
 
@@ -109,8 +140,7 @@ class Update:
 
 class Checker:
     def __init__(self):
-        self.stable_start = None
-        self.stable_stop = None
+        self.stable = None
         self.visited_files = set()
 
     def apply(self, update):
@@ -128,19 +158,33 @@ class Checker:
             raise Exception(f"failed to parse {update.line}")
 
     def apply_check_init(self, update):
-        if self.stable_start is not None:
+        if self.stable is not None:
             raise Exception("restarted RTS?!")
-        if self.stable_stop is not None:
-            raise Exception("restarted RTS?!")
-
-        self.stable_start = update.stable_start
-        self.stable_stop = update.stable_stop
+        self.stable = update.stable
 
     def apply_check_tree(self, update):
         if update.file in self.visited_files:
             raise Exception(f"visited file {update.file} again")
         self.visited_files.add(update.file)
         self.current_file = update.file
+
+        if not(update.modified or
+               update.durable_gt_stable or
+               update.has_prepared_updates or
+               update.durable_ts_not_found or
+               update.txnid_gt_recov_ckpt_snap_min):
+            raise Exception(f"unnecessary visit to {update.file}")
+
+        if update.durable_gt_stable and not update.durable > update.stable:
+            raise Exception(f"incorrect timestamp comparison: thought {update.durable} > {update.stable}, but it isn't")
+        if not update.durable_gt_stable and not update.stable >= update.durable:
+            raise Exception(f"incorrect timestamp comparison: thought {update.durable} <= {update.stable}, but it isn't")
+
+        if update.durable_ts_not_found and update.durable != Timestamp(0, 0):
+            raise Exception("we thought we didn't have a durable timestamp, but we do")
+
+        if update.stable != self.stable:
+            raise Exception(f"stable timestamp spuriously changed from {self.stable} to {update.stable} while rolling back {update.file}")
 
     def apply_check_tree_logging(self, update):
         if update.file != self.current_file:
