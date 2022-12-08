@@ -2425,14 +2425,12 @@ Workload::garbage_collection()
         }
 
         // Delete all local data related to the table.
-        // Note that the vector _dyn_table_runtime does not need to be updated. If we were to remove
-        // one entry from it, it would shift all the data. It is important to keep the data in order
-        // as each index corresponds to a tint allocated when the corresponds new table was created.
         icontext->_dyn_table_in_use.erase(uri);
         icontext->_dyn_tables_delete.erase(icontext->_dyn_tables_delete.begin() + i);
         tint_t tint = icontext->_dyn_tint.at(uri);
         icontext->_dyn_tint.erase(uri);
         icontext->_dyn_table_names.erase(tint);
+        icontext->_dyn_table_runtime.erase(tint);
         uris.push_back(uri);
     }
     return uris;
@@ -2453,8 +2451,8 @@ WorkloadRunner::add_table(const std::string &uri)
     icontext->_dyn_tint[uri] = tint;
     icontext->_dyn_table_names[tint] = uri;
 
-    ASSERT(tint == icontext->_dyn_table_runtime.size());
-    icontext->_dyn_table_runtime.push_back(TableRuntime());
+    ASSERT(icontext->_dyn_table_runtime.count(tint) == 0);
+    icontext->_dyn_table_runtime[tint] = TableRuntime();
 
     ++icontext->_dyn_tint_last;
 }
