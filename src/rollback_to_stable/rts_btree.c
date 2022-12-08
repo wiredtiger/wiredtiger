@@ -769,7 +769,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
     else
         WT_ERR(__rts_btree_col_modify(session, ref, upd, recno));
 
-    if (0) {
+    if (S2C(session)->rts->dryrun) {
 err:
         __wt_free(session, upd);
     }
