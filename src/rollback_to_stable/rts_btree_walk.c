@@ -244,11 +244,11 @@ __wt_rts_btree_walk_btree_apply(
         dhandle_allocated = true;
 
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-          "tree rolled back because it is modified: %s, or its durable timestamp (%s) > stable "
-          "timestamp (%s): "
-          "%s, or it has prepared updates: %s, or durable "
-          "timestamp is not found: %s, or txnid (%" PRIu64
-          ") > recovery checkpoint snap min (%" PRIu64 "): %s",
+          "[TREE] tree rolled back. modified=%s, durable_timestamp=(%s) > stable_"
+          "timestamp=(%s): "
+          "%s, has_prepared_updates=%s, durable_"
+          "timestamp_not_found=%s, txnid=(%" PRIu64
+          ") > recovery_checkpoint_snap_min=(%" PRIu64 "): %s",
           S2BT(session)->modified ? "true" : "false",
           __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
           __wt_timestamp_to_string(rollback_timestamp, ts_string[1]),
@@ -300,7 +300,7 @@ __wt_rts_btree_walk_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
     conn = S2C(session);
 
     __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-      "rollback to stable connection logging enabled: %s and btree logging enabled: %s",
+      "[TREE_LOGGING] rollback to stable connection_logging_enabled=%s and btree_logging_enabled=%s",
       FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ? "true" : "false",
       F_ISSET(btree, WT_BTREE_LOGGED) ? "true" : "false");
 

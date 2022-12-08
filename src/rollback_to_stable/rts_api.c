@@ -74,7 +74,7 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
     WT_ORDERED_READ(rollback_timestamp, txn_global->stable_timestamp);
     WT_ORDERED_READ(pinned_timestamp, txn_global->pinned_timestamp);
     __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-      "performing rollback to stable with stable timestamp: %s and oldest timestamp: %s",
+      "[INIT] performing rollback to stable with stable_timestamp=%s and oldest_timestamp=%s",
       __wt_timestamp_to_string(rollback_timestamp, ts_string[0]),
       __wt_timestamp_to_string(txn_global->oldest_timestamp, ts_string[1]));
 
