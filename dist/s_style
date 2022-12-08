@@ -13,12 +13,12 @@ fi
 
 # s_style is applied to every source file by default. It has a fast mode where it only runs against
 # modified files, according to git. Use -F for fast mode.
-search_str="find bench examples ext src test -name '*.[ch]' -o -name '*.in' \
-    -o -name '*.dox' -o -name '*.cpp' -o -name '*.py' -o -name '*.cmake'"
+search_str="find bench examples ext src test -name '*.[ch]' -o -name '*.in' -o -name '*.dox' \
+    -o -name '*.cxx' -o -name '*.cpp' -o -name '*.py' -o -name '*.cmake' -o -name '*.i'"
 single_file=0
 if [ $# -eq 1 ]; then
     if [ "$1" = "-F" ]; then
-        search_str="git diff --name-only develop | grep -E '\.(c|h|cpp|y|py|dox|cmake)$'"
+        search_str="git diff --name-only develop | grep -E '\.(c|h|cpp|cxx|i|py|dox|cmake)$'"
     else
         single_file=1
     fi
