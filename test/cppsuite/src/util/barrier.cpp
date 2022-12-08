@@ -44,7 +44,7 @@ barrier::wait()
         _count = _threshold;
         _cond.notify_all();
     } else {
-        _cond.wait(lock, [this, lock_gen] { return lock_gen != _generation; });
+        _cond.wait_for(lock, std::chrono::seconds(_sync_timeout),[this, lock_gen] { return lock_gen != _generation; });
     }
 }
 } // namespace test_harness

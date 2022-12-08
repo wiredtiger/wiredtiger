@@ -74,7 +74,6 @@ class reverse_split : public test {
              * in a more bursty truncation workload. All threads truncate at roughly the same time
              * which means in theory more eviction, or reverse splits happen at the same time.
              */
-            tc->sync();
             testutil_check(write_cursor->reset(write_cursor.get()));
             tc->txn.begin();
             int ret = write_cursor->next(write_cursor.get());
@@ -105,6 +104,7 @@ class reverse_split : public test {
                   "thread {" + std::to_string(tc->id) + "} failed to commit truncation of " +
                     std::to_string(end_key_id - min_key_id) + " records.");
             tc->sleep();
+            tc->sync();
         }
         /* Make sure the last transaction is rolled back now the work is finished. */
         tc->txn.try_rollback();
