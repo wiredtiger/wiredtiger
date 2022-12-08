@@ -14,30 +14,36 @@ class UpdateType(Enum):
     UNKNOWN = 5
 
 class Update:
-    def __init__(self, update_type, line):
-        self.type = update_type
+    def __init__(self, line):
         self.line = line
 
-        if self.type == UpdateType.INIT:
+        if '[INIT]' in line:
             self.__init_init(line)
-        elif self.type == UpdateType.TREE:
+        elif '[TREE]' in line:
             self.__init_tree(line)
-        elif self.type == UpdateType.TREE_LOGGING:
+        elif '[TREE_LOGGING]' in line:
             self.__init_tree_logging(line)
-        elif self.type == UpdateType.PAGE_ROLLBACK:
+        elif '[PAGE_ROLLBACK]' in line:
             self.__init_page_rollback(line)
-        elif self.type == UpdateType.UPDATE_ABORT:
+        elif '[UPDATE_ABORT]' in line:
             self.__init_update_abort(line)
+        else:
+            raise Exception("Update.__init__: couldn't find an event in an RTS log line")
 
     def __init_init(self, line):
+        self.type = UpdateType.INIT
+
         matches = re.search('stable_timestamp=\((\d+), (\d+)\)', line)
         if matches is None:
             raise Exception("failed to parse init string")
+
         stable_start = int(matches.group(1))
         stable_stop = int(matches.group(2))
         self.stable = Timestamp(stable_start, stable_stop)
 
     def __init_tree(self, line):
+        self.type = UpdateType.TREE
+
         matches = re.search('file:([\w_\.]+).*modified=(\w+).*durable_timestamp=\((\d+), (\d+)\).*>.*stable_timestamp=\((\d+), (\d+)\): (\w+).*has_prepared_updates=(\w+).*durable_timestamp_not_found=(\w+).*txnid=(\d+).*recovery_checkpoint_snap_min=(\d+): (\w+)', line)
         if matches is None:
             raise Exception("failed to parse tree string")
@@ -63,6 +69,8 @@ class Update:
         self.txnid_gt_recov_ckpt_snap_min = matches.group(12).lower() == "true"
 
     def __init_tree_logging(self, line):
+        self.type = UpdateType.TREE_LOGGING
+
         # TODO factor out file extraction
         matches = re.search('file:([\w_\.]+).*connection_logging_enabled=(\w+).*btree_logging_enabled=(\w+)', line)
         if matches is None:
@@ -74,6 +82,8 @@ class Update:
         self.btree_logging_enabled = matches.group(3).lower() == "true"
 
     def __init_page_rollback(self, line):
+        self.type = UpdateType.PAGE_ROLLBACK
+
         matches = re.search('file:([\w_\.]+).*addr=(0x[A-Za-z0-9]+).*modified=(\w+)', line)
         if matches is None:
             raise Exception("failed to parse page rollback string")
@@ -83,6 +93,8 @@ class Update:
         self.modified = matches.group(3).lower() == "true"
 
     def __init_update_abort(self, line):
+        self.type = UpdateType.UPDATE_ABORT
+
         matches = re.search('file:([\w_\.]+).*txnid=(\d+).*txnid_not_visible=(\w+).*stable_timestamp=\((\d+), (\d+)\).*durable_timestamp=\((\d+), (\d+)\): (\w+).*prepare_state=(\w+).*in_progress=(\w+)', line)
         if matches is None:
             raise Exception("failed to parse page rollback string")
