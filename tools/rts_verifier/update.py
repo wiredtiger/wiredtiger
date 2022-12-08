@@ -44,29 +44,31 @@ class Update:
     def __init_tree(self, line):
         self.type = UpdateType.TREE
 
-        matches = re.search('file:([\w_\.]+).*modified=(\w+).*durable_timestamp=\((\d+), (\d+)\).*>.*stable_timestamp=\((\d+), (\d+)\): (\w+).*has_prepared_updates=(\w+).*durable_timestamp_not_found=(\w+).*txnid=(\d+).*recovery_checkpoint_snap_min=(\d+): (\w+)', line)
-        if matches is None:
-            raise Exception("failed to parse tree string")
-
+        matches = re.search('file:([\w_\.]+)', line)
         self.file = matches.group(1)
 
-        self.modified = matches.group(2).lower() == "true"
+        matches = re.search('modified=(\w+)', line)
+        self.modified = matches.group(1).lower() == "true"
 
-        durable_start = int(matches.group(3))
-        durable_stop = int(matches.group(4))
+        matches = re.search('durable_timestamp=\((\d+), (\d+)\).*>.*stable_timestamp=\((\d+), (\d+)\): (\w+)', line)
+        durable_start = int(matches.group(1))
+        durable_stop = int(matches.group(2))
         self.durable = Timestamp(durable_start, durable_stop)
-        stable_start = int(matches.group(5))
-        stable_stop = int(matches.group(6))
+        stable_start = int(matches.group(3))
+        stable_stop = int(matches.group(4))
         self.stable = Timestamp(stable_start, stable_stop)
-        self.durable_gt_stable = matches.group(7).lower() == "true"
+        self.durable_gt_stable = matches.group(5).lower() == "true"
 
-        self.has_prepared_updates = matches.group(8).lower() == "true"
+        matches = re.search('has_prepared_updates=(\w+)', line)
+        self.has_prepared_updates = matches.group(1).lower() == "true"
 
-        self.durable_ts_not_found = matches.group(9).lower() == "true"
+        matches = re.search('durable_timestamp_not_found=(\w+)', line)
+        self.durable_ts_not_found = matches.group(1).lower() == "true"
 
-        self.txnid = int(matches.group(10))
-        self.recovery_ckpt_snap_min = int(matches.group(11))
-        self.txnid_gt_recov_ckpt_snap_min = matches.group(12).lower() == "true"
+        matches = re.search('txnid=(\d+).*>.*recovery_checkpoint_snap_min=(\d+): (\w+)', line)
+        self.txnid = int(matches.group(1))
+        self.recovery_ckpt_snap_min = int(matches.group(2))
+        self.txnid_gt_recov_ckpt_snap_min = matches.group(3).lower() == "true"
 
     def __init_tree_logging(self, line):
         self.type = UpdateType.TREE_LOGGING
