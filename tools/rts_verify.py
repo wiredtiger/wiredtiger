@@ -27,8 +27,8 @@ class Update:
         matches = re.search('stable_timestamp=\((\d+), (\d+)\)', line)
         if matches is None:
             raise Exception("failed to parse init string")
-        self.stable_txn_id = int(matches.group(1))
-        self.stable_ts = int(matches.group(2))
+        self.stable_start = int(matches.group(1))
+        self.stable_stop = int(matches.group(2))
 
     def init_tree(self, line):
         print(line)
@@ -40,10 +40,10 @@ class Update:
 
         self.modified = matches.group(2).lower() == "true"
 
-        self.durable_txn_id = int(matches.group(3))
-        self.durable_ts = int(matches.group(4))
-        self.stable_txn_id = int(matches.group(5))
-        self.stable_ts = int(matches.group(6))
+        self.durable_start = int(matches.group(3))
+        self.durable_stop = int(matches.group(4))
+        self.stable_start = int(matches.group(5))
+        self.stable_stop = int(matches.group(6))
         self.durable_gt_stable = matches.group(7).lower() == "true"
 
         self.has_prepared_updates = matches.group(8).lower() == "true"
@@ -64,8 +64,8 @@ class Update:
 
 class Checker:
     def __init__(self):
-        self.stable_txn_id = None
-        self.stable_ts = None
+        self.stable_start = None
+        self.stable_stop = None
 
     def apply(self, update):
         if update.type == UpdateType.INIT:
@@ -78,13 +78,13 @@ class Checker:
             raise Exception(f"failed to parse {update.line}")
 
     def apply_check_init(self, update):
-        if self.stable_txn_id is not None:
+        if self.stable_start is not None:
             raise Exception("restarted RTS?!")
-        if self.stable_ts is not None:
+        if self.stable_stop is not None:
             raise Exception("restarted RTS?!")
 
-        self.stable_txn_id = update.stable_txn_id
-        self.stable_ts = update.stable_ts
+        self.stable_start = update.stable_start
+        self.stable_stop = update.stable_stop
 
     def apply_check_tree(self, update):
         pass
