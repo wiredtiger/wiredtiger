@@ -6,11 +6,18 @@ import re
 from enum import Enum
 
 class UpdateType(Enum):
-    INIT = 1
-    TREE = 2
-    TREE_LOGGING = 3
-    PAGE_ROLLBACK = 4
+    INIT = 0
+    TREE = 1
+    TREE_LOGGING = 2
+    PAGE_ROLLBACK = 3
+    UPDATE_ABORT = 4
     UNKNOWN = 5
+
+class PrepareState(Enum):
+    PREPARE_INIT = 0
+    PREPARE_INPROGRESS = 1
+    PREPARE_LOCKED = 2
+    PREPARE_RESOLVED = 3
 
 class Update:
     def __init__(self, update_type, line):
@@ -25,6 +32,8 @@ class Update:
             self.init_tree_logging(line)
         elif self.type == UpdateType.PAGE_ROLLBACK:
             self.init_page_rollback(line)
+        elif self.type == UpdateType.UPDATE_ABORT:
+            self.init_update_abort(line)
 
     def init_init(self, line):
         matches = re.search('stable_timestamp=\((\d+), (\d+)\)', line)
@@ -76,6 +85,28 @@ class Update:
         self.addr = int(matches.group(2), 16)
         self.modified = matches.group(3).lower() == "true"
 
+    def init_update_abort(self, line):
+        matches = re.search('file:([\w_\.]+).*txnid=(\d+).*txnid_not_visible=(\w+).*stable_timestamp=\((\d+), (\d+)\).*durable_timestamp=\((\d+), (\d+)\): (\w+).*prepare_state=(\w+).*in_progress=(\w+)', line)
+        if matches is None:
+            raise Exception("failed to parse page rollback string")
+
+        self.file = matches.group(1)
+
+        self.txnid = int(matches.group(2))
+        self.txnid_not_visible = matches.group(3).lower() == "true"
+
+        self.stable_start = int(matches.group(4))
+        self.stable_stop = int(matches.group(5))
+
+        self.durable_start = int(matches.group(6))
+        self.durable_stop = int(matches.group(7))
+
+        self.stable_lt_durable = matches.group(8).lower() == "true"
+
+        self.prepare_state = PrepareState[matches.group(9)]
+
+        self.in_progress = matches.group(10).lower() == "true"
+
 class Checker:
     def __init__(self):
         self.stable_start = None
@@ -91,6 +122,8 @@ class Checker:
             self.apply_check_tree_logging(update)
         elif update.type == UpdateType.PAGE_ROLLBACK:
             self.apply_check_page_rollback(update)
+        elif update.type == UpdateType.UPDATE_ABORT:
+            self.apply_check_update_abort(update)
         else:
             raise Exception(f"failed to parse {update.line}")
 
@@ -117,6 +150,10 @@ class Checker:
         if update.file != self.current_file:
             raise Exception(f"spurious visit to {update.file}")
 
+    def apply_check_update_abort(self, update):
+        if update.file != self.current_file:
+            raise Exception(f"spurious visit to {update.file}")
+
 def parse_to_update(line):
     if '[INIT]' in line:
         return Update(UpdateType.INIT, line)
@@ -126,6 +163,8 @@ def parse_to_update(line):
         return Update(UpdateType.TREE_LOGGING, line)
     elif '[PAGE_ROLLBACK]' in line:
         return Update(UpdateType.PAGE_ROLLBACK, line)
+    elif '[UPDATE_ABORT]' in line:
+        return Update(UpdateType.UPDATE_ABORT, line)
     else:
         return Update(UpdateType.UNKNOWN, line)
 
