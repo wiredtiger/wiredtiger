@@ -8,10 +8,10 @@ if [ $# -eq 0 ]
 fi
 
 # Check the test name
-if [[ $1 =~ ^[a-zA-Z]+(_[0-9a-zA-Z]+)$ ]]; then
+if [[ $1 =~ ^[a-z][_a-z0-9]+$ ]]; then
     echo "Generating test: $1..."
 else
-    echo "Invalid test name. Test name must match the regex '[a-zA-Z]+(_[0-9a-zA-Z]+)$'"
+    echo "Invalid test name. Test name must match the regex '[a-z][_a-z0-9]+$'"
     exit 128
 fi
 
