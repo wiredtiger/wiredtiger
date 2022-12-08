@@ -252,6 +252,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
 
     if (0) {
 err:
+        if (!closing)
+            __evict_exclusive_clear(session, ref, previous_state);
         session->evict_timeline.evict_finish = __wt_clock(session);
         eviction_time = WT_CLOCKDIFF_US(
           session->evict_timeline.evict_finish, session->evict_timeline.evict_start);
@@ -263,8 +265,6 @@ err:
         }
 
         WT_STAT_CONN_DATA_INCR(session, cache_eviction_fail);
-        if (!closing)
-            __evict_exclusive_clear(session, ref, previous_state);
     }
 
 done:
