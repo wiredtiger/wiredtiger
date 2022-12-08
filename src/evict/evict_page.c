@@ -104,7 +104,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
-    uint64_t time_start, time_stop;
+    uint64_t eviction_time;
     bool clean_page, closing, force_evict_hs, inmem_split, local_gen, tree_dead;
 
     conn = S2C(session);
@@ -129,17 +129,13 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
         __wt_session_gen_enter(session, WT_GEN_EVICT);
     }
 
-#ifdef HAVE_DIAGNOSTIC
     WT_CLEAR(session->evict_timeline);
     session->evict_timeline.evict_start = __wt_clock(session);
-#endif
     /*
-     * Track how long forcible eviction took. Immediately increment the forcible eviction counter,
-     * we might do an in-memory split and not an eviction, which skips the other statistics.
+     * Immediately increment the forcible eviction counter, we might do an in-memory split and not
+     * an eviction, which skips the other statistics.
      */
-    time_start = 0;
     if (LF_ISSET(WT_EVICT_CALL_URGENT)) {
-        time_start = __wt_clock(session);
         WT_STAT_CONN_INCR(session, cache_eviction_force);
 
         /*
@@ -231,19 +227,18 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
      * We have loaded the new disk image and updated the tree structure. We can no longer fail after
      * this point.
      */
-
-    if (time_start != 0) {
-        time_stop = __wt_clock(session);
+    session->evict_timeline.evict_finish = __wt_clock(session);
+    eviction_time =
+      WT_CLOCKDIFF_US(session->evict_timeline.evict_finish, session->evict_timeline.evict_start);
+    if (LF_ISSET(WT_EVICT_CALL_URGENT)) {
         if (force_evict_hs)
             WT_STAT_CONN_INCR(session, cache_eviction_force_hs_success);
         if (clean_page) {
             WT_STAT_CONN_INCR(session, cache_eviction_force_clean);
-            WT_STAT_CONN_INCRV(
-              session, cache_eviction_force_clean_time, WT_CLOCKDIFF_US(time_stop, time_start));
+            WT_STAT_CONN_INCRV(session, cache_eviction_force_clean_time, eviction_time);
         } else {
             WT_STAT_CONN_INCR(session, cache_eviction_force_dirty);
-            WT_STAT_CONN_INCRV(
-              session, cache_eviction_force_dirty_time, WT_CLOCKDIFF_US(time_stop, time_start));
+            WT_STAT_CONN_INCRV(session, cache_eviction_force_dirty_time, eviction_time);
         }
     }
     if (clean_page)
@@ -257,28 +252,24 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
 
     if (0) {
 err:
-        if (!closing)
-            __evict_exclusive_clear(session, ref, previous_state);
-
-        if (time_start != 0) {
-            time_stop = __wt_clock(session);
+        session->evict_timeline.evict_finish = __wt_clock(session);
+        eviction_time = WT_CLOCKDIFF_US(
+          session->evict_timeline.evict_finish, session->evict_timeline.evict_start);
+        if (LF_ISSET(WT_EVICT_CALL_URGENT)) {
             if (force_evict_hs)
                 WT_STAT_CONN_INCR(session, cache_eviction_force_hs_fail);
             WT_STAT_CONN_INCR(session, cache_eviction_force_fail);
-            WT_STAT_CONN_INCRV(
-              session, cache_eviction_force_fail_time, WT_CLOCKDIFF_US(time_stop, time_start));
+            WT_STAT_CONN_INCRV(session, cache_eviction_force_fail_time, eviction_time);
         }
 
         WT_STAT_CONN_DATA_INCR(session, cache_eviction_fail);
+        if (!closing)
+            __evict_exclusive_clear(session, ref, previous_state);
     }
 
 done:
-#ifdef HAVE_DIAGNOSTIC
-    session->evict_timeline.evict_finish = __wt_clock(session);
-    if (WT_CLOCKDIFF_SEC(
-          session->evict_timeline.evict_finish, session->evict_timeline.evict_start) > 60)
+    if (eviction_time > 60 * WT_MILLION)
         __wt_verbose_warning(session, WT_VERB_EVICT, "%s", "Eviction takes more than 1 minute.");
-#endif
     /* Leave any local eviction generation. */
     if (local_gen)
         __wt_session_gen_leave(session, WT_GEN_EVICT);
