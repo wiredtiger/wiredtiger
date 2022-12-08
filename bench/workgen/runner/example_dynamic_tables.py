@@ -149,6 +149,14 @@ while workload_thread.is_alive():
 
 assert workload_thread.join() == 0
 
+# It is possible that Python and Workgen are not matching at this point in terms of tables. Since
+# Workgen cannot remove a table that is still being used, it may have kept reference to it.
+# Now the workload is finished, call the garbage collector on Workgen, nothing should be blocking
+# the deletion of tables that are supposed to be removed.
+# Note that we are not checking what's on disk, we don't need to use what garbage_collection
+# returns.
+workload.garbage_collection()
+
 # Check tables match between Python and Workgen.
 workgen_tables = workload.get_tables()
 
