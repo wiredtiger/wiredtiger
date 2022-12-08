@@ -1085,7 +1085,7 @@ __wt_rts_btree_abort_updates(
 
     WT_STAT_CONN_INCR(session, txn_rts_pages_visited);
     __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
-      "%p: roll back %s page", (void *)ref, modified ? "modified" : "clean");
+      "[PAGE_ROLLBACK] roll back page, addr=%p modified=%s", (void *)ref, modified ? "true" : "false");
 
     switch (page->type) {
     case WT_PAGE_COL_FIX:

@@ -9,7 +9,8 @@ class UpdateType(Enum):
     INIT = 1
     TREE = 2
     TREE_LOGGING = 3
-    UNKNOWN = 4
+    PAGE_ROLLBACK = 4
+    UNKNOWN = 5
 
 class Update:
     def __init__(self, update_type, line):
@@ -22,6 +23,8 @@ class Update:
             self.init_tree(line)
         elif self.type == UpdateType.TREE_LOGGING:
             self.init_tree_logging(line)
+        elif self.type == UpdateType.PAGE_ROLLBACK:
+            self.init_page_rollback(line)
 
     def init_init(self, line):
         matches = re.search('stable_timestamp=\((\d+), (\d+)\)', line)
@@ -31,7 +34,6 @@ class Update:
         self.stable_stop = int(matches.group(2))
 
     def init_tree(self, line):
-        print(line)
         matches = re.search('file:([\w_\.]+).*modified=(\w+).*durable_timestamp=\((\d+), (\d+)\).*>.*stable_timestamp=\((\d+), (\d+)\): (\w+).*has_prepared_updates=(\w+).*durable_timestamp_not_found=(\w+).*txnid=(\d+).*recovery_checkpoint_snap_min=(\d+): (\w+)', line)
         if matches is None:
             raise Exception("failed to parse tree string")
@@ -65,6 +67,15 @@ class Update:
         self.conn_logging_enabled = matches.group(2).lower() == "true"
         self.btree_logging_enabled = matches.group(3).lower() == "true"
 
+    def init_page_rollback(self, line):
+        matches = re.search('file:([\w_\.]+).*addr=(0x[A-Za-z0-9]+).*modified=(\w+)', line)
+        if matches is None:
+            raise Exception("failed to parse page rollback string")
+
+        self.file = matches.group(1)
+        self.addr = int(matches.group(2), 16)
+        self.modified = matches.group(3).lower() == "true"
+
 class Checker:
     def __init__(self):
         self.stable_start = None
@@ -78,6 +89,8 @@ class Checker:
             self.apply_check_tree(update)
         elif update.type == UpdateType.TREE_LOGGING:
             self.apply_check_tree_logging(update)
+        elif update.type == UpdateType.PAGE_ROLLBACK:
+            self.apply_check_page_rollback(update)
         else:
             raise Exception(f"failed to parse {update.line}")
 
@@ -100,6 +113,10 @@ class Checker:
         if update.file != self.current_file:
             raise Exception(f"spurious visit to {update.file}")
 
+    def apply_check_page_rollback(self, update):
+        if update.file != self.current_file:
+            raise Exception(f"spurious visit to {update.file}")
+
 def parse_to_update(line):
     if '[INIT]' in line:
         return Update(UpdateType.INIT, line)
@@ -107,6 +124,8 @@ def parse_to_update(line):
         return Update(UpdateType.TREE, line)
     elif '[TREE_LOGGING]' in line:
         return Update(UpdateType.TREE_LOGGING, line)
+    elif '[PAGE_ROLLBACK]' in line:
+        return Update(UpdateType.PAGE_ROLLBACK, line)
     else:
         return Update(UpdateType.UNKNOWN, line)
 
