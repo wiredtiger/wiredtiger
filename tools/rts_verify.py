@@ -55,17 +55,21 @@ class Update:
         self.txnid_gt_recov_ckpt_snap_min = matches.group(12).lower() == "true"
 
     def init_tree_logging(self, line):
-        matches = re.search('connection_logging_enabled=(\w+).*btree_logging_enabled=(\w+)', line)
+        # TODO factor out file extraction
+        matches = re.search('file:([\w_\.]+).*connection_logging_enabled=(\w+).*btree_logging_enabled=(\w+)', line)
         if matches is None:
             raise Exception("failed to parse tree logging string")
 
-        self.conn_logging_enabled = matches.group(1).lower() == "true"
-        self.btree_logging_enabled = matches.group(2).lower() == "true"
+        self.file = matches.group(1)
+
+        self.conn_logging_enabled = matches.group(2).lower() == "true"
+        self.btree_logging_enabled = matches.group(3).lower() == "true"
 
 class Checker:
     def __init__(self):
         self.stable_start = None
         self.stable_stop = None
+        self.visited_files = set()
 
     def apply(self, update):
         if update.type == UpdateType.INIT:
@@ -87,10 +91,14 @@ class Checker:
         self.stable_stop = update.stable_stop
 
     def apply_check_tree(self, update):
-        pass
+        if update.file in self.visited_files:
+            raise Exception(f"visited file {update.file} again")
+        self.visited_files.add(update.file)
+        self.current_file = update.file
 
     def apply_check_tree_logging(self, update):
-        pass
+        if update.file != self.current_file:
+            raise Exception(f"spurious visit to {update.file}")
 
 def parse_to_update(line):
     if '[INIT]' in line:
