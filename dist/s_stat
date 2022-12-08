@@ -9,7 +9,7 @@ trap 'rm -f $t' 0 1 2 3 13 15
 l=`sed \
     -e '/src\/support\/stat.c/d' \
     -e '/^[a-z]/!d' \
-    -e 's/[	 ].*$//' \
+    -e 's/[     ].*$//' \
     -e 's,^,../,' filelist`
 l="$l `echo ../src/include/*_inline.h ../src/include/os.h`"
 
@@ -61,10 +61,10 @@ echo "$search"
 fgrep -who "$search" $l) | sort | uniq -u > $t
 
 test -s $t && {
-	echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-	echo 'unused statistics fields'
-	echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-	cat $t
-	exit 1
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo 'unused statistics fields'
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    cat $t
+    exit 1
 }
 exit 0
