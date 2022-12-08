@@ -74,7 +74,7 @@ bool require_get_raw_key_value(WT_CURSOR* cursor,
 }
 
 
-TEST_CASE("Cursor: get_raw_key_and_value()", "[cursor]")
+TEST_CASE("Cursor: get key and value()", "[cursor]")
 {
     ConnectionWrapper conn(DB_HOME);
     WT_SESSION_IMPL *session_impl = conn.createSession();
@@ -94,33 +94,37 @@ TEST_CASE("Cursor: get_raw_key_and_value()", "[cursor]")
     REQUIRE(insert_key_value(cursor, "key4", "value4") == 0);
     REQUIRE(insert_key_value(cursor, "key5", "value5") == 0);
 
-    // Check the values using get_raw_key_value
-    REQUIRE(cursor->reset(cursor) == 0);
-    REQUIRE(cursor->next(cursor) == 0);
-    REQUIRE(require_get_raw_key_value(cursor, "key1", "value1"));
-    REQUIRE(cursor->next(cursor) == 0);
-    REQUIRE(require_get_raw_key_value(cursor, "key2", "value2"));
-    REQUIRE(cursor->next(cursor) == 0);
-    REQUIRE(require_get_raw_key_value(cursor, "key3", "value3"));
-    REQUIRE(cursor->next(cursor) == 0);
-    REQUIRE(require_get_raw_key_value(cursor, "key4", "value4"));
-    REQUIRE(cursor->next(cursor) == 0);
-    REQUIRE(require_get_raw_key_value(cursor, "key5", "value5"));
-    REQUIRE(cursor->next(cursor) == WT_NOTFOUND);
+    SECTION("Check the values using get_key and get_value")
+    {
+        REQUIRE(cursor->reset(cursor) == 0);
+        REQUIRE(cursor->next(cursor) == 0);
+        REQUIRE(require_get_key_value(cursor, "key1", "value1"));
+        REQUIRE(cursor->next(cursor) == 0);
+        REQUIRE(require_get_key_value(cursor, "key2", "value2"));
+        REQUIRE(cursor->next(cursor) == 0);
+        REQUIRE(require_get_key_value(cursor, "key3", "value3"));
+        REQUIRE(cursor->next(cursor) == 0);
+        REQUIRE(require_get_key_value(cursor, "key4", "value4"));
+        REQUIRE(cursor->next(cursor) == 0);
+        REQUIRE(require_get_key_value(cursor, "key5", "value5"));
+        REQUIRE(cursor->next(cursor) == WT_NOTFOUND);
+    }
 
-    // Check the values using get_key and get_value
-    REQUIRE(cursor->reset(cursor) == 0);
-    REQUIRE(cursor->next(cursor) == 0);
-    REQUIRE(require_get_key_value(cursor, "key1", "value1"));
-    REQUIRE(cursor->next(cursor) == 0);
-    REQUIRE(require_get_key_value(cursor, "key2", "value2"));
-    REQUIRE(cursor->next(cursor) == 0);
-    REQUIRE(require_get_key_value(cursor, "key3", "value3"));
-    REQUIRE(cursor->next(cursor) == 0);
-    REQUIRE(require_get_key_value(cursor, "key4", "value4"));
-    REQUIRE(cursor->next(cursor) == 0);
-    REQUIRE(require_get_key_value(cursor, "key5", "value5"));
-    REQUIRE(cursor->next(cursor) == WT_NOTFOUND);
+    SECTION("Check the values using get_raw_key_value")
+    {
+        REQUIRE(cursor->reset(cursor) == 0);
+        REQUIRE(cursor->next(cursor) == 0);
+        REQUIRE(require_get_raw_key_value(cursor, "key1", "value1"));
+        REQUIRE(cursor->next(cursor) == 0);
+        REQUIRE(require_get_raw_key_value(cursor, "key2", "value2"));
+        REQUIRE(cursor->next(cursor) == 0);
+        REQUIRE(require_get_raw_key_value(cursor, "key3", "value3"));
+        REQUIRE(cursor->next(cursor) == 0);
+        REQUIRE(require_get_raw_key_value(cursor, "key4", "value4"));
+        REQUIRE(cursor->next(cursor) == 0);
+        REQUIRE(require_get_raw_key_value(cursor, "key5", "value5"));
+        REQUIRE(cursor->next(cursor) == WT_NOTFOUND);
+    }
 
     REQUIRE(cursor->close(cursor) == 0);
 
