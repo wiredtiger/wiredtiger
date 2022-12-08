@@ -235,10 +235,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     WT_RET(__rec_init(session, ref, flags, salvage, &session->reconcile));
     r = session->reconcile;
 
-#ifdef HAVE_DIAGNOSTIC
-    if (F_ISSET(r, WT_REC_EVICT))
-        session->evict_timeline.build_disk_image_start = __wt_clock(session);
-#endif
+    session->reconcile_timeline.build_disk_image_start = __wt_clock(session);
 
     /* Reconcile the page. */
     switch (page->type) {
@@ -267,10 +264,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         break;
     }
 
-#ifdef HAVE_DIAGNOSTIC
-    if (F_ISSET(r, WT_REC_EVICT))
-        session->evict_timeline.build_disk_image_finish = __wt_clock(session);
-#endif
+    session->reconcile_timeline.build_disk_image_finish = __wt_clock(session);
 
     /*
      * If we failed, don't bail out yet; we still need to update stats and tidy up.
@@ -2438,15 +2432,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
      * fail, so try before clearing the page's previous reconciliation state.
      */
     if (F_ISSET(r, WT_REC_HS)) {
-#ifdef HAVE_DIAGNOSTIC
-        if (F_ISSET(r, WT_REC_EVICT))
-            session->evict_timeline.hs_wrapup_start = __wt_clock(session);
-#endif
+        session->reconcile_timeline.hs_wrapup_start = __wt_clock(session);
         ret = __rec_hs_wrapup(session, r);
-#ifdef HAVE_DIAGNOSTIC
-        if (F_ISSET(r, WT_REC_EVICT))
-            session->evict_timeline.hs_wrapup_finish = __wt_clock(session);
-#endif
+        session->reconcile_timeline.hs_wrapup_finish = __wt_clock(session);
         WT_RET(ret);
     }
 

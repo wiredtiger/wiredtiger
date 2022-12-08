@@ -130,6 +130,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
         __wt_session_gen_enter(session, WT_GEN_EVICT);
     }
 
+    WT_CLEAR(session->reconcile_timeline);
     WT_CLEAR(session->evict_timeline);
     session->evict_timeline.evict_start = __wt_clock(session);
     /*
@@ -270,7 +271,13 @@ err:
 
 done:
     if (eviction_time > 60 * WT_MILLION)
-        __wt_verbose_warning(session, WT_VERB_EVICT, "%s", "Eviction takes more than 1 minute.");
+        __wt_verbose_warning(session, WT_VERB_EVICT,
+          "Eviction took more than 1 minute. Building disk image took %" PRIu64
+          "us. History store wrapup took %" PRIu64 "us.",
+          WT_CLOCKDIFF_US(session->reconcile_timeline.build_disk_image_finish,
+            session->reconcile_timeline.build_disk_image_start),
+          WT_CLOCKDIFF_US(session->reconcile_timeline.hs_wrapup_finish,
+            session->reconcile_timeline.hs_wrapup_start));
     /* Leave any local eviction generation. */
     if (local_gen)
         __wt_session_gen_leave(session, WT_GEN_EVICT);
