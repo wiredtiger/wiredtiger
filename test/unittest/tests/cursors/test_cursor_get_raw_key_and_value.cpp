@@ -47,7 +47,7 @@ int insert_key_value(WT_CURSOR* cursor, const char* key, const char* value) {
 //    REQUIRE(strcmp(value, expected_value) == 0);
 //}
 
-void require_get_raw_key_value(WT_CURSOR* cursor,
+bool require_get_raw_key_value(WT_CURSOR* cursor,
   const char* expected_key, const char* expected_value) {
     const char* key   = nullptr;
     const char* value = nullptr;
@@ -63,8 +63,13 @@ void require_get_raw_key_value(WT_CURSOR* cursor,
 
     REQUIRE(key != nullptr);
     REQUIRE(value != nullptr);
-    REQUIRE(strcmp(key, expected_key) == 0);
-    REQUIRE(strcmp(value, expected_value) == 0);
+
+    bool keys_match = strcmp(key, expected_key) == 0;
+    bool values_match = strcmp(value, expected_value) == 0;
+    REQUIRE(keys_match);
+    REQUIRE(values_match);
+
+    return keys_match && values_match;
 }
 
 
@@ -91,15 +96,15 @@ TEST_CASE("Cursor: get_raw_key_and_value()", "[cursor]")
     // Check the values
     REQUIRE(cursor->reset(cursor) == 0);
     REQUIRE(cursor->next(cursor) == 0);
-    require_get_raw_key_value(cursor, "key1", "value1");
+    REQUIRE(require_get_raw_key_value(cursor, "key1", "value1"));
     REQUIRE(cursor->next(cursor) == 0);
-    require_get_raw_key_value(cursor, "key2", "value2");
+    REQUIRE(require_get_raw_key_value(cursor, "key2", "value2"));
     REQUIRE(cursor->next(cursor) == 0);
-    require_get_raw_key_value(cursor, "key3", "value3");
+    REQUIRE(require_get_raw_key_value(cursor, "key3", "value3"));
     REQUIRE(cursor->next(cursor) == 0);
-    require_get_raw_key_value(cursor, "key4", "value4");
+    REQUIRE(require_get_raw_key_value(cursor, "key4", "value4"));
     REQUIRE(cursor->next(cursor) == 0);
-    require_get_raw_key_value(cursor, "key5", "value5");
+    REQUIRE(require_get_raw_key_value(cursor, "key5", "value5"));
     REQUIRE(cursor->next(cursor) == WT_NOTFOUND);
     REQUIRE(cursor->close(cursor) == 0);
 
