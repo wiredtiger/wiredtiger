@@ -197,8 +197,12 @@ class test_sweep04(wttest.WiredTigerTestCase):
                 self.pr('  file_open={}'.format(files_open))
                 dhandle_counts.append(dhandles)
                 stat_cursor.close()
-                if loopcount % 100 == 999:
-                    self.conn.debug_info('handles=true')
+
+                # This (extremely verbose) debugging is disabled, as it writes to stdout,
+                # and that causes the test framework fail the test.
+                if False:
+                    if loopcount % 1000 == 999:
+                        self.conn.debug_info('handles=true')
                 self.pr('  average,slope={}'.format(str(average_slope(dhandle_counts))))
 
             # Reset any sessions we've used. This may be necessary to trigger some session sweeps.
