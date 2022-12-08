@@ -31,25 +31,28 @@ class Update:
         self.stable_ts = int(matches.group(2))
 
     def init_tree(self, line):
-        matches = re.search('modified=(\w+).*durable_timestamp=\((\d+), (\d+)\).*>.*stable_timestamp=\((\d+), (\d+)\): (\w+).*has_prepared_updates=(\w+).*durable_timestamp_not_found=(\w+).*txnid=(\d+).*recovery_checkpoint_snap_min=(\d+): (\w+)', line)
+        print(line)
+        matches = re.search('file:([\w_\.]+).*modified=(\w+).*durable_timestamp=\((\d+), (\d+)\).*>.*stable_timestamp=\((\d+), (\d+)\): (\w+).*has_prepared_updates=(\w+).*durable_timestamp_not_found=(\w+).*txnid=(\d+).*recovery_checkpoint_snap_min=(\d+): (\w+)', line)
         if matches is None:
             raise Exception("failed to parse tree string")
 
-        self.modified = matches.group(1).lower() == "true"
+        self.file = matches.group(1)
 
-        self.durable_txn_id = int(matches.group(2))
-        self.durable_ts = int(matches.group(3))
-        self.stable_txn_id = int(matches.group(4))
-        self.stable_ts = int(matches.group(5))
-        self.durable_gt_stable = matches.group(6).lower() == "true"
+        self.modified = matches.group(2).lower() == "true"
 
-        self.has_prepared_updates = matches.group(7).lower() == "true"
+        self.durable_txn_id = int(matches.group(3))
+        self.durable_ts = int(matches.group(4))
+        self.stable_txn_id = int(matches.group(5))
+        self.stable_ts = int(matches.group(6))
+        self.durable_gt_stable = matches.group(7).lower() == "true"
 
-        self.durable_ts_not_found = matches.group(8).lower() == "true"
+        self.has_prepared_updates = matches.group(8).lower() == "true"
 
-        self.txnid = int(matches.group(9))
-        self.recovery_ckpt_snap_min = int(matches.group(10))
-        self.txnid_gt_recov_ckpt_snap_min = matches.group(11).lower() == "true"
+        self.durable_ts_not_found = matches.group(9).lower() == "true"
+
+        self.txnid = int(matches.group(10))
+        self.recovery_ckpt_snap_min = int(matches.group(11))
+        self.txnid_gt_recov_ckpt_snap_min = matches.group(12).lower() == "true"
 
     def init_tree_logging(self, line):
         matches = re.search('connection_logging_enabled=(\w+).*btree_logging_enabled=(\w+)', line)
