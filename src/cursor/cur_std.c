@@ -77,7 +77,9 @@ __wt_cursor_get_value_notsup(WT_CURSOR *cursor, ...)
  * __wt_cursor_get_raw_key_value_notsup --
  *     WT_CURSOR.get_value not-supported.
  */
-int __wt_cursor_get_raw_key_value_notsup(WT_CURSOR *cursor, WT_ITEM* k, WT_ITEM* v) {
+int
+__wt_cursor_get_raw_key_value_notsup(WT_CURSOR *cursor, WT_ITEM *k, WT_ITEM *v)
+{
     WT_UNUSED(k);
     WT_UNUSED(v);
     return (__wt_cursor_notsup(cursor));
@@ -579,8 +581,11 @@ err:
 
 /*
  * __wt_cursor_get_raw_key_value --
+ *
  */
-int __wt_cursor_get_raw_key_value(WT_CURSOR *cursor, WT_ITEM* k, WT_ITEM* v) {
+int
+__wt_cursor_get_raw_key_value(WT_CURSOR *cursor, WT_ITEM *k, WT_ITEM *v)
+{
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 

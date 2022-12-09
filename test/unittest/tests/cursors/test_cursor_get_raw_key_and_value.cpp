@@ -13,8 +13,9 @@
 #include "../wrappers/connection_wrapper.h"
 #include "../wrappers/item_wrapper.h"
 
-
-void init_wt_item(WT_ITEM& item) {
+void
+init_wt_item(WT_ITEM &item)
+{
     item.data = nullptr;
     item.size = 0;
     item.mem = nullptr;
@@ -22,8 +23,9 @@ void init_wt_item(WT_ITEM& item) {
     item.flags = 0;
 }
 
-
-int insert_key_value(WT_CURSOR* cursor, const char* key, const char* value) {
+int
+insert_key_value(WT_CURSOR *cursor, const char *key, const char *value)
+{
     item_wrapper item_key(key);
     item_wrapper item_value(value);
     __wt_cursor_set_raw_key(cursor, item_key.get_item());
@@ -31,11 +33,11 @@ int insert_key_value(WT_CURSOR* cursor, const char* key, const char* value) {
     return cursor->insert(cursor);
 }
 
-
-bool require_get_key_value(WT_CURSOR* cursor,
-  const char* expected_key, const char* expected_value) {
-    const char* key   = nullptr;
-    const char* value = nullptr;
+bool
+require_get_key_value(WT_CURSOR *cursor, const char *expected_key, const char *expected_value)
+{
+    const char *key = nullptr;
+    const char *value = nullptr;
     REQUIRE(cursor->get_key(cursor, &key) == 0);
     REQUIRE(cursor->get_value(cursor, &value) == 0);
 
@@ -47,11 +49,11 @@ bool require_get_key_value(WT_CURSOR* cursor,
     return keys_match && values_match;
 }
 
-
-bool require_get_raw_key_value(WT_CURSOR* cursor,
-  const char* expected_key, const char* expected_value) {
-    const char* key   = nullptr;
-    const char* value = nullptr;
+bool
+require_get_raw_key_value(WT_CURSOR *cursor, const char *expected_key, const char *expected_value)
+{
+    const char *key = nullptr;
+    const char *value = nullptr;
 
     WT_ITEM item_key;
     init_wt_item(item_key);
@@ -73,7 +75,6 @@ bool require_get_raw_key_value(WT_CURSOR* cursor,
     return keys_match && values_match;
 }
 
-
 TEST_CASE("Cursor: get key and value()", "[cursor]")
 {
     ConnectionWrapper conn(DB_HOME);
@@ -81,11 +82,11 @@ TEST_CASE("Cursor: get key and value()", "[cursor]")
     std::string uri = "table:cursor_test";
     std::string file = "file:cursor_test.wt";
 
-    WT_SESSION* session = &session_impl->iface;
+    WT_SESSION *session = &session_impl->iface;
 
     REQUIRE(session->create(session, uri.c_str(), "key_format=S,value_format=S") == 0);
 
-    WT_CURSOR* cursor = nullptr;
+    WT_CURSOR *cursor = nullptr;
     REQUIRE(session->open_cursor(session, uri.c_str(), nullptr, nullptr, &cursor) == 0);
 
     // Insert some values
@@ -127,17 +128,19 @@ TEST_CASE("Cursor: get key and value()", "[cursor]")
         REQUIRE(cursor->next(cursor) == WT_NOTFOUND);
     }
 
-    SECTION("Check get_raw_key_value() on a cursor type that does not support it") {
-        WT_CURSOR* version_cursor = nullptr;
-        REQUIRE(session->open_cursor(session, file.c_str(),
-          nullptr, "debug=(dump_version=true)", &version_cursor) == 0);
+    SECTION("Check get_raw_key_value() on a cursor type that does not support it")
+    {
+        WT_CURSOR *version_cursor = nullptr;
+        REQUIRE(session->open_cursor(session, file.c_str(), nullptr, "debug=(dump_version=true)",
+                  &version_cursor) == 0);
         WT_ITEM item_key;
         init_wt_item(item_key);
         WT_ITEM item_value;
         init_wt_item(item_value);
 
         // get_raw_key_value() is not supported on a version cursor
-        REQUIRE(version_cursor->get_raw_key_value(version_cursor, &item_key, &item_value) == ENOTSUP);
+        REQUIRE(
+          version_cursor->get_raw_key_value(version_cursor, &item_key, &item_value) == ENOTSUP);
 
         REQUIRE(version_cursor->close(version_cursor) == 0);
     }

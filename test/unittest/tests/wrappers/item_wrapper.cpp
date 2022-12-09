@@ -9,9 +9,7 @@
 #include "wiredtiger.h"
 #include "item_wrapper.h"
 
-
-item_wrapper::item_wrapper(const char *string)
-  : _string(string)
+item_wrapper::item_wrapper(const char *string) : _string(string)
 {
     _item.data = _string.c_str();
     _item.size = _string.length() + 1;
@@ -20,8 +18,8 @@ item_wrapper::item_wrapper(const char *string)
     _item.flags = 0;
 }
 
-
-item_wrapper::~item_wrapper(){
+item_wrapper::~item_wrapper()
+{
     _item.data = nullptr;
     _item.size = 0;
 }

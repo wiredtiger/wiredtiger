@@ -11,13 +11,16 @@
 #include <string>
 
 class item_wrapper {
-public:
-    explicit item_wrapper(const char* string);
+    public:
+    explicit item_wrapper(const char *string);
     ~item_wrapper();
-    WT_ITEM* get_item() { return &_item; };
+    WT_ITEM *
+    get_item()
+    {
+        return &_item;
+    };
 
-private:
+    private:
     WT_ITEM _item;
     std::string _string;
 };
-
