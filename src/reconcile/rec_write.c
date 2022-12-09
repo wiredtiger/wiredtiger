@@ -32,13 +32,12 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     WT_BTREE *btree;
     WT_DECL_RET;
     WT_PAGE *page;
-    uint64_t start, now;
     bool no_reconcile_set, page_locked;
 
     btree = S2BT(session);
     page = ref->page;
 
-    __wt_seconds(session, &start);
+    session->reconcile_timeline.reconcile_start = __wt_clock(session);
 
     __wt_verbose(session, WT_VERB_RECONCILE, "%p reconcile %s (%s%s)", (void *)ref,
       __wt_page_type_string(page->type), LF_ISSET(WT_REC_EVICT) ? "evict" : "checkpoint",
@@ -107,9 +106,12 @@ err:
         F_CLR(session, WT_SESSION_NO_RECONCILE);
 
     /* Track the longest reconciliation, ignoring races (it's just a statistic). */
-    __wt_seconds(session, &now);
-    if (now - start > S2C(session)->rec_maximum_seconds)
-        S2C(session)->rec_maximum_seconds = now - start;
+    session->reconcile_timeline.reconcile_finish = __wt_clock(session);
+    if (WT_CLOCKDIFF_SEC(session->reconcile_timeline.reconcile_finish,
+          session->reconcile_timeline.reconcile_start) > S2C(session)->rec_maximum_seconds)
+        S2C(session)->rec_maximum_seconds =
+          WT_CLOCKDIFF_SEC(session->reconcile_timeline.reconcile_finish,
+            session->reconcile_timeline.reconcile_start);
 
     return (ret);
 }

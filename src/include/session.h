@@ -140,10 +140,12 @@ struct __wt_session_impl {
 
     /* Record the important timestamps of each stage in an reconciliation. */
     struct __wt_reconcile_timeline {
+        uint64_t reconcile_start;
         uint64_t build_disk_image_start;
         uint64_t build_disk_image_finish;
         uint64_t hs_wrapup_start;
         uint64_t hs_wrapup_finish;
+        uint64_t reconcile_finish;
     } reconcile_timeline;
 
     /*

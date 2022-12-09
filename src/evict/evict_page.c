@@ -272,8 +272,9 @@ err:
 done:
     if (eviction_time > 60 * WT_MILLION)
         __wt_verbose_warning(session, WT_VERB_EVICT,
-          "Eviction took more than 1 minute. Building disk image took %" PRIu64
+          "Eviction took more than 1 minute (%" PRIu64 "). Building disk image took %" PRIu64
           "us. History store wrapup took %" PRIu64 "us.",
+          eviction_time,
           WT_CLOCKDIFF_US(session->reconcile_timeline.build_disk_image_finish,
             session->reconcile_timeline.build_disk_image_start),
           WT_CLOCKDIFF_US(session->reconcile_timeline.hs_wrapup_finish,
