@@ -79,6 +79,7 @@ TEST_CASE("Cursor: get key and value()", "[cursor]")
     ConnectionWrapper conn(DB_HOME);
     WT_SESSION_IMPL *session_impl = conn.createSession();
     std::string uri = "table:cursor_test";
+    std::string file = "file:cursor_test.wt";
 
     WT_SESSION* session = &session_impl->iface;
 
@@ -94,7 +95,7 @@ TEST_CASE("Cursor: get key and value()", "[cursor]")
     REQUIRE(insert_key_value(cursor, "key4", "value4") == 0);
     REQUIRE(insert_key_value(cursor, "key5", "value5") == 0);
 
-    SECTION("Check the values using get_key and get_value")
+    SECTION("Check the values using get_key() and get_value()")
     {
         REQUIRE(cursor->reset(cursor) == 0);
         REQUIRE(cursor->next(cursor) == 0);
@@ -110,7 +111,7 @@ TEST_CASE("Cursor: get key and value()", "[cursor]")
         REQUIRE(cursor->next(cursor) == WT_NOTFOUND);
     }
 
-    SECTION("Check the values using get_raw_key_value")
+    SECTION("Check the values using get_raw_key_value()")
     {
         REQUIRE(cursor->reset(cursor) == 0);
         REQUIRE(cursor->next(cursor) == 0);
@@ -124,6 +125,21 @@ TEST_CASE("Cursor: get key and value()", "[cursor]")
         REQUIRE(cursor->next(cursor) == 0);
         REQUIRE(require_get_raw_key_value(cursor, "key5", "value5"));
         REQUIRE(cursor->next(cursor) == WT_NOTFOUND);
+    }
+
+    SECTION("Check get_raw_key_value() on a cursor type that does not support it") {
+        WT_CURSOR* version_cursor = nullptr;
+        REQUIRE(session->open_cursor(session, file.c_str(),
+          nullptr, "debug=(dump_version=true)", &version_cursor) == 0);
+        WT_ITEM item_key;
+        init_wt_item(item_key);
+        WT_ITEM item_value;
+        init_wt_item(item_value);
+
+        // get_raw_key_value() is not supported on a version cursor
+        REQUIRE(version_cursor->get_raw_key_value(version_cursor, &item_key, &item_value) == ENOTSUP);
+
+        REQUIRE(version_cursor->close(version_cursor) == 0);
     }
 
     REQUIRE(cursor->close(cursor) == 0);
