@@ -74,48 +74,51 @@ class Update:
         self.type = UpdateType.TREE_LOGGING
 
         # TODO factor out file extraction
-        matches = re.search('file:([\w_\.]+).*connection_logging_enabled=(\w+).*btree_logging_enabled=(\w+)', line)
-        if matches is None:
-            raise Exception("failed to parse tree logging string")
-
+        matches = re.search('file:([\w_\.]+)', line)
         self.file = matches.group(1)
 
-        self.conn_logging_enabled = matches.group(2).lower() == "true"
-        self.btree_logging_enabled = matches.group(3).lower() == "true"
+        matches = re.search('connection_logging_enabled=(\w+)', line)
+        self.conn_logging_enabled = matches.group(1).lower() == "true"
+
+        matches = re.search('btree_logging_enabled=(\w+)', line)
+        self.btree_logging_enabled = matches.group(1).lower() == "true"
 
     def __init_page_rollback(self, line):
         self.type = UpdateType.PAGE_ROLLBACK
 
-        matches = re.search('file:([\w_\.]+).*addr=(0x[A-Za-z0-9]+).*modified=(\w+)', line)
-        if matches is None:
-            raise Exception("failed to parse page rollback string")
-
+        matches = re.search('file:([\w_\.]+)', line)
         self.file = matches.group(1)
-        self.addr = int(matches.group(2), 16)
-        self.modified = matches.group(3).lower() == "true"
+
+        matches = re.search('addr=(0x[A-Za-z0-9]+)', line)
+        self.addr = int(matches.group(1), 16)
+
+        matches = re.search('modified=(\w+)', line)
+        self.modified = matches.group(1).lower() == "true"
 
     def __init_update_abort(self, line):
         self.type = UpdateType.UPDATE_ABORT
 
-        matches = re.search('file:([\w_\.]+).*txnid=(\d+).*txnid_not_visible=(\w+).*stable_timestamp=\((\d+), (\d+)\).*durable_timestamp=\((\d+), (\d+)\): (\w+).*prepare_state=(\w+).*in_progress=(\w+)', line)
-        if matches is None:
-            raise Exception("failed to parse page rollback string")
-
+        matches = re.search('file:([\w_\.]+)', line)
         self.file = matches.group(1)
 
-        self.txnid = int(matches.group(2))
-        self.txnid_not_visible = matches.group(3).lower() == "true"
+        matches = re.search('txnid=(\d+)', line)
+        self.txnid = int(matches.group(1))
+        matches = re.search('txnid_not_visible=(\w+)', line)
+        self.txnid_not_visible = matches.group(1).lower() == "true"
 
-        stable_start = int(matches.group(4))
-        stable_stop = int(matches.group(5))
+        matches = re.search('stable_timestamp=\((\d+), (\d+)\).*<.*durable_timestamp=\((\d+), (\d+)\): (\w+)', line)
+        stable_start = int(matches.group(1))
+        stable_stop = int(matches.group(2))
         self.stable = Timestamp(stable_start, stable_stop)
 
-        durable_start = int(matches.group(6))
-        durable_stop = int(matches.group(7))
+        durable_start = int(matches.group(3))
+        durable_stop = int(matches.group(4))
         self.durable = Timestamp(durable_start, durable_stop)
 
-        self.stable_lt_durable = matches.group(8).lower() == "true"
+        self.stable_lt_durable = matches.group(5).lower() == "true"
 
-        self.prepare_state = PrepareState[matches.group(9)]
+        matches = re.search('prepare_state=(\w+)', line)
+        self.prepare_state = PrepareState[matches.group(1)]
 
-        self.in_progress = matches.group(10).lower() == "true"
+        matches = re.search('in_progress=(\w+)', line)
+        self.in_progress = matches.group(1).lower() == "true"
