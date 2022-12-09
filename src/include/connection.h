@@ -28,6 +28,7 @@ struct __wt_process {
     bool use_epochtime;    /* use expensive time */
 
     bool fast_truncate_2022; /* fast-truncate fix run-time configuration */
+    bool page_stats_2022;    /* Page stats run-time configuration */
 
     WT_CACHE_POOL *cache_pool; /* shared cache information */
 
@@ -501,6 +502,7 @@ struct __wt_connection_impl {
     uint16_t log_req_min;                  /* Min required log version */
     uint32_t txn_logsync;                  /* Log sync configuration */
 
+    WT_ROLLBACK_TO_STABLE *rts, _rts;   /* Rollback to stable subsystem */
     WT_SESSION_IMPL *meta_ckpt_session; /* Metadata checkpoint session */
 
     /*
@@ -664,9 +666,10 @@ struct __wt_connection_impl {
 #define WT_CONN_READY 0x0200000u
 #define WT_CONN_RECONFIGURING 0x0400000u
 #define WT_CONN_RECOVERING 0x0800000u
-#define WT_CONN_SALVAGE 0x1000000u
-#define WT_CONN_TIERED_FIRST_FLUSH 0x2000000u
-#define WT_CONN_WAS_BACKUP 0x4000000u
+#define WT_CONN_RECOVERY_COMPLETE 0x1000000u
+#define WT_CONN_SALVAGE 0x2000000u
+#define WT_CONN_TIERED_FIRST_FLUSH 0x4000000u
+#define WT_CONN_WAS_BACKUP 0x8000000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };

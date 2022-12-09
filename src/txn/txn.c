@@ -762,7 +762,7 @@ __txn_prepare_rollback_restore_hs_update(
     F_SET(upd, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_TO_DELETE_FROM_HS);
     total_size += size;
 
-    __wt_verbose(session, WT_VERB_TRANSACTION,
+    __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
       "update restored from history store (txnid: %" PRIu64 ", start_ts: %s, durable_ts: %s",
       upd->txnid, __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
       __wt_timestamp_to_string(upd->durable_ts, ts_string[1]));
@@ -782,7 +782,7 @@ __txn_prepare_rollback_restore_hs_update(
         F_SET(tombstone, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_TO_DELETE_FROM_HS);
         total_size += size;
 
-        __wt_verbose(session, WT_VERB_TRANSACTION,
+        __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
           "tombstone restored from history store (txnid: %" PRIu64 ", start_ts: %s, durable_ts: %s",
           tombstone->txnid, __wt_timestamp_to_string(tombstone->start_ts, ts_string[0]),
           __wt_timestamp_to_string(tombstone->durable_ts, ts_string[1]));
@@ -1178,14 +1178,14 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     WT_RET(__txn_search_prepared_op(session, op, cursorp, &upd));
 
     if (commit)
-        __wt_verbose(session, WT_VERB_TRANSACTION,
+        __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
           "commit resolving prepared transaction with txnid: %" PRIu64
           "and timestamp: %s to commit and durable timestamps: %s,%s",
           txn->id, __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[0]),
           __wt_timestamp_to_string(txn->commit_timestamp, ts_string[1]),
           __wt_timestamp_to_string(txn->durable_timestamp, ts_string[2]));
     else
-        __wt_verbose(session, WT_VERB_TRANSACTION,
+        __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
           "rollback resolving prepared transaction with txnid: %" PRIu64 "and timestamp:%s",
           txn->id, __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[0]));
 
@@ -2432,7 +2432,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
             __wt_verbose(session, WT_VERB_RTS,
               "performing shutdown rollback to stable with stable timestamp: %s",
               __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string));
-            WT_TRET(__wt_rollback_to_stable(session, cfg, true));
+            WT_TRET(conn->rts->rollback_to_stable(session, cfg, true));
         }
 
         s = NULL;

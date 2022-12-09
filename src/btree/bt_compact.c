@@ -119,6 +119,9 @@ __compact_page_replace_addr(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY 
         addr->ta.newest_stop_ts = unpack.ta.newest_stop_ts;
         addr->ta.newest_stop_txn = unpack.ta.newest_stop_txn;
         switch (unpack.raw) {
+        case WT_CELL_ADDR_DEL:
+            addr->type = WT_ADDR_LEAF_NO;
+            break;
         case WT_CELL_ADDR_INT:
             addr->type = WT_ADDR_INT;
             break;
@@ -366,7 +369,7 @@ __wt_compact(WT_SESSION_IMPL *session)
          * evicted quickly.
          */
         WT_ERR(__wt_tree_walk_custom_skip(session, &ref, __compact_walk_page_skip, NULL,
-          WT_READ_NO_GEN | WT_READ_WONT_NEED | WT_READ_VISIBLE_ALL));
+          WT_READ_NO_GEN | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED));
         if (ref == NULL)
             break;
 

@@ -31,6 +31,10 @@ class Stat:
     def __cmp__(self, other):
         return cmp(self.desc.lower(), other.desc.lower())
 
+class AutoCommitStat(Stat):
+    prefix = 'autocommit'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, AutoCommitStat.prefix, desc, flags)
 class BlockCacheStat(Stat):
     prefix = 'block-cache'
     def __init__(self, name, desc, flags=''):
@@ -187,6 +191,7 @@ conn_stats = [
     BlockCacheStat('block_cache_blocks_insert_read', 'total blocks inserted on read path'),
     BlockCacheStat('block_cache_blocks_insert_write', 'total blocks inserted on write path'),
     BlockCacheStat('block_cache_blocks_removed', 'removed blocks'),
+    BlockCacheStat('block_cache_blocks_removed_blocked', 'time sleeping to remove block (usecs)'),
     BlockCacheStat('block_cache_blocks_update', 'cached blocks updated'),
     BlockCacheStat('block_cache_bypass_chkpt', 'number of put bypasses on checkpoint I/O'),
     BlockCacheStat('block_cache_bypass_filesize', 'file size causing bypass'),
@@ -804,6 +809,12 @@ dsrc_stats = sorted(dsrc_stats, key=attrgetter('desc'))
 ##########################################
 conn_dsrc_stats = [
     ##########################################
+    # Autocommit statistics
+    ##########################################
+    AutoCommitStat('autocommit_readonly_retry', 'retries for readonly operations'),
+    AutoCommitStat('autocommit_update_retry', 'retries for update operations'),
+
+    ##########################################
     # Cache and eviction statistics
     ##########################################
     CacheStat('cache_bytes_dirty', 'tracked dirty bytes in the cache', 'no_clear,no_scale,size'),
@@ -881,8 +892,8 @@ conn_dsrc_stats = [
     CursorStat('cursor_bounds_next_unpositioned', 'cursor bounds next called on an unpositioned cursor'),
     CursorStat('cursor_bounds_prev_unpositioned', 'cursor bounds prev called on an unpositioned cursor'),
     CursorStat('cursor_next_hs_tombstone', 'cursor next calls that skip due to a globally visible history store tombstone'),
+    CursorStat('cursor_next_skip_lt_100', 'cursor next calls that skip greater than 1 and fewer than 100 entries'),
     CursorStat('cursor_next_skip_ge_100', 'cursor next calls that skip greater than or equal to 100 entries'),
-    CursorStat('cursor_next_skip_lt_100', 'cursor next calls that skip less than 100 entries'),
     CursorStat('cursor_next_skip_total', 'Total number of entries skipped by cursor next calls'),
     CursorStat('cursor_open_count', 'open cursor count', 'no_clear,no_scale'),
     CursorStat('cursor_prev_hs_tombstone', 'cursor prev calls that skip due to a globally visible history store tombstone'),

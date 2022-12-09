@@ -51,9 +51,9 @@
 
 #define TESTUTIL_ENV_CONFIG_TIERED \
     ",tiered_storage=(bucket=./"   \
-    "bucket,bucket_prefix=pfx-,local_retention=2,name=dir_store)"
-#define TESTUTIL_ENV_CONFIG_TIERED_EXT                        \
-    ",extensions=(../../../../ext/storage_sources/dir_store/" \
+    "bucket,bucket_prefix=pfx-,local_retention=%d,name=dir_store)"
+#define TESTUTIL_ENV_CONFIG_TIERED_EXT               \
+    ",extensions=(%s/ext/storage_sources/dir_store/" \
     "libwiredtiger_dir_store.so=(early_load=true))"
 #define TESTUTIL_ENV_CONFIG_REC \
     ",log=(recover=on,remove=false),statistics=(all),statistics_log=(json,on_close,wait=1)"
@@ -63,7 +63,7 @@
 typedef struct {
     char *home;
     const char *argv0; /* Exec name */
-    char usage[256];   /* Usage string for this parser */
+    char usage[512];   /* Usage string for this parser */
 
     const char *progname;        /* Truncated program name */
     char *build_dir;             /* Build directory path */
@@ -78,6 +78,13 @@ typedef struct {
 
     FILE *progress_fp; /* Progress tracking file */
     char *progress_file_name;
+
+    WT_RAND_STATE data_rnd;  /* PRNG state for data ops */
+    WT_RAND_STATE extra_rnd; /* PRNG state for extra ops */
+    uint64_t data_seed;      /* Random seed for data ops */
+    uint64_t extra_seed;     /* Random seed for extra ops */
+
+#define TESTUTIL_SEED_FORMAT "-PSD%" PRIu64 ",E%" PRIu64
 
     bool compat;               /* Compatibility */
     bool do_data_ops;          /* Have schema ops use data */
@@ -390,6 +397,7 @@ void testutil_copy_data(const char *);
 void testutil_copy_file(WT_SESSION *, const char *);
 void testutil_copy_if_exists(WT_SESSION *, const char *);
 void testutil_create_backup_directory(const char *);
+void testutil_deduce_build_dir(TEST_OPTS *opts);
 int testutil_general_event_handler(
   WT_EVENT_HANDLER *, WT_CONNECTION *, WT_SESSION *, WT_EVENT_TYPE, void *);
 void testutil_make_work_dir(const char *);
@@ -400,11 +408,14 @@ int testutil_parse_single_opt(TEST_OPTS *, int);
 int testutil_parse_opts(int, char *const *, TEST_OPTS *);
 void testutil_print_command_line(int argc, char *const *argv);
 void testutil_progress(TEST_OPTS *, const char *);
+void testutil_random_init(WT_RAND_STATE *, uint64_t *, uint32_t);
+void testutil_random_from_random(WT_RAND_STATE *, WT_RAND_STATE *);
+void testutil_random_from_seed(WT_RAND_STATE *, uint64_t);
 #ifndef _WIN32
 void testutil_sleep_wait(uint32_t, pid_t);
 #endif
 void testutil_wiredtiger_open(
-  TEST_OPTS *, const char *, WT_EVENT_HANDLER *, WT_CONNECTION **, bool);
+  TEST_OPTS *, const char *, const char *, WT_EVENT_HANDLER *, WT_CONNECTION **, bool, bool);
 void testutil_tiered_begin(TEST_OPTS *);
 void testutil_tiered_flush_complete(TEST_OPTS *, WT_SESSION *, void *);
 void testutil_tiered_sleep(TEST_OPTS *, WT_SESSION *, uint32_t, bool *);

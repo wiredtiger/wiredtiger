@@ -1286,6 +1286,8 @@ methods = {
         type='int'),
 ]),
 
+'WT_SESSION.count' : Method([]), 
+
 'WT_SESSION.create' : Method(file_config + lsm_config + tiered_config +
         source_meta + index_only_config + table_only_config + [
     Config('exclusive', 'false', r'''
@@ -1573,6 +1575,11 @@ methods = {
     Config('dump_address', 'false', r'''
         Display page addresses, time windows, and page types as pages are verified, using the
         application's message handler, intended for debugging''',
+        type='boolean'),
+    Config('dump_app_data', 'false', r'''
+        Display application data as pages or blocks are verified, using the application's message
+        handler, intended for debugging. Disabling this does not guarantee that no user data will
+        be output''',
         type='boolean'),
     Config('dump_blocks', 'false', r'''
         Display the contents of on-disk blocks as they are verified, using the application's
@@ -1887,7 +1894,11 @@ methods = {
         must not be older than the current oldest timestamp. See @ref timestamp_global_api'''),
 ]),
 
-'WT_CONNECTION.rollback_to_stable' : Method([]),
+'WT_CONNECTION.rollback_to_stable' : Method([
+    Config('dryrun', 'false', r'''
+        perform the checks associated with RTS, but don't modify any data.''',
+        type='boolean'),
+]),
 
 'WT_SESSION.reconfigure' : Method(session_config),
 

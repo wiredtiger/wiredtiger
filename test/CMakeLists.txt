@@ -33,7 +33,11 @@ if(WT_POSIX)
     add_subdirectory(salvage)
     add_subdirectory(syscall)
     add_subdirectory(thread)
-    add_subdirectory(cppsuite)
+
+    if(ENABLE_CPPSUITE)
+        add_subdirectory(cppsuite)
+    endif()
+
     add_subdirectory(simulator)
 
     if(ENABLE_LLVM)

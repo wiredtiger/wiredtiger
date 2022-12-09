@@ -206,7 +206,7 @@ create_database(const char *home, WT_CONNECTION **connp)
     WT_CONNECTION *conn;
     size_t max;
     char config[8 * 1024], *p;
-    const char *s;
+    const char *s, *sources;
 
     p = config;
     max = sizeof(config);
@@ -218,9 +218,15 @@ create_database(const char *home, WT_CONNECTION **connp)
       ",checkpoint_sync=false"
       ",error_prefix=\"%s\""
       ",operation_timeout_ms=2000"
-      ",statistics=(fast)"
-      ",statistics_log=(json,on_close,wait=5)",
-      GV(CACHE), progname);
+      ",statistics=(%s)",
+      GV(CACHE), progname, GVS(STATISTICS_MODE));
+
+    /* Statistics log configuration. */
+    sources = GVS(STATISTICS_LOG_SOURCES);
+    if (strcmp(sources, "off") != 0)
+        CONFIG_APPEND(p, ",statistics_log=(json,on_close,wait=5,sources=(\"%s\"))", sources);
+    else
+        CONFIG_APPEND(p, ",statistics_log=(json,on_close,wait=5)");
 
     /* In-memory configuration. */
     if (GV(RUNS_IN_MEMORY) != 0)
@@ -279,17 +285,8 @@ create_database(const char *home, WT_CONNECTION **connp)
     if (GV(DEBUG_REALLOC_EXACT))
         CONFIG_APPEND(p, ",debug_mode=(realloc_exact=true)");
 
-    /* Configure realloc malloc debug mode. */
-    if (GV(DEBUG_REALLOC_MALLOC)) {
-        if (mmrand(NULL, 0, 1) == 1)
-            CONFIG_APPEND(p, ",debug_mode=(realloc_exact=true,realloc_malloc=true)");
-        else
-            CONFIG_APPEND(p, ",debug_mode=(realloc_malloc=true)");
-    }
-
-    /* Sometimes specify a set of sources just to exercise that code. */
-    if (mmrand(NULL, 0, 20) == 1)
-        CONFIG_APPEND(p, ",statistics_log=(sources=(\"file:\"))");
+    if (GV(DEBUG_REALLOC_MALLOC))
+        CONFIG_APPEND(p, ",debug_mode=(realloc_malloc=true)");
 
     /* Optional timing stress. */
     configure_timing_stress(&p, max);

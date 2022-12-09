@@ -30,6 +30,7 @@
  * wiredtiger.i
  *	The SWIG interface file defining the wiredtiger python API.
  */
+%include <cpointer.i>
 %include <pybuffer.i>
 
 %define DOCSTRING
@@ -87,6 +88,9 @@ from packing import pack, unpack
 	$1 = &temp;
  }
 %typemap(in, numinputs=0) wt_off_t * (wt_off_t temp = false) {
+	$1 = &temp;
+}
+%typemap(in, numinputs=0) int64_t * (int64_t temp = 0) {
 	$1 = &temp;
 }
 
@@ -662,6 +666,10 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
 		data = PyBytes_FromStringAndSize(*$3, *$4);
 		$result = SWIG_Python_AppendOutput($result, data);
 	}
+}
+
+%typemap(argout) int64_t * {
+	$result = PyLong_FromLongLong(*$1);
 }
 
 /* Handle binary data input from FILE_HANDLE->fh_write. */

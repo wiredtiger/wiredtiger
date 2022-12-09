@@ -51,6 +51,7 @@ static void config_mirrors(void);
 static void config_off(TABLE *, const char *);
 static void config_off_all(const char *);
 static void config_pct(TABLE *);
+static void config_statistics(void);
 static void config_transaction(void);
 
 /*
@@ -262,8 +263,18 @@ config_table(TABLE *table, void *arg)
      * direct I/O can be so slow the additional I/O for overflow items causes eviction to stall).
      */
     if (GV(RUNS_IN_MEMORY) || GV(DISK_DIRECT_IO)) {
-        if (!config_explicit(table, "runs.rows") && TV(RUNS_ROWS) > 1000000)
-            config_single(table, "runs.rows=1000000", false);
+        /*
+         * Always limit the row count if it's greater than one million and in memory wasn't
+         * explicitly set. Direct IO is always explicitly set, never limit the row count because the
+         * user has taken control.
+         */
+        if (GV(RUNS_IN_MEMORY) && TV(RUNS_ROWS) > WT_MILLION &&
+          config_explicit(NULL, "runs.in_memory")) {
+            WARN("limiting table%" PRIu32
+                 ".runs.rows to %d as runs.in_memory has been automatically enabled",
+              table->id, WT_MILLION);
+            config_single(table, "runs.rows=" XSTR(WT_MILLION_LITERAL), false);
+        }
         if (!config_explicit(table, "btree.key_max"))
             config_single(table, "btree.key_max=32", false);
         if (!config_explicit(table, "btree.key_min"))
@@ -273,6 +284,35 @@ config_table(TABLE *table, void *arg)
         if (!config_explicit(table, "btree.value_min"))
             config_single(table, "btree.value_min=20", false);
     }
+
+    /*
+     * Limit the rows to one million if the realloc exact and realloc malloc configs are on and not
+     * all explicitly set. Realloc exact config allocates the exact amount of memory, which causes a
+     * new realloc call every time we append to an array. Realloc malloc turns a single realloc call
+     * to a malloc, a memcpy, and a free. The combination of both will significantly slow the
+     * execution.
+     */
+    if ((!config_explicit(NULL, "debug.realloc_exact") ||
+          !config_explicit(NULL, "debug.realloc_malloc")) &&
+      GV(DEBUG_REALLOC_EXACT) && GV(DEBUG_REALLOC_MALLOC) && TV(RUNS_ROWS) > WT_MILLION) {
+        config_single(table, "runs.rows=" XSTR(WT_MILLION_LITERAL), true);
+        WARN("limiting table%" PRIu32
+             ".runs.rows to %d if realloc_exact or realloc_malloc has been automatically set",
+          table->id, WT_MILLION);
+    }
+
+#ifndef WT_STANDALONE_BUILD
+    /*
+     * Non-standalone builds do not support writing fast truncate information to disk, as this
+     * information is required to rollback any unstable fast truncate operation.
+     *
+     * To avoid this problem to occur during the test, disable the truncate operation whenever
+     * timestamp or prepare is enabled.
+     */
+    if (GV(TRANSACTION_TIMESTAMPS) || config_explicit(NULL, "transaction.timestamps") ||
+      GV(OPS_PREPARE) || config_explicit(NULL, "ops.prepare"))
+        config_off(table, "ops.truncate");
+#endif
 
     /*
      * Key/value minimum/maximum are related, correct unless specified by the configuration. Key
@@ -334,6 +374,25 @@ config_run(void)
 {
     config_random(tables[0], false); /* Configure the remaining global name space. */
 
+    /*
+     * Limit the number of tables to REALLOC_MAX_TABLES if realloc exact and realloc malloc are both
+     * on and not all explicitly set to reduce the running time to an acceptable level.
+     */
+    if ((!config_explicit(NULL, "debug.realloc_exact") ||
+          !config_explicit(NULL, "debug.realloc_malloc")) &&
+      GV(DEBUG_REALLOC_EXACT) && GV(DEBUG_REALLOC_MALLOC) && ntables > REALLOC_MAX_TABLES) {
+        ntables = REALLOC_MAX_TABLES;
+        /*
+         * The following config_single has no effect. It is just to overwrite the config in memory
+         * so that we can dump the correct config.
+         */
+        config_single(NULL, "runs.tables=" XSTR(REALLOC_MAX_TABLES), true);
+        WARN(
+          "limiting runs.tables to %d if realloc_exact or realloc_malloc has been automatically "
+          "set",
+          REALLOC_MAX_TABLES);
+    }
+
     config_in_memory(); /* Periodically run in-memory. */
 
     tables_apply(config_table, NULL); /* Configure the tables. */
@@ -348,6 +407,7 @@ config_run(void)
     config_in_memory_reset();                        /* Reset in-memory as needed */
     config_backward_compatible();                    /* Reset backward compatibility as needed */
     config_mirrors();                                /* Mirrors */
+    config_statistics();                             /* Statistics */
 
     /* Configure the cache last, cache size depends on everything else. */
     config_cache();
@@ -856,8 +916,15 @@ config_in_memory(void)
     if (config_explicit(NULL, "runs.mirror"))
         return;
 
-    if (!config_explicit(NULL, "runs.in_memory") && mmrand(NULL, 1, 20) == 1)
+    if (!config_explicit(NULL, "runs.in_memory") && mmrand(NULL, 1, 20) == 1) {
         config_single(NULL, "runs.in_memory=1", false);
+        /* Use table[0] to access the global value (RUN_ROWS is a table value). */
+        if (NTV(tables[0], RUNS_ROWS) > WT_MILLION) {
+            WARN("limiting runs.rows to %d as runs.in_memory has been automatically enabled",
+              WT_MILLION);
+            config_single(NULL, "runs.rows=" XSTR(WT_MILLION_LITERAL), true);
+        }
+    }
 }
 
 /*
@@ -961,7 +1028,7 @@ config_lsm_reset(TABLE *table)
 static void
 config_mirrors(void)
 {
-    u_int i, mirrors;
+    u_int available_tables, i, mirrors;
     char buf[100];
     bool already_set, explicit_mirror;
 
@@ -975,6 +1042,13 @@ config_mirrors(void)
     if (already_set) {
         if (g.base_mirror == NULL)
             testutil_die(EINVAL, "no table configured that can act as the base mirror");
+        /*
+         * Assume that mirroring is already configured if one of the tables has explicitly
+         * configured it on. This isn't optimal since there could still be other tables that haven't
+         * set it at all (and might be usable as extra mirrors), but that's an uncommon scenario and
+         * it lets us avoid a bunch of extra logic around figuring out whether we have an acceptable
+         * minimum number of tables.
+         */
         return;
     }
 
@@ -987,20 +1061,40 @@ config_mirrors(void)
      * tables.
      */
     explicit_mirror = config_explicit(NULL, "runs.mirror");
-    if (!explicit_mirror && mmrand(NULL, 1, 10) < 9)
+    if (!explicit_mirror && mmrand(NULL, 1, 10) < 9) {
+        config_off_all("runs.mirror");
         return;
-    config_off_all("runs.mirror");
+    }
 
     /*
      * We can't mirror if we don't have enough tables. A FLCS table can be a mirror, but it can't be
      * the source of the bulk-load mirror records. Find the first table we can use as a base.
      */
     for (i = 1; i <= ntables; ++i)
-        if (tables[i]->type != FIX)
+        if (tables[i]->type != FIX && !NT_EXPLICIT_OFF(tables[i], RUNS_MIRROR))
             break;
-    if (ntables < 2 || i > ntables) {
+
+    if (i > ntables) {
         if (explicit_mirror)
             WARN("%s", "table selection didn't support mirroring, turning off mirroring");
+        config_off_all("runs.mirror");
+        return;
+    }
+
+    /*
+     * We also can't mirror if we don't have enough tables that have allowed mirroring. It's
+     * possible for a table to explicitly set tableX.runs.mirror=0, so check how many tables have
+     * done that and remove them from the count of tables we can use for mirroring.
+     */
+    available_tables = ntables;
+    for (i = 1; i <= ntables; ++i)
+        if (NT_EXPLICIT_OFF(tables[i], RUNS_MIRROR))
+            --available_tables;
+
+    if (available_tables < 2) {
+        if (explicit_mirror)
+            WARN("%s", "not enough tables left mirroring enabled, turning off mirroring");
+        config_off_all("runs.mirror");
         return;
     }
 
@@ -1013,22 +1107,28 @@ config_mirrors(void)
         }
     config_off_all("btree.reverse");
 
-    /* Good to go: pick the first non-FLCS table as our base and turn on mirroring. */
+    /* Good to go: pick the first non-FLCS table that allows mirroring as our base. */
     for (i = 1; i <= ntables; ++i)
-        if (tables[i]->type != FIX)
+        if (tables[i]->type != FIX && !NT_EXPLICIT_OFF(tables[i], RUNS_MIRROR))
             break;
     tables[i]->mirror = true;
     config_single(tables[i], "runs.mirror=1", false);
     g.base_mirror = tables[i];
 
-    /* Pick some number of tables to mirror, then turn on mirroring the next (n-1) tables. */
-    for (mirrors = mmrand(NULL, 2, ntables) - 1, i = 1; i <= ntables; ++i)
+    /*
+     * Pick some number of tables to mirror, then turn on mirroring the next (n-1) tables, where
+     * allowed.
+     */
+    for (mirrors = mmrand(NULL, 2, ntables) - 1, i = 1; i <= ntables; ++i) {
+        if (NT_EXPLICIT_OFF(tables[i], RUNS_MIRROR))
+            continue;
         if (tables[i] != g.base_mirror) {
             tables[i]->mirror = true;
             config_single(tables[i], "runs.mirror=1", false);
             if (--mirrors == 0)
                 break;
         }
+    }
 
     /*
      * Give each mirror the same number of rows (it's not necessary, we could treat end-of-table on
@@ -1128,6 +1228,32 @@ config_pct(TABLE *table)
     testutil_assert(TV(OPS_PCT_DELETE) + TV(OPS_PCT_INSERT) + TV(OPS_PCT_MODIFY) +
         TV(OPS_PCT_READ) + TV(OPS_PCT_WRITE) ==
       100);
+}
+
+/*
+ * config_statistics --
+ *     Statistics configuration.
+ */
+static void
+config_statistics(void)
+{
+    /* Sources is only applicable when the mode is all. */
+    if (strcmp(GVS(STATISTICS_MODE), "all") != 0 && strcmp(GVS(STATISTICS_LOG_SOURCES), "off") != 0)
+        testutil_die(EINVAL, "statistics sources requires mode to be all");
+
+    if (!config_explicit(NULL, "statistics.mode")) {
+        /* 70% of the time set statistics to fast. */
+        if (mmrand(NULL, 1, 10) < 8)
+            config_single(NULL, "statistics.mode=fast", false);
+        else
+            config_single(NULL, "statistics.mode=all", false);
+    }
+
+    if (!config_explicit(NULL, "statistics_log.sources")) {
+        /* 10% of the time use sources if all. */
+        if (strcmp(GVS(STATISTICS_MODE), "all") == 0 && mmrand(NULL, 1, 10) == 1)
+            config_single(NULL, "statistics_log.sources=file:", false);
+    }
 }
 
 /*

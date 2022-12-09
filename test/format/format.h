@@ -80,6 +80,9 @@
 
 #define FORMAT_PAD_BYTE '-'  /* modify pad byte */
 #define MAX_MODIFY_ENTRIES 5 /* maximum change vectors */
+#define REALLOC_MAX_TABLES 5 /* maximum number of tables with realloc_exact and realloc_malloc */
+#define STR(s) #s
+#define XSTR(s) STR(s)
 
 /*
  * Abstract lock that lets us use either pthread reader-writer locks or WiredTiger's own (likely
@@ -174,6 +177,8 @@ extern u_int ntables;
     ((table)->v[V_TABLE_##off].vstr == NULL ? "off" : (table)->v[V_TABLE_##off].vstr)
 #define TV(off) NTV(table, off)
 #define TVS(off) NTVS(table, off)
+#define NT_EXPLICIT_SET(table, off) ((table)->v[V_TABLE_##off].set)
+#define NT_EXPLICIT_OFF(table, off) (NT_EXPLICIT_SET(table, off) && !NTV(table, off))
 
 #define DATASOURCE(table, ds) (strcmp((table)->v[V_TABLE_RUNS_SOURCE].vstr, ds) == 0)
 
@@ -445,6 +450,6 @@ void wts_verify_checkpoint(WT_CONNECTION *, const char *);
 #define CUR2S(c) ((WT_SESSION_IMPL *)((WT_CURSOR *)c)->session)
 #endif
 
-#define WARN(fmt, ...) fprintf(stderr, "%s: WARNING: " fmt "\n", progname, __VA_ARGS__);
+#define WARN(fmt, ...) fprintf(stderr, "%s: WARNING: " fmt "\n", progname, __VA_ARGS__)
 
 #include "format.i"

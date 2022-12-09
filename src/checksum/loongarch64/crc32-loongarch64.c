@@ -26,40 +26,24 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "execution_timer.h"
+#include <wiredtiger_config.h>
+#include <inttypes.h>
+#include <stddef.h>
 
-#include "metrics_writer.h"
+extern uint32_t __wt_checksum_sw(const void *chunk, size_t len);
 
-namespace test_harness {
-execution_timer::execution_timer(const std::string id, const std::string &test_name)
-    : _id(id), _test_name(test_name), _it_count(0), _total_time_taken(0)
+#if defined(__GNUC__)
+extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
+  __attribute__((visibility("default")));
+#else
+extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t);
+#endif
+
+/*
+ * wiredtiger_crc32c_func --
+ *     WiredTiger: detect CRC hardware and return the checksum function.
+ */
+uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
 {
+    return (__wt_checksum_sw);
 }
-
-void
-execution_timer::append_stats()
-{
-    uint64_t avg = (uint64_t)_total_time_taken / _it_count;
-    std::string stat = "{\"name\":\"" + _id + "\",\"value\":" + std::to_string(avg) + "}";
-    metrics_writer::instance().add_stat(stat);
-}
-
-template <typename T>
-auto
-execution_timer::track(T lambda)
-{
-    auto _start_time = std::chrono::steady_clock::now();
-    int ret = lambda();
-    auto _end_time = std::chrono::steady_clock::now();
-    _total_time_taken += (_end_time - _start_time).count();
-    _it_count += 1;
-
-    return ret;
-}
-
-execution_timer::~execution_timer()
-{
-    if (_it_count != 0)
-        append_stats();
-}
-}; // namespace test_harness
