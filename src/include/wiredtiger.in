@@ -281,7 +281,7 @@ struct __wt_cursor {
 	/*!
 	 * Set the key for the next operation.
 	 *
-	 * @snippet ex_all.c Set the cursor's string key.
+	 * @snippet ex_all.c Set the cursor's string key
 	 *
 	 * @snippet ex_all.c Set the cursor's record number key
 	 *
