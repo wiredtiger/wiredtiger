@@ -269,10 +269,12 @@ struct __wt_cursor {
 	 * @param cursor the cursor handle
 	 * @param key pointer to an item that will contains the current record's raw key
 	 * @param value pointer to an item that will contains the current record's raw value
+	 * The API does not validate the argument types passed in.
 	 *
 	 * If an error occurs during this operation, a flag will be set in the
 	 * cursor, and the next operation to access the key will fail.  This
 	 * simplifies error handling in applications.
+	 * @errors
 	 */
         int __F(get_raw_key_value)(WT_CURSOR *cursor, WT_ITEM* key, WT_ITEM* value);
 
