@@ -1,0 +1,5 @@
+# This config file is expected to be only used by the WiredTiger (develop) Evergreen project.
+
+include:
+- filename: test/evergreen.yml
+- filename: test/evergreen_develop_only_variants.yml
