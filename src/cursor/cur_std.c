@@ -581,6 +581,7 @@ err:
 
 /*
  * __wt_cursor_get_raw_key_value --
+ *     WT_CURSOR->get_raw_key_value default implementation
  *
  */
 int
