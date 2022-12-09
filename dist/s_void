@@ -193,7 +193,7 @@ for f in `find bench ext src test -name '*.c' -o -name '*_inline.h'`; do
     test -s $t && {
         echo "=============================================="
         echo "$f:"
-        cat $t | sed 's/^/    /'
+        cat $t | sed 's/^/	/'
         echo "Function could return void instead of int."
         echo "Add false positives to the list in dist/s_void."
         echo "=============================================="
@@ -217,7 +217,7 @@ for f in `find bench ext src test -name '*.c' -o -name '*_inline.h'`; do
     test -s $t && {
         echo "=============================================="
         echo "$f:"
-        cat $t | sed 's/^/    /'
+        cat $t | sed 's/^/	/'
         echo "Function declares ret without using it."
         echo "Add false positives to the list in dist/s_void."
         echo "=============================================="
