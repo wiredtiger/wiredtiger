@@ -3,7 +3,7 @@
 import argparse
 
 from checker import Checker
-from update import Update
+from operation import Operation
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Verify actions taken by rollback to stable from verbose messages.')
@@ -14,5 +14,5 @@ if __name__ == '__main__':
     with open(args.file) as f:
         for line in f:
             if 'WT_VERB_RTS' in line:
-                update = Update(line)
-                checker.apply(update)
+                op = Operation(line)
+                checker.apply(op)

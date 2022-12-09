@@ -14,9 +14,6 @@ class Timestamp():
     def __eq__(self, other):
         return self.start == other.start and self.stop == other.stop
 
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
     def __lt__(self, rhs):
         return ((self.start, self.stop) < (rhs.start, rhs.stop))
 
@@ -31,3 +28,36 @@ class Timestamp():
 
     def __repr__(self):
         return f"({self.start}, {self.stop})"
+
+class Tree():
+    def __init__(self, filename):
+        self.logged = None
+        self.file = filename
+
+    def __eq__(self, other):
+        return self.file == other.file
+
+    def __hash__(self):
+        return hash(self.file)
+
+class Page():
+    def __init__(self, addr):
+        self.addr = addr
+        self.modified = None
+
+    def __eq__(self, other):
+        return self.addr == other.addr
+
+    def __hash__(self):
+        return hash(self.addr)
+
+class UpdateType(Enum):
+    ABORT = 0
+
+class Update():
+    def __init__(self, type, txnid):
+        self.type = type
+        self.txnid = txnid
+
+    def __repr__(self):
+        return f"Update({self.type}, txnid={self.txnid})"

@@ -50,13 +50,12 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
               "[UPDATE_ABORT] rollback to stable update aborted with txnid=%" PRIu64
               ", txnid_not_visible=%s, stable_timestamp=%s < durable_timestamp=%s: %s, "
-              "prepare_state=%s, in_progress=%s",
+              "prepare_state=%s",
               upd->txnid, !txn_id_visible ? "true" : "false",
               __wt_timestamp_to_string(rollback_timestamp, ts_string[1]),
               __wt_timestamp_to_string(upd->durable_ts, ts_string[0]),
               rollback_timestamp < upd->durable_ts ? "true" : "false",
-              __wt_prepare_state_str(upd->prepare_state),
-              upd->prepare_state == WT_PREPARE_INPROGRESS ? "true" : "false");
+              __wt_prepare_state_str(upd->prepare_state));
 
             if (!dryrun)
                 upd->txnid = WT_TXN_ABORTED;

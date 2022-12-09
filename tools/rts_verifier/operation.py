@@ -5,7 +5,7 @@ import re
 from basic_types import PrepareState, Timestamp
 from enum import Enum
 
-class UpdateType(Enum):
+class OpType(Enum):
     INIT = 0
     TREE = 1
     TREE_LOGGING = 2
@@ -13,7 +13,7 @@ class UpdateType(Enum):
     UPDATE_ABORT = 4
     UNKNOWN = 5
 
-class Update:
+class Operation:
     def __init__(self, line):
         self.line = line
 
@@ -28,10 +28,10 @@ class Update:
         elif '[UPDATE_ABORT]' in line:
             self.__init_update_abort(line)
         else:
-            raise Exception("Update.__init__: couldn't find an event in an RTS log line")
+            raise Exception("Operation.__init__: couldn't find an event in an RTS log line")
 
     def __init_init(self, line):
-        self.type = UpdateType.INIT
+        self.type = OpType.INIT
 
         matches = re.search('stable_timestamp=\((\d+), (\d+)\)', line)
         if matches is None:
@@ -42,7 +42,7 @@ class Update:
         self.stable = Timestamp(stable_start, stable_stop)
 
     def __init_tree(self, line):
-        self.type = UpdateType.TREE
+        self.type = OpType.TREE
 
         matches = re.search('file:([\w_\.]+)', line)
         self.file = matches.group(1)
@@ -71,7 +71,7 @@ class Update:
         self.txnid_gt_recov_ckpt_snap_min = matches.group(3).lower() == "true"
 
     def __init_tree_logging(self, line):
-        self.type = UpdateType.TREE_LOGGING
+        self.type = OpType.TREE_LOGGING
 
         # TODO factor out file extraction
         matches = re.search('file:([\w_\.]+)', line)
@@ -84,7 +84,7 @@ class Update:
         self.btree_logging_enabled = matches.group(1).lower() == "true"
 
     def __init_page_rollback(self, line):
-        self.type = UpdateType.PAGE_ROLLBACK
+        self.type = OpType.PAGE_ROLLBACK
 
         matches = re.search('file:([\w_\.]+)', line)
         self.file = matches.group(1)
@@ -96,7 +96,7 @@ class Update:
         self.modified = matches.group(1).lower() == "true"
 
     def __init_update_abort(self, line):
-        self.type = UpdateType.UPDATE_ABORT
+        self.type = OpType.UPDATE_ABORT
 
         matches = re.search('file:([\w_\.]+)', line)
         self.file = matches.group(1)
@@ -119,6 +119,3 @@ class Update:
 
         matches = re.search('prepare_state=(\w+)', line)
         self.prepare_state = PrepareState[matches.group(1)]
-
-        matches = re.search('in_progress=(\w+)', line)
-        self.in_progress = matches.group(1).lower() == "true"
