@@ -81,3 +81,8 @@ class Checker:
                operation.stable_lt_durable or
                operation.prepare_state == PrepareState.IN_PROGRESS):
             raise Exception(f"aborted update {update} for no reason")
+
+        if operation.stable_lt_durable and not operation.stable < operation.durable:
+            raise Exception(f"incorrect timestamp comparison: thought {operation.stable} < {operation.durable}, but it isn't")
+        if not operation.stable_lt_durable and not operation.durable >= operation.stable:
+            raise Exception(f"incorrect timestamp comparison: thought {operation.stable} >= {operation.durable}, but it isn't")
