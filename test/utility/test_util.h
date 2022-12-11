@@ -51,7 +51,7 @@
 
 #define TESTUTIL_ENV_CONFIG_TIERED \
     ",tiered_storage=(bucket=./"   \
-    "bucket,bucket_prefix=pfx-,local_retention=2,name=dir_store)"
+    "bucket,bucket_prefix=pfx-,local_retention=%d,name=dir_store)"
 #define TESTUTIL_ENV_CONFIG_TIERED_EXT               \
     ",extensions=(%s/ext/storage_sources/dir_store/" \
     "libwiredtiger_dir_store.so=(early_load=true))"
@@ -408,11 +408,14 @@ int testutil_parse_single_opt(TEST_OPTS *, int);
 int testutil_parse_opts(int, char *const *, TEST_OPTS *);
 void testutil_print_command_line(int argc, char *const *argv);
 void testutil_progress(TEST_OPTS *, const char *);
+void testutil_random_init(WT_RAND_STATE *, uint64_t *, uint32_t);
+void testutil_random_from_random(WT_RAND_STATE *, WT_RAND_STATE *);
+void testutil_random_from_seed(WT_RAND_STATE *, uint64_t);
 #ifndef _WIN32
 void testutil_sleep_wait(uint32_t, pid_t);
 #endif
 void testutil_wiredtiger_open(
-  TEST_OPTS *, const char *, const char *, WT_EVENT_HANDLER *, WT_CONNECTION **, bool);
+  TEST_OPTS *, const char *, const char *, WT_EVENT_HANDLER *, WT_CONNECTION **, bool, bool);
 void testutil_tiered_begin(TEST_OPTS *);
 void testutil_tiered_flush_complete(TEST_OPTS *, WT_SESSION *, void *);
 void testutil_tiered_sleep(TEST_OPTS *, WT_SESSION *, uint32_t, bool *);
