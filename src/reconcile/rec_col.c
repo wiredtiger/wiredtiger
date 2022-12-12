@@ -70,9 +70,9 @@ __wt_bulk_insert_fix(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
     ++cbulk->entry;
     ++r->recno;
 
-    ps.row_count = 1;
-    ps.byte_count = btree->bitcnt / 8 + 8;
-    WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
+    ps.row_count = cbulk->entry;
+    ps.byte_count = __bitstr_size(cbulk->entry * btree->bitcnt) + (int64_t)cbulk->entry * 8;
+    WT_PAGE_STAT_COPY(&r->cur_ptr->ps, &ps);
 
     /*
      * Initialize the time aggregate that's going into the parent page. It's necessary to update an
@@ -115,9 +115,9 @@ __wt_bulk_insert_fix_bitmap(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
         memcpy(r->first_free + offset, data, page_size);
         cbulk->entry += page_entries;
         r->recno += page_entries;
-        ps.row_count = (int64_t)page_entries;
-        ps.byte_count = ps.row_count * (btree->bitcnt / 8 + 8);
-        WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
+        ps.row_count = (int64_t)cbulk->entry;
+        ps.byte_count = __bitstr_size(cbulk->entry * btree->bitcnt) + (int64_t)cbulk->entry * 8;
+        WT_PAGE_STAT_COPY(&r->cur_ptr->ps, &ps);
     }
 
     /* Initialize the time aggregate that's going into the parent page. See note above. */
@@ -957,6 +957,8 @@ __wt_rec_col_fix(
                 break;
             }
 
+            __wt_rec_incr(session, r, entry, __bitstr_size((size_t)entry * btree->bitcnt));
+
             /*
              * If everything didn't fit, update the counters and split.
              *
@@ -965,10 +967,9 @@ __wt_rec_col_fix(
              * No need to have a minimum split size boundary, all pages are filled 100% except the
              * last, allowing it to grow in the future.
              */
-            ps.row_count = entry;
-            WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
-
-            __wt_rec_incr(session, r, entry, __bitstr_size((size_t)entry * btree->bitcnt));
+            ps.row_count = r->entry;
+            ps.byte_count = __bitstr_size(r->entry * btree->bitcnt) + r->entry * 8;
+            WT_PAGE_STAT_COPY(&r->cur_ptr->ps, &ps);
 
             /* If there are entries we didn't write timestamps for, aggregate a stable timestamp. */
             if (r->aux_entries < r->entries) {
@@ -997,11 +998,12 @@ __wt_rec_col_fix(
             break;
     }
 
-    ps.row_count = entry;
-    WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
-
     /* Update the counters. */
     __wt_rec_incr(session, r, entry, __bitstr_size((size_t)entry * btree->bitcnt));
+
+    ps.row_count = r->entry;
+    ps.byte_count = __bitstr_size(r->entry * btree->bitcnt) + r->entry * 8;
+    WT_PAGE_STAT_COPY(&r->cur_ptr->ps, &ps);
 
     /*
      * If there are entries we didn't write timestamps for, aggregate in a stable timestamp. Do this
