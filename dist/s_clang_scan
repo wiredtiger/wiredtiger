@@ -48,7 +48,7 @@ cd ..
 grep 'No bugs found' $t_out > /dev/null && exit 0
 
 # Compare the set of errors/warnings and exit success when they're expected.
-# clang_acan outputs errors/warnings with a leading file path followed by a
+# clang_scan outputs errors/warnings with a leading file path followed by a
 # colon, followed by the string "error:" or "warning:".
 cat dist/s_clang_scan.diff |
     egrep '^[a-z\./].*error: |^[a-z\./].*warning: ' | sed -e 's/:.*:.*://' | sort > $a
