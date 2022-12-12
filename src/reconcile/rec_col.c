@@ -151,13 +151,18 @@ __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
         val->buf.data = NULL;
         val->buf.size = 0;
         val->len = val->cell_len;
-    } else
+    } else {
         /*
          * Store the bulk cursor's last buffer, not the current value, we're tracking duplicates,
          * which means we want the previous value seen, not the current value.
          */
         WT_RET(__wt_rec_cell_build_val(
           session, r, cbulk->last->data, cbulk->last->size, &tw, cbulk->rle));
+
+        ps.row_count = (int64_t)cbulk->rle;
+        ps.byte_count = ps.row_count * ((int64_t)cbulk->last->size + 8);
+        WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
+    }
 
     /* Boundary: split or write the page. */
     if (WT_CROSSING_SPLIT_BND(r, val->len))
@@ -170,9 +175,6 @@ __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
 
     /* Initialize the time aggregate that's going into the parent page. See note above. */
     WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &tw);
-
-    ps.row_count = (int64_t)cbulk->rle;
-    WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
 
     /* Update the starting record number in case we split. */
     r->recno += cbulk->rle;
