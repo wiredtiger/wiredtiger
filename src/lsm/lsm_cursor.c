@@ -663,7 +663,8 @@ retry:
     clsm->dsk_gen = lsm_tree->dsk_gen;
 
 err:
-#ifdef HAVE_DIAGNOSTIC
+if (DIAGNOSTIC_ASSERTS_ENABLED(session)){
+// LPTM - done
     /* Check that all cursors are open as expected. */
     if (ret == 0 && F_ISSET(clsm, WT_CLSM_OPEN_READ)) {
         for (i = 0; i != clsm->nchunks; i++) {
@@ -694,7 +695,7 @@ err:
                 clsm->chunks[i]->bloom == NULL);
         }
     }
-#endif
+}
     if (locked)
         __wt_lsm_tree_readunlock(session, lsm_tree);
     return (ret);

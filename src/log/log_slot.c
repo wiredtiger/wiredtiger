@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-#ifdef HAVE_DIAGNOSTIC
+// LPTM - done
 /*
  * __log_slot_dump --
  *     Dump the entire slot state.
@@ -47,7 +47,6 @@ __log_slot_dump(WT_SESSION_IMPL *session)
     }
     __wt_errx(session, "Earliest slot: %d", earliest);
 }
-#endif
 
 /*
  * __wt_log_slot_activate --
@@ -96,11 +95,6 @@ __log_slot_close(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *releasep, boo
     WT_CONNECTION_IMPL *conn;
     WT_LOG *log;
     int64_t end_offset, new_state, old_state;
-#ifdef HAVE_DIAGNOSTIC
-    uint64_t time_start, time_stop;
-    int count;
-#endif
-
     *releasep = false;
 
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT));
@@ -150,30 +144,32 @@ retry:
  * be a delay between a thread setting the flag, a thread closing the slot, and the original thread
  * setting that value. If the state is unbuffered, wait for the unbuffered size to be set.
  */
-#ifdef HAVE_DIAGNOSTIC
-    count = 0;
-    time_start = __wt_clock(session);
-#endif
     if (WT_LOG_SLOT_UNBUFFERED_ISSET(old_state)) {
         while (slot->slot_unbuffered == 0) {
             WT_STAT_CONN_INCR(session, log_slot_close_unbuf);
             __wt_yield();
-#ifdef HAVE_DIAGNOSTIC
-            ++count;
-            if (count > WT_MILLION) {
-                time_stop = __wt_clock(session);
-                if (WT_CLOCKDIFF_SEC(time_stop, time_start) > 10) {
-                    __wt_errx(session,
-                      "SLOT_CLOSE: Slot %" PRIu32 " Timeout unbuffered, state 0x%" PRIx64
-                      " unbuffered %" PRId64,
-                      (uint32_t)(slot - &log->slot_pool[0]), (uint64_t)slot->slot_state,
-                      slot->slot_unbuffered);
-                    __log_slot_dump(session);
-                    __wt_abort(session);
-                }
+            if (DIAGNOSTIC_ASSERTS_ENABLED(session)){
+                uint64_t time_start, time_stop;
+                int count;
+                
                 count = 0;
+                time_start = __wt_clock(session);
+
+                ++count;
+                if (count > WT_MILLION) {
+                    time_stop = __wt_clock(session);
+                    if (WT_CLOCKDIFF_SEC(time_stop, time_start) > 10) {
+                        __wt_errx(session,
+                            "SLOT_CLOSE: Slot %" PRIu32 " Timeout unbuffered, state 0x%" PRIx64
+                            " unbuffered %" PRId64,
+                            (uint32_t)(slot - &log->slot_pool[0]), (uint64_t)slot->slot_state,
+                            slot->slot_unbuffered);
+                            __log_slot_dump(session);
+                        __wt_abort(session);
+                    }
+                    count = 0;
+                }
             }
-#endif
         }
     }
 

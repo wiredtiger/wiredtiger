@@ -243,9 +243,9 @@ __cursor_reset(WT_CURSOR_BTREE *cbt)
     cursor = &cbt->iface;
     session = CUR2S(cbt);
 
-#ifdef HAVE_DIAGNOSTIC
-    __wt_cursor_key_order_reset(cbt); /* Clear key-order checks. */
-#endif
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {
+        __wt_cursor_key_order_reset(cbt); /* Clear key-order checks. */
+    }
     __cursor_pos_clear(cbt);
 
     /* If the cursor was active, deactivate it. */

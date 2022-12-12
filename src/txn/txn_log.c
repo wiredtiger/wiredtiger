@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-#ifdef HAVE_DIAGNOSTIC
+// LPTM - done
 /*
  * __txn_op_log_row_key_check --
  *     Confirm the cursor references the correct key.
@@ -51,7 +51,6 @@ __txn_op_log_row_key_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 
     __wt_buf_free(session, &key);
 }
-#endif
 
 /*
  * __txn_op_log --
@@ -76,9 +75,9 @@ __txn_op_log(
      * operations, we shouldn't see them here.
      */
     if (CUR2BT(cbt)->type == BTREE_ROW) {
-#ifdef HAVE_DIAGNOSTIC
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session)){
         __txn_op_log_row_key_check(session, cbt);
-#endif
+    }
         switch (upd->type) {
         case WT_UPDATE_MODIFY:
             /*

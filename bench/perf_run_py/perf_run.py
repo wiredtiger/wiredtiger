@@ -362,6 +362,7 @@ def report_results(args: argparse.Namespace, config: PerfConfig, reported_stats:
 
 def main():
     args = parse_args()
+    args.runmax = 10
     (arguments, operations, config, batch_file_contents) = parse_json_args(args=args)
     validate_operations(config=config, batch_file_contents=batch_file_contents, operations=operations)
     reported_stats = run_perf_tests(config=config,
