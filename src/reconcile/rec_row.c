@@ -510,6 +510,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 {
     WT_BTREE *btree;
     WT_CURSOR_BTREE *cbt;
+    WT_PAGE_STAT ps;
     WT_REC_KV *key, *val;
     WT_TIME_WINDOW tw;
     WT_UPDATE *upd;
@@ -619,7 +620,11 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
         }
         WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &tw);
 
-        WT_PAGE_STAT_ROW_INCR(&r->cur_ptr->ps);
+        if (!WT_TIME_WINDOW_HAS_STOP(&tw)) {
+            ps.row_count = 1;
+            ps.byte_count = WT_INSERT_KEY_SIZE(ins) + upd->size;
+            WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
+        }
 
         /* Update compression state. */
         __rec_key_state_update(r, ovfl_key);
@@ -634,13 +639,14 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
  */
 static inline int
 __rec_cell_repack(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_RECONCILE *r,
-  WT_CELL_UNPACK_KV *vpack, WT_TIME_WINDOW *tw)
+  WT_CELL_UNPACK_KV *vpack, WT_TIME_WINDOW *tw, size_t *sizep)
 {
     WT_DECL_ITEM(tmpval);
     WT_DECL_RET;
     size_t size;
     const void *p;
 
+    *sizep = 0;
     WT_ERR(__wt_scr_alloc(session, 0, &tmpval));
 
     /* If the item is Huffman encoded, decode it. */
@@ -653,6 +659,7 @@ __rec_cell_repack(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_RECONCILE *r,
         p = tmpval->data;
         size = tmpval->size;
     }
+    *sizep = size;
     WT_ERR(__wt_rec_cell_build_val(session, r, p, size, tw, 0));
 
 err:
@@ -679,12 +686,13 @@ __wt_rec_row_leaf(
     WT_IKEY *ikey;
     WT_INSERT *ins;
     WT_PAGE *page;
+    WT_PAGE_STAT ps;
     WT_REC_KV *key, *val;
     WT_ROW *rip;
     WT_TIME_WINDOW *twp;
     WT_UPDATE *upd;
     WT_UPDATE_SELECT upd_select;
-    size_t key_size;
+    size_t key_size, value_size;
     uint64_t slvg_skip;
     uint32_t i;
     uint8_t key_prefix;
@@ -741,6 +749,7 @@ __wt_rec_row_leaf(
             continue;
         }
         dictionary = false;
+        ps.byte_count = WT_STAT_NONE;
 
         /*
          * Figure out if the key is an overflow key, and in that case unpack the cell, we'll need it
@@ -789,8 +798,8 @@ __wt_rec_row_leaf(
              * Repack the cell if we clear the transaction ids in the cell.
              */
             if (vpack->raw == WT_CELL_VALUE_COPY) {
-                WT_ERR(__rec_cell_repack(session, btree, r, vpack, twp));
-
+                WT_ERR(__rec_cell_repack(session, btree, r, vpack, twp, &value_size));
+                ps.byte_count = (int64_t)value_size;
                 dictionary = true;
             } else if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
                 /*
@@ -807,8 +816,13 @@ __wt_rec_row_leaf(
                     val->cell_len =
                       __wt_cell_pack_ovfl(session, &val->cell, vpack->raw, twp, 0, val->buf.size);
                     val->len = val->cell_len + val->buf.size;
-                } else
-                    WT_ERR(__rec_cell_repack(session, btree, r, vpack, twp));
+
+                    if (((WT_ADDR *)vpack->data)->ps.byte_count != WT_STAT_NONE)
+                        ps.byte_count = ((WT_ADDR *)vpack->data)->ps.byte_count;
+                } else {
+                    WT_ERR(__rec_cell_repack(session, btree, r, vpack, twp, &value_size));
+                    ps.byte_count = (int64_t)value_size;
+                }
 
                 dictionary = true;
             } else {
@@ -818,8 +832,13 @@ __wt_rec_row_leaf(
                 val->len = val->buf.size;
 
                 /* Track if page has overflow items. */
-                if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW))
+                if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)) {
                     r->ovfl_items = true;
+
+                    if (((WT_ADDR *)vpack->data)->ps.byte_count != WT_STAT_NONE)
+                        ps.byte_count = ((WT_ADDR *)vpack->data)->ps.byte_count;
+                } else
+                    ps.byte_count = (int64_t)vpack->size;
             }
         } else {
             /*
@@ -846,6 +865,7 @@ __wt_rec_row_leaf(
                 WT_ERR(__wt_rec_cell_build_val(
                   session, r, cbt->iface.value.data, cbt->iface.value.size, twp, 0));
                 dictionary = true;
+                ps.byte_count = (int64_t)cbt->iface.value.size;
                 break;
             case WT_UPDATE_STANDARD:
                 /* Take the value from the update. */
@@ -859,6 +879,7 @@ __wt_rec_row_leaf(
                     WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, WT_RECNO_OOB, tmpkey, true));
                 }
                 dictionary = true;
+                ps.byte_count = upd->size;
                 break;
             case WT_UPDATE_TOMBSTONE:
                 /*
@@ -1000,7 +1021,12 @@ slow:
         }
         WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, twp);
 
-        WT_PAGE_STAT_ROW_INCR(&r->cur_ptr->ps);
+        if (!WT_TIME_WINDOW_HAS_STOP(twp)) {
+            ps.row_count = 1;
+            if (ps.byte_count != WT_STAT_NONE)
+                ps.byte_count += (int64_t)lastkey->size;
+            WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
+        }
 
         /* Update compression state. */
         __rec_key_state_update(r, ovfl_key);
