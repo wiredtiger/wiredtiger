@@ -572,6 +572,7 @@ static int
 __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *addr,
   size_t addr_size, WT_STUFF *ss)
 {
+    WT_BTREE *btree;
     WT_CELL_UNPACK_KV unpack;
     WT_COL_FIX_AUXILIARY_HEADER auxhdr;
     WT_DECL_RET;
@@ -583,6 +584,7 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
     int64_t key_size;
     uint32_t cell_num;
 
+    btree = S2BT(session);
     page = NULL;
     WT_TIME_WINDOW_INIT(&stable_tw);
     trk = NULL;
@@ -613,7 +615,7 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
         switch (auxhdr.version) {
         case WT_COL_FIX_VERSION_NIL:
             ps.row_count = (int64_t)dsk->u.entries;
-            ps.byte_count = 9 * ps.row_count;
+            ps.byte_count = ps.row_count * (btree->bitcnt / 8 + 8);
             WT_PAGE_STAT_UPDATE(&trk->ps, &ps);
             /*
              * Nothing to do besides update the time aggregate with a stable timestamp. This is
@@ -628,6 +630,10 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
               trk->col_start, trk->col_stop);
             break;
         case WT_COL_FIX_VERSION_TS:
+            /* Count the record for deleted value for FLCS as well. */
+            ps.row_count = (int64_t)dsk->u.entries;
+            ps.byte_count = ps.row_count * (btree->bitcnt / 8 + 8);
+            WT_PAGE_STAT_UPDATE(&trk->ps, &ps);
             /*
              * Visit the time windows. Note: we're going to visit them all and produce the
              * corresponding time aggregate, even though we might end up discarding some of the
@@ -639,12 +645,6 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
             cell_num = 0;
             WT_CELL_FOREACH_FIX_TIMESTAMPS (session, dsk, &auxhdr, unpack) {
                 if (cell_num % 2 == 1) {
-                    if (!WT_TIME_WINDOW_HAS_STOP(&unpack.tw)) {
-                        rle = __wt_cell_rle(&unpack);
-                        ps.row_count = (int64_t)rle;
-                        ps.byte_count = 9 * ps.row_count;
-                        WT_PAGE_STAT_UPDATE(&trk->ps, &ps);
-                    }
                     if (WT_TIME_WINDOW_IS_EMPTY(&unpack.tw))
                         continue;
                     WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &unpack.tw);

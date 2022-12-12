@@ -56,6 +56,7 @@ __wt_bulk_insert_fix(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
 {
     WT_BTREE *btree;
     WT_CURSOR *cursor;
+    WT_PAGE_STAT ps;
     WT_RECONCILE *r;
     WT_TIME_WINDOW tw;
 
@@ -69,7 +70,9 @@ __wt_bulk_insert_fix(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
     ++cbulk->entry;
     ++r->recno;
 
-    WT_PAGE_STAT_ROW_INCR(&r->cur_ptr->ps);
+    ps.row_count = 1;
+    ps.byte_count = btree->bitcnt / 8 + 8;
+    WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
 
     /*
      * Initialize the time aggregate that's going into the parent page. It's necessary to update an
@@ -113,7 +116,8 @@ __wt_bulk_insert_fix_bitmap(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
         memcpy(r->first_free + offset, data, page_size);
         cbulk->entry += page_entries;
         r->recno += page_entries;
-        ps.row_count = page_entries;
+        ps.row_count = (int64_t)page_entries;
+        ps.byte_count = ps.row_count * (btree->bitcnt / 8 + 8);
         WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
     }
 
