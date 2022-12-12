@@ -684,7 +684,7 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
                 else {
                     WT_ASSERT(session, unpack.type == WT_CELL_VALUE_OVFL);
                     if (((WT_ADDR *)unpack.data)->ps.byte_count == WT_STAT_NONE)
-                        WT_PAGE_STAT_INIT(&ps);
+                        ps.byte_count = WT_STAT_NONE;
                     else
                         ps.byte_count =
                           (((WT_ADDR *)unpack.data)->ps.byte_count + 8) * ps.row_count;
@@ -727,9 +727,10 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
                 break;
             case WT_CELL_VALUE_OVFL:
                 if (!WT_TIME_WINDOW_HAS_STOP(&unpack.tw)) {
-                    if (((WT_ADDR *)unpack.data)->ps.byte_count == WT_STAT_NONE)
-                        WT_PAGE_STAT_INIT(&ps);
-                    else {
+                    if (((WT_ADDR *)unpack.data)->ps.byte_count == WT_STAT_NONE) {
+                        ps.row_count = 1;
+                        ps.byte_count = WT_STAT_NONE;
+                    } else {
                         ps.row_count = 1;
                         ps.byte_count = ((WT_ADDR *)unpack.data)->ps.byte_count + key_size;
                     }
