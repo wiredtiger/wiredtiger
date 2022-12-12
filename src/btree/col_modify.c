@@ -79,11 +79,13 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
         }
     } else {
         /* Since on this path we never set append, make sure we aren't appending. */
-        WT_ASSERT(session, recno != WT_RECNO_OOB);
-        WT_ASSERT(session,
+        WT_ASSERT_ALWAYS(
+          session, recno != WT_RECNO_OOB, "Attempting to append when recno is in bounds");
+        WT_ASSERT_OPTIONAL(session,
           cbt->compare == 0 ||
             recno <= (btree->type == BTREE_COL_VAR ? __col_var_last_recno(cbt->ref) :
-                                                     __col_fix_last_recno(cbt->ref)));
+                                                     __col_fix_last_recno(cbt->ref)),
+          "Attempting to append when recno is in bounds");
     }
 
     /*

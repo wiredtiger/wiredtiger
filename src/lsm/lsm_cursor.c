@@ -214,7 +214,9 @@ __clsm_enter(WT_CURSOR_LSM *clsm, bool reset, bool update)
                     switch_txn = clsm->chunks[i]->switch_txn;
                     if (WT_TXNID_LT(switch_txn, pinned_id))
                         break;
-                    WT_ASSERT(session, !__wt_txn_visible_all(session, switch_txn, WT_TS_NONE));
+                    WT_ASSERT_OPTIONAL(session,
+                      !__wt_txn_visible_all(session, switch_txn, WT_TS_NONE),
+                      "Switch transaction is not globally visible");
                 }
             }
         }
