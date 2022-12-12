@@ -957,8 +957,6 @@ __wt_rec_col_fix(
                 break;
             }
 
-            __wt_rec_incr(session, r, entry, __bitstr_size((size_t)entry * btree->bitcnt));
-
             /*
              * If everything didn't fit, update the counters and split.
              *
@@ -967,8 +965,10 @@ __wt_rec_col_fix(
              * No need to have a minimum split size boundary, all pages are filled 100% except the
              * last, allowing it to grow in the future.
              */
-            ps.row_count = r->entry;
-            ps.byte_count = __bitstr_size(r->entry * btree->bitcnt) + r->entry * 8;
+            __wt_rec_incr(session, r, entry, __bitstr_size((size_t)entry * btree->bitcnt));
+
+            ps.row_count = r->entries;
+            ps.byte_count = __bitstr_size(r->entries * btree->bitcnt) + r->entries * 8;
             WT_PAGE_STAT_COPY(&r->cur_ptr->ps, &ps);
 
             /* If there are entries we didn't write timestamps for, aggregate a stable timestamp. */
@@ -1001,8 +1001,8 @@ __wt_rec_col_fix(
     /* Update the counters. */
     __wt_rec_incr(session, r, entry, __bitstr_size((size_t)entry * btree->bitcnt));
 
-    ps.row_count = r->entry;
-    ps.byte_count = __bitstr_size(r->entry * btree->bitcnt) + r->entry * 8;
+    ps.row_count = r->entries;
+    ps.byte_count = __bitstr_size(r->entries * btree->bitcnt) + r->entries * 8;
     WT_PAGE_STAT_COPY(&r->cur_ptr->ps, &ps);
 
     /*

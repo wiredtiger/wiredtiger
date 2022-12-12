@@ -615,7 +615,7 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
         switch (auxhdr.version) {
         case WT_COL_FIX_VERSION_NIL:
             ps.row_count = (int64_t)dsk->u.entries;
-            ps.byte_count = __bitstr_size(dsk->u.entries * btree->bitcnt) + ps.row_count * 8;
+            ps.byte_count = __bitstr_size(ps.row_count * btree->bitcnt) + ps.row_count * 8;
             WT_PAGE_STAT_COPY(&trk->ps, &ps);
             /*
              * Nothing to do besides update the time aggregate with a stable timestamp. This is
@@ -632,7 +632,7 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
         case WT_COL_FIX_VERSION_TS:
             /* Count the record for deleted value for FLCS as well. */
             ps.row_count = (int64_t)dsk->u.entries;
-            ps.byte_count = __bitstr_size(dsk->u.entries * btree->bitcnt) + ps.row_count * 8;
+            ps.byte_count = __bitstr_size(ps.row_count * btree->bitcnt) + ps.row_count * 8;
             WT_PAGE_STAT_COPY(&trk->ps, &ps);
             /*
              * Visit the time windows. Note: we're going to visit them all and produce the
