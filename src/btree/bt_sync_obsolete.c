@@ -23,7 +23,16 @@ __sync_obsolete_inmem_evict(WT_SESSION_IMPL *session, WT_REF *ref)
     uint32_t i;
     char tp_string[WT_TP_STRING_SIZE];
     const char *tag;
-    bool do_visibility_check, obsolete, ovfl_items;
+    bool obsolete, ovfl_items;
+
+    /*
+     * Initialize the time aggregate via the merge initialization, so that stop visibility is copied
+     * across correctly. That is we need the stop timestamp/transaction IDs to start as none,
+     * otherwise we'd never mark anything as obsolete.
+     */
+    WT_TIME_AGGREGATE_INIT_MERGE(&newest_ta);
+    obsolete = ovfl_items = false;
+    tag = "unexpected page state";
 
     /*
      * Skip the modified pages as their reconciliation results are not valid any more. Check for the
@@ -35,48 +44,56 @@ __sync_obsolete_inmem_evict(WT_SESSION_IMPL *session, WT_REF *ref)
         return (0);
 
     /*
-     * Initialize the time aggregate via the merge initialization, so that stop visibility is copied
-     * across correctly. That is we need the stop timestamp/transaction IDs to start as none,
-     * otherwise we'd never mark anything as obsolete.
+     * There are two places to look for obsolete content, either a saved reconciliation structure or
+     * a reference to an on-disk page via the address structure. If there is a saved reconciliation
+     * result associated with this page use it - that was created more recently, and it's creation
+     * caused the image associated with the address to become obsolete already.
      */
-    WT_TIME_AGGREGATE_INIT_MERGE(&newest_ta);
-    do_visibility_check = obsolete = ovfl_items = false;
-
     mod = ref->page->modify;
-    if (mod != NULL && mod->rec_result == WT_PM_REC_EMPTY) {
-        tag = "reconciled empty";
+    if (mod != NULL && mod->rec_result != 0) {
+        switch (mod->rec_result) {
+        case WT_PM_REC_EMPTY:
+            tag = "reconciled empty";
+            obsolete = true;
+            break;
+        case WT_PM_REC_MULTIBLOCK:
+            tag = "reconciled multi-block";
 
-        obsolete = true;
-    } else if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {
-        tag = "reconciled multi-block";
+            /* Calculate the max stop time point by traversing all addresses. */
+            for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
+                WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &newest_ta, &multi->addr.ta);
+                if (multi->addr.type == WT_ADDR_LEAF)
+                    ovfl_items = true;
+            }
+            obsolete = __wt_txn_visible_all(
+              session, newest_ta.newest_stop_txn, newest_ta.newest_stop_durable_ts);
+            break;
+        case WT_PM_REC_REPLACE:
+            tag = "reconciled replacement block";
 
-        /* Calculate the max stop time point by traversing all multi addresses. */
-        for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
-            WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &newest_ta, &multi->addr.ta);
-            if (multi->addr.type == WT_ADDR_LEAF)
+            WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &newest_ta, &mod->mod_replace.ta);
+            if (mod->mod_replace.type == WT_ADDR_LEAF)
                 ovfl_items = true;
+            obsolete = __wt_txn_visible_all(
+              session, newest_ta.newest_stop_txn, newest_ta.newest_stop_durable_ts);
+            break;
+        default:
+            WT_ASSERT_ALWAYS(session, false,
+              "Unexpected page reconciliation state seen during checkpoint obsolete check");
         }
-        do_visibility_check = true;
-    } else if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE) {
-        tag = "reconciled replacement block";
-
-        WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &newest_ta, &mod->mod_replace.ta);
-        if (mod->mod_replace.type == WT_ADDR_LEAF)
-            ovfl_items = true;
-        do_visibility_check = true;
     } else if (__wt_ref_addr_copy(session, ref, &addr)) {
         tag = "WT_REF address";
 
         WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &newest_ta, &addr.ta);
         if (addr.type == WT_ADDR_LEAF)
             ovfl_items = true;
-        do_visibility_check = true;
-    } else
-        tag = "unexpected page state";
-
-    if (do_visibility_check)
         obsolete = __wt_txn_visible_all(
           session, newest_ta.newest_stop_txn, newest_ta.newest_stop_durable_ts);
+    } else {
+        WT_ASSERT_ALWAYS(session, false,
+          "Unexpected page state during obsolete check, encountered page with neither an "
+          "address or a reconciliation result");
+    }
 
     if (obsolete) {
         /*
