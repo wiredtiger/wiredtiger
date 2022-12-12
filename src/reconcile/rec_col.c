@@ -141,7 +141,7 @@ __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
 
     r = cbulk->reconcile;
     btree = S2BT(session);
-    WT_PAGE_STAT_INIT(&ps);
+    WT_TIME_WINDOW_INIT(&tw);
 
     val = &r->v;
     if (deleted) {
