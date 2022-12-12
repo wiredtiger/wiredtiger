@@ -576,14 +576,17 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
     WT_COL_FIX_AUXILIARY_HEADER auxhdr;
     WT_DECL_RET;
     WT_PAGE *page;
+    WT_PAGE_STAT ps;
     WT_TIME_WINDOW stable_tw;
     WT_TRACK *trk;
-    uint64_t stop_recno;
+    uint64_t rle, stop_recno;
+    int64_t key_size;
     uint32_t cell_num;
 
     page = NULL;
     WT_TIME_WINDOW_INIT(&stable_tw);
     trk = NULL;
+    key_size = 0;
 
     /* Re-allocate the array of pages, as necessary. */
     WT_RET(__wt_realloc_def(session, &ss->pages_allocated, ss->pages_next + 1, &ss->pages));
@@ -609,6 +612,9 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
 
         switch (auxhdr.version) {
         case WT_COL_FIX_VERSION_NIL:
+            ps.row_count = (int64_t)dsk->u.entries;
+            ps.byte_count = 9 * ps.row_count;
+            WT_PAGE_STAT_UPDATE(&trk->ps, &ps);
             /*
              * Nothing to do besides update the time aggregate with a stable timestamp. This is
              * necessary mechanically because a time aggregate initialized for merging will fail
@@ -633,6 +639,12 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
             cell_num = 0;
             WT_CELL_FOREACH_FIX_TIMESTAMPS (session, dsk, &auxhdr, unpack) {
                 if (cell_num % 2 == 1) {
+                    if (!WT_TIME_WINDOW_HAS_STOP(&unpack.tw)) {
+                        rle = __wt_cell_rle(&unpack);
+                        ps.row_count = (int64_t)rle;
+                        ps.byte_count = 9 * ps.row_count;
+                        WT_PAGE_STAT_UPDATE(&trk->ps, &ps);
+                    }
                     if (WT_TIME_WINDOW_IS_EMPTY(&unpack.tw))
                         continue;
                     WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &unpack.tw);
@@ -659,7 +671,21 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
         WT_TIME_AGGREGATE_INIT_MERGE(&trk->trk_ta);
         stop_recno = dsk->recno;
         WT_CELL_FOREACH_KV (session, dsk, unpack) {
-            stop_recno += __wt_cell_rle(&unpack);
+            rle = __wt_cell_rle(&unpack);
+            stop_recno += rle;
+
+            if (unpack.type == WT_CELL_DEL)
+                continue;
+
+            if (!WT_TIME_WINDOW_HAS_STOP(&unpack.tw)) {
+                ps.row_count = (int64_t)rle;
+                if (unpack.type == WT_CELL_VALUE)
+                    ps.byte_count = ((int64_t)unpack.size + 8) * ps.row_count;
+                else
+                    ps.byte_count = (((WT_ADDR *)unpack.data)->ps.byte_count + 8) * ps.row_count;
+
+                WT_PAGE_STAT_UPDATE(&trk->ps, &ps);
+            }
 
             WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &unpack.tw);
         }
@@ -680,10 +706,29 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
         WT_CELL_FOREACH_KV (session, dsk, unpack) {
             switch (unpack.type) {
             case WT_CELL_KEY:
-                WT_PAGE_STAT_ROW_INCR(&trk->ps);
+                key_size = (int64_t)unpack.size;
+                break;
+            case WT_CELL_KEY_OVFL:
+                key_size = ((WT_ADDR *)unpack.data)->ps.byte_count;
+                break;
+            case WT_CELL_VALUE:
+                if (!WT_TIME_WINDOW_HAS_STOP(&unpack.tw)) {
+                    ps.row_count = 1;
+                    ps.byte_count = (int64_t)unpack.size + key_size;
+                    WT_PAGE_STAT_UPDATE(&trk->ps, &ps);
+                }
+                WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &unpack.tw);
+                break;
+            case WT_CELL_VALUE_OVFL:
+                if (!WT_TIME_WINDOW_HAS_STOP(&unpack.tw)) {
+                    ps.row_count = 1;
+                    ps.byte_count = ((WT_ADDR *)unpack.data)->ps.byte_count + key_size;
+                    WT_PAGE_STAT_UPDATE(&trk->ps, &ps);
+                }
+                WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &unpack.tw);
                 break;
             default:
-                WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &unpack.tw);
+                WT_ERR(__wt_illegal_value(session, unpack.type));
                 break;
             }
         }
@@ -1234,7 +1279,7 @@ __slvg_col_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
 
         WT_ERR(__wt_calloc_one(session, &addr));
         WT_TIME_AGGREGATE_COPY(&addr->ta, &trk->trk_ta);
-        addr->ps.byte_count = trk->trk_size;
+        addr->ps.byte_count = trk->ps.byte_count;
         addr->ps.row_count = trk->ps.row_count;
         WT_ERR(__wt_memdup(session, trk->trk_addr, trk->trk_addr_size, &addr->addr));
         addr->size = trk->trk_addr_size;
@@ -1842,7 +1887,7 @@ __slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
 
         WT_ERR(__wt_calloc_one(session, &addr));
         WT_TIME_AGGREGATE_COPY(&addr->ta, &trk->trk_ta);
-        addr->ps.byte_count = trk->trk_size;
+        addr->ps.byte_count = trk->ps.byte_count;
         addr->ps.row_count = trk->ps.row_count;
         WT_ERR(__wt_memdup(session, trk->trk_addr, trk->trk_addr_size, &addr->addr));
         addr->size = trk->trk_addr_size;
