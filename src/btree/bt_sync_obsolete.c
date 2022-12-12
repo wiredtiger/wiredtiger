@@ -230,9 +230,9 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
             ret = __sync_obsolete_disk_cleanup(session, ref, &ref_deleted);
             if (ref_deleted)
                 new_state = WT_REF_DELETED;
-            WT_REF_UNLOCK(ref, new_state);
-            WT_RET(ret);
         }
+        WT_REF_UNLOCK(ref, new_state);
+        WT_RET(ret);
     } else if (ref->state == WT_REF_MEM) {
         /*
          * Reviewing in-memory pages requires looking at page reconciliation results and we must
