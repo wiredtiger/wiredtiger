@@ -682,6 +682,7 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
                 if (unpack.type == WT_CELL_VALUE)
                     ps.byte_count = ((int64_t)unpack.size + 8) * ps.row_count;
                 else {
+                    WT_ASSERT(session, unpack.type == WT_CELL_VALUE_OVFL);
                     if (((WT_ADDR *)unpack.data)->ps.byte_count == WT_STAT_NONE)
                         WT_PAGE_STAT_INIT(&ps);
                     else
