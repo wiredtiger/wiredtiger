@@ -1150,7 +1150,6 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
 
     btree = S2BT(session);
     val = &r->v;
-    WT_PAGE_STAT_INIT(&ps);
 
     /*
      * Occasionally, salvage needs to discard records from the beginning or end of the page, and
@@ -1194,8 +1193,22 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
         val->buf.size = value->size;
         val->len = val->cell_len + value->size;
         *ovfl_usedp = true;
-    } else
+        if (!WT_TIME_WINDOW_HAS_STOP(tw)) {
+            ps.row_count = (int64_t)rle;
+            if (((WT_ADDR *)value->data)->ps.byte_count == WT_STAT_NONE)
+                ps.byte_count = WT_STAT_NONE;
+            else
+                ps.byte_count = ((WT_ADDR *)value->data)->ps.byte_count * ps.row_count;
+            WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
+        }
+    } else {
         WT_RET(__wt_rec_cell_build_val(session, r, value->data, value->size, tw, rle));
+        if (!WT_TIME_WINDOW_HAS_STOP(tw)) {
+            ps.row_count = (int64_t)rle;
+            ps.byte_count = (int64_t)value->size * ps.row_count;
+            WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
+        }
+    }
 
     /* Boundary: split or write the page. */
     if (__wt_rec_need_split(r, val->len))
@@ -1206,9 +1219,6 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
         WT_RET(__wt_rec_dict_replace(session, r, tw, rle, val));
     __wt_rec_image_copy(session, r, val);
     WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, tw);
-
-    ps.row_count = (int64_t)rle;
-    WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
 
     /* Update the starting record number in case we split. */
     r->recno += rle;
