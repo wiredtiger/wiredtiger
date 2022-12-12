@@ -177,6 +177,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 {
     WT_BTREE *btree;
     WT_CURSOR *cursor;
+    WT_PAGE_STAT ps;
     WT_RECONCILE *r;
     WT_REC_KV *key, *val;
     WT_TIME_WINDOW tw;
@@ -224,7 +225,9 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     }
     WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &tw);
 
-    WT_PAGE_STAT_ROW_INCR(&r->cur_ptr->ps);
+    ps.row_count = 1;
+    ps.byte_count = (int64_t)cursor->key.size + (int64_t)cursor->value.size;
+    WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
 
     /* Update compression state. */
     __rec_key_state_update(r, ovfl_key);
