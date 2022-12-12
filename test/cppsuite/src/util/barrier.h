@@ -57,6 +57,5 @@ class barrier {
 
     /* Timeout for the synchronization wait. */
     const int _sync_timeout = 600;
-
 };
 } // namespace test_harness
