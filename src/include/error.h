@@ -184,16 +184,29 @@
 
 /*
  * WT_ASSERT --
- *  Assert an expression provided that diagnostic asserts are enabled.
- *
- * FIXME-WT-10045 - WT_ASSERT should now always take an error message as an argument.
+ *  Assert an expression and abort if it fails.
+ *  Only enabled when compiled with HAVE_DIAGNOSTIC=1.
  */
-#define WT_ASSERT(session, exp)                                           \
-    do {                                                                  \
-        if (UNLIKELY(DIAGNOSTIC_ASSERTS_ENABLED(session)))                \
-            if (UNLIKELY(!(exp))) {                                       \
-                TRIGGER_ABORT(session, exp, "Expression returned false"); \
-            }                                                             \
+#ifdef HAVE_DIAGNOSTIC
+#define WT_ASSERT(session, exp)                                       \
+    do {                                                              \
+        if (UNLIKELY(!(exp)))                                         \
+            TRIGGER_ABORT(session, exp, "Expression returned false"); \
+    } while (0)
+#else
+#define WT_ASSERT(session, exp) WT_UNUSED(session)
+#endif
+
+/*
+ * WT_ASSERT_OPTIONAL --
+ *  Assert an expression provided that diagnostic asserts are enabled.
+ *  Can be enabled at runtime via runtime flags.
+ */
+#define WT_ASSERT_OPTIONAL(session, exp, ...)              \
+    do {                                                   \
+        if (UNLIKELY(DIAGNOSTIC_ASSERTS_ENABLED(session))) \
+            if (UNLIKELY(!(exp)))                          \
+                TRIGGER_ABORT(session, exp, __VA_ARGS__);  \
     } while (0)
 
 /*

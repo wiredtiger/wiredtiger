@@ -147,7 +147,8 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
              * If we restore an update chain in update restore eviction, there should be no update
              * on the existing update chain.
              */
-            WT_ASSERT(session, !restore || old_upd == NULL);
+            WT_ASSERT_ALWAYS(session, !restore || old_upd == NULL,
+              "Update found on the existing update chain during an update restore eviction");
 
             /*
              * We can either put multiple new updates or a single update on the update chain.

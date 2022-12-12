@@ -115,7 +115,8 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session)
     WT_STAT_CONN_INCRV(session, cursor_sweep_examined, nexamined);
     WT_STAT_CONN_INCRV(session, cursor_sweep_closed, nclosed);
 
-    WT_ASSERT(session, session->dhandle == saved_dhandle);
+    WT_ASSERT_ALWAYS(
+      session, session->dhandle == saved_dhandle, "Session dhandle changed during cursor sweep");
     return (ret);
 }
 

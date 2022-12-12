@@ -392,10 +392,11 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
          * changes before the transaction fixes the history store update to have a proper stop
          * timestamp. It is a rare scenario.
          */
-        WT_ASSERT(session,
+        WT_ASSERT_ALWAYS(session,
           hs_stop_durable_ts <= newer_hs_durable_ts || hs_start_ts == hs_stop_durable_ts ||
             hs_start_ts == newer_hs_durable_ts || newer_hs_durable_ts == hs_durable_ts ||
-            first_record || hs_stop_durable_ts == WT_TS_MAX);
+            first_record || hs_stop_durable_ts == WT_TS_MAX,
+          "Out of order history store updates detected");
 
         if (hs_stop_durable_ts < newer_hs_durable_ts)
             WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_stop_older_than_newer_start);
