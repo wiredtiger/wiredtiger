@@ -102,7 +102,6 @@ __wt_bulk_insert_fix_bitmap(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     r = cbulk->reconcile;
     btree = S2BT(session);
     cursor = &cbulk->cbt.iface;
-    WT_PAGE_STAT_INIT(&ps);
 
     if (((r->recno - 1) * btree->bitcnt) & 0x7)
         WT_RET_MSG(session, EINVAL, "Bulk bitmap load not aligned on a byte boundary");
@@ -143,7 +142,6 @@ __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
     r = cbulk->reconcile;
     btree = S2BT(session);
     WT_PAGE_STAT_INIT(&ps);
-    WT_TIME_WINDOW_INIT(&tw);
 
     val = &r->v;
     if (deleted) {
