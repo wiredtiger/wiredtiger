@@ -101,9 +101,9 @@ run "sh ./s_typedef -b"
 run "python test_tag.py"
 # The s_mentions script requires bash.
 run "./s_mentions" "--warning-only"
-if [ $(command -v evergreen) ]; then
-	[ -f ~/.evergreen.yml ] && run "evergreen validate -p wiredtiger ../test/evergreen.yml"
-	[ -f ~/.evergreen_develop.yml ] && run "evergreen validate -p wiredtiger ../test/evergreen_develop.yml"
+if [ $(command -v evergreen) ] && [ -f ~/.evergreen.yml ]; then
+	run "evergreen validate -p wiredtiger ../test/evergreen.yml"
+	run "evergreen validate -p wiredtiger ../test/evergreen_develop.yml"
 fi
 
 COMMANDS="
