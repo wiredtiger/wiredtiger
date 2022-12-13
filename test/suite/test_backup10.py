@@ -115,7 +115,15 @@ class test_backup10(backup_base):
             lambda:self.assertEquals(self.session.open_cursor(None,
             bkup_c, None), 0), msg)
 
-        bkup_c.close()
+        dupc = self.session.open_cursor(None, bkup_c, config)
+        dup_logs = self.take_log_backup(bkup_c, self.dir, orig_logs, dupc)
+        
+        msg = "/since duplicate cursor follows parent cursor/"
+        # Test closing backup cursor before duplicate backup cursor
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda:self.assertNotEqual(bkup_c.close(), 0), msg)
+
+        dupc.close()
 
         # After the full backup, open and recover the backup database.
         backup_conn = self.wiredtiger_open(self.dir)
