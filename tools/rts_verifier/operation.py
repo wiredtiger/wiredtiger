@@ -11,7 +11,8 @@ class OpType(Enum):
     TREE_LOGGING = 2
     PAGE_ROLLBACK = 3
     UPDATE_ABORT = 4
-    UNKNOWN = 5
+    PAGE_ABORT_CHECK = 5
+    UNKNOWN = 6
 
 class Operation:
     def __init__(self, line):
@@ -27,8 +28,13 @@ class Operation:
             self.__init_page_rollback(line)
         elif '[UPDATE_ABORT]' in line:
             self.__init_update_abort(line)
+        elif '[PAGE_ABORT_CHECK]' in line:
+            self.__init_page_abort_check(line)
         else:
-            raise Exception("Operation.__init__: couldn't find an event in an RTS log line")
+            raise Exception(f"Operation.__init__: couldn't find an event in RTS log line {line}")
+
+    def __repr__(self):
+        return f"{self.__dict__}"
 
     def __init_init(self, line):
         self.type = OpType.INIT
@@ -119,3 +125,26 @@ class Operation:
 
         matches = re.search('prepare_state=(\w+)', line)
         self.prepare_state = PrepareState[matches.group(1)]
+
+    def __init_page_abort_check(self, line):
+        self.type = OpType.PAGE_ABORT_CHECK
+
+        matches = re.search('file:([\w_\.]+)', line)
+        self.file = matches.group(1)
+
+        matches = re.search('ref=(0x[A-Za-z0-9]+)', line)
+        self.ref = int(matches.group(1), 16)
+
+        matches = re.search('durable_timestamp=\((\d+), (\d+)\)', line)
+        durable_start = int(matches.group(1))
+        durable_stop = int(matches.group(2))
+        self.durable = Timestamp(durable_start, durable_stop)
+
+        matches = re.search('newest_txn=(\d+)', line)
+        self.newest_txn = int(matches.group(1))
+
+        matches = re.search('prepared_updates=(\w+)', line)
+        self.has_prepared = matches.group(1).lower() == "true"
+
+        matches = re.search('needs_abort=(\w+)', line)
+        self.needs_abort = matches.group(1).lower() == "true"

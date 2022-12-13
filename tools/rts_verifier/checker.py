@@ -20,6 +20,8 @@ class Checker:
             self.__apply_check_page_rollback(operation)
         elif operation.type == OpType.UPDATE_ABORT:
             self.__apply_check_operation_abort(operation)
+        elif operation.type == OpType.PAGE_ABORT_CHECK:
+            self.__apply_check_page_abort_check(operation)
         else:
             raise Exception(f"failed to parse {operation.line}")
 
@@ -86,3 +88,18 @@ class Checker:
             raise Exception(f"incorrect timestamp comparison: thought {operation.stable} < {operation.durable}, but it isn't")
         if not operation.stable_lt_durable and not operation.durable >= operation.stable:
             raise Exception(f"incorrect timestamp comparison: thought {operation.stable} >= {operation.durable}, but it isn't")
+
+    def __apply_check_page_abort_check(self, operation):
+        if operation.file != self.current_tree.file:
+            raise Exception(f"spurious visit to {operation.file}, {operation=}")
+
+        # TODO print session recovery flags to check the other way this can be wrong
+        should_rollback = (operation.durable <= self.stable) or operation.has_prepared
+        if should_rollback and not operation.needs_abort:
+            raise Exception(f"incorrectly skipped rolling back page with ref={operation.ref}")
+
+        # TODO be a little smarter about storing page state. the decision we make about rolling back
+        # can be stored, and checked against future log lines to e.g. make sure we don't change our
+        # mind at some point.
+
+        # TODO can  probably use the txn ID somehow.
