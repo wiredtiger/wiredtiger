@@ -38,7 +38,7 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
      * hazard pointer, wait for it to be cleared.
      */
     WT_ASSERT_OPTIONAL(session, __wt_hazard_check_assert(session, ref, true),
-      "Attempting to evict page with hazard pointers");
+      "Attempted to free a page with active hazard pointers");
 
     /* Check we are not evicting an accessible internal page with an active split generation. */
     WT_ASSERT(session,

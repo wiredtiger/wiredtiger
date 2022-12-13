@@ -1680,7 +1680,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
       multi->disk_image == NULL ||
         __wt_verify_dsk_image(session, "[page instantiate]", multi->disk_image, 0, &multi->addr,
           WT_VRFY_DISK_EMPTY_PAGE_OK) == 0,
-      "Disk image verification failed");
+      "Failed to verify a disk image");
 
     /* Allocate an underlying WT_REF. */
     WT_RET(__wt_calloc_one(session, refp));
@@ -1777,8 +1777,8 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
      * reality after the split.
      */
     WT_ASSERT_OPTIONAL(session, __wt_leaf_page_can_split(session, page),
-      "Attempting to split page that does not require splitting");
-    WT_ASSERT_ALWAYS(session, __wt_page_is_modified(page), "Attempting to split clean page");
+      "Attempted to split a page that cannot be split");
+    WT_ASSERT_ALWAYS(session, __wt_page_is_modified(page), "Attempted to split a clean page");
 
     F_SET_ATOMIC_16(page, WT_PAGE_SPLIT_INSERT); /* Only split in-memory once. */
 

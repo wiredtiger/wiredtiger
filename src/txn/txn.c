@@ -127,7 +127,7 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
     WT_ASSERT_OPTIONAL(session,
       txn_shared->pinned_id == WT_TXN_NONE || session->txn->isolation == WT_ISO_READ_UNCOMMITTED ||
         !__wt_txn_visible_all(session, txn_shared->pinned_id, WT_TS_NONE),
-      "Releasing snapshot that is not globally visible");
+      "A transactions pinned id cannot become globally visible before the snapshot is released");
 
     txn_shared->metadata_pinned = txn_shared->pinned_id = WT_TXN_NONE;
     F_CLR(txn, WT_TXN_HAS_SNAPSHOT);
