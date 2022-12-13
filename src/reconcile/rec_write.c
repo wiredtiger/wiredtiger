@@ -2723,7 +2723,7 @@ err:
  */
 int
 __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv, uint8_t type,
-  WT_TIME_WINDOW *tw, uint64_t rle)
+  WT_TIME_WINDOW *tw, WT_PAGE_STAT *ovfl_ps, uint64_t rle)
 {
     WT_BM *bm;
     WT_BTREE *btree;
@@ -2779,7 +2779,7 @@ __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *k
     WT_ERR(__wt_buf_set(session, &kv->buf, addr, size));
 
     /* Build the cell and return. */
-    kv->cell_len = __wt_cell_pack_ovfl(session, &kv->cell, type, tw, rle, kv->buf.size);
+    kv->cell_len = __wt_cell_pack_ovfl(session, &kv->cell, type, tw, ovfl_ps, rle, kv->buf.size);
     kv->len = kv->cell_len + kv->buf.size;
 
 err:

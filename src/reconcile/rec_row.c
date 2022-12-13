@@ -157,7 +157,7 @@ __rec_cell_build_leaf_key(
             WT_STAT_CONN_DATA_INCR(session, rec_overflow_key_leaf);
 
             *is_ovflp = true;
-            return (__wt_rec_cell_build_ovfl(session, r, key, WT_CELL_KEY_OVFL, NULL, 0));
+            return (__wt_rec_cell_build_ovfl(session, r, key, WT_CELL_KEY_OVFL, NULL, NULL, 0));
         }
         return (__rec_cell_build_leaf_key(session, r, NULL, 0, is_ovflp));
     }
@@ -813,12 +813,12 @@ __wt_rec_row_leaf(
                     val->buf.size = vpack->size;
 
                     /* Rebuild the cell. */
-                    val->cell_len =
-                      __wt_cell_pack_ovfl(session, &val->cell, vpack->raw, twp, 0, val->buf.size);
+                    val->cell_len = __wt_cell_pack_ovfl(
+                      session, &val->cell, vpack->raw, twp, &vpack->ovfl_ps, 0, val->buf.size);
                     val->len = val->cell_len + val->buf.size;
 
-                    if (((WT_ADDR *)vpack->data)->ps.byte_count != WT_STAT_NONE)
-                        ps.byte_count = ((WT_ADDR *)vpack->data)->ps.byte_count;
+                    if (vpack->ovfl_ps.byte_count != WT_STAT_NONE)
+                        ps.byte_count = vpack->ovfl_ps.byte_count;
                 } else {
                     WT_ERR(__rec_cell_repack(session, btree, r, vpack, twp, &value_size));
                     ps.byte_count = (int64_t)value_size;
@@ -835,8 +835,8 @@ __wt_rec_row_leaf(
                 if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)) {
                     r->ovfl_items = true;
 
-                    if (((WT_ADDR *)vpack->data)->ps.byte_count != WT_STAT_NONE)
-                        ps.byte_count = ((WT_ADDR *)vpack->data)->ps.byte_count;
+                    if (vpack->ovfl_ps.byte_count != WT_STAT_NONE)
+                        ps.byte_count = vpack->ovfl_ps.byte_count;
                 } else
                     ps.byte_count = (int64_t)vpack->size;
             }

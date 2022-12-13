@@ -1139,7 +1139,8 @@ __wt_rec_col_fix_write_auxheader(WT_SESSION_IMPL *session, uint32_t entries,
  */
 static int
 __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKIE *salvage,
-  WT_ITEM *value, WT_TIME_WINDOW *tw, uint64_t rle, bool deleted, bool *ovfl_usedp)
+  WT_ITEM *value, WT_TIME_WINDOW *tw, WT_PAGE_STAT *ovfl_ps, uint64_t rle, bool deleted,
+  bool *ovfl_usedp)
 {
     WT_BTREE *btree;
     WT_PAGE_STAT ps;
@@ -1187,18 +1188,18 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
         val->buf.size = 0;
         val->len = val->cell_len;
     } else if (ovfl_usedp != NULL) {
-        val->cell_len =
-          __wt_cell_pack_ovfl(session, &val->cell, WT_CELL_VALUE_OVFL, tw, rle, value->size);
+        val->cell_len = __wt_cell_pack_ovfl(
+          session, &val->cell, WT_CELL_VALUE_OVFL, tw, ovfl_ps, rle, value->size);
         val->buf.data = value->data;
         val->buf.size = value->size;
         val->len = val->cell_len + value->size;
         *ovfl_usedp = true;
         if (!WT_TIME_WINDOW_HAS_STOP(tw)) {
             ps.row_count = (int64_t)rle;
-            if (((WT_ADDR *)value->data)->ps.byte_count == WT_STAT_NONE)
+            if (ovfl_ps->byte_count == WT_STAT_NONE)
                 ps.byte_count = WT_STAT_NONE;
             else
-                ps.byte_count = (((WT_ADDR *)value->data)->ps.byte_count + 8) * ps.row_count;
+                ps.byte_count = (ovfl_ps->byte_count + 8) * ps.row_count;
             WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
         }
     } else {
@@ -1303,7 +1304,7 @@ __wt_rec_col_var(
             salvage->take += salvage->missing;
         } else
             WT_ERR(__rec_col_var_helper(
-              session, r, NULL, NULL, &clear_tw, salvage->missing, true, NULL));
+              session, r, NULL, NULL, &clear_tw, NULL, salvage->missing, true, NULL));
     }
 
     /*
@@ -1421,15 +1422,15 @@ record_loop:
                      * We're going to copy the on-page cell, write out any record we're tracking.
                      */
                     if (rle != 0) {
-                        WT_ERR(__rec_col_var_helper(
-                          session, r, salvage, last.value, &last.tw, rle, last.deleted, NULL));
+                        WT_ERR(__rec_col_var_helper(session, r, salvage, last.value, &last.tw, NULL,
+                          rle, last.deleted, NULL));
                         rle = 0;
                     }
 
                     last.value->data = vpack->data;
                     last.value->size = vpack->size;
-                    WT_ERR(__rec_col_var_helper(
-                      session, r, salvage, last.value, twp, repeat_count, false, &ovfl_used));
+                    WT_ERR(__rec_col_var_helper(session, r, salvage, last.value, twp,
+                      &vpack->ovfl_ps, repeat_count, false, &ovfl_used));
 
                     wrote_real_values = true;
 
@@ -1523,7 +1524,7 @@ compare:
                 if (!last.deleted)
                     wrote_real_values = true;
                 WT_ERR(__rec_col_var_helper(
-                  session, r, salvage, last.value, &last.tw, rle, last.deleted, NULL));
+                  session, r, salvage, last.value, &last.tw, NULL, rle, last.deleted, NULL));
             }
 
             /*
@@ -1655,7 +1656,7 @@ compare:
                 if (!last.deleted)
                     wrote_real_values = true;
                 WT_ERR(__rec_col_var_helper(
-                  session, r, salvage, last.value, &last.tw, rle, last.deleted, NULL));
+                  session, r, salvage, last.value, &last.tw, NULL, rle, last.deleted, NULL));
             }
 
             /*
@@ -1700,8 +1701,8 @@ next:
     if (rle != 0) {
         if (!last.deleted)
             wrote_real_values = true;
-        WT_ERR(
-          __rec_col_var_helper(session, r, salvage, last.value, &last.tw, rle, last.deleted, NULL));
+        WT_ERR(__rec_col_var_helper(
+          session, r, salvage, last.value, &last.tw, NULL, rle, last.deleted, NULL));
     }
 
     /*

@@ -72,12 +72,3 @@
             }                                                 \
         }                                                     \
     } while (0)
-
-/* Increment the row count of a page stat structure */
-#define WT_PAGE_STAT_ROW_INCR(ps)            \
-    do {                                     \
-        if ((ps)->row_count == WT_STAT_NONE) \
-            (ps)->row_count = 1;             \
-        else                                 \
-            (ps)->row_count++;               \
-    } while (0)

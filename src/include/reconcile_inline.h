@@ -407,6 +407,7 @@ __wt_rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r, const void *d
   WT_TIME_WINDOW *tw, uint64_t rle)
 {
     WT_BTREE *btree;
+    WT_PAGE_STAT ovfl_ps;
     WT_REC_KV *val;
 
     btree = S2BT(session);
@@ -429,8 +430,10 @@ __wt_rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r, const void *d
         /* Create an overflow object if the data won't fit. */
         if (val->buf.size > btree->maxleafvalue) {
             WT_STAT_DATA_INCR(session, rec_overflow_value);
-
-            return (__wt_rec_cell_build_ovfl(session, r, val, WT_CELL_VALUE_OVFL, tw, rle));
+            ovfl_ps.row_count = WT_STAT_NONE;
+            ovfl_ps.byte_count = (int64_t)size;
+            return (
+              __wt_rec_cell_build_ovfl(session, r, val, WT_CELL_VALUE_OVFL, tw, &ovfl_ps, rle));
         }
     }
     __rec_cell_tw_stats(r, tw);
