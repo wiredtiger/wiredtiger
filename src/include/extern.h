@@ -1870,6 +1870,8 @@ extern void __wt_random_init(WT_RAND_STATE volatile *rnd_state)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_random_init_seed(WT_SESSION_IMPL *session, WT_RAND_STATE volatile *rnd_state)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
+extern void __wt_random_init_custom_seed(WT_RAND_STATE volatile *rnd_state, uint64_t v, uint32_t w, uint32_t z)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_read_row_time_window(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_TIME_WINDOW *tw);
 extern void __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l);
