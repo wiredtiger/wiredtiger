@@ -846,7 +846,9 @@ __backup_stop(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
     /* Release all btree names held by the backup. */
     WT_ASSERT(session, !F_ISSET(cb, WT_CURBACKUP_DUP));
     /* If it's not a dup backup cursor, make sure one isn't open. */
-    WT_ASSERT(session, !F_ISSET(session, WT_SESSION_BACKUP_DUP));
+    if (F_ISSET(session, WT_SESSION_BACKUP_DUP)) 
+        WT_RET_MSG(session, EINVAL, "Can't close duplicate cursor since duplicate cursor follows parent cursor");
+
     WT_WITH_HOTBACKUP_WRITE_LOCK(session, conn->hot_backup_list = NULL);
     if (cb->incr_src != NULL)
         F_CLR(cb->incr_src, WT_BLKINCR_INUSE);
