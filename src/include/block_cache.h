@@ -16,26 +16,26 @@
 #endif
 
 /* Cache types. */
-#define BLKCACHE_UNCONFIGURED 0
-#define BLKCACHE_DRAM 1
-#define BLKCACHE_NVRAM 2
+#define WT_BLKCACHE_UNCONFIGURED 0
+#define WT_BLKCACHE_DRAM 1
+#define WT_BLKCACHE_NVRAM 2
 
 /* Hash bucket array size. */
-#define BLKCACHE_HASHSIZE_DEFAULT 32768
-#define BLKCACHE_HASHSIZE_MIN 512
-#define BLKCACHE_HASHSIZE_MAX WT_GIGABYTE
+#define WT_BLKCACHE_HASHSIZE_DEFAULT 32768
+#define WT_BLKCACHE_HASHSIZE_MIN 512
+#define WT_BLKCACHE_HASHSIZE_MAX WT_GIGABYTE
 
 /* How often we compute the total size of the files open in the block manager. */
-#define BLKCACHE_FILESIZE_EST_FREQ 5000
+#define WT_BLKCACHE_FILESIZE_EST_FREQ 5000
 
-#define BLKCACHE_MINREF_INCREMENT 20      /* Eviction references window */
-#define BLKCACHE_EVICT_OTHER 0            /* Not evicting for various reasons */
-#define BLKCACHE_NOT_EVICTION_CANDIDATE 1 /* Not evicting because of frequency counter */
+#define WT_BLKCACHE_MINREF_INCREMENT 20      /* Eviction references window */
+#define WT_BLKCACHE_EVICT_OTHER 0            /* Not evicting for various reasons */
+#define WT_BLKCACHE_NOT_EVICTION_CANDIDATE 1 /* Not evicting because of frequency counter */
 
 /* Block access operations. */
-#define BLKCACHE_RM_EXIT 1
-#define BLKCACHE_RM_FREE 2
-#define BLKCACHE_RM_EVICTION 3
+#define WT_BLKCACHE_RM_EXIT 1
+#define WT_BLKCACHE_RM_FREE 2
+#define WT_BLKCACHE_RM_EVICTION 3
 
 /*
  * WT_BLKCACHE_ITEM --
