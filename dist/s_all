@@ -41,16 +41,19 @@ done
 
 echo "Updating files that include the package version" &&
     sh ./s_version $force
+
 errchk()
 {
     if ! `test -s $2`; then
         return
     fi
 
-    # Return if evergreen validate runs sucessfully.
-    if echo "$1" | grep -q evergreen && [[ "$(cat "$2")" =~ .*".yml is valid".* ]] ; then
-        rm -f "$2"
-        return
+    # Return if evergreen validate runs successfully.
+    if echo "$1" | grep -q "evergreen"; then
+        if  cat "$2" | grep -q ".yml is valid"; then
+            rm -f "$2"
+            return
+        fi
     fi
 
     echo "####################### MESSAGE ############################"
