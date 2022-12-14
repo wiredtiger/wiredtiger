@@ -85,7 +85,7 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
           cbt->compare == 0 ||
             recno <= (btree->type == BTREE_COL_VAR ? __col_var_last_recno(cbt->ref) :
                                                      __col_fix_last_recno(cbt->ref)),
-          "Out-of-band recno provided for a non-append operation");
+          "Out-of-bound recno provided for a non-append operation");
     }
 
     /*
