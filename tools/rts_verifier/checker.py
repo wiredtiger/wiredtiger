@@ -22,6 +22,8 @@ class Checker:
             self.__apply_check_operation_abort(operation)
         elif operation.type == OpType.PAGE_ABORT_CHECK:
             self.__apply_check_page_abort_check(operation)
+        elif operation.type == OpType.KEY_CLEAR_REMOVE:
+            self.__apply_check_key_clear_remove(operation)
         else:
             raise Exception(f"failed to parse {operation.line}")
 
@@ -103,3 +105,19 @@ class Checker:
         # mind at some point.
 
         # TODO can  probably use the txn ID somehow.
+
+    def __apply_check_key_clear_remove(self, operation):
+        if operation.file != self.current_tree.file:
+            raise Exception(f"spurious visit to {operation.file}, {operation=}")
+
+        # TODO print session recovery flags to check the other way this can be wrong
+        should_abort = (operation.removed_durable <= self.stable) or operation.removed_prepared
+        if should_abort and not operation.needs_abort:
+            raise Exception(f"incorrectly skipped rolling back page with ref={operation.ref}")
+
+        # TODO can likely expand on these
+        if operation.restored_stable != self.stable:
+            raise Exception("stable timestamp spuriously moved forward")
+
+        if operation.removed_commit < self.stable:
+            raise Exception("aborted an update from before the stable timestamp?!")

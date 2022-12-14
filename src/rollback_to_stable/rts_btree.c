@@ -724,11 +724,11 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
             F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
             WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_keys_restored);
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-              "key restored with commit timestamp: %s, durable timestamp: %s, stable timestamp: "
+              "[KEY_CLEAR_REMOVE] key restored with commit_timestamp=%s, durable_timestamp=%s, stable_timestamp="
               "%s, "
-              "txnid: %" PRIu64
-              " and removed commit timestamp: %s, durable timestamp: %s, txnid: %" PRIu64
-              ", prepared: %s",
+              "txnid=%" PRIu64
+              " and removed commit_timestamp=%s, durable_timestamp=%s, txnid=%" PRIu64
+              ", prepared=%s",
               __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
               __wt_timestamp_to_string(upd->durable_ts, ts_string[1]),
               __wt_timestamp_to_string(rollback_timestamp, ts_string[2]), upd->txnid,

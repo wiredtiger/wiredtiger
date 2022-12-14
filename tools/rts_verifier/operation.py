@@ -12,7 +12,8 @@ class OpType(Enum):
     PAGE_ROLLBACK = 3
     UPDATE_ABORT = 4
     PAGE_ABORT_CHECK = 5
-    UNKNOWN = 6
+    KEY_CLEAR_REMOVE = 6
+    UNKNOWN = 7
 
 class Operation:
     def __init__(self, line):
@@ -30,6 +31,8 @@ class Operation:
             self.__init_update_abort(line)
         elif '[PAGE_ABORT_CHECK]' in line:
             self.__init_page_abort_check(line)
+        elif '[KEY_CLEAR_REMOVE]' in line:
+            self.__init_key_clear_remove(line)
         else:
             raise Exception(f"Operation.__init__: couldn't find an event in RTS log line {line}")
 
@@ -148,3 +151,43 @@ class Operation:
 
         matches = re.search('needs_abort=(\w+)', line)
         self.needs_abort = matches.group(1).lower() == "true"
+
+    def __init_key_clear_remove(self, line):
+        self.type = OpType.KEY_CLEAR_REMOVE
+
+        matches = re.search('file:([\w_\.]+)', line)
+        self.file = matches.group(1)
+
+        matches = re.search('commit_timestamp=\((\d+), (\d+)\)', line)
+        commit_start = int(matches.group(1))
+        commit_stop = int(matches.group(2))
+        self.restored_commit = Timestamp(commit_start, commit_stop)
+
+        matches = re.search('durable_timestamp=\((\d+), (\d+)\)', line)
+        durable_start = int(matches.group(1))
+        durable_stop = int(matches.group(2))
+        self.restored_durable = Timestamp(durable_start, durable_stop)
+
+        matches = re.search('stable_timestamp=\((\d+), (\d+)\)', line)
+        stable_start = int(matches.group(1))
+        stable_stop = int(matches.group(2))
+        self.restored_stable = Timestamp(stable_start, stable_stop)
+
+        matches = re.search('txnid=(\d+)', line)
+        self.restored_txnid = int(matches.group(1))
+
+        matches = re.search('removed.*commit_timestamp=\((\d+), (\d+)\)', line)
+        commit_start = int(matches.group(1))
+        commit_stop = int(matches.group(2))
+        self.removed_commit = Timestamp(commit_start, commit_stop)
+
+        matches = re.search('removed.*durable_timestamp=\((\d+), (\d+)\)', line)
+        durable_start = int(matches.group(1))
+        durable_stop = int(matches.group(2))
+        self.removed_durable = Timestamp(durable_start, durable_stop)
+
+        matches = re.search('removed.*txnid=(\d+)', line)
+        self.removed_txnid = int(matches.group(1))
+
+        matches = re.search('removed.*prepared=(\w+)', line)
+        self.removed_prepared = matches.group(1).lower() == "true"
