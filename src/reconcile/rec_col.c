@@ -407,8 +407,9 @@ __wt_rec_col_fix_addtw(
     size_t add_len, len;
     uint8_t keyspace[WT_INTPACK64_MAXSIZE], *p;
 
-    WT_ASSERT(session,
-      recno_offset <= ((__rec_col_fix_get_bitmap_size(session, r)) * 8) / S2BT(session)->bitcnt);
+    WT_ASSERT_ALWAYS(session,
+      recno_offset <= ((__rec_col_fix_get_bitmap_size(session, r)) * 8) / S2BT(session)->bitcnt,
+      "Attempting to write time window information into bitmap memory");
 
     key = &r->k;
     val = &r->v;
