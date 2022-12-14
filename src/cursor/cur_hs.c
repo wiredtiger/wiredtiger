@@ -944,7 +944,6 @@ __curhs_insert(WT_CURSOR *cursor)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     WT_UPDATE *hs_tombstone, *hs_upd;
-
     int exact;
 
     hs_cursor = (WT_CURSOR_HS *)cursor;
