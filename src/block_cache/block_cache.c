@@ -245,7 +245,8 @@ __blkcache_eviction_thread(void *arg)
                 if (__blkcache_should_evict(session, blkcache_item, &reason)) {
                     TAILQ_REMOVE(&blkcache->hash[i], blkcache_item, hashq);
                     __blkcache_free(session, blkcache_item->data);
-                    __blkcache_update_ref_histogram(session, blkcache_item, WT_BLKCACHE_RM_EVICTION);
+                    __blkcache_update_ref_histogram(
+                      session, blkcache_item, WT_BLKCACHE_RM_EVICTION);
                     (void)__wt_atomic_sub64(&blkcache->bytes_used, blkcache_item->data_size);
 
                     /*
