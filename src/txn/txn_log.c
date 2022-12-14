@@ -8,7 +8,6 @@
 
 #include "wt_internal.h"
 
-// LPTM - done
 /*
  * __txn_op_log_row_key_check --
  *     Confirm the cursor references the correct key.
@@ -75,9 +74,10 @@ __txn_op_log(
      * operations, we shouldn't see them here.
      */
     if (CUR2BT(cbt)->type == BTREE_ROW) {
-    if (DIAGNOSTIC_ASSERTS_ENABLED(session)){
-        __txn_op_log_row_key_check(session, cbt);
-    }
+
+        if (DIAGNOSTIC_ASSERTS_ENABLED(session))
+            __txn_op_log_row_key_check(session, cbt);
+
         switch (upd->type) {
         case WT_UPDATE_MODIFY:
             /*

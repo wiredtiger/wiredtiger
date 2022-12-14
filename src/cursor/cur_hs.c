@@ -199,13 +199,12 @@ __curhs_search(WT_CURSOR_BTREE *hs_cbt, bool insert)
     hs_btree = CUR2BT(hs_cbt);
     session = CUR2S(hs_cbt);
 
-    if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session))
         /*
-        * Turn off cursor-order checks in all cases on search. The search/search-near functions turn
-        * them back on after a successful search.
-        */
+         * Turn off cursor-order checks in all cases on search. The search/search-near functions
+         * turn them back on after a successful search.
+         */
         __wt_cursor_key_order_reset(hs_cbt);
-    }
 
     WT_ERR(__wt_cursor_localkey(&hs_cbt->iface));
 
@@ -946,9 +945,8 @@ __curhs_insert(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
     WT_UPDATE *hs_tombstone, *hs_upd;
 
-    if (DIAGNOSTIC_ASSERTS_ENABLED(session)){
-        int exact;
-    }
+    int exact;
+
     hs_cursor = (WT_CURSOR_HS *)cursor;
     file_cursor = hs_cursor->file_cursor;
     cbt = (WT_CURSOR_BTREE *)file_cursor;
@@ -1005,17 +1003,16 @@ __curhs_insert(WT_CURSOR *cursor)
     hs_tombstone = hs_upd = NULL;
 
     if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {
-    // LPTM - done
         /* Do a search again and call next to check the key order. */
         ret = __curhs_file_cursor_search_near(session, file_cursor, &exact);
         /* We can get not found if the inserted history store record is obsolete. */
         WT_ASSERT(session, ret == 0 || ret == WT_NOTFOUND);
 
         /*
-        * If a globally visible tombstone is inserted and the page is evicted during search_near then
-        * the key would be removed. Hence, a search_near would return a non-zero exact value.
-        * Therefore, check that exact is zero before calling next.
-        */
+         * If a globally visible tombstone is inserted and the page is evicted during search_near
+         * then the key would be removed. Hence, a search_near would return a non-zero exact value.
+         * Therefore, check that exact is zero before calling next.
+         */
         if (ret == 0 && exact == 0)
             WT_ERR_NOTFOUND_OK(__curhs_file_cursor_next(session, file_cursor), false);
         else if (ret == WT_NOTFOUND)

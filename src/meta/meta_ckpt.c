@@ -715,7 +715,6 @@ __meta_ckptlist_allocate_new_ckpt(
     return (0);
 }
 
-// LPTM - done
 /*
  * __assert_ckpt_matches --
  *     Assert that given two checkpoints match.
@@ -792,6 +791,7 @@ __wt_meta_ckptlist_get(
   WT_SESSION_IMPL *session, const char *fname, bool update, WT_CKPT **ckptbasep, size_t *allocated)
 {
     WT_BTREE *btree;
+    WT_CKPT *ckptbase_comp;
     WT_DECL_RET;
     char *config;
 
@@ -817,15 +817,14 @@ __wt_meta_ckptlist_get(
               session, ckptbasep, &btree->ckpt_bytes_allocated, NULL));
         if (allocated != NULL)
             *allocated = btree->ckpt_bytes_allocated;
-        if (DIAGNOSTIC_ASSERTS_ENABLED(session)){
-            WT_CKPT *ckptbase_comp;
+        if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {
             /*
-            * Sanity check: Let's compare to a list generated from metadata. There should be no
-            * differences.
-            */
+             * Sanity check: Let's compare to a list generated from metadata. There should be no
+             * differences.
+             */
             WT_ERR(__wt_metadata_search(session, fname, &config));
             if ((ret = __wt_meta_ckptlist_get_from_config(
-                session, update, &ckptbase_comp, NULL, config)) == 0)
+                   session, update, &ckptbase_comp, NULL, config)) == 0)
                 __assert_checkpoint_list_matches(session, *ckptbasep, ckptbase_comp);
             __wt_meta_ckptlist_free(session, &ckptbase_comp);
             WT_ERR(ret);

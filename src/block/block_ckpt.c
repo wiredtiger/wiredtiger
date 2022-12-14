@@ -319,7 +319,6 @@ __ckpt_extlist_fblocks(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el
     return (__wt_block_insert_ext(session, block, &block->live.ckpt_avail, el->offset, el->size));
 }
 
-// LPTM - done
 /*
  * __ckpt_verify --
  *     Diagnostic code, confirm we get what we expect in the checkpoint array.
@@ -487,9 +486,8 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
     ci = &block->live;
     fatal = locked = false;
 
-if (DIAGNOSTIC_ASSERTS_ENABLED(session)){
-    WT_RET(__ckpt_verify(session, ckptbase));
-}
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session))
+        WT_RET(__ckpt_verify(session, ckptbase));
 
     /*
      * Checkpoints are a two-step process: first, write a new checkpoint to disk (including all the

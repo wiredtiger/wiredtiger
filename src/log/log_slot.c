@@ -8,7 +8,6 @@
 
 #include "wt_internal.h"
 
-// LPTM - done
 /*
  * __log_slot_dump --
  *     Dump the entire slot state.
@@ -139,19 +138,20 @@ retry:
     if (WT_LOG_SLOT_DONE(new_state))
         *releasep = true;
     WT_ASSIGN_LSN(&slot->slot_end_lsn, &slot->slot_start_lsn);
-/*
- * A thread setting the unbuffered flag sets the unbuffered size after setting the flag. There could
- * be a delay between a thread setting the flag, a thread closing the slot, and the original thread
- * setting that value. If the state is unbuffered, wait for the unbuffered size to be set.
- */
+    /*
+     * A thread setting the unbuffered flag sets the unbuffered size after setting the flag. There
+     * could be a delay between a thread setting the flag, a thread closing the slot, and the
+     * original thread setting that value. If the state is unbuffered, wait for the unbuffered size
+     * to be set.
+     */
     if (WT_LOG_SLOT_UNBUFFERED_ISSET(old_state)) {
         while (slot->slot_unbuffered == 0) {
             WT_STAT_CONN_INCR(session, log_slot_close_unbuf);
             __wt_yield();
-            if (DIAGNOSTIC_ASSERTS_ENABLED(session)){
+            if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {
                 uint64_t time_start, time_stop;
                 int count;
-                
+
                 count = 0;
                 time_start = __wt_clock(session);
 
@@ -160,11 +160,11 @@ retry:
                     time_stop = __wt_clock(session);
                     if (WT_CLOCKDIFF_SEC(time_stop, time_start) > 10) {
                         __wt_errx(session,
-                            "SLOT_CLOSE: Slot %" PRIu32 " Timeout unbuffered, state 0x%" PRIx64
-                            " unbuffered %" PRId64,
-                            (uint32_t)(slot - &log->slot_pool[0]), (uint64_t)slot->slot_state,
-                            slot->slot_unbuffered);
-                            __log_slot_dump(session);
+                          "SLOT_CLOSE: Slot %" PRIu32 " Timeout unbuffered, state 0x%" PRIx64
+                          " unbuffered %" PRId64,
+                          (uint32_t)(slot - &log->slot_pool[0]), (uint64_t)slot->slot_state,
+                          slot->slot_unbuffered);
+                        __log_slot_dump(session);
                         __wt_abort(session);
                     }
                     count = 0;

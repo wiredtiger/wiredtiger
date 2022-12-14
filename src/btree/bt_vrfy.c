@@ -442,14 +442,13 @@ __verify_tree(
     if (++vs->fcnt % WT_VERIFY_PROGRESS_INTERVAL == 0)
         WT_RET(__wt_progress(session, NULL, vs->fcnt));
 
-    if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {
-        // LPTM - done
-        /* Optionally dump the blocks or page in debugging mode. */
-        if (vs->dump_blocks)
-            WT_RET(__wt_debug_disk(session, page->dsk, NULL));
-        if (vs->dump_pages)
-            WT_RET(__wt_debug_page(session, NULL, ref, NULL));
-    }
+#ifdef HAVE_DIAGNOSTIC
+    /* Optionally dump the blocks or page in debugging mode. */
+    if (vs->dump_blocks)
+        WT_RET(__wt_debug_disk(session, page->dsk, NULL));
+    if (vs->dump_pages)
+        WT_RET(__wt_debug_page(session, NULL, ref, NULL));
+#endif
 
     /* Make sure the page we got belongs in this kind of tree. */
     switch (btree->type) {

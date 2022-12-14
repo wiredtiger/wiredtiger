@@ -810,50 +810,51 @@ static int
 __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *addr_sizep,
   size_t *compressed_sizep, bool checkpoint, bool checkpoint_io, bool compressed)
 {
-    if (DIAGNOSTIC_ASSERTS_ENABLED(session)){
-    // LPTM - done
-        WT_BTREE *btree;
-        WT_DECL_ITEM(ctmp);
-        WT_DECL_RET;
-        WT_PAGE_HEADER *dsk;
-        size_t result_len;
+    WT_BTREE *btree;
+    WT_DECL_ITEM(ctmp);
+    WT_DECL_RET;
+    WT_PAGE_HEADER *dsk;
+    size_t result_len;
 
-        btree = S2BT(session);
-        result_len = 0;
+    btree = S2BT(session);
+    result_len = 0;
 
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {
         /* Checkpoint calls are different than standard calls. */
         WT_ASSERT(session,
-        (!checkpoint && addr != NULL && addr_sizep != NULL) ||
+          (!checkpoint && addr != NULL && addr_sizep != NULL) ||
             (checkpoint && addr == NULL && addr_sizep == NULL));
 
         /* In-memory databases shouldn't write pages. */
         WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
 
         /*
-        * We're passed a table's disk image. Decompress if necessary and verify the image. Always check
-        * the in-memory length for accuracy.
-        */
+         * We're passed a table's disk image. Decompress if necessary and verify the image. Always
+         * check the in-memory length for accuracy.
+         */
         dsk = buf->mem;
         if (compressed) {
             WT_ASSERT(session, __wt_scr_alloc(session, dsk->mem_size, &ctmp));
 
             memcpy(ctmp->mem, buf->data, WT_BLOCK_COMPRESS_SKIP);
             WT_ASSERT(session,
-            btree->compressor->decompress(btree->compressor, &session->iface,
+              btree->compressor->decompress(btree->compressor, &session->iface,
                 (uint8_t *)buf->data + WT_BLOCK_COMPRESS_SKIP, buf->size - WT_BLOCK_COMPRESS_SKIP,
-                (uint8_t *)ctmp->data + WT_BLOCK_COMPRESS_SKIP, ctmp->memsize - WT_BLOCK_COMPRESS_SKIP,
-                &result_len) == 0);
+                (uint8_t *)ctmp->data + WT_BLOCK_COMPRESS_SKIP,
+                ctmp->memsize - WT_BLOCK_COMPRESS_SKIP, &result_len) == 0);
             WT_ASSERT(session, dsk->mem_size == result_len + WT_BLOCK_COMPRESS_SKIP);
             ctmp->size = result_len + WT_BLOCK_COMPRESS_SKIP;
 
-            /* Return an error rather than assert because the test suite tests that the error hits. */
+            /* Return an error rather than assert because the test suite tests that the error hits.
+             */
             ret = __wt_verify_dsk(session, "[write-check]", ctmp);
 
             __wt_scr_free(session, &ctmp);
         } else {
             WT_ASSERT(session, dsk->mem_size == buf->size);
 
-            /* Return an error rather than assert because the test suite tests that the error hits. */
+            /* Return an error rather than assert because the test suite tests that the error hits.
+             */
             ret = __wt_verify_dsk(session, "[write-check]", buf);
         }
         WT_RET(ret);
