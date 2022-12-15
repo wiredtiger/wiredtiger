@@ -237,6 +237,7 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
         WT_ERR(__wt_metadata_remove(session, tier->name));
         tiered->tiers[WT_TIERED_INDEX_SHARED].tier = NULL;
     } else
+        /* If we don't have a shared tier we better be on the first object. */
         WT_ASSERT(session, localid == 1);
 
     /*
