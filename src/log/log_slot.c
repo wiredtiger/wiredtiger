@@ -94,6 +94,9 @@ __log_slot_close(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *releasep, boo
     WT_CONNECTION_IMPL *conn;
     WT_LOG *log;
     int64_t end_offset, new_state, old_state;
+    uint64_t time_start, time_stop;	
+    int count;
+
     *releasep = false;
 
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT));
@@ -144,17 +147,14 @@ retry:
      * original thread setting that value. If the state is unbuffered, wait for the unbuffered size
      * to be set.
      */
+    count = 0;
+    time_start = __wt_clock(session);
+
     if (WT_LOG_SLOT_UNBUFFERED_ISSET(old_state)) {
         while (slot->slot_unbuffered == 0) {
             WT_STAT_CONN_INCR(session, log_slot_close_unbuf);
             __wt_yield();
             if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {
-                uint64_t time_start, time_stop;
-                int count;
-
-                count = 0;
-                time_start = __wt_clock(session);
-
                 ++count;
                 if (count > WT_MILLION) {
                     time_stop = __wt_clock(session);

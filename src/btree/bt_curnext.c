@@ -568,9 +568,6 @@ __cursor_key_order_check_col(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
     int cmp;
 
     WT_UNUSED(ret);
-#ifndef HAVE_DIAGNOSTIC
-    WT_UNUSED(btree);
-#endif
     btree = S2BT(session);
     cmp = 0; /* -Werror=maybe-uninitialized */
 
@@ -588,6 +585,8 @@ __cursor_key_order_check_col(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
 #ifdef HAVE_DIAGNOSTIC
     WT_RET(__wt_msg(session, "dumping the tree"));
     WT_WITH_BTREE(session, btree, ret = __wt_debug_tree_all(session, NULL, NULL, NULL));
+#else
+    WT_UNUSED(btree);
 #endif
     __wt_verbose_error(session, WT_VERB_OUT_OF_ORDER,
       "WT_CURSOR.%s out-of-order returns: returned key %" PRIu64 " then key %" PRIu64,
@@ -734,9 +733,7 @@ __wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
      * the tree, not as a result of a search.
      */
     if (cbt->ref == NULL) {
-        WT_SESSION_IMPL *session;
-        session = (WT_SESSION_IMPL *)cbt->iface.session;
-        if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {
+        if (DIAGNOSTIC_ASSERTS_ENABLED( (WT_SESSION_IMPL *) cbt->iface.session)) {
             __wt_cursor_key_order_reset(cbt);
             return;
         }
