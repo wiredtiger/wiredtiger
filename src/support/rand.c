@@ -67,7 +67,6 @@ __wt_random_init_seed(WT_SESSION_IMPL *session, WT_RAND_STATE volatile *rnd_stat
 {
     struct timespec ts;
     WT_RAND_STATE rnd;
-    uint32_t v;
 
     __wt_epoch(session, &ts);
 
@@ -79,17 +78,11 @@ __wt_random_init_seed(WT_SESSION_IMPL *session, WT_RAND_STATE volatile *rnd_stat
      * Take the seconds and nanoseconds from the clock as seeds, and smear that value across the
      * value space, using algorithm "xor" from Marsaglia, "Xorshift RNGs".
      */
-    v = (uint32_t)ts.tv_sec;
-    v ^= v << 13;
-    v ^= v >> 17;
-    v ^= v << 5;
-    M_W(rnd) = v + 521288629;
-
-    v = (uint32_t)ts.tv_nsec;
-    v ^= v << 13;
-    v ^= v >> 17;
-    v ^= v << 5;
-    M_Z(rnd) = v + 362436069;
+    M_W(rnd) = (uint32_t)ts.tv_sec ^ 521288629;
+    M_Z(rnd) = (uint32_t)ts.tv_nsec ^ 362436069;
+    rnd.v ^= rnd.v << 13;
+    rnd.v ^= rnd.v >> 7;
+    rnd.v ^= rnd.v << 17;
 
     *rnd_state = rnd;
 }
