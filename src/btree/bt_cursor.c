@@ -889,7 +889,13 @@ __btcur_search_neighboring(WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, int *e
     btree = CUR2BT(cbt);
     cursor = &cbt->iface;
     session = CUR2S(cbt);
-
+    
+    /*
+	 * We didn't find an exact match: try after the search key,
+	 * then before.  We have to loop here because at low isolation
+	 * levels, new records could appear as we are stepping through
+	 * the tree.
+	 */
     while ((ret = __wt_btcur_next_prefix(cbt, &state->key, false)) != WT_NOTFOUND) {
         WT_RET(ret);
         if (btree->type == BTREE_ROW)
