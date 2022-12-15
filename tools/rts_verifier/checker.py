@@ -24,18 +24,25 @@ class Checker:
             self.__apply_check_page_abort_check(operation)
         elif operation.type == OpType.KEY_CLEAR_REMOVE:
             self.__apply_check_key_clear_remove(operation)
+        elif operation.type == OpType.ONDISK_KV_REMOVE:
+            self.__apply_check_ondisk_kv_remove(operation)
+        elif operation.type == OpType.SHUTDOWN_INIT:
+            self.__apply_check_shutdown_init(operation)
+        elif operation.type == OpType.TREE_SKIP:
+            self.__apply_check_shutdown_init(operation)
         else:
             raise Exception(f"failed to parse {operation.line}")
 
     def __apply_check_init(self, operation):
-        if self.stable is not None:
-            raise Exception("restarted RTS?!")
+        # reset a bunch of internal state
         self.stable = operation.stable
+        self.visited_trees = set()
+        self.visited_pages = set()
 
     def __apply_check_tree(self, operation):
         tree = Tree(operation.file)
         if tree in self.visited_trees:
-            raise Exception(f"visited file {operation.file} again")
+            raise Exception(f"visited file {operation.file} again, {operation=}")
         self.visited_trees.add(tree)
         self.current_tree = tree
 
@@ -121,3 +128,16 @@ class Checker:
 
         if operation.removed_commit < self.stable:
             raise Exception("aborted an update from before the stable timestamp?!")
+
+    def __apply_check_ondisk_kv_remove(self, operation):
+        # TODO expand this out
+        if operation.file != self.current_tree.file:
+            raise Exception(f"spurious visit to {operation.file}, {operation=}")
+
+    def __apply_check_shutdown_init(self, operation):
+        # TODO expand this out
+        pass
+
+    def __apply_tree_skip(self, operation):
+        # TODO expand this out
+        pass

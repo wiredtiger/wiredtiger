@@ -761,7 +761,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
 
     WT_ERR(__wt_scr_alloc(session, 0, &key_string));
     __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
-      "removing the key%s: %s", upd->type == WT_UPDATE_TOMBSTONE ? "" : " tombstone",
+      "[ONDISK_KV_REMOVE] removing the key, tombstone=%s, key=%s", upd->type == WT_UPDATE_TOMBSTONE ? "true" : "false",
       __wt_key_string(session, key->data, key->size, S2BT(session)->key_format, key_string));
 
     if (rip != NULL)

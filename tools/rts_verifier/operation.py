@@ -13,7 +13,9 @@ class OpType(Enum):
     UPDATE_ABORT = 4
     PAGE_ABORT_CHECK = 5
     KEY_CLEAR_REMOVE = 6
-    UNKNOWN = 7
+    ONDISK_KV_REMOVE = 7
+    SHUTDOWN_INIT = 8
+    TREE_SKIP = 9
 
 class Operation:
     def __init__(self, line):
@@ -33,6 +35,12 @@ class Operation:
             self.__init_page_abort_check(line)
         elif '[KEY_CLEAR_REMOVE]' in line:
             self.__init_key_clear_remove(line)
+        elif '[ONDISK_KV_REMOVE]' in line:
+            self.__init_ondisk_kv_remove(line)
+        elif '[SHUTDOWN_INIT]' in line:
+            self.__init_shutdown_init(line)
+        elif '[TREE_SKIP]' in line:
+            self.__init_tree_skip(line)
         else:
             raise Exception(f"Operation.__init__: couldn't find an event in RTS log line {line}")
 
@@ -191,3 +199,42 @@ class Operation:
 
         matches = re.search('removed.*prepared=(\w+)', line)
         self.removed_prepared = matches.group(1).lower() == "true"
+
+    def __init_ondisk_kv_remove(self, line):
+        self.type = OpType.ONDISK_KV_REMOVE
+
+        matches = re.search('file:([\w_\.]+)', line)
+        self.file = matches.group(1)
+
+        matches = re.search('tombstone=(\w+)', line)
+        self.tombstone = matches.group(1).lower() == "true"
+
+        matches = re.search('key=(\d+)', line)
+        self.key = int(matches.group(1))
+
+    def __init_shutdown_init(self, line):
+        self.type = OpType.SHUTDOWN_INIT
+
+        matches = re.search('stable_timestamp=\((\d+), (\d+)\)', line)
+        stable_start = int(matches.group(1))
+        stable_stop = int(matches.group(2))
+        self.stable = Timestamp(stable_start, stable_stop)
+
+    def __init_tree_skip(self, line):
+        self.type = OpType.TREE_SKIP
+
+        matches = re.search('file:([\w_\.]+)', line)
+        self.file = matches.group(1)
+
+        matches = re.search('durable_timestamp=\((\d+), (\d+)\)', line)
+        durable_start = int(matches.group(1))
+        durable_stop = int(matches.group(2))
+        self.durable = Timestamp(durable_start, durable_stop)
+
+        matches = re.search('stable_timestamp=\((\d+), (\d+)\)', line)
+        stable_start = int(matches.group(1))
+        stable_stop = int(matches.group(2))
+        self.stable = Timestamp(stable_start, stable_stop)
+
+        matches = re.search('txnid=(\d+)', line)
+        self.txnid = int(matches.group(1))

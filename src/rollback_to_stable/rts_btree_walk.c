@@ -260,7 +260,7 @@ __wt_rts_btree_walk_btree_apply(
         WT_ERR(__wt_rts_btree_walk_btree(session, rollback_timestamp));
     } else
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-          "%s: tree skipped with durable timestamp: %s and stable timestamp: %s or txnid: %" PRIu64,
+          "[TREE_SKIP] %s: tree skipped with durable_timestamp=%s and stable_timestamp=%s or txnid=%" PRIu64,
           uri, __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
           __wt_timestamp_to_string(rollback_timestamp, ts_string[1]), rollback_txnid);
 
