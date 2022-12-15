@@ -107,7 +107,7 @@ COMMANDS="
 2>&1 ./s_export > ${t_pfx}s_export
 2>&1 ./s_free > ${t_pfx}s_free
 2>&1 ./s_funcs > ${t_pfx}s_funcs
-2>&1 ./s_function > ${t_pfx}s_function
+2>&1 ./s_function $fast > ${t_pfx}s_function
 2>&1 ./s_getopt > ${t_pfx}s_getopt
 2>&1 ./s_lang > ${t_pfx}s_lang
 2>&1 ./s_longlines > ${t_pfx}s_longlines
