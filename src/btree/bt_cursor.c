@@ -875,8 +875,8 @@ err:
 
 /*
  * __btcur_search_neighboring --
- *     Try after the search key, then before. At low isolation levels, new records could appear as
- *     we are stepping through the tree.
+ *     Search for a valid record around the cursor location.
+ *
  */
 static int
 __btcur_search_neighboring(WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, int *exact)
