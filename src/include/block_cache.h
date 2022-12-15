@@ -123,9 +123,9 @@ struct __wt_blkcache {
     uint64_t removals;
 
     /* Histograms keeping track of number of references to each block */
-#define BLKCACHE_HIST_BUCKETS 11
-#define BLKCACHE_HIST_BOUNDARY 10
-    uint32_t cache_references[BLKCACHE_HIST_BUCKETS];
-    uint32_t cache_references_removed_blocks[BLKCACHE_HIST_BUCKETS];
-    uint32_t cache_references_evicted_blocks[BLKCACHE_HIST_BUCKETS];
+#define WT_BLKCACHE_HIST_BUCKETS 11
+#define WT_BLKCACHE_HIST_BOUNDARY 10
+    uint32_t cache_references[WT_BLKCACHE_HIST_BUCKETS];
+    uint32_t cache_references_removed_blocks[WT_BLKCACHE_HIST_BUCKETS];
+    uint32_t cache_references_evicted_blocks[WT_BLKCACHE_HIST_BUCKETS];
 };

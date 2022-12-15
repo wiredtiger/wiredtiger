@@ -93,9 +93,9 @@ __blkcache_update_ref_histogram(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkc
 
     blkcache = &S2C(session)->blkcache;
 
-    bucket = blkcache_item->num_references / BLKCACHE_HIST_BOUNDARY;
-    if (bucket > BLKCACHE_HIST_BUCKETS - 1)
-        bucket = BLKCACHE_HIST_BUCKETS - 1;
+    bucket = blkcache_item->num_references / WT_BLKCACHE_HIST_BOUNDARY;
+    if (bucket > WT_BLKCACHE_HIST_BUCKETS - 1)
+        bucket = WT_BLKCACHE_HIST_BUCKETS - 1;
 
     blkcache->cache_references[bucket]++;
 
@@ -117,9 +117,9 @@ __blkcache_print_reference_hist(WT_SESSION_IMPL *session, const char *header, ui
     __wt_verbose(session, WT_VERB_BLKCACHE, "%s:", header);
     __wt_verbose(session, WT_VERB_BLKCACHE, "%s", "Reuses \t Number of blocks");
     __wt_verbose(session, WT_VERB_BLKCACHE, "%s", "-----------------------------");
-    for (j = 0; j < BLKCACHE_HIST_BUCKETS; j++) {
-        __wt_verbose(session, WT_VERB_BLKCACHE, "[%d - %d] \t %u", j * BLKCACHE_HIST_BOUNDARY,
-          (j + 1) * BLKCACHE_HIST_BOUNDARY, hist[j]);
+    for (j = 0; j < WT_BLKCACHE_HIST_BUCKETS; j++) {
+        __wt_verbose(session, WT_VERB_BLKCACHE, "[%d - %d] \t %u", j * WT_BLKCACHE_HIST_BOUNDARY,
+          (j + 1) * WT_BLKCACHE_HIST_BOUNDARY, hist[j]);
     }
 }
 
