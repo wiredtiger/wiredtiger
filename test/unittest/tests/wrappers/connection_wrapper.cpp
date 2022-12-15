@@ -42,10 +42,10 @@ ConnectionWrapper::~ConnectionWrapper()
 }
 
 WT_SESSION_IMPL *
-ConnectionWrapper::createSession()
+ConnectionWrapper::createSession(std::string cfg)
 {
     WT_SESSION *sess;
-    _conn->open_session(_conn, nullptr, nullptr, &sess);
+    _conn->open_session(_conn, nullptr, cfg.c_str(), &sess);
 
     auto sess_impl = (WT_SESSION_IMPL *)sess;
     _conn_impl = S2C(sess_impl);

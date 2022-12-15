@@ -32,7 +32,7 @@ class ConnectionWrapper {
      * cleaned up when that connection is closed. Neither this class nor its users need to clean it
      * up.
      */
-    WT_SESSION_IMPL *createSession();
+    WT_SESSION_IMPL *createSession(std::string cfg_str = "");
 
     WT_CONNECTION_IMPL *getWtConnectionImpl() const;
     WT_CONNECTION *getWtConnection() const;
