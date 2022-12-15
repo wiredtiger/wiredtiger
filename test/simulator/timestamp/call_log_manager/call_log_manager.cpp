@@ -232,7 +232,8 @@ call_log_manager::call_log_query_timestamp(const json &call_log_entry)
 
         ret = session->query_timestamp(config, hex_ts);
     } else
-        throw std::invalid_argument("'query_timestamp' failed as class name '" + class_name + "' does not exist!");
+        throw std::invalid_argument(
+          "'query_timestamp' failed as class name '" + class_name + "' does not exist!");
 
     int ret_expected = call_log_entry["return"]["return_val"].get<int>();
     /* The ret value should be equal to the expected ret value. */
