@@ -591,8 +591,10 @@ __wt_cursor_get_raw_key_value(WT_CURSOR *cursor, WT_ITEM *key, WT_ITEM *value)
 
     CURSOR_API_CALL(cursor, session, get_value, NULL);
 
-    if (!F_ISSET(cursor,
-          WT_CURSTD_KEY_EXT | WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_EXT | WT_CURSTD_VALUE_INT))
+    if ((key != NULL) && !F_ISSET(cursor, WT_CURSTD_KEY_EXT | WT_CURSTD_KEY_INT))
+        WT_ERR(__wt_cursor_kv_not_set(cursor, true));
+
+    if ((value != NULL) && !F_ISSET(cursor, WT_CURSTD_VALUE_EXT | WT_CURSTD_VALUE_INT))
         WT_ERR(__wt_cursor_kv_not_set(cursor, false));
 
     /* Force an allocated copy when using cursor copy debug. */
