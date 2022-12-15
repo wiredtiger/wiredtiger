@@ -733,7 +733,7 @@ __wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
      * the tree, not as a result of a search.
      */
     if (cbt->ref == NULL) {
-        if (DIAGNOSTIC_ASSERTS_ENABLED( (WT_SESSION_IMPL *) cbt->iface.session)) {
+        if (DIAGNOSTIC_ASSERTS_ENABLED((WT_SESSION_IMPL *)cbt->iface.session)) {
             __wt_cursor_key_order_reset(cbt);
             return;
         }

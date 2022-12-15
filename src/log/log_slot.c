@@ -93,8 +93,8 @@ __log_slot_close(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *releasep, boo
 {
     WT_CONNECTION_IMPL *conn;
     WT_LOG *log;
+    uint64_t time_start, time_stop;
     int64_t end_offset, new_state, old_state;
-    uint64_t time_start, time_stop;	
     int count;
 
     *releasep = false;
