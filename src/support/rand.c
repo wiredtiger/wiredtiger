@@ -63,7 +63,9 @@ __wt_random_init(WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_ATTRIBUTE((visib
  * __wt_random_init_custom_seed --
  *     Initialize the state of a 32-bit pseudo-random number with custom seed.
  */
-void __wt_random_init_custom_seed(WT_RAND_STATE volatile *rnd_state, uint64_t v, uint32_t w, uint32_t z) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+void
+__wt_random_init_custom_seed(WT_RAND_STATE volatile *rnd_state, uint64_t v, uint32_t w, uint32_t z)
+  WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
     WT_RAND_STATE rnd;
 

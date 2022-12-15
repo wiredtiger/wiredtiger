@@ -39,12 +39,13 @@
 #define MAX_RUN 5
 #define MAX_TIERED_FILES 10
 #define NUM_RECORDS 500
+#define MAX_VALUE_SIZE 200
 
 /* Constants and variables declaration. */
 static const char conn_config[] =
   "create,cache_size=2GB,statistics=(all),statistics_log=(json,on_close,wait=1)";
 static const char table_config_row[] = "leaf_page_max=64KB,key_format=i,value_format=S";
-static char data_str[200] = "";
+static unsigned char data_str[MAX_VALUE_SIZE] = "";
 
 static TEST_OPTS *opts, _opts;
 static bool read_data = true;
@@ -157,7 +158,7 @@ run_test_clean(const char *suffix, uint32_t num_records)
 
     for (counter = 0; counter < MAX_RUN; ++counter) {
         testutil_check(__wt_snprintf(
-          home_full, HOME_BUF_SIZE, "%s_%s_%d_%"PRIu32, opts->home, suffix, flush, counter));
+          home_full, HOME_BUF_SIZE, "%s_%s_%d_%" PRIu32, opts->home, suffix, flush, counter));
         run_test(home_full, num_records, counter);
     }
 
@@ -218,14 +219,14 @@ recover_validate(const char *home, uint32_t num_records, uint64_t file_size, uin
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /* Seed the random number generator */
-    v = (uint32_t)getpid() + num_records + pow(2, counter);
-    w = pow(2, flush) + num_records;
-    z = pow(2, counter) + num_records;
+    v = (uint32_t)getpid() + num_records + (2 * counter);
+    w = (uint32_t)(2 * flush) + num_records;
+    z = (2 * counter) + num_records;
     __wt_random_init_custom_seed(&rnd, v, w, z);
 
     str_len = sizeof(data_str) / sizeof(data_str[0]);
     for (i = 0; i < str_len - 1; i++)
-        data_str[i] = 'A' + (uint32_t)__wt_random(&rnd) % 150;
+        data_str[i] = 'a' + (uint32_t)__wt_random(&rnd) % 150;
 
     data_str[str_len - 1] = '\0';
 
@@ -235,7 +236,7 @@ recover_validate(const char *home, uint32_t num_records, uint64_t file_size, uin
         testutil_die(status, "system: %s", rm_cmd);
 
     testutil_check(session->open_cursor(session, opts->uri, NULL, NULL, &cursor));
-    val_1_size = strlen(data_str);
+    val_1_size = strlen((char *)data_str);
 
     gettimeofday(&start, 0);
 
@@ -325,15 +326,15 @@ populate(WT_SESSION *session, uint32_t num_records, uint32_t counter)
     uint64_t v, i, str_len;
 
     /* Seed the random number generator */
-    v = (uint32_t)getpid() + num_records + pow(2, counter);
-    w = pow(2, flush) + num_records;
-    z = pow(2, counter) + num_records;
+    v = (uint32_t)getpid() + num_records + (2 * counter);
+    w = (uint32_t)(2 * flush) + num_records;
+    z = (2 * counter) + num_records;
 
     __wt_random_init_custom_seed(&rnd, v, w, z);
 
     str_len = sizeof(data_str) / sizeof(data_str[0]);
     for (i = 0; i < str_len - 1; i++)
-        data_str[i] = 'A' + (uint32_t)__wt_random(&rnd) % 150;;
+        data_str[i] = 'a' + (uint32_t)__wt_random(&rnd) % 150;
 
     data_str[str_len - 1] = '\0';
 
