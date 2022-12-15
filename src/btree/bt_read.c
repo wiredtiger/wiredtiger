@@ -248,6 +248,33 @@ err:
 }
 
 /*
+ * __cache_sample --
+ *     Log a cache sampling message.
+ */
+static inline int
+__cache_sample(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
+{
+    WT_ADDR_COPY addr;
+    WT_DECL_ITEM(tmp);
+    WT_PAGE *page;
+
+    WT_UNUSED(flags);
+
+    page = ref->page;
+
+    if (__wt_ref_addr_copy(session, ref, &addr)) {
+        WT_RET(__wt_scr_alloc(session, 0, &tmp));
+        __wt_verbose(session, WT_VERB_CACHE_SAMPLING,
+          "cache-sample page %p addr %s type %s read_gen %" PRIu64, (void *)page,
+          __wt_addr_string(session, addr.addr, addr.size, tmp),
+          WT_PAGE_IS_INTERNAL(page) ? "intl" : "leaf", page->read_gen);
+        __wt_scr_free(session, &tmp);
+    }
+
+    return (0);
+}
+
+/*
  * __wt_page_in_func --
  *     Acquire a hazard pointer to a page; if the page is not in-memory, read it from the disk and
  *     build an in-memory version.
@@ -415,6 +442,9 @@ read:
             }
 
 skip_evict:
+            if (WT_VERBOSE_ISSET(session, WT_VERB_CACHE_SAMPLING))
+                WT_RET(__cache_sample(session, ref, flags));
+
             /*
              * If we read the page and are configured to not trash the cache, and no other thread
              * has already used the page, set the read generation so the page is evicted soon.
