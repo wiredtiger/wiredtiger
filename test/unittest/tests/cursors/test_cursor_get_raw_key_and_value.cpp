@@ -50,7 +50,8 @@ require_get_key_value(WT_CURSOR *cursor, const char *expected_key, const char *e
 }
 
 bool
-check_item(WT_ITEM *item, const char* expected) {
+check_item(WT_ITEM *item, const char *expected)
+{
     bool match = true;
     if (expected != nullptr) {
         const char *key = static_cast<const char *>(item->data);
