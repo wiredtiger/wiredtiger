@@ -68,9 +68,12 @@ session_simulator::begin_transaction(const std::string &config)
     /* Check if the read or prepared timestamp should be rounded up. */
     auto pos = config_map.find("roundup_timestamps");
     if (pos != config_map.end()) {
-        if (pos->second.find("read=true"))
+        size_t found = pos->second.find("read=true");
+        if (found != std::string::npos)
             _ts_round_read = true;
-        if (pos->second.find("prepared=true"))
+
+        found = pos->second.find("prepared=true");
+        if (found != std::string::npos)
             _ts_round_prepared = true;
     }
 
