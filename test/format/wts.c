@@ -197,6 +197,35 @@ configure_timing_stress(char **p, size_t max)
 }
 
 /*
+ * configure_debug_mode --
+ *     Configure debug settings.
+ */
+static void
+configure_debug_mode(char **p, size_t max)
+{
+    CONFIG_APPEND(*p, ",debug_mode=(");
+    if (GV(DEBUG_CORRUPTION_ABORT))
+        CONFIG_APPEND(*p, ",corruption_abort");
+    if (GV(DEBUG_CURSOR_COPY))
+        CONFIG_APPEND(*p, ",cursor_copy");
+    if (GV(DEBUG_CURSOR_REPOSITION))
+        CONFIG_APPEND(*p, ",cursor_reposition");
+    if (GV(DEBUG_EVICTION))
+        CONFIG_APPEND(*p, ",eviction");
+    if (GV(DEBUG_REALLOC_EXACT))
+        CONFIG_APPEND(*p, ",realloc_exact");
+    if (GV(DEBUG_REALLOC_MALLOC))
+        CONFIG_APPEND(*p, ",realloc_malloc");
+    if (GV(DEBUG_SLOW_CHECKPOINT))
+        CONFIG_APPEND(*p, ",slow_checkpoint");
+    if (GV(DEBUG_TABLE_LOGGING))
+        CONFIG_APPEND(*p, ",table_logging");
+    if (GV(DEBUG_UPDATE_RESTORE_EVICT))
+        CONFIG_APPEND(*p, ",update_restore_evict");
+    CONFIG_APPEND(*p, ")");
+}
+
+/*
  * create_database --
  *     Create a WiredTiger database.
  */
@@ -285,12 +314,6 @@ create_database(const char *home, WT_CONNECTION **connp)
 
     if (GV(DISK_DATA_EXTEND))
         CONFIG_APPEND(p, ",file_extend=(data=8MB)");
-
-    if (GV(DEBUG_REALLOC_EXACT))
-        CONFIG_APPEND(p, ",debug_mode=(realloc_exact=true)");
-
-    if (GV(DEBUG_REALLOC_MALLOC))
-        CONFIG_APPEND(p, ",debug_mode=(realloc_malloc=true)");
 
     /* Optional timing stress. */
     configure_timing_stress(&p, max);
@@ -493,6 +516,10 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
 
     /* Optional timing stress. */
     configure_timing_stress(&p, max);
+
+    /* Optional debug mode. */
+    configure_debug_mode(&p, max);
+    
 
     /* If in-memory, there's only a single, shared WT_CONNECTION handle. */
     if (GV(RUNS_IN_MEMORY) != 0)
