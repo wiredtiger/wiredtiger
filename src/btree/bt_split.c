@@ -368,7 +368,8 @@ __split_ref_prepare(
         }
         WT_INTL_FOREACH_END;
 
-        WT_WITH_PAGE_INDEX(session, __split_verify_intl_key_order(session, child));
+        if (DIAGNOSTIC_ASSERTS_ENABLED(session))
+            WT_WITH_PAGE_INDEX(session, __split_verify_intl_key_order(session, child));
     }
     *lockedp = locked;
     return (0);
@@ -784,7 +785,8 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     split_gen = __wt_gen(session, WT_GEN_SPLIT);
     parent->pg_intl_split_gen = split_gen;
 
-    WT_WITH_PAGE_INDEX(session, __split_verify_intl_key_order(session, parent));
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session))
+        WT_WITH_PAGE_INDEX(session, __split_verify_intl_key_order(session, parent));
 
     /* The split is complete and verified, ignore benign errors. */
     complete = WT_ERR_IGNORE;
@@ -1055,8 +1057,10 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
     /* Finalize the WT_REF move. */
     __split_ref_final(session, split_gen, &locked);
 
-    WT_WITH_PAGE_INDEX(session, __split_verify_intl_key_order(session, parent));
-    WT_WITH_PAGE_INDEX(session, __split_verify_intl_key_order(session, page));
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {
+        WT_WITH_PAGE_INDEX(session, __split_verify_intl_key_order(session, parent));
+        WT_WITH_PAGE_INDEX(session, __split_verify_intl_key_order(session, page));
+    }
 
     /* The split is complete and verified, ignore benign errors. */
     complete = WT_ERR_IGNORE;
