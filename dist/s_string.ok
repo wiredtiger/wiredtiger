@@ -380,6 +380,7 @@ RCS
 RDNOLOCK
 RDONLY
 READONLY
+REALLOC
 RECNO
 REF's
 REFs
@@ -400,6 +401,7 @@ RXB
 Radu
 ReadFile
 Readonly
+Realloc
 RedHat
 Redistributions
 Refactor
@@ -987,6 +989,7 @@ hhh
 highjack
 hilq
 hotbackup
+hpp
 hs
 hselasky
 html
@@ -1226,6 +1229,7 @@ newv
 nextprev
 nfilename
 nhex
+nlohmann
 nlpo
 nocase
 noclear
@@ -1553,6 +1557,7 @@ txn
 txnc
 txnid
 txnmin
+txp
 txt
 typedef
 typemaps

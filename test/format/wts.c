@@ -266,10 +266,14 @@ create_database(const char *home, WT_CONNECTION **connp)
     /* Encryption. */
     CONFIG_APPEND(p, ",encryption=(name=%s)", encryptor());
 
-/* Miscellaneous. */
+    /* Miscellaneous. */
+    if (GV(BUFFER_ALIGNMENT)) {
 #ifdef HAVE_POSIX_MEMALIGN
-    CONFIG_APPEND(p, ",buffer_alignment=512");
+        CONFIG_APPEND(p, ",buffer_alignment=512");
+#else
+        WARN("%s", "Ignoring buffer_alignment=1, missing HAVE_POSIX_MEMALIGN support")
 #endif
+    }
 
     if (GV(DISK_MMAP))
         CONFIG_APPEND(p, ",mmap=1");
@@ -285,13 +289,8 @@ create_database(const char *home, WT_CONNECTION **connp)
     if (GV(DEBUG_REALLOC_EXACT))
         CONFIG_APPEND(p, ",debug_mode=(realloc_exact=true)");
 
-    /* Configure realloc malloc debug mode. */
-    if (GV(DEBUG_REALLOC_MALLOC)) {
-        if (mmrand(NULL, 0, 1) == 1)
-            CONFIG_APPEND(p, ",debug_mode=(realloc_exact=true,realloc_malloc=true)");
-        else
-            CONFIG_APPEND(p, ",debug_mode=(realloc_malloc=true)");
-    }
+    if (GV(DEBUG_REALLOC_MALLOC))
+        CONFIG_APPEND(p, ",debug_mode=(realloc_malloc=true)");
 
     /* Optional timing stress. */
     configure_timing_stress(&p, max);
