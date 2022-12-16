@@ -48,14 +48,6 @@ errchk()
         return
     fi
 
-    # Return if evergreen validate runs successfully.
-    if echo "$1" | grep -q "evergreen"; then
-        if  cat "$2" | grep -q ".yml is valid"; then
-            rm -f "$2"
-            return
-        fi
-    fi
-
     echo "####################### MESSAGE ############################"
     echo "s_all run of: \"$1\" resulted in:"
     sed -e 's/^/    /' $2
@@ -91,8 +83,8 @@ run "python log.py"
 run "python stat.py"
 run "python verbose.py"
 run "sh ./s_copyright"
-run "sh ./s_style $fast"
-run "./s_clang_format $fast"
+run "sh ./s_style ${fast}"
+run "./s_clang_format ${fast}"
 run "python prototypes.py"
 run "sh ./s_typedef -b"
 run "python test_tag.py"
@@ -103,11 +95,11 @@ COMMANDS="
 2>&1 ./s_define > ${t_pfx}s_define
 2>&1 ./s_docs > ${t_pfx}s_docs
 2>&1 ./s_evergreen > ${t_pfx}s_evergreen
-2>&1 ./s_evergreen_validate $fast > ${t_pfx}s_evergreen_validate
+2>&1 ./s_evergreen_validate ${fast} > ${t_pfx}s_evergreen_validate
 2>&1 ./s_export > ${t_pfx}s_export
 2>&1 ./s_free > ${t_pfx}s_free
 2>&1 ./s_funcs > ${t_pfx}s_funcs
-2>&1 ./s_function $fast > ${t_pfx}s_function
+2>&1 ./s_function ${fast} > ${t_pfx}s_function
 2>&1 ./s_getopt > ${t_pfx}s_getopt
 2>&1 ./s_lang > ${t_pfx}s_lang
 2>&1 ./s_longlines > ${t_pfx}s_longlines

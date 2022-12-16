@@ -26,14 +26,17 @@ if [ $(command -v evergreen) ] && [ -f ~/.evergreen.yml ]; then
         fi
     fi
     cd ..
-    evergreen validate -p wiredtiger test/evergreen.yml > dist/$t 2>&1
+    echo "Validating evergreen.yml " > dist/$t
+    evergreen validate -p wiredtiger test/evergreen.yml >> dist/$t 2>&1
     exit1=$?
+    echo "=-=-=-=-=-=-=-=-=-=-=" >> dist/$t
+    echo "Validating evergreen_develop.yml" >> dist/$t
     evergreen validate -p wiredtiger test/evergreen_develop.yml >> dist/$t 2>&1
     exit2=$?
     cd dist
 fi
 
-if test $exit1 -eq 1 -o $exit2 -eq 1 ; then
+if test $exit1 -ne 0 -o $exit2 -ne 0 ; then
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
     echo "$0 failed with output:"
     cat $t
