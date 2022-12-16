@@ -105,6 +105,9 @@ CONFIG configuration_list[] = {
   {"debug.corruption_abort", "dump core in the case of data corruption",
     C_BOOL, 2, 0, 0, V_GLOBAL_DEBUG_CORRUPTION_ABORT},
 
+  {"debug.checkpoint_retention", "adjust log removal to retain the log records",
+    0x0, 0, 128, 1024, V_GLOBAL_DEBUG_CHECKPOINT_RETENTION},
+
   {"debug.cursor_copy", "make a copy of data returned by a cursor operation and return the copy using system allocator",
     C_BOOL, 2, 0, 0, V_GLOBAL_DEBUG_CURSOR_COPY},
 
@@ -114,11 +117,17 @@ CONFIG configuration_list[] = {
   {"debug.eviction", "modify internal algorithms to force history store eviction to happen more aggressively",
     C_BOOL, 2, 0, 0, V_GLOBAL_DEBUG_EVICTION},
 
+  {"debug.log_retention", "adjust log removal to retain at least this number of log files",
+    0x0, 0, 128, 1024, V_GLOBAL_DEBUG_LOG_RETENTION},
+
   {"debug.realloc_exact", "reallocation of memory will only provide the exact amount requested",
     C_BOOL, 0, 0, 0, V_GLOBAL_DEBUG_REALLOC_EXACT},
 
   {"debug.realloc_malloc", "every realloc call will force a new memory allocation by using malloc",
     C_BOOL, 5, 0, 0, V_GLOBAL_DEBUG_REALLOC_MALLOC},
+
+  {"debug.rollback_error", "return WT_ROLLBACK error from a transaction operation to simulate collision",
+    0x0, 0, 300, 10000000, V_GLOBAL_DEBUG_ROLLBACK_ERROR},
 
   {"debug.slow_checkpoint", "slow down checkpoint creation by slowing down internal page processing",
     C_BOOL, 2, 0, 0, V_GLOBAL_DEBUG_SLOW_CHECKPOINT},

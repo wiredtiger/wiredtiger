@@ -206,16 +206,22 @@ configure_debug_mode(char **p, size_t max)
     CONFIG_APPEND(*p, ",debug_mode=(");
     if (GV(DEBUG_CORRUPTION_ABORT))
         CONFIG_APPEND(*p, ",corruption_abort");
+    if (GV(DEBUG_CHECKPOINT_RETENTION))
+        CONFIG_APPEND(*p, ",checkpoint_retention=%" PRIu32, GV(DEBUG_CHECKPOINT_RETENTION));
     if (GV(DEBUG_CURSOR_COPY))
         CONFIG_APPEND(*p, ",cursor_copy");
     if (GV(DEBUG_CURSOR_REPOSITION))
         CONFIG_APPEND(*p, ",cursor_reposition");
     if (GV(DEBUG_EVICTION))
         CONFIG_APPEND(*p, ",eviction");
+    if (GV(DEBUG_LOG_RETENTION))
+        CONFIG_APPEND(*p, ",log_retention=%" PRIu32, GV(DEBUG_LOG_RETENTION));
     if (GV(DEBUG_REALLOC_EXACT))
         CONFIG_APPEND(*p, ",realloc_exact");
     if (GV(DEBUG_REALLOC_MALLOC))
         CONFIG_APPEND(*p, ",realloc_malloc");
+    if (GV(DEBUG_ROLLBACK_ERROR))
+        CONFIG_APPEND(*p, ",rollback_error=%" PRIu32, GV(DEBUG_ROLLBACK_ERROR));
     if (GV(DEBUG_SLOW_CHECKPOINT))
         CONFIG_APPEND(*p, ",slow_checkpoint");
     if (GV(DEBUG_TABLE_LOGGING))
