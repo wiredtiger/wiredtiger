@@ -102,11 +102,32 @@ CONFIG configuration_list[] = {
   {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured",
     0x0, 5, 100, 3600, V_GLOBAL_CHECKPOINT_WAIT},
 
+  {"debug.corruption_abort", "dump core in the case of data corruption",
+    C_BOOL, 2, 0, 0, V_GLOBAL_DEBUG_CORRUPTION_ABORT},
+
+  {"debug.cursor_copy", "make a copy of data returned by a cursor operation and return the copy using system allocator",
+    C_BOOL, 2, 0, 0, V_GLOBAL_DEBUG_CURSOR_COPY},
+
+  {"debug.cursor_reposition", "cursor temporarily releases any page that requires force eviction",
+    C_BOOL, 2, 0, 0, V_GLOBAL_DEBUG_CURSOR_REPOSITION},
+
+  {"debug.eviction", "modify internal algorithms to force history store eviction to happen more aggressively",
+    C_BOOL, 2, 0, 0, V_GLOBAL_DEBUG_EVICTION},
+
   {"debug.realloc_exact", "reallocation of memory will only provide the exact amount requested",
     C_BOOL, 0, 0, 0, V_GLOBAL_DEBUG_REALLOC_EXACT},
 
   {"debug.realloc_malloc", "every realloc call will force a new memory allocation by using malloc",
     C_BOOL, 5, 0, 0, V_GLOBAL_DEBUG_REALLOC_MALLOC},
+
+  {"debug.slow_checkpoint", "slow down checkpoint creation by slowing down internal page processing",
+    C_BOOL, 2, 0, 0, V_GLOBAL_DEBUG_SLOW_CHECKPOINT},
+
+  {"debug.table_logging", "write transaction related information to the log for all operations",
+    C_BOOL, 2, 0, 0, V_GLOBAL_DEBUG_TABLE_LOGGING},
+
+  {"debug.update_restore_evict", "control all dirty page evictions through forcing update restore eviction",
+    C_BOOL, 2, 0, 0, V_GLOBAL_DEBUG_UPDATE_RESTORE_EVICT},
 
   {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)",
     C_IGNORE | C_STRING | C_TABLE, 0, 0, 0, V_TABLE_DISK_CHECKSUM},
