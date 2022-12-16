@@ -171,8 +171,10 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
                 }
                 counter = hs_counter + 1;
             }
-        } else if (tw->start_ts == hs_start_ts)
-            counter = hs_counter + 1;
+        } else {
+            if (tw->start_ts == hs_start_ts)
+                counter = hs_counter + 1;
+        }
     }
 
     /*
@@ -1105,8 +1107,8 @@ __hs_delete_record(
                 WT_ASSERT(session, hs_tw->durable_stop_ts == tombstone->durable_ts);
             } else
                 WT_ASSERT(session, !WT_TIME_WINDOW_HAS_STOP(hs_tw));
-        } else
-            WT_ERR(r->hs_cursor->remove(r->hs_cursor));
+        }
+        WT_ERR(r->hs_cursor->remove(r->hs_cursor));
     }
 done:
     if (tombstone != NULL)

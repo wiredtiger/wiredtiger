@@ -845,7 +845,8 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *addr_
             WT_ASSERT(session, dsk->mem_size == result_len + WT_BLOCK_COMPRESS_SKIP);
             ctmp->size = result_len + WT_BLOCK_COMPRESS_SKIP;
 
-            /* Return an error rather than assert because the test suite tests that the error hits.
+            /*
+             * Return an error rather than assert because the test suite tests that the error hits.
              */
             ret = __wt_verify_dsk(session, "[write-check]", ctmp);
 
