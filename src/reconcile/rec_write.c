@@ -30,11 +30,13 @@ int
 __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, uint32_t flags)
 {
     WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
     bool no_reconcile_set, page_locked;
 
     btree = S2BT(session);
+    conn = S2C(session);
     page = ref->page;
 
     session->reconcile_timeline.reconcile_start = __wt_clock(session);
@@ -105,13 +107,25 @@ err:
     if (!no_reconcile_set)
         F_CLR(session, WT_SESSION_NO_RECONCILE);
 
-    /* Track the longest reconciliation, ignoring races (it's just a statistic). */
+    /*
+     * Track the longest reconciliation and time spent in each reconciliation stage, ignoring races
+     * (it's just a statistic).
+     */
     session->reconcile_timeline.reconcile_finish = __wt_clock(session);
+    if (WT_CLOCKDIFF_SEC(session->reconcile_timeline.hs_wrapup_finish,
+          session->reconcile_timeline.hs_wrapup_start) > conn->rec_maximum_hs_wrapup_seconds)
+        conn->rec_maximum_hs_wrapup_seconds =
+          WT_CLOCKDIFF_SEC(session->reconcile_timeline.hs_wrapup_finish,
+            session->reconcile_timeline.hs_wrapup_start);
+    if (WT_CLOCKDIFF_SEC(session->reconcile_timeline.image_build_finish,
+          session->reconcile_timeline.image_build_start) > conn->rec_maximum_image_build_seconds)
+        conn->rec_maximum_image_build_seconds =
+          WT_CLOCKDIFF_SEC(session->reconcile_timeline.image_build_finish,
+            session->reconcile_timeline.image_build_start);
     if (WT_CLOCKDIFF_SEC(session->reconcile_timeline.reconcile_finish,
-          session->reconcile_timeline.reconcile_start) > S2C(session)->rec_maximum_seconds)
-        S2C(session)->rec_maximum_seconds =
-          WT_CLOCKDIFF_SEC(session->reconcile_timeline.reconcile_finish,
-            session->reconcile_timeline.reconcile_start);
+          session->reconcile_timeline.reconcile_start) > conn->rec_maximum_seconds)
+        conn->rec_maximum_seconds = WT_CLOCKDIFF_SEC(session->reconcile_timeline.reconcile_finish,
+          session->reconcile_timeline.reconcile_start);
 
     return (ret);
 }
@@ -237,7 +251,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     WT_RET(__rec_init(session, ref, flags, salvage, &session->reconcile));
     r = session->reconcile;
 
-    session->reconcile_timeline.build_disk_image_start = __wt_clock(session);
+    session->reconcile_timeline.image_build_start = __wt_clock(session);
 
     /* Reconcile the page. */
     switch (page->type) {
@@ -266,7 +280,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         break;
     }
 
-    session->reconcile_timeline.build_disk_image_finish = __wt_clock(session);
+    session->reconcile_timeline.image_build_finish = __wt_clock(session);
 
     /*
      * If we failed, don't bail out yet; we still need to update stats and tidy up.
