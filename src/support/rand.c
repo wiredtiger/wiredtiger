@@ -67,19 +67,22 @@ __wt_random_init_seed(WT_SESSION_IMPL *session, WT_RAND_STATE volatile *rnd_stat
 {
     struct timespec ts;
     WT_RAND_STATE rnd;
+    uintmax_t threadid;
 
     __wt_epoch(session, &ts);
+    __wt_thread_id(&threadid);
 
     /*
-     * Use this, instead of __wt_random_init if we need to vary the initial state of the RNG. This
-     * is (currently) only used by test programs, where, for example, an initial set of test data is
+     * Use this, instead of __wt_random_init, to vary the initial state of the RNG. This is
+     * (currently) only used by test programs, where, for example, an initial set of test data is
      * created by a single thread, and we want more variability in the initial state of the RNG.
      *
-     * Take the seconds and nanoseconds from the clock as seeds, and smear that value across the
-     * value space, using algorithm "xor" from Marsaglia, "Xorshift RNGs".
+     * Take the seconds and nanoseconds from the clock together with the thread ID to generate a
+     * 64-bit seed, then smear that value using algorithm "xor" from Marsaglia, "Xorshift RNGs".
      */
     M_W(rnd) = (uint32_t)ts.tv_sec ^ 521288629;
     M_Z(rnd) = (uint32_t)ts.tv_nsec ^ 362436069;
+    rnd.v ^= (uint64_t)threadid;
     rnd.v ^= rnd.v << 13;
     rnd.v ^= rnd.v >> 7;
     rnd.v ^= rnd.v << 17;
