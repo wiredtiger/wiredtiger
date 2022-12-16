@@ -343,7 +343,12 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
         if (page_del != NULL)
             WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &ft_ta);
         WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &ta);
-        if (__wt_process.page_stats_2022)
+        /*
+         * The fast truncate can be committed concurrently and therefore whether we count the
+         * deleted page in this checkpoint depends on timing. This should not impact the accuracy of
+         * the count after recovery as rollback to stable should have removed all unstable truncate.
+         */
+        if (__wt_process.page_stats_2022 && (page_del == NULL || !page_del->committed))
             WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
     }
     WT_INTL_FOREACH_END;
