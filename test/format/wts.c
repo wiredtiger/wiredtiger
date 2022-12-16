@@ -203,32 +203,31 @@ configure_timing_stress(char **p, size_t max)
 static void
 configure_debug_mode(char **p, size_t max)
 {
-    CONFIG_APPEND(*p, ",debug_mode=(");
-    if (GV(DEBUG_CORRUPTION_ABORT))
-        CONFIG_APPEND(*p, ",corruption_abort");
+    CONFIG_APPEND(*p, ",debug_mode=[");
+
     if (GV(DEBUG_CHECKPOINT_RETENTION))
         CONFIG_APPEND(*p, ",checkpoint_retention=%" PRIu32, GV(DEBUG_CHECKPOINT_RETENTION));
     if (GV(DEBUG_CURSOR_COPY))
-        CONFIG_APPEND(*p, ",cursor_copy");
+        CONFIG_APPEND(*p, ",cursor_copy=true");
     if (GV(DEBUG_CURSOR_REPOSITION))
-        CONFIG_APPEND(*p, ",cursor_reposition");
+        CONFIG_APPEND(*p, ",cursor_reposition=true");
     if (GV(DEBUG_EVICTION))
-        CONFIG_APPEND(*p, ",eviction");
+        CONFIG_APPEND(*p, ",eviction=true");
     if (GV(DEBUG_LOG_RETENTION))
         CONFIG_APPEND(*p, ",log_retention=%" PRIu32, GV(DEBUG_LOG_RETENTION));
     if (GV(DEBUG_REALLOC_EXACT))
-        CONFIG_APPEND(*p, ",realloc_exact");
+        CONFIG_APPEND(*p, ",realloc_exact=true");
     if (GV(DEBUG_REALLOC_MALLOC))
-        CONFIG_APPEND(*p, ",realloc_malloc");
+        CONFIG_APPEND(*p, ",realloc_malloc=true");
     if (GV(DEBUG_ROLLBACK_ERROR))
         CONFIG_APPEND(*p, ",rollback_error=%" PRIu32, GV(DEBUG_ROLLBACK_ERROR));
     if (GV(DEBUG_SLOW_CHECKPOINT))
-        CONFIG_APPEND(*p, ",slow_checkpoint");
+        CONFIG_APPEND(*p, ",slow_checkpoint=true");
     if (GV(DEBUG_TABLE_LOGGING))
-        CONFIG_APPEND(*p, ",table_logging");
+        CONFIG_APPEND(*p, ",table_logging=true");
     if (GV(DEBUG_UPDATE_RESTORE_EVICT))
-        CONFIG_APPEND(*p, ",update_restore_evict");
-    CONFIG_APPEND(*p, ")");
+        CONFIG_APPEND(*p, ",update_restore_evict=true");
+    CONFIG_APPEND(*p, "]");
 }
 
 /*
@@ -525,7 +524,6 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
 
     /* Optional debug mode. */
     configure_debug_mode(&p, max);
-    
 
     /* If in-memory, there's only a single, shared WT_CONNECTION handle. */
     if (GV(RUNS_IN_MEMORY) != 0)

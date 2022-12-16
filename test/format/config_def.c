@@ -102,9 +102,6 @@ CONFIG configuration_list[] = {
   {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured",
     0x0, 5, 100, 3600, V_GLOBAL_CHECKPOINT_WAIT},
 
-  {"debug.corruption_abort", "dump core in the case of data corruption",
-    C_BOOL, 2, 0, 0, V_GLOBAL_DEBUG_CORRUPTION_ABORT},
-
   {"debug.checkpoint_retention", "adjust log removal to retain the log records",
     0x0, 0, 128, 1024, V_GLOBAL_DEBUG_CHECKPOINT_RETENTION},
 

@@ -137,8 +137,6 @@ CONFIG configuration_list[] = {
 
 {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured", 0x0, 5, 100, 3600}
 
-{"debug.corruption_abort", "dump core in the case of data corruption", C_BOOL, 2, 0, 0}
-
 {"debug.checkpoint_retention", "adjust log removal to retain the log records", 0x0, 0, 128, 1024}
 
 {"debug.cursor_copy", "make a copy of data returned by a cursor operation and return the copy using system allocator", C_BOOL, 2, 0, 0}
