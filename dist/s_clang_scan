@@ -20,14 +20,14 @@ test -z "$scan" || compiler="${SCANCOMPILER:-clang}"
 if test -z "$scan" &&
     test -x /usr/bin/clang &&
     test -x /usr/bin/scan-build; then
-	compiler="/usr/bin/clang"
-	scan="/usr/bin/scan-build"
+    compiler="/usr/bin/clang"
+    scan="/usr/bin/scan-build"
 fi
 
 if test -z "$scan"; then
-	echo "$0: no clang compiler and scan-build programs found"
-	echo "$0: set \$SCANCOMPILER=/path/clang and \$SCANBUILD=/path/scan-build to continue"
-	exit 1
+    echo "$0: no clang compiler and scan-build programs found"
+    echo "$0: set \$SCANCOMPILER=/path/clang and \$SCANBUILD=/path/scan-build to continue"
+    exit 1
 fi
 echo "$0: compiler: $compiler"
 echo "$0: scan-build: $scan"
@@ -48,9 +48,9 @@ cd ..
 grep 'No bugs found' $t_out > /dev/null && exit 0
 
 # Compare the set of errors/warnings and exit success when they're expected.
-# clang-scan outputs errors/warnings with a leading file path followed by a
+# clang_scan outputs errors/warnings with a leading file path followed by a
 # colon, followed by the string "error:" or "warning:".
-cat dist/s_clang-scan.diff |
+cat dist/s_clang_scan.diff |
     egrep '^[a-z\./].*error: |^[a-z\./].*warning: ' | sed -e 's/:.*:.*://' | sort > $a
 cat $t_err |
     egrep '^[a-z\./].*error: |^[a-z\./].*warning: ' | sed -e 's/:.*:.*://' | sort > $b
@@ -60,5 +60,5 @@ echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 echo 'scan-build output differs from expected:'
 echo '<<<<<<<<<< Expected >>>>>>>>>> Current'
 echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-diff dist/s_clang-scan.diff $t_err
+diff dist/s_clang_scan.diff $t_err
 exit 1
