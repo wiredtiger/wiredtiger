@@ -3,10 +3,10 @@
 t=__wt.$$
 trap 'rm -f $t' 0 1 2 3 13 15
 
-fast=1
+fast=false
 case "$1" in
     -F) # Run fast.
-        fast=0
+        fast=true
         shift;;
     *)
         if test $# -gt 1 ; then
@@ -17,7 +17,7 @@ case "$1" in
 esac
 
 if [ $(command -v evergreen) ] && [ -f ~/.evergreen.yml ]; then
-    if test $fast -eq 0 ; then
+    if $fast ; then
         # Check the evergreen.yml files for modifications.
         search=`git diff --name-only $(git merge-base --fork-point develop) | grep -E 'evergreen.*\.yml$'`
         # If we didn't find any files then exit.
