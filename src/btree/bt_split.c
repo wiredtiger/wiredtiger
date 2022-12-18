@@ -48,7 +48,6 @@ __split_safe_free(WT_SESSION_IMPL *session, uint64_t split_gen, bool exclusive, 
     return (__wt_stash_add(session, WT_GEN_SPLIT, split_gen, p, s));
 }
 
-#ifdef HAVE_DIAGNOSTIC
 /*
  * __split_verify_intl_key_order --
  *     Verify the key order on an internal page after a split.
@@ -146,7 +145,6 @@ err:
     /* Something really bad just happened. */
     WT_RET_PANIC(session, ret, "fatal error during page split");
 }
-#endif
 
 /*
  * __split_ovfl_key_cleanup --
@@ -370,9 +368,8 @@ __split_ref_prepare(
         }
         WT_INTL_FOREACH_END;
 
-#ifdef HAVE_DIAGNOSTIC
-        WT_WITH_PAGE_INDEX(session, __split_verify_intl_key_order(session, child));
-#endif
+        if (DIAGNOSTIC_ASSERTS_ENABLED(session))
+            WT_WITH_PAGE_INDEX(session, __split_verify_intl_key_order(session, child));
     }
     *lockedp = locked;
     return (0);
@@ -533,10 +530,10 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
     /* Finalize the WT_REF move. */
     __split_ref_final(session, split_gen, &locked);
 
-#ifdef HAVE_DIAGNOSTIC
-    WT_WITH_PAGE_INDEX(session, ret = __split_verify_root(session, root));
-    WT_ERR(ret);
-#endif
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {
+        WT_WITH_PAGE_INDEX(session, ret = __split_verify_root(session, root));
+        WT_ERR(ret);
+    }
 
     /* The split is complete and verified, ignore benign errors. */
     complete = WT_ERR_IGNORE;
@@ -788,9 +785,8 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     split_gen = __wt_gen(session, WT_GEN_SPLIT);
     parent->pg_intl_split_gen = split_gen;
 
-#ifdef HAVE_DIAGNOSTIC
-    WT_WITH_PAGE_INDEX(session, __split_verify_intl_key_order(session, parent));
-#endif
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session))
+        WT_WITH_PAGE_INDEX(session, __split_verify_intl_key_order(session, parent));
 
     /* The split is complete and verified, ignore benign errors. */
     complete = WT_ERR_IGNORE;
@@ -1061,10 +1057,10 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
     /* Finalize the WT_REF move. */
     __split_ref_final(session, split_gen, &locked);
 
-#ifdef HAVE_DIAGNOSTIC
-    WT_WITH_PAGE_INDEX(session, __split_verify_intl_key_order(session, parent));
-    WT_WITH_PAGE_INDEX(session, __split_verify_intl_key_order(session, page));
-#endif
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {
+        WT_WITH_PAGE_INDEX(session, __split_verify_intl_key_order(session, parent));
+        WT_WITH_PAGE_INDEX(session, __split_verify_intl_key_order(session, page));
+    }
 
     /* The split is complete and verified, ignore benign errors. */
     complete = WT_ERR_IGNORE;

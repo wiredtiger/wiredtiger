@@ -717,12 +717,10 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
     WT_SESSION_IMPL *session;
     size_t total_skipped, skipped;
     uint32_t flags;
-    bool key_out_of_bounds, newpage, restart, need_walk;
-#ifdef HAVE_DIAGNOSTIC
     bool inclusive_set;
+    bool key_out_of_bounds, newpage, restart, need_walk;
 
     inclusive_set = false;
-#endif
     cursor = &cbt->iface;
     key_out_of_bounds = false;
     need_walk = false;
@@ -888,35 +886,37 @@ err:
             F_SET(cursor, WT_CURSTD_KEY_INT);
         else
             F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
-#ifdef HAVE_DIAGNOSTIC
-        /*
-         * Skip key order check, if next is called after a prev returned a prepare conflict error,
-         * i.e cursor has changed direction at a prepared update, hence current key returned could
-         * be same as earlier returned key.
-         *
-         * eg: Initial data set : (2,3,...10) insert key 1 in a prepare transaction. loop on prev
-         * will return 10,...3,2 and subsequent call to prev will return a prepare conflict. Now if
-         * we call next key 2 will be returned which will be same as earlier returned key.
-         */
-        if (!F_ISSET(cbt, WT_CBT_ITERATE_RETRY_NEXT))
-            ret = __wt_cursor_key_order_check(session, cbt, false);
 
-        if (need_walk) {
+        if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {
             /*
-             * The bounds positioning code relies on the assumption that if we had to walk then we
-             * can't possibly have walked to the upper bound. We check that assumption here by
-             * comparing the upper bound with our current key or recno. Force inclusive to be false
-             * so we don't consider the bound itself.
+             * Skip key order check, if next is called after a prev returned a prepare conflict
+             * error, i.e cursor has changed direction at a prepared update, hence current key
+             * returned could be same as earlier returned key.
+             *
+             * eg: Initial data set : (2,3,...10) insert key 1 in a prepare transaction. loop on
+             * prev will return 10,...3,2 and subsequent call to prev will return a prepare
+             * conflict. Now if we call next key 2 will be returned which will be same as earlier
+             * returned key.
              */
-            inclusive_set = F_ISSET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE);
-            F_CLR(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE);
-            ret = __wt_compare_bounds(
-              session, cursor, &cbt->iface.key, cbt->recno, true, &key_out_of_bounds);
-            WT_ASSERT(session, ret == 0 && !key_out_of_bounds);
-            if (inclusive_set)
-                F_SET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE);
+            if (!F_ISSET(cbt, WT_CBT_ITERATE_RETRY_NEXT))
+                ret = __wt_cursor_key_order_check(session, cbt, false);
+
+            if (need_walk) {
+                /*
+                 * The bounds positioning code relies on the assumption that if we had to walk then
+                 * we can't possibly have walked to the upper bound. We check that assumption here
+                 * by comparing the upper bound with our current key or recno. Force inclusive to be
+                 * false so we don't consider the bound itself.
+                 */
+                inclusive_set = F_ISSET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE);
+                F_CLR(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE);
+                ret = __wt_compare_bounds(
+                  session, cursor, &cbt->iface.key, cbt->recno, true, &key_out_of_bounds);
+                WT_ASSERT(session, ret == 0 && !key_out_of_bounds);
+                if (inclusive_set)
+                    F_SET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE);
+            }
         }
-#endif
         break;
     case WT_PREPARE_CONFLICT:
         /*

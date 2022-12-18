@@ -715,7 +715,6 @@ __meta_ckptlist_allocate_new_ckpt(
     return (0);
 }
 
-#ifdef HAVE_DIAGNOSTIC
 /*
  * __assert_ckpt_matches --
  *     Assert that given two checkpoints match.
@@ -781,7 +780,6 @@ __assert_checkpoint_list_matches(WT_SESSION_IMPL *session, WT_CKPT *saved_list, 
         ((ckpt_saved != NULL && ckpt_saved->order == 0) &&
           (ckpt_new != NULL && ckpt_new->order == 0)));
 }
-#endif
 
 /*
  * __wt_meta_ckptlist_get --
@@ -793,9 +791,7 @@ __wt_meta_ckptlist_get(
   WT_SESSION_IMPL *session, const char *fname, bool update, WT_CKPT **ckptbasep, size_t *allocated)
 {
     WT_BTREE *btree;
-#ifdef HAVE_DIAGNOSTIC
     WT_CKPT *ckptbase_comp;
-#endif
     WT_DECL_RET;
     char *config;
 
@@ -821,18 +817,18 @@ __wt_meta_ckptlist_get(
               session, ckptbasep, &btree->ckpt_bytes_allocated, NULL));
         if (allocated != NULL)
             *allocated = btree->ckpt_bytes_allocated;
-#ifdef HAVE_DIAGNOSTIC
-        /*
-         * Sanity check: Let's compare to a list generated from metadata. There should be no
-         * differences.
-         */
-        WT_ERR(__wt_metadata_search(session, fname, &config));
-        if ((ret = __wt_meta_ckptlist_get_from_config(
-               session, update, &ckptbase_comp, NULL, config)) == 0)
-            __assert_checkpoint_list_matches(session, *ckptbasep, ckptbase_comp);
-        __wt_meta_ckptlist_free(session, &ckptbase_comp);
-        WT_ERR(ret);
-#endif
+        if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {
+            /*
+             * Sanity check: Let's compare to a list generated from metadata. There should be no
+             * differences.
+             */
+            WT_ERR(__wt_metadata_search(session, fname, &config));
+            if ((ret = __wt_meta_ckptlist_get_from_config(
+                   session, update, &ckptbase_comp, NULL, config)) == 0)
+                __assert_checkpoint_list_matches(session, *ckptbasep, ckptbase_comp);
+            __wt_meta_ckptlist_free(session, &ckptbase_comp);
+            WT_ERR(ret);
+        }
     } else {
         WT_ERR(__wt_metadata_search(session, fname, &config));
         WT_ERR(__wt_meta_ckptlist_get_from_config(session, update, ckptbasep, allocated, config));

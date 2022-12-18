@@ -1153,9 +1153,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     WT_TIME_WINDOW tw;
     WT_TXN *txn;
     WT_UPDATE *first_committed_upd, *upd, *upd_followed_tombstone;
-#ifdef HAVE_DIAGNOSTIC
     WT_UPDATE *head_upd;
-#endif
+
     uint8_t *p, resolve_case, hs_recno_key_buf[WT_INTPACK64_MAXSIZE];
     char ts_string[3][WT_TS_INT_STRING_SIZE];
     bool tw_found, has_hs_record;
@@ -1435,28 +1434,28 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         WT_ERR(__txn_fixup_hs_update(session, hs_cursor));
 
 prepare_verify:
-#ifdef HAVE_DIAGNOSTIC
-    for (; head_upd != NULL; head_upd = head_upd->next) {
-        /*
-         * Assert if we still have an update from the current transaction that hasn't been resolved
-         * or aborted.
-         */
-        WT_ASSERT(session,
-          head_upd->txnid == WT_TXN_ABORTED || head_upd->prepare_state == WT_PREPARE_RESOLVED ||
-            head_upd->txnid != txn->id);
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {
+        for (; head_upd != NULL; head_upd = head_upd->next) {
+            /*
+             * Assert if we still have an update from the current transaction that hasn't been
+             * resolved or aborted.
+             */
+            WT_ASSERT(session,
+              head_upd->txnid == WT_TXN_ABORTED || head_upd->prepare_state == WT_PREPARE_RESOLVED ||
+                head_upd->txnid != txn->id);
 
-        if (head_upd->txnid == WT_TXN_ABORTED)
-            continue;
+            if (head_upd->txnid == WT_TXN_ABORTED)
+                continue;
 
-        /*
-         * If we restored an update from the history store, it should be the last update on the
-         * chain.
-         */
-        if (!commit && resolve_case == RESOLVE_PREPARE_ON_DISK &&
-          head_upd->type == WT_UPDATE_STANDARD && F_ISSET(head_upd, WT_UPDATE_RESTORED_FROM_HS))
-            WT_ASSERT(session, head_upd->next == NULL);
+            /*
+             * If we restored an update from the history store, it should be the last update on the
+             * chain.
+             */
+            if (!commit && resolve_case == RESOLVE_PREPARE_ON_DISK &&
+              head_upd->type == WT_UPDATE_STANDARD && F_ISSET(head_upd, WT_UPDATE_RESTORED_FROM_HS))
+                WT_ASSERT(session, head_upd->next == NULL);
+        }
     }
-#endif
 
 err:
     if (hs_cursor != NULL)

@@ -527,13 +527,12 @@ __cursor_col_search(WT_CURSOR_BTREE *cbt, WT_REF *leaf, bool *leaf_foundp)
 
     session = CUR2S(cbt);
 
-#ifdef HAVE_DIAGNOSTIC
-    /*
-     * Turn off cursor-order checks in all cases on search. The search/search-near functions turn
-     * them back on after a successful search.
-     */
-    __wt_cursor_key_order_reset(cbt);
-#endif
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session))
+        /*
+         * Turn off cursor-order checks in all cases on search. The search/search-near functions
+         * turn them back on after a successful search.
+         */
+        __wt_cursor_key_order_reset(cbt);
 
     WT_WITH_PAGE_INDEX(
       session, ret = __wt_col_search(cbt, cbt->iface.recno, leaf, false, leaf_foundp));
@@ -552,13 +551,12 @@ __cursor_row_search(WT_CURSOR_BTREE *cbt, bool insert, WT_REF *leaf, bool *leaf_
 
     session = CUR2S(cbt);
 
-#ifdef HAVE_DIAGNOSTIC
-    /*
-     * Turn off cursor-order checks in all cases on search. The search/search-near functions turn
-     * them back on after a successful search.
-     */
-    __wt_cursor_key_order_reset(cbt);
-#endif
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session))
+        /*
+         * Turn off cursor-order checks in all cases on search. The search/search-near functions
+         * turn them back on after a successful search.
+         */
+        __wt_cursor_key_order_reset(cbt);
 
     WT_WITH_PAGE_INDEX(
       session, ret = __wt_row_search(cbt, &cbt->iface.key, insert, leaf, false, leaf_foundp));

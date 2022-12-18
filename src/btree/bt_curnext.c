@@ -556,7 +556,6 @@ restart_read_page:
     /* NOTREACHED */
 }
 
-#ifdef HAVE_DIAGNOSTIC
 /*
  * __cursor_key_order_check_col --
  *     Check key ordering for column-store cursor movements.
@@ -583,9 +582,12 @@ __cursor_key_order_check_col(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
         cbt->lastrecno = cbt->recno;
         return (0);
     }
-
+#ifdef HAVE_DIAGNOSTIC
     WT_RET(__wt_msg(session, "dumping the tree"));
     WT_WITH_BTREE(session, btree, ret = __wt_debug_tree_all(session, NULL, NULL, NULL));
+#else
+    WT_UNUSED(btree);
+#endif
     __wt_verbose_error(session, WT_VERB_OUT_OF_ORDER,
       "WT_CURSOR.%s out-of-order returns: returned key %" PRIu64 " then key %" PRIu64,
       next ? "next" : "prev", cbt->lastrecno, cbt->recno);
@@ -628,8 +630,10 @@ __cursor_key_order_check_row(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
       __wt_buf_set_printable_format(
         session, cbt->lastkey->data, cbt->lastkey->size, btree->key_format, false, a),
       __wt_buf_set_printable_format(session, key->data, key->size, btree->key_format, false, b));
+#ifdef HAVE_DIAGNOSTIC
     WT_ERR(__wt_msg(session, "dumping the tree"));
     WT_WITH_BTREE(session, btree, ret = __wt_debug_tree_all(session, NULL, NULL, NULL));
+#endif
     WT_ERR_PANIC(session, EINVAL, "found key out-of-order returns");
 
 err:
@@ -700,7 +704,6 @@ __wt_cursor_key_order_reset(WT_CURSOR_BTREE *cbt)
         cbt->lastkey->size = 0;
     cbt->lastrecno = WT_RECNO_OOB;
 }
-#endif
 
 /*
  * __wt_btcur_iterate_setup --
@@ -730,10 +733,10 @@ __wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
      * the tree, not as a result of a search.
      */
     if (cbt->ref == NULL) {
-#ifdef HAVE_DIAGNOSTIC
-        __wt_cursor_key_order_reset(cbt);
-#endif
-        return;
+        if (DIAGNOSTIC_ASSERTS_ENABLED((WT_SESSION_IMPL *)cbt->iface.session)) {
+            __wt_cursor_key_order_reset(cbt);
+            return;
+        }
     }
 
     page = cbt->ref->page;
@@ -780,12 +783,10 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
     WT_SESSION_IMPL *session;
     size_t total_skipped, skipped;
     uint32_t flags;
-    bool key_out_of_bounds, newpage, restart, need_walk;
-#ifdef HAVE_DIAGNOSTIC
     bool inclusive_set;
+    bool key_out_of_bounds, newpage, restart, need_walk;
 
     inclusive_set = false;
-#endif
     cursor = &cbt->iface;
     key_out_of_bounds = false;
     need_walk = false;
@@ -953,35 +954,37 @@ err:
     switch (ret) {
     case 0:
         F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
-#ifdef HAVE_DIAGNOSTIC
-        /*
-         * Skip key order check, if prev is called after a next returned a prepare conflict error,
-         * i.e cursor has changed direction at a prepared update, hence current key returned could
-         * be same as earlier returned key.
-         *
-         * eg: Initial data set : (1,2,3,...10) insert key 11 in a prepare transaction. loop on next
-         * will return 1,2,3...10 and subsequent call to next will return a prepare conflict. Now if
-         * we call prev key 10 will be returned which will be same as earlier returned key.
-         */
-        if (!F_ISSET(cbt, WT_CBT_ITERATE_RETRY_PREV))
-            ret = __wt_cursor_key_order_check(session, cbt, true);
 
-        if (need_walk) {
+        if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {
             /*
-             * The bounds positioning code relies on the assumption that if we had to walk then we
-             * can't possibly have walked to the lower bound. We check that assumption here by
-             * comparing the lower bound with our current key or recno. Force inclusive to be false
-             * so we don't consider the bound itself.
+             * Skip key order check, if prev is called after a next returned a prepare conflict
+             * error, i.e cursor has changed direction at a prepared update, hence current key
+             * returned could be same as earlier returned key.
+             *
+             * eg: Initial data set : (1,2,3,...10) insert key 11 in a prepare transaction. loop on
+             * next will return 1,2,3...10 and subsequent call to next will return a prepare
+             * conflict. Now if we call prev key 10 will be returned which will be same as earlier
+             * returned key.
              */
-            inclusive_set = F_ISSET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);
-            F_CLR(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);
-            ret = __wt_compare_bounds(
-              session, cursor, &cbt->iface.key, cbt->recno, false, &key_out_of_bounds);
-            WT_ASSERT(session, ret == 0 && !key_out_of_bounds);
-            if (inclusive_set)
-                F_SET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);
+            if (!F_ISSET(cbt, WT_CBT_ITERATE_RETRY_PREV))
+                ret = __wt_cursor_key_order_check(session, cbt, true);
+
+            if (need_walk) {
+                /*
+                 * The bounds positioning code relies on the assumption that if we had to walk then
+                 * we can't possibly have walked to the lower bound. We check that assumption here
+                 * by comparing the lower bound with our current key or recno. Force inclusive to be
+                 * false so we don't consider the bound itself.
+                 */
+                inclusive_set = F_ISSET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);
+                F_CLR(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);
+                ret = __wt_compare_bounds(
+                  session, cursor, &cbt->iface.key, cbt->recno, false, &key_out_of_bounds);
+                WT_ASSERT(session, ret == 0 && !key_out_of_bounds);
+                if (inclusive_set)
+                    F_SET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);
+            }
         }
-#endif
         break;
     case WT_PREPARE_CONFLICT:
         /*
