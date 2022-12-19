@@ -520,13 +520,17 @@ connection_runtime_config = [
         the maximum number of milliseconds an application thread will wait for space to be
         available in cache before giving up. Default will wait forever''',
         min=0),
-    Config('diagnostic_asserts', '', r'''
-        enable additional assertions.
-        When \c off only mandatory assertions are enabled.
-        When \c on additional diagnostic assertions are enabled.
-        This flag defaults to \c off. When WiredTiger is compiled with HAVE_DIAGNOSTIC=1 
-        this flag is hard set to \c on and cannot be configured.''',
-        choices=['off', 'on']),
+    Config('diagnostic_asserts', '[]', r'''
+        enable additional assertions in WiredTiger.
+        Options are given as a list, such as 
+        <code>"diagnostic_asserts=[out_of_order,visibility]"</code>.
+        Choosing \c all enables all assertions. When WiredTiger is compiled with 
+        \c HAVE_DIAGNOSTIC=1 all assertions are enabled and cannot be reconfigured
+        ''',
+        type='list', choices=[
+            "all", "concurrent_access", "data_validation", "invalid_op", "out_of_order",
+            "panic", "slow_operation", "visibility"]),
+
     Config('history_store', '', r'''
         history store configuration options''',
         type='category', subconfig=[
@@ -1032,14 +1036,6 @@ session_config = [
         available in cache before giving up. Default value will be the global setting of the
         connection config''',
         min=0),
-    Config('diagnostic_asserts', '', r'''
-        enable additional assertions.
-        When \c off only mandatory assertions are enabled.
-        When \c on additional diagnostic assertions are enabled.
-        When set to \c connection this setting is inherited from the connection.
-        This flag defaults to \c connection. When WiredTiger is compiled with HAVE_DIAGNOSTIC=1 
-        this flag is hard set to \c on and cannot be configured.''',
-        choices=['off', 'on', 'connection']),
     Config('ignore_cache_size', 'false', r'''
         when set, operations performed by this session ignore the cache size and are not blocked
         when the cache is full. Note that use of this option for operations that create cache

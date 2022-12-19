@@ -1956,6 +1956,7 @@ err:
     return (ret);
 }
 
+#ifdef HAVE_DIAGNOSTIC
 /*
  * __wt_diagnostic_asserts_config --
  *     Set diagnostic assertions configuration.
@@ -1969,23 +1970,50 @@ __wt_diagnostic_asserts_config(WT_SESSION_IMPL *session, const char *cfg[])
     conn = S2C(session);
 
     WT_RET(__wt_config_gets(session, cfg, "diagnostic_asserts", &cval));
-#ifdef HAVE_DIAGNOSTIC
+
     if (cval.len > 0)
         WT_RET_MSG(session, EINVAL,
-          "WiredTiger has been compiled with HAVE_DIAGNOSTIC=1 and diagnostic_asserts are always "
+          "WiredTiger has been compiled with HAVE_DIAGNOSTIC=1 and all assertions are always "
           "enabled. This cannot be configured.");
-    FLD_SET(conn->debug_flags, WT_CONN_DEBUG_DIAGNOSTIC_ASSERTS);
-#else
-    if (WT_STRING_MATCH("off", cval.str, cval.len))
-        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_DIAGNOSTIC_ASSERTS);
-    else if (WT_STRING_MATCH("on", cval.str, cval.len))
-        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_DIAGNOSTIC_ASSERTS);
-    else if (cval.len > 0)
-        WT_RET_MSG(session, EINVAL, "Invalid value provided for diagnostic_asserts");
-#endif
+    conn->runtime_asserts_flags = WT_DIAG_ALL;
 
     return (0);
 }
+#else
+/*
+ * __wt_diagnostic_asserts_config --
+ *     Set diagnostic assertions configuration.
+ */
+int
+__wt_diagnostic_asserts_config(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    static const WT_NAME_FLAG assert_types[] = {{"all", WT_DIAG_ALL},
+      {"concurrent_access", WT_DIAG_CONCURRENT_ACCESS},
+      {"data_validation", WT_DIAG_DATA_VALIDATION}, {"invalid_op", WT_DIAG_INVALID_OP},
+      {"out_of_order", WT_DIAG_OUT_OF_ORDER}, {"panic", WT_DIAG_PANIC},
+      {"slow_operation", WT_DIAG_SLOW_OPERATION}, {"visibility", WT_DIAG_VISIBILITY}};
+
+    WT_CONNECTION_IMPL *conn;
+    WT_CONFIG_ITEM cval, sval;
+    WT_DECL_RET;
+    const WT_NAME_FLAG *ft;
+    uint32_t flags;
+
+    conn = S2C(session);
+
+    WT_RET(__wt_config_gets(session, cfg, "diagnostic_asserts", &cval));
+
+    flags = 0;
+    for (ft = assert_types; ft->name != NULL; ft++) {
+        if ((ret = __wt_config_subgets(session, &cval, ft->name, &sval)) == 0 && sval.val != 0)
+            LF_SET(ft->flag);
+        WT_RET_NOTFOUND_OK(ret);
+    }
+
+    conn->runtime_asserts_flags = flags;
+    return (0);
+}
+#endif
 
 /*
  * __wt_debug_mode_config --
