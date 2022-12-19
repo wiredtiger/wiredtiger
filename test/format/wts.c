@@ -209,8 +209,6 @@ configure_debug_mode(char **p, size_t max)
         CONFIG_APPEND(*p, ",checkpoint_retention=%" PRIu32, GV(DEBUG_CHECKPOINT_RETENTION));
     if (GV(DEBUG_CURSOR_COPY))
         CONFIG_APPEND(*p, ",cursor_copy=true");
-    if (GV(DEBUG_CURSOR_REPOSITION))
-        CONFIG_APPEND(*p, ",cursor_reposition=true");
     if (GV(DEBUG_EVICTION))
         CONFIG_APPEND(*p, ",eviction=true");
     if (GV(DEBUG_LOG_RETENTION))
@@ -219,8 +217,6 @@ configure_debug_mode(char **p, size_t max)
         CONFIG_APPEND(*p, ",realloc_exact=true");
     if (GV(DEBUG_REALLOC_MALLOC))
         CONFIG_APPEND(*p, ",realloc_malloc=true");
-    if (GV(DEBUG_ROLLBACK_ERROR))
-        CONFIG_APPEND(*p, ",rollback_error=%" PRIu32, GV(DEBUG_ROLLBACK_ERROR));
     if (GV(DEBUG_SLOW_CHECKPOINT))
         CONFIG_APPEND(*p, ",slow_checkpoint=true");
     if (GV(DEBUG_TABLE_LOGGING))
