@@ -18,7 +18,7 @@ endif()
 
 create_test_executable(wtperf
     SOURCES
-        config.c
+        wtperf_config.c
         idle_table_cycle.c
         misc.c
         track.c
