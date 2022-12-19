@@ -155,6 +155,10 @@ CONFIG configuration_list[] = {
 
 {"disk.mmap_all", "configure mmap operations (read and write)", C_BOOL, 5, 0, 0}
 
+{"file_manager.close_handle_minimum", "number of handles open before the file manager will look for handles to close", 0x0, 0, 50, 100}
+
+{"file_manager.close_idle_time", "amount of time in seconds a file handle needs to be idle before attempting to close it. A setting of 0 means that idle handles are not closed", 0x0, 0, 10000, 100000}
+
 {"format.abort", "drop core during timed run", C_BOOL, 0, 0, 0}
 
 {"format.independent_thread_rng", "configure independent thread RNG space", C_BOOL, 75, 0, 0}
