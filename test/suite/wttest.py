@@ -514,8 +514,16 @@ class WiredTigerTestCase(unittest.TestCase):
     def setUpConnectionOpen(self, home):
         self.home = home
         config = self.conn_config
+        # Collect all statistics for Python tests by default unless configured otherwise.
+        stat_config = 'statistics=(all),statistics_log=(wait=1,timestamps=true,json=true, on_close=true)'
         if hasattr(config, '__call__'):
             config = self.conn_config()
+
+        if not("statistics" in config):
+            if config != "":
+                config += ","
+            config += stat_config
+
         config += self.extensionsConfig()
         # In case the open starts additional threads, flush first to
         # avoid confusion.
