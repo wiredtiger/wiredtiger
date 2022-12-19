@@ -50,7 +50,7 @@ class test_rollback_to_stable32(test_rollback_to_stable_base):
     scenarios = make_scenarios(format_values, prepare_values)
 
     def conn_config(self):
-        config = 'cache_size=100MB,statistics=(all)'
+        config = 'cache_size=100MB,statistics=(all),verbose=(rts:5)'
         return config
 
     def test_rollback_to_stable_with_update_restore_evict(self):

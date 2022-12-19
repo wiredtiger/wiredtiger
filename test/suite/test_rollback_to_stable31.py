@@ -52,6 +52,9 @@ class test_rollback_to_stable31(test_rollback_to_stable_base):
 
     scenarios = make_scenarios(format_values, checkpoint_modes, rollback_modes)
 
+    def conn_config(self):
+        return 'verbose=(rts:5)'
+
     def test_rollback_to_stable(self):
         nrows = 10
 

@@ -69,6 +69,9 @@ class test_rollback_to_stable24(wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios(key_format_values)
 
+    def conn_config(self):
+        return 'verbose=(rts:5)'
+
     def test_rollback_to_stable24(self):
         # Create a table without logging.
         uri = "table:rollback_to_stable24"

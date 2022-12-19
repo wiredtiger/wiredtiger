@@ -41,6 +41,9 @@ class test_rollback_to_stable30(wttest.WiredTigerTestCase):
         ('table-S-complex', dict(keyfmt='S', valfmt=None, dataset=ComplexDataSet)),
     ])
 
+    def conn_config(self):
+        return 'verbose=(rts:5)'
+
     def prepare_resolve(self, resolve):
         ds = self.dataset(self, "table:rts30", 10, key_format=self.keyfmt, value_format=self.valfmt)
         ds.populate()

@@ -41,6 +41,9 @@ class test_rollback_to_stable41(test_rollback_to_stable_base):
 
     scenarios = make_scenarios(format_values)
 
+    def conn_config(self):
+        return 'verbose=(rts:5)'
+
     def test_rollback_to_stable(self):
         uri = 'table:test_rollback_to_stable41'
         nrows = 1000

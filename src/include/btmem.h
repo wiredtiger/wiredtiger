@@ -1345,6 +1345,24 @@ struct __wt_update {
     uint8_t data[]; /* start of the data */
 };
 
+/* Convert an update type to its string representation. */
+static inline const char *
+__wt_update_type_str(uint8_t ty)
+{
+    switch (ty) {
+    case WT_UPDATE_MODIFY:
+        return ("UPDATE_MODIFY");
+    case WT_UPDATE_RESERVE:
+        return ("UPDATE_RESERVE");
+    case WT_UPDATE_STANDARD:
+        return ("UPDATE_STANDARD");
+    case WT_UPDATE_TOMBSTONE:
+        return ("UPDATE_TOMBSTONE");
+    }
+
+    return ("UPDATE_INVALID");
+}
+
 /*
  * WT_UPDATE_SIZE is the expected structure size excluding the payload data -- we verify the build
  * to ensure the compiler hasn't inserted padding.

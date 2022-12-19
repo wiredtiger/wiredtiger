@@ -6,6 +6,12 @@ class PrepareState(Enum):
     PREPARE_LOCKED = 2
     PREPARE_RESOLVED = 3
 
+class UpdateType(Enum):
+    UPDATE_MODIFY = 0
+    UPDATE_RESERVE = 1
+    UPDATE_STANDARD = 2
+    UPDATE_TOMBSTONE = 3
+
 class Timestamp():
     def __init__(self, start, stop):
         self.start = start
@@ -50,14 +56,3 @@ class Page():
 
     def __hash__(self):
         return hash(self.addr)
-
-class UpdateType(Enum):
-    ABORT = 0
-
-class Update():
-    def __init__(self, type, txnid):
-        self.type = type
-        self.txnid = txnid
-
-    def __repr__(self):
-        return f"Update({self.type}, txnid={self.txnid})"

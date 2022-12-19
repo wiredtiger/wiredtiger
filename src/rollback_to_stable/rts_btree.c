@@ -309,7 +309,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
 
     WT_ERR(__wt_scr_alloc(session, 0, &key_string));
     __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
-      "rolling back the on-disk key: %s",
+      "[ONDISK_KEY_ROLLBACK] rolling back the on-disk key=%s",
       __wt_key_string(session, key->data, key->size, S2BT(session)->key_format, key_string));
 
     WT_ERR(__wt_scr_alloc(session, 0, &full_value));
@@ -462,9 +462,9 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
         }
 
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-          "history store update aborted with time window: %s,  type: %" PRIu8
-          " and stable timestamp: %s",
-          __wt_time_window_to_string(hs_tw, tw_string), type,
+          "[HS_UPDATE_ABORT] history store update aborted with time_window=%s, type=%s"
+          " and stable_timestamp=%s",
+          __wt_time_window_to_string(hs_tw, tw_string), __wt_update_type_str(type),
           __wt_timestamp_to_string(rollback_timestamp, ts_string[3]));
 
         /*
@@ -655,8 +655,8 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
       !__wt_rts_visibility_txn_visible_id(session, vpack->tw.start_txn) ||
       (!WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prepared)) {
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-          "on-disk update aborted with time window %s. Start durable timestamp > stable timestamp: "
-          "%s, or txnid is not visible: %s, or tw has not stop and is prepared: %s",
+          "[ONDISK_ABORT_TW] on-disk update aborted with time_window=%s. Start durable_timestamp > stable_timestamp: "
+          "%s, or txnid_not_visible=%s, or tw_has_no_stop_and_is_prepared=%s",
           __wt_time_point_to_string(
             vpack->tw.start_ts, vpack->tw.durable_start_ts, vpack->tw.start_txn, time_string),
           vpack->tw.durable_start_ts > rollback_timestamp ? "true" : "false",

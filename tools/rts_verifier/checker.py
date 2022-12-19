@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from basic_types import Page, Timestamp, Tree, Update, UpdateType
+from basic_types import Page, Timestamp, Tree
 from operation import OpType
 
 class Checker:
@@ -29,7 +29,15 @@ class Checker:
         elif operation.type == OpType.SHUTDOWN_INIT:
             self.__apply_check_shutdown_init(operation)
         elif operation.type == OpType.TREE_SKIP:
-            self.__apply_check_shutdown_init(operation)
+            self.__apply_check_tree_skip(operation)
+        elif operation.type == OpType.SKIP_DEL_NULL:
+            self.__apply_check_skip_del_null(operation)
+        elif operation.type == OpType.ONDISK_ABORT_TW:
+            self.__apply_check_ondisk_abort_tw(operation)
+        elif operation.type == OpType.ONDISK_KEY_ROLLBACK:
+            self.__apply_check_ondisk_key_rollback(operation)
+        elif operation.type == OpType.HS_UPDATE_ABORT:
+            self.__apply_check_hs_update_abort(operation)
         else:
             raise Exception(f"failed to parse {operation.line}")
 
@@ -48,7 +56,7 @@ class Checker:
 
         if not(operation.modified or
                operation.durable_gt_stable or
-               operation.has_prepared_operations or
+               operation.has_prepared_updates or
                operation.durable_ts_not_found or
                operation.txnid_gt_recov_ckpt_snap_min):
             raise Exception(f"unnecessary visit to {operation.file}")
@@ -84,14 +92,13 @@ class Checker:
         self.visited_pages.add(page)
 
     def __apply_check_operation_abort(self, operation):
-        update = Update(UpdateType.ABORT, operation.txnid)
         if operation.file != self.current_tree.file:
             raise Exception(f"spurious visit to {operation.file}")
 
         if not(operation.txnid_not_visible or
                operation.stable_lt_durable or
                operation.prepare_state == PrepareState.IN_PROGRESS):
-            raise Exception(f"aborted update {update} for no reason")
+            raise Exception(f"aborted update with txnid={operation.txnid} for no reason")
 
         if operation.stable_lt_durable and not operation.stable < operation.durable:
             raise Exception(f"incorrect timestamp comparison: thought {operation.stable} < {operation.durable}, but it isn't")
@@ -138,6 +145,22 @@ class Checker:
         # TODO expand this out
         pass
 
-    def __apply_tree_skip(self, operation):
+    def __apply_check_tree_skip(self, operation):
+        # TODO expand this out
+        pass
+
+    def __apply_check_skip_del_null(self, operation):
+        # TODO expand this out
+        pass
+
+    def __apply_check_ondisk_abort_tw(self, operation):
+        # TODO expand this out
+        pass
+
+    def __apply_check_ondisk_key_rollback(self, operation):
+        # TODO expand this out
+        pass
+
+    def __apply_check_hs_update_abort(self, operation):
         # TODO expand this out
         pass

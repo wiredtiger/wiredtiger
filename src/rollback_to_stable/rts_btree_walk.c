@@ -64,7 +64,7 @@ __rts_btree_walk_page_skip(
 
             if (page_del == NULL)
                 __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-                  "%p: deleted page walk skipped", (void *)ref);
+                  "[SKIP_DEL_NULL] ref=%p: deleted page walk skipped", (void *)ref);
             else {
                 __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
                   "%p: deleted page walk skipped page_del %s", (void *)ref,
