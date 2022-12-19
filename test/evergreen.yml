@@ -1390,6 +1390,18 @@ tasks:
           test_config_filename: configs/bounded_cursor_prefix_indices_default.txt
           test_name: bounded_cursor_prefix_indices
 
+  - name: cppsuite-reverse-split-default
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config: debug_mode=(cursor_copy=true)
+          test_config_filename: configs/reverse_split_default.txt
+          test_name: reverse_split
+
   - name: cppsuite-operations-test-stress
     depends_on:
       - name: compile
@@ -1511,6 +1523,7 @@ tasks:
           test_config_filename: configs/search_near_03_stress.txt
           test_name: search_near_03
 
+  # This is a perf test and as such doesn't run under the stress test tag.
   - name: cppsuite-bounded-cursor-perf-stress
     depends_on:
       - name: compile
@@ -1520,6 +1533,17 @@ tasks:
         vars:
           test_config_filename: configs/bounded_cursor_perf_stress.txt
           test_name: bounded_cursor_perf
+
+  - name: cppsuite-reverse-split-stress
+    tags: ["cppsuite-stress-test"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/reverse_split_stress.txt
+          test_name: reverse_split
 
   - name: cppsuite-operations-test-stress-nonstandalone
     depends_on:
@@ -1663,6 +1687,19 @@ tasks:
         vars:
           test_config_filename: configs/search_near_03_stress.txt
           test_name: search_near_03
+
+  - name: cppsuite-reverse-split-stress-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    depends_on:
+      - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/reverse_split_stress.txt
+          test_name: reverse_split
 
   # End of cppsuite test tasks.
   # Start of csuite test tasks
@@ -2530,6 +2567,19 @@ tasks:
               ${test_env_vars|} ./test_fops
             fi
 
+  - name: bench-tiered-push-pull
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/bench/tiered"
+          script: |
+            set -o errexit
+            set -o verbose
+            ${test_env_vars|} ./test_push_pull
+
   - name: compatibility-test-for-newer-releases
     commands:
       - func: "get project"
@@ -2694,7 +2744,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            sh dist/s_clang-scan 2>&1
+            sh dist/s_clang_scan 2>&1
 
   - name: configure-combinations
     commands:
@@ -4834,6 +4884,7 @@ buildvariants:
     - name: ".data-validation-stress-test"
     - name: unittest-test
     - name: tiered-storage-extensions-test
+    - name: bench-tiered-push-pull
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
     - name: unit-test-nonstandalone
@@ -4876,6 +4927,7 @@ buildvariants:
   - ubuntu2004-test
   expansions:
     posix_configure_flags: -DENABLE_PYTHON=0 -DENABLE_LZ4=0 -DENABLE_SNAPPY=0 -DENABLE_ZLIB=0 -DENABLE_ZSTD=0
+    ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
@@ -5038,70 +5090,6 @@ buildvariants:
     - name: ".stress-test-no-barrier-nonstandalone"
     - name: format-abort-recovery-stress-test-nonstandalone
 
-- name: ubuntu2004-perf-tests
-  display_name: Ubuntu 20.04 Performance tests
-  batchtime: 1440 # 1 day
-  run_on:
-    - ubuntu2004-medium
-  expansions:
-    test_env_vars:
-      WT_TOPDIR=$(git rev-parse --show-toplevel)
-      WT_BUILDDIR=$WT_TOPDIR/cmake_build
-      LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_BUILDDIR/test/utility/
-    CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O3
-    HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
-    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
-    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
-    pip3_binary: '/opt/mongodbtoolchain/v3/bin/pip3'
-    virtualenv_binary: '/opt/mongodbtoolchain/v3/bin/virtualenv'
-    smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
-    cmake_generator: Ninja
-    make_command: ninja
-  tasks:
-    - name: compile
-    - name: ".btree-perf"
-    # Disable LSM perf tests till the support for LSM is restored.
-    # - name: ".lsm-perf"
-    - name: ".stress-perf"
-    - name: ".checkpoint-perf"
-    - name: ".evict-perf"
-    - name: ".log-perf"
-    - name: ".long-perf"
-    - name: ".oplog-perf"
-    - name: many-dhandle-stress
-    - name: ".wt2853-perf"
-    - name: cppsuite-bounded-cursor-perf-stress
-  display_tasks:
-    - name: Wiredtiger-perf-btree-jobs
-      execution_tasks:
-      - ".btree-perf"
-    # FIXME-WT-8867: Disable LSM perf tests till the support for LSM is restored.
-    # - name: Wiredtiger-perf-lsm-jobs
-    #   execution_tasks:
-    #   - ".lsm-perf"
-    - name: Wiredtiger-perf-stress-jobs
-      execution_tasks:
-      - ".stress-perf"
-    - name: Wiredtiger-perf-checkpoint-jobs
-      execution_tasks:
-      - ".checkpoint-perf"
-    - name: Wiredtiger-perf-evict-jobs
-      execution_tasks:
-      - ".evict-perf"
-    - name: Wiredtiger-perf-log-jobs
-      execution_tasks:
-      - ".log-perf"
-    - name: Wiredtiger-perf-long-jobs
-      execution_tasks:
-      - ".long-perf"
-    - name: Wiredtiger-perf-oplog-jobs
-      execution_tasks:
-      - ".oplog-perf"
-    - name: WiredTiger-wt2853-perf
-      execution_tasks:
-      - ".wt2853-perf"
-
 - name: ubuntu2004-perf-tests-accuracy
   display_name: Ubuntu 20.04 Performance tests (improved accuracy)
   batchtime: 1440 # 1 day
@@ -5205,16 +5193,6 @@ buildvariants:
   tasks:
     - name: package
 
-- name: documentation-update
-  display_name: "~ Documentation update"
-  batchtime: 10080 # 7 days
-  run_on:
-  - ubuntu2004-test
-  expansions:
-    doc_update_branches: develop,mongodb-6.0,mongodb-5.0,mongodb-4.4,mongodb-4.2
-  tasks:
-    - name: doc-update
-
 - name: linux-no-ftruncate
   display_name: Linux no ftruncate
   batchtime: 1440 # 1 day
@@ -5276,52 +5254,6 @@ buildvariants:
     - name: long-test
     - name: configure-combinations
 
-- name: code-statistics
-  display_name: "Code statistics"
-  run_on:
-  - ubuntu2004-test
-  expansions:
-    test_env_vars:
-      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-      WT_TOPDIR=$(git rev-parse --show-toplevel)
-      WT_BUILDDIR=$WT_TOPDIR/cmake_build
-      LD_LIBRARY_PATH=$WT_BUILDDIR
-      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
-    make_command: ninja
-    cmake_generator: Ninja
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
-    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
-  tasks:
-    - name: coverage-report
-      batchtime: 10080 # 7 days
-    - name: cyclomatic-complexity
-
-- name: compatibility-tests-less-frequent
-  display_name: Compatibility tests (less frequent)
-  batchtime: 10080 # 7 days
-  run_on:
-  - ubuntu1804-test
-  tasks:
-    - name: compatibility-test-for-older-releases
-    - name: compatibility-test-for-wt-standalone-releases
-
-- name: compatibility-tests-daily
-  display_name: Compatibility tests (daily)
-  batchtime: 1440 # 1 day
-  run_on:
-  - ubuntu2004-test
-  tasks:
-    - name: compatibility-test-upgrade-to-latest
-
-- name: compatibility-tests
-  display_name: Compatibility tests
-  run_on:
-  - ubuntu2004-test
-  tasks:
-    - name: compatibility-test-for-newer-releases
-    - name: compatibility-test-for-patch-releases
-    - name: import-compatibility-test
-
 - name: windows-64
   display_name: "! Windows 64-bit"
   run_on:
@@ -5342,10 +5274,10 @@ buildvariants:
     - name: fops
     - name: unittest-test
 
-- name: macos-1014
-  display_name: "OS X 10.14"
+- name: macos-1100
+  display_name: "macOS 11.00"
   run_on:
-  - macos-1014
+  - macos-1100
   batchtime: 120 # 2 hours
   expansions:
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
@@ -5536,6 +5468,49 @@ buildvariants:
     - name: unit-test-nonstandalone
     - name: unit-test-long-nonstandalone
       distros: ubuntu2004-arm64-large
+
+- name: amazon2-arm64
+  display_name: "Amazon Linux 2 ARM64"
+  run_on:
+  - amazon2-arm64-small
+  batchtime: 1440 # 24 hours
+  expansions:
+    configure_env_vars:
+      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+    test_env_vars:
+      WT_TOPDIR=$(git rev-parse --show-toplevel)
+      WT_BUILDDIR=$WT_TOPDIR/cmake_build
+      LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
+      LD_PRELOAD=$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
+    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
+    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
+    cmake_generator: "Unix Makefiles"
+    make_command: make
+    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
+  tasks:
+    - name: compile
+    - name: make-check-test
+    - name: unit-test
+    - name: fops
+    - name: linux-directio
+    - name: checkpoint-filetypes-test
+    - name: unit-test-zstd
+    - name: unit-test-long
+      distros: amazon2-arm64-large
+    - name: spinlock-gcc-test
+    - name: spinlock-pthread-adaptive-test
+    - name: wtperf-test
+    - name: ftruncate-test
+    - name: long-test
+    - name: format-smoke-test
+    - name: tiered-storage-extensions-test
+    - name: compile-nonstandalone
+    - name: make-check-nonstandalone
+    - name: unit-test-nonstandalone
+    - name: unit-test-long-nonstandalone
+      distros: amazon2-arm64-large
 
 - name: ubuntu2004-arm64-perf-tests
   display_name: "~ Ubuntu 20.04 ARM64 Performance Tests"

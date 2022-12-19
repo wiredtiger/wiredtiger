@@ -19,7 +19,10 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
 {
     WT_UPDATE *stable_upd, *tombstone, *upd;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
+    bool dryrun;
     bool txn_id_visible;
+
+    dryrun = S2C(session)->rts->dryrun;
 
     stable_upd = tombstone = NULL;
     txn_id_visible = false;
@@ -54,8 +57,9 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
               rollback_timestamp < upd->durable_ts ? "true" : "false", upd->prepare_state,
               upd->prepare_state == WT_PREPARE_INPROGRESS ? "true" : "false");
 
-            upd->txnid = WT_TXN_ABORTED;
-            WT_STAT_CONN_INCR(session, txn_rts_upd_aborted);
+            if (!dryrun)
+                upd->txnid = WT_TXN_ABORTED;
+            WT_RTS_STAT_CONN_INCR(session, txn_rts_upd_aborted);
         } else {
             /* Valid update is found. */
             stable_upd = upd;
@@ -97,10 +101,12 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
              * Clear the history store flags for the first stable update. Otherwise, it will not be
              * moved to history store again.
              */
-            if (stable_upd != NULL)
-                F_CLR(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS);
-            if (tombstone != NULL)
-                F_CLR(tombstone, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS);
+            if (!dryrun) {
+                if (stable_upd != NULL)
+                    F_CLR(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS);
+                if (tombstone != NULL)
+                    F_CLR(tombstone, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS);
+            }
         }
         if (stable_update_found != NULL)
             *stable_update_found = true;
@@ -175,6 +181,9 @@ __rts_btree_col_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, ui
 {
     WT_CURSOR_BTREE cbt;
     WT_DECL_RET;
+    bool dryrun;
+
+    dryrun = S2C(session)->rts->dryrun;
 
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
@@ -183,7 +192,8 @@ __rts_btree_col_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, ui
     WT_ERR(__wt_col_search(&cbt, recno, ref, true, NULL));
 
     /* Apply the modification. */
-    WT_ERR(__wt_col_modify(&cbt, recno, NULL, upd, WT_UPDATE_INVALID, true, false));
+    if (!dryrun)
+        WT_ERR(__wt_col_modify(&cbt, recno, NULL, upd, WT_UPDATE_INVALID, true, false));
 
 err:
     /* Free any resources that may have been cached in the cursor. */
@@ -201,6 +211,9 @@ __rts_btree_row_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, WT
 {
     WT_CURSOR_BTREE cbt;
     WT_DECL_RET;
+    bool dryrun;
+
+    dryrun = S2C(session)->rts->dryrun;
 
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
@@ -209,7 +222,8 @@ __rts_btree_row_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, WT
     WT_ERR(__wt_row_search(&cbt, key, true, ref, true, NULL));
 
     /* Apply the modification. */
-    WT_ERR(__wt_row_modify(&cbt, key, NULL, upd, WT_UPDATE_INVALID, true, false));
+    if (!dryrun)
+        WT_ERR(__wt_row_modify(&cbt, key, NULL, upd, WT_UPDATE_INVALID, true, false));
 
 err:
     /* Free any resources that may have been cached in the cursor. */
@@ -244,8 +258,11 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
     uint8_t type;
     char ts_string[4][WT_TS_INT_STRING_SIZE];
     char tw_string[WT_TIME_STRING_SIZE];
+    bool dryrun;
     bool first_record;
     bool valid_update_found;
+
+    dryrun = S2C(session)->rts->dryrun;
 
     page = ref->page;
 
@@ -340,8 +357,10 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
               "history store stop is obsolete with time window: %s and pinned timestamp: %s",
               __wt_time_window_to_string(hs_tw, tw_string),
               __wt_timestamp_to_string(pinned_ts, ts_string[0]));
-            WT_ERR(hs_cursor->remove(hs_cursor));
-            WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
+            if (!dryrun)
+                WT_ERR(hs_cursor->remove(hs_cursor));
+            WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
+
             continue;
         }
 
@@ -443,9 +462,10 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
         newer_hs_durable_ts = hs_durable_ts;
         first_record = false;
 
-        WT_ERR(hs_cursor->remove(hs_cursor));
-        WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
-        WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts_unstable);
+        if (!dryrun)
+            WT_ERR(hs_cursor->remove(hs_cursor));
+        WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
+        WT_RTS_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts_unstable);
     }
 
     /*
@@ -481,7 +501,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
          * rollback to stable operation.
          */
         F_SET(upd, WT_UPDATE_RESTORED_FROM_HS);
-        WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_restore_updates);
+        WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_hs_restore_updates);
 
         /*
          * We have a tombstone on the original update chain and it is stable according to the
@@ -524,11 +544,11 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
 
             tombstone->next = upd;
             upd = tombstone;
-            WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_restore_tombstones);
+            WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_hs_restore_tombstones);
         }
     } else {
         WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
-        WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
+        WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
         __wt_verbose_level_multi(
           session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3, "%s", "key removed");
     }
@@ -543,9 +563,10 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
         /* Avoid freeing the updates while still in use if hs_cursor->remove fails. */
         upd = tombstone = NULL;
 
-        WT_ERR(hs_cursor->remove(hs_cursor));
-        WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
-        WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts);
+        if (!dryrun)
+            WT_ERR(hs_cursor->remove(hs_cursor));
+        WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
+        WT_RTS_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts);
     }
 
     if (0) {
@@ -561,6 +582,10 @@ err:
     __wt_scr_free(session, &key_string);
     if (hs_cursor != NULL)
         WT_TRET(hs_cursor->close(hs_cursor));
+    if (dryrun) {
+        WT_ASSERT(session, !valid_update_found || upd == NULL);
+        __wt_free_update_list(session, &upd);
+    }
     return (ret);
 }
 
@@ -608,7 +633,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
               __wt_timestamp_to_string(vpack->tw.stop_ts, ts_string[3]),
               __wt_timestamp_to_string(rollback_timestamp, ts_string[4]));
             WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
-            WT_STAT_CONN_DATA_INCR(session, txn_rts_sweep_hs_keys);
+            WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_sweep_hs_keys);
         } else
             return (0);
     } else if (vpack->tw.durable_start_ts > rollback_timestamp ||
@@ -633,7 +658,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
              * rollback timestamp; thus, deleting it is the correct response.
              */
             WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
-            WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
+            WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
         }
     } else if (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) &&
       (vpack->tw.durable_stop_ts > rollback_timestamp ||
@@ -656,7 +681,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
                  * remove the key.
                  */
                 WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
-                WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
+                WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
             }
         } else {
             /*
@@ -682,7 +707,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
             upd->durable_ts = vpack->tw.durable_start_ts;
             upd->start_ts = vpack->tw.start_ts;
             F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
-            WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_restored);
+            WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_keys_restored);
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
               "key restored with commit timestamp: %s, durable timestamp: %s, stable timestamp: "
               "%s, "
@@ -729,7 +754,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
     else
         WT_ERR(__rts_btree_col_modify(session, ref, upd, recno));
 
-    if (0) {
+    if (S2C(session)->rts->dryrun) {
 err:
         __wt_free(session, upd);
     }
@@ -900,6 +925,7 @@ __rts_btree_abort_col_fix(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
     uint32_t ins_recno_offset, recno_offset, numtws, tw;
 
     page = ref->page;
+    WT_ASSERT(session, page != NULL);
 
     /*
      * Review the changes to the original on-page data items. Note that while this can report back
@@ -1025,7 +1051,9 @@ __wt_rts_btree_abort_updates(
   WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
 {
     WT_PAGE *page;
-    bool modified;
+    bool dryrun, modified;
+
+    dryrun = S2C(session)->rts->dryrun;
 
     /*
      * If we have a ref with clean page, find out whether the page has any modifications that are
@@ -1064,7 +1092,7 @@ __wt_rts_btree_abort_updates(
     }
 
     /* Mark the page as dirty to reconcile the page. */
-    if (page->modify)
+    if (!dryrun && page->modify)
         __wt_page_modify_set(session, page);
     return (0);
 }

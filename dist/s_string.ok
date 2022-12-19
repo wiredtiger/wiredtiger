@@ -380,6 +380,7 @@ RCS
 RDNOLOCK
 RDONLY
 READONLY
+REALLOC
 RECNO
 REF's
 REFs
@@ -400,6 +401,7 @@ RXB
 Radu
 ReadFile
 Readonly
+Realloc
 RedHat
 Redistributions
 Refactor
@@ -466,6 +468,7 @@ ThreadListWrapper
 Timespec
 Timestamp
 Timestamps
+Tput
 TryCV
 TxnID
 UDF
@@ -831,6 +834,7 @@ dmsg
 doxgen
 doxygen
 drealloc
+dryrun
 ds
 dsb
 dsbs
@@ -957,6 +961,7 @@ getline
 getone
 getones
 getopt
+getpid
 getraw
 gettime
 gettimeofday
@@ -984,6 +989,7 @@ hhh
 highjack
 hilq
 hotbackup
+hpp
 hs
 hselasky
 html
@@ -1223,6 +1229,7 @@ newv
 nextprev
 nfilename
 nhex
+nlohmann
 nlpo
 nocase
 noclear
@@ -1444,6 +1451,7 @@ snprintf
 sp
 spinlock
 spinlocks
+srand
 src
 srch
 ss
@@ -1463,6 +1471,7 @@ strerror
 strftime
 strget
 strlen
+strncat
 strncpy
 strndup
 strnlen
@@ -1548,6 +1557,7 @@ txn
 txnc
 txnid
 txnmin
+txp
 txt
 typedef
 typemaps

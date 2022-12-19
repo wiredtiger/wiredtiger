@@ -26,40 +26,42 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "execution_timer.h"
+#pragma once
 
-#include "metrics_writer.h"
+#include <map>
+#include <string>
+#include <vector>
 
-namespace test_harness {
-execution_timer::execution_timer(const std::string id, const std::string &test_name)
-    : _id(id), _test_name(test_name), _it_count(0), _total_time_taken(0)
-{
-}
+#include "connection_simulator.h"
 
-void
-execution_timer::append_stats()
-{
-    uint64_t avg = (uint64_t)_total_time_taken / _it_count;
-    std::string stat = "{\"name\":\"" + _id + "\",\"value\":" + std::to_string(avg) + "}";
-    metrics_writer::instance().add_stat(stat);
-}
+#define RESET "\033[0m"
+#define RED "\033[31m"
+#define GREEN "\033[32m"
+#define WHITE "\033[37m"
 
-template <typename T>
-auto
-execution_timer::track(T lambda)
-{
-    auto _start_time = std::chrono::steady_clock::now();
-    int ret = lambda();
-    auto _end_time = std::chrono::steady_clock::now();
-    _total_time_taken += (_end_time - _start_time).count();
-    _it_count += 1;
+/* Helper functions. */
+int choose_num(int, int, const std::string &);
+void print_border_msg(const std::string &, const std::string &);
+void print_options(const std::vector<std::string> &);
+const std::string get_input(const std::string &);
+session_simulator *get_session(
+  const std::map<std::string, session_simulator *> &, const std::string &);
 
-    return ret;
-}
+/* session management method. */
+void interface_session_management(
+  connection_simulator *, std::map<std::string, session_simulator *> &, std::string &);
 
-execution_timer::~execution_timer()
-{
-    if (_it_count != 0)
-        append_stats();
-}
-}; // namespace test_harness
+/* connection level methods. */
+void interface_set_timestamp(connection_simulator *);
+void interface_conn_query_timestamp(connection_simulator *);
+
+/* session level methods. */
+void interface_begin_transaction(session_simulator *);
+void interface_commit_transaction(session_simulator *);
+void interface_prepare_transaction(session_simulator *);
+void interface_rollback_transaction(session_simulator *);
+void interface_timestamp_transaction(session_simulator *);
+void interface_session_query_timestamp(session_simulator *);
+
+/* Print rules for timestamps. */
+void print_rules();
