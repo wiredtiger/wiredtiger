@@ -25,11 +25,13 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
+#include <map>
+#include <memory>
+#include <mutex>
 #include <ostream>
+#include <set>
 #include <string>
 #include <vector>
-#include <map>
-#include <set>
 extern "C" {
 #include <unistd.h>
 #include "workgen_func.h"
@@ -198,11 +200,25 @@ struct TableRuntime {
 };
 
 struct ContextInternal {
+    // Dedicated to tables that are alive until the workload ends.
     std::map<std::string, tint_t> _tint;           // maps uri -> tint_t
     std::map<tint_t, std::string> _table_names;    // reverse mapping
     TableRuntime *_table_runtime;                  // # entries per tint_t
     uint32_t _runtime_alloced;                     // length of _table_runtime
     tint_t _tint_last;                             // last tint allocated
+
+    // Dedicated to tables that can be created or removed during the workload.
+    std::map<std::string, tint_t> _dyn_tint;
+    std::map<tint_t, std::string> _dyn_table_names;
+    std::map<tint_t, TableRuntime> _dyn_table_runtime;
+    tint_t _dyn_tint_last;
+    // Reference counter on each table.
+    std::map<std::string, size_t> _dyn_table_in_use;
+    // Tables required to be deleted. They should not be selected by any thread.
+    std::vector<std::string> _dyn_tables_delete;
+    // This mutex should be used to protect the access to the dynamic tables data.
+    std::mutex* _dyn_mutex;
+
     // unique id per context, to work with multiple contexts, starts at 1.
     uint32_t _context_count;
 
@@ -285,6 +301,8 @@ struct WorkloadRunner {
 
     WorkloadRunner(Workload *);
     ~WorkloadRunner() = default;
+    void add_table(const std::string& uri);
+    void remove_table(const std::string& uri);
     int run(WT_CONNECTION *conn);
     int increment_timestamp(WT_CONNECTION *conn);
     int start_table_idle_cycle(WT_CONNECTION *conn);
