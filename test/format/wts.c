@@ -323,6 +323,9 @@ create_database(const char *home, WT_CONNECTION **connp)
     /* Optional timing stress. */
     configure_timing_stress(&p, max);
 
+    /* Optional debug mode. */
+    configure_debug_mode(&p, max);
+
     /* Extensions. */
     CONFIG_APPEND(p, ",extensions=[\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\"],",
       REVERSE_PATH, access(LZ4_PATH, R_OK) == 0 ? LZ4_PATH : "",
