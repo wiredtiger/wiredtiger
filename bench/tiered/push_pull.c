@@ -217,7 +217,7 @@ recover_validate(const char *home, uint32_t num_records, uint64_t file_size, uin
     double diff_sec;
     int status;
     size_t val_1_size, val_2_size;
-    uint64_t i, v;
+    uint64_t key, i, v;
 
     WT_CONNECTION *conn;
     WT_CURSOR *cursor;
@@ -227,6 +227,7 @@ recover_validate(const char *home, uint32_t num_records, uint64_t file_size, uin
     /* Copy the data to a separate folder for debugging purpose. */
     testutil_copy_data(home);
 
+    key = 0;
     buf[0] = '\0';
     /*
      * Open the connection which forces recovery to be run.
@@ -238,26 +239,28 @@ recover_validate(const char *home, uint32_t num_records, uint64_t file_size, uin
     v = (uint32_t)getpid() + num_records + (2 * counter);
     __wt_random_init_custom_seed(&rnd, v);
 
-    fill_random_data();
-
     testutil_check(__wt_snprintf(rm_cmd, sizeof(rm_cmd), "rm -rf %s/cache-bucket/*", home));
     status = system(rm_cmd);
     if (status < 0)
         testutil_die(status, "system: %s", rm_cmd);
 
     testutil_check(session->open_cursor(session, opts->uri, NULL, NULL, &cursor));
-    val_1_size = strlen((char *)data_str) + 1;
+    val_1_size = MAX_VALUE_SIZE;
 
     gettimeofday(&start, 0);
 
     for (i = 0; i < num_records; i++) {
-        cursor->set_key(cursor, i + 1);
-        testutil_check(cursor->search(cursor));
+        fill_random_data();
+
+        testutil_check(cursor->next(cursor));
+        testutil_check(cursor->get_key(cursor, &key));
+        testutil_assert(key == i + 1);
         testutil_check(cursor->get_value(cursor, &item));
         val_2_size = item.size;
         testutil_assert(val_1_size == val_2_size);
-        testutil_assert(strncmp((char *)data_str, item.data, item.size) == 0);
+        testutil_assert(memcmp(data_str, item.data, item.size) == 0);
     }
+    testutil_assert(cursor->next(cursor) == WT_NOTFOUND);
     gettimeofday(&end, 0);
 
     testutil_check(session->close(session, NULL));
@@ -339,10 +342,9 @@ populate(WT_SESSION *session, uint32_t num_records, uint32_t counter)
     v = (uint32_t)getpid() + num_records + (2 * counter);
     __wt_random_init_custom_seed(&rnd, v);
 
-    fill_random_data();
-
     testutil_check(session->open_cursor(session, opts->uri, NULL, NULL, &cursor));
     for (i = 0; i < num_records; i++) {
+        fill_random_data();
         cursor->set_key(cursor, i + 1);
         item.data = data_str;
         item.size = sizeof(data_str);
