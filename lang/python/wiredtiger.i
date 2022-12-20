@@ -796,9 +796,6 @@ typedef int int_void;
 	int_void _get_raw_key_value(char **key_datap, int *key_sizep, char **value_datap, int *value_sizep) {
 		WT_ITEM k, v;
 		int ret = $self->get_raw_key_value($self, &k, &v);
-		//printf("_get_raw_key_value: k = %s, v = %s, key_datap = %p, value_datap = %p\n", (char *)k.data, (char *)v.data, key_datap, value_datap);
-		assert(key_datap != NULL);
-		assert(value_datap != NULL);
 		if (ret == 0) {
 			*key_datap = (char *)k.data;
 			*key_sizep = (int)k.size;
