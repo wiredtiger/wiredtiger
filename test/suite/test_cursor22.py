@@ -30,8 +30,6 @@
 #   Test cursor get_raw_key_value
 
 import wttest
-from wtscenario import make_scenarios
-from wiredtiger import stat
 
 class test_cursor22(wttest.WiredTigerTestCase):
     uri = "table:test_cursor22"
