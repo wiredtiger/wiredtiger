@@ -591,8 +591,11 @@ __evict_update_work(WT_SESSION_IMPL *session)
     /* Build up the new state. */
     flags = 0;
 
+    if (F_ISSET(cache, WT_CACHE_EVICT_DEBUG_MODE))
+        LF_SET(WT_CACHE_EVICT_DEBUG_MODE);
+
     if (!F_ISSET(conn, WT_CONN_EVICTION_RUN)) {
-        cache->flags = 0;
+        cache->flags = flags;
         return (false);
     }
 
