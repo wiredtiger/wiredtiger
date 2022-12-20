@@ -1,5 +1,5 @@
 #!/usr/bin/python
-import os, subprocess, re
+import os, subprocess, re, sys
 
 def print_msg(file_name, line_num, line):
     print("Illegal comment in " + file_name + ":" + str(line_num - 1) + " " + line, end='')
@@ -12,12 +12,26 @@ def check_c_comments(file_name):
                 print_msg(file_name, line_num, line)
             line_num += 1
 
-# test_string = [
+tests = [
+    (r'// hello world', True),
+    (r'     // hello world', True),
+    (r'hello world', False),
+    (r'System.out.println("Hello, World!\n"); // prints hello world', True),
+    (r'String url = "http://www.example.com"', False),
+    (r'// hello world', True),
+    (r'//\\', True),
+    (r'// "some comment"', True),
+    (r'new URI("http://www.google.com")', False),
+    (r'System.out.println("Escaped quote\""); // Comment', True),
+    (r' * http://www.google.com', False)
+]
 
-# ]
 
-# def test():
-
+def validate(line, expect_match):
+    if (expect_match and not single_line_comment.match(line)) or (not expect_match and single_line_comment.match(line)):
+        print("Test failed:" + line)
+    else:
+        print("Test success")
 
 def check_cpp_comments(file_name):
     with open(file_name) as f:
@@ -49,11 +63,10 @@ def check_cpp_comments(file_name):
 
 os.chdir("..")
 # // Style comments
-single_line_comment = re.compile(r'^(?:[^"/\\]|"([^"\\]|\.)*"|/(?:[^"/\\]|\.)|/"(?:[^"\\]|\.)*"|\.|(?:[^\*]+))*//(.*)$')
+single_line_comment = re.compile(r'^(?:[^"/\\]|\"(?:[^\"\\]|\\.)*\"|/(?:[^/"\\]|\\.)|/\"(?:[^\"\\]|\\.)*\"|\\.)*//(.*)$')
 #http_match = re.compile(r'http://|https://')
 # Text before comments
 text_check = re.compile(r'^[^\/\n]+')
-"This is a c string\\"
 cpp_file_directories=[
 'test/cppsuite',
 'test/simulator',
@@ -68,6 +81,16 @@ ignore_directories=[
 'src/os_win',
 'src/support'
 ]
+
+fast=False
+
+if len(sys.argv) > 1:
+    if (sys.argv[1] == '-t'):
+        for test in tests:
+            validate(test[0], test[1])
+        sys.exit(0)
+    elif (sys.argv[1] == '-F'):
+        fast=True
 
 result = subprocess.run(["find", "bench", "examples", "ext", "src", "test", "-name", "*.[ch]",\
    "-o", "-name", "*.in", "-o", "-name", "*.cxx", "-o", "-name", "*.cpp", "-o", "-name", "*.i"], capture_output=True, text=True).stdout.strip('\n')
