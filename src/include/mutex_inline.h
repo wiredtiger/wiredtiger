@@ -314,6 +314,11 @@ __wt_spin_lock_track(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
         else {
             stats[session->stat_bucket][t->stat_app_usecs_off] += (int64_t)time_diff;
         }
+
+        /*
+         * Not all spin locks increment session statistics. Check whether the offset is initialized
+         * to determine whether they are enabled.
+         */
         if (t->stat_session_usecs_off != -1)
             session_stats[t->stat_session_usecs_off] += (int64_t)time_diff;
     } else
