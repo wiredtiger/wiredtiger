@@ -130,7 +130,7 @@ CONFIG configuration_list[] = {
     C_BOOL, 5, 0, 0, V_GLOBAL_DISK_MMAP_ALL},
 
   {"file_manager.close_handle_minimum", "number of handles open before the file manager will look for handles to close",
-    0x0, 0, 50, 100, V_GLOBAL_FILE_MANAGER_CLOSE_HANDLE_MINIMUM},
+    0x0, 0, 10, 10, V_GLOBAL_FILE_MANAGER_CLOSE_HANDLE_MINIMUM},
 
   {"file_manager.close_idle_time", "amount of time in seconds a file handle needs to be idle before attempting to close it. A setting of 0 means that idle handles are not closed",
     0x0, 0, 10000, 100000, V_GLOBAL_FILE_MANAGER_CLOSE_IDLE_TIME},
