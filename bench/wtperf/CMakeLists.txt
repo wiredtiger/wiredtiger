@@ -20,7 +20,7 @@ create_test_executable(wtperf
     SOURCES
         wtperf_config.c
         idle_table_cycle.c
-        misc.c
+        wtperf_misc.c
         track.c
         wtperf.c
         wtperf_throttle.c
