@@ -591,6 +591,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
     /* Build up the new state. */
     flags = 0;
 
+    /* Debug mode is set at connection open and reconfigure, need to maintain what was set. */
     if (F_ISSET(cache, WT_CACHE_EVICT_DEBUG_MODE))
         LF_SET(WT_CACHE_EVICT_DEBUG_MODE);
 
