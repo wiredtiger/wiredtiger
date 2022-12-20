@@ -1,7 +1,7 @@
 project(libtest C)
 
 set(sources
-    utility_misc.c
+    util_miscs.c
     util_modify.c
     parse_opts.c
     util_random.c
