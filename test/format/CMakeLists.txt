@@ -6,20 +6,20 @@ set(format_sources
     bulk.c
     checkpoint.c
     compact.c
-    form_config.c
+    format_config.c
     config_compat.c
-    form_config_def.c
+    format_config_def.c
     hs.c
     import.c
     kv.c
     ops.c
     random.c
-    form_salvage.c
+    format_salvage.c
     snap.c
     t.c
     trace.c
-    form_timestamp.c
-    form_util.c
+    format_timestamp.c
+    format_util.c
     verify.c
     wts.c
 )
