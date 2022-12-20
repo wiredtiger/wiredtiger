@@ -91,7 +91,7 @@ __rts_btree_walk_page_skip(
     if (!__wt_rts_visibility_page_needs_abort(session, ref, rollback_timestamp)) {
         *skipp = true;
         __wt_verbose_multi(
-          session, WT_VERB_RECOVERY_RTS(session), "%p: stable page walk skipped", (void *)ref);
+          session, WT_VERB_RECOVERY_RTS(session), "[STABLE_PG_WALK_SKIP] ref=%p: stable page walk skipped", (void *)ref);
         WT_STAT_CONN_INCR(session, txn_rts_tree_walk_skip_pages);
     }
 
@@ -211,7 +211,7 @@ __wt_rts_btree_walk_btree_apply(
           F_ISSET(S2C(session), WT_CONN_CLOSING_CHECKPOINT)) &&
       (addr_size == 0 || (rollback_timestamp == WT_TS_NONE && max_durable_ts != WT_TS_NONE))) {
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-          "skip rollback to stable on file %s because %s", uri,
+          "[FILE_SKIP] skip rollback to stable on file=%s because %s", uri,
           addr_size == 0 ? "its checkpoint address length is 0" :
                            "it has timestamped updates and the stable timestamp is 0");
         return (0);

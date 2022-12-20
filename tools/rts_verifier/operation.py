@@ -20,6 +20,20 @@ class OpType(Enum):
     ONDISK_ABORT_TW = 11
     ONDISK_KEY_ROLLBACK = 12
     HS_UPDATE_ABORT = 13
+    HS_UPDATE_VALID = 14
+    HS_UPDATE_RESTORED = 15
+    KEY_REMOVED = 16
+    STABLE_PG_WALK_SKIP = 17
+    SKIP_UNMODIFIED = 18
+    HS_GT_ONDISK = 19
+    RECOVERY_RTS = 20
+    HS_STOP_OBSOLETE = 21
+    RECOVER_CKPT = 22
+    HS_TREE_ROLLBACK = 23
+    HS_TREE_SKIP = 24
+    HS_ABORT_STOP = 25
+    HS_RESTORE_TOMBSTONE = 26
+    FILE_SKIP = 27
 
 class Operation:
     def __init__(self, line):
@@ -44,7 +58,7 @@ class Operation:
         elif '[SHUTDOWN_INIT]' in line:
             self.__init_shutdown_init(line)
         elif '[TREE_SKIP]' in line:
-            self.__init_tree_skip(line)
+            self.__init_file_skip(line)
         elif '[SKIP_DEL_NULL]' in line:
             self.__init_skip_del_null(line)
         elif '[ONDISK_ABORT_TW]' in line:
@@ -53,6 +67,34 @@ class Operation:
             self.__init_ondisk_key_rollback(line)
         elif '[HS_UPDATE_ABORT]' in line:
             self.__init_hs_update_abort(line)
+        elif '[HS_UPDATE_VALID]' in line:
+            self.__init_hs_update_valid(line)
+        elif '[HS_UPDATE_RESTORED]' in line:
+            self.__init_hs_update_restored(line)
+        elif '[KEY_REMOVED]' in line:
+            self.__init_key_removed(line)
+        elif '[STABLE_PG_WALK_SKIP]' in line:
+            self.__init_stable_pg_walk_skip(line)
+        elif '[SKIP_UNMODIFIED]' in line:
+            self.__init_skip_unmodified(line)
+        elif '[HS_GT_ONDISK]' in line:
+            self.__init_hs_gt_ondisk(line)
+        elif '[RECOVERY_RTS]' in line:
+            self.__init_recovery_rts(line)
+        elif '[HS_STOP_OBSOLETE]' in line:
+            self.__init_hs_stop_obsolete(line)
+        elif '[RECOVER_CKPT]' in line:
+            self.__init_recover_ckpt(line)
+        elif '[HS_TREE_ROLLBACK]' in line:
+            self.__init_hs_tree_rollback(line)
+        elif '[HS_TREE_SKIP]' in line:
+            self.__init_hs_tree_skip(line)
+        elif '[HS_ABORT_STOP]' in line:
+            self.__init_hs_abort_stop(line)
+        elif '[HS_RESTORE_TOMBSTONE]' in line:
+            self.__init_hs_restore_tombstone(line)
+        elif '[FILE_SKIP]' in line:
+            self.__init_file_skip(line)
         else:
             raise Exception(f"Operation.__init__: couldn't find an event in RTS log line {line}")
 
@@ -232,7 +274,7 @@ class Operation:
         stable_stop = int(matches.group(2))
         self.stable = Timestamp(stable_start, stable_stop)
 
-    def __init_tree_skip(self, line):
+    def __init_file_skip(self, line):
         self.type = OpType.TREE_SKIP
 
         matches = re.search('file:([\w_\.]+)', line)
@@ -324,3 +366,238 @@ class Operation:
         stable_start = int(matches.group(1))
         stable_stop = int(matches.group(2))
         self.stable = Timestamp(stable_start, stable_stop)
+
+    def __init_hs_update_valid(self, line):
+        self.type = OpType.HS_UPDATE_VALID
+
+        matches = re.search('file:([\w_\.]+)', line)
+        self.file = matches.group(1)
+
+        matches = re.search('time_window=start: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+) stop: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+)', line)
+
+        durable_start_start = int(matches.group(1))
+        durable_start_end = int(matches.group(2))
+        self.durable_start = Timestamp(durable_start_start, durable_start_end)
+        start_start = int(matches.group(3))
+        start_end = int(matches.group(4))
+        self.start = Timestamp(start_start, start_end)
+        self.start_txn = int(matches.group(5))
+
+        durable_stop_start = int(matches.group(6))
+        durable_stop_end = int(matches.group(7))
+        self.durable_stop = Timestamp(durable_start_start, durable_start_end)
+        stop_start = int(matches.group(8))
+        stop_end = int(matches.group(9))
+        self.stop = Timestamp(start_start, start_end)
+        self.stop_txn = int(matches.group(10))
+
+        matches = re.search('type=(\w+)', line)
+        self.update_type = UpdateType[matches.group(1)]
+
+        matches = re.search('stable_timestamp=\((\d+), (\d+)\)', line)
+        stable_start = int(matches.group(1))
+        stable_stop = int(matches.group(2))
+        self.stable = Timestamp(stable_start, stable_stop)
+
+    def __init_hs_update_restored(self, line):
+        self.type = OpType.HS_UPDATE_VALID
+
+        matches = re.search('file:([\w_\.]+)', line)
+        self.file = matches.group(1)
+
+        matches = re.search('txnid=(\d+)', line)
+        self.txnid = int(matches.group(1))
+
+        matches = re.search('start_ts=\((\d+), (\d+)\)', line)
+        start_start = matches.group(1)
+        start_end = matches.group(2)
+        self.start = Timestamp(start_start, start_end)
+
+        matches = re.search('durable_ts=\((\d+), (\d+)\)', line)
+        durable_start = matches.group(1)
+        durable_end = matches.group(2)
+        self.durable = Timestamp(durable_start, durable_end)
+
+    def __init_key_removed(self, line):
+        self.type = OpType.KEY_REMOVED
+
+        matches = re.search('file:([\w_\.]+)', line)
+        self.file = matches.group(1)
+
+    def __init_stable_pg_walk_skip(self, line):
+        self.type = OpType.KEY_REMOVED
+
+        matches = re.search('file:([\w_\.]+)', line)
+        self.file = matches.group(1)
+
+        matches = re.search('ref=0x([A-Za-z0-9]+)', line)
+        self.addr = int(matches.group(1), 16)
+
+    def __init_skip_unmodified(self, line):
+        self.type = OpType.SKIP_UNMODIFIED
+
+        matches = re.search('file:([\w_\.]+)', line)
+        self.file = matches.group(1)
+
+        matches = re.search('ref=0x([A-Za-z0-9]+)', line)
+        self.addr = int(matches.group(1), 16)
+
+    def __init_hs_gt_ondisk(self, line):
+        self.type = OpType.HS_GT_ONDISK
+
+        matches = re.search('file:([\w_\.]+)', line)
+        self.file = matches.group(1)
+
+        matches = re.search('time_window=start: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+) stop: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+)', line)
+
+        # TODO refactor time-window matching
+        durable_start_start = int(matches.group(1))
+        durable_start_end = int(matches.group(2))
+        self.durable_start = Timestamp(durable_start_start, durable_start_end)
+        start_start = int(matches.group(3))
+        start_end = int(matches.group(4))
+        self.start = Timestamp(start_start, start_end)
+        self.start_txn = int(matches.group(5))
+
+        durable_stop_start = int(matches.group(6))
+        durable_stop_end = int(matches.group(7))
+        self.durable_stop = Timestamp(durable_start_start, durable_start_end)
+        stop_start = int(matches.group(8))
+        stop_end = int(matches.group(9))
+        self.stop = Timestamp(start_start, start_end)
+        self.stop_txn = int(matches.group(10))
+
+        matches = re.search('type=(\w+)', line)
+        self.update_type = UpdateType[matches.group(1)]
+
+    def __init_recovery_rts(self, line):
+        self.type = OpType.RECOVERY_RTS
+
+        matches = re.search('stable_timestamp=\((\d+), (\d+)\)', line)
+        stable_start = int(matches.group(1))
+        stable_stop = int(matches.group(2))
+        self.stable = Timestamp(stable_start, stable_stop)
+
+        matches = re.search('oldest_timestamp=\((\d+), (\d+)\)', line)
+        oldest_start = int(matches.group(1))
+        oldest_stop = int(matches.group(2))
+        self.oldest = Timestamp(oldest_start, oldest_stop)
+
+    def __init_hs_stop_obsolete(self, line):
+        self.type = OpType.HS_STOP_OBSOLETE
+
+        matches = re.search('file:([\w_\.]+)', line)
+        self.file = matches.group(1)
+
+        matches = re.search('time_window=start: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+) stop: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+)', line)
+        durable_start_start = int(matches.group(1))
+        durable_start_end = int(matches.group(2))
+        self.durable_start = Timestamp(durable_start_start, durable_start_end)
+        start_start = int(matches.group(3))
+        start_end = int(matches.group(4))
+        self.start = Timestamp(start_start, start_end)
+        self.start_txn = int(matches.group(5))
+
+        durable_stop_start = int(matches.group(6))
+        durable_stop_end = int(matches.group(7))
+        self.durable_stop = Timestamp(durable_start_start, durable_start_end)
+        stop_start = int(matches.group(8))
+        stop_end = int(matches.group(9))
+        self.stop = Timestamp(start_start, start_end)
+        self.stop_txn = int(matches.group(10))
+
+        matches = re.search('pinned_timestamp=\((\d+), (\d+)\)', line)
+        pinned_start = int(matches.group(1))
+        pinned_stop = int(matches.group(2))
+        self.pinned = Timestamp(pinned_start, pinned_stop)
+
+    def __init_recover_ckpt(self, line):
+        self.type = OpType.RECOVER_CKPT
+
+        matches = re.search('snapshot_min=(\d+)', line)
+        self.snapshot_min = int(matches.group(1))
+
+        matches = re.search('snapshot_max=(\d+)', line)
+        self.snapshot_max = int(matches.group(1))
+
+        matches = re.search('snapshot_count=(\d+)', line)
+        self.snapshot_count = int(matches.group(1))
+
+    def __init_hs_tree_rollback(self, line):
+        self.type = OpType.HS_TREE_ROLLBACK
+
+        matches = re.search('file:([\w_\.]+)', line)
+        self.file = matches.group(1)
+
+        matches = re.search('durable_timestamp=\((\d+), (\d+)\)', line)
+        durable_start = int(matches.group(1))
+        durable_stop = int(matches.group(2))
+        self.durable = Timestamp(durable_start, durable_stop)
+
+    def __init_hs_tree_skip(self, line):
+        self.type = OpType.HS_TREE_SKIP
+
+        matches = re.search('file:([\w_\.]+)', line)
+        self.file = matches.group(1)
+
+        matches = re.search('durable_timestamp=\((\d+), (\d+)\)', line)
+        durable_start = int(matches.group(1))
+        durable_stop = int(matches.group(2))
+        self.durable = Timestamp(durable_start, durable_stop)
+
+        matches = re.search('stable_timestamp=\((\d+), (\d+)\)', line)
+        stable_start = int(matches.group(1))
+        stable_stop = int(matches.group(2))
+        self.stable = Timestamp(stable_start, stable_stop)
+
+    def __init_hs_abort_stop(self, line):
+        self.type = OpType.HS_ABORT_STOP
+
+        matches = re.search('file:([\w_\.]+)', line)
+        self.file = matches.group(1)
+
+        matches = re.search('start_durable/commit_timestamp=\((\d+), (\d+)\), \((\d+), (\d+)\)', line)
+        durable_start_start = int(matches.group(1))
+        durable_start_stop = int(matches.group(2))
+        self.durable_start = Timestamp(durable_start_start, durable_start_stop)
+        commit_start_start = int(matches.group(3))
+        commit_start_stop = int(matches.group(4))
+        self.commit_start = Timestamp(commit_start_start, commit_start_stop)
+
+        matches = re.search('stop_durable/commit_timestamp=\((\d+), (\d+)\), \((\d+), (\d+)\)', line)
+        durable_stop_start = int(matches.group(1))
+        durable_stop_stop = int(matches.group(2))
+        self.durable_stop = Timestamp(durable_start_start, durable_stop_start)
+        commit_stop_start = int(matches.group(3))
+        commit_stop_stop = int(matches.group(4))
+        self.commit_stop = Timestamp(commit_stop_start, commit_stop_stop)
+
+        matches = re.search('stable_timestamp=\((\d+), (\d+)\)', line)
+        stable_start = int(matches.group(1))
+        stable_stop = int(matches.group(2))
+        self.stable = Timestamp(stable_start, stable_start)
+
+    def __init_hs_restore_tombstone(self, line):
+        self.type = OpType.HS_RESTORE_TOMBSTONE
+
+        matches = re.search('file:([\w_\.]+)', line)
+        self.file = matches.group(1)
+
+        matches = re.search('txnid=(\d+)', line)
+        self.txnid = int(matches.group(1))
+
+        matches = re.search('start_ts=\((\d+), (\d+)\)', line)
+        start_start = int(matches.group(1))
+        start_end = int(matches.group(2))
+        self.start = Timestamp(start_start, start_end)
+
+        matches = re.search('durable_ts=\((\d+), (\d+)\)', line)
+        durable_start = int(matches.group(1))
+        durable_end = int(matches.group(2))
+        self.durable = Timestamp(durable_start, durable_end)
+
+    def __init_file_skip(self, line):
+        self.type = OpType.TREE_SKIP
+
+        matches = re.search('file:([\w_\.]+)', line)
+        self.file = matches.group(1)

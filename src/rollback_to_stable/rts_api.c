@@ -80,8 +80,8 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
 
     if (F_ISSET(conn, WT_CONN_RECOVERING))
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-          "recovered checkpoint snapshot min:  %" PRIu64 ", snapshot max: %" PRIu64
-          ", snapshot count: %" PRIu32,
+          "[RECOVER_CKPT] recovered checkpoint snapshot_min=%" PRIu64 ", snapshot_max=%" PRIu64
+          ", snapshot_count=%" PRIu32,
           conn->recovery_ckpt_snap_min, conn->recovery_ckpt_snap_max,
           conn->recovery_ckpt_snapshot_count);
 
