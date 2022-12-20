@@ -129,8 +129,9 @@ CONFIG configuration_list[] = {
   {"disk.mmap_all", "configure mmap operations (read and write)",
     C_BOOL, 5, 0, 0, V_GLOBAL_DISK_MMAP_ALL},
 
+/* Test format can only handle 32 tables so we use a maximum value of 32 here. */
   {"file_manager.close_handle_minimum", "number of handles open before the file manager will look for handles to close",
-    0x0, 0, 10, 10, V_GLOBAL_FILE_MANAGER_CLOSE_HANDLE_MINIMUM},
+    0x0, 0, 32, 32, V_GLOBAL_FILE_MANAGER_CLOSE_HANDLE_MINIMUM},
 
   {"file_manager.close_idle_time", "amount of time in seconds a file handle needs to be idle before attempting to close it. A setting of 0 means that idle handles are not closed",
     0x0, 0, 10000, 100000, V_GLOBAL_FILE_MANAGER_CLOSE_IDLE_TIME},
