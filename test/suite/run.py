@@ -542,10 +542,13 @@ if __name__ == '__main__':
         ASAN_SYMBOLIZER_ENV = "ASAN_SYMBOLIZER_PATH"
         LD_PRELOAD_ENV = "LD_PRELOAD"
         SO_FILE_NAME = "libclang_rt.asan-x86_64.so"
+        LD_LIBRARY_PATH = 'LD_LIBRARY_PATH'
+
         if not os.environ.get(ASAN_ENV):
             if verbose >= 2:
                 print('Enabling ASAN environment and rerunning python')
             os.environ[ASAN_ENV] = "1"
+            os.environ[LD_LIBRARY_PATH] = curdir + "/.libs"
             show_env(verbose, "LD_LIBRARY_PATH")
             if not os.environ.get(ASAN_SYMBOLIZER_ENV):
                 os.environ[ASAN_SYMBOLIZER_ENV] = which(ASAN_SYMBOLIZER_PROG)
