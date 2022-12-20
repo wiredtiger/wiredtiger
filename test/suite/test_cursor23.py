@@ -88,7 +88,7 @@ class test_cursor23(wttest.WiredTigerTestCase):
                 self.check_get_key_and_value(cursor=cursor, expected_key=f'{i:015d}'.format(i), expected_value=f'{i}: abcdefghijklmnopqrstuvwxyz'.format(i))
             self.session.commit_transaction()
 
-            #Check the data using get_raw_key_and_value()
+            # Check the data using get_raw_key_and_value()
             self.session.begin_transaction()
             cursor.reset()
             for i in range(1, 10):

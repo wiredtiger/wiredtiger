@@ -41,7 +41,7 @@ class test_cursor22(wttest.WiredTigerTestCase):
         self.assertEquals(value, expected_value)
 
     def check_get_raw_key_and_value(self, cursor, expected_key, expected_value):
-        (key, value)= cursor.get_raw_key_and_value()
+        (key, value) = cursor.get_raw_key_and_value()
         self.assertEquals(key, expected_key)
         self.assertEquals(value, expected_value)
 
