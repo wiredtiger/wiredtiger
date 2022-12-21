@@ -56,7 +56,6 @@ static char home[1024]; /* Program working dir */
  */
 #define INVALID_KEY UINT64_MAX
 #define MAX_CKPT_INVL 4 /* Maximum interval between checkpoints */
-#define FLUSH_INVL 3    /* Flush tier on checkpoint about every 3rd time */
 /* Set large, some slow I/O systems take tens of seconds to fsync. */
 #define MAX_STARTUP 30 /* Seconds to start up and set stable */
 #define MAX_TH 12
@@ -313,6 +312,20 @@ test_cursor(THREAD_DATA *td)
 }
 
 /*
+ * set_flush_tier_delay --
+ *     Set up a random delay for the next flush_tier.
+ */
+static void
+set_flush_tier_delay(WT_RAND_STATE *rnd)
+{
+    /*
+     * We are checkpointing constantly, and we'll do a flush tier with a random delay between 0 -
+     * 10000 microseconds.
+     */
+    opts->tiered_flush_interval_us = __wt_random(rnd) % 10001;
+}
+
+/*
  * test_create --
  *     Create a table.
  */
@@ -426,7 +439,7 @@ test_upgrade(THREAD_DATA *td)
     WT_SESSION *session;
 
     /* FIXME-WT-9423 Remove this return when tiered storage supports upgrade. */
-    if (tiered)
+    if (tiered || opts->tiered_storage)
         return;
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
@@ -448,7 +461,7 @@ test_verify(THREAD_DATA *td)
     WT_SESSION *session;
 
     /* FIXME-WT-9423 Remove this return when tiered storage supports verify. */
-    if (tiered)
+    if (tiered || opts->tiered_storage)
         return;
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
@@ -531,8 +544,8 @@ thread_ckpt_run(void *arg)
     uint64_t ts;
     uint32_t sleep_time;
     int i;
-    char buf[512];
-    bool first_ckpt, flush;
+    char flush_tier_config[128], ts_config[128];
+    bool first_ckpt, flush_tier;
 
     __wt_random_init(&rnd);
 
@@ -541,10 +554,20 @@ thread_ckpt_run(void *arg)
      * Keep a separate file with the records we wrote for checking.
      */
     (void)unlink(ckpt_file);
-    memset(buf, 0, sizeof(buf));
+    memset(flush_tier_config, 0, sizeof(flush_tier_config));
+    memset(ts_config, 0, sizeof(ts_config));
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
     first_ckpt = true;
     ts = 0;
+    flush_tier = false;
+
+    testutil_check(__wt_snprintf(ts_config, sizeof(ts_config), "use_timestamp=true"));
+
+    testutil_check(__wt_snprintf(
+      flush_tier_config, sizeof(flush_tier_config), "flush_tier=(enabled,force),%s", ts_config));
+
+    set_flush_tier_delay(&rnd);
+
     /*
      * Keep writing checkpoints until killed by parent.
      */
@@ -552,7 +575,6 @@ thread_ckpt_run(void *arg)
     for (i = 1;; ++i) {
         sleep_time = __wt_random(&rnd) % MAX_CKPT_INVL;
         sleep(sleep_time);
-        flush = ((__wt_random(&rnd) % FLUSH_INVL) == 0) ? true : false;
         if (use_ts) {
             ts = global_ts;
             /*
@@ -581,12 +603,24 @@ thread_ckpt_run(void *arg)
          * case. Only report that flush is in use in the program output if tiered is actually being
          * used however.
          */
-        testutil_check(__wt_snprintf(
-          buf, sizeof(buf), "use_timestamp=true,%s", flush ? "flush_tier=(enabled)" : ""));
-        testutil_check(session->checkpoint(session, buf));
+        testutil_check(session->checkpoint(session, flush_tier ? flush_tier_config : ts_config));
+
         printf("Checkpoint %d complete: Flush: %s. Minimum ts %" PRIu64 "\n", i,
-          flush && tiered ? "YES" : "NO", ts);
+          flush_tier ? "YES" : "NO", ts);
         fflush(stdout);
+
+        if (flush_tier) {
+            /*
+             * FIXME: when we change the API to notify that a flush_tier has completed, we'll need
+             * to set up a general event handler and catch that notification, so we can pass the
+             * flush_tier "cookie" to the test utility function.
+             */
+            testutil_tiered_flush_complete(opts, session, NULL);
+            flush_tier = false;
+            printf("Finished a flush_tier\n");
+
+            set_flush_tier_delay(&rnd);
+        }
         /*
          * Create the checkpoint file so that the parent process knows at least one checkpoint has
          * finished and can start its timer. Start the timer for stable after the first checkpoint
@@ -598,6 +632,8 @@ thread_ckpt_run(void *arg)
             first_ckpt = false;
             testutil_assert_errno(fclose(fp) == 0);
         }
+
+        testutil_tiered_sleep(opts, session, 0, &flush_tier);
     }
     /* NOTREACHED */
 }
@@ -813,6 +849,8 @@ static void
 run_workload(uint32_t nth)
 {
     WT_CONNECTION *conn;
+    WT_RAND_STATE rnd;
+
     WT_SESSION *session;
     THREAD_DATA *td;
     wt_thread_t *thr;
@@ -833,6 +871,7 @@ run_workload(uint32_t nth)
     testutil_wiredtiger_open(opts, NULL, envconf, &event_handler, &conn, false, false);
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
+
     /*
      * Create all the tables.
      */
@@ -848,6 +887,15 @@ run_workload(uint32_t nth)
      * checkpoint.
      */
     testutil_check(session->close(session, NULL));
+
+    if (opts->tiered_storage) {
+
+        opts->conn = conn;
+        set_flush_tier_delay(&rnd);
+        testutil_tiered_begin(opts);
+    }
+
+    opts->running = true;
 
     /*
      * The checkpoint thread and the timestamp threads are added at the end.
@@ -1028,6 +1076,9 @@ main(int argc, char *argv[])
         if (opts->tiered_storage) {
             testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/bucket", home));
             testutil_make_work_dir(buf);
+
+            /* Reset the config string. */
+            buf[0] = '\0';
         }
 
         __wt_random_init_seed(NULL, &rnd);
@@ -1075,6 +1126,9 @@ main(int argc, char *argv[])
         while (stat(statname, &sb) != 0)
             testutil_sleep_wait(1, pid);
         sleep(timeout);
+
+        opts->running = false;
+
         sa.sa_handler = SIG_DFL;
         testutil_assert_errno(sigaction(SIGCHLD, &sa, NULL) == 0);
 
