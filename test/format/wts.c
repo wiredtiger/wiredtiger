@@ -198,7 +198,7 @@ configure_timing_stress(char **p, size_t max)
 
 /*
  * configure_file_manager --
- *     Configure file manager minimum/maximum values
+ *     Configure file manager settings.
  */
 static void
 configure_file_manager(char **p, size_t max)
