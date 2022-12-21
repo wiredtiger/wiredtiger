@@ -3,7 +3,7 @@ import os, subprocess, re, sys
 
 def print_msg(file_name, line_num, line, multiline):
     print("Illegal " + multiline + "comment in " + file_name + ":" + str(line_num - 1) + " " +
-        line, end='')
+        line.strip('\n'))
 
 def check_c_comments(file_name):
     count = 0
@@ -112,15 +112,14 @@ if len(sys.argv) > 1:
     elif (sys.argv[1] == '-F'):
         fast=True
 
-command = """ find bench examples ext  src test -name \"*.[ch]\" -o -name \"*.in\" -o -name
-    \"*.cxx\" -o -name \"*.cpp\" -o -name \"*.i\" """
+command = " find bench examples ext  src test -name \"*.[ch]\" -o -name \"*.in\" -o -name \
+    \"*.cxx\" -o -name \"*.cpp\" -o -name \"*.i\" "
 if fast:
-    command = """git diff --name-only $(git merge-base --fork-point develop) bench examples ext src
-        test | grep -E '(.c|.h|.cpp|.in|.cxx|.i)$'"""
+    command = "git diff --name-only $(git merge-base --fork-point develop) bench examples ext src \
+        test | grep -E '(.c|.h|.cpp|.in|.cxx|.i)$'"
 
 result = subprocess.run(command, shell=True, capture_output=True, text=True).stdout.strip('\n')
 count = 0
-
 for file_name in result.split('\n'):
     cpp_file=False
     skip=False
