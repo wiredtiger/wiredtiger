@@ -1230,7 +1230,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
      * Style note: __wt_qsort is a macro that can leave a dangling else. Full curly braces are
      * needed here for the compiler.
      */
-    if (F_ISSET(conn, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE)) {
+    if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE)) {
         __wt_qsort(queue->evict_queue, entries, sizeof(WT_EVICT_ENTRY), __evict_lru_cmp_debug);
     } else {
         __wt_qsort(queue->evict_queue, entries, sizeof(WT_EVICT_ENTRY), __evict_lru_cmp);
@@ -2012,7 +2012,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
          * being skipped for walks), or we are in eviction debug mode. The goal here is that if
          * trees become completely idle, we eventually push them out of cache completely.
          */
-        if (!F_ISSET(conn, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE) &&
+        if (!FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE) &&
           F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
             if (page == last_parent)
                 continue;
