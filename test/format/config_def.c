@@ -105,9 +105,6 @@ CONFIG configuration_list[] = {
   {"debug.checkpoint_retention", "adjust log removal to retain the log records",
     0x0, 0, 128, 1024, V_GLOBAL_DEBUG_CHECKPOINT_RETENTION},
 
-  {"debug.cursor_copy", "make a copy of data returned by a cursor operation and return the copy using system allocator",
-    C_BOOL, 2, 0, 0, V_GLOBAL_DEBUG_CURSOR_COPY},
-
   {"debug.eviction", "modify internal algorithms to force history store eviction to happen more aggressively",
     C_BOOL, 2, 0, 0, V_GLOBAL_DEBUG_EVICTION},
 
