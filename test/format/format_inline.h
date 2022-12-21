@@ -257,8 +257,7 @@ table_select_type(table_type type)
  *     Open a WiredTiger cursor.
  */
 static inline void
-wt_wrap_open_cursor(
-  WT_SESSION *session, const char *uri, const char *config, WT_CURSOR **cursorp)
+wt_wrap_open_cursor(WT_SESSION *session, const char *uri, const char *config, WT_CURSOR **cursorp)
 {
     WT_DECL_RET;
 
