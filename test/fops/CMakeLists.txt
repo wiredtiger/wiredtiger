@@ -2,7 +2,7 @@ project(test_fops C)
 
 create_test_executable(test_fops
     SOURCES
-        file.c
+        fops_file.c
         fops.c
         t.c
 )
