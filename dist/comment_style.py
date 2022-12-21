@@ -1,4 +1,5 @@
-#!/usr/bin/python
+#!/usr/bin/env python
+
 import os, subprocess, re, sys
 
 def print_msg(file_name, line_num, line, multiline):
