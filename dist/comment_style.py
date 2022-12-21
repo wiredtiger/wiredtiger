@@ -1,8 +1,9 @@
 #!/usr/bin/python
 import os, subprocess, re, sys
 
-def print_msg(file_name, line_num, line):
-    print("Illegal comment in " + file_name + ":" + str(line_num - 1) + " " + line, end='')
+def print_msg(file_name, line_num, line, multiline):
+    print("Illegal " + multiline + "comment in " + file_name + ":" + str(line_num - 1) + " " +
+        line, end='')
 
 def check_c_comments(file_name):
     count = 0
@@ -11,29 +12,13 @@ def check_c_comments(file_name):
         for line in f:
             stripped = line.strip()
             if match(stripped):
-                print_msg(file_name, line_num, line)
+                print_msg(file_name, line_num, line, "")
                 count +=1
             line_num += 1
     return count
 
-
 def match(stripped_line):
     return single_line_comment.match(stripped_line) and not url.search(stripped_line)
-
-tests = [
-    (r'// hello world', True),
-    (r'     // hello world', True),
-    (r'hello world', False),
-    (r'printf("Hello, World!\n"); // prints hello world', True),
-    (r'String url = "http://www.example.com"', False),
-    (r'// hello world', True),
-    (r'//\\', True),
-    (r'// "some comment"', True),
-    (r'new URI("http://www.google.com")', False),
-    (r'printf("Escaped quote\""); // Comment', True),
-    (r' * http://www.google.com', False)
-]
-
 
 def validate(line, expect_match):
     if (expect_match and not match(line.strip())) or (not expect_match and match(line.strip())):
@@ -60,11 +45,11 @@ def check_cpp_comments(file_name):
                     # If the comment is length 2 and we found another matching line then we have
                     # found an illegal comment.
                     if length == 2:
-                        print_msg(file_name, line_num, line)
+                        print_msg(file_name, line_num, line, "multiline ")
                         count += 1
                     length += 1
-                    # Try and print only one error per comment, just keep incrementing the count and the
-                    # above if will only run once.
+                    # Try and print only one error per comment, just keep incrementing the count and
+                    # the above if will only run once.
                 else:
                     length += 1
             else:
@@ -72,16 +57,35 @@ def check_cpp_comments(file_name):
             line_num += 1
         return count
 
+# A collection of cases we handle.
+tests = [
+    (r'// hello world', True),
+    (r'     // hello world', True),
+    (r'hello world', False),
+    (r'printf("Hello, World!\n"); // prints hello world', True),
+    (r'String url = "http://www.example.com"', False),
+    (r'// hello world', True),
+    (r'//\\', True),
+    (r'// "some comment"', True),
+    (r'new URI("http://www.google.com")', False),
+    (r'printf("Escaped quote\""); // Comment', True),
+    (r' * http://www.google.com', False)
+]
+
+# Move up to root dir.
 os.chdir("..")
 
-"\"/*"
 # We don't worry about whitespace in matches as we strip the line of whitespace.
 url = re.compile(r'https?:\/\/')
 
 # // Style comments
-single_line_comment = re.compile(r'^(?:[^"/\\]|\"(?:[^\"\\]|\\.)*\"|/(?:[^/"\\]|\\.)|/\"(?:[^\"\\]|\\.)*\"|\\.)*//(.*)$')
+single_line_comment = re.compile(
+    r'^(?:[^"/\\]|\"(?:[^\"\\]|\\.)*\"|/(?:[^/"\\]|\\.)|/\"(?:[^\"\\]|\\.)*\"|\\.)*//(.*)$')
 # Text before comments
 text_check = re.compile(r'^[^\/\n]+')
+
+# Because we can't tell if a .h file is a C++ file or a C file we need to maintain a list of
+# directories.
 cpp_file_directories=[
 'test/cppsuite',
 'test/simulator',
@@ -91,6 +95,7 @@ cpp_file_directories=[
 'tools/xray_to_optrack'
 ]
 
+# Some directories aren't expected to comply with WiredTiger style. Ignore them.
 ignore_directories=[
 'src/checksum',
 'src/os_win',
@@ -107,9 +112,11 @@ if len(sys.argv) > 1:
     elif (sys.argv[1] == '-F'):
         fast=True
 
-command ="find bench examples ext  src test -name \"*.[ch]\" -o -name \"*.in\" -o -name \"*.cxx\" -o -name \"*.cpp\" -o -name \"*.i\""
+command = """ find bench examples ext  src test -name \"*.[ch]\" -o -name \"*.in\" -o -name
+    \"*.cxx\" -o -name \"*.cpp\" -o -name \"*.i\" """
 if fast:
-    command ="git diff --name-only $(git merge-base --fork-point develop) bench examples ext src test | grep -E '(.c|.h|.cpp|.in|.cxx|.i)$'"
+    command = """git diff --name-only $(git merge-base --fork-point develop) bench examples ext src
+        test | grep -E '(.c|.h|.cpp|.in|.cxx|.i)$'"""
 
 result = subprocess.run(command, shell=True, capture_output=True, text=True).stdout.strip('\n')
 count = 0
