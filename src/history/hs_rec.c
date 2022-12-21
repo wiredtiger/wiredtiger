@@ -164,9 +164,10 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
                          * not idempotent, having them inserted multiple times can cause invalid
                          * values to be read.
                          */
-                        WT_ASSERT(session,
+                        WT_ASSERT_ALWAYS(session,
                           type != WT_UPDATE_MODIFY &&
-                            (uint8_t)upd_type_full_diag != WT_UPDATE_MODIFY);
+                            (uint8_t)upd_type_full_diag != WT_UPDATE_MODIFY,
+                          "Inserted invalid duplicate record of type modify update");
                     }
                 }
                 counter = hs_counter + 1;
@@ -1097,16 +1098,25 @@ __hs_delete_record(
     } else {
         if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {
             __wt_hs_upd_time_window(r->hs_cursor, &hs_tw);
-            WT_ASSERT(session, hs_tw->start_txn == WT_TXN_NONE || hs_tw->start_txn == upd->txnid);
-            WT_ASSERT(session, hs_tw->start_ts == WT_TS_NONE || hs_tw->start_ts == upd->start_ts);
-            WT_ASSERT(session,
-              hs_tw->durable_start_ts == WT_TS_NONE || hs_tw->durable_start_ts == upd->durable_ts);
+            WT_ASSERT_ALWAYS(session,
+              hs_tw->start_txn == WT_TXN_NONE || hs_tw->start_txn == upd->txnid,
+              "Invalid HS update start txn id");
+            WT_ASSERT_ALWAYS(session,
+              hs_tw->start_ts == WT_TS_NONE || hs_tw->start_ts == upd->start_ts,
+              "Invalid HS update start timestamp");
+            WT_ASSERT_ALWAYS(session,
+              hs_tw->durable_start_ts == WT_TS_NONE || hs_tw->durable_start_ts == upd->durable_ts,
+              "Invalid HS update durable start timestamp");
             if (tombstone != NULL) {
-                WT_ASSERT(session, hs_tw->stop_txn == tombstone->txnid);
-                WT_ASSERT(session, hs_tw->stop_ts == tombstone->start_ts);
-                WT_ASSERT(session, hs_tw->durable_stop_ts == tombstone->durable_ts);
+                WT_ASSERT_ALWAYS(session, hs_tw->stop_txn == tombstone->txnid,
+                  "Update record's tombstone txn_id does not match HS txn_id");
+                WT_ASSERT_ALWAYS(session, hs_tw->stop_ts == tombstone->start_ts,
+                  "Tombstone start ts not set to update record's stop ts");
+                WT_ASSERT_ALWAYS(session, hs_tw->durable_stop_ts == tombstone->durable_ts,
+                  "Tombstone durable timestamp not set to update record's stop ts");
             } else
-                WT_ASSERT(session, !WT_TIME_WINDOW_HAS_STOP(hs_tw));
+                WT_ASSERT_ALWAYS(session, !WT_TIME_WINDOW_HAS_STOP(hs_tw),
+                  "Stop time window was set on empty tombstone");
         }
         WT_ERR(r->hs_cursor->remove(r->hs_cursor));
     }

@@ -821,12 +821,14 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *addr_
 
     if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {
         /* Checkpoint calls are different than standard calls. */
-        WT_ASSERT(session,
+        WT_ASSERT_ALWAYS(session,
           (!checkpoint && addr != NULL && addr_sizep != NULL) ||
-            (checkpoint && addr == NULL && addr_sizep == NULL));
+            (checkpoint && addr == NULL && addr_sizep == NULL),
+          "Failed to verify checkpoint call");
 
         /* In-memory databases shouldn't write pages. */
-        WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
+        WT_ASSERT_ALWAYS(session, !F_ISSET(S2C(session), WT_CONN_IN_MEMORY),
+          "Failed to verify that database is not in-memory");
 
         /*
          * We're passed a table's disk image. Decompress if necessary and verify the image. Always
@@ -834,15 +836,18 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *addr_
          */
         dsk = buf->mem;
         if (compressed) {
-            WT_ASSERT(session, __wt_scr_alloc(session, dsk->mem_size, &ctmp));
+            WT_ASSERT_ALWAYS(session, __wt_scr_alloc(session, dsk->mem_size, &ctmp),
+              "Failed to allocate in-memory length");
 
             memcpy(ctmp->mem, buf->data, WT_BLOCK_COMPRESS_SKIP);
-            WT_ASSERT(session,
+            WT_ASSERT_ALWAYS(session,
               btree->compressor->decompress(btree->compressor, &session->iface,
                 (uint8_t *)buf->data + WT_BLOCK_COMPRESS_SKIP, buf->size - WT_BLOCK_COMPRESS_SKIP,
                 (uint8_t *)ctmp->data + WT_BLOCK_COMPRESS_SKIP,
-                ctmp->memsize - WT_BLOCK_COMPRESS_SKIP, &result_len) == 0);
-            WT_ASSERT(session, dsk->mem_size == result_len + WT_BLOCK_COMPRESS_SKIP);
+                ctmp->memsize - WT_BLOCK_COMPRESS_SKIP, &result_len) == 0,
+              "Failed to decompress table disk image");
+            WT_ASSERT_ALWAYS(session, dsk->mem_size == result_len + WT_BLOCK_COMPRESS_SKIP,
+              "Failed to verify resulting length consistent with in-memory length");
             ctmp->size = result_len + WT_BLOCK_COMPRESS_SKIP;
 
             /*
@@ -852,7 +857,8 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *addr_
 
             __wt_scr_free(session, &ctmp);
         } else {
-            WT_ASSERT(session, dsk->mem_size == buf->size);
+            WT_ASSERT_ALWAYS(
+              session, dsk->mem_size == buf->size, "Failed to verify in-memory size");
 
             /*
              * Return an error rather than assert because the test suite tests that the error hits.

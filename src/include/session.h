@@ -53,7 +53,6 @@ typedef TAILQ_HEAD(__wt_cursor_list, __wt_cursor) WT_CURSOR_LIST;
 /* Maximum number of buckets to visit during a regular cursor sweep. */
 #define WT_SESSION_CURSOR_SWEEP_MAX 64
 
-
 typedef enum {
     DIAG_ASSERTS_CONN = 0, /* Inherit value from the connection */
     DIAG_ASSERTS_OFF = 1,  /* Off */

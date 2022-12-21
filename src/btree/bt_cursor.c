@@ -847,10 +847,9 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
     if (session->format_private != NULL && (ret == 0 || ret == WT_NOTFOUND))
         session->format_private(ret, session->format_private_arg);
 
-#ifdef HAVE_DIAGNOSTIC
-    if (ret == 0)
-        WT_ERR(__wt_cursor_key_order_init(cbt));
-#endif
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session))
+        if (ret == 0)
+            WT_ERR(__wt_cursor_key_order_init(cbt));
 
     if (ret == 0)
         WT_ERR(__wt_btcur_evict_reposition(cbt));
@@ -1097,10 +1096,9 @@ err:
     if (ret == 0 && exactp != NULL)
         *exactp = exact;
 
-#ifdef HAVE_DIAGNOSTIC
-    if (ret == 0)
-        WT_TRET(__wt_cursor_key_order_init(cbt));
-#endif
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session))
+        if (ret == 0)
+            WT_TRET(__wt_cursor_key_order_init(cbt));
 
     if (ret != 0) {
         /*
@@ -1643,8 +1641,9 @@ retry:
 
     if (btree->type == BTREE_ROW) {
         /*
-         * If not overwriting, fail if the key does not exist. If we find a matching record, check
-         * whether an update would conflict. Do this before checking if the update is visible in
+         * If not overwriting, fail if the key does not exist. If we find a matching record,
+         * check whether an update would conflict. Do this before checking if the update is
+         * visible in
          * __wt_cursor_valid, or we can miss conflicts.
          */
         if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
@@ -1660,8 +1659,9 @@ retry:
         ret = __cursor_row_modify(cbt, value, modify_type);
     } else {
         /*
-         * If not overwriting, fail if the key does not exist. If we find a matching record, check
-         * whether an update would conflict. Do this before checking if the update is visible in
+         * If not overwriting, fail if the key does not exist. If we find a matching record,
+         * check whether an update would conflict. Do this before checking if the update is
+         * visible in
          * __wt_cursor_valid, or we can miss conflicts.
          *
          * Creating a record past the end of the tree in a fixed-length column-store implicitly
@@ -2187,8 +2187,10 @@ __wt_btcur_range_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop, WT_ITEM
      */
     if (!F_ISSET(btree, WT_BTREE_LOGGED) && F_ISSET(session->txn, WT_TXN_TS_NOT_SET))
         WT_RET_MSG(session, EINVAL,
-          "truncate operations may not yet be included in transactions that can commit without a "
-          "timestamp. If your use case encounters this error, please reach out to the WiredTiger "
+          "truncate operations may not yet be included in transactions that can commit without "
+          "a "
+          "timestamp. If your use case encounters this error, please reach out to the "
+          "WiredTiger "
           "team");
 
     WT_RET(__wt_txn_autocommit_check(session));
@@ -2260,10 +2262,10 @@ __wt_btcur_open(WT_CURSOR_BTREE *cbt)
     cbt->upd_value->type = WT_UPDATE_INVALID;
     WT_TIME_WINDOW_INIT(&cbt->upd_value->tw);
 
-#ifdef HAVE_DIAGNOSTIC
-    cbt->lastkey = &cbt->_lastkey;
-    cbt->lastrecno = WT_RECNO_OOB;
-#endif
+    if (DIAGNOSTIC_ASSERTS_ENABLED((WT_SESSION_IMPL *)cbt->iface.session)) {
+        cbt->lastkey = &cbt->_lastkey;
+        cbt->lastrecno = WT_RECNO_OOB;
+    }
 }
 
 /*
@@ -2308,9 +2310,9 @@ __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
     __wt_buf_free(session, &cbt->_tmp);
     __wt_buf_free(session, &cbt->_modify_update.buf);
     __wt_buf_free(session, &cbt->_upd_value.buf);
-#ifdef HAVE_DIAGNOSTIC
-    __wt_buf_free(session, &cbt->_lastkey);
-#endif
+
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session))
+        __wt_buf_free(session, &cbt->_lastkey);
 
     return (ret);
 }

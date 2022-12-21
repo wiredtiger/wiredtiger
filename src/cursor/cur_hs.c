@@ -213,10 +213,9 @@ __curhs_search(WT_CURSOR_BTREE *hs_cbt, bool insert)
     WT_WITH_BTREE(session, hs_btree,
       ret = __wt_row_search(hs_cbt, &hs_cbt->iface.key, insert, NULL, false, NULL));
 
-#ifdef HAVE_DIAGNOSTIC
-    if (ret == 0)
-        WT_TRET(__wt_cursor_key_order_init(hs_cbt));
-#endif
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session))
+        if (ret == 0)
+            WT_TRET(__wt_cursor_key_order_init(hs_cbt));
 
 err:
     if (ret != 0)
@@ -243,9 +242,10 @@ __curhs_next(WT_CURSOR *cursor)
 
     WT_ERR(__curhs_file_cursor_next(session, file_cursor));
     /*
-     * We need to check if the history store record is visible to the current session. If not, the
-     * __curhs_next_visible() will also keep iterating forward through the records until it finds a
-     * visible record or bail out if records stop satisfying the fields set in cursor.
+     * We need to check if the history store record is visible to the current session. If not,
+     * the
+     * __curhs_next_visible() will also keep iterating forward through the records until it
+     * finds a visible record or bail out if records stop satisfying the fields set in cursor.
      */
     WT_ERR(__curhs_next_visible(session, hs_cursor));
 
@@ -278,9 +278,10 @@ __curhs_prev(WT_CURSOR *cursor)
 
     WT_ERR(__curhs_file_cursor_prev(session, file_cursor));
     /*
-     * We need to check if the history store record is visible to the current session. If not, the
-     * __curhs_prev_visible() will also keep iterating backwards through the records until it finds
-     * a visible record or bail out if records stop satisfying the fields set in cursor.
+     * We need to check if the history store record is visible to the current session. If not,
+     * the
+     * __curhs_prev_visible() will also keep iterating backwards through the records until it
+     * finds a visible record or bail out if records stop satisfying the fields set in cursor.
      */
     WT_ERR(__curhs_prev_visible(session, hs_cursor));
 
@@ -685,7 +686,9 @@ __curhs_search_near_helper(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool bef
                 WT_STAT_CONN_INCR(session, cursor_skip_hs_cur_position);
                 WT_STAT_DATA_INCR(session, cursor_skip_hs_cur_position);
                 WT_ERR(__wt_compare(session, NULL, &cursor->key, srch_key, &cmp));
-                /* Exit if we have found a key that is larger than or equal to the specified key. */
+                /* Exit if we have found a key that is larger than or equal to the specified
+                 * key.
+                 */
                 if (cmp >= 0)
                     break;
             }
@@ -998,14 +1001,17 @@ __curhs_insert(WT_CURSOR *cursor)
     } while ((ret = __wt_hs_modify(cbt, hs_upd)) == WT_RESTART);
     WT_ERR(ret);
 
-    /* We no longer own the update memory, the page does; don't free it under any circumstances. */
+    /* 
+     * We no longer own the update memory, the page does; don't free it under any circumstances.
+     */
     hs_tombstone = hs_upd = NULL;
 
     if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {
         /* Do a search again and call next to check the key order. */
         ret = __curhs_file_cursor_search_near(session, file_cursor, &exact);
         /* We can get not found if the inserted history store record is obsolete. */
-        WT_ASSERT(session, ret == 0 || ret == WT_NOTFOUND);
+        WT_ASSERT_ALWAYS(session, ret == 0 || ret == WT_NOTFOUND,
+          "Search near validation of inserted record failed with: %d", ret);
 
         /*
          * If a globally visible tombstone is inserted and the page is evicted during search_near

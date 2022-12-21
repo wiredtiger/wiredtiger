@@ -57,8 +57,8 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session, bool big_sweep)
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor, *cursor_tmp;
     WT_CURSOR_LIST *cached_list;
-    WT_DECL_RET;
     WT_DATA_HANDLE *saved_dhandle;
+    WT_DECL_RET;
     uint64_t now, sweep_max, sweep_min;
     uint32_t i, nbuckets, nclosed, nexamined, position;
     int t_ret;
