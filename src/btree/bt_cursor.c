@@ -1641,9 +1641,8 @@ retry:
 
     if (btree->type == BTREE_ROW) {
         /*
-         * If not overwriting, fail if the key does not exist. If we find a matching record,
-         * check whether an update would conflict. Do this before checking if the update is
-         * visible in
+         * If not overwriting, fail if the key does not exist. If we find a matching record, check
+         * whether an update would conflict. Do this before checking if the update is visible in
          * __wt_cursor_valid, or we can miss conflicts.
          */
         if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
@@ -1659,9 +1658,8 @@ retry:
         ret = __cursor_row_modify(cbt, value, modify_type);
     } else {
         /*
-         * If not overwriting, fail if the key does not exist. If we find a matching record,
-         * check whether an update would conflict. Do this before checking if the update is
-         * visible in
+         * If not overwriting, fail if the key does not exist. If we find a matching record, check
+         * whether an update would conflict. Do this before checking if the update is visible in
          * __wt_cursor_valid, or we can miss conflicts.
          *
          * Creating a record past the end of the tree in a fixed-length column-store implicitly
@@ -2188,8 +2186,7 @@ __wt_btcur_range_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop, WT_ITEM
     if (!F_ISSET(btree, WT_BTREE_LOGGED) && F_ISSET(session->txn, WT_TXN_TS_NOT_SET))
         WT_RET_MSG(session, EINVAL,
           "truncate operations may not yet be included in transactions that can commit without a "
-          "timestamp. If your use case encounters this error, please reach out to the "
-          "WiredTiger "
+          "timestamp. If your use case encounters this error, please reach out to the WiredTiger "
           "team");
 
     WT_RET(__wt_txn_autocommit_check(session));
