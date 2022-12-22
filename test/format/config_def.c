@@ -136,6 +136,9 @@ CONFIG configuration_list[] = {
   {"file_manager.close_idle_time", "amount of time in seconds a file handle needs to be idle before attempting to close it. A setting of 0 means that idle handles are not closed",
     0x0, 0, 10000, 100000, V_GLOBAL_FILE_MANAGER_CLOSE_IDLE_TIME},
 
+  {"file_manager.close_scan_interval", "interval in seconds at which to check for files that are inactive and close them",
+    0x0, 0, 1000, 100000, V_GLOBAL_FILE_MANAGER_CLOSE_SCAN_INTERVAL},
+
   {"format.abort", "drop core during timed run",
     C_BOOL, 0, 0, 0, V_GLOBAL_FORMAT_ABORT},
 
