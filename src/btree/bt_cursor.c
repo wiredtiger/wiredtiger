@@ -847,9 +847,8 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
     if (session->format_private != NULL && (ret == 0 || ret == WT_NOTFOUND))
         session->format_private(ret, session->format_private_arg);
 
-    if (DIAGNOSTIC_ASSERTS_ENABLED(session))
-        if (ret == 0)
-            WT_ERR(__wt_cursor_key_order_init(cbt));
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session) && ret == 0)
+        WT_ERR(__wt_cursor_key_order_init(cbt));
 
     if (ret == 0)
         WT_ERR(__wt_btcur_evict_reposition(cbt));
@@ -1096,9 +1095,8 @@ err:
     if (ret == 0 && exactp != NULL)
         *exactp = exact;
 
-    if (DIAGNOSTIC_ASSERTS_ENABLED(session))
-        if (ret == 0)
-            WT_TRET(__wt_cursor_key_order_init(cbt));
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session) && ret == 0)
+        WT_TRET(__wt_cursor_key_order_init(cbt));
 
     if (ret != 0) {
         /*

@@ -981,7 +981,7 @@ err:
                 ret = __wt_compare_bounds(
                   session, cursor, &cbt->iface.key, cbt->recno, false, &key_out_of_bounds);
                 WT_ASSERT_ALWAYS(session, ret == 0 && !key_out_of_bounds,
-                  "Failed to verify cursor position after walking. Cursor is out of bounds");
+                  "Bounded cursor logic resulted in the cursor being in an illegal state");
                 if (inclusive_set)
                     F_SET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);
             }

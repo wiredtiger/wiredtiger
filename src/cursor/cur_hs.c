@@ -213,9 +213,8 @@ __curhs_search(WT_CURSOR_BTREE *hs_cbt, bool insert)
     WT_WITH_BTREE(session, hs_btree,
       ret = __wt_row_search(hs_cbt, &hs_cbt->iface.key, insert, NULL, false, NULL));
 
-    if (DIAGNOSTIC_ASSERTS_ENABLED(session))
-        if (ret == 0)
-            WT_TRET(__wt_cursor_key_order_init(hs_cbt));
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session) && ret == 0)
+        WT_TRET(__wt_cursor_key_order_init(hs_cbt));
 
 err:
     if (ret != 0)
@@ -997,9 +996,7 @@ __curhs_insert(WT_CURSOR *cursor)
     } while ((ret = __wt_hs_modify(cbt, hs_upd)) == WT_RESTART);
     WT_ERR(ret);
 
-    /*
-     * We no longer own the update memory, the page does; don't free it under any circumstances.
-     */
+    /* We no longer own the update memory, the page does; don't free it under any circumstances. */
     hs_tombstone = hs_upd = NULL;
 
     if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {

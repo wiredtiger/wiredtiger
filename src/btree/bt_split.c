@@ -69,10 +69,10 @@ __split_verify_intl_key_order(WT_SESSION_IMPL *session, WT_PAGE *page)
     case WT_PAGE_COL_INT:
         recno = 0; /* Less than any valid record number. */
         WT_INTL_FOREACH_BEGIN (session, page, ref) {
+            WT_ASSERT_ALWAYS(session, ref->home == page,
+              "Internal page in illegal state, child ref is referencing an incorrect page");
             WT_ASSERT_ALWAYS(
-              session, ref->home == page, "Failed to verify page reference after splitting");
-            WT_ASSERT_ALWAYS(
-              session, ref->ref_recno > recno, "Failed to verify valid recno after splitting");
+              session, ref->ref_recno > recno, "Out of order refs detected in parent index");
             recno = ref->ref_recno;
         }
         WT_INTL_FOREACH_END;
@@ -85,8 +85,8 @@ __split_verify_intl_key_order(WT_SESSION_IMPL *session, WT_PAGE *page)
 
         slot = 0;
         WT_INTL_FOREACH_BEGIN (session, page, ref) {
-            WT_ASSERT_ALWAYS(
-              session, ref->home == page, "Failed to verify page reference after splitting");
+            WT_ASSERT_ALWAYS(session, ref->home == page,
+              "Internal page in illegal state, child ref is referencing an incorrect page");
 
             /*
              * Don't compare the first slot with any other slot, it's ignored on row-store internal
@@ -96,7 +96,7 @@ __split_verify_intl_key_order(WT_SESSION_IMPL *session, WT_PAGE *page)
             if (++slot > 2) {
                 WT_ASSERT_ALWAYS(session,
                   __wt_compare(session, btree->collator, last, next, &cmp) == 0,
-                  "Failed to perform slot comparison after splitting");
+                  "Key comparison failed during verification, cannot proceed");
                 WT_ASSERT_ALWAYS(session, cmp < 0, "Key slot order incorrect after splitting");
             }
             tmp = last;
