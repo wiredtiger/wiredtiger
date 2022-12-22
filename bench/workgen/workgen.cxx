@@ -426,11 +426,7 @@ ContextInternal::ContextInternal()
     _context_count = count;
 }
 
-ContextInternal::~ContextInternal()
-{
-    if (_table_runtime.size() != 0)
-        _table_runtime.resize(0);
-}
+ContextInternal::~ContextInternal() {}
 
 int
 ContextInternal::create_all()
