@@ -214,7 +214,6 @@ recover_validate(const char *home, uint32_t num_records, uint64_t file_size, int
     testutil_wiredtiger_open(opts, home, buf, NULL, &conn, true, true);
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    // srand((unsigned long)getpid() + num_records);
     srand((uint32_t)getpid() + num_records);
     str_len = sizeof(data_str) / sizeof(data_str[0]);
     for (i = 0; i < str_len - 1; i++)
