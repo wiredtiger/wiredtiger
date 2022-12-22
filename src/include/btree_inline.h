@@ -1629,7 +1629,7 @@ __wt_page_del_visible_all(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, b
      * flag to true. Hence if committed flag is not set, consider it as not committed irrespective
      * of visibility check, to avoid checking visibility when transaction commit is in progress.
      */
-    if (!__wt_page_del_committed(page_del))
+    if (!__wt_page_del_committed(session, page_del))
         return (false);
 
     /* We discard page_del on transaction abort, so should never see an aborted one. */
@@ -1670,7 +1670,7 @@ __wt_page_del_visible(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, bool 
      * flag to true. Hence if committed flag is not set, consider it as not committed irrespective
      * of visibility check, to avoid checking visibility when transaction commit is in progress.
      */
-    if (!__wt_page_del_committed(page_del))
+    if (!__wt_page_del_committed(session, page_del))
         return (false);
 
     /* We discard page_del on transaction abort, so should never see an aborted one. */
@@ -1696,7 +1696,7 @@ __wt_page_del_visible(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, bool 
  *     have been discarded already. (The update list is non-null if the transaction is unresolved.)
  */
 static inline bool
-__wt_page_del_committed(WT_PAGE_DELETED *page_del)
+__wt_page_del_committed(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del)
 {
     /*
      * There are two possible cases: either page_del is NULL (in which case the deletion is globally
@@ -1706,6 +1706,9 @@ __wt_page_del_committed(WT_PAGE_DELETED *page_del)
 
     if (page_del == NULL)
         return (true);
+
+    if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
+        return (__wt_txn_visible(session, page_del->txnid, page_del->timestamp));
 
     return (page_del->committed);
 }
