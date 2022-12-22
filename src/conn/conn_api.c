@@ -2642,8 +2642,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     /* Leave lots of space for optional additional configuration. */
     const char *cfg[] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
 
-    free(connectionp);
-    free(connectionp);
     *connectionp = NULL;
 
     conn = NULL;
