@@ -1,6 +1,6 @@
 /* DO NOT EDIT: automatically built by format/config.sh. */
 
-#include "format.h"
+#include "format_config_def.c"
 
 CONFIG configuration_list[] = {
   {"assert.read_timestamp", "assert read_timestamp",
