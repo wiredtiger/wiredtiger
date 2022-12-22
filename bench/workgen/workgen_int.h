@@ -199,12 +199,12 @@ struct TableRuntime {
     TableRuntime() : _max_recno(0), _disjoint(0) {}
 };
 
+
 struct ContextInternal {
     // Dedicated to tables that are alive until the workload ends.
     std::map<std::string, tint_t> _tint;           // maps uri -> tint_t
     std::map<tint_t, std::string> _table_names;    // reverse mapping
-    TableRuntime *_table_runtime;                  // # entries per tint_t
-    uint32_t _runtime_alloced;                     // length of _table_runtime
+    std::vector<TableRuntime> _table_runtime;      // # entries per tint_t
     tint_t _tint_last;                             // last tint allocated
 
     // Dedicated to tables that can be created or removed during the workload.
