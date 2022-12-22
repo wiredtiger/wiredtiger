@@ -42,8 +42,8 @@ class test_compact02(wttest.WiredTigerTestCase):
     ]
     cacheSize = [
         ('default', dict(cacheSize='')),
-        ('1mb', dict(cacheSize='cache_size=1MB')),
-        ('10gb', dict(cacheSize='cache_size=10GB')),
+        # ('1mb', dict(cacheSize='cache_size=1MB')),
+        # ('10gb', dict(cacheSize='cache_size=10GB')),
     ]
 
     # There's a balance between the pages we create and the size of the records
@@ -53,9 +53,9 @@ class test_compact02(wttest.WiredTigerTestCase):
     # there won't be enough pages to rewrite. Experimentally, 128KB works.
     fileConfig = [
         ('default', dict(fileConfig='')),
-        ('8KB', dict(fileConfig='leaf_page_max=8kb')),
-        ('64KB', dict(fileConfig='leaf_page_max=64KB')),
-        ('128KB', dict(fileConfig='leaf_page_max=128KB')),
+        # ('8KB', dict(fileConfig='leaf_page_max=8kb')),
+        # ('64KB', dict(fileConfig='leaf_page_max=64KB')),
+        # ('128KB', dict(fileConfig='leaf_page_max=128KB')),
     ]
     scenarios = make_scenarios(types, cacheSize, fileConfig)
 
@@ -73,7 +73,7 @@ class test_compact02(wttest.WiredTigerTestCase):
     # 5. Call compact.
     # 6. Get stats on compacted table.
     #
-    nrecords = 22000
+    nrecords = 220000
     bigvalue = "abcdefghi" * 1074          # 9*1074 == 9666
     smallvalue = "ihgfedcba" * 303         # 9*303 == 2727
 
@@ -112,7 +112,7 @@ class test_compact02(wttest.WiredTigerTestCase):
         conn_params = 'create,' + \
             cacheSize + ',error_prefix="%s",' % self.shortid() + \
             'statistics=(all),' + \
-            'eviction_dirty_target=80,eviction_dirty_trigger=99'
+            'eviction_dirty_target=80,eviction_dirty_trigger=99,verbose=[compact:1,compact_progress:1]'
         try:
             self.conn = wiredtiger.wiredtiger_open(self.home, conn_params)
         except wiredtiger.WiredTigerError as e:
