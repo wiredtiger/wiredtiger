@@ -586,7 +586,7 @@ functions:
         wt_hang_analyzer_option="-c -o file -o stdout"
 
         echo "Calling the wt hang analyzer ..."
-        PATH="/opt/mongodbtoolchain/v3/gdb/bin:$PATH" ${python_binary|python3} ../test/wt_hang_analyzer/wt_hang_analyzer.py $wt_hang_analyzer_option
+        PATH="/opt/mongodbtoolchain/v4/gdb/bin:$PATH" ${python_binary|python3} ../test/wt_hang_analyzer/wt_hang_analyzer.py $wt_hang_analyzer_option
 
   "save wt hang analyzer core/debugger files":
     - command: archive.targz_pack
@@ -2737,7 +2737,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            env CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:/opt/java/jdk11/bin:$PATH sh s_release `date +%Y%m%d`
+            env CC=/opt/mongodbtoolchain/v4/bin/gcc CXX=/opt/mongodbtoolchain/v4/bin/g++ PATH=/opt/mongodbtoolchain/v4/bin:/opt/java/jdk11/bin:$PATH sh s_release `date +%Y%m%d`
 
   # Note that the project settings use this task name to compile the documentation during PR
   # testing, keep this in mind if you decide to change it.
@@ -2818,7 +2818,7 @@ tasks:
             source venv/bin/activate
             pip3 install lxml==4.8.0 Pygments==2.11.2 Jinja2==3.0.3 gcovr==5.0
             mkdir -p ../coverage_report
-            GCOV=/opt/mongodbtoolchain/v3/bin/gcov gcovr -r .. -f ../src -e '.*/bt_(debug|dump|misc|salvage|vrfy).*' -e '.*/(log|progress|verify_build|strerror|env_msg|err_file|cur_config|os_abort)\..*' -e '.*_stat\..*' -e 'bench' -e 'examples' -e 'test' -e 'ext' -e 'dist' -e 'tools' -j 4 --html-details --html-self-contained -o ../coverage_report/2_coverage_report.html
+            GCOV=/opt/mongodbtoolchain/v4/bin/gcov gcovr -r .. -f ../src -e '.*/bt_(debug|dump|misc|salvage|vrfy).*' -e '.*/(log|progress|verify_build|strerror|env_msg|err_file|cur_config|os_abort)\..*' -e '.*_stat\..*' -e 'bench' -e 'examples' -e 'test' -e 'ext' -e 'dist' -e 'tools' -j 4 --html-details --html-self-contained -o ../coverage_report/2_coverage_report.html
       - command: s3.put
         params:
           aws_secret: ${aws_secret}
@@ -3723,7 +3723,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            export "PATH=/opt/mongodbtoolchain/v3/bin:$PATH"
+            export "PATH=/opt/mongodbtoolchain/v4/bin:$PATH"
             virtualenv -p python3 venv
             source venv/bin/activate
             pip3 install lorem pymongo==3.12.2
@@ -4700,7 +4700,7 @@ buildvariants:
       LD_PRELOAD=$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
-    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: Ninja
     make_command: ninja
@@ -4803,7 +4803,7 @@ buildvariants:
       MSAN_OPTIONS="abort_on_error=1:disable_coredump=0:print_stacktrace=1"
       MSAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
       LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
-      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR
@@ -4833,7 +4833,7 @@ buildvariants:
     make_command: ninja
     test_env_vars:
       UBSAN_OPTIONS="detect_leaks=1:disable_coredump=0:external_symbolizer_path=/usr/lib/llvm-10/bin/llvm-symbolizer:abort_on_error=1:print_stacktrace=1"
-      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
@@ -4860,7 +4860,7 @@ buildvariants:
   - ubuntu2004-wt-build
   expansions:
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
-    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
     test_env_vars:
@@ -4879,14 +4879,14 @@ buildvariants:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
     test_env_vars:
-      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
       LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so:$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
-    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
   tasks:
     - name: ".stress-test-1"
     - name: ".stress-test-2"
@@ -4916,14 +4916,14 @@ buildvariants:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
     test_env_vars:
-      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libeatmydata.so:$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
-    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
   tasks:
   # FIXME-WT-8947: For now run the whole stress test suite like we do on the x86 platform. But later
   # find a smaller set of tests that give an optimal test coverage while being mindful of machine
@@ -4951,7 +4951,7 @@ buildvariants:
     cmake_generator: Ninja
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
     test_env_vars:
-      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
@@ -5018,7 +5018,7 @@ buildvariants:
   - ubuntu2004-test
   expansions:
     test_env_vars:
-      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
       LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
@@ -5026,7 +5026,7 @@ buildvariants:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
     cmake_generator: Ninja
-    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
   tasks:
@@ -5041,7 +5041,7 @@ buildvariants:
   - rhel80-test
   expansions:
     test_env_vars:
-      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
       LD_PRELOAD=/usr/local/lib/libeatmydata.so
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
@@ -5049,7 +5049,7 @@ buildvariants:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     cmake_generator: "Unix Makefiles"
     make_command: make
-    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
   tasks:
@@ -5120,10 +5120,10 @@ buildvariants:
   - ubuntu1804-large
   batchtime: 4320 # 3 days
   expansions:
-    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     test_env_vars:
-      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR
@@ -5145,10 +5145,10 @@ buildvariants:
   - ubuntu1804-zseries-build
   batchtime: 4320 # 3 days
   expansions:
-    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     test_env_vars:
-      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR
@@ -5201,7 +5201,7 @@ buildvariants:
       LD_LIBRARY_PATH=$WT_BUILDDIR
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
-    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
     # Use half number of vCPU to avoid OOM kill failure
     smp_command: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 2 | bc)
     cmake_generator: Ninja
@@ -5225,7 +5225,7 @@ buildvariants:
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
-    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: Ninja
     make_command: ninja
@@ -5260,7 +5260,7 @@ buildvariants:
   batchtime: 1440 # 24 hours
   expansions:
     configure_env_vars:
-      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
     test_env_vars:
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
@@ -5268,7 +5268,7 @@ buildvariants:
       LD_PRELOAD=$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
-    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: "Unix Makefiles"
     make_command: make
