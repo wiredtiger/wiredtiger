@@ -204,11 +204,11 @@ static void
 configure_file_manager(char **p, size_t max)
 {
     CONFIG_APPEND(*p, ",file_manager=[");
-    if (GV(FILE_MANAGER_CLOSE_HANDLE_MINIMUM))
+    if (GV(FILE_MANAGER_CLOSE_HANDLE_MINIMUM) != 0)
         CONFIG_APPEND(*p, ",close_handle_minimum=%" PRIu32, GV(FILE_MANAGER_CLOSE_HANDLE_MINIMUM));
-    if (GV(FILE_MANAGER_CLOSE_IDLE_TIME))
+    if (GV(FILE_MANAGER_CLOSE_IDLE_TIME) != 0)
         CONFIG_APPEND(*p, ",close_idle_time=%" PRIu32, GV(FILE_MANAGER_CLOSE_IDLE_TIME));
-    if (GV(FILE_MANAGER_CLOSE_SCAN_INTERVAL))
+    if (GV(FILE_MANAGER_CLOSE_SCAN_INTERVAL) != 0)
         CONFIG_APPEND(*p, ",close_scan_interval=%" PRIu32, GV(FILE_MANAGER_CLOSE_SCAN_INTERVAL));
     CONFIG_APPEND(*p, "]");
 }
