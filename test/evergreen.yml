@@ -97,35 +97,11 @@ functions:
       working_dir: "wiredtiger"
       shell: bash
       script: |
-        set -o errexit
-        # Not setting verbose mode as we have sensitive keys that could be logged.
-
-        # Define common config flags for the tasks to make it cleaner when configuring the tasks.
-        # Note that the config flags are resolved prior to changing to cmake_build directory.
-        DEFINED_EVERGREEN_CONFIG_FLAGS="${CMAKE_BUILD_TYPE|} \
-          ${CMAKE_INSTALL_PREFIX|} \
-          ${CMAKE_PREFIX_PATH|} \
-          ${CMAKE_TOOLCHAIN_FILE|} \
-          ${ENABLE_SHARED|} \
-          ${ENABLE_STATIC|} \
-          ${HAVE_BUILTIN_EXTENSION_LZ4|} \
-          ${HAVE_BUILTIN_EXTENSION_SNAPPY|} \
-          ${HAVE_BUILTIN_EXTENSION_ZLIB|} \
-          ${HAVE_BUILTIN_EXTENSION_ZSTD|} \
-          ${HAVE_FTRUNCATE|} \
-          ${HAVE_UNITTEST} \
-          ${NON_BARRIER_DIAGNOSTIC_YIELDS|} \
-          ${HAVE_DIAGNOSTIC|} \
-          ${GNU_C_VERSION|} \
-          ${GNU_CXX_VERSION|} \
-          ${ENABLE_S3|} \
-          ${IMPORT_S3_SDK|} \
-          ${SPINLOCK_TYPE|} \
-          ${CC_OPTIMIZE_LEVEL|}"
-
-        # The RHEL PPC platform does not have ZSTD. Strip it out.
-        if [ "${build_variant|}" = "rhel8-ppc" ] && [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS" =~ (\-DHAVE_BUILTIN_EXTENSION_ZSTD=1) ]]; then
-          DEFINED_EVERGREEN_CONFIG_FLAGS=${DEFINED_EVERGREEN_CONFIG_FLAGS/\-DHAVE_BUILTIN_EXTENSION_ZSTD=1/}
+        # Fetch the gperftools library.
+        if [[ "${posix_configure_flags|}" =~ (tcmalloc|TCMALLOC) ]]; then
+          is_cmake_build=true
+          git clone git@github.com:wiredtiger/automation-scripts.git
+          . automation-scripts/evergreen/find_gperftools.sh ${s3_access_key} ${s3_secret_key} ${build_variant} $is_cmake_build
         fi
         
         set -o errexit
@@ -2733,9 +2709,8 @@ tasks:
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_with_builtins
-          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+        vars: 
+          posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake  -DCMAKE_BUILD_TYPE=ASan -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1
       - func: "format test script"
         vars:
           #run for 2 hours ( 2 * 60 = 120 minutes), use default config
@@ -2743,7 +2718,7 @@ tasks:
           # See https://bugzilla.redhat.com/show_bug.cgi?id=1686261#c10 for the potential cause.
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 120 -- -C "mmap=false,mmap_all=false"
 
-  - <<: *format-stress-test
+  - <<: *format-stress-tests
     name: format-stress-test-1
     tags: ["stress-test-1"]
   - <<: *format-stress-test
