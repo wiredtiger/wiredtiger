@@ -660,40 +660,6 @@ functions:
           set -o verbose
           ./test/evergreen/verify_wt_datafiles.sh 2>&1
 
-#######################################
-#               Variables             #
-#######################################
-
-variables:
-  # Configure flags for builtins.
-  - &configure_flags_with_builtins
-    HAVE_BUILTIN_EXTENSION_LZ4: -DHAVE_BUILTIN_EXTENSION_LZ4=1
-    HAVE_BUILTIN_EXTENSION_SNAPPY: -DHAVE_BUILTIN_EXTENSION_SNAPPY=1
-    HAVE_BUILTIN_EXTENSION_ZLIB: -DHAVE_BUILTIN_EXTENSION_ZLIB=1
-    HAVE_BUILTIN_EXTENSION_ZSTD: -DHAVE_BUILTIN_EXTENSION_ZSTD=1
-
-  # Configure flags static library (default in cmake is dynamic).
-  - &configure_flags_static_lib
-    ENABLE_SHARED: -DENABLE_SHARED=0
-    ENABLE_STATIC: -DENABLE_STATIC=1
-
-  # Configure flags static library (default in cmake is dynamic) with builtins.
-  - &configure_flags_static_lib_with_builtins
-    <<: *configure_flags_with_builtins
-    ENABLE_SHARED: -DENABLE_SHARED=0
-    ENABLE_STATIC: -DENABLE_STATIC=1
-
-  # Configure flags for tiered storage S3 extension.
-  - &configure_flags_tiered_storage_s3
-    ENABLE_S3: -DENABLE_S3=1
-    IMPORT_S3_SDK: -DIMPORT_S3_SDK=external
-
-  # Configure flags for address sanitizer for mongodb toolchain v4 clang (include builtins).
-  - &configure_flags_address_sanitizer_mongodb_v4_clang_with_builtins
-    <<: *configure_flags_with_builtins
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake
-    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
-
 #########################################################################################
 # The following stress tests are configured to run for six hours via the "-t 360"
 # argument to format.sh: format-stress-test, format-stress-sanitizer-test, and
@@ -716,7 +682,7 @@ variables:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          <<: *configure_flags_address_sanitizer_mongodb_v4_clang_with_builtins
+          posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake -DCMAKE_BUILD_TYPE=ASan -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1
       - func: "format test script"
         vars:
           # Always disable mmap for PPC due to issues on variant setup.
@@ -2710,7 +2676,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars: 
-          posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_clang.cmake  -DCMAKE_BUILD_TYPE=ASan -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1
+          posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1
       - func: "format test script"
         vars:
           #run for 2 hours ( 2 * 60 = 120 minutes), use default config
@@ -2718,7 +2684,7 @@ tasks:
           # See https://bugzilla.redhat.com/show_bug.cgi?id=1686261#c10 for the potential cause.
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 120 -- -C "mmap=false,mmap_all=false"
 
-  - <<: *format-stress-tests
+  - <<: *format-stress-test
     name: format-stress-test-1
     tags: ["stress-test-1"]
   - <<: *format-stress-test
