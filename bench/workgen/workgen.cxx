@@ -428,8 +428,9 @@ ContextInternal::ContextInternal()
 
 ContextInternal::~ContextInternal()
 {
-    if (_table_runtime != nullptr)
-        delete _table_runtime;
+    // Is this necessary?
+    if (_table_runtime.size() != 0)
+        _table_runtime.resize(0); 
 }
 
 int
