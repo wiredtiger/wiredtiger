@@ -1162,6 +1162,7 @@ maxObjects
 maxcpu
 maxdbs
 maxdiff
+maxv
 mb
 mbll
 mbss
@@ -1492,6 +1493,7 @@ suboptimal
 subsystem's
 subtest
 subtree
+sumv
 sunique
 supd
 superset

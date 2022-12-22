@@ -143,6 +143,10 @@ mmrand(WT_RAND_STATE *rnd, u_int min, u_int max)
     return (v);
 }
 
+/*
+ * random_sleep --
+ *     TODO: Add a comment describing this function.
+ */
 static inline void
 random_sleep(WT_RAND_STATE *rnd, u_int max_seconds)
 {
@@ -167,8 +171,8 @@ random_sleep(WT_RAND_STATE *rnd, u_int max_seconds)
 }
 
 /*
- * tables_apply -
- *	Call an underlying function on all tables.
+ * tables_apply --
+ *     Call an underlying function on all tables.
  */
 static inline void
 tables_apply(void (*func)(TABLE *, void *), void *arg)
@@ -333,8 +337,8 @@ key_gen_insert(TABLE *table, WT_RAND_STATE *rnd, WT_ITEM *key, uint64_t keyno)
 }
 
 /*
- * lock_try_writelock
- *     Try to get exclusive lock.  Fail immediately if not available.
+ * lock_try_writelock --
+ *     Try to get exclusive lock. Fail immediately if not available.
  */
 static inline int
 lock_try_writelock(WT_SESSION *session, RWLOCK *lock)
@@ -384,8 +388,8 @@ lock_readlock(WT_SESSION *session, RWLOCK *lock)
 }
 
 /*
- * lock_writeunlock --
- *     Release an exclusive lock.
+ * lock_readunlock --
+ *     TO DO: double check function description Release an exclusive lock.
  */
 static inline void
 lock_readunlock(WT_SESSION *session, RWLOCK *lock)
