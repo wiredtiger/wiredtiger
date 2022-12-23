@@ -98,9 +98,9 @@ cpp_file_directories=[
 
 # Some directories aren't expected to comply with WiredTiger style. Ignore them.
 ignore_directories=[
-'src/checksum',
-'src/os_win',
-'src/support'
+    'src/checksum',
+    'src/os_win',
+    'src/support',
 ]
 
 fast=False
