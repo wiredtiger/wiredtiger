@@ -12,6 +12,7 @@ __wt_bulk_insert_fix
 __wt_bulk_insert_row
 __wt_bulk_insert_var
 __wt_config_getone
+__wt_conn_config_match
 __wt_crc32c_le
 __wt_curhs_open
 __wt_cursor_get_raw_value
