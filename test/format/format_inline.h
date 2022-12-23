@@ -145,7 +145,8 @@ mmrand(WT_RAND_STATE *rnd, u_int min, u_int max)
 
 /*
  * random_sleep --
- *     TODO: Add a comment describing this function.
+ *     Randomly select a time to sleep between 0 and a maximum number of seconds, favoring shorter
+ *     sleep times.
  */
 static inline void
 random_sleep(WT_RAND_STATE *rnd, u_int max_seconds)
@@ -389,7 +390,7 @@ lock_readlock(WT_SESSION *session, RWLOCK *lock)
 
 /*
  * lock_readunlock --
- *     TO DO: double check function description Release an exclusive lock.
+ *     Release a shared lock.
  */
 static inline void
 lock_readunlock(WT_SESSION *session, RWLOCK *lock)
