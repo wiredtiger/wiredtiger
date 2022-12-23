@@ -73,6 +73,19 @@ tests = [
     (r' * http://www.google.com', False)
 ]
 
+def file_is_cpp(name):
+    if re.search('(.cpp|.cxx|.hpp)$', name) is not None:
+        return True
+    if re.search('(.c|.i|.in)$', name) is not None:
+        return False
+
+    # House style is that C++ header files use ".h", which unfortunately makes
+    # this sort of code rather difficult. Luckily, libmagic can identify C/C++
+    # based on content. Don't import it because Python packaging is a disaster
+    # and this script needs to run reliably.
+    result = subprocess.run("file {}".format(name), shell=True, capture_output=True, text=True).stdout.strip('\n')
+    return "C++" in result
+
 # Move up to root dir.
 os.chdir("..")
 
@@ -84,17 +97,6 @@ single_line_comment = re.compile(
     r'^(?:[^"/\\]|\"(?:[^\"\\]|\\.)*\"|/(?:[^/"\\]|\\.)|/\"(?:[^\"\\]|\\.)*\"|\\.)*//(.*)$')
 # Text before comments
 text_check = re.compile(r'^[^\/\n]+')
-
-# Because we can't tell if a .h file is a C++ file or a C file we need to maintain a list of
-# directories.
-cpp_file_directories=[
-'test/cppsuite',
-'test/simulator',
-'test/unittest',
-'bench/workgen',
-'ext/storage_sources',
-'tools/xray_to_optrack'
-]
 
 # Some directories aren't expected to comply with WiredTiger style. Ignore them.
 ignore_directories=[
@@ -129,10 +131,7 @@ for file_name in result.split('\n'):
             skip=True
     if skip:
         continue
-    for directory in cpp_file_directories:
-        if directory in file_name:
-            cpp_file=True
-    if cpp_file:
+    if file_is_cpp(file_name):
         count += check_cpp_comments(file_name)
     else:
         count += check_c_comments(file_name)
