@@ -528,15 +528,12 @@ thread_ckpt_run(void *arg)
     struct timespec now, start;
     FILE *fp;
     THREAD_DATA *td;
-    WT_RAND_STATE rnd;
     WT_SESSION *session;
     uint64_t ts;
     uint32_t sleep_time;
     int i;
     char buf[512];
     bool first_ckpt, flush;
-
-    __wt_random_init(&rnd);
 
     td = (THREAD_DATA *)arg;
     /*
@@ -552,9 +549,9 @@ thread_ckpt_run(void *arg)
      */
     __wt_epoch(NULL, &start);
     for (i = 1;; ++i) {
-        sleep_time = __wt_random(&rnd) % MAX_CKPT_INVL;
+        sleep_time = __wt_random(&td->extra_rnd) % MAX_CKPT_INVL;
         sleep(sleep_time);
-        flush = ((__wt_random(&rnd) % FLUSH_INVL) == 0) ? true : false;
+        flush = ((__wt_random(&td->extra_rnd) % FLUSH_INVL) == 0) ? true : false;
         if (use_ts) {
             ts = global_ts;
             /*
