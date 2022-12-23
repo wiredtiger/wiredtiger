@@ -432,7 +432,7 @@ int
 ContextInternal::create_all()
 {
     if (_table_runtime.size() < _tint_last) {
-        _table_runtime.resize(_tint_last);
+        _table_runtime.resize(_tint_last + 1);
     }
     return (0);
 }
