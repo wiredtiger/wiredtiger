@@ -689,7 +689,7 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
                         ps.byte_count = (unpack.ovfl_ps.byte_count + 8) * ps.row_count;
                 }
 
-                WT_PAGE_STAT_UPDATE(&trk->ps, &ps);
+                WT_PAGE_STAT_ADD(&trk->ps, &ps);
             }
 
             WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &unpack.tw);
@@ -720,7 +720,7 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
                 if (!WT_TIME_WINDOW_HAS_STOP(&unpack.tw)) {
                     ps.row_count = 1;
                     ps.byte_count = (int64_t)unpack.size + key_size;
-                    WT_PAGE_STAT_UPDATE(&trk->ps, &ps);
+                    WT_PAGE_STAT_ADD(&trk->ps, &ps);
                 }
                 WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &unpack.tw);
                 break;
@@ -732,7 +732,7 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
                     else
                         ps.byte_count = unpack.ovfl_ps.byte_count + key_size;
 
-                    WT_PAGE_STAT_UPDATE(&trk->ps, &ps);
+                    WT_PAGE_STAT_ADD(&trk->ps, &ps);
                 }
                 WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &unpack.tw);
                 break;

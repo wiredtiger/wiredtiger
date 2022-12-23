@@ -159,7 +159,7 @@ __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
 
         ps.row_count = (int64_t)cbulk->rle;
         ps.byte_count = ps.row_count * ((int64_t)cbulk->last->size + 8);
-        WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
+        WT_PAGE_STAT_ADD(&r->cur_ptr->ps, &ps);
     }
 
     /* Boundary: split or write the page. */
@@ -213,7 +213,7 @@ __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         /* Copy the value onto the page. */
         __wt_rec_image_copy(session, r, val);
         WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &addr->ta);
-        WT_PAGE_STAT_MERGE(&r->cur_ptr->ps, &addr->ps);
+        WT_PAGE_STAT_ADD(&r->cur_ptr->ps, &addr->ps);
     }
     return (0);
 }
@@ -349,7 +349,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
          * the count after recovery as rollback to stable should have removed all unstable truncate.
          */
         if (__wt_process.page_stats_2022 && (page_del == NULL || !page_del->committed))
-            WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
+            WT_PAGE_STAT_ADD(&r->cur_ptr->ps, &ps);
     }
     WT_INTL_FOREACH_END;
 
@@ -1205,14 +1205,14 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
                 ps.byte_count = WT_STAT_NONE;
             else
                 ps.byte_count = (ovfl_ps->byte_count + 8) * ps.row_count;
-            WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
+            WT_PAGE_STAT_ADD(&r->cur_ptr->ps, &ps);
         }
     } else {
         WT_RET(__wt_rec_cell_build_val(session, r, value->data, value->size, tw, rle));
         if (!WT_TIME_WINDOW_HAS_STOP(tw)) {
             ps.row_count = (int64_t)rle;
             ps.byte_count = ((int64_t)value->size + 8) * ps.row_count;
-            WT_PAGE_STAT_UPDATE(&r->cur_ptr->ps, &ps);
+            WT_PAGE_STAT_ADD(&r->cur_ptr->ps, &ps);
         }
     }
 
