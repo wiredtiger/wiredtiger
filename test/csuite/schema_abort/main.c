@@ -118,6 +118,8 @@ typedef struct {
     uint64_t start;
     uint32_t info;
     const char *op;
+    WT_RAND_STATE data_rnd;
+    WT_RAND_STATE extra_rnd;
 } THREAD_DATA;
 
 #define NOOP "noop"
@@ -805,6 +807,20 @@ thread_run(void *arg)
 static void run_workload(uint32_t) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 /*
+ * init_thread_data --
+ *     Initialize the thread data struct.
+ */
+static void
+init_thread_data(THREAD_DATA *td, WT_CONNECTION *conn, uint64_t start, uint32_t info)
+{
+    td->conn = conn;
+    td->start = start;
+    td->info = info;
+    testutil_random_from_random(&td->data_rnd, &opts->data_rnd);
+    testutil_random_from_random(&td->extra_rnd, &opts->extra_rnd);
+}
+
+/*
  * run_workload --
  *     Child process creates the database and table, and then creates worker threads to add data
  *     until it is killed by the parent.
@@ -853,22 +869,18 @@ run_workload(uint32_t nth)
      * The checkpoint thread and the timestamp threads are added at the end.
      */
     ckpt_id = nth;
-    td[ckpt_id].conn = conn;
-    td[ckpt_id].info = nth;
+    init_thread_data(&td[ckpt_id], conn, 0, nth);
     printf("Create checkpoint thread\n");
     testutil_check(__wt_thread_create(NULL, &thr[ckpt_id], thread_ckpt_run, &td[ckpt_id]));
     ts_id = nth + 1;
     if (use_ts) {
-        td[ts_id].conn = conn;
-        td[ts_id].info = nth;
+        init_thread_data(&td[ts_id], conn, 0, nth);
         printf("Create timestamp thread\n");
         testutil_check(__wt_thread_create(NULL, &thr[ts_id], thread_ts_run, &td[ts_id]));
     }
     printf("Create %" PRIu32 " writer threads\n", nth);
     for (i = 0; i < nth; ++i) {
-        td[i].conn = conn;
-        td[i].start = WT_BILLION * (uint64_t)i;
-        td[i].info = i;
+        init_thread_data(&td[i], conn, WT_BILLION * (uint64_t)i, i);
         testutil_check(__wt_thread_create(NULL, &thr[i], thread_run, &td[i]));
     }
     /*
