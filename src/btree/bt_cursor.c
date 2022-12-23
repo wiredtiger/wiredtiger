@@ -2256,7 +2256,7 @@ __wt_btcur_open(WT_CURSOR_BTREE *cbt)
     cbt->upd_value->type = WT_UPDATE_INVALID;
     WT_TIME_WINDOW_INIT(&cbt->upd_value->tw);
 
-    if (DIAGNOSTIC_ASSERTS_ENABLED((WT_SESSION_IMPL *)cbt->iface.session)) {
+    if (DIAGNOSTIC_ASSERTS_ENABLED(CUR2S(cbt))) {
         cbt->lastkey = &cbt->_lastkey;
         cbt->lastrecno = WT_RECNO_OOB;
     }

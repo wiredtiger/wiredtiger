@@ -97,7 +97,7 @@ __split_verify_intl_key_order(WT_SESSION_IMPL *session, WT_PAGE *page)
                 WT_ASSERT_ALWAYS(session,
                   __wt_compare(session, btree->collator, last, next, &cmp) == 0,
                   "Key comparison failed during verification, cannot proceed");
-                WT_ASSERT_ALWAYS(session, cmp < 0, "Key slot order incorrect after splitting");
+                WT_ASSERT_ALWAYS(session, cmp < 0, "Out of order keys detected after page split");
             }
             tmp = last;
             last = next;

@@ -167,7 +167,8 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
                         WT_ASSERT_ALWAYS(session,
                           type != WT_UPDATE_MODIFY &&
                             (uint8_t)upd_type_full_diag != WT_UPDATE_MODIFY,
-                          "Inserted invalid duplicate record of type modify update");
+                          "Duplicate modifies inserted into the history store can result in "
+                          "invalid reads");
                     }
                 }
                 counter = hs_counter + 1;

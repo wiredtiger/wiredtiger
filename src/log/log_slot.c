@@ -24,7 +24,7 @@ __log_slot_dump(WT_SESSION_IMPL *session)
     conn = S2C(session);
     log = conn->log;
     ret = __wt_verbose_dump_log(session);
-    WT_ASSERT_ALWAYS(session, ret == 0, "Failed to dump logging information");
+    WT_ASSERT_ALWAYS(session, ret == 0, "Failed to dump log system information");
     earliest = 0;
     for (i = 0; i < WT_SLOT_POOL; i++) {
         slot = &log->slot_pool[i];

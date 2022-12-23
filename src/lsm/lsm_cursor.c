@@ -673,7 +673,8 @@ err:
                 chunk = lsm_tree->chunk[i + start_chunk];
 
                 /* Make sure the first cursor is open. */
-                WT_ASSERT_ALWAYS(session, cursor != NULL, "Failed to open all expected cursors");
+                WT_ASSERT_ALWAYS(
+                  session, cursor != NULL, "Failed to open cursors for all LSM chunks");
 
                 /* Easy case: the URIs should match. */
                 WT_ASSERT_ALWAYS(session, strcmp(cursor->uri, chunk->uri) == 0,

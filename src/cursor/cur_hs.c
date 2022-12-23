@@ -1004,7 +1004,7 @@ __curhs_insert(WT_CURSOR *cursor)
         ret = __curhs_file_cursor_search_near(session, file_cursor, &exact);
         /* We can get not found if the inserted history store record is obsolete. */
         WT_ASSERT_ALWAYS(session, ret == 0 || ret == WT_NOTFOUND,
-          "Search near validation of inserted record failed with: %d", ret);
+          "Key order verification failed for history store insertion", ret);
 
         /*
          * If a globally visible tombstone is inserted and the page is evicted during search_near

@@ -729,13 +729,15 @@ __assert_ckpt_matches(WT_SESSION_IMPL *session, WT_CKPT *ckpt_a, WT_CKPT *ckpt_b
     WT_ASSERT_ALWAYS(session,
       (ckpt_a->name == NULL && ckpt_b->name == NULL) ||
         (ckpt_a->name != NULL && ckpt_b->name != NULL && strcmp(ckpt_a->name, ckpt_b->name) == 0),
-      "Checkpoint names mismatch");
-    WT_ASSERT_ALWAYS(session, ckpt_a->order == ckpt_b->order, "Checkpoint order mismatch ");
-    WT_ASSERT_ALWAYS(session, ckpt_a->size == ckpt_b->size, "Checkpoint size mismatch");
+      "Checkpoint names mismatch in __assert_ckpt_matches");
+    WT_ASSERT_ALWAYS(session, ckpt_a->order == ckpt_b->order,
+      "Checkpoint order mismatch in __assert_ckpt_matches ");
+    WT_ASSERT_ALWAYS(
+      session, ckpt_a->size == ckpt_b->size, "Checkpoint size mismatch in __assert_ckpt_matches");
     WT_ASSERT_ALWAYS(session, ckpt_a->write_gen == ckpt_b->write_gen,
-      "Checkpoint write generation config mismatch");
+      "Checkpoint write generation config mismatch in __assert_ckpt_matches");
     WT_ASSERT_ALWAYS(session, ckpt_a->run_write_gen == ckpt_b->run_write_gen,
-      "Checkpoint runtime write generation config mismatch");
+      "Checkpoint runtime write generation config mismatch in __assert_ckpt_matches");
     WT_ASSERT_ALWAYS(session,
       ckpt_a->ta.newest_start_durable_ts == ckpt_b->ta.newest_start_durable_ts &&
         ckpt_a->ta.newest_stop_durable_ts == ckpt_b->ta.newest_stop_durable_ts &&
@@ -744,7 +746,7 @@ __assert_ckpt_matches(WT_SESSION_IMPL *session, WT_CKPT *ckpt_a, WT_CKPT *ckpt_b
         ckpt_a->ta.newest_stop_ts == ckpt_b->ta.newest_stop_ts &&
         ckpt_a->ta.newest_stop_txn == ckpt_b->ta.newest_stop_txn &&
         ckpt_a->ta.prepare == ckpt_b->ta.prepare,
-      "Checkpoint metadata mismatch");
+      "Checkpoint metadata mismatch in __assert_ckpt_matches");
     /*
      * The two WT_CKPT structures are created through different paths, specifically in one path the
      * WT_CKPT.addr and WT_CKPT.raw fields are taken from a configuration file as strings including
@@ -756,16 +758,17 @@ __assert_ckpt_matches(WT_SESSION_IMPL *session, WT_CKPT *ckpt_a, WT_CKPT *ckpt_b
         (ckpt_a->addr.data != NULL && ckpt_b->addr.data != NULL &&
           memcmp(ckpt_a->addr.data, ckpt_b->addr.data,
             WT_MIN(ckpt_a->addr.size, ckpt_b->addr.size)) == 0),
-      "Checkpoint data/size mismatch");
+      "Checkpoint data/size mismatch in __assert_ckpt_matches");
     WT_ASSERT_ALWAYS(session,
       (ckpt_a->raw.data == NULL && ckpt_b->raw.data == NULL) ||
         (ckpt_a->raw.data != NULL && ckpt_b->raw.data != NULL &&
           memcmp(ckpt_a->raw.data, ckpt_b->raw.data, WT_MIN(ckpt_a->raw.size, ckpt_b->raw.size)) ==
             0),
-      "Checkpoint data/size mismatch");
-    WT_ASSERT_ALWAYS(
-      session, ckpt_a->bpriv == NULL && ckpt_b->bpriv == NULL, "Checkpoint block manager mismatch");
-    WT_ASSERT_ALWAYS(session, ckpt_a->flags == ckpt_b->flags, "Checkpoint flags mismatch");
+      "Checkpoint data/size mismatch in __assert_ckpt_matches");
+    WT_ASSERT_ALWAYS(session, ckpt_a->bpriv == NULL && ckpt_b->bpriv == NULL,
+      "Checkpoint block manager mismatch in __assert_ckpt_matches");
+    WT_ASSERT_ALWAYS(session, ckpt_a->flags == ckpt_b->flags,
+      "Checkpoint flags mismatch in __assert_ckpt_matches");
 }
 
 /*
