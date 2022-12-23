@@ -660,6 +660,12 @@ functions:
           set -o verbose
           ./test/evergreen/verify_wt_datafiles.sh 2>&1
 
+#######################################
+#               Variables             #
+#######################################
+
+variables:
+
 #########################################################################################
 # The following stress tests are configured to run for six hours via the "-t 360"
 # argument to format.sh: format-stress-test, format-stress-sanitizer-test, and
@@ -696,9 +702,7 @@ functions:
     exec_timeout_secs: 25200
     commands:
       - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_address_sanitizer_mongodb_v4_clang_with_builtins
+      - func: "compile wiredtiger address sanitizer"
       - func: "format test script"
         vars:
           format_test_script_args: -t 360
