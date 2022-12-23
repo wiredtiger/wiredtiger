@@ -667,6 +667,8 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
 		$result = metadata;
 		data = PyBytes_FromStringAndSize(*$3, *$4);
 		$result = SWIG_Python_AppendOutput($result, data);
+	} else {
+		SWIG_exception_fail(SWIG_AttributeError, "invalid pointer argument");
 	}
 }
 
@@ -677,6 +679,8 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
 		$result = key_data;
 		value_data = PyBytes_FromStringAndSize(*$3, *$4);
 		$result = SWIG_Python_AppendOutput($result, value_data);
+	} else {
+		SWIG_exception_fail(SWIG_AttributeError, "invalid pointer argument");
 	}
 }
 

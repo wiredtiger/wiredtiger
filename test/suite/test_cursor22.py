@@ -73,6 +73,20 @@ class test_cursor22(wttest.WiredTigerTestCase):
             self.check_get_raw_key_and_value(cursor=cursor, expected_key="key" + str(i), expected_value="value" + str(100+i))
         self.session.commit_transaction()
 
+        # Check the less common usage of get_raw_key_and_value()
+        self.session.begin_transaction()
+        cursor.reset()
+        cursor.next()
+        # Get only the key (and ignore the value)
+        (key, _) = cursor.get_raw_key_and_value()
+        # Check we can ignore the result completely, without an issue
+        cursor.get_raw_key_and_value()
+        # Get only the value (and ignore the key)
+        (_, value) = cursor.get_raw_key_and_value()
+        self.assertEquals(key, "key1")
+        self.assertEquals(value, "value101")
+        self.session.commit_transaction()
+
         cursor.close()
         self.session.close()
 

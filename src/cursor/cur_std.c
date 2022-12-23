@@ -75,7 +75,7 @@ __wt_cursor_get_value_notsup(WT_CURSOR *cursor, ...)
 
 /*
  * __wt_cursor_get_raw_key_value_notsup --
- *     WT_CURSOR.get_value not-supported.
+ *     WT_CURSOR.get_raw_key_value not-supported.
  */
 int
 __wt_cursor_get_raw_key_value_notsup(WT_CURSOR *cursor, WT_ITEM *key, WT_ITEM *value)
