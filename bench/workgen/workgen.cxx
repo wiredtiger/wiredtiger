@@ -432,6 +432,7 @@ int
 ContextInternal::create_all()
 {
     if (_table_runtime.size() < _tint_last) {
+        // The array references are 1-based, we'll waste one entry.
         _table_runtime.resize(_tint_last + 1);
     }
     return (0);
