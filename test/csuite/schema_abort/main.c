@@ -615,14 +615,12 @@ thread_run(void *arg)
     THREAD_DATA *td;
     WT_CURSOR *cur_coll, *cur_local, *cur_oplog;
     WT_ITEM data;
-    WT_RAND_STATE rnd;
     WT_SESSION *oplog_session, *session;
     uint64_t i, stable_ts;
     char cbuf[MAX_VAL], lbuf[MAX_VAL], obuf[MAX_VAL];
     char kname[64], tscfg[64];
     bool use_prep;
 
-    __wt_random_init(&rnd);
     memset(cbuf, 0, sizeof(cbuf));
     memset(lbuf, 0, sizeof(lbuf));
     memset(obuf, 0, sizeof(obuf));
@@ -681,14 +679,14 @@ thread_run(void *arg)
              * Do a schema operation about 50% of the time by having a case for only about half the
              * possible mod values.
              */
-            switch (__wt_random(&rnd) % 20) {
+            switch (__wt_random(&td->data_rnd) % 20) {
             case 0:
                 WT_PUBLISH(th_ts[td->info].op, BULK);
                 test_bulk(td);
                 break;
             case 1:
                 WT_PUBLISH(th_ts[td->info].op, BULK_UNQ);
-                test_bulk_unique(td, __wt_random(&rnd) & 1);
+                test_bulk_unique(td, __wt_random(&td->data_rnd) & 1);
                 break;
             case 2:
                 WT_PUBLISH(th_ts[td->info].op, CREATE);
@@ -696,7 +694,7 @@ thread_run(void *arg)
                 break;
             case 3:
                 WT_PUBLISH(th_ts[td->info].op, CREATE_UNQ);
-                test_create_unique(td, __wt_random(&rnd) & 1);
+                test_create_unique(td, __wt_random(&td->data_rnd) & 1);
                 break;
             case 4:
                 WT_PUBLISH(th_ts[td->info].op, CURSOR);
@@ -704,7 +702,7 @@ thread_run(void *arg)
                 break;
             case 5:
                 WT_PUBLISH(th_ts[td->info].op, DROP);
-                test_drop(td, __wt_random(&rnd) & 1);
+                test_drop(td, __wt_random(&td->data_rnd) & 1);
                 break;
             case 6:
                 WT_PUBLISH(th_ts[td->info].op, UPGRADE);
@@ -740,11 +738,11 @@ thread_run(void *arg)
           "LOCAL: thread:%" PRIu32 " ts:%" PRIu64 " key: %" PRIu64, td->info, stable_ts, i));
         testutil_check(__wt_snprintf(obuf, sizeof(obuf),
           "OPLOG: thread:%" PRIu32 " ts:%" PRIu64 " key: %" PRIu64, td->info, stable_ts, i));
-        data.size = __wt_random(&rnd) % MAX_VAL;
+        data.size = __wt_random(&td->data_rnd) % MAX_VAL;
         data.data = cbuf;
         cur_coll->set_value(cur_coll, &data);
         testutil_check(cur_coll->insert(cur_coll));
-        data.size = __wt_random(&rnd) % MAX_VAL;
+        data.size = __wt_random(&td->data_rnd) % MAX_VAL;
         data.data = obuf;
         cur_oplog->set_value(cur_oplog, &data);
         testutil_check(cur_oplog->insert(cur_oplog));
@@ -790,7 +788,7 @@ thread_run(void *arg)
         /*
          * Insert into the local table outside the timestamp txn.
          */
-        data.size = __wt_random(&rnd) % MAX_VAL;
+        data.size = __wt_random(&td->data_rnd) % MAX_VAL;
         data.data = lbuf;
         cur_local->set_value(cur_local, &data);
         testutil_check(cur_local->insert(cur_local));
