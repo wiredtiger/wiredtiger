@@ -156,7 +156,7 @@ int
 wiredtiger_config_validate(
   WT_SESSION *wt_session, WT_EVENT_HANDLER *event_handler, const char *name, const char *config)
 {
-    return (__config_validate(wt_session, event_handler, name, config, __wt_conn_config_match));
+    return (__config_validate(wt_session, event_handler, name, config, __wt_test_config_match));
 }
 
 /*
