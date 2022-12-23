@@ -945,12 +945,11 @@ main(int argc, char *argv[])
     WT_CONNECTION *conn;
     WT_CURSOR *cur_coll, *cur_local, *cur_oplog;
     WT_DECL_RET;
-    WT_RAND_STATE rnd;
     WT_SESSION *session;
     pid_t pid;
     uint64_t absent_coll, absent_local, absent_oplog, count, key, last_key;
     uint64_t stable_fp, stable_val;
-    uint32_t i, nth, timeout;
+    uint32_t i, nth, rand_value, timeout;
     int ch, status;
     char buf[1024], statname[1024];
     char fname[64], kname[64];
@@ -1011,6 +1010,9 @@ main(int argc, char *argv[])
     if (argc != 0)
         usage();
 
+    /*
+     * Among other things, this initializes the random number generators in the option structure.
+     */
     testutil_parse_end_opt(opts);
 
     testutil_work_dir_from_path(home, sizeof(home), opts->home);
@@ -1030,14 +1032,24 @@ main(int argc, char *argv[])
             testutil_make_work_dir(buf);
         }
 
-        __wt_random_init_seed(NULL, &rnd);
         if (rand_time) {
-            timeout = __wt_random(&rnd) % MAX_TIME;
+            timeout = __wt_random(&opts->extra_rnd) % MAX_TIME;
             if (timeout < MIN_TIME)
                 timeout = MIN_TIME;
         }
+
+        /*
+         * We unconditionally grab a random value to be used for the thread count to keep the RNG in
+         * sync for all runs. If we are run first without having a thread count or random seed
+         * argument, then when we rerun (with the thread count and random seed that was output),
+         * we'll have the same results.
+         *
+         * We use the data random generator because the number of threads affects the data for this
+         * test.
+         */
+        rand_value = __wt_random(&opts->data_rnd);
         if (rand_th) {
-            nth = __wt_random(&rnd) % MAX_TH;
+            nth = rand_value % MAX_TH;
             if (nth < MIN_TH)
                 nth = MIN_TH;
         }
@@ -1048,9 +1060,10 @@ main(int argc, char *argv[])
           opts->compat ? "true" : "false", opts->inmem ? "true" : "false",
           use_ts ? "true" : "false", opts->tiered_storage ? "true" : "false");
         printf("Parent: Create %" PRIu32 " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
-        printf("CONFIG: %s%s%s%s%s -h %s -T %" PRIu32 " -t %" PRIu32 "\n", progname,
-          opts->compat ? " -C" : "", opts->inmem ? " -m" : "", opts->tiered_storage ? " -B" : "",
-          !use_ts ? " -z" : "", opts->home, nth, timeout);
+        printf("CONFIG: %s%s%s%s%s -h %s -T %" PRIu32 " -t %" PRIu32 " " TESTUTIL_SEED_FORMAT "\n",
+          progname, opts->compat ? " -C" : "", opts->inmem ? " -m" : "",
+          opts->tiered_storage ? " -B" : "", !use_ts ? " -z" : "", opts->home, nth, timeout,
+          opts->data_seed, opts->extra_seed);
         /*
          * Fork a child to insert as many items. We will then randomly kill the child, run recovery
          * and make sure all items we wrote exist after recovery runs.
