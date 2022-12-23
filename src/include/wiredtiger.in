@@ -259,7 +259,7 @@ struct __wt_cursor {
 	 */
 	int __F(get_value)(WT_CURSOR *cursor, ...);
 
-        /*!
+	/*!
 	 * Get the raw key and value for the current record.
 	 *
 	 * @snippet ex_all.c Get the raw key and value for the current record.
