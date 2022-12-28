@@ -1188,9 +1188,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      */
     for (; upd != NULL && upd->txnid == WT_TXN_ABORTED; upd = upd->next)
         ;
-#ifdef HAVE_DIAGNOSTIC
     head_upd = upd;
-#endif
 
     /*
      * The head of the update chain is not a prepared update, which means all the prepared updates
