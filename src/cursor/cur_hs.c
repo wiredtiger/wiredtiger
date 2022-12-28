@@ -213,10 +213,8 @@ __curhs_search(WT_CURSOR_BTREE *hs_cbt, bool insert)
     WT_WITH_BTREE(session, hs_btree,
       ret = __wt_row_search(hs_cbt, &hs_cbt->iface.key, insert, NULL, false, NULL));
 
-#ifdef HAVE_DIAGNOSTIC
-    if (ret == 0)
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session) && ret == 0)
         WT_TRET(__wt_cursor_key_order_init(hs_cbt));
-#endif
 
 err:
     if (ret != 0)
@@ -1005,7 +1003,8 @@ __curhs_insert(WT_CURSOR *cursor)
         /* Do a search again and call next to check the key order. */
         ret = __curhs_file_cursor_search_near(session, file_cursor, &exact);
         /* We can get not found if the inserted history store record is obsolete. */
-        WT_ASSERT(session, ret == 0 || ret == WT_NOTFOUND);
+        WT_ASSERT_ALWAYS(session, ret == 0 || ret == WT_NOTFOUND,
+          "Key order verification failed for history store insertion", ret);
 
         /*
          * If a globally visible tombstone is inserted and the page is evicted during search_near

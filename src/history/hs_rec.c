@@ -164,9 +164,11 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
                          * not idempotent, having them inserted multiple times can cause invalid
                          * values to be read.
                          */
-                        WT_ASSERT(session,
+                        WT_ASSERT_ALWAYS(session,
                           type != WT_UPDATE_MODIFY &&
-                            (uint8_t)upd_type_full_diag != WT_UPDATE_MODIFY);
+                            (uint8_t)upd_type_full_diag != WT_UPDATE_MODIFY,
+                          "Duplicate modifies inserted into the history store can result in "
+                          "invalid reads");
                     }
                 }
                 counter = hs_counter + 1;
@@ -1095,18 +1097,33 @@ __hs_delete_record(
         WT_ASSERT(session, tombstone != NULL && __wt_txn_upd_visible_all(session, tombstone));
         ret = 0;
     } else {
+        /*
+         * If we're deleting a record that is already in the history store this implies we're
+         * rolling back a prepared transaction and need to pull the history store update back into
+         * the update chain, then delete it from the history store. These checks ensure we've
+         * retrieved the correct update from the history store.
+         */
         if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {
             __wt_hs_upd_time_window(r->hs_cursor, &hs_tw);
-            WT_ASSERT(session, hs_tw->start_txn == WT_TXN_NONE || hs_tw->start_txn == upd->txnid);
-            WT_ASSERT(session, hs_tw->start_ts == WT_TS_NONE || hs_tw->start_ts == upd->start_ts);
-            WT_ASSERT(session,
-              hs_tw->durable_start_ts == WT_TS_NONE || hs_tw->durable_start_ts == upd->durable_ts);
+            WT_ASSERT_ALWAYS(session,
+              hs_tw->start_txn == WT_TXN_NONE || hs_tw->start_txn == upd->txnid,
+              "Retrieved wrong update from history store: start txn id mismatch");
+            WT_ASSERT_ALWAYS(session,
+              hs_tw->start_ts == WT_TS_NONE || hs_tw->start_ts == upd->start_ts,
+              "Retrieved wrong update from history store: start timestamp mismatch");
+            WT_ASSERT_ALWAYS(session,
+              hs_tw->durable_start_ts == WT_TS_NONE || hs_tw->durable_start_ts == upd->durable_ts,
+              "Retrieved wrong update from history store: durable start timestamp mismatch");
             if (tombstone != NULL) {
-                WT_ASSERT(session, hs_tw->stop_txn == tombstone->txnid);
-                WT_ASSERT(session, hs_tw->stop_ts == tombstone->start_ts);
-                WT_ASSERT(session, hs_tw->durable_stop_ts == tombstone->durable_ts);
+                WT_ASSERT_ALWAYS(session, hs_tw->stop_txn == tombstone->txnid,
+                  "Retrieved wrong update from history store: stop txn id mismatch");
+                WT_ASSERT_ALWAYS(session, hs_tw->stop_ts == tombstone->start_ts,
+                  "Retrieved wrong update from history store: stop timestamp mismatch");
+                WT_ASSERT_ALWAYS(session, hs_tw->durable_stop_ts == tombstone->durable_ts,
+                  "Retrieved wrong update from history store: durable stop timestamp mismatch");
             } else
-                WT_ASSERT(session, !WT_TIME_WINDOW_HAS_STOP(hs_tw));
+                WT_ASSERT_ALWAYS(session, !WT_TIME_WINDOW_HAS_STOP(hs_tw),
+                  "Retrieved wrong update from history store: empty tombstone with stop timestamp");
         }
         WT_ERR(r->hs_cursor->remove(r->hs_cursor));
     }

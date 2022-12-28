@@ -1440,9 +1440,10 @@ prepare_verify:
              * Assert if we still have an update from the current transaction that hasn't been
              * resolved or aborted.
              */
-            WT_ASSERT(session,
+            WT_ASSERT_ALWAYS(session,
               head_upd->txnid == WT_TXN_ABORTED || head_upd->prepare_state == WT_PREPARE_RESOLVED ||
-                head_upd->txnid != txn->id);
+                head_upd->txnid != txn->id,
+              "Failed to resolve all updates associated with a prepared transaction");
 
             if (head_upd->txnid == WT_TXN_ABORTED)
                 continue;
@@ -1453,7 +1454,8 @@ prepare_verify:
              */
             if (!commit && resolve_case == RESOLVE_PREPARE_ON_DISK &&
               head_upd->type == WT_UPDATE_STANDARD && F_ISSET(head_upd, WT_UPDATE_RESTORED_FROM_HS))
-                WT_ASSERT(session, head_upd->next == NULL);
+                WT_ASSERT_ALWAYS(session, head_upd->next == NULL,
+                  "Rolling back a prepared transaction resulted in an invalid update chain");
         }
     }
 

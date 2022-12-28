@@ -980,7 +980,8 @@ err:
                 F_CLR(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);
                 ret = __wt_compare_bounds(
                   session, cursor, &cbt->iface.key, cbt->recno, false, &key_out_of_bounds);
-                WT_ASSERT(session, ret == 0 && !key_out_of_bounds);
+                WT_ASSERT_ALWAYS(session, ret == 0 && !key_out_of_bounds,
+                  "Bounded cursor next logic resulted in the cursor being in an illegal state");
                 if (inclusive_set)
                     F_SET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);
             }

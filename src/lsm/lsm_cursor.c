@@ -673,10 +673,12 @@ err:
                 chunk = lsm_tree->chunk[i + start_chunk];
 
                 /* Make sure the first cursor is open. */
-                WT_ASSERT(session, cursor != NULL);
+                WT_ASSERT_ALWAYS(
+                  session, cursor != NULL, "Failed to open cursors for all LSM chunks");
 
                 /* Easy case: the URIs should match. */
-                WT_ASSERT(session, strcmp(cursor->uri, chunk->uri) == 0);
+                WT_ASSERT_ALWAYS(session, strcmp(cursor->uri, chunk->uri) == 0,
+                  "Cursor URI does not match the LSM tree URI");
 
                 /*
                  * Make sure the checkpoint config matches when not using a custom data source.
@@ -684,16 +686,18 @@ err:
                 if (lsm_tree->custom_generation == 0 ||
                   chunk->generation < lsm_tree->custom_generation) {
                     checkpoint = ((WT_CURSOR_BTREE *)cursor)->dhandle->checkpoint;
-                    WT_ASSERT(session,
+                    WT_ASSERT_ALWAYS(session,
                       (F_ISSET(chunk, WT_LSM_CHUNK_ONDISK) && !chunk->empty) ? checkpoint != NULL :
-                                                                               checkpoint == NULL);
+                                                                               checkpoint == NULL,
+                      "LSM tree checkpoint config does not match");
                 }
 
                 /* Make sure the Bloom config matches. */
-                WT_ASSERT(session,
+                WT_ASSERT_ALWAYS(session,
                   (F_ISSET(chunk, WT_LSM_CHUNK_BLOOM) && !F_ISSET(clsm, WT_CLSM_MERGE)) ?
                     clsm->chunks[i]->bloom != NULL :
-                    clsm->chunks[i]->bloom == NULL);
+                    clsm->chunks[i]->bloom == NULL,
+                  "LSM Bloom config does not match");
             }
         }
     }

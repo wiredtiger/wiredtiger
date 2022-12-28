@@ -847,10 +847,8 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
     if (session->format_private != NULL && (ret == 0 || ret == WT_NOTFOUND))
         session->format_private(ret, session->format_private_arg);
 
-#ifdef HAVE_DIAGNOSTIC
-    if (ret == 0)
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session) && ret == 0)
         WT_ERR(__wt_cursor_key_order_init(cbt));
-#endif
 
     if (ret == 0)
         WT_ERR(__wt_btcur_evict_reposition(cbt));
@@ -1097,10 +1095,8 @@ err:
     if (ret == 0 && exactp != NULL)
         *exactp = exact;
 
-#ifdef HAVE_DIAGNOSTIC
-    if (ret == 0)
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session) && ret == 0)
         WT_TRET(__wt_cursor_key_order_init(cbt));
-#endif
 
     if (ret != 0) {
         /*
@@ -2260,10 +2256,10 @@ __wt_btcur_open(WT_CURSOR_BTREE *cbt)
     cbt->upd_value->type = WT_UPDATE_INVALID;
     WT_TIME_WINDOW_INIT(&cbt->upd_value->tw);
 
-#ifdef HAVE_DIAGNOSTIC
-    cbt->lastkey = &cbt->_lastkey;
-    cbt->lastrecno = WT_RECNO_OOB;
-#endif
+    if (DIAGNOSTIC_ASSERTS_ENABLED(CUR2S(cbt))) {
+        cbt->lastkey = &cbt->_lastkey;
+        cbt->lastrecno = WT_RECNO_OOB;
+    }
 }
 
 /*
@@ -2308,9 +2304,9 @@ __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
     __wt_buf_free(session, &cbt->_tmp);
     __wt_buf_free(session, &cbt->_modify_update.buf);
     __wt_buf_free(session, &cbt->_upd_value.buf);
-#ifdef HAVE_DIAGNOSTIC
-    __wt_buf_free(session, &cbt->_lastkey);
-#endif
+
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session))
+        __wt_buf_free(session, &cbt->_lastkey);
 
     return (ret);
 }

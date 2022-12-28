@@ -39,14 +39,18 @@ __txn_op_log_row_key_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
         page = cbt->ref->page;
         WT_ASSERT(session, cbt->slot < page->entries);
         rip = &page->pg_row[cbt->slot];
-        WT_ASSERT(session, __wt_row_leaf_key(session, page, rip, &key, false) == 0);
+        WT_ASSERT_ALWAYS(session, __wt_row_leaf_key(session, page, rip, &key, false) == 0,
+          "Failed to instantiate a row-store key, cannot proceed with cursor key verification");
     } else {
         key.data = WT_INSERT_KEY(cbt->ins);
         key.size = WT_INSERT_KEY_SIZE(cbt->ins);
     }
 
-    WT_ASSERT(session, __wt_compare(session, CUR2BT(cbt)->collator, &key, &cursor->key, &cmp) == 0);
-    WT_ASSERT(session, cmp == 0);
+    WT_ASSERT_ALWAYS(session,
+      __wt_compare(session, CUR2BT(cbt)->collator, &key, &cursor->key, &cmp) == 0,
+      "Comparison of row store logging key and cursor key failed");
+    WT_ASSERT_ALWAYS(
+      session, cmp == 0, "Cursor is not referencing the expected key when logging an operation");
 
     __wt_buf_free(session, &key);
 }
