@@ -736,8 +736,8 @@ __wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
         if (DIAGNOSTIC_ASSERTS_ENABLED(
               (WT_SESSION_IMPL *)cbt->iface.session, WT_DIAG_OUT_OF_ORDER)) {
             __wt_cursor_key_order_reset(cbt);
-            return;
         }
+        return;
     }
 
     page = cbt->ref->page;
