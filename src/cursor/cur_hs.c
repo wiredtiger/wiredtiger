@@ -199,7 +199,7 @@ __curhs_search(WT_CURSOR_BTREE *hs_cbt, bool insert)
     hs_btree = CUR2BT(hs_cbt);
     session = CUR2S(hs_cbt);
 
-    if (DIAGNOSTIC_ASSERTS_ENABLED(session))
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_OUT_OF_ORDER))
         /*
          * Turn off cursor-order checks in all cases on search. The search/search-near functions
          * turn them back on after a successful search.
@@ -213,7 +213,7 @@ __curhs_search(WT_CURSOR_BTREE *hs_cbt, bool insert)
     WT_WITH_BTREE(session, hs_btree,
       ret = __wt_row_search(hs_cbt, &hs_cbt->iface.key, insert, NULL, false, NULL));
 
-    if (DIAGNOSTIC_ASSERTS_ENABLED(session) && ret == 0)
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_OUT_OF_ORDER) && ret == 0)
         WT_TRET(__wt_cursor_key_order_init(hs_cbt));
 
 err:
@@ -999,7 +999,7 @@ __curhs_insert(WT_CURSOR *cursor)
     /* We no longer own the update memory, the page does; don't free it under any circumstances. */
     hs_tombstone = hs_upd = NULL;
 
-    if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_OUT_OF_ORDER)) {
         /* Do a search again and call next to check the key order. */
         ret = __curhs_file_cursor_search_near(session, file_cursor, &exact);
         /* We can get not found if the inserted history store record is obsolete. */

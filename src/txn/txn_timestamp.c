@@ -460,7 +460,7 @@ __txn_assert_after_reads(WT_SESSION_IMPL *session, const char *op, wt_timestamp_
 
     txn_global = &S2C(session)->txn_global;
 
-    if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_VISIBILITY)) {
         WT_ORDERED_READ(session_cnt, S2C(session)->session_cnt);
         WT_STAT_CONN_INCR(session, txn_walk_sessions);
         WT_STAT_CONN_INCRV(session, txn_sessions_walked, session_cnt);

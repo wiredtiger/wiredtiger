@@ -554,7 +554,7 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
         WT_PANIC, func, line, category, WT_VERBOSE_ERROR, "the process must exit and restart", ap));
     va_end(ap);
 
-    if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_PANIC)) {
         /*
          * In the diagnostic builds, we want to drop core in case of panics that are not due to data
          * corruption. A core could be useful in debugging.

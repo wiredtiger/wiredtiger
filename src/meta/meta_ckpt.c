@@ -827,7 +827,7 @@ __wt_meta_ckptlist_get(
               session, ckptbasep, &btree->ckpt_bytes_allocated, NULL));
         if (allocated != NULL)
             *allocated = btree->ckpt_bytes_allocated;
-        if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {
+        if (DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_DATA_VALIDATION)) {
             /*
              * Sanity check: Let's compare to a list generated from metadata. There should be no
              * differences.

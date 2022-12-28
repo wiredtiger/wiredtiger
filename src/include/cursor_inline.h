@@ -243,7 +243,7 @@ __cursor_reset(WT_CURSOR_BTREE *cbt)
     cursor = &cbt->iface;
     session = CUR2S(cbt);
 
-    if (DIAGNOSTIC_ASSERTS_ENABLED(session))
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_OUT_OF_ORDER))
         __wt_cursor_key_order_reset(cbt); /* Clear key-order checks. */
 
     __cursor_pos_clear(cbt);
