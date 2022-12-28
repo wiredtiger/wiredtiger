@@ -1099,9 +1099,9 @@ __hs_delete_record(
     } else {
         /*
          * If we're deleting a record that is already in the history store this implies we're
-         * rolling back a prepared transaction which means we need to pull the update from the
-         * history store back into the update chain and then delete it from the history store. These
-         * checks ensure we've retrieved the correct update from the history store.
+         * rolling back a prepared transaction and need to pull the history store update back into
+         * the update chain, then delete it from the history store. These checks ensure we've
+         * retrieved the correct update from the history store.
          */
         if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {
             __wt_hs_upd_time_window(r->hs_cursor, &hs_tw);
