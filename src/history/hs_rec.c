@@ -1097,27 +1097,33 @@ __hs_delete_record(
         WT_ASSERT(session, tombstone != NULL && __wt_txn_upd_visible_all(session, tombstone));
         ret = 0;
     } else {
+        /*
+         * If we're deleting a record that is already in the history store this implies we're
+         * rolling back a prepared transaction which means we need to pull the update from the
+         * history store back into the update chain and then delete it from the history store. These
+         * checks ensure we've retrieved the correct update from the history store.
+         */
         if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {
             __wt_hs_upd_time_window(r->hs_cursor, &hs_tw);
             WT_ASSERT_ALWAYS(session,
               hs_tw->start_txn == WT_TXN_NONE || hs_tw->start_txn == upd->txnid,
-              "Invalid HS update start txn id");
+              "Retrieved wrong update from history store: start txn id mismatch");
             WT_ASSERT_ALWAYS(session,
               hs_tw->start_ts == WT_TS_NONE || hs_tw->start_ts == upd->start_ts,
-              "Invalid HS update start timestamp");
+              "Retrieved wrong update from history store: start timestamp mismatch");
             WT_ASSERT_ALWAYS(session,
               hs_tw->durable_start_ts == WT_TS_NONE || hs_tw->durable_start_ts == upd->durable_ts,
-              "Invalid HS update durable start timestamp");
+              "Retrieved wrong update from history store: durable start timestamp mismatch");
             if (tombstone != NULL) {
                 WT_ASSERT_ALWAYS(session, hs_tw->stop_txn == tombstone->txnid,
-                  "Update record's tombstone txn_id does not match HS txn_id");
+                  "Retrieved wrong update from history store: stop txn id mismatch");
                 WT_ASSERT_ALWAYS(session, hs_tw->stop_ts == tombstone->start_ts,
-                  "Tombstone start ts not set to update record's stop ts");
+                  "Retrieved wrong update from history store: stop timestamp mismatch");
                 WT_ASSERT_ALWAYS(session, hs_tw->durable_stop_ts == tombstone->durable_ts,
-                  "Tombstone durable timestamp not set to update record's stop ts");
+                  "Retrieved wrong update from history store: durable stop timestamp mismatch");
             } else
                 WT_ASSERT_ALWAYS(session, !WT_TIME_WINDOW_HAS_STOP(hs_tw),
-                  "Stop time window was set on empty tombstone");
+                  "Retrieved wrong update from history store: empty tombstone with stop timestamp");
         }
         WT_ERR(r->hs_cursor->remove(r->hs_cursor));
     }
