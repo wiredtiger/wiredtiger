@@ -275,11 +275,42 @@ WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn)
 int
 WorkloadRunner::start_dynamic_table_mgmt(WT_CONNECTION *conn)
 {
-    while (!stopping) {
-        std::cout << "Exec dynamic table mgmt..";
-        sleep(1);
+    WT_SESSION *session;
+    if (conn->open_session(conn, nullptr, nullptr, &session) != 0) {
+        THROW("Error opening a session.");
     }
 
+    for (uint64_t create_count = 0; !stopping; ++create_count) {
+        char uri[BUF_SIZE];
+        snprintf(uri, BUF_SIZE, "table:test_dynamic_%" PRIu64, create_count);
+
+        /* Create a table. */
+        int ret;
+        if ((ret = session->create(session, uri, "key_format=S,value_format=S")) != 0) {
+            if (ret == EBUSY)
+                continue;
+            THROW("Table create failed in start_dynamic_table_mgmt.");
+        }
+
+        /* Once added to the list of dyamically created tables, operations can begin to use it. */
+        add_table(uri);
+        std::cout << "Created table .. " << uri << "\n";
+
+        /*
+         * Once every 3 iterations drop a randomly selected table. Keep track of any pending drops,
+         * and retry dropping them. For now drop the first table in the list.
+         */
+        ContextInternal *icontext = _workload->_context->_internal;
+        /* Don't need a lock in this thread to read the shared dynamic table structures. */
+        if (create_count % 3 == 0 && icontext->_dyn_tint.size() != 0) {
+            auto it = icontext->_dyn_tint.begin();
+            // std::advance(it, random_value() % _icontext->_dyn_tint.size());
+            std::cout << "Attempting drop for " << it->first;
+            remove_table(it->first);
+        }
+
+        sleep(1);
+    }
     return 0;
 }
 
@@ -2407,70 +2438,11 @@ Workload::run(WT_CONNECTION *conn)
     return (runner.run(conn));
 }
 
-void
-Workload::add_table(const std::string &uri)
-{
-    WorkloadRunner runner(this);
-    runner.add_table(uri);
-}
-
-void
-Workload::remove_table(const std::string &uri)
-{
-    WorkloadRunner runner(this);
-    runner.remove_table(uri);
-}
-
 WorkloadRunner::WorkloadRunner(Workload *workload)
     : _workload(workload), _trunners(workload->_threads.size()), _report_out(&std::cout), _start(),
       stopping(false)
 {
     ts_clear(_start);
-}
-
-const std::vector<std::string>
-Workload::get_tables()
-{
-    WorkloadRunner runner(this);
-    ContextInternal *icontext = _context->_internal;
-    std::vector<std::string> uris;
-    {
-        for (const auto &kv : icontext->_tint) {
-            uris.push_back(kv.first);
-        }
-        const std::lock_guard<std::mutex> lock(*icontext->_dyn_mutex);
-        for (const auto &kv : icontext->_dyn_tint) {
-            uris.push_back(kv.first);
-        }
-    }
-    return uris;
-}
-
-const std::vector<std::string>
-Workload::garbage_collection()
-{
-    ContextInternal *icontext = _context->_internal;
-    const std::lock_guard<std::mutex> lock(*icontext->_dyn_mutex);
-    std::vector<std::string> uris;
-
-    for (size_t i = 0; i != icontext->_dyn_tables_delete.size();) {
-        // The table might still be in use.
-        const std::string uri(icontext->_dyn_tables_delete.at(i));
-        if (icontext->_dyn_table_in_use[uri] != 0) {
-            ++i;
-            continue;
-        }
-
-        // Delete all local data related to the table.
-        icontext->_dyn_table_in_use.erase(uri);
-        icontext->_dyn_tables_delete.erase(icontext->_dyn_tables_delete.begin() + i);
-        tint_t tint = icontext->_dyn_tint.at(uri);
-        icontext->_dyn_tint.erase(uri);
-        icontext->_dyn_table_names.erase(tint);
-        icontext->_dyn_table_runtime.erase(tint);
-        uris.push_back(uri);
-    }
-    return uris;
 }
 
 void
