@@ -447,6 +447,7 @@ struct WorkloadOptions {
     double stable_timestamp_lag;
     double timestamp_advance;
     bool max_idle_table_cycle_fatal;
+    bool dynamic_table_management;
 
     WorkloadOptions();
     WorkloadOptions(const WorkloadOptions &other);

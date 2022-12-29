@@ -162,6 +162,22 @@ thread_idle_table_cycle_workload(void *arg)
     return (nullptr);
 }
 
+static void *
+thread_dynamic_table_mgmt_workload(void *arg)
+{
+    WorkloadRunnerConnection *runnerConnection = static_cast<WorkloadRunnerConnection *>(arg);
+    WT_CONNECTION *connection = runnerConnection->connection;
+    WorkloadRunner *runner = runnerConnection->runner;
+
+    try {
+        runner->start_dynamic_table_mgmt(connection);
+    } catch (WorkgenException &wge) {
+        std::cerr << "Exception while dynamically managing tables set." << std::endl;
+    }
+
+    return (nullptr);
+}
+
 int
 WorkloadRunner::check_timing(const std::string &name, uint64_t last_interval)
 {
@@ -248,6 +264,25 @@ WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn)
     }
     return 0;
 }
+
+/*
+ * This function creates and drops tables randomly as means to dynamically vary the tables in the
+ * database. These set of tables are considered a "dynamic" set as opposed to a "static" set. A
+ * static set of tables is created by the python workload, whereas a dynamic set of table varies as
+ * controlled by this function. Operations are constructed to work with a specific table from the
+ * static set, or to randomly choose one from the dynamic set.
+ */
+int
+WorkloadRunner::start_dynamic_table_mgmt(WT_CONNECTION *conn)
+{
+    while (!stopping) {
+        std::cout << "Exec dynamic table mgmt..";
+        sleep(1);
+    }
+
+    return 0;
+}
+
 /*
  * This function will sleep for "timestamp_advance" seconds, increment and set oldest_timestamp,
  * stable_timestamp with the specified lag until stopping is set to true
@@ -2287,7 +2322,7 @@ WorkloadOptions::WorkloadOptions()
     : max_latency(0), report_file("workload.stat"), report_interval(0), run_time(0),
       sample_file("monitor.json"), sample_interval_ms(0), max_idle_table_cycle(0), sample_rate(1),
       warmup(0), oldest_timestamp_lag(0.0), stable_timestamp_lag(0.0), timestamp_advance(0.0),
-      max_idle_table_cycle_fatal(false), _options()
+      max_idle_table_cycle_fatal(false), dynamic_table_management(false), _options()
 {
     _options.add_int("max_latency", max_latency,
       "prints warning if any latency measured exceeds this number of "
@@ -2324,6 +2359,8 @@ WorkloadOptions::WorkloadOptions()
       "timestamp forward");
     _options.add_bool("max_idle_table_cycle_fatal", max_idle_table_cycle_fatal,
       "print warning (false) or abort (true) of max_idle_table_cycle failure");
+    _options.add_bool("dynamic_table_management", dynamic_table_management,
+      "if set to true, enables a variance in the set of tables in the database");
 }
 
 WorkloadOptions::WorkloadOptions(const WorkloadOptions &other)
@@ -2701,6 +2738,26 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
         }
     }
 
+    // Start a thread to manage the dynamic table set
+    pthread_t dynamic_table_mgmt_thandle;
+    WorkloadRunnerConnection *dynamicTableMgmt = nullptr;
+    if (options->dynamic_table_management) {
+
+        dynamicTableMgmt = new WorkloadRunnerConnection();
+        dynamicTableMgmt->runner = this;
+        dynamicTableMgmt->connection = conn;
+
+        if ((ret = pthread_create(&dynamic_table_mgmt_thandle, nullptr,
+               thread_dynamic_table_mgmt_workload, dynamicTableMgmt)) != 0) {
+            std::cerr << "pthread_create failed err=" << ret << std::endl;
+            std::cerr << "Stopping dynamic table management thread." << std::endl;
+            (void)pthread_join(dynamic_table_mgmt_thandle, &status);
+            delete dynamicTableMgmt;
+            dynamicTableMgmt = nullptr;
+            stopping = true;
+        }
+    }
+
     timespec now;
 
     /* Don't run the test if any of the above pthread_create fails. */
@@ -2778,6 +2835,12 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
     if (createDropTableCycle != nullptr) {
         WT_TRET(pthread_join(idle_table_thandle, &status));
         delete createDropTableCycle;
+    }
+
+    // Wait for the dynamic table management thread.
+    if (dynamicTableMgmt != nullptr) {
+        WT_TRET(pthread_join(dynamic_table_mgmt_thandle, &status));
+        delete dynamicTableMgmt;
     }
 
     workgen_epoch(&now);
