@@ -24,7 +24,7 @@
  */
 class ConnectionWrapper {
     public:
-    ConnectionWrapper(const std::string &db_home);
+    ConnectionWrapper(const std::string &db_home, const char *cfg_str = "create");
     ~ConnectionWrapper();
 
     /*
@@ -41,6 +41,7 @@ class ConnectionWrapper {
     WT_CONNECTION_IMPL *_conn_impl;
     WT_CONNECTION *_conn;
     std::string _db_home;
+    const char *_cfg_str;
 };
 
 #endif // WT_CONNECTION_WRAPPER_H
