@@ -280,33 +280,47 @@ WorkloadRunner::start_dynamic_table_mgmt(WT_CONNECTION *conn)
         THROW("Error opening a session.");
     }
 
+    WT_DECL_RET;
+    ContextInternal *icontext = _workload->_context->_internal;
+    char uri[BUF_SIZE];
+
     for (uint64_t create_count = 0; !stopping; ++create_count) {
-        char uri[BUF_SIZE];
         snprintf(uri, BUF_SIZE, "table:test_dynamic_%" PRIu64, create_count);
 
-        /* Create a table. */
-        int ret;
+        /* Make sure that this table is not a part of static table set, continue if it is. */
+        if (icontext->_tint.count(uri) > 0 || icontext->_dyn_tint.count(uri) > 0)
+            continue;
+
+        /* Create the table. */
         if ((ret = session->create(session, uri, "key_format=S,value_format=S")) != 0) {
             if (ret == EBUSY)
                 continue;
             THROW("Table create failed in start_dynamic_table_mgmt.");
         }
 
-        /* Once added to the list of dyamically created tables, operations can begin to use it. */
-        add_table(uri);
-        std::cout << "Created table .. " << uri << "\n";
+        {
+            /* The dynamic table set management is protected by a mutex. */
+            const std::lock_guard<std::mutex> lock(*icontext->_dyn_mutex);
 
-        /*
-         * Once every 3 iterations drop a randomly selected table. Keep track of any pending drops,
-         * and retry dropping them. For now drop the first table in the list.
-         */
-        ContextInternal *icontext = _workload->_context->_internal;
-        /* Don't need a lock in this thread to read the shared dynamic table structures. */
-        if (create_count % 3 == 0 && icontext->_dyn_tint.size() != 0) {
-            auto it = icontext->_dyn_tint.begin();
-            // std::advance(it, random_value() % _icontext->_dyn_tint.size());
-            std::cout << "Attempting drop for " << it->first;
-            remove_table(it->first);
+            /* Add the table into the list of dynamic set. */
+            tint_t tint = icontext->_dyn_tint_last;
+            icontext->_dyn_tint[uri] = tint;
+            icontext->_dyn_table_names[tint] = uri;
+            icontext->_dyn_table_runtime[tint] = TableRuntime();
+            ++icontext->_dyn_tint_last;
+            
+            std::cout << "Created table .. " << uri << "\n";
+
+            /* 
+             * Once every 3 iterations select a table for removal. Remove if not in use,
+             * else remember to do so later.
+             */
+            if (create_count % 3 == 0 && icontext->_dyn_tint.size() != 0) {
+                auto it = icontext->_dyn_tint.begin();
+                // std::advance(it, random_value() % _icontext->_dyn_tint.size());
+                std::cout << "Marking pending removal for " << it->first;
+                icontext->_dyn_tables_delete.push_back(it->first);
+            }
         }
 
         sleep(1);
@@ -2443,53 +2457,6 @@ WorkloadRunner::WorkloadRunner(Workload *workload)
       stopping(false)
 {
     ts_clear(_start);
-}
-
-void
-WorkloadRunner::add_table(const std::string &uri)
-{
-    ContextInternal *icontext = _workload->_context->_internal;
-    const std::lock_guard<std::mutex> lock(*icontext->_dyn_mutex);
-
-    if (icontext->_tint.count(uri) > 0 || icontext->_dyn_tint.count(uri) > 0) {
-        const std::string err_msg("The table " + uri + " already exists.");
-        THROW(err_msg);
-    }
-
-    tint_t tint = icontext->_dyn_tint_last;
-    icontext->_dyn_tint[uri] = tint;
-    icontext->_dyn_table_names[tint] = uri;
-
-    ASSERT(icontext->_dyn_table_runtime.count(tint) == 0);
-    icontext->_dyn_table_runtime[tint] = TableRuntime();
-
-    ++icontext->_dyn_tint_last;
-}
-
-void
-WorkloadRunner::remove_table(const std::string &uri)
-{
-    ContextInternal *icontext = _workload->_context->_internal;
-
-    if (icontext->_tint.count(uri) > 0) {
-        const std::string err_msg(
-          "The table " + uri + " cannot be deleted, it is part of the static set.");
-        THROW(err_msg);
-    }
-
-    const std::lock_guard<std::mutex> lock(*icontext->_dyn_mutex);
-
-    if (icontext->_dyn_tint.count(uri) == 0) {
-        const std::string err_msg("The table " + uri + " does not exist.");
-        THROW(err_msg);
-    }
-
-    // Mark the table for deletion.
-    bool found = std::find(icontext->_dyn_tables_delete.begin(), icontext->_dyn_tables_delete.end(),
-                   uri) != icontext->_dyn_tables_delete.end();
-    if (!found) {
-        icontext->_dyn_tables_delete.push_back(uri);
-    }
 }
 
 int

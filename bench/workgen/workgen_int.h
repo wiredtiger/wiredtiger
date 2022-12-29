@@ -316,8 +316,6 @@ private:
     void open_report_file(std::ofstream &, const std::string&, const std::string&);
     void report(time_t, time_t, Stats *stats);
     int run_all(WT_CONNECTION *conn);
-    void add_table(const std::string& uri);
-    void remove_table(const std::string& uri);
 
     WorkloadRunner(const WorkloadRunner &);                 // disallowed
     WorkloadRunner& operator=(const WorkloadRunner &other); // disallowed
