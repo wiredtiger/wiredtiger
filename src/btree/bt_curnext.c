@@ -733,10 +733,11 @@ __wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
      * the tree, not as a result of a search.
      */
     if (cbt->ref == NULL) {
-        if (DIAGNOSTIC_ASSERTS_ENABLED((WT_SESSION_IMPL *)cbt->iface.session)) {
+        if (DIAGNOSTIC_ASSERTS_ENABLED(
+              (WT_SESSION_IMPL *)cbt->iface.session, WT_DIAG_OUT_OF_ORDER)) {
             __wt_cursor_key_order_reset(cbt);
-            return;
         }
+        return;
     }
 
     page = cbt->ref->page;
@@ -955,7 +956,7 @@ err:
     case 0:
         F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 
-        if (DIAGNOSTIC_ASSERTS_ENABLED(session)) {
+        if (DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_OUT_OF_ORDER)) {
             /*
              * Skip key order check, if prev is called after a next returned a prepare conflict
              * error, i.e cursor has changed direction at a prepared update, hence current key

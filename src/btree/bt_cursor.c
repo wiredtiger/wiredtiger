@@ -527,7 +527,7 @@ __cursor_col_search(WT_CURSOR_BTREE *cbt, WT_REF *leaf, bool *leaf_foundp)
 
     session = CUR2S(cbt);
 
-    if (DIAGNOSTIC_ASSERTS_ENABLED(session))
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_OUT_OF_ORDER))
         /*
          * Turn off cursor-order checks in all cases on search. The search/search-near functions
          * turn them back on after a successful search.
@@ -551,7 +551,7 @@ __cursor_row_search(WT_CURSOR_BTREE *cbt, bool insert, WT_REF *leaf, bool *leaf_
 
     session = CUR2S(cbt);
 
-    if (DIAGNOSTIC_ASSERTS_ENABLED(session))
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_OUT_OF_ORDER))
         /*
          * Turn off cursor-order checks in all cases on search. The search/search-near functions
          * turn them back on after a successful search.
@@ -847,7 +847,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
     if (session->format_private != NULL && (ret == 0 || ret == WT_NOTFOUND))
         session->format_private(ret, session->format_private_arg);
 
-    if (DIAGNOSTIC_ASSERTS_ENABLED(session) && ret == 0)
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_OUT_OF_ORDER) && ret == 0)
         WT_ERR(__wt_cursor_key_order_init(cbt));
 
     if (ret == 0)
@@ -1095,7 +1095,7 @@ err:
     if (ret == 0 && exactp != NULL)
         *exactp = exact;
 
-    if (DIAGNOSTIC_ASSERTS_ENABLED(session) && ret == 0)
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_OUT_OF_ORDER) && ret == 0)
         WT_TRET(__wt_cursor_key_order_init(cbt));
 
     if (ret != 0) {
@@ -2256,7 +2256,7 @@ __wt_btcur_open(WT_CURSOR_BTREE *cbt)
     cbt->upd_value->type = WT_UPDATE_INVALID;
     WT_TIME_WINDOW_INIT(&cbt->upd_value->tw);
 
-    if (DIAGNOSTIC_ASSERTS_ENABLED(CUR2S(cbt))) {
+    if (DIAGNOSTIC_ASSERTS_ENABLED(CUR2S(cbt), WT_DIAG_OUT_OF_ORDER)) {
         cbt->lastkey = &cbt->_lastkey;
         cbt->lastrecno = WT_RECNO_OOB;
     }
@@ -2305,7 +2305,7 @@ __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
     __wt_buf_free(session, &cbt->_modify_update.buf);
     __wt_buf_free(session, &cbt->_upd_value.buf);
 
-    if (DIAGNOSTIC_ASSERTS_ENABLED(session))
+    if (DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_OUT_OF_ORDER))
         __wt_buf_free(session, &cbt->_lastkey);
 
     return (ret);
