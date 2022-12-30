@@ -430,6 +430,76 @@ __curstat_file_init(
 }
 
 /*
+ * __page_stat_get --
+ *     Helper function used to initialize the statistics cursor for page stats.
+ */
+static int
+__page_stat_get(
+  WT_SESSION_IMPL *session, const char *uri, int64_t *byte_countp, int64_t *row_countp)
+{
+    WT_CKPT ckpt;
+    WT_DECL_RET;
+    WT_TABLE *table;
+    int64_t row_count;
+    u_int i;
+
+    table = NULL;
+
+    WT_PREFIX_SKIP(uri, "checkpoint:");
+    if (WT_PREFIX_MATCH(uri, "file:")) {
+        if ((ret = __wt_meta_checkpoint(session, uri, NULL, &ckpt)) != 0)
+            WT_ERR(ret == WT_NOTFOUND ? ENOENT : ret);
+
+        *byte_countp = ckpt.ps.byte_count;
+        *row_countp = ckpt.ps.row_count;
+    } else if (WT_PREFIX_SKIP(uri, "table:")) {
+        if ((ret = __wt_schema_get_table(session, uri, strlen(uri), false, 0, &table)) != 0)
+            WT_ERR(ret == WT_NOTFOUND ? ENOENT : ret);
+
+        for (i = 0; i < WT_COLGROUPS(table); i++) {
+            row_count = -1;
+            WT_ERR(__page_stat_get(session, table->cgroups[i]->source, byte_countp, &row_count));
+        }
+        *row_countp = row_count;
+    } else
+        WT_ERR(__wt_bad_object_type(session, uri));
+
+err:
+    if (table != NULL)
+        WT_TRET(__wt_schema_release_table(session, &table));
+
+    return (ret);
+}
+
+/*
+ * __curstat_page_stat_init --
+ *     Initialize the statistics for a page stat structure.
+ */
+static int
+__curstat_page_stat_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT *cst)
+{
+    WT_DECL_RET;
+    WT_PAGE_STATS ps;
+
+    ps.byte_count = ps.row_count = WT_STAT_NONE;
+
+    /*
+     * Fill in the page stat statistics, and copy them to the cursor.
+     */
+    __wt_stat_page_init_single(&cst->u.page_stats);
+    __page_stat_get(session, uri, &ps.byte_count, &ps.row_count);
+    cst->u.page_stats.byte_count = ps.byte_count;
+    cst->u.page_stats.row_count = ps.row_count;
+
+    cst->stats = (int64_t *)&cst->u.page_stats;
+    cst->stats_base = WT_PAGE_STATS_BASE;
+    cst->stats_count = sizeof(WT_PAGE_STATS) / sizeof(int64_t);
+    cst->stats_desc = __wt_stat_page_desc;
+
+    return (ret);
+}
+
+/*
  * __wt_curstat_dsrc_final --
  *     Finalize a data-source statistics cursor.
  */
@@ -584,6 +654,8 @@ __wt_curstat_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *curjoin,
         WT_RET(__wt_curstat_lsm_init(session, dsrc_uri, cst));
     else if (WT_PREFIX_MATCH(dsrc_uri, "table:"))
         WT_RET(__wt_curstat_table_init(session, dsrc_uri, cfg, cst));
+    else if (WT_PREFIX_MATCH(dsrc_uri, "checkpoint:"))
+        WT_RET(__curstat_page_stat_init(session, dsrc_uri, cst));
     else
         return (__wt_bad_object_type(session, uri));
 

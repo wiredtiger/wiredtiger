@@ -1502,6 +1502,8 @@ extern int __wt_stat_dsrc_init(WT_SESSION_IMPL *session, WT_DATA_HANDLE *handle)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_stat_join_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_stat_page_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_stat_session_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_statlog_create(WT_SESSION_IMPL *session, const char *cfg[])
@@ -1937,6 +1939,10 @@ extern void __wt_stat_join_aggregate(WT_JOIN_STATS **from, WT_JOIN_STATS *to);
 extern void __wt_stat_join_clear_all(WT_JOIN_STATS **stats);
 extern void __wt_stat_join_clear_single(WT_JOIN_STATS *stats);
 extern void __wt_stat_join_init_single(WT_JOIN_STATS *stats);
+extern void __wt_stat_page_aggregate(WT_PAGE_STATS **from, WT_PAGE_STATS *to);
+extern void __wt_stat_page_clear_all(WT_PAGE_STATS **stats);
+extern void __wt_stat_page_clear_single(WT_PAGE_STATS *stats);
+extern void __wt_stat_page_init_single(WT_PAGE_STATS *stats);
 extern void __wt_stat_session_clear_single(WT_SESSION_STATS *stats);
 extern void __wt_stat_session_init_single(WT_SESSION_STATS *stats);
 extern void __wt_thread_group_start_one(

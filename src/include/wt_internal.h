@@ -299,6 +299,8 @@ struct __wt_page_modify;
 typedef struct __wt_page_modify WT_PAGE_MODIFY;
 struct __wt_page_stat;
 typedef struct __wt_page_stat WT_PAGE_STAT;
+struct __wt_page_stats;
+typedef struct __wt_page_stats WT_PAGE_STATS;
 struct __wt_process;
 typedef struct __wt_process WT_PROCESS;
 struct __wt_rec_chunk;

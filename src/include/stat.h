@@ -1202,4 +1202,13 @@ struct __wt_session_stats {
     int64_t cache_time;
 };
 
+/*
+ * Statistics entries for page stat.
+ */
+#define WT_PAGE_STATS_BASE 5000
+struct __wt_page_stats {
+    int64_t byte_count;
+    int64_t row_count;
+};
+
 /* Statistics section: END */

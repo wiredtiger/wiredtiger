@@ -100,6 +100,12 @@ class SessionStat(Stat):
     prefix = 'session'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, SessionStat.prefix, desc, flags)
+
+class PageStat(Stat):
+    prefix = 'page'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, PageStat.prefix, desc, flags)
+
 class PerfHistStat(Stat):
     prefix = 'perf'
     def __init__(self, name, desc, flags=''):
@@ -1023,3 +1029,13 @@ session_stats = [
 ]
 
 session_stats = sorted(session_stats, key=attrgetter('desc'))
+
+##########################################
+# Page Stat statistics
+##########################################
+page_stats = [
+    PageStat('byte_count', 'byte count of a file'),
+    PageStat('row_count', 'row count of a file'),
+]
+
+page_stats = sorted(page_stats, key=attrgetter('desc'))

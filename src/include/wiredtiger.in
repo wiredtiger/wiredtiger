@@ -7443,6 +7443,17 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_SESSION_LOCK_SCHEMA_WAIT		4006
 /*! session: time waiting for cache (usecs) */
 #define	WT_STAT_SESSION_CACHE_TIME			4007
+
+/*!
+* @}
+* @name Statistics for page stat
+* @anchor statistics_page
+* @{
+*/
+/*! page: byte count of a file */
+#define	WT_STAT_PAGE_BYTE_COUNT				5000
+/*! page: row count of a file */
+#define	WT_STAT_PAGE_ROW_COUNT				5001
 /*! @} */
 /*
  * Statistics section: END

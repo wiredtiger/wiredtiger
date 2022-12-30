@@ -1890,10 +1890,10 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
 
     /* Set the page stat cell information flag. */
     if (__wt_process.page_stats_2022 && WT_PAGE_STAT_HAS_BYTE_COUNT(&chunk->ps))
-        F_SET(dsk, WT_PAGE_STAT_BYTE_COUNT);
+        FLD_SET(dsk->stat_flags, WT_PAGE_STAT_BYTE_COUNT);
 
     if (__wt_process.page_stats_2022 && WT_PAGE_STAT_HAS_ROW_COUNT(&chunk->ps))
-        F_SET(dsk, WT_PAGE_STAT_ROW_COUNT);
+        FLD_SET(dsk->stat_flags, WT_PAGE_STAT_ROW_COUNT);
 
     dsk->unused = 0;
     dsk->version = WT_PAGE_VERSION_TS;
