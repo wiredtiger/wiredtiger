@@ -101,6 +101,11 @@ extern "C" {
             std::cout << args << std::endl; \
     } while (0)
 
+#define TMPVERBOSE(runner, args)        \
+    do {                                \
+        std::cout << args << std::endl; \
+    } while (0)
+
 #define OP_HAS_VALUE(op) \
     ((op)->_optype == Operation::OP_INSERT || (op)->_optype == Operation::OP_UPDATE)
 
@@ -163,16 +168,32 @@ thread_idle_table_cycle_workload(void *arg)
 }
 
 static void *
-thread_dynamic_table_mgmt_workload(void *arg)
+thread_dynamic_create_workload(void *arg)
 {
     WorkloadRunnerConnection *runnerConnection = static_cast<WorkloadRunnerConnection *>(arg);
     WT_CONNECTION *connection = runnerConnection->connection;
     WorkloadRunner *runner = runnerConnection->runner;
 
     try {
-        runner->start_dynamic_table_mgmt(connection);
+        runner->start_dynamic_create(connection);
     } catch (WorkgenException &wge) {
-        std::cerr << "Exception while dynamically managing tables set." << std::endl;
+        std::cerr << "Exception while dynamically creating tables." << std::endl;
+    }
+
+    return (nullptr);
+}
+
+static void *
+thread_dynamic_drop_workload(void *arg)
+{
+    WorkloadRunnerConnection *runnerConnection = static_cast<WorkloadRunnerConnection *>(arg);
+    WT_CONNECTION *connection = runnerConnection->connection;
+    WorkloadRunner *runner = runnerConnection->runner;
+
+    try {
+        runner->start_dynamic_drop(connection);
+    } catch (WorkgenException &wge) {
+        std::cerr << "Exception while dynamically dropping tables." << std::endl;
     }
 
     return (nullptr);
@@ -266,14 +287,10 @@ WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn)
 }
 
 /*
- * This function creates and drops tables randomly as means to dynamically vary the tables in the
- * database. These set of tables are considered a "dynamic" set as opposed to a "static" set. A
- * static set of tables is created by the python workload, whereas a dynamic set of table varies as
- * controlled by this function. Operations are constructed to work with a specific table from the
- * static set, or to randomly choose one from the dynamic set.
+ * write something
  */
 int
-WorkloadRunner::start_dynamic_table_mgmt(WT_CONNECTION *conn)
+WorkloadRunner::start_dynamic_create(WT_CONNECTION *conn)
 {
     WT_SESSION *session;
     if (conn->open_session(conn, nullptr, nullptr, &session) != 0) {
@@ -283,94 +300,120 @@ WorkloadRunner::start_dynamic_table_mgmt(WT_CONNECTION *conn)
     WT_DECL_RET;
     ContextInternal *icontext = _workload->_context->_internal;
     char uri[BUF_SIZE];
-    std::vector<std::string> tables_delete; // Track tables that are to be deleted
+    uint64_t total_creates = 0;
 
-    for (uint64_t create_count = 0; !stopping; ++create_count) {
-        snprintf(uri, BUF_SIZE, "table:test_dynamic_%" PRIu64, create_count);
+    while (!stopping) {
+        for (int creates = 0; creates < _workload->options.dynamic_create_count;
+             ++creates, ++total_creates) {
+            snprintf(uri, BUF_SIZE, "table:test_dynamic_%" PRIu64, total_creates);
 
-        /* Make sure that this table is not a part of static table set, continue if it is. */
-        if (icontext->_tint.count(uri) > 0 || icontext->_dyn_tint.count(uri) > 0)
-            continue;
-
-        /* Create the table. */
-        if ((ret = session->create(session, uri, "key_format=S,value_format=S")) != 0) {
-            if (ret == EBUSY)
+            /* Make sure that this table is not a part of static table set, continue if it is. */
+            if (icontext->_tint.count(uri) > 0 || icontext->_dyn_tint.count(uri) > 0)
                 continue;
-            THROW("Table create failed in start_dynamic_table_mgmt.");
+
+            /* Create the table. */
+            if ((ret = session->create(session, uri, "key_format=S,value_format=S")) != 0) {
+                if (ret == EBUSY)
+                    continue;
+                THROW("Table create failed in start_dynamic_table_mgmt.");
+            }
+
+            /* The dynamic table data structures are protected by a mutex. */
+            {
+                const std::lock_guard<std::mutex> lock(*icontext->_dyn_mutex);
+
+                /* Add the table into the list of dynamic set. */
+                tint_t tint = icontext->_dyn_tint_last;
+                icontext->_dyn_tint[uri] = tint;
+                icontext->_dyn_table_names[tint] = uri;
+                icontext->_dyn_table_runtime[tint] = TableRuntime();
+                ++icontext->_dyn_tint_last;
+                TMPVERBOSE(*_workload, "Created table and added to the dynamic set: " << uri);
+            }
         }
 
-        std::vector<std::string> drop_uris;
-        {
-            /* The dynamic table set management is protected by a mutex. */
-            const std::lock_guard<std::mutex> lock(*icontext->_dyn_mutex);
+        sleep(_workload->options.dynamic_create_period);
+    }
 
-            /* Add the table into the list of dynamic set. */
-            tint_t tint = icontext->_dyn_tint_last;
-            icontext->_dyn_tint[uri] = tint;
-            icontext->_dyn_table_names[tint] = uri;
-            icontext->_dyn_table_runtime[tint] = TableRuntime();
-            ++icontext->_dyn_tint_last;
-            VERBOSE(*_workload, "Created table and added to the dynamic set: " << uri);
+    return 0;
+}
 
-            /*
-             * Once every 3 iterations select a table for removal. Remove if not in use, else
-             * remember to do so later.
-             */
-            if (create_count % 3 == 0) {
+/*
+ * write something
+ */
+int
+WorkloadRunner::start_dynamic_drop(WT_CONNECTION *conn)
+{
+    WT_SESSION *session;
+    if (conn->open_session(conn, nullptr, nullptr, &session) != 0) {
+        THROW("Error opening a session.");
+    }
+
+    WT_DECL_RET;
+    ContextInternal *icontext = _workload->_context->_internal;
+    std::vector<std::string> tables_delete; // Track tables that are to be deleted
+
+    while (!stopping) {
+        for (int drops = 0; drops < _workload->options.dynamic_drop_count; ++drops) {
+            std::vector<std::string> drop_uris;
+            /* The dynamic table data structures are protected by a mutex. */
+            {
+                const std::lock_guard<std::mutex> lock(*icontext->_dyn_mutex);
+
                 /* Walk the list and select the first that is not already in delete list */
                 for (auto const &it : icontext->_dyn_tint) {
                     if (icontext->_dyn_table_runtime[it.second]._pending_delete) {
                         continue;
                     } else {
-                        VERBOSE(*_workload, "Marking pending removal for: " << it.first);
+                        TMPVERBOSE(*_workload, "Marking pending removal for: " << it.first);
                         icontext->_dyn_table_runtime[it.second]._pending_delete = true;
                         tables_delete.push_back(it.first);
                         break;
                     }
                 }
+
+                /*
+                 * Process any pending delete, the actual table drop will be done later without
+                 * holding the lock.
+                 */
+                for (size_t i = 0; i < tables_delete.size();) {
+                    // The table might still be in use.
+                    const std::string uri(tables_delete.at(i));
+                    tint_t tint = icontext->_dyn_tint.at(uri);
+                    if (icontext->_dyn_table_runtime[tint]._in_use != 0) {
+                        TMPVERBOSE(*_workload, "Requested remove of table in use: " << uri);
+                        ++i;
+                        continue;
+                    }
+
+                    // Delete all local data related to the table.
+                    tables_delete.erase(tables_delete.begin() + i);
+                    icontext->_dyn_tint.erase(uri);
+                    icontext->_dyn_table_names.erase(tint);
+                    icontext->_dyn_table_runtime.erase(tint);
+                    drop_uris.push_back(uri);
+                }
             }
 
             /*
-             * Process any pending delete, the actual table drop will be done without holding the
-             * lock
+             * We will drop the WiredTiger tables without holding the lock. These tables have been
+             * removed from the shared data structures, and we know no thread is operating on them.
              */
-            for (size_t i = 0; i < tables_delete.size();) {
-                // The table might still be in use.
-                const std::string uri(tables_delete.at(i));
-                tint_t tint = icontext->_dyn_tint.at(uri);
-                if (icontext->_dyn_table_runtime[tint]._in_use != 0) {
-                    VERBOSE(*_workload, "Requested remove of table in use: " << uri);
-                    ++i;
-                    continue;
+            for (auto uri : drop_uris) {
+                /* Spin on EBUSY, we do not expect to get stuck */
+                while ((ret = session->drop(session, uri.c_str(), "force,checkpoint_wait=false")) ==
+                  EBUSY) {
+                    TMPVERBOSE(*_workload, "Drop returned EBUSY for table: " << uri);
                 }
+                if (ret != 0)
+                    THROW("Table drop failed in start_dynamic_table_mgmt.");
 
-                // Delete all local data related to the table.
-                tables_delete.erase(tables_delete.begin() + i);
-                icontext->_dyn_tint.erase(uri);
-                icontext->_dyn_table_names.erase(tint);
-                icontext->_dyn_table_runtime.erase(tint);
-                drop_uris.push_back(uri);
+                TMPVERBOSE(*_workload, "Dropped table: " << uri);
             }
+            drop_uris.clear();
         }
 
-        /*
-         * We will drop the WiredTiger tables without holding the lock. These tables have been
-         * removed from the shared data structures, and we know no thread is operating on them.
-         */
-        for (auto uri : drop_uris) {
-            /* Spin on EBUSY, we do not expect to get stuck */
-            while (
-              (ret = session->drop(session, uri.c_str(), "force,checkpoint_wait=false")) == EBUSY) {
-                VERBOSE(*_workload, "Drop returned EBUSY for table: " << uri);
-            }
-            if (ret != 0)
-                THROW("Table drop failed in start_dynamic_table_mgmt.");
-
-            VERBOSE(*_workload, "Dropped table: " << uri);
-        }
-        drop_uris.clear();
-
-        sleep(1);
+        sleep(_workload->options.dynamic_drop_period);
     }
 
     // Do we need to cleanup tables that might be pending delete when stopping
@@ -2415,7 +2458,8 @@ WorkloadOptions::WorkloadOptions()
     : max_latency(0), report_file("workload.stat"), report_interval(0), run_time(0),
       sample_file("monitor.json"), sample_interval_ms(0), max_idle_table_cycle(0), sample_rate(1),
       warmup(0), oldest_timestamp_lag(0.0), stable_timestamp_lag(0.0), timestamp_advance(0.0),
-      max_idle_table_cycle_fatal(false), dynamic_table_management(false), _options()
+      max_idle_table_cycle_fatal(false), dynamic_create_period(0), dynamic_create_count(0),
+      dynamic_drop_period(0), dynamic_drop_count(0), _options()
 {
     _options.add_int("max_latency", max_latency,
       "prints warning if any latency measured exceeds this number of "
@@ -2452,8 +2496,16 @@ WorkloadOptions::WorkloadOptions()
       "timestamp forward");
     _options.add_bool("max_idle_table_cycle_fatal", max_idle_table_cycle_fatal,
       "print warning (false) or abort (true) of max_idle_table_cycle failure");
-    _options.add_bool("dynamic_table_management", dynamic_table_management,
-      "if set to true, enables a variance in the set of tables in the database");
+    _options.add_int("dynamic_create_period", dynamic_create_period,
+      "if greater than 0, creates tables every this many seconds. The number of tables created "
+      "is specified by the dynamic_create_count setting");
+    _options.add_int("dynamic_create_count", dynamic_create_count,
+      "create this many number of tables every dynamic_create_period seconds");
+    _options.add_int("dynamic_drop_period", dynamic_drop_period,
+      "if greater than 0, drops tables every this many seconds. The number of tables dropped "
+      "is specified by the dynamic_drop_count setting");
+    _options.add_int("dynamic_drop_count", dynamic_drop_count,
+      "drop this many number of tables every dynamic_drop_period seconds");
 }
 
 WorkloadOptions::WorkloadOptions(const WorkloadOptions &other)
@@ -2519,7 +2571,8 @@ WorkloadRunner::run(WT_CONNECTION *conn)
       options->timestamp_advance < 0)
         THROW(
           "Workload.options.timestamp_advance must be positive if either "
-          "Workload.options.oldest_timestamp_lag or Workload.options.stable_timestamp_lag is set");
+          "Workload.options.oldest_timestamp_lag or Workload.options.stable_timestamp_lag is "
+          "set");
 
     if (options->sample_interval_ms > 0 && options->sample_rate <= 0)
         THROW("Workload.options.sample_rate must be positive");
@@ -2725,23 +2778,51 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
         }
     }
 
-    // Start a thread to manage the dynamic table set
-    pthread_t dynamic_table_mgmt_thandle;
-    WorkloadRunnerConnection *dynamicTableMgmt = nullptr;
-    if (options->dynamic_table_management) {
-
-        dynamicTableMgmt = new WorkloadRunnerConnection();
-        dynamicTableMgmt->runner = this;
-        dynamicTableMgmt->connection = conn;
-
-        if ((ret = pthread_create(&dynamic_table_mgmt_thandle, nullptr,
-               thread_dynamic_table_mgmt_workload, dynamicTableMgmt)) != 0) {
-            std::cerr << "pthread_create failed err=" << ret << std::endl;
-            std::cerr << "Stopping dynamic table management thread." << std::endl;
-            (void)pthread_join(dynamic_table_mgmt_thandle, &status);
-            delete dynamicTableMgmt;
-            dynamicTableMgmt = nullptr;
+    // Start a thread to dynamically create tables
+    pthread_t dynamic_create_thandle;
+    WorkloadRunnerConnection *dynamicCreate = nullptr;
+    if (options->dynamic_create_period > 0) {
+        if (options->dynamic_create_count < 1) {
+            std::cerr << "dynamic_create_count needs to be greater than 0" << std::endl;
             stopping = true;
+        } else {
+            dynamicCreate = new WorkloadRunnerConnection();
+            dynamicCreate->runner = this;
+            dynamicCreate->connection = conn;
+
+            if ((ret = pthread_create(&dynamic_create_thandle, nullptr,
+                   thread_dynamic_create_workload, dynamicCreate)) != 0) {
+                std::cerr << "pthread_create failed err=" << ret << std::endl;
+                std::cerr << "Stopping dynamic create thread." << std::endl;
+                (void)pthread_join(dynamic_create_thandle, &status);
+                delete dynamicCreate;
+                dynamicCreate = nullptr;
+                stopping = true;
+            }
+        }
+    }
+
+    // Start a thread to dynamically drop tables
+    pthread_t dynamic_drop_thandle;
+    WorkloadRunnerConnection *dynamicDrop = nullptr;
+    if (options->dynamic_drop_period > 0) {
+        if (options->dynamic_drop_count < 1) {
+            std::cerr << "dynamic_drop_count needs to be greater than 0" << std::endl;
+            stopping = true;
+        } else {
+            dynamicDrop = new WorkloadRunnerConnection();
+            dynamicDrop->runner = this;
+            dynamicDrop->connection = conn;
+
+            if ((ret = pthread_create(&dynamic_drop_thandle, nullptr, thread_dynamic_drop_workload,
+                   dynamicDrop)) != 0) {
+                std::cerr << "pthread_create failed err=" << ret << std::endl;
+                std::cerr << "Stopping dynamic drop thread." << std::endl;
+                (void)pthread_join(dynamic_drop_thandle, &status);
+                delete dynamicDrop;
+                dynamicDrop = nullptr;
+                stopping = true;
+            }
         }
     }
 
@@ -2824,10 +2905,16 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
         delete createDropTableCycle;
     }
 
-    // Wait for the dynamic table management thread.
-    if (dynamicTableMgmt != nullptr) {
-        WT_TRET(pthread_join(dynamic_table_mgmt_thandle, &status));
-        delete dynamicTableMgmt;
+    // Wait for the dynamic create table thread.
+    if (dynamicCreate != nullptr) {
+        WT_TRET(pthread_join(dynamic_create_thandle, &status));
+        delete dynamicCreate;
+    }
+
+    // Wait for the dynamic drop table thread.
+    if (dynamicDrop != nullptr) {
+        WT_TRET(pthread_join(dynamic_drop_thandle, &status));
+        delete dynamicDrop;
     }
 
     workgen_epoch(&now);

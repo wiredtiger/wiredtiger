@@ -62,7 +62,10 @@ thread_read_rnd = Thread(op_read_rnd * 10)
 
 workload = Workload(context, thread + thread_ins_rnd + thread_upd_rnd + thread_read_rnd)
 workload.options.run_time = 30
-workload.options.dynamic_table_management = True
+workload.options.dynamic_create_period = 5
+workload.options.dynamic_create_count = 10
+workload.options.dynamic_drop_period = 2
+workload.options.dynamic_drop_count = 3
 
 ret = workload.run(connection)
 assert ret == 0, ret

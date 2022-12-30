@@ -304,7 +304,8 @@ struct WorkloadRunner {
     int run(WT_CONNECTION *conn);
     int increment_timestamp(WT_CONNECTION *conn);
     int start_table_idle_cycle(WT_CONNECTION *conn);
-    int start_dynamic_table_mgmt(WT_CONNECTION *conn);
+    int start_dynamic_create(WT_CONNECTION *conn);
+    int start_dynamic_drop(WT_CONNECTION *conn);
     int check_timing(const std::string& name, uint64_t last_interval);
 
 private:

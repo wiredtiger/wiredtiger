@@ -447,7 +447,11 @@ struct WorkloadOptions {
     double stable_timestamp_lag;
     double timestamp_advance;
     bool max_idle_table_cycle_fatal;
-    bool dynamic_table_management;
+    /* Dynamic create/drop options */
+    int dynamic_create_period;
+    int dynamic_create_count;
+    int dynamic_drop_period;
+    int dynamic_drop_count;
 
     WorkloadOptions();
     WorkloadOptions(const WorkloadOptions &other);
