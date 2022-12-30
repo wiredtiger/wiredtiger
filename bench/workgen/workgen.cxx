@@ -310,8 +310,7 @@ WorkloadRunner::start_dynamic_table_mgmt(WT_CONNECTION *conn)
             icontext->_dyn_table_names[tint] = uri;
             icontext->_dyn_table_runtime[tint] = TableRuntime();
             ++icontext->_dyn_tint_last;
-
-            std::cout << "Created table .. " << uri << "\n";
+            VERBOSE(*_workload, "Created table and added to the dynamic set: " << uri);
 
             /*
              * Once every 3 iterations select a table for removal. Remove if not in use, else
@@ -323,7 +322,7 @@ WorkloadRunner::start_dynamic_table_mgmt(WT_CONNECTION *conn)
                     if (icontext->_dyn_table_runtime[it.second]._pending_delete) {
                         continue;
                     } else {
-                        std::cout << "Marking pending removal for " << it.first << "\n";
+                        VERBOSE(*_workload, "Marking pending removal for: " << it.first);
                         icontext->_dyn_table_runtime[it.second]._pending_delete = true;
                         tables_delete.push_back(it.first);
                         break;
@@ -331,14 +330,16 @@ WorkloadRunner::start_dynamic_table_mgmt(WT_CONNECTION *conn)
                 }
             }
 
-            /* Process any pending delete, the actual table drop will be done without holding the
-             * lock */
+            /*
+             * Process any pending delete, the actual table drop will be done without holding the
+             * lock
+             */
             for (size_t i = 0; i < tables_delete.size();) {
                 // The table might still be in use.
                 const std::string uri(tables_delete.at(i));
                 tint_t tint = icontext->_dyn_tint.at(uri);
                 if (icontext->_dyn_table_runtime[tint]._in_use != 0) {
-                    std::cout << "Inuse " << uri << "\n";
+                    VERBOSE(*_workload, "Requested remove of table in use: " << uri);
                     ++i;
                     continue;
                 }
@@ -360,12 +361,12 @@ WorkloadRunner::start_dynamic_table_mgmt(WT_CONNECTION *conn)
             /* Spin on EBUSY, we do not expect to get stuck */
             while (
               (ret = session->drop(session, uri.c_str(), "force,checkpoint_wait=false")) == EBUSY) {
-                std::cout << "Drop returned EBUSY for table " << uri << "\n";
+                VERBOSE(*_workload, "Drop returned EBUSY for table: " << uri);
             }
             if (ret != 0)
                 THROW("Table drop failed in start_dynamic_table_mgmt.");
 
-            std::cout << "Dropped table " << uri << "\n";
+            VERBOSE(*_workload, "Dropped table: " << uri);
         }
         drop_uris.clear();
 
