@@ -279,16 +279,15 @@ garbage_collection(ContextInternal *icontext, WT_SESSION *session)
         for (size_t i = 0; i < icontext->_dyn_tables_delete.size();) {
             // The table might still be in use.
             const std::string uri(icontext->_dyn_tables_delete.at(i));
-            if (icontext->_dyn_table_in_use[uri] != 0) {
+            tint_t tint = icontext->_dyn_tint.at(uri);
+            if (icontext->_dyn_table_runtime[tint]._in_use != 0) {
                 std::cout << "Inuse " << uri << "\n";
                 ++i;
                 continue;
             }
 
             // Delete all local data related to the table.
-            icontext->_dyn_table_in_use.erase(uri);
             icontext->_dyn_tables_delete.erase(icontext->_dyn_tables_delete.begin() + i);
-            tint_t tint = icontext->_dyn_tint.at(uri);
             icontext->_dyn_tint.erase(uri);
             icontext->_dyn_table_names.erase(tint);
             icontext->_dyn_table_runtime.erase(tint);
@@ -558,7 +557,7 @@ Context::operator=(const Context &other)
 
 ContextInternal::ContextInternal()
     : _tint(), _table_names(), _table_runtime(nullptr), _runtime_alloced(0), _tint_last(0),
-      _dyn_tint(), _dyn_table_names(), _dyn_table_runtime(), _dyn_tint_last(0), _dyn_table_in_use(),
+      _dyn_tint(), _dyn_table_names(), _dyn_table_runtime(), _dyn_tint_last(0),
       _dyn_tables_delete(), _context_count(0), _dyn_mutex(new std::mutex())
 {
     uint32_t count = workgen_atomic_add32(&context_count, 1);
@@ -1144,9 +1143,9 @@ ThreadRunner::op_run(Operation *op)
           std::find(_icontext->_dyn_tables_delete.begin(), _icontext->_dyn_tables_delete.end(),
             uri) != _icontext->_dyn_tables_delete.end();
         if (!marked_deleted) {
-            ++_icontext->_dyn_table_in_use[uri];
             table_uri = uri;
             tint = _icontext->_dyn_tint[uri];
+            ++_icontext->_dyn_table_runtime[tint]._in_use;
         } else {
             goto err;
         }
@@ -1376,7 +1375,8 @@ err:
     // counter.
     if (op->_random_table && !table_uri.empty()) {
         const std::lock_guard<std::mutex> lock(*_icontext->_dyn_mutex);
-        --_icontext->_dyn_table_in_use[table_uri];
+        ASSERT(_icontext->_dyn_table_runtime[tint]._in_use > 0);
+        --_icontext->_dyn_table_runtime[tint]._in_use;
     }
 
     return (ret);

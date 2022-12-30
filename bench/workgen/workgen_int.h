@@ -196,7 +196,10 @@ struct TableRuntime {
     uint64_t _max_recno;                           // highest recno allocated
     bool _disjoint;                                // does key space have holes?
 
-    TableRuntime() : _max_recno(0), _disjoint(0) {}
+    /* Only used for the dynamic set of the tables. */
+    uint32_t _in_use;                              // How many operations are using this table
+
+    TableRuntime() : _max_recno(0), _disjoint(0), _in_use(0) {}
 };
 
 struct ContextInternal {
@@ -212,8 +215,6 @@ struct ContextInternal {
     std::map<tint_t, std::string> _dyn_table_names;
     std::map<tint_t, TableRuntime> _dyn_table_runtime;
     tint_t _dyn_tint_last;
-    // Reference counter on each table.
-    std::map<std::string, size_t> _dyn_table_in_use;
     // Tables required to be deleted. They should not be selected by any thread.
     std::vector<std::string> _dyn_tables_delete;
     // This mutex should be used to protect the access to the dynamic tables data.
