@@ -265,50 +265,6 @@ WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn)
     return 0;
 }
 
-static void
-garbage_collection(ContextInternal *icontext, WT_SESSION *session)
-{
-    std::cout << "Garbage collect list: ";
-    for (auto uri : icontext->_dyn_tables_delete)
-        std::cout << uri << " ";
-    std::cout << "\n";
-
-    std::vector<std::string> uris;
-    {
-        const std::lock_guard<std::mutex> lock(*icontext->_dyn_mutex);
-        for (size_t i = 0; i < icontext->_dyn_tables_delete.size();) {
-            // The table might still be in use.
-            const std::string uri(icontext->_dyn_tables_delete.at(i));
-            tint_t tint = icontext->_dyn_tint.at(uri);
-            if (icontext->_dyn_table_runtime[tint]._in_use != 0) {
-                std::cout << "Inuse " << uri << "\n";
-                ++i;
-                continue;
-            }
-
-            // Delete all local data related to the table.
-            icontext->_dyn_tables_delete.erase(icontext->_dyn_tables_delete.begin() + i);
-            icontext->_dyn_tint.erase(uri);
-            icontext->_dyn_table_names.erase(tint);
-            icontext->_dyn_table_runtime.erase(tint);
-            uris.push_back(uri);
-        }
-    }
-
-    for (auto uri : uris) {
-        WT_DECL_RET;
-        while (
-          (ret = session->drop(session, uri.c_str(), "force,checkpoint_wait=false")) == EBUSY) {
-            std::cout << "Drop returned EBUSY for table " << uri << "\n";
-            sleep(1);
-        }
-        if (ret != 0)
-            THROW("Table drop failed in garbage_collection.");
-
-        std::cout << "Dropped table " << uri << "\n";
-    }
-}
-
 /*
  * This function creates and drops tables randomly as means to dynamically vary the tables in the
  * database. These set of tables are considered a "dynamic" set as opposed to a "static" set. A
@@ -327,6 +283,7 @@ WorkloadRunner::start_dynamic_table_mgmt(WT_CONNECTION *conn)
     WT_DECL_RET;
     ContextInternal *icontext = _workload->_context->_internal;
     char uri[BUF_SIZE];
+    std::vector<std::string> tables_delete; // Track tables that are to be deleted
 
     for (uint64_t create_count = 0; !stopping; ++create_count) {
         snprintf(uri, BUF_SIZE, "table:test_dynamic_%" PRIu64, create_count);
@@ -342,6 +299,7 @@ WorkloadRunner::start_dynamic_table_mgmt(WT_CONNECTION *conn)
             THROW("Table create failed in start_dynamic_table_mgmt.");
         }
 
+        std::vector<std::string> drop_uris;
         {
             /* The dynamic table set management is protected by a mutex. */
             const std::lock_guard<std::mutex> lock(*icontext->_dyn_mutex);
@@ -362,29 +320,59 @@ WorkloadRunner::start_dynamic_table_mgmt(WT_CONNECTION *conn)
             if (create_count % 3 == 0) {
                 /* Walk the list and select the first that is not already in delete list */
                 for (auto const &it : icontext->_dyn_tint) {
-                    if (std::find(icontext->_dyn_tables_delete.begin(),
-                          icontext->_dyn_tables_delete.end(),
-                          it.first) != icontext->_dyn_tables_delete.end()) {
+                    if (icontext->_dyn_table_runtime[it.second]._pending_delete) {
                         continue;
                     } else {
                         std::cout << "Marking pending removal for " << it.first << "\n";
-                        icontext->_dyn_tables_delete.push_back(it.first);
+                        icontext->_dyn_table_runtime[it.second]._pending_delete = true;
+                        tables_delete.push_back(it.first);
                         break;
                     }
                 }
             }
+
+            /* Process any pending delete, the actual table drop will be done without holding the
+             * lock */
+            for (size_t i = 0; i < tables_delete.size();) {
+                // The table might still be in use.
+                const std::string uri(tables_delete.at(i));
+                tint_t tint = icontext->_dyn_tint.at(uri);
+                if (icontext->_dyn_table_runtime[tint]._in_use != 0) {
+                    std::cout << "Inuse " << uri << "\n";
+                    ++i;
+                    continue;
+                }
+
+                // Delete all local data related to the table.
+                tables_delete.erase(tables_delete.begin() + i);
+                icontext->_dyn_tint.erase(uri);
+                icontext->_dyn_table_names.erase(tint);
+                icontext->_dyn_table_runtime.erase(tint);
+                drop_uris.push_back(uri);
+            }
         }
 
-        /* Garbage collect - delete tables pending delete and no longer in use */
-        if (create_count % 6 == 0)
-            garbage_collection(icontext, session);
+        /*
+         * We will drop the WiredTiger tables without holding the lock. These tables have been
+         * removed from the shared data structures, and we know no thread is operating on them.
+         */
+        for (auto uri : drop_uris) {
+            /* Spin on EBUSY, we do not expect to get stuck */
+            while (
+              (ret = session->drop(session, uri.c_str(), "force,checkpoint_wait=false")) == EBUSY) {
+                std::cout << "Drop returned EBUSY for table " << uri << "\n";
+            }
+            if (ret != 0)
+                THROW("Table drop failed in start_dynamic_table_mgmt.");
+
+            std::cout << "Dropped table " << uri << "\n";
+        }
+        drop_uris.clear();
+
         sleep(1);
     }
 
-    // Sleep a bit before existing and garbage collect
-    sleep(5);
-    garbage_collection(icontext, session);
-
+    // Do we need to cleanup tables that might be pending delete when stopping
     return 0;
 }
 
@@ -557,8 +545,8 @@ Context::operator=(const Context &other)
 
 ContextInternal::ContextInternal()
     : _tint(), _table_names(), _table_runtime(nullptr), _runtime_alloced(0), _tint_last(0),
-      _dyn_tint(), _dyn_table_names(), _dyn_table_runtime(), _dyn_tint_last(0),
-      _dyn_tables_delete(), _context_count(0), _dyn_mutex(new std::mutex())
+      _dyn_tint(), _dyn_table_names(), _dyn_table_runtime(), _dyn_tint_last(0), _context_count(0),
+      _dyn_mutex(new std::mutex())
 {
     uint32_t count = workgen_atomic_add32(&context_count, 1);
     if (count != 1)
@@ -1133,15 +1121,13 @@ ThreadRunner::op_run(Operation *op)
         if (num_tables == 0)
             goto err;
 
-        // Select a random key.
+        // Select a random table.
         auto it = _icontext->_dyn_tint.begin();
         std::advance(it, random_value() % _icontext->_dyn_tint.size());
         const std::string uri(it->first);
 
         // Make sure the table is not marked for deletion.
-        bool marked_deleted =
-          std::find(_icontext->_dyn_tables_delete.begin(), _icontext->_dyn_tables_delete.end(),
-            uri) != _icontext->_dyn_tables_delete.end();
+        bool marked_deleted = _icontext->_dyn_table_runtime[_icontext->_tint[uri]]._pending_delete;
         if (!marked_deleted) {
             table_uri = uri;
             tint = _icontext->_dyn_tint[uri];

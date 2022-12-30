@@ -198,8 +198,9 @@ struct TableRuntime {
 
     /* Only used for the dynamic set of the tables. */
     uint32_t _in_use;                              // How many operations are using this table
+    bool _pending_delete;                          // Delete this table once not in use
 
-    TableRuntime() : _max_recno(0), _disjoint(0), _in_use(0) {}
+    TableRuntime() : _max_recno(0), _disjoint(0), _in_use(0), _pending_delete(false) {}
 };
 
 struct ContextInternal {
@@ -215,8 +216,6 @@ struct ContextInternal {
     std::map<tint_t, std::string> _dyn_table_names;
     std::map<tint_t, TableRuntime> _dyn_table_runtime;
     tint_t _dyn_tint_last;
-    // Tables required to be deleted. They should not be selected by any thread.
-    std::vector<std::string> _dyn_tables_delete;
     // This mutex should be used to protect the access to the dynamic tables data.
     std::mutex* _dyn_mutex;
 
