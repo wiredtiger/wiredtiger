@@ -61,7 +61,7 @@ thread_upd_rnd = Thread(op_upd_rnd * 10)
 thread_read_rnd = Thread(op_read_rnd * 10)
 
 workload = Workload(context, thread + thread_ins_rnd + thread_upd_rnd + thread_read_rnd)
-workload.options.run_time = 10
+workload.options.run_time = 30
 workload.options.dynamic_table_management = True
 
 ret = workload.run(connection)
