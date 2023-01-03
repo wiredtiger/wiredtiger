@@ -544,7 +544,7 @@ thread_ckpt_run(void *arg)
     uint64_t ts;
     uint32_t sleep_time;
     int i;
-    char flush_tier_config[128], ts_config[128];
+    char ckpt_flush_config[128], ckpt_config[128];
     bool first_ckpt, flush_tier;
 
     __wt_random_init(&rnd);
@@ -554,17 +554,17 @@ thread_ckpt_run(void *arg)
      * Keep a separate file with the records we wrote for checking.
      */
     (void)unlink(ckpt_file);
-    memset(flush_tier_config, 0, sizeof(flush_tier_config));
-    memset(ts_config, 0, sizeof(ts_config));
+    memset(ckpt_flush_config, 0, sizeof(ckpt_flush_config));
+    memset(ckpt_config, 0, sizeof(ckpt_config));
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
     first_ckpt = true;
     ts = 0;
     flush_tier = false;
 
-    testutil_check(__wt_snprintf(ts_config, sizeof(ts_config), "use_timestamp=true"));
+    testutil_check(__wt_snprintf(ckpt_config, sizeof(ckpt_config), "use_timestamp=true"));
 
     testutil_check(__wt_snprintf(
-      flush_tier_config, sizeof(flush_tier_config), "flush_tier=(enabled,force),%s", ts_config));
+      ckpt_flush_config, sizeof(ckpt_flush_config), "flush_tier=(enabled,force),%s", ckpt_config));
 
     set_flush_tier_delay(&rnd);
 
@@ -603,7 +603,7 @@ thread_ckpt_run(void *arg)
          * case. Only report that flush is in use in the program output if tiered is actually being
          * used however.
          */
-        testutil_check(session->checkpoint(session, flush_tier ? flush_tier_config : ts_config));
+        testutil_check(session->checkpoint(session, flush_tier ? ckpt_flush_config : ckpt_config));
 
         printf("Checkpoint %d complete: Flush: %s. Minimum ts %" PRIu64 "\n", i,
           flush_tier ? "YES" : "NO", ts);
@@ -632,7 +632,6 @@ thread_ckpt_run(void *arg)
             first_ckpt = false;
             testutil_assert_errno(fclose(fp) == 0);
         }
-
         testutil_tiered_sleep(opts, session, 0, &flush_tier);
     }
     /* NOTREACHED */
@@ -888,9 +887,9 @@ run_workload(uint32_t nth)
      */
     testutil_check(session->close(session, NULL));
 
-    if (opts->tiered_storage) {
+    opts->conn = conn;
 
-        opts->conn = conn;
+    if (opts->tiered_storage) {
         set_flush_tier_delay(&rnd);
         testutil_tiered_begin(opts);
     }
