@@ -52,8 +52,8 @@ static const std::map<int32_t, Aws::Utils::Logging::LogLevel> verbosityMapping =
 /*
  * Provides the S3 Store with a logger implementation that redirects the generated logs to
  * WiredTiger's logging streams. This class implements AWS's LogSystemInterface class, an interface
- * for logging implementations. Functions are derived from the interface to incorporate the
- * logging with WiredTiger's logging system.
+ * for logging implementations. Functions are derived from the interface to incorporate the logging
+ * with WiredTiger's logging system.
  */
 class S3LogSystem : public Aws::Utils::Logging::LogSystemInterface {
     public:

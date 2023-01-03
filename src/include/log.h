@@ -365,9 +365,8 @@ struct __wt_log_desc {
 #define WT_LOG_VERSION_SYSTEM 2
 
 /*
- * WiredTiger release version where log format version changed.
- * FIXME WT-8681 - According to WT_MIN_STARTUP_VERSION any WT version less then 3.2.0 will not
- * start. Can we drop V2, V3 here?
+ * WiredTiger release version where log format version changed. FIXME WT-8681 - According to
+ * WT_MIN_STARTUP_VERSION any WT version less then 3.2.0 will not start. Can we drop V2, V3 here?
  */
 #define WT_LOG_V2_VERSION ((WT_VERSION){3, 0, 0})
 #define WT_LOG_V3_VERSION ((WT_VERSION){3, 1, 0})
