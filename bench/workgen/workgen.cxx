@@ -501,6 +501,8 @@ WorkloadRunner::start_dynamic_drop(WT_CONNECTION *conn)
     }
 
     // Do we need to cleanup tables that might be pending delete when stopping
+    // Also to support stopping and starting, we will have to populate the dynamic table list at
+    // startup.
     return 0;
 }
 
