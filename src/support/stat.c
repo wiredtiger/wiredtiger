@@ -3095,43 +3095,43 @@ __wt_stat_session_clear_single(WT_SESSION_STATS *stats)
     stats->cache_time = 0;
 }
 
-static const char *const __stats_page_desc[] = {
-  "page: byte count of a file",
-  "page: row count of a file",
+static const char *const __stats_ckpt_desc[] = {
+  "ckpt: byte count of a file",
+  "ckpt: row count of a file",
 };
 
 int
-__wt_stat_page_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
+__wt_stat_ckpt_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
 {
     WT_UNUSED(cst);
-    *p = __stats_page_desc[slot];
+    *p = __stats_ckpt_desc[slot];
     return (0);
 }
 
 void
-__wt_stat_page_init_single(WT_PAGE_STATS *stats)
+__wt_stat_ckpt_init_single(WT_CKPT_STATS *stats)
 {
     memset(stats, 0, sizeof(*stats));
 }
 
 void
-__wt_stat_page_clear_single(WT_PAGE_STATS *stats)
+__wt_stat_ckpt_clear_single(WT_CKPT_STATS *stats)
 {
     stats->byte_count = 0;
     stats->row_count = 0;
 }
 
 void
-__wt_stat_page_clear_all(WT_PAGE_STATS **stats)
+__wt_stat_ckpt_clear_all(WT_CKPT_STATS **stats)
 {
     u_int i;
 
     for (i = 0; i < WT_COUNTER_SLOTS; ++i)
-        __wt_stat_page_clear_single(stats[i]);
+        __wt_stat_ckpt_clear_single(stats[i]);
 }
 
 void
-__wt_stat_page_aggregate(WT_PAGE_STATS **from, WT_PAGE_STATS *to)
+__wt_stat_ckpt_aggregate(WT_CKPT_STATS **from, WT_CKPT_STATS *to)
 {
     to->byte_count += WT_STAT_READ(from, byte_count);
     to->row_count += WT_STAT_READ(from, row_count);

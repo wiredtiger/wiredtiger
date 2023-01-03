@@ -7446,14 +7446,14 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 
 /*!
 * @}
-* @name Statistics for page stat
-* @anchor statistics_page
+* @name Statistics for checkpoint
+* @anchor statistics_ckpt
 * @{
 */
-/*! page: byte count of a file */
-#define	WT_STAT_PAGE_BYTE_COUNT				5000
-/*! page: row count of a file */
-#define	WT_STAT_PAGE_ROW_COUNT				5001
+/*! ckpt: byte count of a file */
+#define	WT_STAT_CKPT_BYTE_COUNT				5000
+/*! ckpt: row count of a file */
+#define	WT_STAT_CKPT_ROW_COUNT				5001
 /*! @} */
 /*
  * Statistics section: END

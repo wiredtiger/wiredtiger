@@ -521,7 +521,7 @@ struct __wt_cursor_stat {
         WT_CONNECTION_STATS conn_stats;
         WT_JOIN_STATS_GROUP join_stats_group;
         WT_SESSION_STATS session_stats;
-        WT_PAGE_STATS page_stats;
+        WT_CKPT_STATS ckpt_stats;
     } u;
 
     const char **cfg; /* Original cursor configuration */

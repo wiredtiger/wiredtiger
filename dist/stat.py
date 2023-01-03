@@ -6,8 +6,8 @@ from dist import compare_srcfile, format_srcfile
 from operator import attrgetter
 
 # Read the source files.
-from stat_data import groups, dsrc_stats, conn_stats, conn_dsrc_stats, join_stats, \
-    page_stats, session_stats
+from stat_data import groups, dsrc_stats, ckpt_stats, conn_stats, conn_dsrc_stats, \
+    join_stats, session_stats
 
 ##########################################
 # Check for duplicate stat descriptions:
@@ -23,9 +23,9 @@ def check_unique_description(sorted_list):
 
 check_unique_description(conn_stats)
 check_unique_description(dsrc_stats)
-check_unique_description(page_stats)
 check_unique_description(session_stats)
 check_unique_description(join_stats)
+check_unique_description(ckpt_stats)
 check_unique_description(conn_dsrc_stats)
 
 # Statistic categories need to be sorted in order to generate a valid statistics JSON file.
@@ -65,7 +65,7 @@ for line in open('../src/include/stat.h', 'r'):
         print_struct('data sources', 'dsrc', 2000, sorted_dsrc_statistics)
         print_struct('join cursors', 'join', 3000, join_stats)
         print_struct('session', 'session', 4000, session_stats)
-        print_struct('page stat', 'page', 5000, page_stats)
+        print_struct('checkpoint', 'ckpt', 5000, ckpt_stats)
 f.close()
 format_srcfile(tmp_file)
 compare_srcfile(tmp_file, '../src/include/stat.h')
@@ -133,12 +133,12 @@ def print_defines():
     f.write('''
 /*!
 * @}
-* @name Statistics for page stat
-* @anchor statistics_page
+* @name Statistics for checkpoint
+* @anchor statistics_ckpt
 * @{
 */
 ''')
-    print_defines_one('PAGE', 5000, page_stats)
+    print_defines_one('CKPT', 5000, ckpt_stats)
     f.write('/*! @} */\n')
 
 # Update the #defines in the wiredtiger.in file.
@@ -293,7 +293,7 @@ print_func('dsrc', 'WT_DATA_HANDLE', sorted_dsrc_statistics)
 print_func('connection', 'WT_CONNECTION_IMPL', sorted_conn_stats)
 print_func('join', None, join_stats)
 print_func('session', None, session_stats)
-print_func('page', None, page_stats)
+print_func('ckpt', None, ckpt_stats)
 f.close()
 format_srcfile(tmp_file)
 compare_srcfile(tmp_file, '../src/support/stat.c')
