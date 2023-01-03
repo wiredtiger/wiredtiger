@@ -450,8 +450,12 @@ struct WorkloadOptions {
     /* Dynamic create/drop options */
     int dynamic_create_period;
     int dynamic_create_count;
+    int dynamic_create_target;
+    int dynamic_create_trigger;
     int dynamic_drop_period;
     int dynamic_drop_count;
+    int dynamic_drop_target;
+    int dynamic_drop_trigger;
 
     WorkloadOptions();
     WorkloadOptions(const WorkloadOptions &other);

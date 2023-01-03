@@ -48,24 +48,25 @@ session.create(table_name, table_config)
 key = Key(Key.KEYGEN_APPEND, 10)
 value = Value(40)
 
-# Create an operation dedicated to one table.
-op = Operation(Operation.OP_INSERT, Table(table_name), key, value)
-thread = Thread(op)
-
 # Create operations that work on random tables.
 op_ins_rnd = Operation(Operation.OP_INSERT, key, value)
 op_upd_rnd = Operation(Operation.OP_UPDATE, key, value)
 op_read_rnd = Operation(Operation.OP_SEARCH, key, value)
 thread_ins_rnd = Thread(op_ins_rnd * 10)
-thread_upd_rnd = Thread(op_upd_rnd * 10)
-thread_read_rnd = Thread(op_read_rnd * 10)
+thread_upd_rnd = Thread(op_upd_rnd * 5)
+thread_read_rnd = Thread(op_read_rnd * 5)
 
-workload = Workload(context, thread + thread_ins_rnd + thread_upd_rnd + thread_read_rnd)
-workload.options.run_time = 30
+#workload = Workload(context, thread_ins_rnd + thread_upd_rnd + thread_read_rnd)
+workload = Workload(context, thread_ins_rnd)
+workload.options.run_time = 300
 workload.options.dynamic_create_period = 5
-workload.options.dynamic_create_count = 10
-workload.options.dynamic_drop_period = 2
-workload.options.dynamic_drop_count = 3
+workload.options.dynamic_create_count = 3
+workload.options.dynamic_create_trigger = 100
+workload.options.dynamic_create_target = 200
+workload.options.dynamic_drop_period = 3
+workload.options.dynamic_drop_count = 2
+workload.options.dynamic_drop_trigger = 250
+workload.options.dynamic_drop_target = 50
 
 ret = workload.run(connection)
 assert ret == 0, ret

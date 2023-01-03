@@ -39,6 +39,7 @@
 #include <algorithm>
 #include <iomanip>
 #include <iostream>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include "wiredtiger.h"
@@ -286,6 +287,25 @@ WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn)
     return 0;
 }
 
+static uint32_t
+get_dir_size_mb(std::string dir)
+{
+    uint64_t result = 0;
+    for (const auto &path : std::filesystem::recursive_directory_iterator(dir)) {
+        try {
+            result += std::filesystem::file_size(path);
+        } catch (std::filesystem::filesystem_error &e) {
+            /*
+             * A file might be dropped between listing the directory contents and getting their
+             * sizes. Ignore such errors.
+             */
+            ASSERT(std::string(e.what()).find("No such file or directory") != std::string::npos);
+            continue;
+        }
+    }
+    return result / (WT_THOUSAND * WT_THOUSAND);
+}
+
 /*
  * write something
  */
@@ -301,8 +321,43 @@ WorkloadRunner::start_dynamic_create(WT_CONNECTION *conn)
     ContextInternal *icontext = _workload->_context->_internal;
     char uri[BUF_SIZE];
     uint64_t total_creates = 0;
+    uint32_t db_size = get_dir_size_mb(_wt_home);
+
+    /*
+     * Initially we decide to start creating tables if the database size is less than the create
+     * target.
+     */
+    bool creating = db_size < _workload->options.dynamic_create_target;
 
     while (!stopping) {
+        /*
+         * If we have been creating tables, continue until we reach the create target size. If we
+         * have not been creating tables, begin to do so if the database size falls below the create
+         * trigger.
+         */
+        db_size = get_dir_size_mb(_wt_home);
+        if (creating) {
+            creating = db_size < _workload->options.dynamic_create_target;
+            if (!creating) {
+                TMPVERBOSE(*_workload,
+                  "Stopped creating new tables. db_size now "
+                    << db_size << " MB reached the create target of "
+                    << _workload->options.dynamic_create_target << " MB.");
+            }
+        } else {
+            creating = db_size < _workload->options.dynamic_create_trigger;
+            if (creating) {
+                TMPVERBOSE(*_workload,
+                  "Started creating new tables. db_size now "
+                    << db_size << " MB reached the create trigger of "
+                    << _workload->options.dynamic_create_trigger << " MB.");
+            }
+        }
+        if (!creating) {
+            sleep(_workload->options.dynamic_create_period);
+            continue;
+        }
+
         for (int creates = 0; creates < _workload->options.dynamic_create_count;
              ++creates, ++total_creates) {
             snprintf(uri, BUF_SIZE, "table:test_dynamic_%" PRIu64, total_creates);
@@ -352,8 +407,42 @@ WorkloadRunner::start_dynamic_drop(WT_CONNECTION *conn)
     WT_DECL_RET;
     ContextInternal *icontext = _workload->_context->_internal;
     std::vector<std::string> tables_delete; // Track tables that are to be deleted
+    uint32_t db_size = get_dir_size_mb(_wt_home);
+
+    /*
+     * Initially we decide to start dropping tables if the database size is more than the drop
+     * trigger.
+     */
+    bool dropping = db_size > _workload->options.dynamic_drop_trigger;
 
     while (!stopping) {
+        /*
+         * If we have been dropping, continue until we reach the drop target size. If we have not
+         * been dropping tables, begin to do so if the database size crosses the drop trigger.
+         */
+        db_size = get_dir_size_mb(_wt_home);
+        if (dropping) {
+            dropping = db_size > _workload->options.dynamic_drop_target;
+            if (!dropping) {
+                TMPVERBOSE(*_workload,
+                  "Stopped dropping new tables. db_size now "
+                    << db_size << " MB reached the drop target of "
+                    << _workload->options.dynamic_drop_target << " MB.");
+            }
+        } else {
+            dropping = db_size > _workload->options.dynamic_drop_trigger;
+            if (dropping) {
+                TMPVERBOSE(*_workload,
+                  "Started dropping new tables. db_size now "
+                    << db_size << " MB reached the drop trigger of "
+                    << _workload->options.dynamic_drop_trigger << " MB.");
+            }
+        }
+        if (!dropping) {
+            sleep(_workload->options.dynamic_drop_period);
+            continue;
+        }
+
         for (int drops = 0; drops < _workload->options.dynamic_drop_count; ++drops) {
             std::vector<std::string> drop_uris;
             /* The dynamic table data structures are protected by a mutex. */
@@ -2459,7 +2548,8 @@ WorkloadOptions::WorkloadOptions()
       sample_file("monitor.json"), sample_interval_ms(0), max_idle_table_cycle(0), sample_rate(1),
       warmup(0), oldest_timestamp_lag(0.0), stable_timestamp_lag(0.0), timestamp_advance(0.0),
       max_idle_table_cycle_fatal(false), dynamic_create_period(0), dynamic_create_count(0),
-      dynamic_drop_period(0), dynamic_drop_count(0), _options()
+      dynamic_create_target(0), dynamic_create_trigger(0), dynamic_drop_period(0),
+      dynamic_drop_count(0), dynamic_drop_target(0), dynamic_drop_trigger(0), _options()
 {
     _options.add_int("max_latency", max_latency,
       "prints warning if any latency measured exceeds this number of "
@@ -2501,11 +2591,19 @@ WorkloadOptions::WorkloadOptions()
       "is specified by the dynamic_create_count setting");
     _options.add_int("dynamic_create_count", dynamic_create_count,
       "create this many number of tables every dynamic_create_period seconds");
+    _options.add_int("dynamic_create_target", dynamic_create_target,
+      "if not 0, create tables until the database reaches this size in MBs.");
+    _options.add_int("dynamic_create_trigger", dynamic_create_trigger,
+      "if not 0, start creating tables when the database drops to this size in MBs.");
     _options.add_int("dynamic_drop_period", dynamic_drop_period,
       "if greater than 0, drops tables every this many seconds. The number of tables dropped "
       "is specified by the dynamic_drop_count setting");
     _options.add_int("dynamic_drop_count", dynamic_drop_count,
       "drop this many number of tables every dynamic_drop_period seconds");
+    _options.add_int("dynamic_drop_target", dynamic_drop_target,
+      "if not 0, drop tables until the database reaches this size in MBs.");
+    _options.add_int("dynamic_drop_trigger", dynamic_drop_trigger,
+      "if not 0, start dropping tables when the database gets to this size in MBs.");
 }
 
 WorkloadOptions::WorkloadOptions(const WorkloadOptions &other)
