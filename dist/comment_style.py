@@ -83,7 +83,10 @@ def file_is_cpp(name):
     # this sort of code rather difficult. Luckily, libmagic can identify C/C++
     # based on content. Don't import it because Python packaging is a disaster
     # and this script needs to run reliably.
-    result = subprocess.run("file {}".format(name), shell=True, capture_output=True, text=True).stdout.strip('\n')
+    result = subprocess.run("file {}".format(name),
+                            shell=True,
+                            capture_output=True,
+                            text=True).stdout.strip('\n')
     return "C++" in result
 
 # Move up to root dir.
