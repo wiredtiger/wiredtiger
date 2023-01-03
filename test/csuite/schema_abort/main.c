@@ -75,7 +75,7 @@ static const char *const uri_collection = "table:collection";
 
 static const char *const ckpt_file = "checkpoint_done";
 
-static bool tiered, use_columns, use_ts, use_txn;
+static bool use_columns, use_ts, use_txn;
 static volatile bool stable_set;
 static volatile uint64_t global_ts = 1;
 static volatile uint64_t uid = 1;
@@ -272,7 +272,7 @@ test_bulk_unique(THREAD_DATA *td, int force)
 
     testutil_check(__wt_snprintf(dropconf, sizeof(dropconf), "force=%s", force ? "true" : "false"));
     /* For testing we want to remove objects too. */
-    if (tiered)
+    if (opts->tiered_storage)
         strcat(dropconf, ",remove_shared=true");
     while ((ret = session->drop(session, new_uri, dropconf)) != 0)
         if (ret != EBUSY)
@@ -378,7 +378,7 @@ test_create_unique(THREAD_DATA *td, int force)
 
     testutil_check(__wt_snprintf(dropconf, sizeof(dropconf), "force=%s", force ? "true" : "false"));
     /* For testing we want to remove objects too. */
-    if (tiered)
+    if (opts->tiered_storage)
         strcat(dropconf, ",remove_shared=true");
     while ((ret = session->drop(session, new_uri, dropconf)) != 0)
         if (ret != EBUSY)
@@ -406,7 +406,7 @@ test_drop(THREAD_DATA *td, int force)
         testutil_check(session->begin_transaction(session, NULL));
     testutil_check(__wt_snprintf(dropconf, sizeof(dropconf), "force=%s", force ? "true" : "false"));
     /* For testing we want to remove objects too. */
-    if (tiered)
+    if (opts->tiered_storage)
         strcat(dropconf, ",remove_shared=true");
     if ((ret = session->drop(session, uri, dropconf)) != 0)
         if (ret != ENOENT && ret != EBUSY)
@@ -439,7 +439,7 @@ test_upgrade(THREAD_DATA *td)
     WT_SESSION *session;
 
     /* FIXME-WT-9423 Remove this return when tiered storage supports upgrade. */
-    if (tiered || opts->tiered_storage)
+    if (opts->tiered_storage)
         return;
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
@@ -461,7 +461,7 @@ test_verify(THREAD_DATA *td)
     WT_SESSION *session;
 
     /* FIXME-WT-9423 Remove this return when tiered storage supports verify. */
-    if (tiered || opts->tiered_storage)
+    if (opts->tiered_storage)
         return;
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
@@ -1005,10 +1005,8 @@ main(int argc, char *argv[])
 
     (void)testutil_set_progname(argv);
 
-    buf[0] = '\0';
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
-    tiered = false;
     use_ts = true;
     /*
      * Setting this to false forces us to use internal library code. Allow an override but default
@@ -1022,11 +1020,8 @@ main(int argc, char *argv[])
 
     testutil_parse_begin_opt(argc, argv, "b:CmPTh:pv", opts);
 
-    while ((ch = __wt_getopt(progname, argc, argv, "BCch:mpP:T:t:vxz")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "Cch:mpP:T:t:vxz")) != EOF)
         switch (ch) {
-        case 'B':
-            tiered = true;
-            break;
         case 'c':
             /* Variable-length columns only; fixed would require considerable changes */
             use_columns = true;
@@ -1075,9 +1070,6 @@ main(int argc, char *argv[])
         if (opts->tiered_storage) {
             testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/bucket", home));
             testutil_make_work_dir(buf);
-
-            /* Reset the config string. */
-            buf[0] = '\0';
         }
 
         __wt_random_init_seed(NULL, &rnd);
@@ -1099,7 +1091,7 @@ main(int argc, char *argv[])
           use_ts ? "true" : "false", opts->tiered_storage ? "true" : "false");
         printf("Parent: Create %" PRIu32 " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
         printf("CONFIG: %s%s%s%s%s -h %s -T %" PRIu32 " -t %" PRIu32 "\n", progname,
-          opts->compat ? " -C" : "", opts->inmem ? " -m" : "", opts->tiered_storage ? " -B" : "",
+          opts->compat ? " -C" : "", opts->inmem ? " -m" : "", opts->tiered_storage ? " -PT" : "",
           !use_ts ? " -z" : "", opts->home, nth, timeout);
         /*
          * Fork a child to insert as many items. We will then randomly kill the child, run recovery
@@ -1156,7 +1148,7 @@ main(int argc, char *argv[])
     /*
      * Open the connection which forces recovery to be run.
      */
-    testutil_wiredtiger_open(opts, NULL, buf, &event_handler, &conn, true, false);
+    testutil_wiredtiger_open(opts, NULL, NULL, &event_handler, &conn, true, false);
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     /*
