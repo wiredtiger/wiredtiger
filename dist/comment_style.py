@@ -35,13 +35,13 @@ def check_cpp_comments(file_name):
         for line in f:
             stripped = line.strip()
             if match(stripped):
-                # Detecting multi-line comments of // is not easy as techincally they can occur
+                # Detecting multi-line comments of // is not easy as technically they can occur
                 # on contiguous lines without being multi-line.
                 # E.g:
                 # int height; // the height of our object
                 # int width; // the width of our object
                 # So we can't just count the number of lines we need to check that there is no text
-                # preceeding the comment in subsequent lines.
+                # preceding the comment in subsequent lines.
                 if length != 0 and not text_check.match(line.strip()):
                     # If the comment is length 2 and we found another matching line then we have
                     # found an illegal comment.
