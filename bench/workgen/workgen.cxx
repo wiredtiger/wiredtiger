@@ -102,11 +102,6 @@ extern "C" {
             std::cout << args << std::endl; \
     } while (0)
 
-#define TMPVERBOSE(runner, args)        \
-    do {                                \
-        std::cout << args << std::endl; \
-    } while (0)
-
 #define OP_HAS_VALUE(op) \
     ((op)->_optype == Operation::OP_INSERT || (op)->_optype == Operation::OP_UPDATE)
 
@@ -339,7 +334,7 @@ WorkloadRunner::start_dynamic_create(WT_CONNECTION *conn)
         if (creating) {
             creating = db_size < _workload->options.dynamic_create_target;
             if (!creating) {
-                TMPVERBOSE(*_workload,
+                VERBOSE(*_workload,
                   "Stopped creating new tables. db_size now "
                     << db_size << " MB reached the create target of "
                     << _workload->options.dynamic_create_target << " MB.");
@@ -347,7 +342,7 @@ WorkloadRunner::start_dynamic_create(WT_CONNECTION *conn)
         } else {
             creating = db_size < _workload->options.dynamic_create_trigger;
             if (creating) {
-                TMPVERBOSE(*_workload,
+                VERBOSE(*_workload,
                   "Started creating new tables. db_size now "
                     << db_size << " MB reached the create trigger of "
                     << _workload->options.dynamic_create_trigger << " MB.");
@@ -383,7 +378,7 @@ WorkloadRunner::start_dynamic_create(WT_CONNECTION *conn)
                 icontext->_dyn_table_names[tint] = uri;
                 icontext->_dyn_table_runtime[tint] = TableRuntime();
                 ++icontext->_dyn_tint_last;
-                TMPVERBOSE(*_workload, "Created table and added to the dynamic set: " << uri);
+                VERBOSE(*_workload, "Created table and added to the dynamic set: " << uri);
             }
         }
 
@@ -424,7 +419,7 @@ WorkloadRunner::start_dynamic_drop(WT_CONNECTION *conn)
         if (dropping) {
             dropping = db_size > _workload->options.dynamic_drop_target;
             if (!dropping) {
-                TMPVERBOSE(*_workload,
+                VERBOSE(*_workload,
                   "Stopped dropping new tables. db_size now "
                     << db_size << " MB reached the drop target of "
                     << _workload->options.dynamic_drop_target << " MB.");
@@ -432,7 +427,7 @@ WorkloadRunner::start_dynamic_drop(WT_CONNECTION *conn)
         } else {
             dropping = db_size > _workload->options.dynamic_drop_trigger;
             if (dropping) {
-                TMPVERBOSE(*_workload,
+                VERBOSE(*_workload,
                   "Started dropping new tables. db_size now "
                     << db_size << " MB reached the drop trigger of "
                     << _workload->options.dynamic_drop_trigger << " MB.");
@@ -454,7 +449,7 @@ WorkloadRunner::start_dynamic_drop(WT_CONNECTION *conn)
                     if (icontext->_dyn_table_runtime[it.second]._pending_delete) {
                         continue;
                     } else {
-                        TMPVERBOSE(*_workload, "Marking pending removal for: " << it.first);
+                        VERBOSE(*_workload, "Marking pending removal for: " << it.first);
                         icontext->_dyn_table_runtime[it.second]._pending_delete = true;
                         tables_delete.push_back(it.first);
                         break;
@@ -470,7 +465,7 @@ WorkloadRunner::start_dynamic_drop(WT_CONNECTION *conn)
                     const std::string uri(tables_delete.at(i));
                     tint_t tint = icontext->_dyn_tint.at(uri);
                     if (icontext->_dyn_table_runtime[tint]._in_use != 0) {
-                        TMPVERBOSE(*_workload, "Requested remove of table in use: " << uri);
+                        VERBOSE(*_workload, "Requested remove of table in use: " << uri);
                         ++i;
                         continue;
                     }
@@ -492,12 +487,12 @@ WorkloadRunner::start_dynamic_drop(WT_CONNECTION *conn)
                 /* Spin on EBUSY, we do not expect to get stuck */
                 while ((ret = session->drop(session, uri.c_str(), "force,checkpoint_wait=false")) ==
                   EBUSY) {
-                    TMPVERBOSE(*_workload, "Drop returned EBUSY for table: " << uri);
+                    VERBOSE(*_workload, "Drop returned EBUSY for table: " << uri);
                 }
                 if (ret != 0)
                     THROW("Table drop failed in start_dynamic_table_mgmt.");
 
-                TMPVERBOSE(*_workload, "Dropped table: " << uri);
+                VERBOSE(*_workload, "Dropped table: " << uri);
             }
             drop_uris.clear();
         }
