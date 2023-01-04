@@ -116,11 +116,9 @@ if __name__ == '__main__':
     # Move up to root dir.
     os.chdir("..")
 
-    # Some directories aren't expected to comply with WiredTiger style. Ignore them.
-    ignore_directories=[
-        'src/checksum',
-        'src/os_win',
-        'src/support',
+    # Some files aren't expected to comply with WiredTiger style. Ignore them.
+    ignore_files = [
+        'src/support/mtx_rw.c',
     ]
 
     command = "find bench examples ext src test -name \"*.[ch]\" -o -name \"*.in\" -o -name \
@@ -132,12 +130,9 @@ if __name__ == '__main__':
     result = subprocess.run(command, shell=True, capture_output=True, text=True).stdout.strip('\n')
     count = 0
     for file_name in result.split('\n'):
-        skip=False
-        for directory in ignore_directories:
-            if directory in file_name:
-                skip=True
-        if skip:
+        if file_name in ignore_files:
             continue
+
         if file_is_cpp(file_name):
             count += check_cpp_comments(file_name)
         else:
