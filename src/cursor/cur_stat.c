@@ -440,7 +440,7 @@ __page_stat_get(
     WT_CKPT ckpt;
     WT_DECL_RET;
     WT_TABLE *table;
-    int64_t byte_count, row_count;
+    int64_t byte_count, max_row_count, row_count;
     u_int i;
 
     table = NULL;
@@ -457,12 +457,13 @@ __page_stat_get(
             WT_ERR(ret == WT_NOTFOUND ? ENOENT : ret);
 
         /*
-         * Set the number of rows from one column group and sum the column group byte counts.
-         * Invalidate the table byte count if any of the column group byte counts don't exist.
+         * Set the number of rows as the maximum column group row count and sum the
+         * column group byte counts. Invalidate the table byte/row counts if any of
+         * the column group counts don't exist.
          */
+        max_row_count = row_count = WT_STAT_NONE;
         *byte_countp = 0;
         for (i = 0; i < WT_COLGROUPS(table); i++) {
-            row_count = -1;
             WT_ERR(__page_stat_get(session, table->cgroups[i]->source, &byte_count, &row_count));
 
             if (byte_count == WT_STAT_NONE) {
@@ -470,8 +471,15 @@ __page_stat_get(
                 break;
             } else
                 *byte_countp += byte_count;
+
+            if (row_count == WT_STAT_NONE) {
+                *row_countp = row_count;
+                break;
+            } else
+                max_row_count = WT_MAX(max_row_count, row_count);
+
         }
-        *row_countp = row_count;
+        *row_countp = max_row_count;
     } else
         WT_ERR(__wt_bad_object_type(session, uri));
 
@@ -489,24 +497,23 @@ err:
 static int
 __curstat_ckpt_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT *cst)
 {
-    WT_CKPT_STATS cs;
+    WT_CHECKPOINT_STATS cs;
     WT_DECL_RET;
 
     cs.byte_count = cs.row_count = WT_STAT_NONE;
 
-    /*
-     * Fill in the page stat statistics, and copy them to the cursor.
-     */
-    __wt_stat_ckpt_init_single(&cst->u.ckpt_stats);
-    __page_stat_get(session, uri, &cs.byte_count, &cs.row_count);
+    /* Fill in the page stat statistics, and copy them to the cursor. */
+    __wt_stat_checkpoint_init_single(&cst->u.ckpt_stats);
+    WT_ERR(__page_stat_get(session, uri, &cs.byte_count, &cs.row_count));
     cst->u.ckpt_stats.byte_count = cs.byte_count;
     cst->u.ckpt_stats.row_count = cs.row_count;
 
     cst->stats = (int64_t *)&cst->u.ckpt_stats;
-    cst->stats_base = WT_CKPT_STATS_BASE;
-    cst->stats_count = sizeof(WT_CKPT_STATS) / sizeof(int64_t);
-    cst->stats_desc = __wt_stat_ckpt_desc;
+    cst->stats_base = WT_CHECKPOINT_STATS_BASE;
+    cst->stats_count = sizeof(WT_CHECKPOINT_STATS) / sizeof(int64_t);
+    cst->stats_desc = __wt_stat_checkpoint_desc;
 
+err:
     return (ret);
 }
 

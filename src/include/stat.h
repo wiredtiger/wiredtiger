@@ -1205,8 +1205,8 @@ struct __wt_session_stats {
 /*
  * Statistics entries for checkpoint.
  */
-#define WT_CKPT_STATS_BASE 5000
-struct __wt_ckpt_stats {
+#define WT_CHECKPOINT_STATS_BASE 5000
+struct __wt_checkpoint_stats {
     int64_t byte_count;
     int64_t row_count;
 };

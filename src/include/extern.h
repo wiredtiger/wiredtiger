@@ -1492,7 +1492,7 @@ extern int __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *m
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_stash_add(WT_SESSION_IMPL *session, int which, uint64_t generation, void *p,
   size_t len) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_stat_ckpt_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
+extern int __wt_stat_checkpoint_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_stat_connection_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1924,10 +1924,10 @@ extern void __wt_session_gen_enter(WT_SESSION_IMPL *session, int which);
 extern void __wt_session_gen_leave(WT_SESSION_IMPL *session, int which);
 extern void __wt_stash_discard(WT_SESSION_IMPL *session);
 extern void __wt_stash_discard_all(WT_SESSION_IMPL *session_safe, WT_SESSION_IMPL *session);
-extern void __wt_stat_ckpt_aggregate(WT_CKPT_STATS **from, WT_CKPT_STATS *to);
-extern void __wt_stat_ckpt_clear_all(WT_CKPT_STATS **stats);
-extern void __wt_stat_ckpt_clear_single(WT_CKPT_STATS *stats);
-extern void __wt_stat_ckpt_init_single(WT_CKPT_STATS *stats);
+extern void __wt_stat_checkpoint_aggregate(WT_CHECKPOINT_STATS **from, WT_CHECKPOINT_STATS *to);
+extern void __wt_stat_checkpoint_clear_all(WT_CHECKPOINT_STATS **stats);
+extern void __wt_stat_checkpoint_clear_single(WT_CHECKPOINT_STATS *stats);
+extern void __wt_stat_checkpoint_init_single(WT_CHECKPOINT_STATS *stats);
 extern void __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *to);
 extern void __wt_stat_connection_clear_all(WT_CONNECTION_STATS **stats);
 extern void __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats);

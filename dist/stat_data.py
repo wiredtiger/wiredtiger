@@ -60,15 +60,16 @@ class CapacityStat(Stat):
     prefix = 'capacity'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, CapacityStat.prefix, desc, flags)
+
+class CheckpointStat(Stat):
+    prefix = 'checkpoint'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, CheckpointStat.prefix, desc, flags)
+
 class CheckpointCleanupStat(Stat):
     prefix = 'checkpoint-cleanup'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, CheckpointCleanupStat.prefix, desc, flags)
-
-class CkptStat(Stat):
-    prefix = 'ckpt'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, CkptStat.prefix, desc, flags)
 
 class CompressStat(Stat):
     prefix = 'compression'
@@ -1034,9 +1035,9 @@ session_stats = sorted(session_stats, key=attrgetter('desc'))
 ##########################################
 # Checkpoint statistics
 ##########################################
-ckpt_stats = [
-    CkptStat('byte_count', 'byte count of a file'),
-    CkptStat('row_count', 'row count of a file'),
+checkpoint_stats = [
+    CheckpointStat('byte_count', 'byte count of a file'),
+    CheckpointStat('row_count', 'row count of a file'),
 ]
 
-ckpt_stats = sorted(ckpt_stats, key=attrgetter('desc'))
+checkpoint_stats = sorted(checkpoint_stats, key=attrgetter('desc'))
