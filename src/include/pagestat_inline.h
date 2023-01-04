@@ -16,10 +16,10 @@
     } while (0)
 
 /* Initialize the fields in a page stat structure to 0 for aggregation. */
-#define WT_PAGE_STAT_AGG_INIT(ps) \
-    do {                          \
-        (ps)->byte_count = 0;     \
-        (ps)->row_count = 0;      \
+#define WT_PAGE_STAT_INIT_AGGREGATE(ps) \
+    do {                                \
+        (ps)->byte_count = 0;           \
+        (ps)->row_count = 0;            \
     } while (0)
 
 /* Check if there is a valid file size byte count stored. */
