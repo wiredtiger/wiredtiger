@@ -2,7 +2,7 @@
 
 import argparse, os, re, subprocess, sys
 
-def print_msg(file_name, line_num, line, multiline):
+def report_illegal_comment(file_name, line_num, line, multiline):
     print("Illegal " + multiline + "comment in " + file_name + ":" + str(line_num - 1) + " " +
         line.strip('\n'))
 
@@ -12,19 +12,24 @@ def check_c_comments(file_name):
         line_num = 0
         for line in f:
             stripped = line.strip()
-            if match(stripped):
-                print_msg(file_name, line_num, line, "")
+            if has_single_line_comment(stripped):
+                report_illegal_comment(file_name, line_num, line, "")
                 count +=1
             line_num += 1
     return count
 
-def match(stripped_line):
+def has_single_line_comment(stripped_line):
     # We don't worry about whitespace in matches as we strip the line of whitespace.
+    # URLs are a false positive that we want to ignore.
     url = re.compile(r'https?:\/\/')
 
-    # // Style comments
-    single_line_comment = re.compile(
-        r'^(?:[^"/\\]|\"(?:[^\"\\]|\\.)*\"|/(?:[^/"\\]|\\.)|/\"(?:[^\"\\]|\\.)*\"|\\.)*//(.*)$')
+    # // Style comments. The gist of it is: match anything except certain
+    # combinations of characters before a //. The trick is in the "certain combinations
+    # of characters" part, which consists of an odd number of un-escaped string
+    # markers, while ignoring everything else. As an aside, the "?:" notation indicates
+    # a non-capturing group, and speeds up the script considerably since we're saving
+    # any captures.
+    single_line_comment = re.compile(r'^(?:[^"\\]|"(?:[^"\\]|\\.)*"|\\.)*//(?:.*)$')
 
     return single_line_comment.match(stripped_line) and not url.search(stripped_line)
 
@@ -38,7 +43,7 @@ def check_cpp_comments(file_name):
         length = 0
         for line in f:
             stripped = line.strip()
-            if match(stripped):
+            if has_single_line_comment(stripped):
                 # Detecting multi-line comments of // is not easy as technically they can occur
                 # on contiguous lines without being multi-line.
                 # E.g:
@@ -50,7 +55,7 @@ def check_cpp_comments(file_name):
                     # If the comment is length 2 and we found another matching line then we have
                     # found an illegal comment.
                     if length == 2:
-                        print_msg(file_name, line_num, line, "multiline ")
+                        report_illegal_comment(file_name, line_num, line, "multiline ")
                         count += 1
                     length += 1
                     # Try and print only one error per comment, just keep incrementing the count and
@@ -94,7 +99,8 @@ tests = [
 ]
 
 def validate(line, expect_match):
-    if (expect_match and not match(line.strip())) or (not expect_match and match(line.strip())):
+    if (expect_match and not has_single_line_comment(line.strip())) \
+        or (not expect_match and has_single_line_comment(line.strip())):
         print("Test failed:" + line)
     else:
         print("Test success")
@@ -109,9 +115,9 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if args.test:
-        for test in tests:
-            validate(test[0], test[1])
-            sys.exit(0)
+        for line, expected in tests:
+            validate(line, expected)
+        sys.exit(0)
 
     # Move up to root dir.
     os.chdir("..")
