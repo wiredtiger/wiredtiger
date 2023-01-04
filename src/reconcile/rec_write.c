@@ -988,7 +988,7 @@ __rec_split_chunk_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *
     /* Don't touch the key item memory, that memory is reused. */
     chunk->key.size = 0;
     chunk->entries = 0;
-    WT_PAGE_STAT_INIT(&chunk->ps);
+    WT_PAGE_STAT_AGG_INIT(&chunk->ps);
     WT_TIME_AGGREGATE_INIT_MERGE(&chunk->ta);
 
     chunk->min_recno = WT_RECNO_OOB;

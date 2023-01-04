@@ -2162,8 +2162,6 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
     conn = S2C(session);
     dhandle = session->dhandle;
     fake_ckpt = resolve_bm = false;
-    WT_PAGE_STAT_INIT(&ps);
-    WT_TIME_AGGREGATE_INIT(&ta);
 
     /*
      * Set the checkpoint LSN to the maximum LSN so that if logging is disabled, recovery will never
@@ -2184,8 +2182,8 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
      * tears.
      */
     if (is_checkpoint && btree->original) {
-        if (__wt_process.page_stats_2022)
-            ps.byte_count = ps.row_count = 0;
+        WT_PAGE_STAT_AGG_INIT(&ps);
+        WT_TIME_AGGREGATE_INIT(&ta);
         __wt_checkpoint_tree_reconcile_update(session, &ta, &ps);
 
         fake_ckpt = true;

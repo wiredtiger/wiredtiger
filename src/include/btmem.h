@@ -134,14 +134,6 @@ struct __wt_page_stat {
     /* These informational values can be negative to signify that they are invalid. */
     int64_t byte_count;
     int64_t row_count;
-
-    /*
-     * A page's page stat information may need to be reset if we find that any of its children do
-     * not have valid page stat values.
-     */
-#define WT_RESET_BYTE_COUNT 0x1u
-#define WT_RESET_ROW_COUNT 0x2u
-    uint8_t flags;
 };
 
 /*
