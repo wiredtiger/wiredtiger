@@ -124,8 +124,8 @@ if __name__ == '__main__':
     command = "find bench examples ext src test -name \"*.[ch]\" -o -name \"*.in\" -o -name \
         \"*.cxx\" -o -name \"*.cpp\" -o -name \"*.i\" "
     if args.fast:
-        command = "git diff --name-only $(git merge-base --fork-point develop) bench examples ext src \
-            test | grep -E '(.c|.h|.cpp|.in|.cxx|.i)$'"
+        command = "git diff --name-only $(git merge-base --fork-point develop) bench \
+            examples ext src test | grep -E '(.c|.h|.cpp|.in|.cxx|.i)$'"
 
     result = subprocess.run(command, shell=True, capture_output=True, text=True).stdout.strip('\n')
     count = 0
