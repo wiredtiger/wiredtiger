@@ -121,8 +121,8 @@ static TEST_DRIVER driver[] = {
   {{"parse_opts", "-v", "-Po", "dir_store", "-PT", NULL},
     {NULL, "dir_store", NONZERO, NONZERO, true, true, 0}, {NULL, 0, 0, 0}},
 
-  {{"parse_opts", "-vPodir_store", "-PT", NULL}, {NULL, "dir_store", NONZERO, NONZERO, true, true, 0},
-    {NULL, 0, 0, 0}},
+  {{"parse_opts", "-vPodir_store", "-PT", NULL},
+    {NULL, "dir_store", NONZERO, NONZERO, true, true, 0}, {NULL, 0, 0, 0}},
 
   /* Setting random seeds can be done together or separately. */
   {{"parse_opts", "-PT", "-PSE2345,D1234", NULL}, {NULL, "dir_store", 1234, 2345, true, false, 0},
