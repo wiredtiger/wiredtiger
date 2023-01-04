@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
-# This workload simulates the continuous creation and deletion of tables.
+# This workload tests the continuous creation and deletion of tables.
 
 from runner import *
 from wiredtiger import *
@@ -53,10 +53,18 @@ thread_read_rnd = Thread(op_read_rnd * 5)
 
 workload = Workload(context, thread_ins_rnd + thread_upd_rnd + thread_read_rnd)
 workload.options.run_time = 300
+
+# Start a workload thread to create tables periodically:
+# Create 3 tables every 5 seconds whenever the database size falls below 100 MB.
+# Stop creating the tables once the database size reached 200 MB.
 workload.options.dynamic_create_period = 5
 workload.options.dynamic_create_count = 3
 workload.options.dynamic_create_trigger = 100
 workload.options.dynamic_create_target = 200
+
+# Start a workload thread to drop tables periodically:
+# Drop 2 tables every 3 seconds whenever the database size goes above 250 MB.
+# Stop dropping the tables once the database size reaches 50 MB.
 workload.options.dynamic_drop_period = 3
 workload.options.dynamic_drop_count = 2
 workload.options.dynamic_drop_trigger = 250

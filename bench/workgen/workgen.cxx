@@ -282,6 +282,9 @@ WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn)
     return 0;
 }
 
+/*
+ * Get the cumulative size of all the files under the given directory.
+ */
 static uint32_t
 get_dir_size_mb(std::string dir)
 {
@@ -291,7 +294,7 @@ get_dir_size_mb(std::string dir)
             result += std::filesystem::file_size(path);
         } catch (std::filesystem::filesystem_error &e) {
             /*
-             * A file might be dropped between listing the directory contents and getting their
+             * A file might be dropped between listing the directory contents and getting the file
              * sizes. Ignore such errors.
              */
             ASSERT(std::string(e.what()).find("No such file or directory") != std::string::npos);
@@ -302,7 +305,10 @@ get_dir_size_mb(std::string dir)
 }
 
 /*
- * write something
+ * This function will create "dynamic_create_count" tables every "dynamic_create_period" seconds. It
+ * will also monitor the database size and stop creating tables once the size crosses
+ * "dynamic_create_target". It will restart table creation if the database size drops below
+ * "dynamic_create_trigger".
  */
 int
 WorkloadRunner::start_dynamic_create(WT_CONNECTION *conn)
@@ -318,10 +324,7 @@ WorkloadRunner::start_dynamic_create(WT_CONNECTION *conn)
     uint64_t total_creates = 0;
     uint32_t db_size = get_dir_size_mb(_wt_home);
 
-    /*
-     * Initially we decide to start creating tables if the database size is less than the create
-     * target.
-     */
+    // Initially we start creating tables if the database size is less than the create target.
     bool creating = db_size < _workload->options.dynamic_create_target;
 
     while (!stopping) {
@@ -336,7 +339,7 @@ WorkloadRunner::start_dynamic_create(WT_CONNECTION *conn)
             if (!creating) {
                 VERBOSE(*_workload,
                   "Stopped creating new tables. db_size now "
-                    << db_size << " MB reached the create target of "
+                    << db_size << " MB has reached the create target of "
                     << _workload->options.dynamic_create_target << " MB.");
             }
         } else {
@@ -344,7 +347,7 @@ WorkloadRunner::start_dynamic_create(WT_CONNECTION *conn)
             if (creating) {
                 VERBOSE(*_workload,
                   "Started creating new tables. db_size now "
-                    << db_size << " MB reached the create trigger of "
+                    << db_size << " MB has reached the create trigger of "
                     << _workload->options.dynamic_create_trigger << " MB.");
             }
         }
@@ -357,22 +360,22 @@ WorkloadRunner::start_dynamic_create(WT_CONNECTION *conn)
              ++creates, ++total_creates) {
             snprintf(uri, BUF_SIZE, "table:test_dynamic_%" PRIu64, total_creates);
 
-            /* Make sure that this table is not a part of static table set, continue if it is. */
+            // Make sure that this table is not a part of static table set, continue if it is.
             if (icontext->_tint.count(uri) > 0 || icontext->_dyn_tint.count(uri) > 0)
                 continue;
 
-            /* Create the table. */
+            // Create the table.
             if ((ret = session->create(session, uri, "key_format=S,value_format=S")) != 0) {
                 if (ret == EBUSY)
                     continue;
                 THROW("Table create failed in start_dynamic_table_mgmt.");
             }
 
-            /* The dynamic table data structures are protected by a mutex. */
+            // The dynamic table data structures are protected by a mutex.
             {
                 const std::lock_guard<std::mutex> lock(*icontext->_dyn_mutex);
 
-                /* Add the table into the list of dynamic set. */
+                // Add the table into the list of dynamic set.
                 tint_t tint = icontext->_dyn_tint_last;
                 icontext->_dyn_tint[uri] = tint;
                 icontext->_dyn_table_names[tint] = uri;
@@ -389,7 +392,10 @@ WorkloadRunner::start_dynamic_create(WT_CONNECTION *conn)
 }
 
 /*
- * write something
+ * This function will drop "dynamic_drop_count" tables every "dynamic_drop_period" seconds. It will
+ * also monitor the database size and stop dropping tables once the size goes below
+ * "dynamic_drop_target". It will restart table drops if the database size crosses
+ * "dynamic_drop_trigger".
  */
 int
 WorkloadRunner::start_dynamic_drop(WT_CONNECTION *conn)
@@ -404,10 +410,7 @@ WorkloadRunner::start_dynamic_drop(WT_CONNECTION *conn)
     std::vector<std::string> tables_delete; // Track tables that are to be deleted
     uint32_t db_size = get_dir_size_mb(_wt_home);
 
-    /*
-     * Initially we decide to start dropping tables if the database size is more than the drop
-     * trigger.
-     */
+    // Initially we start dropping tables if the database size is more than the drop trigger.
     bool dropping = db_size > _workload->options.dynamic_drop_trigger;
 
     while (!stopping) {
@@ -421,7 +424,7 @@ WorkloadRunner::start_dynamic_drop(WT_CONNECTION *conn)
             if (!dropping) {
                 VERBOSE(*_workload,
                   "Stopped dropping new tables. db_size now "
-                    << db_size << " MB reached the drop target of "
+                    << db_size << " MB has reached the drop target of "
                     << _workload->options.dynamic_drop_target << " MB.");
             }
         } else {
@@ -429,7 +432,7 @@ WorkloadRunner::start_dynamic_drop(WT_CONNECTION *conn)
             if (dropping) {
                 VERBOSE(*_workload,
                   "Started dropping new tables. db_size now "
-                    << db_size << " MB reached the drop trigger of "
+                    << db_size << " MB has reached the drop trigger of "
                     << _workload->options.dynamic_drop_trigger << " MB.");
             }
         }
@@ -440,11 +443,11 @@ WorkloadRunner::start_dynamic_drop(WT_CONNECTION *conn)
 
         for (int drops = 0; drops < _workload->options.dynamic_drop_count; ++drops) {
             std::vector<std::string> drop_uris;
-            /* The dynamic table data structures are protected by a mutex. */
+            // The dynamic table data structures are protected by a mutex.
             {
                 const std::lock_guard<std::mutex> lock(*icontext->_dyn_mutex);
 
-                /* Walk the list and select the first that is not already in delete list */
+                // Walk the list and select the first that is not already in the delete list
                 for (auto const &it : icontext->_dyn_tint) {
                     if (icontext->_dyn_table_runtime[it.second]._pending_delete) {
                         continue;
@@ -457,7 +460,7 @@ WorkloadRunner::start_dynamic_drop(WT_CONNECTION *conn)
                 }
 
                 /*
-                 * Process any pending delete, the actual table drop will be done later without
+                 * Process any pending deletes, the actual table drop will be done later without
                  * holding the lock.
                  */
                 for (size_t i = 0; i < tables_delete.size();) {
@@ -484,7 +487,7 @@ WorkloadRunner::start_dynamic_drop(WT_CONNECTION *conn)
              * removed from the shared data structures, and we know no thread is operating on them.
              */
             for (auto uri : drop_uris) {
-                /* Spin on EBUSY, we do not expect to get stuck */
+                // Spin on EBUSY, we do not expect to get stuck
                 while ((ret = session->drop(session, uri.c_str(), "force,checkpoint_wait=false")) ==
                   EBUSY) {
                     VERBOSE(*_workload, "Drop returned EBUSY for table: " << uri);
@@ -500,9 +503,6 @@ WorkloadRunner::start_dynamic_drop(WT_CONNECTION *conn)
         sleep(_workload->options.dynamic_drop_period);
     }
 
-    // Do we need to cleanup tables that might be pending delete when stopping
-    // Also to support stopping and starting, we will have to populate the dynamic table list at
-    // startup.
     return 0;
 }
 
