@@ -416,8 +416,6 @@ testutil_wiredtiger_open(TEST_OPTS *opts, const char *home, const char *config,
     testutil_check(__wt_snprintf(buf, sizeof(buf), "%s%s%s%s", config,
       (rerun ? TESTUTIL_ENV_CONFIG_REC : ""), (opts->compat ? TESTUTIL_ENV_CONFIG_COMPAT : ""),
       (opts->tiered_storage ? tiered_ext_cfg : "")));
-    if (opts->verbose)
-        printf("wiredtiger_open configuration: %s\n", buf);
     testutil_check(wiredtiger_open(home, event_handler, buf, connectionp));
 }
 
