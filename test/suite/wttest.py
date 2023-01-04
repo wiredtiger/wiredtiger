@@ -92,6 +92,10 @@ class CapturedFd(object):
         self.desc = desc
         self.expectpos = 0
         self.file = None
+        self.ignore_regex = None
+
+    def setIgnorePattern(self, regex):
+        self.ignore_regex = regex
 
     def readFileFrom(self, filename, pos, maxchars):
         """
@@ -128,7 +132,15 @@ class CapturedFd(object):
             return
         if self.file != None:
             self.file.flush()
-        return self.expectpos < os.path.getsize(self.filename)
+        new_size = os.path.getsize(self.filename)
+        if self.ignore_regex is None:
+            return self.expectpos < new_size
+
+        gotstr = self.readFileFrom(self.filename, self.expectpos, new_size - self.expectpos)
+        for line in list(filter(None, gotstr.split('\n'))):
+            if self.ignore_regex.search(line) is None:
+                return True
+        return False
 
     def check(self, testcase):
         """
@@ -339,6 +351,8 @@ class WiredTigerTestCase(unittest.TestCase):
         self.captureerr = CapturedFd('stderr.txt', 'error output')
         sys.stdout = self.captureout.capture()
         sys.stderr = self.captureerr.capture()
+        if self.ignore_regex is not None:
+            self.captureout.setIgnorePattern(self.ignore_regex)
 
     def fdTearDown(self):
         # restore stderr/stdout
@@ -652,6 +666,9 @@ class WiredTigerTestCase(unittest.TestCase):
 
     def checkStdout(self):
         self.captureout.check(self)
+
+    def ignoreStdoutPattern(self, pattern, re_flags = 0):
+        self.ignore_regex = re.compile(pattern, re_flags)
 
     def readyDirectoryForRemoval(self, directory):
         # Make sure any read-only files or directories left behind
