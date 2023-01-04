@@ -227,7 +227,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 
     ps.row_count = 1;
     ps.byte_count = (int64_t)cursor->key.size + (int64_t)cursor->value.size;
-    WT_PAGE_STAT_ADD(&r->cur_ptr->ps, &ps);
+    WT_PAGE_STAT_AGGREGATE(&r->cur_ptr->ps, &ps);
 
     /* Update compression state. */
     __rec_key_state_update(r, ovfl_key);
@@ -271,7 +271,7 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         __wt_rec_image_copy(session, r, key);
         __wt_rec_image_copy(session, r, val);
         WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &addr->ta);
-        WT_PAGE_STAT_ADD(&r->cur_ptr->ps, &addr->ps);
+        WT_PAGE_STAT_AGGREGATE(&r->cur_ptr->ps, &addr->ps);
 
         /* Update compression state. */
         __rec_key_state_update(r, false);
@@ -474,7 +474,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          * the count after recovery as rollback to stable should have removed all unstable truncate.
          */
         if (__wt_process.page_stats_2022 && (page_del == NULL || !page_del->committed))
-            WT_PAGE_STAT_ADD(&r->cur_ptr->ps, &ps);
+            WT_PAGE_STAT_AGGREGATE(&r->cur_ptr->ps, &ps);
 
         /* Update compression state. */
         __rec_key_state_update(r, false);
@@ -628,7 +628,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
         if (!WT_TIME_WINDOW_HAS_STOP(&tw)) {
             ps.row_count = 1;
             ps.byte_count = WT_INSERT_KEY_SIZE(ins) + upd->size;
-            WT_PAGE_STAT_ADD(&r->cur_ptr->ps, &ps);
+            WT_PAGE_STAT_AGGREGATE(&r->cur_ptr->ps, &ps);
         }
 
         /* Update compression state. */
@@ -1030,7 +1030,7 @@ slow:
             ps.row_count = 1;
             if (ps.byte_count != WT_STAT_NONE)
                 ps.byte_count += (int64_t)lastkey->size;
-            WT_PAGE_STAT_ADD(&r->cur_ptr->ps, &ps);
+            WT_PAGE_STAT_AGGREGATE(&r->cur_ptr->ps, &ps);
         }
 
         /* Update compression state. */

@@ -1617,7 +1617,7 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
          */
         prev_ptr->entries += cur_ptr->entries;
         WT_TIME_AGGREGATE_MERGE(session, &prev_ptr->ta, &cur_ptr->ta);
-        WT_PAGE_STAT_ADD(&prev_ptr->ps, &cur_ptr->ps);
+        WT_PAGE_STAT_AGGREGATE(&prev_ptr->ps, &cur_ptr->ps);
         dsk = r->cur_ptr->image.mem;
         memcpy((uint8_t *)r->prev_ptr->image.mem + prev_ptr->image.size,
           WT_PAGE_HEADER_BYTE(btree, dsk), cur_ptr->image.size - WT_PAGE_HEADER_BYTE_SIZE(btree));
@@ -1664,7 +1664,7 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         WT_RET(
           __wt_buf_set(session, &cur_ptr->key, prev_ptr->min_key.data, prev_ptr->min_key.size));
         WT_TIME_AGGREGATE_MERGE(session, &cur_ptr->ta, &prev_ptr->ta);
-        WT_PAGE_STAT_ADD(&cur_ptr->ps, &prev_ptr->ps);
+        WT_PAGE_STAT_AGGREGATE(&cur_ptr->ps, &prev_ptr->ps);
         cur_ptr->image.size += len_to_move;
 
         prev_ptr->entries = prev_ptr->min_entries;
@@ -2445,8 +2445,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     bm = btree->bm;
     mod = page->modify;
     ref = r->ref;
-    WT_PAGE_STAT_INIT(&ps);
-    WT_TIME_AGGREGATE_INIT(&ta);
     previous_ref_state = 0;
 
     /*
@@ -2532,8 +2530,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          */
         ref = r->ref;
         if (__wt_ref_is_root(ref)) {
-            if (__wt_process.page_stats_2022)
-                ps.byte_count = ps.row_count = 0;
+            WT_PAGE_STAT_INIT_AGGREGATE(&ps);
+            WT_TIME_AGGREGATE_INIT(&ta);
 
             __wt_checkpoint_tree_reconcile_update(session, &ta, &ps);
             WT_RET(bm->checkpoint(bm, session, NULL, btree->ckpt, false));

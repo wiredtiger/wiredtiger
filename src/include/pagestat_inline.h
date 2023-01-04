@@ -35,7 +35,7 @@
  * Update the page stat structure. For both the byte and row counts, we want to reset the page stat
  * value for the page if any of its children that were merged in had invalid stat values.
  */
-#define WT_PAGE_STAT_ADD(ps, update)                                                  \
+#define WT_PAGE_STAT_AGGREGATE(ps, update)                                            \
     do {                                                                              \
         /* Update byte count */                                                       \
         if ((ps)->byte_count == WT_STAT_NONE || (update)->byte_count == WT_STAT_NONE) \
