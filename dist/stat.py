@@ -210,21 +210,21 @@ __wt_stat_''' + name + '''_discard(
 \t__wt_free(session, handle->stat_array);
 }
 ''')
-
-    f.write('''
+    if name != 'checkpoint':
+        f.write('''
 void
 __wt_stat_''' + name + '_clear_single(WT_' + name.upper() + '''_STATS *stats)
 {
 ''')
-    for l in statlist:
-        # no_clear: don't clear the value.
-        if 'no_clear' in l.flags:
-            f.write('\t\t/* not clearing ' + l.name + ' */\n')
-        else:
-            f.write('\tstats->' + l.name + ' = 0;\n')
-    f.write('}\n')
+        for l in statlist:
+            # no_clear: don't clear the value.
+            if 'no_clear' in l.flags:
+                f.write('\t\t/* not clearing ' + l.name + ' */\n')
+            else:
+                f.write('\tstats->' + l.name + ' = 0;\n')
+        f.write('}\n')
 
-    if name != 'session':
+    if name != 'session' and name != 'checkpoint':
         f.write('''
 void
 __wt_stat_''' + name + '_clear_all(WT_' + name.upper() + '''_STATS **stats)
@@ -255,7 +255,7 @@ __wt_stat_''' + name + '''_aggregate_single(
             f.write(o)
         f.write('}\n')
 
-    if name != 'session':
+    if name != 'session' and name != 'checkpoint':
         f.write('''
 void
 __wt_stat_''' + name + '''_aggregate(

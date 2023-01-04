@@ -457,9 +457,9 @@ __page_stat_get(
             WT_ERR(ret == WT_NOTFOUND ? ENOENT : ret);
 
         /*
-         * Set the number of rows as the maximum column group row count and sum the
-         * column group byte counts. Invalidate the table byte/row counts if any of
-         * the column group counts don't exist.
+         * Set the number of rows as the maximum column group row count and sum the column group
+         * byte counts. Invalidate the table byte/row counts if any of the column group counts don't
+         * exist.
          */
         max_row_count = row_count = WT_STAT_NONE;
         *byte_countp = 0;
@@ -477,7 +477,6 @@ __page_stat_get(
                 break;
             } else
                 max_row_count = WT_MAX(max_row_count, row_count);
-
         }
         *row_countp = max_row_count;
     } else
@@ -503,12 +502,11 @@ __curstat_ckpt_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT *c
     cs.byte_count = cs.row_count = WT_STAT_NONE;
 
     /* Fill in the page stat statistics, and copy them to the cursor. */
-    __wt_stat_checkpoint_init_single(&cst->u.ckpt_stats);
+    __wt_stat_checkpoint_init_single(&cst->u.checkpoint_stats);
     WT_ERR(__page_stat_get(session, uri, &cs.byte_count, &cs.row_count));
-    cst->u.ckpt_stats.byte_count = cs.byte_count;
-    cst->u.ckpt_stats.row_count = cs.row_count;
+    memcpy(&cst->u.checkpoint_stats, &cs, sizeof(WT_CHECKPOINT_STATS));
 
-    cst->stats = (int64_t *)&cst->u.ckpt_stats;
+    cst->stats = (int64_t *)&cst->u.checkpoint_stats;
     cst->stats_base = WT_CHECKPOINT_STATS_BASE;
     cst->stats_count = sizeof(WT_CHECKPOINT_STATS) / sizeof(int64_t);
     cst->stats_desc = __wt_stat_checkpoint_desc;

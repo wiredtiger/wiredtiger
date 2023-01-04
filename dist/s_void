@@ -81,6 +81,7 @@ func_ok()
         -e '/int __wt_set_return_func$/d' \
         -e '/int __wt_spin_init$/d' \
         -e '/int __wt_spin_trylock$/d' \
+        -e '/int __wt_stat_checkpoint_desc$/d' \
         -e '/int __wt_stat_connection_desc$/d' \
         -e '/int __wt_stat_dsrc_desc$/d' \
         -e '/int __wt_stat_join_desc$/d' \

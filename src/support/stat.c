@@ -3113,26 +3113,3 @@ __wt_stat_checkpoint_init_single(WT_CHECKPOINT_STATS *stats)
 {
     memset(stats, 0, sizeof(*stats));
 }
-
-void
-__wt_stat_checkpoint_clear_single(WT_CHECKPOINT_STATS *stats)
-{
-    stats->byte_count = 0;
-    stats->row_count = 0;
-}
-
-void
-__wt_stat_checkpoint_clear_all(WT_CHECKPOINT_STATS **stats)
-{
-    u_int i;
-
-    for (i = 0; i < WT_COUNTER_SLOTS; ++i)
-        __wt_stat_checkpoint_clear_single(stats[i]);
-}
-
-void
-__wt_stat_checkpoint_aggregate(WT_CHECKPOINT_STATS **from, WT_CHECKPOINT_STATS *to)
-{
-    to->byte_count += WT_STAT_READ(from, byte_count);
-    to->row_count += WT_STAT_READ(from, row_count);
-}
