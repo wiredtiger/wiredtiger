@@ -570,10 +570,12 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
             __wt_abort(session);
     }
 
+/* For unit testing assert purposes we don't want to panic the connection. */
+#ifndef HAVE_UNITTEST_ASSERTS
     /* Panic the connection. */
     if (conn != NULL)
         F_SET(conn, WT_CONN_PANIC);
-
+#endif
     /*
      * !!!
      * Chaos reigns within.
