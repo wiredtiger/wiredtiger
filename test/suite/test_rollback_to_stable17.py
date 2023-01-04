@@ -48,6 +48,10 @@ class test_rollback_to_stable17(wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios(format_values, in_memory_values)
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignoreStdoutPattern('WT_VERB_RTS')
+
     def conn_config(self):
         config = 'cache_size=200MB,statistics=(all),verbose=(rts:5)'
         if self.in_memory:

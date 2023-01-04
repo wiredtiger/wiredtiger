@@ -69,6 +69,10 @@ class test_rollback_to_stable24(wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios(key_format_values)
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignoreStdoutPattern('WT_VERB_RTS')
+
     def conn_config(self):
         return 'verbose=(rts:5)'
 

@@ -48,6 +48,12 @@ class test_rollback_to_stable38(wttest.WiredTigerTestCase):
     ]
     scenarios = make_scenarios(format_values)
 
+    # Don't raise errors for these, the expectation is that the RTS verifier will
+    # run on the test output
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignoreStdoutPattern('WT_VERB_RTS')
+
     def check(self, ds, value, nrows, ts):
         cursor = self.session.open_cursor(ds.uri)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(ts))

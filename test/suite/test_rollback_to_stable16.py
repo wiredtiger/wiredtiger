@@ -66,6 +66,12 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(key_format_values, value_format_values, in_memory_values,
         include=keep)
 
+    # Don't raise errors for these, the expectation is that the RTS verifier will
+    # run on the test output
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignoreStdoutPattern('WT_VERB_RTS')
+
     def conn_config(self):
         config = 'cache_size=200MB,statistics=(all),verbose=(rts:5)'
         if self.in_memory:

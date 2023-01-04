@@ -64,6 +64,10 @@ def keys_of_write(write):
         return [2 + my_rle_size - 1]
 
 class test_rollback_to_stable25(wttest.WiredTigerTestCase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignoreStdoutPattern('WT_VERB_RTS')
+
     conn_config = 'in_memory=false,verbose=(rts:5)'
 
     write_10_values = [

@@ -41,6 +41,12 @@ class test_rollback_to_stable30(wttest.WiredTigerTestCase):
         ('table-S-complex', dict(keyfmt='S', valfmt=None, dataset=ComplexDataSet)),
     ])
 
+    # Don't raise errors for these, the expectation is that the RTS verifier will
+    # run on the test output
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignoreStdoutPattern('WT_VERB_RTS')
+
     def conn_config(self):
         return 'verbose=(rts:5)'
 

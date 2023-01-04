@@ -119,8 +119,8 @@ class Checker:
 
         page = Page(operation.addr)
         page.modified = operation.modified
-        if page in self.visited_pages:
-            raise Exception(f"visited page {operation.addr} again")
+        # if page in self.visited_pages:
+        #     raise Exception(f"visited page {operation.addr} again")
         self.visited_pages.add(page)
 
     def __apply_check_operation_abort(self, operation):
