@@ -1433,7 +1433,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         WT_ERR(__txn_fixup_hs_update(session, hs_cursor));
 
 prepare_verify:
-    if (DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_OUT_OF_ORDER)) {
+    if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_OUT_OF_ORDER)) {
         for (; head_upd != NULL; head_upd = head_upd->next) {
             /*
              * Assert if we still have an update from the current transaction that hasn't been

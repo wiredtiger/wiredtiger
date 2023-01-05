@@ -6,6 +6,7 @@
  * See the file LICENSE for redistribution information.
  */
 
+#include <iostream>
 #include <catch2/catch.hpp>
 
 #include "utils.h"
@@ -107,26 +108,26 @@ call_wt_optional(WT_SESSION_IMPL *session, uint16_t category, bool assert_should
 void
 all_diag_asserts_off(WT_SESSION_IMPL *session)
 {
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_DATA_VALIDATION)) == false);
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_INVALID_OP)) == false);
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_PANIC)) == false);
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_CONCURRENT_ACCESS)) == false);
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_OUT_OF_ORDER)) == false);
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_SLOW_OPERATION)) == false);
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_VISIBILITY)) == false);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_DATA_VALIDATION) == false);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_INVALID_OP) == false);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_PANIC) == false);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_CONCURRENT_ACCESS) == false);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_OUT_OF_ORDER) == false);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_SLOW_OPERATION) == false);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_VISIBILITY) == false);
 }
 
 /* Assert that all diagnostic assert categories are on. */
 void
 all_diag_asserts_on(WT_SESSION_IMPL *session)
 {
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_DATA_VALIDATION)) == true);
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_INVALID_OP)) == true);
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_PANIC)) == true);
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_CONCURRENT_ACCESS)) == true);
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_OUT_OF_ORDER)) == true);
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_SLOW_OPERATION)) == true);
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_VISIBILITY)) == true);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_DATA_VALIDATION) == true);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_INVALID_OP) == true);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_PANIC) == true);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_CONCURRENT_ACCESS) == true);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_OUT_OF_ORDER) == true);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_SLOW_OPERATION) == true);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_VISIBILITY) == true);
 }
 
 /* Assert that all expected asserts (passed in via the "category" arg) fire. */
@@ -206,7 +207,7 @@ TEST_CASE("Connection config: off/on", "[assertions]")
 
     SECTION("Connection config: on")
     {
-        ConnectionWrapper conn(DB_HOME, "create, diagnostic_asserts=[all]");
+        ConnectionWrapper conn(DB_HOME, "create, extra_diagnostics=[all]");
         WT_SESSION_IMPL *session = conn.createSession();
 
         WT_ASSERT(session, false);
@@ -225,7 +226,7 @@ TEST_CASE("Connection config: off/on", "[assertions]")
 /* When WT_DIAG_ALL is enabled, all asserts are enabled. */
 TEST_CASE("Connection config: WT_DIAG_ALL", "[assertions]")
 {
-    ConnectionWrapper conn(DB_HOME, "create, diagnostic_asserts= [all]");
+    ConnectionWrapper conn(DB_HOME, "create, extra_diagnostics= [all]");
     WT_SESSION_IMPL *session = conn.createSession();
 
     REQUIRE(configured_asserts_abort(session, WT_DIAG_ALL) == 0);
@@ -236,39 +237,39 @@ TEST_CASE("Connection config: WT_DIAG_ALL", "[assertions]")
 /* When a category is enabled, all asserts for that category are enabled. */
 TEST_CASE("Connection config: check one enabled category", "[assertions]")
 {
-    ConnectionWrapper conn(DB_HOME, "create, diagnostic_asserts=[out_of_order]");
+    ConnectionWrapper conn(DB_HOME, "create, extra_diagnostics=[out_of_order]");
     WT_SESSION_IMPL *session = conn.createSession();
 
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_OUT_OF_ORDER)) == true);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_OUT_OF_ORDER) == true);
     REQUIRE(configured_asserts_abort(session, WT_DIAG_OUT_OF_ORDER) == 0);
 }
 
 /* Asserts that categories are enabled/disabled following the connection configuration. */
 TEST_CASE("Connection config: check multiple enabled categories", "[assertions]")
 {
-    ConnectionWrapper conn(DB_HOME, "create, diagnostic_asserts= [visibility, concurrent_access]");
+    ConnectionWrapper conn(DB_HOME, "create, extra_diagnostics= [visibility, concurrent_access]");
     WT_SESSION_IMPL *session = conn.createSession();
 
     REQUIRE(configured_asserts_abort(session, WT_DIAG_VISIBILITY) == 0);
 
     // Checking state.
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_VISIBILITY)) == true);
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_CONCURRENT_ACCESS)) == true);
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_SLOW_OPERATION)) == false);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_VISIBILITY) == true);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_CONCURRENT_ACCESS) == true);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_SLOW_OPERATION) == false);
 }
 
 /* Asserts that categories are enabled/disabled following the connection configuration. */
 TEST_CASE("Connection config: check disabled category", "[assertions]")
 {
-    ConnectionWrapper conn(DB_HOME, "create, diagnostic_asserts = [invalid_op]");
+    ConnectionWrapper conn(DB_HOME, "create, extra_diagnostics = [invalid_op]");
     WT_SESSION_IMPL *session = conn.createSession();
 
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_SLOW_OPERATION)) == false);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_SLOW_OPERATION) == false);
     REQUIRE(configured_asserts_off(session, WT_DIAG_SLOW_OPERATION) == 0);
 }
 
-/* Reconfigure with diagnostic_asserts not provided. */
-TEST_CASE("Reconfigure: diagnostic_asserts not provided", "[assertions]")
+/* Reconfigure with extra_diagnostics not provided. */
+TEST_CASE("Reconfigure: extra_diagnostics not provided", "[assertions]")
 {
     ConnectionWrapper conn(DB_HOME, "create");
     auto connection = conn.getWtConnection();
@@ -278,20 +279,20 @@ TEST_CASE("Reconfigure: diagnostic_asserts not provided", "[assertions]")
     all_diag_asserts_off(session);
 }
 
-/* Reconfigure the connection with diagnostic_asserts as an empty list. */
-TEST_CASE("Reconfigure: diagnostic_asserts empty list", "[assertions]")
+/* Reconfigure the connection with extra_diagnostics as an empty list. */
+TEST_CASE("Reconfigure: extra_diagnostics empty list", "[assertions]")
 {
     ConnectionWrapper conn(DB_HOME);
     auto connection = conn.getWtConnection();
     WT_SESSION_IMPL *session = conn.createSession();
 
     all_diag_asserts_off(session);
-    connection->reconfigure(connection, "diagnostic_asserts=[]");
+    connection->reconfigure(connection, "extra_diagnostics=[]");
     all_diag_asserts_off(session);
 }
 
-/* Reconfigure the connection with diagnostic_asserts as a list with invalid item. */
-TEST_CASE("Reconfigure: diagnostic_asserts with invalid item", "[assertions]")
+/* Reconfigure the connection with extra_diagnostics as a list with invalid item. */
+TEST_CASE("Reconfigure: extra_diagnostics with invalid item", "[assertions]")
 {
     ConnectionWrapper conn(DB_HOME);
     auto connection = conn.getWtConnection();
@@ -299,48 +300,47 @@ TEST_CASE("Reconfigure: diagnostic_asserts with invalid item", "[assertions]")
 
     all_diag_asserts_off(session);
     REQUIRE(
-      connection->reconfigure(connection, "diagnostic_asserts=[slow_operation, panic, INVALID]"));
+      connection->reconfigure(connection, "extra_diagnostics=[slow_operation, panic, INVALID]"));
     all_diag_asserts_off(session);
 }
 
-/* Reconfigure the connection with diagnostic_asserts as a list of valid items. */
-TEST_CASE("Reconfigure: diagnostic_asserts with valid items", "[assertions]")
+/* Reconfigure the connection with extra_diagnostics as a list of valid items. */
+TEST_CASE("Reconfigure: extra_diagnostics with valid items", "[assertions]")
 {
     ConnectionWrapper conn(DB_HOME);
     auto connection = conn.getWtConnection();
     WT_SESSION_IMPL *session = conn.createSession();
 
-    connection->reconfigure(connection, "diagnostic_asserts=[data_validation, invalid_op, panic]");
+    connection->reconfigure(connection, "extra_diagnostics=[data_validation, invalid_op, panic]");
 
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_DATA_VALIDATION)) == true);
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_INVALID_OP)) == true);
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_PANIC)) == true);
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_CONCURRENT_ACCESS)) == false);
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_OUT_OF_ORDER)) == false);
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_SLOW_OPERATION)) == false);
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_VISIBILITY)) == false);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_DATA_VALIDATION) == true);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_INVALID_OP) == true);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_PANIC) == true);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_CONCURRENT_ACCESS) == false);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_OUT_OF_ORDER) == false);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_SLOW_OPERATION) == false);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_VISIBILITY) == false);
 }
 
 /* Reconfigure with assertion categories changed from enabled->disabled and vice-versa. */
 TEST_CASE("Reconfigure: Transition cases", "[assertions]")
 {
-    ConnectionWrapper conn(
-      DB_HOME, "create, diagnostic_asserts= [concurrent_access, out_of_order]");
+    ConnectionWrapper conn(DB_HOME, "create, extra_diagnostics= [concurrent_access, out_of_order]");
     auto connection = conn.getWtConnection();
     WT_SESSION_IMPL *session = conn.createSession();
 
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_CONCURRENT_ACCESS)) == true);
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_OUT_OF_ORDER)) == true);
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_DATA_VALIDATION)) == false);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_CONCURRENT_ACCESS) == true);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_OUT_OF_ORDER) == true);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_DATA_VALIDATION) == false);
 
     connection->reconfigure(
-      connection, "diagnostic_asserts=[data_validation, slow_operation, out_of_order]");
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_OUT_OF_ORDER)) == true);
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_DATA_VALIDATION)) == true);
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_SLOW_OPERATION)) == true);
+      connection, "extra_diagnostics=[data_validation, slow_operation, out_of_order]");
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_OUT_OF_ORDER) == true);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_DATA_VALIDATION) == true);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_SLOW_OPERATION) == true);
 
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_CONCURRENT_ACCESS)) == false);
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_VISIBILITY)) == false);
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_INVALID_OP)) == false);
-    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_PANIC)) == false);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_CONCURRENT_ACCESS) == false);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_VISIBILITY) == false);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_INVALID_OP) == false);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_PANIC) == false);
 }

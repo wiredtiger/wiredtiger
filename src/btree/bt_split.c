@@ -373,7 +373,7 @@ __split_ref_prepare(
         }
         WT_INTL_FOREACH_END;
 
-        if (DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_OUT_OF_ORDER))
+        if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_OUT_OF_ORDER))
             WT_WITH_PAGE_INDEX(session, __split_verify_intl_key_order(session, child));
     }
     *lockedp = locked;
@@ -535,7 +535,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
     /* Finalize the WT_REF move. */
     __split_ref_final(session, split_gen, &locked);
 
-    if (DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_DATA_VALIDATION)) {
+    if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_DATA_VALIDATION)) {
         WT_WITH_PAGE_INDEX(session, ret = __split_verify_root(session, root));
         WT_ERR(ret);
     }
@@ -790,7 +790,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     split_gen = __wt_gen(session, WT_GEN_SPLIT);
     parent->pg_intl_split_gen = split_gen;
 
-    if (DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_OUT_OF_ORDER))
+    if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_OUT_OF_ORDER))
         WT_WITH_PAGE_INDEX(session, __split_verify_intl_key_order(session, parent));
 
     /* The split is complete and verified, ignore benign errors. */
@@ -1062,7 +1062,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
     /* Finalize the WT_REF move. */
     __split_ref_final(session, split_gen, &locked);
 
-    if (DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_OUT_OF_ORDER)) {
+    if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_OUT_OF_ORDER)) {
         WT_WITH_PAGE_INDEX(session, __split_verify_intl_key_order(session, parent));
         WT_WITH_PAGE_INDEX(session, __split_verify_intl_key_order(session, page));
     }

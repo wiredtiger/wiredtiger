@@ -486,7 +486,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
     ci = &block->live;
     fatal = locked = false;
 
-    if (DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_DATA_VALIDATION))
+    if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_DATA_VALIDATION))
         WT_RET(__ckpt_verify(session, ckptbase));
 
     /*
