@@ -13,104 +13,131 @@
 #include "wrappers/connection_wrapper.h"
 #include "wt_internal.h"
 
-/* Assert that WT assertion fired with the expected message, then clear the flag and message. */
-void
-expect_assertion(WT_SESSION_IMPL *session, std::string expected_message)
-{
-    REQUIRE(session->unittest_assert_hit);
-    REQUIRE(std::string(session->unittest_assert_msg) == expected_message);
+/*
+ * These values track the possible results from calling our assertion under unit tests.
+ * However, since we're testing assertion logic these values actually describe the resulting control
+ * flow from calling an assertion:
+ * - ASSERT_PANIC that WT_RET_PANIC has been called as a result of a failing WT_ASSERT_PANIC
+ * - ASSERT_RET indicates that WT_RET_MSG has been called as a result of a failing WT_ASSERT_RET
+ * - ASSERT_ERR that WT_ERR_MSG has been called as a result of a failing WT_ASSERT_ERR
+ * and finally ASSERT_FIRED and NO_ASSERT_FIRED to indicate if an assertion - which would normally
+ * abort WiredTiger - would have been triggered.
+ */
 
-    // Clear the assertion flag and message for the next test step.
-    session->unittest_assert_hit = false;
-    memset(session->unittest_assert_msg, 0, WT_SESSION_UNITTEST_BUF_LEN);
+#define ASSERT_PANIC -3
+#define ASSERT_RET -2
+#define ASSERT_ERR -1
+#define NO_ASSERT_FIRED 0
+#define ASSERT_FIRED 1
+
+int
+check_assertion_fired(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+
+    ret = session->unittest_assert_hit ? ASSERT_FIRED : NO_ASSERT_FIRED;
+
+    if (ret == ASSERT_FIRED) {
+        // Clear the assertion flag and message for the next test step.
+        session->unittest_assert_hit = false;
+        memset(session->unittest_assert_msg, 0, WT_SESSION_UNITTEST_BUF_LEN);
+    }
+
+    return ret;
 }
 
-/* Assert that no WT assertion fired. */
-void
-expect_no_assertion(WT_SESSION_IMPL *session)
-{
-    REQUIRE_FALSE(session->unittest_assert_hit);
-    REQUIRE(std::string(session->unittest_assert_msg).empty());
-}
-
-/* Wrapper to call WT_RET_ASSERT. */
+/*
+ * Wrapper to call WT_RET_ASSERT. This returns different values depending on whether WT_RET_ASSERT
+ * fires or not.
+ */
 int
 call_wt_ret(WT_SESSION_IMPL *session, uint16_t category, bool assert_should_pass)
 {
     if (assert_should_pass)
-        WT_RET_ASSERT(session, category, 1 == 1, -1, "WT_RET raised assert");
+        WT_RET_ASSERT(session, category, true, ASSERT_RET, "WT_RET raised assert");
     else
-        WT_RET_ASSERT(session, category, 1 == 2, -1, "WT_RET raised assert");
+        WT_RET_ASSERT(session, category, false, ASSERT_RET, "WT_RET raised assert");
 
-    return 14;
+    return check_assertion_fired(session);
 }
 
-/* Wrapper to call WT_ERR_ASSERT. */
+/*
+ * Wrapper to call WT_ERR_ASSERT. This returns different values depending on whether WT_ERR_ASSERT
+ * fires or not.
+ */
 int
 call_wt_err(WT_SESSION_IMPL *session, uint16_t category, bool assert_should_pass)
 {
     WT_DECL_RET;
 
     if (assert_should_pass)
-        WT_ERR_ASSERT(session, category, 1 == 1, -1, "WT_ERR raised assert");
+        WT_ERR_ASSERT(session, category, true, ASSERT_ERR, "WT_ERR raised assert");
     else
-        WT_RET_ASSERT(session, category, 1 == 2, -1, "WT_ERR raised assert");
+        WT_ERR_ASSERT(session, category, false, ASSERT_ERR, "WT_ERR raised assert");
 
-    ret = 14;
+    ret = check_assertion_fired(session);
 
     if (0) {
 err:
-        ret = 13;
+        ret = ASSERT_ERR;
     }
     return ret;
 }
 
-/* Wrapper to call WT_RET_PANIC_ASSERT. */
+/*
+ * Wrapper to call WT_RET_PANIC_ASSERT. This returns different values depending on whether
+ * WT_RET_PANIC_ASSERT fires or not.
+ */
 int
 call_wt_panic(WT_SESSION_IMPL *session, uint16_t category, bool assert_should_pass)
 {
-    WT_DECL_RET;
-
     if (assert_should_pass)
-        WT_RET_PANIC_ASSERT(session, category, 1 == 1, -1, "WT_PANIC raised assert");
+        WT_RET_PANIC_ASSERT(session, category, true, ASSERT_PANIC, "WT_PANIC raised assert");
     else
-        WT_RET_PANIC_ASSERT(session, category, 1 == 2, -1, "WT_PANIC raised assert");
+        WT_RET_PANIC_ASSERT(session, category, false, ASSERT_PANIC, "WT_PANIC raised assert");
 
-    ret = 14;
-
-    return ret;
+    return check_assertion_fired(session);
 }
 
-/* Wrapper to call WT_ASSERT_OPTIONAL. */
+/*
+ * Wrapper to call WT_ASSERT_OPTIONAL. This returns different values depending on whether
+ * WT_ASSERT_OPTIONAL fires or not.
+ */
 int
 call_wt_optional(WT_SESSION_IMPL *session, uint16_t category, bool assert_should_pass)
 {
     if (assert_should_pass)
-        WT_ASSERT_OPTIONAL(session, category, 1 == 1, "WT_OPTIONAL raised assert");
+        WT_ASSERT_OPTIONAL(session, category, true, "WT_OPTIONAL raised assert");
     else
-        WT_ASSERT_OPTIONAL(session, category, 1 == 2, "WT_OPTIONAL raised assert");
+        WT_ASSERT_OPTIONAL(session, category, false, "WT_OPTIONAL raised assert");
 
-    return 14;
+    return check_assertion_fired(session);
 }
 
-/* Assert that WT_ASSERT and WT_ASSERT_ALWAYS behave consistently regardless of the HAVE_DIAGNOSTIC
- * configuration. */
+/*
+ * Assert that WT_ASSERT and WT_ASSERT_ALWAYS behave consistently regardless of the diagnostic
+ * asserts configuration. This behavior occurs when running in non-diagnostic mode: WT_ASSERT
+ * doesn't abort and WT_ASSERT_ALWAYS always aborts regardless of diagnostic mode.
+ */
 int
 assert_always_aborts(WT_SESSION_IMPL *session)
 {
     // WT_ASSERT does nothing.
-    WT_ASSERT(session, 1 == 2);
-    expect_no_assertion(session);
+    WT_ASSERT(session, false);
+    REQUIRE_FALSE(session->unittest_assert_hit);
+    REQUIRE(std::string(session->unittest_assert_msg).empty());
 
     // WT_ASSERT_ALWAYS aborts.
-    WT_ASSERT_ALWAYS(session, 1 == 2, "Values are not equal!");
-    expect_assertion(session, "Assertion '1 == 2' failed: Values are not equal!");
+    WT_ASSERT_ALWAYS(session, false, "Values are not equal!");
+    REQUIRE(session->unittest_assert_hit);
+    REQUIRE(std::string(session->unittest_assert_msg) ==
+      "Assertion 'false' failed: Values are not equal!");
 
     return 0;
 }
 
 /* Assert that all diagnostic assert categories are off. */
-int
+void
 all_diag_asserts_off(WT_SESSION_IMPL *session)
 {
     REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_DATA_VALIDATION)) == false);
@@ -120,12 +147,10 @@ all_diag_asserts_off(WT_SESSION_IMPL *session)
     REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_OUT_OF_ORDER)) == false);
     REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_SLOW_OPERATION)) == false);
     REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_VISIBILITY)) == false);
-
-    return 0;
 }
 
 /* Assert that all diagnostic assert categories are on. */
-int
+void
 all_diag_asserts_on(WT_SESSION_IMPL *session)
 {
     REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_DATA_VALIDATION)) == true);
@@ -135,92 +160,62 @@ all_diag_asserts_on(WT_SESSION_IMPL *session)
     REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_OUT_OF_ORDER)) == true);
     REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_SLOW_OPERATION)) == true);
     REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_VISIBILITY)) == true);
-
-    return 0;
 }
 
-/* Assert that all asserts fire. */
+/* Assert that all expected asserts (passed in via the "category" arg) fire. */
 int
-all_asserts_abort(WT_SESSION_IMPL *session, uint16_t category, bool assert_should_pass)
+configured_asserts_abort(WT_SESSION_IMPL *session, uint16_t category)
 {
     int ret = 0;
 
-    REQUIRE(assert_always_aborts(session) == 0);
+    REQUIRE(call_wt_optional(session, category, false) == ASSERT_FIRED);
 
-    REQUIRE(call_wt_optional(session, category, 1 == 2) == 14);
-    expect_assertion(session, "Assertion '1 == 2' failed: WT_OPTIONAL raised assert");
+    REQUIRE(call_wt_ret(session, category, false) == ASSERT_FIRED);
 
-    REQUIRE(call_wt_ret(session, category, 1 == 2) == 14);
-    expect_assertion(session, "Assertion '1 == 2' failed: WT_RET raised assert");
+    REQUIRE(call_wt_err(session, category, false) == ASSERT_FIRED);
 
-    REQUIRE(call_wt_err(session, category, 1 == 2) == 14);
-    expect_assertion(session, "Assertion '1 == 2' failed: WT_ERR raised assert");
-
-    REQUIRE(call_wt_panic(session, category, 1 == 2) == 14);
-    expect_assertion(session, "Assertion '1 == 2' failed: WT_PANIC raised assert");
+    REQUIRE(call_wt_panic(session, category, false) == ASSERT_FIRED);
 
     return ret;
 }
 
-/* Assert that the expected asserts fire. */
+/* Assert that the expected asserts don't fire (those not passed in via the "category" arg). */
 int
-configured_asserts_abort(WT_SESSION_IMPL *session, uint16_t category, bool assert_should_pass)
+configured_asserts_off(WT_SESSION_IMPL *session, u_int16_t category)
 {
     int ret = 0;
 
-    REQUIRE(call_wt_optional(session, category, 1 == 2) == 14);
-    expect_assertion(session, "Assertion '1 == 2' failed: WT_OPTIONAL raised assert");
+    REQUIRE(call_wt_optional(session, category, false) == NO_ASSERT_FIRED);
 
-    REQUIRE(call_wt_ret(session, category, 1 == 2) == 14);
-    expect_assertion(session, "Assertion '1 == 2' failed: WT_RET raised assert");
+    REQUIRE(call_wt_ret(session, category, false) == ASSERT_RET);
 
-    REQUIRE(call_wt_err(session, category, 1 == 2) == 14);
-    expect_assertion(session, "Assertion '1 == 2' failed: WT_ERR raised assert");
+    REQUIRE(call_wt_err(session, category, false) == ASSERT_ERR);
 
-    REQUIRE(call_wt_panic(session, category, 1 == 2) == 14);
-    expect_assertion(session, "Assertion '1 == 2' failed: WT_PANIC raised assert");
+    REQUIRE(call_wt_panic(session, category, false) == -31804);
 
     return ret;
 }
 
-/* Assert that the expected asserts don't fire. */
-int
-configured_asserts_off(WT_SESSION_IMPL *session, u_int16_t category, bool assert_should_pass)
+/* Assert that regardless of connection configuration, asserts are always disabled/enabled */
+TEST_CASE("Connection config: off/on", "[assertions]")
 {
-    int ret = 0;
+    SECTION("Connection config: off")
+    {
+        ConnectionWrapper conn(DB_HOME, "create");
+        WT_SESSION_IMPL *session = conn.createSession();
 
-    REQUIRE(call_wt_optional(session, category, 1 == 2) == 14);
-    expect_no_assertion(session);
+        assert_always_aborts(session);
+        all_diag_asserts_off(session);
+    }
 
-    REQUIRE(call_wt_ret(session, category, 1 == 2) == -1);
-    expect_no_assertion(session);
+    SECTION("Connection config: on")
+    {
+        ConnectionWrapper conn(DB_HOME, "create, diagnostic_asserts=[all]");
+        WT_SESSION_IMPL *session = conn.createSession();
 
-    REQUIRE(call_wt_err(session, category, 1 == 2) == -1);
-    expect_no_assertion(session);
-
-    REQUIRE(call_wt_panic(session, category, 1 == 2) == -31804);
-    expect_no_assertion(session);
-
-    return ret;
-}
-
-/* Assert that regardless of connection configuration, asserts always disabled/enabled */
-TEST_CASE("Connection config: off", "[assertions]")
-{
-    ConnectionWrapper conn(DB_HOME, "create");
-    WT_SESSION_IMPL *session = conn.createSession();
-
-    REQUIRE(all_diag_asserts_off(session) == 0);
-}
-
-/* Assert that regardless of connection configuration, asserts always disabled/enabled */
-TEST_CASE("Connection config: on", "[assertions]")
-{
-    ConnectionWrapper conn(DB_HOME, "create, diagnostic_asserts=[all]");
-    WT_SESSION_IMPL *session = conn.createSession();
-
-    REQUIRE(assert_always_aborts(session) == 0);
-    REQUIRE(all_diag_asserts_on(session) == 0);
+        assert_always_aborts(session);
+        all_diag_asserts_on(session);
+    }
 }
 
 /* When WT_DIAG_ALL is enabled, all asserts are enabled. */
@@ -229,10 +224,9 @@ TEST_CASE("Connection config: WT_DIAG_ALL", "[assertions]")
     ConnectionWrapper conn(DB_HOME, "create, diagnostic_asserts= [all]");
     WT_SESSION_IMPL *session = conn.createSession();
 
-    REQUIRE(configured_asserts_abort(session, WT_DIAG_ALL, 1 == 2) == 0);
+    REQUIRE(configured_asserts_abort(session, WT_DIAG_ALL) == 0);
 
-    // Checking state.
-    REQUIRE(all_diag_asserts_on(session) == 0);
+    all_diag_asserts_on(session);
 }
 
 /* When a category is enabled, all asserts for that category are enabled. */
@@ -242,7 +236,7 @@ TEST_CASE("Connection config: check one enabled category", "[assertions]")
     WT_SESSION_IMPL *session = conn.createSession();
 
     REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_OUT_OF_ORDER)) == true);
-    REQUIRE(configured_asserts_abort(session, WT_DIAG_OUT_OF_ORDER, 1 == 2) == 0);
+    REQUIRE(configured_asserts_abort(session, WT_DIAG_OUT_OF_ORDER) == 0);
 }
 
 /* Asserts that categories are enabled/disabled following the connection configuration. */
@@ -251,7 +245,7 @@ TEST_CASE("Connection config: check multiple enabled categories", "[assertions]"
     ConnectionWrapper conn(DB_HOME, "create, diagnostic_asserts= [visibility, concurrent_access]");
     WT_SESSION_IMPL *session = conn.createSession();
 
-    REQUIRE(configured_asserts_abort(session, WT_DIAG_VISIBILITY, 1 == 2) == 0);
+    REQUIRE(configured_asserts_abort(session, WT_DIAG_VISIBILITY) == 0);
 
     // Checking state.
     REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_VISIBILITY)) == true);
@@ -266,7 +260,7 @@ TEST_CASE("Connection config: check disabled category", "[assertions]")
     WT_SESSION_IMPL *session = conn.createSession();
 
     REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_SLOW_OPERATION)) == false);
-    REQUIRE(configured_asserts_off(session, WT_DIAG_SLOW_OPERATION, 1 == 2) == 0);
+    REQUIRE(configured_asserts_off(session, WT_DIAG_SLOW_OPERATION) == 0);
 }
 
 /* Reconfigure with diagnostic_asserts not provided. */
@@ -277,7 +271,7 @@ TEST_CASE("Reconfigure: diagnostic_asserts not provided", "[assertions]")
     WT_SESSION_IMPL *session = conn.createSession();
 
     connection->reconfigure(connection, "");
-    REQUIRE(all_diag_asserts_off(session) == 0);
+    all_diag_asserts_off(session);
 }
 
 /* Reconfigure the connection with diagnostic_asserts as an empty list. */
@@ -287,9 +281,9 @@ TEST_CASE("Reconfigure: diagnostic_asserts empty list", "[assertions]")
     auto connection = conn.getWtConnection();
     WT_SESSION_IMPL *session = conn.createSession();
 
-    REQUIRE(all_diag_asserts_off(session) == 0);
+    all_diag_asserts_off(session);
     connection->reconfigure(connection, "diagnostic_asserts=[]");
-    REQUIRE(all_diag_asserts_off(session) == 0);
+    all_diag_asserts_off(session);
 }
 
 /* Reconfigure the connection with diagnostic_asserts as a list with invalid item. */
@@ -299,10 +293,10 @@ TEST_CASE("Reconfigure: diagnostic_asserts with invalid item", "[assertions]")
     auto connection = conn.getWtConnection();
     WT_SESSION_IMPL *session = conn.createSession();
 
-    REQUIRE(all_diag_asserts_off(session) == 0);
+    all_diag_asserts_off(session);
     REQUIRE(
       connection->reconfigure(connection, "diagnostic_asserts=[slow_operation, panic, INVALID]"));
-    REQUIRE(all_diag_asserts_off(session) == 0);
+    all_diag_asserts_off(session);
 }
 
 /* Reconfigure the connection with diagnostic_asserts as a list of valid items. */
@@ -333,6 +327,7 @@ TEST_CASE("Reconfigure: Transition cases", "[assertions]")
 
     REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_CONCURRENT_ACCESS)) == true);
     REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_OUT_OF_ORDER)) == true);
+    REQUIRE((DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_DATA_VALIDATION)) == false);
 
     connection->reconfigure(
       connection, "diagnostic_asserts=[data_validation, slow_operation, out_of_order]");
