@@ -174,6 +174,8 @@
 /*
  * EXTRA_DIAGNOSTICS_ENABLED --
  *  Fetch whether diagnostic asserts for the provided category are runtime enabled.
+ *  When HAVE_DIAGNOSTIC=1 WT_DIAG_ALL is always set on the connection and this function
+ *  will always return true for non-null sessions.
  */
 #define EXTRA_DIAGNOSTICS_ENABLED(session, category) \
     ((session != NULL) &&                             \
