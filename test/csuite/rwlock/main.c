@@ -32,11 +32,8 @@
  */
 #define MAX_THREADS WT_THOUSAND
 #define READS_PER_WRITE (10 * WT_THOUSAND)
-//#define	READS_PER_WRITE	WT_MILLION
-//#define	READS_PER_WRITE	100
 
 #define CHECK_CORRECTNESS 1
-//#define	USE_POSIX	1
 
 static WT_RWLOCK rwlock;
 static pthread_rwlock_t p_rwlock;
