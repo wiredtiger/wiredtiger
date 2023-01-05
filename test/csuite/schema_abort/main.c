@@ -320,9 +320,9 @@ set_flush_tier_delay(WT_RAND_STATE *rnd)
 {
     /*
      * We are checkpointing constantly, and we'll do a flush tier with a random delay between 0 -
-     * 10000 microseconds.
+     * 10000000 microseconds.
      */
-    opts->tiered_flush_interval_us = __wt_random(rnd) % 10001;
+    opts->tiered_flush_interval_us = __wt_random(rnd) % 10000001;
 }
 
 /*
@@ -574,7 +574,7 @@ thread_ckpt_run(void *arg)
     __wt_epoch(NULL, &start);
     for (i = 1;; ++i) {
         sleep_time = __wt_random(&rnd) % MAX_CKPT_INVL;
-        sleep(sleep_time);
+        testutil_tiered_sleep(opts, session, sleep_time, &flush_tier);
         if (use_ts) {
             ts = global_ts;
             /*
@@ -632,7 +632,6 @@ thread_ckpt_run(void *arg)
             first_ckpt = false;
             testutil_assert_errno(fclose(fp) == 0);
         }
-        testutil_tiered_sleep(opts, session, 0, &flush_tier);
     }
     /* NOTREACHED */
 }
@@ -1117,8 +1116,6 @@ main(int argc, char *argv[])
         while (stat(statname, &sb) != 0)
             testutil_sleep_wait(1, pid);
         sleep(timeout);
-
-        opts->running = false;
 
         sa.sa_handler = SIG_DFL;
         testutil_assert_errno(sigaction(SIGCHLD, &sa, NULL) == 0);
