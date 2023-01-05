@@ -125,7 +125,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
   {"compatibility", "category", NULL, NULL,
     confchk_WT_CONNECTION_reconfigure_compatibility_subconfigs, 1},
   {"debug_mode", "category", NULL, NULL, confchk_wiredtiger_open_debug_mode_subconfigs, 12},
-  {"diagnostic_asserts", "list", NULL,
+  {"extra_diagnostics", "list", NULL,
     "choices=[\"all\",\"concurrent_access\","
     "\"data_validation\",\"invalid_op\",\"out_of_order\",\"panic\","
     "\"slow_operation\",\"visibility\"]",
@@ -874,7 +874,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
   {"compatibility", "category", NULL, NULL, confchk_wiredtiger_open_compatibility_subconfigs, 3},
   {"config_base", "boolean", NULL, NULL, NULL, 0}, {"create", "boolean", NULL, NULL, NULL, 0},
   {"debug_mode", "category", NULL, NULL, confchk_wiredtiger_open_debug_mode_subconfigs, 12},
-  {"diagnostic_asserts", "list", NULL,
+  {"extra_diagnostics", "list", NULL,
     "choices=[\"all\",\"concurrent_access\","
     "\"data_validation\",\"invalid_op\",\"out_of_order\",\"panic\","
     "\"slow_operation\",\"visibility\"]",
@@ -964,7 +964,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
   {"compatibility", "category", NULL, NULL, confchk_wiredtiger_open_compatibility_subconfigs, 3},
   {"config_base", "boolean", NULL, NULL, NULL, 0}, {"create", "boolean", NULL, NULL, NULL, 0},
   {"debug_mode", "category", NULL, NULL, confchk_wiredtiger_open_debug_mode_subconfigs, 12},
-  {"diagnostic_asserts", "list", NULL,
+  {"extra_diagnostics", "list", NULL,
     "choices=[\"all\",\"concurrent_access\","
     "\"data_validation\",\"invalid_op\",\"out_of_order\",\"panic\","
     "\"slow_operation\",\"visibility\"]",
@@ -1053,7 +1053,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
   {"checkpoint_sync", "boolean", NULL, NULL, NULL, 0},
   {"compatibility", "category", NULL, NULL, confchk_wiredtiger_open_compatibility_subconfigs, 3},
   {"debug_mode", "category", NULL, NULL, confchk_wiredtiger_open_debug_mode_subconfigs, 12},
-  {"diagnostic_asserts", "list", NULL,
+  {"extra_diagnostics", "list", NULL,
     "choices=[\"all\",\"concurrent_access\","
     "\"data_validation\",\"invalid_op\",\"out_of_order\",\"panic\","
     "\"slow_operation\",\"visibility\"]",
@@ -1139,7 +1139,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
   {"checkpoint_sync", "boolean", NULL, NULL, NULL, 0},
   {"compatibility", "category", NULL, NULL, confchk_wiredtiger_open_compatibility_subconfigs, 3},
   {"debug_mode", "category", NULL, NULL, confchk_wiredtiger_open_debug_mode_subconfigs, 12},
-  {"diagnostic_asserts", "list", NULL,
+  {"extra_diagnostics", "list", NULL,
     "choices=[\"all\",\"concurrent_access\","
     "\"data_validation\",\"invalid_op\",\"out_of_order\",\"panic\","
     "\"slow_operation\",\"visibility\"]",
@@ -1243,7 +1243,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "cursor_copy=false,cursor_reposition=false,eviction=false,"
     "log_retention=0,realloc_exact=false,realloc_malloc=false,"
     "rollback_error=0,slow_checkpoint=false,table_logging=false,"
-    "update_restore_evict=false),diagnostic_asserts=[],error_prefix=,"
+    "update_restore_evict=false),extra_diagnostics=[],error_prefix=,"
     "eviction=(threads_max=8,threads_min=1),"
     "eviction_checkpoint_target=1,eviction_dirty_target=5,"
     "eviction_dirty_trigger=20,eviction_target=80,eviction_trigger=95"
@@ -1527,7 +1527,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     ",eviction=false,log_retention=0,realloc_exact=false,"
     "realloc_malloc=false,rollback_error=0,slow_checkpoint=false,"
     "table_logging=false,update_restore_evict=false),"
-    "diagnostic_asserts=[],direct_io=,encryption=(keyid=,name=,"
+    "extra_diagnostics=[],direct_io=,encryption=(keyid=,name=,"
     "secretkey=),error_prefix=,eviction=(threads_max=8,threads_min=1)"
     ",eviction_checkpoint_target=1,eviction_dirty_target=5,"
     "eviction_dirty_trigger=20,eviction_target=80,eviction_trigger=95"
@@ -1568,7 +1568,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     ",eviction=false,log_retention=0,realloc_exact=false,"
     "realloc_malloc=false,rollback_error=0,slow_checkpoint=false,"
     "table_logging=false,update_restore_evict=false),"
-    "diagnostic_asserts=[],direct_io=,encryption=(keyid=,name=,"
+    "extra_diagnostics=[],direct_io=,encryption=(keyid=,name=,"
     "secretkey=),error_prefix=,eviction=(threads_max=8,threads_min=1)"
     ",eviction_checkpoint_target=1,eviction_dirty_target=5,"
     "eviction_dirty_trigger=20,eviction_target=80,eviction_trigger=95"
@@ -1609,7 +1609,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "cursor_copy=false,cursor_reposition=false,eviction=false,"
     "log_retention=0,realloc_exact=false,realloc_malloc=false,"
     "rollback_error=0,slow_checkpoint=false,table_logging=false,"
-    "update_restore_evict=false),diagnostic_asserts=[],direct_io=,"
+    "update_restore_evict=false),extra_diagnostics=[],direct_io=,"
     "encryption=(keyid=,name=,secretkey=),error_prefix=,"
     "eviction=(threads_max=8,threads_min=1),"
     "eviction_checkpoint_target=1,eviction_dirty_target=5,"
@@ -1649,7 +1649,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "cursor_copy=false,cursor_reposition=false,eviction=false,"
     "log_retention=0,realloc_exact=false,realloc_malloc=false,"
     "rollback_error=0,slow_checkpoint=false,table_logging=false,"
-    "update_restore_evict=false),diagnostic_asserts=[],direct_io=,"
+    "update_restore_evict=false),extra_diagnostics=[],direct_io=,"
     "encryption=(keyid=,name=,secretkey=),error_prefix=,"
     "eviction=(threads_max=8,threads_min=1),"
     "eviction_checkpoint_target=1,eviction_dirty_target=5,"

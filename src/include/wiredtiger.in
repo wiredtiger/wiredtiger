@@ -2276,8 +2276,8 @@ struct __wt_connection {
 	 * control all dirty page evictions through forcing update restore eviction., a boolean
 	 * flag; default \c false.}
 	 * @config{ ),,}
-	 * @config{diagnostic_asserts, enable additional assertions in WiredTiger.  Options are
-	 * given as a list\, such as <code>"diagnostic_asserts=[out_of_order\,visibility]"</code>.
+	 * @config{extra_diagnostics, enable additional assertions in WiredTiger.  Options are
+	 * given as a list\, such as <code>"extra_diagnostics=[out_of_order\,visibility]"</code>.
 	 * Choosing \c all enables all assertions.  When WiredTiger is compiled with \c
 	 * HAVE_DIAGNOSTIC=1 all assertions are enabled and cannot be reconfigured., a list\, with
 	 * values chosen from the following options: \c "all"\, \c "concurrent_access"\, \c
@@ -3013,8 +3013,8 @@ struct __wt_connection {
  * update_restore_evict, if true\, control all dirty page evictions through forcing update restore
  * eviction., a boolean flag; default \c false.}
  * @config{ ),,}
- * @config{diagnostic_asserts, enable additional assertions in WiredTiger.  Options are given as a
- * list\, such as <code>"diagnostic_asserts=[out_of_order\,visibility]"</code>. Choosing \c all
+ * @config{extra_diagnostics, enable additional assertions in WiredTiger.  Options are given as a
+ * list\, such as <code>"extra_diagnostics=[out_of_order\,visibility]"</code>. Choosing \c all
  * enables all assertions.  When WiredTiger is compiled with \c HAVE_DIAGNOSTIC=1 all assertions are
  * enabled and cannot be reconfigured., a list\, with values chosen from the following options: \c
  * "all"\, \c "concurrent_access"\, \c "data_validation"\, \c "invalid_op"\, \c "out_of_order"\, \c

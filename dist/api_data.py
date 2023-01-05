@@ -520,10 +520,10 @@ connection_runtime_config = [
         the maximum number of milliseconds an application thread will wait for space to be
         available in cache before giving up. Default will wait forever''',
         min=0),
-    Config('diagnostic_asserts', '[]', r'''
+    Config('extra_diagnostics', '[]', r'''
         enable additional assertions in WiredTiger.
         Options are given as a list, such as 
-        <code>"diagnostic_asserts=[out_of_order,visibility]"</code>.
+        <code>"extra_diagnostics=[out_of_order,visibility]"</code>.
         Choosing \c all enables all assertions. When WiredTiger is compiled with 
         \c HAVE_DIAGNOSTIC=1 all assertions are enabled and cannot be reconfigured
         ''',

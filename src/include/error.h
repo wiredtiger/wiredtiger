@@ -177,7 +177,7 @@
  */
 #define EXTRA_DIAGNOSTICS_ENABLED(session, category) \
     ((session != NULL) &&                             \
-      UNLIKELY(FLD_ISSET(S2C(session)->runtime_asserts_flags, category | WT_DIAG_ALL)))
+      UNLIKELY(FLD_ISSET(S2C(session)->extra_diagnostics_flags, category | WT_DIAG_ALL)))
 
 /*
  * WT_ASSERT --

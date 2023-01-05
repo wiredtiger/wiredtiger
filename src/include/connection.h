@@ -591,7 +591,7 @@ struct __wt_connection_impl {
 #define WT_DIAG_VISIBILITY 0x80u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     /* Categories of assertions that can be runtime enabled. */
-    uint16_t runtime_asserts_flags;
+    uint16_t extra_diagnostics_flags;
 
     /* Verbose settings for our various categories. */
     WT_VERBOSE_LEVEL verbose[WT_VERB_NUM_CATEGORIES];
