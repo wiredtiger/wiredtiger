@@ -78,8 +78,15 @@ static const char *const ckpt_file = "checkpoint_done";
 
 static bool tiered, use_columns, use_ts, use_txn;
 static volatile bool stable_set;
-static volatile uint64_t global_ts = 1;
-static volatile uint64_t uid = 1;
+
+static uint32_t nth; /* Number of threads. */
+
+/*
+ * We reserve timestamps for each thread for the entire run. The timestamp for the i-th key that a
+ * thread writes is given by the macro below.
+ */
+#define RESERVED_TIMESTAMP_FOR_ITERATION(threadnum, iter) ((iter)*nth + (threadnum) + 1)
+
 typedef struct {
     uint64_t ts;
     const char *op;
@@ -187,7 +194,7 @@ static WT_EVENT_HANDLER event_handler = {
  *     TODO: Add a comment describing this function.
  */
 static void
-dump_ts(uint64_t nth)
+dump_ts(void)
 {
     uint64_t i;
 
@@ -245,19 +252,20 @@ test_bulk(THREAD_DATA *td)
  *     Test creating a bulk cursor with a unique name.
  */
 static void
-test_bulk_unique(THREAD_DATA *td, int force)
+test_bulk_unique(THREAD_DATA *td, uint64_t unique_id, int force)
 {
     WT_CURSOR *c;
     WT_DECL_RET;
     WT_SESSION *session;
-    uint64_t my_uid;
     char dropconf[128], new_uri[64];
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
-    /* Generate a unique object name. */
-    my_uid = __wt_atomic_addv64(&uid, 1);
-    testutil_check(__wt_snprintf(new_uri, sizeof(new_uri), "%s.%" PRIu64, uri, my_uid));
+    /*
+     * Generate a unique object name. Use the iteration count provided by the caller. The caller
+     * ensures it to be unique.
+     */
+    testutil_check(__wt_snprintf(new_uri, sizeof(new_uri), "%s.%" PRIu64, uri, unique_id));
 
     if (use_txn)
         testutil_check(session->begin_transaction(session, NULL));
@@ -342,18 +350,19 @@ test_create(THREAD_DATA *td)
  *     Create a uniquely named table.
  */
 static void
-test_create_unique(THREAD_DATA *td, int force)
+test_create_unique(THREAD_DATA *td, uint64_t unique_id, int force)
 {
     WT_DECL_RET;
     WT_SESSION *session;
-    uint64_t my_uid;
     char dropconf[128], new_uri[64];
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
-    /* Generate a unique object name. */
-    my_uid = __wt_atomic_addv64(&uid, 1);
-    testutil_check(__wt_snprintf(new_uri, sizeof(new_uri), "%s.%" PRIu64, uri, my_uid));
+    /*
+     * Generate a unique object name. Use the iteration count provided by the caller. The caller
+     * ensures it to be unique.
+     */
+    testutil_check(__wt_snprintf(new_uri, sizeof(new_uri), "%s.%" PRIu64, uri, unique_id));
 
     if (use_txn)
         testutil_check(session->begin_transaction(session, NULL));
@@ -462,6 +471,27 @@ test_verify(THREAD_DATA *td)
 }
 
 /*
+ * get_all_committed_ts --
+ *     Returns the least of commit timestamps across all the threads. Returns UINT64_MAX if one of
+ *     the threads has not yet started.
+ */
+static uint64_t
+get_all_committed_ts(void)
+{
+    uint64_t i, ret;
+
+    ret = UINT64_MAX;
+    for (i = 0; i < nth; ++i) {
+        if (th_ts[i].ts < ret)
+            ret = th_ts[i].ts;
+        if (ret == 0)
+            return (UINT64_MAX);
+    }
+
+    return (ret);
+}
+
+/*
  * thread_ts_run --
  *     Runner function for a timestamp thread.
  */
@@ -470,7 +500,7 @@ thread_ts_run(void *arg)
 {
     THREAD_DATA *td;
     WT_SESSION *session;
-    uint64_t i, last_ts, oldest_ts, this_ts;
+    uint64_t last_ts, oldest_ts;
     char tscfg[64];
 
     td = (THREAD_DATA *)arg;
@@ -482,21 +512,7 @@ thread_ts_run(void *arg)
      * our threshold where we expect to find records after recovery.
      */
     for (;;) {
-        oldest_ts = UINT64_MAX;
-        /*
-         * For the timestamp thread, the info field contains the number of worker threads.
-         */
-        for (i = 0; i < td->info; ++i) {
-            /*
-             * We need to let all threads get started, so if we find any thread still with a zero
-             * timestamp we go to sleep.
-             */
-            this_ts = th_ts[i].ts;
-            if (this_ts == 0)
-                goto ts_wait;
-            else if (this_ts < oldest_ts)
-                oldest_ts = this_ts;
-        }
+        oldest_ts = get_all_committed_ts();
 
         if (oldest_ts != UINT64_MAX && oldest_ts - last_ts > STABLE_PERIOD) {
             /*
@@ -512,7 +528,6 @@ thread_ts_run(void *arg)
                 printf("SET STABLE: %" PRIx64 " %" PRIu64 "\n", oldest_ts, oldest_ts);
             }
         } else
-ts_wait:
             __wt_sleep(0, 1000);
     }
     /* NOTREACHED */
@@ -553,7 +568,7 @@ thread_ckpt_run(void *arg)
         sleep(sleep_time);
         flush = ((__wt_random(&td->extra_rnd) % FLUSH_INVL) == 0) ? true : false;
         if (use_ts) {
-            ts = global_ts;
+            ts = get_all_committed_ts();
             /*
              * If we're using timestamps wait for the stable timestamp to get set the first time.
              */
@@ -564,10 +579,7 @@ thread_ckpt_run(void *arg)
                 if (WT_TIMEDIFF_SEC(now, start) > MAX_STARTUP) {
                     fprintf(
                       stderr, "After %d seconds stable still not set. Aborting.\n", MAX_STARTUP);
-                    /*
-                     * For the checkpoint thread the info contains the number of threads.
-                     */
-                    dump_ts(td->info);
+                    dump_ts();
                     abort();
                 }
                 continue;
@@ -613,7 +625,7 @@ thread_run(void *arg)
     WT_CURSOR *cur_coll, *cur_local, *cur_oplog;
     WT_ITEM data;
     WT_SESSION *oplog_session, *session;
-    uint64_t i, stable_ts;
+    uint64_t i, iter, reserved_ts, stable_ts;
     char cbuf[MAX_VAL], lbuf[MAX_VAL], obuf[MAX_VAL];
     char kname[64], tscfg[64];
     bool use_prep;
@@ -665,7 +677,13 @@ thread_run(void *arg)
      */
     printf("Thread %" PRIu32 " starts at %" PRIu64 "\n", td->info, td->start);
     stable_ts = 0;
-    for (i = td->start;; ++i) {
+    for (i = td->start, iter = 0;; ++i, ++iter) {
+        /*
+         * Extract a unique timestamp value based on the thread number and the iteration count. This
+         * unique number is also used to generate the names if required for the schema operations.
+         */
+        reserved_ts = RESERVED_TIMESTAMP_FOR_ITERATION(td->info, iter);
+
         /*
          * Allow some threads to skip schema operations so that they are generating sufficient dirty
          * data.
@@ -683,7 +701,7 @@ thread_run(void *arg)
                 break;
             case 1:
                 WT_PUBLISH(th_ts[td->info].op, BULK_UNQ);
-                test_bulk_unique(td, __wt_random(&td->data_rnd) & 1);
+                test_bulk_unique(td, reserved_ts, __wt_random(&td->data_rnd) & 1);
                 break;
             case 2:
                 WT_PUBLISH(th_ts[td->info].op, CREATE);
@@ -691,7 +709,7 @@ thread_run(void *arg)
                 break;
             case 3:
                 WT_PUBLISH(th_ts[td->info].op, CREATE_UNQ);
-                test_create_unique(td, __wt_random(&td->data_rnd) & 1);
+                test_create_unique(td, reserved_ts, __wt_random(&td->data_rnd) & 1);
                 break;
             case 4:
                 WT_PUBLISH(th_ts[td->info].op, CURSOR);
@@ -711,7 +729,7 @@ thread_run(void *arg)
                 break;
             }
         if (use_ts)
-            stable_ts = __wt_atomic_addv64(&global_ts, 1);
+            stable_ts = reserved_ts;
 
         testutil_check(session->begin_transaction(session, NULL));
         if (use_prep)
@@ -799,8 +817,6 @@ thread_run(void *arg)
     /* NOTREACHED */
 }
 
-static void run_workload(uint32_t) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
-
 /*
  * init_thread_data --
  *     Initialize the thread data struct.
@@ -815,13 +831,15 @@ init_thread_data(THREAD_DATA *td, WT_CONNECTION *conn, uint64_t start, uint32_t 
     testutil_random_from_random(&td->extra_rnd, &opts->extra_rnd);
 }
 
+static void run_workload(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
 /*
  * run_workload --
  *     Child process creates the database and table, and then creates worker threads to add data
  *     until it is killed by the parent.
  */
 static void
-run_workload(uint32_t nth)
+run_workload(void)
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
@@ -956,7 +974,7 @@ main(int argc, char *argv[])
     pid_t pid;
     uint64_t absent_coll, absent_local, absent_oplog, count, key, last_key;
     uint64_t stable_fp, stable_val;
-    uint32_t i, nth, rand_value, timeout;
+    uint32_t i, rand_value, timeout;
     int ch, status;
     char buf[1024], statname[1024];
     char fname[64], kname[64];
@@ -1081,7 +1099,7 @@ main(int argc, char *argv[])
         testutil_assert_errno((pid = fork()) >= 0);
 
         if (pid == 0) { /* child */
-            run_workload(nth);
+            run_workload();
             /* NOTREACHED */
         }
 
