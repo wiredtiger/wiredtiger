@@ -166,7 +166,8 @@ configured_asserts_off(WT_SESSION_IMPL *session, u_int16_t category)
 #ifdef HAVE_DIAGNOSTIC
 TEST_CASE("Must run in non-diagnostic mode!", "[assertions]")
 {
-    /* Unit testing assertions requires that we have compiled with HAVE_DIAGNOSTIC=0 as
+    /*
+     * Unit testing assertions requires that we have compiled with HAVE_DIAGNOSTIC=0 as
      * HAVE_DIAGNOSTIC=1 forces all assertion on at all times and we won't be able to test
      * functionality. This test catches exists to prevent us from testing in diagnostic mode.
      */
