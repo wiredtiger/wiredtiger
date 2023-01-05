@@ -178,7 +178,7 @@
  *  will always return true for non-null sessions.
  */
 #define EXTRA_DIAGNOSTICS_ENABLED(session, category) \
-    ((session != NULL) &&                             \
+    ((session != NULL) &&                            \
       UNLIKELY(FLD_ISSET(S2C(session)->extra_diagnostics_flags, category | WT_DIAG_ALL)))
 
 /*
@@ -200,11 +200,11 @@
  * WT_ASSERT_OPTIONAL --
  *  Assert an expression if the relevant assertion category is enabled.
  */
-#define WT_ASSERT_OPTIONAL(session, category, exp, ...)              \
-    do {                                                             \
+#define WT_ASSERT_OPTIONAL(session, category, exp, ...)             \
+    do {                                                            \
         if (UNLIKELY(EXTRA_DIAGNOSTICS_ENABLED(session, category))) \
-            if (UNLIKELY(!(exp)))                                    \
-                TRIGGER_ABORT(session, exp, __VA_ARGS__);            \
+            if (UNLIKELY(!(exp)))                                   \
+                TRIGGER_ABORT(session, exp, __VA_ARGS__);           \
     } while (0)
 
 /*
@@ -222,14 +222,14 @@
  *  Assert an expression. If the relevant assertion category is
  *  enabled abort the program, otherwise print a message and return WT_ERR.
  */
-#define WT_ERR_ASSERT(session, category, exp, v, ...)          \
-    do {                                                       \
-        if (UNLIKELY(!(exp))) {                                \
+#define WT_ERR_ASSERT(session, category, exp, v, ...)         \
+    do {                                                      \
+        if (UNLIKELY(!(exp))) {                               \
             if (EXTRA_DIAGNOSTICS_ENABLED(session, category)) \
-                TRIGGER_ABORT(session, exp, __VA_ARGS__);      \
-            else                                               \
-                WT_ERR_MSG(session, v, __VA_ARGS__);           \
-        }                                                      \
+                TRIGGER_ABORT(session, exp, __VA_ARGS__);     \
+            else                                              \
+                WT_ERR_MSG(session, v, __VA_ARGS__);          \
+        }                                                     \
     } while (0)
 
 /*
@@ -237,14 +237,14 @@
  *  Assert an expression. If the relevant assertion category is enabled
  *  abort the program, otherwise print a message and early return from the function.
  */
-#define WT_RET_ASSERT(session, category, exp, v, ...)          \
-    do {                                                       \
-        if (UNLIKELY(!(exp))) {                                \
+#define WT_RET_ASSERT(session, category, exp, v, ...)         \
+    do {                                                      \
+        if (UNLIKELY(!(exp))) {                               \
             if (EXTRA_DIAGNOSTICS_ENABLED(session, category)) \
-                TRIGGER_ABORT(session, exp, __VA_ARGS__);      \
-            else                                               \
-                WT_RET_MSG(session, v, __VA_ARGS__);           \
-        }                                                      \
+                TRIGGER_ABORT(session, exp, __VA_ARGS__);     \
+            else                                              \
+                WT_RET_MSG(session, v, __VA_ARGS__);          \
+        }                                                     \
     } while (0)
 
 /*
@@ -252,12 +252,12 @@
  *  Assert an expression. If the relevant assertion category is enabled
  *  abort the program, otherwise return WT_PANIC.
  */
-#define WT_RET_PANIC_ASSERT(session, category, exp, v, ...)    \
-    do {                                                       \
-        if (UNLIKELY(!(exp))) {                                \
+#define WT_RET_PANIC_ASSERT(session, category, exp, v, ...)   \
+    do {                                                      \
+        if (UNLIKELY(!(exp))) {                               \
             if (EXTRA_DIAGNOSTICS_ENABLED(session, category)) \
-                TRIGGER_ABORT(session, exp, __VA_ARGS__);      \
-            else                                               \
-                WT_RET_PANIC(session, v, __VA_ARGS__);         \
-        }                                                      \
+                TRIGGER_ABORT(session, exp, __VA_ARGS__);     \
+            else                                              \
+                WT_RET_PANIC(session, v, __VA_ARGS__);        \
+        }                                                     \
     } while (0)

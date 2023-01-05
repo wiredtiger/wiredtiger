@@ -6,7 +6,7 @@
  * See the file LICENSE for redistribution information.
  */
 
-#include <iostream> 
+#include <iostream>
 #include <catch2/catch.hpp>
 
 #include "utils.h"
@@ -325,8 +325,7 @@ TEST_CASE("Reconfigure: extra_diagnostics with valid items", "[assertions]")
 /* Reconfigure with assertion categories changed from enabled->disabled and vice-versa. */
 TEST_CASE("Reconfigure: Transition cases", "[assertions]")
 {
-    ConnectionWrapper conn(
-      DB_HOME, "create, extra_diagnostics= [concurrent_access, out_of_order]");
+    ConnectionWrapper conn(DB_HOME, "create, extra_diagnostics= [concurrent_access, out_of_order]");
     auto connection = conn.getWtConnection();
     WT_SESSION_IMPL *session = conn.createSession();
 
