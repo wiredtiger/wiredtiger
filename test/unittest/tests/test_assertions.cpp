@@ -53,10 +53,7 @@ check_assertion_fired(WT_SESSION_IMPL *session)
 int
 call_wt_ret(WT_SESSION_IMPL *session, uint16_t category, bool assert_should_pass)
 {
-    if (assert_should_pass)
-        WT_RET_ASSERT(session, category, true, ASSERT_RET, "WT_RET raised assert");
-    else
-        WT_RET_ASSERT(session, category, false, ASSERT_RET, "WT_RET raised assert");
+    WT_RET_ASSERT(session, category, assert_should_pass, ASSERT_RET, "WT_RET raised assert");
 
     return check_assertion_fired(session);
 }
@@ -70,10 +67,7 @@ call_wt_err(WT_SESSION_IMPL *session, uint16_t category, bool assert_should_pass
 {
     WT_DECL_RET;
 
-    if (assert_should_pass)
-        WT_ERR_ASSERT(session, category, true, ASSERT_ERR, "WT_ERR raised assert");
-    else
-        WT_ERR_ASSERT(session, category, false, ASSERT_ERR, "WT_ERR raised assert");
+    WT_ERR_ASSERT(session, category, assert_should_pass, ASSERT_ERR, "WT_ERR raised assert");
 
     ret = check_assertion_fired(session);
 
@@ -91,10 +85,8 @@ err:
 int
 call_wt_panic(WT_SESSION_IMPL *session, uint16_t category, bool assert_should_pass)
 {
-    if (assert_should_pass)
-        WT_RET_PANIC_ASSERT(session, category, true, ASSERT_PANIC, "WT_PANIC raised assert");
-    else
-        WT_RET_PANIC_ASSERT(session, category, false, ASSERT_PANIC, "WT_PANIC raised assert");
+    WT_RET_PANIC_ASSERT(
+      session, category, assert_should_pass, ASSERT_PANIC, "WT_PANIC raised assert");
 
     return check_assertion_fired(session);
 }
@@ -106,10 +98,7 @@ call_wt_panic(WT_SESSION_IMPL *session, uint16_t category, bool assert_should_pa
 int
 call_wt_optional(WT_SESSION_IMPL *session, uint16_t category, bool assert_should_pass)
 {
-    if (assert_should_pass)
-        WT_ASSERT_OPTIONAL(session, category, true, "WT_OPTIONAL raised assert");
-    else
-        WT_ASSERT_OPTIONAL(session, category, false, "WT_OPTIONAL raised assert");
+    WT_ASSERT_OPTIONAL(session, category, assert_should_pass, "WT_OPTIONAL raised assert");
 
     return check_assertion_fired(session);
 }
@@ -173,6 +162,20 @@ configured_asserts_off(WT_SESSION_IMPL *session, u_int16_t category)
 
     return ret;
 }
+
+#ifdef HAVE_DIAGNOSTIC
+TEST_CASE("Must run in non-diagnostic mode!", "[assertions]")
+{
+    /* Unit testing assertions requires that we have compiled with HAVE_DIAGNOSTIC=0 as
+     * HAVE_DIAGNOSTIC=1 forces all assertion on at all times and we won't be able to test
+     * functionality. This test catches exists to prevent us from testing in diagnostic mode.
+     */
+    std::cout << "Attempting to run assertion unit tests with HAVE_DIAGNOSTIC=1! These tests must "
+                 "be run with HAVE_DIAGNOSTIC=0."
+              << std::endl;
+    exit(1);
+}
+#endif
 
 /* Assert that regardless of connection configuration, asserts are always disabled/enabled. */
 TEST_CASE("Connection config: off/on", "[assertions]")
