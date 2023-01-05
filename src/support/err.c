@@ -570,10 +570,16 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
             __wt_abort(session);
     }
 
+/*
+ * When unit testing assertions we want to be able to fire them and continue running the test, but
+ * setting the WT_PANIC flag breaks this. We skip setting this flag only when unit testing
+ * assertions.
+ */
+#ifndef HAVE_UNITTEST_ASSERTS
     /* Panic the connection. */
     if (conn != NULL)
         F_SET(conn, WT_CONN_PANIC);
-
+#endif
     /*
      * !!!
      * Chaos reigns within.
