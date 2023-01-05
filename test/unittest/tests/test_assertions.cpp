@@ -17,9 +17,9 @@
  * These values track the possible results from calling our assertion under unit tests.
  * However, since we're testing assertion logic these values actually describe the resulting control
  * flow from calling an assertion:
- * - ASSERT_PANIC that WT_RET_PANIC has been called as a result of a failing WT_ASSERT_PANIC
- * - ASSERT_RET indicates that WT_RET_MSG has been called as a result of a failing WT_ASSERT_RET
- * - ASSERT_ERR that WT_ERR_MSG has been called as a result of a failing WT_ASSERT_ERR
+ * - ASSERT_PANIC that WT_RET_PANIC has been called as a result of a failing WT_RET_PANIC_ASSERT
+ * - ASSERT_RET indicates that WT_RET_MSG has been called as a result of a failing WT_RET_SSERT
+ * - ASSERT_ERR that WT_ERR_MSG has been called as a result of a failing WT_ERR_ASSERT
  * and finally ASSERT_FIRED and NO_ASSERT_FIRED to indicate if an assertion - which would normally
  * abort WiredTiger - would have been triggered.
  */
