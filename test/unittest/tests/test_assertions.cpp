@@ -18,7 +18,7 @@
  * However, since we're testing assertion logic these values actually describe the resulting control
  * flow from calling an assertion:
  * - ASSERT_PANIC that WT_RET_PANIC has been called as a result of a failing WT_RET_PANIC_ASSERT
- * - ASSERT_RET indicates that WT_RET_MSG has been called as a result of a failing WT_RET_SSERT
+ * - ASSERT_RET indicates that WT_RET_MSG has been called as a result of a failing WT_RET_ASSERT
  * - ASSERT_ERR that WT_ERR_MSG has been called as a result of a failing WT_ERR_ASSERT
  * and finally ASSERT_FIRED and NO_ASSERT_FIRED to indicate if an assertion - which would normally
  * abort WiredTiger - would have been triggered.
@@ -114,28 +114,6 @@ call_wt_optional(WT_SESSION_IMPL *session, uint16_t category, bool assert_should
     return check_assertion_fired(session);
 }
 
-/*
- * Assert that WT_ASSERT and WT_ASSERT_ALWAYS behave consistently regardless of the diagnostic
- * asserts configuration. This behavior occurs when running in non-diagnostic mode: WT_ASSERT
- * doesn't abort and WT_ASSERT_ALWAYS always aborts regardless of diagnostic mode.
- */
-int
-assert_always_aborts(WT_SESSION_IMPL *session)
-{
-    // WT_ASSERT does nothing.
-    WT_ASSERT(session, false);
-    REQUIRE_FALSE(session->unittest_assert_hit);
-    REQUIRE(std::string(session->unittest_assert_msg).empty());
-
-    // WT_ASSERT_ALWAYS aborts.
-    WT_ASSERT_ALWAYS(session, false, "Values are not equal!");
-    REQUIRE(session->unittest_assert_hit);
-    REQUIRE(std::string(session->unittest_assert_msg) ==
-      "Assertion 'false' failed: Values are not equal!");
-
-    return 0;
-}
-
 /* Assert that all diagnostic assert categories are off. */
 void
 all_diag_asserts_off(WT_SESSION_IMPL *session)
@@ -196,7 +174,7 @@ configured_asserts_off(WT_SESSION_IMPL *session, u_int16_t category)
     return ret;
 }
 
-/* Assert that regardless of connection configuration, asserts are always disabled/enabled */
+/* Assert that regardless of connection configuration, asserts are always disabled/enabled. */
 TEST_CASE("Connection config: off/on", "[assertions]")
 {
     SECTION("Connection config: off")
@@ -204,7 +182,21 @@ TEST_CASE("Connection config: off/on", "[assertions]")
         ConnectionWrapper conn(DB_HOME, "create");
         WT_SESSION_IMPL *session = conn.createSession();
 
-        assert_always_aborts(session);
+        /*
+         * Assert that WT_ASSERT and WT_ASSERT_ALWAYS behave consistently regardless of the
+         * diagnostic asserts configuration. This behavior occurs when running in non-diagnostic
+         * mode: WT_ASSERT doesn't abort and WT_ASSERT_ALWAYS always aborts regardless of diagnostic
+         * mode.
+         */
+        WT_ASSERT(session, false);
+        REQUIRE_FALSE(session->unittest_assert_hit);
+        REQUIRE(std::string(session->unittest_assert_msg).empty());
+
+        WT_ASSERT_ALWAYS(session, false, "Values are not equal!");
+        REQUIRE(session->unittest_assert_hit);
+        REQUIRE(std::string(session->unittest_assert_msg) ==
+          "Assertion 'false' failed: Values are not equal!");
+
         all_diag_asserts_off(session);
     }
 
@@ -213,7 +205,15 @@ TEST_CASE("Connection config: off/on", "[assertions]")
         ConnectionWrapper conn(DB_HOME, "create, diagnostic_asserts=[all]");
         WT_SESSION_IMPL *session = conn.createSession();
 
-        assert_always_aborts(session);
+        WT_ASSERT(session, false);
+        REQUIRE_FALSE(session->unittest_assert_hit);
+        REQUIRE(std::string(session->unittest_assert_msg).empty());
+
+        WT_ASSERT_ALWAYS(session, false, "Values are not equal!");
+        REQUIRE(session->unittest_assert_hit);
+        REQUIRE(std::string(session->unittest_assert_msg) ==
+          "Assertion 'false' failed: Values are not equal!");
+
         all_diag_asserts_on(session);
     }
 }
