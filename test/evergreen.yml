@@ -1224,7 +1224,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          HAVE_UNITTEST: -DHAVE_UNITTEST=1 -DHAVE_UNITTEST_ASSERTS=1
+          HAVE_UNITTEST: -DHAVE_UNITTEST=1 -DHAVE_UNITTEST_ASSERTS=1 -DHAVE_DIAGNOSTIC=0
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build"
