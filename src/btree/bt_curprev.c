@@ -887,7 +887,7 @@ err:
         else
             F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 
-        if (DIAGNOSTIC_ASSERTS_ENABLED(session, WT_DIAG_OUT_OF_ORDER)) {
+        if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_OUT_OF_ORDER)) {
             /*
              * Skip key order check, if next is called after a prev returned a prepare conflict
              * error, i.e cursor has changed direction at a prepared update, hence current key

@@ -172,10 +172,10 @@
 #endif
 
 /*
- * DIAGNOSTIC_ASSERTS_ENABLED --
+ * EXTRA_DIAGNOSTICS_ENABLED --
  *  Fetch whether diagnostic asserts for the provided category are runtime enabled.
  */
-#define DIAGNOSTIC_ASSERTS_ENABLED(session, category) \
+#define EXTRA_DIAGNOSTICS_ENABLED(session, category) \
     ((session != NULL) &&                             \
       UNLIKELY(FLD_ISSET(S2C(session)->runtime_asserts_flags, category | WT_DIAG_ALL)))
 
@@ -200,7 +200,7 @@
  */
 #define WT_ASSERT_OPTIONAL(session, category, exp, ...)              \
     do {                                                             \
-        if (UNLIKELY(DIAGNOSTIC_ASSERTS_ENABLED(session, category))) \
+        if (UNLIKELY(EXTRA_DIAGNOSTICS_ENABLED(session, category))) \
             if (UNLIKELY(!(exp)))                                    \
                 TRIGGER_ABORT(session, exp, __VA_ARGS__);            \
     } while (0)
@@ -223,7 +223,7 @@
 #define WT_ERR_ASSERT(session, category, exp, v, ...)          \
     do {                                                       \
         if (UNLIKELY(!(exp))) {                                \
-            if (DIAGNOSTIC_ASSERTS_ENABLED(session, category)) \
+            if (EXTRA_DIAGNOSTICS_ENABLED(session, category)) \
                 TRIGGER_ABORT(session, exp, __VA_ARGS__);      \
             else                                               \
                 WT_ERR_MSG(session, v, __VA_ARGS__);           \
@@ -238,7 +238,7 @@
 #define WT_RET_ASSERT(session, category, exp, v, ...)          \
     do {                                                       \
         if (UNLIKELY(!(exp))) {                                \
-            if (DIAGNOSTIC_ASSERTS_ENABLED(session, category)) \
+            if (EXTRA_DIAGNOSTICS_ENABLED(session, category)) \
                 TRIGGER_ABORT(session, exp, __VA_ARGS__);      \
             else                                               \
                 WT_RET_MSG(session, v, __VA_ARGS__);           \
@@ -253,7 +253,7 @@
 #define WT_RET_PANIC_ASSERT(session, category, exp, v, ...)    \
     do {                                                       \
         if (UNLIKELY(!(exp))) {                                \
-            if (DIAGNOSTIC_ASSERTS_ENABLED(session, category)) \
+            if (EXTRA_DIAGNOSTICS_ENABLED(session, category)) \
                 TRIGGER_ABORT(session, exp, __VA_ARGS__);      \
             else                                               \
                 WT_RET_PANIC(session, v, __VA_ARGS__);         \
