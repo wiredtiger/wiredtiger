@@ -1908,13 +1908,6 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
       __wt_process.fast_truncate_2022)
         F_SET(dsk, WT_PAGE_FT_UPDATE);
 
-    /* Set the page stat cell information flag. */
-    if (__wt_process.page_stats_2022 && WT_PAGE_STAT_HAS_BYTE_COUNT(&chunk->ps))
-        F_SET(dsk, WT_PAGE_STAT_BYTE_COUNT);
-
-    if (__wt_process.page_stats_2022 && WT_PAGE_STAT_HAS_ROW_COUNT(&chunk->ps))
-        F_SET(dsk, WT_PAGE_STAT_ROW_COUNT);
-
     dsk->unused = 0;
     dsk->version = WT_PAGE_VERSION_TS;
 

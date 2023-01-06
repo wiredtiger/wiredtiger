@@ -82,8 +82,10 @@
 #define WT_CELL_SHORT_MAX 63  /* Maximum short key/value */
 #define WT_CELL_SHORT_SHIFT 2 /* Shift for short key/value */
 
-#define WT_CELL_64V 0x04         /* Associated value */
-#define WT_CELL_SECOND_DESC 0x08 /* Second descriptor byte */
+#define WT_CELL_64V 0x04             /* Associated value */
+#define WT_CELL_SECOND_DESC 0x08     /* Second descriptor byte */
+#define WT_CELL_STAT_BYTE_COUNT 0x10 /* Byte count information */
+#define WT_CELL_STAT_ROW_COUNT 0x20  /* Row count information */
 
 #define WT_CELL_PREPARE 0x01          /* Part of prepared transaction */
 #define WT_CELL_TS_DURABLE_START 0x02 /* Start durable timestamp */
