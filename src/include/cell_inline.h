@@ -201,16 +201,6 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
 
     /* Start building a cell: the descriptor byte starts zero. */
     p = cell->__chunk;
-    if (ps != NULL && __wt_process.page_stats_2022) {
-        if (WT_PAGE_STAT_HAS_BYTE_COUNT(ps)) {
-            cell->__chunk[0] |= WT_CELL_STAT_BYTE_COUNT;
-            WT_IGNORE_RET(__wt_vpack_int(&p, 0, ps->byte_count));
-        }
-        if (WT_PAGE_STAT_HAS_ROW_COUNT(ps)) {
-            cell->__chunk[0] |= WT_CELL_STAT_ROW_COUNT;
-            WT_IGNORE_RET(__wt_vpack_int(&p, 0, ps->row_count));
-        }
-    }
     *p = '\0';
 
     __cell_pack_addr_validity(session, &p, ta);
@@ -225,6 +215,17 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
         WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->txnid));
         WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->timestamp));
         WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->durable_timestamp));
+    }
+
+    if (ps != NULL && __wt_process.page_stats_2022) {
+        if (WT_PAGE_STAT_HAS_BYTE_COUNT(ps)) {
+            cell->__chunk[0] |= WT_CELL_STAT_BYTE_COUNT;
+            WT_IGNORE_RET(__wt_vpack_int(&p, 0, ps->byte_count));
+        }
+        if (WT_PAGE_STAT_HAS_ROW_COUNT(ps)) {
+            cell->__chunk[0] |= WT_CELL_STAT_ROW_COUNT;
+            WT_IGNORE_RET(__wt_vpack_int(&p, 0, ps->row_count));
+        }
     }
 
     if (recno == WT_RECNO_OOB)
