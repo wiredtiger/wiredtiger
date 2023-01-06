@@ -196,7 +196,7 @@ struct TableRuntime {
     uint64_t _max_recno;                           // highest recno allocated
     bool _disjoint;                                // does key space have holes?
 
-    /* Only used for the dynamic set of the tables. */
+    /* Only used for the dynamic table set. */
     uint32_t _in_use;                              // How many operations are using this table
     bool _pending_delete;                          // Delete this table once not in use
 
@@ -216,7 +216,7 @@ struct ContextInternal {
     std::map<tint_t, std::string> _dyn_table_names;
     std::map<tint_t, TableRuntime> _dyn_table_runtime;
     tint_t _dyn_tint_last;
-    // This mutex should be used to protect the access to the dynamic tables data.
+    // This mutex should be used to protect the access to the dynamic tables set.
     std::mutex* _dyn_mutex;
 
     // unique id per context, to work with multiple contexts, starts at 1.
@@ -304,8 +304,8 @@ struct WorkloadRunner {
     int run(WT_CONNECTION *conn);
     int increment_timestamp(WT_CONNECTION *conn);
     int start_table_idle_cycle(WT_CONNECTION *conn);
-    int start_dynamic_create(WT_CONNECTION *conn);
-    int start_dynamic_drop(WT_CONNECTION *conn);
+    int start_tables_create(WT_CONNECTION *conn);
+    int start_tables_drop(WT_CONNECTION *conn);
     int check_timing(const std::string& name, uint64_t last_interval);
 
 private:

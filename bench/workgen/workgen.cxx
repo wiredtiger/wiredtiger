@@ -141,7 +141,7 @@ thread_workload(void *arg)
     try {
         runner->increment_timestamp(connection);
     } catch (WorkgenException &wge) {
-        std::cerr << "Exception while incrementing timestamp." << std::endl;
+        std::cerr << "Exception while incrementing timestamp: " << wge._str << std::endl;
     }
 
     return (nullptr);
@@ -157,39 +157,39 @@ thread_idle_table_cycle_workload(void *arg)
     try {
         runner->start_table_idle_cycle(connection);
     } catch (WorkgenException &wge) {
-        std::cerr << "Exception while create/drop tables." << std::endl;
+        std::cerr << "Exception while create/drop tables: " << wge._str << std::endl;
     }
 
     return (nullptr);
 }
 
 static void *
-thread_dynamic_create_workload(void *arg)
+thread_tables_create_workload(void *arg)
 {
     WorkloadRunnerConnection *runnerConnection = static_cast<WorkloadRunnerConnection *>(arg);
     WT_CONNECTION *connection = runnerConnection->connection;
     WorkloadRunner *runner = runnerConnection->runner;
 
     try {
-        runner->start_dynamic_create(connection);
+        runner->start_tables_create(connection);
     } catch (WorkgenException &wge) {
-        std::cerr << "Exception while dynamically creating tables." << std::endl;
+        std::cerr << "Exception while creating tables: " << wge._str << std::endl;
     }
 
     return (nullptr);
 }
 
 static void *
-thread_dynamic_drop_workload(void *arg)
+thread_tables_drop_workload(void *arg)
 {
     WorkloadRunnerConnection *runnerConnection = static_cast<WorkloadRunnerConnection *>(arg);
     WT_CONNECTION *connection = runnerConnection->connection;
     WorkloadRunner *runner = runnerConnection->runner;
 
     try {
-        runner->start_dynamic_drop(connection);
+        runner->start_tables_drop(connection);
     } catch (WorkgenException &wge) {
-        std::cerr << "Exception while dynamically dropping tables." << std::endl;
+        std::cerr << "Exception while dropping tables: " << wge._str << std::endl;
     }
 
     return (nullptr);
@@ -286,7 +286,7 @@ WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn)
  * Get the cumulative size of all the files under the given directory.
  */
 static uint32_t
-get_dir_size_mb(std::string dir)
+get_dir_size_mb(const std::string &dir)
 {
     uint64_t result = 0;
     for (const auto &path : std::filesystem::recursive_directory_iterator(dir)) {
@@ -305,73 +305,81 @@ get_dir_size_mb(std::string dir)
 }
 
 /*
- * This function will create "dynamic_create_count" tables every "dynamic_create_period" seconds. It
- * will also monitor the database size and stop creating tables once the size crosses
- * "dynamic_create_target". It will restart table creation if the database size drops below
- * "dynamic_create_trigger".
+ * This function creates one or more tables at regular intervals, where the interval length and
+ * number of tables are specified in the workload options. It also monitors the database size and
+ * stops creating tables once the size crosses a target value. It restarts table creation if the
+ * database size drops below a trigger value.
  */
 int
-WorkloadRunner::start_dynamic_create(WT_CONNECTION *conn)
+WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
 {
     WT_SESSION *session;
     if (conn->open_session(conn, nullptr, nullptr, &session) != 0) {
         THROW("Error opening a session.");
     }
 
-    WT_DECL_RET;
     ContextInternal *icontext = _workload->_context->_internal;
-    char uri[BUF_SIZE];
     uint64_t total_creates = 0;
-    uint32_t db_size = get_dir_size_mb(_wt_home);
+    bool manage_db_size =
+      _workload->options.create_target > 0 && _workload->options.create_trigger > 0;
+    uint32_t db_size = 0;
+    bool creating = true;
 
-    // Initially we start creating tables if the database size is less than the create target.
-    bool creating = db_size < _workload->options.dynamic_create_target;
-
+    if (manage_db_size) {
+        db_size = get_dir_size_mb(_wt_home);
+        // Initially we start creating tables if the database size is less than the create target.
+        creating = db_size < _workload->options.create_target;
+    }
     while (!stopping) {
         /*
-         * If we have been creating tables, continue until we reach the create target size. If we
-         * have not been creating tables, begin to do so if the database size falls below the create
-         * trigger.
+         * When managing the database size: If we are creating tables, continue until we reach the
+         * create target size. If we are not creating tables, begin to do so if the database size
+         * falls below the create trigger.
          */
-        db_size = get_dir_size_mb(_wt_home);
-        if (creating) {
-            creating = db_size < _workload->options.dynamic_create_target;
-            if (!creating) {
-                VERBOSE(*_workload,
-                  "Stopped creating new tables. db_size now "
-                    << db_size << " MB has reached the create target of "
-                    << _workload->options.dynamic_create_target << " MB.");
-            }
-        } else {
-            creating = db_size < _workload->options.dynamic_create_trigger;
+        if (manage_db_size) {
+            db_size = get_dir_size_mb(_wt_home);
             if (creating) {
-                VERBOSE(*_workload,
-                  "Started creating new tables. db_size now "
-                    << db_size << " MB has reached the create trigger of "
-                    << _workload->options.dynamic_create_trigger << " MB.");
+                creating = db_size < _workload->options.create_target;
+                if (!creating) {
+                    VERBOSE(*_workload,
+                      "Stopped creating new tables. db_size now "
+                        << db_size << " MB has reached the create target of "
+                        << _workload->options.create_target << " MB.");
+                }
+            } else {
+                creating = db_size < _workload->options.create_trigger;
+                if (creating) {
+                    VERBOSE(*_workload,
+                      "Started creating new tables. db_size now "
+                        << db_size << " MB has reached the create trigger of "
+                        << _workload->options.create_trigger << " MB.");
+                }
             }
         }
         if (!creating) {
-            sleep(_workload->options.dynamic_create_period);
+            sleep(_workload->options.create_interval);
             continue;
         }
 
-        for (int creates = 0; creates < _workload->options.dynamic_create_count;
+        for (int creates = 0; creates < _workload->options.create_count;
              ++creates, ++total_creates) {
-            snprintf(uri, BUF_SIZE, "table:test_dynamic_%" PRIu64, total_creates);
+            char uri[BUF_SIZE];
+            snprintf(uri, BUF_SIZE, "table:%s%" PRIu64, _workload->options.create_prefix.c_str(),
+              total_creates);
 
-            // Make sure that this table is not a part of static table set, continue if it is.
+            // Check if a table with this name already exists. Skip if it does.
             if (icontext->_tint.count(uri) > 0 || icontext->_dyn_tint.count(uri) > 0)
                 continue;
 
             // Create the table.
+            WT_DECL_RET;
             if ((ret = session->create(session, uri, "key_format=S,value_format=S")) != 0) {
                 if (ret == EBUSY)
                     continue;
-                THROW("Table create failed in start_dynamic_table_mgmt.");
+                THROW("Table create failed in start_tables_create.");
             }
 
-            // The dynamic table data structures are protected by a mutex.
+            // The data structures for the dynamic table set are protected by a mutex.
             {
                 const std::lock_guard<std::mutex> lock(*icontext->_dyn_mutex);
 
@@ -385,69 +393,75 @@ WorkloadRunner::start_dynamic_create(WT_CONNECTION *conn)
             }
         }
 
-        sleep(_workload->options.dynamic_create_period);
+        sleep(_workload->options.create_interval);
     }
 
     return 0;
 }
 
 /*
- * This function will drop "dynamic_drop_count" tables every "dynamic_drop_period" seconds. It will
- * also monitor the database size and stop dropping tables once the size goes below
- * "dynamic_drop_target". It will restart table drops if the database size crosses
- * "dynamic_drop_trigger".
+ * This function drops one or more tables at regular intervals, where the interval length and number
+ * of tables are specified in the workload options. It also monitors the database size and stops
+ * dropping tables once the size reduces to a target value. It restarts table drops if the database
+ * size exceeds a trigger value.
  */
 int
-WorkloadRunner::start_dynamic_drop(WT_CONNECTION *conn)
+WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
 {
     WT_SESSION *session;
     if (conn->open_session(conn, nullptr, nullptr, &session) != 0) {
         THROW("Error opening a session.");
     }
 
-    WT_DECL_RET;
     ContextInternal *icontext = _workload->_context->_internal;
-    std::vector<std::string> tables_delete; // Track tables that are to be deleted
-    uint32_t db_size = get_dir_size_mb(_wt_home);
+    std::vector<std::string> tables_delete; // Track tables that are to be deleted.
+    bool manage_db_size = _workload->options.drop_target > 0 && _workload->options.drop_trigger > 0;
+    uint32_t db_size = 0;
+    bool dropping = true;
 
-    // Initially we start dropping tables if the database size is more than the drop trigger.
-    bool dropping = db_size > _workload->options.dynamic_drop_trigger;
-
+    if (manage_db_size) {
+        db_size = get_dir_size_mb(_wt_home);
+        // Initially we start dropping tables if the database size is greater than the drop trigger.
+        dropping = db_size > _workload->options.drop_trigger;
+    }
     while (!stopping) {
         /*
-         * If we have been dropping, continue until we reach the drop target size. If we have not
-         * been dropping tables, begin to do so if the database size crosses the drop trigger.
+         * When managing the database size: If we are dropping tables, continue until we reach the
+         * drop target size. If we are not dropping tables, begin to do so if the database size
+         * crosses the drop trigger.
          */
-        db_size = get_dir_size_mb(_wt_home);
-        if (dropping) {
-            dropping = db_size > _workload->options.dynamic_drop_target;
-            if (!dropping) {
-                VERBOSE(*_workload,
-                  "Stopped dropping new tables. db_size now "
-                    << db_size << " MB has reached the drop target of "
-                    << _workload->options.dynamic_drop_target << " MB.");
-            }
-        } else {
-            dropping = db_size > _workload->options.dynamic_drop_trigger;
+        if (manage_db_size) {
+            db_size = get_dir_size_mb(_wt_home);
             if (dropping) {
-                VERBOSE(*_workload,
-                  "Started dropping new tables. db_size now "
-                    << db_size << " MB has reached the drop trigger of "
-                    << _workload->options.dynamic_drop_trigger << " MB.");
+                dropping = db_size > _workload->options.drop_target;
+                if (!dropping) {
+                    VERBOSE(*_workload,
+                      "Stopped dropping new tables. db_size now "
+                        << db_size << " MB has reached the drop target of "
+                        << _workload->options.drop_target << " MB.");
+                }
+            } else {
+                dropping = db_size > _workload->options.drop_trigger;
+                if (dropping) {
+                    VERBOSE(*_workload,
+                      "Started dropping new tables. db_size now "
+                        << db_size << " MB has reached the drop trigger of "
+                        << _workload->options.drop_trigger << " MB.");
+                }
             }
         }
         if (!dropping) {
-            sleep(_workload->options.dynamic_drop_period);
+            sleep(_workload->options.drop_interval);
             continue;
         }
 
-        for (int drops = 0; drops < _workload->options.dynamic_drop_count; ++drops) {
+        for (int drops = 0; drops < _workload->options.drop_count; ++drops) {
             std::vector<std::string> drop_uris;
-            // The dynamic table data structures are protected by a mutex.
+            // The data structures for the dynamic table set are protected by a mutex.
             {
                 const std::lock_guard<std::mutex> lock(*icontext->_dyn_mutex);
 
-                // Walk the list and select the first that is not already in the delete list
+                // Walk the list and select the first that is not already in the delete list.
                 for (auto const &it : icontext->_dyn_tint) {
                     if (icontext->_dyn_table_runtime[it.second]._pending_delete) {
                         continue;
@@ -468,7 +482,6 @@ WorkloadRunner::start_dynamic_drop(WT_CONNECTION *conn)
                     const std::string uri(tables_delete.at(i));
                     tint_t tint = icontext->_dyn_tint.at(uri);
                     if (icontext->_dyn_table_runtime[tint]._in_use != 0) {
-                        VERBOSE(*_workload, "Requested remove of table in use: " << uri);
                         ++i;
                         continue;
                     }
@@ -487,20 +500,21 @@ WorkloadRunner::start_dynamic_drop(WT_CONNECTION *conn)
              * removed from the shared data structures, and we know no thread is operating on them.
              */
             for (auto uri : drop_uris) {
+                WT_DECL_RET;
                 // Spin on EBUSY, we do not expect to get stuck
                 while ((ret = session->drop(session, uri.c_str(), "force,checkpoint_wait=false")) ==
                   EBUSY) {
                     VERBOSE(*_workload, "Drop returned EBUSY for table: " << uri);
                 }
                 if (ret != 0)
-                    THROW("Table drop failed in start_dynamic_table_mgmt.");
+                    THROW("Table drop failed in start_tables_drop.");
 
                 VERBOSE(*_workload, "Dropped table: " << uri);
             }
             drop_uris.clear();
         }
 
-        sleep(_workload->options.dynamic_drop_period);
+        sleep(_workload->options.drop_interval);
     }
 
     return 0;
@@ -1890,7 +1904,8 @@ Operation::kv_compute_max(bool iskey, bool has_random)
     int size = iskey ? _key._size : _value._size;
     if (size == 0) {
         if (_random_table) {
-            const std::string err_msg("Cannot have a size of 0 with the usage of dynamic tables.");
+            const std::string err_msg(
+              "Cannot have a size of 0 when auto selecting table operations.");
             THROW(err_msg);
         } else {
             size = iskey ? _table.options.key_size : _table.options.value_size;
@@ -2544,9 +2559,9 @@ WorkloadOptions::WorkloadOptions()
     : max_latency(0), report_file("workload.stat"), report_interval(0), run_time(0),
       sample_file("monitor.json"), sample_interval_ms(0), max_idle_table_cycle(0), sample_rate(1),
       warmup(0), oldest_timestamp_lag(0.0), stable_timestamp_lag(0.0), timestamp_advance(0.0),
-      max_idle_table_cycle_fatal(false), dynamic_create_period(0), dynamic_create_count(0),
-      dynamic_create_target(0), dynamic_create_trigger(0), dynamic_drop_period(0),
-      dynamic_drop_count(0), dynamic_drop_target(0), dynamic_drop_trigger(0), _options()
+      max_idle_table_cycle_fatal(false), create_count(0), create_interval(0), create_prefix(""),
+      create_target(0), create_trigger(0), drop_count(0), drop_interval(0), drop_target(0),
+      drop_trigger(0), _options()
 {
     _options.add_int("max_latency", max_latency,
       "prints warning if any latency measured exceeds this number of "
@@ -2583,24 +2598,24 @@ WorkloadOptions::WorkloadOptions()
       "timestamp forward");
     _options.add_bool("max_idle_table_cycle_fatal", max_idle_table_cycle_fatal,
       "print warning (false) or abort (true) of max_idle_table_cycle failure");
-    _options.add_int("dynamic_create_period", dynamic_create_period,
-      "if greater than 0, creates tables every this many seconds. The number of tables created "
-      "is specified by the dynamic_create_count setting");
-    _options.add_int("dynamic_create_count", dynamic_create_count,
-      "create this many number of tables every dynamic_create_period seconds");
-    _options.add_int("dynamic_create_target", dynamic_create_target,
-      "if not 0, create tables until the database reaches this size in MBs.");
-    _options.add_int("dynamic_create_trigger", dynamic_create_trigger,
-      "if not 0, start creating tables when the database drops to this size in MBs.");
-    _options.add_int("dynamic_drop_period", dynamic_drop_period,
-      "if greater than 0, drops tables every this many seconds. The number of tables dropped "
-      "is specified by the dynamic_drop_count setting");
-    _options.add_int("dynamic_drop_count", dynamic_drop_count,
-      "drop this many number of tables every dynamic_drop_period seconds");
-    _options.add_int("dynamic_drop_target", dynamic_drop_target,
-      "if not 0, drop tables until the database reaches this size in MBs.");
-    _options.add_int("dynamic_drop_trigger", dynamic_drop_trigger,
-      "if not 0, start dropping tables when the database gets to this size in MBs.");
+    _options.add_int("create_interval", create_interval,
+      "table creation frequency in seconds. The number of tables created is specified by"
+      " the create_count setting");
+    _options.add_int("create_count", create_count, "number of tables to create each time interval");
+    _options.add_string(
+      "create_prefix", create_prefix, "the prefix to prepend to the auto generated table names");
+    _options.add_int("create_trigger", create_trigger,
+      "if specified, start creating tables when the database drops below this size in MB");
+    _options.add_int("create_target", create_target,
+      "if specified, stop creating tables when the database exceeds this size in MB");
+    _options.add_int("drop_interval", drop_interval,
+      "table drop frequency in seconds. The number of tables dropped is specified by"
+      " the drop_count setting");
+    _options.add_int("drop_count", drop_count, "number of tables to drop each time interval");
+    _options.add_int("drop_trigger", drop_trigger,
+      "if specified, start dropping tables when the database exceeds this size in MB");
+    _options.add_int("drop_target", drop_target,
+      "if specified, stop dropping tables when the database drops below this size in MB");
 }
 
 WorkloadOptions::WorkloadOptions(const WorkloadOptions &other)
@@ -2873,49 +2888,69 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
         }
     }
 
-    // Start a thread to dynamically create tables
-    pthread_t dynamic_create_thandle;
-    WorkloadRunnerConnection *dynamicCreate = nullptr;
-    if (options->dynamic_create_period > 0) {
-        if (options->dynamic_create_count < 1) {
-            std::cerr << "dynamic_create_count needs to be greater than 0" << std::endl;
+    // Start a thread to create tables
+    pthread_t tables_create_thandle;
+    WorkloadRunnerConnection *tableCreate = nullptr;
+    if (options->create_interval > 0) {
+        if (options->create_count < 1) {
+            std::cerr << "create_count needs to be greater than 0" << std::endl;
+            stopping = true;
+        } else if (options->create_target > 0 && options->create_trigger <= 0) {
+            std::cerr << "Need to specify a create_trigger when setting a create_target."
+                      << std::endl;
+            stopping = true;
+        } else if (options->create_trigger > 0 && options->create_target <= 0) {
+            std::cerr << "Need to specify a create_target when setting a create_trigger."
+                      << std::endl;
+            stopping = true;
+        } else if (options->create_trigger >= options->create_target) {
+            std::cerr << "create_target should be greater than create_trigger." << std::endl;
             stopping = true;
         } else {
-            dynamicCreate = new WorkloadRunnerConnection();
-            dynamicCreate->runner = this;
-            dynamicCreate->connection = conn;
+            tableCreate = new WorkloadRunnerConnection();
+            tableCreate->runner = this;
+            tableCreate->connection = conn;
 
-            if ((ret = pthread_create(&dynamic_create_thandle, nullptr,
-                   thread_dynamic_create_workload, dynamicCreate)) != 0) {
+            if ((ret = pthread_create(&tables_create_thandle, nullptr,
+                   thread_tables_create_workload, tableCreate)) != 0) {
                 std::cerr << "pthread_create failed err=" << ret << std::endl;
-                std::cerr << "Stopping dynamic create thread." << std::endl;
-                (void)pthread_join(dynamic_create_thandle, &status);
-                delete dynamicCreate;
-                dynamicCreate = nullptr;
+                std::cerr << "Stopping table create thread." << std::endl;
+                (void)pthread_join(tables_create_thandle, &status);
+                delete tableCreate;
+                tableCreate = nullptr;
                 stopping = true;
             }
         }
     }
 
-    // Start a thread to dynamically drop tables
-    pthread_t dynamic_drop_thandle;
-    WorkloadRunnerConnection *dynamicDrop = nullptr;
-    if (options->dynamic_drop_period > 0) {
-        if (options->dynamic_drop_count < 1) {
-            std::cerr << "dynamic_drop_count needs to be greater than 0" << std::endl;
+    // Start a thread to drop tables
+    pthread_t tables_drop_thandle;
+    WorkloadRunnerConnection *tableDrop = nullptr;
+    if (options->drop_interval > 0) {
+        if (options->drop_count < 1) {
+            std::cerr << "drop_count needs to be greater than 0" << std::endl;
+            stopping = true;
+        } else if (options->drop_target > 0 && options->drop_trigger <= 0) {
+            std::cerr << "Need to specify a drop_trigger when setting a drop_target." << std::endl;
+            stopping = true;
+        } else if (options->drop_trigger > 0 && options->drop_target <= 0) {
+            std::cerr << "Need to specify a drop_target when setting a drop_trigger." << std::endl;
+            stopping = true;
+        } else if (options->drop_trigger < options->drop_target) {
+            std::cerr << "drop_trigger should be greater than drop_target." << std::endl;
             stopping = true;
         } else {
-            dynamicDrop = new WorkloadRunnerConnection();
-            dynamicDrop->runner = this;
-            dynamicDrop->connection = conn;
+            tableDrop = new WorkloadRunnerConnection();
+            tableDrop->runner = this;
+            tableDrop->connection = conn;
 
-            if ((ret = pthread_create(&dynamic_drop_thandle, nullptr, thread_dynamic_drop_workload,
-                   dynamicDrop)) != 0) {
+            if ((ret = pthread_create(
+                   &tables_drop_thandle, nullptr, thread_tables_drop_workload, tableDrop)) != 0) {
                 std::cerr << "pthread_create failed err=" << ret << std::endl;
-                std::cerr << "Stopping dynamic drop thread." << std::endl;
-                (void)pthread_join(dynamic_drop_thandle, &status);
-                delete dynamicDrop;
-                dynamicDrop = nullptr;
+                std::cerr << "Stopping table drop thread." << std::endl;
+                (void)pthread_join(tables_drop_thandle, &status);
+                delete tableDrop;
+                tableDrop = nullptr;
                 stopping = true;
             }
         }
@@ -3000,16 +3035,16 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
         delete createDropTableCycle;
     }
 
-    // Wait for the dynamic create table thread.
-    if (dynamicCreate != nullptr) {
-        WT_TRET(pthread_join(dynamic_create_thandle, &status));
-        delete dynamicCreate;
+    // Wait for the table create table thread.
+    if (tableCreate != nullptr) {
+        WT_TRET(pthread_join(tables_create_thandle, &status));
+        delete tableCreate;
     }
 
-    // Wait for the dynamic drop table thread.
-    if (dynamicDrop != nullptr) {
-        WT_TRET(pthread_join(dynamic_drop_thandle, &status));
-        delete dynamicDrop;
+    // Wait for the table drop table thread.
+    if (tableDrop != nullptr) {
+        WT_TRET(pthread_join(tables_drop_thandle, &status));
+        delete tableDrop;
     }
 
     workgen_epoch(&now);

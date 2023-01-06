@@ -32,9 +32,6 @@
 from runner import *
 from wiredtiger import *
 from workgen import *
-import time
-
-start_time = time.time()
 
 context = Context()
 connection = context.wiredtiger_open("create")
@@ -54,27 +51,26 @@ thread_read_rnd = Thread(op_read_rnd * 5)
 workload = Workload(context, thread_ins_rnd + thread_upd_rnd + thread_read_rnd)
 workload.options.run_time = 300
 
-# Start a workload thread to create tables periodically:
-# Create 3 tables every 5 seconds whenever the database size falls below 100 MB.
-# Stop creating the tables once the database size reached 200 MB.
-workload.options.dynamic_create_period = 5
-workload.options.dynamic_create_count = 3
-workload.options.dynamic_create_trigger = 100
-workload.options.dynamic_create_target = 200
+# Define a workload thread to create tables periodically:
+#   - Start creating tables when the database size falls below 100 MB.
+#   - Create 3 tables every 5 seconds until the database size reaches 200 MB.
+#   - Stop creating tables when the database size exceeds 200 MB.
+#   - Add a prefix to the names of all the tables created using this thread.
+workload.options.create_prefix = "dynamic_"
+workload.options.create_interval = 5
+workload.options.create_count = 3
+workload.options.create_trigger = 100
+workload.options.create_target = 200
 
-# Start a workload thread to drop tables periodically:
-# Drop 2 tables every 3 seconds whenever the database size goes above 250 MB.
-# Stop dropping the tables once the database size reaches 50 MB.
-workload.options.dynamic_drop_period = 3
-workload.options.dynamic_drop_count = 2
-workload.options.dynamic_drop_trigger = 250
-workload.options.dynamic_drop_target = 50
+# Define a workload thread to drop tables periodically:
+#   - Start dropping tables when the database size exceeds 250 MB.
+#   - Randomly drop 2 tables every 3 seconds until the database size reaches 75 MB.
+#   - Stop dropping tables when the database size goes below 75 MB.
+workload.options.drop_interval = 3
+workload.options.drop_count = 2
+workload.options.drop_trigger = 250
+workload.options.drop_target = 75
 
 ret = workload.run(connection)
 assert ret == 0, ret
-
-end_time = time.time()
-run_time = end_time - start_time
-
-print('Workload took %d seconds' %(run_time))
 connection.close()

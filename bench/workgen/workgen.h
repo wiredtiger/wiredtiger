@@ -448,14 +448,15 @@ struct WorkloadOptions {
     double timestamp_advance;
     bool max_idle_table_cycle_fatal;
     /* Dynamic create/drop options */
-    int dynamic_create_period;
-    int dynamic_create_count;
-    int dynamic_create_target;
-    int dynamic_create_trigger;
-    int dynamic_drop_period;
-    int dynamic_drop_count;
-    int dynamic_drop_target;
-    int dynamic_drop_trigger;
+    int create_count;
+    int create_interval;
+    std::string create_prefix;
+    int create_target;
+    int create_trigger;
+    int drop_count;
+    int drop_interval;
+    int drop_target;
+    int drop_trigger;
 
     WorkloadOptions();
     WorkloadOptions(const WorkloadOptions &other);
