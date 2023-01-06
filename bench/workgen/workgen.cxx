@@ -2903,7 +2903,8 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
             std::cerr << "Need to specify a create_target when setting a create_trigger."
                       << std::endl;
             stopping = true;
-        } else if (options->create_trigger >= options->create_target) {
+        } else if (options->create_trigger != 0 &&
+          options->create_target < options->create_trigger) {
             std::cerr << "create_target should be greater than create_trigger." << std::endl;
             stopping = true;
         } else {
@@ -2936,7 +2937,7 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
         } else if (options->drop_trigger > 0 && options->drop_target <= 0) {
             std::cerr << "Need to specify a drop_target when setting a drop_trigger." << std::endl;
             stopping = true;
-        } else if (options->drop_trigger < options->drop_target) {
+        } else if (options->drop_target != 0 && options->drop_trigger < options->drop_target) {
             std::cerr << "drop_trigger should be greater than drop_target." << std::endl;
             stopping = true;
         } else {
