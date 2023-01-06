@@ -494,14 +494,13 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
 
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
-    if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_OUT_OF_ORDER))
-        /*
-         * Under some conditions we end up using the underlying cursor.next to walk through the
-         * object. Since there are multiple calls, we can hit the cursor-order checks, turn them
-         * off.
-         */
-        __wt_cursor_key_order_reset(cbt);
-
+#ifdef HAVE_DIAGNOSTIC
+    /*
+     * Under some conditions we end up using the underlying cursor.next to walk through the object.
+     * Since there are multiple calls, we can hit the cursor-order checks, turn them off.
+     */
+    __wt_cursor_key_order_reset(cbt);
+#endif
     /*
      * If we don't have a current position in the tree, or if retrieving random values without
      * sampling, pick a roughly random leaf page in the tree and return an entry from it.
