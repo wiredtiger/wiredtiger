@@ -33,18 +33,12 @@ import wiredtiger, wttest
 #    Session statistics for bytes read into the cache.
 class test_stat08(wttest.WiredTigerTestCase):
 
-<<<<<<< HEAD
-    nentries = 350000
-    conn_config = 'cache_size=10MB,statistics=(all)'
-    entry_value = "abcde" * 40
-=======
     nentries = 100000
     # Leave the cache size on the default setting to avoid filling up the cache
     # too much and triggering unnecessary rollbacks. But make the value fairly
     # large to make obvious change to the statistics.
     conn_config = 'statistics=(all)'
     entry_value = "abcde" * 400
->>>>>>> d5edce423... WT-10027 Fix session txn statistic to exclude eviction work. (#8407)
     BYTES_READ = wiredtiger.stat.session.bytes_read
     READ_TIME = wiredtiger.stat.session.read_time
     session_stats = { BYTES_READ : "session: bytes read into cache",           \
