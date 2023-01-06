@@ -5156,6 +5156,7 @@ buildvariants:
     cmake_generator: Ninja
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
+    posix_configure_flags: -DENABLE_ZSTD=0
   tasks:
     - name: compile
     - name: generate-datafile-big-endian
