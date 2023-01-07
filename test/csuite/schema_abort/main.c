@@ -319,8 +319,8 @@ static void
 set_flush_tier_delay(WT_RAND_STATE *rnd)
 {
     /*
-     * We are checkpointing constantly, and we'll do a flush tier with a random delay between 0 -
-     * 10000000 microseconds.
+     * We are checkpointing with a random interval up to MAX_CKPT_INVL seconds, and we'll do a flush
+     * tier randomly every 0-10 seconds.
      */
     opts->tiered_flush_interval_us = __wt_random(rnd) % 10000001;
 }
