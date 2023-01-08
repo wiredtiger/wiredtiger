@@ -199,12 +199,13 @@ __curhs_search(WT_CURSOR_BTREE *hs_cbt, bool insert)
     hs_btree = CUR2BT(hs_cbt);
     session = CUR2S(hs_cbt);
 
-    if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_OUT_OF_ORDER))
-        /*
-         * Turn off cursor-order checks in all cases on search. The search/search-near functions
-         * turn them back on after a successful search.
-         */
-        __wt_cursor_key_order_reset(hs_cbt);
+#ifdef HAVE_DIAGNOSTIC
+    /*
+     * Turn off cursor-order checks in all cases on search. The search/search-near functions turn
+     * them back on after a successful search.
+     */
+    __wt_cursor_key_order_reset(hs_cbt);
+#endif
 
     WT_ERR(__wt_cursor_localkey(&hs_cbt->iface));
 
@@ -213,8 +214,10 @@ __curhs_search(WT_CURSOR_BTREE *hs_cbt, bool insert)
     WT_WITH_BTREE(session, hs_btree,
       ret = __wt_row_search(hs_cbt, &hs_cbt->iface.key, insert, NULL, false, NULL));
 
-    if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_OUT_OF_ORDER) && ret == 0)
+#ifdef HAVE_DIAGNOSTIC
+    if (ret == 0)
         WT_TRET(__wt_cursor_key_order_init(hs_cbt));
+#endif
 
 err:
     if (ret != 0)

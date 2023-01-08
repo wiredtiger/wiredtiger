@@ -236,9 +236,11 @@ struct __wt_cursor_btree {
      */
     enum { WT_CBT_RETRY_NOTSET = 0, WT_CBT_RETRY_INSERT, WT_CBT_RETRY_PAGE } iter_retry;
 
+#ifdef HAVE_DIAGNOSTIC
     /* Check that cursor next/prev never returns keys out-of-order. */
     WT_ITEM *lastkey, _lastkey;
     uint64_t lastrecno;
+#endif
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CBT_ACTIVE 0x001u             /* Active in the tree */
