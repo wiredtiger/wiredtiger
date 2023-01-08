@@ -387,7 +387,7 @@ __wt_hazard_check_assert(WT_SESSION_IMPL *session, void *ref, bool waitfor)
             return (true);
         if (!waitfor || ++i > 100)
             break;
-        __wt_sleep(0, 10000);
+        __wt_sleep(0, 10 * WT_THOUSAND);
     }
 #ifdef HAVE_DIAGNOSTIC
     /*

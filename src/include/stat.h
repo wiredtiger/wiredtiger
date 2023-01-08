@@ -287,7 +287,7 @@ __wt_stats_clear(void *stats_arg, int slot)
             WT_STAT_CONN_INCR(session, stat##_lt250);                                             \
         else if (msecs < 500)                                                                     \
             WT_STAT_CONN_INCR(session, stat##_lt500);                                             \
-        else if (msecs < 1000)                                                                    \
+        else if (msecs < WT_THOUSAND)                                                             \
             WT_STAT_CONN_INCR(session, stat##_lt1000);                                            \
         else                                                                                      \
             WT_STAT_CONN_INCR(session, stat##_gt1000);                                            \
@@ -302,9 +302,9 @@ __wt_stats_clear(void *stats_arg, int slot)
             WT_STAT_CONN_INCR(session, stat##_lt250);                                             \
         else if (usecs < 500)                                                                     \
             WT_STAT_CONN_INCR(session, stat##_lt500);                                             \
-        else if (usecs < 1000)                                                                    \
+        else if (usecs < WT_THOUSAND)                                                             \
             WT_STAT_CONN_INCR(session, stat##_lt1000);                                            \
-        else if (usecs < 10000)                                                                   \
+        else if (usecs < 10 * WT_THOUSAND)                                                        \
             WT_STAT_CONN_INCR(session, stat##_lt10000);                                           \
         else                                                                                      \
             WT_STAT_CONN_INCR(session, stat##_gt10000);                                           \
@@ -487,6 +487,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_split_leaf;
     int64_t cache_bytes_max;
     int64_t cache_eviction_maximum_page_size;
+    int64_t cache_eviction_maximum_seconds;
     int64_t cache_eviction_dirty;
     int64_t cache_eviction_app_dirty;
     int64_t cache_timed_out_ops;
@@ -743,6 +744,8 @@ struct __wt_connection_stats {
     int64_t rec_page_delete_fast;
     int64_t rec_overflow_key_leaf;
     int64_t rec_maximum_seconds;
+    int64_t rec_maximum_image_build_seconds;
+    int64_t rec_maximum_hs_wrapup_seconds;
     int64_t rec_pages;
     int64_t rec_pages_eviction;
     int64_t rec_pages_with_prepare;
