@@ -230,6 +230,7 @@ INTL
 INTRINSICS
 INULL
 INUSE
+INVL
 ISA
 ITEMs
 ITER
@@ -363,6 +364,7 @@ PackOutputStream
 Pandis
 Phong
 PlatformSDK
+Podir
 Pomy
 Posix
 PostgreSQL
@@ -1072,6 +1074,7 @@ iteratively
 iters
 jjj
 jprx
+js
 json
 kB
 kb
@@ -1162,6 +1165,7 @@ maxObjects
 maxcpu
 maxdbs
 maxdiff
+maxv
 mb
 mbll
 mbss
@@ -1492,6 +1496,7 @@ suboptimal
 subsystem's
 subtest
 subtree
+sumv
 sunique
 supd
 superset
@@ -1622,6 +1627,7 @@ util
 utils
 uu
 vN
+vPodir
 vPomy
 vW
 va
