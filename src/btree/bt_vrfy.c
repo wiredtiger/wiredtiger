@@ -430,6 +430,8 @@ __verify_tree(
     WT_PAGE *page;
     WT_REF *child_ref;
     uint32_t entry;
+    WT_ADDR_COPY addr;
+    WT_DECL_ITEM(tmp);
 
     btree = S2BT(session);
     bm = btree->bm;
@@ -662,6 +664,11 @@ celltype_err:
              * If configured, continue traversing through the pages of the tree even after
              * encountering errors reading in the page.
              */
+            WT_RET(__wt_scr_alloc(session, 0, &tmp));
+            if (ret != 0 && __wt_ref_addr_copy(session, ref, &addr)) {
+                WT_RET(__wt_msg(session, "Potentially corrupt block at: %s",
+                  __wt_addr_string(session, addr.addr, addr.size, tmp)));
+            }
             if (vs->read_corrupt && ret != 0) {
                 if (vs->verify_err == 0)
                     vs->verify_err = ret;
@@ -703,6 +710,12 @@ celltype_err:
              * If configured, continue traversing through the pages of the tree even after
              * encountering errors reading in the page.
              */
+            WT_RET(__wt_scr_alloc(session, 0, &tmp));
+            if (ret != 0 && __wt_ref_addr_copy(session, ref, &addr)) {
+                WT_RET(__wt_msg(session, "Adeline's potentially corrupt block at: %s",
+                  __wt_addr_string(session, addr.addr, addr.size, tmp)));
+            }
+
             if (vs->read_corrupt && ret != 0) {
                 if (vs->verify_err == 0)
                     vs->verify_err = ret;
