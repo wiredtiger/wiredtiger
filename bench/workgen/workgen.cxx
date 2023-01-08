@@ -301,7 +301,7 @@ get_dir_size_mb(const std::string &dir)
             continue;
         }
     }
-    return result / (WT_THOUSAND * WT_THOUSAND);
+    return result / WT_MEGABYTE;
 }
 
 /*
@@ -2852,16 +2852,12 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
     pthread_t time_thandle;
     WorkloadRunnerConnection *runnerConnection = nullptr;
     if (options->oldest_timestamp_lag > 0 || options->stable_timestamp_lag > 0) {
-
         runnerConnection = new WorkloadRunnerConnection();
         runnerConnection->runner = this;
         runnerConnection->connection = conn;
-
         if ((ret = pthread_create(&time_thandle, nullptr, thread_workload, runnerConnection)) !=
           0) {
             std::cerr << "pthread_create failed err=" << ret << std::endl;
-            std::cerr << "Stopping Time threads." << std::endl;
-            (void)pthread_join(time_thandle, &status);
             delete runnerConnection;
             runnerConnection = nullptr;
             stopping = true;
@@ -2872,16 +2868,12 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
     pthread_t idle_table_thandle;
     WorkloadRunnerConnection *createDropTableCycle = nullptr;
     if (options->max_idle_table_cycle > 0) {
-
         createDropTableCycle = new WorkloadRunnerConnection();
         createDropTableCycle->runner = this;
         createDropTableCycle->connection = conn;
-
         if ((ret = pthread_create(&idle_table_thandle, nullptr, thread_idle_table_cycle_workload,
                createDropTableCycle)) != 0) {
             std::cerr << "pthread_create failed err=" << ret << std::endl;
-            std::cerr << "Stopping Create Drop table idle cycle threads." << std::endl;
-            (void)pthread_join(idle_table_thandle, &status);
             delete createDropTableCycle;
             createDropTableCycle = nullptr;
             stopping = true;
@@ -2911,12 +2903,9 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
             tableCreate = new WorkloadRunnerConnection();
             tableCreate->runner = this;
             tableCreate->connection = conn;
-
             if ((ret = pthread_create(&tables_create_thandle, nullptr,
                    thread_tables_create_workload, tableCreate)) != 0) {
                 std::cerr << "pthread_create failed err=" << ret << std::endl;
-                std::cerr << "Stopping table create thread." << std::endl;
-                (void)pthread_join(tables_create_thandle, &status);
                 delete tableCreate;
                 tableCreate = nullptr;
                 stopping = true;
@@ -2944,12 +2933,9 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
             tableDrop = new WorkloadRunnerConnection();
             tableDrop->runner = this;
             tableDrop->connection = conn;
-
             if ((ret = pthread_create(
                    &tables_drop_thandle, nullptr, thread_tables_drop_workload, tableDrop)) != 0) {
                 std::cerr << "pthread_create failed err=" << ret << std::endl;
-                std::cerr << "Stopping table drop thread." << std::endl;
-                (void)pthread_join(tables_drop_thandle, &status);
                 delete tableDrop;
                 tableDrop = nullptr;
                 stopping = true;
