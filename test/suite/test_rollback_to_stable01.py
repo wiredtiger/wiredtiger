@@ -26,11 +26,16 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
+import os, subprocess, wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wiredtiger import stat, wiredtiger_strerror, WiredTigerError, WT_ROLLBACK
 from wtscenario import make_scenarios
 from time import sleep
+
+def verify_rts_logs():
+    cwd = os.getcwd()
+    contents = os.listdir(cwd)
+    subprocess.run(["/home/ubuntu/dev/wt-10290/wiredtiger/tools/rts_verifier/rts_verify.py", f"{cwd}/stdout.txt"], check=True)
 
 # test_rollback_to_stable01.py
 # Shared base class used by rollback to stable tests.
@@ -43,6 +48,7 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.ignoreStdoutPattern('WT_VERB_RTS')
+        self.addTearDownAction(verify_rts_logs)
 
     def retry_rollback(self, name, txn_session, code):
         retry_limit = 100

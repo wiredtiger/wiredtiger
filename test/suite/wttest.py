@@ -366,6 +366,8 @@ class WiredTigerTestCase(unittest.TestCase):
             assert(len(self.scenarios) == len(dict(self.scenarios)))
         unittest.TestCase.__init__(self, *args, **kwargs)
         self.skipped = False
+        self.ignore_regex = None
+        self.teardown_actions = []
         if not self._globalSetup:
             WiredTigerTestCase.globalSetup()
         self.platform_api = WiredTigerTestCase._hookmgr.get_platform_api()
@@ -680,7 +682,12 @@ class WiredTigerTestCase(unittest.TestCase):
             for f in files:
                 os.chmod(os.path.join(root, f), 0o666)
 
+    def addTearDownAction(self, action):
+        self.teardown_actions.append(action)
+
     def tearDown(self, dueToRetry=False):
+        for action in self.teardown_actions:
+            action()
         # This approach works for all our support Python versions and
         # is suggested by one of the answers in:
         # https://stackoverflow.com/questions/4414234/getting-pythons-unittest-results-in-a-teardown-method
