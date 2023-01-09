@@ -198,7 +198,6 @@ __wt_rec_child_modify(
         switch (r->tested_ref_state = ref->state) {
         case WT_REF_DISK:
             /* On disk, not modified by definition. */
-            // 9417 IGNORE
             WT_ASSERT(session, ref->addr != NULL);
             /* DISK pages do not have fast-truncate info. */
             WT_ASSERT(session, ref->page_del == NULL);
@@ -225,7 +224,7 @@ __wt_rec_child_modify(
              * We should never be here during eviction, active child pages in an evicted page's
              * subtree fails the eviction attempt.
              */
-            WT_RET_ASSERT(session, !F_ISSET(r, WT_REC_EVICT), EBUSY,
+            WT_RET_ASSERT(session, WT_DIAG_CONCURRENT_ACCESS, !F_ISSET(r, WT_REC_EVICT), EBUSY,
               "unexpected WT_REF_LOCKED child state during eviction reconciliation");
 
             /* If the page is being read from disk, it's not modified by definition. */
@@ -248,7 +247,7 @@ __wt_rec_child_modify(
              * We should never be here during eviction, active child pages in an evicted page's
              * subtree fails the eviction attempt.
              */
-            WT_RET_ASSERT(session, !F_ISSET(r, WT_REC_EVICT), EBUSY,
+            WT_RET_ASSERT(session, WT_DIAG_CONCURRENT_ACCESS, !F_ISSET(r, WT_REC_EVICT), EBUSY,
               "unexpected WT_REF_MEM child state during eviction reconciliation");
 
             /*
@@ -352,8 +351,8 @@ __wt_rec_child_modify(
              * checkpoint, all splits in process will have completed before we walk any pages for
              * checkpoint.
              */
-            WT_RET_ASSERT(
-              session, false, EBUSY, "unexpected WT_REF_SPLIT child state during reconciliation");
+            WT_RET_ASSERT(session, WT_DIAG_CONCURRENT_ACCESS, false, EBUSY,
+              "unexpected WT_REF_SPLIT child state during reconciliation");
             /* NOTREACHED */
             return (EBUSY);
 

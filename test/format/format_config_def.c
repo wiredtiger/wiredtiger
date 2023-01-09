@@ -96,11 +96,32 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured", 0x0, 5, 100, 3600,
     V_GLOBAL_CHECKPOINT_WAIT},
 
+  {"debug.checkpoint_retention", "adjust log removal to retain the log records", 0x0, 0, 128, 1024,
+    V_GLOBAL_DEBUG_CHECKPOINT_RETENTION},
+
+  {"debug.eviction",
+    "modify internal algorithms to force history store eviction to happen more aggressively",
+    C_BOOL, 2, 0, 0, V_GLOBAL_DEBUG_EVICTION},
+
+  {"debug.log_retention", "adjust log removal to retain at least this number of log files", 0x0, 0,
+    128, 1024, V_GLOBAL_DEBUG_LOG_RETENTION},
+
   {"debug.realloc_exact", "reallocation of memory will only provide the exact amount requested",
     C_BOOL, 0, 0, 0, V_GLOBAL_DEBUG_REALLOC_EXACT},
 
   {"debug.realloc_malloc", "every realloc call will force a new memory allocation by using malloc",
     C_BOOL, 5, 0, 0, V_GLOBAL_DEBUG_REALLOC_MALLOC},
+
+  {"debug.slow_checkpoint",
+    "slow down checkpoint creation by slowing down internal page processing", C_BOOL, 2, 0, 0,
+    V_GLOBAL_DEBUG_SLOW_CHECKPOINT},
+
+  {"debug.table_logging", "write transaction related information to the log for all operations",
+    C_BOOL, 2, 0, 0, V_GLOBAL_DEBUG_TABLE_LOGGING},
+
+  {"debug.update_restore_evict",
+    "control all dirty page evictions through forcing update restore eviction", C_BOOL, 2, 0, 0,
+    V_GLOBAL_DEBUG_UPDATE_RESTORE_EVICT},
 
   {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)",
     C_IGNORE | C_STRING | C_TABLE, 0, 0, 0, V_TABLE_DISK_CHECKSUM},
@@ -126,7 +147,7 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"format.independent_thread_rng", "configure independent thread RNG space", C_BOOL, 75, 0, 0,
     V_GLOBAL_FORMAT_INDEPENDENT_THREAD_RNG},
 
-  {"format.major_timeout", "long-running operations timeout (minutes)", C_IGNORE, 0, 0, 1000,
+  {"format.major_timeout", "long-running operations timeout (minutes)", C_IGNORE, 0, 0, WT_THOUSAND,
     V_GLOBAL_FORMAT_MAJOR_TIMEOUT},
 
   /*
@@ -141,7 +162,7 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"logging.compression", "logging compression (off | lz4 | snappy | zlib | zstd)",
     C_IGNORE | C_STRING, 0, 0, 0, V_GLOBAL_LOGGING_COMPRESSION},
 
-  {"logging.file_max", "maximum log file size (KB)", 0x0, 100, 512000, 2097152,
+  {"logging.file_max", "maximum log file size (KB)", 0x0, 100, 512 * WT_THOUSAND, 2097152,
     V_GLOBAL_LOGGING_FILE_MAX},
 
   {"logging.prealloc", "configure log file pre-allocation", C_BOOL, 50, 0, 0,
@@ -156,7 +177,7 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
     V_TABLE_LSM_BLOOM},
 
   {"lsm.bloom_bit_count", "number of bits per item for bloom filters", C_TABLE | C_TYPE_LSM, 4, 64,
-    1000, V_TABLE_LSM_BLOOM_BIT_COUNT},
+    WT_THOUSAND, V_TABLE_LSM_BLOOM_BIT_COUNT},
 
   {"lsm.bloom_hash_count", "number of hash values per item for bloom filters", C_TABLE | C_TYPE_LSM,
     4, 32, 100, V_TABLE_LSM_BLOOM_HASH_COUNT},
