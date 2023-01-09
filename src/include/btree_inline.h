@@ -1634,7 +1634,7 @@ __wt_page_del_visible_all(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, b
      *
      * Ideally, this would be included in the visibility check - see WT-10477.
      */
-    if (!__wt_page_del_committed(page_del))
+    if (!__wt_page_del_committed_set(page_del))
         return (false);
 
     if (hide_prepared) {
@@ -1678,7 +1678,7 @@ __wt_page_del_visible(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, bool 
      * flag to true. Hence if committed flag is not set, consider it as not committed irrespective
      * of visibility check, to avoid checking visibility when transaction commit is in progress.
      */
-    if (!__wt_page_del_committed(page_del))
+    if (!__wt_page_del_committed_set(page_del))
         return (false);
 
     if (hide_prepared) {
@@ -1691,7 +1691,7 @@ __wt_page_del_visible(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, bool 
 }
 
 /*
- * __wt_page_del_committed --
+ * __wt_page_del_committed_set --
  *     Return if a truncate operation is resolved. (Since truncations that abort are removed
  *     immediately, "resolved" and "committed" are equivalent here.) The caller should have already
  *     locked the ref and confirmed that the ref's previous state was WT_REF_DELETED. The page_del
@@ -1701,7 +1701,7 @@ __wt_page_del_visible(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, bool 
  *     have been discarded already. (The update list is non-null if the transaction is unresolved.)
  */
 static inline bool
-__wt_page_del_committed(WT_PAGE_DELETED *page_del)
+__wt_page_del_committed_set(WT_PAGE_DELETED *page_del)
 {
     /*
      * There are two possible cases: either page_del is NULL (in which case the deletion is globally
@@ -1900,10 +1900,10 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * The list of updates in mod.inst_updates will be discarded when the transaction they belong to
      * is resolved.
      *
-     * Note that we are not using __wt_page_del_committed here because (a) examining the page_del
-     * structure requires locking the ref, and (b) once in memory the page_del structure only
-     * remains until the next reconciliation, and nothing prevents that from occurring before the
-     * transaction commits.
+     * Note that we are not using __wt_page_del_committed_set here because (a) examining the
+     * page_del structure requires locking the ref, and (b) once in memory the page_del structure
+     * only remains until the next reconciliation, and nothing prevents that from occurring before
+     * the transaction commits.
      */
     if (mod->inst_updates != NULL)
         return (false);
