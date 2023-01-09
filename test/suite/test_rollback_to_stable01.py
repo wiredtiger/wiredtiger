@@ -32,10 +32,14 @@ from wiredtiger import stat, wiredtiger_strerror, WiredTigerError, WT_ROLLBACK
 from wtscenario import make_scenarios
 from time import sleep
 
+def get_git_root():
+    output = subprocess.run(["git", "rev-parse", "--show-toplevel"], check=True, capture_output=True)
+    return output.stdout.strip().decode("utf-8")
+
 def verify_rts_logs():
     cwd = os.getcwd()
-    contents = os.listdir(cwd)
-    subprocess.run(["/home/ubuntu/dev/wt-10290/wiredtiger/tools/rts_verifier/rts_verify.py", f"{cwd}/stdout.txt"], check=True)
+    root = get_git_root()
+    subprocess.run([f"{root}/tools/rts_verifier/rts_verify.py", f"{cwd}/stdout.txt"], check=True)
 
 # test_rollback_to_stable01.py
 # Shared base class used by rollback to stable tests.

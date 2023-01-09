@@ -26,6 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+from test_rollback_to_stable01 import verify_rts_logs
 import wttest
 from wtscenario import make_scenarios
 
@@ -72,6 +73,7 @@ class test_rollback_to_stable24(wttest.WiredTigerTestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.ignoreStdoutPattern('WT_VERB_RTS')
+        self.addTearDownAction(verify_rts_logs)
 
     def conn_config(self):
         return 'verbose=(rts:5)'

@@ -28,6 +28,7 @@
 
 import wttest
 from helper import simulate_crash_restart
+from test_rollback_to_stable01 import verify_rts_logs
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
@@ -53,6 +54,7 @@ class test_rollback_to_stable38(wttest.WiredTigerTestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.ignoreStdoutPattern('WT_VERB_RTS')
+        self.addTearDownAction(verify_rts_logs)
 
     def check(self, ds, value, nrows, ts):
         cursor = self.session.open_cursor(ds.uri)

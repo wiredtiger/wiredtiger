@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 from helper import simulate_crash_restart
+from test_rollback_to_stable01 import verify_rts_logs
 import wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
@@ -51,6 +52,7 @@ class test_rollback_to_stable17(wttest.WiredTigerTestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.ignoreStdoutPattern('WT_VERB_RTS')
+        self.addTearDownAction(verify_rts_logs)
 
     def conn_config(self):
         config = 'cache_size=200MB,statistics=(all),verbose=(rts:5)'

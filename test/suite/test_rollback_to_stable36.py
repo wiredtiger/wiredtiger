@@ -28,6 +28,7 @@
 
 import wttest
 from helper import simulate_crash_restart
+from test_rollback_to_stable01 import verify_rts_logs
 from wiredtiger import stat, WiredTigerError, wiredtiger_strerror, WT_NOTFOUND, WT_ROLLBACK
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
@@ -66,6 +67,7 @@ class test_rollback_to_stable36(wttest.WiredTigerTestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.ignoreStdoutPattern('WT_VERB_RTS')
+        self.addTearDownAction(verify_rts_logs)
 
     def truncate(self, uri, make_key, keynum1, keynum2):
         if self.trunc_with_remove:
