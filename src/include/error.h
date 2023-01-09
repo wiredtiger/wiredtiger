@@ -143,25 +143,25 @@
  * should have done so.
  */
 #ifdef HAVE_UNITTEST_ASSERTS
-#define TRIGGER_ABORT(session, exp, ...)                                                       \
-    do {                                                                                       \
-        size_t _offset;                                                                        \
-        if ((session) == NULL) {                                                               \
-            __wt_errx(                                                                         \
-              session, "A non-NULL session must be provided when unit testing assertions");    \
-            __wt_abort(session);                                                               \
-        }                                                                                      \
-                                                                                               \
-        /*                                                                                     \
-         * Normally these are two errx messages, but we need to stitch them both together into \
-         * unittest_assert_msg. To do so insert the second message immediately after the first \
-         */                                                                                    \
-        WT_IGNORE_RET(__wt_snprintf_len_set((session)->unittest_assert_msg,                    \
-          WT_SESSION_UNITTEST_BUF_LEN, &_offset, "Assertion '%s' failed: ", #exp));            \
-        WT_IGNORE_RET(__wt_snprintf((session)->unittest_assert_msg + _offset,                  \
-          WT_SESSION_UNITTEST_BUF_LEN - _offset, __VA_ARGS__));                                \
-                                                                                               \
-        (session)->unittest_assert_hit = true;                                                 \
+#define TRIGGER_ABORT(session, exp, ...)                                                        \
+    do {                                                                                        \
+        size_t _offset;                                                                         \
+        if ((session) == NULL) {                                                                \
+            __wt_errx(                                                                          \
+              session, "A non-NULL session must be provided when unit testing assertions");     \
+            __wt_abort(session);                                                                \
+        }                                                                                       \
+                                                                                                \
+        /*                                                                                      \
+         * Normally these are two errx messages, but we need to stitch them both together into  \
+         * unittest_assert_msg. To do so insert the second message immediately after the first. \
+         */                                                                                     \
+        WT_IGNORE_RET(__wt_snprintf_len_set((session)->unittest_assert_msg,                     \
+          WT_SESSION_UNITTEST_BUF_LEN, &_offset, "Assertion '%s' failed: ", #exp));             \
+        WT_IGNORE_RET(__wt_snprintf((session)->unittest_assert_msg + _offset,                   \
+          WT_SESSION_UNITTEST_BUF_LEN - _offset, __VA_ARGS__));                                 \
+                                                                                                \
+        (session)->unittest_assert_hit = true;                                                  \
     } while (0)
 #else
 #define TRIGGER_ABORT(session, exp, ...)                     \
