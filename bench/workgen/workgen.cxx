@@ -36,8 +36,10 @@
 #define __STDC_FORMAT_MACROS
 #endif
 
+#include <algorithm>
 #include <iomanip>
 #include <iostream>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include "wiredtiger.h"
@@ -110,10 +112,11 @@ struct WorkloadRunnerConnection {
     WT_CONNECTION *connection;
 };
 
-// The number of contexts.  Normally there is one context created, but it will
-// be possible to use several eventually.  More than one is not yet
-// implemented, but we must at least guard against the caller creating more
-// than one.
+/*
+ * The number of contexts. Normally there is one context created, but it will be possible to use
+ * several eventually. More than one is not yet implemented, but we must at least guard against the
+ * caller creating more than one.
+ */
 static uint32_t context_count = 0;
 
 static void *
@@ -139,7 +142,7 @@ thread_workload(void *arg)
     try {
         runner->increment_timestamp(connection);
     } catch (WorkgenException &wge) {
-        std::cerr << "Exception while incrementing timestamp." << std::endl;
+        std::cerr << "Exception while incrementing timestamp: " << wge._str << std::endl;
     }
 
     return (nullptr);
@@ -155,7 +158,39 @@ thread_idle_table_cycle_workload(void *arg)
     try {
         runner->start_table_idle_cycle(connection);
     } catch (WorkgenException &wge) {
-        std::cerr << "Exception while create/drop tables." << std::endl;
+        std::cerr << "Exception while create/drop tables: " << wge._str << std::endl;
+    }
+
+    return (nullptr);
+}
+
+static void *
+thread_tables_create_workload(void *arg)
+{
+    WorkloadRunnerConnection *runnerConnection = static_cast<WorkloadRunnerConnection *>(arg);
+    WT_CONNECTION *connection = runnerConnection->connection;
+    WorkloadRunner *runner = runnerConnection->runner;
+
+    try {
+        runner->start_tables_create(connection);
+    } catch (WorkgenException &wge) {
+        std::cerr << "Exception while creating tables: " << wge._str << std::endl;
+    }
+
+    return (nullptr);
+}
+
+static void *
+thread_tables_drop_workload(void *arg)
+{
+    WorkloadRunnerConnection *runnerConnection = static_cast<WorkloadRunnerConnection *>(arg);
+    WT_CONNECTION *connection = runnerConnection->connection;
+    WorkloadRunner *runner = runnerConnection->runner;
+
+    try {
+        runner->start_tables_drop(connection);
+    } catch (WorkgenException &wge) {
+        std::cerr << "Exception while dropping tables: " << wge._str << std::endl;
     }
 
     return (nullptr);
@@ -247,6 +282,245 @@ WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn)
     }
     return 0;
 }
+
+/*
+ * Get the cumulative size of all the files under the given directory.
+ */
+static uint32_t
+get_dir_size_mb(const std::string &dir)
+{
+    uint64_t result = 0;
+    for (const auto &path : std::filesystem::recursive_directory_iterator(dir)) {
+        try {
+            result += std::filesystem::file_size(path);
+        } catch (std::filesystem::filesystem_error &e) {
+            /*
+             * A file might be dropped between listing the directory contents and getting the file
+             * sizes. Ignore such errors.
+             */
+            ASSERT(std::string(e.what()).find("No such file or directory") != std::string::npos);
+            continue;
+        }
+    }
+    return result / WT_MEGABYTE;
+}
+
+/*
+ * This function creates one or more tables at regular intervals, where the interval length and
+ * number of tables are specified in the workload options. It also monitors the database size and
+ * stops creating tables once the size crosses a target value. It restarts table creation if the
+ * database size drops below a trigger value.
+ */
+int
+WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
+{
+    WT_SESSION *session;
+    if (conn->open_session(conn, nullptr, nullptr, &session) != 0) {
+        THROW("Error opening a session.");
+    }
+
+    ContextInternal *icontext = _workload->_context->_internal;
+    uint64_t total_creates = 0;
+    bool manage_db_size =
+      _workload->options.create_target > 0 && _workload->options.create_trigger > 0;
+    uint32_t db_size = 0;
+    bool creating = true;
+
+    if (manage_db_size) {
+        db_size = get_dir_size_mb(_wt_home);
+        // Initially we start creating tables if the database size is less than the create target.
+        creating = db_size < _workload->options.create_target;
+    }
+    while (!stopping) {
+        /*
+         * When managing the database size: If we are creating tables, continue until we reach the
+         * create target size. If we are not creating tables, begin to do so if the database size
+         * falls below the create trigger.
+         */
+        if (manage_db_size) {
+            db_size = get_dir_size_mb(_wt_home);
+            if (creating) {
+                creating = db_size < _workload->options.create_target;
+                if (!creating) {
+                    VERBOSE(*_workload,
+                      "Stopped creating new tables. db_size now "
+                        << db_size << " MB has reached the create target of "
+                        << _workload->options.create_target << " MB.");
+                }
+            } else {
+                creating = db_size < _workload->options.create_trigger;
+                if (creating) {
+                    VERBOSE(*_workload,
+                      "Started creating new tables. db_size now "
+                        << db_size << " MB has reached the create trigger of "
+                        << _workload->options.create_trigger << " MB.");
+                }
+            }
+        }
+        if (!creating) {
+            sleep(_workload->options.create_interval);
+            continue;
+        }
+
+        for (int creates = 0; creates < _workload->options.create_count;
+             ++creates, ++total_creates) {
+            char uri[BUF_SIZE];
+            snprintf(uri, BUF_SIZE, "table:%s%" PRIu64, _workload->options.create_prefix.c_str(),
+              total_creates);
+
+            // Check if a table with this name already exists. Skip if it does.
+            if (icontext->_tint.count(uri) > 0 || icontext->_dyn_tint.count(uri) > 0)
+                continue;
+
+            // Create the table.
+            WT_DECL_RET;
+            if ((ret = session->create(session, uri, "key_format=S,value_format=S")) != 0) {
+                if (ret == EBUSY)
+                    continue;
+                THROW("Table create failed in start_tables_create.");
+            }
+
+            // The data structures for the dynamic table set are protected by a mutex.
+            {
+                const std::lock_guard<std::mutex> lock(*icontext->_dyn_mutex);
+
+                // Add the table into the list of dynamic set.
+                tint_t tint = icontext->_dyn_tint_last;
+                icontext->_dyn_tint[uri] = tint;
+                icontext->_dyn_table_names[tint] = uri;
+                icontext->_dyn_table_runtime[tint] = TableRuntime();
+                ++icontext->_dyn_tint_last;
+                VERBOSE(*_workload, "Created table and added to the dynamic set: " << uri);
+            }
+        }
+
+        sleep(_workload->options.create_interval);
+    }
+
+    return 0;
+}
+
+/*
+ * This function drops one or more tables at regular intervals, where the interval length and number
+ * of tables are specified in the workload options. It also monitors the database size and stops
+ * dropping tables once the size reduces to a target value. It restarts table drops if the database
+ * size exceeds a trigger value.
+ */
+int
+WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
+{
+    WT_SESSION *session;
+    if (conn->open_session(conn, nullptr, nullptr, &session) != 0) {
+        THROW("Error opening a session.");
+    }
+
+    ContextInternal *icontext = _workload->_context->_internal;
+    std::vector<std::string> tables_delete; // Track tables that are to be deleted.
+    bool manage_db_size = _workload->options.drop_target > 0 && _workload->options.drop_trigger > 0;
+    uint32_t db_size = 0;
+    bool dropping = true;
+
+    if (manage_db_size) {
+        db_size = get_dir_size_mb(_wt_home);
+        // Initially we start dropping tables if the database size is greater than the drop trigger.
+        dropping = db_size > _workload->options.drop_trigger;
+    }
+    while (!stopping) {
+        /*
+         * When managing the database size: If we are dropping tables, continue until we reach the
+         * drop target size. If we are not dropping tables, begin to do so if the database size
+         * crosses the drop trigger.
+         */
+        if (manage_db_size) {
+            db_size = get_dir_size_mb(_wt_home);
+            if (dropping) {
+                dropping = db_size > _workload->options.drop_target;
+                if (!dropping) {
+                    VERBOSE(*_workload,
+                      "Stopped dropping new tables. db_size now "
+                        << db_size << " MB has reached the drop target of "
+                        << _workload->options.drop_target << " MB.");
+                }
+            } else {
+                dropping = db_size > _workload->options.drop_trigger;
+                if (dropping) {
+                    VERBOSE(*_workload,
+                      "Started dropping new tables. db_size now "
+                        << db_size << " MB has reached the drop trigger of "
+                        << _workload->options.drop_trigger << " MB.");
+                }
+            }
+        }
+        if (!dropping) {
+            sleep(_workload->options.drop_interval);
+            continue;
+        }
+
+        for (int drops = 0; drops < _workload->options.drop_count; ++drops) {
+            std::vector<std::string> drop_uris;
+            // The data structures for the dynamic table set are protected by a mutex.
+            {
+                const std::lock_guard<std::mutex> lock(*icontext->_dyn_mutex);
+
+                // Walk the list and select the first that is not already in the delete list.
+                for (auto const &it : icontext->_dyn_tint) {
+                    if (icontext->_dyn_table_runtime[it.second]._pending_delete) {
+                        continue;
+                    } else {
+                        VERBOSE(*_workload, "Marking pending removal for: " << it.first);
+                        icontext->_dyn_table_runtime[it.second]._pending_delete = true;
+                        tables_delete.push_back(it.first);
+                        break;
+                    }
+                }
+
+                /*
+                 * Process any pending deletes, the actual table drop will be done later without
+                 * holding the lock.
+                 */
+                for (size_t i = 0; i < tables_delete.size();) {
+                    // The table might still be in use.
+                    const std::string uri(tables_delete.at(i));
+                    tint_t tint = icontext->_dyn_tint.at(uri);
+                    if (icontext->_dyn_table_runtime[tint]._in_use != 0) {
+                        ++i;
+                        continue;
+                    }
+
+                    // Delete all local data related to the table.
+                    tables_delete.erase(tables_delete.begin() + i);
+                    icontext->_dyn_tint.erase(uri);
+                    icontext->_dyn_table_names.erase(tint);
+                    icontext->_dyn_table_runtime.erase(tint);
+                    drop_uris.push_back(uri);
+                }
+            }
+
+            /*
+             * We will drop the WiredTiger tables without holding the lock. These tables have been
+             * removed from the shared data structures, and we know no thread is operating on them.
+             */
+            for (auto uri : drop_uris) {
+                WT_DECL_RET;
+                // Spin on EBUSY, we do not expect to get stuck
+                while ((ret = session->drop(session, uri.c_str(), "force,checkpoint_wait=false")) ==
+                  EBUSY) {
+                    VERBOSE(*_workload, "Drop returned EBUSY for table: " << uri);
+                }
+                if (ret != 0)
+                    THROW("Table drop failed in start_tables_drop.");
+
+                VERBOSE(*_workload, "Dropped table: " << uri);
+            }
+            drop_uris.clear();
+        }
+
+        sleep(_workload->options.drop_interval);
+    }
+
+    return 0;
+}
+
 /*
  * This function will sleep for "timestamp_advance" seconds, increment and set oldest_timestamp,
  * stable_timestamp with the specified lag until stopping is set to true
@@ -287,9 +561,10 @@ monitor_main(void *arg)
     return (nullptr);
 }
 
-// Exponentiate (like the pow function), except that it returns an exact
-// integral 64 bit value, and if it overflows, returns the maximum possible
-// value for the return type.
+/*
+ * Exponentiate (like the pow function), except that it returns an exact integral 64 bit value, and
+ * if it overflows, returns the maximum possible value for the return type.
+ */
 static uint64_t
 power64(int base, int exp)
 {
@@ -415,9 +690,9 @@ Context::operator=(const Context &other)
 }
 
 ContextInternal::ContextInternal()
-    : _tint(), _table_names(), _table_runtime(nullptr), _runtime_alloced(0), _tint_last(0),
-      _dyn_tint(), _dyn_table_names(), _dyn_table_runtime(), _dyn_tint_last(0), _context_count(0),
-      _dyn_mutex(new std::mutex())
+    : _tint(), _table_names(), _table_runtime(), _tint_last(0), _dyn_tint(), _dyn_table_names(),
+      _dyn_table_runtime(), _dyn_tint_last(0), _context_count(0), _dyn_mutex(new std::mutex())
+
 {
     uint32_t count = workgen_atomic_add32(&context_count, 1);
     if (count != 1)
@@ -425,23 +700,14 @@ ContextInternal::ContextInternal()
     _context_count = count;
 }
 
-ContextInternal::~ContextInternal()
-{
-    if (_table_runtime != nullptr)
-        delete _table_runtime;
-}
+ContextInternal::~ContextInternal() {}
 
 int
 ContextInternal::create_all()
 {
-    if (_runtime_alloced < _tint_last) {
+    if (_table_runtime.size() < _tint_last) {
         // The array references are 1-based, we'll waste one entry.
-        TableRuntime *new_table_runtime = new TableRuntime[_tint_last + 1];
-        for (uint32_t i = 0; i < _runtime_alloced; i++)
-            new_table_runtime[i + 1] = _table_runtime[i + 1];
-        delete _table_runtime;
-        _table_runtime = new_table_runtime;
-        _runtime_alloced = _tint_last;
+        _table_runtime.resize(_tint_last + 1);
     }
     return (0);
 }
@@ -886,10 +1152,11 @@ ThreadRunner::op_create_all(Operation *op, size_t &keysize, size_t &valuesize)
 
 #define PARETO_SHAPE 1.5
 
-// Return a value within the interval [ 0, recno_max )
-// that is weighted toward lower numbers with pareto_param at 0 (the minimum),
-// and more evenly distributed with pareto_param at 100 (the maximum).
-//
+/*
+ * Return a value within the interval [ 0, recno_max ) that is weighted toward lower numbers with
+ * pareto_param at 0 (the minimum), and more evenly distributed with pareto_param at 100 (the
+ * maximum).
+ */
 static uint64_t
 pareto_calculation(uint32_t randint, uint64_t recno_max, ParetoOptions &pareto)
 {
@@ -906,17 +1173,16 @@ pareto_calculation(uint32_t randint, uint64_t recno_max, ParetoOptions &pareto)
     double U = 1 - r / static_cast<double>(UINT32_MAX); // interval [0, 1)
     uint32_t result = (uint64_t)((pow(U, S1) - 1) * S2);
 
-    // This Pareto calculation chooses out of range values less than 20%
-    // of the time, depending on pareto_param.  For param of 0, it is
-    // never out of range, for param of 100, 19.2%. For the default
-    // pareto_param of 20, it will be out of range 2.7% of the time.
-    // Out of range values are channeled into the first key,
-    // making it "hot".  Unfortunately, that means that using a higher
-    // param can get a lot lumped into the first bucket.
-    //
-    // XXX This matches the behavior of wtperf, we may consider instead
-    // retrying (modifying the random number) until we get a good value.
-    //
+    /*
+     * This Pareto calculation chooses out of range values less than 20% of the time, depending on
+     * pareto_param. For param of 0, it is never out of range, for param of 100, 19.2%. For the
+     * default pareto_param of 20, it will be out of range 2.7% of the time. Out of range values are
+     * channeled into the first key, making it "hot". Unfortunately, that means that using a higher
+     * param can get a lot lumped into the first bucket.
+     *
+     * XXX This matches the behavior of wtperf, we may consider instead retrying (modifying the
+     * random number) until we get a good value.
+     */
     if (result > recno_max)
         result = 0;
     return (result);
@@ -971,10 +1237,11 @@ ThreadRunner::op_run(Operation *op)
     range = op->_table.options.range;
     if (_throttle != nullptr) {
         while (_throttle_ops >= _throttle_limit && !_in_transaction && !_stop) {
-            // Calling throttle causes a sleep until the next time division,
-            // and we are given a new batch of operations to do before calling
-            // throttle again.  If the number of operations in the batch is
-            // zero, we'll need to go around and throttle again.
+            /*
+             * Calling throttle causes a sleep until the next time division, and we are given a new
+             * batch of operations to do before calling throttle again. If the number of operations
+             * in the batch is zero, we'll need to go around and throttle again.
+             */
             WT_ERR(_throttle->throttle(_throttle_ops, &_throttle_limit));
             _throttle_ops = 0;
             if (_throttle_limit != 0)
@@ -992,21 +1259,33 @@ ThreadRunner::op_run(Operation *op)
         if (num_tables == 0)
             goto err;
 
-        tint = (random_value() % num_tables);
-        table_uri = _icontext->_dyn_table_names.at(tint);
+        // Select a random table.
+        auto it = _icontext->_dyn_tint.begin();
+        std::advance(it, random_value() % _icontext->_dyn_tint.size());
+        const std::string uri(it->first);
+
+        // Make sure the table is not marked for deletion.
+        bool marked_deleted = _icontext->_dyn_table_runtime[_icontext->_tint[uri]]._pending_delete;
+        if (!marked_deleted) {
+            table_uri = uri;
+            tint = _icontext->_dyn_tint[uri];
+            ++_icontext->_dyn_table_runtime[tint]._in_use;
+        } else {
+            goto err;
+        }
     } else {
         tint = op->_table._internal->_tint;
         table_uri = op->_table._uri;
     }
 
-    // A potential race: thread1 is inserting, and increments
-    // Context->_recno[] for fileX.wt. thread2 is doing one of
-    // remove/search/update and grabs the new value of Context->_recno[]
-    // for fileX.wt.  thread2 randomly chooses the highest recno (which
-    // has not yet been inserted by thread1), and when it accesses
-    // the record will get WT_NOTFOUND.  It should be somewhat rare
-    // (and most likely when the threads are first beginning).  Any
-    // WT_NOTFOUND returns are allowed and get their own statistic bumped.
+    /*
+     * A potential race: thread1 is inserting, and increments Context->_recno[] for fileX.wt.
+     * thread2 is doing one of remove/search/update and grabs the new value of Context->_recno[] for
+     * fileX.wt. thread2 randomly chooses the highest recno (which has not yet been inserted by
+     * thread1), and when it accesses the record will get WT_NOTFOUND. It should be somewhat rare
+     * (and most likely when the threads are first beginning). Any WT_NOTFOUND returns are allowed
+     * and get their own statistic bumped.
+     */
     switch (op->_optype) {
     case Operation::OP_CHECKPOINT:
         recno = 0;
@@ -1215,6 +1494,15 @@ err:
         }
         _in_transaction = false;
     }
+
+    // For operations on random tables, if a table has been selected, decrement the reference
+    // counter.
+    if (op->_random_table && !table_uri.empty()) {
+        const std::lock_guard<std::mutex> lock(*_icontext->_dyn_mutex);
+        ASSERT(_icontext->_dyn_table_runtime[tint]._in_use > 0);
+        --_icontext->_dyn_table_runtime[tint]._in_use;
+    }
+
     return (ret);
 }
 
@@ -1248,32 +1536,33 @@ Throttle::Throttle(ThreadRunner &runner, double throttle, double throttle_burst)
       _started(false)
 {
 
-    // Our throttling is done by dividing each second into THROTTLE_PER_SEC
-    // parts (we call the parts divisions). In each division, we perform
-    // a certain number of operations. This number is approximately
-    // throttle/THROTTLE_PER_SEC, except that throttle is not necessarily
-    // a multiple of THROTTLE_PER_SEC, nor is it even necessarily an integer.
-    // (That way we can have 1000 threads each inserting 0.5 a second).
+    /*
+     * Our throttling is done by dividing each second into THROTTLE_PER_SEC parts (we call the parts
+     * divisions). In each division, we perform a certain number of operations. This number is
+     * approximately throttle/THROTTLE_PER_SEC, except that throttle is not necessarily a multiple
+     * of THROTTLE_PER_SEC, nor is it even necessarily an integer. (That way we can have 1000
+     * threads each inserting 0.5 a second).
+     */
     ts_clear(_next_div);
     ASSERT(1000 % THROTTLE_PER_SEC == 0); // must evenly divide
     _ms_per_div = 1000 / THROTTLE_PER_SEC;
     _ops_per_div = (uint64_t)ceill(_throttle / THROTTLE_PER_SEC);
 }
 
-// Each time throttle is called, we sleep and return a number of operations to
-// perform next.  To implement this we keep a time calculation in _next_div set
-// initially to the current time + 1/THROTTLE_PER_SEC.  Each call to throttle
-// advances _next_div by 1/THROTTLE_PER_SEC, and if _next_div is in the future,
-// we sleep for the difference between the _next_div and the current_time.  We
-// we return (Thread.options.throttle / THROTTLE_PER_SEC) as the number of
-// operations, if it does not divide evenly, we'll make sure to not exceed
-// the number of operations requested per second.
-//
-// The only variation is that the amount of individual sleeps is modified by a
-// random amount (which varies more widely as Thread.options.throttle_burst is
-// greater).  This has the effect of randomizing how much clumping happens, and
-// ensures that multiple threads aren't executing in lock step.
-//
+/*
+ * Each time throttle is called, we sleep and return a number of operations to perform next. To
+ * implement this we keep a time calculation in _next_div set initially to the current time +
+ * 1/THROTTLE_PER_SEC. Each call to throttle advances _next_div by 1/THROTTLE_PER_SEC, and if
+ * _next_div is in the future, we sleep for the difference between the _next_div and the
+ * current_time. We we return (Thread.options.throttle / THROTTLE_PER_SEC) as the number of
+ * operations, if it does not divide evenly, we'll make sure to not exceed the number of operations
+ * requested per second.
+ *
+ * The only variation is that the amount of individual sleeps is modified by a random amount (which
+ * varies more widely as Thread.options.throttle_burst is greater). This has the effect of
+ * randomizing how much clumping happens, and ensures that multiple threads aren't executing in lock
+ * step.
+ */
 int
 Throttle::throttle(uint64_t op_count, uint64_t *op_limit)
 {
@@ -1610,7 +1899,8 @@ Operation::kv_compute_max(bool iskey, bool has_random)
     int size = iskey ? _key._size : _value._size;
     if (size == 0) {
         if (_random_table) {
-            const std::string err_msg("Cannot have a size of 0 with the usage of dynamic tables.");
+            const std::string err_msg(
+              "Cannot have a size of 0 when auto selecting table operations.");
             THROW(err_msg);
         } else {
             size = iskey ? _table.options.key_size : _table.options.value_size;
@@ -1965,16 +2255,18 @@ Track::complete_with_latency(uint64_t usecs)
         sec[LATENCY_SEC_BUCKETS - 1]++;
 }
 
-// Return the latency for which the given percent is lower than it.
-// E.g. for percent == 95, returns the latency for which 95% of latencies
-// are faster (lower), and 5% are slower (higher).
+/*
+ * Return the latency for which the given percent is lower than it. E.g. for percent == 95, returns
+ * the latency for which 95% of latencies are faster (lower), and 5% are slower (higher).
+ */
 uint64_t
 Track::percentile_latency(int percent) const
 {
-    // Get the total number of operations in the latency buckets.
-    // We can't reliably use latency_ops, because this struct was
-    // added up from Track structures that were being copied while
-    // being updated.
+    /*
+     * Get the total number of operations in the latency buckets. We can't reliably use latency_ops,
+     * because this struct was added up from Track structures that were being copied while being
+     * updated.
+     */
     uint64_t total = 0;
     for (int i = 0; i < LATENCY_SEC_BUCKETS; i++)
         total += sec[i];
@@ -2264,7 +2556,9 @@ WorkloadOptions::WorkloadOptions()
     : max_latency(0), report_file("workload.stat"), report_interval(0), run_time(0),
       sample_file("monitor.json"), sample_interval_ms(0), max_idle_table_cycle(0), sample_rate(1),
       warmup(0), oldest_timestamp_lag(0.0), stable_timestamp_lag(0.0), timestamp_advance(0.0),
-      max_idle_table_cycle_fatal(false), _options()
+      max_idle_table_cycle_fatal(false), create_count(0), create_interval(0), create_prefix(""),
+      create_target(0), create_trigger(0), drop_count(0), drop_interval(0), drop_target(0),
+      drop_trigger(0), _options()
 {
     _options.add_int("max_latency", max_latency,
       "prints warning if any latency measured exceeds this number of "
@@ -2301,6 +2595,24 @@ WorkloadOptions::WorkloadOptions()
       "timestamp forward");
     _options.add_bool("max_idle_table_cycle_fatal", max_idle_table_cycle_fatal,
       "print warning (false) or abort (true) of max_idle_table_cycle failure");
+    _options.add_int("create_interval", create_interval,
+      "table creation frequency in seconds. The number of tables created is specified by"
+      " the create_count setting");
+    _options.add_int("create_count", create_count, "number of tables to create each time interval");
+    _options.add_string(
+      "create_prefix", create_prefix, "the prefix to prepend to the auto generated table names");
+    _options.add_int("create_trigger", create_trigger,
+      "if specified, start creating tables when the database drops below this size in MB");
+    _options.add_int("create_target", create_target,
+      "if specified, stop creating tables when the database exceeds this size in MB");
+    _options.add_int("drop_interval", drop_interval,
+      "table drop frequency in seconds. The number of tables dropped is specified by"
+      " the drop_count setting");
+    _options.add_int("drop_count", drop_count, "number of tables to drop each time interval");
+    _options.add_int("drop_trigger", drop_trigger,
+      "if specified, start dropping tables when the database exceeds this size in MB");
+    _options.add_int("drop_target", drop_target,
+      "if specified, stop dropping tables when the database drops below this size in MB");
 }
 
 WorkloadOptions::WorkloadOptions(const WorkloadOptions &other)
@@ -2347,57 +2659,11 @@ Workload::run(WT_CONNECTION *conn)
     return (runner.run(conn));
 }
 
-void
-Workload::create_table(const std::string &uri)
-{
-    WorkloadRunner runner(this);
-    runner.create_table(uri);
-}
-
 WorkloadRunner::WorkloadRunner(Workload *workload)
     : _workload(workload), _trunners(workload->_threads.size()), _report_out(&std::cout), _start(),
       stopping(false)
 {
     ts_clear(_start);
-}
-
-const std::vector<std::string>
-Workload::get_tables()
-{
-    WorkloadRunner runner(this);
-    ContextInternal *icontext = _context->_internal;
-    std::vector<std::string> uris;
-    {
-        for (const auto &kv : icontext->_tint) {
-            uris.push_back(kv.first);
-        }
-        const std::lock_guard<std::mutex> lock(*icontext->_dyn_mutex);
-        for (const auto &kv : icontext->_dyn_tint) {
-            uris.push_back(kv.first);
-        }
-    }
-    return uris;
-}
-
-void
-WorkloadRunner::create_table(const std::string &uri)
-{
-    ContextInternal *icontext = _workload->_context->_internal;
-    const std::lock_guard<std::mutex> lock(*icontext->_dyn_mutex);
-
-    if (icontext->_tint.count(uri) > 0 || icontext->_dyn_tint.count(uri) > 0) {
-        const std::string err_msg("The table " + uri + " already exists.");
-        THROW(err_msg);
-    }
-
-    tint_t tint = icontext->_dyn_tint_last;
-    icontext->_dyn_tint[uri] = tint;
-    icontext->_dyn_table_names[tint] = uri;
-
-    ASSERT(tint == icontext->_dyn_table_runtime.size());
-    icontext->_dyn_table_runtime.push_back(TableRuntime());
-
-    ++icontext->_dyn_tint_last;
 }
 
 int
@@ -2412,7 +2678,8 @@ WorkloadRunner::run(WT_CONNECTION *conn)
       options->timestamp_advance < 0)
         THROW(
           "Workload.options.timestamp_advance must be positive if either "
-          "Workload.options.oldest_timestamp_lag or Workload.options.stable_timestamp_lag is set");
+          "Workload.options.oldest_timestamp_lag or Workload.options.stable_timestamp_lag is "
+          "set");
 
     if (options->sample_interval_ms > 0 && options->sample_rate <= 0)
         THROW("Workload.options.sample_rate must be positive");
@@ -2582,16 +2849,12 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
     pthread_t time_thandle;
     WorkloadRunnerConnection *runnerConnection = nullptr;
     if (options->oldest_timestamp_lag > 0 || options->stable_timestamp_lag > 0) {
-
         runnerConnection = new WorkloadRunnerConnection();
         runnerConnection->runner = this;
         runnerConnection->connection = conn;
-
         if ((ret = pthread_create(&time_thandle, nullptr, thread_workload, runnerConnection)) !=
           0) {
             std::cerr << "pthread_create failed err=" << ret << std::endl;
-            std::cerr << "Stopping Time threads." << std::endl;
-            (void)pthread_join(time_thandle, &status);
             delete runnerConnection;
             runnerConnection = nullptr;
             stopping = true;
@@ -2602,19 +2865,78 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
     pthread_t idle_table_thandle;
     WorkloadRunnerConnection *createDropTableCycle = nullptr;
     if (options->max_idle_table_cycle > 0) {
-
         createDropTableCycle = new WorkloadRunnerConnection();
         createDropTableCycle->runner = this;
         createDropTableCycle->connection = conn;
-
         if ((ret = pthread_create(&idle_table_thandle, nullptr, thread_idle_table_cycle_workload,
                createDropTableCycle)) != 0) {
             std::cerr << "pthread_create failed err=" << ret << std::endl;
-            std::cerr << "Stopping Create Drop table idle cycle threads." << std::endl;
-            (void)pthread_join(idle_table_thandle, &status);
             delete createDropTableCycle;
             createDropTableCycle = nullptr;
             stopping = true;
+        }
+    }
+
+    // Start a thread to create tables
+    pthread_t tables_create_thandle;
+    WorkloadRunnerConnection *tableCreate = nullptr;
+    if (options->create_interval > 0) {
+        if (options->create_count < 1) {
+            std::cerr << "create_count needs to be greater than 0" << std::endl;
+            stopping = true;
+        } else if (options->create_target > 0 && options->create_trigger <= 0) {
+            std::cerr << "Need to specify a create_trigger when setting a create_target."
+                      << std::endl;
+            stopping = true;
+        } else if (options->create_trigger > 0 && options->create_target <= 0) {
+            std::cerr << "Need to specify a create_target when setting a create_trigger."
+                      << std::endl;
+            stopping = true;
+        } else if (options->create_trigger != 0 &&
+          options->create_target < options->create_trigger) {
+            std::cerr << "create_target should be greater than create_trigger." << std::endl;
+            stopping = true;
+        } else {
+            tableCreate = new WorkloadRunnerConnection();
+            tableCreate->runner = this;
+            tableCreate->connection = conn;
+            if ((ret = pthread_create(&tables_create_thandle, nullptr,
+                   thread_tables_create_workload, tableCreate)) != 0) {
+                std::cerr << "pthread_create failed err=" << ret << std::endl;
+                delete tableCreate;
+                tableCreate = nullptr;
+                stopping = true;
+            }
+        }
+    }
+
+    // Start a thread to drop tables
+    pthread_t tables_drop_thandle;
+    WorkloadRunnerConnection *tableDrop = nullptr;
+    if (options->drop_interval > 0) {
+        if (options->drop_count < 1) {
+            std::cerr << "drop_count needs to be greater than 0" << std::endl;
+            stopping = true;
+        } else if (options->drop_target > 0 && options->drop_trigger <= 0) {
+            std::cerr << "Need to specify a drop_trigger when setting a drop_target." << std::endl;
+            stopping = true;
+        } else if (options->drop_trigger > 0 && options->drop_target <= 0) {
+            std::cerr << "Need to specify a drop_target when setting a drop_trigger." << std::endl;
+            stopping = true;
+        } else if (options->drop_target != 0 && options->drop_trigger < options->drop_target) {
+            std::cerr << "drop_trigger should be greater than drop_target." << std::endl;
+            stopping = true;
+        } else {
+            tableDrop = new WorkloadRunnerConnection();
+            tableDrop->runner = this;
+            tableDrop->connection = conn;
+            if ((ret = pthread_create(
+                   &tables_drop_thandle, nullptr, thread_tables_drop_workload, tableDrop)) != 0) {
+                std::cerr << "pthread_create failed err=" << ret << std::endl;
+                delete tableDrop;
+                tableDrop = nullptr;
+                stopping = true;
+            }
         }
     }
 
@@ -2695,6 +3017,18 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
     if (createDropTableCycle != nullptr) {
         WT_TRET(pthread_join(idle_table_thandle, &status));
         delete createDropTableCycle;
+    }
+
+    // Wait for the table create table thread.
+    if (tableCreate != nullptr) {
+        WT_TRET(pthread_join(tables_create_thandle, &status));
+        delete tableCreate;
+    }
+
+    // Wait for the table drop table thread.
+    if (tableDrop != nullptr) {
+        WT_TRET(pthread_join(tables_drop_thandle, &status));
+        delete tableDrop;
     }
 
     workgen_epoch(&now);

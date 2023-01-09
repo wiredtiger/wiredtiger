@@ -29,6 +29,7 @@ struct __wt_process {
 
     bool fast_truncate_2022; /* fast-truncate fix run-time configuration */
     bool page_stats_2022;    /* Page stats run-time configuration */
+    bool tiered_shared_2023; /* tiered shared run-time configuration */
 
     WT_CACHE_POOL *cache_pool; /* shared cache information */
 
@@ -290,6 +291,11 @@ struct __wt_connection_impl {
     WT_SPINLOCK optrack_map_spinlock; /* Translation file spinlock. */
     uintmax_t optrack_pid;            /* Cache the process ID. */
 
+#ifdef HAVE_CALL_LOG
+    /* File stream used for writing to the call log. */
+    WT_FSTREAM *call_log_fst;
+#endif
+
     void **foc;      /* Free-on-close array */
     size_t foc_cnt;  /* Array entries */
     size_t foc_size; /* Array size */
@@ -409,7 +415,10 @@ struct __wt_connection_impl {
     uint32_t stat_flags; /* Options declared in flags.py */
 
     /* Connection statistics */
-    uint64_t rec_maximum_seconds; /* Maximum seconds reconciliation took. */
+    uint64_t
+      rec_maximum_hs_wrapup_seconds; /* Maximum seconds moving updates to history store took. */
+    uint64_t rec_maximum_image_build_seconds; /* Maximum seconds building disk image took. */
+    uint64_t rec_maximum_seconds;             /* Maximum seconds reconciliation took. */
     WT_CONNECTION_STATS *stats[WT_COUNTER_SLOTS];
     WT_CONNECTION_STATS *stat_array;
 
@@ -460,17 +469,16 @@ struct __wt_connection_impl {
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CONN_LOG_CONFIG_ENABLED 0x001u  /* Logging is configured */
-#define WT_CONN_LOG_DEBUG_MODE 0x002u      /* Debug-mode logging enabled */
-#define WT_CONN_LOG_DOWNGRADED 0x004u      /* Running older version */
-#define WT_CONN_LOG_ENABLED 0x008u         /* Logging is enabled */
-#define WT_CONN_LOG_EXISTED 0x010u         /* Log files found */
-#define WT_CONN_LOG_FORCE_DOWNGRADE 0x020u /* Force downgrade */
-#define WT_CONN_LOG_RECOVER_DIRTY 0x040u   /* Recovering unclean */
-#define WT_CONN_LOG_RECOVER_DONE 0x080u    /* Recovery completed */
-#define WT_CONN_LOG_RECOVER_ERR 0x100u     /* Error if recovery required */
-#define WT_CONN_LOG_RECOVER_FAILED 0x200u  /* Recovery failed */
-#define WT_CONN_LOG_REMOVE 0x400u          /* Removal is enabled */
-#define WT_CONN_LOG_ZERO_FILL 0x800u       /* Manually zero files */
+#define WT_CONN_LOG_DOWNGRADED 0x002u      /* Running older version */
+#define WT_CONN_LOG_ENABLED 0x004u         /* Logging is enabled */
+#define WT_CONN_LOG_EXISTED 0x008u         /* Log files found */
+#define WT_CONN_LOG_FORCE_DOWNGRADE 0x010u /* Force downgrade */
+#define WT_CONN_LOG_RECOVER_DIRTY 0x020u   /* Recovering unclean */
+#define WT_CONN_LOG_RECOVER_DONE 0x040u    /* Recovery completed */
+#define WT_CONN_LOG_RECOVER_ERR 0x080u     /* Error if recovery required */
+#define WT_CONN_LOG_RECOVER_FAILED 0x100u  /* Recovery failed */
+#define WT_CONN_LOG_REMOVE 0x200u          /* Removal is enabled */
+#define WT_CONN_LOG_ZERO_FILL 0x400u       /* Manually zero files */
                                            /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t log_flags;                    /* Global logging configuration */
     WT_CONDVAR *log_cond;                  /* Log server wait mutex */
@@ -564,16 +572,31 @@ struct __wt_connection_impl {
     uint32_t debug_log_cnt;  /* Log file retention count */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CONN_DEBUG_CKPT_RETAIN 0x01u
-#define WT_CONN_DEBUG_CORRUPTION_ABORT 0x02u
-#define WT_CONN_DEBUG_CURSOR_COPY 0x04u
-#define WT_CONN_DEBUG_CURSOR_REPOSITION 0x08u
-#define WT_CONN_DEBUG_REALLOC_EXACT 0x10u
-#define WT_CONN_DEBUG_REALLOC_MALLOC 0x20u
-#define WT_CONN_DEBUG_SLOW_CKPT 0x40u
-#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x80u
+#define WT_CONN_DEBUG_CKPT_RETAIN 0x001u
+#define WT_CONN_DEBUG_CORRUPTION_ABORT 0x002u
+#define WT_CONN_DEBUG_CURSOR_COPY 0x004u
+#define WT_CONN_DEBUG_CURSOR_REPOSITION 0x008u
+#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x010u
+#define WT_CONN_DEBUG_REALLOC_EXACT 0x020u
+#define WT_CONN_DEBUG_REALLOC_MALLOC 0x040u
+#define WT_CONN_DEBUG_SLOW_CKPT 0x080u
+#define WT_CONN_DEBUG_TABLE_LOGGING 0x100u
+#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x200u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     uint16_t debug_flags;
+
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_DIAG_ALL 0x01u
+#define WT_DIAG_CONCURRENT_ACCESS 0x02u
+#define WT_DIAG_DATA_VALIDATION 0x04u
+#define WT_DIAG_INVALID_OP 0x08u
+#define WT_DIAG_OUT_OF_ORDER 0x10u
+#define WT_DIAG_PANIC 0x20u
+#define WT_DIAG_SLOW_OPERATION 0x40u
+#define WT_DIAG_VISIBILITY 0x80u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
+    /* Categories of assertions that can be runtime enabled. */
+    uint16_t extra_diagnostics_flags;
 
     /* Verbose settings for our various categories. */
     WT_VERBOSE_LEVEL verbose[WT_VERB_NUM_CATEGORIES];
@@ -640,30 +663,31 @@ struct __wt_connection_impl {
 #define WT_CONN_BACKUP_PARTIAL_RESTORE 0x0000001u
 #define WT_CONN_CACHE_CURSORS 0x0000002u
 #define WT_CONN_CACHE_POOL 0x0000004u
-#define WT_CONN_CKPT_GATHER 0x0000008u
-#define WT_CONN_CKPT_SYNC 0x0000010u
-#define WT_CONN_CLOSING 0x0000020u
-#define WT_CONN_CLOSING_CHECKPOINT 0x0000040u
-#define WT_CONN_CLOSING_NO_MORE_OPENS 0x0000080u
-#define WT_CONN_COMPATIBILITY 0x0000100u
-#define WT_CONN_DATA_CORRUPTION 0x0000200u
-#define WT_CONN_EVICTION_RUN 0x0000400u
-#define WT_CONN_HS_OPEN 0x0000800u
-#define WT_CONN_INCR_BACKUP 0x0001000u
-#define WT_CONN_IN_MEMORY 0x0002000u
-#define WT_CONN_LEAK_MEMORY 0x0004000u
-#define WT_CONN_LSM_MERGE 0x0008000u
-#define WT_CONN_MINIMAL 0x0010000u
-#define WT_CONN_OPTRACK 0x0020000u
-#define WT_CONN_PANIC 0x0040000u
-#define WT_CONN_READONLY 0x0080000u
-#define WT_CONN_READY 0x0100000u
-#define WT_CONN_RECONFIGURING 0x0200000u
-#define WT_CONN_RECOVERING 0x0400000u
-#define WT_CONN_RECOVERY_COMPLETE 0x0800000u
-#define WT_CONN_SALVAGE 0x1000000u
-#define WT_CONN_TIERED_FIRST_FLUSH 0x2000000u
-#define WT_CONN_WAS_BACKUP 0x4000000u
+#define WT_CONN_CALL_LOG_ENABLED 0x0000008u
+#define WT_CONN_CKPT_GATHER 0x0000010u
+#define WT_CONN_CKPT_SYNC 0x0000020u
+#define WT_CONN_CLOSING 0x0000040u
+#define WT_CONN_CLOSING_CHECKPOINT 0x0000080u
+#define WT_CONN_CLOSING_NO_MORE_OPENS 0x0000100u
+#define WT_CONN_COMPATIBILITY 0x0000200u
+#define WT_CONN_DATA_CORRUPTION 0x0000400u
+#define WT_CONN_EVICTION_RUN 0x0000800u
+#define WT_CONN_HS_OPEN 0x0001000u
+#define WT_CONN_INCR_BACKUP 0x0002000u
+#define WT_CONN_IN_MEMORY 0x0004000u
+#define WT_CONN_LEAK_MEMORY 0x0008000u
+#define WT_CONN_LSM_MERGE 0x0010000u
+#define WT_CONN_MINIMAL 0x0020000u
+#define WT_CONN_OPTRACK 0x0040000u
+#define WT_CONN_PANIC 0x0080000u
+#define WT_CONN_READONLY 0x0100000u
+#define WT_CONN_READY 0x0200000u
+#define WT_CONN_RECONFIGURING 0x0400000u
+#define WT_CONN_RECOVERING 0x0800000u
+#define WT_CONN_RECOVERY_COMPLETE 0x1000000u
+#define WT_CONN_SALVAGE 0x2000000u
+#define WT_CONN_TIERED_FIRST_FLUSH 0x4000000u
+#define WT_CONN_WAS_BACKUP 0x8000000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
