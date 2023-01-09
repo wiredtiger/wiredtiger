@@ -171,7 +171,7 @@ functions:
         else
           # Compiling with CMake generated Ninja file.
           cd cmake_build
-          ${make_command|ninja} ${smp_command|} 2>&1
+          ${compile_env_vars|} ${make_command|ninja} ${smp_command|} 2>&1
         fi
   "compile wiredtiger":
     - *configure_wiredtiger
@@ -5273,6 +5273,8 @@ buildvariants:
   batchtime: 1440 # 24 hours
   expansions:
     configure_env_vars:
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+    compile_env_vars:
       PATH=/opt/mongodbtoolchain/v4/bin:$PATH
     test_env_vars:
       WT_TOPDIR=$(git rev-parse --show-toplevel)
