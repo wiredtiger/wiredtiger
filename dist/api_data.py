@@ -205,9 +205,6 @@ tiered_config = [
         Config('object_target_size', '0', r'''
             this option is no longer supported, retained for backward compatibility''',
             min='0', undoc=True),
-        Config('shared', 'true', r'''
-            enable sharing tiered tables across other WiredTiger instances.''',
-            type='boolean'),
         ]),
 ]
 
@@ -991,7 +988,7 @@ wiredtiger_open_tiered_storage_configuration = [
         Config('name', 'none', r'''
             Permitted values are \c "none" or a custom storage name created with
             WT_CONNECTION::add_storage_source'''),
-        Config('shared', 'true', r'''
+        Config('shared', 'false', r'''
             enable sharing tiered tables across other WiredTiger instances.''',
             type='boolean'),
     ]),
