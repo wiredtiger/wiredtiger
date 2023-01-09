@@ -521,7 +521,7 @@ connection_runtime_config = [
         available in cache before giving up. Default will wait forever''',
         min=0),
     Config('extra_diagnostics', '[]', r'''
-        enable additional assertions in WiredTiger. These additional diagnostics include 
+        enable additional diagnostics in WiredTiger. These additional diagnostics include 
         diagnostic assertions that can cause WiredTiger to abort when an invalid state 
         is detected.
         Options are given as a list, such as 
