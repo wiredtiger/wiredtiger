@@ -1594,7 +1594,6 @@ static inline bool
 __wt_page_del_visible_all(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, bool hide_prepared)
 {
     uint8_t prepare_state;
-    bool visible_all;
 
     /*
      * Like other visible_all checks, use the durable timestamp to avoid complications: there is
@@ -1621,16 +1620,30 @@ __wt_page_del_visible_all(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, b
     /* We discard page_del on transaction abort, so should never see an aborted one. */
     WT_ASSERT(session, page_del->txnid != WT_TXN_ABORTED);
 
+    /*
+     * Check whether truncate transaction is committed or not. In case of prepared transactions,
+     * truncate operation is committed in two phases. In the first phase prepared state is set to
+     * resolved and in the later phase the committed flag of all the fast truncated pages is set to
+     * true. The two phase design is to handle any page split cases, when a fast truncated page is
+     * read back and later that page splits, in which case all the new split pages will not have
+     * page_del info.
+     *
+     * There is a window between setting the prepared state to resolved and setting the committed
+     * flag to true. Hence if committed flag is not set, consider it as not committed irrespective
+     * of visibility check, to avoid checking visibility when transaction commit is in progress.
+     *
+     * Ideally, this would be included in the visibility check - see WT-10477.
+     */
+    if (!__wt_page_del_committed(page_del))
+        return (false);
+
     if (hide_prepared) {
         WT_ORDERED_READ(prepare_state, page_del->prepare_state);
         if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
             return (false);
     }
 
-    visible_all = __wt_txn_visible_all(session, page_del->txnid, page_del->durable_timestamp);
-    WT_ASSERT(session, !visible_all || __wt_page_del_committed(page_del));
-
-    return (visible_all);
+    return (__wt_txn_visible_all(session, page_del->txnid, page_del->durable_timestamp));
 }
 
 /*
