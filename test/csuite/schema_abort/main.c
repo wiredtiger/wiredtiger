@@ -542,7 +542,7 @@ thread_ckpt_run(void *arg)
     WT_RAND_STATE rnd;
     WT_SESSION *session;
     uint64_t ts;
-    uint32_t sleep_time;
+    uint64_t sleep_time;
     int i;
     char ckpt_flush_config[128], ckpt_config[128];
     bool first_ckpt, flush_tier;
