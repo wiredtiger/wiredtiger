@@ -157,7 +157,7 @@ __rec_cell_build_leaf_key(
             WT_STAT_CONN_DATA_INCR(session, rec_overflow_key_leaf);
 
             *is_ovflp = true;
-            return (__wt_rec_cell_build_ovfl(session, r, key, WT_CELL_KEY_OVFL, NULL, 0));
+            return (__wt_rec_cell_build_ovfl(session, r, key, WT_CELL_KEY_OVFL, NULL, size, 0));
         }
         return (__rec_cell_build_leaf_key(session, r, NULL, 0, is_ovflp));
     }
@@ -789,8 +789,8 @@ __wt_rec_row_leaf(
                     val->buf.size = vpack->size;
 
                     /* Rebuild the cell. */
-                    val->cell_len =
-                      __wt_cell_pack_ovfl(session, &val->cell, vpack->raw, twp, 0, val->buf.size);
+                    val->cell_len = __wt_cell_pack_ovfl(session, &val->cell, vpack->raw, twp, 0,
+                      vpack->ovfl_ps->byte_count, val->buf.size);
                     val->len = val->cell_len + val->buf.size;
                 } else
                     WT_ERR(__rec_cell_repack(session, btree, r, vpack, twp));

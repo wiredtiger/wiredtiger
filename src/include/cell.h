@@ -93,6 +93,9 @@
 #define WT_CELL_TXN_START 0x20        /* Oldest-start txn ID */
 #define WT_CELL_TXN_STOP 0x40         /* Newest-stop txn ID */
 
+#define WT_CELL_BYTE_COUNT 0x01 /* Byte count of the page */
+#define WT_CELL_ROW_COUNT 0x02  /* Row count of the page */
+
 /*
  * WT_CELL_ADDR_INT is an internal block location, WT_CELL_ADDR_LEAF is a leaf block location, and
  * WT_CELL_ADDR_LEAF_NO is a leaf block location where the page has no overflow items. (The goal is
@@ -205,7 +208,7 @@ struct __wt_cell_unpack_addr {
 
     WT_PAGE_DELETED page_del; /* Fast-truncate information */
 
-    WT_PAGE_STAT ps; /* Page information including row and byte counts */
+    WT_PAGE_STAT ps; /* Page stat information */
 };
 
 /*
@@ -216,4 +219,6 @@ struct __wt_cell_unpack_kv {
     WT_CELL_COMMON_FIELDS;
 
     WT_TIME_WINDOW tw; /* Value validity window */
+
+    WT_PAGE_STAT ovfl_ps; /* Page stat information for overflow cells */
 };

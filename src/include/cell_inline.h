@@ -190,6 +190,41 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
 }
 
 /*
+ * __cell_pack_page_stat --
+ *     Pack the page stat.
+ */
+static inline void
+__cell_pack_page_stat(WT_SESSION_IMPL *session, uint8_t **pp, WT_PAGE_STAT *ps)
+{
+    uint8_t flags, *flagsp;
+
+    flagsp = *pp;
+    ++*pp;
+
+    flags = 0;
+    if (ps == NULL) {
+        *flagsp = flags;
+        ++*pp;
+        return;
+    }
+
+    if (WT_PAGE_STAT_HAS_BYTE_COUNT(ps)) {
+        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, ps->byte_count));
+        LF_SET(WT_CELL_BYTE_COUNT);
+    }
+
+    if (WT_PAGE_STAT_HAS_ROW_COUNT(ps)) {
+        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, ta->row_count));
+        LF_SET(WT_CELL_ROW_COUNT);
+    }
+
+    if (flags == 0)
+        ++*pp;
+
+    *flagsp = flags;
+}
+
+/*
  * __wt_cell_pack_addr --
  *     Pack an address cell.
  */
@@ -217,20 +252,16 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
         WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->durable_timestamp));
     }
 
+    /* If page stat is supported, pack it. */
+    if (__wt_process.page_stats_2022)
+        __cell_pack_page_stat(session, &p, ps);
+
     if (recno == WT_RECNO_OOB)
         cell->__chunk[0] |= (uint8_t)cell_type; /* Type */
     else {
         cell->__chunk[0] |= (uint8_t)(cell_type | WT_CELL_64V);
         /* Record number */
         WT_IGNORE_RET(__wt_vpack_uint(&p, 0, recno));
-    }
-
-    /* If passed page stat information, append the row and byte counts. */
-    if (ps != NULL && __wt_process.page_stats_2022) {
-        if (WT_PAGE_STAT_HAS_BYTE_COUNT(ps))
-            WT_IGNORE_RET(__wt_vpack_int(&p, 0, ps->byte_count));
-        if (WT_PAGE_STAT_HAS_ROW_COUNT(ps))
-            WT_IGNORE_RET(__wt_vpack_int(&p, 0, ps->row_count));
     }
 
     /* Length */
@@ -499,8 +530,9 @@ __wt_cell_pack_leaf_key(WT_CELL *cell, uint8_t prefix, size_t size)
  */
 static inline size_t
 __wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t type, WT_TIME_WINDOW *tw,
-  uint64_t rle, size_t size)
+  uint64_t rle, size_t orig_size, size_t size)
 {
+    WT_PAGE_STAT ps;
     uint8_t *p;
 
     /* Start building a cell: the descriptor byte starts zero. */
@@ -518,6 +550,13 @@ __wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t type, WT_TI
         __cell_pack_value_validity(session, &p, tw);
         break;
     }
+
+    ps->row_count = WT_STAT_NONE;
+    ps->byte_count = orig_size;
+
+    /* If support page stat, pack it. */
+    if (__wt_process.page_stats_2022)
+        __cell_pack_page_stat(session, &p, &ps);
 
     if (rle < 2)
         cell->__chunk[0] |= type; /* Type */
@@ -705,17 +744,18 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
     copy.len = 0; /* [-Wconditional-uninitialized] */
     copy.v = 0;   /* [-Wconditional-uninitialized] */
 
-    ps = unpack_addr == NULL ? NULL : &unpack_addr->ps;
-
     if (unpack_addr == NULL) {
         unpack = (WT_CELL_UNPACK_COMMON *)unpack_value;
         tw = &unpack_value->tw;
+        ps = &unpack_value->ovfl_ps;
         WT_TIME_WINDOW_INIT(tw);
+        WT_PAGE_STAT_INIT(ps);
         ta = NULL;
     } else {
         WT_ASSERT(session, unpack_value == NULL);
 
         unpack = (WT_CELL_UNPACK_COMMON *)unpack_addr;
+        ps = &unpack_addr->ps;
         WT_PAGE_STAT_INIT(ps);
         ta = &unpack_addr->ta;
         WT_TIME_AGGREGATE_INIT(ta);
@@ -888,6 +928,27 @@ copy_cell_restart:
         page_del->selected_for_write = true;
     }
 
+    /* Unpack page stat information. */
+    if (F_ISSET(dsk, WT_PAGE_SUPPORT_STAT)) {
+        switch (unpack->raw) {
+        case WT_CELL_ADDR_DEL:
+        case WT_CELL_ADDR_INT:
+        case WT_CELL_ADDR_LEAF:
+        case WT_CELL_ADDR_LEAF_NO:
+        case WT_CELL_KEY_OVFL:
+        case WT_CELL_KEY_OVFL_RM:
+        case WT_CELL_VALUE_OVFL:
+        case WT_CELL_VALUE_OVFL_RM:
+            flags = *p++;
+
+            if (LF_SET(WT_CELL_BYTE_COUNT))
+                WT_RET(__wt_vunpack_int(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ps->byte_count);
+            if (LF_SET(WT_CELL_ROW_COUNT))
+                WT_RET(__wt_vunpack_int(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ps->row_count);
+            break;
+        }
+    }
+
     /*
      * Check for an RLE count or record number that optionally follows the cell descriptor byte on
      * column-store variable-length pages.
@@ -934,14 +995,6 @@ copy_cell_restart:
     case WT_CELL_ADDR_INT:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
-        /* Unpack the row and/or byte counts if the chunk of data includes it. */
-        if (ps != NULL && __wt_process.page_stats_2022) {
-            if (F_ISSET(dsk, WT_PAGE_STAT_BYTE_COUNT))
-                WT_RET(__wt_vunpack_int(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ps->byte_count));
-            if (F_ISSET(dsk, WT_PAGE_STAT_ROW_COUNT))
-                WT_RET(__wt_vunpack_int(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ps->row_count));
-        }
-        /* FALLTHROUGH */
     case WT_CELL_KEY:
     case WT_CELL_KEY_PFX:
     case WT_CELL_VALUE:
