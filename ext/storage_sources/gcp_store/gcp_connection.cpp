@@ -1,14 +1,7 @@
-#include "s3_connection.h"
-
-#include <aws/s3-crt/model/DeleteObjectRequest.h>
-#include <aws/s3-crt/model/ListObjectsV2Request.h>
-#include <aws/s3-crt/model/PutObjectRequest.h>
-#include <aws/s3-crt/model/GetObjectRequest.h>
-#include <aws/s3-crt/model/HeadObjectRequest.h>
-#include <aws/s3-crt/model/HeadBucketRequest.h>
+#include "gcp_connection.h"
 
 #include <fstream>
-#include <iostream>
+
 
 GCPConnection(const GCPCredentials &credentials,
       const GCPConfig &config, const std::string &bucketName,
