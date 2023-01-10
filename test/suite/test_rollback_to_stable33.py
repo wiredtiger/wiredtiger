@@ -48,7 +48,7 @@ class test_rollback_to_stable33(wttest.WiredTigerTestCase):
     conn_config = 'in_memory=true,verbose=(rts:5)'
 
     # Don't raise errors for these, the expectation is that the RTS verifier will
-    # run on the test output
+    # run on the test output.
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.ignoreStdoutPattern('WT_VERB_RTS')

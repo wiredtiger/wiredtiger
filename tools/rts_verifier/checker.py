@@ -19,7 +19,7 @@ class Checker:
         elif operation.type == OpType.PAGE_ROLLBACK:
             self.__apply_check_page_rollback(operation)
         elif operation.type == OpType.UPDATE_ABORT:
-            self.__apply_check_operation_abort(operation)
+            self.__apply_check_update_abort(operation)
         elif operation.type == OpType.PAGE_ABORT_CHECK:
             self.__apply_check_page_abort_check(operation)
         elif operation.type == OpType.KEY_CLEAR_REMOVE:
@@ -29,7 +29,7 @@ class Checker:
         elif operation.type == OpType.SHUTDOWN_INIT:
             self.__apply_check_shutdown_init(operation)
         elif operation.type == OpType.TREE_SKIP:
-            self.__apply_check_file_skip(operation)
+            self.__apply_check_tree_skip(operation)
         elif operation.type == OpType.SKIP_DEL_NULL:
             self.__apply_check_skip_del_null(operation)
         elif operation.type == OpType.ONDISK_ABORT_TW:
@@ -123,7 +123,7 @@ class Checker:
         #     raise Exception(f"visited page {operation.addr} again")
         self.visited_pages.add(page)
 
-    def __apply_check_operation_abort(self, operation):
+    def __apply_check_update_abort(self, operation):
         if operation.file != self.current_tree.file:
             raise Exception(f"spurious visit to {operation.file}")
 

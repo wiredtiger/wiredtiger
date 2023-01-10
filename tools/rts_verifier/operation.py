@@ -58,7 +58,7 @@ class Operation:
         elif '[SHUTDOWN_INIT]' in line:
             self.__init_shutdown_init(line)
         elif '[TREE_SKIP]' in line:
-            self.__init_file_skip(line)
+            self.__init_tree_skip(line)
         elif '[SKIP_DEL_NULL]' in line:
             self.__init_skip_del_null(line)
         elif '[ONDISK_ABORT_TW]' in line:
@@ -274,7 +274,7 @@ class Operation:
         stable_stop = int(matches.group(2))
         self.stable = Timestamp(stable_start, stable_stop)
 
-    def __init_file_skip(self, line):
+    def __init_tree_skip(self, line):
         self.type = OpType.TREE_SKIP
 
         matches = re.search('file:([\w_\.]+)', line)

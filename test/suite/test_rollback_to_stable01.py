@@ -48,7 +48,7 @@ def verify_rts_logs():
 # operations (those that need to specialize themselves for FLCS).
 class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
     # Don't raise errors for these, the expectation is that the RTS verifier will
-    # run on the test output
+    # run on the test output.
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.ignoreStdoutPattern('WT_VERB_RTS')

@@ -70,7 +70,8 @@ class test_rollback_to_stable25(wttest.WiredTigerTestCase):
         self.ignoreStdoutPattern('WT_VERB_RTS')
         self.addTearDownAction(verify_rts_logs)
 
-    conn_config = 'in_memory=false,verbose=(rts:5)'
+    def conn_config(self):
+        return 'in_memory=false,verbose=(rts:5)'
 
     write_10_values = [
         ('10u', dict(write_10='u')),

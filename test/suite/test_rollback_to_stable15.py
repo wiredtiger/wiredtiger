@@ -53,7 +53,7 @@ class test_rollback_to_stable15(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(key_format_values, value_format_values, in_memory_values)
 
     # Don't raise errors for these, the expectation is that the RTS verifier will
-    # run on the test output
+    # run on the test output.
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.ignoreStdoutPattern('WT_VERB_RTS')
