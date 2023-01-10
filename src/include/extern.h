@@ -2324,7 +2324,7 @@ static inline size_t __wt_cell_pack_int_key(WT_CELL *cell, size_t size)
 static inline size_t __wt_cell_pack_leaf_key(WT_CELL *cell, uint8_t prefix, size_t size)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline size_t __wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t type,
-  WT_TIME_WINDOW *tw, uint64_t rle, size_t orig_size, size_t size)
+  WT_TIME_WINDOW *tw, uint64_t rle, int64_t orig_size, size_t size)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline size_t __wt_cell_pack_value(WT_SESSION_IMPL *session, WT_CELL *cell,
   WT_TIME_WINDOW *tw, uint64_t rle, size_t size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

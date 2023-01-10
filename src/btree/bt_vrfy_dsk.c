@@ -136,8 +136,8 @@ __wt_verify_dsk_image(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_H
         LF_CLR(WT_PAGE_UNUSED);
     if (LF_ISSET(WT_PAGE_FT_UPDATE))
         LF_CLR(WT_PAGE_FT_UPDATE);
-    if (LF_ISSET(WT_PAGE_SUPPORT_PAGE_STAT))
-        LF_CLR(WT_PAGE_SUPPORT_PAGE_STAT);
+    if (LF_ISSET(WT_PAGE_SUPPORT_STAT))
+        LF_CLR(WT_PAGE_SUPPORT_STAT);
     if (flags != 0)
         WT_RET_VRFY(session, "page at %s has invalid flags set: 0x%" PRIx8, tag, flags);
 

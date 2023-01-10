@@ -1358,7 +1358,7 @@ record_loop:
                 deleted = orig_deleted;
                 if (deleted) {
                     twp = &clear_tw;
-                    psp = &clear_psp;
+                    psp = &clear_ps;
                     goto compare;
                 }
                 twp = &vpack->tw;
@@ -1483,8 +1483,8 @@ compare:
                 }
                 if (!last.deleted)
                     wrote_real_values = true;
-                WT_ERR(__rec_col_var_helper(session, r, salvage, last.value, &last.tw, &last.ps,
-                  NULL, rle, last.deleted, NULL));
+                WT_ERR(__rec_col_var_helper(
+                  session, r, salvage, last.value, &last.tw, NULL, rle, last.deleted, NULL));
             }
 
             /*
@@ -1642,7 +1642,7 @@ compare:
 
             /* Ready for the next loop, reset the RLE counter. */
             WT_TIME_WINDOW_COPY(&last.tw, twp);
-            WT_PAGE_STAT_COPY(&last.psp, psp);
+            WT_PAGE_STAT_COPY(&last.ps, psp);
             last.deleted = deleted;
             rle = 1;
 
@@ -1668,8 +1668,8 @@ next:
     if (rle != 0) {
         if (!last.deleted)
             wrote_real_values = true;
-        WT_ERR(
-          __rec_col_var_helper(session, r, salvage, last.value, &last.tw, rle, last.deleted, NULL));
+        WT_ERR(__rec_col_var_helper(
+          session, r, salvage, last.value, &last.tw, NULL, rle, last.deleted, NULL));
     }
 
     /*

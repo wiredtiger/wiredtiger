@@ -2799,7 +2799,8 @@ __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *k
     WT_ERR(__wt_buf_set(session, &kv->buf, addr, size));
 
     /* Build the cell and return. */
-    kv->cell_len = __wt_cell_pack_ovfl(session, &kv->cell, type, tw, rle, orig_size, kv->buf.size);
+    kv->cell_len =
+      __wt_cell_pack_ovfl(session, &kv->cell, type, tw, rle, (int64_t)orig_size, kv->buf.size);
     kv->len = kv->cell_len + kv->buf.size;
 
 err:

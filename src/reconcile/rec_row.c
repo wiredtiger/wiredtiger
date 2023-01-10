@@ -790,7 +790,7 @@ __wt_rec_row_leaf(
 
                     /* Rebuild the cell. */
                     val->cell_len = __wt_cell_pack_ovfl(session, &val->cell, vpack->raw, twp, 0,
-                      vpack->ovfl_ps->byte_count, val->buf.size);
+                      vpack->ovfl_ps.byte_count, val->buf.size);
                     val->len = val->cell_len + val->buf.size;
                 } else
                     WT_ERR(__rec_cell_repack(session, btree, r, vpack, twp));

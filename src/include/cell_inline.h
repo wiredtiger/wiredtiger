@@ -194,7 +194,7 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
  *     Pack the page stat.
  */
 static inline void
-__cell_pack_page_stat(WT_SESSION_IMPL *session, uint8_t **pp, WT_PAGE_STAT *ps)
+__cell_pack_page_stat(uint8_t **pp, WT_PAGE_STAT *ps)
 {
     uint8_t flags, *flagsp;
 
@@ -209,12 +209,12 @@ __cell_pack_page_stat(WT_SESSION_IMPL *session, uint8_t **pp, WT_PAGE_STAT *ps)
     }
 
     if (WT_PAGE_STAT_HAS_BYTE_COUNT(ps)) {
-        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, ps->byte_count));
+        WT_IGNORE_RET(__wt_vpack_int(pp, 0, ps->byte_count));
         LF_SET(WT_CELL_BYTE_COUNT);
     }
 
     if (WT_PAGE_STAT_HAS_ROW_COUNT(ps)) {
-        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, ta->row_count));
+        WT_IGNORE_RET(__wt_vpack_int(pp, 0, ps->row_count));
         LF_SET(WT_CELL_ROW_COUNT);
     }
 
@@ -254,7 +254,7 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
 
     /* If page stat is supported, pack it. */
     if (__wt_process.page_stats_2022)
-        __cell_pack_page_stat(session, &p, ps);
+        __cell_pack_page_stat(&p, ps);
 
     if (recno == WT_RECNO_OOB)
         cell->__chunk[0] |= (uint8_t)cell_type; /* Type */
@@ -530,7 +530,7 @@ __wt_cell_pack_leaf_key(WT_CELL *cell, uint8_t prefix, size_t size)
  */
 static inline size_t
 __wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t type, WT_TIME_WINDOW *tw,
-  uint64_t rle, size_t orig_size, size_t size)
+  uint64_t rle, int64_t orig_size, size_t size)
 {
     WT_PAGE_STAT ps;
     uint8_t *p;
@@ -551,12 +551,12 @@ __wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t type, WT_TI
         break;
     }
 
-    ps->row_count = WT_STAT_NONE;
-    ps->byte_count = orig_size;
+    ps.row_count = WT_STAT_NONE;
+    ps.byte_count = (int64_t)orig_size;
 
     /* If support page stat, pack it. */
     if (__wt_process.page_stats_2022)
-        __cell_pack_page_stat(session, &p, &ps);
+        __cell_pack_page_stat(&p, &ps);
 
     if (rle < 2)
         cell->__chunk[0] |= type; /* Type */
@@ -941,10 +941,10 @@ copy_cell_restart:
         case WT_CELL_VALUE_OVFL_RM:
             flags = *p++;
 
-            if (LF_SET(WT_CELL_BYTE_COUNT))
-                WT_RET(__wt_vunpack_int(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ps->byte_count);
-            if (LF_SET(WT_CELL_ROW_COUNT))
-                WT_RET(__wt_vunpack_int(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ps->row_count);
+            if (LF_ISSET(WT_CELL_BYTE_COUNT))
+                WT_RET(__wt_vunpack_int(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ps->byte_count));
+            if (LF_ISSET(WT_CELL_ROW_COUNT))
+                WT_RET(__wt_vunpack_int(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ps->row_count));
             break;
         }
     }
