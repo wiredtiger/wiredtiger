@@ -630,6 +630,9 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %ignore __wt_modify::offset;
 %ignore __wt_modify::size;
 
+/* Replace get_raw_key_value method with a Python equivalent */
+%ignore __wt_cursor::get_raw_key_value;
+
 /* Next, override methods that return integers via arguments. */
 %ignore __wt_cursor::compare(WT_CURSOR *, WT_CURSOR *, int *);
 %ignore __wt_cursor::equals(WT_CURSOR *, WT_CURSOR *, int *);
@@ -955,10 +958,10 @@ typedef int int_void;
 		else:
 			return unpack(self.value_format, self._get_value())
 
-	def get_raw_key_and_value(self):
-		'''get_raw_key_and_value(self) -> object
+	def get_raw_key_value(self):
+		'''get_raw_key_value(self) -> object
 
-		@copydoc WT_CURSOR::get_raw_key_and_value
+		@copydoc WT_CURSOR::get_raw_key_value
 		Returns a tuple containing both the key and the value.'''
 
 		result = self._get_raw_key_value()

@@ -41,7 +41,7 @@ class test_cursor22(wttest.WiredTigerTestCase):
         self.assertEquals(value, expected_value)
 
     def check_get_raw_key_and_value(self, cursor, expected_key, expected_value):
-        (key, value) = cursor.get_raw_key_and_value()
+        (key, value) = cursor.get_raw_key_value()
         self.assertEquals(key, expected_key)
         self.assertEquals(value, expected_value)
 
@@ -78,11 +78,11 @@ class test_cursor22(wttest.WiredTigerTestCase):
         cursor.reset()
         cursor.next()
         # Get only the key (and ignore the value)
-        (key, _) = cursor.get_raw_key_and_value()
+        (key, _) = cursor.get_raw_key_value()
         # Check we can ignore the result completely, without an issue
-        cursor.get_raw_key_and_value()
+        cursor.get_raw_key_value()
         # Get only the value (and ignore the key)
-        (_, value) = cursor.get_raw_key_and_value()
+        (_, value) = cursor.get_raw_key_value()
         self.assertEquals(key, "key1")
         self.assertEquals(value, "value101")
         self.session.commit_transaction()

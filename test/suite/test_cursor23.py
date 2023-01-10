@@ -48,8 +48,8 @@ class test_cursor23(wttest.WiredTigerTestCase):
         self.assertEquals(key, expected_key)
         self.assertEquals(value, expected_value)
 
-    def check_get_raw_key_and_value(self, cursor, expected_key, expected_value):
-        (key, value) = cursor.get_raw_key_and_value()
+    def check_get_raw_key_value(self, cursor, expected_key, expected_value):
+        (key, value) = cursor.get_raw_key_value()
         self.assertEquals(key, expected_key)
         self.assertEquals(value, expected_value)
 
@@ -77,7 +77,7 @@ class test_cursor23(wttest.WiredTigerTestCase):
             cursor.reset()
             cursor.next()
             msg = '/Unsupported cursor operation: Operation not supported/'
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.get_raw_key_and_value(), msg)
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.get_raw_key_value(), msg)
             self.session.commit_transaction() 
         else:
             # Check the data using get_key() and get_value()
@@ -93,7 +93,7 @@ class test_cursor23(wttest.WiredTigerTestCase):
             cursor.reset()
             for i in range(1, 10):
                 cursor.next()
-                self.check_get_raw_key_and_value(cursor=cursor, expected_key=f'{i:015d}'.format(i), expected_value=f'{i}: abcdefghijklmnopqrstuvwxyz'.format(i))
+                self.check_get_raw_key_value(cursor=cursor, expected_key=f'{i:015d}'.format(i), expected_value=f'{i}: abcdefghijklmnopqrstuvwxyz'.format(i))
             self.session.commit_transaction()
 
         cursor.close()
