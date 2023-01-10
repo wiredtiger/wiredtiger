@@ -419,7 +419,6 @@ class Operation:
 
         matches = re.search('time_window=start: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+) stop: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+)', line)
 
-        # TODO refactor time-window matching
         durable_start_start = int(matches.group(1))
         durable_start_end = int(matches.group(2))
         self.durable_start = Timestamp(durable_start_start, durable_start_end)
