@@ -354,7 +354,8 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
         if (__wt_rts_visibility_txn_visible_id(session, hs_tw->stop_txn) &&
           hs_tw->durable_stop_ts <= pinned_ts) {
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-              "[HS_STOP_OBSOLETE] history store stop is obsolete with time_window=%s and pinned_timestamp=%s",
+              "[HS_STOP_OBSOLETE] history store stop is obsolete with time_window=%s and "
+              "pinned_timestamp=%s",
               __wt_time_window_to_string(hs_tw, tw_string),
               __wt_timestamp_to_string(pinned_ts, ts_string[0]));
             if (!dryrun)
@@ -386,7 +387,8 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
             }
         } else
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
-              "[HS_GT_ONDISK] history store update more recent than on-disk update with time_window=%s and type="
+              "[HS_GT_ONDISK] history store update more recent than on-disk update with "
+              "time_window=%s and type="
               "%s",
               __wt_time_window_to_string(hs_tw, tw_string), __wt_update_type_str(type));
 
@@ -492,7 +494,8 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
         upd->durable_ts = hs_tw->durable_start_ts;
         upd->start_ts = hs_tw->start_ts;
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-          "[HS_UPDATE_RESTORED] history store update restored txnid=%" PRIu64 ", start_ts=%s and durable_ts=%s",
+          "[HS_UPDATE_RESTORED] history store update restored txnid=%" PRIu64
+          ", start_ts=%s and durable_ts=%s",
           upd->txnid, __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
           __wt_timestamp_to_string(upd->durable_ts, ts_string[1]));
 
@@ -549,8 +552,8 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
     } else {
         WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
         WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
-        __wt_verbose_level_multi(
-          session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3, "[KEY_REMOVED] %s", "key removed");
+        __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
+          "[KEY_REMOVED] %s", "key removed");
     }
 
     if (rip != NULL)
@@ -625,8 +628,9 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
          */
         if (vpack->tw.durable_stop_ts > rollback_timestamp || vpack->tw.stop_ts == WT_TS_MAX) {
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-              "[HS_ABORT_STOP] history store update aborted with start_durable/commit_timestamp=%s, %s, stop_"
-              "durable/commit_timestamp=%s, %s and stable_timestamp=%s",
+              "[HS_ABORT_STOP] history store update aborted with "
+              "start_durable/commit_timestamp=%s, %s, "
+              "stop_durable/commit_timestamp=%s, %s and stable_timestamp=%s",
               __wt_timestamp_to_string(vpack->tw.durable_start_ts, ts_string[0]),
               __wt_timestamp_to_string(vpack->tw.start_ts, ts_string[1]),
               __wt_timestamp_to_string(vpack->tw.durable_stop_ts, ts_string[2]),
@@ -640,8 +644,9 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
       !__wt_rts_visibility_txn_visible_id(session, vpack->tw.start_txn) ||
       (!WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prepared)) {
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-          "[ONDISK_ABORT_TW] on-disk update aborted with time_window=%s. Start durable_timestamp > stable_timestamp: "
-          "%s, or txnid_not_visible=%s, or tw_has_no_stop_and_is_prepared=%s",
+          "[ONDISK_ABORT_TW] on-disk update aborted with time_window=%s. "
+          "Start durable_timestamp > stable_timestamp: %s, "
+          "or txnid_not_visible=%s, or tw_has_no_stop_and_is_prepared=%s",
           __wt_time_point_to_string(
             vpack->tw.start_ts, vpack->tw.durable_start_ts, vpack->tw.start_txn, time_string),
           vpack->tw.durable_start_ts > rollback_timestamp ? "true" : "false",
@@ -709,9 +714,8 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
             F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
             WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_keys_restored);
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-              "[KEY_CLEAR_REMOVE] key restored with commit_timestamp=%s, durable_timestamp=%s, stable_timestamp="
-              "%s, "
-              "txnid=%" PRIu64
+              "[KEY_CLEAR_REMOVE] key restored with commit_timestamp=%s, durable_timestamp=%s, "
+              "stable_timestamp=%s, txnid=%" PRIu64
               " and removed commit_timestamp=%s, durable_timestamp=%s, txnid=%" PRIu64
               ", prepared=%s",
               __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
@@ -746,7 +750,8 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
 
     WT_ERR(__wt_scr_alloc(session, 0, &key_string));
     __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
-      "[ONDISK_KV_REMOVE] removing the key, tombstone=%s, key=%s", upd->type == WT_UPDATE_TOMBSTONE ? "true" : "false",
+      "[ONDISK_KV_REMOVE] removing the key, tombstone=%s, key=%s",
+      upd->type == WT_UPDATE_TOMBSTONE ? "true" : "false",
       __wt_key_string(session, key->data, key->size, S2BT(session)->key_format, key_string));
 
     if (rip != NULL)
@@ -1070,7 +1075,8 @@ __wt_rts_btree_abort_updates(
 
     WT_STAT_CONN_INCR(session, txn_rts_pages_visited);
     __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
-      "[PAGE_ROLLBACK] roll back page, addr=%p modified=%s", (void *)ref, modified ? "true" : "false");
+      "[PAGE_ROLLBACK] roll back page, addr=%p modified=%s", (void *)ref,
+      modified ? "true" : "false");
 
     switch (page->type) {
     case WT_PAGE_COL_FIX:

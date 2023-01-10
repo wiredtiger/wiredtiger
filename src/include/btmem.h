@@ -818,14 +818,14 @@ static inline const char *
 __wt_prepare_state_str(uint8_t state)
 {
     switch (state) {
-        case WT_PREPARE_INIT:
-            return ("PREPARE_INIT");
-        case WT_PREPARE_INPROGRESS:
-            return ("PREPARE_INPROGRESS");
-        case WT_PREPARE_LOCKED:
-            return ("PREPARE_LOCKED");
-        case WT_PREPARE_RESOLVED:
-            return ("PREPARE_RESOLVED");
+    case WT_PREPARE_INIT:
+        return ("PREPARE_INIT");
+    case WT_PREPARE_INPROGRESS:
+        return ("PREPARE_INPROGRESS");
+    case WT_PREPARE_LOCKED:
+        return ("PREPARE_LOCKED");
+    case WT_PREPARE_RESOLVED:
+        return ("PREPARE_RESOLVED");
     }
 
     return ("PREPARE_INVALID");
