@@ -33,8 +33,8 @@ import random
 import string
 import time
 
-from wiredtiger import *
 from runner import *
+from wiredtiger import *
 from workgen import *
 
 class ThreadWithReturnValue(pythread.Thread):
