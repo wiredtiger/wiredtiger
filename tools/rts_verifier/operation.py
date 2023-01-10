@@ -101,6 +101,12 @@ class Operation:
     def __repr__(self):
         return f"{self.__dict__}"
 
+    def __extract_file(self, line):
+        matches = re.search('file:([\w_\.]+)', line)
+        if matches is None:
+            raise Exception(f"failed to extract a filename from {line}")
+        return matches.group(1)
+
     def __init_init(self, line):
         self.type = OpType.INIT
 
@@ -114,9 +120,7 @@ class Operation:
 
     def __init_tree(self, line):
         self.type = OpType.TREE
-
-        matches = re.search('file:([\w_\.]+)', line)
-        self.file = matches.group(1)
+        self.file = self.__extract_file(line)
 
         matches = re.search('modified=(\w+)', line)
         self.modified = matches.group(1).lower() == "true"
@@ -143,10 +147,7 @@ class Operation:
 
     def __init_tree_logging(self, line):
         self.type = OpType.TREE_LOGGING
-
-        # TODO factor out file extraction
-        matches = re.search('file:([\w_\.]+)', line)
-        self.file = matches.group(1)
+        self.file = self.__extract_file(line)
 
         matches = re.search('connection_logging_enabled=(\w+)', line)
         self.conn_logging_enabled = matches.group(1).lower() == "true"
@@ -156,9 +157,7 @@ class Operation:
 
     def __init_page_rollback(self, line):
         self.type = OpType.PAGE_ROLLBACK
-
-        matches = re.search('file:([\w_\.]+)', line)
-        self.file = matches.group(1)
+        self.file = self.__extract_file(line)
 
         matches = re.search('addr=(0x[A-Za-z0-9]+)', line)
         self.addr = int(matches.group(1), 16)
@@ -168,9 +167,7 @@ class Operation:
 
     def __init_update_abort(self, line):
         self.type = OpType.UPDATE_ABORT
-
-        matches = re.search('file:([\w_\.]+)', line)
-        self.file = matches.group(1)
+        self.file = self.__extract_file(line)
 
         matches = re.search('txnid=(\d+)', line)
         self.txnid = int(matches.group(1))
@@ -193,9 +190,7 @@ class Operation:
 
     def __init_page_abort_check(self, line):
         self.type = OpType.PAGE_ABORT_CHECK
-
-        matches = re.search('file:([\w_\.]+)', line)
-        self.file = matches.group(1)
+        self.file = self.__extract_file(line)
 
         matches = re.search('ref=(0x[A-Za-z0-9]+)', line)
         self.ref = int(matches.group(1), 16)
@@ -216,9 +211,7 @@ class Operation:
 
     def __init_key_clear_remove(self, line):
         self.type = OpType.KEY_CLEAR_REMOVE
-
-        matches = re.search('file:([\w_\.]+)', line)
-        self.file = matches.group(1)
+        self.file = self.__extract_file(line)
 
         matches = re.search('commit_timestamp=\((\d+), (\d+)\)', line)
         commit_start = int(matches.group(1))
@@ -256,9 +249,7 @@ class Operation:
 
     def __init_ondisk_kv_remove(self, line):
         self.type = OpType.ONDISK_KV_REMOVE
-
-        matches = re.search('file:([\w_\.]+)', line)
-        self.file = matches.group(1)
+        self.file = self.__extract_file(line)
 
         matches = re.search('tombstone=(\w+)', line)
         self.tombstone = matches.group(1).lower() == "true"
@@ -276,9 +267,7 @@ class Operation:
 
     def __init_tree_skip(self, line):
         self.type = OpType.TREE_SKIP
-
-        matches = re.search('file:([\w_\.]+)', line)
-        self.file = matches.group(1)
+        self.file = self.__extract_file(line)
 
         matches = re.search('durable_timestamp=\((\d+), (\d+)\)', line)
         durable_start = int(matches.group(1))
@@ -295,18 +284,14 @@ class Operation:
 
     def __init_skip_del_null(self, line):
         self.type = OpType.SKIP_DEL_NULL
-
-        matches = re.search('file:([\w_\.]+)', line)
-        self.file = matches.group(1)
+        self.file = self.__extract_file(line)
 
         matches = re.search('ref=(0x[A-Za-z0-9]+)', line)
         self.ref = int(matches.group(1), 16)
 
     def __init_ondisk_abort_tw(self, line):
         self.type = OpType.ONDISK_ABORT_TW
-
-        matches = re.search('file:([\w_\.]+)', line)
-        self.file = matches.group(1)
+        self.file = self.__extract_file(line)
 
         matches = re.search('time_window=\((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+)', line)
         start_start = int(matches.group(1))
@@ -328,18 +313,14 @@ class Operation:
 
     def __init_ondisk_key_rollback(self, line):
         self.type = OpType.ONDISK_KEY_ROLLBACK
-
-        matches = re.search('file:([\w_\.]+)', line)
-        self.file = matches.group(1)
+        self.file = self.__extract_file(line)
 
         matches = re.search('key=(\d+)', line)
         self.key = int(matches.group(1))
 
     def __init_hs_update_abort(self, line):
         self.type = OpType.HS_UPDATE_ABORT
-
-        matches = re.search('file:([\w_\.]+)', line)
-        self.file = matches.group(1)
+        self.file = self.__extract_file(line)
 
         matches = re.search('time_window=start: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+) stop: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+)', line)
 
@@ -369,9 +350,7 @@ class Operation:
 
     def __init_hs_update_valid(self, line):
         self.type = OpType.HS_UPDATE_VALID
-
-        matches = re.search('file:([\w_\.]+)', line)
-        self.file = matches.group(1)
+        self.file = self.__extract_file(line)
 
         matches = re.search('time_window=start: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+) stop: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+)', line)
 
@@ -401,9 +380,7 @@ class Operation:
 
     def __init_hs_update_restored(self, line):
         self.type = OpType.HS_UPDATE_VALID
-
-        matches = re.search('file:([\w_\.]+)', line)
-        self.file = matches.group(1)
+        self.file = self.__extract_file(line)
 
         matches = re.search('txnid=(\d+)', line)
         self.txnid = int(matches.group(1))
@@ -420,33 +397,25 @@ class Operation:
 
     def __init_key_removed(self, line):
         self.type = OpType.KEY_REMOVED
-
-        matches = re.search('file:([\w_\.]+)', line)
-        self.file = matches.group(1)
+        self.file = self.__extract_file(line)
 
     def __init_stable_pg_walk_skip(self, line):
         self.type = OpType.KEY_REMOVED
-
-        matches = re.search('file:([\w_\.]+)', line)
-        self.file = matches.group(1)
+        self.file = self.__extract_file(line)
 
         matches = re.search('ref=0x([A-Za-z0-9]+)', line)
         self.addr = int(matches.group(1), 16)
 
     def __init_skip_unmodified(self, line):
         self.type = OpType.SKIP_UNMODIFIED
-
-        matches = re.search('file:([\w_\.]+)', line)
-        self.file = matches.group(1)
+        self.file = self.__extract_file(line)
 
         matches = re.search('ref=0x([A-Za-z0-9]+)', line)
         self.addr = int(matches.group(1), 16)
 
     def __init_hs_gt_ondisk(self, line):
         self.type = OpType.HS_GT_ONDISK
-
-        matches = re.search('file:([\w_\.]+)', line)
-        self.file = matches.group(1)
+        self.file = self.__extract_file(line)
 
         matches = re.search('time_window=start: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+) stop: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+)', line)
 
@@ -485,9 +454,7 @@ class Operation:
 
     def __init_hs_stop_obsolete(self, line):
         self.type = OpType.HS_STOP_OBSOLETE
-
-        matches = re.search('file:([\w_\.]+)', line)
-        self.file = matches.group(1)
+        self.file = self.__extract_file(line)
 
         matches = re.search('time_window=start: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+) stop: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+)', line)
         durable_start_start = int(matches.group(1))
@@ -525,9 +492,7 @@ class Operation:
 
     def __init_hs_tree_rollback(self, line):
         self.type = OpType.HS_TREE_ROLLBACK
-
-        matches = re.search('file:([\w_\.]+)', line)
-        self.file = matches.group(1)
+        self.file = self.__extract_file(line)
 
         matches = re.search('durable_timestamp=\((\d+), (\d+)\)', line)
         durable_start = int(matches.group(1))
@@ -536,9 +501,7 @@ class Operation:
 
     def __init_hs_tree_skip(self, line):
         self.type = OpType.HS_TREE_SKIP
-
-        matches = re.search('file:([\w_\.]+)', line)
-        self.file = matches.group(1)
+        self.file = self.__extract_file(line)
 
         matches = re.search('durable_timestamp=\((\d+), (\d+)\)', line)
         durable_start = int(matches.group(1))
@@ -552,9 +515,7 @@ class Operation:
 
     def __init_hs_abort_stop(self, line):
         self.type = OpType.HS_ABORT_STOP
-
-        matches = re.search('file:([\w_\.]+)', line)
-        self.file = matches.group(1)
+        self.file = self.__extract_file(line)
 
         matches = re.search('start_durable/commit_timestamp=\((\d+), (\d+)\), \((\d+), (\d+)\)', line)
         durable_start_start = int(matches.group(1))
@@ -579,9 +540,7 @@ class Operation:
 
     def __init_hs_restore_tombstone(self, line):
         self.type = OpType.HS_RESTORE_TOMBSTONE
-
-        matches = re.search('file:([\w_\.]+)', line)
-        self.file = matches.group(1)
+        self.file = self.__extract_file(line)
 
         matches = re.search('txnid=(\d+)', line)
         self.txnid = int(matches.group(1))
@@ -598,6 +557,4 @@ class Operation:
 
     def __init_file_skip(self, line):
         self.type = OpType.TREE_SKIP
-
-        matches = re.search('file:([\w_\.]+)', line)
-        self.file = matches.group(1)
+        self.file = self.__extract_file(line)
