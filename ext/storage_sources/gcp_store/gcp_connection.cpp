@@ -3,8 +3,7 @@
 #include <fstream>
 
 
-GCPConnection(const GCPCredentials &credentials,
-      const GCPConfig &config, const std::string &bucketName,
+GCPConnection(const std::string &bucketName,
       const std::string &objPrefix = "")
     : 
 {

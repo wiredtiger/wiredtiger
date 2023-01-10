@@ -46,8 +46,7 @@
 class GCPConnection {
     public:
     
-    GCPConnection(const GCPCredentials &credentials,
-      const GCPConfig &config, const std::string &bucketName,
+    GCPConnection(const std::string &bucketName,
       const std::string &objPrefix = "");
     int ListObjects(const std::string &prefix, std::vector<std::string> &objects,
       uint32_t batchSize = 1000, bool listSingle = false) const;
