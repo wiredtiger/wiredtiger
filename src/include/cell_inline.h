@@ -201,13 +201,12 @@ __cell_pack_page_stat(uint8_t **pp, WT_PAGE_STAT *ps)
     flagsp = *pp;
     ++*pp;
 
-    flags = 0;
     if (ps == NULL) {
-        *flagsp = flags;
-        ++*pp;
+        *flagsp = 0;
         return;
     }
 
+    flags = 0;
     if (WT_PAGE_STAT_HAS_BYTE_COUNT(ps)) {
         WT_IGNORE_RET(__wt_vpack_int(pp, 0, ps->byte_count));
         LF_SET(WT_CELL_BYTE_COUNT);
@@ -217,9 +216,6 @@ __cell_pack_page_stat(uint8_t **pp, WT_PAGE_STAT *ps)
         WT_IGNORE_RET(__wt_vpack_int(pp, 0, ps->row_count));
         LF_SET(WT_CELL_ROW_COUNT);
     }
-
-    if (flags == 0)
-        ++*pp;
 
     *flagsp = flags;
 }
