@@ -552,7 +552,7 @@ __wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t type, WT_TI
     }
 
     ps.row_count = WT_STAT_NONE;
-    ps.byte_count = (int64_t)orig_size;
+    ps.byte_count = orig_size;
 
     /* If support page stat, pack it. */
     if (__wt_process.page_stats_2022)
