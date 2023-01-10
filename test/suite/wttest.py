@@ -520,10 +520,9 @@ class WiredTigerTestCase(unittest.TestCase):
 
         # Collect all statistics for Python tests by default unless configured otherwise.
         if not("statistics" in config):
-            if config != "":
-                config += ","
-            config += 'statistics=(all)'
+            config += ',statistics=(all)'
 
+        # Enable statistics logging if we haven't already.
         if ("statistics=(all)" in config or "statistics=(fast)" in config) and not("statistics_log" in config):
             config += ',statistics_log=(wait=1,json=true,on_close=true)'
 
