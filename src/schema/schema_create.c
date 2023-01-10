@@ -146,6 +146,7 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
     WT_DECL_ITEM(buf);
     WT_DECL_ITEM(val);
     WT_DECL_RET;
+    const char *filestripped, *strip;
     const char *filename, **p,
       *filecfg[] = {WT_CONFIG_BASE(session, file_meta), config, NULL, NULL, NULL, NULL};
     char *fileconf, *filemeta;
@@ -153,6 +154,7 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
     bool against_stable, exists, import, import_repair, is_metadata;
 
     fileconf = filemeta = NULL;
+    filestripped = strip = NULL;
     import = F_ISSET(session, WT_SESSION_IMPORT);
 
     import_repair = false;
@@ -278,7 +280,17 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
             /* Try to recreate the associated metadata from the imported data source. */
             WT_ERR(__wt_import_repair(session, uri, &fileconf));
         }
-        WT_ERR(__wt_metadata_insert(session, uri, fileconf));
+
+        /*
+         * Strip the tiered storage shared configuration from the metadata as it is not required to
+         * be persisted.
+         */
+        filecfg[1] = fileconf;
+        filecfg[2] = NULL;
+        strip = "tiered_storage=(shared=),";
+        WT_ERR(__wt_config_merge(session, filecfg, strip, &filestripped));
+
+        WT_ERR(__wt_metadata_insert(session, uri, filestripped));
 
         /*
          * Ensure that the timestamps in the imported data file are not in the future relative to
@@ -289,7 +301,7 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
               __wt_config_getones(session, config, "import.compare_timestamp", &cval) == 0 &&
               (WT_STRING_MATCH("stable", cval.str, cval.len) ||
                 WT_STRING_MATCH("stable_timestamp", cval.str, cval.len));
-            WT_ERR(__check_imported_ts(session, uri, fileconf, against_stable));
+            WT_ERR(__check_imported_ts(session, uri, filestripped, against_stable));
         }
     }
 
@@ -315,6 +327,7 @@ err:
     __wt_scr_free(session, &val);
     __wt_free(session, fileconf);
     __wt_free(session, filemeta);
+    __wt_free(session, filestripped);
     return (ret);
 }
 
@@ -930,9 +943,18 @@ err:
 static int
 __create_object(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const char *config)
 {
+    WT_DECL_RET;
+    const char *cfg[] = {WT_CONFIG_BASE(session, object_meta), NULL, NULL};
+    const char *metadata, *strip;
+
     WT_UNUSED(exclusive);
-    WT_RET(__wt_metadata_insert(session, uri, config));
-    return (0);
+
+    cfg[1] = config;
+    strip = "tiered_storage=(shared=),";
+    WT_RET(__wt_config_merge(session, cfg, strip, &metadata));
+    WT_TRET(__wt_metadata_insert(session, uri, metadata));
+    __wt_free(session, metadata);
+    return (ret);
 }
 
 /*
@@ -943,9 +965,19 @@ int
 __wt_tiered_tree_create(
   WT_SESSION_IMPL *session, const char *uri, bool exclusive, const char *config)
 {
+    WT_DECL_RET;
+    const char *cfg[] = {WT_CONFIG_BASE(session, tier_meta), NULL, NULL};
+    const char *metadata, *strip;
+
+    metadata = strip = NULL;
     WT_UNUSED(exclusive);
-    WT_RET(__wt_metadata_insert(session, uri, config));
-    return (0);
+
+    cfg[1] = config;
+    strip = "tiered_storage=(shared=),";
+    WT_RET(__wt_config_merge(session, cfg, strip, &metadata));
+    WT_TRET(__wt_metadata_insert(session, uri, metadata));
+    __wt_free(session, metadata);
+    return (ret);
 }
 
 /*
@@ -961,11 +993,11 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
     WT_TIERED *tiered;
     char *meta_value;
     const char *cfg[5] = {WT_CONFIG_BASE(session, tiered_meta), NULL, NULL, NULL, NULL};
-    const char *metadata;
+    const char *metadata, *strip;
     bool free_metadata;
 
     conn = S2C(session);
-    metadata = NULL;
+    metadata = strip = NULL;
     tiered = NULL;
     free_metadata = true;
 
@@ -999,7 +1031,8 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
             cfg[1] = tmp->data;
             cfg[2] = config;
             cfg[3] = "tiers=()";
-            WT_ERR(__wt_config_merge(session, cfg, NULL, &metadata));
+            strip = "tiered_storage=(shared=),";
+            WT_ERR(__wt_config_merge(session, cfg, strip, &metadata));
         }
 
         WT_ERR(__wt_metadata_insert(session, uri, metadata));
