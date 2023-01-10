@@ -11,9 +11,9 @@ class AzureConnection {
     public:
     AzureConnection(const std::string &bucketName, const std::string &objPrefix = "");
     int ListObjects(const std::string &prefix, std::vector<std::string> &objects,
-    uint32_t batchSize, bool listSingle) const;
+      uint32_t batchSize, bool listSingle) const;
     int PutObject(const std::string &fileName) const;
-    int DeleteObject() const; 
+    int DeleteObject() const;
     int GetObject(const std::string &path) const;
     ~AzureConnection() = default;
 
