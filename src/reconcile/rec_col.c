@@ -1387,8 +1387,8 @@ record_loop:
 
                     last.value->data = vpack->data;
                     last.value->size = vpack->size;
-                    WT_ERR(__rec_col_var_helper(
-                      session, r, salvage, last.value, twp, NULL, repeat_count, false, &ovfl_used));
+                    WT_ERR(__rec_col_var_helper(session, r, salvage, last.value, twp, &last.ps,
+                      repeat_count, false, &ovfl_used));
 
                     wrote_real_values = true;
 
