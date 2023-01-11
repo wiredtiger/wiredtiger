@@ -38,23 +38,19 @@
 // connection methods to return errno values expected by the filesystem interface.
 // static const std::map<Aws::Http::HttpResponseCode, int32_t> toErrno = {
 //   {Aws::Http::HttpResponseCode::NOT_FOUND, ENOENT},
-//   {Aws::Http::HttpResponseCode::FORBIDDEN, EACCES}, {Aws::Http::HttpResponseCode::CONFLICT, EBUSY},
-//   {Aws::Http::HttpResponseCode::BAD_REQUEST, EINVAL},
+//   {Aws::Http::HttpResponseCode::FORBIDDEN, EACCES}, {Aws::Http::HttpResponseCode::CONFLICT,
+//   EBUSY}, {Aws::Http::HttpResponseCode::BAD_REQUEST, EINVAL},
 //   {Aws::Http::HttpResponseCode::INTERNAL_SERVER_ERROR, EAGAIN}};
-
 
 class GCPConnection {
     public:
-    
-    GCPConnection(const std::string &bucketName,
-      const std::string &objPrefix = "");
+    GCPConnection(const std::string &bucketName, const std::string &objPrefix = "");
     int ListObjects(const std::string &prefix, std::vector<std::string> &objects,
       uint32_t batchSize = 1000, bool listSingle = false) const;
     int PutObject(const std::string &objectKey, const std::string &fileName) const;
     int DeleteObject(const std::string &objectKey) const;
     int ObjectExists(const std::string &objectKey, bool &exists, size_t &objectSize) const;
     int GetObject(const std::string &objectKey, const std::string &path) const;
-    
 
     ~GCPConnection() = default;
 
@@ -62,7 +58,7 @@ class GCPConnection {
     google::cloud::storage::v2_5_0::Client gcpClient = google::cloud::storage::Client();
     const std::string _bucketName;
     const std::string _objectPrefix;
-    
+
     // Tag that can be set and used when uploading or retrieving objects from the GCP.
     // Tagging in GCP allows for categorization of objects, as well as other benefits.
     static inline const char *const gcpAllocationTag = "gcp-source";
