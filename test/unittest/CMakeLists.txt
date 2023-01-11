@@ -1,6 +1,6 @@
 project(unittest CXX)
 
-# Assertion unit tests require overriding wt_abort such that WiredTiger no longer crashes.
+# Assertion unit tests require overriding wt_abort such that WiredTiger no longer crashes. 
 # This change will break assertions for all other testing so these tests must be run on their own.
 if(HAVE_UNITTEST_ASSERTS)
     set(unittests tests/test_assertions.cpp)
