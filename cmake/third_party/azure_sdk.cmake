@@ -20,8 +20,17 @@ if(IMPORT_AZURE_SDK_NONE)
     message(FATAL_ERROR "Cannot enable Azure extension without specifying an IMPORT_AZURE_SDK method (package, external).")
 endif()
 
-if (IMPORT_AZURE_SDK_PACKAGE)
-    
+set(azure_storage_lib_location)
+set(azure_core_lib_location)
+set(azure_sdk_include_location)
+
+if(IMPORT_AZURE_SDK_PACKAGE)
+    find_package()
+    # use the Azure provided variables to set the paths for the Azure targets.
+    set(azure_storage_lib_location ${INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libazure-storage-blobs${CMAKE_SHARED_LIBRARY_SUFFIX})
+    set(azure_core_lib_location ${INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libazure-core${CMAKE_SHARED_LIBRARY_SUFFIX})
+    set(azure_sdk_include_location ${INSTALL_DIR}/${CMAKE_INSTALL_INCLUDEDIR})
+
 else if (IMPORT_AZURE_SDK_EXTERNAL)
     ExternalProject_Add(
         azure-sdk
