@@ -40,7 +40,7 @@ class test_cursor22(wttest.WiredTigerTestCase):
         self.assertEquals(key, expected_key)
         self.assertEquals(value, expected_value)
 
-    def check_get_raw_key_and_value(self, cursor, expected_key, expected_value):
+    def check_get_raw_key_value(self, cursor, expected_key, expected_value):
         (key, value) = cursor.get_raw_key_value()
         self.assertEquals(key, expected_key)
         self.assertEquals(value, expected_value)
@@ -70,7 +70,7 @@ class test_cursor22(wttest.WiredTigerTestCase):
         cursor.reset()
         for i in range(1, 10):
             cursor.next()
-            self.check_get_raw_key_and_value(cursor=cursor, expected_key="key" + str(i), expected_value="value" + str(100+i))
+            self.check_get_raw_key_value(cursor=cursor, expected_key="key" + str(i), expected_value="value" + str(100+i))
         self.session.commit_transaction()
 
         # Check the less common usage of get_raw_key_and_value()
