@@ -28,22 +28,31 @@ struct GCPFileHandle {
     GCP_STORE *store;
 }
 
-static int GCPCustomizeFileSystem(WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *, const char *, WT_FILE_SYSTEM **);
+static int
+GCPCustomizeFileSystem(
+  WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *, const char *, WT_FILE_SYSTEM **);
 static int GCPAddReference(WT_STORAGE_SOURCE *);
 static int GCPFileSystemTerminate(WT_FILE_SYSTEM *, WT_SESSION *);
-static int GCPFlush(WT_STORAGE_SOURCE *, WT_SESSION *, WT_FILE_SYSTEM *, const char *, const char *, const char *);
-static int GCPFlushFinish(WT_STORAGE_SOURCE *, WT_SESSION *, WT_FILE_SYSTEM *, const char *, const char *, const char *);
+static int GCPFlush(
+  WT_STORAGE_SOURCE *, WT_SESSION *, WT_FILE_SYSTEM *, const char *, const char *, const char *);
+static int GCPFlushFinish(
+  WT_STORAGE_SOURCE *, WT_SESSION *, WT_FILE_SYSTEM *, const char *, const char *, const char *);
 static int GCPFileExists(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *);
-static int GCPFileOpen(WT_FILE_SYSTEM *, WT_SESSION *, const char *, WT_FS_OPEN_FILE_TYPE, uint32_t, WT_FILE_HANDLE **);
+static int GCPFileOpen(
+  WT_FILE_SYSTEM *, WT_SESSION *, const char *, WT_FS_OPEN_FILE_TYPE, uint32_t, WT_FILE_HANDLE **);
 static int GCPRemove(WT_FILE_SYSTEM *, WT_SESSION *, const char *, uint32_t);
 static int GCPRename(WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, uint32_t);
 static int GCPFileSize(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t *);
-static int GCPObjectListAdd(const GCPStorage &, char ***, const std::vector<std::string> &, const uint32_t);
-static int GCPObjectListSingle(WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
+static int GCPObjectListAdd(
+  const GCPStorage &, char ***, const std::vector<std::string> &, const uint32_t);
+static int GCPObjectListSingle(
+  WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
 static int GCPObjectListFree(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t);
 
-static int 
-GCPCustomizeFileSystem(WT_STORAGE_SOURCE *store, WT_SESSION *session, const char *bucket, const char *authToken, const char *config, WT_FILE_SYSTEM **fileSystem){
+static int
+GCPCustomizeFileSystem(WT_STORAGE_SOURCE *store, WT_SESSION *session, const char *bucket,
+  const char *authToken, const char *config, WT_FILE_SYSTEM **fileSystem)
+{
     UNUSED(store);
     UNUSED(session);
     UNUSED(bucket);
@@ -53,8 +62,9 @@ GCPCustomizeFileSystem(WT_STORAGE_SOURCE *store, WT_SESSION *session, const char
     return (0);
 }
 
-static int 
-GCPAddReference(WT_STORAGE_SOURCE *store) {
+static int
+GCPAddReference(WT_STORAGE_SOURCE *store)
+{
     UNUSED(store);
     return (0);
 }
@@ -69,7 +79,8 @@ GCPFileSystemTerminate(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session)
 
 static int
 GCPFlush(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, WT_FILE_SYSTEM *fileSystem,
-  const char *source, const char *object, const char *config) {
+  const char *source, const char *object, const char *config)
+{
     UNUSED(storageSource);
     UNUSED(session);
     UNUSED(fileSystem);
@@ -81,7 +92,8 @@ GCPFlush(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, WT_FILE_SYSTEM *
 
 static int
 GCPFlushFinish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM *fileSystem,
-  const char *source, const char *object, const char *config) {
+  const char *source, const char *object, const char *config)
+{
     UNUSED(storage);
     UNUSED(session);
     UNUSED(fileSystem);
@@ -115,7 +127,8 @@ GCPFileOpen(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
 }
 
 static int
-GCPRemove(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, uint32_t flags) {
+GCPRemove(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, uint32_t flags)
+{
     UNUSED(file_system);
     UNUSED(session);
     UNUSED(name);
@@ -125,7 +138,8 @@ GCPRemove(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, ui
 
 static int
 GCPRename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *from, const char *to,
-  uint32_t flags) {
+  uint32_t flags)
+{
     UNUSED(file_system);
     UNUSED(session);
     UNUSED(from);
@@ -135,7 +149,8 @@ GCPRename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *from, co
 }
 
 static int
-GCPFileSize(WT_FILE_HANDLE *fileHandle, WT_SESSION *session, wt_off_t *sizep) {
+GCPFileSize(WT_FILE_HANDLE *fileHandle, WT_SESSION *session, wt_off_t *sizep)
+{
     UNUSED(fileHandle);
     UNUSED(session);
     UNUSED(sizep);
@@ -144,7 +159,8 @@ GCPFileSize(WT_FILE_HANDLE *fileHandle, WT_SESSION *session, wt_off_t *sizep) {
 
 static int
 GCPObjectListAdd(const GCPStorage &GCP, char ***objectList, const std::vector<std::string> &objects,
-  const uint32_t count) {
+  const uint32_t count)
+{
     UNUSED(GCP);
     UNUSED(objectList);
     UNUSED(objects);
@@ -154,7 +170,8 @@ GCPObjectListAdd(const GCPStorage &GCP, char ***objectList, const std::vector<st
 
 static int
 GCPObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *directory,
-  const char *prefix, char ***objectList, uint32_t *count) {
+  const char *prefix, char ***objectList, uint32_t *count)
+{
     UNUSED(fileSystem);
     UNUSED(session);
     UNUSED(directory);
@@ -165,7 +182,9 @@ GCPObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char 
 }
 
 static int
-GCPObjectListFree(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, char **objectList, uint32_t count) {
+GCPObjectListFree(
+  WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, char **objectList, uint32_t count)
+{
     UNUSED(fileSystem);
     UNUSED(session);
     UNUSED(objectList);

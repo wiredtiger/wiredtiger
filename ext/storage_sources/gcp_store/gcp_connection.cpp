@@ -2,12 +2,9 @@
 
 #include <fstream>
 
-
-GCPConnection(const std::string &bucketName,
-      const std::string &objPrefix = "")
-    : 
+GCPConnection(const std::string &bucketName, const std::string &objPrefix = "") :
 {
-    return(0);
+    return (0);
 }
 
 /*
@@ -19,7 +16,7 @@ int
 GCPConnection::ListObjects(const std::string &prefix, std::vector<std::string> &objects,
   uint32_t batchSize, bool listSingle) const
 {
-    
+
     return (0);
 }
 
