@@ -138,20 +138,20 @@
  */
 struct __wt_cell {
     /*
-     * Maximum of 116 bytes:
+     * Maximum of 117 bytes:
      *  1: cell descriptor byte
+     *  9: associated 64-bit short value (uint64_t encoding, max 9 bytes)
      *  1: prefix compression count
      *  1: secondary descriptor byte
      * 36: 4 timestamps		(uint64_t encoding, max 9 bytes)
      * 18: 2 transaction IDs	(uint64_t encoding, max 9 bytes)
-     *  9: associated 64-bit value	(uint64_t encoding, max 9 bytes)
      * 27: fast-delete information (transaction ID, 2 timestamps)
-     * 18: page stat information (int64_t encoding, 2 counts, max 9 bytes)
+     * 19: page stat information (1 flag byte, int64_t encoding, 2 counts, max 9 bytes)
      *  5: data length		(uint32_t encoding, max 5 bytes)
      *
-     * This calculation is pessimistic: the prefix compression count and 64V value overlap, and the
-     * validity window, 64V value, fast-delete information and data length are all optional in some
-     * or even most cases.
+     * This calculation is pessimistic: the prefix compression count and 64V short value overlap,
+     * and the validity window, 64V value, fast-delete information, page stat information, and data
+     * length are all optional in some or even most cases.
      */
     uint8_t __chunk[116];
 };
