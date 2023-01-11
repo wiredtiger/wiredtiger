@@ -1,0 +1,4 @@
+/home/ubuntu/wiredtiger/ext/storage_sources/gcp_store/CMakeFiles/rebuild_cache.dir
+/home/ubuntu/wiredtiger/ext/storage_sources/gcp_store/CMakeFiles/edit_cache.dir
+/home/ubuntu/wiredtiger/ext/storage_sources/gcp_store/CMakeFiles/wiredtiger_gcp_store.dir
+/home/ubuntu/wiredtiger/ext/storage_sources/gcp_store/CMakeFiles/gcp_bucket_util.dir

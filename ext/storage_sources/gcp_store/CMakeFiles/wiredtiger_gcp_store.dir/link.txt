@@ -1,0 +1,1 @@
+/usr/bin/c++ -fPIC   -shared  -o libwiredtiger_gcp_store.so CMakeFiles/wiredtiger_gcp_store.dir/gcp_storage_source.o CMakeFiles/wiredtiger_gcp_store.dir/gcp_log_system.o -lgoogle::cloud::storage 
