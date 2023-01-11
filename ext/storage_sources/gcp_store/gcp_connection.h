@@ -51,10 +51,6 @@ class GCPConnection {
     const std::string _bucketName;
     const std::string _objectPrefix;
 
-    // Tag that can be set and used when uploading or retrieving objects from the GCP.
-    // Tagging in GCP allows for categorization of objects, as well as other benefits.
-    static inline const char *const gcpAllocationTag = "gcp-source";
-
     int BucketExists(bool &exists) const;
 };
 #endif
