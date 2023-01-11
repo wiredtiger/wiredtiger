@@ -17,7 +17,7 @@ else()
         tests/block/test_block_ckpt.cpp
         tests/cursors/test_cursor_get_raw_key_and_value.cpp
         tests/packing/test_intpack.cpp
-        )
+    )
 endif()
 
 set(unittest_sources
@@ -28,7 +28,7 @@ set(unittest_sources
     tests/wrappers/mock_connection.cpp
     tests/wrappers/mock_session.cpp
     ${unittests}
-    )
+)
 
 # Disable 4200 warning on windows, its related to struct definitions with zero sized arrays.
 if(WT_WIN)
