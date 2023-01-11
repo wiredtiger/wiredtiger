@@ -153,7 +153,7 @@ struct __wt_cell {
      * and the validity window, 64V value, fast-delete information, page stat information, and data
      * length are all optional in some or even most cases.
      */
-    uint8_t __chunk[116];
+    uint8_t __chunk[117];
 };
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
