@@ -287,8 +287,11 @@ __sweep_check_session_sweep(WT_SESSION_IMPL *session, uint64_t now)
         last_cursor_big_sweep = s->last_cursor_big_sweep;
         last_sweep = s->last_sweep;
 
+        /*
+         * Get the earlier of the two timestamps, as they refer to two different processes.
+         */
         last = last_cursor_big_sweep;
-        if (last_sweep > last)
+        if (last_sweep != 0 && (last == 0 || last_sweep < last))
             last = last_sweep;
         if (last == 0)
             continue;
@@ -300,6 +303,7 @@ __sweep_check_session_sweep(WT_SESSION_IMPL *session, uint64_t now)
         if (last + 5 * 60 < now) {
             if (!s->sweep_warning_5min) {
                 s->sweep_warning_5min = 1;
+                WT_STAT_CONN_INCR(session, no_session_sweep_5min);
             }
         } else {
             s->sweep_warning_5min = 0;
