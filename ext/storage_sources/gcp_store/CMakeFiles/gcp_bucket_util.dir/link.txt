@@ -1,0 +1,2 @@
+/usr/bin/ar qc libgcp_bucket_util.a  CMakeFiles/gcp_bucket_util.dir/gcp_connection.o
+/usr/bin/ranlib libgcp_bucket_util.a
