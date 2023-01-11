@@ -288,7 +288,8 @@ __sweep_check_session_sweep(WT_SESSION_IMPL *session, uint64_t now)
         last_sweep = s->last_sweep;
 
         /*
-         * Get the earlier of the two timestamps, as they refer to two different processes.
+         * Get the earlier of the two timestamps, as they refer to sweeps of two different data
+         * structures that reference data handles
          */
         last = last_cursor_big_sweep;
         if (last_sweep != 0 && (last == 0 || last_sweep < last))
