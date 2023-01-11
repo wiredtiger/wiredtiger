@@ -97,6 +97,7 @@ for i in range(0, table_count):
     table = Table(tname)
     s.create(tname, wtperf_table_config +\
              compress_table_config + table_config + ",log=(enabled=false)")
+    #FIXME - WT-10494 Fix too large for size error in Workgen
     table.options.key_size = 2000
     table.options.value_size = 5000
     tables.append(table)
