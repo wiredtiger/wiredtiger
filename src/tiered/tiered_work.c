@@ -145,9 +145,10 @@ __wt_tiered_flush_work_wait(WT_SESSION_IMPL *session, uint32_t timeout)
         found = false;
         __wt_spin_lock(session, &conn->tiered_lock);
         TAILQ_FOREACH (entry, &conn->tieredqh, q) {
-            if (FLD_ISSET(entry->type, WT_TIERED_WORK_FLUSH))
+            if (FLD_ISSET(entry->type, WT_TIERED_WORK_FLUSH)) {
                 found = true;
-            break;
+                break;
+            }
         }
         __wt_spin_unlock(session, &conn->tiered_lock);
         if (found) {
