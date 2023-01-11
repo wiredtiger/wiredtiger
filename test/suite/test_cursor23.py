@@ -72,7 +72,7 @@ class test_cursor23(wttest.WiredTigerTestCase):
             self.check_get_key_and_value(cursor=cursor, expected_key=f'{3:015d}', expected_value=['3: a', 3, '96: a', '45: a'])
             self.session.commit_transaction()            
 
-            # Try to check the data using get_raw_key_and_value(), but it's not supported
+            # Try to check the data using get_raw_key_value(), but it's not supported
             self.session.begin_transaction()
             cursor.reset()
             cursor.next()
