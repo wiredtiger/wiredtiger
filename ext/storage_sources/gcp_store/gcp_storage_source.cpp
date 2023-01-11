@@ -8,8 +8,7 @@
 
 #include "gcp_connection.h"
 #include "gcp_log_system.h"
-
-#define UNUSED(x) (void)(x)
+#include "wt_internal.h"
 
 struct GCPStorage {
     WT_STORAGE_SOURCE store;
@@ -53,27 +52,27 @@ static int
 GCPCustomizeFileSystem(WT_STORAGE_SOURCE *store, WT_SESSION *session, const char *bucket,
   const char *authToken, const char *config, WT_FILE_SYSTEM **fileSystem)
 {
-    UNUSED(store);
-    UNUSED(session);
-    UNUSED(bucket);
-    UNUSED(authToken);
-    UNUSED(config);
-    UNUSED(fileSystem);
+    WT_UNUSED(store);
+    WT_UNUSED(session);
+    WT_UNUSED(bucket);
+    WT_UNUSED(authToken);
+    WT_UNUSED(config);
+    WT_UNUSED(fileSystem);
     return (0);
 }
 
 static int
 GCPAddReference(WT_STORAGE_SOURCE *store)
 {
-    UNUSED(store);
+    WT_UNUSED(store);
     return (0);
 }
 
 static int
 GCPFileSystemTerminate(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session)
 {
-    UNUSED(fileSystem);
-    UNUSED(session);
+    WT_UNUSED(fileSystem);
+    WT_UNUSED(session);
     return (0);
 }
 
@@ -81,12 +80,12 @@ static int
 GCPFlush(WT_STORAGE_SOURCE *storageSource, WT_SESSION *session, WT_FILE_SYSTEM *fileSystem,
   const char *source, const char *object, const char *config)
 {
-    UNUSED(storageSource);
-    UNUSED(session);
-    UNUSED(fileSystem);
-    UNUSED(source);
-    UNUSED(object);
-    UNUSED(config);
+    WT_UNUSED(storageSource);
+    WT_UNUSED(session);
+    WT_UNUSED(fileSystem);
+    WT_UNUSED(source);
+    WT_UNUSED(object);
+    WT_UNUSED(config);
     return (0);
 }
 
@@ -94,22 +93,22 @@ static int
 GCPFlushFinish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM *fileSystem,
   const char *source, const char *object, const char *config)
 {
-    UNUSED(storage);
-    UNUSED(session);
-    UNUSED(fileSystem);
-    UNUSED(source);
-    UNUSED(object);
-    UNUSED(config);
+    WT_UNUSED(storage);
+    WT_UNUSED(session);
+    WT_UNUSED(fileSystem);
+    WT_UNUSED(source);
+    WT_UNUSED(object);
+    WT_UNUSED(config);
     return (0);
 }
 
 static int
 GCPFileExists(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name, bool *fileExists)
 {
-    UNUSED(fileSystem);
-    UNUSED(session);
-    UNUSED(name);
-    UNUSED(fileExists);
+    WT_UNUSED(fileSystem);
+    WT_UNUSED(session);
+    WT_UNUSED(name);
+    WT_UNUSED(fileExists);
     return (0);
 }
 
@@ -117,22 +116,22 @@ static int
 GCPFileOpen(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *name,
   WT_FS_OPEN_FILE_TYPE fileType, uint32_t flags, WT_FILE_HANDLE **fileHandlePtr)
 {
-    UNUSED(fileSystem);
-    UNUSED(session);
-    UNUSED(name);
-    UNUSED(fileType);
-    UNUSED(flags);
-    UNUSED(fileHandlePtr);
+    WT_UNUSED(fileSystem);
+    WT_UNUSED(session);
+    WT_UNUSED(name);
+    WT_UNUSED(fileType);
+    WT_UNUSED(flags);
+    WT_UNUSED(fileHandlePtr);
     return (0);
 }
 
 static int
 GCPRemove(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, uint32_t flags)
 {
-    UNUSED(file_system);
-    UNUSED(session);
-    UNUSED(name);
-    UNUSED(flags);
+    WT_UNUSED(file_system);
+    WT_UNUSED(session);
+    WT_UNUSED(name);
+    WT_UNUSED(flags);
     return (0);
 }
 
@@ -140,20 +139,20 @@ static int
 GCPRename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *from, const char *to,
   uint32_t flags)
 {
-    UNUSED(file_system);
-    UNUSED(session);
-    UNUSED(from);
-    UNUSED(to);
-    UNUSED(flags);
+    WT_UNUSED(file_system);
+    WT_UNUSED(session);
+    WT_UNUSED(from);
+    WT_UNUSED(to);
+    WT_UNUSED(flags);
     return (0);
 }
 
 static int
 GCPFileSize(WT_FILE_HANDLE *fileHandle, WT_SESSION *session, wt_off_t *sizep)
 {
-    UNUSED(fileHandle);
-    UNUSED(session);
-    UNUSED(sizep);
+    WT_UNUSED(fileHandle);
+    WT_UNUSED(session);
+    WT_UNUSED(sizep);
     return (0);
 }
 
@@ -161,10 +160,10 @@ static int
 GCPObjectListAdd(const GCPStorage &GCP, char ***objectList, const std::vector<std::string> &objects,
   const uint32_t count)
 {
-    UNUSED(GCP);
-    UNUSED(objectList);
-    UNUSED(objects);
-    UNUSED(count);
+    WT_UNUSED(GCP);
+    WT_UNUSED(objectList);
+    WT_UNUSED(objects);
+    WT_UNUSED(count);
     return (0);
 }
 
@@ -172,12 +171,12 @@ static int
 GCPObjectListSingle(WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, const char *directory,
   const char *prefix, char ***objectList, uint32_t *count)
 {
-    UNUSED(fileSystem);
-    UNUSED(session);
-    UNUSED(directory);
-    UNUSED(prefix);
-    UNUSED(objectList);
-    UNUSED(count);
+    WT_UNUSED(fileSystem);
+    WT_UNUSED(session);
+    WT_UNUSED(directory);
+    WT_UNUSED(prefix);
+    WT_UNUSED(objectList);
+    WT_UNUSED(count);
     return (0);
 }
 
@@ -185,9 +184,9 @@ static int
 GCPObjectListFree(
   WT_FILE_SYSTEM *fileSystem, WT_SESSION *session, char **objectList, uint32_t count)
 {
-    UNUSED(fileSystem);
-    UNUSED(session);
-    UNUSED(objectList);
-    UNUSED(count);
+    WT_UNUSED(fileSystem);
+    WT_UNUSED(session);
+    WT_UNUSED(objectList);
+    WT_UNUSED(count);
     return (0);
 }

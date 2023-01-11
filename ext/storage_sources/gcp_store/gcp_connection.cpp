@@ -2,9 +2,10 @@
 
 #include <fstream>
 
-GCPConnection(const std::string &bucketName, const std::string &objPrefix = "") :
+GCPConnection::GCPConnection(const std::string &bucketName, const std::string &objPrefix) 
+: _gcpClient(google::cloud::storage::Client()), _bucketName(bucketName), _objectPrefix(objPrefix)
 {
-    return (0);
+    
 }
 
 /*
