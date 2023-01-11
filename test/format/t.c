@@ -179,11 +179,12 @@ static bool syntax_check; /* Only checking configuration syntax. */
 
 /*
  * main --
- *     TODO: Add a comment describing this function.
+ *     Run a variety of multithreaded WiredTiger operations based on a set of configurations.
  */
 int
 main(int argc, char *argv[])
 {
+    READ_SCAN_ARGS scan_args;
     uint64_t now, start;
     u_int ops_seconds;
     int ch, reps;
@@ -252,10 +253,11 @@ main(int argc, char *argv[])
         fflush(stdout);
     }
 
-    __wt_random_init_seed(NULL, &g.rnd); /* Initialize the RNG. */
-
-    /* Initialize lock to ensure single threading during failure handling */
+    /* Initialize lock to ensure single threading during failure handling. */
     testutil_check(pthread_rwlock_init(&g.death_lock, NULL));
+
+    /* Initialize lock to ensure single threading for lane operations in predictable replay. */
+    testutil_check(pthread_rwlock_init(&g.lane_lock, NULL));
 
     /*
      * Initialize the tables array and default to multi-table testing if not in backward-compatible
@@ -357,7 +359,9 @@ main(int argc, char *argv[])
     TIMED_MAJOR_OP(wts_verify(g.wts_conn, true));
     if (verify_only)
         goto skip_operations;
-    TIMED_MAJOR_OP(tables_apply(wts_read_scan, g.wts_conn));
+    scan_args.conn = g.wts_conn;
+    scan_args.rnd = &g.extra_rnd;
+    TIMED_MAJOR_OP(tables_apply(wts_read_scan, &scan_args));
 
     /* Optionally start checkpoints. */
     wts_checkpoints();

@@ -102,6 +102,12 @@ typedef struct {
     const char *track; /* Tag for tracking operation progress */
 } SAP;
 
+/* Arguments to the read scanner. */
+typedef struct {
+    WT_CONNECTION *conn;
+    WT_RAND_STATE *rnd;
+} READ_SCAN_ARGS;
+
 /*
  * Default fixed-length column-store value when there's no available base mirror value, something
  * with half the bits set.
@@ -120,6 +126,23 @@ typedef struct {
     char *vstr; /* string value */
     bool set;   /* value explicitly set */
 } CONFIGV;
+
+/*
+ * The LANE data structure is used with predictable replay. With predictable replay, we want to make
+ * sure that two threads can never act on the same key. The last bits of the timestamp to be used to
+ * determine a "lane", so it takes a while (LANE_COUNT operations) to cycle through the lanes. A
+ * lane only acts on key numbers whose last bits match the lane. We also keep track of lanes via the
+ * g.lanes array. This guarantees that a lane is only being used one at a time, which in turn
+ * guarantees that a key can only be used once at a time.
+ *
+ * A more complete description of how this fits into predictable replay is in replay.c .
+ */
+typedef struct {
+    uint64_t last_commit_ts;
+    bool in_use;
+} LANE;
+#define LANE_NONE UINT32_MAX /* A lane number guaranteed to be illegal */
+#define LANE_COUNT 1024u
 
 typedef enum { FIX, ROW, VAR } table_type;
 typedef struct {
@@ -224,13 +247,20 @@ typedef struct {
 #define INCREMENTAL_OFF 3
     u_int backup_incr_flag; /* Incremental backup configuration */
 
-    WT_RAND_STATE rnd; /* Global RNG state */
+    WT_RAND_STATE data_rnd;  /* Global RNG state for data operations */
+    WT_RAND_STATE extra_rnd; /* Global RNG state for extra operations */
 
     uint64_t timestamp;        /* Counter for timestamps */
     uint64_t oldest_timestamp; /* Last timestamp used for oldest */
     uint64_t stable_timestamp; /* Last timestamp used for stable */
 
     uint64_t truncate_cnt; /* truncation operation counter */
+
+    uint64_t replay_start_timestamp;     /* Timestamp at the beginning of a run */
+    uint64_t timestamp_copy;             /* A copy of the timestamp, for safety checks */
+    uint64_t stop_timestamp;             /* If non-zero, stop when stable reaches this */
+    uint64_t replay_cached_committed;    /* Our committed timestamp, cached */
+    uint32_t replay_calculate_committed; /* Times before recalculating */
 
     /*
      * Lock to prevent the stable timestamp from moving during the commit of prepared transactions.
@@ -271,8 +301,14 @@ typedef struct {
 #define CHECKPOINT_ON 2
 #define CHECKPOINT_WIREDTIGER 3
     u_int checkpoint_config; /* Checkpoint configuration */
+
+    LANE lanes[LANE_COUNT];     /* The lanes for multithreaded coordination  */
+    pthread_rwlock_t lane_lock; /* Lock used when modifying lanes */
 } GLOBAL;
 extern GLOBAL g;
+
+/* Timestamp to lane number */
+#define LANE_NUMBER(ts) (ts & (LANE_COUNT - 1))
 
 /* Worker thread operations. */
 typedef enum { INSERT = 1, MODIFY, READ, REMOVE, TRUNCATE, UPDATE } thread_op;
@@ -311,7 +347,12 @@ typedef struct {
 
     SAP sap; /* Thread's session event handler information */
 
-    WT_RAND_STATE rnd; /* thread RNG state */
+    WT_RAND_STATE data_rnd;  /* thread RNG state for data operations */
+    WT_RAND_STATE extra_rnd; /* thread RNG state for extra operations */
+
+    thread_op op;      /* Operation */
+    uint32_t lane;     /* Current lane for replay */
+    bool replay_again; /* Need to redo an operation at a timestamp. */
 
     volatile bool quit; /* thread should quit */
 
@@ -348,6 +389,7 @@ typedef struct {
     bool repeatable_reads; /* if read ops repeatable */
     bool repeatable_wrap;  /* if circular buffer wrapped */
     uint64_t opid;         /* Operation ID */
+    uint64_t replay_ts;    /* allocated timestamp for predictable replay */
     uint64_t read_ts;      /* read timestamp */
     uint64_t commit_ts;    /* commit timestamp */
     uint64_t stable_ts;    /* stable timestamp */
@@ -415,6 +457,17 @@ void table_verify(TABLE *, void *);
 void timestamp_init(void);
 uint64_t timestamp_maximum_committed(void);
 void timestamp_once(WT_SESSION *, bool, bool);
+void replay_adjust_key(TINFO *, uint64_t);
+uint64_t replay_commit_ts(TINFO *);
+void replay_committed(TINFO *);
+void replay_loop_begin(TINFO *, bool);
+uint64_t replay_maximum_committed(void);
+void replay_pause_after_rollback(TINFO *, uint32_t);
+uint64_t replay_prepare_ts(TINFO *);
+uint64_t replay_read_ts(TINFO *);
+void replay_rollback(TINFO *);
+void replay_run_begin(WT_SESSION *);
+void replay_run_end(WT_SESSION *);
 void timestamp_query(const char *, uint64_t *);
 void timestamp_set_oldest(void);
 void timestamp_teardown(WT_SESSION *);
