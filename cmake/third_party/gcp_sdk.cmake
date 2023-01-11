@@ -3,7 +3,7 @@ include(FetchContent)
 include(GNUInstallDirs)
 include(${CMAKE_SOURCE_DIR}/cmake/helpers.cmake)
 
-# Skip the AWS SDK build step if the extension is not enabled.
+# Skip the GCP SDK build step if the extension is not enabled.
 if(NOT ENABLE_GCP)
     return()
 endif()
@@ -25,7 +25,7 @@ set(gcp_storage_lib_location)
 set(gcp_common_lib_location)
 
 if(IMPORT_GCP_SDK_PACKAGE)
-    find_package(azure-storage-blobs-cpp CONFIG REQUIRED)
+    find_package(gcp-storage-blobs-cpp CONFIG REQUIRED)
 
 elseif(IMPORT_GCP_SDK_EXTERNAL)
     find_package(absl REQUIRED)
