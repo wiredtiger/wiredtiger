@@ -18,8 +18,7 @@ target_compile_options(
 target_link_libraries(
     gcp_bucket_util
     PUBLIC
-        gcp-sdk::gcp-crt
-        gcp-sdk::core
+        google::cloud::storage
 )
 
 # Build the gcp extension as a library.
@@ -43,10 +42,6 @@ target_link_libraries(
     PRIVATE
         google::cloud::storage
 )
-
-if(ENABLE_TCMALLOC)
-    target_link_libraries(wiredtiger_gcp_store PRIVATE wt::tcmalloc)
-endif()
 
 # Add the unit tests, need Catch2 which is resolved with HAVE_UNITTEST.
 if(HAVE_UNITTEST)
