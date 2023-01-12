@@ -4,28 +4,13 @@
 #include "azure_connection.h"
 
 
-// Default config settings for the test environment
-namespace TestDefaults {
-const double throughputTargetGbps = 5;
-const uint64_t partSize = 8 * 1024 * 1024;  // 8 MB.
-static std::string bucketName("azuretestext"); // Can be overridden with environment variables.;
-
-
-static std::string objPrefix("azuretest/unit/"); // To be concatenated with a random string.
-} // namespace TestDefaults
-
-
-
 static int
 setupTestDefaults() {
     return (0);
 }
 
-TEST_CASE("Testubg class ")
+TEST_CASE("testing class azure_connection", "azure_connection")
 {}
-
-
-
 
 int
 main (int argc, char **argb) {
