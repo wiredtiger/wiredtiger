@@ -198,7 +198,8 @@ azure_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *from,
 }
 
 static int
-azure_object_size(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, wt_off_t *sizep)
+azure_object_size(
+  WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, wt_off_t *sizep)
 {
     WT_UNUSED(file_system);
     WT_UNUSED(session);
