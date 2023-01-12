@@ -172,13 +172,13 @@ thread2.options.throttle_burst=1.0
 search_op = Operation(Operation.OP_SEARCH, tables[0], Key(Key.KEYGEN_PARETO, 0, ParetoOptions(1)))
 update_op = Operation(Operation.OP_UPDATE, tables[0], Key(Key.KEYGEN_PARETO, 0, ParetoOptions(1)))
 
-search_txn = op_group_transaction(search_op, 100, "isolation=snapshot")
+search_txn = txn(search_op, "isolation=snapshot")
 search_txn.transaction.use_commit_timestamp = True
 
-update_txn = op_group_transaction(update_op, 100, "isolation=snapshot")
+update_txn = txn(update_op, "isolation=snapshot")
 update_txn.transaction.use_commit_timestamp = True
 
-thread3 = Thread((search_txn + update_txn) * 1000 + sleep(0.1))
+thread3 = Thread((search_txn + update_txn) * 100 + sleep(0.1))
 thread3.options.session_config="isolation=snapshot"
 
 ops = Operation(Operation.OP_SLEEP, "0.1") + \
