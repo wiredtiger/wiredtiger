@@ -60,7 +60,8 @@ static bool config_var(TABLE *);
  *     For a given seed/RNG combination, generate a seed if not given, and initialize the RNG.
  */
 static void
-config_random_generator(const char *config_name, uint64_t seed, uint32_t rand_count, WT_RAND_STATE *rnd)
+config_random_generator(
+  const char *config_name, uint64_t seed, uint32_t rand_count, WT_RAND_STATE *rnd)
 {
     char buf[128];
     bool seed_set;
