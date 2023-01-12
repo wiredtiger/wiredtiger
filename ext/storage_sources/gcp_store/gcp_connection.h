@@ -26,29 +26,27 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
-#ifndef GCPCONNECTION
-#define GCPCONNECTION
+#pragma once
 
 #include "google/cloud/storage/client.h"
 #include <iostream>
 #include <string>
 #include <vector>
 
-class GCPConnection {
+class gcp_connection {
     public:
-    GCPConnection(const std::string &bucketName);
-    int ListObjects(std::vector<std::string> &objects) const;
-    int PutObject(const std::string &objectKey, const std::string &fileName) const;
-    int DeleteObject(const std::string &objectKey) const;
-    int ObjectExists(const std::string &objectKey, bool &exists, size_t &objectSize) const;
-    int GetObject(const std::string &objectKey, const std::string &path) const;
+    gcp_connection(const std::string &bucket_name);
+    int list_objects(std::vector<std::string> &objects) const;
+    int put_object(const std::string &object_key, const std::string &file_name) const;
+    int delete_object(const std::string &object_key) const;
+    int object_exists(const std::string &object_key, bool &exists, size_t &object_size) const;
+    int get_object(const std::string &object_key, const std::string &path) const;
 
-    ~GCPConnection() = default;
+    ~gcp_connection() = default;
 
     private:
-    const google::cloud::storage::v2_5_0::Client _gcpClient;
-    const std::string _bucketName;
+    const google::cloud::storage::v2_5_0::Client _gcp_client;
+    const std::string _bucket_name;
 
-    int BucketExists(bool &exists) const;
+    int bucket_exists(bool &exists) const;
 };
-#endif
