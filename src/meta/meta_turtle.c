@@ -30,10 +30,9 @@ __metadata_config(WT_SESSION_IMPL *session, char **metaconfp)
 {
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
-    const char *cfg[] = {WT_CONFIG_BASE(session, file_meta), NULL, NULL}, *strip;
+    const char *cfg[] = {WT_CONFIG_BASE(session, file_meta), NULL, NULL};
 
     *metaconfp = NULL;
-    strip = NULL;
 
     /* Create a turtle file with default values. */
     WT_RET(__wt_scr_alloc(session, 0, &buf));
@@ -41,8 +40,7 @@ __metadata_config(WT_SESSION_IMPL *session, char **metaconfp)
       "key_format=S,value_format=S,id=%d,version=(major=%" PRIu16 ",minor=%" PRIu16 ")",
       WT_METAFILE_ID, WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor));
     cfg[1] = buf->data;
-    strip = "tiered_storage=(shared=),";
-    ret = __wt_config_merge(session, cfg, strip, (const char **)metaconfp);
+    ret = __wt_config_tiered_shared_strip(session, cfg, (const char **)metaconfp);
 
 err:
     __wt_scr_free(session, &buf);

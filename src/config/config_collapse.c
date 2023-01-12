@@ -308,6 +308,20 @@ __config_merge_cmp(const void *a, const void *b)
 }
 
 /*
+ * __wt_config_tiered_shared_strip --
+ *     This function strips the tiered config shared configuration option writing into the metadata
+ *     from the configuration string to avoid data format changes.
+ */
+int
+__wt_config_tiered_shared_strip(WT_SESSION_IMPL *session, const char **cfg, const char **config_ret)
+{
+    const char *strip;
+
+    strip = "tiered_storage=(shared=),";
+    return (__wt_config_merge(session, cfg, strip, config_ret));
+}
+
+/*
  * __wt_config_merge --
  *     Merge a set of configuration strings into newly allocated memory, optionally discarding
  *     configuration items. This function takes a NULL-terminated list of configuration strings
