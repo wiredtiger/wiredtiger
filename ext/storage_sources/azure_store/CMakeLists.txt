@@ -44,5 +44,5 @@ target_compile_options(
 target_link_libraries(
     wiredtiger_azure_store
     PRIVATE
-        Azure::azure-storage-blobs
+        azure_container_util
 )
