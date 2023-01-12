@@ -54,7 +54,7 @@ __rec_child_deleted(
      * locks the ref. Thus so setting the page delete structure committed flag cannot overlap with
      * us checking the flag.
      */
-    if (!__wt_page_del_committed_set(page_del)) {
+    if (__wt_page_del_committed_set(page_del)) {
         if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
             visible = __wt_page_del_visible(session, page_del, true);
             visible_all = visible ? __wt_page_del_visible_all(session, page_del, true) : false;
