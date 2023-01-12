@@ -37,7 +37,7 @@ __rec_child_deleted(
      * to everyone. Use the special-case logic in __wt_page_del_visible to hide prepared truncations
      * as we can't write them to disk.
      */
-    if (!__wt_page_del_committed(page_del)) {
+    if (!__wt_page_del_committed_set(page_del)) {
         if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
             visible = __wt_page_del_visible(session, page_del, true);
             visible_all = visible ? __wt_page_del_visible_all(session, page_del, true) : false;
