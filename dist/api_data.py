@@ -530,8 +530,9 @@ connection_runtime_config = [
         \c HAVE_DIAGNOSTIC=1 all assertions are enabled and cannot be reconfigured
         ''',
         type='list', choices=[
-            "all", "concurrent_access", "data_validation", "invalid_op", "out_of_order",
-            "panic", "slow_operation", "visibility"]),
+            "all", "checkpoint_validation", "cursor_acquisition", "data_loss", 
+            "disk_validation", "hs_validation", "log_validation", "key_out_of_order", 
+            "obsolete_data", "prepared", "slow_operation", "txn_visibility"]),
 
     Config('history_store', '', r'''
         history store configuration options''',

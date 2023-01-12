@@ -1964,10 +1964,13 @@ int
 __wt_extra_diagnostics_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
     static const WT_NAME_FLAG extra_diagnostics_types[] = {{"all", WT_DIAG_ALL},
-      {"concurrent_access", WT_DIAG_CONCURRENT_ACCESS},
-      {"data_validation", WT_DIAG_DATA_VALIDATION}, {"invalid_op", WT_DIAG_INVALID_OP},
-      {"out_of_order", WT_DIAG_OUT_OF_ORDER}, {"panic", WT_DIAG_PANIC},
-      {"slow_operation", WT_DIAG_SLOW_OPERATION}, {"visibility", WT_DIAG_VISIBILITY}, {NULL, 0}};
+      {"checkpoint_validation", WT_DIAG_CHECKPOINT_VALIDATION},
+      {"cursor_acquisition", WT_DIAG_CURSOR_ACQUISITION}, {"data_loss", WT_DIAG_DATA_LOSS},
+      {"disk_validation", WT_DIAG_DISK_VALIDATION}, {"hs_validation", WT_DIAG_HS_VALIDATION},
+      {"log_validation", WT_DIAG_LOG_VALIDATION}, {"key_out_of_order", WT_DIAG_KEY_OUT_OF_ORDER},
+      {"obsolete_data", WT_DIAG_OBSOLETE_DATA}, {"prepared", WT_DIAG_PREPARED},
+      {"slow_operation", WT_DIAG_SLOW_OPERATION}, {"txn_visibility", WT_DIAG_TXN_VISIBILITY},
+      {NULL, 0}};
 
     WT_CONNECTION_IMPL *conn;
     WT_CONFIG_ITEM cval, sval;

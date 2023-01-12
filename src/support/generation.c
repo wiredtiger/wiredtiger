@@ -260,7 +260,7 @@ __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
             return (true);
     }
 
-    WT_ASSERT_OPTIONAL(session, WT_DIAG_VISIBILITY, generation < __gen_oldest(session, which),
+    WT_ASSERT_OPTIONAL(session, WT_DIAG_OBSOLETE_DATA, generation < __gen_oldest(session, which),
       "Generation is older than gen_oldest");
     return (false);
 }

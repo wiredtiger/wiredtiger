@@ -587,14 +587,18 @@ struct __wt_connection_impl {
     uint16_t debug_flags;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_DIAG_ALL 0x01u
-#define WT_DIAG_CONCURRENT_ACCESS 0x02u
-#define WT_DIAG_DATA_VALIDATION 0x04u
-#define WT_DIAG_INVALID_OP 0x08u
-#define WT_DIAG_OUT_OF_ORDER 0x10u
-#define WT_DIAG_PANIC 0x20u
-#define WT_DIAG_SLOW_OPERATION 0x40u
-#define WT_DIAG_VISIBILITY 0x80u
+#define WT_DIAG_ALL 0x001u
+#define WT_DIAG_CHECKPOINT_VALIDATION 0x002u
+#define WT_DIAG_CURSOR_ACQUISITION 0x004u
+#define WT_DIAG_DATA_LOSS 0x008u
+#define WT_DIAG_DISK_VALIDATION 0x010u
+#define WT_DIAG_HS_VALIDATION 0x020u
+#define WT_DIAG_KEY_OUT_OF_ORDER 0x040u
+#define WT_DIAG_LOG_VALIDATION 0x080u
+#define WT_DIAG_OBSOLETE_DATA 0x100u
+#define WT_DIAG_PREPARED 0x200u
+#define WT_DIAG_SLOW_OPERATION 0x400u
+#define WT_DIAG_TXN_VISIBILITY 0x800u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     /* Categories of assertions that can be runtime enabled. */
     uint16_t extra_diagnostics_flags;
