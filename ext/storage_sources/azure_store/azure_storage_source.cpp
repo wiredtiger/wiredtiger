@@ -27,20 +27,22 @@
  */
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
-#include <list>
+#include <vector>
 
 #include "azure_connection.h"
 #include "wt_internal.h"
 
+struct azure_file_system;
+struct azure_file_handle;
 struct azure_store {
     WT_STORAGE_SOURCE store;
-    std::list<azure_file_system *> azure_fs;
+    std::vector<azure_file_system *> azure_fs;
 };
 
 struct azure_file_system {
     WT_FILE_SYSTEM fs;
     azure_store *store;
-    std::list<azure_file_handle> azure_fh;
+    std::vector<azure_file_handle> azure_fh;
     azure_connection *azure_conn;
 };
 
@@ -50,34 +52,40 @@ struct azure_file_handle {
 };
 
 // WT_STORAGE_SOURCE Interface
-static int azure_customize_file_system(
-  WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *, const char *, WT_FILE_SYSTEM **);
-static int azure_add_reference(WT_STORAGE_SOURCE *);
-static int azure_terminate(WT_FILE_SYSTEM *, WT_SESSION *);
-static int azure_flush(
-  WT_STORAGE_SOURCE *, WT_SESSION *, WT_FILE_SYSTEM *, const char *, const char *, const char *);
-static int azure_flush_finish(
-  WT_STORAGE_SOURCE *, WT_SESSION *, WT_FILE_SYSTEM *, const char *, const char *, const char *);
+static int azure_customize_file_system(WT_STORAGE_SOURCE *, WT_SESSION *, const char *,
+  const char *, const char *, WT_FILE_SYSTEM **) __attribute__((__unused__));
+static int azure_add_reference(WT_STORAGE_SOURCE *) __attribute__((__unused__));
+static int azure_terminate(WT_FILE_SYSTEM *, WT_SESSION *) __attribute__((__unused__));
+static int azure_flush(WT_STORAGE_SOURCE *, WT_SESSION *, WT_FILE_SYSTEM *, const char *,
+  const char *, const char *) __attribute__((__unused__));
+static int azure_flush_finish(WT_STORAGE_SOURCE *, WT_SESSION *, WT_FILE_SYSTEM *, const char *,
+  const char *, const char *) __attribute__((__unused__));
 
 // WT_FILE_SYSTEM Interface
-static int azure_object_list(
-  WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
-static int azure_object_list_single(
-  WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
-static int azure_object_list_free(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t);
-static int azure_file_system_terminate(WT_FILE_SYSTEM *, WT_SESSION *);
-static int azure_file_exists(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *);
-static int azure_remove(WT_FILE_SYSTEM *, WT_SESSION *, const char *, uint32_t);
-static int azure_rename(WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, uint32_t);
-static int azure_object_size(WT_FILE_SYSTEM *, WT_SESSION *, const char *, wt_off_t *);
-static int azure_file_open(
-  WT_FILE_SYSTEM *, WT_SESSION *, const char *, WT_FS_OPEN_FILE_TYPE, uint32_t, WT_FILE_HANDLE **);
+static int azure_object_list(WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***,
+  uint32_t *) __attribute__((__unused__));
+static int azure_object_list_single(WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *,
+  char ***, uint32_t *) __attribute__((__unused__));
+static int azure_object_list_free(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t)
+  __attribute__((__unused__));
+static int azure_file_system_terminate(WT_FILE_SYSTEM *, WT_SESSION *) __attribute__((__unused__));
+static int azure_file_exists(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *)
+  __attribute__((__unused__));
+static int azure_remove(WT_FILE_SYSTEM *, WT_SESSION *, const char *, uint32_t)
+  __attribute__((__unused__));
+static int azure_rename(WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, uint32_t)
+  __attribute__((__unused__));
+static int azure_object_size(WT_FILE_SYSTEM *, WT_SESSION *, const char *, wt_off_t *)
+  __attribute__((__unused__));
+static int azure_file_open(WT_FILE_SYSTEM *, WT_SESSION *, const char *, WT_FS_OPEN_FILE_TYPE,
+  uint32_t, WT_FILE_HANDLE **) __attribute__((__unused__));
 
 // WT_FILE_HANDLE Interface
-static int azure_file_close(WT_FILE_HANDLE *, WT_SESSION *);
-static int azure_file_lock(WT_FILE_HANDLE *, WT_SESSION *, bool);
-static int azure_file_read(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t, void *);
-static int azure_file_size(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t *);
+static int azure_file_close(WT_FILE_HANDLE *, WT_SESSION *) __attribute__((__unused__));
+static int azure_file_lock(WT_FILE_HANDLE *, WT_SESSION *, bool) __attribute__((__unused__));
+static int azure_file_read(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t, void *)
+  __attribute__((__unused__));
+static int azure_file_size(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t *) __attribute__((__unused__));
 
 static int
 azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
@@ -98,15 +106,6 @@ static int
 azure_add_reference(WT_STORAGE_SOURCE *storage_source)
 {
     WT_UNUSED(storage_source);
-
-    return (0);
-}
-
-static int
-azure_file_system_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
-{
-    WT_UNUSED(file_system);
-    WT_UNUSED(session);
 
     return (0);
 }
@@ -135,6 +134,15 @@ azure_flush_finish(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     WT_UNUSED(source);
     WT_UNUSED(object);
     WT_UNUSED(config);
+
+    return (0);
+}
+
+static int
+azure_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
+{
+    WT_UNUSED(file_system);
+    WT_UNUSED(session);
 
     return (0);
 }

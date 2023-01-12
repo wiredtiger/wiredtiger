@@ -40,7 +40,6 @@ class azure_connection {
     int put_object(const std::string &file_name) const;
     int delete_object() const;
     int get_object(const std::string &path) const;
-    ~azure_connection() = default;
 
     private:
     const std::string _bucket_name;

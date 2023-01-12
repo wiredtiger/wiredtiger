@@ -31,7 +31,6 @@
 #include <azure/core.hpp>
 #include <azure/storage/blobs.hpp>
 
-// Constructor for Azure Connection
 azure_connection::azure_connection(const std::string &bucket_name, const std::string &obj_prefix)
     : _azure_client(Azure::Storage::Blobs::BlobContainerClient::CreateFromConnectionString(
         std::getenv("AZURE_STORAGE_CONNECTION_STRING"), bucket_name)),
