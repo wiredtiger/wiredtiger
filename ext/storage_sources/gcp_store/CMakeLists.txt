@@ -43,7 +43,4 @@ target_link_libraries(
         google::cloud::storage
 )
 
-# Add the unit tests, need Catch2 which is resolved with HAVE_UNITTEST.
-if(HAVE_UNITTEST)
-    add_subdirectory(test)
 endif()

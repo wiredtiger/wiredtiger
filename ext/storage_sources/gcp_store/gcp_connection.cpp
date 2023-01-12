@@ -2,9 +2,8 @@
 
 #include <fstream>
 
-GCPConnection::GCPConnection(const std::string &bucketName, const std::string &objPrefix)
-    : _gcpClient(google::cloud::storage::Client()), _bucketName(bucketName),
-      _objectPrefix(objPrefix)
+GCPConnection::GCPConnection(const std::string &bucketName)
+    : _gcpClient(google::cloud::storage::Client()), _bucketName(bucketName)
 {
 }
 
@@ -14,10 +13,8 @@ GCPConnection::GCPConnection(const std::string &bucketName, const std::string &o
  * 1000. Return an errno value given an HTTP response code if the aws request does not succeed.
  */
 int
-GCPConnection::ListObjects(const std::string &prefix, std::vector<std::string> &objects,
-  uint32_t batchSize, bool listSingle) const
+GCPConnection::ListObjects(std::vector<std::string> &objects) const
 {
-
     return (0);
 }
 
