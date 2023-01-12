@@ -20,6 +20,7 @@ __rec_child_deleted(
     uint8_t prepare_state;
     bool visible, visible_all;
 
+    visible = visible_all = false;
     page_del = ref->page_del;
 
     cmsp->state = WT_CHILD_IGNORE;
@@ -36,12 +37,13 @@ __rec_child_deleted(
      * to everyone. Use the special-case logic in __wt_page_del_visible to hide prepared truncations
      * as we can't write them to disk.
      */
-    if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
-        visible = __wt_page_del_visible(session, page_del, true);
-        visible_all = visible ? __wt_page_del_visible_all(session, page_del, true) : false;
-    } else
-        visible = visible_all = __wt_page_del_visible_all(session, page_del, true);
-
+    if (!__wt_page_del_committed(page_del)) {
+        if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
+            visible = __wt_page_del_visible(session, page_del, true);
+            visible_all = visible ? __wt_page_del_visible_all(session, page_del, true) : false;
+        } else
+            visible = visible_all = __wt_page_del_visible_all(session, page_del, true);
+    }
     /*
      * If an earlier reconciliation chose to write the fast truncate information to the page, we
      * should select it regardless of visibility unless it is globally visible. This is important as
