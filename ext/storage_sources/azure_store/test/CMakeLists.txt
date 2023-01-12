@@ -4,7 +4,7 @@ include(${CMAKE_SOURCE_DIR}/test/ctest_helpers.cmake)
 # Build the unit test binary.
 create_test_executable(run_azure_unit_tests
     SOURCES test_azure_connection.cpp
-    LIBS Azure::azure-storage-blobs
+    LIBS azure_container_util
     CXX
 )
 
