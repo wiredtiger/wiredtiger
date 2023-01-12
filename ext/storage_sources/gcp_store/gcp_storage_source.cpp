@@ -27,26 +27,29 @@ struct gcp_file_handle {
     gcp_store *store;
 };
 
-static int
-gcp_customize_file_system(
-  WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *, const char *, WT_FILE_SYSTEM **) __attribute__((__unused__));
+static int gcp_customize_file_system(WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *,
+  const char *, WT_FILE_SYSTEM **) __attribute__((__unused__));
 static int gcp_add_reference(WT_STORAGE_SOURCE *) __attribute__((__unused__));
 static int gcp_file_system_terminate(WT_FILE_SYSTEM *, WT_SESSION *) __attribute__((__unused__));
-static int gcp_flush(
-  WT_STORAGE_SOURCE *, WT_SESSION *, WT_FILE_SYSTEM *, const char *, const char *, const char *) __attribute__((__unused__));
-static int gcp_flush_finish(
-  WT_STORAGE_SOURCE *, WT_SESSION *, WT_FILE_SYSTEM *, const char *, const char *, const char *) __attribute__((__unused__));
-static int gcp_file_exists(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *) __attribute__((__unused__));
-static int gcp_file_open(
-  WT_FILE_SYSTEM *, WT_SESSION *, const char *, WT_FS_OPEN_FILE_TYPE, uint32_t, WT_FILE_HANDLE **) __attribute__((__unused__));
-static int gcp_remove(WT_FILE_SYSTEM *, WT_SESSION *, const char *, uint32_t) __attribute__((__unused__));
-static int gcp_rename(WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, uint32_t) __attribute__((__unused__));
+static int gcp_flush(WT_STORAGE_SOURCE *, WT_SESSION *, WT_FILE_SYSTEM *, const char *,
+  const char *, const char *) __attribute__((__unused__));
+static int gcp_flush_finish(WT_STORAGE_SOURCE *, WT_SESSION *, WT_FILE_SYSTEM *, const char *,
+  const char *, const char *) __attribute__((__unused__));
+static int gcp_file_exists(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *)
+  __attribute__((__unused__));
+static int gcp_file_open(WT_FILE_SYSTEM *, WT_SESSION *, const char *, WT_FS_OPEN_FILE_TYPE,
+  uint32_t, WT_FILE_HANDLE **) __attribute__((__unused__));
+static int gcp_remove(WT_FILE_SYSTEM *, WT_SESSION *, const char *, uint32_t)
+  __attribute__((__unused__));
+static int gcp_rename(WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, uint32_t)
+  __attribute__((__unused__));
 static int gcp_file_size(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t *) __attribute__((__unused__));
-static int gcp_object_list_add(
-  const gcp_store &, char ***, const std::vector<std::string> &, const uint32_t) __attribute__((__unused__));
-static int gcp_object_list_single(
-  WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *) __attribute__((__unused__));
-static int gcp_object_list_free(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t) __attribute__((__unused__));
+static int gcp_object_list_add(const gcp_store &, char ***, const std::vector<std::string> &,
+  const uint32_t) __attribute__((__unused__));
+static int gcp_object_list_single(WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *,
+  char ***, uint32_t *) __attribute__((__unused__));
+static int gcp_object_list_free(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t)
+  __attribute__((__unused__));
 
 static int
 gcp_customize_file_system(WT_STORAGE_SOURCE *store, WT_SESSION *session, const char *bucket,
