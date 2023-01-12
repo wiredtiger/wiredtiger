@@ -5,34 +5,33 @@
 #include <azure/storage/blobs.hpp>
 
 // Constructor for Azure Connection
-AzureConnection::AzureConnection(const std::string &bucketName, const std::string &objPrefix)
-    : _azureClient(Azure::Storage::Blobs::BlobContainerClient::CreateFromConnectionString(
-        std::getenv("AZURE_STORAGE_CONNECTION_STRING"), bucketName)),
-      _bucketName(bucketName), _objectPrefix(objPrefix)
+azure_connection::azure_connection(const std::string &bucket_name, const std::string &obj_prefix)
+    : _azure_client(Azure::Storage::Blobs::BlobContainerClient::CreateFromConnectionString(
+        std::getenv("AZURE_STORAGE_CONNECTION_STRING"), bucket_name)),
+      _bucket_name(bucket_name), _object_prefix(_p)
 {
 }
 
 int
-AzureConnection::ListObjects(const std::string &prefix, std::vector<std::string> &objects,
-  uint32_t batchSize, bool listSingle) const
+azure_connection::list_objects(std::vector<std::string> &objects) const
 {
-    return 0;
+    return (0);
 }
 
 int
-AzureConnection::PutObject(const std::string &fileName) const
+azure_connection::put_object(const std::string &file_name) const
 {
-    return 0;
+    return (0);
 }
 
 int
-AzureConnection::DeleteObject() const
+azure_connection::delete_object() const
 {
-    return 0;
+    return (0);
 }
 
 int
-AzureConnection::GetObject(const std::string &path) const
+azure_connection::get_object(const std::string &path) const
 {
-    return 0;
+    return (0);
 }

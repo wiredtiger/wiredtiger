@@ -7,19 +7,18 @@
 
 #include <string>
 
-class AzureConnection {
+class azure_connection {
     public:
-    AzureConnection(const std::string &bucketName, const std::string &objPrefix = "");
-    int ListObjects(const std::string &prefix, std::vector<std::string> &objects,
-      uint32_t batchSize, bool listSingle) const;
-    int PutObject(const std::string &fileName) const;
-    int DeleteObject() const;
-    int GetObject(const std::string &path) const;
-    ~AzureConnection() = default;
+    azure_connection(const std::string &bucket_name, const std::string &obj_prefix = "");
+    int list_objects(std::vector<std::string> &objects) const;
+    int put_object(const std::string &file_name) const;
+    int delete_object() const;
+    int get_object(const std::string &path) const;
+    ~azure_connection() = default;
 
     private:
-    const std::string _bucketName;
-    const std::string _objectPrefix;
-    const Azure::Storage::Blobs::BlobContainerClient _azureClient;
+    const std::string _bucket_name;
+    const std::string _object_prefix;
+    const Azure::Storage::Blobs::BlobContainerClient _azure_client;
 };
 #endif
