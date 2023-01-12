@@ -81,14 +81,14 @@ AzureCustomizeFileSystem(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     fileSystem->fs.fs_rename = AzureRename;
     fileSystem->fs.fs_size = AzureObjectSize;
 
-    return 0;
+    return (0);
 }
 
 static int
 AzureAddReference(WT_STORAGE_SOURCE *storage_source)
 {
     WT_UNUSED(storage_source)
-    return 0;
+    return (0);
 }
 
 static int
@@ -96,7 +96,7 @@ AzureFileSystemTerminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
 {
     WT_UNUSED(file_system);
     WT_UNUSED(session);
-    return 0;
+    return (0);
 }
 
 static int
@@ -109,7 +109,7 @@ AzureFlush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYSTE
     WT_UNUSED(source);
     WT_UNUSED(object);
     WT_UNUSED(config);
-    return 0;
+    return (0);
 }
 
 static int
@@ -122,7 +122,7 @@ AzureFlushFinish(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     WT_UNUSED(source);
     WT_UNUSED(object);
     WT_UNUSED(config);
-    return 0;
+    return (0);
 }
 
 static int
@@ -135,7 +135,7 @@ AzureObjectList(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *di
     WT_UNUSED(prefix);
     WT_UNUSED(dirlistp);
     WT_UNUSED(countp);
-    return 0;
+    return (0);
 }
 
 static int
@@ -148,7 +148,7 @@ AzureObjectListSingle(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const ch
     WT_UNUSED(prefix);
     WT_UNUSED(dirlistp);
     WT_UNUSED(countp);
-    return 0;
+    return (0);
 }
 
 static int
@@ -159,7 +159,7 @@ AzureObjectListFree(
     WT_UNUSED(session);
     WT_UNUSED(dirlist);
     WT_UNUSED(count);
-    return 0;
+    return (0);
 }
 
 static int
@@ -167,7 +167,7 @@ AzureFileSystemTerminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
 {
     WT_UNUSED(file_system);
     WT_UNUSED(session);
-    return 0;
+    return (0);
 }
 
 static int
@@ -177,7 +177,7 @@ AzureFileExists(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
     WT_UNUSED(session);
     WT_UNUSED(name);
     WT_UNUSED(existp);
-    return 0;
+    return (0);
 }
 
 static int
@@ -187,7 +187,7 @@ AzureRemove(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, 
     WT_UNUSED(session);
     WT_UNUSED(name);
     WT_UNUSED(flags);
-    return 0;
+    return (0);
 }
 
 static int
@@ -199,7 +199,7 @@ AzureRename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *from, 
     WT_UNUSED(from);
     WT_UNUSED(to);
     WT_UNUSED(flags);
-    return 0;
+    return (0);
 }
 
 static int
@@ -209,7 +209,7 @@ AzureObjectSize(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
     WT_UNUSED(session);
     WT_UNUSED(name);
     WT_UNUSED(sizep);
-    return 0;
+    return (0);
 }
 
 static int
@@ -232,7 +232,7 @@ AzureFileOpen(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name
     fileHandle->fh_sync_nowait = nullptr;
     fileHandle->fh_truncate = nullptr;
     fileHandle->fh_write = nullptr;
-    return 0;
+    return (0);
 }
 
 static int
@@ -240,7 +240,7 @@ AzureFileClose(WT_FILE_HANDLE *fileHandle, WT_SESSION *session)
 {
     WT_UNUSED(fileHandle);
     WT_UNUSED(session);
-    return 0;
+    return (0);
 }
 
 static int
@@ -249,7 +249,7 @@ AzureFileLock(WT_FILE_HANDLE *fileHandle, WT_SESSION *session, bool lock)
     WT_UNUSED(fileHandle);
     WT_UNUSED(session);
     WT_UNUSED(lock);
-    return 0;
+    return (0);
 }
 
 static int
@@ -261,7 +261,7 @@ AzureFileRead(
     WT_UNUSED(offset);
     WT_UNUSED(len);
     WT_UNUSED(buf);
-    return 0;
+    return (0);
 }
 
 static int
@@ -270,7 +270,7 @@ AzureFileSize(WT_FILE_HANDLE *fileHandle, WT_SESSION *session, wt_off_t *sizep)
     WT_UNUSED(fileHandle);
     WT_UNUSED(session);
     WT_UNUSED(sizep);
-    return 0;
+    return (0);
 }
 
 int
@@ -285,5 +285,5 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     azure->store.terminate = AzureTerminate;
     azure->store.ss_flush = AzureFlush;
     azure->store.ss_flush_finish = AzureFlushFinish;
-    return 0;
+    return (0);
 }
