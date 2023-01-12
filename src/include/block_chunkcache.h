@@ -25,7 +25,7 @@ struct __wt_chunkcache_hashid {
 };
 
 /*
- * This data structure contains a list of cached chunks for a given object.
+ * The encapsulation of a cached chunk.
  */
 struct __wt_chunkcache_chunk {
     TAILQ_ENTRY(__wt_chunkcache_chunk) next_chunk;
