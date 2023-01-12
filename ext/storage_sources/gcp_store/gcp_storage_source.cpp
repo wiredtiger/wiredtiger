@@ -7,13 +7,11 @@
 #include <mutex>
 
 #include "gcp_connection.h"
-#include "gcp_log_system.h"
 #include "wt_internal.h"
 
 struct GCPStorage {
     WT_STORAGE_SOURCE store;
     std::list<GCPFileSystem *> gcp_fs;
-    GCP_LOG_SYSTEM *log;
 }
 
 struct GCPFileSystem {

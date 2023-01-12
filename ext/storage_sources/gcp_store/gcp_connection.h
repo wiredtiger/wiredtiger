@@ -36,9 +36,8 @@
 
 class GCPConnection {
     public:
-    GCPConnection(const std::string &bucketName, const std::string &objPrefix = "");
-    int ListObjects(const std::string &prefix, std::vector<std::string> &objects,
-      uint32_t batchSize = 1000, bool listSingle = false) const;
+    GCPConnection(const std::string &bucketName);
+    int ListObjects(std::vector<std::string> &objects) const;
     int PutObject(const std::string &objectKey, const std::string &fileName) const;
     int DeleteObject(const std::string &objectKey) const;
     int ObjectExists(const std::string &objectKey, bool &exists, size_t &objectSize) const;
@@ -49,7 +48,6 @@ class GCPConnection {
     private:
     const google::cloud::storage::v2_5_0::Client _gcpClient;
     const std::string _bucketName;
-    const std::string _objectPrefix;
 
     int BucketExists(bool &exists) const;
 };
