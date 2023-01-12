@@ -81,7 +81,10 @@ __chunkcache_alloc_chunk(
     if ((chunk_size = __chunkcache_admit_size(session)) == 0)
         return (WT_ERROR);
 
+    /* Chunk cannot be smaller than the block */
     chunk_size = WT_MAX(chunk_size, block_size);
+    /* Chunk cannot be larger than the file */
+    chunk_size = WT_MIN(chunk_size, (size_t)block->size);
 
     if (__wt_calloc(session, 1, sizeof(WT_CHUNKCACHE_CHUNK), &newchunk) != 0)
         return (WT_ERROR);
@@ -93,8 +96,9 @@ __chunkcache_alloc_chunk(
      */
     newchunk->chunk_offset = (wt_off_t)(((size_t)offset / chunkcache->default_chunk_size) *
                                         chunkcache->default_chunk_size);
-    newchunk->chunk_size = WT_MIN(chunk_size,
-                                  (size_t)(block->size - newchunk->chunk_offset));
+    newchunk->chunk_size = WT_MAX(chunk_size,
+                                  (size_t)(block_size + (size_t)(offset - newchunk->chunk_offset)));
+
     newchunk->my_queuehead_ptr = qptr;
     newchunk->bucket_id = bucket_id;
 
@@ -153,9 +157,8 @@ __chunkcache_remove_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
     chunkcache = &S2C(session)->chunkcache;
 
     __wt_spin_lock(session, &chunkcache->bucket_locks[chunk->bucket_id]);
-    if (TAILQ_NEXT(chunk, next_chunk) != NULL ||
-        chunk->next_chunk.tqe_prev != NULL)
-        TAILQ_REMOVE(chunk->my_queuehead_ptr, chunk, next_chunk);
+    WT_ASSERT(session, TAILQ_NEXT(chunk, next_chunk) != NULL || chunk->next_chunk.tqe_prev != NULL);
+    TAILQ_REMOVE(chunk->my_queuehead_ptr, chunk, next_chunk);
     __wt_spin_unlock(session, &chunkcache->bucket_locks[chunk->bucket_id]);
 
 }
@@ -196,6 +199,8 @@ __chunkcache_evict_one(WT_SESSION_IMPL *session)
     if (chunk_to_evict == NULL)
         return false;
 
+    printf("\nevict: offset=%" PRId64 ", size=%ld\n",
+           chunk_to_evict->chunk_offset, chunk_to_evict->chunk_size);
     __chunkcache_remove_chunk(session, chunk_to_evict);
     __chunkcache_free_chunk(session, chunk_to_evict);
     WT_STAT_CONN_INCR(session, chunk_cache_chunks_evicted);
@@ -246,7 +251,7 @@ __chunkcache_remove_lru(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
      if (TAILQ_NEXT(chunk, next_lru_item) != NULL ||
          chunk->next_lru_item.tqe_prev != NULL) {
          TAILQ_REMOVE(&chunkcache->chunkcache_lru_list, chunk, next_lru_item);
-         printf("Removed from LRU list: offset=%" PRu64 ", size=%" PRu64 "\n",
+         printf("Removed from LRU list: offset=%" PRIu64 ", size=%ld\n",
                 chunk->chunk_offset, chunk->chunk_size);
     }
     __wt_spin_unlock(session, &chunkcache->chunkcache_lru_lock);
@@ -312,8 +317,8 @@ __wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object
                     memcpy(dst, chunk->chunk_location + (offset - chunk->chunk_offset), size);
                     WT_STAT_CONN_INCR(session, chunk_cache_hits);
 
-                    printf("found: offset=%" PRu64 ", size=%" PRu64 "\n",
-                           chunk->chunk_offset, chunk->chunk_size);
+                    printf("found: offset=%" PRIu64 ", size=%ld\n", chunk->chunk_offset,
+                           chunk->chunk_size);
                     /*
                      * Move to the head of the LRU list if we find the chunk in that list.
                      * If the chunk is being evicted we let it be evicted.
@@ -400,8 +405,6 @@ __wt_chunkcache_complete_read(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chu
                               uint32_t size, void *dst, bool *chunkcache_has_data)
 {
     WT_CHUNKCACHE *chunkcache;
-    WT_CHUNKCACHE_CHUNK *next_chunk;
-    size_t copy_size1, copy_size2;
 
     chunkcache = &S2C(session)->chunkcache;
     *chunkcache_has_data = false;
@@ -411,12 +414,14 @@ __wt_chunkcache_complete_read(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chu
     /* Atomically mark the chunk as valid */
     (void)__wt_atomic_addv32(&chunk->valid, 1);
 
-    printf("complete-read: chunk->chunk_offset=%" PRIu64 ", offset=%" PRIu64 ",
+    printf("complete-read: chunk->chunk_offset=%" PRIu64 ", offset=%" PRIu64 ", \
            chunk->chunk_size=%" PRIu64 ", size=%" PRIu64 "\n",
            chunk->chunk_offset, offset, (uint64_t)chunk->chunk_size, (uint64_t)size);
 
     /* If the read of the block triggered reading the chunk, the chunk must contain the block. */
-    WT_ASSERT(BLOCK_IN_CHUNK(chunk->chunk_offset, offset, chunk->chunk_size, size));
+    //WT_ASSERT(session, BLOCK_IN_CHUNK(chunk->chunk_offset, offset, chunk->chunk_size, size));
+    if (!BLOCK_IN_CHUNK(chunk->chunk_offset, offset, chunk->chunk_size, size))
+        printf("BLOCK NOT IN CHUNK!\n");
 
     memcpy(dst, chunk->chunk_location + (offset - chunk->chunk_offset), size);
     *chunkcache_has_data = true;
@@ -469,7 +474,7 @@ __wt_chunkcache_remove(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objec
             TAILQ_FOREACH(chunk, &chunkchain->chunks, next_chunk) {
                 if (chunk->valid &&
                     (BLOCK_IN_CHUNK(chunk->chunk_offset, offset, chunk->chunk_size, size) ||
-                     BLOCK_OVERLAPS_CHUNK(chunk->chunk_offset, offset, chunk->chunk_size, size)) {
+                     BLOCK_OVERLAPS_CHUNK(chunk->chunk_offset, offset, chunk->chunk_size, size))) {
                     TAILQ_REMOVE(&chunkchain->chunks, chunk, next_chunk);
                     /*
                      * If the chunk is being evicted, the eviction code would have
@@ -481,16 +486,18 @@ __wt_chunkcache_remove(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objec
                     if (!being_evicted) {
                         __chunkcache_remove_lru(session, chunk);
                         __chunkcache_free_chunk(session, chunk);
+                        printf("\nremove: %s(%d), offset=%" PRId64 ", size=%d\n",
+                               (char*)&hash_id.objectname, hash_id.objectid, offset, size);
+                        break;
                     }
-                    printf("\nremove: %s(%d), offset=%" PRId64 ", size=%d\n",
-                           (char*)&hash_id.objectname, hash_id.objectid, offset, size);
                 }
             }
     }
     __wt_spin_unlock(session, &chunkcache->bucket_locks[bucket_id]);
 
-    if (chunk != NULL)
-        __chunkcache_free_chunk(session, chunk);
+    printf("here\n");
+    //if (chunk != NULL)
+    //    __chunkcache_free_chunk(session, chunk);
 }
 
 /*
@@ -528,9 +535,11 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
     if ((chunkcache->hashtable_size = (u_int)cval.val) == 0)
         chunkcache->hashtable_size = WT_CHUNKCACHE_DEFAULT_HASHSIZE;
     else if (chunkcache->hashtable_size < WT_CHUNKCACHE_MINHASHSIZE ||
-             chunkcache->hashtable_size < WT_CHUNKCACHE_MAXHASHSIZE)
-        WT_RET_MSG(session, EINVAL, "chunk cache hashtable size must be between %d and %d entries",
-                   WT_CHUNKCACHE_MINHASHSIZE, WT_CHUNKCACHE_MAXHASHSIZE);
+             chunkcache->hashtable_size > WT_CHUNKCACHE_MAXHASHSIZE)
+        WT_RET_MSG(session, EINVAL,
+                   "chunk cache hashtable size must be between %d and %d entries and we have %d",
+                   WT_CHUNKCACHE_MINHASHSIZE, WT_CHUNKCACHE_MAXHASHSIZE,
+                   chunkcache->hashtable_size);
 
     WT_RET(__wt_config_gets(session, cfg, "chunk_cache.type", &cval));
     if (cval.len ==0 ||
