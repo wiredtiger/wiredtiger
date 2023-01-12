@@ -167,7 +167,7 @@ thread2.options.throttle=500
 thread2.options.throttle_burst=1.0
 
 # Long running transactions. There is a 0.1 second sleep after a series of search and update
-# operations. The sleep op is repeated 10000 times and this will make these transcations to at
+# operations. The sleep op is repeated 10000 times and this will make these transactions to at
 # least run for ~17 minutes.
 search_op = Operation(Operation.OP_SEARCH, tables[0], Key(Key.KEYGEN_PARETO, 0, ParetoOptions(1)))
 update_op = Operation(Operation.OP_UPDATE, tables[0], Key(Key.KEYGEN_PARETO, 0, ParetoOptions(1)))
