@@ -2,6 +2,7 @@ include(ExternalProject)
 include(FetchContent)
 include(GNUInstallDirs)
 include(${CMAKE_SOURCE_DIR}/cmake/helpers.cmake)
+include(${CMAKE_SOURCE_DIR}/google-cloud-cpp/)
 
 # Skip the GCP SDK build step if the extension is not enabled.
 if(NOT ENABLE_GCP)
@@ -10,7 +11,7 @@ endif()
 
 config_choice(
     IMPORT_GCP_SDK
-    "Specify how to import the S3 SDK"
+    "Specify how to import the GCP SDK"
     OPTIONS
         "none;IMPORT_GCP_SDK_NONE;NOT ENABLE_GCP"
         "package;IMPORT_GCP_SDK_PACKAGE;ENABLE_GCP"
@@ -18,14 +19,13 @@ config_choice(
 )
  
 if(IMPORT_GCP_SDK_NONE)
-    message(FATAL_ERROR "Cannot enable S3 extension without specifying an IMPORT_S3_SDK method (package, external).")
+    message(FATAL_ERROR "Cannot enable GCP extension without specifying an IMPORT_GCP_SDK method (package, external).")
 endif()
 
-set(gcp_storage_lib_location)
-set(gcp_common_lib_location)
-
 if(IMPORT_GCP_SDK_PACKAGE)
-    find_package(gcp-storage-blobs-cpp CONFIG REQUIRED)
+    set(google-cloud-cpp)
+    find_package(googleapis)
+    #find_file()
 
 elseif(IMPORT_GCP_SDK_EXTERNAL)
     find_package(absl REQUIRED)
