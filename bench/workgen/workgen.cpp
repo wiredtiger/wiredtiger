@@ -2686,7 +2686,7 @@ WorkloadRunner::run(WT_CONNECTION *conn)
         THROW("Workload.options.sample_rate must be positive");
 
     std::ofstream report_out;
-    if (!options->report_file.empty()) {
+    if (options->report_enabled && !options->report_file.empty()) {
         open_report_file(report_out, options->report_file, "Workload.options.report_file");
         _report_out = &report_out;
     }
@@ -2801,10 +2801,12 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
     for (size_t i = 0; i < _trunners.size(); i++)
         _trunners[i].get_static_counts(counts);
 
-    std::ostream &out = *_report_out;
-    out << "Starting workload: " << _trunners.size() << " threads, ";
-    counts.report(out);
-    out << std::endl;
+    if (_workload->options.report_enabled) {
+        std::ostream &out = *_report_out;
+        out << "Starting workload: " << _trunners.size() << " threads, ";
+        counts.report(out);
+        out << std::endl;
+    }
 
     // Start all threads
     WorkloadOptions *options = &_workload->options;
@@ -3045,9 +3047,11 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
             monitor_json.close();
     }
 
-    // issue the final report
-    timespec finalsecs = now - _start;
-    final_report(finalsecs);
+    // Issue the final report.
+    if (options->report_enabled) {
+        timespec finalsecs = now - _start;
+        final_report(finalsecs);
+    }
 
     if (ret != 0)
         std::cerr << "run_all failed err=" << ret << std::endl;
