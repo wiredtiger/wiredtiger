@@ -50,8 +50,4 @@ target_link_libraries(
     PRIVATE
         gcp_bucket_util
 )
-
-#google-cloud-cpp provides CMake targets:
-
-    # this is heuristically generated, and may not be correct
     
