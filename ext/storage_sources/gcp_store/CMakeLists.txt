@@ -1,5 +1,11 @@
 project(gcp_store CXX)
 
+find_package(google_cloud_cpp_common CONFIG REQUIRED)
+
+find_package(google_cloud_cpp_rest_internal CONFIG REQUIRED)
+
+find_package(google_cloud_cpp_storage CONFIG REQUIRED)
+
 # Create an intermediate library to build the helper library.
 add_library(gcp_bucket_util STATIC gcp_connection.cpp)
 set_property(TARGET gcp_bucket_util PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -18,11 +24,13 @@ target_compile_options(
 target_link_libraries(
     gcp_bucket_util
     PUBLIC
-        google::cloud::storage
+        google-cloud-cpp::storage
+        google-cloud-cpp::common
+        google-cloud-cpp::rest_internal
 )
 
 # Build the gcp extension as a library.
-add_library(wiredtiger_gcp_store MODULE gcp_storage_source.cpp gcp_log_system.cpp)
+add_library(wiredtiger_gcp_store MODULE gcp_storage_source.cpp)
 target_include_directories(
     wiredtiger_gcp_store
     PRIVATE
@@ -40,10 +48,10 @@ target_compile_options(
 target_link_libraries(
     wiredtiger_gcp_store
     PRIVATE
-        google::cloud::storage
+        gcp_bucket_util
 )
 
-# Add the unit tests, need Catch2 which is resolved with HAVE_UNITTEST.
-if(HAVE_UNITTEST)
-    add_subdirectory(test)
-endif()
+#google-cloud-cpp provides CMake targets:
+
+    # this is heuristically generated, and may not be correct
+    

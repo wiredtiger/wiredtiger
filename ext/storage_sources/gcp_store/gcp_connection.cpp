@@ -2,59 +2,51 @@
 
 #include <fstream>
 
-GCPConnection::GCPConnection(const std::string &bucketName, const std::string &objPrefix)
-    : _gcpClient(google::cloud::storage::Client()), _bucketName(bucketName),
-      _objectPrefix(objPrefix)
+gcp_connection::gcp_connection(const std::string &bucket_name)
+    : _gcp_client(google::cloud::storage::Client()), _bucket_name(bucket_name)
 {
 }
 
-/*
- * Builds a list of object names, with prefix matching, from an S3 bucket into a vector. The
- * batchSize parameter specifies the maximum number of objects returned in each AWS response, up to
- * 1000. Return an errno value given an HTTP response code if the aws request does not succeed.
- */
+// Builds a list of object names from the bucket.
 int
-GCPConnection::ListObjects(const std::string &prefix, std::vector<std::string> &objects,
-  uint32_t batchSize, bool listSingle) const
-{
-
-    return (0);
-}
-
-// Puts an object into an S3 bucket. Return an errno value given an HTTP response code if
-// the aws request does not succeed.
-int
-GCPConnection::PutObject(const std::string &objectKey, const std::string &fileName) const
+gcp_connection::list_objects(std::vector<std::string> &objects) const
 {
     return (0);
 }
 
-// Deletes an object from S3 bucket. Return an errno value given an HTTP response code if
-// the aws request does not succeed.
+// Puts an object into a google cloud bucket.
 int
-GCPConnection::DeleteObject(const std::string &objectKey) const
+gcp_connection::put_object(const std::string &object_key, const std::string &file_name) const
 {
     return (0);
 }
 
-// Retrieves an object from S3. The object is downloaded to disk at the specified location.
+// Deletes an object from google cloud bucket.
 int
-GCPConnection::GetObject(const std::string &objectKey, const std::string &path) const
+gcp_connection::delete_object(const std::string &object_key) const
 {
     return (0);
 }
 
-// Checks whether an object with the given key exists in the S3 bucket and also retrieves
+// Retrieves an object from the google cloud bucket.
+int
+gcp_connection::get_object(const std::string &object_key, const std::string &path) const
+{
+    return (0);
+}
+
+// Checks whether an object with the given key exists in the google cloud bucket and also retrieves
 // size of the object.
 int
-GCPConnection::ObjectExists(const std::string &objectKey, bool &exists, size_t &objectSize) const
+gcp_connection::object_exists(
+  const std::string &object_key, bool &exists, size_t &object_size) const
 {
     return (0);
 }
 
 // Checks whether the bucket configured for the class is accessible to us or not.
 int
-GCPConnection::BucketExists(bool &exists) const
+gcp_connection::bucket_exists(bool &exists) const
 {
     return (0);
 }
