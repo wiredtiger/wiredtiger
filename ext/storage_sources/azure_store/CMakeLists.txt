@@ -46,5 +46,8 @@ target_link_libraries(
     PRIVATE
         azure_container_util
 )
+<<<<<<< HEAD
 
 add_subdirectory(test)
+=======
+>>>>>>> develop

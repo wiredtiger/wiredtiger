@@ -41,23 +41,23 @@ azure_connection::azure_connection(const std::string &bucket_name, const std::st
 int
 azure_connection::list_objects(std::vector<std::string> &objects) const
 {
-    return (0);
+    return 0;
 }
 
 int
 azure_connection::put_object(const std::string &file_name) const
 {
-    return (0);
+    return 0;
 }
 
 int
 azure_connection::delete_object() const
 {
-    return (0);
+    return 0;
 }
 
 int
 azure_connection::get_object(const std::string &path) const
 {
-    return (0);
+    return 0;
 }
