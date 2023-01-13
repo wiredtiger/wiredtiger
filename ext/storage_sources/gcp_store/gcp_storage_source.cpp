@@ -13,22 +13,22 @@ struct gcp_file_system;
 struct gcp_file_handle;
 
 struct gcp_store {
-    WT_STORAGE_SOURCE
-      store; // Must come first - this is the interface for the storage source we are implementing.
+    // Must come first - this is the interface for the storage source we are implementing.
+    WT_STORAGE_SOURCE store;
     std::vector<gcp_file_system> gcp_fs;
 };
 
 struct gcp_file_system {
-    WT_FILE_SYSTEM
-      fs; // Must come first - this is the interface for the file system we are implementing.
+    // Must come first - this is the interface for the file system we are implementing.
+    WT_FILE_SYSTEM fs;
     gcp_store *store;
     std::vector<gcp_file_handle> gcp_fh;
     gcp_connection *gcp_conn;
 };
 
 struct gcp_file_handle {
-    WT_FILE_HANDLE
-      fh; // Must come first - this is the interface for the file handle we are implementing.
+    // Must come first - this is the interface for the file handle we are implementing.
+    WT_FILE_HANDLE fh;
     gcp_store *store;
 };
 
