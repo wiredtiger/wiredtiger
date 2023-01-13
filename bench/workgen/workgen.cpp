@@ -372,9 +372,13 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
             if (icontext->_tint.count(uri) > 0 || icontext->_dyn_tint.count(uri) > 0)
                 continue;
 
-            // Create the table.
+            /*
+             * Create the table. Mark the table as part of the dynamic set by storing extra
+             * information in the app_metadata.
+             */
             WT_DECL_RET;
-            if ((ret = session->create(session, uri, "key_format=S,value_format=S")) != 0) {
+            if ((ret = session->create(session, uri,
+                   "key_format=S,value_format=S,app_metadata=\"dynamic_table\"")) != 0) {
                 if (ret == EBUSY)
                     continue;
                 THROW("Table create failed in start_tables_create.");
@@ -398,7 +402,7 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
     }
 
     return 0;
-}
+} // namespace workgen
 
 /*
  * This function drops one or more tables at regular intervals, where the interval length and number
@@ -703,12 +707,67 @@ ContextInternal::ContextInternal()
 ContextInternal::~ContextInternal() {}
 
 int
-ContextInternal::create_all()
+ContextInternal::create_all(WT_CONNECTION *conn)
 {
     if (_table_runtime.size() < _tint_last) {
         // The array references are 1-based, we'll waste one entry.
         _table_runtime.resize(_tint_last + 1);
     }
+
+    /*
+     * Populate the structure for the dynamic tables. We are single threaded here, so no need to
+     * lock. We walk the WiredTiger metadata and filter out tables based on app_metadata. The
+     * dynamic set of tables are marked separately during creation.
+     */
+    WT_SESSION *session;
+    if (conn->open_session(conn, nullptr, nullptr, &session) != 0) {
+        THROW("Error opening a session.");
+    }
+
+    WT_DECL_RET;
+    WT_CURSOR *cursor;
+    // WT_METADATA_URI
+    if ((ret = session->open_cursor(session, "metadata:", NULL, NULL, &cursor)) != 0) {
+        /* If there is no metadata (yet), this will return ENOENT. */
+        if (ret == ENOENT) {
+            THROW("No metadata found while extracting dynamic set of tables.");
+        }
+    }
+
+    /* Walk the entries in the metadata and extract the dynamic set. */
+    while ((ret = cursor->next(cursor)) == 0) {
+        const char *key, *value;
+        if ((ret = cursor->get_key(cursor, &key)) != 0) {
+            THROW(
+              "Error getting the key for a metadata entry while extracting dynamic set of tables.");
+        }
+        if ((ret = cursor->get_value(cursor, &value)) != 0) {
+            THROW(
+              "Error getting the value for a metadata entry while extracting dynamic set of "
+              "tables.");
+        }
+
+        if (std::string(value).find("app_metadata=\"dynamic_table\"") != std::string::npos &&
+          WT_PREFIX_MATCH(key, "table:")) {
+            // Add the table into the list of dynamic set.
+            _dyn_tint[key] = _dyn_tint_last;
+            _dyn_table_names[_dyn_tint_last] = key;
+            _dyn_table_runtime[_dyn_tint_last] = TableRuntime();
+            ++_dyn_tint_last;
+            std::cout << "Added pre-existing table to the dynamic set: " << key << std::endl;
+        }
+    }
+    if (ret != WT_NOTFOUND) {
+        THROW("Error extracting dynamic set of tables from the metadata.");
+    }
+
+    if ((ret = cursor->close(cursor)) != 0) {
+        THROW("Cursor close failed.");
+    }
+    if ((ret = session->close(session, NULL)) != 0) {
+        THROW("Session close failed.");
+    }
+
     return (0);
 }
 
@@ -2743,7 +2802,7 @@ WorkloadRunner::create_all(WT_CONNECTION *conn, Context *context)
         // TODO: recover from partial failure here
         WT_RET(runner->create_all(conn));
     }
-    WT_RET(context->_internal->create_all());
+    WT_RET(context->_internal->create_all(conn));
     return (0);
 }
 

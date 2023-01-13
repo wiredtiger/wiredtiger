@@ -229,7 +229,7 @@ struct ContextInternal {
 
     ContextInternal();
     ~ContextInternal();
-    int create_all();
+    int create_all(WT_CONNECTION *conn);
 };
 
 struct OperationInternal {
