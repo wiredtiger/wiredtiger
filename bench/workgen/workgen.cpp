@@ -2553,18 +2553,19 @@ TableInternal::TableInternal(const TableInternal &other)
 }
 
 WorkloadOptions::WorkloadOptions()
-    : max_latency(0), report_file("workload.stat"), report_interval(0), run_time(0),
-      sample_file("monitor.json"), sample_interval_ms(0), max_idle_table_cycle(0), sample_rate(1),
-      warmup(0), oldest_timestamp_lag(0.0), stable_timestamp_lag(0.0), timestamp_advance(0.0),
-      max_idle_table_cycle_fatal(false), create_count(0), create_interval(0), create_prefix(""),
-      create_target(0), create_trigger(0), drop_count(0), drop_interval(0), drop_target(0),
-      drop_trigger(0), _options()
+    : max_latency(0), report_enabled(true), report_file("workload.stat"), report_interval(0),
+      run_time(0), sample_file("monitor.json"), sample_interval_ms(0), max_idle_table_cycle(0),
+      sample_rate(1), warmup(0), oldest_timestamp_lag(0.0), stable_timestamp_lag(0.0),
+      timestamp_advance(0.0), max_idle_table_cycle_fatal(false), create_count(0),
+      create_interval(0), create_prefix(""), create_target(0), create_trigger(0), drop_count(0),
+      drop_interval(0), drop_target(0), drop_trigger(0), _options()
 {
     _options.add_int("max_latency", max_latency,
       "prints warning if any latency measured exceeds this number of "
       "milliseconds. Requires sample_interval to be configured.");
     _options.add_int("report_interval", report_interval,
       "output throughput information every interval seconds, 0 to disable");
+    _options.add_bool("report_enabled", report_enabled, "Enable collecting run output");
     _options.add_string("report_file", report_file,
       "file name for collecting run output, "
       "including output from the report_interval option. "
