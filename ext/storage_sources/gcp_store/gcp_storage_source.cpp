@@ -13,8 +13,8 @@ struct gcp_file_system;
 struct gcp_file_handle;
 
 /*
-* The first struct member must be the WT interface that is being implemented. 
-*/
+ * The first struct member must be the WT interface that is being implemented.
+ */
 struct gcp_store {
     WT_STORAGE_SOURCE store;
     std::vector<gcp_file_system> gcp_fs;
