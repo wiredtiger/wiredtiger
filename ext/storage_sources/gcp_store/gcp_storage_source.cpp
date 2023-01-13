@@ -1,5 +1,5 @@
-#include <wiredtiger.h>
-#include <wiredtiger_ext.h>
+#include "wiredtiger.h"
+#include "wiredtiger_ext.h"
 #include <fstream>
 #include <list>
 #include <errno.h>
@@ -8,22 +8,27 @@
 
 #include "gcp_connection.h"
 #include "wt_internal.h"
+
 struct gcp_file_system;
 struct gcp_file_handle;
 
 struct gcp_store {
-    WT_STORAGE_SOURCE store;
-    std::list<gcp_file_system *> gcp_fs;
+    WT_STORAGE_SOURCE
+      store; // Must come first - this is the interface for the storage source we are implementing.
+    std::vector<gcp_file_system> gcp_fs;
 };
 
 struct gcp_file_system {
-    WT_FILE_SYSTEM fs;
-    std::list<gcp_file_handle *> gcp_fh;
+    WT_FILE_SYSTEM
+      fs; // Must come first - this is the interface for the file system we are implementing.
+    gcp_store *store;
+    std::vector<gcp_file_handle> gcp_fh;
     gcp_connection *gcp_conn;
 };
 
 struct gcp_file_handle {
-    WT_FILE_HANDLE fh;
+    WT_FILE_HANDLE
+      fh; // Must come first - this is the interface for the file handle we are implementing.
     gcp_store *store;
 };
 
@@ -62,7 +67,7 @@ gcp_customize_file_system(WT_STORAGE_SOURCE *store, WT_SESSION *session, const c
     WT_UNUSED(config);
     WT_UNUSED(file_system);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -70,7 +75,7 @@ gcp_add_reference(WT_STORAGE_SOURCE *store)
 {
     WT_UNUSED(store);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -79,7 +84,7 @@ gcp_file_system_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
     WT_UNUSED(file_system);
     WT_UNUSED(session);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -93,7 +98,7 @@ gcp_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYSTEM
     WT_UNUSED(object);
     WT_UNUSED(config);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -107,7 +112,7 @@ gcp_flush_finish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM
     WT_UNUSED(object);
     WT_UNUSED(config);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -119,7 +124,7 @@ gcp_file_exists(
     WT_UNUSED(name);
     WT_UNUSED(file_exists);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -133,7 +138,7 @@ gcp_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name
     WT_UNUSED(flags);
     WT_UNUSED(file_handle_ptr);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -144,7 +149,7 @@ gcp_remove(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, u
     WT_UNUSED(name);
     WT_UNUSED(flags);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -157,7 +162,7 @@ gcp_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *from, c
     WT_UNUSED(to);
     WT_UNUSED(flags);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -167,7 +172,7 @@ gcp_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *sizep)
     WT_UNUSED(session);
     WT_UNUSED(sizep);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -179,7 +184,7 @@ gcp_object_list_add(const gcp_store &gcp_, char ***object_list,
     WT_UNUSED(objects);
     WT_UNUSED(count);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -193,7 +198,7 @@ gcp_object_list_single(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const c
     WT_UNUSED(object_list);
     WT_UNUSED(count);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -205,7 +210,7 @@ gcp_object_list_free(
     WT_UNUSED(object_list);
     WT_UNUSED(count);
 
-    return (0);
+    return 0;
 }
 
 int
@@ -214,5 +219,5 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     WT_UNUSED(connection);
     WT_UNUSED(config);
 
-    return (0);
+    return 0;
 }
