@@ -12,14 +12,15 @@
 struct gcp_file_system;
 struct gcp_file_handle;
 
+/*
+* The first struct member must be the WT interface that is being implemented. 
+*/
 struct gcp_store {
-    // Must come first - this is the interface for the storage source we are implementing.
     WT_STORAGE_SOURCE store;
     std::vector<gcp_file_system> gcp_fs;
 };
 
 struct gcp_file_system {
-    // Must come first - this is the interface for the file system we are implementing.
     WT_FILE_SYSTEM fs;
     gcp_store *store;
     std::vector<gcp_file_handle> gcp_fh;
@@ -27,7 +28,6 @@ struct gcp_file_system {
 };
 
 struct gcp_file_handle {
-    // Must come first - this is the interface for the file handle we are implementing.
     WT_FILE_HANDLE fh;
     gcp_store *store;
 };

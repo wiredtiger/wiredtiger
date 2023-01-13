@@ -289,7 +289,7 @@ config_bool(
 
 config_bool(
     ENABLE_GCP
-    "Build the GCP (Google Cloud Platform) storage extension"
+    "Build the Google Cloud Platform storage extension"
     DEFAULT OFF
 )
 

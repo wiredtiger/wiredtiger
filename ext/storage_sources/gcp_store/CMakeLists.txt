@@ -1,9 +1,7 @@
 project(gcp_store CXX)
 
 find_package(google_cloud_cpp_common CONFIG REQUIRED)
-
 find_package(google_cloud_cpp_rest_internal CONFIG REQUIRED)
-
 find_package(google_cloud_cpp_storage CONFIG REQUIRED)
 
 # Create an intermediate library to build the helper library.
@@ -50,4 +48,3 @@ target_link_libraries(
     PRIVATE
         gcp_bucket_util
 )
-    

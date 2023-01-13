@@ -72,7 +72,7 @@ gcp_connection::object_exists(
     return 0;
 }
 
-// Checks whether the bucket configured for the class is accessible to us or not.
+// Checks whether the google cloud bucket is accessible to us or not.
 int
 gcp_connection::bucket_exists(bool &exists) const
 {
