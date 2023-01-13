@@ -305,6 +305,22 @@ get_dir_size_mb(const std::string &dir)
     return result / WT_MEGABYTE;
 }
 
+// 10 random characters + Null terminator
+#define DYNAMIC_TABLE_LEN 11
+static void gen_random_table_name(char* name, workgen_random_state volatile *rand_state)
+{
+    ASSERT(name != NULL);
+
+    const char charset[] =
+        "0123456789"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz";
+
+    for (int i = 0; i < DYNAMIC_TABLE_LEN - 1; i++) {
+        name[i] = charset[workgen_random(rand_state) % (sizeof(charset) - 1)];
+    }
+    name[DYNAMIC_TABLE_LEN - 1] = '\0';
+}
 /*
  * This function creates one or more tables at regular intervals, where the interval length and
  * number of tables are specified in the workload options. It also monitors the database size and
@@ -320,7 +336,6 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
     }
 
     ContextInternal *icontext = _workload->_context->_internal;
-    uint64_t total_creates = 0;
     bool manage_db_size =
       _workload->options.create_target > 0 && _workload->options.create_trigger > 0;
     uint32_t db_size = 0;
@@ -343,7 +358,7 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
                 creating = db_size < _workload->options.create_target;
                 if (!creating) {
                     VERBOSE(*_workload,
-                      "Stopped creating new tables. db_size now "
+                      "XXX Stopped creating new tables. db_size now "
                         << db_size << " MB has reached the create target of "
                         << _workload->options.create_target << " MB.");
                 }
@@ -351,7 +366,7 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
                 creating = db_size < _workload->options.create_trigger;
                 if (creating) {
                     VERBOSE(*_workload,
-                      "Started creating new tables. db_size now "
+                      "XXX Started creating new tables. db_size now "
                         << db_size << " MB has reached the create trigger of "
                         << _workload->options.create_trigger << " MB.");
                 }
@@ -362,11 +377,17 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
             continue;
         }
 
-        for (int creates = 0; creates < _workload->options.create_count;
-             ++creates, ++total_creates) {
-            char uri[BUF_SIZE];
-            snprintf(uri, BUF_SIZE, "table:%s%" PRIu64, _workload->options.create_prefix.c_str(),
-              total_creates);
+        int creates = 0;
+        while (creates < _workload->options.create_count) {
+            char rand_chars[DYNAMIC_TABLE_LEN];
+            gen_random_table_name(rand_chars, _rand_state);
+
+            std::string uri("table:");
+            // Add the user specified prefix and a random alphanumeric sequence.
+            uri += _workload->options.create_prefix;
+            uri += rand_chars;
+
+            std::cout << " XXX: Gen uri: " << uri << std::endl;
 
             // Check if a table with this name already exists. Skip if it does.
             if (icontext->_tint.count(uri) > 0 || icontext->_dyn_tint.count(uri) > 0)
@@ -377,7 +398,7 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
              * information in the app_metadata.
              */
             WT_DECL_RET;
-            if ((ret = session->create(session, uri,
+            if ((ret = session->create(session, uri.c_str(),
                    "key_format=S,value_format=S,app_metadata=\"dynamic_table\"")) != 0) {
                 if (ret == EBUSY)
                     continue;
@@ -394,8 +415,9 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
                 icontext->_dyn_table_names[tint] = uri;
                 icontext->_dyn_table_runtime[tint] = TableRuntime();
                 ++icontext->_dyn_tint_last;
-                VERBOSE(*_workload, "Created table and added to the dynamic set: " << uri);
+                VERBOSE(*_workload, "XXX Created table and added to the dynamic set: " << uri);
             }
+            ++creates;
         }
 
         sleep(_workload->options.create_interval);
@@ -419,7 +441,7 @@ WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
     }
 
     ContextInternal *icontext = _workload->_context->_internal;
-    std::vector<std::string> tables_delete; // Track tables that are to be deleted.
+    std::vector<std::string> pending_delete; // Track tables that are pending to be deleted.
     bool manage_db_size = _workload->options.drop_target > 0 && _workload->options.drop_trigger > 0;
     uint32_t db_size = 0;
     bool dropping = true;
@@ -460,63 +482,74 @@ WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
             continue;
         }
 
-        for (int drops = 0; drops < _workload->options.drop_count; ++drops) {
-            std::vector<std::string> drop_uris;
-            // The data structures for the dynamic table set are protected by a mutex.
-            {
-                const std::lock_guard<std::mutex> lock(*icontext->_dyn_mutex);
+        std::vector<std::string> drop_files;    // Files ready to be dropped.
+        // The data structures for the dynamic table set are protected by a mutex.
+        {
+            const std::lock_guard<std::mutex> lock(*icontext->_dyn_mutex);
 
-                // Walk the list and select the first that is not already in the delete list.
-                for (auto const &it : icontext->_dyn_tint) {
-                    if (icontext->_dyn_table_runtime[it.second]._pending_delete) {
-                        continue;
-                    } else {
-                        VERBOSE(*_workload, "Marking pending removal for: " << it.first);
-                        icontext->_dyn_table_runtime[it.second]._pending_delete = true;
-                        tables_delete.push_back(it.first);
-                        break;
-                    }
-                }
-
+            /* 
+             * When dropping consider how many dynamic tables we have left, and how many are
+             * already marked for deletion.
+             */
+            int tables_remaining = icontext->_dyn_tint.size() - pending_delete.size();
+            tables_remaining = std::max(0, tables_remaining);
+            int drop_count = std::min(tables_remaining, _workload->options.drop_count);
+            int drops = 0;
+            while (drops < drop_count) {
                 /*
-                 * Process any pending deletes, the actual table drop will be done later without
-                 * holding the lock.
+                 * Walk the map and select random tables to delete, skip if already marked for
+                 * deletion.
                  */
-                for (size_t i = 0; i < tables_delete.size();) {
-                    // The table might still be in use.
-                    const std::string uri(tables_delete.at(i));
-                    tint_t tint = icontext->_dyn_tint.at(uri);
-                    if (icontext->_dyn_table_runtime[tint]._in_use != 0) {
-                        ++i;
-                        continue;
-                    }
-
-                    // Delete all local data related to the table.
-                    tables_delete.erase(tables_delete.begin() + i);
-                    icontext->_dyn_tint.erase(uri);
-                    icontext->_dyn_table_names.erase(tint);
-                    icontext->_dyn_table_runtime.erase(tint);
-                    drop_uris.push_back(uri);
+                auto it = icontext->_dyn_tint.begin();
+                std::advance(it, workgen_random(_rand_state) % icontext->_dyn_tint.size());
+                if (icontext->_dyn_table_runtime[it->second]._pending_delete) {
+                    continue;
                 }
+
+                VERBOSE(*_workload, "XXX Marking pending removal for: " << it->first);
+                icontext->_dyn_table_runtime[it->second]._pending_delete = true;
+                pending_delete.push_back(it->first);
+                ++drops;
             }
 
             /*
-             * We will drop the WiredTiger tables without holding the lock. These tables have been
-             * removed from the shared data structures, and we know no thread is operating on them.
+             * Now process any pending deletes. The actual table drop will be done later without
+             * holding the lock.
              */
-            for (auto uri : drop_uris) {
-                WT_DECL_RET;
-                // Spin on EBUSY, we do not expect to get stuck
-                while ((ret = session->drop(session, uri.c_str(), "force,checkpoint_wait=false")) ==
-                  EBUSY) {
-                    VERBOSE(*_workload, "Drop returned EBUSY for table: " << uri);
+            for (size_t i = 0; i < pending_delete.size();) {
+                // The table might still be in use.
+                const std::string uri(pending_delete.at(i));
+                tint_t tint = icontext->_dyn_tint.at(uri);
+                ASSERT(icontext->_dyn_table_runtime[tint]._pending_delete == true);
+                if (icontext->_dyn_table_runtime[tint]._in_use != 0) {
+                    ++i;
+                    continue;
                 }
-                if (ret != 0)
-                    THROW("Table drop failed in start_tables_drop.");
 
-                VERBOSE(*_workload, "Dropped table: " << uri);
+                // Delete all local data related to the table.
+                pending_delete.erase(pending_delete.begin() + i);
+                icontext->_dyn_tint.erase(uri);
+                icontext->_dyn_table_names.erase(tint);
+                icontext->_dyn_table_runtime.erase(tint);
+                drop_files.push_back(uri);
             }
-            drop_uris.clear();
+        }
+
+        /*
+         * We will drop the WiredTiger tables without holding the lock. These tables have been
+         * removed from the shared data structures, and we know no thread is operating on them.
+         */
+        for (auto uri : drop_files) {
+            WT_DECL_RET;
+            // Spin on EBUSY, we do not expect to get stuck
+            while ((ret = session->drop(session, uri.c_str(), "force,checkpoint_wait=false")) ==
+                EBUSY) {
+                VERBOSE(*_workload, "Drop returned EBUSY for table: " << uri);
+            }
+            if (ret != 0)
+                THROW("Table drop failed in start_tables_drop.");
+
+            VERBOSE(*_workload, "XXX Dropped table: " << uri);
         }
 
         sleep(_workload->options.drop_interval);
@@ -754,7 +787,7 @@ ContextInternal::create_all(WT_CONNECTION *conn)
             _dyn_table_names[_dyn_tint_last] = key;
             _dyn_table_runtime[_dyn_tint_last] = TableRuntime();
             ++_dyn_tint_last;
-            std::cout << "Added pre-existing table to the dynamic set: " << key << std::endl;
+            std::cout << "XXX Added pre-existing table to the dynamic set: " << key << std::endl;
         }
     }
     if (ret != WT_NOTFOUND) {
@@ -2719,10 +2752,17 @@ Workload::run(WT_CONNECTION *conn)
 }
 
 WorkloadRunner::WorkloadRunner(Workload *workload)
-    : _workload(workload), _trunners(workload->_threads.size()), _report_out(&std::cout), _start(),
-      stopping(false)
+    : _workload(workload), _rand_state(nullptr), _trunners(workload->_threads.size()),
+      _report_out(&std::cout), _start(), stopping(false)
 {
     ts_clear(_start);
+}
+
+WorkloadRunner::~WorkloadRunner() {
+    if (_rand_state != nullptr) {
+        workgen_random_free(_rand_state);
+        _rand_state = nullptr;
+    }
 }
 
 int
@@ -2749,6 +2789,12 @@ WorkloadRunner::run(WT_CONNECTION *conn)
         _report_out = &report_out;
     }
 
+    /* Create a randomizer for the workload before we do anything else. */
+    WT_SESSION *session;
+    WT_ERR(conn->open_session(conn, nullptr, nullptr, &session));
+    WT_ERR(workgen_random_alloc(session, &_rand_state));
+
+    /* Initiate everything else, and start the workload. */
     WT_ERR(create_all(conn, _workload->_context));
     WT_ERR(open_all());
     WT_ERR(ThreadRunner::cross_check(_trunners));
