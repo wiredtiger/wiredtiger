@@ -99,7 +99,7 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
     WT_UNUSED(config);
     WT_UNUSED(file_systemp);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -107,7 +107,7 @@ azure_add_reference(WT_STORAGE_SOURCE *storage_source)
 {
     WT_UNUSED(storage_source);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -121,7 +121,7 @@ azure_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYST
     WT_UNUSED(object);
     WT_UNUSED(config);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -135,7 +135,7 @@ azure_flush_finish(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     WT_UNUSED(object);
     WT_UNUSED(config);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -144,7 +144,7 @@ azure_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
     WT_UNUSED(file_system);
     WT_UNUSED(session);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -158,7 +158,7 @@ azure_object_list(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *
     WT_UNUSED(dirlistp);
     WT_UNUSED(countp);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -172,7 +172,7 @@ azure_object_list_single(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const
     WT_UNUSED(dirlistp);
     WT_UNUSED(countp);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -184,7 +184,7 @@ azure_object_list_free(
     WT_UNUSED(dirlist);
     WT_UNUSED(count);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -193,7 +193,7 @@ azure_file_system_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
     WT_UNUSED(file_system);
     WT_UNUSED(session);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -204,7 +204,7 @@ azure_file_exists(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *
     WT_UNUSED(name);
     WT_UNUSED(existp);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -215,7 +215,7 @@ azure_remove(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
     WT_UNUSED(name);
     WT_UNUSED(flags);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -228,7 +228,7 @@ azure_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *from,
     WT_UNUSED(to);
     WT_UNUSED(flags);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -240,7 +240,7 @@ azure_object_size(
     WT_UNUSED(name);
     WT_UNUSED(sizep);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -254,7 +254,7 @@ azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
     WT_UNUSED(flags);
     WT_UNUSED(file_handlep);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -263,7 +263,7 @@ azure_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
     WT_UNUSED(file_handle);
     WT_UNUSED(session);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -273,7 +273,7 @@ azure_file_lock(WT_FILE_HANDLE *file_handle, WT_SESSION *session, bool lock)
     WT_UNUSED(session);
     WT_UNUSED(lock);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -286,7 +286,7 @@ azure_file_read(
     WT_UNUSED(len);
     WT_UNUSED(buf);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -296,7 +296,7 @@ azure_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *size
     WT_UNUSED(session);
     WT_UNUSED(sizep);
 
-    return (0);
+    return 0;
 }
 
 int
@@ -305,5 +305,5 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     WT_UNUSED(connection);
     WT_UNUSED(config);
 
-    return (0);
+    return 0;
 }
