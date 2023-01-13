@@ -6507,137 +6507,137 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_PREPARED_UPDATES_ROLLEDBACK	1498
 /*! transaction: number of times overflow removed value is read */
 #define	WT_STAT_CONN_TXN_READ_OVERFLOW_REMOVE		1499
+/*! transaction: oldest pinned transaction ID rolled back for eviction */
+#define	WT_STAT_CONN_TXN_ROLLBACK_OLDEST_PINNED		1500
 /*! transaction: prepared transactions */
-#define	WT_STAT_CONN_TXN_PREPARE			1500
+#define	WT_STAT_CONN_TXN_PREPARE			1501
 /*! transaction: prepared transactions committed */
-#define	WT_STAT_CONN_TXN_PREPARE_COMMIT			1501
+#define	WT_STAT_CONN_TXN_PREPARE_COMMIT			1502
 /*! transaction: prepared transactions currently active */
-#define	WT_STAT_CONN_TXN_PREPARE_ACTIVE			1502
+#define	WT_STAT_CONN_TXN_PREPARE_ACTIVE			1503
 /*! transaction: prepared transactions rolled back */
-#define	WT_STAT_CONN_TXN_PREPARE_ROLLBACK		1503
+#define	WT_STAT_CONN_TXN_PREPARE_ROLLBACK		1504
 /*! transaction: query timestamp calls */
-#define	WT_STAT_CONN_TXN_QUERY_TS			1504
+#define	WT_STAT_CONN_TXN_QUERY_TS			1505
 /*! transaction: race to read prepared update retry */
-#define	WT_STAT_CONN_TXN_READ_RACE_PREPARE_UPDATE	1505
+#define	WT_STAT_CONN_TXN_READ_RACE_PREPARE_UPDATE	1506
 /*! transaction: rollback to stable calls */
-#define	WT_STAT_CONN_TXN_RTS				1506
+#define	WT_STAT_CONN_TXN_RTS				1507
 /*!
  * transaction: rollback to stable history store records with stop
  * timestamps older than newer records
  */
-#define	WT_STAT_CONN_TXN_RTS_HS_STOP_OLDER_THAN_NEWER_START	1507
+#define	WT_STAT_CONN_TXN_RTS_HS_STOP_OLDER_THAN_NEWER_START	1508
 /*! transaction: rollback to stable inconsistent checkpoint */
-#define	WT_STAT_CONN_TXN_RTS_INCONSISTENT_CKPT		1508
+#define	WT_STAT_CONN_TXN_RTS_INCONSISTENT_CKPT		1509
 /*! transaction: rollback to stable keys removed */
-#define	WT_STAT_CONN_TXN_RTS_KEYS_REMOVED		1509
+#define	WT_STAT_CONN_TXN_RTS_KEYS_REMOVED		1510
 /*! transaction: rollback to stable keys restored */
-#define	WT_STAT_CONN_TXN_RTS_KEYS_RESTORED		1510
+#define	WT_STAT_CONN_TXN_RTS_KEYS_RESTORED		1511
 /*! transaction: rollback to stable pages visited */
-#define	WT_STAT_CONN_TXN_RTS_PAGES_VISITED		1511
+#define	WT_STAT_CONN_TXN_RTS_PAGES_VISITED		1512
 /*! transaction: rollback to stable restored tombstones from history store */
-#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_TOMBSTONES	1512
+#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_TOMBSTONES	1513
 /*! transaction: rollback to stable restored updates from history store */
-#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_UPDATES		1513
+#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_UPDATES		1514
 /*! transaction: rollback to stable skipping delete rle */
-#define	WT_STAT_CONN_TXN_RTS_DELETE_RLE_SKIPPED		1514
+#define	WT_STAT_CONN_TXN_RTS_DELETE_RLE_SKIPPED		1515
 /*! transaction: rollback to stable skipping stable rle */
-#define	WT_STAT_CONN_TXN_RTS_STABLE_RLE_SKIPPED		1515
+#define	WT_STAT_CONN_TXN_RTS_STABLE_RLE_SKIPPED		1516
 /*! transaction: rollback to stable sweeping history store keys */
-#define	WT_STAT_CONN_TXN_RTS_SWEEP_HS_KEYS		1516
+#define	WT_STAT_CONN_TXN_RTS_SWEEP_HS_KEYS		1517
 /*! transaction: rollback to stable tree walk skipping pages */
-#define	WT_STAT_CONN_TXN_RTS_TREE_WALK_SKIP_PAGES	1517
+#define	WT_STAT_CONN_TXN_RTS_TREE_WALK_SKIP_PAGES	1518
 /*! transaction: rollback to stable updates aborted */
-#define	WT_STAT_CONN_TXN_RTS_UPD_ABORTED		1518
+#define	WT_STAT_CONN_TXN_RTS_UPD_ABORTED		1519
 /*! transaction: rollback to stable updates removed from history store */
-#define	WT_STAT_CONN_TXN_RTS_HS_REMOVED			1519
+#define	WT_STAT_CONN_TXN_RTS_HS_REMOVED			1520
 /*! transaction: sessions scanned in each walk of concurrent sessions */
-#define	WT_STAT_CONN_TXN_SESSIONS_WALKED		1520
+#define	WT_STAT_CONN_TXN_SESSIONS_WALKED		1521
 /*! transaction: set timestamp calls */
-#define	WT_STAT_CONN_TXN_SET_TS				1521
+#define	WT_STAT_CONN_TXN_SET_TS				1522
 /*! transaction: set timestamp durable calls */
-#define	WT_STAT_CONN_TXN_SET_TS_DURABLE			1522
+#define	WT_STAT_CONN_TXN_SET_TS_DURABLE			1523
 /*! transaction: set timestamp durable updates */
-#define	WT_STAT_CONN_TXN_SET_TS_DURABLE_UPD		1523
+#define	WT_STAT_CONN_TXN_SET_TS_DURABLE_UPD		1524
 /*! transaction: set timestamp oldest calls */
-#define	WT_STAT_CONN_TXN_SET_TS_OLDEST			1524
+#define	WT_STAT_CONN_TXN_SET_TS_OLDEST			1525
 /*! transaction: set timestamp oldest updates */
-#define	WT_STAT_CONN_TXN_SET_TS_OLDEST_UPD		1525
+#define	WT_STAT_CONN_TXN_SET_TS_OLDEST_UPD		1526
 /*! transaction: set timestamp stable calls */
-#define	WT_STAT_CONN_TXN_SET_TS_STABLE			1526
+#define	WT_STAT_CONN_TXN_SET_TS_STABLE			1527
 /*! transaction: set timestamp stable updates */
-#define	WT_STAT_CONN_TXN_SET_TS_STABLE_UPD		1527
+#define	WT_STAT_CONN_TXN_SET_TS_STABLE_UPD		1528
 /*! transaction: transaction begins */
-#define	WT_STAT_CONN_TXN_BEGIN				1528
+#define	WT_STAT_CONN_TXN_BEGIN				1529
 /*! transaction: transaction checkpoint currently running */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_RUNNING		1529
+#define	WT_STAT_CONN_TXN_CHECKPOINT_RUNNING		1530
 /*!
  * transaction: transaction checkpoint currently running for history
  * store file
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_RUNNING_HS		1530
+#define	WT_STAT_CONN_TXN_CHECKPOINT_RUNNING_HS		1531
 /*! transaction: transaction checkpoint generation */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_GENERATION		1531
+#define	WT_STAT_CONN_TXN_CHECKPOINT_GENERATION		1532
 /*!
  * transaction: transaction checkpoint history store file duration
  * (usecs)
  */
-#define	WT_STAT_CONN_TXN_HS_CKPT_DURATION		1532
+#define	WT_STAT_CONN_TXN_HS_CKPT_DURATION		1533
 /*! transaction: transaction checkpoint max time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_MAX		1533
+#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_MAX		1534
 /*! transaction: transaction checkpoint min time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_MIN		1534
+#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_MIN		1535
 /*!
  * transaction: transaction checkpoint most recent duration for gathering
  * all handles (usecs)
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_DURATION	1535
+#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_DURATION	1536
 /*!
  * transaction: transaction checkpoint most recent duration for gathering
  * applied handles (usecs)
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_DURATION_APPLY	1536
+#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_DURATION_APPLY	1537
 /*!
  * transaction: transaction checkpoint most recent duration for gathering
  * skipped handles (usecs)
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_DURATION_SKIP	1537
+#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_DURATION_SKIP	1538
 /*! transaction: transaction checkpoint most recent handles applied */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_APPLIED	1538
+#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_APPLIED	1539
 /*! transaction: transaction checkpoint most recent handles skipped */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_SKIPPED	1539
+#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_SKIPPED	1540
 /*! transaction: transaction checkpoint most recent handles walked */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_WALKED	1540
+#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_WALKED	1541
 /*! transaction: transaction checkpoint most recent time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_RECENT		1541
+#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_RECENT		1542
 /*! transaction: transaction checkpoint prepare currently running */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_RUNNING	1542
+#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_RUNNING	1543
 /*! transaction: transaction checkpoint prepare max time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_MAX		1543
+#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_MAX		1544
 /*! transaction: transaction checkpoint prepare min time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_MIN		1544
+#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_MIN		1545
 /*! transaction: transaction checkpoint prepare most recent time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_RECENT		1545
+#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_RECENT		1546
 /*! transaction: transaction checkpoint prepare total time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_TOTAL		1546
+#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_TOTAL		1547
 /*! transaction: transaction checkpoint scrub dirty target */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_SCRUB_TARGET	1547
+#define	WT_STAT_CONN_TXN_CHECKPOINT_SCRUB_TARGET	1548
 /*! transaction: transaction checkpoint scrub time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_SCRUB_TIME		1548
+#define	WT_STAT_CONN_TXN_CHECKPOINT_SCRUB_TIME		1549
 /*! transaction: transaction checkpoint stop timing stress active */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_STOP_STRESS_ACTIVE	1549
+#define	WT_STAT_CONN_TXN_CHECKPOINT_STOP_STRESS_ACTIVE	1550
 /*! transaction: transaction checkpoint total time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_TOTAL		1550
+#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_TOTAL		1551
 /*! transaction: transaction checkpoints */
-#define	WT_STAT_CONN_TXN_CHECKPOINT			1551
+#define	WT_STAT_CONN_TXN_CHECKPOINT			1552
 /*! transaction: transaction checkpoints due to obsolete pages */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_OBSOLETE_APPLIED	1552
+#define	WT_STAT_CONN_TXN_CHECKPOINT_OBSOLETE_APPLIED	1553
 /*!
  * transaction: transaction checkpoints skipped because database was
  * clean
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_SKIPPED		1553
-/*! transaction: transaction failures due to history store */
-#define	WT_STAT_CONN_TXN_FAIL_CACHE			1554
+#define	WT_STAT_CONN_TXN_CHECKPOINT_SKIPPED		1554
 /*!
  * transaction: transaction fsync calls for checkpoint after allocating
  * the transaction ID
