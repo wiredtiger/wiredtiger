@@ -137,7 +137,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
   {"extra_diagnostics", "list", NULL,
     "choices=[\"all\",\"checkpoint_validation\","
     "\"cursor_acquisition\",\"data_loss\",\"disk_validation\","
-    "\"hs_validation\",\"log_validation\",\"key_out_of_order\","
+    "\"hs_validation\",\"key_out_of_order\",\"log_validation\","
     "\"obsolete_data\",\"prepared\",\"slow_operation\","
     "\"txn_visibility\"]",
     NULL, 0},
@@ -892,7 +892,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
   {"extra_diagnostics", "list", NULL,
     "choices=[\"all\",\"checkpoint_validation\","
     "\"cursor_acquisition\",\"data_loss\",\"disk_validation\","
-    "\"hs_validation\",\"log_validation\",\"key_out_of_order\","
+    "\"hs_validation\",\"key_out_of_order\",\"log_validation\","
     "\"obsolete_data\",\"prepared\",\"slow_operation\","
     "\"txn_visibility\"]",
     NULL, 0},
@@ -984,7 +984,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
   {"extra_diagnostics", "list", NULL,
     "choices=[\"all\",\"checkpoint_validation\","
     "\"cursor_acquisition\",\"data_loss\",\"disk_validation\","
-    "\"hs_validation\",\"log_validation\",\"key_out_of_order\","
+    "\"hs_validation\",\"key_out_of_order\",\"log_validation\","
     "\"obsolete_data\",\"prepared\",\"slow_operation\","
     "\"txn_visibility\"]",
     NULL, 0},
@@ -1075,7 +1075,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
   {"extra_diagnostics", "list", NULL,
     "choices=[\"all\",\"checkpoint_validation\","
     "\"cursor_acquisition\",\"data_loss\",\"disk_validation\","
-    "\"hs_validation\",\"log_validation\",\"key_out_of_order\","
+    "\"hs_validation\",\"key_out_of_order\",\"log_validation\","
     "\"obsolete_data\",\"prepared\",\"slow_operation\","
     "\"txn_visibility\"]",
     NULL, 0},
@@ -1163,7 +1163,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
   {"extra_diagnostics", "list", NULL,
     "choices=[\"all\",\"checkpoint_validation\","
     "\"cursor_acquisition\",\"data_loss\",\"disk_validation\","
-    "\"hs_validation\",\"log_validation\",\"key_out_of_order\","
+    "\"hs_validation\",\"key_out_of_order\",\"log_validation\","
     "\"obsolete_data\",\"prepared\",\"slow_operation\","
     "\"txn_visibility\"]",
     NULL, 0},

@@ -2335,8 +2335,8 @@ struct __wt_connection {
 	 * assertions.  When WiredTiger is compiled with \c HAVE_DIAGNOSTIC=1 all assertions are
 	 * enabled and cannot be reconfigured., a list\, with values chosen from the following
 	 * options: \c "all"\, \c "checkpoint_validation"\, \c "cursor_acquisition"\, \c
-	 * "data_loss"\, \c "disk_validation"\, \c "hs_validation"\, \c "log_validation"\, \c
-	 * "key_out_of_order"\, \c "obsolete_data"\, \c "prepared"\, \c "slow_operation"\, \c
+	 * "data_loss"\, \c "disk_validation"\, \c "hs_validation"\, \c "key_out_of_order"\, \c
+	 * "log_validation"\, \c "obsolete_data"\, \c "prepared"\, \c "slow_operation"\, \c
 	 * "txn_visibility"; default \c [].}
 	 * @config{file_manager = (, control how file handles are managed., a set of related
 	 * configuration options defined as follows.}
@@ -3105,7 +3105,7 @@ struct __wt_connection {
  * assertions.  When WiredTiger is compiled with \c HAVE_DIAGNOSTIC=1 all assertions are enabled and
  * cannot be reconfigured., a list\, with values chosen from the following options: \c "all"\, \c
  * "checkpoint_validation"\, \c "cursor_acquisition"\, \c "data_loss"\, \c "disk_validation"\, \c
- * "hs_validation"\, \c "log_validation"\, \c "key_out_of_order"\, \c "obsolete_data"\, \c
+ * "hs_validation"\, \c "key_out_of_order"\, \c "log_validation"\, \c "obsolete_data"\, \c
  * "prepared"\, \c "slow_operation"\, \c "txn_visibility"; default \c [].}
  * @config{file_extend, file size extension configuration.  If set\, extend files of the given type
  * in allocations of the given size\, instead of a block at a time as each new block is written.
