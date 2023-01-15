@@ -594,7 +594,7 @@ __wt_cursor_get_raw_key_value(WT_CURSOR *cursor, WT_ITEM *key, WT_ITEM *value)
     if ((key != NULL) && !F_ISSET(cursor, WT_CURSTD_KEY_SET))
         WT_ERR(__wt_cursor_kv_not_set(cursor, true));
 
-    if ((value != NULL) && !F_ISSET(cursor, WT_CURSTD_KEY_SET))
+    if ((value != NULL) && !F_ISSET(cursor, WT_CURSTD_VALUE_SET))
         WT_ERR(__wt_cursor_kv_not_set(cursor, false));
 
     /* Force an allocated copy when using cursor copy debug. */
