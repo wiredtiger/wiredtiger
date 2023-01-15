@@ -29,7 +29,12 @@ if(WT_POSIX)
     if(ENABLE_S3)
         add_subdirectory(storage_sources/s3_store)
     endif()
-    if (ENABLE_AZURE)
+
+    if(ENABLE_GCP)
+        add_subdirectory(storage_sources/gcp_store)
+    endif()
+
+    if(ENABLE_AZURE)
         add_subdirectory(storage_sources/azure_store)
     endif()
 
