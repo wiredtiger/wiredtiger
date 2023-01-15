@@ -520,6 +520,19 @@ connection_runtime_config = [
         the maximum number of milliseconds an application thread will wait for space to be
         available in cache before giving up. Default will wait forever''',
         min=0),
+    Config('extra_diagnostics', '[]', r'''
+        enable additional diagnostics in WiredTiger. These additional diagnostics include 
+        diagnostic assertions that can cause WiredTiger to abort when an invalid state 
+        is detected.
+        Options are given as a list, such as 
+        <code>"extra_diagnostics=[out_of_order,visibility]"</code>.
+        Choosing \c all enables all assertions. When WiredTiger is compiled with 
+        \c HAVE_DIAGNOSTIC=1 all assertions are enabled and cannot be reconfigured
+        ''',
+        type='list', choices=[
+            "all", "concurrent_access", "data_validation", "invalid_op", "out_of_order",
+            "panic", "slow_operation", "visibility"]),
+
     Config('history_store', '', r'''
         history store configuration options''',
         type='category', subconfig=[
@@ -988,6 +1001,9 @@ wiredtiger_open_tiered_storage_configuration = [
         Config('name', 'none', r'''
             Permitted values are \c "none" or a custom storage name created with
             WT_CONNECTION::add_storage_source'''),
+        Config('shared', 'false', r'''
+            enable sharing tiered tables across other WiredTiger instances.''',
+            type='boolean'),
     ]),
 ]
 

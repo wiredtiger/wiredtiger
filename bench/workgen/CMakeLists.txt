@@ -45,13 +45,13 @@ source_python3_package(python_libs python_version python_executable)
 
 # Compile the intermediate C++ workgen sources into static library.
 add_library(
-    workgen_cxx
+    workgen_cpp
     STATIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/workgen.cxx
+        ${CMAKE_CURRENT_SOURCE_DIR}/workgen.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/workgen_func.c
 )
 target_include_directories(
-    workgen_cxx
+    workgen_cpp
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_BINARY_DIR}/include
@@ -59,7 +59,7 @@ target_include_directories(
         ${CMAKE_SOURCE_DIR}/src/include
         ${CMAKE_SOURCE_DIR}/test/utility
 )
-set_property(TARGET workgen_cxx PROPERTY POSITION_INDEPENDENT_CODE ON)
+set_property(TARGET workgen_cpp PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 # Manually specify the interface name '_workgen' over a generated name.
 # Our workgen tooling expects the swig interface name '_workgen'
@@ -85,29 +85,29 @@ swig_add_library(workgen
 # CMP0078 policy is default set to OLD (leading to a potentially different target name).
 set(swig_workgen_target ${SWIG_MODULE_workgen_REAL_NAME})
 
-swig_link_libraries(workgen workgen_cxx ${wiredtiger_target} ${python_libs})
+swig_link_libraries(workgen workgen_cpp ${wiredtiger_target} ${python_libs})
 
 # Depending on the chosen compiler (cl, clang or gcc), a slightly different set of compiler flags
 # will be used.
-set(swig_cxx_flags)
+set(swig_cpp_flags)
 if("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
-    set(swig_cxx_flags
+    set(swig_cpp_flags
         # Ignore sign conversion warning.
         /wd4244
         /w
     )
 else()
-    set(swig_cxx_flags
+    set(swig_cpp_flags
         -Wno-sign-conversion
         -w
     )
 endif()
-list(APPEND swig_cxx_flags -I${CMAKE_SOURCE_DIR})
-list(APPEND swig_cxx_flags -I${CMAKE_BINARY_DIR}/config)
-list(APPEND swig_cxx_flags -I${CMAKE_CURRENT_SOURCE_DIR})
+list(APPEND swig_cpp_flags -I${CMAKE_SOURCE_DIR})
+list(APPEND swig_cpp_flags -I${CMAKE_BINARY_DIR}/config)
+list(APPEND swig_cpp_flags -I${CMAKE_CURRENT_SOURCE_DIR})
 
 target_compile_options(${swig_workgen_target}
-    PRIVATE ${swig_cxx_flags}
+    PRIVATE ${swig_cpp_flags}
 )
 
 # Manually changing the suffix on macOS/Darwin builds since DYLD_LIBRARY_PATH

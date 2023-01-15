@@ -111,6 +111,7 @@ DECL
 DECR
 DESC
 DHANDLE
+DIAG
 DIRECTIO
 DNE
 DOI
@@ -230,6 +231,7 @@ INTL
 INTRINSICS
 INULL
 INUSE
+INVL
 ISA
 ITEMs
 ITER
@@ -1164,6 +1166,7 @@ maxObjects
 maxcpu
 maxdbs
 maxdiff
+maxv
 mb
 mbll
 mbss
@@ -1494,6 +1497,7 @@ suboptimal
 subsystem's
 subtest
 subtree
+sumv
 sunique
 supd
 superset

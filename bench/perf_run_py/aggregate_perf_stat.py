@@ -1,4 +1,6 @@
-#!/usr/bin/env python
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -26,40 +28,27 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
-from time import sleep
-from wiredtiger import stat
+import json
+import glob
 
-# test_stat06.py
-#    Check that statistics are started or stopped when intended
-class test_stat06(wttest.WiredTigerTestCase):
+def main():
+    """
+    Aggregate and output perf results in a CSV file. This script expects that 
+    all desired stat files exist in a single folder named perf_stats.
+    """
 
-    # Turn off statistics by default for this test.
-    def conn_config(self):
-        return 'statistics=(none)'
+    f = open("all_stats.csv", "w")
+    f.write("Test Name, Metric Name, Value\n")
 
-    def test_stats_on(self):
-        self.close_conn()
-        self.conn = self.wiredtiger_open(None, "statistics=(fast)")
-        self.stats_gathered(True)
+    for perf_file in glob.glob('perf_stats/*.json'):
+        perf_data = json.load((open(perf_file)))[0]
+        test_name = perf_data['info']['test_name']
 
-    def test_stats_off(self):
-        self.close_conn()
-        self.conn = self.wiredtiger_open(None, "statistics=(none),statistics_log=(json)")
-        self.stats_gathered(False)
+        for metric in perf_data['metrics']:
+            metric_name = metric['name']
+            metric_value = metric['value']
 
-    def stats_gathered(self, stats_expected):
-        self.session = self.conn.open_session()
-        self.session.create("table:foo", None)
-        self.session.create("table:bar", None)
-        sleep(2)
-        if stats_expected:
-            stat_cursor = self.session.open_cursor('statistics:', None, None)
-            self.assertTrue(stat_cursor[stat.conn.file_open][2] > 0)
-        else:
-            msg = '/database statistics configuration/'
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
-                self.session.open_cursor('statistics:', None, None), msg)
+            f.write(f"{test_name}, {metric_name}, {metric_value}\n")
 
 if __name__ == '__main__':
-    wttest.run()
+    main()
