@@ -31,10 +31,11 @@
 #define NO_ASSERT_FIRED 0
 #define ASSERT_FIRED 1
 
-uint16_t DIAGNOSTIC_FLAGS[] = {WT_DIAG_ALL, WT_DIAG_CHECKPOINT_VALIDATION,
-  WT_DIAG_CURSOR_ACQUISITION, WT_DIAG_DATA_LOSS, WT_DIAG_DISK_VALIDATION, WT_DIAG_HS_VALIDATION,
-  WT_DIAG_KEY_OUT_OF_ORDER, WT_DIAG_LOG_VALIDATION, WT_DIAG_OBSOLETE_DATA, WT_DIAG_PREPARED,
-  WT_DIAG_SLOW_OPERATION, WT_DIAG_TXN_VISIBILITY};
+uint16_t DIAGNOSTIC_FLAGS[] = {WT_DIAGNOSTIC_ALL, WT_DIAGNOSTIC_CHECKPOINT_VALIDATION,
+  WT_DIAGNOSTIC_CURSOR_ACQUISITION, WT_DIAGNOSTIC_DATA_LOSS, WT_DIAGNOSTIC_DISK_VALIDATION,
+  WT_DIAGNOSTIC_HS_VALIDATION, WT_DIAGNOSTIC_KEY_OUT_OF_ORDER, WT_DIAGNOSTIC_LOG_VALIDATION,
+  WT_DIAGNOSTIC_OBSOLETE_DATA, WT_DIAGNOSTIC_PREPARED, WT_DIAGNOSTIC_SLOW_OPERATION,
+  WT_DIAGNOSTIC_TXN_VISIBILITY};
 
 int
 check_assertion_fired(WT_SESSION_IMPL *session)
@@ -220,13 +221,13 @@ TEST_CASE("Connection config: off/on", "[assertions]")
     }
 }
 
-/* When WT_DIAG_ALL is enabled, all asserts are enabled. */
-TEST_CASE("Connection config: WT_DIAG_ALL", "[assertions]")
+/* When WT_DIAGNOSTIC_ALL is enabled, all asserts are enabled. */
+TEST_CASE("Connection config: WT_DIAGNOSTIC_ALL", "[assertions]")
 {
     ConnectionWrapper conn(DB_HOME, "create, extra_diagnostics= [all]");
     WT_SESSION_IMPL *session = conn.createSession();
 
-    REQUIRE(configured_asserts_abort(session, WT_DIAG_ALL) == 0);
+    REQUIRE(configured_asserts_abort(session, WT_DIAGNOSTIC_ALL) == 0);
 
     all_diag_asserts_on(session);
 }
@@ -237,8 +238,8 @@ TEST_CASE("Connection config: check one enabled category", "[assertions]")
     ConnectionWrapper conn(DB_HOME, "create, extra_diagnostics=[key_out_of_order]");
     WT_SESSION_IMPL *session = conn.createSession();
 
-    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_KEY_OUT_OF_ORDER) == true);
-    REQUIRE(configured_asserts_abort(session, WT_DIAG_KEY_OUT_OF_ORDER) == 0);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_KEY_OUT_OF_ORDER) == true);
+    REQUIRE(configured_asserts_abort(session, WT_DIAGNOSTIC_KEY_OUT_OF_ORDER) == 0);
 }
 
 /* Asserts that categories are enabled/disabled following the connection configuration. */
@@ -247,12 +248,12 @@ TEST_CASE("Connection config: check multiple enabled categories", "[assertions]"
     ConnectionWrapper conn(DB_HOME, "create, extra_diagnostics= [txn_visibility, prepared]");
     WT_SESSION_IMPL *session = conn.createSession();
 
-    REQUIRE(configured_asserts_abort(session, WT_DIAG_TXN_VISIBILITY) == 0);
+    REQUIRE(configured_asserts_abort(session, WT_DIAGNOSTIC_TXN_VISIBILITY) == 0);
 
     // Checking state.
-    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_TXN_VISIBILITY) == true);
-    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_PREPARED) == true);
-    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_SLOW_OPERATION) == false);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_TXN_VISIBILITY) == true);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_PREPARED) == true);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_SLOW_OPERATION) == false);
 }
 
 /* Asserts that categories are enabled/disabled following the connection configuration. */
@@ -261,8 +262,8 @@ TEST_CASE("Connection config: check disabled category", "[assertions]")
     ConnectionWrapper conn(DB_HOME, "create, extra_diagnostics = [data_loss]");
     WT_SESSION_IMPL *session = conn.createSession();
 
-    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_SLOW_OPERATION) == false);
-    REQUIRE(configured_asserts_off(session, WT_DIAG_SLOW_OPERATION) == 0);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_SLOW_OPERATION) == false);
+    REQUIRE(configured_asserts_off(session, WT_DIAGNOSTIC_SLOW_OPERATION) == 0);
 }
 
 /* Reconfigure with extra_diagnostics not provided. */
@@ -311,13 +312,13 @@ TEST_CASE("Reconfigure: extra_diagnostics with valid items", "[assertions]")
     connection->reconfigure(
       connection, "extra_diagnostics=[checkpoint_validation, log_validation, data_loss]");
 
-    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_CHECKPOINT_VALIDATION) == true);
-    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_LOG_VALIDATION) == true);
-    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_DATA_LOSS) == true);
-    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_PREPARED) == false);
-    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_KEY_OUT_OF_ORDER) == false);
-    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_SLOW_OPERATION) == false);
-    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_TXN_VISIBILITY) == false);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_CHECKPOINT_VALIDATION) == true);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_LOG_VALIDATION) == true);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_DATA_LOSS) == true);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_PREPARED) == false);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_KEY_OUT_OF_ORDER) == false);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_SLOW_OPERATION) == false);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_TXN_VISIBILITY) == false);
 }
 
 /* Reconfigure with assertion categories changed from enabled->disabled and vice-versa. */
@@ -327,18 +328,18 @@ TEST_CASE("Reconfigure: Transition cases", "[assertions]")
     auto connection = conn.getWtConnection();
     WT_SESSION_IMPL *session = conn.createSession();
 
-    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_PREPARED) == true);
-    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_KEY_OUT_OF_ORDER) == true);
-    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_CHECKPOINT_VALIDATION) == false);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_PREPARED) == true);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_KEY_OUT_OF_ORDER) == true);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_CHECKPOINT_VALIDATION) == false);
 
     connection->reconfigure(
       connection, "extra_diagnostics=[checkpoint_validation, key_out_of_order, slow_operation]");
-    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_KEY_OUT_OF_ORDER) == true);
-    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_CHECKPOINT_VALIDATION) == true);
-    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_SLOW_OPERATION) == true);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_KEY_OUT_OF_ORDER) == true);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_CHECKPOINT_VALIDATION) == true);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_SLOW_OPERATION) == true);
 
-    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_PREPARED) == false);
-    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_TXN_VISIBILITY) == false);
-    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_LOG_VALIDATION) == false);
-    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_DATA_LOSS) == false);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_PREPARED) == false);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_TXN_VISIBILITY) == false);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_LOG_VALIDATION) == false);
+    REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_DATA_LOSS) == false);
 }

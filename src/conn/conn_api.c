@@ -1963,14 +1963,16 @@ err:
 int
 __wt_extra_diagnostics_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
-    static const WT_NAME_FLAG extra_diagnostics_types[] = {{"all", WT_DIAG_ALL},
-      {"checkpoint_validation", WT_DIAG_CHECKPOINT_VALIDATION},
-      {"cursor_acquisition", WT_DIAG_CURSOR_ACQUISITION}, {"data_loss", WT_DIAG_DATA_LOSS},
-      {"disk_validation", WT_DIAG_DISK_VALIDATION}, {"hs_validation", WT_DIAG_HS_VALIDATION},
-      {"log_validation", WT_DIAG_LOG_VALIDATION}, {"key_out_of_order", WT_DIAG_KEY_OUT_OF_ORDER},
-      {"obsolete_data", WT_DIAG_OBSOLETE_DATA}, {"prepared", WT_DIAG_PREPARED},
-      {"slow_operation", WT_DIAG_SLOW_OPERATION}, {"txn_visibility", WT_DIAG_TXN_VISIBILITY},
-      {NULL, 0}};
+    static const WT_NAME_FLAG extra_diagnostics_types[] = {{"all", WT_DIAGNOSTIC_ALL},
+      {"checkpoint_validation", WT_DIAGNOSTIC_CHECKPOINT_VALIDATION},
+      {"cursor_acquisition", WT_DIAGNOSTIC_CURSOR_ACQUISITION},
+      {"data_loss", WT_DIAGNOSTIC_DATA_LOSS}, {"disk_validation", WT_DIAGNOSTIC_DISK_VALIDATION},
+      {"hs_validation", WT_DIAGNOSTIC_HS_VALIDATION},
+      {"log_validation", WT_DIAGNOSTIC_LOG_VALIDATION},
+      {"key_out_of_order", WT_DIAGNOSTIC_KEY_OUT_OF_ORDER},
+      {"obsolete_data", WT_DIAGNOSTIC_OBSOLETE_DATA}, {"prepared", WT_DIAGNOSTIC_PREPARED},
+      {"slow_operation", WT_DIAGNOSTIC_SLOW_OPERATION},
+      {"txn_visibility", WT_DIAGNOSTIC_TXN_VISIBILITY}, {NULL, 0}};
 
     WT_CONNECTION_IMPL *conn;
     WT_CONFIG_ITEM cval, sval;
@@ -1983,7 +1985,7 @@ __wt_extra_diagnostics_config(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_config_gets(session, cfg, "extra_diagnostics", &cval));
 
 #ifdef HAVE_DIAGNOSTIC
-    flags = WT_DIAG_ALL;
+    flags = WT_DIAGNOSTIC_ALL;
     for (ft = extra_diagnostics_types; ft->name != NULL; ft++) {
         if ((ret = __wt_config_subgets(session, &cval, ft->name, &sval)) == 0 && sval.val != 0)
             WT_RET_MSG(session, EINVAL,

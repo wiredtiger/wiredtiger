@@ -458,7 +458,7 @@ __txn_assert_after_reads(WT_SESSION_IMPL *session, const char *op, wt_timestamp_
     uint32_t i, session_cnt;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
-    if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_TXN_VISIBILITY)) {
+    if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_TXN_VISIBILITY)) {
         txn_global = &S2C(session)->txn_global;
         WT_ORDERED_READ(session_cnt, S2C(session)->session_cnt);
         WT_STAT_CONN_INCR(session, txn_walk_sessions);
