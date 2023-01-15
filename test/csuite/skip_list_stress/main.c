@@ -355,7 +355,10 @@ verify_list(WT_SESSION *session, WT_INSERT_HEAD *ins_head)
         cur.data = WT_INSERT_KEY(ins);
         cur.size = WT_INSERT_KEY_SIZE(ins);
         testutil_check(__wt_compare((WT_SESSION_IMPL *)session, NULL, &prev, &cur, &cmp));
-        testutil_assert(cmp < 0);
+        if (cmp >= 0) {
+            printf ("Out of order keys: %s before %s\n", (char *) prev.data, (char *) cur.data);
+            testutil_assert(cmp < 0);
+        }
         prev = cur;
     }
 }
