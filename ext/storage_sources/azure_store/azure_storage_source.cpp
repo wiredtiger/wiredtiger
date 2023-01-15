@@ -3,7 +3,7 @@
 #include <wiredtiger_ext.h>
 #include <list>
 
-#include "azure_connection.h"
+// #include "azure_connection.h"
 #include "wt_internal.h"
 
 struct AZURE_STORE {
@@ -14,9 +14,9 @@ struct AZURE_STORE {
 
 struct AZURE_FILE_SYSTEM {
     WT_FILE_SYSTEM fs;
-    struct AZURE_STORE store;
-    std::list<AZURE_FILE_HANDLE> azure_fh;
-    AzureConnection *azure_conn;
+    azure_store *store;
+    std::vector<azure_file_handle> azure_fh;
+    // azure_connection *azure_conn;
 };
 
 struct AZURE_FILE_HANDLE {

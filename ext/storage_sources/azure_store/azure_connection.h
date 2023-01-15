@@ -2,8 +2,8 @@
 #define AZURECONNECTION
 
 // Includes necessary for connection
-#include <azure/core.hpp>
-#include <azure/storage/blobs.hpp>
+// #include <azure/core.hpp>
+// #include <azure/storage/blobs.hpp>
 
 #include <string>
 
