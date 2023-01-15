@@ -56,7 +56,7 @@ typedef struct {
     int id;
 } THREAD_DATA;
 
-static volatile bool running;
+static volatile enum {WAITING, RUNNING, DONE} test_state;
 
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
@@ -396,7 +396,7 @@ thread_insert_run(void *arg)
     ((WT_CURSOR *)cbt)->session = session;
 
     /* Wait to start */
-    while (!running)
+    while (test_state == WAITING)
         ;
 
     /* Insert the keys. */
@@ -428,11 +428,11 @@ thread_verify_run(void *arg)
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /* Wait to start */
-    while (!running)
+    while (test_state == WAITING)
         ;
 
     /* Keep verifying the skip list until the insert load has finished */
-    while (running)
+    while (test_state != DONE)
         verify_list(session, ins_head);
 
     return (WT_THREAD_RET_VALUE);
@@ -512,21 +512,21 @@ main(int argc, char *argv[])
     thr = dmalloc(NTHREADS * sizeof(wt_thread_t));
 
     /* Start threads */
-    running = false;
+    test_state = WAITING;
     for (i = 0; i < NTHREADS; i++)
         if (i < INSERT_THREADS)
             testutil_check(__wt_thread_create(NULL, &thr[i], thread_insert_run, &td[i]));
         else
             testutil_check(__wt_thread_create(NULL, &thr[i], thread_verify_run, &td[i]));
 
-    running = true;
+    test_state = RUNNING;
 
     /* Wait for insert threads to complete */
     for (i = 0; i < INSERT_THREADS; i++)
         testutil_check(__wt_thread_join(NULL, &thr[i]));
 
     /* Tell verify threads to stop */
-    running = false;
+    test_state = DONE;
     for (i = INSERT_THREADS; i < NTHREADS; i++)
         testutil_check(__wt_thread_join(NULL, &thr[i]));
 
