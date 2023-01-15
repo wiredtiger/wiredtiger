@@ -31,5 +31,4 @@
 
 #include "azure_connection.h"
 
-TEST_CASE("testing class azure_connection", "azure_connection")
-{}
+TEST_CASE("testing class azure_connection", "azure_connection") {}
