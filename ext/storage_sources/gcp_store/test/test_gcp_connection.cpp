@@ -26,48 +26,9 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#define CATCH_CONFIG_RUNNER
+#define CATCH_CONFIG_MAIN
 #include <catch2/catch.hpp>
 
 #include "gcp_connection.h"
 
-// Default config settings for the Test environment.
-namespace TestDefaults {
-// const Aws::String region = Aws::Region::AP_SOUTHEAST_2;
-const double throughputTargetGbps = 5;
-const uint64_t partSize = 8 * 1024 * 1024;  // 8 MB.
-static std::string bucketName("gcptestext"); // Can be overridden with environment variables.
-
-/*
- * Objects with the prefex pattern "gcptest/*" are deleted after a certain period of time according
- * to the lifecycle rule on the gcp bucket. Should you wish to make any changes to the prefix pattern
- * or lifecycle of the object, please speak to the release manager.
- */
-static std::string objPrefix("gcptest/unit/"); // To be concatenated with a random string.
-} // namespace TestDefaults
-
-// Concatenates a random suffix to the prefix being used for the test object keys. Example of
-// generated test prefix: "gcptest/unit/2023-11-01-16-34-10/623843294--".
-static int
-randomizeTestPrefix()
-{
-    return (0);
-}
-
-// Overrides the defaults with the ones specific for this test instance.
-static int
-setupTestDefaults()
-{
-    return (0);
-}
-
-TEST_CASE("Testing class gcpConnection", "gcp-connection")
-{
-    
-}
-
-int
-main(int argc, char **argv)
-{
-    return (0);
-}
+TEST_CASE("Testing class gcpConnection", "gcp-connection") {}
