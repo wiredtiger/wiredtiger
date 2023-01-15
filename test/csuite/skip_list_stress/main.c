@@ -26,14 +26,13 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-/* 
- * This program tests skip list ordering under concurrent workloads. It 
- * copies some of the skip list code from the btree, but links against the
- * WiredTiger library for all of the support functions.
+/*
+ * This program tests skip list ordering under concurrent workloads. It copies some of the skip list
+ * code from the btree, but links against the WiredTiger library for all of the support functions.
  *
- * This is a quick, ad hoc test for WT-10461. If we ever decide to make this
- * a standard part of the csuite, we'll need to refactor things so it uses the
- * same code as WT, rather than a copy of it.
+ * This is a quick and dirty test for WT-10461. If we ever decide to make this a standard part of
+ * the csuite, we'll need to refactor things so it uses the same code as WT, rather than a copy of
+ * the code.
  */
 
 #include "test_util.h"
@@ -45,9 +44,9 @@ static uint64_t seed = 0;
 
 /* Test parameters. Eventually these should become command line args */
 
-#define NKEYS 100000            /* Total number of keys to insert */
-#define INSERT_THREADS 10       /* Number of threads doing inserts */
-#define VERIFY_THREADS 2        /* Number of threads doing verify */
+#define NKEYS 10000       /* Total number of keys to insert */
+#define INSERT_THREADS 10 /* Number of threads doing inserts */
+#define VERIFY_THREADS 2  /* Number of threads doing verify */
 #define NTHREADS (INSERT_THREADS + VERIFY_THREADS)
 
 typedef struct {
@@ -61,6 +60,10 @@ static volatile bool running;
 
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
+/*
+ * usage --
+ *     Print a usage message.
+ */
 static void
 usage(void)
 {
@@ -69,10 +72,10 @@ usage(void)
 }
 
 /*
- * We don't care about the values we store in our mock insert list. So all entries will point to
- * the dummy update. Likewise, the insert code uses the WT page lock when it needs to exclusive
- * access. We're don't have that, so we just set up a single global spinlock that all threads
- * use since they're all operating on the same skiplist.
+ * We don't care about the values we store in our mock insert list. So all entries will point to the
+ * dummy update. Likewise, the insert code uses the WT page lock when it needs to exclusive access.
+ * We're don't have that, so we just set up a single global spinlock that all threads use since
+ * they're all operating on the same skiplist.
  */
 static WT_UPDATE dummy_update;
 
@@ -80,7 +83,7 @@ static WT_SPINLOCK page_lock;
 
 /*
  * search_insert --
- *    Find the location for an insert into the skip list.  Based o __wt_search_insert()
+ *     Find the location for an insert into the skip list. Based o __wt_search_insert()
  */
 static int
 search_insert(
@@ -145,7 +148,7 @@ search_insert(
 
 /*
  * insert_simple_func --
- *    Add a WT_INSERT entry to the middle of a skiplist. Copy of __insert_simple_func().
+ *     Add a WT_INSERT entry to the middle of a skiplist. Copy of __insert_simple_func().
  */
 static inline int
 insert_simple_func(
@@ -176,7 +179,7 @@ insert_simple_func(
 
 /*
  * insert_serial_func --
- *    Add a WT_INSERT entry to a skiplist. Copy of __insert_serial_func()
+ *     Add a WT_INSERT entry to a skiplist. Copy of __insert_serial_func()
  */
 static inline int
 insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSERT ***ins_stack,
@@ -212,11 +215,11 @@ insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSERT
 
 /*
  * insert_serial --
- *    Top level function for inserting a WT_INSERT into a skiplist. Based on __wt_insert_serial()
+ *     Top level function for inserting a WT_INSERT into a skiplist. Based on __wt_insert_serial()
  */
 static inline int
-insert_serial(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head,
-  WT_INSERT ***ins_stack, WT_INSERT **new_insp, u_int skipdepth)
+insert_serial(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSERT ***ins_stack,
+  WT_INSERT **new_insp, u_int skipdepth)
 {
     WT_DECL_RET;
     WT_INSERT *new_ins;
@@ -251,8 +254,8 @@ insert_serial(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head,
 
 /*
  * row_insert --
- *    Our version of the __wt_row_modify() function, with everything stripped out except for
- *    the relevant insert path.
+ *     Our version of the __wt_row_modify() function, with everything stripped out except for the
+ *     relevant insert path.
  */
 static int
 row_insert(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, WT_INSERT_HEAD *ins_head)
@@ -269,36 +272,36 @@ row_insert(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, WT_INSERT_HEAD *ins_head)
     /*
      * Allocate the insert array as necessary.
      *
-     * We allocate an additional insert array slot for insert keys sorting less than any key on
-     * the page. The test to select that slot is baroque: if the search returned the first page
-     * slot, we didn't end up processing an insert list, and the comparison value indicates the
-     * search key was smaller than the returned slot, then we're using the smallest-key insert
-     * slot. That's hard, so we set a flag.
+     * We allocate an additional insert array slot for insert keys sorting less than any key on the
+     * page. The test to select that slot is baroque: if the search returned the first page slot, we
+     * didn't end up processing an insert list, and the comparison value indicates the search key
+     * was smaller than the returned slot, then we're using the smallest-key insert slot. That's
+     * hard, so we set a flag.
      */
 
     /* Choose a skiplist depth for this insert. */
     skipdepth = __wt_skip_choose_depth(session);
 
     /*
-     * Allocate a WT_INSERT/WT_UPDATE pair and transaction ID, and update the cursor to
-     * reference it (the WT_INSERT_HEAD might be allocated, the WT_INSERT was allocated).
+     * Allocate a WT_INSERT/WT_UPDATE pair and transaction ID, and update the cursor to reference it
+     * (the WT_INSERT_HEAD might be allocated, the WT_INSERT was allocated).
      */
     WT_ERR(__wt_row_insert_alloc(session, key, skipdepth, &ins, &ins_size));
     cbt->ins_head = ins_head;
     cbt->ins = ins;
 
     ins->upd = &dummy_update;
-    ins_size += sizeof(WT_UPDATE);
+    ins_size += WT_UPDATE_SIZE;
 
     /*
-     * If there was no insert list during the search, the cursor's information cannot be
-     * correct, search couldn't have initialized it.
+     * If there was no insert list during the search, the cursor's information cannot be correct,
+     * search couldn't have initialized it.
      *
-     * Otherwise, point the new WT_INSERT item's skiplist to the next elements in the insert
-     * list (which we will check are still valid inside the serialization function).
+     * Otherwise, point the new WT_INSERT item's skiplist to the next elements in the insert list
+     * (which we will check are still valid inside the serialization function).
      *
-     * The serial mutex acts as our memory barrier to flush these writes before inserting them
-     * into the list.
+     * The serial mutex acts as our memory barrier to flush these writes before inserting them into
+     * the list.
      */
     if (cbt->ins_stack[0] == NULL)
         for (i = 0; i < skipdepth; i++) {
@@ -310,14 +313,15 @@ row_insert(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, WT_INSERT_HEAD *ins_head)
             ins->next[i] = cbt->next_stack[i];
 
     /* Insert the WT_INSERT structure. */
-    WT_ERR(insert_serial( session, cbt->ins_head, cbt->ins_stack, &ins, skipdepth));
+    WT_ERR(insert_serial(session, cbt->ins_head, cbt->ins_stack, &ins, skipdepth));
 
 err:
     return (ret);
 }
 
-/* insert --
- *    Test function that inserts a new entry with the given key string into our skiplist.
+/*
+ * insert --
+ *     Test function that inserts a new entry with the given key string into our skiplist.
  */
 static int
 insert(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head, char *key)
@@ -325,16 +329,17 @@ insert(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head,
     WT_ITEM new;
 
     new.data = key;
-    new.size = strlen(key);
+    /* Include the terminal nul character in the key for easier printing. */
+    new.size = strlen(key) + 1;
     WT_RET(search_insert(session, cbt, ins_head, &new));
     WT_RET(row_insert(cbt, &new, ins_head));
 
-    return(0);
+    return (0);
 }
 
-/* 
+/*
  * verify_list --
- *    Walk the skip list and verify that items are in order.
+ *     Walk the skip list and verify that items are in order.
  */
 static void
 verify_list(WT_SESSION *session, WT_INSERT_HEAD *ins_head)
@@ -356,19 +361,23 @@ verify_list(WT_SESSION *session, WT_INSERT_HEAD *ins_head)
         cur.size = WT_INSERT_KEY_SIZE(ins);
         testutil_check(__wt_compare((WT_SESSION_IMPL *)session, NULL, &prev, &cur, &cmp));
         if (cmp >= 0) {
-            printf ("Out of order keys: %s before %s\n", (char *) prev.data, (char *) cur.data);
+            printf("Out of order keys: %s before %s\n", (char *)prev.data, (char *)cur.data);
             testutil_assert(cmp < 0);
         }
         prev = cur;
     }
 }
 
+/*
+ * thread_insert_run --
+ *     An insert thread. Iterates through the key list and inserts its set of keys to the skiplist.
+ */
 static WT_THREAD_RET
 thread_insert_run(void *arg)
 {
-    WT_DECL_RET;
     WT_CONNECTION *conn;
     WT_CURSOR_BTREE *cbt;
+    WT_DECL_RET;
     WT_INSERT_HEAD *ins_head;
     WT_SESSION *session;
     THREAD_DATA *td;
@@ -390,16 +399,20 @@ thread_insert_run(void *arg)
     while (!running)
         ;
 
-    /* Now insert the keys. */
-    for (i = td->id; i < NKEYS; i += INSERT_THREADS) 
+    /* Insert the keys. */
+    for (i = td->id; i < NKEYS; i += INSERT_THREADS)
         while ((ret = insert((WT_SESSION_IMPL *)session, cbt, ins_head, key_list[i]) == WT_RESTART))
             ;
 
-    free (cbt);
+    free(cbt);
 
     return (WT_THREAD_RET_VALUE);
 }
 
+/*
+ * thread_verify_run --
+ *     A verify thread sits in a loop checking that the skiplist is in order
+ */
 static WT_THREAD_RET
 thread_verify_run(void *arg)
 {
@@ -422,23 +435,27 @@ thread_verify_run(void *arg)
     while (running)
         verify_list(session, ins_head);
 
-    return(WT_THREAD_RET_VALUE);
+    return (WT_THREAD_RET_VALUE);
 }
 
+/*
+ * main --
+ *     Test body
+ */
 int
 main(int argc, char *argv[])
 {
+    static char **key_list;
     WT_CONNECTION *conn;
     WT_INSERT_HEAD *ins_head;
     WT_RAND_STATE rnd;
     WT_SESSION *session;
     char command[1024], home[1024];
     const char *working_dir;
-    static char** key_list;
     THREAD_DATA *td;
     wt_thread_t *thr;
     int ch, i, status;
-    
+
     working_dir = "WT_TEST.skip_list_stress";
 
     while ((ch = __wt_getopt(progname, argc, argv, "h:pS:v:")) != EOF)
@@ -463,8 +480,7 @@ main(int argc, char *argv[])
         rnd.v = seed;
 
     testutil_work_dir_from_path(home, sizeof(home), working_dir);
-    testutil_check(
-      __wt_snprintf(command, sizeof(command), "rm -rf %s; mkdir %s", home, home));
+    testutil_check(__wt_snprintf(command, sizeof(command), "rm -rf %s; mkdir %s", home, home));
     if ((status = system(command)) < 0)
         testutil_die(status, "system: %s", command);
 
@@ -476,8 +492,8 @@ main(int argc, char *argv[])
     /*
      * Generate some keys
      *
-     * N.B., the key strings here are stored in the skip list. So we need a separate
-     * buffer for each key.
+     * N.B., the key strings here are stored in the skip list. So we need a separate buffer for each
+     * key.
      */
     key_list = dmalloc(NKEYS * sizeof(char *));
     for (i = 0; i < NKEYS; i++) {
@@ -493,11 +509,11 @@ main(int argc, char *argv[])
         td[i].keys = key_list;
     }
 
-    thr = dmalloc (NTHREADS * sizeof(wt_thread_t));
+    thr = dmalloc(NTHREADS * sizeof(wt_thread_t));
 
     /* Start threads */
     running = false;
-    for (i = 0; i < NTHREADS; i++) 
+    for (i = 0; i < NTHREADS; i++)
         if (i < INSERT_THREADS)
             testutil_check(__wt_thread_create(NULL, &thr[i], thread_insert_run, &td[i]));
         else
@@ -506,7 +522,7 @@ main(int argc, char *argv[])
     running = true;
 
     /* Wait for insert threads to complete */
-    for (i = 0; i < INSERT_THREADS; i++) 
+    for (i = 0; i < INSERT_THREADS; i++)
         testutil_check(__wt_thread_join(NULL, &thr[i]));
 
     /* Tell verify threads to stop */
