@@ -21,3 +21,11 @@ wiredtiger_unpack_start
 wiredtiger_unpack_str
 wiredtiger_unpack_uint
 wiredtiger_version
+# These symbols are only exposed when unit testing WiredTiger with HAVE_UNITTEST=1
+__ut_block_first_srch
+__ut_block_off_srch
+__ut_block_off_srch_last
+__ut_block_size_srch
+__ut_ckpt_add_blkmod_entry
+__ut_ovfl_discard_verbose
+__ut_ovfl_discard_wrapup
