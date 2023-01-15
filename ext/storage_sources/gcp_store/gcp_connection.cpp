@@ -53,6 +53,13 @@ gcp_connection::put_object(const std::string &object_key, const std::string &fil
 int
 gcp_connection::delete_object(const std::string &object_key) const
 {
+
+    namespace gcs = ::google::cloud::storage;
+    gcs::Client client = _gcp_client;
+    google::cloud::Status status =
+        client.DeleteObject(_bucket_name, object_key);
+
+    if (!status.ok()) return -1;
     return 0;
 }
 
