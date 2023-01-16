@@ -41,11 +41,11 @@ extern int __wt_optind;
 extern char *__wt_optarg;
 
 static uint64_t seed = 0;
+static uint key_count = 100000;
 
 /* Test parameters. Eventually these should become command line args */
 
-#define NKEYS 10000       /* Total number of keys to insert */
-#define INSERT_THREADS 10 /* Number of threads doing inserts */
+#define INSERT_THREADS 20 /* Number of threads doing inserts */
 #define VERIFY_THREADS 2  /* Number of threads doing verify */
 #define NTHREADS (INSERT_THREADS + VERIFY_THREADS)
 
@@ -67,7 +67,7 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
 usage(void)
 {
-    fprintf(stderr, "usage: %s [-h dir] [-p] [-S seed]\n", progname);
+    fprintf(stderr, "usage: %s [-h dir] [-p] [-S seed] [-k key_count]\n", progname);
     exit(EXIT_FAILURE);
 }
 
@@ -400,7 +400,7 @@ thread_insert_run(void *arg)
         ;
 
     /* Insert the keys. */
-    for (i = td->id; i < NKEYS; i += INSERT_THREADS)
+    for (i = td->id; i < (int)key_count; i += INSERT_THREADS)
         while ((ret = insert((WT_SESSION_IMPL *)session, cbt, ins_head, key_list[i]) == WT_RESTART))
             ;
 
@@ -458,13 +458,16 @@ main(int argc, char *argv[])
 
     working_dir = "WT_TEST.skip_list_stress";
 
-    while ((ch = __wt_getopt(progname, argc, argv, "h:pS:v:")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "h:pS:k:v:")) != EOF)
         switch (ch) {
         case 'h':
             working_dir = __wt_optarg;
             break;
         case 'S':
             seed = (uint64_t)atoll(__wt_optarg);
+            break;
+        case 'k':
+            key_count = atoll(__wt_optarg);
             break;
         default:
             usage();
@@ -495,8 +498,8 @@ main(int argc, char *argv[])
      * N.B., the key strings here are stored in the skip list. So we need a separate buffer for each
      * key.
      */
-    key_list = dmalloc(NKEYS * sizeof(char *));
-    for (i = 0; i < NKEYS; i++) {
+    key_list = dmalloc(key_count * sizeof(char *));
+    for (i = 0; i < (int)key_count; i++) {
         key_list[i] = dmalloc(100);
         sprintf(key_list[i], "This is key #%u.%d", __wt_random(&rnd), i);
     }
