@@ -271,7 +271,7 @@ dir_store_delay(DIR_STORE *dir_store)
     if (dir_store->force_error != 0 &&
       (dir_store->object_reads + dir_store->object_writes) % dir_store->force_error == 0) {
         VERBOSE_LS(dir_store,
-          "Artificial error returned after %" PRIu64 " milliseconds sleep, %" PRIu64
+          "Artificial error returned after %" PRIu32 " milliseconds sleep, %" PRIu64
           " object reads, %" PRIu64 " object writes\n",
           dir_store->error_ms, dir_store->object_reads, dir_store->object_writes);
 
