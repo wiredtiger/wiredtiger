@@ -310,7 +310,7 @@ get_dir_size_mb(const std::string &dir)
 // 10 random characters + Null terminator
 #define DYNAMIC_TABLE_LEN 11
 /*
- * This function generates a random table name which is alphanumeric and 10 chars in length.
+ * This function generates a random table name which is alphanumeric and 10 chars long.
  */
 static void
 gen_random_table_name(char *name, workgen_random_state volatile *rand_state)
@@ -496,7 +496,7 @@ WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
              * marked for deletion.
              */
             int tables_remaining = icontext->_dyn_tint.size() - pending_delete.size();
-            tables_remaining = std::max(0, tables_remaining);
+            ASSERT(tables_remaining >= 0);
             int drop_count = std::min(tables_remaining, _workload->options.drop_count);
             int drops = 0;
             while (drops < drop_count) {
