@@ -3055,7 +3055,8 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
 
     if (ret != 0)
         std::cerr << "run_all failed err=" << ret << std::endl;
-    (*_report_out) << std::endl;
+    if (options->report_enabled)
+        (*_report_out) << std::endl;
     if (exception != nullptr)
         throw *exception;
     return (ret);
