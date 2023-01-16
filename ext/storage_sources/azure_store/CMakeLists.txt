@@ -46,3 +46,7 @@ target_link_libraries(
     PRIVATE
         azure_container_util
 )
+
+if(HAVE_UNITTEST)
+    add_subdirectory(test)
+endif()
