@@ -105,6 +105,8 @@ extern "C" {
 #define OP_HAS_VALUE(op) \
     ((op)->_optype == Operation::OP_INSERT || (op)->_optype == Operation::OP_UPDATE)
 
+#define DYN_TABLE_APP_METADATA "app_metadata=\"dynamic_table\""
+
 namespace workgen {
 
 struct WorkloadRunnerConnection {
@@ -401,7 +403,7 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
              */
             WT_DECL_RET;
             if ((ret = session->create(session, uri.c_str(),
-                   "key_format=S,value_format=S,app_metadata=\"dynamic_table\"")) != 0) {
+                   "key_format=S,value_format=S," DYN_TABLE_APP_METADATA)) != 0) {
                 if (ret == EBUSY)
                     continue;
                 THROW("Table create failed in start_tables_create.");
@@ -781,7 +783,7 @@ ContextInternal::create_all(WT_CONNECTION *conn)
               "tables.");
         }
 
-        if (std::string(value).find("app_metadata=\"dynamic_table\"") != std::string::npos &&
+        if (std::string(value).find(DYN_TABLE_APP_METADATA) != std::string::npos &&
           WT_PREFIX_MATCH(key, "table:")) {
             // Add the table into the list of dynamic set.
             _dyn_tint[key] = _dyn_tint_last;
