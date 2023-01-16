@@ -95,6 +95,9 @@ build_branch()
         # Old releases didn't have these enabled, need to make it consistent.
         config+="-DENABLE_LZ4=0 -DENABLE_ZLIB=0 -DENABLE_ZSTD=0 "
         config+="-DWT_STANDALONE_BUILD=0 "
+        # Use the stable MongoDB toolchain for this build.
+        config+="-DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_gcc.cmake"
+
         (mkdir -p build && cd build &&
             $CMAKE $config ../. && make -j $(grep -c ^processor /proc/cpuinfo)) > /dev/null
     else
@@ -657,7 +660,7 @@ upgrade_to_latest=false
 # Note: If a branch name is not stored in gittags,
 # then the branch name itself will be used for the checkout
 declare -A gittags
-gittags['develop']="develop"
+gittags['develop']="wt-10505-have-stable-toolchain"
 gittags['mongodb-6.0']="mongodb-6.0"
 gittags['mongodb-5.0']="mongodb-5.0"
 gittags['mongodb-4.4']="mongodb-4.4"
