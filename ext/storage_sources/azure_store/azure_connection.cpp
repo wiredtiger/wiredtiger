@@ -56,7 +56,6 @@ azure_connection::list_objects(std::vector<std::string> &objects, bool list_sing
         objects.push_back(blob_item.Name);
         if (list_single)
             break;
-        
     }
     return 0;
 }
