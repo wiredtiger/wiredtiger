@@ -391,8 +391,6 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
             uri += _workload->options.create_prefix;
             uri += rand_chars;
 
-            std::cout << " XXX: Gen uri: " << uri << std::endl;
-
             // Check if a table with this name already exists. Skip if it does.
             if (icontext->_tint.count(uri) > 0 || icontext->_dyn_tint.count(uri) > 0)
                 continue;
@@ -510,7 +508,7 @@ WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
                     continue;
                 }
 
-                VERBOSE(*_workload, "XXX Marking pending removal for: " << it->first);
+                VERBOSE(*_workload, "Marking pending removal for: " << it->first);
                 icontext->_dyn_table_runtime[it->second]._pending_delete = true;
                 pending_delete.push_back(it->first);
                 ++drops;
@@ -553,7 +551,7 @@ WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
             if (ret != 0)
                 THROW("Table drop failed in start_tables_drop.");
 
-            VERBOSE(*_workload, "XXX Dropped table: " << uri);
+            VERBOSE(*_workload, "Dropped table: " << uri);
         }
 
         sleep(_workload->options.drop_interval);
@@ -790,7 +788,6 @@ ContextInternal::create_all(WT_CONNECTION *conn)
             _dyn_table_names[_dyn_tint_last] = key;
             _dyn_table_runtime[_dyn_tint_last] = TableRuntime();
             ++_dyn_tint_last;
-            std::cout << "XXX Added pre-existing table to the dynamic set: " << key << std::endl;
         }
     }
     if (ret != WT_NOTFOUND) {
