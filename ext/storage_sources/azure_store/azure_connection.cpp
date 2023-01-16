@@ -53,11 +53,10 @@ azure_connection::list_objects(std::vector<std::string> &objects, bool list_sing
 
     for (auto blob_item : list_blobs_response.Blobs)
     {
-        if (!blob_item.IsDeleted) {
-            objects.push_back(blob_item.Name);
-            if (list_single)
-                break;
-        }
+        objects.push_back(blob_item.Name);
+        if (list_single)
+            break;
+        
     }
     return 0;
 }
