@@ -34,6 +34,7 @@
 #include <stdlib.h>
 #include <iostream>
 #include <vector>
+#include <string>
 
 azure_connection::azure_connection(const std::string &bucket_name, const std::string &obj_prefix)
     : _azure_client(Azure::Storage::Blobs::BlobContainerClient::CreateFromConnectionString(
@@ -47,9 +48,13 @@ azure_connection::azure_connection(const std::string &bucket_name, const std::st
  * listBlobs function form the Azure SDK
  */
 int
-azure_connection::list_objects(std::vector<std::string> &objects, bool list_single) const
+azure_connection::list_objects(const std::string &prefix, std::vector<std::string> &objects, bool list_single) const
 {
-    auto list_blobs_response = _azure_client.ListBlobs();
+    Azure::Storage::Blobs::ListBlobsOptions blob_parameters;
+    strcpy(blob_parameters.Prefix, prefix);
+
+    }
+    auto list_blobs_response = _azure_client.ListBlobs(blob_parameters);
 
     for (auto blob_item : list_blobs_response.Blobs)
     {
