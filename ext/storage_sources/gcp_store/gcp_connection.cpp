@@ -30,6 +30,8 @@
 
 #include <fstream>
 
+namespace gcs = ::google::cloud::storage;
+
 gcp_connection::gcp_connection(const std::string &bucket_name)
     : _gcp_client(google::cloud::storage::Client()), _bucket_name(bucket_name)
 {
@@ -53,13 +55,17 @@ gcp_connection::put_object(const std::string &object_key, const std::string &fil
 int
 gcp_connection::delete_object(const std::string &object_key) const
 {
-
-    namespace gcs = ::google::cloud::storage;
+    using namespace gcs;
     gcs::Client client = _gcp_client;
     google::cloud::Status status =
         client.DeleteObject(_bucket_name, object_key);
 
-    if (!status.ok()) return -1;
+    if (!status.ok()) {
+        throw std::runtime_error(status.message());
+        return -1;
+    }
+
+    std::cout << "Deleted " << object_key << " in bucket " << _bucket_name << "\n";
     return 0;
 }
 
