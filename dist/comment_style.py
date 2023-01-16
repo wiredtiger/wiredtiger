@@ -68,7 +68,7 @@ def check_cpp_comments(file_name):
         return count
 
 def file_is_cpp(name):
-    if re.search('(.cpp|.cxx|.hpp)$', name) is not None:
+    if re.search('(.cpp|.hpp)$', name) is not None:
         return True
     if re.search('(.c|.i|.in)$', name) is not None:
         return False
@@ -109,7 +109,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--test', default=False,
                         help='Run self tests', action='store_true')
-    parser.add_argument('-f', '--fast', default=False,
+    parser.add_argument('-F', '--fast', default=False,
                         help='Use fast mode by only checking files changed in git',
                         action='store_true')
     args = parser.parse_args()
@@ -128,21 +128,22 @@ if __name__ == '__main__':
     ]
 
     command = "find bench examples ext src test -name \"*.[ch]\" -o -name \"*.in\" -o -name \
-        \"*.cxx\" -o -name \"*.cpp\" -o -name \"*.i\" "
+        -o -name \"*.cpp\" -o -name \"*.i\" "
     if args.fast:
         command = "git diff --name-only $(git merge-base --fork-point develop) bench \
-            examples ext src test | grep -E '(.c|.h|.cpp|.in|.cxx|.i)$'"
+            examples ext src test | grep -E '(.c|.h|.cpp|.in|.i)$'"
 
     result = subprocess.run(command, shell=True, capture_output=True, text=True).stdout.strip('\n')
     count = 0
-    for file_name in result.split('\n'):
-        if file_name in ignore_files:
-            continue
+    if result:
+        for file_name in result.split('\n'):
+            if file_name in ignore_files:
+                continue
 
-        if file_is_cpp(file_name):
-            count += check_cpp_comments(file_name)
-        else:
-            count += check_c_comments(file_name)
+            if file_is_cpp(file_name):
+                count += check_cpp_comments(file_name)
+            else:
+                count += check_c_comments(file_name)
 
     if (count != 0):
         print('Detected ' + str(count) +' comment format issues!')
