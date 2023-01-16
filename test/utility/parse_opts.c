@@ -72,8 +72,8 @@ parse_delay_error(uint32_t *seedp, const char *seed_str, char **parse_end)
  *     Parse a command line option for the tiered storage configurations.
  */
 static void
-parse_tiered_comma_separated_options(TEST_OPTS *opts, const char *config_str, uint32_t *key1,
-  uint32_t *key2, const char *usage, bool insert_delays)
+parse_tiered_comma_separated_options(const char *config_str, uint32_t *opts_key1,
+  uint32_t *opts_key2, const char *usage, bool insert_delays)
 {
     char *parse_end;
     const char *config_end;
@@ -89,15 +89,17 @@ parse_tiered_comma_separated_options(TEST_OPTS *opts, const char *config_str, ui
     }
 
     parse_end = (char *)config_end;
-    if (*key1 != 0)
+    if (*opts_key1 != 0)
         testutil_die(
-          EINVAL, "%s x,x data seed specified twice: %s", insert_delays ? "-Pd" : "-Pe", usage);
-    parse_delay_error(key1, config_str, &parse_end);
+          EINVAL, "%s x,x option specified twice: %s", insert_delays ? "-Pd" : "-Pe", usage);
+    parse_delay_error(opts_key1, config_str, &parse_end);
 
     if (delay_config_option == false) {
-        /* The delay milliseconds is set to 100 by default for artificial delays and set to 0 for
-         * artificial errors. */
-        *key2 = insert_delays ? WT_HUNDRED : 0;
+        /*
+         * The delay milliseconds is set to 100 by default for artificial delays and set to 0 for
+         * artificial errors.
+         */
+        *opts_key2 = insert_delays ? WT_HUNDRED : 0;
         return;
     }
 
@@ -113,13 +115,15 @@ parse_tiered_comma_separated_options(TEST_OPTS *opts, const char *config_str, ui
     parse_end = (char *)config_end;
 
     if (*parse_end == '\0' && *config_str == '\0') {
-        /* The delay milliseconds is not specified after the comma, set to 100 by default for
-         * artificial delays and set to 0 for artificial errors. */
-        *key2 = insert_delays ? WT_HUNDRED : 0;
+        /*
+         * The delay milliseconds is not specified after the comma, set to 100 by default for
+         * artificial delays and set to 0 for artificial errors.
+         */
+        *opts_key2 = insert_delays ? WT_HUNDRED : 0;
         return;
     }
 
-    parse_delay_error(key2, config_str, &parse_end);
+    parse_delay_error(opts_key2, config_str, &parse_end);
 }
 
 /*
@@ -133,7 +137,7 @@ parse_tiered_artificial_errors(TEST_OPTS *opts, const char *config_str)
       "-Pe parameter is comma separated frequency and delay milliseconds, e.g. -Pe 2,300";
 
     parse_tiered_comma_separated_options(
-      opts, config_str, &opts->force_error, &opts->error_ms, usage_error, false);
+      config_str, &opts->force_error, &opts->error_ms, usage_error, false);
 }
 
 /*
@@ -147,7 +151,7 @@ parse_tiered_artificial_delays(TEST_OPTS *opts, const char *config_str)
       "-Pd parameter is comma separated frequency and delay milliseconds, e.g. -Pd 2,300";
 
     parse_tiered_comma_separated_options(
-      opts, config_str, &opts->force_delay, &opts->delay_ms, usage_delay, true);
+      config_str, &opts->force_delay, &opts->delay_ms, usage_delay, true);
 }
 
 /*
