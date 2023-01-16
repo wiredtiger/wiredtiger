@@ -135,7 +135,7 @@ if __name__ == '__main__':
 
     result = subprocess.run(command, shell=True, capture_output=True, text=True).stdout.strip('\n')
     count = 0
-    if result != "":
+    if result:
         for file_name in result.split('\n'):
             if file_name in ignore_files:
                 continue
