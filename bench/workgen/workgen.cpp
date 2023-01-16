@@ -105,7 +105,7 @@ extern "C" {
 #define OP_HAS_VALUE(op) \
     ((op)->_optype == Operation::OP_INSERT || (op)->_optype == Operation::OP_UPDATE)
 
-#define DYN_TABLE_APP_METADATA "app_metadata=\"dynamic_table\""
+#define DYN_TABLE_APP_METADATA "app_metadata=\"workgen_dynamic_table\""
 
 namespace workgen {
 
@@ -307,10 +307,10 @@ get_dir_size_mb(const std::string &dir)
     return result / WT_MEGABYTE;
 }
 
-// 10 random characters + Null terminator
-#define DYNAMIC_TABLE_LEN 11
+// 5 random characters + Null terminator
+#define DYNAMIC_TABLE_LEN 6
 /*
- * This function generates a random table name which is alphanumeric and 10 chars long.
+ * This function generates a random table name which is alphanumeric and 5 chars long.
  */
 static void
 gen_random_table_name(char *name, workgen_random_state volatile *rand_state)
@@ -445,7 +445,7 @@ WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
     }
 
     ContextInternal *icontext = _workload->_context->_internal;
-    std::vector<std::string> pending_delete; // Track tables that are pending to be deleted.
+    std::vector<std::string> pending_delete; // Track tables that are pending deletion.
     bool manage_db_size = _workload->options.drop_target > 0 && _workload->options.drop_trigger > 0;
     uint32_t db_size = 0;
     bool dropping = true;
@@ -492,7 +492,7 @@ WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
             const std::lock_guard<std::mutex> lock(*icontext->_dyn_mutex);
 
             /*
-             * When dropping consider how many dynamic tables we have left, and how many are already
+             * When dropping, consider how many dynamic tables we have left and how many are already
              * marked for deletion.
              */
             int tables_remaining = icontext->_dyn_tint.size() - pending_delete.size();
@@ -501,7 +501,7 @@ WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
             int drops = 0;
             while (drops < drop_count) {
                 /*
-                 * Walk the map and select random tables to delete, skip if already marked for
+                 * Walk the map and select random tables to delete. Skip tables already marked for
                  * deletion.
                  */
                 auto it = icontext->_dyn_tint.begin();
