@@ -307,14 +307,18 @@ get_dir_size_mb(const std::string &dir)
 
 // 10 random characters + Null terminator
 #define DYNAMIC_TABLE_LEN 11
-static void gen_random_table_name(char* name, workgen_random_state volatile *rand_state)
+/*
+ * This function generates a random table name which is alphanumeric and 10 chars in length.
+ */
+static void
+gen_random_table_name(char *name, workgen_random_state volatile *rand_state)
 {
     ASSERT(name != NULL);
 
     const char charset[] =
-        "0123456789"
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        "abcdefghijklmnopqrstuvwxyz";
+      "0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+      "abcdefghijklmnopqrstuvwxyz";
 
     for (int i = 0; i < DYNAMIC_TABLE_LEN - 1; i++) {
         name[i] = charset[workgen_random(rand_state) % (sizeof(charset) - 1)];
@@ -358,7 +362,7 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
                 creating = db_size < _workload->options.create_target;
                 if (!creating) {
                     VERBOSE(*_workload,
-                      "XXX Stopped creating new tables. db_size now "
+                      "Stopped creating new tables. db_size now "
                         << db_size << " MB has reached the create target of "
                         << _workload->options.create_target << " MB.");
                 }
@@ -366,7 +370,7 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
                 creating = db_size < _workload->options.create_trigger;
                 if (creating) {
                     VERBOSE(*_workload,
-                      "XXX Started creating new tables. db_size now "
+                      "Started creating new tables. db_size now "
                         << db_size << " MB has reached the create trigger of "
                         << _workload->options.create_trigger << " MB.");
                 }
@@ -415,7 +419,7 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
                 icontext->_dyn_table_names[tint] = uri;
                 icontext->_dyn_table_runtime[tint] = TableRuntime();
                 ++icontext->_dyn_tint_last;
-                VERBOSE(*_workload, "XXX Created table and added to the dynamic set: " << uri);
+                VERBOSE(*_workload, "Created table and added to the dynamic set: " << uri);
             }
             ++creates;
         }
@@ -424,7 +428,7 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
     }
 
     return 0;
-} // namespace workgen
+}
 
 /*
  * This function drops one or more tables at regular intervals, where the interval length and number
@@ -482,14 +486,14 @@ WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
             continue;
         }
 
-        std::vector<std::string> drop_files;    // Files ready to be dropped.
+        std::vector<std::string> drop_files; // Files ready to be dropped.
         // The data structures for the dynamic table set are protected by a mutex.
         {
             const std::lock_guard<std::mutex> lock(*icontext->_dyn_mutex);
 
-            /* 
-             * When dropping consider how many dynamic tables we have left, and how many are
-             * already marked for deletion.
+            /*
+             * When dropping consider how many dynamic tables we have left, and how many are already
+             * marked for deletion.
              */
             int tables_remaining = icontext->_dyn_tint.size() - pending_delete.size();
             tables_remaining = std::max(0, tables_remaining);
@@ -542,8 +546,8 @@ WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
         for (auto uri : drop_files) {
             WT_DECL_RET;
             // Spin on EBUSY, we do not expect to get stuck
-            while ((ret = session->drop(session, uri.c_str(), "force,checkpoint_wait=false")) ==
-                EBUSY) {
+            while (
+              (ret = session->drop(session, uri.c_str(), "force,checkpoint_wait=false")) == EBUSY) {
                 VERBOSE(*_workload, "Drop returned EBUSY for table: " << uri);
             }
             if (ret != 0)
@@ -759,7 +763,6 @@ ContextInternal::create_all(WT_CONNECTION *conn)
 
     WT_DECL_RET;
     WT_CURSOR *cursor;
-    // WT_METADATA_URI
     if ((ret = session->open_cursor(session, "metadata:", NULL, NULL, &cursor)) != 0) {
         /* If there is no metadata (yet), this will return ENOENT. */
         if (ret == ENOENT) {
@@ -2758,7 +2761,8 @@ WorkloadRunner::WorkloadRunner(Workload *workload)
     ts_clear(_start);
 }
 
-WorkloadRunner::~WorkloadRunner() {
+WorkloadRunner::~WorkloadRunner()
+{
     if (_rand_state != nullptr) {
         workgen_random_free(_rand_state);
         _rand_state = nullptr;
