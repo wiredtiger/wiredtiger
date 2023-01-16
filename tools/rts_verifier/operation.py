@@ -39,64 +39,23 @@ class Operation:
     def __init__(self, line):
         self.line = line
 
-        if '[INIT]' in line:
-            self.__init_init(line)
-        elif '[TREE]' in line:
-            self.__init_tree(line)
-        elif '[TREE_LOGGING]' in line:
-            self.__init_tree_logging(line)
-        elif '[PAGE_ROLLBACK]' in line:
-            self.__init_page_rollback(line)
-        elif '[UPDATE_ABORT]' in line:
-            self.__init_update_abort(line)
-        elif '[PAGE_ABORT_CHECK]' in line:
-            self.__init_page_abort_check(line)
-        elif '[KEY_CLEAR_REMOVE]' in line:
-            self.__init_key_clear_remove(line)
-        elif '[ONDISK_KV_REMOVE]' in line:
-            self.__init_ondisk_kv_remove(line)
-        elif '[SHUTDOWN_INIT]' in line:
-            self.__init_shutdown_init(line)
-        elif '[TREE_SKIP]' in line:
-            self.__init_tree_skip(line)
-        elif '[SKIP_DEL_NULL]' in line:
-            self.__init_skip_del_null(line)
-        elif '[ONDISK_ABORT_TW]' in line:
-            self.__init_ondisk_abort_tw(line)
-        elif '[ONDISK_KEY_ROLLBACK]' in line:
-            self.__init_ondisk_key_rollback(line)
-        elif '[HS_UPDATE_ABORT]' in line:
-            self.__init_hs_update_abort(line)
-        elif '[HS_UPDATE_VALID]' in line:
-            self.__init_hs_update_valid(line)
-        elif '[HS_UPDATE_RESTORED]' in line:
-            self.__init_hs_update_restored(line)
-        elif '[KEY_REMOVED]' in line:
-            self.__init_key_removed(line)
-        elif '[STABLE_PG_WALK_SKIP]' in line:
-            self.__init_stable_pg_walk_skip(line)
-        elif '[SKIP_UNMODIFIED]' in line:
-            self.__init_skip_unmodified(line)
-        elif '[HS_GT_ONDISK]' in line:
-            self.__init_hs_gt_ondisk(line)
-        elif '[RECOVERY_RTS]' in line:
-            self.__init_recovery_rts(line)
-        elif '[HS_STOP_OBSOLETE]' in line:
-            self.__init_hs_stop_obsolete(line)
-        elif '[RECOVER_CKPT]' in line:
-            self.__init_recover_ckpt(line)
-        elif '[HS_TREE_ROLLBACK]' in line:
-            self.__init_hs_tree_rollback(line)
-        elif '[HS_TREE_SKIP]' in line:
-            self.__init_hs_tree_skip(line)
-        elif '[HS_ABORT_STOP]' in line:
-            self.__init_hs_abort_stop(line)
-        elif '[HS_RESTORE_TOMBSTONE]' in line:
-            self.__init_hs_restore_tombstone(line)
-        elif '[FILE_SKIP]' in line:
-            self.__init_file_skip(line)
-        else:
-            raise Exception(f"Operation.__init__: couldn't find an event in RTS log line {line}")
+        # Extract the RTS message type, e.g. 'PAGE_ROLLBACK'.
+        matches = re.search('\[WT_VERB_RTS\]\[DEBUG_\d+\]: \[(\w+)\]', line)
+        if matches.group(1) is None:
+            raise Exception("Checker got a verbose RTS message in a format it didn't understand!")
+
+        # 'PAGE_ROLLBACK' -> 'page_rollback' since we're using it to search for a function
+        # and our names are all lowercase.
+        name = matches.group(1).lower()
+
+        # Search for a function in the class with the name we found. Our functions all start
+        # with `__init_` so add that. The '_Operation' is our class name.
+        ptr = getattr(self, '_Operation__init_' + name)
+        if ptr is None:
+            raise Exception("Checker got a verbose RTS message with a type it didn't understand!")
+
+        # Call the function we found.
+        ptr(line)
 
     def __repr__(self):
         return f"{self.__dict__}"
@@ -106,6 +65,12 @@ class Operation:
         if matches is None:
             raise Exception(f"failed to extract a filename from {line}")
         return matches.group(1)
+
+    def __extract_simple_timestamp(self, prefix, line):
+        matches = re.search("{}=\((\d+), (\d+)\)".format(prefix), line)
+        start = int(matches.group(1))
+        stop = int(matches.group(2))
+        return Timestamp(start, stop)
 
     def __init_init(self, line):
         self.type = OpType.INIT
@@ -195,10 +160,7 @@ class Operation:
         matches = re.search('ref=(0x[A-Za-z0-9]+)', line)
         self.ref = int(matches.group(1), 16)
 
-        matches = re.search('durable_timestamp=\((\d+), (\d+)\)', line)
-        durable_start = int(matches.group(1))
-        durable_stop = int(matches.group(2))
-        self.durable = Timestamp(durable_start, durable_stop)
+        self.durable = self.__extract_simple_timestamp('durable_timestamp', line)
 
         matches = re.search('newest_txn=(\d+)', line)
         self.newest_txn = int(matches.group(1))
@@ -213,33 +175,15 @@ class Operation:
         self.type = OpType.KEY_CLEAR_REMOVE
         self.file = self.__extract_file(line)
 
-        matches = re.search('commit_timestamp=\((\d+), (\d+)\)', line)
-        commit_start = int(matches.group(1))
-        commit_stop = int(matches.group(2))
-        self.restored_commit = Timestamp(commit_start, commit_stop)
-
-        matches = re.search('durable_timestamp=\((\d+), (\d+)\)', line)
-        durable_start = int(matches.group(1))
-        durable_stop = int(matches.group(2))
-        self.restored_durable = Timestamp(durable_start, durable_stop)
-
-        matches = re.search('stable_timestamp=\((\d+), (\d+)\)', line)
-        stable_start = int(matches.group(1))
-        stable_stop = int(matches.group(2))
-        self.restored_stable = Timestamp(stable_start, stable_stop)
+        self.restored_commit = self.__extract_simple_timestamp('commit_timestamp', line)
+        self.restored_durable = self.__extract_simple_timestamp('durable_timestamp', line)
+        self.restored_stable = self.__extract_simple_timestamp('stable_timestamp', line)
 
         matches = re.search('txnid=(\d+)', line)
         self.restored_txnid = int(matches.group(1))
 
-        matches = re.search('removed.*commit_timestamp=\((\d+), (\d+)\)', line)
-        commit_start = int(matches.group(1))
-        commit_stop = int(matches.group(2))
-        self.removed_commit = Timestamp(commit_start, commit_stop)
-
-        matches = re.search('removed.*durable_timestamp=\((\d+), (\d+)\)', line)
-        durable_start = int(matches.group(1))
-        durable_stop = int(matches.group(2))
-        self.removed_durable = Timestamp(durable_start, durable_stop)
+        self.removed_commit = self.__extract_simple_timestamp('removed.*commit_timestamp', line)
+        self.removed_durable = self.__extract_simple_timestamp('removed.*durable_timestamp', line)
 
         matches = re.search('removed.*txnid=(\d+)', line)
         self.removed_txnid = int(matches.group(1))
@@ -260,24 +204,14 @@ class Operation:
     def __init_shutdown_init(self, line):
         self.type = OpType.SHUTDOWN_INIT
 
-        matches = re.search('stable_timestamp=\((\d+), (\d+)\)', line)
-        stable_start = int(matches.group(1))
-        stable_stop = int(matches.group(2))
-        self.stable = Timestamp(stable_start, stable_stop)
+        self.stable = self.__extract_simple_timestamp('stable_timestamp', line)
 
     def __init_tree_skip(self, line):
         self.type = OpType.TREE_SKIP
         self.file = self.__extract_file(line)
 
-        matches = re.search('durable_timestamp=\((\d+), (\d+)\)', line)
-        durable_start = int(matches.group(1))
-        durable_stop = int(matches.group(2))
-        self.durable = Timestamp(durable_start, durable_stop)
-
-        matches = re.search('stable_timestamp=\((\d+), (\d+)\)', line)
-        stable_start = int(matches.group(1))
-        stable_stop = int(matches.group(2))
-        self.stable = Timestamp(stable_start, stable_stop)
+        self.durable = self.__extract_simple_timestamp('durable_timestamp', line)
+        self.stable = self.__extract_simple_timestamp('stable_timestamp', line)
 
         matches = re.search('txnid=(\d+)', line)
         self.txnid = int(matches.group(1))
@@ -343,10 +277,7 @@ class Operation:
         matches = re.search('type=(\w+)', line)
         self.update_type = UpdateType[matches.group(1)]
 
-        matches = re.search('stable_timestamp=\((\d+), (\d+)\)', line)
-        stable_start = int(matches.group(1))
-        stable_stop = int(matches.group(2))
-        self.stable = Timestamp(stable_start, stable_stop)
+        self.stable = self.__extract_simple_timestamp('stable_timestamp', line)
 
     def __init_hs_update_valid(self, line):
         self.type = OpType.HS_UPDATE_VALID
@@ -373,10 +304,7 @@ class Operation:
         matches = re.search('type=(\w+)', line)
         self.update_type = UpdateType[matches.group(1)]
 
-        matches = re.search('stable_timestamp=\((\d+), (\d+)\)', line)
-        stable_start = int(matches.group(1))
-        stable_stop = int(matches.group(2))
-        self.stable = Timestamp(stable_start, stable_stop)
+        self.stable = self.__extract_simple_timestamp('stable_timestamp', line)
 
     def __init_hs_update_restored(self, line):
         self.type = OpType.HS_UPDATE_VALID
@@ -385,15 +313,8 @@ class Operation:
         matches = re.search('txnid=(\d+)', line)
         self.txnid = int(matches.group(1))
 
-        matches = re.search('start_ts=\((\d+), (\d+)\)', line)
-        start_start = matches.group(1)
-        start_end = matches.group(2)
-        self.start = Timestamp(start_start, start_end)
-
-        matches = re.search('durable_ts=\((\d+), (\d+)\)', line)
-        durable_start = matches.group(1)
-        durable_end = matches.group(2)
-        self.durable = Timestamp(durable_start, durable_end)
+        self.start = self.__extract_simple_timestamp('start_ts', line)
+        self.durable = self.__extract_simple_timestamp('durable_ts', line)
 
     def __init_key_removed(self, line):
         self.type = OpType.KEY_REMOVED
@@ -441,15 +362,8 @@ class Operation:
     def __init_recovery_rts(self, line):
         self.type = OpType.RECOVERY_RTS
 
-        matches = re.search('stable_timestamp=\((\d+), (\d+)\)', line)
-        stable_start = int(matches.group(1))
-        stable_stop = int(matches.group(2))
-        self.stable = Timestamp(stable_start, stable_stop)
-
-        matches = re.search('oldest_timestamp=\((\d+), (\d+)\)', line)
-        oldest_start = int(matches.group(1))
-        oldest_stop = int(matches.group(2))
-        self.oldest = Timestamp(oldest_start, oldest_stop)
+        self.stable = self.__extract_simple_timestamp('stable_timestamp', line)
+        self.oldest = self.__extract_simple_timestamp('oldest_timestamp', line)
 
     def __init_hs_stop_obsolete(self, line):
         self.type = OpType.HS_STOP_OBSOLETE
@@ -472,10 +386,7 @@ class Operation:
         self.stop = Timestamp(start_start, start_end)
         self.stop_txn = int(matches.group(10))
 
-        matches = re.search('pinned_timestamp=\((\d+), (\d+)\)', line)
-        pinned_start = int(matches.group(1))
-        pinned_stop = int(matches.group(2))
-        self.pinned = Timestamp(pinned_start, pinned_stop)
+        self.pinned = self.__extract_simple_timestamp('pinned_timestamp', line)
 
     def __init_recover_ckpt(self, line):
         self.type = OpType.RECOVER_CKPT
@@ -493,24 +404,14 @@ class Operation:
         self.type = OpType.HS_TREE_ROLLBACK
         self.file = self.__extract_file(line)
 
-        matches = re.search('durable_timestamp=\((\d+), (\d+)\)', line)
-        durable_start = int(matches.group(1))
-        durable_stop = int(matches.group(2))
-        self.durable = Timestamp(durable_start, durable_stop)
+        self.durable = self.__extract_simple_timestamp('durable_timestamp', line)
 
     def __init_hs_tree_skip(self, line):
         self.type = OpType.HS_TREE_SKIP
         self.file = self.__extract_file(line)
 
-        matches = re.search('durable_timestamp=\((\d+), (\d+)\)', line)
-        durable_start = int(matches.group(1))
-        durable_stop = int(matches.group(2))
-        self.durable = Timestamp(durable_start, durable_stop)
-
-        matches = re.search('stable_timestamp=\((\d+), (\d+)\)', line)
-        stable_start = int(matches.group(1))
-        stable_stop = int(matches.group(2))
-        self.stable = Timestamp(stable_start, stable_stop)
+        self.durable = self.__extract_simple_timestamp('durable_timestamp', line)
+        self.stable = self.__extract_simple_timestamp('stable_timestamp', line)
 
     def __init_hs_abort_stop(self, line):
         self.type = OpType.HS_ABORT_STOP
@@ -532,10 +433,7 @@ class Operation:
         commit_stop_stop = int(matches.group(4))
         self.commit_stop = Timestamp(commit_stop_start, commit_stop_stop)
 
-        matches = re.search('stable_timestamp=\((\d+), (\d+)\)', line)
-        stable_start = int(matches.group(1))
-        stable_stop = int(matches.group(2))
-        self.stable = Timestamp(stable_start, stable_start)
+        self.stable = self.__extract_simple_timestamp('stable_timestamp', line)
 
     def __init_hs_restore_tombstone(self, line):
         self.type = OpType.HS_RESTORE_TOMBSTONE
@@ -544,15 +442,8 @@ class Operation:
         matches = re.search('txnid=(\d+)', line)
         self.txnid = int(matches.group(1))
 
-        matches = re.search('start_ts=\((\d+), (\d+)\)', line)
-        start_start = int(matches.group(1))
-        start_end = int(matches.group(2))
-        self.start = Timestamp(start_start, start_end)
-
-        matches = re.search('durable_ts=\((\d+), (\d+)\)', line)
-        durable_start = int(matches.group(1))
-        durable_end = int(matches.group(2))
-        self.durable = Timestamp(durable_start, durable_end)
+        self.start = self.__extract_simple_timestamp('start_ts', line)
+        self.durable = self.__extract_simple_timestamp('durable_ts', line)
 
     def __init_file_skip(self, line):
         self.type = OpType.TREE_SKIP

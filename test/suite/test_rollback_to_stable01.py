@@ -39,7 +39,9 @@ def get_git_root():
 def verify_rts_logs():
     cwd = os.getcwd()
     root = get_git_root()
-    subprocess.run([f"{root}/tools/rts_verifier/rts_verify.py", f"{cwd}/stdout.txt"], check=True)
+    output = subprocess.run([f"{root}/tools/rts_verifier/rts_verify.py", f"{cwd}/stdout.txt"], check=False)
+    stderr = b'' if output.stderr is None else output.stderr
+    return (output.returncode, stderr.strip().decode('utf-8'))
 
 # test_rollback_to_stable01.py
 # Shared base class used by rollback to stable tests.

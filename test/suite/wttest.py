@@ -682,12 +682,18 @@ class WiredTigerTestCase(unittest.TestCase):
             for f in files:
                 os.chmod(os.path.join(root, f), 0o666)
 
+    # Return value should be a tuple with the first value an integer (non-zero to indicate failure),
+    # and the second value a string suitable for printing when the test fails.
     def addTearDownAction(self, action):
         self.teardown_actions.append(action)
 
     def tearDown(self, dueToRetry=False):
         for action in self.teardown_actions:
-            action()
+            tmp = action()
+            if tmp[0] != 0:
+                WiredTigerTestCase.prout('ERROR: teardown action failed, message=' + tmp[1])
+                self.fail('teardown action failed, message={}'.format(tmp[1]))
+
         # This approach works for all our support Python versions and
         # is suggested by one of the answers in:
         # https://stackoverflow.com/questions/4414234/getting-pythons-unittest-results-in-a-teardown-method

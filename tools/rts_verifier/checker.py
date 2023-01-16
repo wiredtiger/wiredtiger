@@ -10,64 +10,17 @@ class Checker:
         self.visited_pages = set()
 
     def apply(self, operation):
-        if operation.type == OpType.INIT:
-            self.__apply_check_init(operation)
-        elif operation.type == OpType.TREE:
-            self.__apply_check_tree(operation)
-        elif operation.type == OpType.TREE_LOGGING:
-            self.__apply_check_tree_logging(operation)
-        elif operation.type == OpType.PAGE_ROLLBACK:
-            self.__apply_check_page_rollback(operation)
-        elif operation.type == OpType.UPDATE_ABORT:
-            self.__apply_check_update_abort(operation)
-        elif operation.type == OpType.PAGE_ABORT_CHECK:
-            self.__apply_check_page_abort_check(operation)
-        elif operation.type == OpType.KEY_CLEAR_REMOVE:
-            self.__apply_check_key_clear_remove(operation)
-        elif operation.type == OpType.ONDISK_KV_REMOVE:
-            self.__apply_check_ondisk_kv_remove(operation)
-        elif operation.type == OpType.SHUTDOWN_INIT:
-            self.__apply_check_shutdown_init(operation)
-        elif operation.type == OpType.TREE_SKIP:
-            self.__apply_check_tree_skip(operation)
-        elif operation.type == OpType.SKIP_DEL_NULL:
-            self.__apply_check_skip_del_null(operation)
-        elif operation.type == OpType.ONDISK_ABORT_TW:
-            self.__apply_check_ondisk_abort_tw(operation)
-        elif operation.type == OpType.ONDISK_KEY_ROLLBACK:
-            self.__apply_check_ondisk_key_rollback(operation)
-        elif operation.type == OpType.HS_UPDATE_ABORT:
-            self.__apply_check_hs_update_abort(operation)
-        elif operation.type == OpType.HS_UPDATE_VALID:
-            self.__apply_check_hs_update_valid(operation)
-        elif operation.type == OpType.HS_UPDATE_RESTORED:
-            self.__apply_check_hs_update_restored(operation)
-        elif operation.type == OpType.KEY_REMOVED:
-            self.__apply_check_key_removed(operation)
-        elif operation.type == OpType.STABLE_PG_WALK_SKIP:
-            self.__apply_check_stable_pg_walk_skip(operation)
-        elif operation.type == OpType.SKIP_UNMODIFIED:
-            self.__apply_check_skip_unmodified(operation)
-        elif operation.type == OpType.HS_GT_ONDISK:
-            self.__apply_check_hs_gt_ondisk(operation)
-        elif operation.type == OpType.RECOVERY_RTS:
-            self.__apply_check_recovery_rts(operation)
-        elif operation.type == OpType.HS_STOP_OBSOLETE:
-            self.__apply_check_hs_stop_obsolete(operation)
-        elif operation.type == OpType.RECOVER_CKPT:
-            self.__apply_check_recover_ckpt(operation)
-        elif operation.type == OpType.HS_TREE_ROLLBACK:
-            self.__apply_check_hs_tree_rollback(operation)
-        elif operation.type == OpType.HS_TREE_SKIP:
-            self.__apply_check_hs_tree_skip(operation)
-        elif operation.type == OpType.HS_ABORT_STOP:
-            self.__apply_check_hs_abort_stop(operation)
-        elif operation.type == OpType.HS_RESTORE_TOMBSTONE:
-            self.__apply_check_hs_restore_tombstone(operation)
-        elif operation.type == OpType.FILE_SKIP:
-            self.__apply_check_file_skip(operation)
-        else:
-            raise Exception(f"failed to parse {operation.line}")
+        # The type's name will be something like 'PAGE_ROLLBACK'.
+        opname = operation.type.name.lower()
+
+        # Construct the name of the function call from the opname, e.g. __apply_check_page_rollback.
+        # The '_Checker' bit is the class name.
+        ptr = getattr(self, '_Checker__apply_check_' + opname)
+        if ptr is None:
+            raise Exception("Checker got an operation type it didn't understand!")
+
+        # Call the function we found.
+        ptr(operation)
 
     def __apply_check_init(self, operation):
         # reset a bunch of internal state
@@ -176,6 +129,10 @@ class Checker:
         pass
 
     def __apply_check_shutdown_init(self, operation):
+        # TODO expand this out
+        pass
+
+    def __apply_check_tree_skip(self, operation):
         # TODO expand this out
         pass
 
