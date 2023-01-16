@@ -51,8 +51,7 @@ int
 azure_connection::list_objects(const std::string &prefix, std::vector<std::string> &objects, bool list_single) const
 {
     Azure::Storage::Blobs::ListBlobsOptions blob_parameters;
-    strcpy(blob_parameters.Prefix, prefix);
-
+    blob_parameters.Prefix = prefix;
 
     auto list_blobs_response = _azure_client.ListBlobs(blob_parameters);
 
