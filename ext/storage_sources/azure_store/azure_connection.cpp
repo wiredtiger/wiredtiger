@@ -31,6 +31,10 @@
 #include <azure/core.hpp>
 #include <azure/storage/blobs.hpp>
 
+#include <stdlib.h>
+#include <iostream>
+#include <vector>
+
 azure_connection::azure_connection(const std::string &bucket_name, const std::string &obj_prefix)
     : _azure_client(Azure::Storage::Blobs::BlobContainerClient::CreateFromConnectionString(
         std::getenv("AZURE_STORAGE_CONNECTION_STRING"), bucket_name)),
@@ -38,9 +42,23 @@ azure_connection::azure_connection(const std::string &bucket_name, const std::st
 {
 }
 
+/*
+ * Lists all of the objects (blobs) on the bucket (container) utilising the 
+ * listBlobs function form the Azure SDK
+ */
 int
-azure_connection::list_objects(std::vector<std::string> &objects) const
+azure_connection::list_objects(std::vector<std::string> &objects, bool list_single) const
 {
+    auto list_blobs_response = _azure_client.ListBlobs();
+
+    for (auto blob_item : list_blobs_response.Blobs)
+    {
+        if (!blob_item.IsDeleted) {
+            objects.push_back(blob_item.Name);
+            if (list_single)
+                break;
+        }
+    }
     return 0;
 }
 
