@@ -54,7 +54,7 @@
     "bucket,bucket_prefix=pfx-,local_retention=%d,name=%s)"
 #define TESTUTIL_ENV_CONFIG_TIERED_EXT        \
     ",extensions=(%s/ext/storage_sources/%s/" \
-    "libwiredtiger_%s.so=(early_load=true))"
+    "libwiredtiger_%s.so=(early_load=true,config=\"(verbose=1,delay_ms=200,force_delay=3)\"))"
 #define TESTUTIL_ENV_CONFIG_REC \
     ",log=(recover=on,remove=false),statistics=(all),statistics_log=(json,on_close,wait=1)"
 #define TESTUTIL_ENV_CONFIG_COMPAT ",compatibility=(release=\"2.9\")"
@@ -83,6 +83,11 @@ typedef struct {
     WT_RAND_STATE extra_rnd; /* PRNG state for extra ops */
     uint64_t data_seed;      /* Random seed for data ops */
     uint64_t extra_seed;     /* Random seed for extra ops */
+
+    uint32_t force_delay; /* Force a simulated network delay every N operations */
+    uint32_t delay_ms;    /* Average length of delay when simulated */
+    uint32_t force_error; /* Force a simulated network error every N operations */
+    uint32_t error_ms;    /* Average length of delay when simulated */
 
 #define TESTUTIL_SEED_FORMAT "-PSD%" PRIu64 ",E%" PRIu64
 
