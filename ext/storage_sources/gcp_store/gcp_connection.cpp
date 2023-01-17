@@ -31,6 +31,7 @@
 #include <fstream>
 
 namespace gcs = google::cloud::storage;
+using namespace gcs;
 
 gcp_connection::gcp_connection(const std::string &bucket_name)
     : _gcp_client(google::cloud::storage::Client()), _bucket_name(bucket_name)
@@ -42,30 +43,19 @@ int
 gcp_connection::list_objects(
   const std::string &prefix, std::vector<std::string> &objects, bool list_single) const
 {
-    using namespace gcs;
     gcs::Client client = _gcp_client;
-    std::string const bucketName = gcp_connection::_bucket_name;
 
-    if (prefix != "") {
-        for (auto &&object_metadata : client.ListObjects(bucketName, gcs::Prefix(prefix))) {
-            if (!object_metadata)
-                std::cout << "list failed";
+    //Fetch the objects from the given bucket
+    //If prefix is given ListObject will filter the objects in the bucket and only return the one that matches with the prefix
+    for (auto &&object_metadata : client.ListObjects(_bucket_name, gcs::Prefix(prefix))) {
+        // check if the current object is accessible
+        if (!object_metadata)
+            std::cout << "List failed: object not accessible";
 
-            objects.push_back(object_metadata->name());
+        objects.push_back(object_metadata->name());
 
-            if (list_single)
-                break;
-        }
-    } else {
-        for (auto &&object_metadata : client.ListObjects(bucketName)) {
-            if (!object_metadata)
-                std::cout << "list failed";
-
-            objects.push_back(object_metadata->name());
-
-            if (list_single)
-                break;
-        }
+        if (list_single)
+            break;
     }
 
     return 0;
