@@ -57,8 +57,7 @@ gcp_connection::delete_object(const std::string &object_key) const
 {
     using namespace gcs;
     gcs::Client client = _gcp_client;
-    google::cloud::Status status =
-        client.DeleteObject(_bucket_name, object_key);
+    google::cloud::Status status = client.DeleteObject(_bucket_name, object_key);
 
     if (!status.ok()) {
         std::cout << status.code();
