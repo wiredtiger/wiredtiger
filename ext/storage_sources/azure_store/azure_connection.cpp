@@ -44,7 +44,7 @@ azure_connection::azure_connection(const std::string &bucket_name, const std::st
 }
 
 /*
- * Build a list of all of the objects in the bucket
+ * Build a list of all of the objects in the bucket.
  */
 int
 azure_connection::list_objects(
