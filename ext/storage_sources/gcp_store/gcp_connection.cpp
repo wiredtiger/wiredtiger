@@ -39,29 +39,30 @@ gcp_connection::gcp_connection(const std::string &bucket_name)
 
 // Builds a list of object names from the bucket.
 int
-gcp_connection::list_objects(const std::string &prefix, std::vector<std::string> &objects, bool list_single) const
+gcp_connection::list_objects(
+  const std::string &prefix, std::vector<std::string> &objects, bool list_single) const
 {
     using namespace gcs;
     gcs::Client client = _gcp_client;
     std::string const bucketName = gcp_connection::_bucket_name;
 
-    if (prefix != ""){
-        for (auto&& object_metadata : client.ListObjects(bucketName, gcs::Prefix(prefix))) {
-            if (!object_metadata) 
+    if (prefix != "") {
+        for (auto &&object_metadata : client.ListObjects(bucketName, gcs::Prefix(prefix))) {
+            if (!object_metadata)
                 std::cout << "list failed";
 
             objects.push_back(object_metadata->name());
-            
+
             if (list_single)
                 break;
         }
     } else {
-        for (auto&& object_metadata : client.ListObjects(bucketName)) {
-            if (!object_metadata) 
+        for (auto &&object_metadata : client.ListObjects(bucketName)) {
+            if (!object_metadata)
                 std::cout << "list failed";
 
             objects.push_back(object_metadata->name());
-            
+
             if (list_single)
                 break;
         }
