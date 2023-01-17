@@ -35,28 +35,32 @@
  * the code.
  */
 
+#include <math.h>
 #include "test_util.h"
 
 extern int __wt_optind;
 extern char *__wt_optarg;
 
 static uint64_t seed = 0;
+static uint32_t key_count = 100000;
 
 /* Test parameters. Eventually these should become command line args */
 
-#define NKEYS 10000       /* Total number of keys to insert */
-#define INSERT_THREADS 10 /* Number of threads doing inserts */
+#define INSERT_THREADS 8 /* Number of threads doing inserts */
 #define VERIFY_THREADS 2  /* Number of threads doing verify */
 #define NTHREADS (INSERT_THREADS + VERIFY_THREADS)
+
+typedef enum { KEYS_NOT_CONFIG, KEYS_ADJACENT, KEYS_PARETO, KEYS_UNIFORM } test_type;
 
 typedef struct {
     WT_CONNECTION *conn;
     WT_INSERT_HEAD *ins_head;
+    uint32_t id;
     char **keys;
-    int id;
+    uint32_t nkeys;
 } THREAD_DATA;
 
-static volatile enum {WAITING, RUNNING, DONE} test_state;
+static volatile enum { WAITING, RUNNING, DONE } test_state;
 
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
@@ -67,7 +71,11 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
 usage(void)
 {
-    fprintf(stderr, "usage: %s [-h dir] [-p] [-S seed]\n", progname);
+    fprintf(stderr, "usage: %s [-adr] [-h dir] [-k key_count] [-S seed]\n", progname);
+    fprintf(stderr, "    -a Adjacent keys\n");
+    fprintf(stderr, "    -d Pareto distributed random keys\n");
+    fprintf(stderr, "    -r Uniform random keys\n");
+    fprintf(stderr, "Only one of the -adr options may be used\n");
     exit(EXIT_FAILURE);
 }
 
@@ -362,7 +370,7 @@ verify_list(WT_SESSION *session, WT_INSERT_HEAD *ins_head)
         testutil_check(__wt_compare((WT_SESSION_IMPL *)session, NULL, &prev, &cur, &cmp));
         if (cmp >= 0) {
             printf("Out of order keys: %s before %s\n", (char *)prev.data, (char *)cur.data);
-            testutil_assert(cmp < 0);
+            testutil_assert(false);
         }
         prev = cur;
     }
@@ -382,7 +390,7 @@ thread_insert_run(void *arg)
     WT_SESSION *session;
     THREAD_DATA *td;
     char **key_list;
-    int i;
+    uint32_t i;
 
     td = (THREAD_DATA *)arg;
     conn = td->conn;
@@ -400,9 +408,11 @@ thread_insert_run(void *arg)
         ;
 
     /* Insert the keys. */
-    for (i = td->id; i < NKEYS; i += INSERT_THREADS)
+    for (i = 0; i < td->nkeys; i++) {
         while ((ret = insert((WT_SESSION_IMPL *)session, cbt, ins_head, key_list[i]) == WT_RESTART))
             ;
+        testutil_assert (ret == 0);
+    }
 
     free(cbt);
 
@@ -438,6 +448,18 @@ thread_verify_run(void *arg)
     return (WT_THREAD_RET_VALUE);
 }
 
+static uint32_t pareto(uint32_t input_val){
+    uint32_t r_val;
+    double S1, S2, U;
+
+#define PARETO_SHAPE 1.5
+    S1 = (-1 / PARETO_SHAPE);
+    S2 = key_count * (10 / 100.0) * (PARETO_SHAPE - 1);
+    U = 1 - (double)input_val / (double)UINT32_MAX;
+    r_val = (uint32_t)((pow(U, S1) - 1) * S2);
+    return r_val;
+}
+
 /*
  * main --
  *     Test body
@@ -452,16 +474,37 @@ main(int argc, char *argv[])
     WT_SESSION *session;
     char command[1024], home[1024];
     const char *working_dir;
+    test_type config;
     THREAD_DATA *td;
     wt_thread_t *thr;
-    int ch, i, status;
+    uint32_t i, idx, j, r_val, thread_keys;
+    int ch, status;
 
     working_dir = "WT_TEST.skip_list_stress";
+    config = KEYS_NOT_CONFIG;
 
-    while ((ch = __wt_getopt(progname, argc, argv, "h:pS:v:")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "adh:k:rS:")) != EOF)
         switch (ch) {
+        case 'a':
+            if (config != KEYS_NOT_CONFIG)
+                usage();
+            config = KEYS_ADJACENT;
+            break;
+        case 'd':
+            if (config != KEYS_NOT_CONFIG)
+                usage();
+            config = KEYS_PARETO;
+            break;
         case 'h':
             working_dir = __wt_optarg;
+            break;
+        case 'k':
+            key_count = (uint32_t) atoll(__wt_optarg);
+            break;
+        case 'r':
+            if (config != KEYS_NOT_CONFIG)
+                usage();
+            config = KEYS_UNIFORM;
             break;
         case 'S':
             seed = (uint64_t)atoll(__wt_optarg);
@@ -479,6 +522,12 @@ main(int argc, char *argv[])
     } else
         rnd.v = seed;
 
+    thread_keys = key_count / INSERT_THREADS;
+
+    /* By default, test with uniform random keys */
+    if (config == KEYS_NOT_CONFIG)
+        config = KEYS_UNIFORM;
+
     testutil_work_dir_from_path(home, sizeof(home), working_dir);
     testutil_check(__wt_snprintf(command, sizeof(command), "rm -rf %s; mkdir %s", home, home));
     if ((status = system(command)) < 0)
@@ -490,23 +539,64 @@ main(int argc, char *argv[])
     ins_head = dcalloc(1, sizeof(WT_INSERT_HEAD));
 
     /*
-     * Generate some keys
-     *
-     * N.B., the key strings here are stored in the skip list. So we need a separate buffer for each
-     * key.
+     * Generate the keys. Each insert thread will operate on a separate part of the key_list array.
+     * N.B., the key strings here are stored in the skip list. So we need a separate buffer for
+     * each key.
      */
-    key_list = dmalloc(NKEYS * sizeof(char *));
-    for (i = 0; i < NKEYS; i++) {
-        key_list[i] = dmalloc(100);
-        sprintf(key_list[i], "This is key #%u.%d", __wt_random(&rnd), i);
+    key_list = dmalloc(key_count * sizeof(char *));
+    switch (config) {
+        case KEYS_NOT_CONFIG:
+            usage();
+            /* NOT REACHED */
+
+        case KEYS_ADJACENT:
+            /* 
+             * Pairs of threads operate in the same region of key space, one inserting keys from
+             * low to high while the other insers keys from high to low. The goal is to generate
+             * pairs of inserts that are adjacent in the skip list. We should get this behavior as
+             * each thread's current insert should be adjacent to its partner thread's current 
+             * insert, as we haven't yet added any keys between those two.
+             */
+
+            /* Even numbered threads get increasing keys */
+            for (i = 0; i < INSERT_THREADS; i += 2)
+                for (j = 0, idx = i * thread_keys; j < thread_keys; j++, idx++) {
+                    key_list[idx] = dmalloc(20);
+                    sprintf(key_list[idx], "Key #%c.%06d", 'A' + i, j);
+                }
+
+            /* Odd numbered threads get decreasing keys */
+            for (i = 1; i < INSERT_THREADS; i += 2)
+                for (j = 0, idx = i * thread_keys; j < thread_keys; j++, idx++) {
+                    key_list[idx] = dmalloc(20);
+                    sprintf(key_list[idx], "Key %c.%06d", 'A' + i - 1, (2 * thread_keys - j));
+                }
+            break;
+
+        case KEYS_PARETO:
+            /* FALLTHROUGH */
+        case KEYS_UNIFORM:
+            key_list = dmalloc(key_count * sizeof(char *));
+            for (i = 0; i < key_count; i++) {
+                key_list[i] = dmalloc(20);
+                r_val = __wt_random(&rnd);
+                if (config == KEYS_PARETO) {
+                    r_val = pareto(r_val);
+                    r_val = r_val % key_count;
+                }
+                sprintf(key_list[i], "%u.%d", r_val, i);
+            }
+            break;
     }
 
+    /* Set up threads */
     td = dmalloc(NTHREADS * sizeof(THREAD_DATA));
     for (i = 0; i < NTHREADS; i++) {
         td[i].conn = conn;
         td[i].id = i;
         td[i].ins_head = ins_head;
-        td[i].keys = key_list;
+        td[i].keys = key_list + i * thread_keys;
+        td[i].nkeys = thread_keys;
     }
 
     thr = dmalloc(NTHREADS * sizeof(wt_thread_t));
