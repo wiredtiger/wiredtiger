@@ -29,10 +29,4 @@
 #define CATCH_CONFIG_MAIN
 #include <catch2/catch.hpp>
 
-#include "azure_connection.h"
-
-// Includes necessary for connection
-#include <azure/core.hpp>
-#include <azure/storage/blobs.hpp>
-
 TEST_CASE("testing class azure_connection", "azure_connection") {}
