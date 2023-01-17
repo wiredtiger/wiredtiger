@@ -61,11 +61,9 @@ gcp_connection::delete_object(const std::string &object_key) const
         client.DeleteObject(_bucket_name, object_key);
 
     if (!status.ok()) {
-        throw std::runtime_error(status.message());
+        std::cout << status.code();
         return -1;
     }
-
-    std::cout << "Deleted " << object_key << " in bucket " << _bucket_name << "\n";
     return 0;
 }
 
