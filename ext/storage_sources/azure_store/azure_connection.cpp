@@ -51,6 +51,8 @@ int
 azure_connection::list_objects(
   const std::string &prefix, std::vector<std::string> &objects, bool list_single) const
 {
+    objects::clear();
+    
     Azure::Storage::Blobs::ListBlobsOptions blob_parameters;
     blob_parameters.Prefix = prefix;
 
