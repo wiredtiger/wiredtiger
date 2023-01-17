@@ -53,10 +53,8 @@ int
 azure_connection::put_object(const std::string &file_name) const
 {
     std::filesystem::path p(file_name);
-    Azure::Storage::Blobs::BlockBlobClient blobClient =
-      _azure_client.GetBlockBlobClient(p.filename());
-    Azure::Response<Azure::Storage::Blobs::Models::UploadBlockBlobResult> result =
-      blobClient.UploadFrom(file_name);
+    auto blobClient = _azure_client.GetBlockBlobClient(p.filename());
+    auto result = blobClient.UploadFrom(file_name);
     return 0;
 }
 
