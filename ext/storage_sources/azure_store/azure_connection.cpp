@@ -47,12 +47,14 @@ azure_connection::list_objects(std::vector<std::string> &objects) const
 }
 
 /*
- * Puts an object (blob) given a reference to the filename
+ * Puts an object given a reference to the filename
  */
 int
 azure_connection::put_object(const std::string &file_name) const
 {
     std::filesystem::path p(file_name);
+    if (!std::filesystem::exists(p))
+        throw std::invalid_argument(file_name + ": No such file exists.");
     auto blobClient = _azure_client.GetBlockBlobClient(p.filename());
     auto result = blobClient.UploadFrom(file_name);
     return 0;
