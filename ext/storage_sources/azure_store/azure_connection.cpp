@@ -46,15 +46,17 @@ azure_connection::list_objects(std::vector<std::string> &objects) const
     return 0;
 }
 
-/* 
+/*
  * Puts an object (blob) given a reference to the filename
  */
 int
 azure_connection::put_object(const std::string &file_name) const
 {
     std::filesystem::path p(file_name);
-    Azure::Storage::Blobs::BlockBlobClient blobClient = _azure_client.GetBlockBlobClient(p.filename());
-    Azure::Response<Azure::Storage::Blobs::Models::UploadBlockBlobResult> result = blobClient.UploadFrom(file_name);
+    Azure::Storage::Blobs::BlockBlobClient blobClient =
+      _azure_client.GetBlockBlobClient(p.filename());
+    Azure::Response<Azure::Storage::Blobs::Models::UploadBlockBlobResult> result =
+      blobClient.UploadFrom(file_name);
     return 0;
 }
 
