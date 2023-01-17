@@ -47,9 +47,8 @@ static uint32_t key_count = 100000;
 
 /* Test parameters. Eventually these should become command line args */
 
-#define INSERT_THREADS 8 /* Number of threads doing inserts */
-#define VERIFY_THREADS 2  /* Number of threads doing verify */
-#define NTHREADS (INSERT_THREADS + VERIFY_THREADS)
+#define INSERT_THREADS 8  /* Default number of threads doing inserts */
+#define VERIFY_THREADS 2  /* Default number of threads doing verify */
 
 typedef enum { KEYS_NOT_CONFIG, KEYS_ADJACENT, KEYS_PARETO, KEYS_UNIFORM } test_type;
 
@@ -72,7 +71,7 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
 usage(void)
 {
-    fprintf(stderr, "usage: %s [-adr] [-h dir] [-k key_count] [-S seed]\n", progname);
+    fprintf(stderr, "usage: %s [-adr] [-h dir] [-k key_count] [-S seed] [-t insert threads]\n", progname);
     fprintf(stderr, "    -a Adjacent keys\n");
     fprintf(stderr, "    -d Pareto distributed random keys\n");
     fprintf(stderr, "    -r Uniform random keys\n");
@@ -486,13 +485,16 @@ main(int argc, char *argv[])
     THREAD_DATA *td;
     wt_thread_t *thr;
     uint32_t i, idx, j, r_val, thread_keys;
+    uint32_t insert_threads, nthreads;
     int ch, status;
+
+    insert_threads = INSERT_THREADS;
 
     pareto_dist = false;
     working_dir = "WT_TEST.skip_list_stress";
     config = KEYS_NOT_CONFIG;
 
-    while ((ch = __wt_getopt(progname, argc, argv, "adh:k:rS:")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "adh:k:rS:t:")) != EOF)
         switch (ch) {
         case 'a':
             if (config != KEYS_NOT_CONFIG)
@@ -518,6 +520,13 @@ main(int argc, char *argv[])
         case 'S':
             seed = (uint64_t)atoll(__wt_optarg);
             break;
+        case 't':
+            insert_threads = (uint32_t) atoll(__wt_optarg);
+            if (insert_threads < 2) {
+                fprintf (stderr, "Test requires at least 2 insert threads\n");
+                exit(EXIT_FAILURE);
+            }
+            break;
         default:
             usage();
         }
@@ -531,7 +540,8 @@ main(int argc, char *argv[])
     } else
         rnd.v = seed;
 
-    thread_keys = key_count / INSERT_THREADS;
+    nthreads = insert_threads + VERIFY_THREADS;
+    thread_keys = key_count / insert_threads;
 
     /* By default, test with uniform random keys */
     if (config == KEYS_NOT_CONFIG)
@@ -568,14 +578,14 @@ main(int argc, char *argv[])
              */
 
             /* Even numbered threads get increasing keys */
-            for (i = 0; i < INSERT_THREADS; i += 2)
+            for (i = 0; i < insert_threads; i += 2)
                 for (j = 0, idx = i * thread_keys; j < thread_keys; j++, idx++) {
                     key_list[idx] = dmalloc(20);
                     sprintf(key_list[idx], "Key #%c.%06d", 'A' + i, j);
                 }
 
             /* Odd numbered threads get decreasing keys */
-            for (i = 1; i < INSERT_THREADS; i += 2)
+            for (i = 1; i < insert_threads; i += 2)
                 for (j = 0, idx = i * thread_keys; j < thread_keys; j++, idx++) {
                     key_list[idx] = dmalloc(20);
                     sprintf(key_list[idx], "Key %c.%06d", 'A' + i - 1, (2 * thread_keys - j));
@@ -599,8 +609,8 @@ main(int argc, char *argv[])
     }
 
     /* Set up threads */
-    td = dmalloc(NTHREADS * sizeof(THREAD_DATA));
-    for (i = 0; i < NTHREADS; i++) {
+    td = dmalloc(nthreads * sizeof(THREAD_DATA));
+    for (i = 0; i < nthreads; i++) {
         td[i].conn = conn;
         td[i].id = i;
         td[i].ins_head = ins_head;
@@ -608,12 +618,12 @@ main(int argc, char *argv[])
         td[i].nkeys = thread_keys;
     }
 
-    thr = dmalloc(NTHREADS * sizeof(wt_thread_t));
+    thr = dmalloc(nthreads * sizeof(wt_thread_t));
 
     /* Start threads */
     test_state = WAITING;
-    for (i = 0; i < NTHREADS; i++)
-        if (i < INSERT_THREADS)
+    for (i = 0; i < nthreads; i++)
+        if (i < insert_threads)
             testutil_check(__wt_thread_create(NULL, &thr[i], thread_insert_run, &td[i]));
         else
             testutil_check(__wt_thread_create(NULL, &thr[i], thread_verify_run, &td[i]));
@@ -621,12 +631,12 @@ main(int argc, char *argv[])
     test_state = RUNNING;
 
     /* Wait for insert threads to complete */
-    for (i = 0; i < INSERT_THREADS; i++)
+    for (i = 0; i < insert_threads; i++)
         testutil_check(__wt_thread_join(NULL, &thr[i]));
 
     /* Tell verify threads to stop */
     test_state = DONE;
-    for (i = INSERT_THREADS; i < NTHREADS; i++)
+    for (i = insert_threads; i < nthreads; i++)
         testutil_check(__wt_thread_join(NULL, &thr[i]));
 
     /* Final verification of skiplist */
