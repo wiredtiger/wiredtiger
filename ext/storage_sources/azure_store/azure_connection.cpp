@@ -52,13 +52,13 @@ azure_connection::list_objects(
 {
     Azure::Storage::Blobs::ListBlobsOptions blob_parameters;
     blob_parameters.Prefix = prefix;
-    // if list_single is true, set the maximum number of returned blobs in the list_blob_response to one
+    // if list_single is true, set the maximum number of returned blobs in the list_blob_response to one.
     if (list_single)
         blob_parameters.PageSizeHint = 1;
 
     auto list_blobs_response = _azure_client.ListBlobs(blob_parameters);
 
-    for (auto blob_item : list_blobs_response.Blobs) {
+    for (const auto blob_item : list_blobs_response.Blobs) {
         objects.push_back(blob_item.Name);
     }
     return 0;
