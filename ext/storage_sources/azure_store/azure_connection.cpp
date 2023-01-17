@@ -31,7 +31,7 @@
 #include <azure/core.hpp>
 #include <azure/storage/blobs.hpp>
 
-#include <stdlib.h>
+#include <cstdlib>
 #include <iostream>
 #include <vector>
 #include <string>
