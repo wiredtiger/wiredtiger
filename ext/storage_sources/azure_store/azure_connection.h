@@ -33,6 +33,9 @@
 
 #include <string>
 
+/*
+ * In Azure: Buckets are synonymous with Containers, and Objects are synonymous with Blobs.
+ */
 class azure_connection {
     public:
     azure_connection(const std::string &bucket_name, const std::string &obj_prefix = "");

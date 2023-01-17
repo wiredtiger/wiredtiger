@@ -44,24 +44,21 @@ azure_connection::azure_connection(const std::string &bucket_name, const std::st
 }
 
 /*
- * Lists all of the objects (blobs) on the bucket (container) utilising the listBlobs function form
- * the Azure SDK
+ * Build a list of all of the objects in the bucket
  */
 int
 azure_connection::list_objects(
   const std::string &prefix, std::vector<std::string> &objects, bool list_single) const
 {
-    objects::clear();
-    
     Azure::Storage::Blobs::ListBlobsOptions blob_parameters;
     blob_parameters.Prefix = prefix;
+    if (list_single)
+        blob_parameters.PageSizeHint = 1;
 
     auto list_blobs_response = _azure_client.ListBlobs(blob_parameters);
 
     for (auto blob_item : list_blobs_response.Blobs) {
         objects.push_back(blob_item.Name);
-        if (list_single)
-            break;
     }
     return 0;
 }

@@ -38,20 +38,7 @@
 #include <azure/core.hpp>
 #include <azure/storage/blobs.hpp>
 
-TEST_CASE("testing class azure_connection", "azure_connection")
+TEST_CASE("testing class azure_connection")
 {
-
-    // std::string blob_name = "blob.txt";
-    // uint8_t blob_content[] = "Hello Azure!";
-    // azure_connection conn = azure_connection("bucket_name", "");
-    // Azure::Storage::Blobs::BlockBlobClient blob_client =
-    // conn._azure_client.GetBlockBlobClient(blob_name); blob_client.UploadFrom(blob_content,
-    // sizeof(blob_content));
-
-    SECTION("List blobs under the test container.")
-    {
-        // std::vector<std::string> objects;
-        // REQUIRE(conn.list_objects(objects, false) == 0);
-        // REQUIRE(objects.size() == 1);
-    }
+    SECTION("List blobs under the test container.") {}
 }
