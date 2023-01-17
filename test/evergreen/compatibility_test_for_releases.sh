@@ -660,7 +660,7 @@ upgrade_to_latest=false
 # Note: If a branch name is not stored in gittags,
 # then the branch name itself will be used for the checkout
 declare -A gittags
-gittags['develop']="wt-10505-have-stable-toolchain"
+gittags['develop']="develop"
 gittags['mongodb-6.0']="mongodb-6.0"
 gittags['mongodb-5.0']="mongodb-5.0"
 gittags['mongodb-4.4']="mongodb-4.4"
