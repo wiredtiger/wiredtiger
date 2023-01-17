@@ -36,6 +36,7 @@
  */
 
 #include "test_util.h"
+#include <math.h>
 
 extern int __wt_optind;
 extern char *__wt_optarg;
@@ -45,7 +46,7 @@ static uint key_count = 100000;
 
 /* Test parameters. Eventually these should become command line args */
 
-#define INSERT_THREADS 20 /* Number of threads doing inserts */
+#define INSERT_THREADS 16 /* Number of threads doing inserts */
 #define VERIFY_THREADS 2  /* Number of threads doing verify */
 #define NTHREADS (INSERT_THREADS + VERIFY_THREADS)
 
@@ -438,6 +439,20 @@ thread_verify_run(void *arg)
     return (WT_THREAD_RET_VALUE);
 }
 
+
+static uint32_t pareto(uint32_t input_val){
+    uint32_t r_val;
+    double S1, S2, U;
+
+#define PARETO_SHAPE 1.5
+    S1 = (-1 / PARETO_SHAPE);
+    S2 = key_count * (10 / 100.0) * (PARETO_SHAPE - 1);
+    U = 1 - (double)input_val / (double)UINT32_MAX;
+    r_val = (uint32_t)((pow(U, S1) - 1) * S2);
+    return r_val;
+}
+
+
 /*
  * main --
  *     Test body
@@ -450,15 +465,18 @@ main(int argc, char *argv[])
     WT_INSERT_HEAD *ins_head;
     WT_RAND_STATE rnd;
     WT_SESSION *session;
+    bool pareto_dist;
     char command[1024], home[1024];
     const char *working_dir;
+    uint32_t r_val;
     THREAD_DATA *td;
     wt_thread_t *thr;
     int ch, i, status;
 
+    pareto_dist = false;
     working_dir = "WT_TEST.skip_list_stress";
 
-    while ((ch = __wt_getopt(progname, argc, argv, "h:pS:k:v:")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "h:pS:k:v:d")) != EOF)
         switch (ch) {
         case 'h':
             working_dir = __wt_optarg;
@@ -468,6 +486,9 @@ main(int argc, char *argv[])
             break;
         case 'k':
             key_count = atoll(__wt_optarg);
+            break;
+        case 'd':
+            pareto_dist = true;
             break;
         default:
             usage();
@@ -500,8 +521,13 @@ main(int argc, char *argv[])
      */
     key_list = dmalloc(key_count * sizeof(char *));
     for (i = 0; i < (int)key_count; i++) {
-        key_list[i] = dmalloc(100);
-        sprintf(key_list[i], "This is key #%u.%d", __wt_random(&rnd), i);
+        key_list[i] = dmalloc(20);
+        r_val = __wt_random(&rnd);
+        if (pareto_dist) {
+            r_val = pareto(r_val);
+            r_val = r_val % key_count;
+        }
+        sprintf(key_list[i], "%u.%d", r_val, i);
     }
 
     td = dmalloc(NTHREADS * sizeof(THREAD_DATA));

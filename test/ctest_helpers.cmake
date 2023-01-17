@@ -37,7 +37,7 @@ function(create_test_executable target)
 
     # Define our test executable.
     add_executable(${target} ${CREATE_TEST_SOURCES})
-
+    target_link_libraries(${target} m)
     # For MacOS builds we need to generate a dSYM bundle that contains the debug symbols for each 
     # executable. The name of the binary will either be the name of the target or some other name
     # passed to this function. We need to use the correct one for the dsymutil.
