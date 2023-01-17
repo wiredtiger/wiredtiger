@@ -36,16 +36,16 @@
 class gcp_connection {
     public:
     gcp_connection(const std::string &bucket_name);
-    int list_objects(std::vector<std::string> &objects) const;
-    int put_object(const std::string &object_key, const std::string &file_name) const;
-    int delete_object(const std::string &object_key) const;
-    int object_exists(const std::string &object_key, bool &exists, size_t &object_size) const;
-    int get_object(const std::string &object_key, const std::string &path) const;
+    int list_objects(std::vector<std::string> &objects);
+    int put_object(const std::string &object_name, const std::string &file_name);
+    int delete_object(const std::string &object_name);
+    int object_exists(const std::string &object_name, bool &exists, size_t &object_size);
+    int get_object(const std::string &object_name, const std::string &path);
 
     ~gcp_connection() = default;
 
     private:
-    const google::cloud::storage::v2_5_0::Client _gcp_client;
+    google::cloud::storage::v2_5_0::Client _gcp_client;
     const std::string _bucket_name;
 
     int bucket_exists(bool &exists) const;
