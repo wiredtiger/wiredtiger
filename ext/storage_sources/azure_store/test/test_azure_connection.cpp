@@ -38,7 +38,4 @@
 #include <azure/core.hpp>
 #include <azure/storage/blobs.hpp>
 
-TEST_CASE("testing class azure_connection")
-{
-    SECTION("List blobs under the test container.") {}
-}
+TEST_CASE("testing class azure_connection", "azure_connection") {}
