@@ -37,9 +37,14 @@ def get_git_root():
     return output.stdout.strip().decode("utf-8")
 
 def verify_rts_logs():
-    cwd = os.getcwd()
-    root = get_git_root()
-    output = subprocess.run([f"{root}/tools/rts_verifier/rts_verify.py", f"{cwd}/stdout.txt"], check=False)
+    binary_path = os.path.join(get_git_root(), 'tools', 'rts_verifier', 'rts_verify.py')
+    stdout_path = os.path.join(os.getcwd(), 'stdout.txt')
+
+    if os.name == 'nt':
+        output = subprocess.run(['python.exe', binary_path, stdout_path])
+    else:
+        output = subprocess.run([binary_path, stdout_path])
+
     stderr = b'' if output.stderr is None else output.stderr
     return (output.returncode, stderr.strip().decode('utf-8'))
 
