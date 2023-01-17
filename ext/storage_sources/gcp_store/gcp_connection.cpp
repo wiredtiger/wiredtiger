@@ -45,8 +45,9 @@ gcp_connection::list_objects(
 {
     gcs::Client client = _gcp_client;
 
-    //Fetch the objects from the given bucket
-    //If prefix is given ListObject will filter the objects in the bucket and only return the one that matches with the prefix
+    // Fetch the objects from the given bucket
+    // If prefix is given ListObject will filter the objects in the bucket and only return the one
+    // that matches with the prefix
     for (auto &&object_metadata : client.ListObjects(_bucket_name, gcs::Prefix(prefix))) {
         // check if the current object is accessible
         if (!object_metadata)
