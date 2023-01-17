@@ -52,6 +52,7 @@ azure_connection::list_objects(
 {
     Azure::Storage::Blobs::ListBlobsOptions blob_parameters;
     blob_parameters.Prefix = prefix;
+    // if list_single is true, set the maximum number of returned blobs in the list_blob_response to one
     if (list_single)
         blob_parameters.PageSizeHint = 1;
 
