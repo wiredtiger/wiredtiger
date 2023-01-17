@@ -37,6 +37,7 @@
 
 #include <math.h>
 #include "test_util.h"
+#include <math.h>
 
 extern int __wt_optind;
 extern char *__wt_optarg;
@@ -448,6 +449,11 @@ thread_verify_run(void *arg)
     return (WT_THREAD_RET_VALUE);
 }
 
+
+/* 
+ * pareto --
+ *    Implementation of Pareto distribution.
+ */
 static uint32_t pareto(uint32_t input_val){
     uint32_t r_val;
     double S1, S2, U;
@@ -459,6 +465,7 @@ static uint32_t pareto(uint32_t input_val){
     r_val = (uint32_t)((pow(U, S1) - 1) * S2);
     return r_val;
 }
+
 
 /*
  * main --
@@ -472,6 +479,7 @@ main(int argc, char *argv[])
     WT_INSERT_HEAD *ins_head;
     WT_RAND_STATE rnd;
     WT_SESSION *session;
+    bool pareto_dist;
     char command[1024], home[1024];
     const char *working_dir;
     test_type config;
@@ -480,6 +488,7 @@ main(int argc, char *argv[])
     uint32_t i, idx, j, r_val, thread_keys;
     int ch, status;
 
+    pareto_dist = false;
     working_dir = "WT_TEST.skip_list_stress";
     config = KEYS_NOT_CONFIG;
 
