@@ -3740,7 +3740,7 @@ tasks:
             export "PATH=/opt/mongodbtoolchain/v4/bin:$PATH"
             virtualenv -p python3 venv
             source venv/bin/activate
-            # need both pymongo and pymongo[srv] as upload-results-atlas.py uses mongo+srv for the URI
+            # Need both pymongo and pymongo[srv] as upload-results-atlas.py uses mongo+srv for the URI.
             pip3 install lorem pymongo==3.12.2 "pymongo[srv]==3.12.2"
             mongod_path=$(find ../../mongo/build -executable -type f -path \*/bin/mongod)
             ./run_many_coll.sh $mongod_path mongodb.log config/many-collection-testing many-collection clean-and-populate
