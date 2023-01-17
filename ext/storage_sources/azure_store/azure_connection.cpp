@@ -40,13 +40,8 @@ azure_connection::azure_connection(const std::string &bucket_name, const std::st
 {
 }
 
-/*
- * Lists all of the objects (blobs) on the bucket (container) utilising the listBlobs function form
- * the Azure SDK
- */
 int
-azure_connection::list_objects(
-  const std::string &prefix, std::vector<std::string> &objects, bool list_single) const
+azure_connection::list_objects(std::vector<std::string> &objects) const
 {
     return 0;
 }
