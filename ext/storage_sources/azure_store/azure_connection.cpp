@@ -31,6 +31,8 @@
 #include <azure/core.hpp>
 #include <azure/storage/blobs.hpp>
 
+#include <filesystem>
+
 azure_connection::azure_connection(const std::string &bucket_name, const std::string &obj_prefix)
     : _azure_client(Azure::Storage::Blobs::BlobContainerClient::CreateFromConnectionString(
         std::getenv("AZURE_STORAGE_CONNECTION_STRING"), bucket_name)),
@@ -38,15 +40,26 @@ azure_connection::azure_connection(const std::string &bucket_name, const std::st
 {
 }
 
+/*
+ * Lists all of the objects (blobs) on the bucket (container) utilising the listBlobs function form
+ * the Azure SDK
+ */
 int
-azure_connection::list_objects(std::vector<std::string> &objects) const
+azure_connection::list_objects(
+  const std::string &prefix, std::vector<std::string> &objects, bool list_single) const
 {
     return 0;
 }
 
+/* 
+ * Puts an object (blob) given a reference to the filename
+ */
 int
 azure_connection::put_object(const std::string &file_name) const
 {
+    std::filesystem::path p(file_name);
+    Azure::Storage::Blobs::BlockBlobClient blobClient = _azure_client.GetBlockBlobClient(p.filename());
+    Azure::Response<Azure::Storage::Blobs::Models::UploadBlockBlobResult> result = blobClient.UploadFrom(file_name);
     return 0;
 }
 
