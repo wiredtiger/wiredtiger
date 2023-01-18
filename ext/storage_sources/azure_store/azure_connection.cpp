@@ -36,6 +36,14 @@ azure_connection::azure_connection(const std::string &bucket_name, const std::st
         std::getenv("AZURE_STORAGE_CONNECTION_STRING"), bucket_name)),
       _bucket_name(bucket_name), _object_prefix(obj_prefix)
 {
+    // Confirm that we can access the bucket, else fail.
+    bool exists;
+    int ret = bucket_exists(exists);
+    if (!exists)
+        throw std::invalid_argument(_bucket_name + " : No such bucket.");
+    if (ret != 0) {
+        throw std::invalid_argument(_bucket_name + " : Unable to access bucket.");
+    }
 }
 
 // Build a list of all of the objects in the bucket.
@@ -72,6 +80,18 @@ azure_connection::delete_object() const
 
 int
 azure_connection::get_object(const std::string &path) const
+{
+    return 0;
+}
+
+int
+azure_connection::object_exists(const std::string &object_name) const
+{
+    return 0;
+}
+
+int
+azure_connection::bucket_exists(bool &exists) const
 {
     return 0;
 }
