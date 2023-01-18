@@ -42,8 +42,8 @@ on success and non-zero on error.
 
 The \c wt tool supports several commands.  You can use the \c -? option
 with any of these commands to print the help message.  If configured in the
-underlying database, some commands will run recovery when opening the database.
-If the user wants to force recovery on any command, use the \c -R or the \c -S
+underlying database, some commands will run recovery when opening the
+database. If the user wants to force recovery on any command, use the \c -R
 option. In general, commands that modify the database or tables will run recovery
 by default and commands that only read data will not run recovery. It is
 recommended when attempting to diagnose a corrupt database, that the -r
