@@ -45,6 +45,10 @@ def verbose(s):
     if verboseFlag:
         print("VERBOSE>>> " + s)
 
+def die(reason):
+    print('wt_cmp_uri: error: ' + reason, file=sys.stderr)
+    sys.exit(1)
+
 # An encapsulation of a WT cursor
 class CompareCursor:
     def __init__(self, cursor, uri, name, reverse):
@@ -52,11 +56,24 @@ class CompareCursor:
         self.uri = uri
         self.name = name
         self.reverse = reverse
+        self.at_end = False
 
     def close(self):
         session = self.cursor.session
         self.cursor.close()
         session.close()
+
+    # Return 0 or WT_NOTFOUND.  If WT_NOTFOUND,
+    # ensure that all future calls return the same.
+    # If any other error, fail and exit.
+    def cursor_next(self):
+        if self.at_end:
+            return WT_NOTFOUND
+        ret = self.cursor.next()
+        self.at_end = (ret == WT_NOTFOUND)
+        if ret != 0 and ret != WT_NOTFOUND:
+            die('{}: cursor operation failed: {}'.format(self.name, wiredtiger_strerror(ret)))
+        return ret
 
 # Open a cursor at a timestamp
 def wt_open(conn, timestamp, uri):
@@ -99,17 +116,19 @@ def compare_cursors(cc1, cc2, version):
     verbose('{}: next'.format(cc1.name))
     if cc1.reverse != cc2.reverse:
         print('ERROR: different collators for URIs {} and {}'.format(cc1.name, cc2.name))
-        return
+        return 1
     reverse = cc1.reverse
-    while cc1.cursor.next() == 0:
+
+    ecode = 0
+    while cc1.cursor_next() == 0:
         k1 = cc1.cursor.get_key()
         v1 = cc1.cursor.get_value()
         verbose('  key: {} value: {}'.format(show_kv(k1), show_kv(v1)))
 
         verbose('{}: next'.format(cc2.name))
-        if cc2.cursor.next() != 0:
+        if cc2.cursor_next() != 0:
             print('EOF on {}'.format(cc2.name))
-            break
+            return 1
         nrecords += 1
         k2 = cc2.cursor.get_key()
         v2 = cc2.cursor.get_value()
@@ -117,6 +136,7 @@ def compare_cursors(cc1, cc2, version):
 
         missing = 0
         while k1 != k2:
+            ecode = 1
             if (not reverse and k1 < k2) or (reverse and k2 < k1):
                 # Keep a running total of how many missing from one table or another,
                 # so we don't show a huge number that are missing.
@@ -131,12 +151,12 @@ def compare_cursors(cc1, cc2, version):
                 elif missing == -10:
                     print(' ...')
                 verbose('{}: next'.format(cc1.name))
-                if cc1.cursor.next() != 0:
+                if cc1.cursor_next() != 0:
                     if abs(missing) >= 10:
                         print(' total of {} missing entries here'.format(abs(missing)))
                     print('EOF on {}'.format(cc1.name))
                     print('{} records read'.format(nrecords))
-                    return
+                    return 1
                 nrecords += 1
                 k1 = cc1.cursor.get_key()
                 v1 = cc1.cursor.get_value()
@@ -155,12 +175,12 @@ def compare_cursors(cc1, cc2, version):
                 elif missing == 10:
                     print(' ...')
                 verbose('{}: next'.format(cc2.name))
-                if cc2.cursor.next() != 0:
+                if cc2.cursor_next() != 0:
                     if abs(missing) >= 10:
                         print(' total of {} missing entries here'.format(abs(missing)))
                     print('EOF on {}'.format(cc2.name))
                     print('{} records read'.format(nrecords))
-                    return
+                    return 1
                 nrecords += 1
                 k2 = cc2.cursor.get_key()
                 v2 = cc2.cursor.get_value()
@@ -172,29 +192,36 @@ def compare_cursors(cc1, cc2, version):
         # At this point, the keys are the same
         if v1 != v2:
             print('for key={}, value is different: {}: {}, {}: {}'.format(show_kv(k1), cc1.name, show_kv(v1), cc2.name, show_kv(v2)))
+            ecode = 1
         elif version:
             # If we want to use the version cursor:
             vcur1 = cc1.cursor.session.open_cursor(cc1.uri, None, 'debug=(dump_version)')
             vcur1.set_key(k1)
             if vcur1.search() != 0:
                 print('unexpected version cursor search')
+                ecode = 1
                 return
             vcur2 = cc2.cursor.session.open_cursor(cc2.uri, None, 'debug=(dump_version)')
             vcur2.set_key(k2)
             if vcur2.search() != 0:
                 print('unexpected version cursor search')
+                ecode = 1
                 return
             vcc1 = CompareCursor(vcur1, cc1.uri, 'version(key={}) for {}'.format(k1, cc1.name))
             vcc2 = CompareCursor(vcur2, cc2.uri, 'version(key={}) for {}'.format(k2, cc2.name))
             verbose('READY for version cursor')
-            compare_version_cursors(vcc1, vcc2)
+            ver_ecode = compare_version_cursors(vcc1, vcc2)
             vcur1.close()
             vcur2.close()
+            if ver_code != 0:
+                ecode = 1
         verbose('{}: next'.format(cc1.name))
 
-    if cc2.cursor.next() == 0:
+    if cc2.cursor_next() == 0:
         print('EOF on {}'.format(cc1.name))
+        ecode = 1
     print('{} records read'.format(nrecords))
+    return ecode
 
 # Deeply compare two keys at all known timestamps using the version cursor.
 # Note: this function is not yet used.
@@ -202,9 +229,11 @@ def compare_version_cursors(cc1, cc2):
     nrecords = 0
     ret1 = 0
     ret2 = 0
+    ecode = 0
     while ret1 == 0:
         if ret2 != 0:
             print('EOF on {}'.format(cc2.name))
+            ecode = 1
             break
         nrecords += 1
         k1 = cc1.cursor.get_key()
@@ -213,17 +242,20 @@ def compare_version_cursors(cc1, cc2):
         v2 = cc2.cursor.get_value()
         verbose('Version: GOT: {}:{} {}:{}'.format(k1,v1,k2,v2))
         while k1 != k2:
+            ecode = 1
             if k1 < k2:
                 print('missing key={} on {}'.format(str(k1), cc2.name))
-                if cc1.cursor.next() != 0:
+                if cc1.cursor_next() != 0:
                     print('EOF on {}'.format(cc1.name))
+                    return 1
                 nrecords += 1
                 k1 = cc1.cursor.get_key()
                 v1 = cc1.cursor.get_value()
             else:
                 print('missing key={} on {}'.format(str(k2), cc1.name))
-                if cc2.cursor.next() != 0:
+                if cc2.cursor_next() != 0:
                     print('EOF on {}'.format(cc2.name))
+                    return 1
                 nrecords += 1
                 k2 = cc2.cursor.get_key()
                 v2 = cc2.cursor.get_value()
@@ -231,14 +263,20 @@ def compare_version_cursors(cc1, cc2):
         # At this point, the keys are the same
         if v1 != v2:
             print('for key={}, value is different: {}: {}, {}: {}'.format(k1, cc1.name, v1, cc2.name, v2))
+            ecode = 1
         verbose('Version: finished compare')
 
-        ret1 = cc1.cursor.next()
-        ret2 = cc2.cursor.next()
+        ret1 = cc1.cursor_next()
+        ret2 = cc2.cursor_next()
 
+    # At this point, ret1 is not 0, that is, we've reached the end of data for
+    # the first table.  If we have a zero return on the second table, there's still
+    # more data.
     if ret2 == 0:
         print('EOF on {}'.format(cc1.name))
+        ecode = 1
     print('{} records read on version cursor'.format(nrecords))
+    return ecode
 
 def get_dir_uri(name):
     slash = name.rindex('/')
@@ -281,6 +319,11 @@ arg2 = args[0]
 
 verbose('wiredtiger_open({})'.format(wtdir1))
 conn1 = wiredtiger_open(wtdir1, 'readonly')
+
+# wiredtiger_open does the hard work of locating the library,
+# wait until that's done before importing from wiredtiger.
+from wiredtiger import WT_NOTFOUND, wiredtiger_strerror
+
 if wtdir1 == wtdir2:
     conn2 = conn1
 else:
@@ -299,10 +342,12 @@ except:
     raise
 
 # Not running with version cursors, it's not quite ready for prime time.
-compare_cursors(cc1, cc2, False)
+ecode = compare_cursors(cc1, cc2, False)
 
 cc1.close()
 cc2.close()
 conn1.close()
 if conn2 != conn1:
     conn2.close()
+
+sys.exit(ecode)

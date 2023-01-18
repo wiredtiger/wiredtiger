@@ -34,18 +34,30 @@ usage_exit() {
     exit 1
 }
 
+# Find the 'wt' utility, and set the global wt variable.
+wt=
+init_wt_utility() {
+    dir=$(pwd)
+    lastdir=
+    while [ "$dir" != "$lastdir" -a ! \( -x "$dir/wt" -a -f "$dir/wt" \) ]; do
+        lastdir="$dir"
+        dir=$(dirname $dir)
+    done
+    wt="$dir/wt"
+    if [ ! -x "$wt" ]; then
+        echo "wt_cmp_dir: cannot find working wt utility, must run within build directory" >&2
+        exit 1
+    fi
+}
+
 wtfiles() {
     local tmpa=/tmp/wcd$$a
     local tmpb=/tmp/wcd$$b
-    lastwt=
-    wt=wt
-    while [ "$wt" != "$lastwt" -a ! -x "$wt" ]; do
-        wt=../$wt
-    done
+
     #TODO: check for corruption
     $wt -h "$1" list >$tmpa 2>$tmpb
     if [ "$?" != 0 -o -s $tmpb ]; then
-        echo failed command: $wt -h "$1" list
+        echo failed command: $wt -h "$1" list >&2
         cat $tmpb
         rm -f $tmpa $tmpb
         exit 1
@@ -89,6 +101,8 @@ if [ "$#" -lt 2 ]; then
     usage_exit
 fi
 
+init_wt_utility
+
 # The next argument is the first directory
 dir1="$1"
 files1=$(wtfiles "$dir1")
@@ -124,7 +138,11 @@ fi
 # Get the script to run
 cmp_uri_script=$(dirname "$0")/wt_cmp_uri
 
+ecode=0
 for f in $files1; do
     echo $f
-    python $cmp_uri_script $timestamp_opt1 "$dir1"/$f $timestamp_opt2 "$dir2"/$f
+    if ! python $cmp_uri_script $timestamp_opt1 "$dir1"/$f $timestamp_opt2 "$dir2"/$f; then
+        ecode=1
+    fi
 done
+exit $ecode
