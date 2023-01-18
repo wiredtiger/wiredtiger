@@ -18,11 +18,13 @@ target_compile_options(
 target_link_libraries(
     gcp_bucket_util
     PUBLIC
-        google::cloud::storage
+        google-cloud-cpp::storage
+        google-cloud-cpp::common
+        google-cloud-cpp::rest_internal
 )
 
 # Build the gcp extension as a library.
-add_library(wiredtiger_gcp_store MODULE gcp_storage_source.cpp gcp_log_system.cpp)
+add_library(wiredtiger_gcp_store MODULE gcp_storage_source.cpp)
 target_include_directories(
     wiredtiger_gcp_store
     PRIVATE
@@ -40,10 +42,9 @@ target_compile_options(
 target_link_libraries(
     wiredtiger_gcp_store
     PRIVATE
-        google::cloud::storage
+        gcp_bucket_util
 )
 
-# Add the unit tests, need Catch2 which is resolved with HAVE_UNITTEST.
 if(HAVE_UNITTEST)
     add_subdirectory(test)
 endif()

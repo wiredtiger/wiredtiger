@@ -399,7 +399,7 @@ struct __wt_connection_stats {
     int64_t cache_bytes_other;
     int64_t cache_bytes_read;
     int64_t cache_bytes_write;
-    int64_t cache_eviction_checkpoint;
+    int64_t cache_eviction_blocked_checkpoint;
     int64_t cache_eviction_blocked_checkpoint_hs;
     int64_t cache_eviction_get_ref;
     int64_t cache_eviction_get_ref_empty;
@@ -457,7 +457,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_force;
     int64_t cache_eviction_force_fail;
     int64_t cache_eviction_force_fail_time;
-    int64_t cache_eviction_hazard;
+    int64_t cache_eviction_blocked_hazard;
     int64_t cache_hazard_checks;
     int64_t cache_hazard_walks;
     int64_t cache_hazard_max;
@@ -479,6 +479,7 @@ struct __wt_connection_stats {
     int64_t cache_hs_write_squash;
     int64_t cache_inmem_splittable;
     int64_t cache_inmem_split;
+    int64_t cache_eviction_blocked_internal_page_split;
     int64_t cache_eviction_internal;
     int64_t cache_eviction_internal_pages_queued;
     int64_t cache_eviction_internal_pages_seen;
@@ -491,6 +492,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_dirty;
     int64_t cache_eviction_app_dirty;
     int64_t cache_timed_out_ops;
+    int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
     int64_t cache_eviction_deepen;
     int64_t cache_write_hs;
@@ -516,6 +518,7 @@ struct __wt_connection_stats {
     int64_t cache_write;
     int64_t cache_write_restore;
     int64_t cache_overhead;
+    int64_t cache_eviction_blocked_recently_modified;
     int64_t cache_reverse_splits;
     int64_t cache_reverse_splits_skipped_vlcs;
     int64_t cache_hs_insert_full_update;
@@ -524,6 +527,7 @@ struct __wt_connection_stats {
     int64_t cache_bytes_leaf;
     int64_t cache_bytes_dirty;
     int64_t cache_pages_dirty;
+    int64_t cache_eviction_blocked_uncommitted_truncate;
     int64_t cache_eviction_clean;
     int64_t fsync_all_fh_total;
     int64_t fsync_all_fh;
@@ -553,6 +557,8 @@ struct __wt_connection_stats {
     int64_t memory_allocation;
     int64_t memory_free;
     int64_t memory_grow;
+    int64_t no_session_sweep_5min;
+    int64_t no_session_sweep_60min;
     int64_t cond_wait;
     int64_t rwlock_read;
     int64_t rwlock_write;
@@ -833,6 +839,7 @@ struct __wt_connection_stats {
     int64_t txn_prepared_updates_key_repeated;
     int64_t txn_prepared_updates_rolledback;
     int64_t txn_read_overflow_remove;
+    int64_t txn_rollback_oldest_pinned;
     int64_t txn_prepare;
     int64_t txn_prepare_commit;
     int64_t txn_prepare_active;
@@ -887,7 +894,6 @@ struct __wt_connection_stats {
     int64_t txn_checkpoint;
     int64_t txn_checkpoint_obsolete_applied;
     int64_t txn_checkpoint_skipped;
-    int64_t txn_fail_cache;
     int64_t txn_checkpoint_fsync_post;
     int64_t txn_checkpoint_fsync_post_duration;
     int64_t txn_pinned_range;
@@ -960,7 +966,7 @@ struct __wt_dsrc_stats {
     int64_t cache_bytes_dirty_total;
     int64_t cache_bytes_read;
     int64_t cache_bytes_write;
-    int64_t cache_eviction_checkpoint;
+    int64_t cache_eviction_blocked_checkpoint;
     int64_t cache_eviction_blocked_checkpoint_hs;
     int64_t cache_eviction_fail;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_1;
@@ -983,7 +989,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_walk_restart;
     int64_t cache_eviction_walk_from_root;
     int64_t cache_eviction_walk_saved_pos;
-    int64_t cache_eviction_hazard;
+    int64_t cache_eviction_blocked_hazard;
     int64_t cache_hs_insert;
     int64_t cache_hs_insert_restart;
     int64_t cache_hs_read;
@@ -1000,10 +1006,12 @@ struct __wt_dsrc_stats {
     int64_t cache_hs_write_squash;
     int64_t cache_inmem_splittable;
     int64_t cache_inmem_split;
+    int64_t cache_eviction_blocked_internal_page_split;
     int64_t cache_eviction_internal;
     int64_t cache_eviction_split_internal;
     int64_t cache_eviction_split_leaf;
     int64_t cache_eviction_dirty;
+    int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
     int64_t cache_eviction_deepen;
     int64_t cache_write_hs;
@@ -1014,11 +1022,13 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_pages_seen;
     int64_t cache_write;
     int64_t cache_write_restore;
+    int64_t cache_eviction_blocked_recently_modified;
     int64_t cache_reverse_splits;
     int64_t cache_reverse_splits_skipped_vlcs;
     int64_t cache_hs_insert_full_update;
     int64_t cache_hs_insert_reverse_modify;
     int64_t cache_bytes_dirty;
+    int64_t cache_eviction_blocked_uncommitted_truncate;
     int64_t cache_eviction_clean;
     int64_t cache_state_gen_avg_gap;
     int64_t cache_state_avg_written_size;
