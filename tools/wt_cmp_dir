@@ -29,8 +29,7 @@
 # Compare content in WT home directories.
 
 usage_exit() {
-    echo "Usage: wt_cmp_dir [ -vq ] [ -t timestamp ] dir1 [ -t timestamp  ] dir2"
-    echo "   -v   verbose"
+    echo "Usage: wt_cmp_dir [ -t timestamp ] dir1 [ -t timestamp  ] dir2"
     exit 1
 }
 
@@ -62,13 +61,18 @@ wtfiles() {
         rm -f $tmpa $tmpb
         exit 1
     fi
-    uris=$(grep -v colgroup: < $tmpa)
+    # The uris are a simple list, for example: "colgroup:table1 file:table1.wt table:table1"
+    uris=$(cat $tmpa)
     rm -f $tmpa $tmpb
     #echo INITIAL URIS $uris >&2
     results=""
     for uri in $uris; do
         case "$uri" in
             file:* )
+                # When a table is created in WT, both a table: and file: are
+                # created.  If there is is matching table: entry for this file,
+                # skip this entry. But if there's no matching table, then it is
+                # not refererenced elsewhere, and we want it in our list to compare.
                 base=$(echo "$uri" | sed -e 's/file://' -e 's/.wt//')
                 if ! echo "$uris" | grep "table:$base" > /dev/null; then
                     results="$results $uri"
