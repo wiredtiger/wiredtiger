@@ -63,7 +63,7 @@ local_buckets = ['bucket1', 'bucket2']
 def get_bucket_name(storage_source, i):
     if storage_source == 's3_store':
         return s3_buckets[i]
-    else:
+    if storage_source == 'dir_store':
         return local_buckets[i]
     return None
 
@@ -149,33 +149,13 @@ def gen_tiered_storage_sources(random_prefix='', test_name='', tiered_only=False
             bucket_prefix2 = generate_s3_prefix(random_prefix, test_name),
             num_ops=20,
             ss_name = 's3_store')),
-        ('azure_store', dict(is_tiered = True,
-            is_local_storage = False,
-            auth_token = get_auth_token('azure_store'), 
-            bucket = get_bucket_name('azure_store', 0), 
-            bucket1 = get_bucket_name('azure_store', 1),
-            bucket_prefix = "pfx_",
-            bucket_prefix1 = "pfx1_",
-            bucket_prefix2 = 'pfx2_',
-            num_ops=100,
-            ss_name = 'azure_store')),
-        ('gcp_store', dict(is_tiered = True,
-            is_local_storage = False,
-            auth_token = get_auth_token('gcp_store'), 
-            bucket = get_bucket_name('gcp_store', 0), 
-            bucket1 = get_bucket_name('gcp_store', 1),
-            bucket_prefix = "pfx_",
-            bucket_prefix1 = "pfx1_",
-            bucket_prefix2 = 'pfx2_',
-            num_ops=100,
-            ss_name = 'gcp_store')),
         ('non_tiered', dict(is_tiered = False)),
     ]
 
     # Return a sublist to use for the tiered test scenarios as last item on list is not a scenario
     # for the tiered tests.  
     if tiered_only:
-        return tiered_storage_sources[:(len(tiered_storage_sources)-1)]
+        return tiered_storage_sources[:2]
 
     return tiered_storage_sources
 
