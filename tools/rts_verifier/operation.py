@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import re
+import os, re
 
 from basic_types import PrepareState, Timestamp, UpdateType
 from enum import Enum
@@ -72,6 +72,17 @@ class Operation:
         stop = int(matches.group(2))
         return Timestamp(start, stop)
 
+    def __extract_pointer(self, prefix, line):
+        if os.name == 'nt':
+            matches = re.search(f'{prefix}=([A-Za-z0-9]+)', line)
+        else:
+            matches = re.search(f'{prefix}=(0x[A-Za-z0-9]+)', line)
+
+        if matches is None:
+            raise Exception("failed to parse address string")
+
+        return int(matches.group(1), 16)
+
     def __init_init(self, line):
         self.type = OpType.INIT
 
@@ -123,9 +134,7 @@ class Operation:
     def __init_page_rollback(self, line):
         self.type = OpType.PAGE_ROLLBACK
         self.file = self.__extract_file(line)
-
-        matches = re.search('addr=(0x[A-Za-z0-9]+)', line)
-        self.addr = int(matches.group(1), 16)
+        self.addr = self.__extract_pointer('addr', line)
 
         matches = re.search('modified=(\w+)', line)
         self.modified = matches.group(1).lower() == "true"
@@ -157,8 +166,7 @@ class Operation:
         self.type = OpType.PAGE_ABORT_CHECK
         self.file = self.__extract_file(line)
 
-        matches = re.search('ref=(0x[A-Za-z0-9]+)', line)
-        self.ref = int(matches.group(1), 16)
+        self.ref = self.__extract_pointer('ref', line)
 
         self.durable = self.__extract_simple_timestamp('durable_timestamp', line)
 
@@ -219,9 +227,7 @@ class Operation:
     def __init_skip_del_null(self, line):
         self.type = OpType.SKIP_DEL_NULL
         self.file = self.__extract_file(line)
-
-        matches = re.search('ref=(0x[A-Za-z0-9]+)', line)
-        self.ref = int(matches.group(1), 16)
+        self.ref = self.__extract_point('ref', line)
 
     def __init_ondisk_abort_tw(self, line):
         self.type = OpType.ONDISK_ABORT_TW
@@ -323,16 +329,12 @@ class Operation:
     def __init_stable_pg_walk_skip(self, line):
         self.type = OpType.KEY_REMOVED
         self.file = self.__extract_file(line)
-
-        matches = re.search('ref=0x([A-Za-z0-9]+)', line)
-        self.addr = int(matches.group(1), 16)
+        self.addr = self.__extract_pointr('ref', line)
 
     def __init_skip_unmodified(self, line):
         self.type = OpType.SKIP_UNMODIFIED
         self.file = self.__extract_file(line)
-
-        matches = re.search('ref=0x([A-Za-z0-9]+)', line)
-        self.addr = int(matches.group(1), 16)
+        self.addr = self.__extract_pointer('ref', line)
 
     def __init_hs_gt_ondisk(self, line):
         self.type = OpType.HS_GT_ONDISK
