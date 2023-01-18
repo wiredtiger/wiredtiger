@@ -205,7 +205,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
     if (chunkptr != NULL &&
       __wt_read(session, block->fh, chunkptr->chunk_offset, chunkptr->chunk_size,
                 chunkptr->chunk_location) == 0) {
-        __wt_chunkcache_complete_read(session, chunkptr, offset, size, buf->mem,
+        __wt_chunkcache_complete_read(session, block, chunkptr, offset, size, buf->mem,
                                       &chunkcache_has_data);
     }
     if (!chunkcache_has_data)
