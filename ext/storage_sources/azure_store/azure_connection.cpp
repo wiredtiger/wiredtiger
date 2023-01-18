@@ -32,6 +32,7 @@
 #include <azure/storage/blobs.hpp>
 
 #include <filesystem>
+#include <iostream>
 
 azure_connection::azure_connection(const std::string &bucket_name, const std::string &obj_prefix)
     : _azure_client(Azure::Storage::Blobs::BlobContainerClient::CreateFromConnectionString(
@@ -68,7 +69,7 @@ azure_connection::put_object(const std::string &file_name) const
     bool exists = std::filesystem::exists(p);
     if (!exists) {
         std::cerr << file_name << ": No such file exists." << std::endl;
-        return -1 
+        return -1;
     }
     auto blob_client = _azure_client.GetBlockBlobClient(p.filename());
     auto result = blob_client.UploadFrom(file_name);
