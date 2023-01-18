@@ -47,10 +47,11 @@ gcp_connection::list_objects(std::vector<std::string> &objects, bool list_single
      * that match the prefix
      */
     for (auto &&object_metadata : _gcp_client.ListObjects(_bucket_name, gcs::Prefix(_prefix))) {
-        // check if the current object is accessible (object exists but the user does not have
-        // permissions to access)
+        /* Check if the current object is accessible (object exists but the user does not have
+        * permissions to access)
+        */
         if (!object_metadata)
-            std::cout << "List failed: object not accessible";
+            std::cerr << "List failed: " << object_metadata->name() << "is not accessible" << std::endl;
 
         objects.push_back(object_metadata->name());
 
