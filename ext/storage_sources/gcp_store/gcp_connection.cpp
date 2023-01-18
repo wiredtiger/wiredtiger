@@ -37,14 +37,14 @@ gcp_connection::gcp_connection(const std::string &bucket_name)
 
 // Builds a list of object names from the bucket.
 int
-gcp_connection::list_objects(std::vector<std::string> &objects)
+gcp_connection::list_objects(std::vector<std::string> &objects) const
 {
     return 0;
 }
 
 // Puts an object into a google cloud bucket.
 int
-gcp_connection::put_object(const std::string &object_name, const std::string &file_name)
+gcp_connection::put_object(const std::string &object_name, const std::string &file_name) const
 {
     return 0;
 }
@@ -64,7 +64,7 @@ gcp_connection::delete_object(const std::string &object_name)
 
 // Retrieves an object from the google cloud bucket.
 int
-gcp_connection::get_object(const std::string &object_name, const std::string &path)
+gcp_connection::get_object(const std::string &object_name, const std::string &path) const
 {
     return 0;
 }
@@ -72,7 +72,8 @@ gcp_connection::get_object(const std::string &object_name, const std::string &pa
 // Checks whether an object with the given key exists in the google cloud bucket and also retrieves
 // size of the object.
 int
-gcp_connection::object_exists(const std::string &object_name, bool &exists, size_t &object_size)
+gcp_connection::object_exists(
+  const std::string &object_name, bool &exists, size_t &object_size) const
 {
     return 0;
 }
