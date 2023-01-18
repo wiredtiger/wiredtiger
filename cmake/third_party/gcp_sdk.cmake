@@ -2,7 +2,6 @@ include(ExternalProject)
 include(FetchContent)
 include(GNUInstallDirs)
 include(${CMAKE_SOURCE_DIR}/cmake/helpers.cmake)
-include(${CMAKE_SOURCE_DIR}/google-cloud-cpp/)
 
 # Skip the GCP SDK build step if the extension is not enabled.
 if(NOT ENABLE_GCP)
@@ -17,19 +16,18 @@ config_choice(
         "package;IMPORT_GCP_SDK_PACKAGE;ENABLE_GCP"
         "external;IMPORT_GCP_SDK_EXTERNAL;ENABLE_GCP"
 )
- 
+
 if(IMPORT_GCP_SDK_NONE)
     message(FATAL_ERROR "Cannot enable GCP extension without specifying an IMPORT_GCP_SDK method (package, external).")
 endif()
 
 if(IMPORT_GCP_SDK_PACKAGE)
-    set(google-cloud-cpp)
-    find_package(googleapis)
-    #find_file()
-
+    #set(google-cloud-cpp)
+    #find_package(googleapis)
+    # We want to find the packge installed on the system.
 elseif(IMPORT_GCP_SDK_EXTERNAL)
     find_package(absl REQUIRED)
-    # Download and install the AWS CPP SDK into the build directory.
+    # Download and install the GCP CPP SDK into the build directory.
     ExternalProject_Add(gcp-sdk
         PREFIX gcp-sdk-cpp
         GIT_REPOSITORY https://github.com/googleapis/google-cloud-cpp.git
@@ -54,15 +52,15 @@ elseif(IMPORT_GCP_SDK_EXTERNAL)
     file(MAKE_DIRECTORY ${INSTALL_DIR}/${CMAKE_INSTALL_INCLUDEDIR})
     set(gcp_sdk_include_location ${INSTALL_DIR}/${CMAKE_INSTALL_INCLUDEDIR})
 
-    # Set the path variables to be used for the AWS targets.
+    # Set the path variables to be used for the GCP targets.
     set(gcp_storage_lib_location ${INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libgoogle_cloud_cpp_storage${CMAKE_SHARED_LIBRARY_SUFFIX})
-    set(gcp_common_lib_location ${INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libgoogle_cloud_cpp_common${CMAKE_SHARED_LIBRARY_SUFFIX})
+    #set(gcp_common_lib_location ${INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libgoogle_cloud_cpp_common${CMAKE_SHARED_LIBRARY_SUFFIX})
 endif()
 
 set(gcp_sdk_include_location ${INSTALL_DIR}/${CMAKE_INSTALL_INCLUDEDIR})
 
 add_library(gcp_storage_lib SHARED IMPORTED)
-add_library(gcp_common_lib SHARED IMPORTED)
+#add_library(gcp_common_lib SHARED IMPORTED)
 
 # Small workaround to declare the include directory under INTERFACE_INCLUDE_DIRECTORIES during the configuration phase.
 set_target_properties(gcp_storage_lib PROPERTIES
@@ -71,9 +69,9 @@ set_target_properties(gcp_storage_lib PROPERTIES
 )
 
 # Small workaround to declare the include directory under INTERFACE_INCLUDE_DIRECTORIES during the configuration phase.
-set_target_properties(gcp_common_lib PROPERTIES
-    IMPORTED_LOCATION ${gcp_common_lib_location}
-    INTERFACE_INCLUDE_DIRECTORIES ${gcp_sdk_include_location}
-)
+# set_target_properties(gcp_common_lib PROPERTIES
+#     IMPORTED_LOCATION ${gcp_common_lib_location}
+#     INTERFACE_INCLUDE_DIRECTORIES ${gcp_sdk_include_location}
+# )
 
-add_dependencies(gcp_storage_lib gcp_common_lib)
+# add_dependencies(gcp_storage_lib gcp_common_lib)

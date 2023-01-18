@@ -18,11 +18,8 @@ target_compile_options(
 target_link_libraries(
     gcp_bucket_util
     PUBLIC
-        google-cloud-cpp::storage
-        google-cloud-cpp::common
-        google-cloud-cpp::rest_internal
+        gcp_storage_lib
 )
-
 # Build the gcp extension as a library.
 add_library(wiredtiger_gcp_store MODULE gcp_storage_source.cpp)
 target_include_directories(
