@@ -64,7 +64,7 @@ azure_connection::put_object(const std::string &file_name) const
     return 0;
 }
 
-// Delete an object in the bucket given the object name
+// Delete an object in the bucket given the object name.
 int
 azure_connection::delete_object(const std::string &object_name) const
 {
@@ -73,7 +73,7 @@ azure_connection::delete_object(const std::string &object_name) const
     auto object_client = _azure_client.GetBlobClient(obj);
     auto delete_blob_response = object_client.DeleteIfExists();
 
-    // Returns false if obj doesn't exist
+    // Returns false if obj doesn't exist.
     if (!delete_blob_response.Value.Deleted)
         return -1;
 
