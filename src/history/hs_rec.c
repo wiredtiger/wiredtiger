@@ -342,7 +342,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
     WT_MODIFY entries[MAX_REVERSE_MODIFY_NUM];
     WT_UPDATE_VECTOR updates;
     WT_SAVE_UPD *list;
-    WT_UPDATE *newest_hs, *no_ts_upd, *oldest_upd, *prev_upd, *ref_upd, *tombstone, *upd;
+    WT_UPDATE *newest_hs, *no_ts_upd, *prev_upd, *ref_upd, *tombstone, *upd;
     WT_TIME_WINDOW tw;
     wt_off_t hs_size;
     uint64_t insert_cnt, max_hs_size, modify_cnt;
@@ -406,6 +406,13 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
          */
         enable_reverse_modify =
           (WT_STREQ(btree->value_format, "S") || WT_STREQ(btree->value_format, "u"));
+
+        /*
+         * If there exists an on page tombstone and it without a timestamp, consider it as a no timestamp update
+         * to clear the timestamps of all the updates that are inserted into the history store.
+         */
+        if (list->onpage_tombstone != NULL && list->onpage_tombstone->start_ts == WT_TS_NONE)
+            no_ts_upd = list->onpage_tombstone;
 
         /*
          * The algorithm assumes the oldest update on the update chain in memory is either a full
@@ -526,24 +533,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
         prev_upd = upd = NULL;
 
         WT_ASSERT(session, updates.size > 0);
-        __wt_update_vector_peek(&updates, &oldest_upd);
-
-        WT_ASSERT(session,
-          oldest_upd->type == WT_UPDATE_STANDARD || oldest_upd->type == WT_UPDATE_TOMBSTONE);
-
-        /*
-         * Fix the history store record here if the oldest update is a tombstone without a
-         * timestamp. This situation is possible only when the tombstone is globally visible. Delete
-         * all the updates of the key in the history store with timestamps.
-         */
-        if (oldest_upd->type == WT_UPDATE_TOMBSTONE && oldest_upd->start_ts == WT_TS_NONE) {
-            WT_ERR(
-              __wt_hs_delete_key(session, hs_cursor, btree->id, key, false, error_on_ts_ordering));
-
-            /* Reset the update without a timestamp if it is the last update in the chain. */
-            if (oldest_upd == no_ts_upd)
-                no_ts_upd = NULL;
-        }
 
         /* Skip if we have nothing to insert to the history store. */
         if (newest_hs == NULL || F_ISSET(newest_hs, WT_UPDATE_HS)) {
