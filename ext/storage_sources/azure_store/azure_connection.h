@@ -49,7 +49,7 @@ class azure_connection {
     int list_objects(
       const std::string &prefix, std::vector<std::string> &objects, bool list_single) const;
     int put_object(const std::string &file_name) const;
-    int delete_object() const;
+    int delete_object(const std::string &object_name) const;
     int get_object(const std::string &path) const;
 
     private:
