@@ -31,11 +31,6 @@
 #include <azure/core.hpp>
 #include <azure/storage/blobs.hpp>
 
-#include <cstdlib>
-#include <iostream>
-#include <vector>
-#include <string>
-
 azure_connection::azure_connection(const std::string &bucket_name, const std::string &obj_prefix)
     : _azure_client(Azure::Storage::Blobs::BlobContainerClient::CreateFromConnectionString(
         std::getenv("AZURE_STORAGE_CONNECTION_STRING"), bucket_name)),
@@ -43,9 +38,7 @@ azure_connection::azure_connection(const std::string &bucket_name, const std::st
 {
 }
 
-/*
- * Build a list of all of the objects in the bucket.
- */
+// Build a list of all of the objects in the bucket.
 int
 azure_connection::list_objects(
   const std::string &prefix, std::vector<std::string> &objects, bool list_single) const

@@ -29,4 +29,6 @@
 #define CATCH_CONFIG_MAIN
 #include <catch2/catch.hpp>
 
+#include "azure_connection.h"
+
 TEST_CASE("testing class azure_connection", "azure_connection") {}

@@ -32,15 +32,16 @@
 #include <azure/storage/blobs.hpp>
 
 #include <string>
+#include <vector>
 
 /*
- * In Azure: Buckets are synonymous with Containers, and Objects are synonymous with Blobs. This
- * class represents an active connection to the Azure endpoint and allows for interaction with the
- * Azure client. The azure_connection allows for the following functionality: Listing the container
- * contents filtered by a given prefix and output all or output single, puts a blob to the cloud,
- * gets a blob from the cloud, and deletes a blob from the cloud. It also can check for the
- * existence of a unique container or blob. Each azure_connection is associated with a unique
- * azure_client with its own unique container.
+ * This class represents an active connection to the Azure endpoint and allows for interaction with
+ * the Azure client. The Azure cloud storage names buckets as containers and objects as blobs. The
+ * azure_connection allows for the following functionality: Listing the container contents filtered
+ * by a given prefix and output all or output single, puts a blob to the cloud, gets a blob from the
+ * cloud, and deletes a blob from the cloud. It also can check for the existence of a unique
+ * container or blob. Each azure_connection is associated with a unique azure_client with its own
+ * unique container.
  */
 class azure_connection {
     public:
