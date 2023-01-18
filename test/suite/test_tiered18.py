@@ -26,11 +26,9 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import inspect, os, wiredtiger, wttest
-from helper_tiered import get_auth_token, get_bucket_name, TieredConfigMixin, gen_tiered_storage_sources
+import wttest
+from helper_tiered import get_auth_token, TieredConfigMixin
 from wtscenario import make_scenarios
-
-FileSystem = wiredtiger.FileSystem  # easy access to constants
 
 class test_tiered18(wttest.WiredTigerTestCase, TieredConfigMixin):
 
@@ -38,13 +36,13 @@ class test_tiered18(wttest.WiredTigerTestCase, TieredConfigMixin):
         ('azure_store', dict(is_tiered = True,
             is_local_storage = False,
             auth_token = get_auth_token('azure_store'), 
-            bucket = get_bucket_name('azure_store', 0), 
+            bucket = 'pythontest',
             bucket_prefix = "pfx_",
             ss_name = 'azure_store')),
         ('gcp_store', dict(is_tiered = True,
             is_local_storage = False,
             auth_token = get_auth_token('gcp_store'), 
-            bucket = get_bucket_name('gcp_store', 0), 
+            bucket = 'pythontest',
             bucket_prefix = "pfx_",
             ss_name = 'gcp_store')),
     ]
