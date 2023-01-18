@@ -516,6 +516,8 @@ WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
 
                 VERBOSE(*_workload, "Marking pending removal for: " << it->first);
                 icontext->_dyn_table_runtime[it->second]._pending_delete = true;
+                ASSERT(std::find(pending_delete.begin(), pending_delete.end(), it->first) ==
+                  pending_delete.end());
                 pending_delete.push_back(it->first);
                 ++drops;
             }
