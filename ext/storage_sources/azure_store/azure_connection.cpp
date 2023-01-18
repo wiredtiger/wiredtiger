@@ -66,8 +66,10 @@ azure_connection::put_object(const std::string &file_name) const
 {
     std::filesystem::path p(file_name);
     bool exists = std::filesystem::exists(p);
-    if (!exists)
-        throw std::invalid_argument(file_name + ": No such file exists.");
+    if (!exists) {
+        std::cerr << file_name << ": No such file exists." << std::endl;
+        return -1 
+    }
     auto blob_client = _azure_client.GetBlockBlobClient(p.filename());
     auto result = blob_client.UploadFrom(file_name);
     return 0;
