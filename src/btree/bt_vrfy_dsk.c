@@ -25,8 +25,7 @@ static int __verify_dsk_row_leaf(WT_VERIFY_INFO *);
             __wt_errx(session, __VA_ARGS__);                               \
             /* Easy way to set a breakpoint when tracking corruption */    \
             WT_IGNORE_RET(__wt_session_breakpoint((WT_SESSION *)session)); \
-            if (!FLD_ISSET(f, WT_VRFY_DISK_CONTINUE_ON_FAILURE))           \
-                WT_ASSERT(session, ret == 0);                              \
+            WT_ASSERT(session, ret == 0);                                  \
         }                                                                  \
         goto err;                                                          \
     } while (0)
