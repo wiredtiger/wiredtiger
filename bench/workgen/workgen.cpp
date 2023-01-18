@@ -394,8 +394,12 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
             uri += rand_chars;
 
             // Check if a table with this name already exists. Skip if it does.
-            if (icontext->_tint.count(uri) > 0 || icontext->_dyn_tint.count(uri) > 0)
-                continue;
+            // Use a shared lock to read the dynamic tables structures.
+            {
+                const std::shared_lock lock(*icontext->_dyn_mutex);
+                if (icontext->_tint.count(uri) > 0 || icontext->_dyn_tint.count(uri) > 0)
+                    continue;
+            }
 
             /*
              * Create the table. Mark the table as part of the dynamic set by storing extra
@@ -786,7 +790,8 @@ ContextInternal::create_all(WT_CONNECTION *conn)
 
         if (std::string(value).find(DYN_TABLE_APP_METADATA) != std::string::npos &&
           WT_PREFIX_MATCH(key, "table:")) {
-            // Add the table into the list of dynamic set.
+            // Add the table into the list of dynamic set. We are single threaded here and hence
+            // do not yet need to protect the dynamic table structures with a lock.
             _dyn_tint[key] = _dyn_tint_last;
             _dyn_table_names[_dyn_tint_last] = key;
             _dyn_table_runtime[_dyn_tint_last] = TableRuntime();
