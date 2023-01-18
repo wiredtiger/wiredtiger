@@ -35,9 +35,8 @@
 
 class gcp_connection {
     public:
-    gcp_connection(const std::string &bucket_name);
-    int list_objects(
-      const std::string &prefix, std::vector<std::string> &objects, bool list_single = false) const;
+    gcp_connection(const std::string &bucket_name, const std::string &prefix);
+    int list_objects(std::vector<std::string> &objects, bool list_single);
     int put_object(const std::string &object_key, const std::string &file_name) const;
     int delete_object(const std::string &object_key) const;
     int object_exists(const std::string &object_key, bool &exists, size_t &object_size) const;
@@ -46,8 +45,9 @@ class gcp_connection {
     ~gcp_connection() = default;
 
     private:
-    const google::cloud::storage::v2_5_0::Client _gcp_client;
+    google::cloud::storage::v2_5_0::Client _gcp_client;
     const std::string _bucket_name;
+    const std::string _prefix;
 
     int bucket_exists(bool &exists) const;
 };

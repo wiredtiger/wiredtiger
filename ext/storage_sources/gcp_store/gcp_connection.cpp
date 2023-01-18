@@ -31,41 +31,31 @@
 #include <fstream>
 
 namespace gcs = google::cloud::storage;
+using namespace gcs;
 
-gcp_connection::gcp_connection(const std::string &bucket_name)
-    : _gcp_client(google::cloud::storage::Client()), _bucket_name(bucket_name)
+gcp_connection::gcp_connection(const std::string &bucket_name, const std::string &prefix)
+    : _gcp_client(google::cloud::storage::Client()), _bucket_name(bucket_name), _prefix(prefix)
 {
 }
 
 // Builds a list of object names from the bucket.
 int
-gcp_connection::list_objects(
-  const std::string &prefix, std::vector<std::string> &objects, bool list_single) const
+gcp_connection::list_objects(std::vector<std::string> &objects, bool list_single)
 {
-    using namespace gcs;
-    gcs::Client client = _gcp_client;
-    std::string const bucketName = gcp_connection::_bucket_name;
+    /* Fetch the objects from the given bucket
+     * If prefix is given ListObject will filter the objects in the bucket and only return the ones
+     * that match the prefix
+     */
+    for (auto &&object_metadata : _gcp_client.ListObjects(_bucket_name, gcs::Prefix(_prefix))) {
+        // check if the current object is accessible (object exists but the user does not have
+        // permissions to access)
+        if (!object_metadata)
+            std::cout << "List failed: object not accessible";
 
-    if (prefix != "") {
-        for (auto &&object_metadata : client.ListObjects(bucketName, gcs::Prefix(prefix))) {
-            if (!object_metadata)
-                std::cout << "list failed";
+        objects.push_back(object_metadata->name());
 
-            objects.push_back(object_metadata->name());
-
-            if (list_single)
-                break;
-        }
-    } else {
-        for (auto &&object_metadata : client.ListObjects(bucketName)) {
-            if (!object_metadata)
-                std::cout << "list failed";
-
-            objects.push_back(object_metadata->name());
-
-            if (list_single)
-                break;
-        }
+        if (list_single)
+            break;
     }
 
     return 0;
