@@ -411,7 +411,7 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
 
             // The data structures for the dynamic table set are protected by a mutex.
             {
-                const std::lock_guard<std::mutex> lock(*icontext->_dyn_mutex);
+                const std::lock_guard<std::shared_mutex> lock(*icontext->_dyn_mutex);
 
                 // Add the table into the list of dynamic set.
                 tint_t tint = icontext->_dyn_tint_last;
@@ -489,7 +489,7 @@ WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
         std::vector<std::string> drop_files; // Files ready to be dropped.
         // The data structures for the dynamic table set are protected by a mutex.
         {
-            const std::lock_guard<std::mutex> lock(*icontext->_dyn_mutex);
+            const std::lock_guard<std::shared_mutex> lock(*icontext->_dyn_mutex);
 
             /*
              * When dropping, consider how many dynamic tables we have left and how many are already
@@ -732,7 +732,8 @@ Context::operator=(const Context &other)
 
 ContextInternal::ContextInternal()
     : _tint(), _table_names(), _table_runtime(), _tint_last(0), _dyn_tint(), _dyn_table_names(),
-      _dyn_table_runtime(), _dyn_tint_last(0), _context_count(0), _dyn_mutex(new std::mutex())
+      _dyn_table_runtime(), _dyn_tint_last(0), _context_count(0),
+      _dyn_mutex(new std::shared_mutex())
 
 {
     uint32_t count = workgen_atomic_add32(&context_count, 1);
@@ -1292,7 +1293,7 @@ ThreadRunner::op_get_key_recno(Operation *op, uint64_t range, tint_t tint)
         recno_count = range;
     else {
         if (op->_random_table) {
-            const std::lock_guard<std::mutex> lock(*_icontext->_dyn_mutex);
+            const std::shared_lock lock(*_icontext->_dyn_mutex);
             recno_count = _icontext->_dyn_table_runtime.at(tint)._max_recno;
         } else
             recno_count = _icontext->_table_runtime[tint]._max_recno;
@@ -1347,7 +1348,7 @@ ThreadRunner::op_run(Operation *op)
 
     // Find a table to operate on.
     if (op->_random_table) {
-        const std::lock_guard<std::mutex> lock(*_icontext->_dyn_mutex);
+        const std::shared_lock lock(*_icontext->_dyn_mutex);
         size_t num_tables = _icontext->_dyn_table_names.size();
 
         if (num_tables == 0)
@@ -1363,7 +1364,8 @@ ThreadRunner::op_run(Operation *op)
         if (!marked_deleted) {
             table_uri = uri;
             tint = _icontext->_dyn_tint[uri];
-            ++_icontext->_dyn_table_runtime[tint]._in_use;
+            // Use atomic here as we can race with another thread that acquires the shared lock.
+            (void)workgen_atomic_add32(&_icontext->_dyn_table_runtime[tint]._in_use, 1);
         } else {
             goto err;
         }
@@ -1389,7 +1391,7 @@ ThreadRunner::op_run(Operation *op)
         track = &_stats.insert;
         if (op->_key._keytype == Key::KEYGEN_APPEND || op->_key._keytype == Key::KEYGEN_AUTO) {
             if (op->_random_table) {
-                const std::lock_guard<std::mutex> lock(*_icontext->_dyn_mutex);
+                const std::shared_lock lock(*_icontext->_dyn_mutex);
                 recno = workgen_atomic_add64(&_icontext->_dyn_table_runtime.at(tint)._max_recno, 1);
             } else {
                 recno = workgen_atomic_add64(&_icontext->_table_runtime[tint]._max_recno, 1);
@@ -1592,9 +1594,10 @@ err:
     // For operations on random tables, if a table has been selected, decrement the reference
     // counter.
     if (op->_random_table && !table_uri.empty()) {
-        const std::lock_guard<std::mutex> lock(*_icontext->_dyn_mutex);
+        const std::shared_lock lock(*_icontext->_dyn_mutex);
         ASSERT(_icontext->_dyn_table_runtime[tint]._in_use > 0);
-        --_icontext->_dyn_table_runtime[tint]._in_use;
+        // Use atomic here as we can race with another thread that acquires the shared lock.
+        (void)workgen_atomic_sub32(&_icontext->_dyn_table_runtime[tint]._in_use, 1);
     }
 
     return (ret);
