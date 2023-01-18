@@ -44,16 +44,16 @@ gcp_connection::list_objects(std::vector<std::string> &objects) const
 
 // Puts an object into a google cloud bucket.
 int
-gcp_connection::put_object(const std::string &object_name, const std::string &file_name) const
+gcp_connection::put_object(const std::string &object_key, const std::string &file_name) const
 {
     return 0;
 }
 
 // Deletes an object from google cloud bucket.
 int
-gcp_connection::delete_object(const std::string &object_name)
+gcp_connection::delete_object(const std::string &object_key)
 {
-    auto status = _gcp_client.DeleteObject(_bucket_name, object_name);
+    auto status = _gcp_client.DeleteObject(_bucket_name, object_key);
 
     if (!status.ok()) {
         std::cerr << status.message() << std::endl;
@@ -64,7 +64,7 @@ gcp_connection::delete_object(const std::string &object_name)
 
 // Retrieves an object from the google cloud bucket.
 int
-gcp_connection::get_object(const std::string &object_name, const std::string &path) const
+gcp_connection::get_object(const std::string &object_key, const std::string &path) const
 {
     return 0;
 }
@@ -73,7 +73,7 @@ gcp_connection::get_object(const std::string &object_name, const std::string &pa
 // size of the object.
 int
 gcp_connection::object_exists(
-  const std::string &object_name, bool &exists, size_t &object_size) const
+  const std::string &object_key, bool &exists, size_t &object_size) const
 {
     return 0;
 }

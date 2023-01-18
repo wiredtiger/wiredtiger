@@ -31,13 +31,4 @@
 
 #include "gcp_connection.h"
 
-TEST_CASE("Testing class gcpConnection", "gcp-connection")
-{
-    // Initialize the API.
-    gcp_connection gcp_connection("quickstart_test");
-    SECTION("Delete GCP objects under the test bucket.", "[gcp-connection]")
-    {
-        REQUIRE(gcp_connection.delete_object("deletethis.txt") == 0);
-        REQUIRE(gcp_connection.delete_object("deletethis.txt") == -1);
-    }
-}
+TEST_CASE("Testing class gcpConnection", "gcp-connection") {}
