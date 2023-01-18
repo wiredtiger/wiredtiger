@@ -42,9 +42,9 @@ gcp_connection::gcp_connection(const std::string &bucket_name, const std::string
 int
 gcp_connection::list_objects(std::vector<std::string> &objects, bool list_single)
 {
-    /* Fetch the objects from the given bucket
+    /* Fetch the objects from the given bucket.
      * If prefix is given ListObject will filter the objects in the bucket and only return the ones
-     * that match the prefix
+     * that match the prefix.
      */
     for (auto &&object_metadata : _gcp_client.ListObjects(_bucket_name, gcs::Prefix(_prefix))) {
         /* Check if the current object is accessible (object exists but the user does not have
