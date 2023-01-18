@@ -47,7 +47,7 @@ class gcp_connection {
     private:
     google::cloud::storage::v2_5_0::Client _gcp_client;
     const std::string _bucket_name;
-    const std::string _prefix;
+    const std::string _object_prefix;
 
     int bucket_exists(bool &exists) const;
 };
