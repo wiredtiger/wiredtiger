@@ -32,17 +32,17 @@ from wtscenario import make_scenarios
 
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
-# test_union01.py
+# test_tiered18.py
 #    Basic tiered storage shared API test.
-class test_union01(wttest.WiredTigerTestCase, TieredConfigMixin):
+class test_tiered18(wttest.WiredTigerTestCase, TieredConfigMixin):
     # Make scenarios for different cloud service providers
-    storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), 'test_union01', tiered_only=True, tiered_shared=True)
+    storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), 'test_tiered18', tiered_only=True, tiered_shared=True)
     scenarios = make_scenarios(storage_sources)
 
-    uri_non_shared = "table:test_union01_non_shared"
-    uri_shared = "table:test_union01_shared"
-    uri_local = "table:test_union01_local"
-    uri_fail = "table:test_union01_fail"
+    uri_non_shared = "table:test_tiered18_non_shared"
+    uri_shared = "table:test_tiered18_shared"
+    uri_local = "table:test_tiered18_local"
+    uri_fail = "table:test_tiered18_fail"
 
     retention = 3
 

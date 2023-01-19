@@ -281,13 +281,10 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
             WT_ERR(__wt_import_repair(session, uri, &fileconf));
         }
 
-        /*
-         * Strip the tiered storage shared configuration from the metadata as it is not required to
-         * be persisted.
-         */
+        /* Strip any configuration settings that should not be persisted. */
         filecfg[1] = fileconf;
         filecfg[2] = NULL;
-        WT_ERR(__wt_config_tiered_shared_strip(session, filecfg, &filestripped));
+        WT_ERR(__wt_config_tiered_strip(session, filecfg, &filestripped));
         WT_ERR(__wt_metadata_insert(session, uri, filestripped));
 
         /*
@@ -944,7 +941,7 @@ __tiered_metadata_insert(WT_SESSION_IMPL *session, const char *uri, const char *
     WT_DECL_RET;
     const char *metadata;
 
-    WT_RET(__wt_config_tiered_shared_strip(session, config, &metadata));
+    WT_RET(__wt_config_tiered_strip(session, config, &metadata));
     ret = __wt_metadata_insert(session, uri, metadata);
     __wt_free(session, metadata);
 
@@ -1033,7 +1030,7 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
             cfg[1] = tmp->data;
             cfg[2] = config;
             cfg[3] = "tiers=()";
-            WT_ERR(__wt_config_tiered_shared_strip(session, cfg, &metadata));
+            WT_ERR(__wt_config_tiered_strip(session, cfg, &metadata));
         }
 
         WT_ERR(__wt_metadata_insert(session, uri, metadata));
