@@ -12,6 +12,10 @@ and one for a config that will launch docker compose (requested by Antithesis).
 5. Test via docker-compose (from this directory):
     $ sudo docker-compose up
 
+If you want to run just format from the docker image, this is the command that works for me:
+
+$ sudo docker run --rm --mount type=bind,src=/home/ubuntu/git/wiredtiger/tools/antithesis/CONFIG.antithesis,dst=/opt/bin/test/format/CONFIG.antithesis wt-test-format:latest /bin/bash /opt/bin/test.sh -c CONFIG.antithesis -h /data/RUNDIR
+
 As needed, we can export the containers:
     $ sudo docker image save wt-test-format > wt_test_format.tar
     $ sudo docker image save wt-test-format-config > wt_config.tar

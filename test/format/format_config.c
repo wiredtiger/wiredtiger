@@ -1622,8 +1622,10 @@ config_print(bool error_display)
     /* Flush so we're up-to-date on error. */
     (void)fflush(fp);
 
-    if (fp != stdout)
+    if (fp != stdout) {
         fclose_and_clear(&fp);
+        LAPSED_TS_MSG("Config saved");
+    }
 }
 
 /*

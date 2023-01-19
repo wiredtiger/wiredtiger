@@ -2,7 +2,11 @@
 btree.huffman_value=0
 cache.minimum=20
 runs.rows=100000:500000
-runs.tables=5
+runs.tables=3:8
 runs.threads=4:32
 runs.timer=5
 runs.type=row,var
+# Disable in memory while making progress on setup with Antithesis
+runs.in_memory=0
+# Always disable directio
+disk.direct_io=0

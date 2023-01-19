@@ -46,7 +46,7 @@
 #define M_Z(r) r.x.z
 
 #ifdef ENABLE_ANTITHESIS
-    #include "instrumentation.h"
+#include "instrumentation.h"
 #endif
 /*
  * __wt_random_init --
