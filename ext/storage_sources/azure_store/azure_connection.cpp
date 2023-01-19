@@ -63,18 +63,12 @@ azure_connection::list_objects(
 
 // Puts an object into the cloud storage using the prefix and file name.
 int
-azure_connection::put_object(const std::string &file_name) const
+azure_connection::put_object(const std::string &object_key, const std::string &file_path) const
 {
-    std::filesystem::path p(file_name);
-    bool exists = std::filesystem::exists(p);
-    if (!exists) {
-        std::cerr << file_name << ": No such file exists." << std::endl;
-        return -1;
-    }
-    auto blob_client = _azure_client.GetBlockBlobClient(_object_prefix + p.filename().u8string());
+    auto blob_client = _azure_client.GetBlockBlobClient(_object_prefix + object_key);
     // UploadFrom will always return a UploadBlockBlobFromResult describing the state of the updated
     // block blob so there's no need to check for errors.
-    blob_client.UploadFrom(file_name);
+    blob_client.UploadFrom(file_path);
     return 0;
 }
 
