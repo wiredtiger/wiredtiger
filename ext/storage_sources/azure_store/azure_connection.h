@@ -51,6 +51,7 @@ class azure_connection {
     int put_object(const std::string &file_name) const;
     int delete_object() const;
     int get_object(const std::string &path) const;
+    int object_exists(const std::string &object_name, bool &exists) const;
 
     private:
     const std::string _bucket_name;
