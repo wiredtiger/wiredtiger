@@ -408,7 +408,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
           (WT_STREQ(btree->value_format, "S") || WT_STREQ(btree->value_format, "u"));
 
         /*
-         * If there exists an on page tombstone and it without a timestamp, consider it as a no
+         * If there exists an on page tombstone without a timestamp, consider it as a no
          * timestamp update to clear the timestamps of all the updates that are inserted into the
          * history store.
          */
