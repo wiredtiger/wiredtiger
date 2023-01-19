@@ -97,5 +97,16 @@ azure_connection::bucket_exists(bool &exists) const
 {
     exists = false;
 
+    auto list_container_response = _azure_client.ListBlobContainers();
+
+    
+
+
+    // get list of containers associated with the container client
+
+    // if bucket name is not found in list, it does not exist
+
+    // else check if container is deleted in BlobContainerItem struct
+
     return 0;
 }
