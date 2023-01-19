@@ -192,12 +192,12 @@ __chunkcache_evict_one(WT_SESSION_IMPL *session)
      */
     __wt_spin_lock(session, &chunkcache->chunkcache_lru_lock);
     chunk_to_evict = TAILQ_LAST(&chunkcache->chunkcache_lru_list, __wt_chunkcache_lru);
-    if (chunk_to_evict != NULL)
+    if (chunk_to_evict != NULL && chunk_to_evict->valid)
         TAILQ_REMOVE(&chunkcache->chunkcache_lru_list, chunk_to_evict, next_lru_item);
     chunk_to_evict->being_evicted = true;
     __wt_spin_unlock(session, &chunkcache->chunkcache_lru_lock);
 
-    if (chunk_to_evict == NULL)
+    if (chunk_to_evict == NULL || !chunk_to_evict->valid)
         return false;
 
     printf("\nevict: offset=%" PRId64 ", size=%ld\n",
@@ -430,24 +430,26 @@ __wt_chunkcache_complete_read(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CHUN
            chunk->chunk_size=%" PRIu64 ", size=%" PRIu64 "\n",
            chunk->chunk_offset, offset, (uint64_t)chunk->chunk_size, (uint64_t)size);
 
-    /* Atomically mark the chunk as valid */
-    (void)__wt_atomic_addv32(&chunk->valid, 1);
-
-    /* Insert it at the head of the LRU list */
-    __wt_spin_lock(session, &chunkcache->chunkcache_lru_lock);
-    TAILQ_INSERT_HEAD(&chunkcache->chunkcache_lru_list, chunk, next_lru_item);
-    __wt_spin_unlock(session, &chunkcache->chunkcache_lru_lock);
-
     /* Easy case: the entire block is in the chunk */
     if (BLOCK_IN_CHUNK) {
         memcpy(dst, chunk->chunk_location + (offset - chunk->chunk_offset), size);
         *chunkcache_has_data = true;
+
+        /* Atomically mark the chunk as valid */
+        (void)__wt_atomic_addv32(&chunk->valid, 1);
+
+        /* Insert it at the head of the LRU list */
+        __wt_spin_lock(session, &chunkcache->chunkcache_lru_lock);
+        TAILQ_INSERT_HEAD(&chunkcache->chunkcache_lru_list, chunk, next_lru_item);
+        __wt_spin_unlock(session, &chunkcache->chunkcache_lru_lock);
     } else {
         /*
          * Complicated case: the block begins in the chunk we have read, but
          * ends in the next chunk or may even span several chunks.
          * We need to see if those chunks have the data we need, and if not,
-         * read it.
+         * read it. We do not mark the current chunk as valid until we are done
+         * with it. An invalid chunk would cannot be removed from the chunk chain,
+         * and we use this invariant to shorten the time when we hold locks.
          */
         WT_ASSERT(session,
                   BLOCK_BEGINS_IN_CHUNK(chunk->chunk_offset, offset, chunk->chunk_size, size));
@@ -463,10 +465,14 @@ __wt_chunkcache_complete_read(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CHUN
         prev_chunk = chunk;
         while (left_to_read > 0) {
             /* See if the next chunk is already cached */
+            __wt_spin_lock(session, &chunkcache->bucket_locks[chunk->bucket_id]);
             if ((next_chunk = (WT_CHUNKCACHE_CHUNK *)TAILQ_NEXT(chunk, next_chunk)) != NULL &&
                 next_chunk->chunk_offset == (chunk->chunk_offset + (wt_off_t)chunk->chunk_size))
                 newchunk = next_chunk;
             else {
+                /* Don't hold the lock while we are allocating the new chunk and doing I/O */
+                __wt_spin_unlock(session, &chunkcache->bucket_locks[newchunk->bucket_id]);
+
                 /* Allocate the new chunk */
                 newchunk_offset = prev_chunk->chunk_offset + prev_chunk->chunk_size;
                 WT_RET(__chunkcache_alloc_chunk(session, &newchunk, newchunk_offset, block,
@@ -477,7 +483,6 @@ __wt_chunkcache_complete_read(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CHUN
                     __chunkcache_free_chunk(newchunk);
                     return WT_ERR;
                 }
-                (void)__wt_atomic_addv32(&newchunk->valid, 1);
                 /* Insert it into the chunk chain */
                 __wt_spin_lock(session, &chunkcache->bucket_locks[newchunk->bucket_id]);
                 TAILQ_INSERT_AFTER(newchunk->my_queuehead_ptr, prev_chunk, newchunk, next_chunk);
@@ -492,6 +497,8 @@ __wt_chunkcache_complete_read(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CHUN
             memcpy(dst + already_read, newchunk->chunk_location,
                    WT_MIN(left_to_read, newchunk->chunk_size));
 
+            if (!prev_chunk->valid)
+                (void)__wt_atomic_addv32(&prev_chunk->valid, 1);
             prev_chunk = newchunk;
             already_read += WT_MIN(left_to_read, newchunk->chunk_size);
             left_to_read -= newchunk->chunk_size;
