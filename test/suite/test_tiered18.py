@@ -26,32 +26,70 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wttest
-from helper_tiered import get_auth_token, TieredConfigMixin
+import os, wiredtiger, wttest
+from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources, get_shared_conn_config
 from wtscenario import make_scenarios
 
+StorageSource = wiredtiger.StorageSource  # easy access to constants
+
+# test_tiered18.py
+#    Basic tiered storage shared API test.
 class test_tiered18(wttest.WiredTigerTestCase, TieredConfigMixin):
-
-    tiered_storage_sources = [
-        ('azure_store', dict(is_tiered = True,
-            is_local_storage = False,
-            auth_token = get_auth_token('azure_store'), 
-            bucket = 'pythontest',
-            bucket_prefix = "pfx_",
-            ss_name = 'azure_store')),
-        ('gcp_store', dict(is_tiered = True,
-            is_local_storage = False,
-            auth_token = get_auth_token('gcp_store'), 
-            bucket = 'pythontest',
-            bucket_prefix = "pfx_",
-            ss_name = 'gcp_store')),
-    ]
-
     # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(tiered_storage_sources)
-    
+    storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), 'test_tiered18', tiered_only=True, tiered_shared=True)
+    scenarios = make_scenarios(storage_sources)
+
+    uri_non_shared = "table:test_tiered18_non_shared"
+    uri_shared = "table:test_tiered18_shared"
+    uri_local = "table:test_tiered18_local"
+    uri_fail = "table:test_tiered18_fail"
+
+    retention = 3
+
+    def conn_config(self):
+        if self.ss_name == 'dir_store':
+            os.mkdir(self.bucket)
+            os.mkdir(self.bucket1)
+        self.saved_conn = get_shared_conn_config(self) + 'local_retention=%d)'\
+             % self.retention
+        return self.saved_conn
+
+    # Load the storage store extension.
     def conn_extensions(self, extlist):
         TieredConfigMixin.conn_extensions(self, extlist)
 
-    def test_gcp_and_azure(self): 
-        pass
+    # Check for a specific string as part of the uri's metadata.
+    def check_metadata(self, uri, val_str):
+        c = self.session.open_cursor('metadata:create')
+        val = c[uri]
+        c.close()
+        self.assertTrue(val_str in val)
+
+    # Test calling the create API with shared enabled.
+    def test_tiered_shared(self):
+        self.pr("create tiered")
+        base_create = 'key_format=S,value_format=S'
+        self.session.create(self.uri_non_shared, base_create)
+        self.check_metadata(self.uri_non_shared, 'key_format=S')
+        #self.session.drop(self.uri_non_shared)
+
+        self.pr("create non tiered/local")
+        conf = ',tiered_storage=(name=none)'
+        self.session.create(self.uri_local, base_create + conf)
+        self.check_metadata(self.uri_local, 'name=none')
+        #self.session.drop(self.uri_local)
+
+        self.pr("create tiered shared")
+        conf = ',tiered_storage=(shared=true)'
+        self.session.create(self.uri_shared, base_create + conf)
+        #self.session.drop(self.uri_shared)
+
+        self.reopen_conn(config = self.saved_conn + ',tiered_storage=(shared=false)')
+
+        self.pr("create tiered shared with connection shared false")
+        conf = ',tiered_storage=(shared=true)'
+        err_msg = "/Invalid argument/"
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.create(self.uri_fail, "base_create + conf"), err_msg)
+
+if __name__ == '__main__':
+    wttest.run()

@@ -30,22 +30,52 @@
 
 #include <fstream>
 
-gcp_connection::gcp_connection(const std::string &bucket_name)
-    : _gcp_client(google::cloud::storage::Client()), _bucket_name(bucket_name)
+namespace gcs = google::cloud::storage;
+using namespace gcs;
+
+gcp_connection::gcp_connection(const std::string &bucket_name, const std::string &prefix)
+    : _gcp_client(google::cloud::storage::Client()), _bucket_name(bucket_name),
+      _object_prefix(prefix)
 {
 }
 
 // Builds a list of object names from the bucket.
 int
-gcp_connection::list_objects(std::vector<std::string> &objects) const
+gcp_connection::list_objects(std::vector<std::string> &objects, bool list_single)
 {
+    // Fetch the objects from the given bucket that match with the prefix given.
+    for (auto &&object_metadata :
+      _gcp_client.ListObjects(_bucket_name, gcs::Prefix(_object_prefix))) {
+        // Check if the current object is accessible (object exists but the user does not have
+        // permissions to access)
+        if (!object_metadata)
+            std::cerr << "List failed: " << object_metadata->name() << "is not accessible"
+                      << std::endl;
+
+        objects.push_back(object_metadata->name());
+
+        if (list_single)
+            break;
+    }
+
     return 0;
 }
 
 // Puts an object into a google cloud bucket.
 int
-gcp_connection::put_object(const std::string &object_key, const std::string &file_name) const
+gcp_connection::put_object(const std::string &object_key, const std::string &file_path)
 {
+    // Note that the client library automatically computes a hash on the
+    // client-side to verify data integrity during transmission.
+    google::cloud::v2_5_0::StatusOr<gcs::ObjectMetadata> metadata =
+      _gcp_client.UploadFile(file_path, _bucket_name, _object_prefix + object_key);
+
+    // Check if file has been successfully uploaded.
+    if (!metadata) {
+        std::cout << "Upload failed: " << metadata.status() << std::endl;
+        return -1;
+    }
+
     return 0;
 }
 
