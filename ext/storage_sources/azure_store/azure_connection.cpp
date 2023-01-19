@@ -66,9 +66,9 @@ azure_connection::put_object(const std::string &file_name) const
 
 // Delete an object in the bucket given the object name.
 int
-azure_connection::delete_object(const std::string &object_name) const
+azure_connection::delete_object(const std::string &object_key) const
 {
-    std::string obj = _object_prefix + object_name;
+    std::string obj = _object_prefix + object_key;
 
     auto object_client = _azure_client.GetBlobClient(obj);
     auto delete_blob_response = object_client.DeleteIfExists();
