@@ -40,10 +40,9 @@ azure_connection::azure_connection(const std::string &bucket_name, const std::st
     bool exists;
     int ret = bucket_exists(exists);
     if (!exists)
-        throw std::invalid_argument(_bucket_name + " : No such bucket.");
-    if (ret != 0) {
-        throw std::invalid_argument(_bucket_name + " : Unable to access bucket.");
-    }
+        std::cerr << _bucket_name + " : No such bucket." << std::endl;
+    if (ret != 0)
+        std::cerr << _bucket_name + " : Unable to access bucket." << std::endl;
 }
 
 // Build a list of all of the objects in the bucket.
@@ -97,16 +96,20 @@ azure_connection::bucket_exists(bool &exists) const
 {
     exists = false;
 
-    auto list_container_response = _azure_client.ListBlobContainers();
+    // Get list of containers associated with the class Azure client.
+    // auto list_container_response = _azure_client.ListBlobContainers();
 
-    
+    int ret = 0;
 
-
-    // get list of containers associated with the container client
-
-    // if bucket name is not found in list, it does not exist
-
-    // else check if container is deleted in BlobContainerItem struct
-
-    return 0;
+    // for (const auto container_item : list_container_response) {
+    //     // Check if bucket exists.
+    //     if (strcmp(container_item.Name, _bucket_name) == 0) {
+    //         exists = true;
+    //         // Check if bucket is deleted.
+    //         if (container_item.IsDeleted)
+    //             ret = -1;
+    //             break;
+    //     }
+    // }
+    return ret;
 }

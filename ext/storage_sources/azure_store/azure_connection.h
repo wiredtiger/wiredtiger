@@ -33,6 +33,7 @@
 
 #include <string>
 #include <vector>
+#include <iostream>
 
 /*
  * This class represents an active connection to the Azure endpoint and allows for interaction with
