@@ -1,6 +1,6 @@
 project(unittest CXX)
 
-# Assertion unit tests require overriding wt_abort such that WiredTiger no longer crashes. 
+# Assertion unit tests require overriding wt_abort such that WiredTiger no longer crashes.
 # This change will break assertions for all other testing so these tests must be run on their own.
 if(HAVE_UNITTEST_ASSERTS)
     set(unittests tests/test_assertions.cpp)
@@ -15,6 +15,7 @@ else()
         tests/test_tailq.cpp
         tests/block/test_bitstring.cpp
         tests/block/test_block_ckpt.cpp
+        tests/cursors/test_cursor_get_raw_key_value.cpp
         tests/packing/test_intpack.cpp
     )
 endif()
@@ -24,6 +25,7 @@ set(unittest_sources
     tests/utils.cpp
     tests/wrappers/block_mods.cpp
     tests/wrappers/connection_wrapper.cpp
+    tests/wrappers/item_wrapper.cpp
     tests/wrappers/mock_connection.cpp
     tests/wrappers/mock_session.cpp
     ${unittests}

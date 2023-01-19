@@ -140,6 +140,8 @@ CONFIG configuration_list[] = {
 
 {"debug.checkpoint_retention", "adjust log removal to retain the log records", C_NEUTRAL, 0, 10, 1024}
 
+{"debug.cursor_reposition", "cursor temporarily releases any page requiring forced eviction and then repositions back to the page for further operations", C_BOOL, 5, 0, 0}
+
 {"debug.eviction", "modify internal algorithms to force history store eviction to happen more aggressively", C_BOOL | C_NEUTRAL, 2, 0, 0}
 
 {"debug.log_retention", "adjust log removal to retain at least this number of log files", C_NEUTRAL, 0, 10, 1024}

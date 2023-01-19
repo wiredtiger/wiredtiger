@@ -25,35 +25,31 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-#
 
-import re, os
-from setuptools import setup, Extension
+import wiredtiger
+import wttest
 
-# OS X hack: turn off the Universal binary support that is built into the
-# Python build machinery, just build for the default CPU architecture.
-if not 'ARCHFLAGS' in os.environ:
-    os.environ['ARCHFLAGS'] = ''
+# test_stat11.py
+# Check for the presence of some stats, but does not actually check their values.
 
-# Suppress warnings building SWIG generated code.  SWIG boiler plate
-# functions have sign conversion warnings, so those warnings must be disabled.
-extra_cflags = [ '-w', '-I../../src/include', '-Wno-sign-conversion']
 
-dir = os.path.dirname(__file__)
+class test_stat11(wttest.WiredTigerTestCase):
+    uri = 'table:test_stat11'
+    conn_config = 'statistics=(all)'
+    create_params = 'key_format=i,value_format=i'
+    stats = ['cache_eviction_blocked_checkpoint', 'cache_eviction_blocked_hazard',
+             'cache_eviction_blocked_internal_page_split',
+             'cache_eviction_blocked_overflow_keys', 'cache_eviction_blocked_recently_modified',
+             'cache_eviction_blocked_uncommitted_truncate']
 
-# Read the version information from the RELEASE_INFO file
-for l in open(os.path.join(dir, '..', '..', 'RELEASE_INFO')):
-    if re.match(r'WIREDTIGER_VERSION_(?:MAJOR|MINOR|PATCH)=', l):
-        exec(l)
+    def test_stats_exist(self):
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        for s in self.stats:
+            v = stat_cursor[getattr(wiredtiger.stat.conn, s)][2]
+            # Use the value just in case; we would have already failed if it did not exist.
+            self.assertNotEqual(v, None)
+        stat_cursor.close()
 
-wt_ver = '%d.%d' % (WIREDTIGER_VERSION_MAJOR, WIREDTIGER_VERSION_MINOR)
 
-setup(name='wiredtiger', version=wt_ver,
-    ext_modules=[Extension('_wiredtiger',
-                [os.path.join(dir, 'wiredtiger_wrap.c')],
-        libraries=['wiredtiger'],
-        extra_compile_args=extra_cflags,
-    )],
-    package_dir={'' : dir},
-    packages=['wiredtiger'],
-)
+if __name__ == '__main__':
+    wttest.run()
