@@ -352,8 +352,8 @@ __wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object
              * of what the size that the chunk cache can admit, but we reduce the chunk size
              * if the default would cause us to read past the end of the file.
              */
-            if (__chunkcache_alloc_chunk(session, &newchunk, offset, size, block,
-                                         &chunkchain->chunks, bucket_id) == 0) {
+            if (__chunkcache_alloc_chunk(session, &newchunk, offset, block, &chunkchain->chunks,
+                                         bucket_id) == 0) {
                 printf("allocate: %s(%d), offset=%" PRId64 ", size=%ld\n",
                        (char*)&hash_id.objectname, hash_id.objectid, newchunk->chunk_offset,
                        newchunk->chunk_size);
@@ -390,8 +390,8 @@ __wt_chunkcache_check(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object
         /* Insert the new chunk. */
         TAILQ_INIT(&(newchain->chunks));
 
-        if (__chunkcache_alloc_chunk(session, &newchunk, offset, size, block,
-                                     &(newchain->chunks), bucket_id) != 0)
+        if (__chunkcache_alloc_chunk(session, &newchunk, offset, block, &(newchain->chunks),
+                                     bucket_id) != 0)
             goto done;
 
         TAILQ_INSERT_HEAD(&newchain->chunks, newchunk, next_chunk);
@@ -406,6 +406,14 @@ done:
     __wt_spin_unlock(session, &chunkcache->bucket_locks[bucket_id]);
 }
 
+#define CHUNK_MARK_VALID(session, chunkcache, chunk)                    \
+    if (!chunk->valid) {                                                \
+        (void)__wt_atomic_addv32(&chunk->valid, 1);                     \
+        __wt_spin_lock(session, &chunkcache->chunkcache_lru_lock);      \
+        TAILQ_INSERT_HEAD(&chunkcache->chunkcache_lru_list, chunk, next_lru_item); \
+        __wt_spin_unlock(session, &chunkcache->chunkcache_lru_lock);    \
+    }
+
 /*
  * __wt_chunkcache_complete_read --
  *     The upper layer calls this function once it has completed the read for the chunk. At this
@@ -418,8 +426,8 @@ __wt_chunkcache_complete_read(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CHUN
                               uint32_t size, void *dst, bool *chunkcache_has_data)
 {
     WT_CHUNKCACHE *chunkcache;
-    WT_CHUNK *newchunk, *next_chunk, *prev_chunk;
-    wt_off_t left_to_read, already_read;
+    WT_CHUNKCACHE_CHUNK *newchunk, *next_chunk, *prev_chunk;
+    wt_off_t already_read, left_to_read, newchunk_offset;
 
     chunkcache = &S2C(session)->chunkcache;
     *chunkcache_has_data = false;
@@ -431,17 +439,10 @@ __wt_chunkcache_complete_read(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CHUN
            chunk->chunk_offset, offset, (uint64_t)chunk->chunk_size, (uint64_t)size);
 
     /* Easy case: the entire block is in the chunk */
-    if (BLOCK_IN_CHUNK) {
+    if (BLOCK_IN_CHUNK(chunk->chunk_offset, offset, chunk->chunk_size, size)) {
         memcpy(dst, chunk->chunk_location + (offset - chunk->chunk_offset), size);
         *chunkcache_has_data = true;
-
-        /* Atomically mark the chunk as valid */
-        (void)__wt_atomic_addv32(&chunk->valid, 1);
-
-        /* Insert it at the head of the LRU list */
-        __wt_spin_lock(session, &chunkcache->chunkcache_lru_lock);
-        TAILQ_INSERT_HEAD(&chunkcache->chunkcache_lru_list, chunk, next_lru_item);
-        __wt_spin_unlock(session, &chunkcache->chunkcache_lru_lock);
+        CHUNK_MARK_VALID(session, chunkcache, chunk);
     } else {
         /*
          * Complicated case: the block begins in the chunk we have read, but
@@ -453,58 +454,80 @@ __wt_chunkcache_complete_read(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CHUN
          */
         WT_ASSERT(session,
                   BLOCK_BEGINS_IN_CHUNK(chunk->chunk_offset, offset, chunk->chunk_size, size));
-        WT_STAT; /* XXX */
+        /* XXX Put the stats here to count how many reads we have where the blocks span chunks. */
 
-        /* Copy the part of the block that we already have */
-        left_to_read = (offset + size) - (chunk->chunk_offset + chunk->chunk_size);
-        already_read = chunk->chunk_offset + chunk->chunk_size - offset;
+        /*
+         * Copy the part of the block that we already have. At this point, we have not yet
+         * marked the chunk as valid yet, so it is not going to disappear underneath us.
+         * Therefore, there is no need to lock the bucket.
+         */
+        left_to_read = (offset + (wt_off_t)size) - (chunk->chunk_offset + (wt_off_t)chunk->chunk_size);
+        already_read = chunk->chunk_offset + (wt_off_t)chunk->chunk_size - offset;
         WT_ASSERT(session, (already_read + left_to_read) == size);
         memcpy(dst, chunk->chunk_location + (offset - chunk->chunk_offset), already_read);
 
-        /* Now read the other chunk (or chunks) containing the remainder of the block. */
+        /*
+         * Now read the other chunk (or chunks) containing the remainder of the block.
+         * We have to atomically check whether the next chunk is already in the chunk chain
+         * and allocate/insert it if it is not. So we have to keep the chunk chain locked
+         * during these actions. We can read the data into this chunk without holding the lock.
+         */
         prev_chunk = chunk;
         while (left_to_read > 0) {
             /* See if the next chunk is already cached */
-            __wt_spin_lock(session, &chunkcache->bucket_locks[chunk->bucket_id]);
-            if ((next_chunk = (WT_CHUNKCACHE_CHUNK *)TAILQ_NEXT(chunk, next_chunk)) != NULL &&
-                next_chunk->chunk_offset == (chunk->chunk_offset + (wt_off_t)chunk->chunk_size))
+            __wt_spin_lock(session, &chunkcache->bucket_locks[prev_chunk->bucket_id]);
+            if ((next_chunk = (WT_CHUNKCACHE_CHUNK *)TAILQ_NEXT(prev_chunk, next_chunk)) != NULL &&
+                next_chunk->chunk_offset == (prev_chunk->chunk_offset + (wt_off_t)prev_chunk->chunk_size)) {
                 newchunk = next_chunk;
-            else {
-                /* Don't hold the lock while we are allocating the new chunk and doing I/O */
-                __wt_spin_unlock(session, &chunkcache->bucket_locks[newchunk->bucket_id]);
+                /*
+                 * If the newchunk is not valid, wait until it becomes valid and time out with
+                 * error if the wait is too long. XXX
+                 */
+
+            }
+            else { /* The chunk with the next bytes of the block is not cached. Let's read it. */
+                /* We are still holding the bucket lock here. */
 
                 /* Allocate the new chunk */
-                newchunk_offset = prev_chunk->chunk_offset + prev_chunk->chunk_size;
-                WT_RET(__chunkcache_alloc_chunk(session, &newchunk, newchunk_offset, block,
-                                                prev_chunk->my_queuehead_ptr, prev_chunk->bucket_id));
+                newchunk_offset = prev_chunk->chunk_offset + (wt_off_t)prev_chunk->chunk_size;
+                if (__chunkcache_alloc_chunk(session, &newchunk, newchunk_offset, block,
+                               prev_chunk->my_queuehead_ptr, prev_chunk->bucket_id) != 0) {
+                    __wt_spin_unlock(session, &chunkcache->bucket_locks[prev_chunk->bucket_id]);
+                    goto newchunk_err;
+                }
+
+                /* Insert it into the chunk chain */
+                TAILQ_INSERT_AFTER(newchunk->my_queuehead_ptr, prev_chunk, newchunk, next_chunk);
+                __wt_spin_unlock(session, &chunkcache->bucket_locks[prev_chunk->bucket_id]);
+
                 /* Read the data into it */
                 if (__wt_read(session, block->fh, newchunk->chunk_offset, newchunk->chunk_size,
                               newchunk->chunk_location) != 0) {
-                    __chunkcache_free_chunk(newchunk);
-                    return WT_ERR;
+                    __chunkcache_free_chunk(session, newchunk); /* remove ? */
+                    goto newchunk_err;
                 }
-                /* Insert it into the chunk chain */
-                __wt_spin_lock(session, &chunkcache->bucket_locks[newchunk->bucket_id]);
-                TAILQ_INSERT_AFTER(newchunk->my_queuehead_ptr, prev_chunk, newchunk, next_chunk);
-                __wt_spin_unlock(session, &chunkcache->bucket_locks[newchunk->bucket_id]);
-
-                /* Insert it into the LRU list */
-                __wt_spin_lock(session, &chunkcache->chunkcache_lru_lock);
-                TAILQ_INSERT_HEAD(&chunkcache->chunkcache_lru_list, newchunk, next_lru_item);
-                __wt_spin_unlock(session, &chunkcache->chunkcache_lru_lock);
             }
-            /* Copy the data that we just read into the destination buffer */
-            memcpy(dst + already_read, newchunk->chunk_location,
-                   WT_MIN(left_to_read, newchunk->chunk_size));
+            /*
+             * We no longer care if the previous chunk gets evicted, so set it as valid,
+             * and insert it at the top of the LRU list. Don't set the new chunk as valid
+             * just yet: if we need to read more data, we don't want this chunk to be
+             * evicted before we chain another one to it.
+             */
+            CHUNK_MARK_VALID(session, chunkcache, prev_chunk);
 
-            if (!prev_chunk->valid)
-                (void)__wt_atomic_addv32(&prev_chunk->valid, 1);
+            /* Copy the data that we read in the new chunk into the destination buffer */
+            memcpy((void*)((uint64_t)dst + (uint64_t)already_read), newchunk->chunk_location,
+                   WT_MIN((size_t)left_to_read, newchunk->chunk_size));
+
             prev_chunk = newchunk;
-            already_read += WT_MIN(left_to_read, newchunk->chunk_size);
+            already_read += (size_t)WT_MIN((size_t)left_to_read, newchunk->chunk_size);
             left_to_read -= newchunk->chunk_size;
         }
         *chunkcache_has_data = true;
     }
+  err:
+    if (!prev_chunk->valid)
+        (void)__wt_atomic_addv32(&prev_chunk->valid, 1);
 }
 
 /*
