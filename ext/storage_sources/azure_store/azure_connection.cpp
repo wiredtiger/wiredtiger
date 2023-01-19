@@ -72,7 +72,7 @@ azure_connection::put_object(const std::string &file_name) const
         return -1;
     }
     auto blob_client = _azure_client.GetBlockBlobClient(_object_prefix + p.filename().u8string());
-    auto result = blob_client.UploadFrom(file_name);
+    blob_client.UploadFrom(file_name);
     return 0;
 }
 
