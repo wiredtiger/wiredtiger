@@ -71,18 +71,6 @@ azure_connection::put_object(const std::string &file_name) const
         std::cerr << file_name << ": No such file exists." << std::endl;
         return -1;
     }
-
-    bool obj_exists = false;
-    int ret = object_exists(file_name, obj_exists);
-    if (!obj_exists) {
-        std::cerr << file_name << ": No such file." << std::endl;
-        return -1;
-    }
-    if (ret != 0) {
-        std::cerr << file_name << ": Unable to access bucket." << std::endl;
-        return -1
-    }
-
     auto blob_client = _azure_client.GetBlockBlobClient(_object_prefix + p.filename().u8string());
     // UploadFrom will always return a UploadBlockBlobFromResult describing the state of the updated
     // block blob so there's no need to check for errors.
@@ -98,12 +86,6 @@ azure_connection::delete_object() const
 
 int
 azure_connection::get_object(const std::string &path) const
-{
-    return 0;
-}
-
-int
-azure_connection::object_exists(const std::string &object_name, bool &exists) const
 {
     return 0;
 }
