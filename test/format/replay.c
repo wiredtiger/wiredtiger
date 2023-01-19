@@ -30,8 +30,8 @@
 
 /*
  * Predictable replay is ability to do test runs multiple times and always have predictable changes
- * made at every time stamp. Two predictable runs with the same starting "data seed"" executed up to
- * the same timestamp will always have their data compare identically. Predictable replay only works
+ * made at every timestamp. Two predictable runs with the same starting data seed executed up to the
+ * same timestamp will always have their data compare identically. Predictable replay only works
  * with timestamped transactions and to avoid complexity, only a single operation is allowed in a
  * transaction.
  *
@@ -39,20 +39,20 @@
  * RNG) with known start seeds, the data seed and the extra seed. Every single-threaded modification
  * (like bulk loading) when deciding on a random course, uses the global data RNG, which is seeded
  * by the data seed. Global decisions that don't affect data, like whether to turn on verbose, or
- * even the rate of checkpointing, use the global "extra" RNG, which is seeded by the "extra seed".
+ * even the rate of checkpointing, use the global extra RNG, which is seeded by the extra seed.
  * Changing the extra seed may change some characteristics of how a workload is tested, but should
  * not change any data on disk. When worker threads run, they have their own data and extra RNGs,
  * and these are seeded by the timestamp they are working on.
  *
  * Before a worker thread can decide on what operation to do on which key in which table, it must
  * obtain the next timestamp. Timestamps are doled out atomically, so no two worker thread can ever
- * "work on" the same timestamp. The timestamp is XOR-ed with the data seed, the result is the seed
- * of the thread's private data RNG for the duration of that operation. Likewise, a private extra
- * RNG is seeded from the timestamp and the extra seed. This ensures that all decisions about what
- * is committed at that timestamp is predictable based on the timestamp. As you might expect, the
- * thread's data RNG is used to decide what operation to do, which table to use, and which key
- * within the table. Other "random" decisions, like whether to reopen a session, or whether to
- * repeat a read from the snap list, use the extra RNG.
+ * perform operations using the same timestamp. The timestamp is XOR-ed with the data seed, the
+ * result is the seed of the thread's private data RNG for the duration of that operation. Likewise,
+ * a private extra RNG is seeded from the timestamp and the extra seed. This ensures that all
+ * decisions about what is committed at that timestamp is predictable based on the timestamp. As you
+ * might expect, the thread's data RNG is used to decide what operation to do, which table to use,
+ * and which key within the table. Other random decisions, like whether to reopen a session, or
+ * whether to repeat a read from the snap list, use the extra RNG.
  *
  * Note that once a thread has started to work on an operation at a timestamp, it cannot give up on
  * the effort. If, for example, a rollback error naturally happens, we can rollback the transaction.
@@ -63,10 +63,10 @@
  * failures.
  *
  * To avoid the possibility that two threads work on the same key at the same time, we have the
- * concept of "lanes", and only one thread can be working in a lane at once. There are LANE_COUNT
+ * concept of lanes, and only one thread can be working in a lane at once. There are LANE_COUNT
  * lanes, where LANE_COUNT is 2^k for some k. A thread uses a data RNG to choose the top bits of a
  * key number, but the bottom k bits of the key number are set to the bottom k bits of the timestamp
- * being worked. Those bottom k bits also determine the "lane" we are in. Each lane has a flag that
+ * being worked. Those bottom k bits also determine the lane we are in. Each lane has a flag that
  * determines whether the lane is in use by some operation. If thread T1 working an operation at
  * timestamp X takes a sufficiently long time relative to other operations, it may be that current
  * timestamp has advanced to X + LANE_COUNT. If that is the case, a different thread T2 that gets
@@ -87,7 +87,7 @@
  * fail until the stable timestamp advances. For that reason, we keep calculating and moving the
  * stable timestamp ahead at a much faster pace when predictable replay is configured. We also use
  * an algorithm that only uses lanes that are in use to calculate the stable timestamp. This is safe
- * and "more responsive" than the default calculation. And when there is a rollback error, we try to
+ * and more responsive than the default calculation. And when there is a rollback error, we try to
  * be smart whether we need to yield or pause. These modifications allow predictable performance to
  * be on par with regular performance.
  */
@@ -210,10 +210,10 @@ replay_loop_begin(TINFO *tinfo, bool intxn)
         /*
          * We're here at the start of the loop for one of four reasons:
          *   1) We needed to rollback the transaction, so we didn't give up our replay timestamp,
-         * and we set the 'again' flag.
+         * and we set the again flag.
          *   2) We successfully committed the last transaction, but our lane was 'behind',
          * and was skipped over, so we're obligated to perform the next timestamp in our lane.
-         * In that case, we have a replay timestamp and the 'again' flag is set.
+         * In that case, we have a replay timestamp and the again flag is set.
          *   3) We successfully committed the last transaction, and our lane was not behind.
          * We don't have a replay timestamp and the again flag is off.
          *   4) It's our first time through the loop, this is equivalent to the previous case.
@@ -251,11 +251,11 @@ show_timestamps(WT_SESSION *session, const char *msg)
 #endif
 
 /*
- * replay_run_sync --
+ * replay_run_reset --
  *     Called at beginning and end of runs to set up the lanes.
  */
 static void
-replay_run_sync(void)
+replay_run_reset(void)
 {
     uint64_t ts;
     uint32_t lane;
@@ -278,7 +278,7 @@ replay_run_begin(WT_SESSION *session)
     (void)session;
 
     if (GV(RUNS_PREDICTABLE_REPLAY)) {
-        replay_run_sync();
+        replay_run_reset();
         /* show_timestamps(session, "beginning of run"); */
     }
 }
@@ -294,7 +294,7 @@ replay_run_end(WT_SESSION *session)
 
     if (GV(RUNS_PREDICTABLE_REPLAY)) {
         /* show_timestamps(session, "end of run"); */
-        replay_run_sync();
+        replay_run_reset();
     }
 }
 
@@ -436,7 +436,7 @@ replay_rollback(TINFO *tinfo)
 
 /*
  * replay_pause_after_rollback --
- *     Called after a rollback, allowing us to yield or pause for bit.
+ *     Called after a rollback, allowing us to yield or pause.
  */
 void
 replay_pause_after_rollback(TINFO *tinfo, uint32_t ntries)
@@ -462,6 +462,6 @@ replay_pause_after_rollback(TINFO *tinfo, uint32_t ntries)
         __wt_yield();
     else {
         /* Never sleep more than .1 seconds */
-        __wt_sleep(0, ntries > 100 ? 100000 : ntries * 1000);
+        __wt_sleep(0, ntries > 100 ? 100 * WT_THOUSAND : ntries * WT_THOUSAND);
     }
 }

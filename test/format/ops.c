@@ -236,6 +236,7 @@ rollback_to_stable(WT_SESSION *session)
 
     /* Rollback the system. */
     testutil_check(g.wts_conn->rollback_to_stable(g.wts_conn, NULL));
+
     /*
      * Get the stable timestamp, and update ours. They should be the same, but there's no point in
      * debugging the race.
@@ -356,8 +357,10 @@ operations(u_int ops_seconds, bool lastrun)
         testutil_check(__wt_thread_create(NULL, &random_tid, random_kv, NULL));
     if (g.transaction_timestamps_config)
         testutil_check(__wt_thread_create(NULL, &timestamp_tid, timestamp, tinfo_list));
+
     if (g.checkpoint_config == CHECKPOINT_ON)
         testutil_check(__wt_thread_create(NULL, &checkpoint_tid, checkpoint, NULL));
+
     /* Spin on the threads, calculating the totals. */
     for (;;) {
         /* Clear out the totals each pass. */
@@ -446,6 +449,7 @@ operations(u_int ops_seconds, bool lastrun)
     g.workers_finished = false;
 
     trace_msg(session, "%s", "=============== thread ops stop");
+
     /* Sanity check the truncation gate. */
     testutil_assert(g.truncate_cnt == 0);
 

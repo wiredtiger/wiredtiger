@@ -256,11 +256,11 @@ typedef struct {
 
     uint64_t truncate_cnt; /* truncation operation counter */
 
-    uint64_t replay_start_timestamp;     /* Timestamp at the beginning of a run */
-    uint64_t timestamp_copy;             /* A copy of the timestamp, for safety checks */
-    uint64_t stop_timestamp;             /* If non-zero, stop when stable reaches this */
+    uint32_t replay_calculate_committed; /* Times before recalculating cached committed */
     uint64_t replay_cached_committed;    /* Our committed timestamp, cached */
-    uint32_t replay_calculate_committed; /* Times before recalculating */
+    uint64_t replay_start_timestamp;     /* Timestamp at the beginning of a run */
+    uint64_t stop_timestamp;             /* If non-zero, stop when stable reaches this */
+    uint64_t timestamp_copy;             /* A copy of the timestamp, for safety checks */
 
     /*
      * Lock to prevent the stable timestamp from moving during the commit of prepared transactions.
@@ -389,9 +389,9 @@ typedef struct {
     bool repeatable_reads; /* if read ops repeatable */
     bool repeatable_wrap;  /* if circular buffer wrapped */
     uint64_t opid;         /* Operation ID */
-    uint64_t replay_ts;    /* allocated timestamp for predictable replay */
-    uint64_t read_ts;      /* read timestamp */
     uint64_t commit_ts;    /* commit timestamp */
+    uint64_t read_ts;      /* read timestamp */
+    uint64_t replay_ts;    /* allocated timestamp for predictable replay */
     uint64_t stable_ts;    /* stable timestamp */
     SNAP_STATE snap_states[2];
     SNAP_STATE *s; /* points to one of the snap_states */

@@ -114,8 +114,8 @@ timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
          * For predictable replay, we need the oldest timestamp to lag when the process exits. That
          * allows two runs that finish with stable timestamps in the same ballpark to be compared.
          */
-        if (stable_timestamp > 10000)
-            oldest_timestamp = stable_timestamp - 10000;
+        if (stable_timestamp > 10 * WT_THOUSAND)
+            oldest_timestamp = stable_timestamp - 10 * WT_THOUSAND;
         else
             oldest_timestamp = stable_timestamp / 2;
 
@@ -184,7 +184,7 @@ timestamp(void *arg)
             if ((rng(&g.extra_rnd) & 0x1) == 1)
                 __wt_yield();
             else
-                __wt_sleep(0, 10000);
+                __wt_sleep(0, 10 * WT_THOUSAND);
         }
         timestamp_once(session, !GV(RUNS_PREDICTABLE_REPLAY), false);
     }
