@@ -86,7 +86,7 @@ __posix_sync(WT_SESSION_IMPL *session, int fd, const char *name, const char *fun
         WT_RET_PANIC(session, ret, "%s: %s: fcntl(F_FULLFSYNC)", name, func);
     }
 #endif
-#if defined(HAVE_FDATASYNC)
+#if defined(HAVE_FDATASYNC && !defined(__FreeBSD__))
     /* See comment in __posix_sync(): sync cannot be retried or fail. */
     WT_SYSCALL(fdatasync(fd), ret);
     if (ret == 0)
