@@ -25,35 +25,33 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-#
 
-import re, os
-from setuptools import setup, Extension
+import wttest
+from helper_tiered import get_auth_token, TieredConfigMixin
+from wtscenario import make_scenarios
 
-# OS X hack: turn off the Universal binary support that is built into the
-# Python build machinery, just build for the default CPU architecture.
-if not 'ARCHFLAGS' in os.environ:
-    os.environ['ARCHFLAGS'] = ''
+class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
 
-# Suppress warnings building SWIG generated code.  SWIG boiler plate
-# functions have sign conversion warnings, so those warnings must be disabled.
-extra_cflags = [ '-w', '-I../../src/include', '-Wno-sign-conversion']
+    tiered_storage_sources = [
+        ('azure_store', dict(is_tiered = True,
+            is_local_storage = False,
+            auth_token = get_auth_token('azure_store'), 
+            bucket = 'pythontest',
+            bucket_prefix = "pfx_",
+            ss_name = 'azure_store')),
+        ('gcp_store', dict(is_tiered = True,
+            is_local_storage = False,
+            auth_token = get_auth_token('gcp_store'), 
+            bucket = 'pythontest',
+            bucket_prefix = "pfx_",
+            ss_name = 'gcp_store')),
+    ]
 
-dir = os.path.dirname(__file__)
+    # Make scenarios for different cloud service providers
+    scenarios = make_scenarios(tiered_storage_sources)
+    
+    def conn_extensions(self, extlist):
+        TieredConfigMixin.conn_extensions(self, extlist)
 
-# Read the version information from the RELEASE_INFO file
-for l in open(os.path.join(dir, '..', '..', 'RELEASE_INFO')):
-    if re.match(r'WIREDTIGER_VERSION_(?:MAJOR|MINOR|PATCH)=', l):
-        exec(l)
-
-wt_ver = '%d.%d' % (WIREDTIGER_VERSION_MAJOR, WIREDTIGER_VERSION_MINOR)
-
-setup(name='wiredtiger', version=wt_ver,
-    ext_modules=[Extension('_wiredtiger',
-                [os.path.join(dir, 'wiredtiger_wrap.c')],
-        libraries=['wiredtiger'],
-        extra_compile_args=extra_cflags,
-    )],
-    package_dir={'' : dir},
-    packages=['wiredtiger'],
-)
+    def test_gcp_and_azure(self): 
+        pass
