@@ -40,7 +40,7 @@ __metadata_config(WT_SESSION_IMPL *session, char **metaconfp)
       "key_format=S,value_format=S,id=%d,version=(major=%" PRIu16 ",minor=%" PRIu16 ")",
       WT_METAFILE_ID, WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor));
     cfg[1] = buf->data;
-    ret = __wt_config_tiered_shared_strip(session, cfg, (const char **)metaconfp);
+    ret = __wt_config_tiered_strip(session, cfg, (const char **)metaconfp);
 
 err:
     __wt_scr_free(session, &buf);
