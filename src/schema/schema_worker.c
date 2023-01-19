@@ -98,8 +98,8 @@ __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri,
     /* FIXME-WT-10520 - Let verify process tiered storage related tables and objects once it is
      * supported. */
     if (file_func == __wt_verify &&
-      (WT_PREFIX_MATCH(uri, "lsm:") || WT_PREFIX_MATCH(uri, "object:") ||
-        WT_PREFIX_MATCH(uri, "tier:") || WT_PREFIX_MATCH(uri, "tiered:")))
+      (WT_PREFIX_MATCH(uri, "object:") || WT_PREFIX_MATCH(uri, "tier:") ||
+        WT_PREFIX_MATCH(uri, "tiered:")))
         WT_ERR(ENOTSUP);
 
     /* Get the btree handle(s) and call the underlying function. */
