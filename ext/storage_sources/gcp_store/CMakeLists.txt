@@ -48,3 +48,7 @@ target_link_libraries(
     PRIVATE
         gcp_bucket_util
 )
+
+if(HAVE_UNITTEST)
+    add_subdirectory(test)
+endif()
