@@ -85,13 +85,17 @@ azure_connection::get_object(const std::string &path) const
 }
 
 int
-azure_connection::object_exists(const std::string &object_name) const
+azure_connection::object_exists(const std::string &object_name, bool &exists) const
 {
+    exists = false;
+
     return 0;
 }
 
 int
 azure_connection::bucket_exists(bool &exists) const
 {
+    exists = false;
+
     return 0;
 }
