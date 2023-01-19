@@ -74,8 +74,10 @@ azure_connection::delete_object(const std::string &object_name) const
     auto delete_blob_response = object_client.DeleteIfExists();
 
     // Returns false if obj doesn't exist.
-    if (!delete_blob_response.Value.Deleted)
+    if (!delete_blob_response.Value.Deleted) {
+        std::cerr << obj + " : No such Object." << std::endl;
         return -1;
+    }
 
     return 0;
 }
