@@ -5332,28 +5332,6 @@ buildvariants:
   # find a smaller set of tests that give an optimal test coverage while being mindful of machine
   # costs and availability.
     - name: split-stress-test-nonstandalone-1
-
-- name: ubuntu2004-stress-tests-ooo-key
-  display_name: Ubuntu 20.04 OOO key (ARM64)
-  run_on:
-  - ubuntu2004-arm64-large
-  expansions:
-    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
-    make_command: ninja
-    test_env_vars:
-      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
-      WT_TOPDIR=$(git rev-parse --show-toplevel)
-      WT_BUILDDIR=$WT_TOPDIR/cmake_build
-      LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libeatmydata.so:$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
-      LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
-    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
-    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
-    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
-  tasks:
-  # FIXME-WT-8947: For now run the whole stress test suite like we do on the x86 platform. But later
-  # find a smaller set of tests that give an optimal test coverage while being mindful of machine
-  # costs and availability.
-    - name: split-stress-test-nonstandalone-1
     - name: split-stress-test-nonstandalone-2
     - name: split-stress-test-nonstandalone-3
     - name: split-stress-test-nonstandalone-4

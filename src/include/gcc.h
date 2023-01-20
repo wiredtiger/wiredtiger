@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *    All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -62,9 +62,9 @@
  * WT_READ_BARRIER and WT_WRITE_BARRIER macros.  WiredTiger's requirement as
  * described by the Solaris membar_enter description:
  *
- *	No stores from after the memory barrier will reach visibility and
- *	no loads from after the barrier will be resolved before the lock
- *	acquisition reaches global visibility
+ *    No stores from after the memory barrier will reach visibility and
+ *    no loads from after the barrier will be resolved before the lock
+ *    acquisition reaches global visibility
  *
  * In other words, the WT_WRITE_BARRIER macro must ensure that memory stores by
  * the processor, made before the WT_WRITE_BARRIER call, be visible to all
@@ -98,6 +98,79 @@
 #error "Clang versions 3.5 and earlier are unsupported by WiredTiger"
 #endif
 
+/*
+ * Try our own atomic implementations.
+ */
+#if defined(__aarch64__)
+
+/*
+ * Perform atomic compare-and-swap, using a full barrier.
+ *
+ * The macro produces the following assembly code:
+ *     PRFM  PRSTL1STRM *ptr   ; prefetch *ptr
+ * 1:  LDXR  oldval, *ptr      ; oldval = *ptr
+ *     CMP   oldval, old       ; if (oldval != old) goto 2
+ *     B.NE  2f
+ *     STLXR tmp, newv, *ptr   ; *ptr = newv; tmp = 0 on success
+ *     CBNZ  tmp, 1b           ; if (tmp != 0) goto 1
+ * 2:  DMB   ISH               ; barrier
+ *
+ * Note that the CMP instruction requires operands to be either 32- or 64-bit.
+ */
+#define WT_ATOMIC_CAS_FUNC(name, size, w, sfx, vp_type, old_type, new_type)            \
+    static inline bool __wt_atomic_cas##name(vp_type ptr, old_type old, new_type newv) \
+    {                                                                                  \
+        old_type oldval;                                                               \
+        uint32_t tmp;                                                                  \
+                                                                                       \
+        __asm__ volatile(                                                              \
+          "    prfm pstl1strm, %2\n"                                                   \
+          "1:  ldxr" #sfx " %" #w                                                      \
+          "1, %2\n"                                                                    \
+          "    cmp\t%" #w "1, %" #w                                                    \
+          "3\n"                                                                        \
+          "    b.ne 2f\n"                                                              \
+          "    stlxr" #sfx " %w0, %" #w                                                \
+          "4, %2\n"                                                                    \
+          "    cbnz %w0, 1b\n"                                                         \
+          "2:  dmb ish\n"                                                              \
+          : "=&r"(tmp), "=&r"(oldval), "+Q"(*(uint##size##_t *)ptr)                    \
+          : "Ir"(old), "r"(newv)                                                       \
+          : "memory");                                                                 \
+                                                                                       \
+        return (oldval == old);                                                        \
+    }
+
+/*
+ * WT_ATOMIC_CAS_FUNC(8, 8, w, b, uint8_t *, uint32_t, uint32_t)
+ * WT_ATOMIC_CAS_FUNC(v8, 8, w, b, volatile uint8_t *, uint32_t, volatile uint32_t)
+ * WT_ATOMIC_CAS_FUNC(16, 16, w, h, uint16_t *, uint32_t, uint32_t)
+ */
+WT_ATOMIC_CAS_FUNC(32, 32, w, , uint32_t *, uint32_t, uint32_t)
+WT_ATOMIC_CAS_FUNC(v32, 32, w, , volatile uint32_t *, uint32_t, volatile uint32_t)
+WT_ATOMIC_CAS_FUNC(i32, 32, w, , int32_t *, int32_t, int32_t)
+WT_ATOMIC_CAS_FUNC(iv32, 32, w, , volatile int32_t *, int32_t, volatile int32_t)
+WT_ATOMIC_CAS_FUNC(64, 64, , , uint64_t *, uint64_t, uint64_t)
+WT_ATOMIC_CAS_FUNC(v64, 64, , , volatile uint64_t *, uint64_t, volatile uint64_t)
+WT_ATOMIC_CAS_FUNC(i64, 64, , , int64_t *, int64_t, int64_t)
+WT_ATOMIC_CAS_FUNC(iv64, 64, , , volatile int64_t *, int64_t, volatile int64_t)
+WT_ATOMIC_CAS_FUNC(size, 64, , , size_t *, size_t, size_t)
+WT_ATOMIC_CAS_FUNC(_ptr, 64, , , void *, void *, void *)
+
+#define WT_ATOMIC_CAS_ACQ_REL(ptr, oldp, newv) \
+    __atomic_compare_exchange_n(ptr, oldp, newv, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
+#define WT_ATOMIC_CAS_FUNC_ACQ_REL(name, vp_arg, old_arg, newv_arg)     \
+    static inline bool __wt_atomic_cas##name(vp_arg, old_arg, newv_arg) \
+    {                                                                   \
+        return (WT_ATOMIC_CAS_ACQ_REL(vp, &old, newv));                 \
+    }
+
+WT_ATOMIC_CAS_FUNC_ACQ_REL(8, uint8_t *vp, uint8_t old, uint8_t newv)
+WT_ATOMIC_CAS_FUNC_ACQ_REL(v8, volatile uint8_t *vp, uint8_t old, volatile uint8_t newv)
+WT_ATOMIC_CAS_FUNC_ACQ_REL(16, uint16_t *vp, uint16_t old, uint16_t newv)
+
+#else
+
 #define WT_ATOMIC_CAS(ptr, oldp, newv) \
     __atomic_compare_exchange_n(ptr, oldp, newv, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
 #define WT_ATOMIC_CAS_FUNC(name, vp_arg, old_arg, newv_arg)             \
@@ -105,6 +178,7 @@
     {                                                                   \
         return (WT_ATOMIC_CAS(vp, &old, newv));                         \
     }
+
 WT_ATOMIC_CAS_FUNC(8, uint8_t *vp, uint8_t old, uint8_t newv)
 WT_ATOMIC_CAS_FUNC(v8, volatile uint8_t *vp, uint8_t old, volatile uint8_t newv)
 WT_ATOMIC_CAS_FUNC(16, uint16_t *vp, uint16_t old, uint16_t newv)
@@ -127,6 +201,8 @@ __wt_atomic_cas_ptr(void *vp, void *old, void *newv)
 {
     return (WT_ATOMIC_CAS((void **)vp, &old, newv));
 }
+
+#endif
 
 #define WT_ATOMIC_FUNC(name, ret, vp_arg, v_arg)                 \
     static inline ret __wt_atomic_add##name(vp_arg, v_arg)       \
