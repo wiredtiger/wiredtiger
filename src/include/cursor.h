@@ -6,6 +6,21 @@
  * See the file LICENSE for redistribution information.
  */
 
+#define NR_SKIPLIST_EVENTS 128
+
+#define SKIPLIST_EVENT(cbt, ev)                 \
+    do {                                        \
+        cbt->events[cbt->event_ptr++] = ev;     \
+        cbt->event_ptr %= NR_SKIPLIST_EVENTS;   \
+    } while(0)
+
+#define SKIPLIST_EVENT_DATA(cbt, ev, data)         \
+    do {                                           \
+        cbt->events[cbt->event_ptr] = ev;          \
+        cbt->event_data[cbt->event_ptr++] = data; \
+        cbt->event_ptr %= NR_SKIPLIST_EVENTS;      \
+    } while (0)
+
 /* Get the session from any cursor. */
 #define CUR2S(c) ((WT_SESSION_IMPL *)((WT_CURSOR *)c)->session)
 
@@ -113,6 +128,21 @@ struct __wt_cursor_btree {
     WT_INSERT *ins;           /* Current insert node */
     /* Search stack */
     WT_INSERT **ins_stack[WT_SKIP_MAXDEPTH];
+
+    enum {
+        SKIPLIST_EV_NONE = 0,
+        SKIPLIST_EV_LVL_DOWN = 1,
+        SKIPLIST_EV_COMPARE = 2,
+        SKIPLIST_EV_INS_NULL = 3,
+        SKIPLIST_EV_MATCH = 4,
+        SKIPLIST_EV_CMP_GZ = 5,
+        SKIPLIST_EV_CMP_LZ = 6,
+        SKIPLIST_EV_CMP_EQ_DECR_I = 7,
+        SKIPLIST_EV_LAST = 8
+    } skiplist_events;
+    uint8_t events[NR_SKIPLIST_EVENTS];
+    uint64_t event_data[NR_SKIPLIST_EVENTS];
+    uint32_t event_ptr;
 
     /* Next item(s) found during search */
     WT_INSERT *next_stack[WT_SKIP_MAXDEPTH];

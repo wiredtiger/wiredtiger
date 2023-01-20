@@ -102,7 +102,9 @@ __wt_search_insert(
     match = skiphigh = skiplow = 0;
     ins = last_ins = NULL;
     for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0;) {
+        SKIPLIST_EVENT_DATA(cbt, SKIPLIST_EV_LVL_DOWN, (uint64_t)i);
         if ((ins = *insp) == NULL) {
+            SKIPLIST_EVENT(cbt, SKIPLIST_EV_INS_NULL);
             cbt->next_stack[i] = NULL;
             cbt->ins_stack[i--] = insp--;
             continue;
@@ -113,25 +115,32 @@ __wt_search_insert(
          * they might be expensive.
          */
         if (ins != last_ins) {
+            SKIPLIST_EVENT_DATA(cbt, SKIPLIST_EV_COMPARE, (uint64_t)ins);
             last_ins = ins;
             key.data = WT_INSERT_KEY(ins);
             key.size = WT_INSERT_KEY_SIZE(ins);
             match = WT_MIN(skiplow, skiphigh);
             WT_RET(__wt_compare_skip(session, collator, srch_key, &key, &cmp, &match));
+            SKIPLIST_EVENT_DATA(cbt, SKIPLIST_EV_MATCH, match);
         }
 
         if (cmp > 0) { /* Keep going at this level */
+            SKIPLIST_EVENT(cbt, SKIPLIST_EV_CMP_GZ);
             insp = &ins->next[i];
             skiplow = match;
         } else if (cmp < 0) { /* Drop down a level */
+            SKIPLIST_EVENT(cbt, SKIPLIST_EV_CMP_LZ);
             cbt->next_stack[i] = ins;
+
             cbt->ins_stack[i--] = insp--;
             skiphigh = match;
-        } else
+        } else {
             for (; i >= 0; i--) {
+                SKIPLIST_EVENT_DATA(cbt, SKIPLIST_EV_CMP_EQ_DECR_I, (uint64_t)i);
                 cbt->next_stack[i] = ins->next[i];
                 cbt->ins_stack[i] = &ins->next[i];
             }
+        }
     }
 
     /*
