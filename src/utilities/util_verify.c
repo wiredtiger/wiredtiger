@@ -42,12 +42,9 @@ verify_one(WT_SESSION *session, char *config, char *uri)
 
     if ((ret = session->verify(session, uri, config)) != 0)
         ret = util_err(session, ret, "session.verify: %s", uri);
-    else {
-        /*
-         * Verbose configures a progress counter, move to the next line.
-         */
-        if (verbose)
-            printf("\n");
+    else if (verbose) {
+        /* Verbose configures a progress counter, move to the next line. */
+        printf("\n");
     }
     return (ret);
 }
@@ -148,26 +145,20 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
             if (ret == ENOENT)
                 ret = 0;
 
-            ret = util_err(session, ret, "%s: WT_SESSION.open_cursor", WT_METADATA_URI);
-            if (ret != 0)
-                goto err;
+            WT_ERR(util_err(session, ret, "%s: WT_SESSION.open_cursor", WT_METADATA_URI));
         }
 
         while ((ret = cursor->next(cursor)) == 0) {
-            if ((ret = cursor->get_key(cursor, &key)) != 0) {
-                ret = util_cerr(cursor, "get_key", ret);
-                goto err;
-            }
+            if ((ret = cursor->get_key(cursor, &key)) != 0)
+                WT_ERR(util_cerr(cursor, "get_key", ret));
 
             if (strcmp(key, WT_HS_URI) != 0 && strcmp(key, WT_METADATA_URI) != 0 &&
               !WT_PREFIX_MATCH(key, WT_SYSTEM_PREFIX))
                 ret = verify_one(session, config, key);
         }
     } else {
-        if ((uri = util_uri(session, *argv, "table")) == NULL) {
-            ret = 1;
-            goto err;
-        }
+        if ((uri = util_uri(session, *argv, "table")) == NULL)
+            WT_ERR(1);
 
         ret = verify_one(session, config, uri);
     }
