@@ -28,7 +28,7 @@
  */
 #pragma once
 
-// #include "google/cloud/storage/client.h"
+#include "google/cloud/storage/client.h"
 #include <iostream>
 #include <string>
 #include <vector>
@@ -44,8 +44,9 @@ class gcp_connection {
 
     ~gcp_connection() = default;
 
+
+    google::cloud::storage::v2_5_0::Client _gcp_client;
     private:
-    const google::cloud::storage::v2_5_0::Client _gcp_client;
     const std::string _bucket_name;
 
     int bucket_exists(bool &exists) const;

@@ -31,4 +31,8 @@
 
 #include "gcp_connection.h"
 
-TEST_CASE("Testing class gcpConnection", "gcp-connection") {}
+TEST_CASE("Testing class gcpConnection", "gcp-connection") {
+    gcp_connection gcp_connection("fsd");
+
+    gcp_connection._gcp_client.ListObjects("fsd");
+}

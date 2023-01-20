@@ -4,6 +4,7 @@ project(gcp_store CXX)
 add_library(gcp_bucket_util STATIC gcp_connection.cpp)
 set_property(TARGET gcp_bucket_util PROPERTY POSITION_INDEPENDENT_CODE ON)
 
+find_package(absl)
 target_include_directories(
     gcp_bucket_util
     PUBLIC
@@ -19,7 +20,10 @@ target_link_libraries(
     gcp_bucket_util
     PUBLIC
         gcp_storage_lib
+        gcp_common_lib
+        absl::variant
 )
+add_dependencies(gcp_bucket_util gcp-sdk)
 # Build the gcp extension as a library.
 add_library(wiredtiger_gcp_store MODULE gcp_storage_source.cpp)
 target_include_directories(
