@@ -59,7 +59,6 @@ workload.options.run_time=360
 print('Split stress workload running...')
 ret = workload.run(conn)
 assert ret == 0, ret
-keep_running = False
 
 latency_filename = context.args.home + "/latency.out"
 latency.workload_latency(workload, latency_filename)
