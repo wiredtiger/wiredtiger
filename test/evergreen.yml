@@ -2529,6 +2529,7 @@ tasks:
 
   - name: fops
     tags: ["pull_request"]
+    exec_timeout_secs: 43200
     depends_on:
     - name: compile
     commands:
@@ -2542,7 +2543,9 @@ tasks:
             if [ "Windows_NT" = "$OS" ]; then
               cmd.exe /c test_fops.exe
             else
-              ${test_env_vars|} ./test_fops
+              for i in $(seq ${times|100}); do
+                  ${test_env_vars|} ./test_fops
+              done
             fi
 
   - name: bench-tiered-push-pull
@@ -3476,8 +3479,9 @@ tasks:
           times: 1       # No of times to run the loop
           no_of_procs: 10 # No of processes to run in the background
 
-  - name: split-stress-test
+  - name: split-stress-test-1
     tags: ["stress-test-1", "stress-test-zseries-1"]
+    exec_timeout_secs: 43200
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -3489,10 +3493,211 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            for i in {1..10}; do ${test_env_vars|} ${python_binary|python3} split_stress.py; done
+            for i in $(seq ${times|150}); do
+                ${test_env_vars|} ${python_binary|python3} split_stress.py
+            done
 
-  - name: split-stress-test-nonstandalone
+  - name: split-stress-test-2
+    tags: ["stress-test-1", "stress-test-zseries-1"]
+    exec_timeout_secs: 43200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/bench/workgen/runner"
+          script: |
+            set -o errexit
+            set -o verbose
+            for i in $(seq ${times|150}); do
+                ${test_env_vars|} ${python_binary|python3} split_stress.py
+            done
+
+  - name: split-stress-test-3
+    tags: ["stress-test-1", "stress-test-zseries-1"]
+    exec_timeout_secs: 43200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/bench/workgen/runner"
+          script: |
+            set -o errexit
+            set -o verbose
+            for i in $(seq ${times|150}); do
+                ${test_env_vars|} ${python_binary|python3} split_stress.py
+            done
+
+  - name: split-stress-test-4
+    tags: ["stress-test-1", "stress-test-zseries-1"]
+    exec_timeout_secs: 43200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/bench/workgen/runner"
+          script: |
+            set -o errexit
+            set -o verbose
+            for i in $(seq ${times|150}); do
+                ${test_env_vars|} ${python_binary|python3} split_stress.py
+            done
+
+  - name: split-stress-test-5
+    tags: ["stress-test-1", "stress-test-zseries-1"]
+    exec_timeout_secs: 43200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/bench/workgen/runner"
+          script: |
+            set -o errexit
+            set -o verbose
+            for i in $(seq ${times|150}); do
+                ${test_env_vars|} ${python_binary|python3} split_stress.py
+            done
+
+  - name: split-stress-test-6
+    tags: ["stress-test-1", "stress-test-zseries-1"]
+    exec_timeout_secs: 43200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/bench/workgen/runner"
+          script: |
+            set -o errexit
+            set -o verbose
+            for i in $(seq ${times|150}); do
+                ${test_env_vars|} ${python_binary|python3} split_stress.py
+            done
+
+  - name: split-stress-test-7
+    tags: ["stress-test-1", "stress-test-zseries-1"]
+    exec_timeout_secs: 43200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/bench/workgen/runner"
+          script: |
+            set -o errexit
+            set -o verbose
+            for i in $(seq ${times|150}); do
+                ${test_env_vars|} ${python_binary|python3} split_stress.py
+            done
+
+  - name: split-stress-test-8
+    tags: ["stress-test-1", "stress-test-zseries-1"]
+    exec_timeout_secs: 43200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/bench/workgen/runner"
+          script: |
+            set -o errexit
+            set -o verbose
+            for i in $(seq ${times|150}); do
+                ${test_env_vars|} ${python_binary|python3} split_stress.py
+            done
+
+  - name: split-stress-test-9
+    tags: ["stress-test-1", "stress-test-zseries-1"]
+    exec_timeout_secs: 43200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/bench/workgen/runner"
+          script: |
+            set -o errexit
+            set -o verbose
+            for i in $(seq ${times|150}); do
+                ${test_env_vars|} ${python_binary|python3} split_stress.py
+            done
+
+  - name: split-stress-test-10
+    tags: ["stress-test-1", "stress-test-zseries-1"]
+    exec_timeout_secs: 43200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/bench/workgen/runner"
+          script: |
+            set -o errexit
+            set -o verbose
+            for i in $(seq ${times|150}); do
+                ${test_env_vars|} ${python_binary|python3} split_stress.py
+            done
+
+  - name: split-stress-test-11
+    tags: ["stress-test-1", "stress-test-zseries-1"]
+    exec_timeout_secs: 43200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/bench/workgen/runner"
+          script: |
+            set -o errexit
+            set -o verbose
+            for i in $(seq ${times|150}); do
+                ${test_env_vars|} ${python_binary|python3} split_stress.py
+            done
+
+  - name: split-stress-test-12
+    tags: ["stress-test-1", "stress-test-zseries-1"]
+    exec_timeout_secs: 43200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/bench/workgen/runner"
+          script: |
+            set -o errexit
+            set -o verbose
+            for i in $(seq ${times|150}); do
+                ${test_env_vars|} ${python_binary|python3} split_stress.py
+            done
+
+  - name: split-stress-test-nonstandalone-1
     tags: ["stress-test-1-nonstandalone"]
+    exec_timeout_secs: 43200
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -3505,7 +3710,180 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            for i in {1..10}; do ${test_env_vars|} ${python_binary|python3} split_stress.py; done
+            for i in $(seq ${times|150}); do
+                ${test_env_vars|} ${python_binary|python3} split_stress.py
+            done
+
+  - name: split-stress-test-nonstandalone-2
+    tags: ["stress-test-1-nonstandalone"]
+    exec_timeout_secs: 43200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/bench/workgen/runner"
+          script: |
+            set -o errexit
+            set -o verbose
+            for i in $(seq ${times|150}); do
+                ${test_env_vars|} ${python_binary|python3} split_stress.py
+            done
+
+  - name: split-stress-test-nonstandalone-3
+    tags: ["stress-test-1-nonstandalone"]
+    exec_timeout_secs: 43200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/bench/workgen/runner"
+          script: |
+            set -o errexit
+            set -o verbose
+            for i in $(seq ${times|150}); do
+                ${test_env_vars|} ${python_binary|python3} split_stress.py
+            done
+
+  - name: split-stress-test-nonstandalone-4
+    tags: ["stress-test-1-nonstandalone"]
+    exec_timeout_secs: 43200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/bench/workgen/runner"
+          script: |
+            set -o errexit
+            set -o verbose
+            for i in $(seq ${times|150}); do
+                ${test_env_vars|} ${python_binary|python3} split_stress.py
+            done
+
+  - name: split-stress-test-nonstandalone-5
+    tags: ["stress-test-1-nonstandalone"]
+    exec_timeout_secs: 43200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/bench/workgen/runner"
+          script: |
+            set -o errexit
+            set -o verbose
+            for i in $(seq ${times|150}); do
+                ${test_env_vars|} ${python_binary|python3} split_stress.py
+            done
+
+  - name: split-stress-test-nonstandalone-6
+    tags: ["stress-test-1-nonstandalone"]
+    exec_timeout_secs: 43200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/bench/workgen/runner"
+          script: |
+            set -o errexit
+            set -o verbose
+            for i in $(seq ${times|150}); do
+                ${test_env_vars|} ${python_binary|python3} split_stress.py
+            done
+
+  - name: split-stress-test-nonstandalone-7
+    tags: ["stress-test-1-nonstandalone"]
+    exec_timeout_secs: 43200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/bench/workgen/runner"
+          script: |
+            set -o errexit
+            set -o verbose
+            for i in $(seq ${times|150}); do
+                ${test_env_vars|} ${python_binary|python3} split_stress.py
+            done
+
+  - name: split-stress-test-nonstandalone-8
+    tags: ["stress-test-1-nonstandalone"]
+    exec_timeout_secs: 43200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/bench/workgen/runner"
+          script: |
+            set -o errexit
+            set -o verbose
+            for i in $(seq ${times|150}); do
+                ${test_env_vars|} ${python_binary|python3} split_stress.py
+            done
+
+  - name: split-stress-test-nonstandalone-9
+    tags: ["stress-test-1-nonstandalone"]
+    exec_timeout_secs: 43200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/bench/workgen/runner"
+          script: |
+            set -o errexit
+            set -o verbose
+            for i in $(seq ${times|150}); do
+                ${test_env_vars|} ${python_binary|python3} split_stress.py
+            done
+
+  - name: split-stress-test-nonstandalone-10
+    tags: ["stress-test-1-nonstandalone"]
+    exec_timeout_secs: 43200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/bench/workgen/runner"
+          script: |
+            set -o errexit
+            set -o verbose
+            for i in $(seq ${times|150}); do
+                ${test_env_vars|} ${python_binary|python3} split_stress.py
+            done
 
   - name: format-stress-zseries-test
     tags: ["stress-test-zseries-1"]
@@ -4953,18 +5331,48 @@ buildvariants:
   # FIXME-WT-8947: For now run the whole stress test suite like we do on the x86 platform. But later
   # find a smaller set of tests that give an optimal test coverage while being mindful of machine
   # costs and availability.
-    - name: ".stress-test-1"
-    - name: ".stress-test-2"
-    - name: ".stress-test-3"
-    - name: ".stress-test-4"
-    - name: ".stress-test-no-barrier"
-    - name: format-abort-recovery-stress-test
-    - name: ".stress-test-1-nonstandalone"
-    - name: ".stress-test-2-nonstandalone"
-    - name: ".stress-test-3-nonstandalone"
-    - name: ".stress-test-4-nonstandalone"
-    - name: ".stress-test-no-barrier-nonstandalone"
-    - name: format-abort-recovery-stress-test-nonstandalone
+    - name: split-stress-test-nonstandalone-1
+
+- name: ubuntu2004-stress-tests-ooo-key
+  display_name: Ubuntu 20.04 OOO key (ARM64)
+  run_on:
+  - ubuntu2004-arm64-large
+  expansions:
+    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+    make_command: ninja
+    test_env_vars:
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+      WT_TOPDIR=$(git rev-parse --show-toplevel)
+      WT_BUILDDIR=$WT_TOPDIR/cmake_build
+      LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libeatmydata.so:$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
+      LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
+    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
+    CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
+  tasks:
+  # FIXME-WT-8947: For now run the whole stress test suite like we do on the x86 platform. But later
+  # find a smaller set of tests that give an optimal test coverage while being mindful of machine
+  # costs and availability.
+    - name: split-stress-test-nonstandalone-1
+    - name: split-stress-test-nonstandalone-2
+    - name: split-stress-test-nonstandalone-3
+    - name: split-stress-test-nonstandalone-4
+    - name: split-stress-test-nonstandalone-5
+    - name: split-stress-test-nonstandalone-6
+    - name: split-stress-test-nonstandalone-7
+    - name: split-stress-test-nonstandalone-8
+    - name: split-stress-test-nonstandalone-9
+    - name: split-stress-test-nonstandalone-10
+    - name: split-stress-test-1
+    - name: split-stress-test-2
+    - name: split-stress-test-3
+    - name: split-stress-test-4
+    - name: split-stress-test-5
+    - name: split-stress-test-6
+    - name: split-stress-test-7
+    - name: split-stress-test-8
+    - name: split-stress-test-9
+    - name: split-stress-test-10
 
 - name: large-scale-tests
   display_name: "Large scale tests"

@@ -495,7 +495,7 @@ __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
          * the end of the file or overflow references to non-existent pages, might as well discard
          * these pages now.
          */
-        if (__wt_verify_dsk(session, as->data, buf) != 0) {
+        if (__wt_verify_dsk_non_fatal(session, as->data, buf) != 0) {
             __wt_verbose(session, WT_VERB_SALVAGE, "%s page failed verify %s",
               __wt_page_type_string(dsk->type), (const char *)as->data);
             WT_ERR(bm->free(bm, session, addr, addr_size));

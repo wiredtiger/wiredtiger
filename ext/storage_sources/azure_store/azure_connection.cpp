@@ -31,6 +31,9 @@
 #include <azure/core.hpp>
 #include <azure/storage/blobs.hpp>
 
+#include <filesystem>
+#include <iostream>
+
 azure_connection::azure_connection(const std::string &bucket_name, const std::string &obj_prefix)
     : _azure_client(Azure::Storage::Blobs::BlobContainerClient::CreateFromConnectionString(
         std::getenv("AZURE_STORAGE_CONNECTION_STRING"), bucket_name)),
@@ -38,15 +41,34 @@ azure_connection::azure_connection(const std::string &bucket_name, const std::st
 {
 }
 
+// Build a list of all of the objects in the bucket.
 int
-azure_connection::list_objects(std::vector<std::string> &objects) const
+azure_connection::list_objects(
+  const std::string &prefix, std::vector<std::string> &objects, bool list_single) const
 {
+    Azure::Storage::Blobs::ListBlobsOptions blob_parameters;
+    blob_parameters.Prefix = prefix;
+    // If list_single is true, set the maximum number of returned blobs in the list_blob_response to
+    // one.
+    if (list_single)
+        blob_parameters.PageSizeHint = 1;
+
+    auto list_blobs_response = _azure_client.ListBlobs(blob_parameters);
+
+    for (const auto blob_item : list_blobs_response.Blobs) {
+        objects.push_back(blob_item.Name);
+    }
     return 0;
 }
 
+// Puts an object into the cloud storage using the prefix and file name.
 int
-azure_connection::put_object(const std::string &file_name) const
+azure_connection::put_object(const std::string &object_key, const std::string &file_path) const
 {
+    auto blob_client = _azure_client.GetBlockBlobClient(_object_prefix + object_key);
+    // UploadFrom will always return a UploadBlockBlobFromResult describing the state of the updated
+    // block blob so there's no need to check for errors.
+    blob_client.UploadFrom(file_path);
     return 0;
 }
 
