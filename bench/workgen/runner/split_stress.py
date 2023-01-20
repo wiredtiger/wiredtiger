@@ -34,9 +34,6 @@
 from runner import *
 from wiredtiger import *
 from workgen import *
-from threading import Thread as pythread
-import time
-keep_running = True
 
 context = Context()
 # Connection configuration.
