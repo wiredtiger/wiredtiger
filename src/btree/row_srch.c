@@ -125,15 +125,13 @@ __wt_search_insert(
             skiplow = match;
         } else if (cmp < 0) { /* Drop down a level */
             cbt->next_stack[i] = ins;
-
             cbt->ins_stack[i--] = insp--;
             skiphigh = match;
-        } else {
+        } else
             for (; i >= 0; i--) {
                 cbt->next_stack[i] = ins->next[i];
                 cbt->ins_stack[i] = &ins->next[i];
             }
-        }
     }
 
     /*
