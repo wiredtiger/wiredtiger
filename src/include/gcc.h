@@ -123,7 +123,7 @@ WT_ATOMIC_CAS_FUNC(size, size_t *vp, size_t old, size_t newv)
  *     Pointer compare and swap.
  */
 static inline bool
-__wt_atomic_cas_ptr(void *vp, void *old, void *newv)
+__wt_atomic_cas_ptr(volatile void *vp, void *old, void *newv)
 {
     return (WT_ATOMIC_CAS((void **)vp, &old, newv));
 }
