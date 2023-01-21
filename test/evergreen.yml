@@ -5332,6 +5332,26 @@ buildvariants:
   # find a smaller set of tests that give an optimal test coverage while being mindful of machine
   # costs and availability.
     - name: split-stress-test-nonstandalone-1
+    - name: split-stress-test-nonstandalone-1
+    - name: split-stress-test-nonstandalone-2
+    - name: split-stress-test-nonstandalone-3
+    - name: split-stress-test-nonstandalone-4
+    - name: split-stress-test-nonstandalone-5
+    - name: split-stress-test-nonstandalone-6
+    - name: split-stress-test-nonstandalone-7
+    - name: split-stress-test-nonstandalone-8
+    - name: split-stress-test-nonstandalone-9
+    - name: split-stress-test-nonstandalone-10
+    - name: split-stress-test-1
+    - name: split-stress-test-2
+    - name: split-stress-test-3
+    - name: split-stress-test-4
+    - name: split-stress-test-5
+    - name: split-stress-test-6
+    - name: split-stress-test-7
+    - name: split-stress-test-8
+    - name: split-stress-test-9
+    - name: split-stress-test-10
 
 - name: ubuntu2004-stress-tests-ooo-key
   display_name: Ubuntu 20.04 OOO key (ARM64)

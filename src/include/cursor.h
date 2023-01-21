@@ -6,21 +6,6 @@
  * See the file LICENSE for redistribution information.
  */
 
-#define NR_SKIPLIST_EVENTS 128
-
-#define SKIPLIST_EVENT(cbt, ev)                 \
-    do {                                        \
-        cbt->events[cbt->event_ptr++] = ev;     \
-        cbt->event_ptr %= NR_SKIPLIST_EVENTS;   \
-    } while(0)
-
-#define SKIPLIST_EVENT_DATA(cbt, ev, data)         \
-    do {                                           \
-        cbt->events[cbt->event_ptr] = ev;          \
-        cbt->event_data[cbt->event_ptr++] = data; \
-        cbt->event_ptr %= NR_SKIPLIST_EVENTS;      \
-    } while (0)
-
 /* Get the session from any cursor. */
 #define CUR2S(c) ((WT_SESSION_IMPL *)((WT_CURSOR *)c)->session)
 
