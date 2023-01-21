@@ -1436,7 +1436,7 @@ struct __wt_update_vector {
 
 struct __wt_insert_hist {
     WT_INSERT *old_ins;
-    WT_INSERT **ins_stack;
+    WT_INSERT *new_ins;
     u_int idx;
 };
 
@@ -1457,11 +1457,11 @@ struct __wt_insert {
 
     WT_INSERT *next[0]; /* forward-linked skip list */
 
-#define WT_INS_PTR_SWAP(ins, old, stack, i)                 \
+#define WT_INS_PTR_SWAP(ins, old, i)                        \
     do {                                                    \
         struct __wt_insert_hist hist = {                    \
             .old_ins = old,                                 \
-            .ins_stack = stack,                             \
+            .new_ins = ins,                                 \
             .idx = i                                        \
         };                                                  \
         ins->insert_hist[ins->insert_hist_ptr++] = hist;    \
