@@ -351,10 +351,13 @@ main(int argc, char *argv[])
         timestamp_set_oldest();
     } else {
         wts_create_home();
+        LAPSED_TS_MSG("Create home completed");
         config_print(false);
         trace_init();
         wts_create_database();
+        LAPSED_TS_MSG("Open connection completed");
         wts_open(g.home, &g.wts_conn, true);
+        LAPSED_TS_MSG("WTS open completed");
         timestamp_init();
     }
 
@@ -409,7 +412,9 @@ skip_operations:
         TIMED_MAJOR_OP(wts_verify(g.wts_conn, true));
 
     track("shutting down", 0ULL);
+    LAPSED_TS_MSG("Closing started");
     wts_close(&g.wts_conn);
+    LAPSED_TS_MSG("Closing completed");
 
     /* Salvage testing. */
     if (!verify_only)
