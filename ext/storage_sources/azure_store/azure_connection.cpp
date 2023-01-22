@@ -87,8 +87,24 @@ int
 azure_connection::object_exists(const std::string &object_name, bool &exists) const
 {
     exists = false;
+    std::string obj = _object_prefix + object_name;
 
-    return 0;
+    auto list_blob_response = _azure_client.ListBlobs();
+
+    int ret = 0;
+
+    for (const auto blob_item : list_blob_response.Blobs) {
+        // Check if object exists.
+        if (blob_item.Name.compare(obj) == 0) {
+            exists = true;
+            // Check if object is deleted.
+            if (blob_item.IsDeleted) {
+                ret = -1;
+                break;
+            }
+        }
+    }
+    return ret;
 }
 
 int
@@ -96,20 +112,23 @@ azure_connection::bucket_exists(bool &exists) const
 {
     exists = false;
 
+    auto service_client = Azure::Storage::Blobs::BlobServiceClient::CreateFromConnectionString(std::getenv("AZURE_STORAGE_CONNECTION_STRING"));
+
     // Get list of containers associated with the class Azure client.
-    // auto list_container_response = _azure_client.ListBlobContainers();
+    auto list_container_response = service_client.ListBlobContainers();
 
     int ret = 0;
 
-    // for (const auto container_item : list_container_response) {
-    //     // Check if bucket exists.
-    //     if (strcmp(container_item.Name, _bucket_name) == 0) {
-    //         exists = true;
-    //         // Check if bucket is deleted.
-    //         if (container_item.IsDeleted)
-    //             ret = -1;
-    //             break;
-    //     }
-    // }
+    for (const auto container_item : list_container_response.BlobContainers) {
+        // Check if bucket exists.
+        if (container_item.Name.compare(_bucket_name) == 0) {
+            exists = true;
+            // Check if bucket is deleted.
+            if (container_item.IsDeleted) {
+                ret = -1;
+                break;
+            }
+        }
+    }
     return ret;
 }
