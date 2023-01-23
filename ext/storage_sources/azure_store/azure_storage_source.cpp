@@ -36,6 +36,7 @@ struct azure_file_system;
 struct azure_file_handle;
 struct azure_store {
     WT_STORAGE_SOURCE store;
+    WT_EXTENSION_API *wt_api;
     std::vector<azure_file_system *> azure_fs;
 };
 
@@ -55,7 +56,7 @@ struct azure_file_handle {
 static int azure_customize_file_system(WT_STORAGE_SOURCE *, WT_SESSION *, const char *,
   const char *, const char *, WT_FILE_SYSTEM **) __attribute__((__unused__));
 static int azure_add_reference(WT_STORAGE_SOURCE *) __attribute__((__unused__));
-static int azure_terminate(WT_FILE_SYSTEM *, WT_SESSION *) __attribute__((__unused__));
+static int azure_terminate(WT_STORAGE_SOURCE *, WT_SESSION *) __attribute__((__unused__));
 static int azure_flush(WT_STORAGE_SOURCE *, WT_SESSION *, WT_FILE_SYSTEM *, const char *,
   const char *, const char *) __attribute__((__unused__));
 static int azure_flush_finish(WT_STORAGE_SOURCE *, WT_SESSION *, WT_FILE_SYSTEM *, const char *,
@@ -139,9 +140,9 @@ azure_flush_finish(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
 }
 
 static int
-azure_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
+azure_terminate(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session)
 {
-    WT_UNUSED(file_system);
+    WT_UNUSED(storage_source);
     WT_UNUSED(session);
 
     return 0;
@@ -299,11 +300,25 @@ azure_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *size
     return 0;
 }
 
+// An Azure storage source library - creates an entry point to the Azure extension
 int
 wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 {
-    WT_UNUSED(connection);
-    WT_UNUSED(config);
+    // WT_UNUSED(connection);
+    // WT_UNUSED(config);
 
+    azure_store *azure;
+    //WT_CONFIG_ITEM v;
+
+    azure = new azure_store;
+    azure->wt_api = connection->get_extension_api(connection);
+    //int ret = azure->wt_api->config_get(azure->wt_api, nullptr, config);
+  
+    azure->store.ss_customize_file_system = azure_customize_file_system;
+    azure->store.ss_add_reference = azure_add_reference;
+    azure->store.terminate = azure_terminate;
+    azure->store.ss_flush = azure_flush;
+    azure->store.ss_flush_finish = azure_flush_finish;
+  
     return 0;
 }
