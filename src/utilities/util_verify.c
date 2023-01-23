@@ -152,6 +152,10 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
             if ((ret = cursor->get_key(cursor, &key)) != 0)
                 WT_ERR(util_cerr(cursor, "get_key", ret));
 
+            /* 
+             * FIXME-WT-6682 - Let verify process the history store file once history store
+             * verification is implemented.
+             */
             if (strcmp(key, WT_HS_URI) != 0 && strcmp(key, WT_METADATA_URI) != 0 &&
               !WT_PREFIX_MATCH(key, WT_SYSTEM_PREFIX))
                 WT_TRET(verify_one(session, config, key));
