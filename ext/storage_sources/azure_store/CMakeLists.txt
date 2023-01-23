@@ -1,10 +1,8 @@
 project(azure_store CXX)
-
 find_package(CURL REQUIRED) 
-find_package(azure-storage-blobs-cpp CONFIG REQUIRED)
 cmake_minimum_required(VERSION 3.12)
 
-# Create an intermediate library to build the helper library.
+# # Create an intermediate library to build the helper library.
 add_library(azure_container_util STATIC azure_connection.cpp)
 set_property(TARGET azure_container_util PROPERTY POSITION_INDEPENDENT_CODE ON)
 
@@ -22,7 +20,9 @@ target_compile_options(
 target_link_libraries(
     azure_container_util
     PUBLIC
-        Azure::azure-storage-blobs
+        azure_core_lib
+        azure_storage_lib
+        azure_storage_common_lib
 )
 
 # Build the Azure extension as a library 
@@ -46,3 +46,7 @@ target_link_libraries(
     PRIVATE
         azure_container_util
 )
+
+if(HAVE_UNITTEST)
+    add_subdirectory(test)
+endif()
