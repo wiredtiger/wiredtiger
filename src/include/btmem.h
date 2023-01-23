@@ -1432,14 +1432,6 @@ struct __wt_update_vector {
  * to re-implement, IMNSHO.)
  */
 
-#define WT_INSERT_HIST_ENTRIES 128
-
-struct __wt_insert_hist {
-    WT_INSERT *old_ins;
-    WT_INSERT *new_ins;
-    u_int idx;
-};
-
 struct __wt_insert {
     WT_UPDATE *upd; /* value */
 
@@ -1454,20 +1446,6 @@ struct __wt_insert {
 #define WT_INSERT_KEY_SIZE(ins) (((WT_INSERT *)(ins))->u.key.size)
 #define WT_INSERT_KEY(ins) ((void *)((uint8_t *)(ins) + ((WT_INSERT *)(ins))->u.key.offset))
 #define WT_INSERT_RECNO(ins) (((WT_INSERT *)(ins))->u.recno)
-
-#define WT_INS_PTR_SWAP(ins, old, i)                        \
-    do {                                                    \
-        struct __wt_insert_hist hist = {                    \
-            .old_ins = old,                                 \
-            .new_ins = ins,                                 \
-            .idx = i                                        \
-        };                                                  \
-        ins->insert_hist[ins->insert_hist_ptr++] = hist;    \
-        ins->insert_hist_ptr %= WT_INSERT_HIST_ENTRIES;     \
-    } while (0)
-
-    struct __wt_insert_hist insert_hist[WT_INSERT_HIST_ENTRIES];
-    uint8_t insert_hist_ptr;
 
     WT_INSERT *next[0]; /* forward-linked skip list */
 };

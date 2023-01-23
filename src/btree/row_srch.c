@@ -87,9 +87,9 @@ __wt_search_insert(
     WT_BTREE *btree;
     WT_COLLATOR *collator;
     WT_INSERT *ins, **insp, *last_ins;
-    WT_ITEM key;
+    WT_ITEM key, key2;
     size_t match, skiphigh, skiplow;
-    int cmp, i;
+    int cmp, cmp2, i;
 
     btree = S2BT(session);
     collator = btree->collator;
@@ -122,9 +122,21 @@ __wt_search_insert(
 
         if (cmp > 0) { /* Keep going at this level */
             insp = &ins->next[i];
+            if (i == 0) {
+                key2.data = WT_INSERT_KEY(ins);
+                key2.size = WT_INSERT_KEY_SIZE(ins);
+                WT_RET(__wt_compare(session, collator, srch_key, &key2, &cmp2));
+                WT_ASSERT(session, cmp2 > 0);
+            }
             skiplow = match;
         } else if (cmp < 0) { /* Drop down a level */
             cbt->next_stack[i] = ins;
+            if (i == 0) {
+                key2.data = WT_INSERT_KEY(ins);
+                key2.size = WT_INSERT_KEY_SIZE(ins);
+                WT_RET(__wt_compare(session, collator, srch_key, &key2, &cmp2));
+                WT_ASSERT(session, cmp2 < 0);
+            }
             cbt->ins_stack[i--] = insp--;
             skiphigh = match;
         } else
