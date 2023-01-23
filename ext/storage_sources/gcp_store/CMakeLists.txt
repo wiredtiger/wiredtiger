@@ -1,5 +1,11 @@
 project(gcp_store CXX)
 
+# Using the Google Cloud Storage SDK produces a reference problem where a google library
+# indirectly depends on an internal google library. Fixing this problem requires setting
+# the linker flags and runtime path.
+set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} -Wl,--disable-new-dtags)
+set(CMAKE_INSTALL_RPATH "${CMAKE_BINARY_DIR}/gcp-sdk-cpp/install/lib")
+
 # Create an intermediate library to build the helper library.
 add_library(gcp_bucket_util STATIC gcp_connection.cpp)
 set_property(TARGET gcp_bucket_util PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -24,6 +30,7 @@ target_link_libraries(
         absl::variant
 )
 add_dependencies(gcp_bucket_util gcp-sdk)
+
 # Build the gcp extension as a library.
 add_library(wiredtiger_gcp_store MODULE gcp_storage_source.cpp)
 target_include_directories(

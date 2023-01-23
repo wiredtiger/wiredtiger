@@ -23,12 +23,10 @@ if(IMPORT_GCP_SDK_NONE)
 endif()
 
 if(IMPORT_GCP_SDK_PACKAGE)
-    #set(google-cloud-cpp)
-    #find_package(googleapis)
-    # We want to find the packge installed on the system.
-elseif(IMPORT_GCP_SDK_EXTERNAL)
-    # find_package(abseil-cpp REQUIRED)
-    # find_package(absl REQUIRED)
+    message(FATAL_ERROR "Currently the package config option is not implement yet.")
+endif()
+
+if(IMPORT_GCP_SDK_EXTERNAL)
     # Download and install the GCP CPP SDK into the build directory.
     ExternalProject_Add(gcp-sdk
         PREFIX gcp-sdk-cpp
@@ -46,7 +44,6 @@ elseif(IMPORT_GCP_SDK_EXTERNAL)
         BUILD_BYPRODUCTS
             ${CMAKE_CURRENT_BINARY_DIR}/gcp-sdk-cpp/install/${CMAKE_INSTALL_LIBDIR}/libgoogle_cloud_cpp_storage${CMAKE_SHARED_LIBRARY_SUFFIX}
             ${CMAKE_CURRENT_BINARY_DIR}/gcp-sdk-cpp/install/${CMAKE_INSTALL_LIBDIR}/libgoogle_cloud_cpp_common${CMAKE_SHARED_LIBRARY_SUFFIX}
-            ${CMAKE_CURRENT_BINARY_DIR}/gcp-sdk-cpp/install/${CMAKE_INSTALL_LIBDIR}/libgoogle_cloud_cpp_rest_internal${CMAKE_SHARED_LIBRARY_SUFFIX}
         INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/gcp-sdk-cpp/install
         TEST_COMMAND ""
         UPDATE_COMMAND ""
@@ -58,15 +55,12 @@ elseif(IMPORT_GCP_SDK_EXTERNAL)
     # Set the path variables to be used for the GCP targets.
     set(gcp_storage_lib_location ${INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libgoogle_cloud_cpp_storage${CMAKE_SHARED_LIBRARY_SUFFIX})
     set(gcp_common_lib_location ${INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libgoogle_cloud_cpp_common${CMAKE_SHARED_LIBRARY_SUFFIX})
-    set(gcp_rest_internal_lib_location ${INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libgoogle_cloud_cpp_rest_internal${CMAKE_SHARED_LIBRARY_SUFFIX})
 endif()
 
 set(gcp_sdk_include_location ${INSTALL_DIR}/${CMAKE_INSTALL_INCLUDEDIR})
 
 add_library(gcp_storage_lib SHARED IMPORTED)
 add_library(gcp_common_lib SHARED IMPORTED)
-add_library(gcp_rest_internal_lib SHARED IMPORTED)
-
 # Small workaround to declare the include directory under INTERFACE_INCLUDE_DIRECTORIES during the configuration phase.
 set_target_properties(gcp_storage_lib PROPERTIES
     IMPORTED_LOCATION ${gcp_storage_lib_location}
@@ -78,13 +72,3 @@ set_target_properties(gcp_common_lib PROPERTIES
     IMPORTED_LOCATION ${gcp_common_lib_location}
     INTERFACE_INCLUDE_DIRECTORIES ${gcp_sdk_include_location}
 )
-
-# Small workaround to declare the include directory under INTERFACE_INCLUDE_DIRECTORIES during the configuration phase.
-set_target_properties(gcp_rest_internal_lib PROPERTIES
-    IMPORTED_LOCATION ${gcp_rest_internal_lib_location}
-    INTERFACE_INCLUDE_DIRECTORIES ${gcp_sdk_include_location}
-)
-
-add_dependencies(gcp_storage_lib gcp_common_lib)
-add_dependencies(gcp_common_lib gcp_rest_internal_lib)
-target_link_libraries(gcp_common_lib INTERFACE gcp_rest_internal_lib)
