@@ -114,12 +114,11 @@ azure_connection::object_exists(const std::string &object_key, bool &exists) con
     for (const auto blob_item : list_blob_response.Blobs) {
         // Check if object exists.
         if (blob_item.Name.compare(obj) == 0) {
-            exists = true;
             // Check if object is deleted and has not been cleared by garbage collection.
             if (blob_item.IsDeleted) {
-                exists = false;
                 return -1;
             }
+            exists = true;
         }
     }
     return 0;
@@ -139,12 +138,11 @@ azure_connection::bucket_exists(bool &exists) const
     for (const auto container_item : list_container_response.BlobContainers) {
         // Check if bucket exists.
         if (container_item.Name.compare(_bucket_name) == 0) {
-            exists = true;
             // Check if bucket is deleted and has not been cleared by garbage collection.
             if (container_item.IsDeleted) {
-                exists = false;
                 return -1;
             }
+            exists = true;
         }
     }
     return 0;

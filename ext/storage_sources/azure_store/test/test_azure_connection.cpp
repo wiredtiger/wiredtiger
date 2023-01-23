@@ -33,8 +33,6 @@
 
 TEST_CASE("testing class azure_connection", "azure_connection")
 {
-    SECTION("List blobs under the test container.") {}
-
     SECTION("Test object_exists.")
     {
         azure_connection conn = azure_connection("myblobcontainer1", "object_exist_test_prefix");
