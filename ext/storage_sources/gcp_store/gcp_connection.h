@@ -44,9 +44,8 @@ class gcp_connection {
 
     ~gcp_connection() = default;
 
-    google::cloud::storage::Client _gcp_client;
-
     private:
+    google::cloud::storage::Client _gcp_client;
     const std::string _bucket_name;
     const std::string _object_prefix;
 
