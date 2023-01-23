@@ -90,7 +90,7 @@ azure_connection::delete_object(const std::string &object_key) const
     return 0;
 }
 
-// Reads an object and outputs the content into a buffer
+// Reads an object and outputs the content into a buffer.
 int
 azure_connection::read_object(
   const std::string &object_key, off_t offset, size_t len, void *&buf) const
@@ -107,7 +107,7 @@ azure_connection::read_object(
     }
 
     // Construct a string using the vector downloaded_blob's content between the offset and length
-    // supplied
+    // supplied.
     std::string content =
       std::string(downloaded_blob.begin() + offset, downloaded_blob.begin() + offset + len);
     buf = &content;
