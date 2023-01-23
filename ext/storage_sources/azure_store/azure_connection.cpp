@@ -90,6 +90,7 @@ azure_connection::delete_object(const std::string &object_key) const
     return 0;
 }
 
+// Reads an object and outputs the content into a buffer
 int
 azure_connection::read_object(
   const std::string &object_key, off_t offset, size_t len, void *&buf) const
@@ -98,13 +99,15 @@ azure_connection::read_object(
     auto blob_properties = blob_client.GetProperties().Value;
     std::vector<uint8_t> downloaded_blob(blob_properties.BlobSize);
 
-    // Downloads the content of the blob to the vector downloaded_blob
+    // Downloads the content of the blob to the vector downloaded_blob.
     blob_client.DownloadTo(downloaded_blob.data(), downloaded_blob.size());
     if (offset + len > downloaded_blob.size()) {
         std::cerr << "Reading past end of file!" << std::endl;
         return -1;
     }
 
+    // Construct a string using the vector downloaded_blob's content between the offset and length
+    // supplied
     std::string content =
       std::string(downloaded_blob.begin() + offset, downloaded_blob.begin() + offset + len);
     buf = &content;
