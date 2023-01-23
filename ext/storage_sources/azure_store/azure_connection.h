@@ -33,6 +33,7 @@
 
 #include <string>
 #include <vector>
+#include <iostream>
 
 /*
  * This class represents an active connection to the Azure endpoint and allows for interaction with
@@ -49,7 +50,7 @@ class azure_connection {
     int list_objects(
       const std::string &prefix, std::vector<std::string> &objects, bool list_single) const;
     int put_object(const std::string &object_key, const std::string &file_path) const;
-    int delete_object() const;
+    int delete_object(const std::string &object_key) const;
     int read_object(const std::string &object_key, off_t offset, size_t len, void *&buf) const;
 
     private:
