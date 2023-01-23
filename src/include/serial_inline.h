@@ -30,8 +30,11 @@ __insert_simple_func(
      */
     for (i = 0; i < skipdepth; i++) {
         WT_INSERT *old_ins = *ins_stack[i];
-        if (old_ins != new_ins->next[i] || !__wt_atomic_cas_ptr(ins_stack[i], old_ins, new_ins))
+        if (old_ins != new_ins->next[i] || !__wt_atomic_cas_ptr(ins_stack[i], old_ins, new_ins)) {
+            WT_INS_PTR_SWAP(new_ins, NULL, 0xffffffff - i);
             return (i == 0 ? WT_RESTART : 0);
+        }
+        WT_INS_PTR_SWAP(new_ins, old_ins, i);
     }
 
     return (0);
@@ -207,10 +210,10 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_
     __wt_cache_page_inmem_incr(session, page, new_ins_size);
 
     /* Mark the page dirty after updating the footprint. */
-#ifdef HAVE_DIAGNOSTIC
-    if (!exclusive || simple)
-        WT_READ_BARRIER();
-#endif
+// #ifdef HAVE_DIAGNOSTIC
+//     if (!exclusive || simple)
+//         WT_READ_BARRIER();
+// #endif
     __wt_page_modify_set(session, page);
 
     return (0);
