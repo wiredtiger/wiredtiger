@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -25,35 +25,37 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-#
 
-import re, os
-from setuptools import setup, Extension
+# Common functions used by python scripts in this directory.
 
-# OS X hack: turn off the Universal binary support that is built into the
-# Python build machinery, just build for the default CPU architecture.
-if not 'ARCHFLAGS' in os.environ:
-    os.environ['ARCHFLAGS'] = ''
+import os, sys
 
-# Suppress warnings building SWIG generated code.  SWIG boiler plate
-# functions have sign conversion warnings, so those warnings must be disabled.
-extra_cflags = [ '-w', '-I../../src/include', '-Wno-sign-conversion']
+# Set the system path to include the python build directory if we can find it.
+def setup_python_path():
+    # Assuming we're somewhere in a build directory, walk the tree up
+    # looking for the wt program.
+    curdir = os.getcwd()
+    d = curdir
+    found = False
+    while d != '/':
+        if os.path.isfile(os.path.join(d, 'wt')) or os.path.isfile(os.path.join(d, 'wt.exe')):
+            found = True
+            break
+        d = os.path.dirname(d)
+    if found:
+        sys.path.insert(1, os.path.join(d, 'lang', 'python'))
+    else:
+        print('Cannot find wt, must run this from a build directory')
+        sys.exit(1)
 
-dir = os.path.dirname(__file__)
+# Import the wiredtiger directory and return the wiredtiger_open function.
+def import_wiredtiger():
+    try:
+        from wiredtiger import wiredtiger_open
+    except:
+        setup_python_path()
+        from wiredtiger import wiredtiger_open
+    return wiredtiger_open
 
-# Read the version information from the RELEASE_INFO file
-for l in open(os.path.join(dir, '..', '..', 'RELEASE_INFO')):
-    if re.match(r'WIREDTIGER_VERSION_(?:MAJOR|MINOR|PATCH)=', l):
-        exec(l)
-
-wt_ver = '%d.%d' % (WIREDTIGER_VERSION_MAJOR, WIREDTIGER_VERSION_MINOR)
-
-setup(name='wiredtiger', version=wt_ver,
-    ext_modules=[Extension('_wiredtiger',
-                [os.path.join(dir, 'wiredtiger_wrap.c')],
-        libraries=['wiredtiger'],
-        extra_compile_args=extra_cflags,
-    )],
-    package_dir={'' : dir},
-    packages=['wiredtiger'],
-)
+# This name will be exported
+wiredtiger_open = import_wiredtiger()

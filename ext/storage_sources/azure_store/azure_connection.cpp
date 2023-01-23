@@ -31,6 +31,9 @@
 #include <azure/core.hpp>
 #include <azure/storage/blobs.hpp>
 
+#include <filesystem>
+#include <iostream>
+
 azure_connection::azure_connection(const std::string &bucket_name, const std::string &obj_prefix)
     : _azure_client(Azure::Storage::Blobs::BlobContainerClient::CreateFromConnectionString(
         std::getenv("AZURE_STORAGE_CONNECTION_STRING"), bucket_name)),
@@ -58,15 +61,32 @@ azure_connection::list_objects(
     return 0;
 }
 
+// Puts an object into the cloud storage using the prefix and file name.
 int
-azure_connection::put_object(const std::string &file_name) const
+azure_connection::put_object(const std::string &object_key, const std::string &file_path) const
 {
+    auto blob_client = _azure_client.GetBlockBlobClient(_object_prefix + object_key);
+    // UploadFrom will always return a UploadBlockBlobFromResult describing the state of the updated
+    // block blob so there's no need to check for errors.
+    blob_client.UploadFrom(file_path);
     return 0;
 }
 
+// Delete an object in the bucket given the object name.
 int
-azure_connection::delete_object() const
+azure_connection::delete_object(const std::string &object_key) const
 {
+    std::string obj = _object_prefix + object_key;
+
+    auto object_client = _azure_client.GetBlobClient(obj);
+    auto delete_blob_response = object_client.DeleteIfExists();
+
+    // Returns false if obj doesn't exist.
+    if (!delete_blob_response.Value.Deleted) {
+        std::cerr << obj + " : No such object file exists in the bucket." << std::endl;
+        return -1;
+    }
+
     return 0;
 }
 
