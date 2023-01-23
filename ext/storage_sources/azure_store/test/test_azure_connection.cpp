@@ -31,20 +31,22 @@
 
 #include "azure_connection.h"
 
-TEST_CASE("testing class azure_connection", "azure_connection") {
+TEST_CASE("testing class azure_connection", "azure_connection")
+{
     SECTION("List blobs under the test container.") {}
 
     SECTION("Test object_exists.")
     {
         azure_connection conn = azure_connection("myblobcontainer1", "object_exist_test_prefix");
         bool object_exists;
-    
+
         // Check for a non-existant object in the container.
         REQUIRE(conn.object_exists("test.txt", object_exists) == 0);
         REQUIRE(!object_exists);
 
         // Check for the newly added object in the container.
-        conn.put_object("test.txt", "/home/ubuntu/wiredtiger/ext/storage_sources/azure_store/test.txt");
+        conn.put_object(
+          "test.txt", "/home/ubuntu/wiredtiger/ext/storage_sources/azure_store/test.txt");
         REQUIRE(conn.object_exists("test.txt", object_exists) == 0);
         REQUIRE(object_exists);
 
