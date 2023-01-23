@@ -5328,21 +5328,26 @@ buildvariants:
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
   tasks:
-  # FIXME-WT-8947: For now run the whole stress test suite like we do on the x86 platform. But later
-  # find a smaller set of tests that give an optimal test coverage while being mindful of machine
-  # costs and availability.
-    - name: ".stress-test-1"
-    - name: ".stress-test-2"
-    - name: ".stress-test-3"
-    - name: ".stress-test-4"
-    - name: ".stress-test-no-barrier"
-    - name: format-abort-recovery-stress-test
-    - name: ".stress-test-1-nonstandalone"
-    - name: ".stress-test-2-nonstandalone"
-    - name: ".stress-test-3-nonstandalone"
-    - name: ".stress-test-4-nonstandalone"
-    - name: ".stress-test-no-barrier-nonstandalone"
-    - name: format-abort-recovery-stress-test-nonstandalone
+    - name: split-stress-test-nonstandalone-1
+    - name: split-stress-test-nonstandalone-2
+    - name: split-stress-test-nonstandalone-3
+    - name: split-stress-test-nonstandalone-4
+    - name: split-stress-test-nonstandalone-5
+    - name: split-stress-test-nonstandalone-6
+    - name: split-stress-test-nonstandalone-7
+    - name: split-stress-test-nonstandalone-8
+    - name: split-stress-test-nonstandalone-9
+    - name: split-stress-test-nonstandalone-10
+    - name: split-stress-test-1
+    - name: split-stress-test-2
+    - name: split-stress-test-3
+    - name: split-stress-test-4
+    - name: split-stress-test-5
+    - name: split-stress-test-6
+    - name: split-stress-test-7
+    - name: split-stress-test-8
+    - name: split-stress-test-9
+    - name: split-stress-test-10
 
 - name: large-scale-tests
   display_name: "Large scale tests"
