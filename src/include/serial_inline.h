@@ -29,7 +29,7 @@ __insert_simple_func(
      * implementations read the old value multiple times.
      */
     for (i = 0; i < skipdepth; i++) {
-        WT_ORDERED_READ(old_ins, *ins_stack[i]);
+        WT_INSERT *old_ins = *ins_stack[i];
         if (old_ins != new_ins->next[i] || !__wt_atomic_cas_ptr(ins_stack[i], old_ins, new_ins))
             return (i == 0 ? WT_RESTART : 0);
     }
