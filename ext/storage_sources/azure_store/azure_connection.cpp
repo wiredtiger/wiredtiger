@@ -117,7 +117,7 @@ azure_connection::object_exists(const std::string &object_name, bool &exists) co
         // Check if object exists.
         if (blob_item.Name.compare(obj) == 0) {
             exists = true;
-            // Check if object is deleted and has not been cleared by garbage collection
+            // Check if object is deleted and has not been cleared by garbage collection.
             if (blob_item.IsDeleted) {
                 exists = false;
                 ret = -1;
@@ -145,7 +145,7 @@ azure_connection::bucket_exists(bool &exists) const
         // Check if bucket exists.
         if (container_item.Name.compare(_bucket_name) == 0) {
             exists = true;
-            // Check if bucket is deleted.
+            // Check if bucket is deleted and has not been cleared by garbage collection.
             if (container_item.IsDeleted) {
                 exists = false;
                 ret = -1;
