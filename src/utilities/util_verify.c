@@ -152,7 +152,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
             if ((ret = cursor->get_key(cursor, &key)) != 0)
                 WT_ERR(util_cerr(cursor, "get_key", ret));
 
-            /* 
+            /*
              * FIXME-WT-6682 - Let verify process the history store file once history store
              * verification is implemented.
              */
