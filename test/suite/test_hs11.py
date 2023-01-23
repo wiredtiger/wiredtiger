@@ -52,9 +52,11 @@ class test_hs11(wttest.WiredTigerTestCase):
         ('modify', dict(modify=True)),
         ('no-modify', dict(modify=False))
     ]
-    scenarios = make_scenarios(format_values, update_type_values,long_running_txn_values, last_update_type_values)
-    nrows = 10000
-    small_nrows = 100
+    nrows = [
+        ('small-nrows', dict(nrows=100)),
+        ('large-nrows', dict(nrows=10000))
+    ]
+    scenarios = make_scenarios(format_values, update_type_values,long_running_txn_values, last_update_type_values, nrows)
     timestamps = 5
 
     def create_key(self, i):
@@ -118,7 +120,8 @@ class test_hs11(wttest.WiredTigerTestCase):
             session2 = self.conn.open_session()
             session2.begin_transaction('read_timestamp=5')
 
-        # Apply an update without timestamp. If we have a long running transaction this update should not be globally visible until that transaction has ended.
+        # Apply an update without timestamp. If we have a long running transaction this update 
+        # should not be globally visible until that transaction has ended.
         for i in range(1, self.nrows):
             self.session.begin_transaction('no_timestamp=true')
             if i % 2 == 0:
@@ -148,93 +151,6 @@ class test_hs11(wttest.WiredTigerTestCase):
         for ts in range(1, self.timestamps):
             with self.transaction(read_timestamp = ts, rollback = True):
                 for i in range(1, self.nrows):
-                    if i % 2 == 0:
-                        if self.update_type == 'deletion':
-                            cursor.set_key(self.create_key(i))
-                            if self.value_format == '8t':
-                                self.assertEqual(cursor.search(), 0)
-                                self.assertEqual(cursor.get_value(), 0)
-                            else:
-                                self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
-                        else:
-                            self.assertEqual(cursor[self.create_key(i)], value2)
-                    else:
-                        if ts == 5 and self.modify and self.value_format != '8t':
-                            self.assertEqual(cursor[self.create_key(i)], mod_value)
-                        else:
-                            self.assertEqual(cursor[self.create_key(i)], value1)
-
-        if self.update_type == 'deletion':
-            hs_truncate = self.get_stat(stat.conn.cache_hs_key_truncate_onpage_removal)
-            self.assertGreater(hs_truncate, 0)
-
-    def test_non_ts_updates_clears_hs_small_rows(self):
-        uri = 'table:test_hs11'
-        create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
-        self.session.create(uri, create_params)
-
-        if self.value_format == '8t':
-            value1 = 97
-            value2 = 98
-        else:
-            value1 = 'a' * 500
-            value2 = 'b' * 500
-            mod_value = 'm' + 'a' * 499
-
-        # Apply a series of updates from timestamps 1-4.
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
-        cursor = self.session.open_cursor(uri)
-        for ts in range(1, self.timestamps):
-            for i in range(1, self.small_nrows):
-                with self.transaction(commit_timestamp = ts):
-                    cursor[self.create_key(i)] = value1
-
-        # Reconcile and flush versions 1-3 to the history store.
-        self.session.checkpoint()
-        self.evict_cursor(uri, self.small_nrows)
-
-        # Apply a modify update at timestamp 5.
-        if self.modify and self.value_format != '8t':
-            for i in range(1, self.small_nrows):
-                with self.transaction(commit_timestamp = 5):
-                    cursor.set_key(self.create_key(i))
-                    cursor.modify([wiredtiger.Modify("m", 0, 1)])
-            self.timestamps += 1
-
-        # Start a long running transaction at timestamp 5.
-        if self.long_run_txn:
-            session2 = self.conn.open_session()
-            session2.begin_transaction('read_timestamp=5')
-
-        # Apply an update without timestamp.
-        for i in range(1, self.small_nrows):
-            self.session.begin_transaction('no_timestamp=true')
-            if i % 2 == 0:
-                if self.update_type == 'deletion':
-                    cursor.set_key(self.create_key(i))
-                    cursor.remove()
-                else:
-                    cursor[self.create_key(i)] = value2
-            self.session.commit_transaction()
-
-        # Reconcile and remove the obsolete entries.
-        self.session.checkpoint()
-        if self.long_run_txn:
-            session2.rollback_transaction()
-
-        # At this point any updates with no timestamp should be globally visible.
-        self.evict_cursor(uri, self.small_nrows)
-
-        # Now apply an update at timestamp 10.
-        for i in range(1, self.small_nrows):
-            with self.transaction(commit_timestamp = 10):
-                cursor[self.create_key(i)] = value2
-        self.evict_cursor(uri, self.small_nrows)
-
-        # Ensure that we blew away history store content.
-        for ts in range(1, self.timestamps):
-            with self.transaction(read_timestamp = ts, rollback = True):
-                for i in range(1, self.small_nrows):
                     if i % 2 == 0:
                         if self.update_type == 'deletion':
                             cursor.set_key(self.create_key(i))
