@@ -39,7 +39,7 @@ class gcp_connection {
     int list_objects(std::vector<std::string> &objects, bool list_single);
     int put_object(const std::string &object_key, const std::string &file_name) const;
     int delete_object(const std::string &object_key) const;
-    int object_exists(const std::string &object_key, bool &exists, size_t &object_size) const;
+    int object_exists(const std::string &object_key, bool &exists, size_t &object_size);
     int get_object(const std::string &object_key, const std::string &path) const;
 
     ~gcp_connection() = default;
@@ -49,5 +49,5 @@ class gcp_connection {
     const std::string _bucket_name;
     const std::string _object_prefix;
 
-    int bucket_exists(bool &exists) const;
+    int bucket_exists(bool &exists);
 };

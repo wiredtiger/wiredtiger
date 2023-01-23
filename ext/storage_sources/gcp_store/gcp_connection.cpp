@@ -37,6 +37,11 @@ gcp_connection::gcp_connection(const std::string &bucket_name, const std::string
     : _gcp_client(google::cloud::storage::Client()), _bucket_name(bucket_name),
       _object_prefix(prefix)
 {
+    bool exists = false;
+
+    bucket_exists(exists);
+    if (!exists)
+        std::cerr << "The specified bucket does not exist." << std::endl;
 }
 
 // Builds a list of object names from the bucket.
@@ -85,15 +90,46 @@ gcp_connection::get_object(const std::string &object_key, const std::string &pat
 // Checks whether an object with the given key exists in the google cloud bucket and also retrieves
 // size of the object.
 int
-gcp_connection::object_exists(
-  const std::string &object_key, bool &exists, size_t &object_size) const
+gcp_connection::object_exists(const std::string &object_key, bool &exists, size_t &object_size)
 {
+    object_size = 0;
+
+    google::cloud::StatusOr<gcs::ObjectMetadata> mt =
+      _gcp_client.GetObjectMetadata(_bucket_name, object_key);
+    google::cloud::StatusCode code = mt.status().code();
+
+    // Check if object doesn't exist.
+    if (google::cloud::StatusCodeToString(code) == "NOT_FOUND")
+        exists = false;
+    else {
+        // If object exists but encounters errors other than NOT_FOUND.
+        if (!mt) {
+            return -1;
+        }
+        exists = true;
+        object_size = mt.value().size();
+    }
+
     return 0;
 }
 
 // Checks whether the google cloud bucket is accessible to us or not.
 int
-gcp_connection::bucket_exists(bool &exists) const
+gcp_connection::bucket_exists(bool &exists)
 {
+    google::cloud::StatusOr<gcs::BucketMetadata> mt = _gcp_client.GetBucketMetadata(_bucket_name);
+    google::cloud::StatusCode code = mt.status().code();
+
+    // Check if bucket doesn't exist.
+    if (google::cloud::StatusCodeToString(code) == "NOT_FOUND")
+        exists = false;
+    else {
+        // If bucket exists but encounters errors other than NOT_FOUND.
+        if (!mt) {
+            return -1;
+        }
+        exists = true;
+    }
+
     return 0;
 }
