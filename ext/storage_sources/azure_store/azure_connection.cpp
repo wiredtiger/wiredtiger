@@ -111,8 +111,6 @@ azure_connection::object_exists(const std::string &object_key, bool &exists) con
 
     auto list_blob_response = _azure_client.ListBlobs();
 
-    int ret = 0;
-
     for (const auto blob_item : list_blob_response.Blobs) {
         // Check if object exists.
         if (blob_item.Name.compare(obj) == 0) {
@@ -120,12 +118,11 @@ azure_connection::object_exists(const std::string &object_key, bool &exists) con
             // Check if object is deleted and has not been cleared by garbage collection.
             if (blob_item.IsDeleted) {
                 exists = false;
-                ret = -1;
-                break;
+                return -1;
             }
         }
     }
-    return ret;
+    return 0;
 }
 
 int
@@ -139,8 +136,6 @@ azure_connection::bucket_exists(bool &exists) const
     // Get list of containers associated with the class Azure client.
     auto list_container_response = service_client.ListBlobContainers();
 
-    int ret = 0;
-
     for (const auto container_item : list_container_response.BlobContainers) {
         // Check if bucket exists.
         if (container_item.Name.compare(_bucket_name) == 0) {
@@ -148,10 +143,9 @@ azure_connection::bucket_exists(bool &exists) const
             // Check if bucket is deleted and has not been cleared by garbage collection.
             if (container_item.IsDeleted) {
                 exists = false;
-                ret = -1;
-                break;
+                return -1;
             }
         }
     }
-    return ret;
+    return 0;
 }
