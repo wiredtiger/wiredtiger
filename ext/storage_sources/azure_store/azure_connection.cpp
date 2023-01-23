@@ -117,8 +117,9 @@ azure_connection::object_exists(const std::string &object_name, bool &exists) co
         // Check if object exists.
         if (blob_item.Name.compare(obj) == 0) {
             exists = true;
-            // Check if object is deleted.
+            // Check if object is deleted and has not been cleared by garbage collection
             if (blob_item.IsDeleted) {
+                exists = false;
                 ret = -1;
                 break;
             }
@@ -132,7 +133,8 @@ azure_connection::bucket_exists(bool &exists) const
 {
     exists = false;
 
-    auto service_client = Azure::Storage::Blobs::BlobServiceClient::CreateFromConnectionString(std::getenv("AZURE_STORAGE_CONNECTION_STRING"));
+    auto service_client = Azure::Storage::Blobs::BlobServiceClient::CreateFromConnectionString(
+      std::getenv("AZURE_STORAGE_CONNECTION_STRING"));
 
     // Get list of containers associated with the class Azure client.
     auto list_container_response = service_client.ListBlobContainers();
@@ -145,6 +147,7 @@ azure_connection::bucket_exists(bool &exists) const
             exists = true;
             // Check if bucket is deleted.
             if (container_item.IsDeleted) {
+                exists = false;
                 ret = -1;
                 break;
             }
