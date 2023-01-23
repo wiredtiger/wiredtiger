@@ -75,7 +75,11 @@ parse_tiered_comma_separated_options(const char *config_str, uint64_t *opts_key1
     /* Point the end of string either to comma or the final null character. */
     config_end = strchr(config_str, ',');
 
-    if (config_end == NULL) {
+    /*
+     * This is to handle the scenario where second option after the comma is not specified or is
+     * NULL, i.e, -Px X, or -Px X
+     */
+    if (config_end == NULL || *(config_end + 1) == '\0') {
         config_end = &config_str[strlen(config_str)];
         /*
          * The delay milliseconds is set to 100 by default for artificial delays and set to 0 for
@@ -98,7 +102,7 @@ parse_tiered_comma_separated_options(const char *config_str, uint64_t *opts_key1
     parse_end = (char *)config_end;
 
     /* Reached end of the string and nothing to parse. */
-    if (*parse_end == '\0' && *config_str == '\0')
+    if (*config_str == '\0')
         return;
 
     parse_number(opts_key2, config_str, &parse_end);
@@ -246,8 +250,8 @@ testutil_parse_begin_opt(int argc, char *const *argv, const char *getopts_string
       USAGE_STR('m', " [-m]"), USAGE_STR('n', " [-n record count]"),
       USAGE_STR('o', " [-o op count]"),
       USAGE_STR('P',
-        " [-PT] [-Po storage source] [-PSD<data_seed>,E<extra_seed>] [-Pd <force_delay><delay_ms>] "
-        "[-Pe <force_error><error_ms>]"),
+        " [-PT] [-PSD<data_seed>,E<extra_seed>] [-Pd <force_delay>,<delay_ms>]"
+        " [-Pe <force_error>,<error_ms>] [-Po storage source]"),
       USAGE_STR('p', " [-p]"), USAGE_STR('R', " [-R read thread count]"),
       USAGE_STR('T', " [-T thread count]"), USAGE_STR('t', " [-t c|f|r table type]"),
       USAGE_STR('v', " [-v]"), USAGE_STR('W', " [-W write thread count]")));

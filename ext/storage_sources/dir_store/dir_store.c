@@ -247,12 +247,8 @@ static void
 sleep_ms(uint32_t ms)
 {
     struct timeval tv;
-    /*
-     * tv_usec has type suseconds_t, which is signed (hence the s), but ->delay_ms is unsigned. In
-     * both gcc8 and gcc10 with -Wsign-conversion enabled (as we do) this causes a spurious warning
-     * about the implicit conversion possibly changing the value. Hence the explicit cast. (both
-     * struct timeval and suseconds_t are POSIX)
-     */
+
+    /* Cast needed for some compilers that suspect the calculation can overflow (it can't). */
     tv.tv_sec = ms / 1000;
     tv.tv_usec = (suseconds_t)(ms % 1000) * 1000;
     (void)select(0, NULL, NULL, NULL, &tv);
