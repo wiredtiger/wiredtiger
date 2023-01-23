@@ -204,10 +204,12 @@ thread_tables_drop_workload(void *arg)
 // signals handled are registered in the WorkloadRunner::run_all function.
 volatile std::sig_atomic_t signal_raised = 0;
 
-void signal_handler(int signum) {
+void
+signal_handler(int signum)
+{
 
-    std::cerr << "Workgen received signal " << signum << ": " << strsignal(signum)
-              << "." << std::endl;
+    std::cerr << "Workgen received signal " << signum << ": " << strsignal(signum) << "."
+              << std::endl;
     signal_raised = signum;
 }
 
