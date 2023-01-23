@@ -300,7 +300,7 @@ azure_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *size
     return 0;
 }
 
-// An Azure storage source library - creates an entry point to the Azure extension
+// An Azure storage source library - creates an entry point to the Azure extension.
 int
 wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 {
