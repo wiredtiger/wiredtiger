@@ -1,8 +1,15 @@
 project(azure_store CXX)
+
 find_package(CURL REQUIRED) 
 cmake_minimum_required(VERSION 3.12)
 
-# # Create an intermediate library to build the helper library.
+# Using the Azure SDK produces a reference problem where an Azure Library
+# indirectly depends on an internal Azure library. Fixing this problem requires setting
+# the linker flags and runtime path.
+set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} -Wl,--disable-new-dtags)
+set(CMAKE_INSTALL_RPATH "${CMAKE_BINARY_DIR}/azure-sdk-cpp/install/lib")
+
+# Create an intermediate library to build the helper library.
 add_library(azure_container_util STATIC azure_connection.cpp)
 set_property(TARGET azure_container_util PROPERTY POSITION_INDEPENDENT_CODE ON)
 
