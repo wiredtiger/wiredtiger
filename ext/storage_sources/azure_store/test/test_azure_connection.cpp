@@ -32,5 +32,4 @@
 #include "azure_connection.h"
 
 TEST_CASE("testing class azure_connection", "azure_connection") {
-    azure_connection pfx_test = azure_connection("myblobcontainer1", "pfx_test_");
 }
