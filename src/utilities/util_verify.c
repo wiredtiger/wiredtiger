@@ -154,11 +154,13 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
 
             if (strcmp(key, WT_HS_URI) != 0 && strcmp(key, WT_METADATA_URI) != 0 &&
               !WT_PREFIX_MATCH(key, WT_SYSTEM_PREFIX))
-                ret = verify_one(session, config, key);
+                WT_TRET(verify_one(session, config, key));
         }
+        if (ret == WT_NOTFOUND)
+            ret = 0;
     } else {
         if ((uri = util_uri(session, *argv, "table")) == NULL)
-            WT_ERR(1);
+            goto err;
 
         ret = verify_one(session, config, uri);
     }
