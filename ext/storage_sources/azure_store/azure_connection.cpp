@@ -44,10 +44,8 @@ azure_connection::azure_connection(const std::string &bucket_name, const std::st
     int ret = bucket_exists(exists);
     if (!exists)
         std::cerr << _bucket_name + " : No such bucket." << std::endl;
-        return -1;
     if (ret != 0)
         std::cerr << _bucket_name + " : Unable to access bucket." << std::endl;
-        return -1;
 }
 
 // Build a list of all of the objects in the bucket.
