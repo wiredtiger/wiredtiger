@@ -104,10 +104,10 @@ azure_connection::get_object(const std::string &path) const
 }
 
 int
-azure_connection::object_exists(const std::string &object_name, bool &exists) const
+azure_connection::object_exists(const std::string &object_key, bool &exists) const
 {
     exists = false;
-    std::string obj = _object_prefix + object_name;
+    std::string obj = _object_prefix + object_key;
 
     auto list_blob_response = _azure_client.ListBlobs();
 
