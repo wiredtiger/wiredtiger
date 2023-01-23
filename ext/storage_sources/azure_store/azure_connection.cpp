@@ -79,7 +79,20 @@ azure_connection::delete_object() const
 }
 
 int
-azure_connection::get_object(const std::string &path) const
+azure_connection::read_object(const std::string &object_key, off_t offset, size_t len, void *&buf) const
 {
+    auto blob_client = _azure_client.GetBlockBlobClient(_object_prefix + object_key);
+    auto blob_properties = blob_client.GetProperties().Value;
+    std::vector<uint8_t> downloaded_blob(blob_properties.BlobSize);
+
+    // Downloads the content of the blob to the vector downloaded_blob
+    blob_client.DownloadTo(downloaded_blob.data(), downloaded_blob.size());
+    if (offset + len > downloaded_blob.size()) { 
+        std::cerr << "Reading past end of file!" << std::endl; 
+        return -1; 
+    }
+
+    std::string content = std::string(downloaded_blob.begin() + offset, downloaded_blob.begin() + offset + len);
+    buf = &content;
     return 0;
 }

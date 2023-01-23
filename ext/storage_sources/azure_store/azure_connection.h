@@ -50,7 +50,7 @@ class azure_connection {
       const std::string &prefix, std::vector<std::string> &objects, bool list_single) const;
     int put_object(const std::string &object_key, const std::string &file_path) const;
     int delete_object() const;
-    int get_object(const std::string &path) const;
+    int read_object(const std::string &object_key, off_t offset, size_t len, void *&buf) const;
 
     private:
     const std::string _bucket_name;
