@@ -5062,9 +5062,9 @@ buildvariants:
   run_on:
   - windows-64-vs2017-test
   expansions:
-    # The cmake toolchain file is set to the mongodb toolchain gcc by defualt. 
-    # Remove that configuration here and let Windows use the default MSVC toolchain instead.
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=
+    # Remove the default configurations for the toolchain and install prefix.
+    CMAKE_TOOLCHAIN_FILE:
+    CMAKE_INSTALL_PREFIX:
     python_binary: '/cygdrive/c/Python39/python'
     configure_env_vars:
       PATH=/cygdrive/c/Python39:/cygdrive/c/Python39/Scripts:$PATH
@@ -5088,7 +5088,7 @@ buildvariants:
   expansions:
     # The cmake toolchain file is set to the mongodb toolchain gcc by defualt. 
     # Remove that configuration here and let MacOS use the default Xcode toolchain instead.
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=
+    CMAKE_TOOLCHAIN_FILE:
     python_binary: 'python3'
     smp_command: -j $(sysctl -n hw.logicalcpu)
     cmake_generator: "Unix Makefiles"
