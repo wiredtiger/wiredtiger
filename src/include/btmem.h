@@ -1455,6 +1455,8 @@ struct __wt_insert {
 #define WT_INSERT_KEY(ins) ((void *)((uint8_t *)(ins) + ((WT_INSERT *)(ins))->u.key.offset))
 #define WT_INSERT_RECNO(ins) (((WT_INSERT *)(ins))->u.recno)
 
+    WT_INSERT *next[0]; /* forward-linked skip list */
+
 #define WT_INS_PTR_SWAP(ins, old, i)                        \
     do {                                                    \
         struct __wt_insert_hist hist = {                    \
@@ -1468,9 +1470,7 @@ struct __wt_insert {
 
     struct __wt_insert_hist insert_hist[WT_INSERT_HIST_ENTRIES];
     uint8_t insert_hist_ptr;
-    WT_INSERT *next[0]; /* forward-linked skip list */
 };
-
 
 /*
  * Skiplist helper macros.
