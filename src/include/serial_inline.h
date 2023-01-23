@@ -14,7 +14,6 @@ static inline int
 __insert_simple_func(
   WT_SESSION_IMPL *session, WT_INSERT ***ins_stack, WT_INSERT *new_ins, u_int skipdepth)
 {
-    WT_INSERT *old_ins;
     u_int i;
 
     WT_UNUSED(session);
@@ -46,7 +45,6 @@ static inline int
 __insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSERT ***ins_stack,
   WT_INSERT *new_ins, u_int skipdepth)
 {
-    WT_INSERT *old_ins;
     u_int i;
 
     /* The cursor should be positioned. */
@@ -65,7 +63,7 @@ __insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSE
      * implementations read the old value multiple times.
      */
     for (i = 0; i < skipdepth; i++) {
-        WT_ORDERED_READ(old_ins, *ins_stack[i]);
+        WT_INSERT *old_ins = *ins_stack[i];
         if (old_ins != new_ins->next[i] || !__wt_atomic_cas_ptr(ins_stack[i], old_ins, new_ins))
             return (i == 0 ? WT_RESTART : 0);
         if (ins_head->tail[i] == NULL || ins_stack[i] == &ins_head->tail[i]->next[i])
@@ -209,10 +207,10 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_
     __wt_cache_page_inmem_incr(session, page, new_ins_size);
 
     /* Mark the page dirty after updating the footprint. */
-    // #ifdef HAVE_DIAGNOSTIC
-    //     if (!exclusive || simple)
-    //         WT_READ_BARRIER();
-    // #endif
+// #ifdef HAVE_DIAGNOSTIC
+//     if (!exclusive || simple)
+//         WT_READ_BARRIER();
+// #endif
     __wt_page_modify_set(session, page);
 
     return (0);
