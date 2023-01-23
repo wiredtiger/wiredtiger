@@ -83,7 +83,7 @@ azure_connection::delete_object(const std::string &object_key) const
 
     // Returns false if obj doesn't exist.
     if (!delete_blob_response.Value.Deleted) {
-        std::cerr << obj + " : No such Object." << std::endl;
+        std::cerr << obj + " : No such object file exists in the bucket." << std::endl;
         return -1;
     }
 
