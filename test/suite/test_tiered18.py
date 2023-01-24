@@ -71,6 +71,8 @@ class test_tiered18(wttest.WiredTigerTestCase, TieredConfigMixin):
         base_create = 'key_format=S,value_format=S'
         self.session.create(self.uri_non_shared, base_create)
         self.check_metadata(self.uri_non_shared, 'key_format=S')
+        self.check_metadata("colgroup:test_tiered18_shared_default.active", 'file:test_tiered18_shared_default.wt')
+        self.check_metadata("colgroup:test_tiered18_shared_default.shared", 'tiered:test_tiered18_shared_default')
         self.session.drop(self.uri_non_shared)
 
         self.pr("create non tiered/local")
@@ -82,6 +84,9 @@ class test_tiered18(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.pr("create tiered shared")
         conf = ',tiered_storage=(shared=true)'
         self.session.create(self.uri_shared, base_create + conf)
+        self.check_metadata(self.uri_shared, 'key_format=S')
+        self.check_metadata("colgroup:test_tiered18_shared.active", 'file:test_tiered18_shared.wt')
+        self.check_metadata("colgroup:test_tiered18_shared.shared", 'tiered:test_tiered18_shared')
         self.session.drop(self.uri_shared)
 
         self.reopen_conn(config = self.saved_conn + ',tiered_storage=(shared=false)')
