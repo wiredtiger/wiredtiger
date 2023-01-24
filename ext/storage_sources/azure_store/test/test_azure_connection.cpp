@@ -35,7 +35,6 @@ TEST_CASE("testing class azure_connection", "azure_connection")
 {
     SECTION("Test object_exists.")
     {
-
         azure_connection conn = azure_connection("myblobcontainer1", "object_exist_test_prefix");
         bool object_exists;
 
@@ -48,6 +47,7 @@ TEST_CASE("testing class azure_connection", "azure_connection")
           "test.txt", "/home/ubuntu/wiredtiger/ext/storage_sources/azure_store/test.txt");
         CHECK(conn.object_exists("test.txt", object_exists) == 0);
         CHECK(object_exists == true);
+
         // Delete test case object.
         REQUIRE(conn.delete_object("test.txt") == 0);
     }
