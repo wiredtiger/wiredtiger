@@ -94,13 +94,18 @@ gcp_connection::delete_object(const std::string &object_key)
 
 // Retrieves an object from the google cloud bucket.
 int
-gcp_connection::read_object(const std::string &object_key, std::int64_t offset)
+gcp_connection::read_object(const std::string &object_key, off_t offset, size_t len, void *buf)
 {
     namespace gcs = ::google::cloud::storage;
     gcs::ObjectReadStream stream = _gcp_client.ReadObject(_bucket_name, _object_prefix + object_key, gcs::ReadFromOffset(offset));
-    std::string buffer{std::istream_iterator<char>(stream), std::istream_iterator<char>()};
-    std::cout << "The contents of " << _object_prefix + object_key << " is: " << buffer << "\n";
+    std::string buffer{std::istreambuf_iterator<char>(stream),
+                     std::istreambuf_iterator<char>()};
+    const char *cstr = buffer.c_str();
+    // buf = &buffer;
 
+    strcpy(static_cast<char *>(buf), cstr);
+    std::cout << "buf in read_object is: " << buf << std::endl;
+    // std::cout << "The contents of buf in read_object is: " << *(static_cast<std::string*>(buf)) << std::endl;
     return 0;
 }
 
