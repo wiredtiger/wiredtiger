@@ -98,14 +98,10 @@ gcp_connection::read_object(const std::string &object_key, off_t offset, size_t 
 {
     namespace gcs = ::google::cloud::storage;
     gcs::ObjectReadStream stream = _gcp_client.ReadObject(_bucket_name, _object_prefix + object_key, gcs::ReadFromOffset(offset));
-    std::string buffer{std::istreambuf_iterator<char>(stream),
-                     std::istreambuf_iterator<char>()};
-    const char *cstr = buffer.c_str();
-    // buf = &buffer;
+    std::istreambuf_iterator<char> begin{stream}, end; 
+    std::string buffer{begin, end};
 
-    strcpy(static_cast<char *>(buf), cstr);
-    std::cout << "buf in read_object is: " << buf << std::endl;
-    // std::cout << "The contents of buf in read_object is: " << *(static_cast<std::string*>(buf)) << std::endl;
+    memcpy(static_cast<char*>(buf), buffer.c_str(), len);
     return 0;
 }
 
