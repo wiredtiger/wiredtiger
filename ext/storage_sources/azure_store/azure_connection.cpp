@@ -93,7 +93,7 @@ azure_connection::delete_object(const std::string &object_key) const
 // Reads an object and outputs the content into a buffer.
 int
 azure_connection::read_object(
-  const std::string &object_key, off_t offset, size_t len, void *buf) const
+  const std::string &object_key, wt_off_t offset, size_t len, void *buf) const
 {
     auto blob_client = _azure_client.GetBlockBlobClient(_object_prefix + object_key);
     auto blob_properties = blob_client.GetProperties().Value;
