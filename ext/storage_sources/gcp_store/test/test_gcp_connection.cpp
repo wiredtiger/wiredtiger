@@ -31,4 +31,123 @@
 
 #include "gcp_connection.h"
 
-TEST_CASE("Testing class gcpConnection", "gcp-connection") {}
+namespace test_defaults {
+static std::string bucket_name("quickstart_test");
+
+/*
+ * Objects with the prefex pattern "gcptest/*" are deleted after a certain period of time according
+ * to the lifecycle rule on the gcp bucket. Should you wish to make any changes to the prefix pattern
+ * or lifecycle of the object, please speak to the release manager.
+ */
+static std::string obj_prefix("gcptest/unit/"); // To be concatenated with a random string.
+} // namespace test_defaults
+
+// Concatenates a random suffix to the prefix being used for the test object keys. Example of
+// generated test prefix: "gcptest/unit/2022-31-01-16-34-10/623843294--".
+static int
+randomize_test_prefix()
+{
+    char time_str[100];
+    std::time_t t = std::time(nullptr);
+
+    REQUIRE(std::strftime(time_str, sizeof(time_str), "%F-%H-%M-%S", std::localtime(&t)) != 0);
+
+    test_defaults::obj_prefix += time_str;
+
+    // Create a random device and use it to generate a random seed to initialize the generator.
+    std::random_device my_random_device;
+    unsigned seed = my_random_device();
+    std::default_random_engine my_random_engine(seed);
+
+    test_defaults::obj_prefix += '/' + std::to_string(my_random_engine());
+    test_defaults::obj_prefix += "--";
+
+    return (0);
+}
+
+// Overrides the defaults with the ones specific for this test instance.
+static int
+setup_test_defaults()
+{
+    // Append the prefix to be used for object names by a unique string.
+    REQUIRE(randomize_test_prefix() == 0);
+    std::cerr << "Generated prefix: " << test_defaults::obj_prefix << std::endl;
+
+    return (0);
+}
+
+TEST_CASE("Testing class gcpConnection", "gcp-connection")
+{
+    // Setup the test environment.
+    REQUIRE(setup_test_defaults() == 0);
+
+    gcp_connection conn(test_defaults::bucket_name, test_defaults::obj_prefix);
+    // bool exists = false;
+    // size_t objectSize;
+
+    const std::string object_name = "test_object";
+    const std::string file_name = "test_object.txt";
+    const std::string path = "./" + file_name;
+
+    std::ofstream File(file_name);
+    std::string payload = "Test payload";
+    File << payload;
+    File.close();
+
+    SECTION("Check list, put and delete objects", "[gcp-connection]")
+    {
+        std::vector<std::string> objects;
+
+        // No matching objects, list should be empty.
+        REQUIRE(conn.list_objects(objects, false) == 0);
+        REQUIRE(objects.size() == 0);
+        objects.clear();
+
+        // Put one object in the bucket. List should contain 1 item.
+        REQUIRE(conn.put_object(object_name, file_name) == 0);
+        REQUIRE(conn.list_objects(objects, false) == 0);
+        REQUIRE(objects.size() == 1);
+        objects.clear();
+        
+        // Delete that object from the bucket
+        REQUIRE(conn.delete_object(object_name) == 0);
+        REQUIRE(conn.list_objects(objects, false) == 0);
+        REQUIRE(objects.size() == 0);
+    }
+
+        SECTION("Lists gcp objects under the test bucket.", "[gcp-connection]")
+    {
+        std::vector<std::string> objects;
+
+        // Total objects to insert in the test.
+        const int32_t total_objects = 20;
+        // Prefix for objects in this test.
+        const std::string prefix = "test_list_objects_";
+        const bool list_single = true;
+
+        // No matching objects. Object size should be 0.
+        REQUIRE(conn.list_objects(objects, false) == 0);
+        REQUIRE(objects.size() == 0);
+
+        // No matching objects with list_single. Object size should be 0.
+        REQUIRE(conn.list_objects(objects, list_single) == 0);
+        REQUIRE(objects.size() == 0);
+
+        // Create file to prepare for test.
+        REQUIRE(std::ofstream(file_name).put('.').good());
+
+        // Put objects to prepare for test.
+        for (int i = 0; i < total_objects; i++) {
+            REQUIRE(conn.put_object(test_defaults::obj_prefix + std::to_string(i) + ".txt", file_name) == 0);
+        }
+
+        // List all objects. This is the size of total_objects.
+        REQUIRE(conn.list_objects(objects, false) == 0);
+        REQUIRE(objects.size() == total_objects);
+
+        // List single. Object size should be 1.
+        objects.clear();
+        REQUIRE(conn.list_objects(objects, list_single) == 0);
+        REQUIRE(objects.size() == 1);
+    }
+}
