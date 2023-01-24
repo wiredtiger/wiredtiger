@@ -37,15 +37,13 @@ gcp_connection::gcp_connection(const std::string &bucket_name, const std::string
     : _gcp_client(google::cloud::storage::Client()), _bucket_name(bucket_name),
       _object_prefix(prefix)
 {
-    /*
-     * StatusOr either contains a usable BucketMetadata value or a Status object explaining why a
-     * BucketMetadata is not present. Its validity will be checked using a conversion to bool.
-     */
+    // StatusOr either contains a usable BucketMetadata value or a Status object explaining why the
+    // value is not present. The value's validity is checked by StatusOr::ok().
     google::cloud::StatusOr<gcs::BucketMetadata> metadata =
       _gcp_client.GetBucketMetadata(_bucket_name);
 
     // Check if bucket exists and is accessible.
-    if (!metadata)
+    if (!metadata.ok())
         throw std::invalid_argument(_bucket_name + ": " + metadata.status().message());
 }
 
@@ -73,15 +71,32 @@ gcp_connection::list_objects(std::vector<std::string> &objects, bool list_single
 
 // Puts an object into a google cloud bucket.
 int
-gcp_connection::put_object(const std::string &object_key, const std::string &file_name) const
+gcp_connection::put_object(const std::string &object_key, const std::string &file_path)
 {
+    // Client library automatically computes a hash on the client-side to
+    // verify data integrity.
+    google::cloud::StatusOr<gcs::ObjectMetadata> metadata =
+      _gcp_client.UploadFile(file_path, _bucket_name, _object_prefix + object_key);
+
+    // Check if file has been successfully uploaded.
+    if (!metadata) {
+        std::cerr << "Upload failed: " << metadata.status() << std::endl;
+        return -1;
+    }
+
     return 0;
 }
 
 // Deletes an object from google cloud bucket.
 int
-gcp_connection::delete_object(const std::string &object_key) const
+gcp_connection::delete_object(const std::string &object_key)
 {
+    auto status = _gcp_client.DeleteObject(_bucket_name, _object_prefix + object_key);
+
+    if (!status.ok()) {
+        std::cerr << status.message() << std::endl;
+        return -1;
+    }
     return 0;
 }
 
@@ -104,7 +119,7 @@ gcp_connection::object_exists(const std::string &object_key, bool &exists, size_
     google::cloud::StatusCode code = metadata.status().code();
 
     // Check if object exists and is accessible.
-    if (metadata) {
+    if (metadata.ok()) {
         exists = true;
         object_size = metadata.value().size();
         return 0;
