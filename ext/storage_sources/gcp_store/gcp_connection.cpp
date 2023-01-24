@@ -37,11 +37,16 @@ gcp_connection::gcp_connection(const std::string &bucket_name, const std::string
     : _gcp_client(google::cloud::storage::Client()), _bucket_name(bucket_name),
       _object_prefix(prefix)
 {
-    bool exists = false;
+    /* StatusOr either contains a usable BucketMetadata value or a Status object explaining why
+     * a BucketMetadata is not present.
+     * Its validity will be checked using a conversion to bool.
+     */
+    google::cloud::StatusOr<gcs::BucketMetadata> metadata =
+      _gcp_client.GetBucketMetadata(_bucket_name);
 
-    bucket_exists(exists);
-    if (!exists)
-        std::cerr << "The specified bucket does not exist." << std::endl;
+    // Check if bucket exists and is accessible.
+    if (!metadata)
+        throw std::invalid_argument(_bucket_name + ": " + metadata.status().message());
 }
 
 // Builds a list of object names from the bucket.
@@ -94,42 +99,23 @@ gcp_connection::object_exists(const std::string &object_key, bool &exists, size_
 {
     object_size = 0;
 
-    google::cloud::StatusOr<gcs::ObjectMetadata> mt =
+    google::cloud::StatusOr<gcs::ObjectMetadata> metadata =
       _gcp_client.GetObjectMetadata(_bucket_name, object_key);
-    google::cloud::StatusCode code = mt.status().code();
+    google::cloud::StatusCode code = metadata.status().code();
+
+    // Check if object exists and is accessible.
+    if (metadata) {
+        exists = true;
+        object_size = metadata.value().size();
+        return 0;
+    }
 
     // Check if object doesn't exist.
-    if (google::cloud::StatusCodeToString(code) == "NOT_FOUND")
+    if (google::cloud::StatusCodeToString(code) == "NOT_FOUND") {
         exists = false;
-    else {
-        // If object exists but encounters errors other than NOT_FOUND.
-        if (!mt) {
-            return -1;
-        }
-        exists = true;
-        object_size = mt.value().size();
+        // This is an expected response so do not fail.
+        return 0;
     }
 
-    return 0;
-}
-
-// Checks whether the google cloud bucket is accessible to us or not.
-int
-gcp_connection::bucket_exists(bool &exists)
-{
-    google::cloud::StatusOr<gcs::BucketMetadata> mt = _gcp_client.GetBucketMetadata(_bucket_name);
-    google::cloud::StatusCode code = mt.status().code();
-
-    // Check if bucket doesn't exist.
-    if (google::cloud::StatusCodeToString(code) == "NOT_FOUND")
-        exists = false;
-    else {
-        // If bucket exists but encounters errors other than NOT_FOUND.
-        if (!mt) {
-            return -1;
-        }
-        exists = true;
-    }
-
-    return 0;
+    return -1;
 }
