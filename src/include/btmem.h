@@ -1434,7 +1434,7 @@ struct __wt_update_vector {
 
 struct __wt_insert {
     WT_UPDATE *upd; /* value */
-
+    u_int depth;
     union {
         uint64_t recno; /* column-store record number */
         struct {

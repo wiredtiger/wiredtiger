@@ -244,7 +244,7 @@ __wt_row_search(WT_CURSOR_BTREE *cbt, WT_ITEM *srch_key, bool insert, WT_REF *le
     size_t match, skiphigh, skiplow;
     uint32_t base, indx, limit, read_flags;
     int cmp, depth;
-    bool append_check, descend_right, done;
+    bool append_check, descend_right, done = false;
 
     session = CUR2S(cbt);
     btree = S2BT(session);
@@ -496,7 +496,7 @@ leaf_only:
             ins_head = WT_ROW_INSERT_SLOT(page, cbt->slot);
         }
 
-        WT_ERR(__search_insert_append(session, cbt, ins_head, srch_key, &done));
+        //WT_ERR(__search_insert_append(session, cbt, ins_head, srch_key, &done));
         if (done)
             return (0);
     }
@@ -611,7 +611,7 @@ leaf_match:
      * key into the temporary buffer, our callers expect to find it there.
      */
     if (insert) {
-        WT_ERR(__search_insert_append(session, cbt, ins_head, srch_key, &done));
+        //WT_ERR(__search_insert_append(session, cbt, ins_head, srch_key, &done));
         if (done)
             return (0);
     }

@@ -321,7 +321,7 @@ __wt_row_insert_alloc(WT_SESSION_IMPL *session, const WT_ITEM *key, u_int skipde
      */
     ins_size = sizeof(WT_INSERT) + skipdepth * sizeof(WT_INSERT *) + key->size;
     WT_RET(__wt_calloc(session, 1, ins_size, &ins));
-
+    ins->depth = skipdepth;
     ins->u.key.offset = WT_STORE_SIZE(ins_size - key->size);
     WT_INSERT_KEY_SIZE(ins) = WT_STORE_SIZE(key->size);
     memcpy(WT_INSERT_KEY(ins), key->data, key->size);

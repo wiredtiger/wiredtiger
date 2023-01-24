@@ -212,10 +212,10 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_
     __wt_cache_page_inmem_incr(session, page, new_ins_size);
 
     /* Mark the page dirty after updating the footprint. */
-// #ifdef HAVE_DIAGNOSTIC
-//     if (!exclusive || simple)
-//         WT_READ_BARRIER();
-// #endif
+#ifdef HAVE_DIAGNOSTIC
+    if (!exclusive || simple)
+        WT_READ_BARRIER();
+#endif
     __wt_page_modify_set(session, page);
 
     return (0);
