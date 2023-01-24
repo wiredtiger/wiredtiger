@@ -28,7 +28,8 @@ endif()
 
 if(IMPORT_GCP_SDK_EXTERNAL)
     # Download and install the GCP CPP SDK into the build directory.
-    ExternalProject_Add(gcp-sdk
+    ExternalProject_Add(
+        gcp-sdk
         PREFIX gcp-sdk-cpp
         GIT_REPOSITORY https://github.com/googleapis/google-cloud-cpp.git
         GIT_TAG v2.5.0
