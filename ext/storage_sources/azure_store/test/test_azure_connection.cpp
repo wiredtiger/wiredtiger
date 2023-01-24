@@ -31,39 +31,38 @@
 
 #include "azure_connection.h"
 
-TEST_CASE("testing class azure_connection", "azure_connection")
+TEST_CASE("Testing Class azure_connection", "azure_connection")
 {
 
-    std::vector<std::string> objects;
-    azure_connection pfx_test = azure_connection("myblobcontainer1", "pfx_test_");
+    SECTION("Testing read_object functionality") { 
+        std::vector<std::string> objects;
+        azure_connection pfx_conn = azure_connection("myblobcontainer1", "read_object_");
 
-    // There is nothing in the container so there should be 0 objects
-    objects.clear();
-    REQUIRE(pfx_test.list_objects("", objects, false) == 0);
-    REQUIRE(objects.size() == 1);
+        objects.clear();
+        CHECK(pfx_conn.put_object(
+                "test.txt", "/home/ubuntu/wiredtiger/ext/storage_sources/azure_store/test.txt") == 0);
+        CHECK(pfx_conn.list_objects("", objects, false) == 0);
+        CHECK(objects.size() == 1);
 
-    objects.clear();
-    REQUIRE(pfx_test.put_object(
-              "test.txt", "/home/ubuntu/wiredtiger/ext/storage_sources/azure_store/test.txt") == 0);
-    REQUIRE(pfx_test.list_objects("", objects, false) == 0);
-    REQUIRE(objects.size() == 1);
+        void *buffer = calloc(1024, sizeof(char));
+        CHECK(pfx_conn.read_object("test.txt", 0, 29, buffer) == 0);
+        memset(buffer, 0, 1024);
 
-    void *buffer = calloc(1024, sizeof(char));
-    REQUIRE(pfx_test.read_object("test.txt", 0, 29, buffer) == 0);
-    memset(buffer, 0, 1024);
+        CHECK(pfx_conn.read_object("test.txt", 15, 14, buffer) == 0);
+        memset(buffer, 0, 1024);
 
-    REQUIRE(pfx_test.read_object("test.txt", 15, 14, buffer) == 0);
-    memset(buffer, 0, 1024);
+        // Test overflow on positive offset but past EOF
+        CHECK(pfx_conn.read_object("test.txt", 15, 1000, buffer) == -1);
+        memset(buffer, 0, 1024);
 
-    // Test overflow on positive offset but past EOF
-    REQUIRE(pfx_test.read_object("test.txt", 15, 1000, buffer) == -1);
-    memset(buffer, 0, 1024);
+        // Test overflow on negative offset but past EOF
+        CHECK(pfx_conn.read_object("test.txt", -1, 1000, buffer) == -1);
+        memset(buffer, 0, 1024);
 
-    // Test overflow on negative offset but past EOF
-    REQUIRE(pfx_test.read_object("test.txt", -1, 1000, buffer) == -1);
-    memset(buffer, 0, 1024);
+        // Test overflow with negative offset
+        CHECK(pfx_conn.read_object("test.txt", -1, 12, buffer) == -1);
+        free(buffer);
 
-    // Test overflow with negative offset
-    REQUIRE(pfx_test.read_object("test.txt", -1, 12, buffer) == -1);
-    free(buffer);
+        REQUIRE(pfx_conn.delete_object("test.txt") == 0);
+    }
 }
