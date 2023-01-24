@@ -93,6 +93,22 @@
  */
 
 /*
+ * In a timed run, get everyone to stop.
+ */
+void
+replay_end_timed_run(void)
+{
+    /*
+     * We'll post a stop timestamp that all worker threads should abide by. There's a potential race
+     * between when we read the current timestamp and before we publish the stop timestamp. During
+     * that time, other threads could do work and advance the current timestamp, potentially beyond
+     * the intended stop timestamp. We pick a stop timestamp far enough in the future that it's
+     * rather unlikely to happen.
+     */
+    WT_PUBLISH(g.stop_timestamp, g.timestamp + 0x10000);
+}
+
+/*
  * replay_maximum_committed --
  *     For predictable replay runs, return the largest timestamp that's no longer in use.
  */
@@ -228,28 +244,6 @@ replay_loop_begin(TINFO *tinfo, bool intxn)
     }
 }
 
-#if 0
-/*
- * show_timestamps --
- *     For debugging, show the relevant global timestamps.
- */
-static void
-show_timestamps(WT_SESSION *session, const char *msg)
-{
-    WT_CONNECTION *conn;
-    uint64_t oldest_ts, stable_ts;
-    char tsbuf[WT_TS_HEX_STRING_SIZE];
-
-    conn = session->connection;
-
-    testutil_check(conn->query_timestamp(conn, tsbuf, "get=oldest_timestamp"));
-    oldest_ts = testutil_timestamp_parse(tsbuf);
-    testutil_check(conn->query_timestamp(conn, tsbuf, "get=stable_timestamp"));
-    stable_ts = testutil_timestamp_parse(tsbuf);
-    fprintf(stderr, "%s: oldest=%" PRIu64 ", stable=%" PRIu64 "\n", msg, oldest_ts, stable_ts);
-}
-#endif
-
 /*
  * replay_run_reset --
  *     Called at beginning and end of runs to set up the lanes.
@@ -257,6 +251,7 @@ show_timestamps(WT_SESSION *session, const char *msg)
 static void
 replay_run_reset(void)
 {
+    TINFO *tinfo, **tlp;
     uint64_t ts;
     uint32_t lane;
 
@@ -266,6 +261,16 @@ replay_run_reset(void)
     for (lane = 0; lane < LANE_COUNT; ++lane)
         g.lanes[lane].last_commit_ts = ts;
     g.replay_cached_committed = ts;
+
+    /* Reset fields in tinfo. */
+    if (tinfo_list != NULL)
+        for (tlp = tinfo_list; *tlp != NULL; ++tlp) {
+            tinfo = *tlp;
+            tinfo->replay_again = false;
+            tinfo->replay_ts = 0;
+            tinfo->lane = 0;
+            tinfo->op = (thread_op)0;
+        }
 }
 
 /*

@@ -66,8 +66,14 @@ config_random_generator(
     char buf[128];
     bool seed_set;
 
-    /* The random number generator should not have been used up to this point. */
-    testutil_assert(rnd->v == 0);
+    /*
+     * The random number generator should not have been used up to this point. If it has, a range of
+     * values must have been specified.
+     */
+    if (rnd->v != 0)
+        testutil_die(EINVAL,
+          "%s: predictable replay cannot be used with configurations with ranges N-M or N:M",
+          progname);
 
     /* See if the seed is already present in the configuration. */
     seed_set = (seed != 0);
@@ -95,6 +101,23 @@ config_random_generators(void)
 {
     config_random_generator("random.data_seed", GV(RANDOM_DATA_SEED), 0, &g.data_rnd);
     config_random_generator("random.extra_seed", GV(RANDOM_EXTRA_SEED), 1, &g.extra_rnd);
+}
+
+/*
+ * config_random_generators_before_run --
+ *     One use case for predictable replay is to run test/format once with little or no
+ *     configuration values set. test/format rolls the dice and picks the configuration, recording
+ *     it along with the random seeds. If we want to rerun it predictably, we can use the same
+ *     seeds. However, the second run will not need to roll the dice during configuration, so the
+ *     state of the RNG after configuration would be different than after configuration during the
+ *     first run. To make everything line up, we re-seed the generator after the configuration, and
+ *     before execution begins.
+ */
+static void
+config_random_generators_before_run(void)
+{
+    testutil_random_from_seed(&g.data_rnd, GV(RANDOM_DATA_SEED));
+    testutil_random_from_seed(&g.extra_rnd, GV(RANDOM_EXTRA_SEED));
 }
 
 /*
@@ -497,6 +520,8 @@ config_run(void)
         else
             config_single(NULL, "runs.timer=360", false);
     }
+
+    config_random_generators_before_run();
 }
 
 /*

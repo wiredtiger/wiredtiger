@@ -99,7 +99,7 @@ timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
     static const char *oldest_timestamp_str = "oldest_timestamp=";
     static const char *stable_timestamp_str = "stable_timestamp=";
     WT_CONNECTION *conn;
-    uint64_t oldest_timestamp, stable_timestamp;
+    uint64_t oldest_timestamp, stable_timestamp, stop_timestamp;
     char buf[WT_TS_HEX_STRING_SIZE * 2 + 64];
 
     conn = g.wts_conn;
@@ -123,8 +123,9 @@ timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
          * For predictable replay, our end state is to have the stable timestamp represent a precise
          * number of operations.
          */
-        if (stable_timestamp > g.stop_timestamp && g.stop_timestamp != 0)
-            stable_timestamp = g.stop_timestamp;
+        WT_ORDERED_READ(stop_timestamp, g.stop_timestamp);
+        if (stable_timestamp > stop_timestamp && stop_timestamp != 0)
+            stable_timestamp = stop_timestamp;
     } else if (!final) {
         /*
          * If lag is permitted, update the oldest timestamp halfway to the largest timestamp that's

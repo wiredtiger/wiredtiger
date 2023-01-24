@@ -1,0 +1,5 @@
+# A configuration for predictable replay.
+ops.truncate=0
+runs.predictable_replay=1
+runs.tables=10
+runs.threads=16

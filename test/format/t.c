@@ -186,8 +186,8 @@ main(int argc, char *argv[])
 {
     READ_SCAN_ARGS scan_args;
     uint64_t now, start;
-    u_int ops_seconds;
-    int ch, reps;
+    u_int ops_seconds, reps;
+    int ch;
     const char *config, *home;
     bool is_backup, quiet_flag, verify_only;
 
@@ -377,7 +377,7 @@ main(int argc, char *argv[])
      */
     ops_seconds = GV(RUNS_TIMER) == 0 ? 0 : ((GV(RUNS_TIMER) * 60) - 15) / FORMAT_OPERATION_REPS;
     for (reps = 1; reps <= FORMAT_OPERATION_REPS; ++reps)
-        operations(ops_seconds, reps == FORMAT_OPERATION_REPS);
+        operations(ops_seconds, reps, FORMAT_OPERATION_REPS);
 
     /* Copy out the run's statistics. */
     TIMED_MAJOR_OP(wts_stats());

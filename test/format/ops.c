@@ -261,7 +261,7 @@ rollback_to_stable(WT_SESSION *session)
  *     Perform a number of operations in a set of threads.
  */
 void
-operations(u_int ops_seconds, bool lastrun)
+operations(u_int ops_seconds, u_int run_number, u_int run_count)
 {
     SAP sap;
     TINFO *tinfo, total;
@@ -271,9 +271,10 @@ operations(u_int ops_seconds, bool lastrun)
     wt_thread_t timestamp_tid;
     int64_t fourths, quit_fourths, thread_ops;
     uint32_t i;
-    bool running;
+    bool lastrun, running;
 
     conn = g.wts_conn;
+    lastrun = (run_number == run_count);
 
     /* Make the modify pad character printable to simplify debugging and logging. */
     __wt_process.modify_pad_byte = FORMAT_PAD_BYTE;
@@ -315,7 +316,7 @@ operations(u_int ops_seconds, bool lastrun)
              */
             thread_ops = -1;
             ops_seconds = 0;
-            g.stop_timestamp = g.timestamp + GV(RUNS_OPS);
+            g.stop_timestamp = (GV(RUNS_OPS) * run_number) / run_count;
         } else
             thread_ops = GV(RUNS_OPS) / GV(RUNS_THREADS);
     }
@@ -394,20 +395,30 @@ operations(u_int ops_seconds, bool lastrun)
              * If the timer has expired or this thread has completed its operations, notify the
              * thread it should quit.
              */
-            if (!GV(RUNS_PREDICTABLE_REPLAY) &&
-              (fourths == 0 || (thread_ops != -1 && tinfo->ops >= (uint64_t)thread_ops))) {
+            if (fourths == 0 || (thread_ops != -1 && tinfo->ops >= (uint64_t)thread_ops)) {
                 /*
                  * On the last execution, optionally drop core for recovery testing.
                  */
                 if (lastrun && GV(FORMAT_ABORT))
                     random_failure();
-                tinfo->quit = true;
+
+                /*
+                 * Predictable replay cannot independently tag every thread to stop, we would end up
+                 * with a mix of commits at the end of the run. Rather, later in this loop, when we
+                 * see we are finishing, we give all threads stop timestamp that they must run to,
+                 * but not exceed.
+                 */
+                if (!GV(RUNS_PREDICTABLE_REPLAY))
+                    tinfo->quit = true;
             }
         }
         track_ops(&total);
         if (!running)
             break;
         __wt_sleep(0, 250 * WT_THOUSAND); /* 1/4th of a second */
+
+        if (fourths == 1 && GV(RUNS_PREDICTABLE_REPLAY))
+            replay_end_timed_run();
         if (fourths != -1)
             --fourths;
         if (quit_fourths != -1 && --quit_fourths == 0) {
@@ -1219,15 +1230,20 @@ rollback_retry:
             tinfo->table = g.base_mirror;
             ret = table_op(tinfo, intxn, iso_level, op);
             testutil_assert(ret == 0 || ret == WT_ROLLBACK);
-            if (GV(RUNS_PREDICTABLE_REPLAY) && ret == WT_ROLLBACK)
-                goto rollback;
 
             /*
              * We make blind modifies and the record may not exist. If the base modify returns DNE,
              * skip the operation. This isn't to avoid wasted work: any FLCS table in the mirrored
              * will do an update as FLCS doesn't support modify, and we'll fail when we compare the
              * remove to the FLCS value.
+             *
+             * For predictable replay if the record doesn't exist (that's predictable), and we must
+             * force a rollback, we always finish a loop iteration in a committed or rolled back
+             * state.
              */
+            if (GV(RUNS_PREDICTABLE_REPLAY) && (ret == WT_ROLLBACK || tinfo->op_ret == WT_NOTFOUND))
+                goto rollback;
+
             if (tinfo->op_ret == WT_NOTFOUND)
                 goto skip_operation;
 
@@ -1269,9 +1285,22 @@ skip_operation:
 
         /*
          * If not in a transaction, we're done with this operation. If in a transaction, add more
-         * operations to the transaction half the time.
+         * operations to the transaction half the time. For predictable replay runs, always complete
+         * the transaction.
          */
-        if (!intxn || (rnd = mmrand(&tinfo->data_rnd, 1, 10)) > 5)
+        if (GV(RUNS_PREDICTABLE_REPLAY)) {
+            rnd = mmrand(&tinfo->data_rnd, 1, 5);
+
+            /*
+             * Note that a random value of 5 would result in a rollback per the switch below. For
+             * predictable replay, only do that once per timestamp. If we didn't have this check, a
+             * retry would start again with the same timestamp and RNG state, and get the same dice
+             * roll. This would happen every time and the thread will be get stuck doing continuous
+             * rollbacks.
+             */
+            if (rnd == 5 && ntries != 0)
+                rnd = 4; /* Choose to do a commit this time. */
+        } else if (!intxn || (rnd = mmrand(&tinfo->data_rnd, 1, 10)) > 5)
             continue;
 
         /*
@@ -1300,14 +1329,6 @@ skip_operation:
             }
             prepared = true;
         }
-
-        /*
-         * If we're set up to do a rollback in predictable replay, only do that once per timestamp.
-         * Because everything is predictable, every retry would get the same dice roll and the
-         * thread will be stuck doing a rollback every time.
-         */
-        if (GV(RUNS_PREDICTABLE_REPLAY) && rnd == 5 && ntries != 0)
-            rnd = 4; /* Choose to do a commit this time. */
 
         /*
          * If we're in a transaction, commit 40% of the time and rollback 10% of the time (we
