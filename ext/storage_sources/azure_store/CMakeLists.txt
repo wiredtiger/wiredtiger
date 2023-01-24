@@ -1,7 +1,7 @@
 project(azure_store CXX)
 
 find_package(CURL REQUIRED) 
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.13)
 
 # Using the Azure SDK produces a reference problem where an Azure Library
 # indirectly depends on an internal Azure library. Fixing this problem requires setting

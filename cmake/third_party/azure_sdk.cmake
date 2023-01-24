@@ -2,6 +2,7 @@ include(ExternalProject)
 include(FetchContent)
 include(GNUInstallDirs)
 include(${CMAKE_SOURCE_DIR}/cmake/helpers.cmake)
+cmake_minimum_required(VERSION 3.13)
 
 # Skip the AZURE SDK build step if the extension is not enabled.
 if(NOT ENABLE_AZURE)
