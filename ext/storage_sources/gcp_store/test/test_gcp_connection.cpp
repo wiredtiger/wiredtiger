@@ -36,8 +36,8 @@ static std::string bucket_name("quickstart_test");
 
 /*
  * Objects with the prefex pattern "gcptest/*" are deleted after a certain period of time according
- * to the lifecycle rule on the gcp bucket. Should you wish to make any changes to the prefix pattern
- * or lifecycle of the object, please speak to the release manager.
+ * to the lifecycle rule on the gcp bucket. Should you wish to make any changes to the prefix
+ * pattern or lifecycle of the object, please speak to the release manager.
  */
 static std::string obj_prefix("gcptest/unit/"); // To be concatenated with a random string.
 } // namespace test_defaults
@@ -85,9 +85,11 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
     // bool exists = false;
     // size_t objectSize;
 
-    const std::string object_name = "test_object";
+    const std::string object_key = "test_object";
     const std::string file_name = "test_object.txt";
     const std::string path = "./" + file_name;
+    const std::string non_exi_object_key = "test_non_exist";
+    const std::string non_exi_file_name = "test_non_exist.txt";
 
     std::ofstream File(file_name);
     std::string payload = "Test payload";
@@ -104,18 +106,24 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
         objects.clear();
 
         // Put one object in the bucket. List should contain 1 item.
-        REQUIRE(conn.put_object(object_name, file_name) == 0);
+        REQUIRE(conn.put_object(object_key, file_name) == 0);
         REQUIRE(conn.list_objects(objects, false) == 0);
         REQUIRE(objects.size() == 1);
         objects.clear();
-        
+
         // Delete that object from the bucket
-        REQUIRE(conn.delete_object(object_name) == 0);
+        REQUIRE(conn.delete_object(object_key) == 0);
         REQUIRE(conn.list_objects(objects, false) == 0);
         REQUIRE(objects.size() == 0);
+
+        // Upload a file that does not exist locally - should fail.
+        REQUIRE(conn.put_object(non_exi_object_key, non_exi_file_name) == -1);
+
+        // Delete a file that does not exist in the bucket - should fail.
+        REQUIRE(conn.delete_object(object_key) == -1);
     }
 
-        SECTION("Lists gcp objects under the test bucket.", "[gcp-connection]")
+    SECTION("Lists gcp objects under the test bucket.", "[gcp-connection]")
     {
         std::vector<std::string> objects;
 
@@ -138,7 +146,8 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
 
         // Put objects to prepare for test.
         for (int i = 0; i < total_objects; i++) {
-            REQUIRE(conn.put_object(test_defaults::obj_prefix + std::to_string(i) + ".txt", file_name) == 0);
+            REQUIRE(conn.put_object(
+                      test_defaults::obj_prefix + std::to_string(i) + ".txt", file_name) == 0);
         }
 
         // List all objects. This is the size of total_objects.
