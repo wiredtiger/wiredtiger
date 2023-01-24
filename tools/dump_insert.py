@@ -1,5 +1,6 @@
 import gdb
 
+f = open("dump.txt", "w")
 inserts = {}
 
 class insert():
@@ -9,7 +10,7 @@ class insert():
         self.next_array = next_array
 
     def print(self):
-        print("Key : " + self.key + " Address: " + self.address + " Next array: " + str(self.next_array))
+        f.write("Key: " + self.key + " Address: " + self.address + " Next array: " + str(self.next_array) + "\n")
 
 class insert_list_dump(gdb.Command):
     def __init__(self):
@@ -26,7 +27,8 @@ class insert_list_dump(gdb.Command):
         while current != 0x0:
             key = self.get_key(current)
             next = []
-            for i in range(0,10):
+            depth = current['depth']
+            for i in range(0,depth):
                 next.append(str(current['next'][i]))
             inserts.update({key : insert(key, str(current), next)})
             inserts[key].print()
@@ -34,10 +36,9 @@ class insert_list_dump(gdb.Command):
 
     def invoke(self, insert_head, from_tty):
         head = gdb.parse_and_eval(insert_head).dereference().dereference()
-        print(head)
+        f.write(str(head)+ "\n")
         self.walk_level(head, 0)
         
 
 # This registers our class to the gdb runtime at "source" time.
 insert_list_dump()
-
