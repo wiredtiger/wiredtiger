@@ -115,8 +115,7 @@ gcp_connection::object_exists(const std::string &object_key, bool &exists, size_
     object_size = 0;
 
     google::cloud::StatusOr<gcs::ObjectMetadata> metadata =
-      _gcp_client.GetObjectMetadata(_bucket_name, object_key);
-    google::cloud::StatusCode code = metadata.status().code();
+      _gcp_client.GetObjectMetadata(_bucket_name, _object_prefix + object_key);
 
     // Check if object exists and is accessible.
     if (metadata.ok()) {
@@ -126,11 +125,13 @@ gcp_connection::object_exists(const std::string &object_key, bool &exists, size_
     }
 
     // Check if object doesn't exist.
-    if (google::cloud::StatusCodeToString(code) == "NOT_FOUND") {
+    if (metadata.status().code() == google::cloud::StatusCode::kNotFound) {
         exists = false;
         // This is an expected response so do not fail.
         return 0;
     }
+
+    std::cerr << object_key + ": " + metadata.status().message() << std::endl;
 
     return -1;
 }
