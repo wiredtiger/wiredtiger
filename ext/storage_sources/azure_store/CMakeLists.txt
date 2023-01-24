@@ -32,6 +32,7 @@ target_link_libraries(
         azure_storage_common_lib
 )
 
+add_dependencies(azure_container_util azure-sdk)
 # Build the Azure extension as a library 
 add_library(wiredtiger_azure_store MODULE azure_storage_source.cpp)
 target_include_directories( 
