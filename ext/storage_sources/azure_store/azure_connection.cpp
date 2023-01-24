@@ -42,10 +42,10 @@ azure_connection::azure_connection(const std::string &bucket_name, const std::st
     // Confirm that we can access the bucket, else fail.
     bool exists;
     int ret = bucket_exists(exists);
-    if (!exists)
-        throw std::invalid_argument(_bucket_name + " : No such bucket.");
     if (ret != 0)
-        throw std::invalid_argument(_bucket_name + " : Unable to access bucket.");
+        throw std::runtime_error(_bucket_name + " : Unable to access bucket.");
+    if (exists == false)
+        throw std::invalid_argument(_bucket_name + " : No such bucket.");
 }
 
 // Build a list of all of the objects in the bucket.
