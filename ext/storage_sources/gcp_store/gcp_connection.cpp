@@ -37,9 +37,9 @@ gcp_connection::gcp_connection(const std::string &bucket_name, const std::string
     : _gcp_client(google::cloud::storage::Client()), _bucket_name(bucket_name),
       _object_prefix(prefix)
 {
-    /* StatusOr either contains a usable BucketMetadata value or a Status object explaining why
-     * a BucketMetadata is not present.
-     * Its validity will be checked using a conversion to bool.
+    /*
+     * StatusOr either contains a usable BucketMetadata value or a Status object explaining why a
+     * BucketMetadata is not present. Its validity will be checked using a conversion to bool.
      */
     google::cloud::StatusOr<gcs::BucketMetadata> metadata =
       _gcp_client.GetBucketMetadata(_bucket_name);
