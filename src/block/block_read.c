@@ -19,7 +19,6 @@ __wt_bm_read(
     WT_BLOCK *block;
     wt_off_t offset;
     uint32_t checksum, objectid, size;
-
     block = bm->block;
 
     /* Crack the cookie. */
@@ -154,9 +153,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
   wt_off_t offset, uint32_t size, uint32_t checksum)
 {
     WT_BLOCK_HEADER *blk, swap;
-    WT_CHUNKCACHE_CHUNK *chunkptr;
     size_t bufsize;
-    bool chunkcache_has_data;
 
     __wt_verbose(session, WT_VERB_READ, "off %" PRIuMAX ", size %" PRIu32 ", checksum %#" PRIx32,
       (uintmax_t)offset, size, checksum);
@@ -199,16 +196,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
      * the underlying storage system to read more data than the BTree had asked for. In that case,
      * the chunk pointer will be valid and its contents will indicate how much data to read.
      */
-    __wt_chunkcache_check(
-      session, block, objectid, offset, size, &chunkptr, &chunkcache_has_data, buf->mem);
-
-    if (chunkptr != NULL &&
-      __wt_read(session, block->fh, chunkptr->chunk_offset, chunkptr->chunk_size,
-                chunkptr->chunk_location) == 0) {
-        __wt_chunkcache_complete_read(session, block, chunkptr, offset, size, buf->mem,
-                                      &chunkcache_has_data);
-    }
-    if (!chunkcache_has_data)
+    if (__wt_chunkcache_get(session, block, objectid, offset, size, buf->mem) == false)
         WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
 
     /*

@@ -33,18 +33,18 @@ struct __wt_chunkcache_chunk {
     TAILQ_ENTRY(__wt_chunkcache_chunk) next_chunk;
     TAILQ_ENTRY(__wt_chunkcache_chunk) next_lru_item;
 
-    struct __wt_chunklist_head *my_queuehead_ptr;
-    wt_off_t chunk_offset;
-    size_t chunk_size;
-    char *chunk_location;
-    uint bucket_id;  /* Lets us find the corresponding bucket for quick removal */
-    uint32_t valid;
     WT_CHUNKCACHE_HASHID hash_id;
+    volatile bool being_evicted;
+    char *chunk_location;
+    size_t chunk_size;
+    uint bucket_id;  /* Lets us find the corresponding bucket for quick removal */
+    volatile uint32_t valid;
+    wt_off_t chunk_offset;
 };
 
 struct __wt_chunkcache_bucket {
     /* This queue contains all chunks that mapped to this bucket */
-    TAILQ_HEAD(__wt_chunkchain_head, __wt_chunkcache_chain) colliding_chunks;
+    TAILQ_HEAD(__wt_chunkchain_head, __wt_chunkcache_chunk) colliding_chunks;
 };
 
 /*
