@@ -130,11 +130,12 @@ __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri,
          */
         for (i = 0; i < WT_COLGROUPS(table); i++) {
             colgroup = table->cgroups[i];
-            /*
-             * FIXME-WT-10520 - Don't skip verifying tiered tables once it is supported. (Change the
-             * statement below to skip = false.)
-             */
-            skip = (file_func == __wt_verify) && WT_PREFIX_MATCH(colgroup->source, "tiered:");
+
+            /* FIXME-WT-10520 - Let verify process tiered tables once it is supported. */
+            if (file_func == __wt_verify && WT_PREFIX_MATCH(colgroup->source, "tiered:"))
+                WT_ERR(ENOTSUP);
+
+            skip = false;
             if (name_func != NULL)
                 WT_ERR(name_func(session, colgroup->name, &skip));
             if (!skip)
