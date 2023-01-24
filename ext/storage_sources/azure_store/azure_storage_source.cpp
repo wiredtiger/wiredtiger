@@ -38,6 +38,7 @@ struct azure_store {
     WT_STORAGE_SOURCE store;
     WT_EXTENSION_API *wt_api;
     std::vector<azure_file_system *> azure_fs;
+    uint32_t reference_count;
 };
 
 struct azure_file_system {
@@ -88,26 +89,66 @@ static int azure_file_read(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t, voi
   __attribute__((__unused__));
 static int azure_file_size(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t *) __attribute__((__unused__));
 
+// Return a customised file system to access the Azure storage source.
 static int
 azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
-  const char *bucket_name, const char *auth_token, const char *config,
-  WT_FILE_SYSTEM **file_systemp)
+  const char *bucket, const char *auth_token, const char *config, WT_FILE_SYSTEM **file_systemp)
 {
-    WT_UNUSED(storage_source);
-    WT_UNUSED(session);
-    WT_UNUSED(bucket_name);
-    WT_UNUSED(auth_token);
-    WT_UNUSED(config);
     WT_UNUSED(file_systemp);
 
+    azure_store *azure = (azure_store *)storage_source;
+    int ret;
+
+    if (bucket == nullptr || std::string(bucket).length() == 0) {
+        std::cerr << "azure_customize_file_system: bucket not specified." << std::endl;
+        return EINVAL;
+    }
+    int delimiter = std::string(bucket).find(';');
+    if (delimiter == std::string::npos || delimiter == 0 ||
+      delimiter == std::string(bucket).length() - 1) {
+        std::cerr << "azure_customize_file_system: improper bucket name, should be a name and a "
+                     "region seperated by a semicolon."
+                  << std::endl;
+        return EINVAL;
+    }
+    const std::string bucket_name = std::string(bucket).substr(0, delimiter);
+    const std::string region = std::string(bucket).substr(delimiter + 1);
+
+    // Fail if there is no authentication provided.
+    if (auth_token == nullptr || std::string(auth_token).length() == 0) {
+        std::cerr << "azure_customize_file_system: auth_token nnot specified." << std::endl;
+        return EINVAL;
+    }
+
+    // Parse config string.
+
+    // Get any prefix to be used for the object keys.
+    WT_CONFIG_ITEM obj_prefix_config;
+    std::string obj_prefix;
+
+    // Get the valie of the config key from the string
+    if ((ret = azure->wt_api->config_get_string(
+           azure->wt_api, session, config, "prefix", &obj_prefix_config)) == 0)
+        obj_prefix = std::string(obj_prefix_config.str, obj_prefix_config.len);
+    else if (ret != WT_NOTFOUND) {
+        std::cerr << "azure_customize_file_system: error parsing config for object prefix."
+                  << std::endl;
+        return ret;
+    }
     return 0;
 }
 
+// Add a reference to the storage source so we can reference count to know when to terminate.
 static int
 azure_add_reference(WT_STORAGE_SOURCE *storage_source)
 {
-    WT_UNUSED(storage_source);
+    azure_store *azure = (azure_store *)storage_source;
 
+    if (azure->reference_count == 0 || azure->reference_count + 1 == 0) {
+        std::cerr << "azure_add_reference: missing reference or overflow." << std::endl;
+        return EINVAL;
+    }
+    ++azure->reference_count;
     return 0;
 }
 
@@ -304,21 +345,22 @@ azure_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *size
 int
 wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 {
-    // WT_UNUSED(connection);
-    // WT_UNUSED(config);
-
     azure_store *azure;
-    //WT_CONFIG_ITEM v;
+    // WT_CONFIG_ITEM v;
 
     azure = new azure_store;
     azure->wt_api = connection->get_extension_api(connection);
-    //int ret = azure->wt_api->config_get(azure->wt_api, nullptr, config);
-  
+    // int ret = azure->wt_api->config_get(azure->wt_api, nullptr, config);
+
     azure->store.ss_customize_file_system = azure_customize_file_system;
     azure->store.ss_add_reference = azure_add_reference;
     azure->store.terminate = azure_terminate;
     azure->store.ss_flush = azure_flush;
     azure->store.ss_flush_finish = azure_flush_finish;
-  
+
+    // The first reference is implied by the call to add_storage_source.
+    azure->reference_count = 1;
+
+    // Load the storage.
     return 0;
 }
