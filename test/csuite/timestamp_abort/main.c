@@ -356,9 +356,10 @@ thread_ckpt_run(void *arg)
 
     td = (THREAD_DATA *)arg;
     flush_tier = false;
+    memset(ckpt_flush_config, 0, sizeof(ckpt_flush_config));
+    memset(ckpt_config, 0, sizeof(ckpt_config));
 
     testutil_check(__wt_snprintf(ckpt_config, sizeof(ckpt_config), "use_timestamp=true"));
-
     testutil_check(__wt_snprintf(
       ckpt_flush_config, sizeof(ckpt_flush_config), "flush_tier=(enabled,force),%s", ckpt_config));
 
@@ -368,8 +369,6 @@ thread_ckpt_run(void *arg)
      * Keep a separate file with the records we wrote for checking.
      */
     (void)unlink(ckpt_file);
-    memset(ckpt_flush_config, 0, sizeof(ckpt_flush_config));
-    memset(ckpt_config, 0, sizeof(ckpt_config));
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
     first_ckpt = true;
     for (i = 1;; ++i) {
