@@ -31,4 +31,10 @@
 
 #include "gcp_connection.h"
 
-TEST_CASE("Testing class gcpConnection", "gcp-connection") {}
+TEST_CASE("Testing class gcpConnection", "gcp-connection") 
+{
+    gcp_connection gcp_connection("quickstart_test","prefixadasd");
+    SECTION("Read GCP objects under the test bucket.", "[gcp-connection]") {
+        gcp_connection.read_object("readorangetree.txt", 0);
+    }
+}

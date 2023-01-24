@@ -40,7 +40,7 @@ class gcp_connection {
     int put_object(const std::string &object_key, const std::string &file_name) const;
     int delete_object(const std::string &object_key) const;
     int object_exists(const std::string &object_key, bool &exists, size_t &object_size) const;
-    int get_object(const std::string &object_key, const std::string &path) const;
+    int read_object(const std::string &object_key, std::int64_t offset);
 
     ~gcp_connection() = default;
 
