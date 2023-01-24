@@ -31,4 +31,39 @@
 
 #include "azure_connection.h"
 
-TEST_CASE("testing class azure_connection", "azure_connection") {}
+TEST_CASE("testing class azure_connection", "azure_connection")
+{
+
+    std::vector<std::string> objects;
+    azure_connection pfx_test = azure_connection("myblobcontainer1", "pfx_test_");
+
+    // There is nothing in the container so there should be 0 objects
+    objects.clear();
+    REQUIRE(pfx_test.list_objects("", objects, false) == 0);
+    REQUIRE(objects.size() == 1);
+
+    objects.clear();
+    REQUIRE(pfx_test.put_object(
+              "test.txt", "/home/ubuntu/wiredtiger/ext/storage_sources/azure_store/test.txt") == 0);
+    REQUIRE(pfx_test.list_objects("", objects, false) == 0);
+    REQUIRE(objects.size() == 1);
+
+    void *buffer = calloc(1024, sizeof(char));
+    REQUIRE(pfx_test.read_object("test.txt", 0, 29, buffer) == 0);
+    memset(buffer, 0, 1024);
+
+    REQUIRE(pfx_test.read_object("test.txt", 15, 14, buffer) == 0);
+    memset(buffer, 0, 1024);
+
+    // Test overflow on positive offset but past EOF
+    REQUIRE(pfx_test.read_object("test.txt", 15, 1000, buffer) == -1);
+    memset(buffer, 0, 1024);
+
+    // Test overflow on negative offset but past EOF
+    REQUIRE(pfx_test.read_object("test.txt", -1, 1000, buffer) == -1);
+    memset(buffer, 0, 1024);
+
+    // Test overflow with negative offset
+    REQUIRE(pfx_test.read_object("test.txt", -1, 12, buffer) == -1);
+    free(buffer);
+}
