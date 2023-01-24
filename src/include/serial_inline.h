@@ -15,6 +15,7 @@ __insert_simple_func(
   WT_SESSION_IMPL *session, WT_INSERT ***ins_stack, WT_INSERT *new_ins, u_int skipdepth)
 {
     u_int i;
+    WT_INSERT *old_ins;
 
     WT_UNUSED(session);
 
@@ -29,9 +30,12 @@ __insert_simple_func(
      * implementations read the old value multiple times.
      */
     for (i = 0; i < skipdepth; i++) {
-        WT_INSERT *old_ins = *ins_stack[i];
-        if (old_ins != new_ins->next[i] || !__wt_atomic_cas_ptr(ins_stack[i], old_ins, new_ins))
+        WT_ORDERED_READ(old_ins, *ins_stack[i]);
+        if (old_ins != new_ins->next[i] || !__wt_atomic_cas_ptr(ins_stack[i], old_ins, new_ins)) {
+            WT_INS_PTR_SWAP(new_ins, NULL, 0xffffffff - i);
             return (i == 0 ? WT_RESTART : 0);
+        }
+        WT_INS_PTR_SWAP(new_ins, old_ins, i);
     }
 
     return (0);
@@ -46,6 +50,7 @@ __insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSE
   WT_INSERT *new_ins, u_int skipdepth)
 {
     u_int i;
+    WT_INSERT *old_ins;
 
     /* The cursor should be positioned. */
     WT_ASSERT(session, ins_stack[0] != NULL);
@@ -63,7 +68,7 @@ __insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSE
      * implementations read the old value multiple times.
      */
     for (i = 0; i < skipdepth; i++) {
-        WT_INSERT *old_ins = *ins_stack[i];
+        WT_ORDERED_READ(old_ins, *ins_stack[i]);
         if (old_ins != new_ins->next[i] || !__wt_atomic_cas_ptr(ins_stack[i], old_ins, new_ins))
             return (i == 0 ? WT_RESTART : 0);
         if (ins_head->tail[i] == NULL || ins_stack[i] == &ins_head->tail[i]->next[i])
