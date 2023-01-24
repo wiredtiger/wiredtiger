@@ -542,9 +542,6 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
         WT_ERR_MSG(session, ret == WT_NOTFOUND ? EINVAL : ret,
           "Column group '%s' not found in table '%.*s'", cgname, (int)tlen, tablename);
 
-    __schema_is_tiered_storage_shared(session, config, &table->is_tiered_shared);
-    WT_ASSERT(session, !table->is_tiered_shared || (table->is_tiered_shared && cgname == NULL));
-
     if (table->is_tiered_shared) {
         WT_ERR(__wt_scr_alloc(session, 0, &buf));
 tiered_shared:
@@ -615,8 +612,7 @@ tiered_shared:
     }
 
 err:
-    if (table->is_tiered_shared)
-        __wt_scr_free(session, &buf);
+    __wt_scr_free(session, &buf);
     __wt_free(session, cgconf);
     __wt_free(session, sourceconf);
     __wt_free(session, origconf);
@@ -903,15 +899,15 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
     WT_TABLE *table;
     size_t len;
     int ncolgroups, nkeys;
-    char *cgcfg, *cgname, *filecfg, *filename, *importcfg, *newcfg, *tablecfg;
+    char *cgcfg, *cgname, *filecfg, *filename, *importcfg, *tablecfg;
     const char *cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
     const char *tablename;
-    bool import, import_repair;
+    bool import, import_repair, is_tiered_shared;
 
     import = F_ISSET(session, WT_SESSION_IMPORT);
-    import_repair = false;
+    import_repair = is_tiered_shared = false;
 
-    cgcfg = filecfg = importcfg = newcfg = tablecfg = NULL;
+    cgcfg = filecfg = importcfg = tablecfg = NULL;
     cgname = filename = NULL;
     table = NULL;
 
@@ -967,7 +963,17 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
     WT_ERR_NOTFOUND_OK(ret, false);
 
     WT_ERR(__wt_config_collapse(session, cfg, &tablecfg));
-    WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
+
+    __schema_is_tiered_storage_shared(session, config, &is_tiered_shared);
+    if (is_tiered_shared) {
+        WT_ASSERT(session, import == false);
+        WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+
+        /* Concatenate the metadata base string with the tiered storage shared string. */
+        WT_ERR(__wt_buf_fmt(session, tmp, "%s,%s", tablecfg, "shared=true"));
+        WT_ERR(__wt_metadata_insert(session, uri, tmp->mem));
+    } else
+        WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
 
     if (ncolgroups == 0) {
         len = strlen("colgroup:") + strlen(tablename) + 1;
@@ -991,16 +997,6 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
      * released at the end of the call.
      */
     WT_ERR(__wt_schema_get_table_uri(session, uri, true, WT_DHANDLE_EXCLUSIVE, &table));
-
-    /* Update the table configuration entry with the tiered storage shared information. */
-    if (table->is_tiered_shared) {
-        WT_ERR(__wt_scr_alloc(session, 0, &tmp));
-
-        /* Concatenate the metadata base string with the tiered storage shared string. */
-        WT_ERR(__wt_buf_fmt(session, tmp, "%s,%s", tablecfg, "shared=true"));
-        WT_ERR(__wt_metadata_update(session, uri, tmp->mem));
-    }
-
     if (WT_META_TRACKING(session)) {
         WT_WITH_DHANDLE(session, &table->iface, ret = __wt_meta_track_handle_lock(session, true));
         WT_ERR(ret);
