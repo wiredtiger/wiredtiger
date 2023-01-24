@@ -80,9 +80,9 @@ int
 gcp_connection::read_object(const std::string &object_key, std::int64_t offset)
 {
     namespace gcs = ::google::cloud::storage;
-    gcs::ObjectReadStream stream = _gcp_client.ReadObject(_bucket_name, object_key);
+    gcs::ObjectReadStream stream = _gcp_client.ReadObject(_bucket_name, _object_prefix + object_key, gcs::ReadFromOffset(offset));
     std::string buffer{std::istream_iterator<char>(stream), std::istream_iterator<char>()};
-    std::cout << "The buffer is: " << buffer << "\n";
+    std::cout << "The contents of " << _object_prefix + object_key << " is: " << buffer << "\n";
 
     return 0;
 }
