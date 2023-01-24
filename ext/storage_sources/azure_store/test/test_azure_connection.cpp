@@ -34,13 +34,14 @@
 TEST_CASE("Testing Class azure_connection", "azure_connection")
 {
 
-    SECTION("Testing read_object functionality") { 
+    SECTION("Testing read_object functionality")
+    {
         std::vector<std::string> objects;
         azure_connection pfx_conn = azure_connection("myblobcontainer1", "read_object_");
 
         objects.clear();
-        CHECK(pfx_conn.put_object(
-                "test.txt", "/home/ubuntu/wiredtiger/ext/storage_sources/azure_store/test.txt") == 0);
+        CHECK(pfx_conn.put_object("test.txt",
+                "/home/ubuntu/wiredtiger/ext/storage_sources/azure_store/test.txt") == 0);
         CHECK(pfx_conn.list_objects("", objects, false) == 0);
         CHECK(objects.size() == 1);
 
