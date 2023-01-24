@@ -37,8 +37,8 @@ class gcp_connection {
     public:
     gcp_connection(const std::string &bucket_name, const std::string &prefix);
     int list_objects(std::vector<std::string> &objects, bool list_single);
-    int put_object(const std::string &object_key, const std::string &file_name) const;
-    int delete_object(const std::string &object_key) const;
+    int put_object(const std::string &object_key, const std::string &file_path);
+    int delete_object(const std::string &object_key);
     int object_exists(const std::string &object_key, bool &exists, size_t &object_size) const;
     int read_object(const std::string &object_key, std::int64_t offset);
 
