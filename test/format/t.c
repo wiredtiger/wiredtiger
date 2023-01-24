@@ -417,8 +417,11 @@ skip_operations:
     LAPSED_TS_MSG("Closing completed");
 
     /* Salvage testing. */
-    if (!verify_only)
+    if (!verify_only) {
+        LAPSED_TS_MSG("Salvage started");
         TIMED_MAJOR_OP(tables_apply(wts_salvage, NULL));
+        LAPSED_TS_MSG("Salvage completed");
+    }
 
     trace_teardown();
 

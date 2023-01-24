@@ -264,6 +264,7 @@ void
 operations(u_int ops_seconds, u_int run_current, u_int run_total)
 {
     SAP sap;
+    struct timespec current_time, start_time;
     TINFO *tinfo, total;
     WT_CONNECTION *conn;
     WT_SESSION *session;
@@ -275,6 +276,9 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
 
     conn = g.wts_conn;
     lastrun = (run_current == run_total);
+
+    timer_expired = false;
+    max_over_secs = 15 * WT_MINUTE;
 
     /* Make the modify pad character printable to simplify debugging and logging. */
     __wt_process.modify_pad_byte = FORMAT_PAD_BYTE;
@@ -320,12 +324,6 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
         } else
             thread_ops = GV(RUNS_OPS) / GV(RUNS_THREADS);
     }
-    if (ops_seconds == 0)
-        fourths = quit_fourths = -1;
-    else {
-        fourths = ops_seconds * 4;
-        quit_fourths = fourths + 15 * 4 * 60;
-    }
 
     /* Get a session. */
     memset(&sap, 0, sizeof(sap));
@@ -362,6 +360,8 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     if (g.checkpoint_config == CHECKPOINT_ON)
         testutil_check(__wt_thread_create(NULL, &checkpoint_tid, checkpoint, NULL));
 
+    __wt_epoch(NULL, &start_time);
+
     /* Spin on the threads, calculating the totals. */
     for (;;) {
         /* Clear out the totals each pass. */
@@ -395,7 +395,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
              * If the timer has expired or this thread has completed its operations, notify the
              * thread it should quit.
              */
-            if (fourths == 0 || (thread_ops != -1 && tinfo->ops >= (uint64_t)thread_ops)) {
+            if (timer_expired || (thread_ops != -1 && tinfo->ops >= (uint64_t)thread_ops)) {
                 /*
                  * On the last execution, optionally drop core for recovery testing.
                  */
