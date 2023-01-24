@@ -64,7 +64,6 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
     bool do_not_clear_txn_id, dump_address, dump_app_data, dump_blocks, dump_layout, dump_pages,
       read_corrupt, stable_timestamp;
 
-    cursor = NULL;
     do_not_clear_txn_id = dump_address = dump_app_data = dump_blocks = dump_layout = dump_pages =
       read_corrupt = stable_timestamp = false;
     config = dump_offsets = uri = NULL;
@@ -153,10 +152,15 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
                 WT_ERR(util_cerr(cursor, "get_key", ret));
 
             /*
+             * Typically each WT file will have multiple entries, and so only run verify on table
+             * and lsm entries to prevent unnecessary work. Skip over the double up entries and also
+             * any entries that are not supported with verify.
+             *
              * FIXME-WT-6682 - Let verify process the history store file once history store
              * verification is implemented.
              */
-            if (strcmp(key, WT_HS_URI) != 0 && strcmp(key, WT_METADATA_URI) != 0 &&
+            if ((WT_PREFIX_MATCH(key, "table:") || WT_PREFIX_MATCH(key, "lsm:")) &&
+              strcmp(key, WT_HS_URI) != 0 && strcmp(key, WT_METADATA_URI) != 0 &&
               !WT_PREFIX_MATCH(key, WT_SYSTEM_PREFIX))
                 WT_TRET(verify_one(session, config, key));
         }
