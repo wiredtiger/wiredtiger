@@ -15,6 +15,7 @@
 #define WT_CHUNKCACHE_DRAM 0
 #define WT_CHUNKCACHE_MINHASHSIZE 64
 #define WT_CHUNKCACHE_MAXHASHSIZE 1024 * 1024
+#define WT_CHUNKCACHE_MAX_RETRIES 1024*1024*1024
 #define WT_CHUNKCACHE_NAMEMAX 50
 #define WT_CHUNKCACHE_SSD 1
 #define WT_CHUNKCACHE_UNCONFIGURED 0
@@ -36,9 +37,8 @@ struct __wt_chunkcache_chunk {
     wt_off_t chunk_offset;
     size_t chunk_size;
     char *chunk_location;
-    uint32_t valid;
     uint bucket_id;  /* Lets us find the corresponding bucket for quick removal */
-    bool being_evicted;
+    uint32_t valid;
     WT_CHUNKCACHE_HASHID hash_id;
 };
 
@@ -100,3 +100,5 @@ struct __wt_chunkcache {
 
 #define CHUNK_OFFSET(chunkcache, offset) \
     (wt_off_t)((size_t)offset / chunkcache->chunk_size) * chunkcache->chunk_size
+
+
