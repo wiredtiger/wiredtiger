@@ -107,9 +107,15 @@ gcp_connection::read_object(const std::string &object_key, int64_t offset, size_
     namespace gcs = ::google::cloud::storage;
     gcs::ObjectReadStream stream = _gcp_client.ReadObject(
       _bucket_name, _object_prefix + object_key, gcs::ReadFromOffset(offset));
+    
+    if (stream.bad()) 
+    {
+        std::cerr << stream.status().message() << std::endl;
+        return -1;
+    }
+
     std::istreambuf_iterator<char> begin{stream}, end;
     std::string buffer{begin, end};
-
     memcpy(static_cast<char *>(buf), buffer.c_str(), len);
     return 0;
 }
