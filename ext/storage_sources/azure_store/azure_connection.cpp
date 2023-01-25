@@ -45,7 +45,7 @@ azure_connection::azure_connection(const std::string &bucket_name, const std::st
     if (ret != 0)
         throw std::runtime_error(_bucket_name + " : Unable to access bucket.");
     if (exists == false)
-        throw std::invalid_argument(_bucket_name + " : No such bucket.");
+        throw std::runtime_error(_bucket_name + " : No such bucket.");
 }
 
 // Build a list of all of the objects in the bucket.
@@ -143,6 +143,7 @@ azure_connection::bucket_exists(bool &exists) const
                 return -1;
             }
             exists = true;
+            break;
         }
     }
     return 0;
