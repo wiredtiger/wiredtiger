@@ -36,7 +36,6 @@ if (IMPORT_AZURE_SDK_EXTERNAL)
         GIT_REPOSITORY      https://github.com/Azure/azure-sdk-for-cpp.git
         GIT_TAG             azure-storage-blobs_12.2.0
         CMAKE_ARGS
-            -DBUILD_DEPS=ON
             -DBUILD_SHARED_LIBS=ON
             -DCMAKE_POSITION_INDEPENDENT_CODE=ON
             -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/azure-sdk-cpp/install
