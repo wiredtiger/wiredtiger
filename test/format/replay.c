@@ -93,7 +93,8 @@
  */
 
 /*
- * In a timed run, get everyone to stop.
+ * replay_end_timed_run --
+ *     In a timed run, get everyone to stop.
  */
 void
 replay_end_timed_run(void)
