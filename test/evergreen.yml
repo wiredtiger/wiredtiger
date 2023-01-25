@@ -488,26 +488,26 @@ functions:
         runtime=3  # minutes
         config=../../../test/format/CONFIG.replay
         for i in $(seq ${times}); do
-          echo Iteration ${i}/${times}
+          echo Iteration $i/${times}
           dseed=$RANDOM$RANDOM
           x1=$RANDOM$RANDOM
           x2=$RANDOM$RANDOM
           x3=$RANDOM$RANDOM
           rm -rf RUNDIR RUNDIR_{1,2,3}
 
-          first_run_args="-c ${config} runs.timer=${runtime} random.data_seed=${dseed}"
-          ./t ${first_run_args} random.extra_seed=${x1} ${extra_args} || ( [ -f RUNDIR/CONFIG ] && cat RUNDIR/CONFIG ) 2>&1
+          first_run_args="-c $config runs.timer=$runtime random.data_seed=$dseed"
+          ./t $first_run_args random.extra_seed=$x1 ${extra_args} || ( [ -f RUNDIR/CONFIG ] && cat RUNDIR/CONFIG ) 2>&1
 
           if [ -f RUNDIR/CONFIG ]; then
             mv RUNDIR RUNDIR_1
             stable_hex=$(../../../tools/wt_timestamps RUNDIR_1 | sed -e '/stable=/!d' -e 's/.*=//')
             ops=$(echo $((0x$stable_hex)))
-            common_args="-c RUNDIR_1/CONFIG runs.ops=$ops random.data_seed=${dseed}"
-            ./t ${common_args} random.extra_seed=${x2} || ( [ -f RUNDIR/CONFIG ] && cat RUNDIR/CONFIG ) 2>&1
+            common_args="-c RUNDIR_1/CONFIG runs.ops=$ops random.data_seed=$dseed"
+            ./t $common_args random.extra_seed=$x2 || ( [ -f RUNDIR/CONFIG ] && cat RUNDIR/CONFIG ) 2>&1
             mv RUNDIR RUNDIR_2
             ../../../tools/wt_cmp_dir RUNDIR_1 RUNDIR_2
 
-            ./t ${common_args} random.extra_seed=${x3} || ( [ -f RUNDIR/CONFIG ] && cat RUNDIR/CONFIG ) 2>&1
+            ./t $common_args random.extra_seed=$x3 || ( [ -f RUNDIR/CONFIG ] && cat RUNDIR/CONFIG ) 2>&1
             mv RUNDIR RUNDIR_3
             ../../../tools/wt_cmp_dir RUNDIR_2 RUNDIR_3
           fi
