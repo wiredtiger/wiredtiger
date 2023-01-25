@@ -447,7 +447,8 @@ __schema_is_tiered_storage_shared(WT_SESSION_IMPL *session, const char *config)
      * The tiered storage shared table needs to have two column groups that are
      * pointed to the underlying active and shared files. The following checks are
      * carried out to determine the table can be created as a tiered storage shared
-     * or not based on the table creation configuration.
+     * or not based on the table creation configuration where they control the
+     * underlying the source.
      *
      * 1. The table configuration should not specify underlying source.
      * 2. The table configuration should not specify underlying type of the storage.
