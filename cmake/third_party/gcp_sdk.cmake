@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
 include(ExternalProject)
-include(FetchContent)
 include(GNUInstallDirs)
 include(${CMAKE_SOURCE_DIR}/cmake/helpers.cmake)
 
@@ -23,7 +22,7 @@ if(IMPORT_GCP_SDK_NONE)
 endif()
 
 if(IMPORT_GCP_SDK_PACKAGE)
-    message(FATAL_ERROR "Currently the package config option is not implement yet.")
+    message(FATAL_ERROR "Importing GCP via package is not currently implemented.")
 endif()
 
 if(IMPORT_GCP_SDK_EXTERNAL)
@@ -32,9 +31,8 @@ if(IMPORT_GCP_SDK_EXTERNAL)
         gcp-sdk
         PREFIX gcp-sdk-cpp
         GIT_REPOSITORY https://github.com/googleapis/google-cloud-cpp.git
-        GIT_TAG v2.5.0
+        GIT_TAG v2.6.0
         CMAKE_ARGS
-            -DBUILD_DEPS=ON
             -DBUILD_SHARED_LIBS=ON
             -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/gcp-sdk-cpp/install
             -DCMAKE_POSITION_INDEPENDENT_CODE=ON
