@@ -1,5 +1,3 @@
-include(ExternalProject)
-include(FetchContent)
 include(GNUInstallDirs)
 include(${CMAKE_SOURCE_DIR}/cmake/helpers.cmake)
 cmake_minimum_required(VERSION 3.13)
@@ -77,11 +75,8 @@ set_target_properties(azure_core_lib PROPERTIES
     INTERFACE_INCLUDE_DIRECTORIES ${azure_sdk_include_location}
 )
 
+# Small workaround to declare the include directory under INTERFACE_INCLUDE_DIRECTORIES during the configuration phase.
 set_target_properties(azure_storage_common_lib PROPERTIES
     IMPORTED_LOCATION ${azure_storage_common_lib_location}
     INTERFACE_INCLUDE_DIRECTORIES ${azure_sdk_include_location}
 )
-
-add_dependencies(azure_storage_lib azure_core_lib)
-add_dependencies(azure_storage_lib azure_storage_common_lib)
-target_link_libraries(azure_core_lib INTERFACE azure_storage_lib)
