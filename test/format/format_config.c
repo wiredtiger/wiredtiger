@@ -1841,10 +1841,9 @@ config_single(TABLE *table, const char *s, bool explicit)
     v = &table->v[cp->off];
 
     /*
-     * The choice of which random number generator to use depends on whether the option has been
-     * marked to affect data or not.
+     * Use the data RNG for these options, that's conservative.
      */
-    rnd = F_ISSET(cp, C_NEUTRAL) ? &g.extra_rnd : &g.data_rnd;
+    rnd = &g.data_rnd;
 
     if (F_ISSET(cp, C_STRING)) {
         /*
