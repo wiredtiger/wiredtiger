@@ -35,8 +35,6 @@
 #include <vector>
 #include <iostream>
 
-#include "wiredtiger.h"
-
 /*
  * This class represents an active connection to the Azure endpoint and allows for interaction with
  * the Azure client. The Azure cloud storage names buckets as containers and objects as blobs. The
@@ -53,7 +51,7 @@ class azure_connection {
       const std::string &prefix, std::vector<std::string> &objects, bool list_single) const;
     int put_object(const std::string &object_key, const std::string &file_path) const;
     int delete_object(const std::string &object_key) const;
-    int read_object(const std::string &object_key, wt_off_t offset, size_t len, void *buf) const;
+    int read_object(const std::string &object_key, int64_t offset, size_t len, void *buf) const;
 
     private:
     const std::string _bucket_name;
