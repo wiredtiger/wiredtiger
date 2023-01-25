@@ -119,6 +119,7 @@ azure_connection::object_exists(const std::string &object_key, bool &exists) con
                 return -1;
             }
             exists = true;
+            break;
         }
     }
     return 0;
