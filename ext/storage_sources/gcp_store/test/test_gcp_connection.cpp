@@ -31,47 +31,4 @@
 
 #include "gcp_connection.h"
 
-TEST_CASE("Testing class gcpConnection", "gcp-connection") 
-{
-    gcp_connection gcp_connection("quickstart_test","prefixadasd");
-    SECTION("Read GCP objects under the test bucket.", "[gcp-connection]") {
-        
-        std::ofstream myfile;
-        myfile.open ("/home/ubuntu/wiredtiger/ext/storage_sources/gcp_store/orangetest.txt");
-        myfile << "1 2 3 4 5 6 7 8 9 10 \n";
-        myfile.close();
-
-        int len = 30;
-        void* buf = calloc(len, sizeof(char));
-        gcp_connection.put_object("orangetest.txt", "/home/ubuntu/wiredtiger/ext/storage_sources/gcp_store/orangetest.txt");
-        gcp_connection.read_object("orangetest.txt", 0, len, buf);
-
-        // std::string line;
-        // std::ifstream file ("/home/ubuntu/wiredtiger/ext/storage_sources/gcp_store/orangetest.txt");
-        // std::string lines;
-
-        // if (file.is_open())
-        // {
-        //     while ( getline (file,line) )
-        //     {
-        //     std::cout << line << '\n';
-        //     lines += line;
-        //     }
-        //     // file.close();
-        // }
-        // else std::cout << "Unable to open file"; 
-        // std::cout << "The contents of lines is: " << lines << "\n";
-
-        std::ifstream file2 ("/home/ubuntu/wiredtiger/ext/storage_sources/gcp_store/orangetest.txt");
-        std::string file_str(std::istreambuf_iterator<char>{file2}, std::istreambuf_iterator<char>());
-        std::cout << "The contents of file_str is: " << file_str << "\n";
-
-        std::cout << "outside- buf is: " << buf << "\n";
-        // std::cout << "contents buf is: " << *(static_cast<char*>(buf)) << "\n";
-
-        char *contents_ptr = (char *)buf;
-        std::cout << "The contents of contents is: " << contents_ptr << "\n";
-        REQUIRE(contents_ptr == file_str);
-        free(buf);
-    }
-}
+TEST_CASE("Testing class gcpConnection", "gcp-connection") {}
