@@ -481,7 +481,6 @@ main(int argc, char *argv[])
     WT_SESSION *session;
     char command[1024], home[1024];
     const char *working_dir;
-    bool pareto_dist;
     test_type config;
     THREAD_DATA *td;
     wt_thread_t *thr;
@@ -491,7 +490,6 @@ main(int argc, char *argv[])
 
     insert_threads = INSERT_THREADS;
 
-    pareto_dist = false;
     working_dir = "WT_TEST.skip_list_stress";
     config = KEYS_NOT_CONFIG;
 
@@ -582,14 +580,14 @@ main(int argc, char *argv[])
         for (i = 0; i < insert_threads; i += 2)
             for (j = 0, idx = i * thread_keys; j < thread_keys; j++, idx++) {
                 key_list[idx] = dmalloc(20);
-                sprintf(key_list[idx], "Key #%c.%06d", 'A' + i, j);
+                sprintf(key_list[idx], "Key #%c.%06u", (char)('A' + i), j);
             }
 
         /* Odd numbered threads get decreasing keys */
         for (i = 1; i < insert_threads; i += 2)
             for (j = 0, idx = i * thread_keys; j < thread_keys; j++, idx++) {
                 key_list[idx] = dmalloc(20);
-                sprintf(key_list[idx], "Key %c.%06d", 'A' + i - 1, (2 * thread_keys - j));
+                sprintf(key_list[idx], "Key %c.%06u", (char)('A' + i - 1), (2 * thread_keys - j));
             }
         break;
 
@@ -604,7 +602,7 @@ main(int argc, char *argv[])
                 r_val = pareto(r_val);
                 r_val = r_val % key_count;
             }
-            sprintf(key_list[i], "%u.%d", r_val, i);
+            sprintf(key_list[i], "%u.%u", r_val, i);
         }
         break;
     }
