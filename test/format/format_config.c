@@ -66,15 +66,6 @@ config_random_generator(
     char buf[128];
     bool seed_set;
 
-    /*
-     * The random number generator should not have been used up to this point. If it has, a range of
-     * values must have been specified.
-     */
-    if (rnd->v != 0)
-        testutil_die(EINVAL,
-          "%s: predictable replay cannot be used with configurations with ranges N-M or N:M",
-          progname);
-
     /* See if the seed is already present in the configuration. */
     seed_set = (seed != 0);
 
@@ -1172,6 +1163,17 @@ config_mirrors(void)
      */
     explicit_mirror = config_explicit(NULL, "runs.mirror");
     if (!explicit_mirror && mmrand(&g.data_rnd, 1, 10) < 9) {
+        config_off_all("runs.mirror");
+        return;
+    }
+
+    /*
+     * In theory, mirroring should work with predictable replay, although there's some overlap
+     * in functionality. That is, we usually do multiple runs with the same key with predictable
+     * replay and would notice if data was different or missing. We disable it to keep runs simple.
+     */
+    if (GV(RUNS_PREDICTABLE_REPLAY)) {
+        WARN("%s", "turning off mirroring for predictable replay");
         config_off_all("runs.mirror");
         return;
     }

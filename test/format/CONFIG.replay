@@ -44,6 +44,7 @@ ops.salvage=0
 ops.verify=0
 quiet=0
 runs.in_memory=0
+runs.mirror=0
 runs.predictable_replay=1
 runs.tables=7
 runs.threads=19
