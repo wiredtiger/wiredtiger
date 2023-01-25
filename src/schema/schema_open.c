@@ -33,13 +33,9 @@ __wt_schema_colgroup_name(
  */
 int
 __wt_schema_tiered_shared_colgroup_name(
-  WT_SESSION_IMPL *session, WT_TABLE *table, bool active, WT_ITEM *buf)
+  WT_SESSION_IMPL *session, const char *tablename, bool active, WT_ITEM *buf)
 {
-    const char *tablename;
-
-    tablename = table->iface.name;
-    WT_PREFIX_SKIP_REQUIRED(session, tablename, "table:");
-
+    WT_PREFIX_SKIP(tablename, "table:");
     return (__wt_buf_fmt(session, buf, "colgroup:%s.%s", tablename, active ? "active" : "shared"));
 }
 
@@ -85,8 +81,8 @@ __wt_schema_open_colgroups(WT_SESSION_IMPL *session, WT_TABLE *table)
 
         WT_ERR(__wt_buf_init(session, buf, 0));
         if (table->is_tiered_shared)
-            WT_ERR(
-              __wt_schema_tiered_shared_colgroup_name(session, table, i == 0 ? true : false, buf));
+            WT_ERR(__wt_schema_tiered_shared_colgroup_name(
+              session, table->iface.name, i == 0 ? true : false, buf));
         else
             WT_ERR(__wt_schema_colgroup_name(session, table, ckey.str, ckey.len, buf));
         if ((ret = __wt_metadata_search(session, buf->data, &cgconfig)) != 0) {
