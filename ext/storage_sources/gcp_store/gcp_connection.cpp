@@ -104,7 +104,6 @@ gcp_connection::delete_object(const std::string &object_key)
 int
 gcp_connection::read_object(const std::string &object_key, int64_t offset, size_t len, void *buf)
 {
-    namespace gcs = ::google::cloud::storage;
     gcs::ObjectReadStream stream = _gcp_client.ReadObject(
       _bucket_name, _object_prefix + object_key, gcs::ReadFromOffset(offset));
     
