@@ -8,6 +8,34 @@
 
 #include "wt_internal.h"
 
+#define WT_BLOCK_BEGINS_IN_CHUNK(chunk_off, block_off, chunk_size, block_size) \
+    (block_off > chunk_off && (block_off < chunk_off + (wt_off_t)chunk_size) && (block_off + (wt_off_t)block_size) > (chunk_off + (wt_off_t)chunk_size))
+
+#define WT_BLOCK_ENDS_IN_CHUNK(chunk_off, block_off, chunk_size, block_size) \
+    (block_off < chunk_off && (block_off + (wt_off_t)block_size) < (chunk_off + (wt_off_t)chunk_size))
+
+#define WT_BLOCK_MIDDLE_IN_CHUNK(chunk_off, block_off, chunk_size, block_size) \
+    ((block_off < chunk_off) &&  (block_off + (wt_off_t)block_size) > (chunk_off + (wt_off_t)chunk_size))
+
+#define WT_BLOCK_PART_IN_CHUNK(chunk_off, block_off, chunk_size, block_size) \
+    WT_BLOCK_BEGINS_IN_CHUNK(chunk_off, block_off, chunk_size, block_size) || \
+        WT_BLOCK_ENDS_IN_CHUNK(chunk_off, block_off, chunk_size, block_size) || \
+        WT_BLOCK_MIDDLE_IN_CHUNK(chunk_off, block_off, chunk_size, block_size)
+
+#define WT_CHUNK_MARK_VALID(session, chunkcache, chunk)                    \
+    if (!chunk->valid) {                                                \
+        (void)__wt_atomic_addv32(&chunk->valid, 1);                     \
+        __wt_spin_lock(session, &chunkcache->chunkcache_lru_lock);      \
+        TAILQ_INSERT_HEAD(&chunkcache->chunkcache_lru_list, chunk, next_lru_item); \
+        __wt_spin_unlock(session, &chunkcache->chunkcache_lru_lock);    \
+    }
+
+#define WT_CHUNK_OFFSET(chunkcache, offset) \
+    (wt_off_t)(((size_t)offset / chunkcache->chunk_size) * chunkcache->chunk_size)
+
+#define WT_BUCKET_CHUNKS(chunkcache, bucket_id)         \
+    &(&chunkcache->hashtable[bucket_id])->colliding_chunks)
+
 /*
  * __chunkcache_alloc_space --
  *     Allocate memory for the chunk in the cache.
@@ -34,7 +62,8 @@ __chunkcache_alloc_space(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
     }
     if (ret == 0) {
         __wt_atomic_add64(&chunkcache->bytes_used, chunk->chunk_size);
-        WT_STAT_CONN_INCRV(session, chunk_cache_bytes, chunk->chunk_size);
+        WT_STAT_CONN_INCR(session, chunkcache_chunks);
+        WT_STAT_CONN_INCRV(session, chunkcache_bytes, chunk->chunk_size);
     }
     return (ret);
 }
@@ -51,10 +80,10 @@ __chunkcache_admit_size(WT_SESSION_IMPL *session)
 
     chunkcache = &S2C(session)->chunkcache;
 
-    if ((chunkcache->bytes_used + chunkcache->default_chunk_size) < chunkcache->capacity)
-        return (chunkcache->default_chunk_size);
+    if ((chunkcache->bytes_used + chunkcache->chunk_size) < chunkcache->capacity)
+        return (chunkcache->chunk_size);
 
-    WT_STAT_CONN_INCR(session, chunk_cache_exceeded_capacity);
+    WT_STAT_CONN_INCR(session, chunkcache_exceeded_capacity);
     __wt_verbose(session, WT_VERB_CHUNKCACHE,
                  "exceeded chunkcache capacity of %" PRIu64 " bytes", chunkcache->capacity);
     return 0;
@@ -62,19 +91,17 @@ __chunkcache_admit_size(WT_SESSION_IMPL *session)
 
 /*
  * __chunkcache_alloc_chunk --
- *     Allocate the metadata for the chunk and call the function that will allocate its cache space.
+ *     Allocate the chunk and its metadata for a block at a given offset.
  */
 static int
-__chunkcache_alloc_chunk(
-    WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK **chunk, wt_off_t offset, WT_BLOCK *block,
-    WT_CHUNKCACHE_HASHID hash_id)
+__chunkcache_alloc_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK **newchunk, wt_off_t offset,
+                         WT_BLOCK *block, WT_CHUNKCACHE_HASHID *hash_id)
 {
     WT_CHUNKCACHE *chunkcache;
-    WT_CHUNKCACHE_CHUNK *newchunk;
     size_t chunk_size;
     uint64_t hash;
 
-    *chunk = NULL;
+    *newchunk = NULL;
     chunkcache = &S2C(session)->chunkcache;
 
     WT_ASSERT(session, offset > 0);
@@ -84,7 +111,7 @@ __chunkcache_alloc_chunk(
      * equally sized chunks of configured size. We calculate the offset of the
      * chunk into which the block's offset falls. Chunks are equally sized and are
      * not necessarily a multiple of a block. So a block may begin in one chunk and
-     * and in another. It may also span multiple chunks, if the chunk size is configured
+     * end in another. It may also span multiple chunks, if the chunk size is configured
      * much smaller than a block size (we hope that never happens). In the allocation
      * function we don't care about the block's size. If more than one chunk is needed
      * to cover the entire block, another function will take care of allocating multiple
@@ -93,30 +120,29 @@ __chunkcache_alloc_chunk(
 
     if ((chunk_size = __chunkcache_admit_size(session)) == 0)
         return (WT_ERROR);
-    if (__wt_calloc(session, 1, sizeof(WT_CHUNKCACHE_CHUNK), &newchunk) != 0)
+    if (__wt_calloc(session, 1, sizeof(WT_CHUNKCACHE_CHUNK), newchunk) != 0)
         return (WT_ERROR);
 
     /* Chunk cannot be larger than the file */
-    newchunk->chunk_size = WT_MIN(chunk_size, (size_t)block->size);
-    newchunk->chunk_offset = CHUNK_OFFSET(chunkcache, offset);
-    newchunk->hash_id = hash_id;
-    hash = __wt_hash_city64((void*) &hash_id, sizeof(hash_id));
-    newchunk->bucket_id = (uint)(hash % chunkcache->hashtable_size); /* save it so we don't recompute it on removal */
+    (*newchunk)->chunk_size = WT_MIN(chunk_size, (size_t)block->size);
+    /* Convert the block offset to the offset of the enclosing chunk */
+    (*newchunk)->chunk_offset = WT_CHUNK_OFFSET(chunkcache, offset);
+    (*newchunk)->hash_id = *hash_id;
+    /* Part of the hash ID was populated by the caller, but we must set the offset */
+    (*newchunk)->hash_id.offset = (*newchunk)->chunk_offset;
+    hash = __wt_hash_city64((void*) hash_id, sizeof(WT_CHUNKCACHE_HASHID));
+    (*newchunk)->bucket_id = (uint)(hash % chunkcache->hashtable_size); /* save to not recompute */
 
-    printf("offset-convert: from %" PRIu64 " to %" PRIu64 "\n", offset, newchunk->chunk_offset);
-    printf("chunk size = %ld\n",  newchunk->chunk_size);
-
-    if (__chunkcache_alloc_space(session, newchunk) != 0) {
-        __wt_free(session, newchunk);
+    if (__chunkcache_alloc_space(session, *newchunk) != 0) {
+        __wt_free(session, *newchunk);
         return (WT_ERROR);
     }
-    *chunk = newchunk;
     return (0);
 }
 
 /*
  * __chunkcache_free_chunk --
- *     Free the memory occupied by the chunk.
+ *     Free the memory occupied by the chunk and the metadata.
  */
 static void
 __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
@@ -126,9 +152,10 @@ __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
     chunkcache = &S2C(session)->chunkcache;
 
     (void)__wt_atomic_sub64(&chunkcache->bytes_used, chunk->chunk_size);
-    WT_STAT_CONN_DECRV(session, chunk_cache_bytes, chunk->chunk_size);
+    WT_STAT_CONN_DECRV(session, chunkcache_bytes, chunk->chunk_size);
+    WT_STAT_CONN_DECR(session, chunkcache_chunks);
 
-    if (chunkcache->type == WT_CHUNKCACHE_DRAM)
+     if (chunkcache->type == WT_CHUNKCACHE_DRAM)
         __wt_free(session, chunk->chunk_location);
     else {
 #ifdef ENABLE_MEMKIND
@@ -139,34 +166,13 @@ __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
 #endif
     }
     __wt_free(session, chunk);
-     WT_STAT_CONN_DECR(session, chunk_cache_chunks);
 }
 
 /*
- * __chunkcache_remove_chunk --
- *     Remove the chunk from its chunk chain. We have a separate function to free
- *     the underlying cache space, because other code may remove chunks
- *     without freeing them, letting the thread doing eviction to free the chunk.
+ * __chunkcache_makehash --
+ *    Populate the hash data structure, which uniquely identifies the chunk, and return
+ *    the hashtable bucket number corresponding to this hash.
  */
-static void
-__chunkcache_remove_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
-{
-    WT_CHUNKCACHE *chunkcache;
-    WT_CHUNKCACHE_BUCKET *bucket;
-    uint bucket_id;
-    uint64_t hash;
-
-    chunkcache = &S2C(session)->chunkcache;
-
-    hash = __wt_hash_city64((void*) &chunk->hash_id, sizeof(chunk->hash_id));
-    bucket_id = (uint)(hash % chunkcache->hashtable_size);
-    bucket = &chunkcache->hashtable[bucket_id];
-
-    __wt_spin_lock(session, &chunkcache->bucket_locks[chunk->bucket_id]);
-    TAILQ_REMOVE(&bucket->colliding_chunks, chunk, next_chunk);
-    __wt_spin_unlock(session, &chunkcache->bucket_locks[chunk->bucket_id]);
-}
-
 static inline uint
 __chunkcache_makehash(WT_CHUNKCACHE *chunkcache, WT_CHUNKCACHE_HASHID *hash_id,
                                          WT_BLOCK *block, uint32_t objectid, wt_off_t offset)
@@ -175,9 +181,9 @@ __chunkcache_makehash(WT_CHUNKCACHE *chunkcache, WT_CHUNKCACHE_HASHID *hash_id,
 
     bzero(hash_id, sizeof(WT_CHUNKCACHE_HASHID));
     hash_id->objectid = objectid;
-    memcpy(&hash_id->objectname, block->name, WT_MIN(strlen(block->name), WT_CHUNKCACHE_NAMEMAX));\
-    hash_id->offset = CHUNK_OFFSET(chunkcache, offset);
-    hash = __wt_hash_city64((void*) &hash_id, sizeof(hash_id));
+    memcpy(&hash_id->objectname, block->name, WT_MIN(strlen(block->name), WT_CHUNKCACHE_NAMEMAX));
+    hash_id->offset = WT_CHUNK_OFFSET(chunkcache, offset);
+    hash = __wt_hash_city64((void*)hash_id, sizeof(WT_CHUNKCACHE_HASHID));
 
     /* Return the bucket ID */
     return (uint)(hash % chunkcache->hashtable_size);
@@ -192,35 +198,42 @@ __chunkcache_evict_one(WT_SESSION_IMPL *session)
 {
     WT_CHUNKCACHE *chunkcache;
     WT_CHUNKCACHE_CHUNK *chunk_to_evict;
+    bool found_eviction_candidate;
 
     chunkcache = &S2C(session)->chunkcache;
-    chunk_to_evict = NULL;
+    found_eviction_candidate = false;
 
     /*
      * 1. With the LRU list lock held, we remove the chunk at the list's tail and mark
      *    that chunk as being evicted.
-     *    That prevents the code responsible for removing outdated chunks from freeing
-     *    the chunk before we do.
-     * 2. We remove the chunk from its chunk's chain, acquiring appropriate locks.
-     * 3. We free the chunk.
+     *    That prevents the code that removes outdated chunks from freeing the chunk before we do.
+     * 2. Remove the chunk from its chunk's chain, acquiring appropriate locks.
+     * 3. Free the chunk.
      */
     __wt_spin_lock(session, &chunkcache->chunkcache_lru_lock);
-    chunk_to_evict = TAILQ_LAST(&chunkcache->chunkcache_lru_list, __wt_chunkcache_lru);
-    if (chunk_to_evict != NULL && chunk_to_evict->valid) {
-        TAILQ_REMOVE(&chunkcache->chunkcache_lru_list, chunk_to_evict, next_lru_item);
-        chunk_to_evict->being_evicted = true;
+    TAILQ_FOREACH_REVERSE(chunk_to_evict,
+                          &chunkcache->chunkcache_lru_list, __wt_chunkcache_lru, next_lru_item) {
+        if (chunk_to_evict->valid) {
+            TAILQ_REMOVE(&chunkcache->chunkcache_lru_list, chunk_to_evict, next_lru_item);
+            chunk_to_evict->being_evicted = true;
+            found_eviction_candidate = true;
+            break;
+        }
     }
     __wt_spin_unlock(session, &chunkcache->chunkcache_lru_lock);
 
-    if (chunk_to_evict == NULL || !chunk_to_evict->valid)
+    if (!found_eviction_candidate)
         return false;
 
     printf("\nevict: offset=%" PRId64 ", size=%ld\n",
            chunk_to_evict->chunk_offset, chunk_to_evict->chunk_size);
-    __chunkcache_remove_chunk(session, chunk_to_evict);
+
+    __wt_spin_lock(session, &chunkcache->bucket_locks[chunk_to_evict->bucket_id]);
+    TAILQ_REMOVE(WT_BUCKET_CHUNKS(chunkcache, chunk_to_evict->bucket_id), chunk_to_evict, next_chunk);
+    __wt_spin_unlock(session, &chunkcache->bucket_locks[chunk_to_evict->bucket_id]);
     __chunkcache_free_chunk(session, chunk_to_evict);
 
-    WT_STAT_CONN_INCR(session, chunk_cache_chunks_evicted);
+    WT_STAT_CONN_INCR(session, chunkcache_chunks_evicted);
     return true;
 }
 
@@ -239,7 +252,8 @@ __chunkcache_eviction_thread(void *arg)
 
     while (!chunkcache->chunkcache_exiting) {
         /* Try evicting a chunk if we have exceeded capacity */
-        if ((chunkcache->bytes_used + chunkcache->default_chunk_size) > chunkcache->capacity)
+        if ((chunkcache->bytes_used + chunkcache->chunk_size) >
+            chunkcache->evict_watermark * chunkcache->capacity / 100)
             __chunkcache_evict_one(session);
         __wt_sleep(1, 0); /* TODO: choose a more appropriate frequency */
     }
@@ -247,75 +261,82 @@ __chunkcache_eviction_thread(void *arg)
 }
 
 /*
- * __wt_chunkcache_check --
- *     Check if the chunk cache already has the data of size 'size' in the given block at the given
- *     offset, and copy it into the supplied buffer if it is. Otherwise, decide if we want to read
- *     and cache a larger chunk of data than what the upper layer asked for.
+ * __wt_chunkcache_get --
+ *     If the cache has the data at the given size and offset, copy it into the supplied buffer.
+ *     Otherwise, read and cache the chunks containing the requested data.
  */
 bool
 __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid, wt_off_t offset,
                       uint32_t size, void *dst)
 {
     WT_CHUNKCACHE *chunkcache;
-    WT_CHUNKCACHE_BUCKET *bucket;
     WT_CHUNKCACHE_CHUNK *chunk;
     WT_CHUNKCACHE_HASHID hash_id;
-    uint bucket_id;
-    uint32_t already_read, left_to_read, readable_in_chunk, size_copied;
-    uint64_t hash;
+    bool chunk_cached;
+    uint bucket_id, retries;
+    size_t already_read, left_to_read, readable_in_chunk, size_copied;
 
     chunkcache = &S2C(session)->chunkcache;
     already_read = 0;
     left_to_read = size;
+    retries = 0;
 
     if (!chunkcache->configured)
-        return;
+        return false;
 
-    printf("\ncheck: %s(%d), offset=%" PRId64 ", size=%d\n",
-      (char*)&hash_id.objectname, hash_id.objectid, offset, size);
-    WT_STAT_CONN_INCR(session, chunk_cache_lookups);
+    printf("\nget: %s(%d), offset=%" PRId64 ", size=%d\n",
+      (char*)block->name, objectid, offset, size);
 
-    /* A block may span many chunks. Loop until we have read all the data. */
+    WT_STAT_CONN_INCR(session, chunkcache_lookups);
+
+    /* A block may span two (or more) chunks. Loop until we have read all the data. */
     while (left_to_read > 0) {
-        /* Find the bucket for the containing chunk. */
-        bucket_id = __chunkcache_makehash(chunkcache, &hash_id, objectid, block, offset + already_read);
-        bucket = &chunkcache->hashtable[bucket_id];
+        /* Find the bucket for the chunk containing this offset. */
+        bucket_id =
+            __chunkcache_makehash(chunkcache, &hash_id, block, objectid, offset + (wt_off_t)already_read);
       retry:
         chunk_cached = false;
         __wt_spin_lock(session, &chunkcache->bucket_locks[bucket_id]);
-        TAILQ_FOREACH(chunk, &bucket->colliding_chunks, next_chunk) {
+        TAILQ_FOREACH(chunk, WT_BUCKET_CHUNKS(chunkcache, bucket_id), next_chunk) {
             if (memcmp(&chunk->hash_id, &hash_id, sizeof(hash_id)) == 0) {
                 /* If the chunk is there, but invalid, there is I/O in progress. Retry. */
                 if (!chunk->valid) {
                     __wt_spin_unlock(session, &chunkcache->bucket_locks[bucket_id]);
-                    if (retries++ < WT_CHUNKCACHE_MAX_RETRIES)
+                    if (retries++ < WT_CHUNKCACHE_MAX_RETRIES) {
+                        WT_STAT_CONN_INCR(session, chunkcache_retries);
                         goto retry;
+                    }
                     else {
-                        WT_STAT_CONN_INCR(session, chunk_cache_retries);
+                        WT_STAT_CONN_INCR(session, chunkcache_toomany_retries);
                         return false;
                     }
                 }
                 /* Found the needed chunk. */
-                WT_ASSERT(session, BLOCK_PART_IN_CHUNK(chunk->chunk_offset, offset, chunk->chunk_size, size));
-
+                WT_ASSERT(session, WT_BLOCK_PART_IN_CHUNK(chunk->chunk_offset, offset,
+                                                          chunk->chunk_size, size));
                 /* We can't read beyond the chunk's boundary */
-                readable_in_chunk = chunk_offset + chunk_size - offset;
+                readable_in_chunk = (size_t)chunk->chunk_offset+chunk->chunk_size-(size_t)offset;
                 size_copied = WT_MIN(readable_in_chunk, left_to_read);
-                memcpy(dst, chunk->chunk_location + (offset + already_read - chunk->chunk_offset),
-                       size_copied);
+                memcpy(dst,
+                       chunk->chunk_location + (offset + (wt_off_t)already_read - chunk->chunk_offset),
+                   size_copied);
+
+                if (already_read > 0)
+                    WT_STAT_CONN_INCR(session, chunkcache_spans_chunks);
 
                 already_read += size_copied;
                 left_to_read -= size_copied;
 
                 chunk_cached = true;
                 __wt_spin_unlock(session, &chunkcache->bucket_locks[bucket_id]);
-                WT_STAT_CONN_INCR(session, chunk_cache_hits);
+                WT_STAT_CONN_INCR(session, chunkcache_hits);
                 break;
             }
         }
         /* The chunk is not cached. Read it from storage and insert into the cache. */
         if (!chunk_cached) {
-            if (__chunkcache_alloc_chunk(session, &chunk, offset + already_read, block) != 0) {
+            if (__chunkcache_alloc_chunk(session, &chunk, offset+(wt_off_t)already_read,
+                                         block, &hash_id) != 0) {
                 __wt_spin_unlock(session, &chunkcache->bucket_locks[bucket_id]);
                 return false;
             }
@@ -323,23 +344,24 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
              * Insert the chunk into the bucket before releasing the lock and doing I/O.
              * This way we avoid two threads trying to cache the same chunk.
              */
-            TAILQ_INSERT_HEAD(&bucket->colliding_chunks, chunk, next_chunk);
+            TAILQ_INSERT_HEAD(WT_BUCKET_CHUNKS(chunkcache, bucket_id), chunk, next_chunk);
             __wt_spin_unlock(session, &chunkcache->bucket_locks[bucket_id]);
 
             /* Read the chunk and mark it as valid */
             if (__wt_read(session, block->fh, chunk->chunk_offset, chunk->chunk_size,
                           chunk->chunk_location) != 0) {
                 __wt_spin_lock(session, &chunkcache->bucket_locks[bucket_id]);
-                TAILQ_REMOVE(&bucket->colliding_chunks, chunk, next_chunk);
+                TAILQ_REMOVE(WT_BUCKET_CHUNKS(chunkcache, bucket_id), chunk, next_chunk);
                 __wt_spin_unlock(session, &chunkcache->bucket_locks[bucket_id]);
                 __chunkcache_free_chunk(session, chunk);
+                WT_STAT_CONN_INCR(session, chunkcache_io_failed);
                 return false;
             }
-            CHUNK_MARK_VALID(session, chunkcache, chunk);
-            WT_STAT_CONN_INCR(session, chunk_cache_chunks);
+            WT_CHUNK_MARK_VALID(session, chunkcache, chunk);
             goto retry;
         }
     }
+    return true;
 }
 
 /*
@@ -351,15 +373,16 @@ __wt_chunkcache_remove(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objec
                        wt_off_t offset, uint32_t size)
 {
     WT_CHUNKCACHE *chunkcache;
-    WT_CHUNKCACHE_BUCKET *bucket;
     WT_CHUNKCACHE_CHUNK *chunk;
     WT_CHUNKCACHE_HASHID hash_id;
+    bool done;
     uint bucket_id;
     uint32_t already_removed, left_to_remove, removable_in_chunk, size_removed;
     uint64_t hash;
 
     chunkcache = &S2C(session)->chunkcache;
     already_removed = 0;
+    done = false;
     left_to_remove = size;
 
     if (!chunkcache->configured)
@@ -371,19 +394,22 @@ __wt_chunkcache_remove(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objec
    /* A block may span many chunks. Loop until we have removed all the chunks. */
     while (left_to_remove > 0) {
         /* Find the bucket for the containing chunk. */
-        bucket_id = __chunkcache_makehash(chunkcache, &hash_id, objectid, block, offset + already_removed);
-        bucket = &chunkcache->hashtable[bucket_id];
-
+        bucket_id = __chunkcache_makehash(chunkcache, &hash_id, block, objectid,
+                                          offset + (wt_off_t)already_removed);
         __wt_spin_lock(session, &chunkcache->bucket_locks[bucket_id]);
-        TAILQ_FOREACH(&bucket->colliding_chunks, chunk, next_chunk) {
+        TAILQ_FOREACH(WT_BUCKET_CHUNKS(chunkcache, bucket_id), chunk, next_chunk) {
             if (memcmp(&chunk->hash_id, &hash_id, sizeof(hash_id)) == 0) {
                 if (chunk->valid) {
-                    WT_ASSERT(session, BLOCK_PART_IN_CHUNK(chunk->chunk_offset, offset, chunk->chunk_size, size));
+                    WT_ASSERT(session,
+                         BLOCK_PART_IN_CHUNK(chunk->chunk_offset, offset, chunk->chunk_size, size));
 
-                    removable_in_chunk = chunk_offset + chunk_size - offset;
+                    removable_in_chunk =
+                        (size_t)chunk->chunk_offset + chunk->chunk_size - (size_t)offset;
                     size_removed = WT_MIN(removable_in_chunk, left_to_remove);
                     already_removed += size_removed;
                     left_to_remove -= size_removed;
+
+                    WT_STAT_CONN_INCR(session, chunkcache_chunks_invalidated);
                     /*
                      * If the chunk is being evicted, the eviction code will remove it
                      * and free it, so we are done.
@@ -401,7 +427,7 @@ __wt_chunkcache_remove(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objec
                     if (done)
                         break;
 
-                    TAILQ_REMOVE(&bucket->colliding_chunks, chunk, next_chunk);
+                    TAILQ_REMOVE(WT_BUCKET_CHUNKS(chunkcache, bucket_id), chunk, next_chunk);
                     __chunkcache_free_chunk(session, chunk);
                     printf("\nremove: %s(%d), offset=%" PRId64 ", size=%d\n",
                            (char*)&hash_id.objectname, hash_id.objectid, offset+already_removed, size_removed);
@@ -441,7 +467,7 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
         WT_RET_MSG(session, EINVAL, "chunk cache capacity must be greater than zero");
 
     WT_RET(__wt_config_gets(session, cfg, "chunk_cache.chunk_size", &cval));
-    if ((chunkcache->default_chunk_size = (uint64_t)cval.val) <= 0)
+    if ((chunkcache->chunk_size = (uint64_t)cval.val) <= 0)
         WT_RET_MSG(session, EINVAL, "chunk size must be greater than zero");
 
     WT_RET(__wt_config_gets(session, cfg, "chunk_cache.hashsize", &cval));
@@ -453,6 +479,11 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
                    "chunk cache hashtable size must be between %d and %d entries and we have %d",
                    WT_CHUNKCACHE_MINHASHSIZE, WT_CHUNKCACHE_MAXHASHSIZE,
                    chunkcache->hashtable_size);
+
+    WT_RET(__wt_config_gets(session, cfg, "chunk_cache.evict_trigger", &cval));
+    if (((chunkcache->evict_watermark = (u_int)cval.val) == 0) ||
+        (chunkcache->evict_watermark > 100))
+        WT_RET_MSG(session, EINVAL, "evict trigger must be between 0 adn 100");
 
     WT_RET(__wt_config_gets(session, cfg, "chunk_cache.type", &cval));
     if (cval.len ==0 ||

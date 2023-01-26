@@ -68,37 +68,9 @@ struct __wt_chunkcache {
     bool configured;
     size_t chunk_size;
     char *dev_path;   /* The storage path to use if we are on a file system or a block device */
+    uint evict_watermark; /* When this percent of cache is full, we trigger eviction. */
     uint hashtable_size;
     int type;
     uint64_t bytes_used; /* Amount of data currently in cache */
 };
-
-#define BLOCK_IN_CHUNK(chunk_off, block_off, chunk_size, block_size) \
-(chunk_off <= block_off && (chunk_off + (wt_off_t)chunk_size) >= (block_off + (wt_off_t)block_size))
-
-#define BLOCK_BEGINS_IN_CHUNK(chunk_off, block_off, chunk_size, block_size) \
-    ((block_off > chunk_off) && (block_off < (chunk_off + (wt_off_t)chunk_size)) && ((block_off + (wt_off_t)block_size) > (chunk_off + (wt_off_t)chunk_size)))
-
-#define BLOCK_ENDS_IN_CHUNK(chunk_off, block_off, chunk_size, block_size) \
-    ((block_off < chunk_off) && (block_off + (wt_off_t)block_size) < (chunk_off + (wt_off_t)chunk_size)))
-
-#define BLOCK_MIDDLE_IN_CHUNK(chunk_off, block_off, chunk_size, block_size) \
-    ((block_off < chunk_off) &&  (block_off + (wt_off_t)block_size) > (chunk_off + (wt_off_t)chunk_size))
-
-#define BLOCK_PART_IN_CHUNK(chunk_off, block_off, chunk_size, block_size) \
-    BLOCK_BEGINS_IN_CHUNK(chunk_off, block_off, chunk_size, block_size) || \
-        BLOCK_ENDS_IN_CHUNK(chunk_off, block_off, chunk_size, block_size) || \
-        BLOCK_MIDDLE_IN_CHUNK)chunk_off, block_off, chunk_size, block_size)
-
-#define CHUNK_MARK_VALID(session, chunkcache, chunk)                    \
-    if (!chunk->valid) {                                                \
-        (void)__wt_atomic_addv32(&chunk->valid, 1);                     \
-        __wt_spin_lock(session, &chunkcache->chunkcache_lru_lock);      \
-        TAILQ_INSERT_HEAD(&chunkcache->chunkcache_lru_list, chunk, next_lru_item); \
-        __wt_spin_unlock(session, &chunkcache->chunkcache_lru_lock);    \
-    }
-
-#define CHUNK_OFFSET(chunkcache, offset) \
-    (wt_off_t)((size_t)offset / chunkcache->chunk_size) * chunkcache->chunk_size
-
 

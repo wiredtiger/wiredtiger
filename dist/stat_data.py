@@ -324,16 +324,20 @@ conn_stats = [
     CapacityStat('fsync_all_fh_total', 'background fsync file handles considered'),
     CapacityStat('fsync_all_time', 'background fsync time (msecs)', 'no_clear,no_scale'),
 
-        ##########################################
+    ##########################################
     # Chunk cache statistics
     ##########################################
-    ChunkCacheStat('chunk_cache_bytes', 'total bytes'),
-    ChunkCacheStat('chunk_cache_chunks', 'total chunks'),
-    ChunkCacheStat('chunk_cache_chunks_evicted', 'evicted chunks'),
-    ChunkCacheStat('chunk_cache_chunks_invalidated', 'removed chunks on becoming invalid'),
-    ChunkCacheStat('chunk_cache_exceeded_capacity', 'could not allocate due to exceeding capacity'),
-    ChunkCacheStat('chunk_cache_hits', 'number of hits'),
-    ChunkCacheStat('chunk_cache_lookups', 'lookups'),
+    ChunkCacheStat('chunkcache_bytes', 'total bytes'),
+    ChunkCacheStat('chunkcache_chunks', 'total chunks'),
+    ChunkCacheStat('chunkcache_chunks_evicted', 'evicted chunks'),
+    ChunkCacheStat('chunkcache_chunks_invalidated', 'removed chunks on becoming invalid'),
+    ChunkCacheStat('chunkcache_exceeded_capacity', 'could not allocate due to exceeding capacity'),
+    ChunkCacheStat('chunkcache_hits', 'number of hits'),
+    ChunkCacheStat('chunkcache_io_failed', 'number of times a read from storage failed'),
+    ChunkCacheStat('chunkcache_lookups', 'lookups'),
+    ChunkCacheStat('chunkcache_retries', 'retried accessing a chunk while I/O was in progress'),
+    ChunkCacheStat('chunkcache_spans_chunks', 'aggregate number of spanned chunks'),
+    ChunkCacheStat('chunkcache_toomany_retries', 'timed out due to too many retries'),
 
     ##########################################
     # Cursor operations
