@@ -5,30 +5,6 @@
 #include <random>
 
 
-//template<typename code>
-//class thread_info {
-//public:
-//    thread_info(std::string const& thread_name, std::counting_semaphore<1>& semaphore, code code_param)
-//      : _thread_name(thread_name), _semaphore(semaphore), _code(code_param)
-//    {};
-//    [[nodiscard]] std::string const& get_thread_name() const { return _thread_name; };
-//    [[nodiscard]] code const& get_code() const { return _code; };
-//private:
-//    std::string const& _thread_name;
-//    std::counting_semaphore<1>& _semaphore;
-//    code _code;
-//};
-
-
-//template<typename code>
-//void thread_function(thread_info<code> thread_info_param) {
-//    using namespace std::literals;
-//    std::cout << "starting thread_function for thread: " << thread_info_param.get_thread_name() << std::endl;
-//    thread_info_param.get_code()();
-//    std::this_thread::sleep_for(100ms);
-//    std::cout << "ending thread_function for thread: " << thread_info_param.get_thread_name() << std::endl;
-//}
-
 template<typename code>
 void thread_function(std::string const& thread_name,
                      std::binary_semaphore& start_semaphore,
