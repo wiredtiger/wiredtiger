@@ -115,8 +115,6 @@ struct __wt_chunkcache;
 typedef struct __wt_chunkcache WT_CHUNKCACHE;
 struct __wt_chunkcache_bucket;
 typedef struct __wt_chunkcache_bucket WT_CHUNKCACHE_BUCKET;
-struct __wt_chunkcache_chain;
-typedef struct __wt_chunkcache_chain WT_CHUNKCACHE_CHAIN;
 struct __wt_chunkcache_chunk;
 typedef struct __wt_chunkcache_chunk WT_CHUNKCACHE_CHUNK;
 struct __wt_chunkcache_hashid;

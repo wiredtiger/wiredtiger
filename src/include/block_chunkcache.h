@@ -44,7 +44,7 @@ struct __wt_chunkcache_chunk {
 
 struct __wt_chunkcache_bucket {
     /* This queue contains all chunks that mapped to this bucket */
-    TAILQ_HEAD(__wt_chunkchain_head, __wt_chunkcache_chunk) colliding_chunks;
+   TAILQ_HEAD(__wt_chunkchain_head, __wt_chunkcache_chunk) colliding_chunks;
 };
 
 /*

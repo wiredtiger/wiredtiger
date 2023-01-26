@@ -34,7 +34,7 @@
     (wt_off_t)(((size_t)offset / chunkcache->chunk_size) * chunkcache->chunk_size)
 
 #define WT_BUCKET_CHUNKS(chunkcache, bucket_id)         \
-    &(&chunkcache->hashtable[bucket_id])->colliding_chunks)
+    &(chunkcache->hashtable[bucket_id].colliding_chunks)
 
 /*
  * __chunkcache_alloc_space --
@@ -377,8 +377,7 @@ __wt_chunkcache_remove(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objec
     WT_CHUNKCACHE_HASHID hash_id;
     bool done;
     uint bucket_id;
-    uint32_t already_removed, left_to_remove, removable_in_chunk, size_removed;
-    uint64_t hash;
+    size_t already_removed, left_to_remove, removable_in_chunk, size_removed;
 
     chunkcache = &S2C(session)->chunkcache;
     already_removed = 0;
@@ -397,11 +396,11 @@ __wt_chunkcache_remove(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objec
         bucket_id = __chunkcache_makehash(chunkcache, &hash_id, block, objectid,
                                           offset + (wt_off_t)already_removed);
         __wt_spin_lock(session, &chunkcache->bucket_locks[bucket_id]);
-        TAILQ_FOREACH(WT_BUCKET_CHUNKS(chunkcache, bucket_id), chunk, next_chunk) {
+        TAILQ_FOREACH(chunk, WT_BUCKET_CHUNKS(chunkcache, bucket_id), next_chunk) {
             if (memcmp(&chunk->hash_id, &hash_id, sizeof(hash_id)) == 0) {
                 if (chunk->valid) {
                     WT_ASSERT(session,
-                         BLOCK_PART_IN_CHUNK(chunk->chunk_offset, offset, chunk->chunk_size, size));
+                         WT_BLOCK_PART_IN_CHUNK(chunk->chunk_offset, offset, chunk->chunk_size, size));
 
                     removable_in_chunk =
                         (size_t)chunk->chunk_offset + chunk->chunk_size - (size_t)offset;
@@ -429,8 +428,9 @@ __wt_chunkcache_remove(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objec
 
                     TAILQ_REMOVE(WT_BUCKET_CHUNKS(chunkcache, bucket_id), chunk, next_chunk);
                     __chunkcache_free_chunk(session, chunk);
-                    printf("\nremove: %s(%d), offset=%" PRId64 ", size=%d\n",
-                           (char*)&hash_id.objectname, hash_id.objectid, offset+already_removed, size_removed);
+                    printf("\nremove: %s(%d), offset=%" PRId64 ", size=%" PRIu64 "\n",
+                           (char*)&hash_id.objectname, hash_id.objectid,
+                           (uint64_t)offset+already_removed, (uint64_t)size_removed);
                     break;
                 }
             }
@@ -507,9 +507,10 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
     WT_RET(__wt_calloc_def(session, chunkcache->hashtable_size, &chunkcache->bucket_locks));
 
     for (i = 0; i < chunkcache->hashtable_size; i++) {
-        TAILQ_INIT(&chunkcache->hashtable[i].colliding_chunks);
+        TAILQ_INIT(&(chunkcache->hashtable[i].colliding_chunks));
         WT_RET(__wt_spin_init(session, &chunkcache->bucket_locks[i], "chunk cache bucket locks"));
     }
+    TAILQ_INIT(&chunkcache->chunkcache_lru_list);
 
     if (chunkcache->type != WT_CHUNKCACHE_DRAM) {
 #ifdef ENABLE_MEMKIND
