@@ -1168,9 +1168,9 @@ config_mirrors(void)
     }
 
     /*
-     * In theory, mirroring should work with predictable replay, although there's some overlap
-     * in functionality. That is, we usually do multiple runs with the same key with predictable
-     * replay and would notice if data was different or missing. We disable it to keep runs simple.
+     * In theory, mirroring should work with predictable replay, although there's some overlap in
+     * functionality. That is, we usually do multiple runs with the same key with predictable replay
+     * and would notice if data was different or missing. We disable it to keep runs simple.
      */
     if (GV(RUNS_PREDICTABLE_REPLAY)) {
         WARN("%s", "turning off mirroring for predictable replay");
