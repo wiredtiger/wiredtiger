@@ -106,9 +106,8 @@ gcp_connection::read_object(const std::string &object_key, int64_t offset, size_
 {
     gcs::ObjectReadStream stream = _gcp_client.ReadObject(
       _bucket_name, _object_prefix + object_key, gcs::ReadFromOffset(offset));
-    
-    if (stream.bad()) 
-    {
+
+    if (stream.bad()) {
         std::cerr << stream.status().message() << std::endl;
         return -1;
     }
