@@ -31,4 +31,15 @@
 
 #include "gcp_connection.h"
 
-TEST_CASE("Testing class gcpConnection", "gcp-connection") {}
+TEST_CASE("Testing class gcpConnection", "gcp-connection") {
+    gcp_connection gcp_connection("quickstart_test","prefixadasd");
+    std::ofstream myfile;
+    myfile.open ("/home/ubuntu/wiredtiger/ext/storage_sources/gcp_store/orangetest.txt");
+    myfile << "1 2 3 4 5 6 7 8 9 10 \n";
+    myfile.close();
+
+    gcp_connection.put_object("orangetest.txt", "/home/ubuntu/wiredtiger/ext/storage_sources/gcp_store/orangetest.txt");
+ 
+    gcp_connection.delete_object("orangetest.txt");
+    CHECK(gcp_connection.delete_object("orangetest.txt") == ENOENT);
+}

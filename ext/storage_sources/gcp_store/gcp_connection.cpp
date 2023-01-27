@@ -80,8 +80,8 @@ gcp_connection::put_object(const std::string &object_key, const std::string &fil
 
     // Check if file has been successfully uploaded.
     if (!metadata) {
-        std::cerr << "Upload failed: " << metadata.status() << std::endl;
-        return -1;
+        // std::cerr << "Upload failed: " << metadata.status() << std::endl;
+        return print_error_info(metadata.status());
     }
 
     return 0;
@@ -94,8 +94,7 @@ gcp_connection::delete_object(const std::string &object_key)
     auto status = _gcp_client.DeleteObject(_bucket_name, _object_prefix + object_key);
 
     if (!status.ok()) {
-        std::cerr << status.message() << std::endl;
-        return -1;
+        return print_error_info(status);
     }
     return 0;
 }
@@ -131,7 +130,17 @@ gcp_connection::object_exists(const std::string &object_key, bool &exists, size_
         return 0;
     }
 
-    std::cerr << object_key + ": " + metadata.status().message() << std::endl;
+    // std::cerr << object_key + ": " + metadata.status().message() << std::endl;
+    return print_error_info(metadata.status());
+}
 
+int 
+gcp_connection::print_error_info(const google::cloud::Status status) const 
+{
+    std::cerr << status.message() << std::endl;
+    if (toErrno.find(status.code()) != toErrno.end())
+        return (toErrno.at(status.code()));
+    std::cerr << status.code() << std::endl;
     return -1;
+    
 }
