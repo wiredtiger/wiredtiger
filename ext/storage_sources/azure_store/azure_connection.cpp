@@ -97,7 +97,7 @@ azure_connection::read_object(
 {
     auto blob_client = _azure_client.GetBlockBlobClient(_object_prefix + object_key);
 
-    // Try catch block to catch the exception if there is one from the Azure SDK's method and 
+    // Try catch block to catch the exception if there is one from the Azure SDK's method and
     // prints the error reason to std::cerr and returns the associated errno code.
     try {
         blob_client.GetProperties();
@@ -105,9 +105,10 @@ azure_connection::read_object(
         std::cerr << e.ReasonPhrase << std::endl;
         return http_to_errno(e);
     }
-
 }
 
+// Maps the HTTP code returned by Azure SDK and returns the associated errno code if it is in
+// the map else return -1.
 const int
 azure_connection::http_to_errno(Azure::Storage::StorageException &e) const
 {
