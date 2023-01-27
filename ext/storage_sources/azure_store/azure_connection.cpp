@@ -90,8 +90,28 @@ azure_connection::delete_object(const std::string &object_key) const
     return 0;
 }
 
+// Reads an object and outputs the content into a buffer.
 int
-azure_connection::get_object(const std::string &path) const
+azure_connection::read_object(
+  const std::string &object_key, int64_t offset, size_t len, void *buf) const
 {
-    return 0;
+    auto blob_client = _azure_client.GetBlockBlobClient(_object_prefix + object_key);
+
+    // Try catch block to catch the exception if there is one from the Azure SDK's method and 
+    // prints the error reason to std::cerr and returns the associated errno code.
+    try {
+        blob_client.GetProperties();
+    } catch (Azure::Storage::StorageException &e) {
+        std::cerr << e.ReasonPhrase << std::endl;
+        return http_to_errno(e);
+    }
+
+}
+
+const int
+azure_connection::http_to_errno(Azure::Storage::StorageException &e) const
+{
+    if (to_errno.find(e.StatusCode) != to_errno.end())
+        return to_errno.at(e.StatusCode);
+    return -1;
 }
