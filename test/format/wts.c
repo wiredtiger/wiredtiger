@@ -210,6 +210,7 @@ configure_file_manager(char **p, size_t max)
         CONFIG_APPEND(*p, ",close_idle_time=%" PRIu32, GV(FILE_MANAGER_CLOSE_IDLE_TIME));
     if (GV(FILE_MANAGER_CLOSE_SCAN_INTERVAL) != 0)
         CONFIG_APPEND(*p, ",close_scan_interval=%" PRIu32, GV(FILE_MANAGER_CLOSE_SCAN_INTERVAL));
+    CONFIG_APPEND(*p, "]");
 }
 
 /*
@@ -367,6 +368,7 @@ create_database(const char *home, WT_CONNECTION **connp)
     if (max == 0)
         testutil_die(ENOMEM, "wiredtiger_open configuration buffer too small");
 
+    printf("test print config: %s\n", config);
     testutil_checkfmt(wiredtiger_open(home, &event_handler, config, &conn), "%s", home);
 
     *connp = conn;
