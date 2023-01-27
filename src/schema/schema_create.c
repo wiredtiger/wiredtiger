@@ -444,18 +444,18 @@ __schema_is_tiered_storage_shared(WT_SESSION_IMPL *session, const char *config)
     WT_CONFIG_ITEM cval;
 
     /*
-     * The tiered storage shared table needs to have two column groups that are
-     * pointed to the underlying active and shared files. The following checks are
-     * carried out to determine the table can be created as a tiered storage shared
-     * or not based on the table creation configuration where they control the
-     * underlying the source.
+     * The tiered storage shared table needs to have two column groups that point to the
+     * underlying active and shared files. The following checks are carried out to determine
+     * whether the table can be created as a tiered storage shared table or not based on
+     * the table creation configuration.
      *
-     * 1. The table configuration should not specify underlying source.
-     * 2. The table configuration should not specify underlying type of the storage.
-     * 3. The connection is not configured for tiered storage or the table configured
-     *    for non tiered storage.
+     * A table is not a shared if any of the following are true:
+     * 1. The table configuration does not specify an underlying source.
+     * 2. The table configuration does not specify an underlying type of the storage.
+     * 3. The connection is not configured for tiered storage or the table is not
+     *    configured for tiered storage.
      * 4. The connection is not configured for tiered storage shared or the table is
-     *    configured for non tiered storage shared.
+     *    not configured for tiered storage shared.
      */
     if (__wt_config_getones(session, config, "source", &cval) == 0 && cval.len != 0)
         return (false);
@@ -475,7 +475,9 @@ __schema_is_tiered_storage_shared(WT_SESSION_IMPL *session, const char *config)
 
 /*
  * __schema_tiered_shared_colgroup_source --
- *     Get the tiered storage shared URI of the data source for a column group.
+ *     Get the tiered storage shared URI of the data source for a column group. For a shared tiered
+ *     table named table:name the active table is always file:name.wt and the shared table is
+ *     tiered:name which points to the shared components.
  */
 static int
 __schema_tiered_shared_colgroup_source(
