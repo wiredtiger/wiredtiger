@@ -98,6 +98,8 @@ struct __wt_session_impl {
     uint32_t cursor_sweep_position;  /* Position in cursor_cache for sweep */
     uint64_t last_cursor_big_sweep;  /* Last big sweep for dead cursors */
     uint64_t last_cursor_sweep;      /* Last regular sweep for dead cursors */
+    u_int sweep_warning_5min;        /* Whether the session was without sweep for 5 min. */
+    u_int sweep_warning_60min;       /* Whether the session was without sweep for 60 min. */
 
     WT_CURSOR_BACKUP *bkp_cursor; /* Hot backup cursor */
 
@@ -206,6 +208,16 @@ struct __wt_session_impl {
 
 #ifdef HAVE_DIAGNOSTIC
     uint8_t dump_raw; /* Configure debugging page dump */
+#endif
+
+#ifdef HAVE_UNITTEST_ASSERTS
+/*
+ * Unit testing assertions requires overriding abort logic and instead capturing this information to
+ * be checked by the unit test.
+ */
+#define WT_SESSION_UNITTEST_BUF_LEN 100
+    bool unittest_assert_hit;
+    char unittest_assert_msg[WT_SESSION_UNITTEST_BUF_LEN];
 #endif
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */

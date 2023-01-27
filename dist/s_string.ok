@@ -43,6 +43,7 @@ BDB's
 BDmpvXx
 BIGENDIAN
 BLKCACHE
+BLmRrSVv
 BOOL
 BSR
 BTREE
@@ -111,6 +112,7 @@ DECL
 DECR
 DESC
 DHANDLE
+DIAG
 DIRECTIO
 DNE
 DOI
@@ -230,6 +232,7 @@ INTL
 INTRINSICS
 INULL
 INUSE
+INVL
 ISA
 ITEMs
 ITER
@@ -273,7 +276,6 @@ LeafGreen
 LevelDB
 Levyx
 LibFuzzer
-LmRrSVv
 LoadLoad
 LockFile
 LogSystemInterface
@@ -361,8 +363,10 @@ PTR
 PackInputStream
 PackOutputStream
 Pandis
+Pe
 Phong
 PlatformSDK
+Podir
 Pomy
 Posix
 PostgreSQL
@@ -373,6 +377,7 @@ Preload
 Prepend
 Prepending
 Prev
+Px
 QQQS
 QSQ
 Qsort
@@ -565,6 +570,7 @@ addr
 addrs
 addtw
 agc
+ajn
 alfred
 alloc
 allocator
@@ -742,6 +748,7 @@ cryptobad
 cryptographic
 cryptographically
 cstring
+cstu
 csuite
 csv
 ctime
@@ -1072,6 +1079,7 @@ iteratively
 iters
 jjj
 jprx
+js
 json
 kB
 kb
@@ -1162,6 +1170,7 @@ maxObjects
 maxcpu
 maxdbs
 maxdiff
+maxv
 mb
 mbll
 mbss
@@ -1278,6 +1287,7 @@ oplist
 oplog
 optimizations
 optrack
+optwt
 optype
 ori
 origstartrecno
@@ -1492,6 +1502,7 @@ suboptimal
 subsystem's
 subtest
 subtree
+sumv
 sunique
 supd
 superset
@@ -1622,6 +1633,7 @@ util
 utils
 uu
 vN
+vPodir
 vPomy
 vW
 va

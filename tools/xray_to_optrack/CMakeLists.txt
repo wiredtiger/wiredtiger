@@ -32,7 +32,7 @@ endif()
 
 llvm_map_components_to_libnames(llvm_libs support core symbolize xray)
 
-add_executable(xray_to_optrack ${CMAKE_CURRENT_SOURCE_DIR}/xray_to_optrack.cxx)
+add_executable(xray_to_optrack ${CMAKE_CURRENT_SOURCE_DIR}/xray_to_optrack.cpp)
 target_include_directories(xray_to_optrack PRIVATE ${LLVM_INCLUDE_DIRS})
 target_compile_definitions(xray_to_optrack PRIVATE ${LLVM_DEFINITIONS})
 target_link_libraries(xray_to_optrack PRIVATE ${llvm_libs})

@@ -105,7 +105,13 @@ CONFIG configuration_list[] = {
   {"debug.checkpoint_retention", "adjust log removal to retain the log records",
     0x0, 0, 128, 1024, V_GLOBAL_DEBUG_CHECKPOINT_RETENTION},
 
-  {"debug.eviction", "modify internal algorithms to force history store eviction to happen more aggressively",
+  {"debug.cursor_reposition",
+    "cursor temporarily releases any page requiring forced eviction and then repositions back to "
+    "the page for further operations",
+    C_BOOL, 5, 0, 0, V_GLOBAL_DEBUG_CURSOR_REPOSITION},
+
+  {"debug.eviction",
+    "modify internal algorithms to force history store eviction to happen more aggressively",
     C_BOOL, 2, 0, 0, V_GLOBAL_DEBUG_EVICTION},
 
   {"debug.log_retention", "adjust log removal to retain at least this number of log files",
@@ -156,6 +162,8 @@ CONFIG configuration_list[] = {
 
   {"file_manager.close_scan_interval", "interval in seconds at which to check for files that are inactive and close them",
     0x0, 0, 30, 100000, V_GLOBAL_FILE_MANAGER_CLOSE_SCAN_INTERVAL},
+  {"format.major_timeout", "long-running operations timeout (minutes)", C_IGNORE, 0, 0, WT_THOUSAND,
+    V_GLOBAL_FORMAT_MAJOR_TIMEOUT},
 
   {"format.abort", "drop core during timed run",
     C_BOOL, 0, 0, 0, V_GLOBAL_FORMAT_ABORT},
@@ -180,8 +188,8 @@ CONFIG configuration_list[] = {
   {"logging.compression", "logging compression (off | lz4 | snappy | zlib | zstd)",
     C_IGNORE | C_STRING, 0, 0, 0, V_GLOBAL_LOGGING_COMPRESSION},
 
-  {"logging.file_max", "maximum log file size (KB)",
-    0x0, 100, 512000, 2097152, V_GLOBAL_LOGGING_FILE_MAX},
+  {"logging.file_max", "maximum log file size (KB)", 0x0, 100, 512 * WT_THOUSAND, 2097152,
+    V_GLOBAL_LOGGING_FILE_MAX},
 
   {"logging.prealloc", "configure log file pre-allocation",
     C_BOOL, 50, 0, 0, V_GLOBAL_LOGGING_PREALLOC},
@@ -195,8 +203,8 @@ CONFIG configuration_list[] = {
   {"lsm.bloom", "configure bloom filters",
     C_BOOL | C_TABLE | C_TYPE_LSM, 95, 0, 0, V_TABLE_LSM_BLOOM},
 
-  {"lsm.bloom_bit_count", "number of bits per item for bloom filters",
-    C_TABLE | C_TYPE_LSM, 4, 64, 1000, V_TABLE_LSM_BLOOM_BIT_COUNT},
+  {"lsm.bloom_bit_count", "number of bits per item for bloom filters", C_TABLE | C_TYPE_LSM, 4, 64,
+    WT_THOUSAND, V_TABLE_LSM_BLOOM_BIT_COUNT},
 
   {"lsm.bloom_hash_count", "number of hash values per item for bloom filters",
     C_TABLE | C_TYPE_LSM, 4, 32, 100, V_TABLE_LSM_BLOOM_HASH_COUNT},
