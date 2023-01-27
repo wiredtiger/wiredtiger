@@ -69,7 +69,7 @@ int perform_test(thread_1_code thread_1_code_param,
 
         if (iterations % 1000 == 0 && iterations != 0) {
             std::cout << '.' << std::flush;
-            if (iterations % 5000 == 0) {
+            if (iterations % 50000 == 0) {
                 std::cout << std::endl;
             }
         }
@@ -88,7 +88,7 @@ int perform_test(thread_1_code thread_1_code_param,
 int main() {
     std::cout << "Jeremy's Memory Model Test" << std::endl;
 
-    const int loop_count = 10000;
+    const int loop_count = 1000000;
 
     std::binary_semaphore start_semaphore1{0};
     std::binary_semaphore start_semaphore2{0};
@@ -101,7 +101,9 @@ int main() {
     int r1 = 0;
     int r2 = 0;
 
+    //////////////////////////////////////////////////
     // Code that has a read and a write in each thread.
+    //////////////////////////////////////////////////
 //    auto thread_1_code = [&]() { x = 1; r1 = y; };
 //    auto thread_2_code = [&]() { y = 1; r2 = x; };
 
@@ -113,10 +115,14 @@ int main() {
 
     //auto out_of_order_check_code = [&]() { return r1 == 0 && r2 == 0; };
 
+    /////////////////////////////////////////////////////////////////////////////
     // Code that has two reads in one thread, and two writes in the other thread.
-//    auto thread_1_code = [&]() { __atomic_exchange_n(&x, 2, __ATOMIC_SEQ_CST); __atomic_exchange_n(&y, 3, __ATOMIC_SEQ_CST); };
+    /////////////////////////////////////////////////////////////////////////////
     auto thread_1_code = [&]() { x = 2; y = 3; };
     auto thread_2_code = [&]() { r1 = y; r2 = x; };
+    //auto thread_1_code = [&]() { __atomic_exchange_n(&x, 2, __ATOMIC_SEQ_CST); __atomic_exchange_n(&y, 3, __ATOMIC_SEQ_CST); };
+    //auto thread_1_code = [&]() { x = 2; asm volatile(BARRIER_INSTRUCTION ::: "memory"); y = 3; };
+    //auto thread_2_code = [&]() { r1 = y; asm volatile(BARRIER_INSTRUCTION ::: "memory"); r2 = x; };
 
     auto out_of_order_check_code = [&]() { return r1 == 3 && r2 == 0; };
 
