@@ -500,11 +500,16 @@ functions:
             mv RUNDIR RUNDIR_1
             stable_hex=$(../../../tools/wt_timestamps RUNDIR_1 | sed -e '/stable=/!d' -e 's/.*=//')
             ops=$(echo $((0x$stable_hex)))
-            common_args="-c RUNDIR_1/CONFIG runs.ops=$ops"
+
+            # Do the second run up to the stable timestamp, using the same data seed,
+            # but with a different extra seed.  Compare it when done.
+            common_args="-c RUNDIR_1/CONFIG runs.timer=0 runs.ops=$ops"
             ./t $common_args random.extra_seed=$x2 || ( [ -f RUNDIR/CONFIG ] && cat RUNDIR/CONFIG ) 2>&1
             mv RUNDIR RUNDIR_2
             ../../../tools/wt_cmp_dir RUNDIR_1 RUNDIR_2
 
+            # Do the third run up to the stable timestamp, using the same data seed,
+            # but with a different extra seed.  Compare it to the second run when done.
             ./t $common_args random.extra_seed=$x3 || ( [ -f RUNDIR/CONFIG ] && cat RUNDIR/CONFIG ) 2>&1
             mv RUNDIR RUNDIR_3
             ../../../tools/wt_cmp_dir RUNDIR_2 RUNDIR_3
