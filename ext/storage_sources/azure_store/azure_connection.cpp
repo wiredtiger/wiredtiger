@@ -123,6 +123,12 @@ azure_connection::read_object(
         return -1;
     }
 
+    // Checks whether the offset and length is greater than the blob size.
+    if (offset + len > blob_properties.BlobSize) {
+        std::cerr << "Reading past end of file!" << std::endl;
+        return -1;
+    }
+
     // Utilise the inbuilt DownloadTo options to avoid having to store the blob's content
     // in memory to save space.
     Azure::Core::Http::HttpRange range;
