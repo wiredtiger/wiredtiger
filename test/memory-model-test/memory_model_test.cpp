@@ -52,7 +52,7 @@ public:
 
 
 template<typename thread_1_code, typename thread_2_code, typename out_of_order_check_code>
-int perform_test(thread_1_code thread_1_code_param,
+void perform_test(thread_1_code thread_1_code_param,
                  thread_2_code thread_2_code_param,
                  out_of_order_check_code out_of_order_check_code_param,
                  int& x,
@@ -103,13 +103,11 @@ int perform_test(thread_1_code thread_1_code_param,
 
     thread_1.join();
     thread_2.join();
-
-    return 0;
 }
 
 
 template<typename thread_1_code, typename thread_2_code, typename out_of_order_check_code>
-int perform_test(test_config<thread_1_code, thread_2_code, out_of_order_check_code> config,
+void perform_test(test_config<thread_1_code, thread_2_code, out_of_order_check_code> config,
                  int& x,
                  int& y,
                  int& r1,
