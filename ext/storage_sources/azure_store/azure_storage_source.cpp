@@ -44,8 +44,10 @@ struct azure_store {
 struct azure_file_system {
     WT_FILE_SYSTEM fs;
     azure_store *store;
+    WT_FILE_SYSTEM *wt_fs;
     std::vector<azure_file_handle> azure_fh;
     azure_connection *azure_conn;
+    // std::string home_dir;
 };
 
 struct azure_file_handle {
@@ -92,9 +94,9 @@ static int azure_file_size(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t *) __attribu
 // Return a customised file system to access the Azure storage source.
 static int
 azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
-  const char *bucket, const char *auth_token, const char *config, WT_FILE_SYSTEM **file_systemp)
+  const char *bucket, const char *auth_token, const char *config, WT_FILE_SYSTEM **file_system)
 {
-    WT_UNUSED(file_systemp);
+    WT_UNUSED(file_system);
 
     azure_store *azure = (azure_store *)storage_source;
     int ret;
@@ -115,10 +117,10 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
     const std::string region = std::string(bucket).substr(delimiter + 1);
 
     // Fail if there is no authentication provided.
-    if (auth_token == nullptr || std::string(auth_token).length() == 0) {
-        std::cerr << "azure_customize_file_system: auth_token nnot specified." << std::endl;
-        return EINVAL;
-    }
+    // if (auth_token == nullptr || std::string(auth_token).length() == 0) {
+    //     std::cerr << "azure_customize_file_system: auth_token nnot specified." << std::endl;
+    //     return EINVAL;
+    // }
 
     // Parse config string.
 
@@ -126,7 +128,7 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
     WT_CONFIG_ITEM obj_prefix_config;
     std::string obj_prefix;
 
-    // Get the valie of the config key from the string
+    // Get the value of the config key from the string
     if ((ret = azure->wt_api->config_get_string(
            azure->wt_api, session, config, "prefix", &obj_prefix_config)) == 0)
         obj_prefix = std::string(obj_prefix_config.str, obj_prefix_config.len);
@@ -135,7 +137,48 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
                   << std::endl;
         return ret;
     }
-    return 0;
+
+    // Fetch the native WT file system.
+    WT_FILE_SYSTEM *wt_file_system;
+    if ((ret = azure->wt_api->file_system_get(azure->wt_api, session, &wt_file_system)) != 0)
+        return ret;
+
+    // Get a copy of the home directory.
+    // const std::string home_dir = session->connection->get_home(session->connection);
+
+    // Create the file system.
+    azure_file_system *fs;
+    if ((fs = (azure_file_system *)calloc(1, sizeof(azure_file_system))) == nullptr) {
+        std::cerr << "azure_customize_file_system: unable to allocate memory for file system."
+                  << std::endl;
+        return ENOMEM;
+    }
+
+    fs->store = azure;
+    fs->wt_fs = wt_file_system;
+
+    try {
+        fs->azure_conn = new azure_connection(bucket, obj_prefix);
+    } catch (std::runtime_error &e) {
+        std::cerr << std::string("azure_customize_file_system: ") + e.what() << std::endl;
+        return ENOENT;
+    }
+    fs->fs.fs_directory_list = azure_object_list;
+    fs->fs.fs_directory_list_single = azure_object_list_single;
+    fs->fs.fs_directory_list_free = azure_object_list_free;
+    fs->fs.terminate = azure_file_system_terminate;
+    fs->fs.fs_exist = azure_file_exists;
+    fs->fs.fs_open_file = azure_file_open;
+    fs->fs.fs_remove = azure_remove;
+    fs->fs.fs_rename = azure_rename;
+    fs->fs.fs_size = azure_object_size;
+
+    // Add to the list of the active file systems.
+    azure->azure_fs.push_back(fs);
+
+    *file_system = &fs->fs;
+
+    return ret;
 }
 
 // Add a reference to the storage source so we can reference count to know when to terminate.
@@ -362,5 +405,14 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     azure->reference_count = 1;
 
     // Load the storage.
+    int ret;
+    if ((ret = connection->add_storage_source(connection, "azure_store", &azure->store, nullptr)) !=
+      0) {
+        std::cerr
+          << "wiredtiger_extension_init: Could not load Azure storage source, shutting down."
+          << std::endl;
+        delete (azure);
+        return -1;
+    }
     return 0;
 }
