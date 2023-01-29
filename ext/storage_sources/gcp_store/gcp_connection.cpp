@@ -112,8 +112,8 @@ gcp_connection::read_object(const std::string &object_key, int64_t offset, size_
     google::cloud::StatusOr<gcs::ObjectMetadata> metadata =
       _gcp_client.GetObjectMetadata(_bucket_name, _object_prefix + object_key);
 
-    if (len > metadata.value().size()) {
-        std::cerr << "Invalid argument, cannot have length greater than file." << std::endl;
+    if (offset + len > metadata.value().size()) {
+        std::cerr << "Invalid argument." << std::endl;
         return -1;
     }
 
