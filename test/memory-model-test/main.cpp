@@ -28,6 +28,29 @@ void thread_function(std::string const& thread_name,
 }
 
 
+template<typename thread_1_code_t, typename thread_2_code_t, typename out_of_order_check_code_t>
+class test_config {
+public:
+    test_config(std::string const& test_name,
+                std::string const& test_description,
+                thread_1_code_t thread_1_code,
+                thread_2_code_t thread_2_code,
+                out_of_order_check_code_t out_of_order_check_code)
+      : _test_name(test_name),
+        _test_description(test_description),
+        _thread_1_code(thread_1_code),
+        _thread_2_code(thread_2_code),
+        _out_of_order_check_code(out_of_order_check_code)
+    {}
+
+    std::string _test_name;
+    std::string _test_description;
+    thread_1_code_t _thread_1_code;
+    thread_2_code_t _thread_2_code;
+    out_of_order_check_code_t _out_of_order_check_code;
+};
+
+
 template<typename thread_1_code, typename thread_2_code, typename out_of_order_check_code>
 int perform_test(thread_1_code thread_1_code_param,
                  thread_2_code thread_2_code_param,
@@ -85,6 +108,29 @@ int perform_test(thread_1_code thread_1_code_param,
 }
 
 
+template<typename thread_1_code, typename thread_2_code, typename out_of_order_check_code>
+int perform_test(test_config<thread_1_code, thread_2_code, out_of_order_check_code> config,
+                 int& x,
+                 int& y,
+                 int& r1,
+                 int& r2,
+                 std::binary_semaphore& start_semaphore1,
+                 std::binary_semaphore& start_semaphore2,
+                 std::binary_semaphore& end_semaphore1,
+                 std::binary_semaphore& end_semaphore2,
+                 int loop_count)
+{
+    std::cout << "Test name:        " << config._test_name << std::endl;
+    std::cout << "Test description: " << config._test_description << std::endl;
+    perform_test(config._thread_1_code,
+                 config._thread_2_code,
+                 config._out_of_order_check_code,
+                 x, y, r1, r2,
+                 start_semaphore1, start_semaphore2, end_semaphore1, end_semaphore2,
+                 loop_count);
+}
+
+
 int main() {
     std::cout << "Jeremy's Memory Model Test" << std::endl;
 
@@ -104,31 +150,41 @@ int main() {
     //////////////////////////////////////////////////
     // Code that has a read and a write in each thread.
     //////////////////////////////////////////////////
-//    auto thread_1_code = [&]() { x = 1; r1 = y; };
-//    auto thread_2_code = [&]() { y = 1; r2 = x; };
+    auto thread_1_code_write_then_read = [&]() { x = 1; r1 = y; };
+    auto thread_2_code_write_then_read = [&]() { y = 1; r2 = x; };
 
-//    auto thread_1_code = [&]() { x = 1; asm volatile(BARRIER_INSTRUCTION ::: "memory"); r1 = y; };
-//    auto thread_2_code = [&]() { y = 1; asm volatile(BARRIER_INSTRUCTION ::: "memory"); r2 = x; };
+    auto thread_1_code_write_then_barrier_then_read = [&]() { x = 1; asm volatile(BARRIER_INSTRUCTION ::: "memory"); r1 = y; };
+    auto thread_2_code_write_then_barrier_then_read = [&]() { y = 1; asm volatile(BARRIER_INSTRUCTION ::: "memory"); r2 = x; };
 
-//    auto thread_1_code = [&]() { __atomic_add_fetch(&x, 1, __ATOMIC_SEQ_CST); r1 = y; };
-//    auto thread_2_code = [&]() { __atomic_add_fetch(&y, 1, __ATOMIC_SEQ_CST); r2 = x; };
+    auto thread_1_atomic_increment_and_read = [&]() { __atomic_add_fetch(&x, 1, __ATOMIC_SEQ_CST); r1 = y; };
+    auto thread_2_atomic_increment_and_read = [&]() { __atomic_add_fetch(&y, 1, __ATOMIC_SEQ_CST); r2 = x; };
 
-    //auto out_of_order_check_code = [&]() { return r1 == 0 && r2 == 0; };
+    auto out_of_order_check_code_for_write_then_read = [&]() { return r1 == 0 && r2 == 0; };
 
     /////////////////////////////////////////////////////////////////////////////
     // Code that has two reads in one thread, and two writes in the other thread.
     /////////////////////////////////////////////////////////////////////////////
-    auto thread_1_code = [&]() { x = 2; y = 3; };
-    auto thread_2_code = [&]() { r1 = y; r2 = x; };
-    //auto thread_1_code = [&]() { __atomic_exchange_n(&x, 2, __ATOMIC_SEQ_CST); __atomic_exchange_n(&y, 3, __ATOMIC_SEQ_CST); };
-    //auto thread_1_code = [&]() { x = 2; asm volatile(BARRIER_INSTRUCTION ::: "memory"); y = 3; };
-    //auto thread_2_code = [&]() { r1 = y; asm volatile(BARRIER_INSTRUCTION ::: "memory"); r2 = x; };
+    auto thread_1_code_write_then_write = [&]() { x = 2; y = 3; };
+    auto thread_2_code_read_then_read = [&]() { r1 = y; r2 = x; };
+    auto thread_1_code_two_atomic_increments = [&]() { __atomic_exchange_n(&x, 2, __ATOMIC_SEQ_CST); __atomic_exchange_n(&y, 3, __ATOMIC_SEQ_CST); };
+    auto thread_1_code_write_then_barrier_then_write = [&]() { x = 2; asm volatile(BARRIER_INSTRUCTION ::: "memory"); y = 3; };
+    auto thread_2_code_read_then_barrier_then_read = [&]() { r1 = y; asm volatile(BARRIER_INSTRUCTION ::: "memory"); r2 = x; };
 
-    auto out_of_order_check_code = [&]() { return r1 == 3 && r2 == 0; };
+    auto out_of_order_check_code_write_then_read = [&]() { return r1 == 3 && r2 == 0; };
 
-    perform_test(thread_1_code,
-                 thread_2_code,
-                 out_of_order_check_code,
+    auto test_writes_then_reads = test_config("Test writes then reads",
+                                              "Each thread writes then reads",
+                                              thread_1_code_write_then_read,
+                                              thread_2_code_write_then_read,
+                                              out_of_order_check_code_for_write_then_read);
+
+    auto test_writes_and_reads = test_config("Test writes and reads",
+                                              "One thread has two writes, the other has two reads",
+                                              thread_1_code_write_then_read,
+                                              thread_2_code_write_then_read,
+                                              out_of_order_check_code_for_write_then_read);
+
+    perform_test(test_writes_and_reads,
                  x, y, r1, r2,
                  start_semaphore1, start_semaphore2, end_semaphore1, end_semaphore2,
                  loop_count);
