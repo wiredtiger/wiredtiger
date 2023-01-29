@@ -47,7 +47,7 @@ struct azure_file_system {
     WT_FILE_SYSTEM *wt_fs;
     std::vector<azure_file_handle> azure_fh;
     azure_connection *azure_conn;
-    // std::string home_dir;
+    std::string home_dir;
 };
 
 struct azure_file_handle {
@@ -144,7 +144,7 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
         return ret;
 
     // Get a copy of the home directory.
-    // const std::string home_dir = session->connection->get_home(session->connection);
+    const std::string home_dir = session->connection->get_home(session->connection);
 
     // Create the file system.
     azure_file_system *fs;
@@ -156,6 +156,7 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
 
     fs->store = azure;
     fs->wt_fs = wt_file_system;
+    fs->home_dir = home_dir;
 
     try {
         fs->azure_conn = new azure_connection(bucket, obj_prefix);
