@@ -109,6 +109,14 @@ gcp_connection::read_object(const std::string &object_key, int64_t offset, size_
         return -1;
     }
 
+    google::cloud::StatusOr<gcs::ObjectMetadata> metadata =
+      _gcp_client.GetObjectMetadata(_bucket_name, _object_prefix + object_key);
+
+    if (len > metadata.value().size()) {
+        std::cerr << "Invalid argument, cannot have length greater than file." << std::endl;
+        return -1;
+    }
+
     gcs::ObjectReadStream stream = _gcp_client.ReadObject(
       _bucket_name, _object_prefix + object_key, gcs::ReadFromOffset(offset));
 
@@ -119,11 +127,6 @@ gcp_connection::read_object(const std::string &object_key, int64_t offset, size_
 
     std::istreambuf_iterator<char> begin{stream}, end;
     std::string buffer{begin, end};
-
-    if (len > buffer.length()) {
-        std::cerr << "Invalid argument, cannot have length greater than file." << std::endl;
-        return -1;
-    }
 
     memcpy(static_cast<char *>(buf), buffer.c_str(), len);
     return 0;
