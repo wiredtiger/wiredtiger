@@ -203,10 +203,10 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
 
     }
 
-    SECTION("Test delete", "[gcp-connection]")
+    SECTION("Simple delete test", "[gcp-connection]")
     {
-        google::cloud::storage::ListObjectsReader objects_iterator = 
-            client.ListObjects(test_defaults::bucket_name);
+        gcs::ListObjectsReader objects_iterator = 
+            client.ListObjects(test_defaults::bucket_name, gcs::Prefix(test_defaults::obj_prefix));
         int original_number_of_files = std::distance(objects_iterator.begin(), objects_iterator.end());
         
         auto metadata =
@@ -214,29 +214,30 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
         REQUIRE(metadata.status().ok());
 
         objects_iterator = 
-            client.ListObjects(test_defaults::bucket_name);
+            client.ListObjects(test_defaults::bucket_name, gcs::Prefix(test_defaults::obj_prefix));
 
         REQUIRE(std::distance(objects_iterator.begin(), objects_iterator.end()) == original_number_of_files + 1);
 
         bool file_in_bucket = false;
-        std::cerr << "PRINTING BUCKET CONTENTS:" << std::endl;
-        for (auto&& object_metadata : client.ListObjects(test_defaults::bucket_name)) {
+        for (auto&& object_metadata : 
+            client.ListObjects(test_defaults::bucket_name, gcs::Prefix(test_defaults::obj_prefix))) {
             if (object_metadata->name() == test_defaults::obj_prefix + file_name) 
             {
                 file_in_bucket = true;
             }
-            std::cerr << "OBJECT IN BUCKET: " << object_metadata->name() << std::endl;
+            
         }
         REQUIRE(file_in_bucket);
 
         REQUIRE(conn.delete_object(file_name) == 0);
 
         objects_iterator = 
-            client.ListObjects(test_defaults::bucket_name);
+            client.ListObjects(test_defaults::bucket_name, gcs::Prefix(test_defaults::obj_prefix));
 
         REQUIRE(std::distance(objects_iterator.begin(), objects_iterator.end()) == original_number_of_files);
         file_in_bucket = false;
-        for (auto&& object_metadata : objects_iterator) {
+        for (auto&& object_metadata : 
+            client.ListObjects(test_defaults::bucket_name, gcs::Prefix(test_defaults::obj_prefix))) {
             if (object_metadata->name() == test_defaults::obj_prefix + file_name) 
             {
                 file_in_bucket = true;
@@ -349,8 +350,8 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
     
 
 
-    cleanup
-    list object with prefix
+    // cleanup
+    // list object with prefix
 
-    for loop delete
+    // for loop delete
 }
