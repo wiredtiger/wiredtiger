@@ -105,21 +105,9 @@ azure_connection::read_object(
     auto blob_client = _azure_client.GetBlockBlobClient(_object_prefix + object_key);
     auto blob_properties = blob_client.GetProperties().Value;
 
-    // Checks whether the length is greater than the blob size.
-    if (len > blob_properties.BlobSize) {
-        std::cerr << "Reading past end of file!" << std::endl;
-        return -1;
-    }
-
     // Checks whether the offset is before the start of the blob.
-    if (offset < 0) {
-        std::cerr << "Reading before the start of file!" << std::endl;
-        return -1;
-    }
-
-    // Checks whether the offset is greater than the blob size.
-    if (offset > blob_properties.BlobSize) {
-        std::cerr << "Offset set past end of file!" << std::endl;
+    if (offset < 0 || offset > blob_properties.BlobSize) {
+        std::cerr << "Invalid argument: Offset!" << std::endl;
         return -1;
     }
 
