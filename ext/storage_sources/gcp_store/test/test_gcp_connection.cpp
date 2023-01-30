@@ -30,6 +30,7 @@
 #include <catch2/catch.hpp>
 
 #include "gcp_connection.h"
+#include <typeinfo>
 
 namespace gcs = google::cloud::storage;
 using namespace gcs;
@@ -73,7 +74,7 @@ setup_test_defaults()
 {
     // Append the prefix to be used for object names by a unique string.
     REQUIRE(randomize_test_prefix() == 0);
-    std::cerr << "Generated prefix: " << test_defaults::obj_prefix << std::endl;
+    // std::cerr << "Generated prefix: " << test_defaults::obj_prefix << std::endl;
 
     return (0);
 }
@@ -205,10 +206,12 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
 
     SECTION("Simple delete test", "[gcp-connection]")
     {
-        gcs::ListObjectsReader objects_iterator = 
+        // Check number of files with the given prefix currently in bucket
+        auto objects_iterator = 
             client.ListObjects(test_defaults::bucket_name, gcs::Prefix(test_defaults::obj_prefix));
         int original_number_of_files = std::distance(objects_iterator.begin(), objects_iterator.end());
-        
+        std::cerr <<  "\n\n\n" << typeid(objects_iterator).name() << std::endl;
+        // Upload a test file
         auto metadata =
             client.UploadFile(file_path, test_defaults::bucket_name, test_defaults::obj_prefix + file_name);
         REQUIRE(metadata.status().ok());
@@ -218,32 +221,23 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
 
         REQUIRE(std::distance(objects_iterator.begin(), objects_iterator.end()) == original_number_of_files + 1);
 
-        bool file_in_bucket = false;
-        for (auto&& object_metadata : 
-            client.ListObjects(test_defaults::bucket_name, gcs::Prefix(test_defaults::obj_prefix))) {
-            if (object_metadata->name() == test_defaults::obj_prefix + file_name) 
-            {
-                file_in_bucket = true;
-            }
-            
-        }
-        REQUIRE(file_in_bucket);
+        // Check the bucket contains the file
+        metadata =
+            client.GetObjectMetadata(test_defaults::bucket_name, test_defaults::obj_prefix + file_name);
+        REQUIRE(metadata.ok());
 
+        // Delete the uploaded file
         REQUIRE(conn.delete_object(file_name) == 0);
 
+        // Check that the file has been deleted
         objects_iterator = 
             client.ListObjects(test_defaults::bucket_name, gcs::Prefix(test_defaults::obj_prefix));
 
         REQUIRE(std::distance(objects_iterator.begin(), objects_iterator.end()) == original_number_of_files);
-        file_in_bucket = false;
-        for (auto&& object_metadata : 
-            client.ListObjects(test_defaults::bucket_name, gcs::Prefix(test_defaults::obj_prefix))) {
-            if (object_metadata->name() == test_defaults::obj_prefix + file_name) 
-            {
-                file_in_bucket = true;
-            }
-        }
-        REQUIRE_FALSE(file_in_bucket);
+
+        metadata =
+            client.GetObjectMetadata(test_defaults::bucket_name, test_defaults::obj_prefix + file_name);
+        REQUIRE_FALSE(metadata.ok());
     }
 
     SECTION("Simple check that put object returns -1 when file doesn't exist locally.", "[gcp-connection]")
