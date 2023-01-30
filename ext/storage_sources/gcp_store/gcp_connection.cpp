@@ -107,6 +107,8 @@ gcp_connection::read_object(const std::string &object_key, int64_t offset, size_
     bool exists = false;
     size_t object_size;
 
+    // The object_exists function will check if the given object exists and print out any error
+    // messages.
     if (object_exists(object_key, exists, object_size) != 0) {
         return -1;
     }
