@@ -14,6 +14,7 @@ static inline int
 __insert_simple_func(
   WT_SESSION_IMPL *session, WT_INSERT ***ins_stack, WT_INSERT *new_ins, u_int skipdepth)
 {
+    WT_INSERT *old_ins;
     u_int i;
 
     WT_UNUSED(session);
@@ -29,7 +30,12 @@ __insert_simple_func(
      * implementations read the old value multiple times.
      */
     for (i = 0; i < skipdepth; i++) {
-        WT_INSERT *old_ins = *ins_stack[i];
+        /*
+         * We assume the value of old_ins would not change within this loop. However, the compiler
+         * may change the code in a way that it will read the old_ins from memory again. Place a
+         * read barrier here to avoid this issue.
+         */
+        WT_ORDERED_READ_LIGHTWEIGHT(&old_ins, ins_stack[i]);
         if (old_ins != new_ins->next[i] || !__wt_atomic_cas_ptr(ins_stack[i], old_ins, new_ins))
             return (i == 0 ? WT_RESTART : 0);
     }
@@ -45,6 +51,7 @@ static inline int
 __insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSERT ***ins_stack,
   WT_INSERT *new_ins, u_int skipdepth)
 {
+    WT_INSERT *old_ins;
     u_int i;
 
     /* The cursor should be positioned. */
@@ -63,7 +70,12 @@ __insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSE
      * implementations read the old value multiple times.
      */
     for (i = 0; i < skipdepth; i++) {
-        WT_INSERT *old_ins = *ins_stack[i];
+        /*
+         * We assume the value of old_ins would not change within this loop. However, the compiler
+         * may change the code in a way that it will read the old_ins from memory again. Place a
+         * read barrier here to avoid this issue.
+         */
+        WT_ORDERED_READ_LIGHTWEIGHT(&old_ins, ins_stack[i]);
         if (old_ins != new_ins->next[i] || !__wt_atomic_cas_ptr(ins_stack[i], old_ins, new_ins))
             return (i == 0 ? WT_RESTART : 0);
         if (ins_head->tail[i] == NULL || ins_stack[i] == &ins_head->tail[i]->next[i])

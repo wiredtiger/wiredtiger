@@ -27,16 +27,22 @@ __search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT
     btree = S2BT(session);
     collator = btree->collator;
 
-    if ((ins = WT_SKIP_LAST(ins_head)) == NULL)
+    if (ins_head == NULL)
         return (0);
+
     /*
      * Since the head of the skip list doesn't get mutated within this function, the compiler may
-     * move this assignment above within the loop below if it needs to (and may read a different
-     * value on each loop due to other threads mutating the skip list).
+     * move this assignment within the loop below if it needs to (and may read a different value on
+     * each loop due to other threads mutating the skip list). The CPU may also reorder the read and
+     * read an old value.
      *
-     * Place a read barrier here to avoid this issue.
+     * Place a read barrier here to avoid these issues.
      */
-    WT_READ_BARRIER();
+    WT_ORDERED_READ_LIGHTWEIGHT(&ins, &ins_head->tail[0]);
+
+    if (ins == NULL)
+        return (0);
+
     key.data = WT_INSERT_KEY(ins);
     key.size = WT_INSERT_KEY_SIZE(ins);
 
@@ -102,7 +108,22 @@ __wt_search_insert(
     match = skiphigh = skiplow = 0;
     ins = last_ins = NULL;
     for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0;) {
-        if ((ins = *insp) == NULL) {
+        /*
+         * The ins value within the loop should not change. While the compiler can change the code
+         * in a way that it reads the ins value from memory again in the following code thus
+         * breaking this assumption. In addition, this function also assumes that if a new key is
+         * inserted to the skip list concurrently and we have seen it in the upper stack of the skip
+         * list, we must also see it in the lower stack. Otherwise, the prefix compare optimization
+         * will break if we skip the newly inserted key in the lower stack if we have compared with
+         * it in the upper stack (please refer to WT-10461 for details). Though the insertion of the
+         * new key to the skip list is ordered from lower stack to upper stack, in the weakly
+         * ordered architectures, such as ARM, it is still possible to read an old value and skip
+         * the newly inserted key if the CPU reorders the read.
+         *
+         * Place a read barrier here to avoid these issues.
+         */
+        WT_ORDERED_READ_LIGHTWEIGHT(&ins, insp);
+        if (ins == NULL) {
             cbt->next_stack[i] = NULL;
             cbt->ins_stack[i--] = insp--;
             continue;

@@ -26,6 +26,14 @@
     } while (0)
 
 /*
+ * Read a shared location and guarantee that subsequent reads do not see any earlier state.
+ */
+#define WT_ORDERED_READ_LIGHTWEIGHT(ret, ptr)      \
+    do {                                           \
+        __atomic_load(ptr, ret, __ATOMIC_ACQUIRE); \
+    } while (0)
+
+/*
  * Atomic versions of the flag set/clear macros.
  */
 #define FLD_ISSET_ATOMIC_16(field, mask) ((field) & (uint16_t)(mask))
