@@ -537,9 +537,9 @@ connection_runtime_config = [
             min='0', max='100'),
         Config('device_path', '', r'''
             the absolute path to the file system or a block device used as cache location'''),
-        Config('hashsize', '32', r'''
+        Config('hashsize', '1024', r'''
             number of buckets in the hashtable that keeps track of objects''',
-            min='32', max='512K'),
+            min='64', max='1048576'),
         Config('type', '', r'''
             cache location: DRAM or FILE (file system or block device)'''),
         ]),

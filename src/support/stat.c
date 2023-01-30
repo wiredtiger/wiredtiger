@@ -1399,7 +1399,8 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint-cleanup: pages removed",
   "checkpoint-cleanup: pages skipped during tree walk",
   "checkpoint-cleanup: pages visited",
-  "chunk-cache: aggregate number of spanned chunks",
+  "chunk-cache: aggregate number of spanned chunks on read",
+  "chunk-cache: aggregate number of spanned chunks on remove",
   "chunk-cache: could not allocate due to exceeding capacity",
   "chunk-cache: evicted chunks",
   "chunk-cache: lookups",
@@ -2009,7 +2010,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cc_pages_removed = 0;
     stats->cc_pages_walk_skipped = 0;
     stats->cc_pages_visited = 0;
-    stats->chunkcache_spans_chunks = 0;
+    stats->chunkcache_spans_chunks_read = 0;
+    stats->chunkcache_spans_chunks_remove = 0;
     stats->chunkcache_exceeded_capacity = 0;
     stats->chunkcache_chunks_evicted = 0;
     stats->chunkcache_lookups = 0;
@@ -2620,7 +2622,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cc_pages_removed += WT_STAT_READ(from, cc_pages_removed);
     to->cc_pages_walk_skipped += WT_STAT_READ(from, cc_pages_walk_skipped);
     to->cc_pages_visited += WT_STAT_READ(from, cc_pages_visited);
-    to->chunkcache_spans_chunks += WT_STAT_READ(from, chunkcache_spans_chunks);
+    to->chunkcache_spans_chunks_read += WT_STAT_READ(from, chunkcache_spans_chunks_read);
+    to->chunkcache_spans_chunks_remove += WT_STAT_READ(from, chunkcache_spans_chunks_remove);
     to->chunkcache_exceeded_capacity += WT_STAT_READ(from, chunkcache_exceeded_capacity);
     to->chunkcache_chunks_evicted += WT_STAT_READ(from, chunkcache_chunks_evicted);
     to->chunkcache_lookups += WT_STAT_READ(from, chunkcache_lookups);
