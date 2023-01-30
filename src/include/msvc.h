@@ -134,6 +134,6 @@ WT_WRITE_BARRIER(void)
 static inline void
 __wt_atomic_load_acquire64(void *ret, void *ptr)
 {
-    *ret = *ptr;
+    *(void **)ret = *(void **)ptr;
     WT_READ_BARRIER();
 }
