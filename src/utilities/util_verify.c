@@ -71,6 +71,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
         switch (ch) {
         case 'a':
             abort_on_error = true;
+            break;
         case 'c':
             read_corrupt = true;
             break;
