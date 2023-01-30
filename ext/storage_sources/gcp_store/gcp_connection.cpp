@@ -109,10 +109,19 @@ gcp_connection::read_object(const std::string &object_key, int64_t offset, size_
         return -1;
     }
 
-    google::cloud::StatusOr<gcs::ObjectMetadata> metadata =
-      _gcp_client.GetObjectMetadata(_bucket_name, _object_prefix + object_key);
+    bool exists = false;
+    size_t object_size;
 
-    if (offset + len > metadata.value().size()) {
+    if (object_exists(object_key, exists, object_size) == -1) {
+        return -1;
+    }
+
+    if (!exists) {
+        std::cerr << "Object does not exist." << std::endl;
+        return -1;
+    }
+
+    if (offset + len > object_size) {
         std::cerr << "Invalid argument." << std::endl;
         return -1;
     }
