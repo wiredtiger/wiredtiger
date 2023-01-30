@@ -93,13 +93,17 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
     const bool list_single = true;
     std::vector<std::string> objects;
 
+    google::cloud::storage::Client client = conn.get_client();
+
     std::ofstream File(file_name);
     std::string payload = "Test payload";
     File << payload;
     File.close();
 
-    SECTION("Simple check list on nothing", "[gcp-connection]")
+    SECTION("Simple list", "[gcp-connection]")
     {
+        const int32_t total_objects = 20;
+
         // No matching objects. Object size should be 0.
         REQUIRE(conn.list_objects(objects, false) == 0);
         REQUIRE(objects.size() == 0);
@@ -107,6 +111,32 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
         // No matching objects with list_single. Object size should be 0.
         REQUIRE(conn.list_objects(objects, list_single) == 0);
         REQUIRE(objects.size() == 0);
+
+        // Upload 1 file and test list.
+        objects.clear();
+        client.UploadFile(path, test_defaults::bucket_name, test_defaults::obj_prefix + object_key);
+        REQUIRE(conn.list_objects(objects, false) == 0);
+        REQUIRE(objects.size() == 1);
+
+        // Delete that object and test list.
+        objects.clear();
+        client.DeleteObject(test_defaults::bucket_name, test_defaults::obj_prefix + object_key);
+        REQUIRE(conn.list_objects(objects, false) == 0);
+        REQUIRE(objects.size() == 0);
+
+        // Upload multiple files and test list.
+        objects.clear();
+        for (int i = 0; i < total_objects; i++) {
+            client.UploadFile(path, test_defaults::bucket_name,
+              test_defaults::obj_prefix + std::to_string(i) + ".txt");
+        }
+        REQUIRE(conn.list_objects(objects, false) == 0);
+        REQUIRE(objects.size() == total_objects);
+
+        // Test if list single only returns one object.
+        objects.clear();
+        REQUIRE(conn.list_objects(objects, list_single) == 0);
+        REQUIRE(objects.size() == 1);
     }
 
     SECTION("Simple put, list, delete test case", "[gcp-connection]")
@@ -127,7 +157,8 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
         REQUIRE(objects.size() == 0);
     }
 
-    SECTION("Simple check that put object returns -1 when file doesn't exist locally.", "[gcp-connection]")
+    SECTION("Simple check that put object returns -1 when file doesn't exist locally.",
+      "[gcp-connection]")
     {
         // Upload a file that does not exist locally - should fail.
         REQUIRE(conn.put_object(non_exi_object_key, non_exi_file_name) == -1);
@@ -136,7 +167,7 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
     SECTION("Simple check that delete object returns -1 when doesn't exist.", "[gcp-connection]")
     {
         // Delete a file that does not exist in the bucket - should fail.
-        REQUIRE(conn.delete_object(object_key) == -1);
+        REQUIRE(conn.delete_object(non_exi_object_key) == -1);
     }
 
     SECTION("Simple check that list single works.", "[gcp-connection]")
@@ -207,9 +238,10 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
         REQUIRE(conn.list_objects(objects, list_single) == 0);
         REQUIRE(objects.size() == 1);
 
-        // Delete 5 files from the bucket. 
+        // Delete 5 files from the bucket.
         for (int i = 0; i < first_batch; i++) {
-            REQUIRE(conn.delete_object(test_defaults::obj_prefix + std::to_string(i) + ".txt") == 0);
+            REQUIRE(
+              conn.delete_object(test_defaults::obj_prefix + std::to_string(i) + ".txt") == 0);
         }
 
         // List all objects, this should be total objects - first batch.
@@ -219,7 +251,8 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
 
         // Delete all files from the bucket
         for (int i = first_batch; i < total_objects; i++) {
-            REQUIRE(conn.delete_object(test_defaults::obj_prefix + std::to_string(i) + ".txt") == 0);
+            REQUIRE(
+              conn.delete_object(test_defaults::obj_prefix + std::to_string(i) + ".txt") == 0);
         }
 
         // List all objects, this should be empty.
