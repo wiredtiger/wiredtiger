@@ -473,7 +473,7 @@ The \c verify command verifies the specified table if a URI argument is provided
 exiting success if the data source is correct, and failure if the data source is corrupted.
 If no URI argument is provided, it verifies each table in the database, reporting on any
 that are damaged. If the abort on error option \c -a is specified, terminate the verification
-process if one of tables is damaged. Currently, the verify operation is not supported with
+process if one of the tables is damaged. Currently, the verify operation is not supported with
 tiered tables and the history store file.
 
 @subsection util_verify_synopsis Synopsis
