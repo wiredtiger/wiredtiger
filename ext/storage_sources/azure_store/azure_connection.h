@@ -67,4 +67,4 @@ class azure_connection {
     const Azure::Storage::Blobs::BlobContainerClient _azure_client;
 
     const int http_to_errno(const Azure::Core::RequestFailedException &e) const;
-}; 
+};

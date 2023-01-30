@@ -57,13 +57,13 @@ azure_connection::list_objects(
         _azure_client.ListBlobs(blob_parameters);
     } catch (const Azure::Core::RequestFailedException &e) {
         return http_to_errno(e);
-    } catch (const std::exception &e) { 
-        std::cerr << e.what() << std::endl; 
-        return -1; 
+    } catch (const std::exception &e) {
+        std::cerr << e.what() << std::endl;
+        return -1;
     }
 
     auto list_blobs_response = _azure_client.ListBlobs(blob_parameters);
-    
+
     for (const auto blob_item : list_blobs_response.Blobs) {
         objects.push_back(blob_item.Name);
     }
@@ -81,9 +81,9 @@ azure_connection::put_object(const std::string &object_key, const std::string &f
         blob_client.UploadFrom(file_path);
     } catch (const Azure::Core::RequestFailedException &e) {
         return http_to_errno(e);
-    } catch (const std::exception &e) { 
-        std::cerr << e.what() << std::endl; 
-        return -1; 
+    } catch (const std::exception &e) {
+        std::cerr << e.what() << std::endl;
+        return -1;
     }
     return 0;
 }
@@ -101,9 +101,9 @@ azure_connection::delete_object(const std::string &object_key) const
         object_client.Delete();
     } catch (const Azure::Core::RequestFailedException &e) {
         return http_to_errno(e);
-    } catch (const std::exception &e) { 
-        std::cerr << e.what() << std::endl; 
-        return -1; 
+    } catch (const std::exception &e) {
+        std::cerr << e.what() << std::endl;
+        return -1;
     }
     return 0;
 }
@@ -120,9 +120,9 @@ azure_connection::read_object(
         blob_client.GetProperties();
     } catch (const Azure::Core::RequestFailedException &e) {
         return http_to_errno(e);
-    } catch (const std::exception &e) { 
-        std::cerr << e.what() << std::endl; 
-        return -1; 
+    } catch (const std::exception &e) {
+        std::cerr << e.what() << std::endl;
+        return -1;
     }
     return 0;
 }
