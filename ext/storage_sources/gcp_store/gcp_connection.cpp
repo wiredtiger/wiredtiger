@@ -104,25 +104,33 @@ gcp_connection::delete_object(const std::string &object_key)
 int
 gcp_connection::read_object(const std::string &object_key, int64_t offset, size_t len, void *buf)
 {
-    if (offset < 0) {
-        std::cerr << "Invalid argument, cannot have offset less than zero." << std::endl;
-        return -1;
-    }
-
     bool exists = false;
     size_t object_size;
 
-    if (object_exists(object_key, exists, object_size) == -1) {
+    if (object_exists(object_key, exists, object_size) != 0) {
         return -1;
     }
 
     if (!exists) {
-        std::cerr << "Object does not exist." << std::endl;
+        std::cerr << "Object '" << object_key << "' does not exist." << std::endl;
+        return -1;
+    }
+
+    if (offset < 0) {
+        std::cerr << "Offset " << offset << " is invalid. The offset cannot be less than zero."
+                  << std::endl;
+        return -1;
+    }
+
+    if (offset > object_size) {
+        std::cerr << "Offset " << offset << " is invalid. The offset is greater than object size "
+                  << object_size << "." << std::endl;
         return -1;
     }
 
     if (offset + len > object_size) {
-        std::cerr << "Invalid argument." << std::endl;
+        std::cerr << "Invalid arguments, cannot have length " << len << " and offset " << offset
+                  << " larger than object size " << object_size << "." << std::endl;
         return -1;
     }
 
