@@ -53,8 +53,17 @@ azure_connection::list_objects(
     if (list_single)
         blob_parameters.PageSizeHint = 1;
 
-    auto list_blobs_response = _azure_client.ListBlobs(blob_parameters);
+    try {
+        _azure_client.ListBlobs(blob_parameters);
+    } catch (const Azure::Core::RequestFailedException &e) {
+        return http_to_errno(e);
+    } catch (const std::exception &e) { 
+        std::cerr << e.what() << std::endl; 
+        return -1; 
+    }
 
+    auto list_blobs_response = _azure_client.ListBlobs(blob_parameters);
+    
     for (const auto blob_item : list_blobs_response.Blobs) {
         objects.push_back(blob_item.Name);
     }
@@ -66,9 +75,16 @@ int
 azure_connection::put_object(const std::string &object_key, const std::string &file_path) const
 {
     auto blob_client = _azure_client.GetBlockBlobClient(_object_prefix + object_key);
-    // UploadFrom will always return a UploadBlockBlobFromResult describing the state of the updated
-    // block blob so there's no need to check for errors.
-    blob_client.UploadFrom(file_path);
+    // UploadFrom will return a UploadBlockBlobFromResult describing the state of the updated
+    // block blob or an exception.
+    try {
+        blob_client.UploadFrom(file_path);
+    } catch (const Azure::Core::RequestFailedException &e) {
+        return http_to_errno(e);
+    } catch (const std::exception &e) { 
+        std::cerr << e.what() << std::endl; 
+        return -1; 
+    }
     return 0;
 }
 
@@ -79,14 +95,16 @@ azure_connection::delete_object(const std::string &object_key) const
     std::string obj = _object_prefix + object_key;
 
     auto object_client = _azure_client.GetBlobClient(obj);
-    auto delete_blob_response = object_client.DeleteIfExists();
 
-    // Returns false if obj doesn't exist.
-    if (!delete_blob_response.Value.Deleted) {
-        std::cerr << obj + " : No such object file exists in the bucket." << std::endl;
-        return -1;
+    // Delete will delete the blob if it exists or an exception.
+    try {
+        object_client.Delete();
+    } catch (const Azure::Core::RequestFailedException &e) {
+        return http_to_errno(e);
+    } catch (const std::exception &e) { 
+        std::cerr << e.what() << std::endl; 
+        return -1; 
     }
-
     return 0;
 }
 
@@ -97,21 +115,24 @@ azure_connection::read_object(
 {
     auto blob_client = _azure_client.GetBlockBlobClient(_object_prefix + object_key);
 
-    // Try catch block to catch the exception if there is one from the Azure SDK's method and
-    // prints the error reason to std::cerr and returns the associated errno code.
+    // GetProperties will return BlobProperties describing the blob or an exception.
     try {
         blob_client.GetProperties();
-    } catch (Azure::Storage::StorageException &e) {
-        std::cerr << e.ReasonPhrase << std::endl;
+    } catch (const Azure::Core::RequestFailedException &e) {
         return http_to_errno(e);
+    } catch (const std::exception &e) { 
+        std::cerr << e.what() << std::endl; 
+        return -1; 
     }
+    return 0;
 }
 
 // Maps the HTTP code returned by Azure SDK and returns the associated errno code if it is in
 // the map else return -1.
 const int
-azure_connection::http_to_errno(Azure::Storage::StorageException &e) const
+azure_connection::http_to_errno(const Azure::Core::RequestFailedException &e) const
 {
+    std::cerr << e.ReasonPhrase << std::endl;
     if (to_errno.find(e.StatusCode) != to_errno.end())
         return to_errno.at(e.StatusCode);
     return -1;
