@@ -38,7 +38,7 @@ __search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT
      *
      * Place a read barrier here to avoid these issues.
      */
-    WT_ORDERED_READ_LIGHTWEIGHT(&ins, &ins_head->tail[0]);
+    WT_ORDERED_READ64_LIGHTWEIGHT(&ins, &ins_head->tail[0]);
 
     if (ins == NULL)
         return (0);
@@ -122,7 +122,7 @@ __wt_search_insert(
          *
          * Place a read barrier here to avoid these issues.
          */
-        WT_ORDERED_READ_LIGHTWEIGHT(&ins, insp);
+        WT_ORDERED_READ64_LIGHTWEIGHT(&ins, insp);
         if (ins == NULL) {
             cbt->next_stack[i] = NULL;
             cbt->ins_stack[i--] = insp--;

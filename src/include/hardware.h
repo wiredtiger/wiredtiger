@@ -28,9 +28,9 @@
 /*
  * Read a shared location and guarantee that subsequent reads do not see any earlier state.
  */
-#define WT_ORDERED_READ_LIGHTWEIGHT(ret, ptr)      \
-    do {                                           \
-        __atomic_load(ptr, ret, __ATOMIC_ACQUIRE); \
+#define WT_ORDERED_READ64_LIGHTWEIGHT(ret, ptr) \
+    do {                                        \
+        __wt_atomic_load_acquire64(ret, ptr);   \
     } while (0)
 
 /*

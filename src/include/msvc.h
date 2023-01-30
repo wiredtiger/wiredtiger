@@ -126,3 +126,14 @@ WT_WRITE_BARRIER(void)
 {
     _mm_sfence();
 }
+
+/*
+ * __wt_atomic_load_acquire64 --
+ *     Read a memory value with atomic acquire synchronization.
+ */
+static inline void
+__wt_atomic_load_acquire64(void *ret, void *ptr)
+{
+    *ret = *ptr;
+    WT_READ_BARRIER();
+}

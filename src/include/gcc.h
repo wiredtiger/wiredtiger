@@ -128,6 +128,16 @@ __wt_atomic_cas_ptr(void *vp, void *old, void *newv)
     return (WT_ATOMIC_CAS((void **)vp, &old, newv));
 }
 
+/*
+ * __wt_atomic_load_acquire64 --
+ *     Read a with atomic acquire synchronization.
+ */
+static inline void
+__wt_atomic_load_acquire64(void *ret, void *ptr)
+{
+    __atomic_load((void **)ptr, (void **)ret, __ATOMIC_ACQUIRE);
+}
+
 #define WT_ATOMIC_FUNC(name, ret, vp_arg, v_arg)                 \
     static inline ret __wt_atomic_add##name(vp_arg, v_arg)       \
     {                                                            \

@@ -35,7 +35,7 @@ __insert_simple_func(
          * may change the code in a way that it will read the old_ins from memory again. Place a
          * read barrier here to avoid this issue.
          */
-        WT_ORDERED_READ_LIGHTWEIGHT(&old_ins, ins_stack[i]);
+        WT_ORDERED_READ64_LIGHTWEIGHT(&old_ins, ins_stack[i]);
         if (old_ins != new_ins->next[i] || !__wt_atomic_cas_ptr(ins_stack[i], old_ins, new_ins))
             return (i == 0 ? WT_RESTART : 0);
     }
@@ -75,7 +75,7 @@ __insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSE
          * may change the code in a way that it will read the old_ins from memory again. Place a
          * read barrier here to avoid this issue.
          */
-        WT_ORDERED_READ_LIGHTWEIGHT(&old_ins, ins_stack[i]);
+        WT_ORDERED_READ64_LIGHTWEIGHT(&old_ins, ins_stack[i]);
         if (old_ins != new_ins->next[i] || !__wt_atomic_cas_ptr(ins_stack[i], old_ins, new_ins))
             return (i == 0 ? WT_RESTART : 0);
         if (ins_head->tail[i] == NULL || ins_stack[i] == &ins_head->tail[i]->next[i])
