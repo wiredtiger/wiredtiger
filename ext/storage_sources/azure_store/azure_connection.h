@@ -60,6 +60,7 @@ class azure_connection {
     int put_object(const std::string &object_key, const std::string &file_path) const;
     int delete_object(const std::string &object_key) const;
     int read_object(const std::string &object_key, int64_t offset, size_t len, void *buf) const;
+    int object_exists(const std::string &object_key, bool &exists) const;
 
     private:
     const std::string _bucket_name;
@@ -67,4 +68,5 @@ class azure_connection {
     const Azure::Storage::Blobs::BlobContainerClient _azure_client;
 
     const int http_to_errno(const Azure::Core::RequestFailedException &e) const;
+    int bucket_exists(bool &exists) const;
 };
