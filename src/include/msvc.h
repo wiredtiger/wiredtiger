@@ -78,6 +78,21 @@ __wt_atomic_cas_ptr(void *vp, void *old_val, void *new_val)
 }
 
 /*
+ * __wt_atomic_load_acquire64 --
+ *     Read a memory value with atomic acquire synchronization.
+ */
+static inline void
+__wt_atomic_load_acquire64(void *ret, void *ptr)
+{
+    /*
+     * Since we only support x86 on windows and x86 has Total Storage Ordering, no actual read
+     * barrier is needed here. We only need to ensure the compiler is not reordering the read by
+     * casting the pointer to a volatile pointer.
+     */
+    *(volatile void **)ret = *(void **)ptr;
+}
+
+/*
  * WT_BARRIER --
  *	MSVC implementation of WT_BARRIER.
  */
@@ -125,15 +140,4 @@ static inline void
 WT_WRITE_BARRIER(void)
 {
     _mm_sfence();
-}
-
-/*
- * __wt_atomic_load_acquire64 --
- *     Read a memory value with atomic acquire synchronization.
- */
-static inline void
-__wt_atomic_load_acquire64(void *ret, void *ptr)
-{
-    *(void **)ret = *(void **)ptr;
-    WT_READ_BARRIER();
 }
