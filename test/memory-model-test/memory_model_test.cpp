@@ -126,6 +126,11 @@ int main() {
     std::cout << "WiredTiger Memory Model Test" << std::endl;
     std::cout << "============================" << std::endl;
 
+    if (is_arm64)
+        std::cout << "Running on ARM64" << std::endl << std::endl;
+    else
+        std::cout << "Running on x86" << std::endl << std::endl;
+
     const int loop_count = 1000000;
 
     std::binary_semaphore start_semaphore1{0};
@@ -170,7 +175,7 @@ int main() {
 
     auto test_writes_then_reads =
             test_config("Test writes then reads",
-                        "Each thread writes then reads. Out of orders ARE possible.",
+                        "Each thread writes then reads. Out of orders ARE POSSIBLE.",
                         thread_1_code_write_then_read,
                         thread_2_code_write_then_read,
                         out_of_order_check_code_for_write_then_read,
@@ -179,7 +184,7 @@ int main() {
     auto test_writes_then_reads_one_barrier =
             test_config("Test writes then reads with one barrier",
                         "Each thread writes then reads, with one barrier between the write and read on thread 2. "
-                        "Out of orders ARE possible.",
+                        "Out of orders ARE POSSIBLE.",
                         thread_1_code_write_then_read,
                         thread_2_code_write_then_barrier_then_read,
                         out_of_order_check_code_for_write_then_read,
@@ -188,7 +193,7 @@ int main() {
     auto test_writes_then_reads_two_barriers =
             test_config("Test writes then reads with two barriers",
                         "Each thread writes then reads, with a barrier between the write and read on each thread. "
-                        "Out of orders are NOT expected.",
+                        "Out of orders are NOT POSSIBLE.",
                         thread_1_code_write_then_barrier_then_read,
                         thread_2_code_write_then_barrier_then_read,
                         out_of_order_check_code_for_write_then_read,
@@ -197,7 +202,7 @@ int main() {
     auto test_writes_then_reads_one_atomic =
             test_config("Test writes then reads with one atomic",
                         "Each thread writes then reads, with one atomic increment used for one write. "
-                        "Out of orders ARE possible.",
+                        "Out of orders ARE POSSIBLE.",
                        thread_1_atomic_increment_and_read,
                        thread_2_code_write_then_read,
                         out_of_order_check_code_for_write_then_read,
@@ -206,7 +211,7 @@ int main() {
     auto test_writes_then_reads_two_atomics =
             test_config("Test writes then reads with two atomics",
                         "Each thread writes then reads, with atomic increments used for both writes. "
-                        "Out of orders are NOT expected.",
+                        "Out of orders are NOT POSSIBLE.",
                         thread_1_atomic_increment_and_read,
                         thread_2_atomic_increment_and_read,
                         out_of_order_check_code_for_write_then_read,
@@ -216,7 +221,7 @@ int main() {
             test_config("Test writes then reads with one barrier and one atomic",
                         "Each thread writes then reads, with atomic increments used for for one write, "
                         "and a barrier used between the write and read in the other thread. "
-                        "Out of orders are NOT expected.",
+                        "Out of orders are NOT POSSIBLE.",
                         thread_1_atomic_increment_and_read,
                         thread_2_atomic_increment_and_read,
                         out_of_order_check_code_for_write_then_read,
@@ -229,25 +234,25 @@ int main() {
     auto test_writes_and_reads =
             test_config("Test writes and reads",
                         "One thread has two writes, the other has two reads. "
-                        "Out of orders ARE possible.",
+                        "Out of orders ARE POSSIBLE on ARM64.",
                         thread_1_code_write_then_write,
                         thread_2_code_read_then_read,
                         out_of_order_check_code_for_write_then_write,
-                        true);
+                        is_arm64);
 
     auto test_writes_and_reads_barrier_between_writes =
             test_config("Test writes and reads, with barrier between writes",
                         "One thread has two writes with a barrier between them, the other has two reads. "
-                        "Out of orders ARE possible.",
+                        "Out of orders ARE POSSIBLE on ARM64.",
                         thread_1_code_write_then_barrier_then_write,
                         thread_2_code_read_then_read,
                         out_of_order_check_code_for_write_then_write,
-                        true);
+                        is_arm64);
 
     auto test_writes_and_reads_barrier_between_reads =
             test_config("Test writes and reads, with barrier between reads",
                         "One thread has two writes, the other has two reads with a barrier between them. "
-                        "Out of orders NOT possible.",
+                        "Out of orders are NOT POSSIBLE.",
                         thread_1_code_write_then_read,
                         thread_2_code_read_then_barrier_then_read,
                         out_of_order_check_code_for_write_then_write,
@@ -257,7 +262,7 @@ int main() {
             test_config("Test writes and reads, with barrier between writes and between reads",
                         "One thread has two writes with a barrier between them, "
                         "the other has two reads with a barrier between them. "
-                        "Out of orders NOT possible.",
+                        "Out of orders are NOT POSSIBLE.",
                         thread_1_code_write_then_barrier_then_write,
                         thread_2_code_read_then_barrier_then_read,
                         out_of_order_check_code_for_write_then_write,
@@ -266,12 +271,11 @@ int main() {
     auto test_writes_and_reads_atomics =
             test_config("Test writes and reads, with atomics",
                         "One thread has two writes using atomic increments, the other has two reads. "
-                        "Out of orders are ARE possible.",
+                        "Out of orders are ARE POSSIBLE on ARM64.",
                         thread_1_code_two_atomic_increments,
                         thread_2_code_read_then_read,
                         out_of_order_check_code_for_write_then_write,
-                        true);
-
+                        is_arm64);
 
     const bool progress = false;
 
@@ -312,10 +316,10 @@ int main() {
                  progress);
 
     perform_test(test_writes_and_reads_barrier_between_writes,
-                         x, y, r1, r2,
-                         start_semaphore1, start_semaphore2, end_semaphore1, end_semaphore2,
-                         loop_count,
-                         progress);
+                 x, y, r1, r2,
+                 start_semaphore1, start_semaphore2, end_semaphore1, end_semaphore2,
+                 loop_count,
+                 progress);
 
     perform_test(test_writes_and_reads_barrier_between_reads,
                  x, y, r1, r2,
