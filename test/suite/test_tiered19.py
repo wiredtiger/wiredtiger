@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wttest
+import wttest, wiredtiger, random, string
 from helper_tiered import get_auth_token, TieredConfigMixin
 from wtscenario import make_scenarios
 
@@ -55,6 +55,10 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         TieredConfigMixin.conn_extensions(self, extlist)
 
     def test_gcp_and_azure(self):
+        if self.ss_name != "azure_store":
+            return
+        
+
         pass
 
     def get_storage_source(self):
@@ -66,5 +70,27 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         return conf
     
     def test_ss_file_systems(self):
-        pass
-        #session = self.session
+        if self.ss_name != "azure_store":
+            return
+        session = self.session
+        ss = self.get_storage_source()
+
+        prefix = self.bucket_prefix.join(random.choices(string.ascii_letters + string.digits, k=10))
+
+        bad_bucket = "./objects_BAD"
+
+        # Create file system. Try with some error cases.
+        err_msg = '/Exception: Invalid argument/'
+        self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
+            lambda: ss.ss_customize_file_system(
+                session, self.bucket, self.auth_token, self.get_fs_config(prefix)), err_msg)
+        
+        if self.ss_name == 'azure_store':
+            bad_bucket += ';us-east-2'
+        
+        self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
+            lambda: ss.ss_customize_file_system(
+                session, bad_bucket, self.auth_token, self.get_fs_config(prefix)), err_msg)
+
+if __name__ == '__main__':
+    wttest.run()
