@@ -131,8 +131,8 @@ gcp_connection::read_object(const std::string &object_key, int64_t offset, size_
     }
 
     if (offset + len > object_size) {
-        std::cerr << "Invalid arguments, cannot have length " << len << " and offset " << offset
-                  << " larger than object size " << object_size << "." << std::endl;
+        std::cerr << "Length " << len << " plus offset " << offset
+                  << " must not exceed the object size " << object_size << "." << std::endl;
         return -1;
     }
 
