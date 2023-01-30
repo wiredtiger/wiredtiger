@@ -50,8 +50,21 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(tiered_storage_sources)
     
+    # Load the storage source extensions.
     def conn_extensions(self, extlist):
         TieredConfigMixin.conn_extensions(self, extlist)
 
-    def test_gcp_and_azure(self): 
+    def test_gcp_and_azure(self):
         pass
+
+    def get_storage_source(self):
+        return self.conn.get_storage_source(self.ss_name)
+    
+    def get_fs_config(self, prefix = ''):
+        conf = ''
+        conf += ',prefix=' + prefix
+        return conf
+    
+    def test_ss_file_systems(self):
+        pass
+        #session = self.session
