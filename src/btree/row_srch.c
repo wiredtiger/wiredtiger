@@ -33,12 +33,12 @@ __search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT
     /*
      * Since the head of the skip list doesn't get mutated within this function, the compiler may
      * move this assignment within the loop below if it needs to (and may read a different value on
-     * each loop due to other threads mutating the skip list). The CPU may also reorder the read and
-     * read an old value.
+     * each loop due to other threads mutating the skip list).
      *
-     * Place a read barrier here to avoid these issues.
+     * Place a compiler barrier here to avoid the issue.
      */
-    WT_ORDERED_READ64_LIGHTWEIGHT(&ins, &ins_head->tail[0]);
+    ins = ins_head->tail[0];
+    WT_BARRIER();
 
     if (ins == NULL)
         return (0);
