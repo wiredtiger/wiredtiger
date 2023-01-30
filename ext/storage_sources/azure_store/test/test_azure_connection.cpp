@@ -30,107 +30,153 @@
 #include <catch2/catch.hpp>
 
 #include "azure_connection.h"
+#include <fstream>
 
-TEST_CASE("Testing Azure Connection Class", "azure_connection") {
-    
-    SECTION("Testing prefix functionality works for list, put, and delete.") 
-    {
+TEST_CASE("Testing Azure Connection Class", "azure-connection") {
+
+    Azure::Storage::Blobs::BlobContainerClient azure_client = Azure::Storage::Blobs::BlobContainerClient::CreateFromConnectionString(std::getenv("AZURE_STORAGE_CONNECTION_STRING"), "myblobcontainer1");
+    bool exists = false; 
+
+    const std::string object_name = "test_object";
+    const std::string file_name = "test_object.txt";
+    const std::string path = "./" + file_name;
+
+    std::ofstream File(file_name);
+    std::string payload = "Test payload";
+    File << payload;
+    File.close();
+
+    SECTION("(Checks if connection to a non-existing bucket fails gracefully).", "[azure-connection]") { 
+        REQUIRE_THROWS_WITH(azure_connection("Bad_bucket", ""), "Bad_bucket : No such bucket.");
+    }
+
+    SECTION("(Check if an object exists in Azure)", "[azure-connection]") { 
+        azure_connection conn = azure_connection("myblobcontainer1", "obj_exists_");
+        
+        REQUIRE(conn.object_exists(file_name, exists) == 0);
+        REQUIRE(exists == false);
+
+        auto blob_client = azure_client.GetBlockBlobClient("obj_exists_" + file_name);
+
+        // Create file to prepare for test.
+        REQUIRE(std::ofstream(file_name).put('.').good());
+
+        blob_client.UploadFrom(file_name);
+
+        REQUIRE(conn.object_exists(file_name, exists) == 0);
+        REQUIRE(exists == true);
+
+        blob_client.Delete();
+    }
+
+    SECTION("(Lists Azure objects under the text bucket).", "[azure-connection]") { 
+        azure_connection conn = azure_connection("myblobcontainer1", "list_obj_");
         std::vector<std::string> objects;
-        azure_connection conn = azure_connection("myblobcontainer1", "");
-        azure_connection pfx_test = azure_connection("myblobcontainer1", "pfx_test_");
-        
-        // There is nothing in the container so there should be 0 objects
+
+        // Total objects to insert in the test.
+        const int32_t num_objects = 11; 
+        // Prefix for objects in this test.
+        const std::string prefix = "list_obj_";
+        const bool list_single = true; 
+
+        // No matching objects. Object size should be 0.
+        REQUIRE(conn.list_objects(prefix, objects, !list_single) == 0); 
+        REQUIRE(objects.size() == 0);
+
+        // No matching objects with listSingle. Object size should be 0.
+        REQUIRE(conn.list_objects(prefix, objects, list_single) == 0); 
+        REQUIRE(objects.size() == 0);
+
+        // Create file to prepare for test.
+        REQUIRE(std::ofstream(file_name).put('.').good());
+
+        // Put objects to prepare for test.
+        for (int i = 0; i < num_objects; i++) {
+            auto blob_client = azure_client.GetBlockBlobClient(prefix + std::to_string(i) + ".txt");
+            blob_client.UploadFrom(file_name);
+        }
+
+        // List all objects. This is the size of num_objects.
+        REQUIRE(conn.list_objects(prefix, objects, !list_single) == 0);
+        REQUIRE(objects.size() == num_objects);
+
+        // List single. Object size should be 1.
         objects.clear();
-        REQUIRE(pfx_test.list_objects("", objects, false) == 0);
-        REQUIRE(objects.size() == 0);
+        REQUIRE(conn.list_objects(prefix, objects, list_single) == 0);
+        REQUIRE(objects.size() == 1);
+
+        // There should be 2 matches with 'list_obj_1' prefix pattern.
         objects.clear();
-        REQUIRE(conn.list_objects("", objects, true) == 0); 
-        REQUIRE(objects.size() == 0);
-        // The container is still empty so doing a list object with a prefix should 
-        // result in 0 objects
-        objects.clear(); 
-        REQUIRE(conn.list_objects("test", objects, false) == 0); 
-        REQUIRE(objects.size() == 0);
-        
-        objects.clear(); 
-        REQUIRE(conn.list_objects("test", objects, true) == 0); 
-        REQUIRE(objects.size() == 0);
-        // Add an object into the empty container resulting in 1 object now
-        objects.clear(); 
-        REQUIRE(pfx_test.put_object("test.txt", "/home/ubuntu/wiredtiger/ext/storage_sources/azure_store/test.txt") == 0);
-        REQUIRE(pfx_test.list_objects("", objects, false) == 0); 
-        REQUIRE(objects.size() == 1);
-        objects.clear(); 
-        REQUIRE(conn.list_objects("", objects, true) == 0); 
-        REQUIRE(objects.size() == 1);
-        // Calling list objects with a prefix that doesn't exist should result in 0 objects 
-        objects.clear(); 
-        REQUIRE(pfx_test.list_objects("bad_pfx_", objects, false) == 0); 
-        REQUIRE(objects.size() == 0);
-        objects.clear(); 
-        REQUIRE(pfx_test.list_objects("bad_pfx_", objects, true) == 0); 
-        REQUIRE(objects.size() == 0);
-        // Calling list objects with the prefix given should result in 1 object
-        objects.clear(); 
-        REQUIRE(pfx_test.list_objects("pfx_test_", objects, false) == 0); 
-        REQUIRE(objects.size() == 1);
-        
-        objects.clear(); 
-        REQUIRE(pfx_test.list_objects("pfx_test_", objects, true) == 0); 
-        REQUIRE(objects.size() == 1);
-        // Adding another object into the container to test the prefix functionality 
-        // and the list single functionality
-        objects.clear(); 
-        REQUIRE(pfx_test.put_object("test1.txt", "/home/ubuntu/wiredtiger/ext/storage_sources/azure_store/test.txt") == 0);
-        REQUIRE(pfx_test.list_objects("pfx_test_", objects, false) == 0); 
+        REQUIRE(conn.list_objects(prefix + "1", objects, !list_single) == 0);
         REQUIRE(objects.size() == 2);
-        objects.clear();
-        REQUIRE(pfx_test.list_objects("pfx_test_", objects, true) == 0); 
-        REQUIRE(objects.size() == 1);
-        // Creation of another connection class to test prefix functionality works with 
-        // multiple prefixes
-        azure_connection pfx_check = azure_connection("myblobcontainer1", "pfx_check_");
-        // There is are 2 objects in the container so there should be 2 objects
-        objects.clear();
-        REQUIRE(pfx_check.list_objects("", objects, false) == 0);
-        REQUIRE(objects.size() == 2);
-        // Now test that there should be no objects with the prefix pfx_check_ in the 
-        // container 
-        objects.clear();
-        REQUIRE(pfx_check.list_objects("pfx_check_", objects, false) == 0);
-        REQUIRE(objects.size() == 0);
-        // Now let's add an object with the prefix pfx_check_ to the container
-        objects.clear();
-        REQUIRE(pfx_check.put_object("test.txt", "/home/ubuntu/wiredtiger/ext/storage_sources/azure_store/test.txt") == 0);
-        REQUIRE(pfx_check.list_objects("pfx_check_", objects, false) == 0);
-        REQUIRE(objects.size() == 1);
-        // Testing 2 occurances of pfx_check_ in the same container results in 2 objects 
-        objects.clear();
-        REQUIRE(pfx_check.put_object("test1.txt", "/home/ubuntu/wiredtiger/ext/storage_sources/azure_store/test.txt") == 0);
-        REQUIRE(pfx_check.list_objects("pfx_check_", objects, false) == 0);
-        REQUIRE(objects.size() == 2);
-        // There should be 4 objects in the container let's check that 
-        objects.clear();
-        REQUIRE(pfx_check.list_objects("", objects, false) == 0);
-        REQUIRE(objects.size() == 4);
-        // Test deletion of a pfx_check_ object results in only 1 left and 3 overall 
-        objects.clear();
-        REQUIRE(pfx_check.delete_object("test.txt") == 0);
-        REQUIRE(pfx_check.list_objects("pfx_check_", objects, false) == 0);
-        REQUIRE(objects.size() == 1);
-        objects.clear();
-        REQUIRE(pfx_check.list_objects("", objects, false) == 0);
-        REQUIRE(objects.size() == 3);
-        // Delete remaining objects in the container
-        REQUIRE(pfx_check.delete_object("test1.txt") == 0);
-        REQUIRE(pfx_test.delete_object("test.txt") == 0);
-        REQUIRE(pfx_test.delete_object("test1.txt") == 0);
-        // Check there are no objects in the container 
-        objects.clear();
-        REQUIRE(pfx_check.list_objects("", objects, false) == 0);
-        REQUIRE(objects.size() == 0);
-        // Check that deletion of an object that doesn't exist results in a -1 
-        REQUIRE(pfx_check.delete_object("test.txt") == -1);
-        REQUIRE(pfx_test.delete_object("test.txt") == -1);
+
+        // Clean up.
+        for (int i = 0; i < num_objects; i++) {
+            auto blob_client = azure_client.GetBlockBlobClient(prefix + std::to_string(i) + ".txt");
+            blob_client.Delete();
+        }
+    }
+
+    SECTION("(Testing delete functionality for Azure).", "[azure-connection]") { 
+        azure_connection conn = azure_connection("myblobcontainer1", "delete_obj_");
+        
+        auto blob_client = azure_client.GetBlockBlobClient("delete_obj_" + file_name);
+
+        // Create file to prepare for test.
+        REQUIRE(std::ofstream(file_name).put('.').good());
+
+        blob_client.UploadFrom(file_name);
+
+        // Test that an object can be deleted.
+        REQUIRE(conn.delete_object(file_name) == 0); 
+
+        // Test that removing an object that doesn't exist throws an exception.
+        REQUIRE_THROWS_WITH(conn.delete_object("object_not_exist"), "The specified blob does not exist."); 
+    }
+
+    SECTION("(Checking put functionality in Azure)", "[azure-connection]") { 
+        azure_connection conn = azure_connection("myblobcontainer1", "put_obj_");
+
+        REQUIRE(conn.put_object(file_name, path) == 0);
+        
+        auto blob_client = azure_client.GetBlockBlobClient("put_obj_" + file_name);
+        blob_client.Delete(); 
+
+        // Test that putting an object that doesn't exist locally throws an exception.
+        REQUIRE_THROWS_WITH(conn.put_object("object_not_exist", "bad_file_path"), "Failed to open file for reading. File name: 'bad_file_path'"); 
+    }
+
+    SECTION("(Checking read functionality in Azure)", "[azure-connection]") { 
+        azure_connection conn = azure_connection("myblobcontainer1", "read_obj_");
+        
+        auto blob_client = azure_client.GetBlockBlobClient("read_obj_" + file_name);
+
+        // Create file to prepare for test.
+        REQUIRE(std::ofstream(file_name).put('.').good());
+        blob_client.UploadFrom(file_name);
+
+        void *buffer = calloc(1024, sizeof(char));   
+
+        // Test reading whole file.  
+        REQUIRE(conn.read_object("read_obj_" + file_name, 0, payload.length(), buffer) == 0);
+
+        memset(buffer, 0, 1024);
+
+        // Test overflow on positive offset but past EOF.        
+        REQUIRE_THROWS_WITH(conn.read_object("read_obj_" + file_name, 1, 1000, buffer), "Reading past end of file!");       
+        memset(buffer, 0, 1024);
+
+        // Test overflow on negative offset but past EOF.        
+        REQUIRE_THROWS_WITH(conn.read_object("read_obj_" + file_name, -1, 1000, buffer), "Invalid argument: Offset!");       
+        memset(buffer, 0, 1024);
+
+        // Test overflow with negative offset.      
+        REQUIRE_THROWS_WITH(conn.read_object("read_obj_" + file_name, -1, 12, buffer), "Invalid argument: Offset!");       
+        free(buffer);
+
+        blob_client.Delete(); 
+
+        // Tests that reading a non existant object returns an exception. 
+        REQUIRE_THROWS_WITH(conn.read_object("read_obj_bad_file_name", 0, 1, buffer), "The specified blob does not exist.");       
     }
 }
