@@ -135,7 +135,7 @@ static inline void
 __wt_atomic_load_acquire64(void *ret, void *ptr)
 {
     /*
-     * Since we only support x86 on windows and x86 has Total Storage Ordering, no actual read
+     * Since we only support x86 on windows and x86 has Total Store Ordering, no hardware read
      * barrier is needed here. We only need to ensure the compiler is not reordering the read by
      * adding a compiler barrier.
      */

@@ -130,7 +130,7 @@ __wt_atomic_cas_ptr(void *vp, void *old, void *newv)
 
 /*
  * __wt_atomic_load_acquire64 --
- *     Read a with atomic acquire synchronization.
+ *     Read a memory value with atomic acquire synchronization.
  */
 static inline void
 __wt_atomic_load_acquire64(void *ret, void *ptr)
