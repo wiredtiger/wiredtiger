@@ -27,9 +27,6 @@ __search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT
     btree = S2BT(session);
     collator = btree->collator;
 
-    if (ins_head == NULL)
-        return (0);
-
     /*
      * Since the head of the skip list doesn't get mutated within this function, the compiler may
      * move this assignment within the loop below if it needs to (and may read a different value on
@@ -37,7 +34,7 @@ __search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT
      *
      * Place a compiler barrier here to avoid the issue.
      */
-    ins = ins_head->tail[0];
+    ins = WT_SKIP_LAST(ins_head);
     WT_BARRIER();
 
     if (ins == NULL)
