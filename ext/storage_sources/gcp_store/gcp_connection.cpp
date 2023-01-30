@@ -114,3 +114,9 @@ gcp_connection::bucket_exists(bool &exists) const
 {
     return 0;
 }
+
+google::cloud::storage::Client 
+gcp_connection::get_client()
+{
+    return _gcp_client;
+}

@@ -41,6 +41,7 @@ class gcp_connection {
     int delete_object(const std::string &object_key);
     int object_exists(const std::string &object_key, bool &exists, size_t &object_size) const;
     int get_object(const std::string &object_key, const std::string &path) const;
+    google::cloud::storage::Client get_client();
 
     ~gcp_connection() = default;
 
