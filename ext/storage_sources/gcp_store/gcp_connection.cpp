@@ -124,12 +124,6 @@ gcp_connection::read_object(const std::string &object_key, int64_t offset, size_
         return -1;
     }
 
-    if (offset > object_size) {
-        std::cerr << "Offset " << offset << " is invalid. The offset is greater than object size "
-                  << object_size << "." << std::endl;
-        return -1;
-    }
-
     if (offset + len > object_size) {
         std::cerr << "Length " << len << " plus offset " << offset
                   << " must not exceed the object size " << object_size << "." << std::endl;
