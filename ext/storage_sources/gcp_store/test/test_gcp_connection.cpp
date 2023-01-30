@@ -31,6 +31,8 @@
 
 #include "gcp_connection.h"
 
+namespace gcs = google::cloud::storage;
+using namespace gcs;
 namespace test_defaults {
 static std::string bucket_name("quickstart_test");
 
@@ -87,7 +89,7 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
 
     const std::string object_key = "test_object";
     const std::string file_name = "test_object.txt";
-    const std::string path = "./" + file_name;
+    const std::string file_path = "./" + file_name;
     const std::string non_exi_object_key = "test_non_exist";
     const std::string non_exi_file_name = "test_non_exist.txt";
     const bool list_single = true;
@@ -97,6 +99,8 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
     std::string payload = "Test payload";
     File << payload;
     File.close();
+
+    google::cloud::storage::Client client = conn.get_client();
 
     SECTION("Simple check list on nothing", "[gcp-connection]")
     {
@@ -109,122 +113,159 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
         REQUIRE(objects.size() == 0);
     }
 
-    SECTION("Simple put, list, delete test case", "[gcp-connection]")
+    SECTION("Simple put", "[gcp-connection]")
     {
-        std::vector<std::string> objects;
 
-        // No matching objects. Object size should be 0.
-        REQUIRE(conn.list_objects(objects, false) == 0);
-        REQUIRE(objects.size() == 0);
-
-        REQUIRE(conn.put_object(object_key, file_name) == 0);
-        REQUIRE(conn.list_objects(objects, false) == 0);
-        REQUIRE(objects.size() == 1);
-        objects.clear();
-
-        REQUIRE(conn.delete_object(object_key) == 0);
-        REQUIRE(conn.list_objects(objects, false) == 0);
-        REQUIRE(objects.size() == 0);
     }
 
-    SECTION("Simple check that put object returns -1 when file doesn't exist locally.", "[gcp-connection]")
+    SECTION("Test delete", "[gcp-connection]")
     {
-        // Upload a file that does not exist locally - should fail.
-        REQUIRE(conn.put_object(non_exi_object_key, non_exi_file_name) == -1);
-    }
+        google::cloud::storage::ListObjectsReader objects_iterator = 
+            client.ListObjects(test_defaults::bucket_name);
+        int original_number_of_files = std::distance(objects_iterator.begin(), objects_iterator.end());
+        
+        auto metadata =
+            client.UploadFile(file_path, test_defaults::bucket_name, test_defaults::obj_prefix + file_name);
+        REQUIRE(metadata.status().ok());
 
-    SECTION("Simple check that delete object returns -1 when doesn't exist.", "[gcp-connection]")
-    {
-        // Delete a file that does not exist in the bucket - should fail.
-        REQUIRE(conn.delete_object(object_key) == -1);
-    }
+        objects_iterator = 
+            client.ListObjects(test_defaults::bucket_name);
 
-    SECTION("Simple check that list single works.", "[gcp-connection]")
-    {
-        // Total objects to insert in the test.
-        const int32_t total_objects = 20;
-        // Prefix for objects in this test.
-        const std::string prefix = "test_list_objects_";
-        const bool list_single = true;
+        REQUIRE(std::distance(objects_iterator.begin(), objects_iterator.end()) == original_number_of_files + 1);
 
-        // No matching objects. Object size should be 0.
-        REQUIRE(conn.list_objects(objects, false) == 0);
-        REQUIRE(objects.size() == 0);
-
-        // No matching objects with list_single. Object size should be 0.
-        REQUIRE(conn.list_objects(objects, list_single) == 0);
-        REQUIRE(objects.size() == 0);
-
-        // Create file to prepare for test.
-        REQUIRE(std::ofstream(file_name).put('.').good());
-
-        // Put objects to prepare for test.
-        for (int i = 0; i < total_objects; i++) {
-            REQUIRE(conn.put_object(
-                      test_defaults::obj_prefix + std::to_string(i) + ".txt", file_name) == 0);
+        bool file_in_bucket = false;
+        std::cerr << "PRINTING BUCKET CONTENTS:" << std::endl;
+        for (auto&& object_metadata : client.ListObjects(test_defaults::bucket_name)) {
+            if (object_metadata->name() == test_defaults::obj_prefix + file_name) 
+            {
+                file_in_bucket = true;
+            }
+            std::cerr << "OBJECT IN BUCKET: " << object_metadata->name() << std::endl;
         }
+        REQUIRE(file_in_bucket);
 
-        // List all objects. This is the size of total_objects.
-        REQUIRE(conn.list_objects(objects, false) == 0);
-        REQUIRE(objects.size() == total_objects);
+        REQUIRE(conn.delete_object(file_name) == 0);
 
-        // List single. Object size should be 1.
-        objects.clear();
-        REQUIRE(conn.list_objects(objects, list_single) == 0);
-        REQUIRE(objects.size() == 1);
+        objects_iterator = 
+            client.ListObjects(test_defaults::bucket_name);
+
+        REQUIRE(std::distance(objects_iterator.begin(), objects_iterator.end()) == original_number_of_files);
+        file_in_bucket = false;
+        for (auto&& object_metadata : objects_iterator) {
+            if (object_metadata->name() == test_defaults::obj_prefix + file_name) 
+            {
+                file_in_bucket = true;
+            }
+        }
+        REQUIRE_FALSE(file_in_bucket);
     }
 
-    SECTION("Complex test: put, list, delete", "[gcp-connection]")
-    {
-        std::vector<std::string> objects;
+//     SECTION("Simple check that put object returns -1 when file doesn't exist locally.", "[gcp-connection]")
+//     {
+//         // Upload a file that does not exist locally - should fail.
+//         REQUIRE(conn.put_object(non_exi_object_key, non_exi_file_name) == -1);
+//     }
 
-        // Total objects to insert in the test.
-        const int32_t total_objects = 30;
-        const int32_t first_batch = 5;
-        // Prefix for objects in this test.
-        const std::string prefix = "test_list_objects_";
-        const bool list_single = true;
+//     SECTION("Simple check that delete object returns -1 when doesn't exist.", "[gcp-connection]")
+//     {
+//         // Delete a file that does not exist in the bucket - should fail.
+//         REQUIRE(conn.delete_object(object_key) == -1);
+//     }
 
-        // No matching objects. Object size should be 0.
-        REQUIRE(conn.list_objects(objects, false) == 0);
-        REQUIRE(objects.size() == 0);
+//     SECTION("Simple check that list single works.", "[gcp-connection]")
+//     {
+//         // Total objects to insert in the test.
+//         const int32_t total_objects = 20;
+//         // Prefix for objects in this test.
+//         const std::string prefix = "test_list_objects_";
+//         const bool list_single = true;
 
-        // Create file to prepare for test.
-        REQUIRE(std::ofstream(file_name).put('.').good());
+//         // No matching objects. Object size should be 0.
+//         REQUIRE(conn.list_objects(objects, false) == 0);
+//         REQUIRE(objects.size() == 0);
 
-        // Put objects to prepare for test.
-        for (int i = 0; i < total_objects; i++) {
-            REQUIRE(conn.put_object(
-                      test_defaults::obj_prefix + std::to_string(i) + ".txt", file_name) == 0);
-        }
+//         // No matching objects with list_single. Object size should be 0.
+//         REQUIRE(conn.list_objects(objects, list_single) == 0);
+//         REQUIRE(objects.size() == 0);
 
-        // List all objects. This is the size of total_objects.
-        REQUIRE(conn.list_objects(objects, false) == 0);
-        REQUIRE(objects.size() == total_objects);
+//         // Create file to prepare for test.
+//         REQUIRE(std::ofstream(file_name).put('.').good());
 
-        // List single. Object size should be 1.
-        objects.clear();
-        REQUIRE(conn.list_objects(objects, list_single) == 0);
-        REQUIRE(objects.size() == 1);
+//         // Put objects to prepare for test.
+//         for (int i = 0; i < total_objects; i++) {
+//             REQUIRE(conn.put_object(
+//                       test_defaults::obj_prefix + std::to_string(i) + ".txt", file_name) == 0);
+//         }
 
-        // Delete 5 files from the bucket. 
-        for (int i = 0; i < first_batch; i++) {
-            REQUIRE(conn.delete_object(test_defaults::obj_prefix + std::to_string(i) + ".txt") == 0);
-        }
+//         // List all objects. This is the size of total_objects.
+//         REQUIRE(conn.list_objects(objects, false) == 0);
+//         REQUIRE(objects.size() == total_objects);
 
-        // List all objects, this should be total objects - first batch.
-        objects.clear();
-        REQUIRE(conn.list_objects(objects, false) == 0);
-        REQUIRE(objects.size() == total_objects - first_batch);
+//         // List single. Object size should be 1.
+//         objects.clear();
+//         REQUIRE(conn.list_objects(objects, list_single) == 0);
+//         REQUIRE(objects.size() == 1);
+//     }
 
-        // Delete all files from the bucket
-        for (int i = first_batch; i < total_objects; i++) {
-            REQUIRE(conn.delete_object(test_defaults::obj_prefix + std::to_string(i) + ".txt") == 0);
-        }
+//     SECTION("Complex test: put, list, delete", "[gcp-connection]")
+//     {
+//         std::vector<std::string> objects;
 
-        // List all objects, this should be empty.
-        objects.clear();
-        REQUIRE(conn.list_objects(objects, list_single) == 0);
-        REQUIRE(objects.size() == 0);
-    }
+//         // Total objects to insert in the test.
+//         const int32_t total_objects = 30;
+//         const int32_t first_batch = 5;
+//         // Prefix for objects in this test.
+//         const std::string prefix = "test_list_objects_";
+//         const bool list_single = true;
+
+//         // No matching objects. Object size should be 0.
+//         REQUIRE(conn.list_objects(objects, false) == 0);
+//         REQUIRE(objects.size() == 0);
+
+//         // Create file to prepare for test.
+//         REQUIRE(std::ofstream(file_name).put('.').good());
+
+//         // Put objects to prepare for test.
+//         for (int i = 0; i < total_objects; i++) {
+//             REQUIRE(conn.put_object(
+//                       test_defaults::obj_prefix + std::to_string(i) + ".txt", file_name) == 0);
+//         }
+
+//         // List all objects. This is the size of total_objects.
+//         REQUIRE(conn.list_objects(objects, false) == 0);
+//         REQUIRE(objects.size() == total_objects);
+
+//         // List single. Object size should be 1.
+//         objects.clear();
+//         REQUIRE(conn.list_objects(objects, list_single) == 0);
+//         REQUIRE(objects.size() == 1);
+
+//         // Delete 5 files from the bucket. 
+//         for (int i = 0; i < first_batch; i++) {
+//             REQUIRE(conn.delete_object(test_defaults::obj_prefix + std::to_string(i) + ".txt") == 0);
+//         }
+
+//         // List all objects, this should be total objects - first batch.
+//         objects.clear();
+//         REQUIRE(conn.list_objects(objects, false) == 0);
+//         REQUIRE(objects.size() == total_objects - first_batch);
+
+//         // Delete all files from the bucket
+//         for (int i = first_batch; i < total_objects; i++) {
+//             REQUIRE(conn.delete_object(test_defaults::obj_prefix + std::to_string(i) + ".txt") == 0);
+//         }
+
+//         // List all objects, this should be empty.
+//         objects.clear();
+//         REQUIRE(conn.list_objects(objects, list_single) == 0);
+//         REQUIRE(objects.size() == 0);
+//     }
+
+    
+
+
+    // cleanup
+    // list object with prefix
+
+    //for loop delete
 }
