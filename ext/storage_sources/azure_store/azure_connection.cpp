@@ -131,7 +131,7 @@ azure_connection::read_object(
         std::cerr << e.what() << std::endl;
         return -1;
     }
-    
+
     auto blob_properties = blob_client.GetProperties().Value;
 
     // Checks whether the offset is before the start of the blob.
