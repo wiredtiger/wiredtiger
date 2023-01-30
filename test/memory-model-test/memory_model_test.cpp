@@ -4,6 +4,7 @@
 #include <chrono>
 #include <random>
 #include <utility>
+#include <unistd.h>
 
 #if defined(x86_64) || defined(__x86_64__)
 #define BARRIER_INSTRUCTION "mfence"
@@ -122,16 +123,28 @@ void perform_test(test_config<thread_1_code, thread_2_code, out_of_order_check_c
 }
 
 
-int main() {
+int main(int argc, char *argv[]) {
     std::cout << "WiredTiger Memory Model Test" << std::endl;
     std::cout << "============================" << std::endl;
 
-    if (is_arm64)
-        std::cout << "Running on ARM64" << std::endl << std::endl;
-    else
-        std::cout << "Running on x86" << std::endl << std::endl;
+    int loop_count = 1000000;
 
-    const int loop_count = 1000000;
+    int opt = 0;
+    while ((opt = getopt(argc, argv, "n:")) != -1) {
+        switch (opt) {
+            case 'n':
+                loop_count = atoi(optarg);
+                break;
+            default:
+                break;
+        }
+    }
+
+    if (is_arm64)
+        std::cout << "Running on ARM64";
+    else
+        std::cout << "Running on x86";
+    std::cout << " with loop count " << loop_count << std::endl << std::endl;
 
     std::binary_semaphore start_semaphore1{0};
     std::binary_semaphore start_semaphore2{0};
