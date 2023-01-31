@@ -102,7 +102,7 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
     }
 
     // Parse config string.
-  
+
     // Get any prefix to be used for the object keys.
     WT_CONFIG_ITEM obj_prefix_config;
     std::string obj_prefix;
