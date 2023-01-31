@@ -34,23 +34,33 @@
 #define WT_GCC_FUNC_ATTRIBUTE(x)
 #define WT_GCC_FUNC_DECL_ATTRIBUTE(x)
 
-#define WT_ATOMIC_FUNC(name, ret, type, s, t)                                                     \
-    static inline ret __wt_atomic_add##name(type *vp, type v)                                     \
-    {                                                                                             \
-        return (_InterlockedExchangeAdd##s((t *)(vp), (t)(v)) + (v));                             \
-    }                                                                                             \
-    static inline ret __wt_atomic_fetch_add##name(type *vp, type v)                               \
-    {                                                                                             \
-        return (_InterlockedExchangeAdd##s((t *)(vp), (t)(v)));                                   \
-    }                                                                                             \
-    static inline ret __wt_atomic_sub##name(type *vp, type v)                                     \
-    {                                                                                             \
-        return (_InterlockedExchangeAdd##s((t *)(vp), -(t)v) - (v));                              \
-    }                                                                                             \
-    static inline bool __wt_atomic_cas##name(type *vp, type old_val, type new_val)                \
-    {                                                                                             \
-        return (                                                                                  \
-          _InterlockedCompareExchange##s((t *)(vp), (t)(new_val), (t)(old_val)) == (t)(old_val)); \
+#define WT_ATOMIC_FUNC(name, ret, type, s, t)                                                      \
+    static inline ret __wt_atomic_add##name(type *vp, type v)                                      \
+    {                                                                                              \
+        return (_InterlockedExchangeAdd##s((t *)(vp), (t)(v)) + (v));                              \
+    }                                                                                              \
+    static inline ret __wt_atomic_fetch_add##name(type *vp, type v)                                \
+    {                                                                                              \
+        return (_InterlockedExchangeAdd##s((t *)(vp), (t)(v)));                                    \
+    }                                                                                              \
+    static inline ret __wt_atomic_sub##name(type *vp, type v)                                      \
+    {                                                                                              \
+        return (_InterlockedExchangeAdd##s((t *)(vp), -(t)v) - (v));                               \
+    }                                                                                              \
+    static inline bool __wt_atomic_cas##name(type *vp, type old_val, type new_val)                 \
+    {                                                                                              \
+        return (                                                                                   \
+          _InterlockedCompareExchange##s((t *)(vp), (t)(new_val), (t)(old_val)) == (t)(old_val));  \
+    }                                                                                              \
+    static inline void __wt_atomic_load##name(type *left, type *right)                             \
+    {                                                                                              \
+        /*                                                                                         \
+         * Since we only support x86 on windows and x86 has Total Store Ordering, no hardware read \
+         * barrier is needed here. We only need to ensure the compiler is not reordering the read  \
+         * by adding a compiler barrier.                                                           \
+         */                                                                                        \
+        *(void **)left = *(void **)right;                                                          \
+        WT_BARRIER();                                                                              \
     }
 
 WT_ATOMIC_FUNC(8, uint8_t, uint8_t, 8, char)
@@ -75,6 +85,22 @@ __wt_atomic_cas_ptr(void *vp, void *old_val, void *new_val)
 {
     return (_InterlockedCompareExchange64(
               (volatile __int64 *)vp, (int64_t)new_val, (int64_t)old_val) == ((int64_t)old_val));
+}
+
+/*
+ * __wt_atomic_load_acquire_ptr --
+ *     Read a memory pointer with atomic acquire synchronization.
+ */
+static inline void
+__wt_atomic_load_acquire_ptr(void *left, void *right)
+{
+    /*
+     * Since we only support x86 on windows and x86 has Total Store Ordering, no hardware read
+     * barrier is needed here. We only need to ensure the compiler is not reordering the read by
+     * adding a compiler barrier.
+     */
+    *(void **)left = *(void **)right;
+    WT_BARRIER();
 }
 
 /*
@@ -125,20 +151,4 @@ static inline void
 WT_WRITE_BARRIER(void)
 {
     _mm_sfence();
-}
-
-/*
- * __wt_atomic_load_acquire64 --
- *     Read a memory value with atomic acquire synchronization.
- */
-static inline void
-__wt_atomic_load_acquire64(void *ret, void *ptr)
-{
-    /*
-     * Since we only support x86 on windows and x86 has Total Store Ordering, no hardware read
-     * barrier is needed here. We only need to ensure the compiler is not reordering the read by
-     * adding a compiler barrier.
-     */
-    *(void **)ret = *(void **)ptr;
-    WT_BARRIER();
 }

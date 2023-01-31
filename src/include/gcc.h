@@ -128,14 +128,34 @@ __wt_atomic_cas_ptr(void *vp, void *old, void *newv)
     return (WT_ATOMIC_CAS((void **)vp, &old, newv));
 }
 
+#define WT_ATOMIC_LOAD(left, right) __atomic_load((void **)right, (void **)left, __ATOMIC_ACQUIRE)
+#define WT_ATOMIC_LOAD_FUNC(name, left_arg, right_arg)             \
+    static inline void __wt_atomic_load##name(left_arg, right_arg) \
+    {                                                              \
+        WT_ATOMIC_LOAD(left, right);                               \
+    }
+
+WT_ATOMIC_LOAD_FUNC(8, uint8_t *left, uint8_t *right)
+WT_ATOMIC_LOAD_FUNC(v8, uint8_t *left, volatile uint8_t *right)
+WT_ATOMIC_LOAD_FUNC(16, uint16_t *left, uint16_t *right)
+WT_ATOMIC_LOAD_FUNC(32, uint32_t *left, uint32_t *right)
+WT_ATOMIC_LOAD_FUNC(v32, uint32_t *left, volatile uint32_t *right)
+WT_ATOMIC_LOAD_FUNC(i32, int32_t *left, int32_t *right)
+WT_ATOMIC_LOAD_FUNC(iv32, int32_t *left, volatile int32_t *right)
+WT_ATOMIC_LOAD_FUNC(64, uint64_t *left, uint64_t *right)
+WT_ATOMIC_LOAD_FUNC(v64, uint64_t *left, volatile uint64_t *right)
+WT_ATOMIC_LOAD_FUNC(i64, int64_t *left, int64_t *right)
+WT_ATOMIC_LOAD_FUNC(iv64, int64_t *left, volatile int64_t *right)
+WT_ATOMIC_LOAD_FUNC(size, size_t *left, size_t *right)
+
 /*
- * __wt_atomic_load_acquire64 --
- *     Read a memory value with atomic acquire synchronization.
+ * __wt_atomic_load_acquire_ptr --
+ *     Read a memory pointer with atomic acquire synchronization.
  */
 static inline void
-__wt_atomic_load_acquire64(void *ret, void *ptr)
+__wt_atomic_load_acquire_ptr(void *left, void *right)
 {
-    __atomic_load((void **)ptr, (void **)ret, __ATOMIC_ACQUIRE);
+    WT_ATOMIC_LOAD(left, right);
 }
 
 #define WT_ATOMIC_FUNC(name, ret, vp_arg, v_arg)                 \

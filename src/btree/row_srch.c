@@ -113,7 +113,7 @@ __wt_search_insert(
          *
          * Place a read barrier here to avoid these issues.
          */
-        WT_ORDERED_READ64_LIGHTWEIGHT(&ins, insp);
+        WT_ORDERED_READ_PTR_LIGHTWEIGHT(&ins, insp);
         if (ins == NULL) {
             cbt->next_stack[i] = NULL;
             cbt->ins_stack[i--] = insp--;
