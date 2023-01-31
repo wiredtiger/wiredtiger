@@ -54,12 +54,10 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
     def conn_extensions(self, extlist):
         TieredConfigMixin.conn_extensions(self, extlist)
 
-    def test_gcp_and_azure(self):
-        if self.ss_name != "azure_store":
-            return
-        
-
-        pass
+    # def test_gcp_and_azure(self):
+    #     if self.ss_name != "azure_store":
+    #         return
+    #     pass
 
     def get_storage_source(self):
         return self.conn.get_storage_source(self.ss_name)
@@ -69,7 +67,7 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         conf += ',prefix=' + prefix
         return conf
     
-    def test_ss_file_systems(self):
+    def test_ss_file_systems_gcp_and_azure(self):
         if self.ss_name != "azure_store":
             return
         session = self.session
@@ -83,14 +81,15 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         err_msg = '/Exception: Invalid argument/'
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_customize_file_system(
-                session, self.bucket, self.auth_token, self.get_fs_config(prefix)), err_msg)
+                session, self.bucket, None, self.get_fs_config(prefix)), err_msg)
         
         if self.ss_name == 'azure_store':
             bad_bucket += ';us-east-2'
         
+        err_msg = '/Exception: No such file or directory/'
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_customize_file_system(
-                session, bad_bucket, self.auth_token, self.get_fs_config(prefix)), err_msg)
+                session, bad_bucket, None, self.get_fs_config(prefix)), err_msg)
 
 if __name__ == '__main__':
     wttest.run()
