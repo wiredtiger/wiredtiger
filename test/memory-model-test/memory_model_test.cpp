@@ -1,3 +1,15 @@
+/*
+ * Copyright (c) 2014-present MongoDB, Inc.
+ * Copyright (c) 2008-2014 WiredTiger, Inc.
+ *	All rights reserved.
+ *
+ * See the file LICENSE for redistribution information.
+ *
+ * See the README.md file for more information about this test and how to build and run it.
+ *
+ * This test was inspired by the work at https://preshing.com/20120515/memory-reordering-caught-in-the-act/
+ */
+
 #include <iostream>
 #include <semaphore>
 #include <thread>
