@@ -36,11 +36,11 @@
 // Mapping between Google Status codes and corresponding errno values to be used by the GCP
 // connection methods to return errno values expected by the filesystem interface.
 static const std::map<google::cloud::StatusCode, int32_t> toErrno = {
-    {google::cloud::StatusCode::kUnknown, EAGAIN},
-    {google::cloud::StatusCode::kInvalidArgument, EINVAL}, 
-    {google::cloud::StatusCode::kNotFound, ENOENT},
-    {google::cloud::StatusCode::kAlreadyExists, EBUSY},
-    {google::cloud::StatusCode::kPermissionDenied, EACCES}};
+  {google::cloud::StatusCode::kUnknown, EAGAIN},
+  {google::cloud::StatusCode::kInvalidArgument, EINVAL},
+  {google::cloud::StatusCode::kNotFound, ENOENT},
+  {google::cloud::StatusCode::kAlreadyExists, EBUSY},
+  {google::cloud::StatusCode::kPermissionDenied, EACCES}};
 class gcp_connection {
     public:
     gcp_connection(const std::string &bucket_name, const std::string &prefix);
@@ -50,7 +50,7 @@ class gcp_connection {
     int object_exists(const std::string &object_key, bool &exists, size_t &object_size);
     int read_object(const std::string &object_key, int64_t offset, size_t len, void *buf);
     int print_error_info(const google::cloud::Status status) const;
-    
+
     ~gcp_connection() = default;
 
     private:
