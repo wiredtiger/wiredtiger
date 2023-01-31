@@ -96,10 +96,6 @@ static int
 azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
   const char *bucket, const char *auth_token, const char *config, WT_FILE_SYSTEM **file_system)
 {
-    WT_UNUSED(file_system);
-
-    azure_store *azure = (azure_store *)storage_source;
-
     if (bucket == nullptr || std::string(bucket).length() == 0) {
         std::cerr << "azure_customize_file_system: bucket not specified." << std::endl;
         return EINVAL;
@@ -122,6 +118,7 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
     std::string obj_prefix;
 
     // Get the value of the config key from the string
+    azure_store *azure = (azure_store *)storage_source;
     int ret;
     if ((ret = azure->wt_api->config_get_string(
            azure->wt_api, session, config, "prefix", &obj_prefix_config)) == 0)
