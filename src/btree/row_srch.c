@@ -110,9 +110,9 @@ __wt_search_insert(
          * In addition, the CPU with weak memory ordering, such as ARM and PPC, may speculatively
          * read an old value. It is not OK and the reason is explained in the following comment.
          *
-         * Place a read barrier here to avoid these issues.
+         * Place a read barrier here using atomic read to avoid these issues.
          */
-        WT_ORDERED_READ_PTR_LIGHTWEIGHT(&ins, insp);
+        WT_ORDERED_ACQUIRE_READ_PTR(&ins, insp);
         if (ins == NULL) {
             cbt->next_stack[i] = NULL;
             cbt->ins_stack[i--] = insp--;

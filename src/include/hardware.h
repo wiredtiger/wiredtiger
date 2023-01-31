@@ -17,7 +17,8 @@
     } while (0)
 
 /*
- * Read a shared location and guarantee that subsequent reads do not see any earlier state.
+ * Read a shared location and guarantee that subsequent reads do not see any earlier state using a
+ * hardware read barrier.
  */
 #define WT_ORDERED_READ(v, val) \
     do {                        \
@@ -26,11 +27,15 @@
     } while (0)
 
 /*
- * Read a shared location and guarantee that subsequent reads do not see any earlier state.
+ * Read a shared location and guarantee that subsequent reads do not see any earlier state using the
+ * acquire semantic. This is more lightweight than the WT_ORDERED_READ macro. It functions as a
+ * compiler barrier on the architecture with strong memory order while functions as a hardware read
+ * barrier implemented by the lightweight acquire semantic on architectures with weak memory
+ * ordering, such as ARM and PPC.
  */
-#define WT_ORDERED_READ_PTR_LIGHTWEIGHT(ret, ptr) \
-    do {                                          \
-        __wt_atomic_load_acquire_ptr(ret, ptr);   \
+#define WT_ORDERED_ACQUIRE_READ_PTR(ret, ptr)   \
+    do {                                        \
+        __wt_atomic_load_acquire_ptr(ret, ptr); \
     } while (0)
 
 /*
