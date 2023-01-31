@@ -1,11 +1,5 @@
 include(GNUInstallDirs)
 include(${CMAKE_SOURCE_DIR}/cmake/helpers.cmake)
-
-# Skip the AZURE SDK build step if the extension is not enabled.
-if(NOT ENABLE_AZURE)
-    return()
-endif()
-
 cmake_minimum_required(VERSION 3.13)
 
 config_choice(
@@ -18,7 +12,7 @@ config_choice(
 )
  
 if(IMPORT_AZURE_SDK_NONE)
-    message(FATAL_ERROR "Cannot enable Azure extension without specifying an IMPORT_AZURE_SDK method (package, external).")
+    message(FATAL_ERROR "Cannot enable the Azure extension without specifying an IMPORT_AZURE_SDK method (package, external).")
 endif()
 
 set(azure_storage_lib_location)
@@ -27,7 +21,7 @@ set(azure_storage_common_lib_location)
 set(azure_sdk_include_location)
 
 if(IMPORT_AZURE_SDK_PACKAGE)
-    message(FATAL_ERROR "Currently the package config option is not implement yet.")
+    message(FATAL_ERROR "Currently the package config option is not implemented yet.")
 endif()
 
 if (IMPORT_AZURE_SDK_EXTERNAL)
@@ -63,19 +57,17 @@ add_library(azure_storage_lib SHARED IMPORTED)
 add_library(azure_core_lib SHARED IMPORTED)
 add_library(azure_storage_common_lib SHARED IMPORTED)
 
-# Small workaround to declare the include directory under INTERFACE_INCLUDE_DIRECTORIES during the configuration phase.
+# Declare the include directories under INTERFACE_INCLUDE_DIRECTORIES during the configuration phase.
 set_target_properties(azure_storage_lib PROPERTIES
     IMPORTED_LOCATION ${azure_storage_lib_location}
     INTERFACE_INCLUDE_DIRECTORIES ${azure_sdk_include_location}
 )
 
-# Small workaround to declare the include directory under INTERFACE_INCLUDE_DIRECTORIES during the configuration phase.
 set_target_properties(azure_core_lib PROPERTIES
     IMPORTED_LOCATION ${azure_core_lib_location}
     INTERFACE_INCLUDE_DIRECTORIES ${azure_sdk_include_location}
 )
 
-# Small workaround to declare the include directory under INTERFACE_INCLUDE_DIRECTORIES during the configuration phase.
 set_target_properties(azure_storage_common_lib PROPERTIES
     IMPORTED_LOCATION ${azure_storage_common_lib_location}
     INTERFACE_INCLUDE_DIRECTORIES ${azure_sdk_include_location}
