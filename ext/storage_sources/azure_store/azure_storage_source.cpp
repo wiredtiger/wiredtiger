@@ -101,20 +101,8 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
         return EINVAL;
     }
 
-    // Case of multiple semicolons?
-    int delimiter = std::string(bucket).find(';');
-    if (delimiter == std::string::npos || delimiter == 0 ||
-      delimiter == std::string(bucket).length() - 1) {
-        std::cerr << "azure_customize_file_system: improper bucket name, should be a name and a "
-                     "region separated by a semicolon."
-                  << std::endl;
-        return EINVAL;
-    }
-    const std::string bucket_name = std::string(bucket).substr(0, delimiter);
-    const std::string region = std::string(bucket).substr(delimiter + 1);
-
     // Parse config string.
-
+  
     // Get any prefix to be used for the object keys.
     WT_CONFIG_ITEM obj_prefix_config;
     std::string obj_prefix;
@@ -382,9 +370,7 @@ azure_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *size
 int
 wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 {
-    azure_store *azure;
-
-    azure = new azure_store;
+    azure_store *azure = new azure_store;
     azure->wt_api = connection->get_extension_api(connection);
 
     azure->store.ss_customize_file_system = azure_customize_file_system;

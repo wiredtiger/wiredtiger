@@ -58,14 +58,11 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         return self.conn.get_storage_source(self.ss_name)
     
     def get_fs_config(self, prefix = ''):
-        conf = ''
-        conf += ',prefix=' + prefix
-        return conf
+        return ",prefix=" + prefix
     
     def test_gcp_and_azure(self):
         if self.ss_name != "azure_store":
             return
-        pass
 
     def test_ss_file_systems_gcp_and_azure(self):
         if self.ss_name != "azure_store":
@@ -90,6 +87,3 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_customize_file_system(
                 session, bad_bucket, None, self.get_fs_config(prefix)), err_msg)
-
-if __name__ == '__main__':
-    wttest.run()
