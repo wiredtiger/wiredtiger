@@ -49,7 +49,7 @@ class gcp_connection {
     int delete_object(const std::string &object_key);
     int object_exists(const std::string &object_key, bool &exists, size_t &object_size);
     int read_object(const std::string &object_key, int64_t offset, size_t len, void *buf);
-    int print_error_info(const google::cloud::Status status) const;
+    int get_errno(const google::cloud::Status status) const;
 
     ~gcp_connection() = default;
 
