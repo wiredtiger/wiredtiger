@@ -111,7 +111,6 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
         std::cerr << "azure_customize_file_system: improper bucket name, should be a name and a "
                      "region seperated by a semicolon."
                   << std::endl;
-        //std::cout << "PYTHON TESTING ACCESSED - bucket " << bucket << std::endl;
         return EINVAL;
     }
     const std::string bucket_name = std::string(bucket).substr(0, delimiter);

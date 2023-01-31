@@ -54,7 +54,6 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
     def conn_extensions(self, extlist):
         TieredConfigMixin.conn_extensions(self, extlist)
 
-
     def get_storage_source(self):
         return self.conn.get_storage_source(self.ss_name)
     
