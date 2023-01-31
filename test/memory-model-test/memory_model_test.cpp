@@ -304,6 +304,8 @@ int main(int argc, char *argv[]) {
 
     const bool progress = false;
 
+    std::cout << "-- Group 1: Tests that have a read and a write in each thread --" << std::endl << std::endl;
+
     perform_test(test_writes_then_reads,
                  x, y, r1, r2,
                  start_semaphore1, start_semaphore2, end_semaphore1, end_semaphore2,
@@ -333,6 +335,9 @@ int main(int argc, char *argv[]) {
                  start_semaphore1, start_semaphore2, end_semaphore1, end_semaphore2,
                  loop_count,
                  progress);
+
+    std::cout << "-- Group 2: Tests that have two reads in one thread, and two writes in the other thread --" <<
+                 std::endl << std::endl;
 
     perform_test(test_writes_and_reads,
                  x, y, r1, r2,
