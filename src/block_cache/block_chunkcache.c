@@ -144,6 +144,11 @@ __chunkcache_alloc_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK **newchun
         __wt_free(session, *newchunk);
         return (WT_ERROR);
     }
+    printf("\nallocate: %s(%d), offset=%" PRId64 ", size=%" PRIu64 "\n",
+           (char*)&(*newchunk)->hash_id.objectname, (*newchunk)->hash_id.objectid,
+           (uint64_t)(*newchunk)->chunk_offset,
+           (uint64_t)(*newchunk)->chunk_size);
+
     return (0);
 }
 
@@ -232,8 +237,10 @@ __chunkcache_evict_one(WT_SESSION_IMPL *session)
     if (!found_eviction_candidate)
         return false;
 
-    printf("\nevict: offset=%" PRId64 ", size=%ld\n",
-           chunk_to_evict->chunk_offset, chunk_to_evict->chunk_size);
+    printf("\nevict: %s(%d), offset=%" PRId64 ", size=%" PRIu64 "\n",
+           (char*)&chunk_to_evict->hash_id.objectname, chunk_to_evict->hash_id.objectid,
+           (uint64_t)chunk_to_evict->chunk_offset,
+           (uint64_t)chunk_to_evict->chunk_size);
 
     __wt_spin_lock(session, &chunkcache->bucket_locks[chunk_to_evict->bucket_id]);
     TAILQ_REMOVE(WT_BUCKET_CHUNKS(chunkcache, chunk_to_evict->bucket_id), chunk_to_evict, next_chunk);
@@ -475,7 +482,7 @@ __wt_chunkcache_remove(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objec
 
                     TAILQ_REMOVE(WT_BUCKET_CHUNKS(chunkcache, bucket_id), chunk, next_chunk);
                     __chunkcache_free_chunk(session, chunk);
-                    printf("\nremove-chunk: %s(%d), offset=%" PRId64 ", size=%" PRIu64 "\n",
+                    printf("\nremove: %s(%d), offset=%" PRId64 ", size=%" PRIu64 "\n",
                            (char*)&hash_id.objectname, hash_id.objectid,
                            (uint64_t)chunk->chunk_offset,
                            (uint64_t)chunk->chunk_size);
