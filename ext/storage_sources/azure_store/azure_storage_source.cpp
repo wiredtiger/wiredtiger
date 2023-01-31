@@ -385,11 +385,9 @@ int
 wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 {
     azure_store *azure;
-    // WT_CONFIG_ITEM v;
 
     azure = new azure_store;
     azure->wt_api = connection->get_extension_api(connection);
-    // int ret = azure->wt_api->config_get(azure->wt_api, nullptr, config);
 
     azure->store.ss_customize_file_system = azure_customize_file_system;
     azure->store.ss_add_reference = azure_add_reference;

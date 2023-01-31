@@ -54,10 +54,6 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
     def conn_extensions(self, extlist):
         TieredConfigMixin.conn_extensions(self, extlist)
 
-    # def test_gcp_and_azure(self):
-    #     if self.ss_name != "azure_store":
-    #         return
-    #     pass
 
     def get_storage_source(self):
         return self.conn.get_storage_source(self.ss_name)
@@ -67,6 +63,11 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         conf += ',prefix=' + prefix
         return conf
     
+    def test_gcp_and_azure(self):
+        if self.ss_name != "azure_store":
+            return
+        pass
+
     def test_ss_file_systems_gcp_and_azure(self):
         if self.ss_name != "azure_store":
             return
