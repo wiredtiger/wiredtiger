@@ -56,7 +56,6 @@ include(cmake/third_party/sodium.cmake)
 include(cmake/third_party/zlib.cmake)
 include(cmake/third_party/zstd.cmake)
 
-
 # Skip the AZURE SDK build step if the extension is not enabled.
 if(ENABLE_AZURE)
     include(cmake/third_party/azure_sdk.cmake)
