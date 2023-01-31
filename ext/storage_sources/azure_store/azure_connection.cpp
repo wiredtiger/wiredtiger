@@ -82,8 +82,8 @@ int
 azure_connection::put_object(const std::string &object_key, const std::string &file_path) const
 {
     auto blob_client = _azure_client.GetBlockBlobClient(_object_prefix + object_key);
-    // UploadFrom will return a UploadBlockBlobFromResult describing the state of the updated
-    // block blob or an exception.
+    // UploadFrom returns a UploadBlockBlobFromResult object describing the state of the updated
+    // block blob on success and throws an exception on failure.
     try {
         blob_client.UploadFrom(file_path);
     } catch (const Azure::Core::RequestFailedException &e) {
@@ -103,7 +103,7 @@ azure_connection::delete_object(const std::string &object_key) const
 
     auto object_client = _azure_client.GetBlobClient(obj);
 
-    // Delete will delete the blob if it exists or an exception.
+    // Delete will delete the blob if it exists or throw an exception on failure.
     try {
         object_client.Delete();
     } catch (const Azure::Core::RequestFailedException &e) {
@@ -122,7 +122,8 @@ azure_connection::read_object(
 {
     auto blob_client = _azure_client.GetBlockBlobClient(_object_prefix + object_key);
 
-    // GetProperties will return BlobProperties describing the blob or an exception.
+    // GetProperties returns a BlobProperties object containing the blob size on success 
+    // and throws an exception on failure.
     try {
         blob_client.GetProperties();
     } catch (const Azure::Core::RequestFailedException &e) {
@@ -208,8 +209,8 @@ azure_connection::bucket_exists(bool &exists) const
     return 0;
 }
 
-// Maps the HTTP code returned by Azure SDK and returns the associated errno code if it is in
-// the map else return -1.
+// Return a system error code corresponding to the HTTP code returned by
+// the Azure SDK. If no such mapping is defined, return -1.
 const int
 azure_connection::http_to_errno(const Azure::Core::RequestFailedException &e) const
 {
