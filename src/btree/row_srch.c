@@ -102,7 +102,18 @@ __wt_search_insert(
     match = skiphigh = skiplow = 0;
     ins = last_ins = NULL;
     for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0;) {
-        if ((ins = *insp) == NULL) {
+        /*
+         * The algorithm requires that the skip list insert pointer is not re-read during the loop.
+         * While the compiler can change the code in a way that it reads the ins value from memory
+         * again in the following code thus breaking this assumption.
+         *
+         * In addition, the CPU with weak memory ordering, such as ARM and PPC, may speculatively
+         * read an old value. It is not OK and the reason is explained in the following comment.
+         *
+         * Place a read barrier here using atomic read to avoid these issues.
+         */
+        WT_ORDERED_READ(ins, *insp);
+        if (ins == NULL) {
             cbt->next_stack[i] = NULL;
             cbt->ins_stack[i--] = insp--;
             continue;
@@ -116,6 +127,40 @@ __wt_search_insert(
             last_ins = ins;
             key.data = WT_INSERT_KEY(ins);
             key.size = WT_INSERT_KEY_SIZE(ins);
+            /*
+             * We have an optimization to reduce the number of bytes we need to compare down the
+             * search if we know certain length of the prefix of the search key matches the keys we
+             * have already compared upper the stack. This works because we know the keys become
+             * denser down the stack.
+             *
+             * However, things become tricky if we have another key inserted concurrently to next of
+             * the search key. If we have seen this key inserted upper the stack, we require the
+             * insertion must also be visible to us down the stack. Otherwise, we may wrongly skip
+             * the comparison of a prefix and land on the wrong spot. Here's an example:
+             *
+             * Suppose we have a skip list:
+             *
+             * L1: AA -> BD
+             *
+             * L0: AA -> BD
+             *
+             * and we want to search AB and a key AC is inserted concurrently. If we see the
+             * following skip list in the search:
+             *
+             * L1: AA -> AC -> BD
+             *
+             * L0: AA -> BD
+             *
+             * Since we have compared with AA and AC on level 1 before dropping down to level 0, we
+             * decide we can skip comparing the first byte of the key. However, since we don't see
+             * AC on level 0, we compare with BD and wrongly skip the comparison with prefix B.
+             *
+             * On the architectures with strong memory ordering, the requirement is satisfied by
+             * inserting the new key to the skip list from lower stack to upper stack using an
+             * atomic compare and swap operation, which functions as a full barrier. However, it is
+             * not enough on the architecture that has weaker memory ordering, such as ARM and PPC.
+             * Therefore, an extra read barrier is needed for these platforms.
+             */
             match = WT_MIN(skiplow, skiphigh);
             WT_RET(__wt_compare_skip(session, collator, srch_key, &key, &cmp, &match));
         }
