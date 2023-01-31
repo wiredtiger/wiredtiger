@@ -970,11 +970,11 @@ ops(void *arg)
      * of the time we run in independent RNG space.
      */
     if (GV(FORMAT_INDEPENDENT_THREAD_RNG)) {
-        __wt_random_init_seed(NULL, &tinfo->data_rnd);
-        __wt_random_init_seed(NULL, &tinfo->extra_rnd);
+        testutil_random_from_seed(&tinfo->data_rnd, GV(RANDOM_DATA_SEED) + tinfo->id);
+        testutil_random_from_seed(&tinfo->extra_rnd, GV(RANDOM_EXTRA_SEED) + tinfo->id);
     } else {
-        __wt_random_init(&tinfo->data_rnd);
-        __wt_random_init(&tinfo->extra_rnd);
+        testutil_random_from_seed(&tinfo->data_rnd, GV(RANDOM_DATA_SEED));
+        testutil_random_from_seed(&tinfo->extra_rnd, GV(RANDOM_EXTRA_SEED));
     }
 
     iso_level = ISOLATION_SNAPSHOT; /* -Wconditional-uninitialized */
@@ -1405,7 +1405,11 @@ read_row_worker(TINFO *tinfo, TABLE *table, WT_CURSOR *cursor, uint64_t keyno, W
         break;
     }
 
-    if (sn) {
+    /*
+     * We don't use search near for predictable replay runs, as the
+     * return key can be variable depending on the structure of the Btree.
+     */
+    if (sn && !GV(RUNS_PREDICTABLE_REPLAY)) {
         ret = read_op(cursor, SEARCH_NEAR, &exact);
         if (ret == 0 && exact != 0)
             ret = WT_NOTFOUND;
