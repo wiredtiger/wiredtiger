@@ -31,11 +31,21 @@
 #include <azure/core.hpp>
 #include <azure/storage/blobs.hpp>
 
+#include <filesystem>
+#include <iostream>
+
 azure_connection::azure_connection(const std::string &bucket_name, const std::string &obj_prefix)
     : _azure_client(Azure::Storage::Blobs::BlobContainerClient::CreateFromConnectionString(
         std::getenv("AZURE_STORAGE_CONNECTION_STRING"), bucket_name)),
       _bucket_name(bucket_name), _object_prefix(obj_prefix)
 {
+    // Confirm that we can access the bucket, else fail.
+    bool exists;
+    int ret = bucket_exists(exists);
+    if (ret != 0)
+        throw std::runtime_error(_bucket_name + " : Unable to access bucket.");
+    if (exists == false)
+        throw std::runtime_error(_bucket_name + " : No such bucket.");
 }
 
 // Build a list of all of the objects in the bucket.
@@ -58,20 +68,113 @@ azure_connection::list_objects(
     return 0;
 }
 
+// Puts an object into the cloud storage using the prefix and file name.
 int
-azure_connection::put_object(const std::string &file_name) const
+azure_connection::put_object(const std::string &object_key, const std::string &file_path) const
 {
+    auto blob_client = _azure_client.GetBlockBlobClient(_object_prefix + object_key);
+    // UploadFrom will always return a UploadBlockBlobFromResult describing the state of the updated
+    // block blob so there's no need to check for errors.
+    blob_client.UploadFrom(file_path);
+    return 0;
+}
+
+// Delete an object in the bucket given the object name.
+int
+azure_connection::delete_object(const std::string &object_key) const
+{
+    std::string obj = _object_prefix + object_key;
+
+    auto object_client = _azure_client.GetBlobClient(obj);
+    auto delete_blob_response = object_client.DeleteIfExists();
+
+    // Returns false if obj doesn't exist.
+    if (!delete_blob_response.Value.Deleted) {
+        std::cerr << obj + " : No such object file exists in the bucket." << std::endl;
+        return -1;
+    }
+
+    return 0;
+}
+
+// Reads an object and outputs the content into a buffer.
+int
+azure_connection::read_object(
+  const std::string &object_key, int64_t offset, size_t len, void *buf) const
+{
+    auto blob_client = _azure_client.GetBlockBlobClient(_object_prefix + object_key);
+    auto blob_properties = blob_client.GetProperties().Value;
+
+    // Checks whether the offset is before the start of the blob.
+    if (offset < 0 || offset > blob_properties.BlobSize) {
+        std::cerr << "Invalid argument: Offset!" << std::endl;
+        return -1;
+    }
+
+    // Checks whether the offset and length is greater than the blob size.
+    if (offset + len > blob_properties.BlobSize) {
+        std::cerr << "Reading past end of file!" << std::endl;
+        return -1;
+    }
+
+    // Utilise the inbuilt DownloadTo options to avoid having to store the blob's content
+    // in memory to save space.
+    Azure::Core::Http::HttpRange range;
+    range.Length = len;
+    range.Offset = offset;
+
+    Azure::Storage::Blobs::DownloadBlobToOptions options;
+    options.Range = range;
+
+    // Downloads the content of the blob with the specified length to the provided buffer.
+    blob_client.DownloadTo(static_cast<uint8_t *>(buf), len, options);
+
     return 0;
 }
 
 int
-azure_connection::delete_object() const
+azure_connection::object_exists(const std::string &object_key, bool &exists) const
 {
+    exists = false;
+    std::string obj = _object_prefix + object_key;
+
+    auto list_blob_response = _azure_client.ListBlobs();
+
+    for (const auto blob_item : list_blob_response.Blobs) {
+        // Check if object exists.
+        if (blob_item.Name.compare(obj) == 0) {
+            // Check if object is deleted and has not been cleared by garbage collection.
+            if (blob_item.IsDeleted) {
+                return -1;
+            }
+            exists = true;
+            break;
+        }
+    }
     return 0;
 }
 
 int
-azure_connection::get_object(const std::string &path) const
+azure_connection::bucket_exists(bool &exists) const
 {
+    exists = false;
+
+    auto service_client = Azure::Storage::Blobs::BlobServiceClient::CreateFromConnectionString(
+      std::getenv("AZURE_STORAGE_CONNECTION_STRING"));
+
+    // Get list of containers associated with the class Azure client.
+    auto list_container_response = service_client.ListBlobContainers();
+
+    for (const auto container_item : list_container_response.BlobContainers) {
+        // Check if bucket exists.
+        if (container_item.Name.compare(_bucket_name) == 0) {
+            // Check if bucket is deleted and has not been cleared by garbage collection.
+            if (container_item.IsDeleted) {
+                return -1;
+            }
+            exists = true;
+            break;
+        }
+    }
     return 0;
 }
