@@ -122,7 +122,7 @@ azure_connection::read_object(
 {
     auto blob_client = _azure_client.GetBlockBlobClient(_object_prefix + object_key);
 
-    // GetProperties returns a BlobProperties object containing the blob size on success 
+    // GetProperties returns a BlobProperties object containing the blob size on success
     // and throws an exception on failure.
     try {
         blob_client.GetProperties();
