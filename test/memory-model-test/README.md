@@ -29,14 +29,29 @@ There are two broad groups of tests:
 ### Requirements
 * ARM or x86 based CPU
 * C++ compiler that supports C++ 20
+* CMake and ninja
 
 ### Build
 
 There are two options:
 
-* Use the CMakeLists.txt file with CMake.
-* On an Evergreen host: `/opt/mongodbtoolchain/v4/bin/g++ -o memory_model_test -O2 memory_model_test.cpp -lpthread -std=c++20`
-* On a Mac: `g++ -o memory_model_test -O2 memory_model_test.cpp -lpthread -std=c++20`
+* Use the CMakeLists.txt file with CMake:
+  ```
+  md build
+  cmake -G Ninja ../.
+  ninja
+  ```
+* On an Evergreen host:
+  ```
+  /opt/mongodbtoolchain/v4/bin/g++ -o memory_model_test -O2 memory_model_test.cpp -lpthread -std=c++20
+  ```
+* On a Mac:
+  ```
+  g++ -o memory_model_test memory_model_test.cpp -lpthread -std=c++20
+  ```
+
+Note that compiler optimisation is off.
+Adding `-O2` currently causes the second group of tests to not demonstrate out of order operations.
 
 Note: if you get compile errors related to `#include <semaphore>` or semaphores in general,
 then check that you are compiling for C++ 20. The test uses the C++ 20 semaphore library as it is
@@ -58,10 +73,6 @@ or the processor design. If any of these tests report out of order operations, t
 Some tests can report out of order operations, but that does not mean they will report them.
 
 All x86 and ARM processors will likely show some out of order operations for some of the first group of tests.
-
-The second group of tests is currently only showing some out of order operations on M1 Max. 
-So far, these results have not been reproduced on other ARM (including M1 Pro) 
-even though they are allowed by the ARM specs. This is still under investigation.
 
 
 # References
