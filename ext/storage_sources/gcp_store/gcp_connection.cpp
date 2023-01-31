@@ -174,6 +174,8 @@ gcp_connection::object_exists(const std::string &object_key, bool &exists, size_
     return get_errno(metadata.status());
 }
 
+// Maps Google Cloud Status code to an Errno value which is returned.
+// If a mapping cannot be found the Google Cloud Status code is printed and -1 is returned.
 int
 gcp_connection::get_errno(const google::cloud::Status status) const
 {
