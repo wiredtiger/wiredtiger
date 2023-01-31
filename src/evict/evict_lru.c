@@ -1312,9 +1312,6 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 
     queue->evict_entries = entries;
 
-    /* The number of entries should match the number of candidates at this point. */
-    WT_ASSERT(session, queue->evict_entries == queue->evict_candidates);
-
     WT_STAT_CONN_INCRV(session, cache_eviction_pages_queued_post_lru, queue->evict_candidates);
     queue->evict_current = queue->evict_queue;
     __wt_spin_unlock(session, &queue->evict_lock);
