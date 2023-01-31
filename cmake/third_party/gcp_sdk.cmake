@@ -18,11 +18,11 @@ config_choice(
 )
 
 if(IMPORT_GCP_SDK_NONE)
-    message(FATAL_ERROR "Cannot enable GCP extension without specifying an IMPORT_GCP_SDK method (package, external).")
+    message(FATAL_ERROR "Cannot enable the GCP extension without specifying an IMPORT_GCP_SDK method (package, external).")
 endif()
 
 if(IMPORT_GCP_SDK_PACKAGE)
-    message(FATAL_ERROR "Importing GCP via package is not currently implemented.")
+    message(FATAL_ERROR "Importing the GCP via package is not currently implemented.")
 endif()
 
 if(IMPORT_GCP_SDK_EXTERNAL)
@@ -60,13 +60,12 @@ set(gcp_sdk_include_location ${INSTALL_DIR}/${CMAKE_INSTALL_INCLUDEDIR})
 
 add_library(gcp_storage_lib SHARED IMPORTED)
 add_library(gcp_common_lib SHARED IMPORTED)
-# Small workaround to declare the include directory under INTERFACE_INCLUDE_DIRECTORIES during the configuration phase.
+
+# Declare the include directories under INTERFACE_INCLUDE_DIRECTORIES during the configuration phase.
 set_target_properties(gcp_storage_lib PROPERTIES
     IMPORTED_LOCATION ${gcp_storage_lib_location}
     INTERFACE_INCLUDE_DIRECTORIES ${gcp_sdk_include_location}
 )
-
-# Small workaround to declare the include directory under INTERFACE_INCLUDE_DIRECTORIES during the configuration phase.
 set_target_properties(gcp_common_lib PROPERTIES
     IMPORTED_LOCATION ${gcp_common_lib_location}
     INTERFACE_INCLUDE_DIRECTORIES ${gcp_sdk_include_location}
