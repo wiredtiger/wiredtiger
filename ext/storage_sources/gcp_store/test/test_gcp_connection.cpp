@@ -103,7 +103,7 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
     File << payload;
     File.close();
 
-    SECTION("Simple list", "[gcp-connection]")
+    SECTION("Simple list test", "[gcp-connection]")
     {
         const int32_t total_objects = 20;
 
@@ -140,6 +140,11 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
         objects.clear();
         REQUIRE(conn.list_objects(objects, list_single) == 0);
         REQUIRE(objects.size() == 1);
+
+        for (int i = 0; i < total_objects; i++) {
+            client.DeleteObject(test_defaults::bucket_name,
+              test_defaults::obj_prefix + std::to_string(i) + ".txt");
+        }
     }
 
     SECTION("Simple put, list, delete test case", "[gcp-connection]")
@@ -204,6 +209,41 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
 
     }
 
+    SECTION("Simple put test", "[gcp-connection]")
+    {
+        // Check number of files with the given prefix currently in bucket
+        auto objects_iterator = 
+            client.ListObjects(test_defaults::bucket_name, gcs::Prefix(test_defaults::obj_prefix));
+        int original_number_of_files = std::distance(objects_iterator.begin(), objects_iterator.end());
+        std::cerr <<  "\n\n\n" << typeid(objects_iterator).name() << std::endl;
+        // Upload a test file
+        REQUIRE(conn.put_object(object_key, file_path) == 0);
+
+        objects_iterator = 
+            client.ListObjects(test_defaults::bucket_name, gcs::Prefix(test_defaults::obj_prefix));
+
+        REQUIRE(std::distance(objects_iterator.begin(), objects_iterator.end()) == original_number_of_files + 1);
+
+        // Check the bucket contains the file
+        auto metadata =
+            client.GetObjectMetadata(test_defaults::bucket_name, test_defaults::obj_prefix + object_key);
+        REQUIRE(metadata.status().ok());
+
+        // Delete the uploaded file
+        auto dl_metadata = client.DeleteObject(test_defaults::bucket_name, test_defaults::obj_prefix + object_key);
+        REQUIRE(dl_metadata.ok());
+
+        // Check that the file has been deleted
+        objects_iterator = 
+            client.ListObjects(test_defaults::bucket_name, gcs::Prefix(test_defaults::obj_prefix));
+
+        REQUIRE(std::distance(objects_iterator.begin(), objects_iterator.end()) == original_number_of_files);
+
+        metadata =
+            client.GetObjectMetadata(test_defaults::bucket_name, test_defaults::obj_prefix + file_name);
+        REQUIRE_FALSE(metadata.ok());
+    }
+
     SECTION("Simple delete test", "[gcp-connection]")
     {
         // Check number of files with the given prefix currently in bucket
@@ -237,6 +277,45 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
 
         metadata =
             client.GetObjectMetadata(test_defaults::bucket_name, test_defaults::obj_prefix + file_name);
+        REQUIRE_FALSE(metadata.ok());
+    }
+
+    SECTION("Simple object exists test", "[gcp-connection]")
+    {
+        // Check number of files with the given prefix currently in bucket
+        auto objects_iterator = 
+            client.ListObjects(test_defaults::bucket_name, gcs::Prefix(test_defaults::obj_prefix));
+        int original_number_of_files = std::distance(objects_iterator.begin(), objects_iterator.end());
+        std::cerr <<  "\n\n\n" << typeid(objects_iterator).name() << std::endl;
+        // Upload a test file
+        auto metadata =
+            client.UploadFile(file_path, test_defaults::bucket_name, test_defaults::obj_prefix + object_key);
+        REQUIRE(metadata.status().ok());
+
+        objects_iterator = 
+            client.ListObjects(test_defaults::bucket_name, gcs::Prefix(test_defaults::obj_prefix));
+
+        REQUIRE(std::distance(objects_iterator.begin(), objects_iterator.end()) == original_number_of_files + 1);
+
+        // Check the bucket contains the file
+        bool exists;
+        size_t size;
+        REQUIRE(conn.object_exists(object_key, exists, size) == 0);
+        REQUIRE(exists == true);
+        REQUIRE(size != 0);
+
+        // Delete the uploaded file
+        auto dl_metadata = client.DeleteObject(test_defaults::bucket_name, test_defaults::obj_prefix + object_key);
+        REQUIRE(dl_metadata.ok());
+
+        // Check that the file has been deleted
+        objects_iterator = 
+            client.ListObjects(test_defaults::bucket_name, gcs::Prefix(test_defaults::obj_prefix));
+
+        REQUIRE(std::distance(objects_iterator.begin(), objects_iterator.end()) == original_number_of_files);
+
+        metadata =
+            client.GetObjectMetadata(test_defaults::bucket_name, test_defaults::obj_prefix + object_key);
         REQUIRE_FALSE(metadata.ok());
     }
 
@@ -297,6 +376,8 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
         // Prefix for objects in this test.
         const std::string prefix = "test_list_objects_";
         const bool list_single = true;
+        // bool exists;
+        // size_t size;
 
         // No matching objects. Object size should be 0.
         REQUIRE(conn.list_objects(objects, false) == 0);
