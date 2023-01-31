@@ -72,18 +72,21 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
 
         prefix = self.bucket_prefix.join(random.choices(string.ascii_letters + string.digits, k=10))
 
-        bad_bucket = "./objects_BAD"
-
         # Create file system. Try with some error cases.
+    
         err_msg = '/Exception: Invalid argument/'
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_customize_file_system(
-                session, self.bucket, None, self.get_fs_config(prefix)), err_msg)
+                session, None, None, self.get_fs_config(prefix)), err_msg)
         
-        if self.ss_name == 'azure_store':
-            bad_bucket += ';us-east-2'
-        
+        self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
+            lambda: ss.ss_customize_file_system(
+                session, "", None, self.get_fs_config(prefix)), err_msg)
+
+        bad_bucket = "./bucket_BAD" 
         err_msg = '/Exception: No such file or directory/'
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_customize_file_system(
                 session, bad_bucket, None, self.get_fs_config(prefix)), err_msg)
+        
+        

@@ -97,10 +97,9 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
   const char *bucket, const char *auth_token, const char *config, WT_FILE_SYSTEM **file_system)
 {
     if (bucket == nullptr || std::string(bucket).length() == 0) {
-        std::cerr << "azure_customize_file_system: bucket not specified." << std::endl;
+        std::cerr << "azure_customize_file_system: Bucket not specified." << std::endl;
         return EINVAL;
     }
-
     // Parse config string.
 
     // Get any prefix to be used for the object keys.
