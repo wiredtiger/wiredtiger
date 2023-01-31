@@ -100,11 +100,13 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
         std::cerr << "azure_customize_file_system: bucket not specified." << std::endl;
         return EINVAL;
     }
+
+    // Case of multiple semicolons?
     int delimiter = std::string(bucket).find(';');
     if (delimiter == std::string::npos || delimiter == 0 ||
       delimiter == std::string(bucket).length() - 1) {
         std::cerr << "azure_customize_file_system: improper bucket name, should be a name and a "
-                     "region seperated by a semicolon."
+                     "region separated by a semicolon."
                   << std::endl;
         return EINVAL;
     }
