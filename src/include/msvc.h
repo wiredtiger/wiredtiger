@@ -34,6 +34,56 @@
 #define WT_GCC_FUNC_ATTRIBUTE(x)
 #define WT_GCC_FUNC_DECL_ATTRIBUTE(x)
 
+/*
+ * WT_BARRIER --
+ *	MSVC implementation of WT_BARRIER.
+ */
+static inline void
+WT_BARRIER(void)
+{
+    _ReadWriteBarrier();
+}
+
+/*
+ * WT_FULL_BARRIER --
+ *	MSVC implementation of WT_FULL_BARRIER.
+ */
+static inline void
+WT_FULL_BARRIER(void)
+{
+    _mm_mfence();
+}
+
+/*
+ * WT_PAUSE --
+ *	MSVC implementation of WT_PAUSE.
+ */
+static inline void
+WT_PAUSE(void)
+{
+    _mm_pause();
+}
+
+/*
+ * WT_READ_BARRIER --
+ *	MSVC implementation of WT_READ_BARRIER.
+ */
+static inline void
+WT_READ_BARRIER(void)
+{
+    _mm_lfence();
+}
+
+/*
+ * WT_WRITE_BARRIER --
+ *	MSVC implementation of WT_WRITE_BARRIER.
+ */
+static inline void
+WT_WRITE_BARRIER(void)
+{
+    _mm_sfence();
+}
+
 #define WT_ATOMIC_FUNC(name, ret, type, s, t)                                                      \
     static inline ret __wt_atomic_add##name(type *vp, type v)                                      \
     {                                                                                              \
@@ -101,54 +151,4 @@ __wt_atomic_load_acquire_ptr(void *left, void *right)
      */
     *(void **)left = *(void **)right;
     WT_BARRIER();
-}
-
-/*
- * WT_BARRIER --
- *	MSVC implementation of WT_BARRIER.
- */
-static inline void
-WT_BARRIER(void)
-{
-    _ReadWriteBarrier();
-}
-
-/*
- * WT_FULL_BARRIER --
- *	MSVC implementation of WT_FULL_BARRIER.
- */
-static inline void
-WT_FULL_BARRIER(void)
-{
-    _mm_mfence();
-}
-
-/*
- * WT_PAUSE --
- *	MSVC implementation of WT_PAUSE.
- */
-static inline void
-WT_PAUSE(void)
-{
-    _mm_pause();
-}
-
-/*
- * WT_READ_BARRIER --
- *	MSVC implementation of WT_READ_BARRIER.
- */
-static inline void
-WT_READ_BARRIER(void)
-{
-    _mm_lfence();
-}
-
-/*
- * WT_WRITE_BARRIER --
- *	MSVC implementation of WT_WRITE_BARRIER.
- */
-static inline void
-WT_WRITE_BARRIER(void)
-{
-    _mm_sfence();
 }

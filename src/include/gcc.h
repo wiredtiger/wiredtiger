@@ -128,25 +128,35 @@ __wt_atomic_cas_ptr(void *vp, void *old, void *newv)
     return (WT_ATOMIC_CAS((void **)vp, &old, newv));
 }
 
-#define WT_ATOMIC_LOAD(left, right) __atomic_load((void **)right, (void **)left, __ATOMIC_ACQUIRE)
-#define WT_ATOMIC_LOAD_FUNC(name, left_arg, right_arg)             \
-    static inline void __wt_atomic_load##name(left_arg, right_arg) \
-    {                                                              \
-        WT_ATOMIC_LOAD(left, right);                               \
+#define WT_ATOMIC_FUNC(name, ret, type, vp_arg, v_arg)                         \
+    static inline ret __wt_atomic_add##name(vp_arg, v_arg)                     \
+    {                                                                          \
+        return (__atomic_add_fetch(vp, v, __ATOMIC_SEQ_CST));                  \
+    }                                                                          \
+    static inline ret __wt_atomic_fetch_add##name(vp_arg, v_arg)               \
+    {                                                                          \
+        return (__atomic_fetch_add(vp, v, __ATOMIC_SEQ_CST));                  \
+    }                                                                          \
+    static inline ret __wt_atomic_sub##name(vp_arg, v_arg)                     \
+    {                                                                          \
+        return (__atomic_sub_fetch(vp, v, __ATOMIC_SEQ_CST));                  \
+    }                                                                          \
+    static inline void __wt_atomic_load##name(type *left_arg, type *right_arg) \
+    {                                                                          \
+        __atomic_load((void **)right, (void **)left, __ATOMIC_ACQUIRE)         \
     }
-
-WT_ATOMIC_LOAD_FUNC(8, uint8_t *left, uint8_t *right)
-WT_ATOMIC_LOAD_FUNC(v8, uint8_t *left, volatile uint8_t *right)
-WT_ATOMIC_LOAD_FUNC(16, uint16_t *left, uint16_t *right)
-WT_ATOMIC_LOAD_FUNC(32, uint32_t *left, uint32_t *right)
-WT_ATOMIC_LOAD_FUNC(v32, uint32_t *left, volatile uint32_t *right)
-WT_ATOMIC_LOAD_FUNC(i32, int32_t *left, int32_t *right)
-WT_ATOMIC_LOAD_FUNC(iv32, int32_t *left, volatile int32_t *right)
-WT_ATOMIC_LOAD_FUNC(64, uint64_t *left, uint64_t *right)
-WT_ATOMIC_LOAD_FUNC(v64, uint64_t *left, volatile uint64_t *right)
-WT_ATOMIC_LOAD_FUNC(i64, int64_t *left, int64_t *right)
-WT_ATOMIC_LOAD_FUNC(iv64, int64_t *left, volatile int64_t *right)
-WT_ATOMIC_LOAD_FUNC(size, size_t *left, size_t *right)
+WT_ATOMIC_FUNC(8, uint8_t, uint8_t, uint8_t *vp, uint8_t v)
+WT_ATOMIC_FUNC(v8, uint8_t, volatile uint8_t, volatile uint8_t *vp, volatile uint8_t v)
+WT_ATOMIC_FUNC(16, uint16_t, uint16_t, uint16_t *vp, uint16_t v)
+WT_ATOMIC_FUNC(32, uint32_t, uint32_t, uint32_t *vp, uint32_t v)
+WT_ATOMIC_FUNC(v32, uint32_t, volatile uint32_t, volatile uint32_t *vp, volatile uint32_t v)
+WT_ATOMIC_FUNC(i32, int32_t, int32_t, int32_t *vp, int32_t v)
+WT_ATOMIC_FUNC(iv32, int32_t, volatile int32_t, volatile int32_t *vp, volatile int32_t v)
+WT_ATOMIC_FUNC(64, uint64_t, uint64_t, uint64_t *vp, uint64_t v)
+WT_ATOMIC_FUNC(v64, uint64_t, volatile uint64_t, volatile uint64_t *vp, volatile uint64_t v)
+WT_ATOMIC_FUNC(i64, int64_t, int64_t, int64_t *vp, int64_t v)
+WT_ATOMIC_FUNC(iv64, int64_t, volatile int64_t, volatile int64_t *vp, volatile int64_t v)
+WT_ATOMIC_FUNC(size, size_t, size_t, size_t *vp, size_t v)
 
 /*
  * __wt_atomic_load_acquire_ptr --
@@ -155,34 +165,8 @@ WT_ATOMIC_LOAD_FUNC(size, size_t *left, size_t *right)
 static inline void
 __wt_atomic_load_acquire_ptr(void *left, void *right)
 {
-    WT_ATOMIC_LOAD(left, right);
+    __atomic_load((void **)right, (void **)left, __ATOMIC_ACQUIRE);
 }
-
-#define WT_ATOMIC_FUNC(name, ret, vp_arg, v_arg)                 \
-    static inline ret __wt_atomic_add##name(vp_arg, v_arg)       \
-    {                                                            \
-        return (__atomic_add_fetch(vp, v, __ATOMIC_SEQ_CST));    \
-    }                                                            \
-    static inline ret __wt_atomic_fetch_add##name(vp_arg, v_arg) \
-    {                                                            \
-        return (__atomic_fetch_add(vp, v, __ATOMIC_SEQ_CST));    \
-    }                                                            \
-    static inline ret __wt_atomic_sub##name(vp_arg, v_arg)       \
-    {                                                            \
-        return (__atomic_sub_fetch(vp, v, __ATOMIC_SEQ_CST));    \
-    }
-WT_ATOMIC_FUNC(8, uint8_t, uint8_t *vp, uint8_t v)
-WT_ATOMIC_FUNC(v8, uint8_t, volatile uint8_t *vp, volatile uint8_t v)
-WT_ATOMIC_FUNC(16, uint16_t, uint16_t *vp, uint16_t v)
-WT_ATOMIC_FUNC(32, uint32_t, uint32_t *vp, uint32_t v)
-WT_ATOMIC_FUNC(v32, uint32_t, volatile uint32_t *vp, volatile uint32_t v)
-WT_ATOMIC_FUNC(i32, int32_t, int32_t *vp, int32_t v)
-WT_ATOMIC_FUNC(iv32, int32_t, volatile int32_t *vp, volatile int32_t v)
-WT_ATOMIC_FUNC(64, uint64_t, uint64_t *vp, uint64_t v)
-WT_ATOMIC_FUNC(v64, uint64_t, volatile uint64_t *vp, volatile uint64_t v)
-WT_ATOMIC_FUNC(i64, int64_t, int64_t *vp, int64_t v)
-WT_ATOMIC_FUNC(iv64, int64_t, volatile int64_t *vp, volatile int64_t v)
-WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
 
 /* Compile read-write barrier */
 #define WT_BARRIER() __asm__ volatile("" ::: "memory")
