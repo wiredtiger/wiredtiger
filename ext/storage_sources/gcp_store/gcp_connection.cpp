@@ -93,9 +93,8 @@ gcp_connection::delete_object(const std::string &object_key)
 {
     auto status = _gcp_client.DeleteObject(_bucket_name, _object_prefix + object_key);
 
-    if (!status.ok()) {
-        return print_error_info(status);
-    }
+    if (!status.ok()) return print_error_info(status);
+    
     return 0;
 }
 
@@ -109,9 +108,7 @@ gcp_connection::read_object(const std::string &object_key, int64_t offset, size_
     // The object_exists function will check if the given object exists and print out any error
     // messages.
     int ret = object_exists(object_key, exists, object_size);
-    if (ret != 0) {
-        return ret;
-    }
+    if (ret != 0) return ret;
 
     if (!exists) {
         std::cerr << "Object '" << object_key << "' does not exist." << std::endl;
