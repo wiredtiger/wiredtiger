@@ -36,6 +36,11 @@ __insert_simple_func(
          * against the next pointer might indicate that the skip list location is still valid, but
          * that may no longer be true when the atomic_cas operation executes.
          *
+         * CPU may also reorder the reads as it see fit. However, it cannot introduce new reads.
+         * Here the atomic_cas operation acts as a full barrier that prevents the CPU from
+         * reordering the reads across the loop iteration. Therefore, as long as the compiler
+         * doesn't introduce a new read, we are safe here.
+         *
          * Place a compiler barrier here to avoid this issue.
          */
         old_ins = *ins_stack[i];
