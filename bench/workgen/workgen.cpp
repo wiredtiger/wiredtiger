@@ -2208,7 +2208,7 @@ void
 CheckpointOperationInternal::parse_config(const std::string &config)
 {
     if (!config.empty())
-        ckpt_config = config.data();
+        ckpt_config = config.c_str();
 }
 
 void
