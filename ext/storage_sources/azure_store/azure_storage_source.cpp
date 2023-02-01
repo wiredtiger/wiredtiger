@@ -125,7 +125,7 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
     // Get a copy of the home directory.
     const std::string home_dir = session->connection->get_home(session->connection);
 
-    // Create the file system.
+    // Create file system and allocate memory for the file system.
     azure_file_system *azure_fs;
     if ((azure_fs = (azure_file_system *)calloc(1, sizeof(azure_file_system))) == nullptr) {
         std::cerr << "azure_customize_file_system: unable to allocate memory for file system."
@@ -133,6 +133,7 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
         return ENOMEM;
     }
 
+    // Initialise references to azure storage source, wt fs and home directory.
     azure_fs->store = azure;
     azure_fs->wt_fs = wt_file_system;
     azure_fs->home_dir = home_dir;
