@@ -209,12 +209,39 @@ azure_flush_finish(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     return 0;
 }
 
+// Discard any resources on termination.
 static int
 azure_terminate(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session)
 {
     WT_UNUSED(storage_source);
     WT_UNUSED(session);
 
+    azure_store *azure = reinterpret_cast<azure_store *>(storage_source);
+
+    if (--azure->reference_count != 0)
+        return 0;
+
+    /*
+     * It is currently unclear at the moment what the multi-threading will look like in the
+     * extension. The current implementation is NOT thread-safe, and needs to be addressed in the
+     * future, as multiple threads could call terminate leading to a race condition.
+     */
+    while (!azure->azure_fh.empty()) {
+        azure_file_handle *fh = &azure->azure_fh.front();
+        azure_file_close(reinterpret_cast<WT_FILE_HANDLE *>(fh), session);
+    }
+
+    /*
+     * Terminate any active filesystems. There are no references to the storage source, so it is
+     * safe to walk the active filesystem list without a lock. The removal from the list happens
+     * under a lock. Also, removal happens from the front and addition at the end, so we are safe.
+     */
+    while (!azure->azure_fs.empty()) {
+        azure_file_system *fs = azure->azure_fs.front();
+        azure_file_system_terminate(fs->wt_fs, session);
+    }
+
+    delete (azure);
     return 0;
 }
 
