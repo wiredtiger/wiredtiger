@@ -35,11 +35,14 @@
 TEST_CASE("Testing Azure Connection Class", "azure-connection")
 {
 
-    Azure::Storage::Blobs::BlobContainerClient azure_client =
+    auto azure_client =
       Azure::Storage::Blobs::BlobContainerClient::CreateFromConnectionString(
         std::getenv("AZURE_STORAGE_CONNECTION_STRING"), "myblobcontainer1");
     bool exists = false;
 
+    azure_connection conn = azure_connection("myblobcontainer1", "unit_testing_");
+    // Prefix for objects in this test.
+    const std::string prefix = "unit_testing_";
     const std::string object_name = "test_object";
     const std::string file_name = "test_object.txt";
     const std::string path = "./" + file_name;
@@ -48,6 +51,8 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
     const std::string path_2 = "./" + file_name_2;
     const std::string non_exi_object_key = "test_non_exist";
     const std::string non_exi_file_name = "test_non_exist.txt";
+    const std::string prefix_file_name = prefix + file_name;
+    const std::string prefix_file_name_2 = prefix + file_name_2;
 
     std::ofstream file(file_name);
     const std::string payload = "Test payload";
@@ -62,20 +67,18 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
     file_2.close();
 
     SECTION(
-      "(Checks if connection to a non-existing bucket fails gracefully).", "[azure-connection]")
+      "Checks azure connection constructor.", "[azure-connection]")
     {
         REQUIRE_THROWS_WITH(azure_connection("Bad_bucket", ""), "Bad_bucket : No such bucket.");
     }
 
-    SECTION("(Check if an object exists in Azure)", "[azure-connection]")
+    SECTION("Check if an object exists in Azure.", "[azure-connection]")
     {
-        azure_connection conn = azure_connection("myblobcontainer1", "obj_exists_");
-
         // Object does not exist yet so there should be 0 objects.
         CHECK(conn.object_exists(file_name, exists) == 0);
         CHECK(exists == false);
 
-        auto blob_client = azure_client.GetBlockBlobClient("obj_exists_" + file_name);
+        auto blob_client = azure_client.GetBlockBlobClient(prefix_file_name);
         blob_client.UploadFrom(file_name);
 
         // Object exists now in the container.
@@ -85,59 +88,54 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
         blob_client.Delete();
     }
 
-    SECTION("(Lists Azure objects under the text bucket).", "[azure-connection]")
+    SECTION("Lists Azure objects under the text bucket.", "[azure-connection]")
     {
-        azure_connection conn = azure_connection("myblobcontainer1", "list_obj_");
         std::vector<std::string> objects;
 
         // Total objects to insert in the test.
         const int32_t num_objects = 11;
-        // Prefix for objects in this test.
-        const std::string prefix = "list_obj_";
         const bool list_single = true;
 
         // No matching objects. Object size should be 0.
-        CHECK(conn.list_objects(prefix + file_name, objects, !list_single) == 0);
+        CHECK(conn.list_objects(prefix_file_name, objects, !list_single) == 0);
         CHECK(objects.size() == 0);
 
         // No matching objects with listSingle. Object size should be 0.
-        CHECK(conn.list_objects(prefix + file_name, objects, list_single) == 0);
+        CHECK(conn.list_objects(prefix_file_name, objects, list_single) == 0);
         CHECK(objects.size() == 0);
 
         // Put objects to prepare for test.
         for (int i = 0; i < num_objects; i++) {
             auto blob_client =
-              azure_client.GetBlockBlobClient(prefix + file_name + std::to_string(i) + ".txt");
+              azure_client.GetBlockBlobClient(prefix_file_name + std::to_string(i) + ".txt");
             blob_client.UploadFrom(file_name);
         }
 
         // List all objects. This is the size of num_objects.
-        CHECK(conn.list_objects(prefix + file_name, objects, !list_single) == 0);
+        CHECK(conn.list_objects(prefix_file_name, objects, !list_single) == 0);
         CHECK(objects.size() == num_objects);
 
         // List single. Object size should be 1.
         objects.clear();
-        CHECK(conn.list_objects(prefix + file_name, objects, list_single) == 0);
+        CHECK(conn.list_objects(prefix_file_name, objects, list_single) == 0);
         CHECK(objects.size() == 1);
 
         // There should be 2 matches with 'list_obj_1' prefix pattern.
         objects.clear();
-        CHECK(conn.list_objects(prefix + file_name + "1", objects, !list_single) == 0);
+        CHECK(conn.list_objects(prefix_file_name + "1", objects, !list_single) == 0);
         CHECK(objects.size() == 2);
 
         // Clean up.
         for (int i = 0; i < num_objects; i++) {
             auto blob_client =
-              azure_client.GetBlockBlobClient(prefix + file_name + std::to_string(i) + ".txt");
+              azure_client.GetBlockBlobClient(prefix_file_name + std::to_string(i) + ".txt");
             blob_client.Delete();
         }
     }
 
-    SECTION("(Testing delete functionality for Azure).", "[azure-connection]")
+    SECTION("Testing delete functionality for Azure.", "[azure-connection]")
     {
-        azure_connection conn = azure_connection("myblobcontainer1", "delete_obj_");
-
-        auto blob_client = azure_client.GetBlockBlobClient("delete_obj_" + file_name);
+        auto blob_client = azure_client.GetBlockBlobClient(prefix_file_name);
 
         blob_client.UploadFrom(file_name);
 
@@ -148,24 +146,20 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
         CHECK(conn.delete_object(non_exi_object_key) == ENOENT);
     }
 
-    SECTION("(Checking put functionality in Azure)", "[azure-connection]")
+    SECTION("Checking put functionality in Azure.", "[azure-connection]")
     {
-        azure_connection conn = azure_connection("myblobcontainer1", "put_obj_");
-
         CHECK(conn.put_object(file_name, path) == 0);
 
-        auto blob_client = azure_client.GetBlockBlobClient("put_obj_" + file_name);
+        auto blob_client = azure_client.GetBlockBlobClient(prefix_file_name);
         blob_client.Delete();
 
         // Test that putting an object that doesn't exist locally returns -1.
         CHECK(conn.put_object(non_exi_object_key, non_exi_file_name) == -1);
     }
 
-    SECTION("(Checking read functionality in Azure)", "[azure-connection]")
+    SECTION("Checking read functionality in Azure.", "[azure-connection]")
     {
-        azure_connection conn = azure_connection("myblobcontainer1", "read_obj_");
-
-        auto blob_client = azure_client.GetBlockBlobClient("read_obj_" + file_name);
+        auto blob_client = azure_client.GetBlockBlobClient(prefix_file_name);
 
         blob_client.UploadFrom(file_name);
         void *buffer = calloc(1024, sizeof(char));
