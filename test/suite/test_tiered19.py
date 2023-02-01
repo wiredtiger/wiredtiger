@@ -88,5 +88,3 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_customize_file_system(
                 session, bad_bucket, None, self.get_fs_config(prefix)), err_msg)
-        
-        

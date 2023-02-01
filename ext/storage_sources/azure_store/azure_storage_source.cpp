@@ -381,9 +381,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     azure->reference_count = 1;
 
     // Load the storage.
-    int ret;
-    if ((ret = connection->add_storage_source(connection, "azure_store", &azure->store, nullptr)) !=
-      0) {
+    if ((connection->add_storage_source(connection, "azure_store", &azure->store, nullptr)) != 0) {
         std::cerr
           << "wiredtiger_extension_init: Could not load Azure storage source, shutting down."
           << std::endl;
