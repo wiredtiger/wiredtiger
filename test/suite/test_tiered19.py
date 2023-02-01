@@ -66,21 +66,36 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         session = self.session
         ss = self.get_storage_source()
 
-        prefix = self.bucket_prefix.join(random.choices(string.ascii_letters + string.digits, k=10))
+        prefix_1 = self.bucket_prefix.join(
+            random.choices(string.ascii_letters + string.digits, k=10))
+        prefix_2 = self.bucket_prefix.join(
+            random.choices(string.ascii_letters + string.digits, k=10))
 
         # Create file system. Try with some error cases.
     
         err_msg = '/Exception: Invalid argument/'
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_customize_file_system(
-                session, None, None, self.get_fs_config(prefix)), err_msg)
+                session, None, None, self.get_fs_config(prefix_1)), err_msg)
         
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_customize_file_system(
-                session, "", None, self.get_fs_config(prefix)), err_msg)
+                session, "", None, self.get_fs_config(prefix_1)), err_msg)
 
         bad_bucket = "./bucket_BAD" 
         err_msg = '/Exception: No such file or directory/'
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_customize_file_system(
-                session, bad_bucket, None, self.get_fs_config(prefix)), err_msg)
+                session, bad_bucket, None, self.get_fs_config(prefix_1)), err_msg)
+        
+        # bad_prefix = "./prefix_BAD"
+        # err_msg = '/Exception: Invalid argument/'
+        # self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
+        #     lambda: ss.ss_customize_file_system(
+        #         session, self.bucket, None, bad_prefix), err_msg)
+
+        # Create file systems that should succeed.
+        azure_fs_1 = ss.ss_customize_file_system(
+            session, self.bucket, None, self.get_fs_config(prefix_1))
+        azure_fs_2 = ss.ss_customize_file_system(
+            session, self.bucket, None, self.get_fs_config(prefix_2))
