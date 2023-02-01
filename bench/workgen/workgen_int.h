@@ -246,8 +246,8 @@ struct OperationInternal {
 };
 
 struct CheckpointOperationInternal : OperationInternal {
-    char const * ckpt_config;
-    CheckpointOperationInternal() : OperationInternal(), ckpt_config (nullptr) {}
+    std::string ckpt_config;
+    CheckpointOperationInternal() : OperationInternal(), ckpt_config() {}
     CheckpointOperationInternal(const CheckpointOperationInternal &other) :
 	OperationInternal(other), ckpt_config(other.ckpt_config)  {}
     virtual void parse_config(const std::string &config);

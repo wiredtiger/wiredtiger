@@ -2144,7 +2144,7 @@ int
 CheckpointOperationInternal::run(ThreadRunner *runner, WT_SESSION *session)
 {
     (void)runner; /* not used */
-    return (session->checkpoint(session, ckpt_config));
+    return (session->checkpoint(session, ckpt_config.c_str()));
 }
 
 int
@@ -2208,7 +2208,7 @@ void
 CheckpointOperationInternal::parse_config(const std::string &config)
 {
     if (!config.empty())
-        ckpt_config = config.c_str();
+        ckpt_config = config;
 }
 
 void
