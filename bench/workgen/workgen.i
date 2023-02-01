@@ -174,6 +174,17 @@ WorkgenFrozenClass(WorkloadOptions)
         if config == None:
             config = self.default_config
         self.initialize()
+        bucketConfigIndex = config.find("bucket=")
+        if bucketConfigIndex != -1:
+            bucketString = config[bucketConfigIndex:]
+            bucketParams = [args.split('=', 1) for args in bucketString.split(',',1)]
+            bucketValue = bucketParams[0][1]
+            if bucketValue[0] == '/':
+                bucketDirectory = bucketValue
+            else:
+                bucketDirectory = bucketValue.split("/")[-1]
+
+            os.mkdir(self.args.home + "/" + bucketDirectory)
         return wiredtiger.wiredtiger_open(self.args.home, self.wiredtiger_open_config(config))
 
     def initialize(self):
