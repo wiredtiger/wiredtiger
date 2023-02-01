@@ -56,9 +56,13 @@ gcp_connection::list_objects(std::vector<std::string> &objects, bool list_single
       _gcp_client.ListObjects(_bucket_name, gcs::Prefix(_object_prefix))) {
         // Check if the current object is accessible (object exists but the user does not have
         // permissions to access)
-        if (!object_metadata)
-            return handle_error(object_metadata.status(),
+        if (!object_metadata) {
+            // Error message will be printed out by handle_error and the returned system error
+            // number is then printed.
+            int error = handle_error(object_metadata.status(),
               "List failed: '" + object_metadata->name() + "' is not accessible");
+            std::cerr << error << std::endl;
+        }
 
         objects.push_back(object_metadata->name());
 
