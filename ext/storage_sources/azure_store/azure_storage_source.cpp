@@ -126,37 +126,37 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
     const std::string home_dir = session->connection->get_home(session->connection);
 
     // Create the file system.
-    azure_file_system *fs;
-    if ((fs = (azure_file_system *)calloc(1, sizeof(azure_file_system))) == nullptr) {
+    azure_file_system *azure_fs;
+    if ((azure_fs = (azure_file_system *)calloc(1, sizeof(azure_file_system))) == nullptr) {
         std::cerr << "azure_customize_file_system: unable to allocate memory for file system."
                   << std::endl;
         return ENOMEM;
     }
 
-    fs->store = azure;
-    fs->wt_fs = wt_file_system;
-    fs->home_dir = home_dir;
+    azure_fs->store = azure;
+    azure_fs->wt_fs = wt_file_system;
+    azure_fs->home_dir = home_dir;
 
     try {
-        fs->azure_conn = new azure_connection(bucket, obj_prefix);
+        azure_fs->azure_conn = new azure_connection(bucket, obj_prefix);
     } catch (std::runtime_error &e) {
         std::cerr << std::string("azure_customize_file_system: ") + e.what() << std::endl;
         return ENOENT;
     }
-    fs->fs.fs_directory_list = azure_object_list;
-    fs->fs.fs_directory_list_single = azure_object_list_single;
-    fs->fs.fs_directory_list_free = azure_object_list_free;
-    fs->fs.terminate = azure_file_system_terminate;
-    fs->fs.fs_exist = azure_file_exists;
-    fs->fs.fs_open_file = azure_file_open;
-    fs->fs.fs_remove = azure_remove;
-    fs->fs.fs_rename = azure_rename;
-    fs->fs.fs_size = azure_object_size;
+    azure_fs->fs.fs_directory_list = azure_object_list;
+    azure_fs->fs.fs_directory_list_single = azure_object_list_single;
+    azure_fs->fs.fs_directory_list_free = azure_object_list_free;
+    azure_fs->fs.terminate = azure_file_system_terminate;
+    azure_fs->fs.fs_exist = azure_file_exists;
+    azure_fs->fs.fs_open_file = azure_file_open;
+    azure_fs->fs.fs_remove = azure_remove;
+    azure_fs->fs.fs_rename = azure_rename;
+    azure_fs->fs.fs_size = azure_object_size;
 
     // Add to the list of the active file systems.
-    azure->azure_fs.push_back(fs);
+    azure->azure_fs.push_back(azure_fs);
 
-    *file_system = &fs->fs;
+    *file_system = &azure_fs->fs;
 
     return ret;
 }
