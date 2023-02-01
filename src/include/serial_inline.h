@@ -31,7 +31,7 @@ __insert_simple_func(
      */
     for (i = 0; i < skipdepth; i++) {
         /*
-         * The insert stack position must be read only once - if the compiler chose to re-read the
+         * The insert stack position must be read only once - if the compiler chooses to re-read the
          * shared variable it could lead to skip list corruption. Specifically the comparison
          * against the next pointer might indicate that the skip list location is still valid, but
          * that may no longer be true when the atomic_cas operation executes.
@@ -74,7 +74,7 @@ __insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSE
      */
     for (i = 0; i < skipdepth; i++) {
         /*
-         * The insert stack position must be read only once - if the compiler chose to re-read the
+         * The insert stack position must be read only once - if the compiler chooses to re-read the
          * shared variable it could lead to skip list corruption. Specifically the comparison
          * against the next pointer might indicate that the skip list location is still valid, but
          * that may no longer be true when the atomic_cas operation executes.

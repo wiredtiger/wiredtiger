@@ -128,10 +128,10 @@ __wt_search_insert(
             key.data = WT_INSERT_KEY(ins);
             key.size = WT_INSERT_KEY_SIZE(ins);
             /*
-             * We have an optimization to reduce the number of bytes we need to compare down the
-             * search if we know certain length of the prefix of the search key matches the keys we
-             * have already compared upper the stack. This works because we know the keys become
-             * denser down the stack.
+             * We have an optimization to reduce the number of bytes we need to compare during the
+             * search if we know a prefix of the search key matches the keys we have already
+             * compared on the upper stacks. This works because we know the keys become denser down
+             * the stack.
              *
              * However, things become tricky if we have another key inserted concurrently to next of
              * the search key. If we have seen this key inserted upper the stack, we require the
@@ -155,7 +155,7 @@ __wt_search_insert(
              * decide we can skip comparing the first byte of the key. However, since we don't see
              * AC on level 0, we compare with BD and wrongly skip the comparison with prefix B.
              *
-             * On the architectures with strong memory ordering, the requirement is satisfied by
+             * On architectures with strong memory ordering, the requirement is satisfied by
              * inserting the new key to the skip list from lower stack to upper stack using an
              * atomic compare and swap operation, which functions as a full barrier. However, it is
              * not enough on the architecture that has weaker memory ordering, such as ARM and PPC.
