@@ -103,14 +103,14 @@ __wt_search_insert(
     ins = last_ins = NULL;
     for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0;) {
         /*
-         * The algorithm requires that the skip list insert pointer is not re-read during the loop.
-         * Whilst the compiler can change the code in a way that it reads the ins value from memory
-         * again in the following code thus breaking this assumption.
+         * The algorithm requires that the skip list insert pointer is only read once within the
+         * loop. Whilst the compiler can change the code in a way that it reads the insert pointer
+         * value from memory again in the following code.
          *
-         * In addition, a CPU with weak memory ordering, such as ARM and PPC, may speculatively read
-         * an old value. It is not OK and the reason is explained in the following comment.
+         * In addition, a CPU with weak memory ordering, such as ARM, may speculatively read an old
+         * value. It is not OK and the reason is explained in the following comment.
          *
-         * Place a read barrier here using atomic read to avoid these issues.
+         * Place a read barrier here to avoid these issues.
          */
         WT_ORDERED_READ(ins, *insp);
         if (ins == NULL) {
@@ -158,8 +158,10 @@ __wt_search_insert(
              * On architectures with strong memory ordering, the requirement is satisfied by
              * inserting the new key to the skip list from lower stack to upper stack using an
              * atomic compare and swap operation, which functions as a full barrier. However, it is
-             * not enough on the architecture that has weaker memory ordering, such as ARM and PPC.
-             * Therefore, an extra read barrier is needed for these platforms.
+             * not enough on the architecture that has weaker memory ordering, such as ARM. Even
+             * though the CASAL instruction on ARM also functions as a full barrier, it doesn't
+             * prevent the other thread to speculatively read a stale value before the CASAL
+             * instruction. Therefore, an extra read barrier is needed for these platforms.
              */
             match = WT_MIN(skiplow, skiphigh);
             WT_RET(__wt_compare_skip(session, collator, srch_key, &key, &cmp, &match));
