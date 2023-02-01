@@ -106,7 +106,7 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
     std::string obj_prefix;
 
     // Get the value of the config key from the string
-    azure_store *azure = (azure_store *)storage_source;
+    azure_store *azure = reinterpret_cast<azure_store *>(storage_source);
     int ret;
     if ((ret = azure->wt_api->config_get_string(
            azure->wt_api, session, config, "prefix", &obj_prefix_config)) == 0)
@@ -163,8 +163,7 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
 static int
 azure_add_reference(WT_STORAGE_SOURCE *storage_source)
 {
-    azure_store *azure = (azure_store *)storage_source;
-
+    azure_store *azure = reinterpret_cast<azure_store *>(storage_source);
     if (azure->reference_count == 0 || azure->reference_count + 1 == 0) {
         std::cerr << "azure_add_reference: missing reference or overflow." << std::endl;
         return EINVAL;
