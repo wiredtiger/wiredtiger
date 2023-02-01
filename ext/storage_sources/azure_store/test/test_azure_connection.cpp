@@ -43,13 +43,23 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
     const std::string object_name = "test_object";
     const std::string file_name = "test_object.txt";
     const std::string path = "./" + file_name;
+    const std::string object_name_2 = "test_object_2";
+    const std::string file_name_2 = "test_object_2.txt";
+    const std::string path_2 = "./" + file_name_2;
     const std::string non_exi_object_key = "test_non_exist";
     const std::string non_exi_file_name = "test_non_exist.txt";
 
-    std::ofstream File(file_name);
-    std::string payload = "Test payload";
-    File << payload;
-    File.close();
+    std::ofstream file(file_name);
+    const std::string payload = "Test payload";
+    const std::string payload_substr = "payload"; 
+    file << payload;
+    file.close();
+
+    std::ofstream file_2(file_name_2);
+    const std::string payload_2 = "Testing offset and substring";
+    const std::string payload_2_substr = "offset";
+    file_2 << payload_2;
+    file_2.close();
 
     SECTION(
       "(Checks if connection to a non-existing bucket fails gracefully).", "[azure-connection]")
@@ -134,7 +144,7 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
         // Test that an object can be deleted.
         CHECK(conn.delete_object(file_name) == 0);
 
-        // Test that removing an object that doesn't exist throws an exception.
+        // Test that removing an object that doesn't exist returns a ENOENT.
         CHECK(conn.delete_object(non_exi_object_key) == ENOENT);
     }
 
@@ -147,7 +157,7 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
         auto blob_client = azure_client.GetBlockBlobClient("put_obj_" + file_name);
         blob_client.Delete();
 
-        // Test that putting an object that doesn't exist locally throws an exception.
+        // Test that putting an object that doesn't exist locally returns -1.
         CHECK(conn.put_object(non_exi_object_key, non_exi_file_name) == -1);
     }
 
@@ -179,153 +189,121 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
 
         blob_client.Delete();
 
-        // Tests that reading a non existant object returns an exception.
+        // Tests that reading a non existant object returns a ENOENT.
         CHECK(conn.read_object(non_exi_object_key, 0, 1, buffer) == ENOENT);
     }
 
     SECTION("(Test complex case).", "[azure-connection]")
     {
         azure_connection conn = azure_connection("myblobcontainer1", "complex_case_");
+        azure_connection conn_bad = azure_connection("myblobcontainer1", "bad_prefix_");
 
-        SECTION("(Testing object exists in complex case).", "[azure-connection]")
-        {
-            // Check that the object does not exist in the container.
-            CHECK(conn.object_exists(file_name, exists) == 0);
-            CHECK(exists == false);
+        // Read an object in the container from middle to end
+        // Prefix for objects in this test.
+        const std::string prefix = "complex_case_";
+        const bool list_single = true;
+        void *buffer = calloc(1024, sizeof(char));
+        std::vector<std::string> objects;
 
-            // Put an object into the container.
-            CHECK(conn.put_object(file_name, path) == 0);
+        // Total objects to insert in the test.
+        const int32_t num_objects = 11;
 
-            // Check that the object put in exists in the container.
-            CHECK(conn.object_exists(file_name, exists) == 0);
-            CHECK(exists == true);
+        // Check that the object does not exist in the container.
+        CHECK(conn.object_exists(file_name_2, exists) == 0);
+        CHECK(exists == false);
+        
+        // Put an object into the container.
+        CHECK(conn.put_object(file_name_2, path_2) == 0);
 
-            // Delete the object from the container.
-            CHECK(conn.delete_object(file_name) == 0);
+        // Check that the object exists in the container.
+        CHECK(conn.object_exists(file_name_2, exists) == 0);
+        CHECK(exists == true);
 
-            // Check that the object no longer exists in the container.
-            CHECK(conn.object_exists(file_name, exists) == 0);
-            CHECK(exists == false);
+        // Check that the offset and length works by finding a substring in the payload.
+        CHECK(conn.read_object(
+                file_name_2, payload_2.find(payload_2_substr), payload_2_substr.length(), buffer) == 0);
+        CHECK(static_cast<char *>(buffer) == payload_2_substr);
+        memset(buffer, 0, 1024);
+
+        // Put a second object into the container.
+        CHECK(conn.put_object(file_name, path) == 0);
+
+        // There are 2 objects in the container but list single. Object size should be 1.
+        CHECK(conn.list_objects(prefix, objects, list_single) == 0);
+        CHECK(objects.size() == 1);
+        
+        // Check that read works from the middle to the end.
+        CHECK(conn.read_object(
+                file_name, payload.find(payload_substr), payload.length() - payload.find(payload_substr), buffer) == 0);
+        CHECK(static_cast<char *>(buffer) == payload.substr(payload.find(payload_substr), payload.length() - payload.find(payload_substr)));
+        memset(buffer, 0, 1024);
+
+        // Clean up the 2 objects.
+        CHECK(conn.delete_object(file_name) == 0);
+        CHECK(conn.delete_object(file_name_2) == 0);
+
+        // No matching objects. Object size should be 0.
+        objects.clear();
+        CHECK(conn.list_objects(prefix, objects, !list_single) == 0);
+        CHECK(objects.size() == 0);
+
+        // Put objects to prepare for test.
+        for (int i = 0; i < num_objects; i++) {
+            CHECK(conn.put_object(object_name + std::to_string(i) + ".txt", path) == 0);
         }
 
-        SECTION("(Testing list objects in complex case).", "[azure-connection]")
-        {
-            std::vector<std::string> objects;
+        // List all. Object size should be 11.
+        objects.clear();
+        CHECK(conn.list_objects(prefix, objects, !list_single) == 0);
+        CHECK(objects.size() == 11);
 
-            // Total objects to insert in the test.
-            const int32_t num_objects = 11;
-            // Prefix for objects in this test.
-            const std::string prefix = "complex_case_";
-            const bool list_single = true;
+        // Test that deleting an object that does not exist returns a ENOENT.
+        CHECK(conn.delete_object(non_exi_object_key) == ENOENT);
 
-            // No matching objects. Object size should be 0.
-            CHECK(conn.list_objects(object_name, objects, !list_single) == 0);
-            CHECK(objects.size() == 0);
+        // Test that the object exists in the container.
+        CHECK(conn.object_exists(object_name + std::to_string(0) + ".txt", exists) == 0);
+        CHECK(exists == true);
 
-            // Put objects to prepare for test.
-            for (int i = 0; i < num_objects; i++) {
-                CHECK(conn.put_object(object_name + std::to_string(i) + ".txt", path) == 0);
-            }
+        // Test that deleting an object that exists but prefix is wrong returns a ENOENT.
+        CHECK(conn_bad.delete_object(object_name + std::to_string(0) + ".txt") == ENOENT);
 
-            // There should be 2 matches with 'complex_case_test_object_1' prefix pattern.
-            objects.clear();
-            CHECK(conn.list_objects(prefix + object_name + '1', objects, !list_single) == 0);
-            CHECK(objects.size() == 2);
+        // Test that the object does not exist in the container.
+        CHECK(conn.object_exists(non_exi_object_key, exists) == 0);
+        CHECK(exists == false);
 
-            // Delete complex_case_10.txt from the container.
-            CHECK(conn.delete_object(object_name + std::to_string(10) + ".txt") == 0);
+        // Test that reading a non existent object returns a ENOENT.
+        CHECK(conn.read_object(non_exi_object_key, 0, 1, buffer) == ENOENT);
 
-            // There should be 1 match with 'complex_case_test_object_1' prefix pattern.
-            objects.clear();
-            CHECK(conn.list_objects(prefix + object_name + '1', objects, !list_single) == 0);
-            CHECK(objects.size() == 1);
+        // Test that reading an object that exists but prefix is wrong returns a ENOENT.
+        CHECK(conn_bad.read_object(object_name + std::to_string(0) + ".txt", 0, 1, buffer) == ENOENT);
+        memset(buffer, 0, 1024);
 
-            // Clean up.
-            for (int i = 0; i < num_objects - 1; i++) {
-                CHECK(conn.delete_object(object_name + std::to_string(i) + ".txt") == 0);
-            }
+        // Test overflow on positive offset but past EOF.
+        CHECK(conn.read_object(object_name + std::to_string(0) + ".txt", 1, 1000, buffer) == -1);
+
+        // Put an object into the container.
+        CHECK(conn.put_object(file_name, path) == 0);
+
+        // Check that the object exists in the container.
+        CHECK(conn.object_exists(file_name, exists) == 0);
+        CHECK(exists == true);
+
+        // Test the object can be deleted.
+        CHECK(conn.delete_object(file_name) == 0);
+
+        // Check that the object no longer exists in the container.
+        CHECK(conn.object_exists(file_name, exists) == 0);
+        CHECK(exists == false);
+
+        // Clean up.
+        for (int i = 0; i < num_objects; i++) {
+            CHECK(conn.delete_object(object_name + std::to_string(i) + ".txt") == 0);
         }
+        free(buffer);
 
-        SECTION("(Testing delete objects in complex case).", "[azure-connection]")
-        {
-            // Put an object into the container.
-            CHECK(conn.put_object(file_name, path) == 0);
-
-            // Check that the object exists in the container.
-            CHECK(conn.object_exists(file_name, exists) == 0);
-            CHECK(exists == true);
-
-            // Test the object can be deleted.
-            CHECK(conn.delete_object(file_name) == 0);
-
-            // Check that the object no longer exists in the container.
-            CHECK(conn.object_exists(file_name, exists) == 0);
-            CHECK(exists == false);
-
-            // Test that removing an object that has already been deleted throws an exception.
-            CHECK(conn.delete_object(file_name) == ENOENT);
-        }
-
-        SECTION("(Testing put objects in complex case).", "[azure-connection]")
-        {
-            // Put an object into the container.
-            CHECK(conn.put_object(file_name, path) == 0);
-
-            // Check that the object exists in the container.
-            CHECK(conn.object_exists(file_name, exists) == 0);
-            CHECK(exists == true);
-
-            // Test that an object can be deleted.
-            CHECK(conn.delete_object(file_name) == 0);
-
-            // Check that the object does not exist in the container.
-            CHECK(conn.object_exists(file_name, exists) == 0);
-            CHECK(exists == false);
-        }
-
-        SECTION("(Testing read objects in complex case).", "[azure-connection]")
-        {
-            // Put an object into the container.
-            CHECK(conn.put_object(file_name, path) == 0);
-
-            // Check that the object exists in the container.
-            CHECK(conn.object_exists(file_name, exists) == 0);
-            CHECK(exists == true);
-
-            void *buffer = calloc(1024, sizeof(char));
-            // Test reading whole file.
-            CHECK(conn.read_object(file_name, 0, payload.length(), buffer) == 0);
-            CHECK(static_cast<char *>(buffer) == payload);
-            memset(buffer, 0, 1024);
-
-            // Test that an object can be deleted.
-            CHECK(conn.delete_object(file_name) == 0);
-
-            std::ofstream File2(file_name);
-            std::string payload = "Testing offset and substring";
-            std::string payload_substr = "offset";
-            File2 << payload;
-            File2.close();
-
-            // Put an object into the container.
-            CHECK(conn.put_object(file_name, path) == 0);
-
-            // Check that the object exists in the container.
-            CHECK(conn.object_exists(file_name, exists) == 0);
-            CHECK(exists == true);
-
-            // Check that the offset and length works by finding a substring in the payload.
-            CHECK(conn.read_object(
-                    file_name, payload.find(payload_substr), payload_substr.length(), buffer) == 0);
-            CHECK(static_cast<char *>(buffer) == payload_substr);
-            memset(buffer, 0, 1024);
-
-            CHECK(conn.delete_object(file_name) == 0);
-            free(buffer);
-
-            // Check that the object does not exist in the container.
-            CHECK(conn.object_exists(file_name, exists) == 0);
-            CHECK(exists == false);
-        }
+        // Sanity check that nothing exists.
+        objects.clear();
+        CHECK(conn.list_objects(prefix, objects, !list_single) == 0);
+        CHECK(objects.size() == 0);
     }
 }
