@@ -443,7 +443,7 @@ __wt_chunkcache_remove(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objec
     if (!chunkcache->configured)
         return;
 
-    printf("\nremove-check: %s(%d), offset=%" PRId64 ", size=%d\n",
+    printf("\nAsk to remove: %s(%d), offset=%" PRId64 ", size=%d\n",
            (char*)block->name, objectid, offset, size);
 
    /* A block may span many chunks. Loop until we have removed all the chunks. */
@@ -486,6 +486,7 @@ __wt_chunkcache_remove(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objec
                            (char*)&hash_id.objectname, hash_id.objectid,
                            (uint64_t)chunk->chunk_offset,
                            (uint64_t)chunk->chunk_size);
+                    done = true;
                     break;
                 }
             }
@@ -493,7 +494,7 @@ __wt_chunkcache_remove(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objec
         /*
          * If we found the chunk, we removed the data and we update the variables so that
          * we can find the next chunk that might contain the block's data. If we did not
-         * fund the cached chunk, we still update the variable, so that we can look for the
+         * find the cached chunk, we still update the variable, so that we can look for the
          * next chunk that might have part of the block. If we don't update these variables,
          * we will be stuck forever looking for a chunk that's not cached.
          */
