@@ -258,6 +258,7 @@ azure_object_list_free(
     return 0;
 }
 
+// Discard any resources on termination of the file system.
 static int
 azure_file_system_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
 {
