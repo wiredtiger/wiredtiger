@@ -60,7 +60,8 @@ gcp_connection::list_objects(std::vector<std::string> &objects, bool list_single
             // Error message will be printed out by handle_error and the returned system error
             // number is then printed.
             int error = handle_error(object_metadata.status(),
-              "List failed: '" + object_metadata->name() + "' is not accessible");
+              "List failed: '" + object_metadata->name() + "' " +
+                object_metadata.status().message());
             std::cerr << error << std::endl;
         }
 
