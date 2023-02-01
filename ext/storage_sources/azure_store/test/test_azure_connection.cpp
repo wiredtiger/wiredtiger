@@ -198,7 +198,6 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
         azure_connection conn = azure_connection("myblobcontainer1", "complex_case_");
         azure_connection conn_bad = azure_connection("myblobcontainer1", "bad_prefix_");
 
-        // Read an object in the container from middle to end
         // Prefix for objects in this test.
         const std::string prefix = "complex_case_";
         const bool list_single = true;
@@ -256,7 +255,7 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
         // List all. Object size should be 11.
         objects.clear();
         CHECK(conn.list_objects(prefix, objects, !list_single) == 0);
-        CHECK(objects.size() == 11);
+        CHECK(objects.size() == num_objects);
 
         // Test that deleting an object that does not exist returns a ENOENT.
         CHECK(conn.delete_object(non_exi_object_key) == ENOENT);
