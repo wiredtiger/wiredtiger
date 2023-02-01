@@ -27,7 +27,9 @@
  */
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
+#include <algorithm>
 #include <memory>
+#include <mutex>
 #include <vector>
 
 #include "azure_connection.h"
@@ -38,7 +40,12 @@ struct azure_file_handle;
 struct azure_store {
     WT_STORAGE_SOURCE store;
     WT_EXTENSION_API *wt_api;
+
+    std::mutex fs_mutex;
     std::vector<azure_file_system *> azure_fs;
+    std::mutex fh_mutex;
+    std::vector<azure_file_handle> azure_fh;
+
     uint32_t reference_count;
 };
 
@@ -46,7 +53,7 @@ struct azure_file_system {
     WT_FILE_SYSTEM fs;
     azure_store *store;
     WT_FILE_SYSTEM *wt_fs;
-    std::vector<azure_file_handle> azure_fh;
+    // std::vector<azure_file_handle> azure_fh;
     std::unique_ptr<azure_connection> azure_conn;
     std::string home_dir;
 };
@@ -254,8 +261,20 @@ azure_object_list_free(
 static int
 azure_file_system_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
 {
-    WT_UNUSED(file_system);
+    azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
+    azure_store *azure = reinterpret_cast<azure_store *>(file_system);
+
     WT_UNUSED(session);
+
+    // Remove from the active file system list. The lock will be freed when the scope is exited.
+    {
+        std::lock_guard<std::mutex> lock_guard(azure->fs_mutex);
+        // Erase-remove idiom used to eliminate specific file system.
+        azure->azure_fs.erase(std::remove(azure->azure_fs.begin(), azure->azure_fs.end(), azure_fs),
+          azure->azure_fs.end());
+    }
+    azure_fs->azure_conn.reset();
+    free(azure_fs);
 
     return 0;
 }
