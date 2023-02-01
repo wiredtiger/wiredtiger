@@ -104,11 +104,11 @@ __wt_search_insert(
     for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0;) {
         /*
          * The algorithm requires that the skip list insert pointer is not re-read during the loop.
-         * While the compiler can change the code in a way that it reads the ins value from memory
+         * Whilst the compiler can change the code in a way that it reads the ins value from memory
          * again in the following code thus breaking this assumption.
          *
-         * In addition, the CPU with weak memory ordering, such as ARM and PPC, may speculatively
-         * read an old value. It is not OK and the reason is explained in the following comment.
+         * In addition, a CPU with weak memory ordering, such as ARM and PPC, may speculatively read
+         * an old value. It is not OK and the reason is explained in the following comment.
          *
          * Place a read barrier here using atomic read to avoid these issues.
          */
