@@ -57,8 +57,9 @@ gcp_connection::list_objects(std::vector<std::string> &objects, bool list_single
         // Check if the current object is accessible (object exists but the user does not have
         // permissions to access)
         if (!object_metadata)
-            std::cerr << "List failed: " << object_metadata->name() << "is not accessible"
+            std::cerr << "List failed: '" << object_metadata->name() << "' is not accessible"
                       << std::endl;
+        return get_errno(object_metadata.status());
 
         objects.push_back(object_metadata->name());
 
@@ -80,7 +81,8 @@ gcp_connection::put_object(const std::string &object_key, const std::string &fil
 
     // Check if file has been successfully uploaded.
     if (!metadata) {
-        std::cerr << "Upload failed: " << metadata.status().message() << std::endl;
+        std::cerr << "Upload of '" << object_key << "' failed: " << metadata.status().message()
+                  << std::endl;
         return get_errno(metadata.status());
     }
 
@@ -94,7 +96,7 @@ gcp_connection::delete_object(const std::string &object_key)
     auto status = _gcp_client.DeleteObject(_bucket_name, _object_prefix + object_key);
 
     if (!status.ok()) {
-        std::cerr << "Delete " << object_key << " failed: " << status.message();
+        std::cerr << "Delete '" << object_key << "' failed: " << status.message();
         return get_errno(status);
     }
 
@@ -135,7 +137,8 @@ gcp_connection::read_object(const std::string &object_key, int64_t offset, size_
       _bucket_name, _object_prefix + object_key, gcs::ReadFromOffset(offset));
 
     if (stream.bad()) {
-        std::cerr << "Read " << object_key << " failed: " << stream.status().message() << std::endl;
+        std::cerr << "Read '" << object_key << "' failed: " << stream.status().message()
+                  << std::endl;
         return get_errno(stream.status());
     }
 
@@ -170,7 +173,8 @@ gcp_connection::object_exists(const std::string &object_key, bool &exists, size_
         return 0;
     }
 
-    std::cerr << object_key + ": " + metadata.status().message() << std::endl;
+    std::cerr << "Object exists check for '" << object_key
+              << "' failed: " + metadata.status().message() << std::endl;
     return get_errno(metadata.status());
 }
 
