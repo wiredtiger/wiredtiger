@@ -57,9 +57,8 @@ gcp_connection::list_objects(std::vector<std::string> &objects, bool list_single
         // Check if the current object is accessible (object exists but the user does not have
         // permissions to access)
         if (!object_metadata)
-            std::cerr << "List failed: '" << object_metadata->name() << "' is not accessible"
-                      << std::endl;
-        return get_errno(object_metadata.status());
+            return handle_error(object_metadata.status(),
+              "List failed: '" + object_metadata->name() + "' is not accessible");
 
         objects.push_back(object_metadata->name());
 
@@ -80,11 +79,9 @@ gcp_connection::put_object(const std::string &object_key, const std::string &fil
       _gcp_client.UploadFile(file_path, _bucket_name, _object_prefix + object_key);
 
     // Check if file has been successfully uploaded.
-    if (!metadata) {
-        std::cerr << "Upload of '" << object_key << "' failed: " << metadata.status().message()
-                  << std::endl;
-        return get_errno(metadata.status());
-    }
+    if (!metadata)
+        return handle_error(metadata.status(),
+          "Upload of '" + object_key + "' failed: " + metadata.status().message());
 
     return 0;
 }
@@ -95,10 +92,8 @@ gcp_connection::delete_object(const std::string &object_key)
 {
     auto status = _gcp_client.DeleteObject(_bucket_name, _object_prefix + object_key);
 
-    if (!status.ok()) {
-        std::cerr << "Delete '" << object_key << "' failed: " << status.message();
-        return get_errno(status);
-    }
+    if (!status.ok())
+        return handle_error(status, "Delete '" + object_key + "' failed: " + status.message());
 
     return 0;
 }
@@ -136,11 +131,9 @@ gcp_connection::read_object(const std::string &object_key, int64_t offset, size_
     gcs::ObjectReadStream stream = _gcp_client.ReadObject(
       _bucket_name, _object_prefix + object_key, gcs::ReadFromOffset(offset));
 
-    if (stream.bad()) {
-        std::cerr << "Read '" << object_key << "' failed: " << stream.status().message()
-                  << std::endl;
-        return get_errno(stream.status());
-    }
+    if (stream.bad())
+        return handle_error(
+          stream.status(), "Read '" + object_key + "' failed: " + stream.status().message());
 
     std::istreambuf_iterator<char> begin{stream}, end;
     std::string buffer{begin, end};
@@ -173,16 +166,17 @@ gcp_connection::object_exists(const std::string &object_key, bool &exists, size_
         return 0;
     }
 
-    std::cerr << "Object exists check for '" << object_key
-              << "' failed: " + metadata.status().message() << std::endl;
-    return get_errno(metadata.status());
+    return handle_error(metadata.status(),
+      "Object exists check for '" + object_key + "' failed: " + metadata.status().message());
 }
 
 // Maps Google Cloud Status code to an Errno value which is returned.
 // If a mapping cannot be found the Google Cloud Status code is printed and -1 is returned.
 int
-gcp_connection::get_errno(const google::cloud::Status status) const
+gcp_connection::handle_error(
+  const google::cloud::Status status, const std::string &error_message) const
 {
+    std::cerr << error_message << std::endl;
     if (toErrno.find(status.code()) != toErrno.end())
         return (toErrno.at(status.code()));
     std::cerr << status.code() << std::endl;
