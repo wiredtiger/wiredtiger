@@ -155,9 +155,7 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
 
     // Add to the list of the active file systems.
     azure->azure_fs.push_back(azure_fs);
-
     *file_system = &azure_fs->fs;
-
     return ret;
 }
 
