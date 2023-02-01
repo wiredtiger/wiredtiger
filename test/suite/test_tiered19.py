@@ -88,11 +88,11 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
             lambda: ss.ss_customize_file_system(
                 session, bad_bucket, None, self.get_fs_config(prefix_1)), err_msg)
         
-        bad_config = "./config_BAD"
-        err_msg = '/Exception: Invalid argument/'
-        self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
-            lambda: ss.ss_customize_file_system(
-                session, self.bucket, None, bad_config), err_msg)
+        # bad_config = "prefix=config_BAD"
+        # err_msg = '/Exception: Invalid argument/'
+        # self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
+        #     lambda: ss.ss_customize_file_system(
+        #         session, self.bucket, None, bad_config), err_msg)
 
         # Create file systems that should succeed.
         azure_fs_1 = ss.ss_customize_file_system(

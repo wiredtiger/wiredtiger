@@ -27,6 +27,7 @@
  */
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
+#include <memory>
 #include <vector>
 
 #include "azure_connection.h"
@@ -46,7 +47,7 @@ struct azure_file_system {
     azure_store *store;
     WT_FILE_SYSTEM *wt_fs;
     std::vector<azure_file_handle> azure_fh;
-    azure_connection *azure_conn;
+    std::unique_ptr<azure_connection> azure_conn;
     std::string home_dir;
 };
 
@@ -139,7 +140,7 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
     azure_fs->home_dir = home_dir;
 
     try {
-        azure_fs->azure_conn = new azure_connection(bucket, obj_prefix);
+        azure_fs->azure_conn = std::make_unique<azure_connection>(bucket, obj_prefix);
     } catch (std::runtime_error &e) {
         std::cerr << std::string("azure_customize_file_system: ") + e.what() << std::endl;
         return ENOENT;
