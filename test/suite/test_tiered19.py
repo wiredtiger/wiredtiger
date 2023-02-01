@@ -26,9 +26,11 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wttest
+import inspect, os, wiredtiger, wttest
 from helper_tiered import get_auth_token, TieredConfigMixin
 from wtscenario import make_scenarios
+
+file_system = wiredtiger.FileSystem
 
 class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
 
@@ -42,16 +44,45 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         ('gcp_store', dict(is_tiered = True,
             is_local_storage = False,
             auth_token = get_auth_token('gcp_store'), 
-            bucket = 'pythontest',
+            bucket = 'pythontestt',
             bucket_prefix = "pfx_",
             ss_name = 'gcp_store')),
     ]
 
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(tiered_storage_sources)
+
+    def get_storage_source(self):
+        return self.conn.get_storage_source(self.ss_name)
+
+    def get_fs_config(self, prefix = '', cache_dir = ''):
+        conf = ''
+        if prefix:
+            conf += ',prefix=' + prefix
+        if cache_dir:
+            conf += ',cache_directory=' + cache_dir
+        return conf
     
     def conn_extensions(self, extlist):
         TieredConfigMixin.conn_extensions(self, extlist)
 
     def test_gcp_and_azure(self): 
+        # Test some basic functionality of the storage source API, calling
+        # each supported method in the API at least once.
+
+        session = self.session
+        ss = self.get_storage_source()
+
+        if (self.ss_name != 'gcp_store'):
+            return
+
+        # Since this class has multiple tests, append test name to the prefix to
+        # avoid namespace collision. 0th element on the stack is the current function.
+        prefix = self.bucket_prefix + inspect.stack()[0][3] + '/'
+
+        fs = ss.ss_customize_file_system(session, self.bucket, self.auth_token, self.get_fs_config(prefix))
+
+        fs.terminate(session)
+        ss.terminate(session)
+
         pass
