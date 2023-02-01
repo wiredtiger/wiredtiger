@@ -75,15 +75,15 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
     SECTION("Check if an object exists in Azure.", "[azure-connection]")
     {
         // Object does not exist yet so there should be 0 objects.
-        CHECK(conn.object_exists(file_name, exists) == 0);
-        CHECK(exists == false);
+        REQUIRE(conn.object_exists(file_name, exists) == 0);
+        REQUIRE(exists == false);
 
         auto blob_client = azure_client.GetBlockBlobClient(prefix_file_name);
         blob_client.UploadFrom(file_name);
 
         // Object exists now in the container.
-        CHECK(conn.object_exists(file_name, exists) == 0);
-        CHECK(exists == true);
+        REQUIRE(conn.object_exists(file_name, exists) == 0);
+        REQUIRE(exists == true);
 
         blob_client.Delete();
     }
@@ -97,12 +97,12 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
         const bool list_single = true;
 
         // No matching objects. Object size should be 0.
-        CHECK(conn.list_objects(prefix_file_name, objects, !list_single) == 0);
-        CHECK(objects.size() == 0);
+        REQUIRE(conn.list_objects(prefix_file_name, objects, !list_single) == 0);
+        REQUIRE(objects.size() == 0);
 
         // No matching objects with listSingle. Object size should be 0.
-        CHECK(conn.list_objects(prefix_file_name, objects, list_single) == 0);
-        CHECK(objects.size() == 0);
+        REQUIRE(conn.list_objects(prefix_file_name, objects, list_single) == 0);
+        REQUIRE(objects.size() == 0);
 
         // Put objects to prepare for test.
         for (int i = 0; i < num_objects; i++) {
@@ -112,18 +112,18 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
         }
 
         // List all objects. This is the size of num_objects.
-        CHECK(conn.list_objects(prefix_file_name, objects, !list_single) == 0);
-        CHECK(objects.size() == num_objects);
+        REQUIRE(conn.list_objects(prefix_file_name, objects, !list_single) == 0);
+        REQUIRE(objects.size() == num_objects);
 
         // List single. Object size should be 1.
         objects.clear();
-        CHECK(conn.list_objects(prefix_file_name, objects, list_single) == 0);
-        CHECK(objects.size() == 1);
+        REQUIRE(conn.list_objects(prefix_file_name, objects, list_single) == 0);
+        REQUIRE(objects.size() == 1);
 
         // There should be 2 matches with 'list_obj_1' prefix pattern.
         objects.clear();
-        CHECK(conn.list_objects(prefix_file_name + "1", objects, !list_single) == 0);
-        CHECK(objects.size() == 2);
+        REQUIRE(conn.list_objects(prefix_file_name + "1", objects, !list_single) == 0);
+        REQUIRE(objects.size() == 2);
 
         // Clean up.
         for (int i = 0; i < num_objects; i++) {
@@ -140,21 +140,21 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
         blob_client.UploadFrom(file_name);
 
         // Test that an object can be deleted.
-        CHECK(conn.delete_object(file_name) == 0);
+        REQUIRE(conn.delete_object(file_name) == 0);
 
         // Test that removing an object that doesn't exist returns a ENOENT.
-        CHECK(conn.delete_object(non_exi_object_key) == ENOENT);
+        REQUIRE(conn.delete_object(non_exi_object_key) == ENOENT);
     }
 
     SECTION("Checking put functionality in Azure.", "[azure-connection]")
     {
-        CHECK(conn.put_object(file_name, path) == 0);
+        REQUIRE(conn.put_object(file_name, path) == 0);
 
         auto blob_client = azure_client.GetBlockBlobClient(prefix_file_name);
         blob_client.Delete();
 
         // Test that putting an object that doesn't exist locally returns -1.
-        CHECK(conn.put_object(non_exi_object_key, non_exi_file_name) == -1);
+        REQUIRE(conn.put_object(non_exi_object_key, non_exi_file_name) == -1);
     }
 
     SECTION("Checking read functionality in Azure.", "[azure-connection]")
@@ -165,26 +165,26 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
         void *buffer = calloc(1024, sizeof(char));
 
         // Test reading whole file.
-        CHECK(conn.read_object(file_name, 0, payload.length(), buffer) == 0);
-        CHECK(static_cast<char *>(buffer) == payload);
+        REQUIRE(conn.read_object(file_name, 0, payload.length(), buffer) == 0);
+        REQUIRE(static_cast<char *>(buffer) == payload);
         memset(buffer, 0, 1024);
 
         // Test overflow on positive offset but past EOF.
-        CHECK(conn.read_object(file_name, 1, 1000, buffer) == -1);
+        REQUIRE(conn.read_object(file_name, 1, 1000, buffer) == -1);
         memset(buffer, 0, 1024);
 
         // Test overflow on negative offset but past EOF.
-        CHECK(conn.read_object(file_name, -1, 1000, buffer) == -1);
+        REQUIRE(conn.read_object(file_name, -1, 1000, buffer) == -1);
         memset(buffer, 0, 1024);
 
         // Test overflow with negative offset.
-        CHECK(conn.read_object(file_name, -1, 12, buffer) == -1);
+        REQUIRE(conn.read_object(file_name, -1, 12, buffer) == -1);
         free(buffer);
 
         blob_client.Delete();
 
         // Tests that reading a non existant object returns a ENOENT.
-        CHECK(conn.read_object(non_exi_object_key, 0, 1, buffer) == ENOENT);
+        REQUIRE(conn.read_object(non_exi_object_key, 0, 1, buffer) == ENOENT);
     }
 
     SECTION("(Test complex case).", "[azure-connection]")
@@ -202,102 +202,102 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
         const int32_t num_objects = 11;
 
         // Check that the object does not exist in the container.
-        CHECK(conn.object_exists(file_name_2, exists) == 0);
-        CHECK(exists == false);
+        REQUIRE(conn.object_exists(file_name_2, exists) == 0);
+        REQUIRE(exists == false);
 
         // Put an object into the container.
-        CHECK(conn.put_object(file_name_2, path_2) == 0);
+        REQUIRE(conn.put_object(file_name_2, path_2) == 0);
 
         // Check that the object exists in the container.
-        CHECK(conn.object_exists(file_name_2, exists) == 0);
-        CHECK(exists == true);
+        REQUIRE(conn.object_exists(file_name_2, exists) == 0);
+        REQUIRE(exists == true);
 
         // Check that the offset and length works by finding a substring in the payload.
-        CHECK(conn.read_object(file_name_2, payload_2.find(payload_2_substr),
+        REQUIRE(conn.read_object(file_name_2, payload_2.find(payload_2_substr),
                 payload_2_substr.length(), buffer) == 0);
-        CHECK(static_cast<char *>(buffer) == payload_2_substr);
+        REQUIRE(static_cast<char *>(buffer) == payload_2_substr);
         memset(buffer, 0, 1024);
 
         // Put a second object into the container.
-        CHECK(conn.put_object(file_name, path) == 0);
+        REQUIRE(conn.put_object(file_name, path) == 0);
 
         // There are 2 objects in the container but list single. Object size should be 1.
-        CHECK(conn.list_objects(prefix, objects, list_single) == 0);
-        CHECK(objects.size() == 1);
+        REQUIRE(conn.list_objects(prefix, objects, list_single) == 0);
+        REQUIRE(objects.size() == 1);
 
         // Check that read works from the middle to the end.
-        CHECK(conn.read_object(file_name, payload.find(payload_substr),
+        REQUIRE(conn.read_object(file_name, payload.find(payload_substr),
                 payload.length() - payload.find(payload_substr), buffer) == 0);
-        CHECK(static_cast<char *>(buffer) ==
+        REQUIRE(static_cast<char *>(buffer) ==
           payload.substr(
             payload.find(payload_substr), payload.length() - payload.find(payload_substr)));
         memset(buffer, 0, 1024);
 
         // Clean up the 2 objects.
-        CHECK(conn.delete_object(file_name) == 0);
-        CHECK(conn.delete_object(file_name_2) == 0);
+        REQUIRE(conn.delete_object(file_name) == 0);
+        REQUIRE(conn.delete_object(file_name_2) == 0);
 
         // No matching objects. Object size should be 0.
         objects.clear();
-        CHECK(conn.list_objects(prefix, objects, !list_single) == 0);
-        CHECK(objects.size() == 0);
+        REQUIRE(conn.list_objects(prefix, objects, !list_single) == 0);
+        REQUIRE(objects.size() == 0);
 
         // Put objects to prepare for test.
         for (int i = 0; i < num_objects; i++)
-            CHECK(conn.put_object(object_name + std::to_string(i) + ".txt", path) == 0);
+            REQUIRE(conn.put_object(object_name + std::to_string(i) + ".txt", path) == 0);
 
         // List all. Object size should be 11.
         objects.clear();
-        CHECK(conn.list_objects(prefix, objects, !list_single) == 0);
-        CHECK(objects.size() == num_objects);
+        REQUIRE(conn.list_objects(prefix, objects, !list_single) == 0);
+        REQUIRE(objects.size() == num_objects);
 
         // Test that deleting an object that does not exist returns a ENOENT.
-        CHECK(conn.delete_object(non_exi_object_key) == ENOENT);
+        REQUIRE(conn.delete_object(non_exi_object_key) == ENOENT);
 
         // Test that the object exists in the container.
-        CHECK(conn.object_exists(object_name + std::to_string(0) + ".txt", exists) == 0);
-        CHECK(exists == true);
+        REQUIRE(conn.object_exists(object_name + std::to_string(0) + ".txt", exists) == 0);
+        REQUIRE(exists == true);
 
         // Test that deleting an object that exists but prefix is wrong returns a ENOENT.
-        CHECK(conn_bad.delete_object(object_name + std::to_string(0) + ".txt") == ENOENT);
+        REQUIRE(conn_bad.delete_object(object_name + std::to_string(0) + ".txt") == ENOENT);
 
         // Test that the object does not exist in the container.
-        CHECK(conn.object_exists(non_exi_object_key, exists) == 0);
-        CHECK(exists == false);
+        REQUIRE(conn.object_exists(non_exi_object_key, exists) == 0);
+        REQUIRE(exists == false);
 
         // Test that reading a non existent object returns a ENOENT.
-        CHECK(conn.read_object(non_exi_object_key, 0, 1, buffer) == ENOENT);
+        REQUIRE(conn.read_object(non_exi_object_key, 0, 1, buffer) == ENOENT);
 
         // Test that reading an object that exists but prefix is wrong returns a ENOENT.
-        CHECK(
+        REQUIRE(
           conn_bad.read_object(object_name + std::to_string(0) + ".txt", 0, 1, buffer) == ENOENT);
         memset(buffer, 0, 1024);
 
         // Test overflow on positive offset but past EOF.
-        CHECK(conn.read_object(object_name + std::to_string(0) + ".txt", 1, 1000, buffer) == -1);
+        REQUIRE(conn.read_object(object_name + std::to_string(0) + ".txt", 1, 1000, buffer) == -1);
 
         // Put an object into the container.
-        CHECK(conn.put_object(file_name, path) == 0);
+        REQUIRE(conn.put_object(file_name, path) == 0);
 
         // Check that the object exists in the container.
-        CHECK(conn.object_exists(file_name, exists) == 0);
-        CHECK(exists == true);
+        REQUIRE(conn.object_exists(file_name, exists) == 0);
+        REQUIRE(exists == true);
 
         // Test the object can be deleted.
-        CHECK(conn.delete_object(file_name) == 0);
+        REQUIRE(conn.delete_object(file_name) == 0);
 
         // Check that the object no longer exists in the container.
-        CHECK(conn.object_exists(file_name, exists) == 0);
-        CHECK(exists == false);
+        REQUIRE(conn.object_exists(file_name, exists) == 0);
+        REQUIRE(exists == false);
 
         // Clean up.
         for (int i = 0; i < num_objects; i++)
-            CHECK(conn.delete_object(object_name + std::to_string(i) + ".txt") == 0);
+            REQUIRE(conn.delete_object(object_name + std::to_string(i) + ".txt") == 0);
         free(buffer);
 
         // Sanity check that nothing exists.
         objects.clear();
-        CHECK(conn.list_objects(prefix, objects, !list_single) == 0);
-        CHECK(objects.size() == 0);
+        REQUIRE(conn.list_objects(prefix, objects, !list_single) == 0);
+        REQUIRE(objects.size() == 0);
     }
 }
