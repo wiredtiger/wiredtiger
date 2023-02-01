@@ -21,6 +21,7 @@ if(IMPORT_GCP_SDK_NONE)
     message(FATAL_ERROR "Cannot enable the GCP extension without specifying an IMPORT_GCP_SDK method (package, external).")
 endif()
 
+# FIXME-WT-10555: Importing GCP via package needs to be implemented.
 if(IMPORT_GCP_SDK_PACKAGE)
     message(FATAL_ERROR "Importing the GCP via package is not currently implemented.")
 endif()
