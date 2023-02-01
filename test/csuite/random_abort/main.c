@@ -31,7 +31,14 @@
 #include <sys/wait.h>
 #include <signal.h>
 
-static char home[1024]; /* Program working dir */
+#ifdef __linux__
+#include <sys/prctl.h>
+#include <sys/types.h>
+#include <libgen.h>
+#endif
+
+static char home[PATH_MAX];        /* Program working dir */
+static char lazyfs_home[PATH_MAX]; /* Path to LazyFS */
 
 /*
  * These two names for the URI and file system must be maintained in tandem.
@@ -52,9 +59,18 @@ static bool inmem;
 #define OP_TYPE_MODIFY 2
 #define MAX_NUM_OPS 3
 
-#define DELETE_RECORDS_FILE "delete-records-%" PRIu32
-#define INSERT_RECORDS_FILE "insert-records-%" PRIu32
-#define MODIFY_RECORDS_FILE "modify-records-%" PRIu32
+#define LAZYFS_BASE_DIR "base"
+#define LAZYFS_CONFIG_FILE "lazyfs-config.toml"
+#define LAZYFS_CONTROL_FILE "lazyfs-control.fifo"
+#define LAZYFS_LOG_FILE "lazyfs.log"
+#define LAZYFS_PATH "../../../../test/3rdparty/lazyfs-0.0.1/lazyfs"
+
+#define RECORDS_DIR "records"
+#define WT_HOME_DIR "WT_HOME"
+
+#define DELETE_RECORDS_FILE RECORDS_DIR "/delete-records-%" PRIu32
+#define INSERT_RECORDS_FILE RECORDS_DIR "/insert-records-%" PRIu32
+#define MODIFY_RECORDS_FILE RECORDS_DIR "/modify-records-%" PRIu32
 
 #define DELETE_RECORD_FILE_ID 0
 #define INSERT_RECORD_FILE_ID 1
@@ -326,7 +342,7 @@ fill_db(uint32_t nth)
     if (compat)
         strcat(envconf, TESTUTIL_ENV_CONFIG_COMPAT);
 
-    testutil_check(wiredtiger_open(NULL, NULL, envconf, &conn));
+    testutil_check(wiredtiger_open(WT_HOME_DIR, NULL, envconf, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     testutil_check(session->create(session, col_uri, "key_format=r,value_format=u"));
     testutil_check(session->create(session, uri, "key_format=S,value_format=u"));
@@ -394,7 +410,7 @@ recover_and_verify(uint32_t nthreads)
     bool columnar_table, fatal;
 
     printf("Open database, run recovery and verify content\n");
-    testutil_check(wiredtiger_open(NULL, NULL, TESTUTIL_ENV_CONFIG_REC, &conn));
+    testutil_check(wiredtiger_open(WT_HOME_DIR, NULL, TESTUTIL_ENV_CONFIG_REC, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     testutil_check(session->open_cursor(session, col_uri, NULL, NULL, &col_cursor));
     testutil_check(session->open_cursor(session, uri, NULL, NULL, &row_cursor));
@@ -621,6 +637,225 @@ recover_and_verify(uint32_t nthreads)
 }
 
 /*
+ * is_mounted --
+ *     Check whether the given directory is mounted. Works only on Linux.
+ */
+static bool
+is_mounted(const char *mount_dir)
+{
+#ifndef __linux__
+    return false;
+#else
+    struct stat sb, parent_sb;
+    char buf[PATH_MAX];
+
+    testutil_check(__wt_snprintf(buf, sizeof(buf), "%s", mount_dir));
+    testutil_assert_errno(stat(mount_dir, &sb) == 0);
+    testutil_assert_errno(stat(dirname(buf), &parent_sb) == 0);
+
+    return sb.st_dev != parent_sb.st_dev;
+#endif
+}
+
+/*
+ * lazyfs_discover --
+ *     Find LazyFS's home directory.
+ */
+static void
+lazyfs_discover()
+{
+#ifndef __linux__
+    if (lazyfs) {
+        fprintf(stderr, "LazyFS is only available on Linux.\n");
+        exit(EXIT_FAILURE);
+    }
+#else
+    struct stat sb;
+    char buf[PATH_MAX];
+    char program_dir[PATH_MAX];
+
+    /* Find LazyFS relative to the current executable's path. */
+    testutil_assert_errno(readlink("/proc/self/exe", buf, sizeof(buf)) >= 0);
+    testutil_check(__wt_snprintf(program_dir, sizeof(program_dir), "%s", dirname(buf)));
+
+    testutil_check(__wt_snprintf(lazyfs_home, sizeof(lazyfs_home), "%s/" LAZYFS_PATH, program_dir));
+    if (stat(lazyfs_home, &sb) != 0)
+        testutil_die(errno, "Cannot find LazyFS.");
+#endif
+}
+
+/*
+ * lazyfs_mount --
+ *     Set up LazyFS. Note that the path to the FIFO file must be absolute.
+ */
+static void
+lazyfs_setup(const char *lazyfs_config, const char *lazyfs_control, const char *lazyfs_log)
+{
+    FILE *config_fh;
+
+    if ((config_fh = fopen(lazyfs_config, "w")) == NULL)
+        testutil_die(errno, "Cannot create LazyFS's config file.");
+
+    testutil_assert_errno(fprintf(config_fh, "[faults]\n") >= 0);
+    testutil_assert_errno(fprintf(config_fh, "fifo_path=\"%s\"\n", lazyfs_control) >= 0);
+
+    testutil_assert_errno(fprintf(config_fh, "\n[cache]\n") >= 0);
+    testutil_assert_errno(fprintf(config_fh, "apply_eviction=false\n") >= 0);
+
+    testutil_assert_errno(fprintf(config_fh, "\n[cache.simple]\n") >= 0);
+    testutil_assert_errno(fprintf(config_fh, "custom_size=\"1gb\"\n") >= 0);
+    testutil_assert_errno(fprintf(config_fh, "blocks_per_page=1\n") >= 0);
+
+    testutil_assert_errno(fprintf(config_fh, "\n[filesystem]\n") >= 0);
+    testutil_assert_errno(fprintf(config_fh, "log_all_operations=false\n") >= 0);
+    testutil_assert_errno(fprintf(config_fh, "logfile=\"%s\"\n", lazyfs_log) >= 0);
+
+    testutil_check(fclose(config_fh));
+}
+
+/*
+ * lazyfs_mount --
+ *     Mount LazyFS. Note that the passed paths must be absolute.
+ */
+static pid_t
+lazyfs_mount(const char *mount_dir, const char *base_dir, const char *lazyfs_config)
+{
+#ifndef __linux__
+    /* We should never get here. */
+    abort();
+#else
+    char subdir_arg[PATH_MAX];
+    int e, count;
+    pid_t p, parent_pid, pid;
+
+    /*
+     * Mount in a separate process that will be automatically killed if the parent unexpectedly
+     * exits. In this way, we never forget to unmount.
+     */
+
+    testutil_check(__wt_snprintf(subdir_arg, sizeof(subdir_arg), "subdir=%s", base_dir));
+
+    parent_pid = getpid();
+    testutil_assert_errno((pid = fork()) >= 0);
+
+    if (pid == 0) { /* child */
+        if (prctl(PR_SET_PDEATHSIG, SIGTERM) != 0) {
+            e = errno;
+            kill(parent_pid, SIGTERM);
+            testutil_die(e, "Failed to set up PR_SET_PDEATHSIG");
+        }
+
+        if (chdir(lazyfs_home) != 0) {
+            e = errno;
+            kill(parent_pid, SIGTERM);
+            testutil_die(e, "Failed to change directory to LazyFS's home");
+        }
+
+        /*
+         * Note that we need to call the executable directly, not via the mount script, because
+         * there is otherwise no easy way to kill it automatically if the parent process suddenly
+         * exits.
+         */
+        if (execl("./build/lazyfs", "lazyfs", mount_dir, "--config-path", lazyfs_config, "-o",
+              "allow_other", "-o", "modules=subdir", "-o", subdir_arg, "-f", NULL) != 0) {
+            e = errno;
+            kill(parent_pid, SIGTERM);
+            testutil_die(e, "Failed to start LazyFS");
+        }
+
+        /* NOTREACHED */
+    }
+
+    /* Parent. */
+    if (pid < 0)
+        testutil_die(errno, "Failed to start LazyFS on `%s`", mount_dir);
+
+    /* Wait for the mount to finish. */
+    count = 0;
+    for (;;) {
+        sleep(2);
+        if (is_mounted(mount_dir))
+            break;
+        if (++count >= 10)
+            testutil_die(ETIMEDOUT, "Failed to mount LazyFS on `%s`", mount_dir);
+    }
+
+    /* Check on the child process. */
+    testutil_assert_errno((p = waitpid(pid, &e, WNOHANG)) >= 0);
+    if (p > 0)
+        testutil_die(ECHILD, "Failed to mount LazyFS on `%s`: Process exited with status %d",
+          mount_dir, WEXITSTATUS(e));
+
+    return pid;
+#endif
+}
+
+/*
+ * lazyfs_unmount --
+ *     Unmount LazyFS if it is mounted. If lazyfs_pid > 0, wait for the subprocess to exit.
+ */
+static void
+lazyfs_unmount(const char *mount_dir, pid_t lazyfs_pid)
+{
+    int status;
+    struct stat sb;
+    char buf[PATH_MAX];
+
+    /* Check whether the file system is mounted. */
+    if (stat(mount_dir, &sb) != 0) {
+        if (errno == ENOENT)
+            return; /* It's ok if the mountpoint doesn't exist. */
+        testutil_die(errno, "Error while accessing the LazyFS mountpoint.");
+    }
+    if (!is_mounted(mount_dir))
+        return;
+
+    /* Unmount. */
+    testutil_check(__wt_snprintf(
+      buf, sizeof(buf), "cd '%s' && ./scripts/umount-lazyfs.sh -m \"%s\"", lazyfs_home, mount_dir));
+    testutil_check(system(buf));
+    if (lazyfs_pid > 0)
+        testutil_assert_errno(waitpid(lazyfs_pid, &status, 0) >= 0);
+}
+
+/*
+ * lazyfs_command --
+ *     Run a LazyFS command.
+ */
+static void
+lazyfs_command(const char *lazyfs_control, const char *command)
+{
+    FILE *f;
+
+    if ((f = fopen(lazyfs_control, "w")) == NULL)
+        testutil_die(errno, "Cannot open LazyFS's control file.");
+
+    testutil_assert_errno(fprintf(f, "lazyfs::%s\n", command) >= 0);
+    testutil_check(fclose(f));
+    sleep(1);
+}
+
+/*
+ * lazyfs_clear_cache --
+ *     Clear cache.
+ */
+static void
+lazyfs_clear_cache(const char *lazyfs_control)
+{
+    lazyfs_command(lazyfs_control, "clear-cache");
+}
+
+/*
+ * lazyfs_display_cache_usage --
+ *     Display cache usage.
+ */
+static void
+lazyfs_display_cache_usage(const char *lazyfs_control)
+{
+    lazyfs_command(lazyfs_control, "display-cache-usage");
+}
+
+/*
  * main --
  *     TODO: Add a comment describing this function.
  */
@@ -630,16 +865,26 @@ main(int argc, char *argv[])
     struct sigaction sa;
     struct stat sb;
     WT_RAND_STATE rnd;
-    pid_t pid;
+    pid_t lazyfs_pid, pid;
     uint32_t i, j, nth, timeout;
-    int ch, status, ret;
-    char buf[1024], fname[MAX_RECORD_FILES][64];
+    int ch, ret, status;
+    char buf[PATH_MAX], fname[MAX_RECORD_FILES][64];
+    char cwd_start[PATH_MAX];         /* The working directory when we started */
+    char home_canonical[PATH_MAX];    /* The canonical path to the home directory */
+    char lazyfs_base[PATH_MAX];       /* The base home directory under LazyFS, if using it */
+    char lazyfs_config[PATH_MAX];     /* The LazyFS config file */
+    char lazyfs_control[PATH_MAX];    /* The LazyFS FIFO file for controlling it */
+    char lazyfs_mountpoint[PATH_MAX]; /* The mount home directory under LazyFS, if using it */
+    char lazyfs_logfile[PATH_MAX];    /* The LazyFS log file */
+    char *str;
     const char *working_dir;
-    bool preserve, rand_th, rand_time, verify_only;
+    bool lazyfs, preserve, rand_th, rand_time, verify_only;
 
     (void)testutil_set_progname(argv);
 
     compaction = compat = inmem = false;
+    lazyfs = false;
+    lazyfs_pid = 0;
     nth = MIN_TH;
     preserve = false;
     rand_th = rand_time = true;
@@ -647,7 +892,7 @@ main(int argc, char *argv[])
     verify_only = false;
     working_dir = "WT_TEST.random-abort";
 
-    while ((ch = __wt_getopt(progname, argc, argv, "Cch:mpT:t:v")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "Cch:LmpT:t:v")) != EOF)
         switch (ch) {
         case 'C':
             compat = true;
@@ -657,6 +902,9 @@ main(int argc, char *argv[])
             break;
         case 'h':
             working_dir = __wt_optarg;
+            break;
+        case 'L':
+            lazyfs = true;
             break;
         case 'm':
             inmem = true;
@@ -683,6 +931,7 @@ main(int argc, char *argv[])
         usage();
 
     testutil_work_dir_from_path(home, sizeof(home), working_dir);
+
     /*
      * If the user wants to verify they need to tell us how many threads there were so we can find
      * the old record files.
@@ -691,9 +940,52 @@ main(int argc, char *argv[])
         fprintf(stderr, "Verify option requires specifying number of threads\n");
         exit(EXIT_FAILURE);
     }
-    if (!verify_only) {
-        testutil_make_work_dir(home);
 
+    /* Find LazyFS installation. */
+    if (lazyfs)
+        lazyfs_discover();
+
+    /* Remember the current working directory. */
+    testutil_assert_errno(getcwd(cwd_start, sizeof(cwd_start)) != NULL);
+
+    /* Create the test's home directory and get its canonical path. */
+    if (!verify_only)
+        testutil_make_work_dir(home);
+    testutil_assert_errno((str = canonicalize_file_name(home)) != NULL);
+    testutil_check(__wt_snprintf(home_canonical, sizeof(home_canonical), "%s", str));
+    free(str);
+
+    /* Create the database, run the test, and fail. */
+    if (!verify_only) {
+        /* Set up the important subdirectories. */
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, RECORDS_DIR));
+        testutil_make_work_dir(buf);
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, WT_HOME_DIR));
+        testutil_make_work_dir(buf);
+
+        /* Set up LazyFS. */
+        if (lazyfs) {
+            /* Create the base directory on the underlying file system. */
+            testutil_check(__wt_snprintf(
+              lazyfs_base, sizeof(lazyfs_base), "%s/%s", home_canonical, LAZYFS_BASE_DIR));
+            testutil_make_work_dir(lazyfs_base);
+
+            /* Set up the relevant LazyFS files. */
+            testutil_check(__wt_snprintf(lazyfs_control, sizeof(lazyfs_control), "%s/%s",
+              home_canonical, LAZYFS_CONTROL_FILE));
+            testutil_check(__wt_snprintf(
+              lazyfs_config, sizeof(lazyfs_config), "%s/%s", home_canonical, LAZYFS_CONFIG_FILE));
+            testutil_check(__wt_snprintf(
+              lazyfs_logfile, sizeof(lazyfs_logfile), "%s/%s", home_canonical, LAZYFS_LOG_FILE));
+            lazyfs_setup(lazyfs_config, lazyfs_control, lazyfs_logfile);
+
+            /* Mount LazyFS. */
+            testutil_check(__wt_snprintf(
+              lazyfs_mountpoint, sizeof(lazyfs_mountpoint), "%s/%s", home_canonical, WT_HOME_DIR));
+            lazyfs_pid = lazyfs_mount(lazyfs_mountpoint, lazyfs_base, lazyfs_config);
+        }
+
+        /* Set up the rest of the test. */
         __wt_random_init_seed(NULL, &rnd);
         if (rand_time) {
             timeout = __wt_random(&rnd) % MAX_TIME;
@@ -708,9 +1000,10 @@ main(int argc, char *argv[])
         printf("Parent: Compatibility %s in-mem log %s\n", compat ? "true" : "false",
           inmem ? "true" : "false");
         printf("Parent: Create %" PRIu32 " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
-        printf("CONFIG: %s%s%s%s -h %s -T %" PRIu32 " -t %" PRIu32 "\n", progname,
+        printf("CONFIG: %s%s%s%s -h %s -T %" PRIu32 " -t %" PRIu32 "%s\n", progname,
           compat ? " -C" : "", compaction ? " -c" : "", inmem ? " -m" : "", working_dir, nth,
-          timeout);
+          timeout, lazyfs ? " -L" : "");
+
         /*
          * Fork a child to insert as many items. We will then randomly kill the child, run recovery
          * and make sure all items we wrote exist after recovery runs.
@@ -765,6 +1058,7 @@ main(int argc, char *argv[])
         testutil_assert_errno(kill(pid, SIGKILL) == 0);
         testutil_assert_errno(waitpid(pid, &status, 0) != -1);
     }
+
     /*
      * !!! If we wanted to take a copy of the directory before recovery,
      * this is the place to do it.
@@ -776,14 +1070,39 @@ main(int argc, char *argv[])
     testutil_copy_data(home);
 
     /*
+     * Clear the cache, if we are using LazyFS. Do this after we save the data for debugging
+     * puproses, so that we can see what we might have lost. If we are using LazyFS, the underlying
+     * directory shows the state that we'd get after we clear the cache.
+     */
+    if (!verify_only && lazyfs) {
+        lazyfs_display_cache_usage(lazyfs_control);
+        lazyfs_clear_cache(lazyfs_control);
+    }
+
+    /*
      * Recover the database and verify whether all the records from all threads are present or not?
      */
     ret = recover_and_verify(nth);
+
+    /*
+     * Clean up.
+     */
+
+    /* At this point, $CWD is inside `home`, which we intend to delete. cd to the parent dir. */
+    if (chdir(cwd_start) != 0)
+        testutil_die(errno, "root chdir: %s", home);
+
+    /* Clean up LazyFS. */
+    if (lazyfs && !verify_only) {
+        lazyfs_unmount(lazyfs_mountpoint, lazyfs_pid);
+        testutil_clean_work_dir(lazyfs_mountpoint);
+    }
+
+    /* Clean up the test directory. */
     if (ret == EXIT_SUCCESS && !preserve) {
         testutil_clean_test_artifacts(home);
-        /* At this point $PATH is inside `home`, which we intend to delete. cd to the parent dir. */
-        if (chdir("../") != 0)
-            testutil_die(errno, "root chdir: %s", home);
+
+        /* Delete the work directory. */
         testutil_clean_work_dir(home);
     }
     return ret;
