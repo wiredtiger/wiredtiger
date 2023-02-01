@@ -1,0 +1,188 @@
+/*-
+ * Public Domain 2014-present MongoDB, Inc.
+ * Public Domain 2008-2014 WiredTiger, Inc.
+ *
+ * This is free and unencumbered software released into the public domain.
+ *
+ * Anyone is free to copy, modify, publish, use, compile, sell, or
+ * distribute this software, either in source code form or as a compiled
+ * binary, for any purpose, commercial or non-commercial, and by any
+ * means.
+ *
+ * In jurisdictions that recognize copyright laws, the author or authors
+ * of this software dedicate any and all copyright interest in the
+ * software to the public domain. We make this dedication for the benefit
+ * of the public at large and to the detriment of our heirs and
+ * successors. We intend this dedication to be an overt act of
+ * relinquishment in perpetuity of all present and future rights to this
+ * software under copyright law.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * ex_tiered.c
+ *	This is an example demonstrating how to create and connect to a
+ *	database running tiered storage.
+ */
+#include <test_util.h>
+
+/*
+ * Open the uri and starting at the first indicated key, insert count entries.
+ */
+static void
+add_data(WT_SESSION *session, const char *uri, int first_key, int count)
+{
+    WT_CURSOR *cursor;
+    int i;
+
+    error_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
+
+    /* Insert a set of key/data pairs. */
+    for (i = first_key; i < first_key + count; i++) {
+        cursor->set_key(cursor, i);
+        cursor->set_value(cursor, "value");
+        error_check(cursor->insert(cursor));
+    }
+
+    error_check(cursor->close(cursor));
+}
+
+/*
+ * Show all entries found in the uri.
+ */
+static void
+show_data(WT_SESSION *session, const char *uri, const char *comment)
+{
+    WT_CURSOR *cursor;
+    int key, ret;
+    const char *value;
+
+    printf("%s:  %s\n", uri, comment);
+
+    error_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
+
+    while ((ret = cursor->next(cursor)) == 0) {
+        cursor->get_key(cursor, &key);
+        cursor->get_value(cursor, &value);
+        printf(" %d: %s\n", key, value);
+    }
+
+    /* We expect "not found" to end the iteration.  Anything else is an error. */
+    if (ret == WT_NOTFOUND)
+        ret = 0;
+
+    error_check(ret);
+
+    error_check(cursor->close(cursor));
+}
+
+/*
+ * A storage source is a driver that controls access to an underlying object storage (e.g. a
+ * specific cloud provider). The dir_store storage source stores objects in a directory named by the
+ * bucket name, relative to the WiredTiger home directory.
+ */
+#define BUCKET_NAME "bucket"
+#define BUILD_DIR "../../"
+#define STORAGE_SOURCE "dir_store"
+
+int
+main(int argc, char *argv[])
+{
+    WT_CONNECTION *conn;
+    WT_SESSION *session;
+    const char *home;
+    char config[1024], bucketdir[1024];
+
+    home = example_setup(argc, argv);
+
+    /*
+     * Set up configuration for tiered storage. When tiered storage is configured, all tables
+     * created will be tiered by default (that is, parts will be stored in object storage), though
+     * tiered storage can be turned off on an individual basis.
+     *
+     * When configuring tiered storage with a cloud provider, one usually needs an access key. A
+     * reference to this, an "authorization token", is usually provided in the configuration string.
+     * This simple example uses "dir_store", a local directory based stand-in for a cloud provider,
+     * and no explicit access keys are needed.
+     *
+     * For learning purposes, one can single step this program and watch files created in the
+     * "bucket" subdirectory during the tiered checkpoint.
+     */
+    snprintf(config, sizeof(config),
+      "create,"
+      "tiered_storage=(bucket=%s,bucket_prefix=pfx-,local_retention=5,name=%s),"
+      "extensions=(%s/ext/storage_sources/%s/libwiredtiger_%s.so)",
+      BUCKET_NAME, STORAGE_SOURCE, BUILD_DIR, STORAGE_SOURCE, STORAGE_SOURCE);
+
+    /* Create the home directory, and the bucket directory underneath it. */
+    if (access(home, R_OK | W_OK | X_OK) != 0)
+        error_check(mkdir(home, 0777));
+    snprintf(bucketdir, sizeof(bucketdir), "%s/%s", home, BUCKET_NAME);
+    if (access(bucketdir, R_OK | W_OK | X_OK) != 0)
+        error_check(mkdir(bucketdir, 0777));
+
+    /* Configure the connection to use tiered storage. */
+    error_check(wiredtiger_open(home, NULL, config, &conn));
+
+    /* Open a session for the current thread's work. */
+    error_check(conn->open_session(conn, NULL, NULL, &session));
+
+    /* Create a table that lives locally. Tiered storage is disabled for this file. */
+    error_check(session->create(
+      session, "table:housecat", "key_format=i,value_format=S,tiered_storage=(name=none)"));
+
+    /* Create a table using tiered storage. */
+    error_check(session->create(session, "table:wildcat", "key_format=i,value_format=S"));
+
+    /* Add entries to both tables. */
+    add_data(session, "table:housecat", 0, 10);
+    add_data(session, "table:wildcat", 0, 10);
+
+    /*
+     * Do a regular checkpoint. Checkpoints are usually done in their own thread with their own
+     * session. Data is synchronized to local storage.
+     */
+    error_check(session->checkpoint(session, NULL));
+
+    /* Add more entries to both tables. */
+    add_data(session, "table:housecat", 10, 10);
+    add_data(session, "table:wildcat", 10, 10);
+
+    /*
+     * Do a tiered checkpoint. For tiered tables, new data is flushed (synchronized) to the
+     * configured tiered storage.
+     */
+    error_check(session->checkpoint(session, "flush_tier=(enabled)"));
+
+    /* Show the data. */
+    show_data(session, "table:housecat", "local table after adding 20 items");
+    show_data(session, "table:wildcat", "tiered table after adding 20 items and flush_tier call");
+
+    /* Add still more entries to both tables. */
+    add_data(session, "table:housecat", 20, 10);
+    add_data(session, "table:wildcat", 20, 10);
+
+    /*
+     * Another regular checkpoint. No new data is flushed to tiered storage.
+     */
+    error_check(session->checkpoint(session, NULL));
+
+    /*
+     * In the wildcat table, some of the entries (up to key 19), has been put into tiered storage,
+     * and the rest is backed by a local file. However, all queries on the data look the same.
+     */
+    show_data(session, "table:housecat", "local table after adding 10 more items");
+    show_data(session, "table:wildcat",
+      "tiered table after adding 10 more items that have not been flushed");
+
+    /* Close all handles. */
+    error_check(session->close(session, NULL));
+    error_check(conn->close(conn, NULL));
+
+    return (EXIT_SUCCESS);
+}
