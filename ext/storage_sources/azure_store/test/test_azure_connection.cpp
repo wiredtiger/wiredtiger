@@ -51,7 +51,7 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
 
     std::ofstream file(file_name);
     const std::string payload = "Test payload";
-    const std::string payload_substr = "payload"; 
+    const std::string payload_substr = "payload";
     file << payload;
     file.close();
 
@@ -211,7 +211,7 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
         // Check that the object does not exist in the container.
         CHECK(conn.object_exists(file_name_2, exists) == 0);
         CHECK(exists == false);
-        
+
         // Put an object into the container.
         CHECK(conn.put_object(file_name_2, path_2) == 0);
 
@@ -220,8 +220,8 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
         CHECK(exists == true);
 
         // Check that the offset and length works by finding a substring in the payload.
-        CHECK(conn.read_object(
-                file_name_2, payload_2.find(payload_2_substr), payload_2_substr.length(), buffer) == 0);
+        CHECK(conn.read_object(file_name_2, payload_2.find(payload_2_substr),
+                payload_2_substr.length(), buffer) == 0);
         CHECK(static_cast<char *>(buffer) == payload_2_substr);
         memset(buffer, 0, 1024);
 
@@ -231,11 +231,13 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
         // There are 2 objects in the container but list single. Object size should be 1.
         CHECK(conn.list_objects(prefix, objects, list_single) == 0);
         CHECK(objects.size() == 1);
-        
+
         // Check that read works from the middle to the end.
-        CHECK(conn.read_object(
-                file_name, payload.find(payload_substr), payload.length() - payload.find(payload_substr), buffer) == 0);
-        CHECK(static_cast<char *>(buffer) == payload.substr(payload.find(payload_substr), payload.length() - payload.find(payload_substr)));
+        CHECK(conn.read_object(file_name, payload.find(payload_substr),
+                payload.length() - payload.find(payload_substr), buffer) == 0);
+        CHECK(static_cast<char *>(buffer) ==
+          payload.substr(
+            payload.find(payload_substr), payload.length() - payload.find(payload_substr)));
         memset(buffer, 0, 1024);
 
         // Clean up the 2 objects.
@@ -275,7 +277,8 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
         CHECK(conn.read_object(non_exi_object_key, 0, 1, buffer) == ENOENT);
 
         // Test that reading an object that exists but prefix is wrong returns a ENOENT.
-        CHECK(conn_bad.read_object(object_name + std::to_string(0) + ".txt", 0, 1, buffer) == ENOENT);
+        CHECK(
+          conn_bad.read_object(object_name + std::to_string(0) + ".txt", 0, 1, buffer) == ENOENT);
         memset(buffer, 0, 1024);
 
         // Test overflow on positive offset but past EOF.
