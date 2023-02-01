@@ -58,7 +58,8 @@ add_library(azure_core_lib SHARED IMPORTED)
 add_library(azure_storage_common_lib SHARED IMPORTED)
 
 # Declare the include directories under INTERFACE_INCLUDE_DIRECTORIES during the configuration phase
-# to set the IMPORTED_LOCATION for imported targets
+# to set the IMPORTED_LOCATION for shared imported targets so that the linker knows where the shared 
+# libraries are located to build the intermediate library.
 set_target_properties(azure_storage_lib PROPERTIES
     IMPORTED_LOCATION ${azure_storage_lib_location}
     INTERFACE_INCLUDE_DIRECTORIES ${azure_sdk_include_location}
