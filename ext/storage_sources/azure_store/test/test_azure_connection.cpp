@@ -35,9 +35,8 @@
 TEST_CASE("Testing Azure Connection Class", "azure-connection")
 {
 
-    auto azure_client =
-      Azure::Storage::Blobs::BlobContainerClient::CreateFromConnectionString(
-        std::getenv("AZURE_STORAGE_CONNECTION_STRING"), "myblobcontainer1");
+    auto azure_client = Azure::Storage::Blobs::BlobContainerClient::CreateFromConnectionString(
+      std::getenv("AZURE_STORAGE_CONNECTION_STRING"), "myblobcontainer1");
     bool exists = false;
 
     azure_connection conn = azure_connection("myblobcontainer1", "unit_testing_");
@@ -66,8 +65,7 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
     file_2 << payload_2;
     file_2.close();
 
-    SECTION(
-      "Checks azure connection constructor.", "[azure-connection]")
+    SECTION("Checks azure connection constructor.", "[azure-connection]")
     {
         REQUIRE_THROWS_WITH(azure_connection("Bad_bucket", ""), "Bad_bucket : No such bucket.");
     }
@@ -214,7 +212,7 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
 
         // Check that the offset and length works by finding a substring in the payload.
         REQUIRE(conn.read_object(file_name_2, payload_2.find(payload_2_substr),
-                payload_2_substr.length(), buffer) == 0);
+                  payload_2_substr.length(), buffer) == 0);
         REQUIRE(static_cast<char *>(buffer) == payload_2_substr);
         memset(buffer, 0, 1024);
 
@@ -227,7 +225,7 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
 
         // Check that read works from the middle to the end.
         REQUIRE(conn.read_object(file_name, payload.find(payload_substr),
-                payload.length() - payload.find(payload_substr), buffer) == 0);
+                  payload.length() - payload.find(payload_substr), buffer) == 0);
         REQUIRE(static_cast<char *>(buffer) ==
           payload.substr(
             payload.find(payload_substr), payload.length() - payload.find(payload_substr)));
