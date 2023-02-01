@@ -11,6 +11,7 @@
  */
 
 #include <iostream>
+#include <list>
 #include <semaphore>
 #include <thread>
 #include <chrono>
@@ -80,11 +81,12 @@ void perform_test(test_config<thread_1_code, thread_2_code, out_of_order_check_c
                   std::binary_semaphore& start_semaphore2,
                   std::binary_semaphore& end_semaphore1,
                   std::binary_semaphore& end_semaphore2,
+                  std::ostream& ostream,
                   int loop_count,
                   bool progress)
 {
-    std::cout << "Test name:        " << config._test_name << std::endl;
-    std::cout << "Test description: " << config._test_description << std::endl;
+    ostream << "Test name:        " << config._test_name << std::endl;
+    ostream << "Test description: " << config._test_description << std::endl;
 
     std::thread thread_1([&](){ thread_function("thread_one", start_semaphore1, end_semaphore1, 1, loop_count,config._thread_1_code); });
     std::thread thread_2([&](){ thread_function("thread_two", start_semaphore2, end_semaphore2, 2, loop_count,config._thread_2_code); });
@@ -109,54 +111,34 @@ void perform_test(test_config<thread_1_code, thread_2_code, out_of_order_check_c
         if (out_of_order) {
             out_of_order_count ++;
             if (progress)
-                std::cout << out_of_order_count << " out of orders detected out of " << iterations << " iterations (" << 100.0f * double(out_of_order_count) / double(iterations) << "%)" << std::endl;
+                ostream << out_of_order_count << " out of orders detected out of " << iterations << " iterations (" << 100.0f * double(out_of_order_count) / double(iterations) << "%)" << std::endl;
         }
 
         if (progress && iterations % 1000 == 0 && iterations != 0) {
-            std::cout << '.' << std::flush;
+            ostream << '.' << std::flush;
             if (iterations % 50000 == 0) {
-                std::cout << std::endl;
+                ostream << std::endl;
             }
         }
     }
 
     if (progress)
         // Ensure we have a newline after the last '.' is printed
-        std::cout << std::endl;
+        ostream << std::endl;
 
-    std::cout << "Total of " << out_of_order_count << " out of orders detected out of " << iterations <<
-              " iterations (" << 100.0f * double(out_of_order_count) / double(iterations) << "%)" << std::endl;
+    ostream << "Total of " << out_of_order_count << " out of orders detected out of " << iterations <<
+              " iterations (" << 100.0f * double(out_of_order_count) / double(iterations) << "%)" <<
+              " in test " << config._test_name << std::endl;
     if (!config._out_of_order_allowed && out_of_order_count > 0)
-        std::cout << "******** ERROR out of order operations were not allowed, but did occur. ********" << std::endl;
-    std::cout << std::endl;
+        ostream << "******** ERROR out of order operations were not allowed, but did occur. ********" << std::endl;
+    ostream << std::endl;
 
     thread_1.join();
     thread_2.join();
 }
 
 
-int main(int argc, char *argv[]) {
-    std::cout << "WiredTiger Memory Model Test" << std::endl;
-    std::cout << "============================" << std::endl;
-
-    int loop_count = 1000000;
-
-    int opt = 0;
-    while ((opt = getopt(argc, argv, "n:")) != -1) {
-        switch (opt) {
-            case 'n':
-                loop_count = atoi(optarg);
-                break;
-            default:
-                break;
-        }
-    }
-
-    if (is_arm64)
-        std::cout << "Running on ARM64";
-    else
-        std::cout << "Running on x86";
-    std::cout << " with loop count " << loop_count << std::endl << std::endl;
+void thread_pair(int loop_count, std::ostream& ostream) {
 
     std::binary_semaphore start_semaphore1{0};
     std::binary_semaphore start_semaphore2{0};
@@ -228,8 +210,8 @@ int main(int argc, char *argv[]) {
             test_config("Test writes then reads with one atomic",
                         "Each thread writes then reads, with one atomic increment used for one write. "
                         "Out of orders ARE POSSIBLE.",
-                       thread_1_atomic_increment_and_read,
-                       thread_2_code_write_then_read,
+                        thread_1_atomic_increment_and_read,
+                        thread_2_code_write_then_read,
                         out_of_order_check_code_for_write_then_read,
                         true);
 
@@ -309,65 +291,117 @@ int main(int argc, char *argv[]) {
     perform_test(test_writes_then_reads,
                  x, y, r1, r2,
                  start_semaphore1, start_semaphore2, end_semaphore1, end_semaphore2,
+                 std::cout,
                  loop_count,
                  progress);
 
     perform_test(test_writes_then_reads_one_barrier,
                  x, y, r1, r2,
                  start_semaphore1, start_semaphore2, end_semaphore1, end_semaphore2,
+                 std::cout,
                  loop_count,
                  progress);
 
     perform_test(test_writes_then_reads_two_barriers,
                  x, y, r1, r2,
                  start_semaphore1, start_semaphore2, end_semaphore1, end_semaphore2,
+                 std::cout,
                  loop_count,
                  progress);
 
     perform_test(test_writes_then_reads_one_atomic,
                  x, y, r1, r2,
                  start_semaphore1, start_semaphore2, end_semaphore1, end_semaphore2,
+                 std::cout,
                  loop_count,
                  progress);
 
     perform_test(test_writes_then_reads_two_atomics,
                  x, y, r1, r2,
                  start_semaphore1, start_semaphore2, end_semaphore1, end_semaphore2,
+                 std::cout,
                  loop_count,
                  progress);
 
     std::cout << "-- Group 2: Tests that have two reads in one thread, and two writes in the other thread --" <<
-                 std::endl << std::endl;
+              std::endl << std::endl;
 
     perform_test(test_writes_and_reads,
                  x, y, r1, r2,
                  start_semaphore1, start_semaphore2, end_semaphore1, end_semaphore2,
+                 std::cout,
                  loop_count,
                  progress);
 
     perform_test(test_writes_and_reads_barrier_between_writes,
                  x, y, r1, r2,
                  start_semaphore1, start_semaphore2, end_semaphore1, end_semaphore2,
+                 std::cout,
                  loop_count,
                  progress);
 
     perform_test(test_writes_and_reads_barrier_between_reads,
                  x, y, r1, r2,
                  start_semaphore1, start_semaphore2, end_semaphore1, end_semaphore2,
+                 std::cout,
                  loop_count,
                  progress);
 
     perform_test(test_writes_and_reads_barrier_between_writes_and_between_reads,
                  x, y, r1, r2,
                  start_semaphore1, start_semaphore2, end_semaphore1, end_semaphore2,
+                 std::cout,
                  loop_count,
                  progress);
 
     perform_test(test_writes_and_reads_atomics,
                  x, y, r1, r2,
                  start_semaphore1, start_semaphore2, end_semaphore1, end_semaphore2,
+                 std::cout,
                  loop_count,
                  progress);
+}
+
+
+int main(int argc, char *argv[]) {
+    std::cout << "WiredTiger Memory Model Test" << std::endl;
+    std::cout << "============================" << std::endl;
+
+    int loop_count = 1000000;
+    int num_thread_pairs = 1;
+
+    int opt = 0;
+    while ((opt = getopt(argc, argv, "n:p:")) != -1) {
+        switch (opt) {
+            case 'n':
+                loop_count = atoi(optarg);
+                break;
+            case 'p':
+                num_thread_pairs = atoi(optarg);
+                break;
+            case '?':
+                std::cout << "Parameter error" << std::endl;
+                break;
+            default:
+                break;
+        }
+    }
+
+    if (is_arm64)
+        std::cout << "Running on ARM64";
+    else
+        std::cout << "Running on x86";
+    std::cout << " with " << num_thread_pairs << " thread pairs and loop count " << loop_count << std::endl << std::endl;
+
+    std::list<std::thread> threads;
+
+    for (int tp = 0; tp < num_thread_pairs; tp++) {
+        threads.emplace_back([&](){ thread_pair(loop_count, std::cout); });
+    }
+
+    for (auto& thread : threads) {
+        thread.join();
+    }
 }
 
 
