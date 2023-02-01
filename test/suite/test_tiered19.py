@@ -59,10 +59,6 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
     
     def get_fs_config(self, prefix = ''):
         return ",prefix=" + prefix
-    
-    def test_gcp_and_azure(self):
-        if self.ss_name != "azure_store":
-            return
 
     def test_ss_file_systems_gcp_and_azure(self):
         if self.ss_name != "azure_store":
