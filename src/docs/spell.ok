@@ -91,7 +91,6 @@ LLVM
 LLVMFuzzerTestOneInput
 LOGREC
 LRU
-LRrVv
 LSB
 LSM
 LSNs
@@ -125,7 +124,6 @@ RepMgr
 Riak
 RocksDB
 Roelofs
-RrVv
 Rrx
 SDK
 SDK's
@@ -168,6 +166,7 @@ aarch
 abc
 abstime
 ack'ed
+acstu
 addr
 ajn
 alloc
@@ -248,7 +247,6 @@ crashless
 crc
 cryptographic
 cryptographically
-cstu
 csuite
 ctest
 curfile
@@ -568,7 +566,6 @@ px
 py
 qnx
 qqq
-rVv
 rankdir
 rdbms
 rdlock
