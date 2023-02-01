@@ -250,9 +250,8 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
         CHECK(objects.size() == 0);
 
         // Put objects to prepare for test.
-        for (int i = 0; i < num_objects; i++) {
+        for (int i = 0; i < num_objects; i++)
             CHECK(conn.put_object(object_name + std::to_string(i) + ".txt", path) == 0);
-        }
 
         // List all. Object size should be 11.
         objects.clear();
@@ -299,9 +298,8 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
         CHECK(exists == false);
 
         // Clean up.
-        for (int i = 0; i < num_objects; i++) {
+        for (int i = 0; i < num_objects; i++)
             CHECK(conn.delete_object(object_name + std::to_string(i) + ".txt") == 0);
-        }
         free(buffer);
 
         // Sanity check that nothing exists.
