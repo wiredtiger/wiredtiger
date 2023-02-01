@@ -211,7 +211,7 @@ verify:
         if (tmp == NULL)
             WT_ERR(__wt_scr_alloc(session, 4 * 1024, &tmp));
         WT_ERR(bm->addr_string(bm, session, tmp, addr, addr_size));
-        WT_ERR(__wt_verify_dsk_non_fatal(session, tmp->data, buf));
+        WT_ERR(__wt_verify_dsk(session, tmp->data, buf));
     }
 
 err:

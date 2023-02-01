@@ -208,24 +208,14 @@ __wt_verify_dsk_image(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_H
 }
 
 /*
- * __wt_verify_dsk_non_fatal --
- *     Verify a single Btree page as read from disk, continue on failure.
- */
-int
-__wt_verify_dsk_non_fatal(WT_SESSION_IMPL *session, const char *tag, WT_ITEM *buf)
-{
-    return (__wt_verify_dsk_image(
-      session, tag, buf->data, buf->size, NULL, WT_VRFY_DISK_CONTINUE_ON_FAILURE));
-}
-
-/*
  * __wt_verify_dsk --
  *     Verify a single Btree page as read from disk.
  */
 int
 __wt_verify_dsk(WT_SESSION_IMPL *session, const char *tag, WT_ITEM *buf)
 {
-    return (__wt_verify_dsk_image(session, tag, buf->data, buf->size, NULL, 0));
+    return (__wt_verify_dsk_image(
+      session, tag, buf->data, buf->size, NULL, WT_VRFY_DISK_CONTINUE_ON_FAILURE));
 }
 
 /*
@@ -378,8 +368,6 @@ __verify_row_key_order_check(
       last_cell_num, cell_num, vi->tag,
       __wt_buf_set_printable(vi->session, last->data, last->size, false, tmp1),
       __wt_buf_set_printable(vi->session, current->data, current->size, false, tmp2));
-    /* Temporarily always fail here */
-    WT_ASSERT_ALWAYS(vi->session, ret == 0, "Key order check failed - this is fatal");
 
 err:
     __wt_scr_free(vi->session, &tmp1);

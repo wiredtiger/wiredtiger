@@ -38,7 +38,6 @@ class insert_list_dump(gdb.Command):
         head = gdb.parse_and_eval(insert_head).dereference().dereference()
         f.write(str(head)+ "\n")
         self.walk_level(head, 0)
-        
 
-# This registers our class to the gdb runtime at "source" time.
+# This registers our class with the gdb runtime at "source" time.
 insert_list_dump()
