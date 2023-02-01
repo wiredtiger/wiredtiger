@@ -47,11 +47,10 @@ There are two options:
   ```
 * On a Mac:
   ```
-  g++ -o memory_model_test memory_model_test.cpp -lpthread -std=c++20
+  g++ -o memory_model_test -O2 memory_model_test.cpp -lpthread -std=c++20
   ```
 
-Note that compiler optimisation is off.
-Adding `-O2` currently causes the second group of tests to not demonstrate out of order operations.
+Some tests use compiler barriers to prevent the compiler re-ordering memory accesses during optimisation.
 
 Note: if you get compile errors related to `#include <semaphore>` or semaphores in general,
 then check that you are compiling for C++ 20. The test uses the C++ 20 semaphore library as it is

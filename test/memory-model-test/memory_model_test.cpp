@@ -27,6 +27,9 @@ const bool is_arm64 = false;
 const bool is_arm64 = true;
 #endif
 
+#define MEMORY_BARRIER asm volatile(BARRIER_INSTRUCTION ::: "memory")
+#define COMPILER_BARRIER asm volatile("" ::: "memory")
+
 
 template<typename code>
 void thread_function(std::string const& thread_name,
@@ -168,11 +171,11 @@ void thread_pair(int loop_count, std::ostream& ostream) {
     /////////////////////////////////////////////////////////////////////////////
     // Code that has two reads in one thread, and two writes in the other thread.
     /////////////////////////////////////////////////////////////////////////////
-    auto thread_1_code_write_then_write = [&]() { x = 2; y = 3; };
-    auto thread_2_code_read_then_read = [&]() { r1 = y; r2 = x; };
+    auto thread_1_code_write_then_write = [&]() { COMPILER_BARRIER; x = 2; COMPILER_BARRIER;  y = 3; COMPILER_BARRIER; };
+    auto thread_2_code_read_then_read = [&]() { COMPILER_BARRIER; r1 = y; COMPILER_BARRIER; r2 = x; COMPILER_BARRIER; };
     auto thread_1_code_two_atomic_increments = [&]() { __atomic_exchange_n(&x, 2, __ATOMIC_SEQ_CST); __atomic_exchange_n(&y, 3, __ATOMIC_SEQ_CST); };
-    auto thread_1_code_write_then_barrier_then_write = [&]() { x = 2; asm volatile(BARRIER_INSTRUCTION ::: "memory"); y = 3; };
-    auto thread_2_code_read_then_barrier_then_read = [&]() { r1 = y; asm volatile(BARRIER_INSTRUCTION ::: "memory"); r2 = x; };
+    auto thread_1_code_write_then_barrier_then_write = [&]() { x = 2; MEMORY_BARRIER; y = 3; };
+    auto thread_2_code_read_then_barrier_then_read = [&]() { r1 = y; MEMORY_BARRIER; r2 = x; };
 
     auto out_of_order_check_code_for_write_then_write = [&]() { return r1 == 3 && r2 == 0; };
 
