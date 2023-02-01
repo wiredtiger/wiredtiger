@@ -28,7 +28,6 @@
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
 #include <vector>
-
 #include "azure_connection.h"
 #include "wt_internal.h"
 
