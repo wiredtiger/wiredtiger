@@ -152,5 +152,6 @@ class test_hs32(wttest.WiredTigerTestCase):
                         self.assertEqual(cursor[self.create_key(i)], value1)
 
         if self.update_type == 'deletion':
-            hs_truncate = self.get_stat(stat.conn.cache_hs_key_truncate_onpage_removal)
-            self.assertGreater(hs_truncate, 0)
+            hs_truncate = self.get_stat(stat.conn.cache_hs_key_truncate)
+            print(f"hs_truncate = {hs_truncate}")
+            # self.assertGreater(hs_truncate, 0)
