@@ -4787,6 +4787,7 @@ buildvariants:
     - name: ".data-validation-stress-test"
     - name: unittest-test
     - name: tiered-storage-extensions-test
+    - name: gcp-tiered-storage-extensions-test
     - name: bench-tiered-push-pull
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
@@ -4817,7 +4818,7 @@ buildvariants:
       PATH=/opt/mongodbtoolchain/v4/bin:$PATH
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.python !tiered-unittest-test"
+    - name: ".pull_request !.pull_request_compilers !.python !gcp-tiered-unittest-test"
     - name: examples-c-test
     - name: format-asan-smoke-test
 
@@ -5417,6 +5418,7 @@ buildvariants:
     - name: configure-combinations
     - name: format-smoke-test
     - name: tiered-storage-extensions-test
+    - name: gcp-tiered-storage-extensions-test
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
     - name: unit-test-nonstandalone
@@ -5460,6 +5462,7 @@ buildvariants:
     - name: long-test
     - name: format-smoke-test
     - name: tiered-storage-extensions-test
+    - name: gcp-tiered-storage-extensions-test
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
     - name: unit-test-nonstandalone
