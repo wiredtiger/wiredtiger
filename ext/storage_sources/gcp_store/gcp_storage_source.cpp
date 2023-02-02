@@ -19,11 +19,10 @@ struct gcp_store {
     WT_STORAGE_SOURCE storage_source;
     WT_EXTENSION_API *wt_api;
     std::mutex fs_list_mutex;
-    std::vector<gcp_file_handle *> fh_list;
     std::vector<gcp_file_system *> fs_list;
     std::vector<gcp_file_system> gcp_fs;
     uint32_t reference_count;
-    int32_t verbose;
+    WT_VERBOSE_LEVEL verbose;
 };
 
 struct gcp_file_system {
@@ -31,13 +30,14 @@ struct gcp_file_system {
     gcp_store *storage_source;
     WT_FILE_SYSTEM *wt_file_system;
     std::unique_ptr<gcp_connection> gcp_conn;
+    std::vector<gcp_file_handle *> fh_list;
     std::string home_dir;
 };
 
 struct gcp_file_handle {
     WT_FILE_HANDLE fh;
     gcp_store *storage_source;
-    WT_FILE_HANDLE wt_file_handle;
+    WT_FILE_HANDLE *wt_file_handle;
 };
 
 static int gcp_customize_file_system(WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *,
@@ -84,14 +84,16 @@ gcp_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session
         std::cerr << "gcp_customize_file_system: auth_token not specified." << std::endl;
         return EINVAL;
     }
+
     int delimiter = std::string(auth_token).find(".json");
     if (delimiter == std::string::npos || delimiter == 0) {
-        std::cerr << "gcp_customize_file_system: improper auth_token, should be a .json file."
+        std::cerr << "gcp_customize_file_system: improper auth_token: " + std::string(auth_token) +
+            ", should be a .json file."
                   << std::endl;
         return EINVAL;
     }
 
-    gcp_store *gcp = (gcp_store *)storage_source;
+    gcp_store *gcp = reinterpret_cast<gcp_store *>(storage_source);
     int ret;
 
     // Get any prefix to be used for the object keys.
@@ -107,8 +109,10 @@ gcp_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session
 
     // Fetch the native WT file system.
     WT_FILE_SYSTEM *wt_file_system;
-    if ((ret = gcp->wt_api->file_system_get(gcp->wt_api, session, &wt_file_system)) != 0)
+    if ((ret = gcp->wt_api->file_system_get(gcp->wt_api, session, &wt_file_system)) != 0) {
+        std::cerr << "gcp_customize_fs: failed to fetch the native WT file system" << std::endl;
         return ret;
+    }
 
     // Get a copy of the home directory.
     const std::string home_dir = session->connection->get_home(session->connection);
@@ -130,7 +134,7 @@ gcp_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session
     try {
         fs->gcp_conn = std::make_unique<gcp_connection>(bucket, obj_prefix);
     } catch (std::invalid_argument &e) {
-        std::cerr << std::string("gcp_customize_file_system: ") + e.what() << std::endl;
+        std::cerr << "gcp_customize_file_system: " << e.what() << std::endl;
         return EINVAL;
     }
 
@@ -159,7 +163,7 @@ gcp_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session
 static int
 gcp_add_reference(WT_STORAGE_SOURCE *storage_source)
 {
-    gcp_store *gcp = (gcp_store *)storage_source;
+    gcp_store *gcp = reinterpret_cast<gcp_store *>(storage_source);
 
     if (gcp->reference_count == 0 || gcp->reference_count + 1 == 0) {
         std::cerr << "gcp_add_reference: missing reference or overflow." << std::endl;
@@ -167,7 +171,6 @@ gcp_add_reference(WT_STORAGE_SOURCE *storage_source)
     }
 
     ++gcp->reference_count;
-    return 0;
 
     return 0;
 }
@@ -185,15 +188,25 @@ gcp_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
 static int
 gcp_file_system_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
 {
-    gcp_file_system *fs = (gcp_file_system *)file_system;
-    gcp_store *gcp = reinterpret_cast<gcp_file_system *>((gcp_file_system *)(fs))->storage_source;
+    gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
+    gcp_store *gcp = reinterpret_cast<gcp_file_system *>(fs)->storage_source;
 
     WT_UNUSED(session);
+
+    /*
+     * It is currently unclear at the moment what the multi-threading will look like in the
+     * extension. The current implementation is NOT thread-safe, and needs to be addressed in the
+     * future, as multiple threads could call terminate leading to a race condition.
+     */
+    while (!fs->fh_list.empty()) {
+        gcp_file_handle *fh = fs->fh_list.front();
+        gcp_file_close((WT_FILE_HANDLE *)fh, session);
+    }
 
     // Remove from the active filesystems list. The lock will be freed when the scope is exited.
     {
         std::lock_guard<std::mutex> lock_guard(gcp->fs_list_mutex);
-        // gcp->fs_list.remove(fs);
+        // Erase remove idiom is used here to remove specific file system.
         gcp->fs_list.erase(
           std::remove(gcp->fs_list.begin(), gcp->fs_list.end(), fs), gcp->fs_list.end());
     }
@@ -347,21 +360,10 @@ gcp_object_list_free(
 static int
 gcp_terminate(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session)
 {
-    fflush(stdout);
     gcp_store *gcp = reinterpret_cast<gcp_store *>(storage_source);
 
     if (--gcp->reference_count != 0)
         return 0;
-
-    /*
-     * It is currently unclear at the moment what the multi-threading will look like in the
-     * extension. The current implementation is NOT thread-safe, and needs to be addressed in the
-     * future, as multiple threads could call terminate leading to a race condition.
-     */
-    while (!gcp->fh_list.empty()) {
-        gcp_file_handle *fs = gcp->fh_list.front();
-        gcp_file_close((WT_FILE_HANDLE *)fs, session);
-    }
 
     /*
      * Terminate any active filesystems. There are no references to the storage source, so it is
@@ -390,7 +392,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     int ret = gcp->wt_api->config_get(gcp->wt_api, nullptr, config, "verbose.tiered", &v);
 
     if (ret == 0 && v.val >= WT_VERBOSE_ERROR && v.val <= WT_VERBOSE_DEBUG_5) {
-        gcp->verbose = v.val;
+        gcp->verbose = (WT_VERBOSE_LEVEL)v.val;
     } else if (ret != WT_NOTFOUND) {
         std::cerr << "wiredtiger_extension_init: error parsing config for verbose level."
                   << std::endl;
