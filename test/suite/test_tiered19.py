@@ -99,3 +99,10 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
             session, self.bucket, None, self.get_fs_config(prefix_1))
         azure_fs_2 = ss.ss_customize_file_system(
             session, self.bucket, None, self.get_fs_config(prefix_2))
+
+        # Terminate created file systems.
+        # We should also be able to terminate the storage source
+        # without terminating all the file systems we created.
+        azure_fs_1.terminate(session)
+        ss.terminate(session)
+        #azure_fs_2.terminate(session)

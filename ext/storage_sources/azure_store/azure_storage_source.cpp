@@ -167,7 +167,6 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
         azure->azure_fs.push_back(azure_fs);
     }
     // Add to the list of the active file systems.
-    azure->azure_fs.push_back(azure_fs);
     *file_system = &azure_fs->fs;
     return ret;
 }
@@ -228,8 +227,8 @@ azure_terminate(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session)
      * under a lock. Also, removal happens from the front and addition at the end, so we are safe.
      */
     while (!azure->azure_fs.empty()) {
-        azure_file_system *fs = azure->azure_fs.front();
-        azure_file_system_terminate(fs->wt_fs, session);
+        WT_FILE_SYSTEM *fs = reinterpret_cast<WT_FILE_SYSTEM *>(azure->azure_fs.front());
+        azure_file_system_terminate(fs, session);
     }
 
     delete (azure);
@@ -280,10 +279,9 @@ static int
 azure_file_system_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
 {
     azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
-    azure_store *azure = reinterpret_cast<azure_store *>(file_system);
 
+    azure_store *azure = azure_fs->store;
     WT_UNUSED(session);
-
     // Remove from the active file system list. The lock will be freed when the scope is exited.
     {
         std::lock_guard<std::mutex> lock_guard(azure->fs_mutex);
@@ -293,7 +291,6 @@ azure_file_system_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
     }
     azure_fs->azure_conn.reset();
     free(azure_fs);
-
     return 0;
 }
 
