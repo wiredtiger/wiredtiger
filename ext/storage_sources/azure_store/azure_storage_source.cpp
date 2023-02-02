@@ -218,16 +218,6 @@ azure_terminate(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session)
         return 0;
 
     /*
-     * It is currently unclear at the moment what the multi-threading will look like in the
-     * extension. The current implementation is NOT thread-safe, and needs to be addressed in the
-     * future, as multiple threads could call terminate leading to a race condition.
-     */
-    // while (!azure->azure_fh.empty()) {
-    //     azure_file_handle *fh = &azure->azure_fh.front();
-    //     azure_file_close(reinterpret_cast<WT_FILE_HANDLE *>(fh), session);
-    // }
-
-    /*
      * Terminate any active filesystems. There are no references to the storage source, so it is
      * safe to walk the active filesystem list without a lock. The removal from the list happens
      * under a lock. Also, removal happens from the front and addition at the end, so we are safe.
@@ -237,7 +227,7 @@ azure_terminate(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session)
         azure_file_system_terminate(fs->wt_fs, session);
     }
 
-    delete(azure);
+    delete (azure);
     return 0;
 }
 
@@ -276,7 +266,6 @@ azure_object_list_free(
     WT_UNUSED(file_system);
     WT_UNUSED(session);
     WT_UNUSED(dirlist);
-    WT_UNUSED(count);
 
     return 0;
 }
