@@ -120,9 +120,9 @@ functions:
           ${HAVE_DIAGNOSTIC|} \
           ${GNU_C_VERSION|} \
           ${GNU_CXX_VERSION|} \
-          ${ENABLE_S3|} \
+          ${ENABLE_GCP|} \
           ${ENABLE_CPPSUITE|} \
-          ${IMPORT_S3_SDK|} \
+          ${IMPORT_GCP_SDK|} \
           ${SPINLOCK_TYPE|} \
           ${CC_OPTIMIZE_LEVEL|}"
 
