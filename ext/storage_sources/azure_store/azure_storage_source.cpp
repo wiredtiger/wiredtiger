@@ -161,6 +161,11 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
     azure_fs->fs.fs_rename = azure_rename;
     azure_fs->fs.fs_size = azure_object_size;
 
+    // Add to the list of the active file systems. Lock will be freed when the scope is exited.
+    {
+        std::lock_guard<std::mutex> lock_guard(azure->fs_mutex);
+        azure->azure_fs.push_back(azure_fs);
+    }
     // Add to the list of the active file systems.
     azure->azure_fs.push_back(azure_fs);
     *file_system = &azure_fs->fs;
