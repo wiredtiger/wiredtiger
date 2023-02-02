@@ -1,0 +1,12 @@
+{
+    "type": "service_account",
+    "project_id": "axial-radius-373703",
+    "private_key_id": "f4628fbbe1227933d8909320b8711d873961205b",
+    "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC1KXa74vbt7kq6\nNyJEA8LpoY1rgMXA8zRo9geBQ/r8bUVtuAg1UKvsEUdJT/yKo2wygyI9rNPql6tX\n5LREU1uY8eID3AFaO39c+HUxLSHCeKDyMebWWXU8yFjE6t1OITMMDfzGyiFu8dW3\nrTe9fy2iGZOKC/ZwAkjy7tQfQv+27mASqWRpPBsBVlbDfZrUUAKxQkFCmbDIRXRu\naZTxB+J1T2FByeUv1mEGXFax2lHDy+Bj2sY9Dj8uPaZy3OcQEb5baYP3CrWzRXX0\n5g5N+8xRjsmTw5bvtPmGnnzyOE1DKXDCaBgFslgKBCvZ7q6kaFlvk5gsranRN9OM\nWIbHts9VAgMBAAECggEAHVtGvlOdKBlBSsO8bcEeSLXBMPaBFS9UAt47gRr/BQDA\nC3OTAPC9q1dxcdPgXKb21Yiid9QV0yIYxfltrNTFNxebRHzWS0Tw8qPgecOSgO0D\nR7wGaB2+/caJe/+DNTH0D7QEjkIbANt3gngzXCXLw0TZv7kIikYUhClnfllhDsdz\nvZ0FtIiqfBYUaVojOu/DYGODjLYOlXYJUNfSuct5c0LHoylcoUXANeZvo61yZmTx\nCRdEnnHpDQWI4Zh8peiE3shaF5wk7GjNsYKOfHsiiUeVpKl+xaFXUwRDiHrfuAw/\nHv9v7C+SSo9aof6i84riMHhmZQRtpyVG9wyD/GHs0QKBgQDzs3cOCJ5ExXkW8uCp\nfl9TevSNASHS6n8OCJOQ+7ucGmIugXXKTiGPAW9bNpVbISN2unPxt+4iYy+eVxk6\nvEvNFNXqks4B4EBl6XbTgcLeVzsk7UTKdvwByhwM4VPWEDUbut/0mHW0yCaORWw2\nsWCurWzMLX/k9CGZ2FgUeuoXkwKBgQC+TgPg5ekqfQglHqc+7ezeQyeFxmUthboW\nZQmD3vix/hEX/uHZoxI3qAH3F3JT+b4fFCIi91MJDW1Y1aH3xI8C8A6EFU9lOiZH\nC7e9LutVbbFLdEfBZ3XVyYlRlCk1qH5U84LDyQrrtxMyhPSDRktQO96zYAPC2Vom\n5JxiRbb+dwKBgBOFsuna4uLbduHRvxGU4AoN9X0+M/lzc44qPbgFknfk3SygjlEQ\nhTuxf7ws2TYdp3uhYBxjAZ6bl3r1uz2rS9835hMOg5Y+4qnHVA+Je5TYJBLHNxWJ\nBpMWH70gZ9jkH30DMWGkvPkod346LXsMJpSXq/mHQ5GRxQdP/25UkmAlAoGBALWZ\nZvQXEYC9Haemb7yKeO3EMZPjtatSIDi8o+7WOIZJx3AZhtYTWhAIYA+1rSDbgoTP\nxp+NWgyaZo1OF6iDRmFsSL3cRA56Bgrn8Kc0fdfgvD4fsVWq7/RZxJM3ines2Rkh\n4tgIIka7RjOAUoBu9PGUoDiV2CD5HqFcqKrSkgSTAoGAOMce84WeZn3iZGwcNGOB\nHgI1HNuiN0UANdiFvFegba4UW/agKU0f4V8ZFrvQN5BXr25m20jYtHpZeqpLQiAo\nq/RdwFh21JYXro1fHrJAfp2YbCcPlmNZG0KEUcTvcGmfB1Z/ZFWpNz2m5r+sNkw/\nM0sDO5XvoK+NFSPt7V6+cyo=\n-----END PRIVATE KEY-----\n",
+    "client_email": "sona-pm2681@axial-radius-373703.iam.gserviceaccount.com",
+    "client_id": "109257621466270488764",
+    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    "token_uri": "https://oauth2.googleapis.com/token",
+    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+    "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/sona-pm2681%40axial-radius-373703.iam.gserviceaccount.com"
+  }
