@@ -231,7 +231,7 @@ azure_terminate(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session)
         azure_file_system_terminate(fs, session);
     }
 
-    delete (azure);
+    delete azure;
     return 0;
 }
 
@@ -418,7 +418,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
         std::cerr
           << "wiredtiger_extension_init: Could not load Azure storage source, shutting down."
           << std::endl;
-        delete (azure);
+        delete azure;
         return -1;
     }
     return 0;
