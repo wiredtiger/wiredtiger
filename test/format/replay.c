@@ -162,7 +162,7 @@ replay_operation_enabled(thread_op op)
      * track and guarantee that only a single operation is active in a lane at once,
      * and therefore we can't have multiple operations on a single key performed out
      * of order or simultaneously. The truncate operation, for a small set of keys,
-     * would reserve multiple consecuetive lanes (probably okay) and for larger sets,
+     * would reserve multiple consecutive lanes (probably okay) and for larger sets,
      * would reserve the entire set of lanes. This would effectively require all
      * threads to get into a holding state, waiting for the truncate to start and then
      * complete before continuing with their next operation. While we could fudge this
