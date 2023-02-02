@@ -123,7 +123,7 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
         REQUIRE(conn.list_objects(obj_prefix + non_exist_object_key, objects, true) == 0);
         REQUIRE(objects.size() == 0);
 
-        // List all objects. This is the size of num_objects.
+        // List all objects. This is the size of blob_objects.
         REQUIRE(conn.list_objects(obj_prefix + object_name, objects, false) == 0);
         REQUIRE(objects.size() == blob_objects.size());
 
