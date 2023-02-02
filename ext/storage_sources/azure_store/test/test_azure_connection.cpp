@@ -77,20 +77,19 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
     azure_connection conn = azure_connection("myblobcontainer1", obj_prefix);
     azure_connection conn_bad = azure_connection("myblobcontainer1", "bad_prefix_");
 
-    // Payloads for blobs uploaded to container.
-    const std::string payload = "payload";
-    const std::string payload_2 = "Testing offset and substring";
-
-    void *buffer = calloc(1024, sizeof(char));
-    std::vector<std::string> objects;
     std::vector<std::pair<std::string, std::string>> blob_objects;
 
     const std::string object_name = "test_object";
     const std::string object_name_2 = "test_object_2";
     const std::string non_exist_object_key = "test_non_exist";
+
+    // Payloads for blobs uploaded to container.
+    const std::string payload = "payload";
+    const std::string payload_2 = "Testing offset and substring";
     blob_objects.push_back(std::make_pair(object_name, payload));
     blob_objects.push_back(std::make_pair(object_name_2, payload_2));
 
+	// Add objects into the container.
     for (auto pair : blob_objects) {
         auto blob_client = azure_client.GetBlockBlobClient(obj_prefix + pair.first);
         blob_client.UploadFrom(create_file(pair.first, pair.second));
@@ -114,23 +113,26 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
 
     SECTION("List Azure objects under the test bucket.", "[azure-connection]")
     {
+		std::vector<std::string> objects;
+
         // No matching objects. Object size should be 0.
-        objects.clear();
         REQUIRE(conn.list_objects(obj_prefix + non_exist_object_key, objects, false) == 0);
         REQUIRE(objects.size() == 0);
 
-        // No matching objects with listSingle. Object size should be 0.
+        // No matching objects with list single functionality. Object size should be 0.
         REQUIRE(conn.list_objects(obj_prefix + non_exist_object_key, objects, true) == 0);
         REQUIRE(objects.size() == 0);
 
-        // List all objects. This is the size of blob_objects.
+        // List all objects. Object size should be 2.
         REQUIRE(conn.list_objects(obj_prefix + object_name, objects, false) == 0);
         REQUIRE(objects.size() == blob_objects.size());
+        objects.clear();
 
         // List single. Object size should be 1.
-        objects.clear();
         REQUIRE(conn.list_objects(obj_prefix + object_name, objects, true) == 0);
         REQUIRE(objects.size() == 1);
+
+		objects.clear();
     }
 
     SECTION("Test delete functionality for Azure.", "[azure-connection]")
@@ -162,6 +164,8 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
 
     SECTION("Check read functionality in Azure.", "[azure-connection]")
     {
+		void *buffer = calloc(1024, sizeof(char));
+
         // Test reading whole file.
         REQUIRE(conn.read_object(object_name, 0, payload.length(), buffer) == 0);
         REQUIRE(static_cast<char *>(buffer) == payload);
@@ -175,11 +179,9 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
 
         // Test overflow on positive offset but past EOF.
         REQUIRE(conn.read_object(object_name, 1, 1000, buffer) == -1);
-        memset(buffer, 0, 1024);
 
         // Test overflow on negative offset but past EOF.
         REQUIRE(conn.read_object(object_name, -1, 1000, buffer) == -1);
-        memset(buffer, 0, 1024);
 
         // Test overflow with negative offset.
         REQUIRE(conn.read_object(object_name, -1, 12, buffer) == -1);
@@ -189,17 +191,18 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
 
         // Test that reading a non existent object returns a ENOENT.
         REQUIRE(conn.read_object(non_exist_object_key, 0, 1, buffer) == ENOENT);
+
+    	free(buffer);
     }
 
-    // Clean up.
+    // Dalete the objects we added earlier so we have no objects in the container.
     for (auto pair : blob_objects) {
         auto blob_client = azure_client.GetBlockBlobClient(obj_prefix + pair.first);
         blob_client.Delete();
     }
 
     // Sanity check that nothing exists.
-    free(buffer);
-    objects.clear();
-    REQUIRE(conn.list_objects(obj_prefix, objects, false) == 0);
-    REQUIRE(objects.size() == 0);
+	Azure::Storage::Blobs::ListBlobsOptions blob_parameters;
+    blob_parameters.Prefix = obj_prefix;
+	REQUIRE(azure_client.ListBlobs(blob_parameters).Blobs.size() == 0);
 }
