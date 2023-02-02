@@ -64,9 +64,9 @@ struct azure_file_handle {
 
 // WT_STORAGE_SOURCE Interface
 static int azure_customize_file_system(WT_STORAGE_SOURCE *, WT_SESSION *, const char *,
-  const char *, const char *, WT_FILE_SYSTEM **) __attribute__((__unused__));
-static int azure_add_reference(WT_STORAGE_SOURCE *) __attribute__((__unused__));
-static int azure_terminate(WT_STORAGE_SOURCE *, WT_SESSION *) __attribute__((__unused__));
+  const char *, const char *, WT_FILE_SYSTEM **);
+static int azure_add_reference(WT_STORAGE_SOURCE *);
+static int azure_terminate(WT_STORAGE_SOURCE *, WT_SESSION *);
 static int azure_flush(WT_STORAGE_SOURCE *, WT_SESSION *, WT_FILE_SYSTEM *, const char *,
   const char *, const char *) __attribute__((__unused__));
 static int azure_flush_finish(WT_STORAGE_SOURCE *, WT_SESSION *, WT_FILE_SYSTEM *, const char *,
@@ -79,7 +79,7 @@ static int azure_object_list_single(WT_FILE_SYSTEM *, WT_SESSION *, const char *
   char ***, uint32_t *) __attribute__((__unused__));
 static int azure_object_list_free(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t)
   __attribute__((__unused__));
-static int azure_file_system_terminate(WT_FILE_SYSTEM *, WT_SESSION *) __attribute__((__unused__));
+static int azure_file_system_terminate(WT_FILE_SYSTEM *, WT_SESSION *);
 static int azure_file_exists(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *)
   __attribute__((__unused__));
 static int azure_remove(WT_FILE_SYSTEM *, WT_SESSION *, const char *, uint32_t)
@@ -167,7 +167,6 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
         std::lock_guard<std::mutex> lock_guard(azure_storage->fs_mutex);
         azure_storage->azure_fs.push_back(azure_fs);
     }
-    // Add to the list of the active file systems.
     *file_system = &azure_fs->fs;
     return ret;
 }
