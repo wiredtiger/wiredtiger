@@ -46,7 +46,7 @@ static std::string obj_prefix("azuretest/unit/"); // To be concatenated with a r
 // Concatenates a random suffix to the prefix being used for the test object keys. Example of
 // generated test prefix: "azuretest/unit/2023-31-01-16-34-10/623843294--".
 static int
-randomizeTestPrefix()
+randomize_test_prefix()
 {
     char time_str[100];
     std::time_t t = std::time(nullptr);
@@ -72,7 +72,7 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
       std::getenv("AZURE_STORAGE_CONNECTION_STRING"), "myblobcontainer1");
     bool exists = false;
 
-    REQUIRE(randomizeTestPrefix() == 0);
+    REQUIRE(randomize_test_prefix() == 0);
 
     azure_connection conn = azure_connection("myblobcontainer1", obj_prefix);
     azure_connection conn_bad = azure_connection("myblobcontainer1", "bad_prefix_");
