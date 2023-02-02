@@ -34,7 +34,7 @@
 /*
  * The number of entries we insert at a time.
  */
-#define N_ENTRIES  10
+#define N_ENTRIES 10
 
 /*
  * Open the uri and starting at the first indicated key, insert count entries.
@@ -61,15 +61,13 @@ add_data(WT_SESSION *session, const char *uri, int first_key, int count)
  * Show all entries found in the uri.
  */
 static void
-show_data(WT_SESSION *session, const char *uri, const char *format, int arg)
+show_data(WT_SESSION *session, const char *uri, int nentries, const char *comment)
 {
     WT_CURSOR *cursor;
     int key, ret;
     const char *value;
 
-    printf("%s:  ", uri);
-    printf(format, arg);
-    printf("\n");
+    printf("%s: after %d %s\n", uri, nentries, comment);
 
     error_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
 
@@ -97,8 +95,8 @@ show_data(WT_SESSION *session, const char *uri, const char *format, int arg)
 #define BUILD_DIR "../../"
 #define STORAGE_SOURCE "dir_store"
 
-#define LOCAL_URI    "table:local_table"
-#define TIERED_URI    "table:tiered_table"
+#define LOCAL_URI "table:local_table"
+#define TIERED_URI "table:tiered_table"
 
 int
 main(int argc, char *argv[])
@@ -170,8 +168,8 @@ main(int argc, char *argv[])
     error_check(session->checkpoint(session, "flush_tier=(enabled)"));
 
     /* Show the data. */
-    show_data(session, LOCAL_URI, "local table after adding %d items", 2 * N_ENTRIES);
-    show_data(session, TIERED_URI, "tiered table after adding %d items and flush_tier call", 2 * N_ENTRIES);
+    show_data(session, LOCAL_URI, 2 * N_ENTRIES, "items added");
+    show_data(session, TIERED_URI, 2 * N_ENTRIES, "items added and flush_tier call");
 
     /* Add still more entries to both tables. */
     add_data(session, LOCAL_URI, 2 * N_ENTRIES, N_ENTRIES);
@@ -183,12 +181,12 @@ main(int argc, char *argv[])
     error_check(session->checkpoint(session, NULL));
 
     /*
-     * In the tiered table, some of the entries (up to key 2 * N_ENTRIES - 1), has been put into tiered storage,
-     * and the rest is backed by a local file. However, all queries on the data look the same.
+     * In the tiered table, some of the entries (up to key 2 * N_ENTRIES - 1), has been put into
+     * tiered storage, and the rest is backed by a local file. However, all queries on the data look
+     * the same.
      */
-    show_data(session, LOCAL_URI, "local table after adding %d more items", N_ENTRIES);
-    show_data(session, TIERED_URI,
-      "tiered table after adding %d more items that have not been flushed", N_ENTRIES);
+    show_data(session, LOCAL_URI, N_ENTRIES, "more items added");
+    show_data(session, TIERED_URI, N_ENTRIES, "more items added that have not been flushed");
 
     /* Close all handles. */
     error_check(session->close(session, NULL));
