@@ -1124,6 +1124,9 @@ rollback_retry:
         }
         tinfo->op = op; /* Keep the op in the thread info for debugging */
 
+        /* Make sure this is an operation that is permitted for this kind of run. */
+        testutil_assert(replay_operation_enabled(op));
+
         /*
          * Get the number of rows. Column-store extends the object, use that extended count if this
          * isn't a mirrored operation. (Ignore insert column-store insert operations in this check,
@@ -1148,7 +1151,6 @@ rollback_retry:
          * from lower keys to higher keys or vice-versa).
          */
         if (op == TRUNCATE) {
-            testutil_assert(!GV(RUNS_PREDICTABLE_REPLAY));
             tinfo->last = tinfo->keyno = mmrand(&tinfo->data_rnd, 1, (u_int)max_rows);
             greater_than = mmrand(&tinfo->data_rnd, 0, 1) == 1;
             range = max_rows < 20 ? 0 : mmrand(&tinfo->data_rnd, 0, (u_int)max_rows / 50);
@@ -1212,7 +1214,6 @@ rollback_retry:
          * FLCS value.
          */
         if (op == MODIFY) {
-            testutil_assert(!GV(RUNS_PREDICTABLE_REPLAY));
             if (table->type != FIX || table->mirror)
                 modify_build(tinfo);
             else

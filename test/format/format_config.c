@@ -403,17 +403,21 @@ config_table(TABLE *table, void *arg)
         TV(RUNS_ROWS) = WT_MAX(TV(RUNS_ROWS), 2 * LANE_COUNT);
 
         /*
-         * We don't support truncate yet in predictable replay.
+         * We don't support some operations in predictable replay.
          */
-        if (config_explicit(table, "ops.truncate") && TV(OPS_TRUNCATE))
-            WARN("turning off truncate for table%" PRIu32 " to work with predictable replay",
-              table->id);
-        config_single(table, "ops.truncate=0", false);
-        if (config_explicit(table, "ops.pct.modify") && TV(OPS_PCT_MODIFY))
-            WARN("turning off modify operations for table%" PRIu32
-                 " to work with predictable replay",
-              table->id);
-        config_single(table, "ops.pct.modify=0", false);
+        if (!replay_operation_enabled(TRUNCATE)) {
+            if (config_explicit(table, "ops.truncate") && TV(OPS_TRUNCATE))
+                WARN("turning off truncate for table%" PRIu32 " to work with predictable replay",
+                  table->id);
+            config_single(table, "ops.truncate=0", false);
+        }
+        if (!replay_operation_enabled(MODIFY)) {
+            if (config_explicit(table, "ops.pct.modify") && TV(OPS_PCT_MODIFY))
+                WARN("turning off modify operations for table%" PRIu32
+                     " to work with predictable replay",
+                  table->id);
+            config_single(table, "ops.pct.modify=0", false);
+        }
     }
 
     /*
@@ -1269,25 +1273,32 @@ config_pct(TABLE *table)
         const char *name; /* Operation */
         uint32_t *vp;     /* Value store */
         u_int order;      /* Order of assignment */
+        bool enabled;     /* Enabled for this configuration */
     } list[5];
     u_int i, max_order, max_slot, n, pct;
     bool slot_available;
 
+    /* We explicitly disable modify operations for predictable replay. */
     list[0].name = "ops.pct.delete";
     list[0].vp = &TV(OPS_PCT_DELETE);
     list[0].order = 0;
+    list[0].enabled = replay_operation_enabled(REMOVE);
     list[1].name = "ops.pct.insert";
     list[1].vp = &TV(OPS_PCT_INSERT);
     list[1].order = 0;
+    list[1].enabled = replay_operation_enabled(INSERT);
     list[2].name = "ops.pct.modify";
     list[2].vp = &TV(OPS_PCT_MODIFY);
     list[2].order = 0;
+    list[2].enabled = replay_operation_enabled(MODIFY);
     list[3].name = "ops.pct.read";
     list[3].vp = &TV(OPS_PCT_READ);
     list[3].order = 0;
+    list[3].enabled = replay_operation_enabled(READ);
     list[4].name = "ops.pct.write";
     list[4].vp = &TV(OPS_PCT_WRITE);
     list[4].order = 0;
+    list[4].enabled = replay_operation_enabled(UPDATE);
 
     /*
      * Walk the list of operations, checking for an illegal configuration and creating a random
@@ -1296,11 +1307,13 @@ config_pct(TABLE *table)
     pct = 0;
     slot_available = false;
     for (i = 0; i < WT_ELEMENTS(list); ++i)
-        if (config_explicit(table, list[i].name))
-            pct += *list[i].vp;
-        else {
-            list[i].order = mmrand(&g.data_rnd, 1, WT_THOUSAND);
-            slot_available = true;
+        if (list[i].enabled) {
+            if (config_explicit(table, list[i].name))
+                pct += *list[i].vp;
+            else {
+                list[i].order = mmrand(&g.data_rnd, 1, WT_THOUSAND);
+                slot_available = true;
+            }
         }
 
     /*
@@ -1324,9 +1337,9 @@ config_pct(TABLE *table)
      */
     for (pct = 100 - pct;;) {
         for (i = n = max_order = max_slot = 0; i < WT_ELEMENTS(list); ++i) {
-            if (list[i].order != 0)
+            if (list[i].order != 0 && list[i].enabled)
                 ++n;
-            if (list[i].order > max_order) {
+            if (list[i].order > max_order && list[i].enabled) {
                 max_order = list[i].order;
                 max_slot = i;
             }

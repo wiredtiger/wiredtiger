@@ -463,6 +463,7 @@ void replay_committed(TINFO *);
 void replay_end_timed_run(void);
 void replay_loop_begin(TINFO *, bool);
 uint64_t replay_maximum_committed(void);
+bool replay_operation_enabled(thread_op);
 void replay_pause_after_rollback(TINFO *, uint32_t);
 uint64_t replay_prepare_ts(TINFO *);
 uint64_t replay_read_ts(TINFO *);

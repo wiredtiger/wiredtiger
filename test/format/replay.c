@@ -143,6 +143,66 @@ replay_maximum_committed(void)
 }
 
 /*
+ * replay_operation_enabled --
+ *     Return whether an operation type should be enabled in the configuration.
+ */
+bool
+replay_operation_enabled(thread_op op)
+{
+    if (!GV(RUNS_PREDICTABLE_REPLAY))
+        return (true);
+
+    /*
+     * We don't permit truncate operations with predictable replay.
+     *
+     * Currently, we use an operation's timestamp to help derive the operation's key.
+     * The last N bits of the timestamp are used as the last bits of the key (where
+     * 2^N == LANE_COUNT). These last N bits give the lane number, and within each
+     * lane we track the progress of operations for that lane. Using lanes, we can
+     * track and guarantee that only a single operation is active in a lane at once,
+     * and therefore we can't have multiple operations on a single key performed out
+     * of order or simultaneously. The truncate operation, for a small set of keys,
+     * would reserve multiple consecuetive lanes (probably okay) and for larger sets,
+     * would reserve the entire set of lanes. This would effectively require all
+     * threads to get into a holding state, waiting for the truncate to start and then
+     * complete before continuing with their next operation. While we could fudge this
+     * in certain ways (e.g. operations with 10000 timestamps of a truncate would be
+     * forced to stay out of its table), there still would be a lot of details, and
+     * some rethink of our lane strategy. Even getting this to work, we would have
+     * a truncate that had the whole table to itself, which doesn't seem like an
+     * effective test.
+     */
+    if (op == TRUNCATE)
+        return (false);
+
+    /*
+     * We don't permit modify operations with predictable replay.
+     *
+     * The problem is read timestamps. As currently implemented, the read timestamp selected is
+     * variable, based on the state of other threads and their progress with other timestamped
+     * operations. And if two changes are made to the same key in a short amount of time, if the
+     * second operation were to be performed sometimes with a read timestamp before the first
+     * operation, and sometimes with a read timestamp after the first operation, then the results
+     * would be variable.
+     *
+     * We could track recent operations on a key (in its lane, for instance), but when we realize
+     * the read timestamp isn't recent enough, we would need to wait for the stable timestamp to
+     * move forward (and our waiting can affect/delay other thread's operations as well). Having the
+     * stable timestamp move forward is the only way our read timestamp can progress.
+     *
+     * Another possibility that also involves tracking recent operations on a key would be to
+     * disallow modifies that occur within, say 10000 timestamps of a previous write operation on
+     * the same key. Those modifies could be silently converted to reads, for instance. If our read
+     * timestamp was greater than 10000 timestamps behind, we'd still need to wait for the stable
+     * timestamp to catch up.
+     */
+    if (op == MODIFY)
+        return (false);
+
+    return (true);
+}
+
+/*
  * replay_pick_timestamp --
  *     Pick the next timestamp for this operation. That timestamp is used for any commits and also
  *     determines which 'lane' we are in, to prevent races from occurring on operations on a single
