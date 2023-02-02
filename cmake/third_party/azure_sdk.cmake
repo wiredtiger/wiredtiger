@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.13)
 
 config_choice(
     IMPORT_AZURE_SDK
-    "Specify how to import the AZURE SDK"
+    "Specify how to import the Azure SDK"
     OPTIONS
         "none;IMPORT_AZURE_SDK_NONE;NOT ENABLE_AZURE"
         "package;IMPORT_AZURE_SDK_PACKAGE;ENABLE_AZURE"
@@ -21,7 +21,8 @@ set(azure_storage_common_lib_location)
 set(azure_sdk_include_location)
 
 if(IMPORT_AZURE_SDK_PACKAGE)
-    message(FATAL_ERROR "Currently the package config option is not implemented yet.")
+    # FIXME-WT-10560
+    message(FATAL_ERROR "Azure SDK package import is not yet supported.")
 endif()
 
 if (IMPORT_AZURE_SDK_EXTERNAL)
