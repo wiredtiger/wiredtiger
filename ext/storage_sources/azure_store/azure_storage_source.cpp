@@ -63,8 +63,8 @@ struct azure_file_handle {
 };
 
 // WT_STORAGE_SOURCE Interface
-static int azure_customize_file_system(WT_STORAGE_SOURCE *, WT_SESSION *, const char *,
-  const char *, const char *, WT_FILE_SYSTEM **);
+static int azure_customize_file_system(
+  WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *, const char *, WT_FILE_SYSTEM **);
 static int azure_add_reference(WT_STORAGE_SOURCE *);
 static int azure_terminate(WT_STORAGE_SOURCE *, WT_SESSION *);
 static int azure_flush(WT_STORAGE_SOURCE *, WT_SESSION *, WT_FILE_SYSTEM *, const char *,
