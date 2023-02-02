@@ -104,7 +104,7 @@ main(int argc, char *argv[])
     WT_CONNECTION *conn;
     WT_SESSION *session;
     const char *home;
-    char bucketdir[1024], config[1024];
+    char buf[1024], config[1024];
 
     home = example_setup(argc, argv);
 
@@ -128,11 +128,9 @@ main(int argc, char *argv[])
       BUCKET_NAME, STORAGE_SOURCE, BUILD_DIR, STORAGE_SOURCE, STORAGE_SOURCE);
 
     /* Create the home directory, and the bucket directory underneath it. */
-    if (access(home, R_OK | W_OK | X_OK) != 0)
-        error_check(mkdir(home, 0777));
-    snprintf(bucketdir, sizeof(bucketdir), "%s/%s", home, BUCKET_NAME);
-    if (access(bucketdir, R_OK | W_OK | X_OK) != 0)
-        error_check(mkdir(bucketdir, 0777));
+    (void)snprintf(
+      buf, sizeof(buf), "rm -rf %s && mkdir %s && mkdir %s/%s", home, home, home, BUCKET_NAME);
+    error_check(system(buf));
 
     /* Configure the connection to use tiered storage. */
     error_check(wiredtiger_open(home, NULL, config, &conn));
