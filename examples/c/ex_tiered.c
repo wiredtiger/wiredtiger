@@ -32,6 +32,11 @@
 #include <test_util.h>
 
 /*
+ * The number of entries we insert at a time.
+ */
+#define N_ENTRIES  10
+
+/*
  * Open the uri and starting at the first indicated key, insert count entries.
  */
 static void
@@ -56,13 +61,15 @@ add_data(WT_SESSION *session, const char *uri, int first_key, int count)
  * Show all entries found in the uri.
  */
 static void
-show_data(WT_SESSION *session, const char *uri, const char *comment)
+show_data(WT_SESSION *session, const char *uri, const char *format, int arg)
 {
     WT_CURSOR *cursor;
     int key, ret;
     const char *value;
 
-    printf("%s:  %s\n", uri, comment);
+    printf("%s:  ", uri);
+    printf(format, arg);
+    printf("\n");
 
     error_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
 
@@ -90,13 +97,16 @@ show_data(WT_SESSION *session, const char *uri, const char *comment)
 #define BUILD_DIR "../../"
 #define STORAGE_SOURCE "dir_store"
 
+#define LOCAL_URI    "table:local_table"
+#define TIERED_URI    "table:tiered_table"
+
 int
 main(int argc, char *argv[])
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
     const char *home;
-    char config[1024], bucketdir[1024];
+    char bucketdir[1024], config[1024];
 
     home = example_setup(argc, argv);
 
@@ -134,14 +144,14 @@ main(int argc, char *argv[])
 
     /* Create a table that lives locally. Tiered storage is disabled for this file. */
     error_check(session->create(
-      session, "table:housecat", "key_format=i,value_format=S,tiered_storage=(name=none)"));
+      session, LOCAL_URI, "key_format=i,value_format=S,tiered_storage=(name=none)"));
 
     /* Create a table using tiered storage. */
-    error_check(session->create(session, "table:wildcat", "key_format=i,value_format=S"));
+    error_check(session->create(session, TIERED_URI, "key_format=i,value_format=S"));
 
     /* Add entries to both tables. */
-    add_data(session, "table:housecat", 0, 10);
-    add_data(session, "table:wildcat", 0, 10);
+    add_data(session, LOCAL_URI, 0, N_ENTRIES);
+    add_data(session, TIERED_URI, 0, N_ENTRIES);
 
     /*
      * Do a regular checkpoint. Checkpoints are usually done in their own thread with their own
@@ -150,8 +160,8 @@ main(int argc, char *argv[])
     error_check(session->checkpoint(session, NULL));
 
     /* Add more entries to both tables. */
-    add_data(session, "table:housecat", 10, 10);
-    add_data(session, "table:wildcat", 10, 10);
+    add_data(session, LOCAL_URI, N_ENTRIES, N_ENTRIES);
+    add_data(session, TIERED_URI, N_ENTRIES, N_ENTRIES);
 
     /*
      * Do a tiered checkpoint. For tiered tables, new data is flushed (synchronized) to the
@@ -160,12 +170,12 @@ main(int argc, char *argv[])
     error_check(session->checkpoint(session, "flush_tier=(enabled)"));
 
     /* Show the data. */
-    show_data(session, "table:housecat", "local table after adding 20 items");
-    show_data(session, "table:wildcat", "tiered table after adding 20 items and flush_tier call");
+    show_data(session, LOCAL_URI, "local table after adding %d items", 2 * N_ENTRIES);
+    show_data(session, TIERED_URI, "tiered table after adding %d items and flush_tier call", 2 * N_ENTRIES);
 
     /* Add still more entries to both tables. */
-    add_data(session, "table:housecat", 20, 10);
-    add_data(session, "table:wildcat", 20, 10);
+    add_data(session, LOCAL_URI, 2 * N_ENTRIES, N_ENTRIES);
+    add_data(session, TIERED_URI, 2 * N_ENTRIES, N_ENTRIES);
 
     /*
      * Another regular checkpoint. No new data is flushed to tiered storage.
@@ -173,12 +183,12 @@ main(int argc, char *argv[])
     error_check(session->checkpoint(session, NULL));
 
     /*
-     * In the wildcat table, some of the entries (up to key 19), has been put into tiered storage,
+     * In the tiered table, some of the entries (up to key 2 * N_ENTRIES - 1), has been put into tiered storage,
      * and the rest is backed by a local file. However, all queries on the data look the same.
      */
-    show_data(session, "table:housecat", "local table after adding 10 more items");
-    show_data(session, "table:wildcat",
-      "tiered table after adding 10 more items that have not been flushed");
+    show_data(session, LOCAL_URI, "local table after adding %d more items", N_ENTRIES);
+    show_data(session, TIERED_URI,
+      "tiered table after adding %d more items that have not been flushed", N_ENTRIES);
 
     /* Close all handles. */
     error_check(session->close(session, NULL));
