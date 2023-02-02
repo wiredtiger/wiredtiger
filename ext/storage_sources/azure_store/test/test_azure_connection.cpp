@@ -32,10 +32,6 @@
 #include "azure_connection.h"
 #include <fstream>
 
-// TODO:
-// ADD PREFIXING
-// FIX UP CREATION TO REMOVE REDUNDANCY
-
 static std::string
 create_file(const std::string &object_name, const std::string &payload)
 {
