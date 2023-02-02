@@ -410,7 +410,8 @@ config_table(TABLE *table, void *arg)
               table->id);
         config_single(table, "ops.truncate=0", false);
         if (config_explicit(table, "ops.pct.modify") && TV(OPS_PCT_MODIFY))
-            WARN("turning off modify operations for table%" PRIu32 " to work with predictable replay",
+            WARN("turning off modify operations for table%" PRIu32
+                 " to work with predictable replay",
               table->id);
         config_single(table, "ops.pct.modify=0", false);
     }

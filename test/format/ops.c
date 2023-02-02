@@ -1407,8 +1407,8 @@ read_row_worker(TINFO *tinfo, TABLE *table, WT_CURSOR *cursor, uint64_t keyno, W
     }
 
     /*
-     * We don't use search near for predictable replay runs, as the
-     * return key can be variable depending on the structure of the Btree.
+     * We don't use search near for predictable replay runs, as the return key can be variable
+     * depending on the structure of the Btree.
      */
     if (sn && !GV(RUNS_PREDICTABLE_REPLAY)) {
         ret = read_op(cursor, SEARCH_NEAR, &exact);
