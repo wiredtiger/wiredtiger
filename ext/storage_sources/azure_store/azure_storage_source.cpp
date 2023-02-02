@@ -103,7 +103,7 @@ static int
 azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
   const char *bucket, const char *auth_token, const char *config, WT_FILE_SYSTEM **file_system)
 {
-    if (bucket == nullptr || std::string(bucket).length() == 0) {
+    if (bucket == nullptr || strlen(bucket) == 0) {
         std::cerr << "azure_customize_file_system: Bucket not specified." << std::endl;
         return EINVAL;
     }
