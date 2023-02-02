@@ -43,9 +43,6 @@ struct azure_store {
 
     std::mutex fs_mutex;
     std::vector<azure_file_system *> azure_fs;
-    std::mutex fh_mutex;
-    std::vector<azure_file_handle> azure_fh;
-
     uint32_t reference_count;
 };
 
@@ -53,7 +50,9 @@ struct azure_file_system {
     WT_FILE_SYSTEM fs;
     azure_store *store;
     WT_FILE_SYSTEM *wt_fs;
-    // std::vector<azure_file_handle> azure_fh;
+
+    std::mutex fh_mutex;
+    std::vector<azure_file_handle> azure_fh;
     std::unique_ptr<azure_connection> azure_conn;
     std::string home_dir;
 };
@@ -213,9 +212,6 @@ azure_flush_finish(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
 static int
 azure_terminate(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session)
 {
-    WT_UNUSED(storage_source);
-    WT_UNUSED(session);
-
     azure_store *azure = reinterpret_cast<azure_store *>(storage_source);
 
     if (--azure->reference_count != 0)
@@ -226,10 +222,10 @@ azure_terminate(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session)
      * extension. The current implementation is NOT thread-safe, and needs to be addressed in the
      * future, as multiple threads could call terminate leading to a race condition.
      */
-    while (!azure->azure_fh.empty()) {
-        azure_file_handle *fh = &azure->azure_fh.front();
-        azure_file_close(reinterpret_cast<WT_FILE_HANDLE *>(fh), session);
-    }
+    // while (!azure->azure_fh.empty()) {
+    //     azure_file_handle *fh = &azure->azure_fh.front();
+    //     azure_file_close(reinterpret_cast<WT_FILE_HANDLE *>(fh), session);
+    // }
 
     /*
      * Terminate any active filesystems. There are no references to the storage source, so it is
@@ -241,7 +237,7 @@ azure_terminate(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session)
         azure_file_system_terminate(fs->wt_fs, session);
     }
 
-    delete (azure);
+    delete(azure);
     return 0;
 }
 
