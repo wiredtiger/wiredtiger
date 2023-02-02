@@ -59,7 +59,7 @@ gcp_connection::list_objects(std::vector<std::string> &objects, bool list_single
         if (!object_metadata) {
             // Error message will be printed out by handle_error
             handle_error(object_metadata.status(),
-              "List of: '" + object_metadata->name() +
+              "List of '" + object_metadata->name() +
                 "' failed: " + object_metadata.status().message());
         }
 
