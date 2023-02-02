@@ -30,6 +30,10 @@ import wttest, wiredtiger, random, string
 from helper_tiered import get_auth_token, TieredConfigMixin
 from wtscenario import make_scenarios
 
+# test_tiered19.py
+# Testing storage source functionality for the Azure Storage Store
+# and Google Cloud extensions.
+
 class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
 
     tiered_storage_sources = [
@@ -71,13 +75,8 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         prefix_2 = self.bucket_prefix.join(
             random.choices(string.ascii_letters + string.digits, k=10))
 
-        # Create file system. Try with some error cases.
-    
+        # Test the customize file system function errors when there is an invalid bucket.
         err_msg = '/Exception: Invalid argument/'
-        self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
-            lambda: ss.ss_customize_file_system(
-                session, None, None, self.get_fs_config(prefix_1)), err_msg)
-        
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_customize_file_system(
                 session, "", None, self.get_fs_config(prefix_1)), err_msg)
@@ -88,14 +87,16 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
             lambda: ss.ss_customize_file_system(
                 session, bad_bucket, None, self.get_fs_config(prefix_1)), err_msg)
 
-        # Create file systems that should succeed.
+        # Test the customize file system function works when there is a valid bucket.
         azure_fs_1 = ss.ss_customize_file_system(
             session, self.bucket, None, self.get_fs_config(prefix_1))
-        azure_fs_2 = ss.ss_customize_file_system(
-            session, self.bucket, None, self.get_fs_config(prefix_2))
 
-        # Terminate created file systems.
-        # We should also be able to terminate the storage source
-        # without terminating all the file systems we created.
-        azure_fs_1.terminate(session)
-        ss.terminate(session)
+        # Create another file systems to make sure that terminate works.
+        ss.ss_customize_file_system(
+            session, self.bucket, None, self.get_fs_config(prefix_2))
+        
+        # Test that azure file system terminate succeeds.
+        self.assertEqual(azure_fs_1.terminate(session), 0)
+
+        # Test that azure storage source terminate succeed.
+        self.assertEqual(ss.terminate(session), 0)

@@ -113,10 +113,10 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
     std::string obj_prefix;
 
     // Get the value of the config key from the string
-    azure_store *azure = reinterpret_cast<azure_store *>(storage_source);
+    azure_store *azure_storage = reinterpret_cast<azure_store *>(storage_source);
     int ret;
-    if ((ret = azure->wt_api->config_get_string(
-           azure->wt_api, session, config, "prefix", &obj_prefix_config)) == 0)
+    if ((ret = azure_storage->wt_api->config_get_string(
+           azure_storage->wt_api, session, config, "prefix", &obj_prefix_config)) == 0)
         obj_prefix = std::string(obj_prefix_config.str, obj_prefix_config.len);
     else if (ret != WT_NOTFOUND) {
         std::cerr << "azure_customize_file_system: error parsing config for object prefix."
@@ -126,7 +126,8 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
 
     // Fetch the native WT file system.
     WT_FILE_SYSTEM *wt_file_system;
-    if ((ret = azure->wt_api->file_system_get(azure->wt_api, session, &wt_file_system)) != 0)
+    if ((ret = azure_storage->wt_api->file_system_get(
+           azure_storage->wt_api, session, &wt_file_system)) != 0)
         return ret;
 
     // Get a copy of the home directory.
@@ -141,7 +142,7 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
     }
 
     // Initialise references to azure storage source, wt fs and home directory.
-    azure_fs->store = azure;
+    azure_fs->store = azure_storage;
     azure_fs->wt_fs = wt_file_system;
     azure_fs->home_dir = home_dir;
 
@@ -163,8 +164,8 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
 
     // Add to the list of the active file systems. Lock will be freed when the scope is exited.
     {
-        std::lock_guard<std::mutex> lock_guard(azure->fs_mutex);
-        azure->azure_fs.push_back(azure_fs);
+        std::lock_guard<std::mutex> lock_guard(azure_storage->fs_mutex);
+        azure_storage->azure_fs.push_back(azure_fs);
     }
     // Add to the list of the active file systems.
     *file_system = &azure_fs->fs;
@@ -175,12 +176,12 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
 static int
 azure_add_reference(WT_STORAGE_SOURCE *storage_source)
 {
-    azure_store *azure = reinterpret_cast<azure_store *>(storage_source);
-    if (azure->reference_count == 0 || azure->reference_count + 1 == 0) {
+    azure_store *azure_storage = reinterpret_cast<azure_store *>(storage_source);
+    if (azure_storage->reference_count == 0 || azure_storage->reference_count + 1 == 0) {
         std::cerr << "azure_add_reference: missing reference or overflow." << std::endl;
         return EINVAL;
     }
-    ++azure->reference_count;
+    ++azure_storage->reference_count;
     return 0;
 }
 
@@ -216,9 +217,9 @@ azure_flush_finish(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
 static int
 azure_terminate(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session)
 {
-    azure_store *azure = reinterpret_cast<azure_store *>(storage_source);
+    azure_store *azure_storage = reinterpret_cast<azure_store *>(storage_source);
 
-    if (--azure->reference_count != 0)
+    if (--azure_storage->reference_count != 0)
         return 0;
 
     /*
@@ -226,12 +227,12 @@ azure_terminate(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session)
      * safe to walk the active filesystem list without a lock. The removal from the list happens
      * under a lock. Also, removal happens from the front and addition at the end, so we are safe.
      */
-    while (!azure->azure_fs.empty()) {
-        WT_FILE_SYSTEM *fs = reinterpret_cast<WT_FILE_SYSTEM *>(azure->azure_fs.front());
+    while (!azure_storage->azure_fs.empty()) {
+        WT_FILE_SYSTEM *fs = reinterpret_cast<WT_FILE_SYSTEM *>(azure_storage->azure_fs.front());
         azure_file_system_terminate(fs, session);
     }
 
-    delete azure;
+    delete azure_storage;
     return 0;
 }
 
@@ -279,15 +280,17 @@ static int
 azure_file_system_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
 {
     azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
+    azure_store *azure_storage = azure_fs->store;
 
-    azure_store *azure = azure_fs->store;
     WT_UNUSED(session);
+
     // Remove from the active file system list. The lock will be freed when the scope is exited.
     {
-        std::lock_guard<std::mutex> lock_guard(azure->fs_mutex);
+        std::lock_guard<std::mutex> lock_guard(azure_storage->fs_mutex);
         // Erase-remove idiom used to eliminate specific file system.
-        azure->azure_fs.erase(std::remove(azure->azure_fs.begin(), azure->azure_fs.end(), azure_fs),
-          azure->azure_fs.end());
+        azure_storage->azure_fs.erase(
+          std::remove(azure_storage->azure_fs.begin(), azure_storage->azure_fs.end(), azure_fs),
+          azure_storage->azure_fs.end());
     }
     azure_fs->azure_conn.reset();
     free(azure_fs);
@@ -401,24 +404,25 @@ azure_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *size
 int
 wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 {
-    azure_store *azure = new azure_store;
-    azure->wt_api = connection->get_extension_api(connection);
+    azure_store *azure_storage = new azure_store;
+    azure_storage->wt_api = connection->get_extension_api(connection);
 
-    azure->store.ss_customize_file_system = azure_customize_file_system;
-    azure->store.ss_add_reference = azure_add_reference;
-    azure->store.terminate = azure_terminate;
-    azure->store.ss_flush = azure_flush;
-    azure->store.ss_flush_finish = azure_flush_finish;
+    azure_storage->store.ss_customize_file_system = azure_customize_file_system;
+    azure_storage->store.ss_add_reference = azure_add_reference;
+    azure_storage->store.terminate = azure_terminate;
+    azure_storage->store.ss_flush = azure_flush;
+    azure_storage->store.ss_flush_finish = azure_flush_finish;
 
     // The first reference is implied by the call to add_storage_source.
-    azure->reference_count = 1;
+    azure_storage->reference_count = 1;
 
     // Load the storage.
-    if ((connection->add_storage_source(connection, "azure_store", &azure->store, nullptr)) != 0) {
+    if ((connection->add_storage_source(
+          connection, "azure_store", &azure_storage->store, nullptr)) != 0) {
         std::cerr
           << "wiredtiger_extension_init: Could not load Azure storage source, shutting down."
           << std::endl;
-        delete azure;
+        delete azure_storage;
         return -1;
     }
     return 0;
