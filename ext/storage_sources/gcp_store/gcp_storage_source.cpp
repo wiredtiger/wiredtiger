@@ -9,23 +9,8 @@
 #include "gcp_connection.h"
 #include "wt_internal.h"
 
-#define FS2GCP(fs) (((gcp_file_system *)(fs))->storage_source)
-
 struct gcp_file_system;
 struct gcp_file_handle;
-
-// Statistics to be collected for the GCP storage.
-struct gcp_statistics {
-    // Operations using Google Cloud SDK.
-    uint64_t list_objects_count;  // Number of GCP list objects requests
-    uint64_t put_object_count;    // Number of GCP put object requests
-    uint64_t get_object_count;    // Number of GCP get object requests
-    uint64_t object_exists_count; // Number of GCP object exists requests
-
-    // Operations using WiredTiger's native file handle operations.
-    uint64_t fh_ops;      // Number of non read/write file handle operations
-    uint64_t fh_read_ops; // Number of file handle read operations
-};
 
 /*
  * The first struct member must be the WT interface that is being implemented.
@@ -33,22 +18,19 @@ struct gcp_statistics {
 struct gcp_store {
     WT_STORAGE_SOURCE storage_source;
     WT_EXTENSION_API *wt_api;
-    std::shared_ptr<gcp_file_system> log;
     std::mutex fs_list_mutex;
-    std::list<gcp_file_handle *> fh_list;
-    std::list<gcp_file_system *> fs_list;
+    std::vector<gcp_file_handle *> fh_list;
+    std::vector<gcp_file_system *> fs_list;
     std::vector<gcp_file_system> gcp_fs;
     uint32_t reference_count;
     int32_t verbose;
-    gcp_statistics statistics;
 };
 
 struct gcp_file_system {
     WT_FILE_SYSTEM file_system;
     gcp_store *storage_source;
     WT_FILE_SYSTEM *wt_file_system;
-    std::vector<gcp_file_handle> gcp_fh;
-    gcp_connection *gcp_conn;
+    std::unique_ptr<gcp_connection> gcp_conn;
     std::string home_dir;
 };
 
@@ -94,19 +76,19 @@ gcp_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session
     // Check if bucket name is given
     if (bucket == nullptr || strlen(bucket) == 0) {
         std::cerr << "gcp_customize_file_system: bucket not specified." << std::endl;
-        return (EINVAL);
+        return EINVAL;
     }
 
     // Fail if there is no authentication provided.
     if (auth_token == nullptr || strlen(auth_token) == 0) {
         std::cerr << "gcp_customize_file_system: auth_token not specified." << std::endl;
-        return (EINVAL);
+        return EINVAL;
     }
     int delimiter = std::string(auth_token).find(".json");
     if (delimiter == std::string::npos || delimiter == 0) {
         std::cerr << "gcp_customize_file_system: improper auth_token, should be a .json file."
                   << std::endl;
-        return (EINVAL);
+        return EINVAL;
     }
 
     gcp_store *gcp = (gcp_store *)storage_source;
@@ -120,13 +102,13 @@ gcp_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session
         obj_prefix = std::string(obj_prefix_conf.str, obj_prefix_conf.len);
     else if (ret != WT_NOTFOUND) {
         std::cerr << "gcp_customize_fs: error parsing config for object prefix." << std::endl;
-        return (ret);
+        return ret;
     }
 
     // Fetch the native WT file system.
     WT_FILE_SYSTEM *wt_file_system;
     if ((ret = gcp->wt_api->file_system_get(gcp->wt_api, session, &wt_file_system)) != 0)
-        return (ret);
+        return ret;
 
     // Get a copy of the home directory.
     const std::string home_dir = session->connection->get_home(session->connection);
@@ -136,7 +118,7 @@ gcp_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session
     gcp_file_system *fs;
     if ((fs = (gcp_file_system *)calloc(1, sizeof(gcp_file_system))) == nullptr) {
         std::cerr << "gcp_customize_fs: unable to allocate memory for file system." << std::endl;
-        return (ENOMEM);
+        return ENOMEM;
     }
 
     // Set variables specific to GCP.
@@ -146,10 +128,10 @@ gcp_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session
 
     // Create connection to google cloud.
     try {
-        fs->gcp_conn = new gcp_connection(bucket, obj_prefix);
+        fs->gcp_conn = std::make_unique<gcp_connection>(bucket, obj_prefix);
     } catch (std::invalid_argument &e) {
         std::cerr << std::string("gcp_customize_file_system: ") + e.what() << std::endl;
-        return (EINVAL);
+        return EINVAL;
     }
 
     // Map google cloud functions to the file system.
@@ -165,11 +147,12 @@ gcp_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session
 
     // Add to the list of the active file systems. Lock will be freed when the scope is exited.
     {
-        std::lock_guard<std::mutex> lockGuard(gcp->fs_list_mutex);
+        std::lock_guard<std::mutex> lock_guard(gcp->fs_list_mutex);
         gcp->fs_list.push_back(fs);
     }
 
     *file_system = &fs->file_system;
+
     return 0;
 }
 
@@ -180,11 +163,11 @@ gcp_add_reference(WT_STORAGE_SOURCE *storage_source)
 
     if (gcp->reference_count == 0 || gcp->reference_count + 1 == 0) {
         std::cerr << "gcp_add_reference: missing reference or overflow." << std::endl;
-        return (EINVAL);
+        return EINVAL;
     }
 
     ++gcp->reference_count;
-    return (0);
+    return 0;
 
     return 0;
 }
@@ -203,19 +186,21 @@ static int
 gcp_file_system_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
 {
     gcp_file_system *fs = (gcp_file_system *)file_system;
-    gcp_store *gcp = FS2GCP(file_system);
+    gcp_store *gcp = reinterpret_cast<gcp_file_system *>((gcp_file_system *)(fs))->storage_source;
 
     WT_UNUSED(session);
 
     // Remove from the active filesystems list. The lock will be freed when the scope is exited.
     {
         std::lock_guard<std::mutex> lock_guard(gcp->fs_list_mutex);
-        gcp->fs_list.remove(fs);
+        // gcp->fs_list.remove(fs);
+        gcp->fs_list.erase(
+          std::remove(gcp->fs_list.begin(), gcp->fs_list.end(), fs), gcp->fs_list.end());
     }
-    delete (fs->gcp_conn);
+
     free(fs);
 
-    return (0);
+    return 0;
 }
 
 static int
@@ -362,10 +347,11 @@ gcp_object_list_free(
 static int
 gcp_terminate(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session)
 {
-    gcp_store *gcp = (gcp_store *)storage_source;
+    fflush(stdout);
+    gcp_store *gcp = reinterpret_cast<gcp_store *>(storage_source);
 
     if (--gcp->reference_count != 0)
-        return (0);
+        return 0;
 
     /*
      * It is currently unclear at the moment what the multi-threading will look like in the
@@ -390,7 +376,7 @@ gcp_terminate(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session)
     std::cout << "gcp_terminate: Terminated GCP storage source." << std::endl;
     delete (gcp);
 
-    return (0);
+    return 0;
 }
 
 int
@@ -412,9 +398,6 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
         return (ret != 0 ? ret : EINVAL);
     }
 
-    // Set up statistics.
-    gcp->statistics = {};
-
     // Allocate a gcp storage structure, with a WT_STORAGE structure as the first field, allowing us
     // to treat references to either type of structure as a reference to the other type.
     gcp->storage_source.ss_customize_file_system = gcp_customize_file_system;
@@ -434,5 +417,5 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
         delete (gcp);
     }
 
-    return (ret);
+    return ret;
 }

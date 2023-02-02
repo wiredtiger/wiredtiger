@@ -80,9 +80,37 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         # avoid namespace collision. 0th element on the stack is the current function.
         prefix = self.bucket_prefix + inspect.stack()[0][3] + '/'
 
+        # success case
         fs = ss.ss_customize_file_system(session, self.bucket, self.auth_token, self.get_fs_config(prefix))
+
+        err_msg = 'Exception: Invalid argument'
+
+        self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
+            lambda: ss.ss_customize_file_system(
+                session, None, None, self.get_fs_config(prefix)), err_msg)
+
+        self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
+            lambda: ss.ss_customize_file_system(
+                session, "", None, self.get_fs_config(prefix)), err_msg)
+
+        self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
+            lambda: ss.ss_customize_file_system(
+                session, self.bucket, "gcp_cred", self.get_fs_config(prefix)), err_msg)
+
+        self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
+            lambda: ss.ss_customize_file_system(
+                session, self.bucket, " ", self.get_fs_config(prefix)), err_msg)
+
+        non_exist_bucket = "non_exist" 
+        self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
+            lambda: ss.ss_customize_file_system(
+                session, non_exist_bucket, None, self.get_fs_config(prefix)), err_msg)
+
+        no_access_bucket = "test_cred"
+        self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
+            lambda: ss.ss_customize_file_system(
+                session, no_access_bucket, None, self.get_fs_config(prefix)), err_msg)
 
         fs.terminate(session)
         ss.terminate(session)
-
         pass
