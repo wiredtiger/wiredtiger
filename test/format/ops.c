@@ -970,8 +970,8 @@ ops(void *arg)
      * of the time we run in independent RNG space.
      */
     if (GV(FORMAT_INDEPENDENT_THREAD_RNG)) {
-        testutil_random_from_seed(&tinfo->data_rnd, GV(RANDOM_DATA_SEED) + tinfo->id);
-        testutil_random_from_seed(&tinfo->extra_rnd, GV(RANDOM_EXTRA_SEED) + tinfo->id);
+        testutil_random_from_seed(&tinfo->data_rnd, GV(RANDOM_DATA_SEED) + (u_int)tinfo->id);
+        testutil_random_from_seed(&tinfo->extra_rnd, GV(RANDOM_EXTRA_SEED) + (u_int)tinfo->id);
     } else {
         testutil_random_from_seed(&tinfo->data_rnd, GV(RANDOM_DATA_SEED));
         testutil_random_from_seed(&tinfo->extra_rnd, GV(RANDOM_EXTRA_SEED));
@@ -1212,6 +1212,7 @@ rollback_retry:
          * FLCS value.
          */
         if (op == MODIFY) {
+            testutil_assert(!GV(RUNS_PREDICTABLE_REPLAY));
             if (table->type != FIX || table->mirror)
                 modify_build(tinfo);
             else
@@ -1736,7 +1737,7 @@ modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
     bool modify_check;
 
     /* Periodically verify the WT_CURSOR.modify return. */
-    modify_check = positioned && mmrand(&tinfo->data_rnd, 1, 20) == 1;
+    modify_check = positioned && mmrand(&tinfo->extra_rnd, 1, 20) == 1;
     if (modify_check) {
         testutil_check(cursor->get_value(cursor, &tinfo->moda));
         testutil_check(
