@@ -92,7 +92,7 @@ show_data(WT_SESSION *session, const char *uri, int nentries, const char *commen
  * bucket name, relative to the WiredTiger home directory.
  */
 #define BUCKET_NAME "bucket"
-#define BUILD_DIR "../../"
+#define BUILD_DIR "../../../"
 #define STORAGE_SOURCE "dir_store"
 
 #define LOCAL_URI "table:local_table"
