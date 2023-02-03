@@ -199,6 +199,16 @@ replay_operation_enabled(thread_op op)
     if (op == MODIFY)
         return (false);
 
+    /*
+     * We don't permit remove operations with predictable replay.
+     *
+     * This should be something we can and should fix. We think that the problem is similar to the
+     * problem with modify, where having a varying read timestamp can cause different results for
+     * different runs.
+     */
+    if (op == REMOVE)
+        return (false);
+
     return (true);
 }
 
