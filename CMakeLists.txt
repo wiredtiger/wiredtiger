@@ -48,6 +48,7 @@ include(cmake/configs/base.cmake)
 
 # Import our third party library definitions.
 include(cmake/third_party/aws_sdk.cmake)
+include(cmake/third_party/gcp_sdk.cmake)
 include(cmake/third_party/gperftools.cmake)
 include(cmake/third_party/lz4.cmake)
 include(cmake/third_party/memkind.cmake)
@@ -55,6 +56,11 @@ include(cmake/third_party/snappy.cmake)
 include(cmake/third_party/sodium.cmake)
 include(cmake/third_party/zlib.cmake)
 include(cmake/third_party/zstd.cmake)
+
+# Skip the AZURE SDK build step if the extension is not enabled.
+if(ENABLE_AZURE)
+    include(cmake/third_party/azure_sdk.cmake)
+endif()
 
 if(NOT ENABLE_SHARED AND NOT ENABLE_STATIC)
     message(FATAL_ERROR "Both ENABLE_SHARED & ENABLE_STATIC are disabled. Need to enable at least one build flavour.")

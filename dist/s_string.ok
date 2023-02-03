@@ -191,6 +191,7 @@ Fsync
 Fuerst
 GBR
 GCC
+GCP
 GF
 GIDs
 GLIBC
@@ -565,6 +566,7 @@ aa
 aaa
 abcdef
 abcdefghijklmnopqrstuvwxyz
+acstu
 addl
 addr
 addrs
@@ -748,7 +750,6 @@ cryptobad
 cryptographic
 cryptographically
 cstring
-cstu
 csuite
 csv
 ctime
