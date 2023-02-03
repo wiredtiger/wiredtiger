@@ -57,7 +57,8 @@ gcp_connection::list_objects(std::vector<std::string> &objects, bool list_single
         // Check if the current object is accessible (object exists but the user does not have
         // permissions to access)
         if (!object_metadata) {
-            // Error message will be printed out by handle_error
+            // This is an error, but is non-fatal. We call handle_error to print the error message
+            // and then continue listing objects.
             handle_error(object_metadata.status(),
               "List of '" + object_metadata->name() +
                 "' failed: " + object_metadata.status().message());
