@@ -51,8 +51,8 @@ randomize_test_prefix()
     std::time_t t = std::time(nullptr);
 
     REQUIRE(std::strftime(time_str, sizeof(time_str), "%F-%H-%M-%S", std::localtime(&t)) != 0);
-	
-	std::string obj_prefix("azuretest/unit/"); // To be concatenated with a random string.
+
+    std::string obj_prefix("azuretest/unit/"); // To be concatenated with a random string.
 
     obj_prefix += time_str;
 
@@ -73,7 +73,7 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
       std::getenv("AZURE_STORAGE_CONNECTION_STRING"), "myblobcontainer1");
     bool exists = false;
 
-	std::string obj_prefix = randomize_test_prefix();
+    std::string obj_prefix = randomize_test_prefix();
 
     azure_connection conn = azure_connection("myblobcontainer1", obj_prefix);
     azure_connection conn_bad = azure_connection("myblobcontainer1", "bad_prefix_");
@@ -153,7 +153,7 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
     {
         const std::string path = "./" + create_file(object_name, payload);
 
-		static std::vector<std::string> container;
+        static std::vector<std::string> container;
 
         REQUIRE(conn.put_object(object_name + "1", path) == 0);
 
@@ -162,32 +162,34 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
         // Test that putting an object that doesn't exist locally returns -1.
         REQUIRE(conn.put_object(non_exist_object_key, non_exist_object_key + ".txt") == -1);
 
-		auto list_blob_response = azure_client.ListBlobs();
-		for (const auto blob_item : list_blob_response.Blobs) {
-			container.push_back(blob_item.Name);
-		}
-		
-		// Check that the object exists in the container.
-		REQUIRE(std::find(container.begin(), container.end(), obj_prefix + object_name + "1") != std::end(container)); 
-		// Check that when putting an object fails that object is not in the container.
-		REQUIRE(std::find(container.begin(), container.end(), obj_prefix + non_exist_object_key) == std::end(container));
+        auto list_blob_response = azure_client.ListBlobs();
+        for (const auto blob_item : list_blob_response.Blobs) {
+            container.push_back(blob_item.Name);
+        }
+
+        // Check that the object exists in the container.
+        REQUIRE(std::find(container.begin(), container.end(), obj_prefix + object_name + "1") !=
+          std::end(container));
+        // Check that when putting an object fails that object is not in the container.
+        REQUIRE(std::find(container.begin(), container.end(), obj_prefix + non_exist_object_key) ==
+          std::end(container));
 
         blob_client.Delete();
     }
 
     SECTION("Check read functionality in Azure.", "[azure-connection]")
     {
-    	char buffer[1024];
+        char buffer[1024];
 
         // Test reading whole file.
         REQUIRE(conn.read_object(object_name, 0, payload.length(), buffer) == 0);
-		REQUIRE(payload.compare(buffer) == 0);
+        REQUIRE(payload.compare(buffer) == 0);
         memset(buffer, 0, 1024);
 
         // Check that read works from the first ' ' to the end.
         const int str_len = payload_2.length() - payload_2.find(" ");
         REQUIRE(conn.read_object(object_name_2, payload_2.find(" "), str_len, buffer) == 0);
-		REQUIRE(payload_2.substr(payload_2.find(" ")).compare(buffer) == 0);
+        REQUIRE(payload_2.substr(payload_2.find(" ")).compare(buffer) == 0);
         memset(buffer, 0, 1024);
 
         // Test overflow on positive offset but past EOF.
