@@ -2003,8 +2003,9 @@ __wt_skip_choose_depth(WT_SESSION_IMPL *session)
 
     p = WT_SKIP_PROBABILITY;
 #ifdef HAVE_DIAGNOSTIC
+    /* Go from 1/4 chance of having a link to the next element to ~7/8 */
     if (F_ISSET(session, WT_SESSION_DEBUG_DENSER_SKIPLIST))
-        p = WT_SKIP_PROBABILITY >> 1;
+        p = WT_SKIP_PROBABILITY << 1;
 #endif
 
     for (d = 1; d < WT_SKIP_MAXDEPTH && __wt_random(&session->rnd) < p; d++)

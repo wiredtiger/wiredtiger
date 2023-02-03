@@ -91,7 +91,7 @@
 
 /* 10 level skip lists, 1/4 have a link to the next element. */
 #define WT_SKIP_MAXDEPTH 10
-#define WT_SKIP_PROBABILITY (UINT32_MAX >> 1)
+#define WT_SKIP_PROBABILITY (UINT32_MAX >> 2)
 
 /*
  * Encryption needs to know its original length before either the block or logging subsystems pad.
