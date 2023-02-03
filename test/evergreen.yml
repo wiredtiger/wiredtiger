@@ -123,9 +123,11 @@ functions:
           ${GNU_CXX_VERSION|} \
           ${ENABLE_AZURE|} \
           ${ENABLE_GCP|} \
+          ${ENABLE_S3|} \
           ${ENABLE_CPPSUITE|} \
           ${IMPORT_GCP_SDK|} \
           ${IMPORT_AZURE_SDK|} \
+          ${IMPORT_S3_SDK|} \
           ${SPINLOCK_TYPE|} \
           ${CC_OPTIMIZE_LEVEL|}"
 
