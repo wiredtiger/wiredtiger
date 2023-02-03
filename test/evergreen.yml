@@ -773,6 +773,7 @@ functions:
               sudo /opt/cmake/bin/cmake --build cmake-out --target install
               sudo ldconfig
 
+
 #######################################
 #               Variables             #
 #######################################
@@ -2977,10 +2978,10 @@ tasks:
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
-      - func: "install abseil"
         vars:
           <<: *configure_flags_tiered_storage_gcp
           HAVE_UNITTEST: -DHAVE_UNITTEST=1
+      - func: "install abseil"
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build"
