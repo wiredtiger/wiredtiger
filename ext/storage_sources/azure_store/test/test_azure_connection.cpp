@@ -139,6 +139,7 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
     SECTION("Test delete functionality for Azure.", "[azure-connection]")
     {
         auto blob_client = azure_client.GetBlockBlobClient(obj_prefix + object_name + "1");
+        std::vector<std::string> container;
 
         blob_client.UploadFrom(create_file(object_name + "1", payload));
 
@@ -147,13 +148,21 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
 
         // Test that removing an object that doesn't exist returns a ENOENT.
         REQUIRE(conn.delete_object(non_exist_object_key) == ENOENT);
+
+        auto list_blob_response = azure_client.ListBlobs();
+        for (const auto blob_item : list_blob_response.Blobs) {
+            container.push_back(blob_item.Name);
+        }
+
+        // Check that the object does not exist in the container.
+        REQUIRE(std::find(container.begin(), container.end(), obj_prefix + object_name + "1") ==
+          std::end(container));
     }
 
     SECTION("Check put functionality in Azure.", "[azure-connection]")
     {
         const std::string path = "./" + create_file(object_name, payload);
-
-        static std::vector<std::string> container;
+        std::vector<std::string> container;
 
         REQUIRE(conn.put_object(object_name + "1", path) == 0);
 
