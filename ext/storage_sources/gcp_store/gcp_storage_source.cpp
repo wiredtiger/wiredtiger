@@ -71,7 +71,7 @@ static int gcp_terminate(WT_STORAGE_SOURCE *, WT_SESSION *) __attribute__((__unu
 
 static int
 gcp_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
-  const char *bucket, const char *auth_token, const char *config, WT_FILE_SYSTEM **file_system)
+  const char *bucket, const char *auth_file, const char *config, WT_FILE_SYSTEM **file_system)
 {
     // Check if bucket name is given
     if (bucket == nullptr || strlen(bucket) == 0) {
@@ -80,13 +80,13 @@ gcp_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session
     }
 
     // Fail if there is no authentication provided.
-    if (auth_token == nullptr || strlen(auth_token) == 0) {
-        std::cerr << "gcp_customize_file_system: auth_token not specified." << std::endl;
+    if (auth_file == nullptr || strlen(auth_file) == 0) {
+        std::cerr << "gcp_customize_file_system: auth_file not specified." << std::endl;
         return EINVAL;
     }
 
-    if (std::filesystem::path(auth_token).extension() != ".json") {
-        std::cerr << "gcp_customize_file_system: improper auth_token: " + std::string(auth_token) +
+    if (std::filesystem::path(auth_file).extension() != ".json") {
+        std::cerr << "gcp_customize_file_system: improper auth_file: " + std::string(auth_file) +
             " should be a .json file."
                   << std::endl;
         return EINVAL;
