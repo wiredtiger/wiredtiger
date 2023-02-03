@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wttest, wiredtiger, random, string
+import random, string, wiredtiger, wttest
 from helper_tiered import get_auth_token, TieredConfigMixin
 from wtscenario import make_scenarios
 
