@@ -41,7 +41,7 @@ conn_config = "cache_size=100MB,log=(enabled=false),statistics=[fast],statistics
 conn = context.wiredtiger_open("create," + conn_config)
 s = conn.open_session("")
 
- Table configuration.
+# Table configuration.
 table_config = "leaf_page_max=8k,internal_page_max=8k,leaf_key_max=1433,leaf_value_max=1433,type=file,memory_page_max=1MB,split_deepen_min_child=100"
 tables = []
 table_count = 3
