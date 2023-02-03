@@ -28,7 +28,7 @@
 #
 
 # A workload with small cache, small internal page size, large leaf page
-# sizes, very fast splits and multiple threads inserting keys in random
+# sizes, infrequent splits and multiple threads inserting keys in random
 # order.
 #
 from runner import *
@@ -58,7 +58,7 @@ thread0 = Thread(ops)
 workload = Workload(context, 50 * thread0)
 workload.options.report_interval=5
 workload.options.run_time=360
-print('Split stress workload running...')
+print('Skiplist stress workload running...')
 ret = workload.run(conn)
 assert ret == 0, ret
 

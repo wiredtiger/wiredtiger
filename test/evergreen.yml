@@ -3512,7 +3512,6 @@ tasks:
 
   - name: split-stress-test
     tags: ["stress-test-1", "stress-test-zseries-1"]
-    exec_timeout_secs: 43200
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4949,17 +4948,14 @@ buildvariants:
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
-  tasks:
+  # FIXME-WT-8947: For now run the whole stress test suite like we do on the x86 platform. But later
+  # find a smaller set of tests that give an optimal test coverage while being mindful of machine
+  # costs and availability.
     - name: ".stress-test-1"
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
     - name: ".stress-test-no-barrier"
-    - name: ".stress-test-no-barrier-sanitizer"
-    - name: ".stress-test-sanitizer-1"
-    - name: ".stress-test-sanitizer-2"
-    - name: ".stress-test-sanitizer-3"
-    - name: ".stress-test-sanitizer-4"
     - name: format-abort-recovery-stress-test
     - name: ".stress-test-1-nonstandalone"
     - name: ".stress-test-2-nonstandalone"
