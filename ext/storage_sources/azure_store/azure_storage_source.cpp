@@ -132,9 +132,10 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
 
     // Create file system and allocate memory for the file system.
     azure_file_system *azure_fs;
-    if ((azure_fs = (azure_file_system *)calloc(1, sizeof(azure_file_system))) == nullptr) {
-        std::cerr << "azure_customize_file_system: unable to allocate memory for file system."
-                  << std::endl;
+    try {
+        azure_fs = new azure_file_system;
+    } catch (std::bad_alloc &e) {
+        std::cerr << std::string("azure_customize_file_system: ") + e.what() << std::endl;
         return ENOMEM;
     }
 
