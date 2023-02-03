@@ -121,9 +121,11 @@ functions:
           ${HAVE_DIAGNOSTIC|} \
           ${GNU_C_VERSION|} \
           ${GNU_CXX_VERSION|} \
+          ${ENABLE_AZURE|} \
           ${ENABLE_GCP|} \
           ${ENABLE_CPPSUITE|} \
           ${IMPORT_GCP_SDK|} \
+          ${IMPORT_AZURE_SDK|} \
           ${SPINLOCK_TYPE|} \
           ${CC_OPTIMIZE_LEVEL|}"
 
@@ -850,6 +852,11 @@ variables:
   - &configure_flags_tiered_storage_gcp
     ENABLE_GCP: -DENABLE_GCP=1
     IMPORT_GCP_SDK: -DIMPORT_GCP_SDK=external
+
+  # Configure flags for tiered storage Azure extension.
+  - &configure_flags_tiered_storage_azure
+    ENABLE_AZURE: -DENABLE_AZURE=1
+    IMPORT_AZURE_SDK: -DIMPORT_AZURE_SDK=external
 
   # Configure flags for address sanitizer for stable mongodb toolchain clang (include builtins).
   - &configure_flags_address_sanitizer_mongodb_stable_clang_with_builtins
@@ -2991,6 +2998,49 @@ tasks:
 
             # Run S3 extension unit testing.
             ext/storage_sources/s3_store/test/run_s3_unit_tests
+  - name: azure-tiered-storage-extensions-test
+    tags: ["python"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_tiered_storage_azure
+      - func: "run tiered storage test"
+        vars:
+          # Set this in case of a core to get the correct python binary.
+          python_binary: $(pwd)/venv/bin/python3
+          tiered_storage_test_name: tiered07
+  - name: azure-tiered-test-small
+    tags: ["pull_request", "python"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_tiered_storage_azure
+      - func: "run tiered storage test"
+        vars:
+          # Set this in case of a core to get the correct python binary.
+          python_binary: $(pwd)/venv/bin/python3
+          tiered_storage_test_name: tiered08
+  - name: azure-tiered-unittest-test
+    tags: ["pull_request"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_tiered_storage_azure
+          HAVE_UNITTEST: -DHAVE_UNITTEST=1
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build"
+          shell: bash
+          script: |
+            set -o errexit
+            export AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=https;AccountName=azure2681;AccountKey=xZgV0mY5tlgniK47oREzPYsijwwr3cS2sHe/SqgVzoFy1arS85Z3nJu0f8e0Mwfq8v3/TRLcIR3++ASt2Cxxbg==;EndpointSuffix=core.windows.net"
+            set -o verbose
+
+            # Run AZURE extension unit testing.
+            ext/storage_sources/azure_store/test/run_azure_unit_tests
   - name: gcp-tiered-storage-extensions-test
     tags: ["python"]
     commands:
@@ -3034,7 +3084,7 @@ tasks:
           shell: bash
           script: |
             set -o errexit
-            export GOOGLE_APPLICATION_CREDENTIALS=/test/evergreen/gcp_auth.json
+            export GOOGLE_APPLICATION_CREDENTIALS="test/evergreen/gcp_auth.json"
             set -o verbose
 
             # Run GCP extension unit testing.
