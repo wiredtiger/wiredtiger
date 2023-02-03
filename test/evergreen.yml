@@ -754,22 +754,24 @@ functions:
   "install abseil":
     - command: shell.exec
       params:
-        working_dir: "wiredtiger/ext"
+        working_dir: "wiredtiger/ext/storage_sources/gcp_store"
         shell: bash
         script: |
           set -o errexit
-          mkdir -p /Downloads/abseil-cpp && cd /Downloads/abseil-cpp
+          mkdir -p Downloads/abseil-cpp && cd Downloads/abseil-cpp
           curl -sSL https://github.com/abseil/abseil-cpp/archive/20230125.0.tar.gz | \
               tar -xzf - --strip-components=1 && \
               sed -i 's/^#define ABSL_OPTION_USE_\(.*\) 2/#define ABSL_OPTION_USE_\1 0/' "absl/base/options.h" && \
-              cmake \
+              . ../../../../../test/evergreen/find_cmake.sh
+              mkdir cmake-out && cd cmake-out
+              /opt/cmake/bin/cmake \
                 -DCMAKE_BUILD_TYPE=Release \
                 -DABSL_BUILD_TESTING=OFF \
-                -DBUILD_SHARED_LIBS=yes \
-                -S . -B cmake-out && \
-              cmake --build cmake-out -- -j ${NCPU:-4} && \
-          sudo cmake --build cmake-out --target install -- -j ${NCPU:-4} && \
-          sudo ldconfig
+                -DBUILD_SHARED_LIBS=yes ../. && \
+              make -j4
+              cd ..
+              sudo /opt/cmake/bin/cmake --build cmake-out --target install
+              sudo ldconfig
 
 #######################################
 #               Variables             #
