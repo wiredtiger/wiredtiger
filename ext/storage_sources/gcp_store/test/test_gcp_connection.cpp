@@ -175,13 +175,13 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
       "[gcp-connection]")
     {
         // Upload a file that does not exist locally - should fail.
-        REQUIRE(conn.put_object(non_exi_object_key, non_exi_file_name) == -1);
+        REQUIRE(conn.put_object(non_exi_object_key, non_exi_file_name) == ENOENT);
     }
 
     SECTION("Simple check that delete object returns -1 when doesn't exist.", "[gcp-connection]")
     {
         // Delete a file that does not exist in the bucket - should fail.
-        REQUIRE(conn.delete_object(non_exi_object_key) == -1);
+        REQUIRE(conn.delete_object(non_exi_object_key) == ENOENT);
     }
 
     SECTION("Simple check that list single works.", "[gcp-connection]")
@@ -394,7 +394,7 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
             offset = 0;
             void *buf = calloc(len, sizeof(char));
 
-            REQUIRE(conn.read_object(file_name, offset, len, buf) != 0);
+            REQUIRE(conn.read_object(file_name, offset, len, buf) == EINVAL);
 
             free(buf);
         }
@@ -406,7 +406,7 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
             offset = -5;
             void *buf = calloc(len, sizeof(char));
 
-            REQUIRE(conn.read_object(file_name, offset, len, buf) != 0);
+            REQUIRE(conn.read_object(file_name, offset, len, buf) == EINVAL);
 
             free(buf);
         }
@@ -419,7 +419,7 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
             offset = 1000;
             void *buf = calloc(len, sizeof(char));
 
-            REQUIRE(conn.read_object(file_name, offset, len, buf) != 0);
+            REQUIRE(conn.read_object(file_name, offset, len, buf) == EINVAL);
             free(buf);
         }
     }
@@ -428,13 +428,13 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
       "[gcp-connection]")
     {
         // Upload a file that does not exist locally - should fail.
-        REQUIRE(conn.put_object(non_exi_object_key, non_exi_file_name) == -1);
+        REQUIRE(conn.put_object(non_exi_object_key, non_exi_file_name) == ENOENT);
     }
 
     SECTION("Simple check that delete object returns -1 when doesn't exist.", "[gcp-connection]")
     {
         // Delete a file that does not exist in the bucket - should fail.
-        REQUIRE(conn.delete_object(object_key) == -1);
+        REQUIRE(conn.delete_object(object_key) == ENOENT);
     }
 
     SECTION("Simple check that list single works.", "[gcp-connection]")
