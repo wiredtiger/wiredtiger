@@ -68,9 +68,9 @@ static int azure_customize_file_system(
 static int azure_add_reference(WT_STORAGE_SOURCE *);
 static int azure_terminate(WT_STORAGE_SOURCE *, WT_SESSION *);
 static int azure_flush(WT_STORAGE_SOURCE *, WT_SESSION *, WT_FILE_SYSTEM *, const char *,
-  const char *, const char *) __attribute__((__unused__));
+  const char *, const char *);
 static int azure_flush_finish(WT_STORAGE_SOURCE *, WT_SESSION *, WT_FILE_SYSTEM *, const char *,
-  const char *, const char *) __attribute__((__unused__));
+  const char *, const char *);
 
 // WT_FILE_SYSTEM Interface
 static int azure_object_list(WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***,
@@ -159,7 +159,7 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
     // Initialise references to azure storage source, wt fs and home directory.
     azure_fs->store = azure_storage;
     azure_fs->wt_fs = wt_file_system;
-    azure_fs->home_dir = session->connection->get_home(session->conpocnnection);
+    azure_fs->home_dir = session->connection->get_home(session->connection);
     try {
         azure_fs->azure_conn = std::make_unique<azure_connection>(bucket, obj_prefix);
     } catch (std::runtime_error &e) {
@@ -202,57 +202,49 @@ static int
 azure_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYSTEM *file_system,
   const char *source, const char *object, const char *config)
 {
-    azure_store *azure_storage = reinterpret_cast<azure_store *>(storage_source);
-    azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
-    WT_FILE_SYSTEM *wt_filesystem = azure_fs->wt_fs;
+    azure_store *azure_storage = reinterpret_cast<azure_store *>(storage_source); 
+    azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system); 
+    WT_FILE_SYSTEM *wt_filesystem = azure_fs->wt_fs; 
 
     std::string src_path = azure_path(azure_fs->home_dir, source);
-    bool exists_native = false;
-    int ret = wt_filesystem->fs_exist(wt_filesystem, session, src_path.c_str(), &exists_native);
-    if (ret != 0) {
-        std::cerr << "azure_flush: Failed to check for the existence of " + std::string(source) +
-            " on the native filesystem."
-                  << std::endl;
-        return ret;
+    bool exists_native = false; 
+    int ret = wt_filesystem->fs_exist(wt_filesystem, session, src_path.c_str(), &exists_native); 
+    if (ret != 0) { 
+    	std::cerr << "azure_flush: Failed to check for the existence of " + std::string(source) + " on the native filesystem." << std::endl;
+    	return ret;
     }
 
-    if (!exists_native) {
-        std::cerr << "azure_flush: " + std::string(source) + " No such file." << std::endl;
-        return ENOENT;
+    if (!exists_native) { 
+    	std::cerr << "azure_flush: " + std::string(source) + " No such file." << std::endl;
+    	return ENOENT;
     }
 
-    std::cout << "azure_flush: Uploading object: " + std::string(object) +
-        "into bucket using put_object"
-              << std::endl;
-    // Upload the object into the bucket.
-    ret = azure_fs->azure_conn->put_object(object, src_path);
-    if (ret != 0)
+	std::cout << "azure_flush: Uploading object: " + std::string(object) + "into bucket using put_object" << std::endl;
+    // Upload the object into the bucket. 
+	ret = azure_fs->azure_conn->put_object(object, src_path); 
+	if (ret != 0)
         std::cerr << "azure_flush: Put object request to S3 failed." << std::endl;
     else
         std::cout << "azure_flush: Uploaded object to S3." << std::endl;
-    return ret;
+	return ret;
 }
 
 static int
 azure_flush_finish(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
   WT_FILE_SYSTEM *file_system, const char *source, const char *object, const char *config)
 {
-    azure_store *azure_storage = reinterpret_cast<azure_store *>(storage_source);
-    azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
+	azure_store *azure_storage = reinterpret_cast<azure_store *>(storage_source); 
+    azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system); 
 
-    std::cout << "azure_flush_flush: Checking object: " + std::string(object) + "exists in Azure."
-              << std::endl;
-    // Check whether the object exists in the cloud.
-    bool exists_cloud = false;
-    azure_fs->azure_conn->object_exists(object, &exists_cloud);
-    if (exists_cloud)
-        std::cerr << "azure_flush_finish: Object:" + std::string(object) + " exists in Azure."
-                  << std::endl;
+	std::cout << "azure_flush_flush: Checking object: " + std::string(object) + "exists in Azure." << std::endl;
+	// Check whether the object exists in the cloud.
+	bool exists_cloud = false; 
+	azure_fs->azure_conn->object_exists(object, &exists_cloud); 
+	if (exists_cloud)
+        std::cerr << "azure_flush_finish: Object:" + std::string(object) + " exists in Azure." << std::endl;
     else
-        std::cerr << "azure_flush_finish: Object:" + std::string(object) +
-            " does not exist in Azure."
-                  << std::endl;
-    return ret;
+        std::cerr << "azure_flush_finish: Object:" + std::string(object) + " does not exist in Azure." << std::endl;
+	return ret;
 }
 
 // Discard any resources on termination.
