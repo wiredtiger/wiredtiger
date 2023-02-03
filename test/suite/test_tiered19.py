@@ -66,7 +66,7 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
     def conn_extensions(self, extlist):
         TieredConfigMixin.conn_extensions(self, extlist)
 
-    def test_gcp_and_azure(self): 
+    def test_gcp_filesystem(self): 
         # Test basic functionality of the storage source API, calling
         # each supported method in the API at least once.
 

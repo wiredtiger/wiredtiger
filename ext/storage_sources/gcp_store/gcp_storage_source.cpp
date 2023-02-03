@@ -13,7 +13,7 @@ struct gcp_file_system;
 struct gcp_file_handle;
 
 /*
- * The first struct member must be the WT interface that is being implemented.
+ * The first struct member must be the WiredTiger interface that is being implemented.
  */
 struct gcp_store {
     WT_STORAGE_SOURCE storage_source;
@@ -85,8 +85,7 @@ gcp_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session
         return EINVAL;
     }
 
-    std::string ext = std::filesystem::path(auth_token).extension();
-    if (ext != ".json") {
+    if (std::filesystem::path(auth_token).extension() != ".json") {
         std::cerr << "gcp_customize_file_system: improper auth_token: " + std::string(auth_token) +
             " should be a .json file."
                   << std::endl;
@@ -111,7 +110,7 @@ gcp_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session
     // Fetch the native WiredTiger file system.
     WT_FILE_SYSTEM *wt_file_system;
     if ((ret = gcp->wt_api->file_system_get(gcp->wt_api, session, &wt_file_system)) != 0) {
-        std::cerr << "gcp_customize_file_system: failed to fetch the native WT file system"
+        std::cerr << "gcp_customize_file_system: failed to fetch the native WireTiger file system"
                   << std::endl;
         return ret;
     }
@@ -392,7 +391,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     if (ret == 0 && v.val >= WT_VERBOSE_ERROR && v.val <= WT_VERBOSE_DEBUG_5) {
         gcp->verbose = (WT_VERBOSE_LEVEL)v.val;
     } else if (ret != WT_NOTFOUND) {
-        std::cerr << "wiredtiger_extension_init: error parsing config for verbosity level."
+        std::cerr << "wiredtiger_extension_init: error parsing config for verbosity level." << v.val
                   << std::endl;
         delete (gcp);
         return (ret != 0 ? ret : EINVAL);
