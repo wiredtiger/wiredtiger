@@ -129,7 +129,7 @@ main(int argc, char *argv[])
 
     /* Create the home directory, and the bucket directory underneath it. */
     (void)snprintf(
-      buf, sizeof(buf), "rm -rf %s && mkdir %s && mkdir %s/%s", home, home, home, BUCKET_NAME);
+      buf, sizeof(buf), "rm -rf %s && mkdir -p %s/%s", home, home, BUCKET_NAME);
     error_check(system(buf));
 
     /* Configure the connection to use tiered storage. */
