@@ -3084,7 +3084,7 @@ tasks:
           shell: bash
           script: |
             set -o errexit
-            export GOOGLE_APPLICATION_CREDENTIALS="test/evergreen/gcp_auth.json"
+            export GOOGLE_APPLICATION_CREDENTIALS="../test/evergreen/gcp_auth.json"
             set -o verbose
 
             # Run GCP extension unit testing.
