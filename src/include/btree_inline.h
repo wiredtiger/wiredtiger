@@ -1999,9 +1999,15 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 static inline u_int
 __wt_skip_choose_depth(WT_SESSION_IMPL *session)
 {
-    u_int d;
+    u_int d, p;
 
-    for (d = 1; d < WT_SKIP_MAXDEPTH && __wt_random(&session->rnd) < WT_SKIP_PROBABILITY; d++)
+    p = WT_SKIP_PROBABILITY;
+#ifdef HAVE_DIAGNOSTIC
+    if (F_ISSET(session, WT_SESSION_DEBUG_DENSER_SKIPLIST))
+        p = WT_SKIP_PROBABILITY >> 1;
+#endif
+
+    for (d = 1; d < WT_SKIP_MAXDEPTH && __wt_random(&session->rnd) < p; d++)
         ;
     return (d);
 }
