@@ -67,7 +67,7 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         TieredConfigMixin.conn_extensions(self, extlist)
 
     def test_gcp_and_azure(self): 
-        # Test some basic functionality of the storage source API, calling
+        # Test basic functionality of the storage source API, calling
         # each supported method in the API at least once.
 
         session = self.session
@@ -80,34 +80,34 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         # avoid namespace collision. 0th element on the stack is the current function.
         prefix = self.bucket_prefix.join(random.choices(string.ascii_letters + string.digits, k=10))
 
-        # Success case
+        # Success case: an existing accessible bucket has been provided with the correct credentials file.
         fs = ss.ss_customize_file_system(session, self.bucket, self.auth_token, self.get_fs_config(prefix))
 
-        # Error cases 
+        # Error cases.
         err_msg = 'Exception: Invalid argument'
 
-        # Do not provide bucket name and credentials, should fail.
+        # Do not provide bucket name and credentials.
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_customize_file_system(
                 session, None, None, self.get_fs_config(prefix)), err_msg)
-        # Provide empty bucket string, should fail.
+        # Provide empty bucket string.
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_customize_file_system(
                 session, "", None, self.get_fs_config(prefix)), err_msg)
-        # Provide credentials in incorrect form, should fail.
+        # Provide credentials in incorrect form.
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_customize_file_system(
                 session, self.bucket, "gcp_cred", self.get_fs_config(prefix)), err_msg)
-        # Provide empty credentials string, should fail.
+        # Provide empty credentials string.
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_customize_file_system(
                 session, self.bucket, "", self.get_fs_config(prefix)), err_msg)
-        # Provide a bucket name that does not exist, should fail.
+        # Provide a bucket name that does not exist.
         non_exist_bucket = "non_exist" 
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_customize_file_system(
                 session, non_exist_bucket, None, self.get_fs_config(prefix)), err_msg)
-        # Provide a bucket name that exists but we do not have access to, should fail. 
+        # Provide a bucket name that exists but we do not have access to. 
         no_access_bucket = "test_cred"
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_customize_file_system(
@@ -115,4 +115,3 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
 
         fs.terminate(session)
         ss.terminate(session)
-        pass

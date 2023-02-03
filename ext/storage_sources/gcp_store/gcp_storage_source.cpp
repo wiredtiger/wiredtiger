@@ -48,7 +48,7 @@ static int gcp_flush(WT_STORAGE_SOURCE *, WT_SESSION *, WT_FILE_SYSTEM *, const 
   const char *, const char *) __attribute__((__unused__));
 static int gcp_flush_finish(WT_STORAGE_SOURCE *, WT_SESSION *, WT_FILE_SYSTEM *, const char *,
   const char *, const char *) __attribute__((__unused__));
-static int gcp_file_close(WT_FILE_HANDLE *, WT_SESSION *);
+static int gcp_file_close(WT_FILE_HANDLE *, WT_SESSION *) __attribute__((__unused__));
 static int gcp_file_exists(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *)
   __attribute__((__unused__));
 static int gcp_file_open(WT_FILE_SYSTEM *, WT_SESSION *, const char *, WT_FS_OPEN_FILE_TYPE,
@@ -85,10 +85,10 @@ gcp_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session
         return EINVAL;
     }
 
-    int delimiter = std::string(auth_token).find(".json");
-    if (delimiter == std::string::npos || delimiter == 0) {
+    std::string ext = std::filesystem::path(auth_token).extension();
+    if (ext != ".json") {
         std::cerr << "gcp_customize_file_system: improper auth_token: " + std::string(auth_token) +
-            ", should be a .json file."
+            " should be a .json file."
                   << std::endl;
         return EINVAL;
     }
@@ -103,32 +103,32 @@ gcp_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session
            gcp->wt_api, session, config, "prefix", &obj_prefix_conf)) == 0)
         obj_prefix = std::string(obj_prefix_conf.str, obj_prefix_conf.len);
     else if (ret != WT_NOTFOUND) {
-        std::cerr << "gcp_customize_fs: error parsing config for object prefix." << std::endl;
+        std::cerr << "gcp_customize_file_system: error parsing config for object prefix."
+                  << std::endl;
         return ret;
     }
 
-    // Fetch the native WT file system.
+    // Fetch the native WiredTiger file system.
     WT_FILE_SYSTEM *wt_file_system;
     if ((ret = gcp->wt_api->file_system_get(gcp->wt_api, session, &wt_file_system)) != 0) {
-        std::cerr << "gcp_customize_fs: failed to fetch the native WT file system" << std::endl;
+        std::cerr << "gcp_customize_file_system: failed to fetch the native WT file system"
+                  << std::endl;
         return ret;
     }
 
-    // Get a copy of the home directory.
-    const std::string home_dir = session->connection->get_home(session->connection);
-
-    // Create the file system.
-    // Allocate memory for file system.
+    // Create the file system and allocate memory for file system.
     gcp_file_system *fs;
-    if ((fs = (gcp_file_system *)calloc(1, sizeof(gcp_file_system))) == nullptr) {
-        std::cerr << "gcp_customize_fs: unable to allocate memory for file system." << std::endl;
+    try {
+        fs = new gcp_file_system;
+    } catch (std::bad_alloc &e) {
+        std::cerr << "gcp_customize_file_system: " << e.what() << std::endl;
         return ENOMEM;
     }
 
     // Set variables specific to GCP.
     fs->storage_source = gcp;
     fs->wt_file_system = wt_file_system;
-    fs->home_dir = home_dir;
+    fs->home_dir = session->connection->get_home(session->connection);
 
     // Create connection to google cloud.
     try {
@@ -165,8 +165,15 @@ gcp_add_reference(WT_STORAGE_SOURCE *storage_source)
 {
     gcp_store *gcp = reinterpret_cast<gcp_store *>(storage_source);
 
-    if (gcp->reference_count == 0 || gcp->reference_count + 1 == 0) {
-        std::cerr << "gcp_add_reference: missing reference or overflow." << std::endl;
+    if (gcp->reference_count == 0) {
+        std::cerr << "gcp_add_reference: gcp storage source extension hasn't been initialized."
+                  << std::endl;
+        return EINVAL;
+    }
+
+    if (gcp->reference_count + 1 == 0) {
+        std::cerr << "gcp_add_reference: adding reference will overflow reference count."
+                  << std::endl;
         return EINVAL;
     }
 
@@ -193,17 +200,8 @@ gcp_file_system_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
 
     WT_UNUSED(session);
 
-    /*
-     * It is currently unclear at the moment what the multi-threading will look like in the
-     * extension. The current implementation is NOT thread-safe, and needs to be addressed in the
-     * future, as multiple threads could call terminate leading to a race condition.
-     */
-    while (!fs->fh_list.empty()) {
-        gcp_file_handle *fh = fs->fh_list.front();
-        gcp_file_close((WT_FILE_HANDLE *)fh, session);
-    }
-
-    // Remove from the active filesystems list. The lock will be freed when the scope is exited.
+    // Remove the current filesystem from the active filesystems list. The lock will be freed when
+    // the scope is exited.
     {
         std::lock_guard<std::mutex> lock_guard(gcp->fs_list_mutex);
         // Erase remove idiom is used here to remove specific file system.
@@ -211,7 +209,7 @@ gcp_file_system_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
           std::remove(gcp->fs_list.begin(), gcp->fs_list.end(), fs), gcp->fs_list.end());
     }
 
-    free(fs);
+    delete (fs);
 
     return 0;
 }
@@ -375,7 +373,7 @@ gcp_terminate(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session)
         gcp_file_system_terminate(&fs->file_system, session);
     }
 
-    std::cout << "gcp_terminate: Terminated GCP storage source." << std::endl;
+    std::cout << "gcp_terminate: terminated GCP storage source." << std::endl;
     delete (gcp);
 
     return 0;
@@ -394,14 +392,15 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     if (ret == 0 && v.val >= WT_VERBOSE_ERROR && v.val <= WT_VERBOSE_DEBUG_5) {
         gcp->verbose = (WT_VERBOSE_LEVEL)v.val;
     } else if (ret != WT_NOTFOUND) {
-        std::cerr << "wiredtiger_extension_init: error parsing config for verbose level."
+        std::cerr << "wiredtiger_extension_init: error parsing config for verbosity level."
                   << std::endl;
         delete (gcp);
         return (ret != 0 ? ret : EINVAL);
     }
 
-    // Allocate a gcp storage structure, with a WT_STORAGE structure as the first field, allowing us
-    // to treat references to either type of structure as a reference to the other type.
+    // Allocate a gcp storage structure, with a WT_STORAGE structure as the first field.
+    // This allows us to treat references to either type of structure as a reference to the other
+    // type.
     gcp->storage_source.ss_customize_file_system = gcp_customize_file_system;
     gcp->storage_source.ss_add_reference = gcp_add_reference;
     gcp->storage_source.terminate = gcp_terminate;
@@ -411,10 +410,10 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     // The first reference is implied by the call to add_storage_source.
     gcp->reference_count = 1;
 
-    // Load the storage
+    // Load the storage.
     if ((ret = connection->add_storage_source(
            connection, "gcp_store", &gcp->storage_source, nullptr)) != 0) {
-        std::cerr << "wiredtiger_extension_init: Could not load GCP storage source, shutting down."
+        std::cerr << "wiredtiger_extension_init: could not load GCP storage source, shutting down."
                   << std::endl;
         delete (gcp);
     }
