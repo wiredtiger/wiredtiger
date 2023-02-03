@@ -130,9 +130,6 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
            azure_storage->wt_api, session, &wt_file_system)) != 0)
         return ret;
 
-    // Get a copy of the home directory.
-    const std::string home_dir = session->connection->get_home(session->connection);
-
     // Create file system and allocate memory for the file system.
     azure_file_system *azure_fs;
     if ((azure_fs = (azure_file_system *)calloc(1, sizeof(azure_file_system))) == nullptr) {
@@ -144,8 +141,7 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
     // Initialise references to azure storage source, wt fs and home directory.
     azure_fs->store = azure_storage;
     azure_fs->wt_fs = wt_file_system;
-    azure_fs->home_dir = home_dir;
-
+    azure_fs->home_dir = session->connection->get_home(session->connection);
     try {
         azure_fs->azure_conn = std::make_unique<azure_connection>(bucket, obj_prefix);
     } catch (std::runtime_error &e) {
