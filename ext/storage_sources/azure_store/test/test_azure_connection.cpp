@@ -31,6 +31,7 @@
 
 #include "azure_connection.h"
 #include <fstream>
+#include <string>
 
 static std::string
 create_file(const std::string &object_name, const std::string &payload)
@@ -41,17 +42,17 @@ create_file(const std::string &object_name, const std::string &payload)
     return object_name + ".txt";
 }
 
-static std::string obj_prefix("azuretest/unit/"); // To be concatenated with a random string.
-
 // Concatenates a random suffix to the prefix being used for the test object keys. Example of
 // generated test prefix: "azuretest/unit/2023-31-01-16-34-10/623843294--".
-static int
+static std::string
 randomize_test_prefix()
 {
     char time_str[100];
     std::time_t t = std::time(nullptr);
 
     REQUIRE(std::strftime(time_str, sizeof(time_str), "%F-%H-%M-%S", std::localtime(&t)) != 0);
+	
+	std::string obj_prefix("azuretest/unit/"); // To be concatenated with a random string.
 
     obj_prefix += time_str;
 
@@ -63,7 +64,7 @@ randomize_test_prefix()
     obj_prefix += '/' + std::to_string(my_random_engine());
     obj_prefix += "--";
 
-    return 0;
+    return obj_prefix;
 }
 
 TEST_CASE("Testing Azure Connection Class", "azure-connection")
@@ -72,7 +73,7 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
       std::getenv("AZURE_STORAGE_CONNECTION_STRING"), "myblobcontainer1");
     bool exists = false;
 
-    REQUIRE(randomize_test_prefix() == 0);
+	std::string obj_prefix = randomize_test_prefix();
 
     azure_connection conn = azure_connection("myblobcontainer1", obj_prefix);
     azure_connection conn_bad = azure_connection("myblobcontainer1", "bad_prefix_");
@@ -152,6 +153,8 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
     {
         const std::string path = "./" + create_file(object_name, payload);
 
+		static std::vector<std::string> container;
+
         REQUIRE(conn.put_object(object_name + "1", path) == 0);
 
         auto blob_client = azure_client.GetBlockBlobClient(obj_prefix + object_name + "1");
@@ -159,22 +162,32 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
         // Test that putting an object that doesn't exist locally returns -1.
         REQUIRE(conn.put_object(non_exist_object_key, non_exist_object_key + ".txt") == -1);
 
+		auto list_blob_response = azure_client.ListBlobs();
+		for (const auto blob_item : list_blob_response.Blobs) {
+			container.push_back(blob_item.Name);
+		}
+		
+		// Check that the object exists in the container.
+		REQUIRE(std::find(container.begin(), container.end(), obj_prefix + object_name + "1") != std::end(container)); 
+		// Check that when putting an object fails that object is not in the container.
+		REQUIRE(std::find(container.begin(), container.end(), obj_prefix + non_exist_object_key) == std::end(container));
+
         blob_client.Delete();
     }
 
     SECTION("Check read functionality in Azure.", "[azure-connection]")
     {
-        void *buffer = calloc(1024, sizeof(char));
+    	char buffer[1024];
 
         // Test reading whole file.
         REQUIRE(conn.read_object(object_name, 0, payload.length(), buffer) == 0);
-        REQUIRE(static_cast<char *>(buffer) == payload);
+		REQUIRE(payload.compare(buffer) == 0);
         memset(buffer, 0, 1024);
 
         // Check that read works from the first ' ' to the end.
         const int str_len = payload_2.length() - payload_2.find(" ");
         REQUIRE(conn.read_object(object_name_2, payload_2.find(" "), str_len, buffer) == 0);
-        REQUIRE(static_cast<char *>(buffer) == payload_2.substr(payload_2.find(" "), str_len));
+		REQUIRE(payload_2.substr(payload_2.find(" ")).compare(buffer) == 0);
         memset(buffer, 0, 1024);
 
         // Test overflow on positive offset but past EOF.
@@ -191,11 +204,9 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
 
         // Test that reading a non existent object returns a ENOENT.
         REQUIRE(conn.read_object(non_exist_object_key, 0, 1, buffer) == ENOENT);
-
-        free(buffer);
     }
 
-    // Dalete the objects we added earlier so we have no objects in the container.
+    // Delete the objects we added earlier so we have no objects in the container.
     for (auto pair : blob_objects) {
         auto blob_client = azure_client.GetBlockBlobClient(obj_prefix + pair.first);
         blob_client.Delete();
