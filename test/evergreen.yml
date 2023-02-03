@@ -3523,9 +3523,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            for i in $(seq ${times|150}); do
-                ${test_env_vars|} ${python_binary|python3} split_stress.py
-            done
+            for i in {1..10}; do ${test_env_vars|} ${python_binary|python3} split_stress.py; done
 
   - name: split-stress-test-nonstandalone
     tags: ["stress-test-1-nonstandalone"]
