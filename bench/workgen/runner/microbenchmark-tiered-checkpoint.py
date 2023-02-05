@@ -37,7 +37,7 @@ ops = Operation(Operation.OP_SLEEP, "30") + \
 
 checkpoint_thread = Thread(ops)
 
-workload = Workload(get_context(), 4 * get_reader_thread() + 2 * get_update_thread() + 2 * get_insert_thread() + checkpoint_thread)
+workload = Workload(get_context(), 8 * get_reader_thread() + 2 * get_update_thread() + 2 * get_insert_thread() + checkpoint_thread)
 workload.options.run_time=300
 workload.options.report_interval=5
 #workload.options.max_latency=5000
@@ -45,4 +45,5 @@ ret = workload.run(get_conn())
 assert ret == 0, ret
 latency_filename = get_context().args.home + "/latency.out"
 latency.workload_latency(workload, latency_filename)
+
 get_conn().close()

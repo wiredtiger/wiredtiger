@@ -108,5 +108,6 @@ def get_reader_thread():
 
 def get_conn():
     return (conn)
-   
-    
+
+def get_bucket_name():
+    return ("bucket")
