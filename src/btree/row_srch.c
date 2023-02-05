@@ -8,6 +8,9 @@
 
 #include "wt_internal.h"
 
+static inline int __validate_next_stack(
+  WT_SESSION_IMPL *session, WT_INSERT *next_stack[WT_SKIP_MAXDEPTH]);
+
 /*
  * __search_insert_append --
  *     Fast append search of a row-store insert list, creating a skiplist stack as we go.
@@ -122,10 +125,14 @@ __wt_search_insert(
 
         if (cmp > 0) { /* Keep going at this level */
             insp = &ins->next[i];
+            WT_ASSERT_ALWAYS(session, match >= skiplow,
+              "Detected low key that has fewer common prefix bytes than the previous low key.");
             skiplow = match;
         } else if (cmp < 0) { /* Drop down a level */
             cbt->next_stack[i] = ins;
             cbt->ins_stack[i--] = insp--;
+            WT_ASSERT_ALWAYS(session, match >= skiphigh,
+              "Detected high key that has fewer common prefix bytes than the previous high key.");
             skiphigh = match;
         } else
             for (; i >= 0; i--) {
@@ -142,6 +149,62 @@ __wt_search_insert(
     cbt->compare = -cmp;
     cbt->ins = (ins != NULL) ? ins : last_ins;
     cbt->ins_head = ins_head;
+
+    /*
+     * FIXME WT-10439 - Available categories are changing in WT-10439. Whichever change merges
+     * second needs to change this to WT_DIAGNOSTIC_BTREE_VALIDATE.
+     */
+    if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_DATA_VALIDATION))
+        WT_RET(__validate_next_stack(session, cbt->next_stack));
+    return (0);
+}
+
+/*
+ * __validate_next_stack --
+ *     Verify that for each level in the provided next_stack that higher levels on the stack point
+ *     to larger inserts than lower levels.
+ */
+static inline int
+__validate_next_stack(WT_SESSION_IMPL *session, WT_INSERT *next_stack[WT_SKIP_MAXDEPTH])
+{
+
+    WT_ITEM upper_key, lower_key;
+    int32_t i, cmp;
+    size_t match;
+
+    upper_key.mem = NULL;
+    upper_key.memsize = 0;
+    upper_key.flags = 0;
+
+    lower_key.mem = NULL;
+    lower_key.memsize = 0;
+    lower_key.flags = 0;
+
+    cmp = 0;
+    for (i = WT_SKIP_MAXDEPTH - 2; i >= 0; i--) {
+
+        /* Ensure that if a lower level points to the end of the skiplist the higher level does as
+         * well. */
+        if (next_stack[i] == NULL)
+            WT_ASSERT(session, next_stack[i + 1] == NULL);
+
+        /*
+         * Skip if either pointer is to the end of the skiplist, or if both pointers are the same.
+         */
+        if (next_stack[i] == NULL || next_stack[i + 1] == NULL ||
+          (next_stack[i] == next_stack[i + 1]))
+            continue;
+        lower_key.data = WT_INSERT_KEY(next_stack[i]);
+        lower_key.size = WT_INSERT_KEY_SIZE(next_stack[i]);
+
+        upper_key.data = WT_INSERT_KEY(next_stack[i + 1]);
+        upper_key.size = WT_INSERT_KEY_SIZE(next_stack[i + 1]);
+
+        /* Force match to zero for a full comparison of keys */
+        match = 0;
+        WT_RET(__wt_compare_skip(session, NULL, &upper_key, &lower_key, &cmp, &match));
+        WT_ASSERT((WT_SESSION_IMPL *)session, cmp >= 0);
+    }
     return (0);
 }
 
