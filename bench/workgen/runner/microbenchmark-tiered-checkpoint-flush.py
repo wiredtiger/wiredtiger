@@ -26,6 +26,9 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
+# This workload will import everything from microbenchmark_tiered_base.py
+# run configured number of threads and checkpoint files, call flush_tier at every 30 seconds.
+#
 
 from runner import *
 from workgen import *
