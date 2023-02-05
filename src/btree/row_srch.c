@@ -180,7 +180,11 @@ __wt_search_insert(
             skiphigh = match;
         } else
             for (; i >= 0; i--) {
-                cbt->next_stack[i] = ins->next[i];
+                /*
+                 * It is possible that we read an old value down the stack due to CPU read
+                 * reordering. Add a read barrier to avoid this issue.
+                 */
+                WT_ORDERED_READ(cbt->next_stack[i], ins->next[i]);
                 cbt->ins_stack[i] = &ins->next[i];
             }
     }
