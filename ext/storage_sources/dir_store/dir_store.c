@@ -140,6 +140,7 @@ static int dir_store_stat(
  * Forward function declarations for storage source API implementation
  */
 static int dir_store_add_reference(WT_STORAGE_SOURCE *);
+static const char *dir_store_base_name(const char *);
 static int dir_store_customize_file_system(
   WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *, const char *, WT_FILE_SYSTEM **);
 static int dir_store_flush(
@@ -487,6 +488,31 @@ dir_store_add_reference(WT_STORAGE_SOURCE *storage_source)
 }
 
 /*
+ * dir_store_base_name --
+ *     Like POSIX basename, but works on Windows too.
+ */
+static const char *
+dir_store_base_name(const char *path)
+{
+    const char *backp, *slashp;
+
+    /*
+     * We allow any combination of slash and backslash, and select the last one in the string.
+     */
+    backp = strrchr(path, '\\');
+    slashp = strrchr(path, '/');
+
+    if (backp == NULL)
+        return (slashp);
+    else if (slashp == NULL)
+        return (backp);
+    else if (backp < slashp)
+        return (slashp);
+    else
+        return (backp);
+}
+
+/*
  * dir_store_customize_file_system --
  *     Return a customized file system to access the dir_store storage source objects.
  */
@@ -558,7 +584,7 @@ dir_store_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *s
      * bucket name's path. We'll create it if it doesn't exist.
      */
     if (cachedir.len == 0) {
-        if ((p = strrchr(bucket_name, '/')) != NULL)
+        if ((p = dir_store_base_name(bucket_name)) != NULL)
             p++;
         else
             p = bucket_name;
