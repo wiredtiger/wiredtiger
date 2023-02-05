@@ -40,7 +40,10 @@
 #include <wiredtiger_ext.h>
 #include "queue.h"
 
+/* These macros should work on POSIX and Win32. */
 #define IS_PATH_SEPARATOR(ch) (((ch) == '/') || ((ch) == '\\'))
+#define IS_PATH_ABSOLUTE(p) (IS_PATH_SEPARATOR(*p) || (p[0] != '\0' && p[1] == ':'))
+
 /*
  * This storage source implementation is used for demonstration and testing. All objects are stored
  * as local files in a designated directory.
@@ -327,8 +330,7 @@ dir_store_get_directory(const char *home, const char *s, ssize_t len, bool creat
     if (len == -1)
         len = (ssize_t)strlen(s);
 
-    /* Check for absolute pathnames, a litte more complicated for Win32 */
-    if (IS_PATH_SEPARATOR(*s) || (s[0] != '\0' && s[1] == ':'))
+    if (IS_PATH_ABSOLUTE(s))
         dirname = strndup(s, (size_t)len + 1); /* Room for null */
     else {
         /* For relative pathnames, the path is considered to be relative to the home directory. */
@@ -491,7 +493,7 @@ dir_store_add_reference(WT_STORAGE_SOURCE *storage_source)
 
 /*
  * dir_store_base_name --
- *     Like POSIX basename, but works on Windows too.
+ *     Like the POSIX base name function, but works on Windows too.
  */
 static const char *
 dir_store_base_name(const char *path)
