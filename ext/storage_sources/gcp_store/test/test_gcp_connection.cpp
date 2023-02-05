@@ -244,7 +244,7 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
           client.ListObjects(test_defaults::bucket_name, gcs::Prefix(test_defaults::obj_prefix));
         int original_number_of_files =
           std::distance(objects_iterator.begin(), objects_iterator.end());
-        
+
         bool exists;
         size_t size;
 
