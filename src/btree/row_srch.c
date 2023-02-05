@@ -159,7 +159,7 @@ __wt_search_insert(
              *
              * Since we have compared with AA and AC on level 1 before dropping down to level 0, we
              * decide we can skip comparing the first byte of the key. However, since we don't see
-             * AC on level 0, we compare with BD and wrongly skip the comparison with prefix B.
+             * AC on level 0, we compare with BA and wrongly skip the comparison with prefix B.
              *
              * On architectures with strong memory ordering, the requirement is satisfied by
              * inserting the new key to the skip list from lower stack to upper stack using an
