@@ -40,6 +40,7 @@
 #include <wiredtiger_ext.h>
 #include "queue.h"
 
+#define IS_PATH_SEPARATOR(ch) (((ch) == '/') || ((ch) == '\\'))
 /*
  * This storage source implementation is used for demonstration and testing. All objects are stored
  * as local files in a designated directory.
@@ -326,10 +327,11 @@ dir_store_get_directory(const char *home, const char *s, ssize_t len, bool creat
     if (len == -1)
         len = (ssize_t)strlen(s);
 
-    /* For relative pathnames, the path is considered to be relative to the home directory. */
-    if (*s == '/')
+    /* Check for absolute pathnames, a litte more complicated for Win32 */
+    if (IS_PATH_SEPARATOR(*s) || (s[0] != '\0' && s[1] == ':'))
         dirname = strndup(s, (size_t)len + 1); /* Room for null */
     else {
+        /* For relative pathnames, the path is considered to be relative to the home directory. */
         buflen = (size_t)len + strlen(home) + 2; /* Room for slash, null */
         if ((dirname = malloc(buflen)) != NULL) {
             if (snprintf(dirname, buflen, "%s/%.*s", home, (int)len, s) >= (int)buflen) {
@@ -405,10 +407,10 @@ dir_store_path(WT_FILE_SYSTEM *file_system, const char *dir, const char *name, c
 
     /* Skip over "./" and variations (".//", ".///./././//") at the beginning of the name. */
     while (*name == '.') {
-        if (name[1] != '/')
+        if (!IS_PATH_SEPARATOR(name[1]))
             break;
         name += 2;
-        while (*name == '/')
+        while (IS_PATH_SEPARATOR(*name))
             name++;
     }
     len = strlen(dir) + strlen(name) + 2;
