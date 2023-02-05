@@ -153,6 +153,10 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
 
     SECTION("Simple put test", "[gcp-connection]")
     {
+
+        // Upload a file that does not exist locally - should fail.
+        REQUIRE(conn.put_object(non_exi_object_key, non_exi_file_name) == ENOENT);
+
         // Check number of files with the given prefix currently in bucket
         auto objects_iterator =
           client.ListObjects(test_defaults::bucket_name, gcs::Prefix(test_defaults::obj_prefix));
@@ -190,21 +194,12 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
         REQUIRE_FALSE(metadata.ok());
     }
 
-    SECTION("Simple check that put object returns -1 when file doesn't exist locally.",
-      "[gcp-connection]")
-    {
-        // Upload a file that does not exist locally - should fail.
-        REQUIRE(conn.put_object(non_exi_object_key, non_exi_file_name) == ENOENT);
-    }
-
-    SECTION("Simple check that delete object returns -1 when doesn't exist.", "[gcp-connection]")
-    {
-        // Delete a file that does not exist in the bucket - should fail.
-        REQUIRE(conn.delete_object(non_exi_object_key) == ENOENT);
-    }
-
     SECTION("Simple delete test", "[gcp-connection]")
     {
+
+        // Delete a file that does not exist in the bucket - should fail.
+        REQUIRE(conn.delete_object(non_exi_object_key) == ENOENT);
+
         // Check number of files with the given prefix currently in bucket
         auto objects_iterator =
           client.ListObjects(test_defaults::bucket_name, gcs::Prefix(test_defaults::obj_prefix));
@@ -249,6 +244,13 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
           client.ListObjects(test_defaults::bucket_name, gcs::Prefix(test_defaults::obj_prefix));
         int original_number_of_files =
           std::distance(objects_iterator.begin(), objects_iterator.end());
+        
+        bool exists;
+        size_t size;
+
+        REQUIRE(conn.object_exists(object_key, exists, size) == 0);
+        REQUIRE(exists == false);
+        REQUIRE(size == 0);
 
         // Upload a test file
         auto metadata = client.UploadFile(
@@ -262,8 +264,6 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
           original_number_of_files + 1);
 
         // Check the bucket contains the file
-        bool exists;
-        size_t size;
         REQUIRE(conn.object_exists(object_key, exists, size) == 0);
         REQUIRE(exists);
         REQUIRE(size != 0);
