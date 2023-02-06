@@ -199,6 +199,7 @@ azure_add_reference(WT_STORAGE_SOURCE *storage_source)
     return 0;
 }
 
+// Flush a file locally to Azure.
 static int
 azure_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYSTEM *file_system,
   const char *source, const char *object, const char *config)
@@ -208,6 +209,7 @@ azure_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYST
 
     std::string src_path = azure_path(azure_fs->home_dir, source);
     bool exists_native = false;
+
     int ret = wt_filesystem->fs_exist(wt_filesystem, session, src_path.c_str(), &exists_native);
     if (ret != 0) {
         std::cerr << "azure_flush: Failed to check for the existence of " + std::string(source) +
@@ -224,6 +226,7 @@ azure_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYST
     std::cout << "azure_flush: Uploading object: " + std::string(object) +
         " into bucket using put_object"
               << std::endl;
+
     // Upload the object into the bucket.
     ret = azure_fs->azure_conn->put_object(object, src_path);
     if (ret != 0)
@@ -233,6 +236,7 @@ azure_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYST
     return ret;
 }
 
+// Check that flush has been completed by checking the object exists in Azure.
 static int
 azure_flush_finish(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
   WT_FILE_SYSTEM *file_system, const char *source, const char *object, const char *config)
@@ -241,6 +245,7 @@ azure_flush_finish(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
 
     std::cout << "azure_flush_flush: Checking object: " + std::string(object) + " exists in Azure."
               << std::endl;
+
     // Check whether the object exists in the cloud.
     bool exists_cloud = false;
     azure_fs->azure_conn->object_exists(object, exists_cloud);
