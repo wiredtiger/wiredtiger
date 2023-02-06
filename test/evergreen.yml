@@ -780,7 +780,7 @@ functions:
               make -j4
               cd ..
               sudo /opt/cmake/bin/cmake --build cmake-out --target install
-              sudo ldconfig
+              # sudo ldconfig
 
   "install nlohmann":
       - command: shell.exec
@@ -802,7 +802,7 @@ functions:
                 make -j4
                 cd ..
                 sudo /opt/cmake/bin/cmake --build cmake-out --target install
-                sudo ldconfig
+                # sudo ldconfig
 
   "install crc32c":
       - command: shell.exec
@@ -825,7 +825,7 @@ functions:
                 make -j4
                 cd ..
                 sudo /opt/cmake/bin/cmake --build cmake-out --target install
-                sudo ldconfig
+                # sudo ldconfig
 
 #######################################
 #               Variables             #
