@@ -16,8 +16,15 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
     WT_INSERT *ins, **insp, *ret_ins;
     int i;
 
+    /*
+     * CPU may reorder the reads and return a stale value of the tail.
+     *
+     * Place a read barrier here to avoid this issue.
+     */
+    WT_ORDERED_READ(ins, WT_SKIP_LAST(ins_head));
+
     /* If there's no insert chain to search, we're done. */
-    if ((ins = WT_SKIP_LAST(ins_head)) == NULL)
+    if (ins == NULL)
         return (NULL);
 
     /* Fast path check for targets past the end of the skiplist. */
@@ -58,7 +65,13 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
     if ((ins = ret_ins) == NULL)
         ins = WT_SKIP_FIRST(ins_head);
     while (recno >= WT_INSERT_RECNO(ins))
-        ins = WT_SKIP_NEXT(ins);
+        /*
+         * CPU may reorder the read and we may read a stale next value and incorrectly skip that
+         * key.
+         *
+         * Place a read barrier to avoid this issue.
+         */
+        WT_ORDERED_READ(ins, WT_SKIP_NEXT(ins));
     return (ins);
 }
 
@@ -72,8 +85,15 @@ __col_insert_search_lt(WT_INSERT_HEAD *ins_head, uint64_t recno)
     WT_INSERT *ins, **insp, *ret_ins;
     int i;
 
+    /*
+     * CPU may reorder the reads and return a stale value of the tail.
+     *
+     * Place a read barrier here to avoid this issue.
+     */
+    WT_ORDERED_READ(ins, WT_SKIP_LAST(ins_head));
+
     /* If there's no insert chain to search, we're done. */
-    if ((ins = WT_SKIP_FIRST(ins_head)) == NULL)
+    if (ins == NULL)
         return (NULL);
 
     /* Fast path check for targets before the skiplist. */
@@ -114,6 +134,13 @@ __col_insert_search_match(WT_INSERT_HEAD *ins_head, uint64_t recno)
     WT_INSERT *ins, **insp;
     uint64_t ins_recno;
     int cmp, i;
+
+    /*
+     * CPU may reorder the reads and return a stale value of the tail.
+     *
+     * Place a read barrier here to avoid this issue.
+     */
+    WT_ORDERED_READ(ins, WT_SKIP_LAST(ins_head));
 
     /* If there's no insert chain to search, we're done. */
     if ((ins = WT_SKIP_LAST(ins_head)) == NULL)
@@ -169,8 +196,15 @@ __col_insert_search(
     uint64_t ins_recno;
     int cmp, i;
 
+    /*
+     * CPU may reorder the reads and return a stale value of the tail.
+     *
+     * Place a read barrier here to avoid this issue.
+     */
+    WT_ORDERED_READ(ret_ins, WT_SKIP_LAST(ins_head));
+
     /* If there's no insert chain to search, we're done. */
-    if ((ret_ins = WT_SKIP_LAST(ins_head)) == NULL)
+    if (ret_ins == NULL)
         return (NULL);
 
     /* Fast path appends. */
@@ -189,7 +223,15 @@ __col_insert_search(
      * at each level before stepping down to the next.
      */
     for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0;) {
-        if ((ret_ins = *insp) == NULL) {
+        /*
+         * Compiler and CPU may reorder the reads causing us to read a stale value here. Different
+         * to the row store version, it is generally OK here to read a stale value as we don't have
+         * prefix search optimization for column store. Therefore, we cannot wrongly skip the prefix
+         * comparison. However, we should still place a read barrier here to ensure we see a valid
+         * skip list down the search to prevent any unexpected behavior.
+         */
+        WT_ORDERED_READ(ret_ins, *insp);
+        if (ret_ins == NULL) {
             next_stack[i] = NULL;
             ins_stack[i--] = insp--;
             continue;
@@ -210,7 +252,11 @@ __col_insert_search(
             insp = &ret_ins->next[i];
         else if (cmp == 0) /* Exact match: return */
             for (; i >= 0; i--) {
-                next_stack[i] = ret_ins->next[i];
+                /*
+                 * It is possible that we read an old value down the stack due to CPU read
+                 * reordering. Add a read barrier to avoid this issue.
+                 */
+                WT_ORDERED_READ(next_stack[i], ret_ins->next[i]);
                 ins_stack[i] = &ret_ins->next[i];
             }
         else { /* Drop down a level */
