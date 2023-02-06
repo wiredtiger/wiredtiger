@@ -406,12 +406,15 @@ testutil_wiredtiger_open(TEST_OPTS *opts, const char *home, const char *config,
   WT_EVENT_HANDLER *event_handler, WT_CONNECTION **connectionp, bool rerun, bool benchmarkrun)
 {
     char buf[1024], tiered_ext_cfg[512];
-    char *bucket_name = strcmp(opts->tiered_storage_source, "dir_store") == 0 ? DIR_STORE_BUCKET_NAME : S3_STORE_BUCKET_NAME;
+    char *bucket_name = strcmp(opts->tiered_storage_source, "dir_store") == 0 ?
+      DIR_STORE_BUCKET_NAME :
+      S3_STORE_BUCKET_NAME;
     if (opts->tiered_storage)
         testutil_check(__wt_snprintf(tiered_ext_cfg, sizeof(tiered_ext_cfg),
           TESTUTIL_ENV_CONFIG_TIERED_EXT TESTUTIL_ENV_CONFIG_TIERED, opts->build_dir,
           opts->tiered_storage_source, opts->tiered_storage_source, opts->delay_ms, opts->error_ms,
-          opts->force_delay, opts->force_error, bucket_name, benchmarkrun ? 0 : 2, opts->tiered_storage_source));
+          opts->force_delay, opts->force_error, bucket_name, benchmarkrun ? 0 : 2,
+          opts->tiered_storage_source));
 
     testutil_check(__wt_snprintf(buf, sizeof(buf), "%s%s%s%s", config == NULL ? "" : config,
       (rerun ? TESTUTIL_ENV_CONFIG_REC : ""), (opts->compat ? TESTUTIL_ENV_CONFIG_COMPAT : ""),

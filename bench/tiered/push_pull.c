@@ -244,11 +244,12 @@ recover_validate(const char *home, uint32_t num_records, uint64_t file_size, uin
         strcpy(bucket_name, DIR_STORE_BUCKET_NAME);
     else {
         ret = strchr(S3_STORE_BUCKET_NAME, ';');
-        length = ret - S3_STORE_BUCKET_NAME;
+        length = (size_t)(ret - S3_STORE_BUCKET_NAME);
         strncpy(bucket_name, S3_STORE_BUCKET_NAME, length);
         bucket_name[length] = '\0';
     }
-    testutil_check(__wt_snprintf(rm_cmd, sizeof(rm_cmd), "rm -rf %s/cache-%s/*", home, bucket_name));
+    testutil_check(
+      __wt_snprintf(rm_cmd, sizeof(rm_cmd), "rm -rf %s/cache-%s/*", home, bucket_name));
 
     status = system(rm_cmd);
     if (status < 0)
