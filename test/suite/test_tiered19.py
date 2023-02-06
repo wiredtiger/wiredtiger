@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import random, string, wiredtiger, wttest, os
+import random, string, wiredtiger, wttest
 from helper_tiered import get_auth_token, TieredConfigMixin
 from wtscenario import make_scenarios
 
@@ -120,7 +120,7 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         fs.terminate(session)
         ss.terminate(session)
 
-    def test_ss_azure_file_systems(self):
+    def test_ss_azure_file_system(self):
         if self.ss_name != "azure_store":
             return
         session = self.session
