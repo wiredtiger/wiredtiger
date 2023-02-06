@@ -237,18 +237,17 @@ gcp_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYSTEM
 {
     gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
     gcp_store *gcp = reinterpret_cast<gcp_file_system *>(fs)->storage_source;
-    WT_FILE_SYSTEM *wtFileSystem = fs->wt_file_system;
+    WT_FILE_SYSTEM *wt_file_system = fs->wt_file_system;
 
     // Confirm that the file exists on the native filesystem.
-    std::string src_path = gcp_path(fs->homeDir, source);
-    bool nativeExist = false;
-    int ret = wtFileSystem->fs_exist(wtFileSystem, session, srcPath.c_str(), &nativeExist);
-    if (ret != 0) {
+    std::string src_path = gcp_path(fs->home_dir, source);
+    bool native_exist = false;
+    int ret = wt_file_system->fs_exist(wt_file_system, session, src_path.c_str(), &native_exist);
+    if (ret != 0) 
         return (ret);
-    }
-    if (!nativeExist) {
-        return (ENOENT);
-    }
+    if (!native_exist) 
+        return ENOENT;
+    ret = fs->gcp_conn->put_object(object, src_path);
 
     return ret;
 }
@@ -257,15 +256,19 @@ static int
 gcp_flush_finish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM *file_system,
   const char *source, const char *object, const char *config)
 {
-    WT_UNUSED(storage);
-    WT_UNUSED(session);
-    WT_UNUSED(file_system);
-    WT_UNUSED(source);
-    WT_UNUSED(object);
-    WT_UNUSED(config);
-    // check if object exists
-
-    return 0;
+    gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
+    gcp_store *gcp = reinterpret_cast<gcp_file_system *>(fs)->storage_source;
+    // Constructing the pathname for source and cache from file system and local.
+    std::string src_path = gcp_path(fs->home_dir, source);
+    bool exists = false;
+    size_t size;
+    int ret = fs->gcp_conn->object_exists(object, exists, size);
+    if (ret != 0) 
+        return (ret);
+    if (!exists) 
+      return ENOENT;
+    
+    return ret;
 }
 
 static int
