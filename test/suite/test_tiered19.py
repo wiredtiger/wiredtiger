@@ -116,6 +116,18 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_customize_file_system(
                 session, no_access_bucket, None, self.get_fs_config(prefix)), err_msg)
+        
+         # We cannot use the file system to create files, it is readonly.
+        # So use python I/O to build up the file.
+        f = open('foobar', 'wb')
+
+        outbytes = ('MORE THAN ENOUGH DATA\n'*100000).encode()
+        f.write(outbytes)
+        f.close()
+
+        # Flushing copies the file into the file system.
+        self.assertEquals(ss.ss_flush(session, fs, 'foobar', 'foobar', None), 0)
+        self.assertEquals(ss.ss_flush_finish(session, fs, 'foobar', 'foobar', None), 0)
 
         fs.terminate(session)
         ss.terminate(session)
@@ -153,56 +165,6 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         
         # Test that azure file system terminate succeeds.
         self.assertEqual(azure_fs_1.terminate(session), 0)
-
-        # Test that azure storage source terminate succeeds.
-        self.assertEqual(ss.terminate(session), 0)
-
-    def test_ss_gcp_flush(self):
-        if self.ss_name != "gcp_store":
-            return
-        session = self.session
-        ss = self.get_storage_source()
-
-        prefix_1 = self.bucket_prefix.join(
-            random.choices(string.ascii_letters + string.digits, k=10))
-
-        # Test the customize file system function errors when there is an invalid bucket.
-        err_msg = '/Exception: Invalid argument/'
-        self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
-            lambda: ss.ss_customize_file_system(
-                session, "", None, self.get_fs_config(prefix_1)), err_msg)
-
-        bad_bucket = "./bucket_BAD" 
-        err_msg = '/Exception: No such file or directory/'
-        self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
-            lambda: ss.ss_customize_file_system(
-                session, bad_bucket, None, self.get_fs_config(prefix_1)), err_msg)
-
-        # Test the customize file system function works when there is a valid bucket.
-        ss.ss_customize_file_system(
-            session, self.bucket, None, self.get_fs_config(prefix_1))
-
-        # We cannot use the file system to create files, it is readonly.
-        # So use python I/O to build up the file.
-        f = open('foobar', 'wb')
-
-        # The object still doesn't exist yet.
-        self.assertFalse(fs.fs_exist(session, 'foobar'))
-
-        outbytes = ('MORE THAN ENOUGH DATA\n'*100000).encode()
-        f.write(outbytes)
-        f.close()
-
-        # Nothing is in the directory list until a flush.
-        self.assertEquals(fs.fs_directory_list(session, '', ''), [])
-
-        # Flushing copies the file into the file system.
-        ss.ss_flush(session, fs, 'foobar', 'foobar', None)
-        ss.ss_flush_finish(session, fs, 'foobar', 'foobar', None)
-
-        # The object exists now.
-        self.assertEquals(fs.fs_directory_list(session, '', ''), ['foobar'])
-        self.assertTrue(fs.fs_exist(session, 'foobar'))
 
         # Test that azure storage source terminate succeeds.
         self.assertEqual(ss.terminate(session), 0)

@@ -236,7 +236,6 @@ gcp_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYSTEM
   const char *source, const char *object, const char *config)
 {
     gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
-    // gcp_store *gcp = reinterpret_cast<gcp_file_system *>(fs)->storage_source;
     WT_FILE_SYSTEM *wt_file_system = fs->wt_file_system;
 
     // Confirm that the file exists on the native filesystem.
@@ -257,8 +256,7 @@ gcp_flush_finish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM
   const char *source, const char *object, const char *config)
 {
     gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
-    // gcp_store *gcp = reinterpret_cast<gcp_file_system *>(fs)->storage_source;
-    // Constructing the pathname for source and cache from file system and local.
+    // Constructing the pathname for source.
     std::string src_path = gcp_path(fs->home_dir, source);
     bool exists = false;
     size_t size;
