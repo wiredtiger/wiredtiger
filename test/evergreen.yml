@@ -148,7 +148,7 @@ functions:
           if [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|}" =~ (tcmalloc|TCMALLOC) ]] && ! [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|}" =~ "ENABLE_TCMALLOC=0" ]] && [ ! -d "./automation-scripts" ]; then
             is_cmake_build=true
             git clone git@github.com:wiredtiger/automation-scripts.git
-            # . automation-scripts/evergreen/find_gperftools.sh ${s3_access_key} ${s3_secret_key} ${build_variant} $is_cmake_build
+            . automation-scripts/evergreen/find_gperftools.sh ${s3_access_key} ${s3_secret_key} ${build_variant} $is_cmake_build
           fi
           # Compiling with CMake.
           if [ "${cmake_binary|}" ]; then
