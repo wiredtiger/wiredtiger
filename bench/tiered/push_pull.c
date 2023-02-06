@@ -213,10 +213,11 @@ recover_validate(const char *home, uint32_t num_records, uint64_t file_size, uin
 {
     struct timeval start, end;
 
-    char buf[1024], rm_cmd[512];
+    char buf[1024], rm_cmd[512], bucket_name[512];
+    char *ret;
     double diff_sec;
     int status;
-    size_t val_1_size, val_2_size;
+    size_t length, val_1_size, val_2_size;
     uint64_t key, i, v;
 
     WT_CONNECTION *conn;
@@ -239,7 +240,16 @@ recover_validate(const char *home, uint32_t num_records, uint64_t file_size, uin
     v = (uint32_t)getpid() + num_records + (2 * counter);
     __wt_random_init_custom_seed(&rnd, v);
 
-    testutil_check(__wt_snprintf(rm_cmd, sizeof(rm_cmd), "rm -rf %s/cache-bucket/*", home));
+    if (strcmp(opts->tiered_storage_source, "dir_store") == 0)
+        strcpy(bucket_name, DIR_STORE_BUCKET_NAME);
+    else {
+        ret = strchr(S3_STORE_BUCKET_NAME, ';');
+        length = ret - S3_STORE_BUCKET_NAME;
+        strncpy(bucket_name, S3_STORE_BUCKET_NAME, length);
+        bucket_name[length] = '\0';
+    }
+    testutil_check(__wt_snprintf(rm_cmd, sizeof(rm_cmd), "rm -rf %s/cache-%s/*", home, bucket_name));
+
     status = system(rm_cmd);
     if (status < 0)
         testutil_die(status, "system: %s", rm_cmd);
@@ -281,6 +291,7 @@ run_test(const char *home, uint32_t num_records, uint32_t counter)
 {
     struct timeval start, end;
 
+    bool is_dir_store;
     char buf[1024];
     double diff_sec;
     uint64_t file_size;
@@ -288,9 +299,10 @@ run_test(const char *home, uint32_t num_records, uint32_t counter)
     WT_CONNECTION *conn;
     WT_SESSION *session;
 
+    is_dir_store = strcmp(opts->tiered_storage_source, "dir_store") == 0 ? true : false;
     testutil_make_work_dir(home);
-    if (opts->tiered_storage) {
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/bucket", home));
+    if (opts->tiered_storage && is_dir_store) {
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, DIR_STORE_BUCKET_NAME));
         testutil_make_work_dir(buf);
     }
 
