@@ -227,10 +227,10 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
 
     /* If passed page stat information, append the row and byte counts. */
     if (ps != NULL && __wt_process.page_stats_2022) {
-        if (WT_PAGE_STAT_HAS_BYTE_COUNT(ps))
-            WT_IGNORE_RET(__wt_vpack_int(&p, 0, ps->byte_count));
-        if (WT_PAGE_STAT_HAS_ROW_COUNT(ps))
-            WT_IGNORE_RET(__wt_vpack_int(&p, 0, ps->row_count));
+        if (WT_PAGE_STAT_HAS_USER_BYTES(ps))
+            WT_IGNORE_RET(__wt_vpack_int(&p, 0, ps->user_bytes));
+        if (WT_PAGE_STAT_HAS_RECORDS(ps))
+            WT_IGNORE_RET(__wt_vpack_int(&p, 0, ps->records));
     }
 
     /* Length */
@@ -936,10 +936,10 @@ copy_cell_restart:
     case WT_CELL_ADDR_LEAF_NO:
         /* Unpack the row and/or byte counts if the chunk of data includes it. */
         if (ps != NULL && __wt_process.page_stats_2022) {
-            if (F_ISSET(dsk, WT_PAGE_STAT_BYTE_COUNT))
-                WT_RET(__wt_vunpack_int(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ps->byte_count));
-            if (F_ISSET(dsk, WT_PAGE_STAT_ROW_COUNT))
-                WT_RET(__wt_vunpack_int(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ps->row_count));
+            if (F_ISSET(dsk, WT_PAGE_STAT_EXISTS)) {
+                WT_RET(__wt_vunpack_int(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ps->user_bytes));
+                WT_RET(__wt_vunpack_int(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ps->records));
+            }
         }
         /* FALLTHROUGH */
     case WT_CELL_KEY:

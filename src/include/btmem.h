@@ -72,15 +72,14 @@ struct __wt_page_header {
 /*
  * No automatic generation: flag values cannot change, they're written to disk.
  */
-#define WT_PAGE_COMPRESSED 0x01u      /* Page is compressed on disk */
-#define WT_PAGE_EMPTY_V_ALL 0x02u     /* Page has all zero-length values */
-#define WT_PAGE_EMPTY_V_NONE 0x04u    /* Page has no zero-length values */
-#define WT_PAGE_ENCRYPTED 0x08u       /* Page is encrypted on disk */
-#define WT_PAGE_UNUSED 0x10u          /* Historic lookaside store page updates, no longer used */
-#define WT_PAGE_FT_UPDATE 0x20u       /* Page contains updated fast-truncate information */
-#define WT_PAGE_STAT_BYTE_COUNT 0x40u /* Page contains byte count information */
-#define WT_PAGE_STAT_ROW_COUNT 0x80u  /* Page contains row count information */
-    uint8_t flags;                    /* 25: flags */
+#define WT_PAGE_COMPRESSED 0x01u   /* Page is compressed on disk */
+#define WT_PAGE_EMPTY_V_ALL 0x02u  /* Page has all zero-length values */
+#define WT_PAGE_EMPTY_V_NONE 0x04u /* Page has no zero-length values */
+#define WT_PAGE_ENCRYPTED 0x08u    /* Page is encrypted on disk */
+#define WT_PAGE_UNUSED 0x10u       /* Historic lookaside store page updates, no longer used */
+#define WT_PAGE_FT_UPDATE 0x20u    /* Page contains updated fast-truncate information */
+#define WT_PAGE_STAT_EXISTS 0x40u  /* Page contains record count and user bytes information */
+    uint8_t flags;                 /* 25: flags */
 
     /* A byte of padding, positioned to be added to the flags. */
     uint8_t unused; /* 26: unused padding */
@@ -132,8 +131,8 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
  */
 struct __wt_page_stat {
     /* These informational values can be negative to signify that they are invalid. */
-    int64_t byte_count;
-    int64_t row_count;
+    int64_t user_bytes;
+    int64_t records;
 };
 
 /*

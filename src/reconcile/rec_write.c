@@ -1917,11 +1917,8 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
         F_SET(dsk, WT_PAGE_FT_UPDATE);
 
     /* Set the page stat cell information flag. */
-    if (WT_PAGE_STAT_HAS_BYTE_COUNT(&chunk->ps))
-        F_SET(dsk, WT_PAGE_STAT_BYTE_COUNT);
-
-    if (WT_PAGE_STAT_HAS_ROW_COUNT(&chunk->ps))
-        F_SET(dsk, WT_PAGE_STAT_ROW_COUNT);
+    if (WT_PAGE_STAT_HAS_USER_BYTES(&chunk->ps) || WT_PAGE_STAT_HAS_RECORDS(&chunk->ps))
+        F_SET(dsk, WT_PAGE_STAT_EXISTS);
 
     dsk->unused = 0;
     dsk->version = WT_PAGE_VERSION_TS;
