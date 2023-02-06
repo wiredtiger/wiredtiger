@@ -297,13 +297,17 @@ azure_file_system_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
     return 0;
 }
 
+// Check if the object (file) exists in the Azure storage source.
 static int
 azure_file_exists(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, bool *existp)
 {
-    WT_UNUSED(file_system);
+    azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
+    int ret;
+    if ((ret = azure_fs->azure_conn->object_exists(std::string(name), *existp)) != 0) {
+        std::cerr << "azure_file_open: object_exists request to Azure failed." << std::endl;
+        return ret;
+    }
     WT_UNUSED(session);
-    WT_UNUSED(name);
-    WT_UNUSED(existp);
 
     return 0;
 }
@@ -466,6 +470,7 @@ azure_file_lock(WT_FILE_HANDLE *file_handle, WT_SESSION *session, bool lock)
     return 0;
 }
 
+// Read a file using given file handle.
 static int
 azure_file_read(
   WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t offset, size_t len, void *buf)
