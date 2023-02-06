@@ -28,6 +28,8 @@
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
 #include <algorithm>
+#include <fstream>
+#include <iostream>
 #include <memory>
 #include <mutex>
 #include <vector>
@@ -52,7 +54,7 @@ struct azure_file_system {
     WT_FILE_SYSTEM *wt_fs;
 
     std::mutex fh_mutex;
-    std::vector<azure_file_handle> azure_fh;
+    std::vector<azure_file_handle *> azure_fh;
     std::unique_ptr<azure_connection> azure_conn;
     std::string home_dir;
 };
@@ -60,6 +62,8 @@ struct azure_file_system {
 struct azure_file_handle {
     WT_FILE_HANDLE fh;
     azure_store *store;
+    std::string name;
+    uint32_t reference_count;
 };
 
 // WT_STORAGE_SOURCE Interface
@@ -344,11 +348,75 @@ static int
 azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
   WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags, WT_FILE_HANDLE **file_handlep)
 {
-    WT_UNUSED(file_system);
+    azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
+    azure_store *azure_storage = azure_fs->store;
+
+    // Azure only supports opening the file in read only mode.
+    if ((flags & WT_FS_OPEN_READONLY) == 0 || (flags & WT_FS_OPEN_CREATE) != 0) {
+        std::cerr << "azure_file_open: read-only access required." << std::endl;
+        return EINVAL;
+    }
+
+    // Only data files should be opened; although this constraint can be relaxed in future.
+    if (file_type != WT_FS_OPEN_FILE_TYPE_DATA && file_type != WT_FS_OPEN_FILE_TYPE_REGULAR) {
+        std::cerr << "azure_file_open: only data file and regular types supported." << std::endl;
+        return EINVAL;
+    }
+
+    // Check if object exists.
+    bool exists;
+    int ret;
+    if ((ret = azure_fs->azure_conn->object_exists(std::string(name), exists)) != 0) {
+        std::cerr << "azure_file_open: object_exists request to Azure failed." << std::endl;
+        return ret;
+    }
+    if (exists == false) {
+        std::cerr << "azure_file_open: no such file." << std::endl;
+        return EINVAL;
+    }
+
+    // Check if there is already an existing file handle open.
+    auto fh_iterator = std::find_if(azure_fs->azure_fh.begin(), azure_fs->azure_fh.end(),
+      [name](azure_file_handle *fh) { return strcmp(name, fh->name.c_str()) == 0; });
+
+    if (fh_iterator != azure_fs->azure_fh.end()) {
+        // file handle exists, increment reference_count
+        (*fh_iterator)->reference_count++;
+        return 0;
+    }
+    azure_file_handle *azure_fh;
+    try {
+        azure_fh = new azure_file_handle;
+    } catch (std::bad_alloc &e) {
+        std::cerr << std::string("azure_file_open: ") + e.what() << std::endl;
+        return ENOMEM;
+    }
+    azure_fh->name = name;
+    azure_fh->reference_count = 1;
+    azure_fh->store = azure_storage;
+    // add to file handle vector list
+    azure_fs->azure_fh.push_back(azure_fh);
+
+    WT_FILE_HANDLE *file_handle = reinterpret_cast<WT_FILE_HANDLE *>(azure_fh);
+    file_handle->close = azure_file_close;
+    file_handle->fh_advise = nullptr;
+    file_handle->fh_extend = nullptr;
+    file_handle->fh_extend_nolock = nullptr;
+    file_handle->fh_lock = azure_file_lock;
+    file_handle->fh_map = nullptr;
+    file_handle->fh_map_discard = nullptr;
+    file_handle->fh_unmap = nullptr;
+    file_handle->fh_read = azure_file_read;
+    file_handle->fh_size = azure_file_size;
+    file_handle->fh_sync = nullptr;
+    file_handle->fh_sync_nowait = nullptr;
+    file_handle->fh_truncate = nullptr;
+    file_handle->fh_write = nullptr;
+    file_handle->name = strdup(name);
+
     WT_UNUSED(session);
     WT_UNUSED(name);
     WT_UNUSED(file_type);
-    WT_UNUSED(flags);
     WT_UNUSED(file_handlep);
 
     return 0;
