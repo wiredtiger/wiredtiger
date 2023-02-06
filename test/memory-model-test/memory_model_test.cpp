@@ -149,16 +149,31 @@ void thread_pair(int loop_count, std::ostream& ostream) {
     std::binary_semaphore end_semaphore2{0};
 
     // We declare the shared variables above the lambdas so the lambdas have access to them.
-    int x = 0;
-    int y = 0;
-    int r1 = 0;
-    int r2 = 0;
+
+    // Spacers are inserted to push the fields x, y, r1 and r2 onto different cache lines.
+    const int space = 128 - sizeof(int);
+    struct var_holder {
+        int x = 0;
+        char spacer1[space];
+        int y = 0;
+        char spacer2[space];
+        int r1 = 0;
+        char spacer3[space];
+        int r2 = 0;
+    };
+
+    var_holder vh;
+
+    int& x = vh.x;
+    int& y = vh.y;
+    int& r1 = vh.r1;
+    int& r2 = vh.r2;
 
     //////////////////////////////////////////////////
     // Code that has a read and a write in each thread.
     //////////////////////////////////////////////////
-    auto thread_1_code_write_then_read = [&]() { x = 1; r1 = y; };
-    auto thread_2_code_write_then_read = [&]() { y = 1; r2 = x; };
+    auto thread_1_code_write_then_read = [&]() { x = 1; COMPILER_BARRIER; r1 = y; };
+    auto thread_2_code_write_then_read = [&]() { y = 1; COMPILER_BARRIER; r2 = x; };
 
     auto thread_1_code_write_then_barrier_then_read = [&]() { x = 1; asm volatile(BARRIER_INSTRUCTION ::: "memory"); r1 = y; };
     auto thread_2_code_write_then_barrier_then_read = [&]() { y = 1; asm volatile(BARRIER_INSTRUCTION ::: "memory"); r2 = x; };
