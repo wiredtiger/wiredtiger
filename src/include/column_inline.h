@@ -63,7 +63,12 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
      * There isn't any safety testing because we confirmed such a record exists before searching.
      */
     if ((ins = ret_ins) == NULL)
-        ins = WT_SKIP_FIRST(ins_head);
+        /*
+         * CPU may reorder the reads and return a stale value of the head.
+         *
+         * Place a read barrier here to avoid this issue.
+         */
+        WT_ORDERED_READ(ins, WT_SKIP_FIRST(ins_head));
     while (recno >= WT_INSERT_RECNO(ins))
         /*
          * CPU may reorder the read and we may read a stale next value and incorrectly skip that
@@ -86,7 +91,7 @@ __col_insert_search_lt(WT_INSERT_HEAD *ins_head, uint64_t recno)
     int i;
 
     /*
-     * CPU may reorder the reads and return a stale value of the tail.
+     * CPU may reorder the reads and return a stale value of the head.
      *
      * Place a read barrier here to avoid this issue.
      */
