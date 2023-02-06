@@ -760,69 +760,14 @@ functions:
           set -o verbose
           ./test/evergreen/verify_wt_datafiles.sh 2>&1
 
-  "install abseil":
+  "install gcp dependencies":
     - command: shell.exec
       params:
         working_dir: "wiredtiger/ext/storage_sources/gcp_store"
         shell: bash
         script: |
           set -o errexit
-          mkdir -p Downloads/abseil-cpp && cd Downloads/abseil-cpp
-          curl -sSL https://github.com/abseil/abseil-cpp/archive/20230125.0.tar.gz | \
-              tar -xzf - --strip-components=1 && \
-              sed -i 's/^#define ABSL_OPTION_USE_\(.*\) 2/#define ABSL_OPTION_USE_\1 0/' "absl/base/options.h" && \
-              . ../../../../../test/evergreen/find_cmake.sh
-              mkdir cmake-out && cd cmake-out
-              /opt/cmake/bin/cmake \
-                -DCMAKE_BUILD_TYPE=Release \
-                -DABSL_BUILD_TESTING=OFF \
-                -DBUILD_SHARED_LIBS=yes ../. && \
-              make -j4
-              cd ..
-              sudo /opt/cmake/bin/cmake --build cmake-out --target install
-
-  "install nlohmann":
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/ext/storage_sources/gcp_store/Downloads"
-          shell: bash
-          script: |
-            set -o errexit
-            mkdir json && cd json
-            curl -sSL https://github.com/nlohmann/json/archive/v3.11.2.tar.gz | \
-                tar -xzf - --strip-components=1 && \
-                . ../../../../../test/evergreen/find_cmake.sh
-                mkdir cmake-out && cd cmake-out
-                /opt/cmake/bin/cmake \
-                  -DCMAKE_BUILD_TYPE=Release \
-                  -DBUILD_SHARED_LIBS=yes \
-                  -DBUILD_TESTING=OFF \
-                  -DJSON_BuildTests=OFF ../. && \
-                make -j4
-                cd ..
-                sudo /opt/cmake/bin/cmake --build cmake-out --target install
-
-  "install crc32c":
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/ext/storage_sources/gcp_store/Downloads"
-          shell: bash
-          script: |
-            set -o errexit
-            mkdir crc32c && cd crc32c
-            curl -sSL https://github.com/google/crc32c/archive/1.1.2.tar.gz | \
-                tar -xzf - --strip-components=1 && \
-                . ../../../../../test/evergreen/find_cmake.sh
-                mkdir cmake-out && cd cmake-out
-                /opt/cmake/bin/cmake \
-                  -DCMAKE_BUILD_TYPE=Release \
-                  -DBUILD_SHARED_LIBS=yes \
-                  -DCRC32C_BUILD_TESTS=OFF \
-                  -DCRC32C_BUILD_BENCHMARKS=OFF \
-                  -DCRC32C_USE_GLOG=OFF ../. && \
-                make -j4
-                cd ..
-                sudo /opt/cmake/bin/cmake --build cmake-out --target install
+          ./test/evergreen/install_gcp_dependencies.sh
 
 #######################################
 #               Variables             #
@@ -3026,8 +2971,8 @@ tasks:
     tags: ["pull_request", "python"]
     commands:
       - func: "get project"
+      - func: "install gcp dependencies"
       - func: "compile wiredtiger"
-      - func: "install abseil"
         vars:
           <<: *configure_flags_tiered_storage_gcp
       - func: "run tiered storage test"
@@ -3039,9 +2984,7 @@ tasks:
     tags: ["pull_request"]
     commands:
       - func: "get project"
-      - func: "install abseil"
-      - func: "install nlohmann"
-      - func: "install crc32c"
+      - func: "install gcp dependencies"
       - func: "compile wiredtiger"
         vars:
           <<: *configure_flags_tiered_storage_gcp
