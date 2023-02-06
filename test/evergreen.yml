@@ -153,7 +153,7 @@ functions:
 
           # Compiling with CMake.
           if [ "${cmake_binary|}" ]; then
-            $CMAKE = ${cmake_binary|}
+            $CMAKE=${cmake_binary|}
           else
             . test/evergreen/find_cmake.sh
           fi
