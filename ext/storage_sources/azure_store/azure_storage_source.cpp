@@ -379,11 +379,13 @@ azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
     auto fh_iterator = std::find_if(azure_fs->azure_fh.begin(), azure_fs->azure_fh.end(),
       [name](azure_file_handle *fh) { return strcmp(name, fh->name.c_str()) == 0; });
 
+    // Active file handle for file exists, increment reference_count
     if (fh_iterator != azure_fs->azure_fh.end()) {
-        // file handle exists, increment reference_count
         (*fh_iterator)->reference_count++;
         return 0;
     }
+
+    // No active file handle, create a new file handle.
     azure_file_handle *azure_fh;
     try {
         azure_fh = new azure_file_handle;
@@ -394,9 +396,8 @@ azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
     azure_fh->name = name;
     azure_fh->reference_count = 1;
     azure_fh->store = azure_storage;
-    // add to file handle vector list
-    azure_fs->azure_fh.push_back(azure_fh);
 
+    // Define functions needed for Azure with read-only privilleges.
     WT_FILE_HANDLE *file_handle = reinterpret_cast<WT_FILE_HANDLE *>(azure_fh);
     file_handle->close = azure_file_close;
     file_handle->fh_advise = nullptr;
@@ -413,6 +414,13 @@ azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
     file_handle->fh_truncate = nullptr;
     file_handle->fh_write = nullptr;
     file_handle->name = strdup(name);
+
+    // Exclusive Access is required when adding file handles to list of file handles.
+    // lock_guard will unlock automatically when the scope is exited.
+    {
+        std::lock_guard<std::mutex> lock_guard(azure_storage->fs_mutex);
+        azure_fs->azure_fh.push_back(azure_fh);
+    }
 
     WT_UNUSED(session);
     WT_UNUSED(name);
