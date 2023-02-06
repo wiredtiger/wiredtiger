@@ -150,8 +150,14 @@ functions:
             git clone git@github.com:wiredtiger/automation-scripts.git
             # . automation-scripts/evergreen/find_gperftools.sh ${s3_access_key} ${s3_secret_key} ${build_variant} $is_cmake_build
           fi
+
           # Compiling with CMake.
-          . test/evergreen/find_cmake.sh
+          if [ "${cmake_binary|}" ]; then
+            $CMAKE = ${cmake_binary|}
+          else
+            . test/evergreen/find_cmake.sh
+          fi
+
           # If we've fetched the wiredtiger artifact from a previous compilation/build, it's best to remove
           # the previous build directory so we can create a fresh configuration. We can't use the the previous
           # CMake Cache configuration as its likely it will have absolute paths related to the previous build machine.
@@ -3032,6 +3038,7 @@ tasks:
         vars:
           <<: *configure_flags_tiered_storage_azure
           HAVE_UNITTEST: -DHAVE_UNITTEST=1
+          cmake_binary: '/opt/mongodbtoolchain/v4/bin/cmake'
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build"
