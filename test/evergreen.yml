@@ -150,10 +150,9 @@ functions:
             git clone git@github.com:wiredtiger/automation-scripts.git
             # . automation-scripts/evergreen/find_gperftools.sh ${s3_access_key} ${s3_secret_key} ${build_variant} $is_cmake_build
           fi
-
           # Compiling with CMake.
           if [ "${cmake_binary|}" ]; then
-            $CMAKE=${cmake_binary|}
+            CMAKE=${cmake_binary|}
           else
             . test/evergreen/find_cmake.sh
           fi
@@ -3006,30 +3005,6 @@ tasks:
 
             # Run S3 extension unit testing.
             ext/storage_sources/s3_store/test/run_s3_unit_tests
-  # - name: azure-tiered-storage-extensions-test
-  #   tags: ["python"]
-  #   commands:
-  #     - func: "get project"
-  #     - func: "compile wiredtiger"
-  #       vars:
-  #         <<: *configure_flags_tiered_storage_azure
-  #     - func: "run tiered storage test"
-  #       vars:
-  #         # Set this in case of a core to get the correct python binary.
-  #         python_binary: $(pwd)/venv/bin/python3
-  #         tiered_storage_test_name: tiered
-  # - name: azure-tiered-test-small
-  #   tags: ["pull_request", "python"]
-  #   commands:
-  #     - func: "get project"
-  #     - func: "compile wiredtiger"
-  #       vars:
-  #         <<: *configure_flags_tiered_storage_azure
-  #     - func: "run tiered storage test"
-  #       vars:
-  #         # Set this in case of a core to get the correct python binary.
-  #         python_binary: $(pwd)/venv/bin/python3
-  #         tiered_storage_test_name: tiered19
   - name: azure-tiered-unittest-test
     tags: ["pull_request"]
     commands:
@@ -3050,20 +3025,7 @@ tasks:
 
             # Run AZURE extension unit testing.
             ext/storage_sources/azure_store/test/run_azure_unit_tests
-  # - name: gcp-tiered-storage-extensions-test
-  #   tags: ["python"]
-  #   commands:
-  #     - func: "get project"
-  #     - func: "compile wiredtiger"
-  #     - func: "install abseil"
-  #       vars:
-  #         <<: *configure_flags_tiered_storage_gcp
-  #     - func: "run tiered storage test"
-  #       vars:
-  #         # Set this in case of a core to get the correct python binary.
-  #         python_binary: $(pwd)/venv/bin/python3
-  #         tiered_storage_test_name: tiered
-  - name: gcp-tiered-test-small
+  - name: azure-gcp-tiered-test-small
     tags: ["pull_request", "python"]
     commands:
       - func: "get project"
@@ -4919,7 +4881,6 @@ buildvariants:
     - name: ".data-validation-stress-test"
     - name: unittest-test
     - name: tiered-storage-extensions-test
-    # - name: gcp-tiered-storage-extensions-test
     - name: bench-tiered-push-pull
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
@@ -4950,7 +4911,7 @@ buildvariants:
       PATH=/opt/mongodbtoolchain/v4/bin:$PATH
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.python !gcp-tiered-unittest-test"
+    - name: ".pull_request !.pull_request_compilers !.python !tiered-unittest-test !azure-tiered-unittest-test  !gcp-tiered-unittest-test"
     - name: examples-c-test
     - name: format-asan-smoke-test
 
@@ -5410,7 +5371,6 @@ buildvariants:
     - name: configure-combinations
     - name: format-smoke-test
     - name: tiered-storage-extensions-test
-    # - name: gcp-tiered-storage-extensions-test
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
     - name: unit-test-nonstandalone
@@ -5454,7 +5414,6 @@ buildvariants:
     - name: long-test
     - name: format-smoke-test
     - name: tiered-storage-extensions-test
-    # - name: gcp-tiered-storage-extensions-test
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
     - name: unit-test-nonstandalone
