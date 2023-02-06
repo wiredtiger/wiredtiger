@@ -454,9 +454,11 @@ azure_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
     return 0;
 }
 
+// Lock/unlock a file.
 static int
 azure_file_lock(WT_FILE_HANDLE *file_handle, WT_SESSION *session, bool lock)
 {
+    // Locks are always granted.
     WT_UNUSED(file_handle);
     WT_UNUSED(session);
     WT_UNUSED(lock);
