@@ -61,7 +61,7 @@ struct azure_file_system {
 
 struct azure_file_handle {
     WT_FILE_HANDLE fh;
-    azure_store *store;
+    azure_file_system *fs;
     std::string name;
     uint32_t reference_count;
 };
@@ -350,7 +350,6 @@ azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
   WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags, WT_FILE_HANDLE **file_handlep)
 {
     azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
-    azure_store *azure_storage = azure_fs->store;
 
     // Azure only supports opening the file in read only mode.
     if ((flags & WT_FS_OPEN_READONLY) == 0 || (flags & WT_FS_OPEN_CREATE) != 0) {
@@ -396,7 +395,7 @@ azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
     }
     azure_fh->name = name;
     azure_fh->reference_count = 1;
-    azure_fh->store = azure_storage;
+    azure_fh->fs = azure_fs;
     WT_FILE_HANDLE *file_handle = &azure_fh->fh;
 
     // Define functions needed for Azure with read-only privilleges.
@@ -432,7 +431,22 @@ azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
 static int
 azure_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
 {
-    WT_UNUSED(file_handle);
+    azure_file_handle *azure_fh = reinterpret_cast<azure_file_handle *>(file_handle);
+    azure_fh->reference_count--;
+    // If there are other active instances of the file being open, do not close file handle.
+    if (azure_fh->reference_count > 0) {
+        return 0;
+    }
+
+    azure_file_system *azure_fs = azure_fh->fs;
+    {
+        std::lock_guard<std::mutex> lock_guard(azure_fs->fh_mutex);
+        // Erase-remove idiom to elimate specific file handle
+        azure_fs->azure_fh.erase(
+          std::remove(azure_fs->azure_fh.begin(), azure_fs->azure_fh.end(), azure_fh),
+          azure_fs->azure_fh.end());
+    }
+
     WT_UNUSED(session);
 
     return 0;
