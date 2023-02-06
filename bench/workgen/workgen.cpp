@@ -44,6 +44,7 @@
 #include <fstream>
 #include <sstream>
 #include "wiredtiger.h"
+#include "wt_internal.h"
 #include "workgen.h"
 #include "workgen_int.h"
 extern "C" {
@@ -380,6 +381,7 @@ WorkloadRunner::create_table(
         icontext->_dyn_table_runtime[tint] = TableRuntime(is_base, mirror_uri);
         ++icontext->_dyn_tint_last;
         VERBOSE(*_workload, "Created table and added to the dynamic set: " << uri);
+        std::cerr << "Created table: " << uri << std::endl;
     }
 
     return 0;
@@ -515,32 +517,29 @@ WorkloadRunner::select_table_for_drop(std::vector<std::string> &pending_delete)
         return EEXIST;
     }
 
-    // The data structures for the dynamic table set are protected by a mutex.
-    {
-        const std::lock_guard<std::shared_mutex> lock(*icontext->_dyn_mutex);
+    // Flag table for deletion.
+    VERBOSE(*_workload, "Flagging pending delete for: " << table_itr->first);
+    std::cerr << "Flagging pending delete for: " << table_itr->first << std::endl;
+    icontext->_dyn_table_runtime[table_itr->second]._pending_delete = true;
 
-        // Flag table for deletion.
-        VERBOSE(*_workload, "Flagging pending delete for: " << table_itr->first);
-        icontext->_dyn_table_runtime[table_itr->second]._pending_delete = true;
-    
-        // Add table to the pending delete list.
-        ASSERT(std::find(pending_delete.begin(), pending_delete.end(), table_itr->first) ==
+    // Add table to the pending delete list.
+    ASSERT(std::find(pending_delete.begin(), pending_delete.end(), table_itr->first) ==
+    pending_delete.end());
+    pending_delete.push_back(table_itr->first);
+
+    // If the table has a mirror, prepare the mirror table for deletion too.
+    if (icontext->_dyn_table_runtime[table_itr->second].has_mirror()) {
+        auto mirror_itr =
+        icontext->_dyn_tint.find(icontext->_dyn_table_runtime[table_itr->second]._mirror);
+        ASSERT(mirror_itr != icontext->_dyn_tint.end());
+
+        VERBOSE(*_workload, "Flagging pending delete for: " << mirror_itr->first);
+        std::cerr << "Flagging pending delete for: " << mirror_itr->first << std::endl;
+        icontext->_dyn_table_runtime[mirror_itr->second]._pending_delete = true;
+
+        ASSERT(std::find(pending_delete.begin(), pending_delete.end(), mirror_itr->first) ==
         pending_delete.end());
-        pending_delete.push_back(table_itr->first);
-
-        // If the table has a mirror, prepare the mirror table for deletion too.
-        if (icontext->_dyn_table_runtime[table_itr->second].has_mirror()) {
-            auto mirror_itr =
-            icontext->_dyn_tint.find(icontext->_dyn_table_runtime[table_itr->second]._mirror);
-            ASSERT(mirror_itr != icontext->_dyn_tint.end());
-
-            VERBOSE(*_workload, "Flagging pending delete for: " << mirror_itr->first);
-            icontext->_dyn_table_runtime[mirror_itr->second]._pending_delete = true;
-
-            ASSERT(std::find(pending_delete.begin(), pending_delete.end(), mirror_itr->first) ==
-            pending_delete.end());
-            pending_delete.push_back(mirror_itr->first);
-        }
+        pending_delete.push_back(mirror_itr->first);
     }
     return 0;
 }
@@ -636,6 +635,7 @@ WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
                 }
 
                 // Delete all local data related to the table.
+                ASSERT(icontext->_dyn_table_runtime[tint]._in_use == 0);
                 pending_delete.erase(pending_delete.begin() + i);
                 icontext->_dyn_tint.erase(uri);
                 icontext->_dyn_table_names.erase(tint);
@@ -1478,8 +1478,7 @@ ThreadRunner::op_kv_gen(Operation *op, const tint_t tint)
     // allowed and get their own statistic bumped.
     uint64_t recno = 0;
     uint64_t range = op->_table.options.range;
-    switch (op->_optype) {
-    case Operation::OP_INSERT:
+    if (op->_optype == Operation::OP_INSERT) {
         if (op->_key._keytype == Key::KEYGEN_APPEND || op->_key._keytype == Key::KEYGEN_AUTO) {
             if (op->_random_table) {
                 const std::shared_lock lock(*_icontext->_dyn_mutex);
@@ -1490,12 +1489,8 @@ ThreadRunner::op_kv_gen(Operation *op, const tint_t tint)
         } else {
             recno = op_get_key_recno(op, range, tint);
         }
-        break;
-    case Operation::OP_REMOVE:
-    case Operation::OP_SEARCH:
-    case Operation::OP_UPDATE:
+    } else {
         recno = op_get_key_recno(op, range, tint);
-        break;
     }
 
     VERBOSE(*this, "OP " << op->_optype << " " << _icontext->_dyn_table_names[tint].c_str()
@@ -1710,6 +1705,7 @@ ThreadRunner::op_run(Operation *op)
             } else {
                 snprintf(buf, BUF_SIZE, "%s", op->transaction->_begin_config.c_str());
             }
+            std::cerr << "begin_transaction: thread = " << this << std::endl;
             WT_ERR(_session->begin_transaction(_session, buf));
 
             _in_transaction = true;
@@ -1739,6 +1735,14 @@ ThreadRunner::op_run(Operation *op)
             default:
                 ASSERT(false);
             }
+            if (_in_transaction) {
+                std::cerr << "op_run _in_transaction: op = " << op->_optype
+                    << " table = " << op->_table._uri
+                    << " thread = " << this
+                    << " txnid = " << ((WT_SESSION_IMPL*)_session)->txn->id
+                    << std::endl;
+            }
+
             // Assume success and no retry unless ROLLBACK.
             retry_op = false;
             if (ret != 0 && ret != WT_ROLLBACK)
@@ -1748,6 +1752,8 @@ ThreadRunner::op_run(Operation *op)
             else {
                 retry_op = true;
                 track->rollbacks++;
+                std::cerr << "rollback_transaction: thread = " << this
+                    << " txnid = " << ((WT_SESSION_IMPL*)_session)->txn->id << std::endl;
                 WT_ERR(_session->rollback_transaction(_session, nullptr));
                 _in_transaction = false;
                 ret = 0;
@@ -1795,8 +1801,11 @@ err:
     if (own_cursor)
         WT_TRET(cursor->close(cursor));
     if (op->transaction != nullptr) {
-        if (ret != 0 || op->transaction->_rollback)
+        if (ret != 0 || op->transaction->_rollback) {
+            std::cerr << "rollback_transaction: thread = " << this 
+                << " txnid = " << ((WT_SESSION_IMPL*)_session)->txn->id << std::endl;
             WT_TRET(_session->rollback_transaction(_session, nullptr));
+        }
         else if (_in_transaction) {
             // Set prepare, commit and durable timestamp if prepare is set.
             if (op->transaction->use_prepare_timestamp) {
@@ -1805,12 +1814,18 @@ err:
                 ret = _session->prepare_transaction(_session, buf);
                 snprintf(buf, BUF_SIZE, "commit_timestamp=%" PRIu64 ",durable_timestamp=%" PRIu64,
                   time_us, time_us);
+                std::cerr << "commit_transaction: thread = " << this
+                    << " txnid = " << ((WT_SESSION_IMPL*)_session)->txn->id << std::endl;
                 ret = _session->commit_transaction(_session, buf);
             } else if (op->transaction->use_commit_timestamp) {
                 uint64_t commit_time_us = WorkgenTimeStamp::get_timestamp();
                 snprintf(buf, BUF_SIZE, "commit_timestamp=%" PRIu64, commit_time_us);
+                std::cerr << "commit_transaction: thread = " << this
+                    << " txnid = " << ((WT_SESSION_IMPL*)_session)->txn->id << std::endl;
                 ret = _session->commit_transaction(_session, buf);
             } else {
+                std::cerr << "commit_transaction: thread = " << this
+                    << " txnid = " << ((WT_SESSION_IMPL*)_session)->txn->id << std::endl;
                 ret =
                   _session->commit_transaction(_session, op->transaction->_commit_config.c_str());
             }
@@ -1820,13 +1835,19 @@ err:
 
     if (op->_random_table) {
 
-        op_clear_table(op);
         const std::shared_lock lock(*_icontext->_dyn_mutex);
         // For operations on random tables, if a table has been selected, decrement the
         // reference counter.
         ASSERT(_icontext->_dyn_table_runtime[tint]._in_use > 0);
         // Use atomic here as we can race with another thread that acquires the shared lock.
         (void)workgen_atomic_sub32(&_icontext->_dyn_table_runtime[tint]._in_use, 1);
+        op_clear_table(op);
+/*
+        if (_in_transaction && _icontext->_dyn_table_runtime[tint]._in_use == 0) {
+            std::cerr << "table '" << table_uri << "' is NOT in use! thread = " << this 
+                << " _in_transaction = " << _in_transaction << std::endl;
+        }
+*/
     }
     return (ret);
 }
