@@ -117,17 +117,16 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
             lambda: ss.ss_customize_file_system(
                 session, no_access_bucket, None, self.get_fs_config(prefix)), err_msg)
         
-         # We cannot use the file system to create files, it is readonly.
+        # We cannot use the file system to create files, it is readonly.
         # So use python I/O to build up the file.
-        f = open('foobar', 'wb')
-
-        outbytes = ('MORE THAN ENOUGH DATA\n'*100000).encode()
-        f.write(outbytes)
-        f.close()
+        local_file_name = "test_tiered19_local_file"
+        with open(local_file_name, 'wb') as f:
+            outbytes = ('MORE THAN ENOUGH DATA\n'*100000).encode()
+            f.write(outbytes)
 
         # Flushing copies the file into the file system.
-        self.assertEquals(ss.ss_flush(session, fs, 'foobar', 'foobar', None), 0)
-        self.assertEquals(ss.ss_flush_finish(session, fs, 'foobar', 'foobar', None), 0)
+        self.assertEquals(ss.ss_flush(session, fs, local_file_name, local_file_name, None), 0)
+        self.assertEquals(ss.ss_flush_finish(session, fs, local_file_name, local_file_name, None), 0)
 
         # Flush non valid file into GCP will result in an exception.
         err_msg = "Exception: No such file or directory"

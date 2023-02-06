@@ -77,7 +77,7 @@ gcp_path(const std::string &dir, const std::string &name)
     // Skip over "./" and variations (".//", ".///./././//") at the beginning of the name.
     int i = 0;
     while (name[i] == '.') {
-        if (name[1] != '/')
+        if (name[i + 1] != '/')
             break;
         i += 2;
         while (name[i] == '/')
@@ -235,6 +235,9 @@ static int
 gcp_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYSTEM *file_system,
   const char *source, const char *object, const char *config)
 {
+    WT_UNUSED(storage_source);
+    WT_UNUSED(config);
+
     gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
     WT_FILE_SYSTEM *wt_file_system = fs->wt_file_system;
 
@@ -266,7 +269,7 @@ gcp_flush_finish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM
     if (!exists)
         return ENOENT;
 
-    return ret;
+    return 0;
 }
 
 static int
