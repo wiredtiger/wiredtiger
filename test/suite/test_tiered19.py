@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import random, string, wiredtiger, wttest
+import random, string, wiredtiger, wttest, os
 from helper_tiered import get_auth_token, TieredConfigMixin
 from wtscenario import make_scenarios
 
@@ -74,11 +74,11 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         # Test basic functionality of the storage source API, calling
         # each supported method in the API at least once.
 
+        if self.ss_name != 'gcp_store':
+            return
+
         session = self.session
         ss = self.get_storage_source()
-
-        if (self.ss_name != 'gcp_store'):
-            return
 
         # Since this class has multiple tests, append test name to the prefix to
         # avoid namespace collision. 0th element on the stack is the current function.
@@ -120,7 +120,7 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         fs.terminate(session)
         ss.terminate(session)
 
-    def test_ss_file_systems_gcp_and_azure(self):
+    def test_ss_azure_file_systems(self):
         if self.ss_name != "azure_store":
             return
         session = self.session
@@ -150,6 +150,25 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         # Create another file systems to make sure that terminate works.
         ss.ss_customize_file_system(
             session, self.bucket, None, self.get_fs_config(prefix_2))
+
+        # We cannot use the file system to create files, it is readonly.
+        # So use python I/O to build up the file.
+        f = open('foobar', 'wb')
+
+        outbytes = ('MORE THAN ENOUGH DATA\n' * 100000).encode()
+        f.write(outbytes)
+        f.close()
+
+        # Flush valid file into Azure.
+        self.assertEqual(ss.ss_flush(session, azure_fs_1, 'foobar', 'foobar', None), 0)
+        # Check that file exists in Azure.
+        self.assertEqual(ss.ss_flush_finish(session, azure_fs_1, 'foobar', 'foobar', None), 0)
+
+        # Flush non valid file into Azure will result in an exception.
+        self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
+            lambda: ss.ss_flush(session, azure_fs_1, 'non_existing_file', 'non_existing_file', None), err_msg)
+        # Check that file does not exist in Azure.
+        self.assertEqual(ss.ss_flush_finish(session, azure_fs_1, 'non_existing_file', 'non_existing_file', None), 0)
         
         # Test that azure file system terminate succeeds.
         self.assertEqual(azure_fs_1.terminate(session), 0)
