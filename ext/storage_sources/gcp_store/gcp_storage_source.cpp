@@ -243,7 +243,7 @@ gcp_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYSTEM
     bool native_exist = false;
     int ret = wt_file_system->fs_exist(wt_file_system, session, src_path.c_str(), &native_exist);
     if (ret != 0)
-        return (ret);
+        return ret;
     if (!native_exist)
         return ENOENT;
     ret = fs->gcp_conn->put_object(object, src_path);
@@ -262,7 +262,7 @@ gcp_flush_finish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM
     size_t size;
     int ret = fs->gcp_conn->object_exists(object, exists, size);
     if (ret != 0)
-        return (ret);
+        return ret;
     if (!exists)
         return ENOENT;
 

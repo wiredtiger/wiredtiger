@@ -129,6 +129,14 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.assertEquals(ss.ss_flush(session, fs, 'foobar', 'foobar', None), 0)
         self.assertEquals(ss.ss_flush_finish(session, fs, 'foobar', 'foobar', None), 0)
 
+        # Flush non valid file into GCP will result in an exception.
+        err_msg = "Exception: No such file or directory"
+        self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
+            lambda: ss.ss_flush(session, fs, 'non_existing_file', 'non_existing_file', None), err_msg)
+        # Check that file does not exist in GCP.
+        self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
+            lambda: ss.ss_flush_finish(session, fs, 'non_existing_file', 'non_existing_file', None), err_msg)
+
         fs.terminate(session)
         ss.terminate(session)
 
