@@ -40,6 +40,7 @@ struct gcp_file_handle {
     WT_FILE_HANDLE *wt_file_handle;
 };
 
+static std::string gcp_path(const std::string &dir, const std::string &name);
 static int gcp_customize_file_system(WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *,
   const char *, WT_FILE_SYSTEM **) __attribute__((__unused__));
 static int gcp_add_reference(WT_STORAGE_SOURCE *) __attribute__((__unused__));
@@ -68,6 +69,23 @@ static int gcp_object_list_single(WT_FILE_SYSTEM *, WT_SESSION *, const char *, 
 static int gcp_object_list_free(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t)
   __attribute__((__unused__));
 static int gcp_terminate(WT_STORAGE_SOURCE *, WT_SESSION *) __attribute__((__unused__));
+
+// Construct a pathname from the directory and the object name.
+static std::string
+gcp_path(const std::string &dir, const std::string &name)
+{
+    // Skip over "./" and variations (".//", ".///./././//") at the beginning of the name.
+    int i = 0;
+    while (name[i] == '.') {
+        if (name[1] != '/')
+            break;
+        i += 2;
+        while (name[i] == '/')
+            i++;
+    }
+    std::string strippedName = name.substr(i, name.length() - i);
+    return (dir + "/" + strippedName);
+}
 
 static int
 gcp_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
@@ -217,14 +235,22 @@ static int
 gcp_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYSTEM *file_system,
   const char *source, const char *object, const char *config)
 {
-    WT_UNUSED(storage_source);
-    WT_UNUSED(session);
-    WT_UNUSED(file_system);
-    WT_UNUSED(source);
-    WT_UNUSED(object);
-    WT_UNUSED(config);
+    gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
+    gcp_store *gcp = reinterpret_cast<gcp_file_system *>(fs)->storage_source;
+    WT_FILE_SYSTEM *wtFileSystem = fs->wt_file_system;
 
-    return 0;
+    // Confirm that the file exists on the native filesystem.
+    std::string src_path = gcp_path(fs->homeDir, source);
+    bool nativeExist = false;
+    int ret = wtFileSystem->fs_exist(wtFileSystem, session, srcPath.c_str(), &nativeExist);
+    if (ret != 0) {
+        return (ret);
+    }
+    if (!nativeExist) {
+        return (ENOENT);
+    }
+
+    return ret;
 }
 
 static int
@@ -237,6 +263,7 @@ gcp_flush_finish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM
     WT_UNUSED(source);
     WT_UNUSED(object);
     WT_UNUSED(config);
+    // check if object exists
 
     return 0;
 }
