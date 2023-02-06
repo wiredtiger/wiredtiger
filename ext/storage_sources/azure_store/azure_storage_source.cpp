@@ -470,16 +470,20 @@ azure_file_lock(WT_FILE_HANDLE *file_handle, WT_SESSION *session, bool lock)
     return 0;
 }
 
-// Read a file using given file handle.
+// Read a file using Azure connection class read object functionality.
 static int
 azure_file_read(
   WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t offset, size_t len, void *buf)
 {
-    WT_UNUSED(file_handle);
+    azure_file_handle *azure_fh = reinterpret_cast<azure_file_handle *>(file_handle);
+    azure_file_system *azure_fs = azure_fh->fs;
+
+    int ret;
+    if ((ret = azure_fs->azure_conn->read_object(azure_fh->name, offset, len, buf) != 0)) {
+        std::cerr << "azure_file_read: read_object request to Azure failed." << std::endl;
+        return ret;
+    }
     WT_UNUSED(session);
-    WT_UNUSED(offset);
-    WT_UNUSED(len);
-    WT_UNUSED(buf);
 
     return 0;
 }
