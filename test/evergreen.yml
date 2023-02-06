@@ -3011,7 +3011,7 @@ tasks:
         vars:
           # Set this in case of a core to get the correct python binary.
           python_binary: $(pwd)/venv/bin/python3
-          tiered_storage_test_name: tiered07
+          tiered_storage_test_name: tiered
   - name: azure-tiered-test-small
     tags: ["pull_request", "python"]
     commands:
@@ -3023,7 +3023,7 @@ tasks:
         vars:
           # Set this in case of a core to get the correct python binary.
           python_binary: $(pwd)/venv/bin/python3
-          tiered_storage_test_name: tiered08
+          tiered_storage_test_name: tiered19
   - name: azure-tiered-unittest-test
     tags: ["pull_request"]
     commands:
@@ -3055,7 +3055,7 @@ tasks:
         vars:
           # Set this in case of a core to get the correct python binary.
           python_binary: $(pwd)/venv/bin/python3
-          tiered_storage_test_name: tiered07
+          tiered_storage_test_name: tiered
   - name: gcp-tiered-test-small
     tags: ["pull_request", "python"]
     commands:
@@ -3068,7 +3068,7 @@ tasks:
         vars:
           # Set this in case of a core to get the correct python binary.
           python_binary: $(pwd)/venv/bin/python3
-          tiered_storage_test_name: tiered08
+          tiered_storage_test_name: tiered19
   - name: gcp-tiered-unittest-test
     tags: ["pull_request"]
     commands:
