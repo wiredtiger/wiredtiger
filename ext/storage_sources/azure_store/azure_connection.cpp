@@ -162,6 +162,7 @@ azure_connection::read_object(
     return 0;
 }
 
+// Check if an object exists in the bucket.
 int
 azure_connection::object_exists(const std::string &object_key, bool &exists) const
 {
@@ -184,6 +185,7 @@ azure_connection::object_exists(const std::string &object_key, bool &exists) con
     return 0;
 }
 
+// Check if a bucket exists in the Azure storage source.
 int
 azure_connection::bucket_exists(bool &exists) const
 {
@@ -206,6 +208,12 @@ azure_connection::bucket_exists(bool &exists) const
             break;
         }
     }
+    return 0;
+}
+
+int
+azure_connection::object_size(const std::string &object_key) const
+{
     return 0;
 }
 

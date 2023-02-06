@@ -84,23 +84,21 @@ static int azure_object_list_single(WT_FILE_SYSTEM *, WT_SESSION *, const char *
 static int azure_object_list_free(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t)
   __attribute__((__unused__));
 static int azure_file_system_terminate(WT_FILE_SYSTEM *, WT_SESSION *);
-static int azure_file_exists(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *)
-  __attribute__((__unused__));
+static int azure_file_exists(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *);
 static int azure_remove(WT_FILE_SYSTEM *, WT_SESSION *, const char *, uint32_t)
   __attribute__((__unused__));
 static int azure_rename(WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, uint32_t)
   __attribute__((__unused__));
 static int azure_object_size(WT_FILE_SYSTEM *, WT_SESSION *, const char *, wt_off_t *)
   __attribute__((__unused__));
-static int azure_file_open(WT_FILE_SYSTEM *, WT_SESSION *, const char *, WT_FS_OPEN_FILE_TYPE,
-  uint32_t, WT_FILE_HANDLE **) __attribute__((__unused__));
+static int azure_file_open(
+  WT_FILE_SYSTEM *, WT_SESSION *, const char *, WT_FS_OPEN_FILE_TYPE, uint32_t, WT_FILE_HANDLE **);
 
 // WT_FILE_HANDLE Interface
-static int azure_file_close(WT_FILE_HANDLE *, WT_SESSION *) __attribute__((__unused__));
-static int azure_file_lock(WT_FILE_HANDLE *, WT_SESSION *, bool) __attribute__((__unused__));
-static int azure_file_read(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t, void *)
-  __attribute__((__unused__));
-static int azure_file_size(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t *) __attribute__((__unused__));
+static int azure_file_close(WT_FILE_HANDLE *, WT_SESSION *);
+static int azure_file_lock(WT_FILE_HANDLE *, WT_SESSION *, bool);
+static int azure_file_read(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t, void *);
+static int azure_file_size(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t *);
 
 // Return a customised file system to access the Azure storage source.
 static int
