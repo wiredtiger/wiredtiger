@@ -55,7 +55,7 @@
 #define TESTUTIL_ENV_CONFIG_TIERED                   \
     ",tiered_storage=(bucket=%s"                     \
     ",bucket_prefix=pfx-,local_retention=%d,name=%s" \
-    ",auth_token=\"AKIA4UGYBSSWH7FZMWZ5;re9F+vVQomAhJzQyzIqv622fuwSOcO3kKdaz8EJI\")"
+    ",auth_token=%s)"
 #define TESTUTIL_ENV_CONFIG_TIERED_EXT                                         \
     ",extensions=(%s/ext/storage_sources/%s/"                                  \
     "libwiredtiger_%s.so=(early_load=true,"                                    \
