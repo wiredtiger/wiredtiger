@@ -488,14 +488,11 @@ azure_file_read(
     return 0;
 }
 
+// Get the size of a file in bytes, by file handle.
 static int
 azure_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *sizep)
 {
-    WT_UNUSED(file_handle);
-    WT_UNUSED(session);
-    WT_UNUSED(sizep);
-
-    return 0;
+    return file_handle->fh_size(file_handle, session, sizep);
 }
 
 // An Azure storage source library - creates an entry point to the Azure extension.
