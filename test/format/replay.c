@@ -29,13 +29,13 @@
 #include "format.h"
 
 /*
- * Predictable replay is ability to do test runs multiple times and always have predictable changes
- * made at every timestamp. Two predictable runs with the same starting data seed executed up to the
- * same timestamp will always have their data compare identically. Predictable replay only works
- * with timestamped transactions and to avoid complexity, only a single operation is allowed in a
- * transaction.
+ * Predictable replay is the ability to do test runs multiple times and always have predictable
+ * changes made at every timestamp. Two predictable runs with the same starting data seed executed
+ * up to the same timestamp will always have their data compare identically. Predictable replay only
+ * works with timestamped transactions and to avoid complexity, only a single operation is allowed
+ * in a transaction.
  *
- * To achieve the predictability we use two random number generators (the data RNGs and the extra
+ * To achieve the predictability we use two random number generators (the data RNG and the extra
  * RNG) with known start seeds, the data seed and the extra seed. Every single-threaded modification
  * (like bulk loading) when deciding on a random course, uses the global data RNG, which is seeded
  * by the data seed. Global decisions that don't affect data, like whether to turn on verbose, or
@@ -45,13 +45,13 @@
  * and these are seeded by the timestamp they are working on.
  *
  * Before a worker thread can decide on what operation to do on which key in which table, it must
- * obtain the next timestamp. Timestamps are doled out atomically, so no two worker thread can ever
+ * obtain the next timestamp. Timestamps are doled out atomically, so no two worker threads can ever
  * perform operations using the same timestamp. The timestamp is XOR-ed with the data seed, the
  * result is the seed of the thread's private data RNG for the duration of that operation. Likewise,
  * a private extra RNG is seeded from the timestamp and the extra seed. This ensures that all
- * decisions about what is committed at that timestamp is predictable based on the timestamp. As you
- * might expect, the thread's data RNG is used to decide what operation to do, which table to use,
- * and which key within the table. Other random decisions, like whether to reopen a session, or
+ * decisions about what is committed at that timestamp are predictable based on the timestamp. As
+ * you might expect, the thread's data RNG is used to decide what operation to do, which table to
+ * use, and which key within the table. Other random decisions, like whether to reopen a session, or
  * whether to repeat a read from the snap list, use the extra RNG.
  *
  * Note that once a thread has started to work on an operation at a timestamp, it cannot give up on
