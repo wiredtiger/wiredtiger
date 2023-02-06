@@ -344,6 +344,7 @@ azure_object_size(
     return 0;
 }
 
+// File open for the Azure storage source.
 static int
 azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
   WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags, WT_FILE_HANDLE **file_handlep)
@@ -379,7 +380,7 @@ azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
     auto fh_iterator = std::find_if(azure_fs->azure_fh.begin(), azure_fs->azure_fh.end(),
       [name](azure_file_handle *fh) { return strcmp(name, fh->name.c_str()) == 0; });
 
-    // Active file handle for file exists, increment reference_count
+    // Active file handle for file exists, increment reference count
     if (fh_iterator != azure_fs->azure_fh.end()) {
         (*fh_iterator)->reference_count++;
         return 0;
@@ -396,36 +397,34 @@ azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
     azure_fh->name = name;
     azure_fh->reference_count = 1;
     azure_fh->store = azure_storage;
+    WT_FILE_HANDLE *file_handle = &azure_fh->fh;
 
     // Define functions needed for Azure with read-only privilleges.
-    WT_FILE_HANDLE *file_handle = reinterpret_cast<WT_FILE_HANDLE *>(azure_fh);
-    file_handle->close = azure_file_close;
-    file_handle->fh_advise = nullptr;
-    file_handle->fh_extend = nullptr;
-    file_handle->fh_extend_nolock = nullptr;
-    file_handle->fh_lock = azure_file_lock;
-    file_handle->fh_map = nullptr;
-    file_handle->fh_map_discard = nullptr;
-    file_handle->fh_unmap = nullptr;
-    file_handle->fh_read = azure_file_read;
-    file_handle->fh_size = azure_file_size;
-    file_handle->fh_sync = nullptr;
-    file_handle->fh_sync_nowait = nullptr;
-    file_handle->fh_truncate = nullptr;
-    file_handle->fh_write = nullptr;
-    file_handle->name = strdup(name);
+    azure_fh->fh.close = azure_file_close;
+    azure_fh->fh.fh_advise = nullptr;
+    azure_fh->fh.fh_extend = nullptr;
+    azure_fh->fh.fh_extend_nolock = nullptr;
+    azure_fh->fh.fh_lock = azure_file_lock;
+    azure_fh->fh.fh_map = nullptr;
+    azure_fh->fh.fh_map_discard = nullptr;
+    azure_fh->fh.fh_unmap = nullptr;
+    azure_fh->fh.fh_read = azure_file_read;
+    azure_fh->fh.fh_size = azure_file_size;
+    azure_fh->fh.fh_sync = nullptr;
+    azure_fh->fh.fh_sync_nowait = nullptr;
+    azure_fh->fh.fh_truncate = nullptr;
+    azure_fh->fh.fh_write = nullptr;
+    azure_fh->fh.name = strdup(name);
 
     // Exclusive Access is required when adding file handles to list of file handles.
     // lock_guard will unlock automatically when the scope is exited.
     {
-        std::lock_guard<std::mutex> lock_guard(azure_storage->fs_mutex);
+        std::lock_guard<std::mutex> lock_guard(azure_fs->fh_mutex);
         azure_fs->azure_fh.push_back(azure_fh);
     }
+    *file_handlep = file_handle;
 
     WT_UNUSED(session);
-    WT_UNUSED(name);
-    WT_UNUSED(file_type);
-    WT_UNUSED(file_handlep);
 
     return 0;
 }
