@@ -312,66 +312,45 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
         int len;
         int offset;
 
-        SECTION("Read GCP objects under the test bucket with no offset.", "[gcp-connection]")
-        {
+        // Read GCP objects under the test bucket with no offset.
+        len = 15;
+        offset = 0;
+        void *buf = calloc(1000, sizeof(char));
 
-            len = 15;
-            offset = 0;
-            void *buf = calloc(len, sizeof(char));
+        REQUIRE(conn.read_object(file_name, offset, len, buf) == 0);
+        REQUIRE(static_cast<char *>(buf) == payload);
+        memset(buf, 0, 1000);
 
-            REQUIRE(conn.read_object(file_name, offset, len, buf) == 0);
-            REQUIRE(static_cast<char *>(buf) == payload);
-            free(buf);
-        }
+        // Read GCP objects under the test bucket with offset.
+        len = 11;
+        offset = 4;
 
-        SECTION("Read GCP objects under the test bucket with offset.", "[gcp-connection]")
-        {
+        REQUIRE(conn.read_object(file_name, offset, len, buf) == 0);
+        REQUIRE(static_cast<char *>(buf) == payload.substr(4, 16));
+        memset(buf, 0, 1000);
 
-            len = 11;
-            offset = 4;
-            void *buf = calloc(len, sizeof(char));
+        // Read GCP objects under the test bucket with len > file length.
+        len = 1000;
+        offset = 0;
 
-            REQUIRE(conn.read_object(file_name, offset, len, buf) == 0);
-            REQUIRE(static_cast<char *>(buf) == payload.substr(4, 16));
-            free(buf);
-        }
+        REQUIRE(conn.read_object(file_name, offset, len, buf) == EINVAL);
 
-        SECTION(
-          "Read GCP objects under the test bucket with len > file length.", "[gcp-connection]")
-        {
+        memset(buf, 0, 1000);
 
-            len = 1000;
-            offset = 0;
-            void *buf = calloc(len, sizeof(char));
+        // Read GCP objects under the test bucket with offset < 0.
+        len = 15;
+        offset = -5;
 
-            REQUIRE(conn.read_object(file_name, offset, len, buf) == EINVAL);
+        REQUIRE(conn.read_object(file_name, offset, len, buf) == EINVAL);
 
-            free(buf);
-        }
+        memset(buf, 0, 1000);
 
-        SECTION("Read GCP objects under the test bucket with offset < 0.", "[gcp-connection]")
-        {
+        // Read GCP objects under the test bucket with offset > file length.
+        len = 15;
+        offset = 1000;
 
-            len = 15;
-            offset = -5;
-            void *buf = calloc(len, sizeof(char));
-
-            REQUIRE(conn.read_object(file_name, offset, len, buf) == EINVAL);
-
-            free(buf);
-        }
-
-        SECTION(
-          "Read GCP objects under the test bucket with offset > file length.", "[gcp-connection]")
-        {
-
-            len = 15;
-            offset = 1000;
-            void *buf = calloc(len, sizeof(char));
-
-            REQUIRE(conn.read_object(file_name, offset, len, buf) == EINVAL);
-            free(buf);
-        }
+        REQUIRE(conn.read_object(file_name, offset, len, buf) == EINVAL);
+        free(buf);
     }
 
     // Cleanup
