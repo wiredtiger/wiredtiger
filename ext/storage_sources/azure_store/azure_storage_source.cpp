@@ -301,12 +301,13 @@ azure_file_exists(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *
 {
     azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
     int ret;
-    if ((ret = azure_fs->azure_conn->object_exists(std::string(name), *existp)) != 0) {
+    size_t size = 0;
+    if ((ret = azure_fs->azure_conn->object_exists(std::string(name), *existp, size)) != 0) {
         std::cerr << "azure_file_open: object_exists request to Azure failed." << std::endl;
         return ret;
     }
     WT_UNUSED(session);
-
+    WT_UNUSED(size);
     return 0;
 }
 
@@ -368,7 +369,8 @@ azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
     // Check if object exists.
     bool exists;
     int ret;
-    if ((ret = azure_fs->azure_conn->object_exists(std::string(name), exists)) != 0) {
+    size_t size = 0;
+    if ((ret = azure_fs->azure_conn->object_exists(std::string(name), exists, size)) != 0) {
         std::cerr << "azure_file_open: object_exists request to Azure failed." << std::endl;
         return ret;
     }
@@ -426,6 +428,7 @@ azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
     *file_handlep = file_handle;
 
     WT_UNUSED(session);
+    WT_UNUSED(size);
 
     return 0;
 }
