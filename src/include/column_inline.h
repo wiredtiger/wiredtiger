@@ -90,7 +90,7 @@ __col_insert_search_lt(WT_INSERT_HEAD *ins_head, uint64_t recno)
      *
      * Place a read barrier here to avoid this issue.
      */
-    WT_ORDERED_READ(ins, WT_SKIP_LAST(ins_head));
+    WT_ORDERED_READ(ins, WT_SKIP_FIRST(ins_head));
 
     /* If there's no insert chain to search, we're done. */
     if (ins == NULL)
