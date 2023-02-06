@@ -428,6 +428,7 @@ azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
     return 0;
 }
 
+// File handle close.
 static int
 azure_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
 {
@@ -438,6 +439,7 @@ azure_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
         return 0;
     }
 
+    // No more active instances of open file, close the file handle.
     azure_file_system *azure_fs = azure_fh->fs;
     {
         std::lock_guard<std::mutex> lock_guard(azure_fs->fh_mutex);
