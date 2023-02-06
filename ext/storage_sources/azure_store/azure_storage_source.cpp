@@ -31,6 +31,7 @@
 #include <memory>
 #include <mutex>
 #include <vector>
+#include <iostream>
 
 #include "azure_connection.h"
 #include "wt_internal.h"
