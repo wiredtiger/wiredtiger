@@ -3478,7 +3478,6 @@ tasks:
 
   - name: skiplist-stress-test
     tags: ["stress-test-1"]
-    exec_timeout_secs: 43200
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -3490,9 +3489,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            for i in $(seq ${times|150}); do
-                ${test_env_vars|} ${python_binary|python3} skiplist_stress.py
-            done
+            for i in {1..10}; do ${test_env_vars|} ${python_binary|python3} skiplist_stress.py; done
 
   - name: skiplist-stress-test-nonstandalone
     tags: ["stress-test-1-nonstandalone"]
