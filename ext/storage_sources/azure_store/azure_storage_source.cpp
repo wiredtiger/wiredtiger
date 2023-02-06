@@ -243,14 +243,14 @@ azure_flush_finish(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
 {
     azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
 
-    std::cout << "azure_flush_flush: Checking object: " + std::string(object) + " exists in Azure."
+    std::cout << "azure_flush_finish: Checking object: " + std::string(object) + " exists in Azure."
               << std::endl;
 
     // Check whether the object exists in the cloud.
     bool exists_cloud = false;
     azure_fs->azure_conn->object_exists(object, exists_cloud);
     if (exists_cloud)
-        std::cerr << "azure_flush_finish: Object: " + std::string(object) + " exists in Azure."
+        std::cout << "azure_flush_finish: Object: " + std::string(object) + " exists in Azure."
                   << std::endl;
     else
         std::cerr << "azure_flush_finish: Object: " + std::string(object) +

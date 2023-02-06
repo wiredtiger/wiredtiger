@@ -167,7 +167,8 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         # Flush non valid file into Azure will result in an exception.
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_flush(session, azure_fs_1, 'non_existing_file', 'non_existing_file', None), err_msg)
-        # Check that file does not exist in Azure.
+        # Check that file does not exist in Azure. Flush Finish returns 0 all the time
+        # but prints a message to std::cerr if there is an error and std::cout if there isn't.
         self.assertEqual(ss.ss_flush_finish(session, azure_fs_1, 'non_existing_file', 'non_existing_file', None), 0)
         
         # Test that azure file system terminate succeeds.
