@@ -258,6 +258,10 @@ static int
 gcp_flush_finish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM *file_system,
   const char *source, const char *object, const char *config)
 {
+    WT_UNUSED(storage);
+    WT_UNUSED(session);
+    WT_UNUSED(config);
+
     gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
     // Constructing the pathname for source.
     std::string src_path = gcp_path(fs->home_dir, source);
