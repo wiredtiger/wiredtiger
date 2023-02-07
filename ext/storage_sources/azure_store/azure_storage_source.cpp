@@ -203,12 +203,12 @@ azure_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYST
       wtFileSystem, session, std::filesystem::canonical(source).string().c_str(), &exists_native);
     if (ret != 0) {
         std::cerr << "azure_flush: Failed to check for the existence of " << source
-                  << " on the native filesystem.";
+                  << " on the native filesystem." << std::endl;
         return ret;
     }
 
     if (exists_native == false) {
-        std::cerr << "azure_flush: " << source << " No such file.";
+        std::cerr << "azure_flush: " << source << " No such file." << std::endl;
         return ENOENT;
     }
 
