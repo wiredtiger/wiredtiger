@@ -767,7 +767,7 @@ functions:
         shell: bash
         script: |
           set -o errexit
-          . /test/evergreen/install_gcp_dependencies.sh
+          . test/evergreen/install_gcp_dependencies.sh
 
 #######################################
 #               Variables             #
