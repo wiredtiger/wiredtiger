@@ -2962,7 +2962,7 @@ tasks:
           shell: bash
           script: |
             set -o errexit
-            export AZURE_STORAGE_CONNECTION_STRING={azure_sdk_s3_ext_access_key}
+            export AZURE_STORAGE_CONNECTION_STRING="${azure_sdk_s3_ext_access_key}"
             set -o verbose
 
             # Run AZURE extension unit testing.
