@@ -22,7 +22,7 @@ include(cmake/define_libwiredtiger.cmake)
 if(NOT WT_ARCH)
     # Defer to our hosts architecture as our target architecture.
     # PROCESSOR_ARCHITECTURE env variable could be unset on certain Windows systems,
-    # in that case mapping the architecture to x86.
+    # in that case map the architecture to x86.
     if ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(x86_64|i686|i386|AMD64|)$")
         set(WT_ARCH "x86")
     elseif ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(arm64|aarch64)$")
