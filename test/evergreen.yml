@@ -2975,6 +2975,14 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           <<: *configure_flags_tiered_storage_gcp
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build"
+          shell: bash
+          script: |
+            set -o errexit
+            export GOOGLE_APPLICATION_CREDENTIALS="../test/evergreen/gcp_auth.json"
+            set -o verbose
       - func: "run tiered storage test"
         vars:
           # Set this in case of a core to get the correct python binary.
