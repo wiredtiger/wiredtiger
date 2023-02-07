@@ -2962,7 +2962,7 @@ tasks:
           shell: bash
           script: |
             set -o errexit
-            export AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=https;AccountName=azure2681;AccountKey=xZgV0mY5tlgniK47oREzPYsijwwr3cS2sHe/SqgVzoFy1arS85Z3nJu0f8e0Mwfq8v3/TRLcIR3++ASt2Cxxbg==;EndpointSuffix=core.windows.net"
+            export AZURE_STORAGE_CONNECTION_STRING={azure_sdk_s3_ext_access_key}
             set -o verbose
 
             # Run AZURE extension unit testing.
