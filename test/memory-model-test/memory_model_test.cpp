@@ -175,8 +175,8 @@ void thread_pair(int loop_count, std::ostream& ostream) {
     auto thread_1_code_write_then_read = [&]() { x = 1; COMPILER_BARRIER; r1 = y; };
     auto thread_2_code_write_then_read = [&]() { y = 1; COMPILER_BARRIER; r2 = x; };
 
-    auto thread_1_code_write_then_barrier_then_read = [&]() { x = 1; asm volatile(BARRIER_INSTRUCTION ::: "memory"); r1 = y; };
-    auto thread_2_code_write_then_barrier_then_read = [&]() { y = 1; asm volatile(BARRIER_INSTRUCTION ::: "memory"); r2 = x; };
+    auto thread_1_code_write_then_barrier_then_read = [&]() { x = 1; MEMORY_BARRIER; r1 = y; };
+    auto thread_2_code_write_then_barrier_then_read = [&]() { y = 1; MEMORY_BARRIER; r2 = x; };
 
     auto thread_1_atomic_increment_and_read = [&]() { __atomic_add_fetch(&x, 1, __ATOMIC_SEQ_CST); r1 = y; };
     auto thread_2_atomic_increment_and_read = [&]() { __atomic_add_fetch(&y, 1, __ATOMIC_SEQ_CST); r2 = x; };
