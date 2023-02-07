@@ -194,22 +194,24 @@ azure_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYST
     azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
     WT_FILE_SYSTEM *wtFileSystem = azure_fs->wt_fs;
 
-    int ret;
-    try {
-        bool exists_native = false;
-        ret = wtFileSystem->fs_exist(wtFileSystem, session,
-          std::filesystem::canonical(object).string().c_str(), &exists_native);
-        if (ret != 0) {
-            std::cerr << "azure_flush: Failed to check for the existence of " << source
-                      << " on the native filesystem." << std::endl;
-            return ret;
-        }
+    // std::filesystem::canonical will throw an exception if object does not exist so
+    // check if the object exists.
+    if (!std::filesystem::exists(source)) {
+        std::cerr << "azure_flush: Object: " << object << " does not exist." << std::endl;
+        return ENOENT;
+    }
 
-        if (!exists_native) {
-            std::cerr << "azure_flush: " << object << " No such file." << std::endl;
-            return ENOENT;
-        }
-    } catch (...) {
+    bool exists_native = false;
+    int ret;
+    = wtFileSystem->fs_exist(
+      wtFileSystem, session, std::filesystem::canonical(source).string().c_str(), &exists_native);
+    if (ret != 0) {
+        std::cerr << "azure_flush: Failed to check for the existence of " << source
+                  << " on the native filesystem." << std::endl;
+        return ret;
+    }
+
+    if (!exists_native) {
         std::cerr << "azure_flush: " << object << " No such file." << std::endl;
         return ENOENT;
     }
