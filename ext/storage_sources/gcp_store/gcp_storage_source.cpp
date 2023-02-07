@@ -75,7 +75,7 @@ static int gcp_terminate(WT_STORAGE_SOURCE *, WT_SESSION *) __attribute__((__unu
 static std::filesystem::path
 gcp_path(const std::filesystem::path &dir, const std::filesystem::path &path)
 {
-    // Skip over "./" and variations (".//", ".///./././//") at the beginning of the name.
+    // Skip over "./" and variations (".//", ".///./././//") at the beginning of the path.
     return (dir / std::filesystem::canonical(path));
 }
 
@@ -234,12 +234,12 @@ gcp_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYSTEM
     WT_FILE_SYSTEM *wt_file_system = fs->wt_file_system;
 
     // Confirm that the file exists on the native filesystem.
+    std::string src_path;
     try {
-        std::string src_path = gcp_path(fs->home_dir, source);
+        src_path = gcp_path(fs->home_dir, source);
     } catch (...) {
         return ENOENT;
     }
-    std::string src_path = gcp_path(fs->home_dir, source);
     bool native_exist = false;
     int ret = wt_file_system->fs_exist(wt_file_system, session, src_path.c_str(), &native_exist);
     if (ret != 0)
@@ -260,7 +260,7 @@ gcp_flush_finish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM
     WT_UNUSED(config);
 
     gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
-    // Constructing the pathname for source.
+
     bool exists = false;
     size_t size;
     int ret = fs->gcp_conn->object_exists(object, exists, size);
