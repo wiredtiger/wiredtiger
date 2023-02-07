@@ -194,14 +194,16 @@ azure_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYST
     WT_FILE_SYSTEM *wtFileSystem = azure_fs->wt_fs;
 
     if (!std::filesystem::exists(object)) {
-      std::cerr << "azure_flush: Object: " << object << " does not exist." << std::endl;
-      return ENOENT;
+        std::cerr << "azure_flush: Object: " << object << " does not exist." << std::endl;
+        return ENOENT;
     }
 
     bool exists_native = false;
-    int ret = wtFileSystem->fs_exist(wtFileSystem, session, std::filesystem::canonical(source).string().c_str(), &exists_native);
+    int ret = wtFileSystem->fs_exist(
+      wtFileSystem, session, std::filesystem::canonical(source).string().c_str(), &exists_native);
     if (ret != 0) {
-        std::cerr << "azure_flush: Failed to check for the existence of " << source << " on the native filesystem.";
+        std::cerr << "azure_flush: Failed to check for the existence of " << source
+                  << " on the native filesystem.";
         return ret;
     }
 
