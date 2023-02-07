@@ -28,11 +28,13 @@
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
 #include <algorithm>
+#include <iostream>
 #include <memory>
 #include <mutex>
 #include <vector>
 
 #include "azure_connection.h"
+#include <azure_log_system.h>
 #include "wt_internal.h"
 
 struct azure_file_system;
