@@ -8,8 +8,6 @@
 
 #include "wt_internal.h"
 
-// 9417 IGNORE asserts in this file. Column store is not related to BF-25011
-
 /*
  * __rec_col_fix_bulk_insert_split_check --
  *     Check if a bulk-loaded fixed-length column store page needs to split.
@@ -297,12 +295,9 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
             if (cms.state == WT_CHILD_PROXY || F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
                 /*
                  * Need to build a proxy (page-deleted) cell or rebuild the cell with updated time
-                 * info. If we don't have page-delete information already, propagate any that exists
-                 * in the cell. This can be needed if we get back WT_CHILD_ORIGINAL and the time
-                 * window gets cleared.
+                 * info.
                  */
-                if (page_del == NULL && vpack->type == WT_CELL_ADDR_DEL)
-                    page_del = &vpack->page_del;
+                WT_ASSERT(session, vpack->type != WT_CELL_ADDR_DEL || page_del != NULL);
                 __wt_rec_cell_build_addr(session, r, NULL, vpack, ref->ref_recno, page_del);
             } else {
                 /* Copy the entire existing cell, including any page-delete information. */
@@ -382,7 +377,6 @@ __wt_col_fix_estimate_auxiliary_space(WT_PAGE *page)
     return (count * 63 + WT_COL_FIX_AUXHEADER_RESERVATION);
 }
 
-#ifdef HAVE_DIAGNOSTIC
 /*
  * __rec_col_fix_get_bitmap_size --
  *     Figure the bitmap size of a new page from the reconciliation info.
@@ -398,7 +392,6 @@ __rec_col_fix_get_bitmap_size(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     /* Subtract off the main page header. */
     return (primary_size - WT_PAGE_HEADER_BYTE_SIZE(S2BT(session)));
 }
-#endif
 
 /*
  * __wt_rec_col_fix_addtw --
@@ -412,8 +405,9 @@ __wt_rec_col_fix_addtw(
     size_t add_len, len;
     uint8_t keyspace[WT_INTPACK64_MAXSIZE], *p;
 
-    WT_ASSERT(session,
-      recno_offset <= ((__rec_col_fix_get_bitmap_size(session, r)) * 8) / S2BT(session)->bitcnt);
+    WT_ASSERT_ALWAYS(session,
+      recno_offset <= ((__rec_col_fix_get_bitmap_size(session, r)) * 8) / S2BT(session)->bitcnt,
+      "Attempting to write time window information into bitmap memory");
 
     key = &r->k;
     val = &r->v;
@@ -774,15 +768,7 @@ __wt_rec_col_fix(
         /* If there's an update to apply, apply the value. */
 
         if (upd->type == WT_UPDATE_TOMBSTONE) {
-            /*
-             * When a tombstone without a timestamp is written to disk, remove any historical
-             * versions that are greater in the history store for this key.
-             */
-            if (upd_select.no_ts_tombstone && r->hs_clear_on_tombstone)
-                WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, recno, NULL, false));
-
             val = 0;
-
             /* Do not write a time window; if we get just a tombstone, it is globally visible. */
         } else {
             /* MODIFY is not allowed in FLCS. */
@@ -791,17 +777,18 @@ __wt_rec_col_fix(
 
             /* Write the time window. */
             if (!WT_TIME_WINDOW_IS_EMPTY(&upd_select.tw)) {
-                /*
-                 * When a tombstone without a timestamp is written to disk, remove any historical
-                 * versions that are greater in the history store for this key.
-                 */
-                if (upd_select.no_ts_tombstone && r->hs_clear_on_tombstone)
-                    WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, recno, NULL, true));
-
                 WT_ERR(__wt_rec_col_fix_addtw(
                   session, r, (uint32_t)(recno - curstartrecno), &upd_select.tw));
             }
         }
+
+        /*
+         * When a tombstone without a timestamp is written to disk, remove any historical versions
+         * that are greater in the history store for this key.
+         */
+        if (upd_select.no_ts_tombstone && r->hs_clear_on_tombstone)
+            WT_ERR(__wt_rec_hs_clear_on_tombstone(
+              session, r, recno, NULL, upd->type == WT_UPDATE_TOMBSTONE ? false : true));
 
         /* Write the data. */
         __bit_setv(r->first_free, recno - curstartrecno, btree->bitcnt, val);
@@ -926,9 +913,19 @@ __wt_rec_col_fix(
                     /* MODIFY is not allowed in FLCS, so the update must be an ordinary value. */
                     WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
                     val = *upd->data;
+
                     if (!WT_TIME_WINDOW_IS_EMPTY(&upd_select.tw))
                         WT_ERR(__wt_rec_col_fix_addtw(session, r, entry, &upd_select.tw));
                 }
+
+                /*
+                 * When a tombstone without a timestamp is written to disk, remove any historical
+                 * versions that are greater in the history store for this key.
+                 */
+                if (upd_select.no_ts_tombstone && r->hs_clear_on_tombstone)
+                    WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, recno, NULL,
+                      (upd == NULL || upd->type == WT_UPDATE_TOMBSTONE) ? false : true));
+
                 __bit_setv(r->first_free, entry, btree->bitcnt, val);
                 --nrecs;
                 ++entry;
@@ -1315,7 +1312,7 @@ __wt_rec_col_var(
          * where the new value happens (?) to match a Huffman- encoded value in a previous or next
          * record.
          */
-        WT_ERR(__wt_dsk_cell_data_ref(session, WT_PAGE_COL_VAR, vpack, orig));
+        WT_ERR(__wt_dsk_cell_data_ref_kv(session, WT_PAGE_COL_VAR, vpack, orig));
 
 record_loop:
         /*
@@ -1403,7 +1400,7 @@ record_loop:
                      * Original is an overflow item; we used it for a key and now we need another
                      * copy; read it into memory.
                      */
-                    WT_ERR(__wt_dsk_cell_data_ref(session, WT_PAGE_COL_VAR, vpack, orig));
+                    WT_ERR(__wt_dsk_cell_data_ref_kv(session, WT_PAGE_COL_VAR, vpack, orig));
 
                     ovfl_state = OVFL_IGNORE;
                 /* FALLTHROUGH */
@@ -1432,28 +1429,22 @@ record_loop:
                 case WT_UPDATE_STANDARD:
                     data = upd->data;
                     size = upd->size;
-                    /*
-                     * When a tombstone without a timestamp is written to disk, remove any
-                     * historical versions that are greater in the history store for this key.
-                     */
-                    if (upd_select.no_ts_tombstone && r->hs_clear_on_tombstone)
-                        WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, src_recno, NULL, true));
-
                     break;
                 case WT_UPDATE_TOMBSTONE:
-                    /*
-                     * When a tombstone without a timestamp is written to disk, remove any
-                     * historical versions that are greater in the history store for this key.
-                     */
-                    if (upd_select.no_ts_tombstone && r->hs_clear_on_tombstone)
-                        WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, src_recno, NULL, false));
-
                     deleted = true;
                     twp = &clear_tw;
                     break;
                 default:
                     WT_ERR(__wt_illegal_value(session, upd->type));
                 }
+
+                /*
+                 * When a tombstone without a timestamp is written to disk, remove any historical
+                 * versions that are greater in the history store for this key.
+                 */
+                if (upd_select.no_ts_tombstone && r->hs_clear_on_tombstone)
+                    WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, src_recno, NULL,
+                      upd->type == WT_UPDATE_TOMBSTONE ? false : true));
             }
 
 compare:
@@ -1589,6 +1580,14 @@ compare:
                 default:
                     WT_ERR(__wt_illegal_value(session, upd->type));
                 }
+
+                /*
+                 * When a tombstone without a timestamp is written to disk, remove any historical
+                 * versions that are greater in the history store for this key.
+                 */
+                if (upd_select.no_ts_tombstone && r->hs_clear_on_tombstone)
+                    WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, src_recno, NULL,
+                      upd->type == WT_UPDATE_TOMBSTONE ? false : true));
             }
 
             /*

@@ -1,9 +1,9 @@
 #! /bin/sh
 
-# This script creates format's config.h and config_def.c files. To change format's configuration,
+# This script creates format's config.h and format_config_def.c files. To change format's configuration,
 # modify this file and then run it as a script.
 
-fc="config_def.c"
+fc="format_config_def.c"
 fh="config.h"
 
 cat<<END_OF_HEADER_FILE_PREFIX>$fh
@@ -36,7 +36,7 @@ typedef struct {
     u_int off; /* Value offset */
 } CONFIG;
 
-#define V_MAX_TABLES_CONFIG 1000
+#define V_MAX_TABLES_CONFIG WT_THOUSAND
 
 END_OF_HEADER_FILE_PREFIX
 
@@ -123,6 +123,8 @@ CONFIG configuration_list[] = {
 
 {"btree.value_min", "minimum value size", C_TABLE | C_TYPE_ROW | C_TYPE_VAR, 0, 20, 4096}
 
+{"buffer_alignment", "buffer alignment (off | on), on configures to 512", C_BOOL, 5, 0, 0}
+
 {"cache", "cache size (MB)", 0x0, 1, 100, 100 * 1024}
 
 {"cache.evict_max", "maximum number of eviction workers", 0x0, 0, 5, 100}
@@ -134,6 +136,24 @@ CONFIG configuration_list[] = {
 {"checkpoint.log_size", "MB of log to wait if wiredtiger checkpoints configured", 0x0, 20, 200, 1024}
 
 {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured", 0x0, 5, 100, 3600}
+
+{"debug.checkpoint_retention", "adjust log removal to retain the log records", 0x0, 0, 10, 1024}
+
+{"debug.cursor_reposition", "cursor temporarily releases any page requiring forced eviction and then repositions back to the page for further operations", C_BOOL, 5, 0, 0}
+
+{"debug.eviction", "modify internal algorithms to force history store eviction to happen more aggressively", C_BOOL, 2, 0, 0}
+
+{"debug.log_retention", "adjust log removal to retain at least this number of log files", 0x0, 0, 10, 1024}
+
+{"debug.realloc_exact", "reallocation of memory will only provide the exact amount requested", C_BOOL, 0, 0, 0}
+
+{"debug.realloc_malloc", "every realloc call will force a new memory allocation by using malloc", C_BOOL, 5, 0, 0}
+
+{"debug.slow_checkpoint", "slow down checkpoint creation by slowing down internal page processing", C_BOOL, 2, 0, 0}
+
+{"debug.table_logging", "write transaction related information to the log for all operations", C_BOOL, 2, 0, 0}
+
+{"debug.update_restore_evict", "control all dirty page evictions through forcing update restore eviction", C_BOOL, 2, 0, 0}
 
 {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)", C_IGNORE | C_STRING | C_TABLE, 0, 0, 0}
 
@@ -153,7 +173,7 @@ CONFIG configuration_list[] = {
 
 {"format.independent_thread_rng", "configure independent thread RNG space", C_BOOL, 75, 0, 0}
 
-{"format.major_timeout", "long-running operations timeout (minutes)", C_IGNORE, 0, 0, 1000}
+{"format.major_timeout", "long-running operations timeout (minutes)", C_IGNORE, 0, 0, WT_THOUSAND}
 
 /*
  * 0%
@@ -166,7 +186,7 @@ CONFIG configuration_list[] = {
 
 {"logging.compression", "logging compression (off | lz4 | snappy | zlib | zstd)", C_IGNORE | C_STRING, 0, 0, 0}
 
-{"logging.file_max", "maximum log file size (KB)", 0x0, 100, 512000, 2097152}
+{"logging.file_max", "maximum log file size (KB)", 0x0, 100, 512 * WT_THOUSAND, 2097152}
 
 {"logging.prealloc", "configure log file pre-allocation", C_BOOL, 50, 0, 0}
 
@@ -176,7 +196,7 @@ CONFIG configuration_list[] = {
 
 {"lsm.bloom", "configure bloom filters", C_BOOL | C_TABLE | C_TYPE_LSM, 95, 0, 0}
 
-{"lsm.bloom_bit_count", "number of bits per item for bloom filters", C_TABLE | C_TYPE_LSM, 4, 64, 1000}
+{"lsm.bloom_bit_count", "number of bits per item for bloom filters", C_TABLE | C_TYPE_LSM, 4, 64, WT_THOUSAND}
 
 {"lsm.bloom_hash_count", "number of hash values per item for bloom filters", C_TABLE | C_TYPE_LSM, 4, 32, 100}
 
@@ -203,6 +223,8 @@ CONFIG configuration_list[] = {
 {"ops.pct.read", "read operations (percentage)", C_IGNORE | C_TABLE, 0, 0, 100}
 
 {"ops.pct.write", "update operations (percentage)", C_IGNORE | C_TABLE, 0, 0, 100}
+
+{"ops.bound_cursor", "configure bound cursor reads", C_BOOL, 5, 0, 0}
 
 {"ops.prepare", "configure transaction prepare", C_BOOL, 5, 0, 0}
 
@@ -236,17 +258,15 @@ CONFIG configuration_list[] = {
 
 {"runs.verify_failure_dump", "configure page dump on repeatable read error", C_BOOL | C_IGNORE, 0, 0, 1}
 
-{"statistics", "configure statistics", C_BOOL, 20, 0, 0}
+{"statistics.mode", "statistics mode (all | fast)", C_IGNORE | C_STRING, 0, 0, 0}
 
-{"statistics.server", "configure statistics server thread", C_BOOL, 5, 0, 0}
+{"statistics_log.sources", "statistics_log sources (file: | off)", C_IGNORE | C_STRING, 0, 0, 0}
 
 {"stress.aggressive_sweep", "stress aggressive sweep", C_BOOL, 2, 0, 0}
 
 {"stress.checkpoint", "stress checkpoints", C_BOOL, 2, 0, 0}
 
 {"stress.checkpoint_evict_page", "stress force checkpoint to evict all reconciling pages", C_BOOL, 2, 0, 0}
-
-{"stress.checkpoint_reserved_txnid_delay", "stress checkpoint invisible transaction id delay", C_BOOL, 2, 0, 0}
 
 {"stress.checkpoint_prepare", "stress checkpoint prepare", C_BOOL, 2, 0, 0}
 
@@ -261,6 +281,8 @@ CONFIG configuration_list[] = {
 {"stress.hs_search", "stress history store search", C_BOOL, 2, 0, 0}
 
 {"stress.hs_sweep", "stress history store sweep", C_BOOL, 2, 0, 0}
+
+{"stress.sleep_before_read_overflow_onpage", "stress onpage overflow read race with checkpoint", C_BOOL, 2, 0, 0}
 
 {"stress.split_1", "stress splits (#1)", C_BOOL, 2, 0, 0}
 

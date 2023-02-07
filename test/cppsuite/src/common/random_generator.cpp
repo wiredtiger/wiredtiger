@@ -73,6 +73,12 @@ random_generator::generate_pseudo_random_string(std::size_t length, characters_t
     return (random_string);
 }
 
+bool
+random_generator::generate_bool()
+{
+    return generate_integer<int>(0, 1) == 1;
+}
+
 random_generator::random_generator()
 {
     _generator = std::mt19937(std::random_device{}());
@@ -86,14 +92,10 @@ random_generator::get_distribution(characters_type type)
     switch (type) {
     case characters_type::ALPHABET:
         return (_alpha_distrib);
-        break;
     case characters_type::PSEUDO_ALPHANUMERIC:
         return (_alphanum_distrib);
-        break;
-    default:
-        testutil_die(type, "Unexpected characters_type");
-        break;
     }
+    testutil_die(EINVAL, "unexpected characters_type: %d", type);
 }
 
 const std::string &
@@ -102,14 +104,10 @@ random_generator::get_characters(characters_type type)
     switch (type) {
     case characters_type::ALPHABET:
         return (_alphabet);
-        break;
     case characters_type::PSEUDO_ALPHANUMERIC:
         return (_pseudo_alphanum);
-        break;
-    default:
-        testutil_die(type, "Unexpected characters_type");
-        break;
     }
+    testutil_die(EINVAL, "unexpected characters_type: %d", static_cast<int>(type));
 }
 
 } // namespace test_harness

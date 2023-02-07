@@ -97,11 +97,7 @@ __tiered_dhandle_setup(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t i, 
         else if (type == WT_DHANDLE_TYPE_TIERED)
             id = WT_TIERED_INDEX_LOCAL;
         else if (type == WT_DHANDLE_TYPE_TIERED_TREE)
-            /*
-             * FIXME-WT-7731: this type can be removed. For now, there is nothing to do for this
-             * type.
-             */
-            goto err;
+            id = WT_TIERED_INDEX_SHARED;
         else
             WT_ERR_MSG(
               session, EINVAL, "Unknown or unsupported tiered dhandle type %" PRIu32, type);
@@ -133,7 +129,7 @@ __tiered_init_tiers(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_CONFIG_ITEM 
     WT_CONFIG_ITEM ckey, cval;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
-    WT_TIERED_TIERS *local_tier;
+    WT_TIERED_TIERS *tier;
     uint32_t object_id;
     const char *cfg, *name;
 
@@ -171,11 +167,19 @@ __tiered_init_tiers(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_CONFIG_ITEM 
             session, tiered, WT_TIERED_INDEX_INVALID, (const char *)tmp->data));
         WT_ERR(ret);
     }
-    local_tier = &tiered->tiers[WT_TIERED_INDEX_LOCAL];
-    if (local_tier->name == NULL) {
+    /* Set up the name for any tier that needs it. */
+    tier = &tiered->tiers[WT_TIERED_INDEX_LOCAL];
+    if (tier->name == NULL) {
         WT_ERR(__wt_tiered_name(
-          session, &tiered->iface, tiered->current_id, WT_TIERED_NAME_LOCAL, &local_tier->name));
-        F_SET(local_tier, WT_TIERS_OP_READ | WT_TIERS_OP_WRITE);
+          session, &tiered->iface, tiered->current_id, WT_TIERED_NAME_LOCAL, &tier->name));
+        F_SET(tier, WT_TIERS_OP_READ | WT_TIERS_OP_WRITE);
+    }
+    /* Set up the tiered name if we're not on the first object. */
+    tier = &tiered->tiers[WT_TIERED_INDEX_SHARED];
+    if (tier != NULL && tier->name == NULL && tiered->current_id != 1) {
+        WT_ERR(__wt_tiered_name(
+          session, &tiered->iface, tiered->current_id, WT_TIERED_NAME_SHARED, &tier->name));
+        F_SET(tier, WT_TIERS_OP_FLUSH | WT_TIERS_OP_READ);
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 err:
@@ -296,8 +300,8 @@ __tiered_restart_work(WT_SESSION_IMPL *session, WT_TIERED *tiered)
          * flushed in order to stop at the first flushed object in the face of multiple crashes. So
          * check all objects that exist locally.
          *
-         * If the object is flushed but still exists locally, restart the work to drop it after the
-         * local retention period expires.
+         * If the object is flushed but still exists locally, restart the work to remove it after
+         * the local retention period expires.
          */
         if (exist) {
             WT_ERR(__wt_metadata_search(session, obj_uri, (char **)&obj_val));
@@ -307,7 +311,7 @@ __tiered_restart_work(WT_SESSION_IMPL *session, WT_TIERED *tiered)
             if (cval.val == 0)
                 WT_ERR(__wt_tiered_put_flush(session, tiered, i));
             else
-                WT_ERR(__wt_tiered_put_drop_local(session, tiered, i));
+                WT_ERR(__wt_tiered_put_remove_local(session, tiered, i));
             __wt_free(session, obj_val);
         }
         __wt_free(session, obj_uri);
@@ -342,7 +346,7 @@ __tiered_create_object(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     cfg[2] = "flush_time=0,flush_timestamp=0";
     WT_ASSERT(session, tiered->obj_config != NULL);
     WT_ERR(__wt_config_merge(session, cfg, NULL, (const char **)&config));
-    __wt_verbose(
+    __wt_verbose_debug2(
       session, WT_VERB_TIERED, "TIER_CREATE_OBJECT: schema create %s : %s", name, config);
     /* Create the new shared object. */
     WT_ERR(__wt_schema_create(session, name, config));
@@ -391,8 +395,10 @@ __tiered_create_tier_tree(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 
     WT_ERR(__wt_schema_create(session, name, config));
     this_tier = &tiered->tiers[WT_TIERED_INDEX_SHARED];
-    WT_ASSERT(session, this_tier->name == NULL);
-    this_tier->name = name;
+    if (this_tier->name == NULL)
+        this_tier->name = name;
+    else
+        WT_ASSERT(session, strcmp(this_tier->name, name) == 0);
     F_SET(this_tier, WT_TIERS_OP_FLUSH | WT_TIERS_OP_READ);
 
     if (0)
@@ -455,7 +461,7 @@ __tiered_update_dhandles(WT_SESSION_IMPL *session, WT_TIERED *tiered)
         }
         if (tiered->tiers[i].name == NULL)
             continue;
-        __wt_verbose(
+        __wt_verbose_debug2(
           session, WT_VERB_TIERED, "UPDATE_DH: Get dhandle for %s", tiered->tiers[i].name);
         WT_ERR(__tiered_dhandle_setup(session, tiered, i, tiered->tiers[i].name));
     }
@@ -484,11 +490,12 @@ __wt_tiered_set_metadata(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_ITEM *b
       S2C(session)->flush_most_recent, hex_timestamp, tiered->current_id, tiered->oldest_id));
     for (i = 0; i < WT_TIERED_MAX_TIERS; ++i) {
         if (tiered->tiers[i].name == NULL) {
-            __wt_verbose(session, WT_VERB_TIERED, "TIER_SET_META: names[%" PRIu32 "] NULL", i);
+            __wt_verbose(session, WT_VERB_TIERED,
+              "TIER_SET_META: tiered %p names[%" PRIu32 "] NULL", (void *)tiered, i);
             continue;
         }
-        __wt_verbose(session, WT_VERB_TIERED, "TIER_SET_META: names[%" PRIu32 "]: %s", i,
-          tiered->tiers[i].name);
+        __wt_verbose(session, WT_VERB_TIERED, "TIER_SET_META: tiered %p names[%" PRIu32 "]: %s",
+          (void *)tiered, i, tiered->tiers[i].name);
         WT_RET(__wt_buf_catfmt(session, buf, "%s\"%s\"", i == 0 ? "" : ",", tiered->tiers[i].name));
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
@@ -506,10 +513,10 @@ __tiered_update_metadata(WT_SESSION_IMPL *session, WT_TIERED *tiered, const char
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     const char *cfg[4] = {NULL, NULL, NULL, NULL};
-    const char *newconfig;
+    const char *newconfig, *strip;
 
     dhandle = &tiered->iface;
-    newconfig = NULL;
+    newconfig = strip = NULL;
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
     WT_ERR(__wt_tiered_set_metadata(session, tiered, tmp));
@@ -517,7 +524,8 @@ __tiered_update_metadata(WT_SESSION_IMPL *session, WT_TIERED *tiered, const char
     cfg[0] = WT_CONFIG_BASE(session, tiered_meta);
     cfg[1] = orig_config;
     cfg[2] = tmp->data;
-    WT_ERR(__wt_config_merge(session, cfg, NULL, &newconfig));
+    strip = "tiered_storage=(shared=),";
+    WT_ERR(__wt_config_merge(session, cfg, strip, &newconfig));
     __wt_verbose(
       session, WT_VERB_TIERED, "TIER_UPDATE_META: Update TIERED: %s %s", dhandle->name, newconfig);
     WT_ERR(__wt_metadata_update(session, dhandle->name, newconfig));
@@ -732,6 +740,7 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     tiered->obj_config = metaconf;
     metaconf = NULL;
     __wt_verbose(session, WT_VERB_TIERED, "TIERED_OPEN: obj_config %s", tiered->obj_config);
+    __wt_verbose(session, WT_VERB_TIERED, "TIERED_OPEN: tiered config %s", config);
 
     WT_ERR(__wt_config_getones(session, config, "key_format", &cval));
     WT_ERR(__wt_strndup(session, cval.str, cval.len, &tiered->key_format));
@@ -785,8 +794,8 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
         /* Temp code to keep s_all happy. */
         FLD_SET(unused, WT_TIERED_OBJ_LOCAL | WT_TIERED_TREE_UNUSED);
         FLD_SET(unused, WT_TIERED_WORK_FORCE | WT_TIERED_WORK_FREE);
-        WT_ERR(__wt_tiered_put_drop_shared(session, tiered, tiered->current_id));
-        __wt_tiered_get_drop_shared(session, &entry);
+        WT_ERR(__wt_tiered_put_remove_shared(session, tiered, tiered->current_id));
+        __wt_tiered_get_remove_shared(session, &entry);
     }
 #endif
 
@@ -841,6 +850,8 @@ __tiered_cleanup(WT_SESSION_IMPL *session, WT_TIERED *tiered, bool final)
 int
 __wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered, bool final)
 {
+    __wt_verbose(session, WT_VERB_TIERED, "TIERED_CLOSE: tiered %p called final %d", (void *)tiered,
+      (int) final);
     __tiered_cleanup(session, tiered, final);
 
     return (__wt_btree_close(session));
@@ -853,8 +864,9 @@ __wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered, bool final)
 int
 __wt_tiered_discard(WT_SESSION_IMPL *session, WT_TIERED *tiered, bool final)
 {
+    __wt_verbose(session, WT_VERB_TIERED, "TIERED_DISCARD: tiered %p called final %d",
+      (void *)tiered, (int) final);
     __tiered_cleanup(session, tiered, final);
-    __wt_verbose(session, WT_VERB_TIERED, "%s", "TIERED_CLOSE: called");
     return (__wt_btree_discard(session));
 }
 

@@ -95,6 +95,28 @@ __curds_cursor_resolve(WT_CURSOR *cursor, int ret)
 }
 
 /*
+ * __curds_bound --
+ *     WT_CURSOR.bound method for the data-source cursor type.
+ */
+static int
+__curds_bound(WT_CURSOR *cursor, const char *config)
+{
+    WT_CURSOR *source;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    source = ((WT_CURSOR_DATA_SOURCE *)cursor)->source;
+
+    CURSOR_API_CALL(cursor, session, bound, NULL);
+
+    WT_ERR(__curds_key_set(cursor));
+    ret = __curds_cursor_resolve(cursor, source->bound(source, config));
+
+err:
+    API_END_RET(session, ret);
+}
+
+/*
  * __curds_compare --
  *     WT_CURSOR.compare method for the data-source cursor type.
  */
@@ -410,6 +432,7 @@ __wt_curds_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, con
 {
     WT_CURSOR_STATIC_INIT(iface, __wt_cursor_get_key, /* get-key */
       __wt_cursor_get_value,                          /* get-value */
+      __wt_cursor_get_raw_key_value,                  /* get-raw-key-value */
       __wt_cursor_set_key,                            /* set-key */
       __wt_cursor_set_value,                          /* set-value */
       __curds_compare,                                /* compare */
@@ -426,7 +449,7 @@ __wt_curds_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, con
       __curds_reserve,                                /* reserve */
       __wt_cursor_config_notsup,                      /* reconfigure */
       __wt_cursor_notsup,                             /* largest_key */
-      __wt_cursor_config_notsup,                      /* bound */
+      __curds_bound,                                  /* bound */
       __wt_cursor_notsup,                             /* cache */
       __wt_cursor_reopen_notsup,                      /* reopen */
       __wt_cursor_checkpoint_id,                      /* checkpoint ID */

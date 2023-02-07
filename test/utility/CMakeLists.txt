@@ -2,9 +2,11 @@ project(libtest C)
 
 set(sources
     misc.c
-    modify.c
+    util_modify.c
     parse_opts.c
+    util_random.c
     thread.c
+    tiered.c
 )
 
 set(link_type)

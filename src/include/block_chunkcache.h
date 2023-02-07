@@ -10,14 +10,14 @@
  * WiredTiger's chunk cache. Locally caches chunks of remote objects.
  */
 
-#define WT_CHUNKCACHE_DEFAULT_HASHSIZE 32*1024
-#define WT_CHUNKCACHE_DEFAULT_CHUNKSIZE 1024*1024
+#define WT_CHUNKCACHE_DEFAULT_HASHSIZE 32 * 1024
+#define WT_CHUNKCACHE_DEFAULT_CHUNKSIZE 1024 * 1024
 #define WT_CHUNKCACHE_DRAM 0
+#define WT_CHUNKCACHE_FILE 1
 #define WT_CHUNKCACHE_MINHASHSIZE 64
 #define WT_CHUNKCACHE_MAXHASHSIZE 1024 * 1024
-#define WT_CHUNKCACHE_MAX_RETRIES 1024*1024*1024
+#define WT_CHUNKCACHE_MAX_RETRIES 1024 * 1024 * 1024
 #define WT_CHUNKCACHE_NAMEMAX 50
-#define WT_CHUNKCACHE_SSD 1
 #define WT_CHUNKCACHE_UNCONFIGURED 0
 
 struct __wt_chunkcache_hashid {
@@ -37,14 +37,14 @@ struct __wt_chunkcache_chunk {
     volatile bool being_evicted;
     char *chunk_location;
     size_t chunk_size;
-    uint bucket_id;  /* Lets us find the corresponding bucket for quick removal */
+    unsigned int bucket_id; /* save bucket ID for quick removal */
     volatile uint32_t valid;
     wt_off_t chunk_offset;
 };
 
 struct __wt_chunkcache_bucket {
     /* This queue contains all chunks that mapped to this bucket */
-   TAILQ_HEAD(__wt_chunkchain_head, __wt_chunkcache_chunk) colliding_chunks;
+    TAILQ_HEAD(__wt_chunkchain_head, __wt_chunkcache_chunk) colliding_chunks;
 };
 
 /*
@@ -67,10 +67,9 @@ struct __wt_chunkcache {
     bool chunkcache_exiting;
     bool configured;
     size_t chunk_size;
-    char *dev_path;   /* The storage path to use if we are on a file system or a block device */
+    char *dev_path;       /* The storage path to use if we are on a file system or a block device */
     uint evict_watermark; /* When this percent of cache is full, we trigger eviction. */
     uint hashtable_size;
     int type;
     uint64_t bytes_used; /* Amount of data currently in cache */
 };
-

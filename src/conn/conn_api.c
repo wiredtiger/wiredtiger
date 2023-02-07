@@ -1115,6 +1115,12 @@ err:
     conn->cache->eviction_dirty_trigger = 1.0;
     conn->cache->eviction_dirty_target = 0.1;
 
+    if (conn->default_session->event_handler->handle_general != NULL &&
+      F_ISSET(conn, WT_CONN_MINIMAL | WT_CONN_READY))
+        WT_TRET(conn->default_session->event_handler->handle_general(
+          conn->default_session->event_handler, &conn->iface, NULL, WT_EVENT_CONN_CLOSE, NULL));
+    F_CLR(conn, WT_CONN_MINIMAL | WT_CONN_READY);
+
     /*
      * Rollback all running transactions. We do this as a separate pass because an active
      * transaction in one session could cause trouble when closing a file, even if that session
@@ -1138,6 +1144,15 @@ err:
                 WT_TRET(s->event_handler->handle_close(s->event_handler, wt_session, NULL));
             WT_TRET(__wt_session_close_internal(s));
         }
+
+    /*
+     * Set MINIMAL again and call the event handler so that statistics can monitor any end of
+     * connection activity (like the final checkpoint).
+     */
+    F_SET(conn, WT_CONN_MINIMAL);
+    if (conn->default_session->event_handler->handle_general != NULL)
+        WT_TRET(conn->default_session->event_handler->handle_general(
+          conn->default_session->event_handler, wt_conn, NULL, WT_EVENT_CONN_READY, NULL));
 
     /* Wait for in-flight operations to complete. */
     WT_TRET(__wt_txn_activity_drain(session));
@@ -1167,6 +1182,12 @@ err:
 
     /* Perform a final checkpoint and shut down the global transaction state. */
     WT_TRET(__wt_txn_global_shutdown(session, cfg));
+
+    /* We know WT_CONN_MINIMAL is set a few lines above no need to check again. */
+    if (conn->default_session->event_handler->handle_general != NULL)
+        WT_TRET(conn->default_session->event_handler->handle_general(
+          conn->default_session->event_handler, wt_conn, NULL, WT_EVENT_CONN_CLOSE, NULL));
+    F_CLR(conn, WT_CONN_MINIMAL);
 
     /*
      * See if close should wait for tiered storage to finish any flushing after the final
@@ -1284,6 +1305,10 @@ __conn_open_session(WT_CONNECTION *wt_conn, WT_EVENT_HANDLER *event_handler, con
     *wt_sessionp = &session_ret->iface;
 
 err:
+#ifdef HAVE_CALL_LOG
+    if (session_ret != NULL)
+        WT_TRET(__wt_call_log_open_session(session_ret, ret));
+#endif
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
@@ -1303,6 +1328,9 @@ __conn_query_timestamp(WT_CONNECTION *wt_conn, char *hex_timestamp, const char *
     CONNECTION_API_CALL(conn, session, query_timestamp, config, cfg);
     ret = __wt_txn_query_timestamp(session, hex_timestamp, cfg, true);
 err:
+#ifdef HAVE_CALL_LOG
+    WT_TRET(__wt_call_log_query_timestamp(session, config, hex_timestamp, ret, true));
+#endif
     API_END_RET(session, ret);
 }
 
@@ -1322,6 +1350,9 @@ __conn_set_timestamp(WT_CONNECTION *wt_conn, const char *config)
     CONNECTION_API_CALL(conn, session, set_timestamp, config, cfg);
     ret = __wt_txn_global_set_timestamp(session, cfg);
 err:
+#ifdef HAVE_CALL_LOG
+    WT_TRET(__wt_call_log_set_timestamp(session, config, ret));
+#endif
     API_END_RET(session, ret);
 }
 
@@ -1340,7 +1371,7 @@ __conn_rollback_to_stable(WT_CONNECTION *wt_conn, const char *config)
 
     CONNECTION_API_CALL(conn, session, rollback_to_stable, config, cfg);
     WT_STAT_CONN_INCR(session, txn_rts);
-    ret = __wt_rollback_to_stable(session, cfg, false);
+    ret = conn->rts->rollback_to_stable(session, cfg, false);
 err:
     API_END_RET(session, ret);
 }
@@ -1926,19 +1957,62 @@ err:
 }
 
 /*
+ * __wt_extra_diagnostics_config --
+ *     Set diagnostic assertions configuration.
+ */
+int
+__wt_extra_diagnostics_config(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    static const WT_NAME_FLAG extra_diagnostics_types[] = {{"all", WT_DIAG_ALL},
+      {"concurrent_access", WT_DIAG_CONCURRENT_ACCESS},
+      {"data_validation", WT_DIAG_DATA_VALIDATION}, {"invalid_op", WT_DIAG_INVALID_OP},
+      {"out_of_order", WT_DIAG_OUT_OF_ORDER}, {"panic", WT_DIAG_PANIC},
+      {"slow_operation", WT_DIAG_SLOW_OPERATION}, {"visibility", WT_DIAG_VISIBILITY}, {NULL, 0}};
+
+    WT_CONNECTION_IMPL *conn;
+    WT_CONFIG_ITEM cval, sval;
+    WT_DECL_RET;
+    const WT_NAME_FLAG *ft;
+    uint16_t flags;
+
+    conn = S2C(session);
+
+    WT_RET(__wt_config_gets(session, cfg, "extra_diagnostics", &cval));
+
+#ifdef HAVE_DIAGNOSTIC
+    flags = WT_DIAG_ALL;
+    for (ft = extra_diagnostics_types; ft->name != NULL; ft++) {
+        if ((ret = __wt_config_subgets(session, &cval, ft->name, &sval)) == 0 && sval.val != 0)
+            WT_RET_MSG(session, EINVAL,
+              "WiredTiger has been compiled with HAVE_DIAGNOSTIC=1 and all assertions are always "
+              "enabled. This cannot be configured.");
+        WT_RET_NOTFOUND_OK(ret);
+    }
+#else
+    flags = 0;
+    for (ft = extra_diagnostics_types; ft->name != NULL; ft++) {
+        if ((ret = __wt_config_subgets(session, &cval, ft->name, &sval)) == 0 && sval.val != 0)
+            LF_SET(ft->flag);
+        WT_RET_NOTFOUND_OK(ret);
+    }
+#endif
+
+    conn->extra_diagnostics_flags = flags;
+    return (0);
+}
+
+/*
  * __wt_debug_mode_config --
  *     Set debugging configuration.
  */
 int
 __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
-    WT_CACHE *cache;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_TXN_GLOBAL *txn_global;
 
     conn = S2C(session);
-    cache = conn->cache;
     txn_global = &conn->txn_global;
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.checkpoint_retention", &cval));
@@ -1983,15 +2057,9 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.eviction", &cval));
     if (cval.val)
-        F_SET(cache, WT_CACHE_EVICT_DEBUG_MODE);
+        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE);
     else
-        F_CLR(cache, WT_CACHE_EVICT_DEBUG_MODE);
-
-    WT_RET(__wt_config_gets(session, cfg, "debug_mode.flush_checkpoint", &cval));
-    if (cval.val)
-        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_FLUSH_CKPT);
-    else
-        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_FLUSH_CKPT);
+        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.log_retention", &cval));
     conn->debug_log_cnt = (uint32_t)cval.val;
@@ -2001,6 +2069,12 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
         FLD_SET(conn->debug_flags, WT_CONN_DEBUG_REALLOC_EXACT);
     else
         FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_REALLOC_EXACT);
+
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.realloc_malloc", &cval));
+    if (cval.val)
+        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_REALLOC_MALLOC);
+    else
+        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_REALLOC_MALLOC);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.rollback_error", &cval));
     txn_global->debug_rollback = (uint64_t)cval.val;
@@ -2013,9 +2087,9 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.table_logging", &cval));
     if (cval.val)
-        FLD_SET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE);
+        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING);
     else
-        FLD_CLR(conn->log_flags, WT_CONN_LOG_DEBUG_MODE);
+        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.update_restore_evict", &cval));
     if (cval.val)
@@ -2075,12 +2149,12 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
       {"block", WT_VERB_BLOCK}, {"block_cache", WT_VERB_BLKCACHE},
       {"checkpoint", WT_VERB_CHECKPOINT}, {"checkpoint_cleanup", WT_VERB_CHECKPOINT_CLEANUP},
       {"checkpoint_progress", WT_VERB_CHECKPOINT_PROGRESS}, {"chunkcache", WT_VERB_CHUNKCACHE},
-      {"compact", WT_VERB_COMPACT},
-      {"compact_progress", WT_VERB_COMPACT_PROGRESS}, {"error_returns", WT_VERB_ERROR_RETURNS},
-      {"evict", WT_VERB_EVICT}, {"evict_stuck", WT_VERB_EVICT_STUCK},
-      {"evictserver", WT_VERB_EVICTSERVER}, {"fileops", WT_VERB_FILEOPS},
-      {"generation", WT_VERB_GENERATION}, {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG},
-      {"hs", WT_VERB_HS}, {"history_store_activity", WT_VERB_HS_ACTIVITY}, {"lsm", WT_VERB_LSM},
+      {"compact", WT_VERB_COMPACT}, {"compact_progress", WT_VERB_COMPACT_PROGRESS},
+      {"error_returns", WT_VERB_ERROR_RETURNS}, {"evict", WT_VERB_EVICT},
+      {"evict_stuck", WT_VERB_EVICT_STUCK}, {"evictserver", WT_VERB_EVICTSERVER},
+      {"fileops", WT_VERB_FILEOPS}, {"generation", WT_VERB_GENERATION},
+      {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG}, {"hs", WT_VERB_HS},
+      {"history_store_activity", WT_VERB_HS_ACTIVITY}, {"lsm", WT_VERB_LSM},
       {"lsm_manager", WT_VERB_LSM_MANAGER}, {"metadata", WT_VERB_METADATA},
       {"mutex", WT_VERB_MUTEX}, {"out_of_order", WT_VERB_OUT_OF_ORDER},
       {"overflow", WT_VERB_OVERFLOW}, {"read", WT_VERB_READ}, {"reconcile", WT_VERB_RECONCILE},
@@ -2121,13 +2195,13 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
         else if (sval.type == WT_CONFIG_ITEM_BOOL && sval.len == 0)
             /*
              * If no value is associated with the event (i.e passing verbose=[checkpoint]), default
-             * the event to WT_VERBOSE_DEBUG. Correspondingly, all legacy uses of '__wt_verbose',
+             * the event to WT_VERBOSE_DEBUG_1. Correspondingly, all legacy uses of '__wt_verbose',
              * being messages without an explicit verbosity level, will default to
-             * 'WT_VERBOSE_DEBUG'.
+             * 'WT_VERBOSE_DEBUG_1'.
              */
-            conn->verbose[ft->flag] = WT_VERBOSE_DEBUG;
+            conn->verbose[ft->flag] = WT_VERBOSE_DEBUG_1;
         else if (sval.type == WT_CONFIG_ITEM_NUM && sval.val >= WT_VERBOSE_INFO &&
-          sval.val <= WT_VERBOSE_DEBUG)
+          sval.val <= WT_VERBOSE_DEBUG_5)
             conn->verbose[ft->flag] = (WT_VERBOSE_LEVEL)sval.val;
         else
             /*
@@ -2250,7 +2324,6 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
       {"aggressive_sweep", WT_TIMING_STRESS_AGGRESSIVE_SWEEP},
       {"backup_rename", WT_TIMING_STRESS_BACKUP_RENAME},
       {"checkpoint_evict_page", WT_TIMING_STRESS_CHECKPOINT_EVICT_PAGE},
-      {"checkpoint_reserved_txnid_delay", WT_TIMING_STRESS_CHECKPOINT_RESERVED_TXNID_DELAY},
       {"checkpoint_slow", WT_TIMING_STRESS_CHECKPOINT_SLOW},
       {"checkpoint_stop", WT_TIMING_STRESS_CHECKPOINT_STOP},
       {"compact_slow", WT_TIMING_STRESS_COMPACT_SLOW},
@@ -2263,6 +2336,7 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
       {"history_store_search", WT_TIMING_STRESS_HS_SEARCH},
       {"history_store_sweep_race", WT_TIMING_STRESS_HS_SWEEP},
       {"prepare_checkpoint_delay", WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY},
+      {"sleep_before_read_overflow_onpage", WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE},
       {"split_1", WT_TIMING_STRESS_SPLIT_1}, {"split_2", WT_TIMING_STRESS_SPLIT_2},
       {"split_3", WT_TIMING_STRESS_SPLIT_3}, {"split_4", WT_TIMING_STRESS_SPLIT_4},
       {"split_5", WT_TIMING_STRESS_SPLIT_5}, {"split_6", WT_TIMING_STRESS_SPLIT_6},
@@ -2811,6 +2885,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_timing_stress_config(session, cfg));
     WT_ERR(__wt_blkcache_setup(session, cfg, false));
     WT_ERR(__wt_chunkcache_setup(session, cfg, false));
+    WT_ERR(__wt_extra_diagnostics_config(session, cfg));
     WT_ERR(__wt_conn_optrack_setup(session, cfg, false));
     WT_ERR(__conn_session_size(session, cfg, &conn->session_size));
     WT_ERR(__wt_config_gets(session, cfg, "session_scratch_max", &cval));
@@ -2932,6 +3007,11 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     conn->unclean_shutdown = false;
 #endif
 
+#ifdef HAVE_CALL_LOG
+    /* Set up the call log file. */
+    WT_ERR(__wt_conn_call_log_setup(session));
+#endif
+
     /*
      * This function expects the cache to be created so parse this after the rest of the connection
      * is set up.
@@ -3012,8 +3092,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         WT_ERR(wt_session->salvage(wt_session, WT_METAFILE_URI, NULL));
     }
 
-    /* Initialize the connection's base write generation. */
-    WT_ERR(__wt_metadata_init_base_write_gen(session));
+    /* Initialize connection values from stored metadata. */
+    WT_ERR(__wt_metadata_load_prior_state(session));
 
     WT_ERR(__wt_metadata_cursor(session, NULL));
     /*
@@ -3021,6 +3101,11 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * turtle file is initialized.
      */
     WT_ERR(__wt_backup_open(session));
+
+    F_SET(conn, WT_CONN_MINIMAL);
+    if (event_handler != NULL && event_handler->handle_general != NULL)
+        WT_ERR(event_handler->handle_general(
+          event_handler, &conn->iface, NULL, WT_EVENT_CONN_READY, NULL));
 
     /* Start the worker threads and run recovery. */
     WT_ERR(__wt_connection_workers(session, cfg));
@@ -3039,6 +3124,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     F_SET(session, WT_SESSION_NO_DATA_HANDLES);
 
     WT_STATIC_ASSERT(offsetof(WT_CONNECTION_IMPL, iface) == 0);
+    F_SET(conn, WT_CONN_READY);
+    F_CLR(conn, WT_CONN_MINIMAL);
     *connectionp = &conn->iface;
 
 err:
@@ -3067,6 +3154,12 @@ err:
         __wt_free(session, conn->partial_backup_remove_ids);
 
     if (ret != 0) {
+        if (conn->default_session->event_handler->handle_general != NULL &&
+          F_ISSET(conn, WT_CONN_MINIMAL | WT_CONN_READY))
+            WT_TRET(conn->default_session->event_handler->handle_general(
+              conn->default_session->event_handler, &conn->iface, NULL, WT_EVENT_CONN_CLOSE, NULL));
+        F_CLR(conn, WT_CONN_MINIMAL | WT_CONN_READY);
+
         /*
          * Set panic if we're returning the run recovery error or if recovery did not complete so
          * that we don't try to checkpoint data handles. We need an explicit flag instead of

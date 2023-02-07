@@ -37,7 +37,9 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
      * state, so our check can race with readers without indicating a real problem. If we find a
      * hazard pointer, wait for it to be cleared.
      */
-    WT_ASSERT(session, __wt_hazard_check_assert(session, ref, true));
+    WT_ASSERT_OPTIONAL(session, WT_DIAG_CONCURRENT_ACCESS,
+      __wt_hazard_check_assert(session, ref, true),
+      "Attempted to free a page with active hazard pointers");
 
     /* Check we are not evicting an accessible internal page with an active split generation. */
     WT_ASSERT(session,
@@ -165,6 +167,13 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
                 break;
             }
             __wt_free(session, multi->supd);
+            /*
+             * Discard the new disk images if they are not NULL. If the new disk images are NULL,
+             * they must have been instantiated into memory. Otherwise, we have a failure in
+             * eviction after reconciliation. If the split code only successfully instantiates a
+             * subset of new pages into memory, free the instantiated pages and the new disk images
+             * of the pages not in memory. We will redo reconciliation next time we visit this page.
+             */
             __wt_free(session, multi->disk_image);
             __wt_free(session, multi->addr.addr);
         }
@@ -174,8 +183,16 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
         /*
          * Discard any replacement address: this memory is usually moved into the parent's WT_REF,
          * but at the root that can't happen.
+         *
+         * Discard the new disk image if it is not NULL. If the new disk image is NULL, it must have
+         * been instantiated into memory. Otherwise, we have a failure in eviction after
+         * reconciliation and later we decide to discard the old disk image without loading the new
+         * disk image into memory. Free the new disk image in this case. If a checkpoint visits this
+         * page, it would write the new disk image even it hasn't been instantiated into memory.
+         * Therefore, no need to reconcile the page again if it remains clean.
          */
         __wt_free(session, mod->mod_replace.addr);
+        __wt_free(session, mod->mod_disk_image);
         break;
     }
 
@@ -336,7 +353,9 @@ __wt_free_ref_index(WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE_INDEX *pind
          * Used when unrolling splits and other error paths where there should never have been a
          * hazard pointer taken.
          */
-        WT_ASSERT(session, __wt_hazard_check_assert(session, ref, false));
+        WT_ASSERT_OPTIONAL(session, WT_DIAG_CONCURRENT_ACCESS,
+          __wt_hazard_check_assert(session, ref, false),
+          "Attempting to discard ref to a page with hazard pointers");
 
         __wt_free_ref(session, ref, page->type, free_pages);
     }

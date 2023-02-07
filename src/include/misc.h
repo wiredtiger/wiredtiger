@@ -38,8 +38,9 @@
 #define WT_DIVIDER "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
 /* Basic constants. */
+#define WT_MILLION_LITERAL 1000000
 #define WT_THOUSAND (1000)
-#define WT_MILLION (1000000)
+#define WT_MILLION (WT_MILLION_LITERAL)
 #define WT_BILLION (1000000000)
 
 #define WT_MINUTE (60)
@@ -97,6 +98,12 @@
  * Constant value.
  */
 #define WT_ENCRYPT_LEN_SIZE sizeof(uint32_t)
+
+/*
+ * WT-specific return codes for __wt_getopt(); use __wt_optwt to enable.
+ */
+#define WT_GETOPT_BAD_ARGUMENT 1
+#define WT_GETOPT_BAD_OPTION 2
 
 /*
  * __wt_calloc_def, __wt_calloc_one --

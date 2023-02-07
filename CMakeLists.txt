@@ -48,6 +48,7 @@ include(cmake/configs/base.cmake)
 
 # Import our third party library definitions.
 include(cmake/third_party/aws_sdk.cmake)
+include(cmake/third_party/gcp_sdk.cmake)
 include(cmake/third_party/gperftools.cmake)
 include(cmake/third_party/lz4.cmake)
 include(cmake/third_party/memkind.cmake)
@@ -55,6 +56,11 @@ include(cmake/third_party/snappy.cmake)
 include(cmake/third_party/sodium.cmake)
 include(cmake/third_party/zlib.cmake)
 include(cmake/third_party/zstd.cmake)
+
+# Skip the AZURE SDK build step if the extension is not enabled.
+if(ENABLE_AZURE)
+    include(cmake/third_party/azure_sdk.cmake)
+endif()
 
 if(NOT ENABLE_SHARED AND NOT ENABLE_STATIC)
     message(FATAL_ERROR "Both ENABLE_SHARED & ENABLE_STATIC are disabled. Need to enable at least one build flavour.")
@@ -210,6 +216,17 @@ if(ENABLE_SHARED)
     )
     # Set the SOVERSION property of the wiredtiger library, so we can export the appropriately versioned symlinks.
     set_target_properties(wiredtiger_shared PROPERTIES SOVERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
+
+    # For MacOS builds we need to generate a dSYM bundle that contains the debug symbols for the 
+    # WiredTiger library.
+    if (WT_DARWIN)
+        add_custom_command(
+            TARGET wiredtiger_shared POST_BUILD
+            COMMAND dsymutil libwiredtiger.${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}.dylib
+            COMMENT "Running dsymutil on libwiredtiger.${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}.dylib"
+            VERBATIM
+        )
+    endif()
 endif()
 
 # Define an alias target for the WiredTiger library. This being a general target other
@@ -237,6 +254,7 @@ endif()
 
 # Build the wiredtiger test suites.
 add_subdirectory(bench/wtperf)
+add_subdirectory(bench/tiered)
 add_subdirectory(bench/wt2853_perf)
 add_subdirectory(examples)
 add_subdirectory(test)

@@ -288,11 +288,14 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
 
     if (page->modify != NULL) {
         /*
-         * If this is an application thread that is running in a txn, keep track of its dirty bytes
-         * in the session statistic.
+         * For application threads, track the transaction bytes added to cache usage. We want to
+         * capture only the application's own changes to page data structures. Exclude changes to
+         * internal pages or changes that are the result of the application thread being co-opted
+         * into eviction work.
          */
         if (!F_ISSET(session, WT_SESSION_INTERNAL) &&
-          F_ISSET(session->txn, WT_TXN_RUNNING | WT_TXN_HAS_ID))
+          F_ISSET(session->txn, WT_TXN_RUNNING | WT_TXN_HAS_ID) &&
+          __wt_session_gen(session, WT_GEN_EVICT) == 0)
             WT_STAT_SESSION_INCRV(session, txn_bytes_dirty, size);
         if (!WT_PAGE_IS_INTERNAL(page) && !btree->lsm_primary) {
             (void)__wt_atomic_add64(&cache->bytes_updates, size);
@@ -1491,6 +1494,8 @@ struct __wt_addr_copy {
 
     WT_PAGE_DELETED del; /* Fast-truncate page information */
     bool del_set;
+
+    WT_PAGE_STAT ps; /* Page information including row and byte counts */
 };
 
 /*
@@ -1651,7 +1656,7 @@ __wt_page_del_visible(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, bool 
 }
 
 /*
- * __wt_page_del_committed --
+ * __wt_page_del_committed_set --
  *     Return if a truncate operation is resolved. (Since truncations that abort are removed
  *     immediately, "resolved" and "committed" are equivalent here.) The caller should have already
  *     locked the ref and confirmed that the ref's previous state was WT_REF_DELETED. The page_del
@@ -1661,7 +1666,7 @@ __wt_page_del_visible(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, bool 
  *     have been discarded already. (The update list is non-null if the transaction is unresolved.)
  */
 static inline bool
-__wt_page_del_committed(WT_PAGE_DELETED *page_del)
+__wt_page_del_committed_set(WT_PAGE_DELETED *page_del)
 {
     /*
      * There are two possible cases: either page_del is NULL (in which case the deletion is globally
@@ -1865,8 +1870,10 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * remains until the next reconciliation, and nothing prevents that from occurring before the
      * transaction commits.
      */
-    if (mod->inst_updates != NULL)
+    if (mod->inst_updates != NULL) {
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_uncommitted_truncate);
         return (false);
+    }
 
     /*
      * We can't split or evict multiblock row-store pages where the parent's key for the page is an
@@ -1876,8 +1883,10 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * matter the size of the key.)
      */
     if (__wt_btree_syncing_by_other_session(session) &&
-      F_ISSET_ATOMIC_16(ref->home, WT_PAGE_INTL_OVERFLOW_KEYS))
+      F_ISSET_ATOMIC_16(ref->home, WT_PAGE_INTL_OVERFLOW_KEYS)) {
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_overflow_keys);
         return (false);
+    }
 
     /*
      * Check for in-memory splits before other eviction tests. If the page should split in-memory,
@@ -1898,7 +1907,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * internal page already written in the checkpoint, leaving the checkpoint inconsistent.
      */
     if (modified && __wt_btree_syncing_by_other_session(session)) {
-        WT_STAT_CONN_DATA_INCR(session, cache_eviction_checkpoint);
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_checkpoint);
         return (false);
     }
 
@@ -1915,13 +1924,17 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      */
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) &&
       !F_ISSET(session->dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_EXCLUSIVE) &&
-      __wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen))
+      __wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen)) {
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_internal_page_split);
         return (false);
+    }
 
     /* If the metadata page is clean but has modifications that appear too new to evict, skip it. */
     if (WT_IS_METADATA(S2BT(session)->dhandle) && !modified &&
-      !__wt_txn_visible_all(session, mod->rec_max_txn, mod->rec_max_timestamp))
+      !__wt_txn_visible_all(session, mod->rec_max_txn, mod->rec_max_timestamp)) {
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_recently_modified);
         return (false);
+    }
 
     return (true);
 }

@@ -28,6 +28,8 @@
 
 #include "format.h"
 
+static void apply_bounds(WT_CURSOR *, TABLE *);
+static void clear_bounds(WT_CURSOR *, TABLE *);
 static int col_insert(TINFO *);
 static void col_insert_resolve(TABLE *, void *);
 static int col_modify(TINFO *, bool);
@@ -360,7 +362,7 @@ operations(u_int ops_seconds, bool lastrun)
         track_ops(&total);
         if (!running)
             break;
-        __wt_sleep(0, 250000); /* 1/4th of a second */
+        __wt_sleep(0, 250 * WT_THOUSAND); /* 1/4th of a second */
         if (fourths != -1)
             --fourths;
         if (quit_fourths != -1 && --quit_fourths == 0) {
@@ -503,7 +505,7 @@ commit_transaction(TINFO *tinfo, bool prepared)
         if (prepared)
             lock_readlock(session, &g.prepare_commit_lock);
 
-        ts = __wt_atomic_fetch_addv64(&g.timestamp, 1);
+        ts = __wt_atomic_addv64(&g.timestamp, 1);
         testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_COMMIT, ts));
 
         if (prepared)
@@ -612,8 +614,9 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
     WT_DECL_RET;
     TABLE *table;
     u_int i, j;
-    bool evict_page, next, positioned;
+    bool bound_set, evict_page, next, positioned;
 
+    bound_set = false;
     table = tinfo->table;
 
     /* Acquire a cursor. */
@@ -714,12 +717,27 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
         break;
     case READ:
         ++tinfo->search;
+
+        if (!positioned && GV(OPS_BOUND_CURSOR) && mmrand(NULL, 1, 2) == 1) {
+            bound_set = true;
+            /*
+             * FIXME-WT-9883: It is possible that the underlying cursor is still positioned even
+             * though the positioned variable is false. Reset the position through reset for now.
+             */
+            testutil_check(tinfo->cursor->reset(tinfo->cursor));
+            apply_bounds(tinfo->cursor, tinfo->table);
+        }
+
         ret = read_row(tinfo);
         if (ret == 0) {
             positioned = true;
-            SNAP_TRACK(tinfo, READ);
-        } else
+            if (!bound_set)
+                SNAP_TRACK(tinfo, READ);
+        } else {
+            clear_bounds(tinfo->cursor, tinfo->table);
             OP_FAILED(true);
+        }
+        clear_bounds(tinfo->cursor, tinfo->table);
         break;
     case REMOVE:
         ++tinfo->remove;
@@ -872,9 +890,9 @@ ops(void *arg)
     session_op = 0;
 
     /* Set the first operation where we'll reset the session. */
-    reset_op = mmrand(&tinfo->rnd, 100, 10000);
+    reset_op = mmrand(&tinfo->rnd, 100, 10 * WT_THOUSAND);
     /* Set the first operation where we'll truncate a range. */
-    truncate_op = mmrand(&tinfo->rnd, 100, 10000);
+    truncate_op = mmrand(&tinfo->rnd, 100, 10 * WT_THOUSAND);
 
     for (intxn = false; !tinfo->quit;) {
         ++tinfo->ops;
@@ -891,7 +909,7 @@ ops(void *arg)
             session = tinfo->session;
 
             /* Pick the next session/cursor close/open. */
-            session_op += mmrand(&tinfo->rnd, 100, 5000);
+            session_op += mmrand(&tinfo->rnd, 100, 5 * WT_THOUSAND);
         }
 
         /* If not in a transaction, reset the session periodically so that operation is tested. */
@@ -899,7 +917,7 @@ ops(void *arg)
             testutil_check(session->reset(session));
 
             /* Pick the next reset operation. */
-            reset_op += mmrand(&tinfo->rnd, 40000, 60000);
+            reset_op += mmrand(&tinfo->rnd, 40 * WT_THOUSAND, 60 * WT_THOUSAND);
         }
 
         /*
@@ -968,7 +986,7 @@ ops(void *arg)
                         op = TRUNCATE;
 
                     /* Pick the next truncate operation. */
-                    truncate_op += mmrand(&tinfo->rnd, 20000, 100000);
+                    truncate_op += mmrand(&tinfo->rnd, 20 * WT_THOUSAND, 100 * WT_THOUSAND);
                 }
             } else if (i < TV(OPS_PCT_DELETE) + TV(OPS_PCT_INSERT))
                 op = INSERT;
@@ -1271,6 +1289,84 @@ read_row_worker(TINFO *tinfo, TABLE *table, WT_CURSOR *cursor, uint64_t keyno, W
 }
 
 /*
+ * apply_bounds --
+ *     Apply lower and upper bounds on the cursor. The lower and upper bound is randomly generated.
+ */
+static void
+apply_bounds(WT_CURSOR *cursor, TABLE *table)
+{
+    WT_ITEM key;
+    uint32_t lower_keyno, max_rows, upper_keyno;
+
+    /* FLCS is not supported with bounds. */
+    if (table->type == FIX)
+        return;
+
+    /* Set up the default key buffer. */
+    key_gen_init(&key);
+    WT_ORDERED_READ(max_rows, table->rows_current);
+
+    /*
+     * Generate a random lower key and apply to the lower bound or upper bound depending on the
+     * reverse collator.
+     */
+    lower_keyno = mmrand(NULL, 1, max_rows);
+    /* Retrieve the key/value pair by key. */
+    switch (table->type) {
+    case FIX:
+    case VAR:
+        cursor->set_key(cursor, lower_keyno);
+        break;
+    case ROW:
+        key_gen(table, &key, lower_keyno);
+        cursor->set_key(cursor, &key);
+        break;
+    }
+    if (TV(BTREE_REVERSE))
+        testutil_check(cursor->bound(cursor, "action=set,bound=upper"));
+    else
+        testutil_check(cursor->bound(cursor, "action=set,bound=lower"));
+
+    /*
+     * Generate a random upper key and apply to the upper bound or lower bound depending on the
+     * reverse collator.
+     */
+    upper_keyno = mmrand(NULL, lower_keyno, max_rows);
+
+    /* Retrieve the key/value pair by key. */
+    switch (table->type) {
+    case FIX:
+    case VAR:
+        cursor->set_key(cursor, upper_keyno);
+        break;
+    case ROW:
+        key_gen(table, &key, upper_keyno);
+        cursor->set_key(cursor, &key);
+        break;
+    }
+    if (TV(BTREE_REVERSE))
+        testutil_check(cursor->bound(cursor, "action=set,bound=upper"));
+    else
+        testutil_check(cursor->bound(cursor, "action=set,bound=lower"));
+
+    key_gen_teardown(&key);
+}
+
+/*
+ * clear_bounds --
+ *     Clear both the lower and upper bounds on the cursor.
+ */
+static void
+clear_bounds(WT_CURSOR *cursor, TABLE *table)
+{
+    /* FLCS is not supported with bounds. */
+    if (table->type == FIX)
+        return;
+
+    cursor->bound(cursor, "action=clear");
+}
+
+/*
  * wts_read_scan --
  *     Read and verify a subset of the elements in a file.
  */
@@ -1310,9 +1406,15 @@ wts_read_scan(TABLE *table, void *arg)
     WT_ORDERED_READ(max_rows, table->rows_current);
     for (keyno = 0; keyno < max_rows;) {
         if (++keyno > 50)
-            keyno += mmrand(NULL, 1, 1000);
+            keyno += mmrand(NULL, 1, WT_THOUSAND);
         if (keyno > max_rows)
             keyno = max_rows;
+
+        if (GV(OPS_BOUND_CURSOR) && mmrand(NULL, 1, 10) == 1) {
+            /* Reset the position of the cursor, so that we can apply bounds on the cursor. */
+            testutil_check(cursor->reset(cursor));
+            apply_bounds(cursor, table);
+        }
 
         switch (ret = read_row_worker(NULL, table, cursor, keyno, &key, &value, &bitv, false)) {
         case 0:
@@ -1324,6 +1426,7 @@ wts_read_scan(TABLE *table, void *arg)
         default:
             testutil_die(ret, "%s: read row %" PRIu64, __func__, keyno);
         }
+        clear_bounds(cursor, table);
     }
 
     wt_wrap_close_session(session);
@@ -1742,8 +1845,15 @@ col_insert_resolve(TABLE *table, void *arg)
     do {
         WT_ORDERED_READ(max_rows, table->rows_current);
         for (i = 0, p = cip->insert_list; i < WT_ELEMENTS(cip->insert_list); ++i, ++p) {
-            if (*p == max_rows + 1) {
-                testutil_assert(__wt_atomic_casv32(&table->rows_current, max_rows, max_rows + 1));
+            /*
+             * A thread may have allocated a record number that is now less than or equal to the
+             * current maximum number of rows. In this case, simply reset the insert list.
+             * Otherwise, update the maximum number of rows with the newly inserted record.
+             */
+            if (*p > 0 && *p <= max_rows + 1) {
+                if (*p == max_rows + 1)
+                    testutil_assert(
+                      __wt_atomic_casv32(&table->rows_current, max_rows, max_rows + 1));
                 *p = 0;
                 --cip->insert_list_cnt;
                 break;

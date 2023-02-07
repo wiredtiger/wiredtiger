@@ -181,12 +181,12 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
     WT_DATA_HANDLE *tier;
     WT_DECL_RET;
     WT_TIERED *tiered;
-    u_int i;
+    u_int i, localid;
     const char *filename, *name;
-    bool exist, locked, remove_files, remove_shared;
+    bool exist, got_dhandle, locked, remove_files, remove_shared;
 
     conn = S2C(session);
-    locked = false;
+    got_dhandle = locked = false;
     WT_RET(__wt_config_gets(session, cfg, "remove_files", &cval));
     remove_files = cval.val != 0;
     WT_RET(__wt_config_gets(session, cfg, "remove_shared", &cval));
@@ -200,6 +200,7 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
     name = NULL;
     /* Get the tiered data handle. */
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
+    got_dhandle = true;
     tiered = (WT_TIERED *)session->dhandle;
 
     /*
@@ -208,8 +209,10 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
      * metadata only.
      */
     tier = tiered->tiers[WT_TIERED_INDEX_LOCAL].tier;
+    localid = tiered->current_id;
     if (tier != NULL) {
-        __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: drop local object %s", tier->name);
+        __wt_verbose_debug2(
+          session, WT_VERB_TIERED, "DROP_TIERED: drop %u local object %s", localid, tier->name);
         WT_WITHOUT_DHANDLE(session,
           WT_WITH_HANDLE_LIST_WRITE_LOCK(
             session, ret = __wt_conn_dhandle_close_all(session, tier->name, true, force)));
@@ -226,14 +229,17 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
     /* Close any dhandle and remove any tier: entry from metadata. */
     tier = tiered->tiers[WT_TIERED_INDEX_SHARED].tier;
     if (tier != NULL) {
-        __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: drop shared object %s", tier->name);
+        __wt_verbose_debug2(
+          session, WT_VERB_TIERED, "DROP_TIERED: drop shared object %s", tier->name);
         WT_WITHOUT_DHANDLE(session,
           WT_WITH_HANDLE_LIST_WRITE_LOCK(
             session, ret = __wt_conn_dhandle_close_all(session, tier->name, true, force)));
         WT_ERR(ret);
         WT_ERR(__wt_metadata_remove(session, tier->name));
         tiered->tiers[WT_TIERED_INDEX_SHARED].tier = NULL;
-    }
+    } else
+        /* If we don't have a shared tier we better be on the first object. */
+        WT_ASSERT(session, localid == 1);
 
     /*
      * We remove all metadata entries for both the file and object versions of an object. The local
@@ -241,11 +247,13 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
      */
     for (i = tiered->oldest_id; i < tiered->current_id; ++i) {
         WT_ERR(__wt_tiered_name(session, &tiered->iface, i, WT_TIERED_NAME_LOCAL, &name));
-        __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: remove object %s from metadata", name);
+        __wt_verbose_debug2(
+          session, WT_VERB_TIERED, "DROP_TIERED: remove object %s from metadata", name);
         WT_ERR_NOTFOUND_OK(__wt_metadata_remove(session, name), false);
         __wt_free(session, name);
         WT_ERR(__wt_tiered_name(session, &tiered->iface, i, WT_TIERED_NAME_OBJECT, &name));
-        __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: remove object %s from metadata", name);
+        __wt_verbose_debug2(
+          session, WT_VERB_TIERED, "DROP_TIERED: remove object %s from metadata", name);
         WT_ERR_NOTFOUND_OK(__wt_metadata_remove(session, name), false);
         if (remove_files && tier != NULL) {
             filename = name;
@@ -277,6 +285,7 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
      * the tiered structure because that is from the dhandle.
      */
     WT_ERR(__wt_session_release_dhandle(session));
+    got_dhandle = false;
     WT_WITH_HANDLE_LIST_WRITE_LOCK(
       session, ret = __wt_conn_dhandle_close_all(session, uri, true, force));
     WT_ERR(ret);
@@ -290,6 +299,8 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
     ret = __wt_metadata_remove(session, uri);
 
 err:
+    if (got_dhandle)
+        WT_TRET(__wt_session_release_dhandle(session));
     __wt_free(session, name);
     if (locked)
         __wt_spin_unlock(session, &conn->tiered_lock);

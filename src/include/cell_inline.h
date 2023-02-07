@@ -195,7 +195,7 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
  */
 static inline size_t
 __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, uint64_t recno,
-  WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta, size_t size)
+  WT_PAGE_DELETED *page_del, WT_PAGE_STAT *ps, WT_TIME_AGGREGATE *ta, size_t size)
 {
     uint8_t *p;
 
@@ -223,6 +223,14 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
         cell->__chunk[0] |= (uint8_t)(cell_type | WT_CELL_64V);
         /* Record number */
         WT_IGNORE_RET(__wt_vpack_uint(&p, 0, recno));
+    }
+
+    /* If passed page stat information, append the row and byte counts. */
+    if (ps != NULL && __wt_process.page_stats_2022) {
+        if (WT_PAGE_STAT_HAS_BYTE_COUNT(ps))
+            WT_IGNORE_RET(__wt_vpack_int(&p, 0, ps->byte_count));
+        if (WT_PAGE_STAT_HAS_ROW_COUNT(ps))
+            WT_IGNORE_RET(__wt_vpack_int(&p, 0, ps->row_count));
     }
 
     /* Length */
@@ -684,6 +692,7 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
         WT_TIME_WINDOW tw;
     } copy;
     WT_CELL_UNPACK_COMMON *unpack;
+    WT_PAGE_STAT *ps;
     WT_PAGE_DELETED *page_del;
     WT_TIME_AGGREGATE *ta;
     WT_TIME_WINDOW *tw;
@@ -696,6 +705,8 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
     copy.len = 0; /* [-Wconditional-uninitialized] */
     copy.v = 0;   /* [-Wconditional-uninitialized] */
 
+    ps = unpack_addr == NULL ? NULL : &unpack_addr->ps;
+
     if (unpack_addr == NULL) {
         unpack = (WT_CELL_UNPACK_COMMON *)unpack_value;
         tw = &unpack_value->tw;
@@ -705,6 +716,7 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
         WT_ASSERT(session, unpack_value == NULL);
 
         unpack = (WT_CELL_UNPACK_COMMON *)unpack_addr;
+        WT_PAGE_STAT_INIT(ps);
         ta = &unpack_addr->ta;
         WT_TIME_AGGREGATE_INIT(ta);
         tw = NULL;
@@ -873,6 +885,7 @@ copy_cell_restart:
         page_del->prepare_state = 0;                /* No prepare can have been in progress. */
         page_del->previous_ref_state = WT_REF_DISK; /* The leaf page is on disk. */
         page_del->committed = true;                 /* There is no running transaction. */
+        page_del->selected_for_write = true;
     }
 
     /*
@@ -921,6 +934,14 @@ copy_cell_restart:
     case WT_CELL_ADDR_INT:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
+        /* Unpack the row and/or byte counts if the chunk of data includes it. */
+        if (ps != NULL && __wt_process.page_stats_2022) {
+            if (F_ISSET(dsk, WT_PAGE_STAT_BYTE_COUNT))
+                WT_RET(__wt_vunpack_int(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ps->byte_count));
+            if (F_ISSET(dsk, WT_PAGE_STAT_ROW_COUNT))
+                WT_RET(__wt_vunpack_int(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ps->row_count));
+        }
+        /* FALLTHROUGH */
     case WT_CELL_KEY:
     case WT_CELL_KEY_PFX:
     case WT_CELL_VALUE:
@@ -1234,6 +1255,11 @@ __cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, int page_type,
             return (0);
         break;
     case WT_CELL_VALUE_OVFL:
+        /*
+         * Encourage checkpoint to race with reading the onpage value. If we have an overflow item,
+         * it may be removed by checkpoint concurrently.
+         */
+        __wt_timing_stress(session, WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE, NULL);
         WT_RET(__wt_ovfl_read(session, page, unpack, store, &decoded));
         if (decoded)
             return (0);
@@ -1249,34 +1275,44 @@ __cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, int page_type,
 }
 
 /*
- * __wt_dsk_cell_data_ref --
- *     Set a buffer to reference the data from an unpacked cell. There are two versions because of
- *     WT_CELL_VALUE_OVFL_RM type cells. When an overflow item is deleted, its backing blocks are
- *     removed; if there are still running transactions that might need to see the overflow item, we
- *     cache a copy of the item and reset the item's cell to WT_CELL_VALUE_OVFL_RM. If we find a
- *     WT_CELL_VALUE_OVFL_RM cell when reading an overflow item, we use the page reference to look
- *     aside into the cache. So, calling the "dsk" version of the function declares the cell cannot
- *     be of type WT_CELL_VALUE_OVFL_RM, and calling the "page" version means it might be.
+ * __wt_dsk_cell_data_ref_addr --
+ *     Set a buffer to reference the data from an unpacked address cell.
  */
 static inline int
-__wt_dsk_cell_data_ref(WT_SESSION_IMPL *session, int page_type, void *unpack_arg, WT_ITEM *store)
+__wt_dsk_cell_data_ref_addr(
+  WT_SESSION_IMPL *session, int page_type, WT_CELL_UNPACK_ADDR *unpack, WT_ITEM *store)
 {
-    WT_CELL_UNPACK_COMMON *unpack;
-
-    unpack = (WT_CELL_UNPACK_COMMON *)unpack_arg;
-
-    WT_ASSERT(session, __wt_cell_type_raw(unpack->cell) != WT_CELL_VALUE_OVFL_RM);
-    return (__cell_data_ref(session, NULL, page_type, unpack, store));
+    return (__cell_data_ref(session, NULL, page_type, (WT_CELL_UNPACK_COMMON *)unpack, store));
 }
 
 /*
- * __wt_page_cell_data_ref --
- *     Set a buffer to reference the data from an unpacked cell.
+ * __wt_dsk_cell_data_ref_kv --
+ *     Set a buffer to reference the data from an unpacked key value cell. There are two versions
+ *     because of WT_CELL_VALUE_OVFL_RM type cells. When an overflow item is deleted, its backing
+ *     blocks are removed; if there are still running transactions that might need to see the
+ *     overflow item, we cache a copy of the item and reset the item's cell to
+ *     WT_CELL_VALUE_OVFL_RM. If we find a WT_CELL_VALUE_OVFL_RM cell when reading an overflow item,
+ *     we use the page reference to look aside into the cache. So, calling the "dsk" version of the
+ *     function declares the cell cannot be of type WT_CELL_VALUE_OVFL_RM, and calling the "page"
+ *     version means it might be.
  */
 static inline int
-__wt_page_cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, void *unpack_arg, WT_ITEM *store)
+__wt_dsk_cell_data_ref_kv(
+  WT_SESSION_IMPL *session, int page_type, WT_CELL_UNPACK_KV *unpack, WT_ITEM *store)
 {
-    return (__cell_data_ref(session, page, page->type, (WT_CELL_UNPACK_COMMON *)unpack_arg, store));
+    WT_ASSERT(session, __wt_cell_type_raw(unpack->cell) != WT_CELL_VALUE_OVFL_RM);
+    return (__cell_data_ref(session, NULL, page_type, (WT_CELL_UNPACK_COMMON *)unpack, store));
+}
+
+/*
+ * __wt_page_cell_data_ref_kv --
+ *     Set a buffer to reference the data from an unpacked key value cell.
+ */
+static inline int
+__wt_page_cell_data_ref_kv(
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK_KV *unpack, WT_ITEM *store)
+{
+    return (__cell_data_ref(session, page, page->type, (WT_CELL_UNPACK_COMMON *)unpack, store));
 }
 
 /*

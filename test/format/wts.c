@@ -137,9 +137,7 @@ handle_progress(
     return (0);
 }
 
-static WT_EVENT_HANDLER event_handler = {
-  NULL, handle_message, handle_progress, NULL /* Close handler. */
-};
+static WT_EVENT_HANDLER event_handler = {NULL, handle_message, handle_progress, NULL, NULL};
 
 #define CONFIG_APPEND(p, ...)                                               \
     do {                                                                    \
@@ -167,8 +165,6 @@ configure_timing_stress(char **p, size_t max)
         CONFIG_APPEND(*p, ",checkpoint_evict_page");
     if (GV(STRESS_CHECKPOINT_PREPARE))
         CONFIG_APPEND(*p, ",prepare_checkpoint_delay");
-    if (GV(STRESS_CHECKPOINT_RESERVED_TXNID_DELAY))
-        CONFIG_APPEND(*p, ",checkpoint_reserved_txnid_delay");
     if (GV(STRESS_EVICT_REPOSITION))
         CONFIG_APPEND(*p, ",evict_reposition");
     if (GV(STRESS_FAILPOINT_EVICTION_FAIL_AFTER_RECONCILIATION))
@@ -181,6 +177,8 @@ configure_timing_stress(char **p, size_t max)
         CONFIG_APPEND(*p, ",history_store_search");
     if (GV(STRESS_HS_SWEEP))
         CONFIG_APPEND(*p, ",history_store_sweep_race");
+    if (GV(STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE))
+        CONFIG_APPEND(*p, ",sleep_before_read_overflow_onpage");
     if (GV(STRESS_SPLIT_1))
         CONFIG_APPEND(*p, ",split_1");
     if (GV(STRESS_SPLIT_2))
@@ -199,6 +197,41 @@ configure_timing_stress(char **p, size_t max)
 }
 
 /*
+ * configure_debug_mode --
+ *     Configure debug settings.
+ */
+static void
+configure_debug_mode(char **p, size_t max)
+{
+    CONFIG_APPEND(*p, ",debug_mode=[");
+
+    if (GV(DEBUG_CHECKPOINT_RETENTION) != 0)
+        CONFIG_APPEND(*p, ",checkpoint_retention=%" PRIu32, GV(DEBUG_CHECKPOINT_RETENTION));
+    if (GV(DEBUG_CURSOR_REPOSITION))
+        CONFIG_APPEND(*p, ",cursor_reposition=true");
+    if (GV(DEBUG_EVICTION))
+        CONFIG_APPEND(*p, ",eviction=true");
+    /*
+     * Don't configure log retention debug mode during backward compatibility mode. Compatibility
+     * requires removing log files on reconfigure. When the version is changed for compatibility,
+     * reconfigure requires removing earlier log files and log retention can make that seem to hang.
+     */
+    if (GV(DEBUG_LOG_RETENTION) != 0 && !g.backward_compatible)
+        CONFIG_APPEND(*p, ",log_retention=%" PRIu32, GV(DEBUG_LOG_RETENTION));
+    if (GV(DEBUG_REALLOC_EXACT))
+        CONFIG_APPEND(*p, ",realloc_exact=true");
+    if (GV(DEBUG_REALLOC_MALLOC))
+        CONFIG_APPEND(*p, ",realloc_malloc=true");
+    if (GV(DEBUG_SLOW_CHECKPOINT))
+        CONFIG_APPEND(*p, ",slow_checkpoint=true");
+    if (GV(DEBUG_TABLE_LOGGING))
+        CONFIG_APPEND(*p, ",table_logging=true");
+    if (GV(DEBUG_UPDATE_RESTORE_EVICT))
+        CONFIG_APPEND(*p, ",update_restore_evict=true");
+    CONFIG_APPEND(*p, "]");
+}
+
+/*
  * create_database --
  *     Create a WiredTiger database.
  */
@@ -208,7 +241,7 @@ create_database(const char *home, WT_CONNECTION **connp)
     WT_CONNECTION *conn;
     size_t max;
     char config[8 * 1024], *p;
-    const char *s;
+    const char *s, *sources;
 
     p = config;
     max = sizeof(config);
@@ -219,8 +252,16 @@ create_database(const char *home, WT_CONNECTION **connp)
       "MB"
       ",checkpoint_sync=false"
       ",error_prefix=\"%s\""
-      ",operation_timeout_ms=2000",
-      GV(CACHE), progname);
+      ",operation_timeout_ms=2000"
+      ",statistics=(%s)",
+      GV(CACHE), progname, GVS(STATISTICS_MODE));
+
+    /* Statistics log configuration. */
+    sources = GVS(STATISTICS_LOG_SOURCES);
+    if (strcmp(sources, "off") != 0)
+        CONFIG_APPEND(p, ",statistics_log=(json,on_close,wait=5,sources=(\"%s\"))", sources);
+    else
+        CONFIG_APPEND(p, ",statistics_log=(json,on_close,wait=5)");
 
     /* In-memory configuration. */
     if (GV(RUNS_IN_MEMORY) != 0)
@@ -260,10 +301,14 @@ create_database(const char *home, WT_CONNECTION **connp)
     /* Encryption. */
     CONFIG_APPEND(p, ",encryption=(name=%s)", encryptor());
 
-/* Miscellaneous. */
+    /* Miscellaneous. */
+    if (GV(BUFFER_ALIGNMENT)) {
 #ifdef HAVE_POSIX_MEMALIGN
-    CONFIG_APPEND(p, ",buffer_alignment=512");
+        CONFIG_APPEND(p, ",buffer_alignment=512");
+#else
+        WARN("%s", "Ignoring buffer_alignment=1, missing HAVE_POSIX_MEMALIGN support")
 #endif
+    }
 
     if (GV(DISK_MMAP))
         CONFIG_APPEND(p, ",mmap=1");
@@ -276,21 +321,11 @@ create_database(const char *home, WT_CONNECTION **connp)
     if (GV(DISK_DATA_EXTEND))
         CONFIG_APPEND(p, ",file_extend=(data=8MB)");
 
-    /*
-     * Run the statistics server and/or maintain statistics in the engine. Sometimes specify a set
-     * of sources just to exercise that code.
-     */
-    if (GV(STATISTICS_SERVER)) {
-        if (mmrand(NULL, 0, 20) == 1)
-            CONFIG_APPEND(
-              p, ",statistics=(fast),statistics_log=(json,on_close,wait=5,sources=(\"file:\"))");
-        else
-            CONFIG_APPEND(p, ",statistics=(fast),statistics_log=(json,on_close,wait=5)");
-    } else
-        CONFIG_APPEND(p, ",statistics=(%s)", GV(STATISTICS) ? "fast" : "none");
-
     /* Optional timing stress. */
     configure_timing_stress(&p, max);
+
+    /* Optional debug mode. */
+    configure_debug_mode(&p, max);
 
     /* Extensions. */
     CONFIG_APPEND(p, ",extensions=[\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\"],",
@@ -485,10 +520,14 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
     if (enc != NULL)
         CONFIG_APPEND(p, ",encryption=(name=%s)", enc);
 
-    CONFIG_APPEND(p, ",error_prefix=\"%s\"", progname);
+    CONFIG_APPEND(
+      p, ",error_prefix=\"%s\",statistics=(fast),statistics_log=(json,on_close,wait=5)", progname);
 
     /* Optional timing stress. */
     configure_timing_stress(&p, max);
+
+    /* Optional debug mode. */
+    configure_debug_mode(&p, max);
 
     /* If in-memory, there's only a single, shared WT_CONNECTION handle. */
     if (GV(RUNS_IN_MEMORY) != 0)
@@ -603,10 +642,6 @@ wts_stats(void)
     SAP sap;
     WT_CONNECTION *conn;
     WT_SESSION *session;
-
-    /* Ignore statistics if they're not configured. */
-    if (GV(STATISTICS) == 0)
-        return;
 
     conn = g.wts_conn;
     track("stat", 0ULL);
