@@ -763,11 +763,11 @@ functions:
   "install gcp dependencies":
     - command: shell.exec
       params:
-        working_dir: "wiredtiger/test/evergreen"
+        working_dir: "wiredtiger"
         shell: bash
         script: |
           set -o errexit
-          . install_gcp_dependencies.sh
+          . /test/evergreen/install_gcp_dependencies.sh
 
 #######################################
 #               Variables             #

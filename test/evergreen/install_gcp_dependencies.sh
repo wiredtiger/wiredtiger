@@ -7,7 +7,7 @@ install_abseil ()
     curl -sSL https://github.com/abseil/abseil-cpp/archive/20230125.0.tar.gz | \
         tar -xzf - --strip-components=1 && \
         sed -i 's/^#define ABSL_OPTION_USE_\(.*\) 2/#define ABSL_OPTION_USE_\1 0/' "absl/base/options.h" && \
-        . ../../../../../test/evergreen/find_cmake.sh
+        . ../../test/evergreen/find_cmake.sh
         mkdir cmake-out && cd cmake-out
             /opt/cmake/bin/cmake \
             -DCMAKE_BUILD_TYPE=Release \
@@ -20,10 +20,11 @@ install_abseil ()
 
 install_nlohmann ()
 {
+    cd ..
     mkdir json && cd json
     curl -sSL https://github.com/nlohmann/json/archive/v3.11.2.tar.gz | \
         tar -xzf - --strip-components=1 && \
-        . ../../../../../test/evergreen/find_cmake.sh
+        . ../../test/evergreen/find_cmake.sh
         mkdir cmake-out && cd cmake-out
         /opt/cmake/bin/cmake \
             -DCMAKE_BUILD_TYPE=Release \
@@ -37,10 +38,11 @@ install_nlohmann ()
 
 install_crc32c ()
 {
+    cd ..
     mkdir crc32c && cd crc32c
     curl -sSL https://github.com/google/crc32c/archive/1.1.2.tar.gz | \
         tar -xzf - --strip-components=1 && \
-        . ../../../../../test/evergreen/find_cmake.sh
+        . ../../test/evergreen/find_cmake.sh
         mkdir cmake-out && cd cmake-out
         /opt/cmake/bin/cmake \
             -DCMAKE_BUILD_TYPE=Release \
