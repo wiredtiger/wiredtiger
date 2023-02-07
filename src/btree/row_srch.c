@@ -186,7 +186,9 @@ __validate_next_stack(WT_SESSION_IMPL *session, WT_INSERT *next_stack[WT_SKIP_MA
         /* Ensure that if a lower level points to the end of the skiplist the higher level does as
          * well. */
         if (next_stack[i] == NULL)
-            WT_ASSERT(session, next_stack[i + 1] == NULL);
+            WT_ASSERT_ALWAYS(session, next_stack[i + 1] == NULL,
+              "Invalid next_stack: Level %d is NULL but higher level %d has pointer %p", i, i + 1,
+              next_stack[i + 1]);
 
         /*
          * Skip if either pointer is to the end of the skiplist, or if both pointers are the same.
@@ -203,7 +205,9 @@ __validate_next_stack(WT_SESSION_IMPL *session, WT_INSERT *next_stack[WT_SKIP_MA
         /* Force match to zero for a full comparison of keys */
         match = 0;
         WT_RET(__wt_compare_skip(session, NULL, &upper_key, &lower_key, &cmp, &match));
-        WT_ASSERT((WT_SESSION_IMPL *)session, cmp >= 0);
+        WT_ASSERT_ALWAYS((WT_SESSION_IMPL *)session, cmp >= 0,
+          "Invalid next_stack: Lower level points to larger key: Level %d = %s, Level %d = %s", i,
+          (char *)lower_key.data, i + 1, (char *)upper_key.data);
     }
     return (0);
 }
