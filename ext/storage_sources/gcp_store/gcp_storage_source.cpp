@@ -40,7 +40,8 @@ struct gcp_file_handle {
     WT_FILE_HANDLE *wt_file_handle;
 };
 
-static std::filesystem::path gcp_path(const std::filesystem::path &dir, const std::filesystem::path &path);
+static std::filesystem::path gcp_path(
+  const std::filesystem::path &dir, const std::filesystem::path &path);
 static int gcp_customize_file_system(WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *,
   const char *, WT_FILE_SYSTEM **) __attribute__((__unused__));
 static int gcp_add_reference(WT_STORAGE_SOURCE *) __attribute__((__unused__));
@@ -234,9 +235,9 @@ gcp_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYSTEM
 
     // Confirm that the file exists on the native filesystem.
     try {
-      std::string src_path = gcp_path(fs->home_dir, source);
+        std::string src_path = gcp_path(fs->home_dir, source);
     } catch (...) {
-      return ENOENT;
+        return ENOENT;
     }
     std::string src_path = gcp_path(fs->home_dir, source);
     bool native_exist = false;
