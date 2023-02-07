@@ -400,7 +400,6 @@ azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
     azure_fh->name = name;
     azure_fh->reference_count = 1;
     azure_fh->fs = azure_fs;
-    WT_FILE_HANDLE *file_handle = &azure_fh->fh;
 
     // Define functions needed for Azure with read-only privilleges.
     azure_fh->fh.close = azure_file_close;
@@ -425,7 +424,7 @@ azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
         std::lock_guard<std::mutex> lock_guard(azure_fs->fh_mutex);
         azure_fs->azure_fh.push_back(azure_fh);
     }
-    *file_handlep = file_handle;
+    *file_handlep = &azure_fh->fh;
 
     WT_UNUSED(session);
     WT_UNUSED(size);
@@ -438,9 +437,8 @@ static int
 azure_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
 {
     azure_file_handle *azure_fh = reinterpret_cast<azure_file_handle *>(file_handle);
-    azure_fh->reference_count--;
     // If there are other active instances of the file being open, do not close file handle.
-    if (azure_fh->reference_count > 0) {
+    if (--azure_fh->reference_count != 0) {
         return 0;
     }
 
