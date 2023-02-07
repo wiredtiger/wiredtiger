@@ -120,9 +120,9 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         # We cannot use the file system to create files, it is readonly.
         # So use python I/O to build up the file.
         local_file_name = "test_tiered19_local_file"
-        with open(local_file_name, 'wb') as f:
+        with open(local_file_name, 'wb') as local_file:
             outbytes = ('MORE THAN ENOUGH DATA\n'*100000).encode()
-            f.write(outbytes)
+            local_file.write(outbytes)
 
         # Flushing copies the file into the file system.
         self.assertEquals(ss.ss_flush(session, fs, local_file_name, local_file_name, None), 0)
