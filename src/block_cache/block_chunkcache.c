@@ -144,7 +144,7 @@ __chunkcache_alloc_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK **newchun
         __wt_free(session, *newchunk);
         return (WT_ERROR);
     }
-    __wt_verbose(session, WT_VERB_CHUNKCACHE, "allocate: %s(%d), offset=%" PRId64 ", size=%" PRIu64,
+    __wt_verbose(session, WT_VERB_CHUNKCACHE, "allocate: %s(%u), offset=%" PRIu64 ", size=%" PRIu64,
       (char *)&(*newchunk)->hash_id.objectname, (*newchunk)->hash_id.objectid,
       (uint64_t)(*newchunk)->chunk_offset, (uint64_t)(*newchunk)->chunk_size);
 
@@ -237,7 +237,7 @@ __chunkcache_evict_one(WT_SESSION_IMPL *session)
     if (!found_eviction_candidate)
         return (false);
 
-    __wt_verbose(session, WT_VERB_CHUNKCACHE, "evict: %s(%d), offset=%" PRId64 ", size=%" PRIu64,
+    __wt_verbose(session, WT_VERB_CHUNKCACHE, "evict: %s(%u), offset=%" PRIu64 ", size=%" PRIu64,
       (char *)&chunk_to_evict->hash_id.objectname, chunk_to_evict->hash_id.objectid,
       (uint64_t)chunk_to_evict->chunk_offset, (uint64_t)chunk_to_evict->chunk_size);
 
@@ -298,7 +298,7 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
     if (!chunkcache->configured)
         return (false);
 
-    __wt_verbose(session, WT_VERB_CHUNKCACHE, "get: %s(%d), offset=%" PRId64 ", size=%d",
+    __wt_verbose(session, WT_VERB_CHUNKCACHE, "get: %s(%u), offset=%" PRId64 ", size=%u",
       (char *)block->name, objectid, offset, size);
 
     WT_STAT_CONN_INCR(session, chunkcache_lookups);
@@ -321,7 +321,7 @@ retry:
                         goto retry;
                     } else {
                         __wt_verbose(session, WT_VERB_CHUNKCACHE,
-                          "lookup timed out after %d retries", retries);
+                          "lookup timed out after %u retries", retries);
                         WT_STAT_CONN_INCR(session, chunkcache_toomany_retries);
                         return (false);
                     }
@@ -378,7 +378,7 @@ retry:
             WT_CHUNK_MARK_VALID(session, chunkcache, chunk);
 
             __wt_verbose(session, WT_VERB_CHUNKCACHE,
-              "insert: %s(%d), offset=%" PRId64 ", size=%lu", (char *)block->name, objectid,
+              "insert: %s(%u), offset=%" PRId64 ", size=%lu", (char *)block->name, objectid,
               chunk->chunk_offset, chunk->chunk_size);
             goto retry;
         }
@@ -408,7 +408,7 @@ __wt_chunkcache_remove(
     if (!chunkcache->configured)
         return;
 
-    __wt_verbose(session, WT_VERB_CHUNKCACHE, "remove block: %s(%d), offset=%" PRId64 ", size=%d",
+    __wt_verbose(session, WT_VERB_CHUNKCACHE, "remove block: %s(%u), offset=%" PRId64 ", size=%u",
       (char *)block->name, objectid, offset, size);
 
     /* A block may span many chunks. Loop until we have removed all the chunks. */
@@ -444,8 +444,8 @@ __wt_chunkcache_remove(
                     TAILQ_REMOVE(WT_BUCKET_CHUNKS(chunkcache, bucket_id), chunk, next_chunk);
                     __chunkcache_free_chunk(session, chunk);
                     __wt_verbose(session, WT_VERB_CHUNKCACHE,
-                      "removed chunk: %s(%d), offset=%" PRId64 ", size=%" PRIu64,
-                      (char *)&hash_id.objectname, hash_id.objectid, (uint64_t)chunk->chunk_offset,
+                      "removed chunk: %s(%u), offset=%" PRId64 ", size=%" PRIu64,
+                      (char *)&hash_id.objectname, hash_id.objectid, chunk->chunk_offset,
                       (uint64_t)chunk->chunk_size);
                     done = true;
                     break;
@@ -507,7 +507,7 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
     else if (chunkcache->hashtable_size < WT_CHUNKCACHE_MINHASHSIZE ||
       chunkcache->hashtable_size > WT_CHUNKCACHE_MAXHASHSIZE)
         WT_RET_MSG(session, EINVAL,
-          "chunk cache hashtable size must be between %d and %d entries and we have %d",
+          "chunk cache hashtable size must be between %d and %d entries and we have %u",
           WT_CHUNKCACHE_MINHASHSIZE, WT_CHUNKCACHE_MAXHASHSIZE, chunkcache->hashtable_size);
 
     WT_RET(__wt_config_gets(session, cfg, "chunk_cache.evict_trigger", &cval));
