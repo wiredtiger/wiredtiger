@@ -80,6 +80,7 @@ static int azure_object_list(WT_FILE_SYSTEM *, WT_SESSION *, const char *, const
 static int azure_object_list_single(WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *,
   char ***, uint32_t *);
 static int azure_object_list_free(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t);
+static int azure_object_list_add(char ***, const std::vector<std::string> &, const uint32_t);
 static int azure_file_system_terminate(WT_FILE_SYSTEM *, WT_SESSION *);
 static int azure_file_system_exists(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *);
 static int azure_remove(WT_FILE_SYSTEM *, WT_SESSION *, const char *, uint32_t);
@@ -150,7 +151,7 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
     azure_fs->fs.fs_directory_list_single = azure_object_list_single;
     azure_fs->fs.fs_directory_list_free = azure_object_list_free;
     azure_fs->fs.terminate = azure_file_system_terminate;
-    azure_fs->fs.fs_exist = azure_file_exists;
+    azure_fs->fs.fs_exist = azure_file_system_exists;
     azure_fs->fs.fs_open_file = azure_file_open;
     azure_fs->fs.fs_remove = azure_remove;
     azure_fs->fs.fs_rename = azure_rename;
@@ -226,24 +227,12 @@ azure_flush_finish(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
   WT_FILE_SYSTEM *file_system, const char *source, const char *object, const char *config)
 {
     WT_UNUSED(storage_source);
-    WT_UNUSED(session);
     WT_UNUSED(config);
     WT_UNUSED(source);
-    azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
-
+    bool existsp = false;
     std::cout << "azure_flush_finish: Checking object: " << object << " exists in Azure."
               << std::endl;
-
-    // Check whether the object exists in the cloud.
-    bool exists_cloud = false;
-    azure_fs->azure_conn->object_exists(object, exists_cloud);
-    if (!exists_cloud) {
-        std::cerr << "azure_flush_finish: Object: " << object << " does not exist in Azure."
-                  << std::endl;
-        return ENOENT;
-    }
-    std::cout << "azure_flush_finish: Object: " << object << " exists in Azure." << std::endl;
-    return 0;
+    return(azure_file_system_exists(file_system, session, object, &existsp));
 }
 
 // Discard any resources on termination.
@@ -295,14 +284,14 @@ azure_object_list_helper(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const
 
     if (ret != 0) {
         std::cerr << "azure_object_list: list_objects request to Azure failed." << std::endl;
-        return (ret);
+        return ret;
     }
     *countp = objects.size();
 
-    std::cerr << "azure_object_list: list_objects request to Azure succeeded. Received " << *count << " objects." << std::endl;
+    std::cerr << "azure_object_list: list_objects request to Azure succeeded. Received " << *countp << " objects." << std::endl;
     azure_object_list_add(dirlistp, objects, *countp);
 
-    return (ret);
+    return ret;
   }
 
 // Return a list of object names for the given location.
@@ -344,11 +333,12 @@ azure_object_list_add(char ***dirlistp, const std::vector<std::string> &objects,
   const uint32_t count) { 
 	
 	char **entries;
-    if ((entries = (char **)malloc(sizeof(char *) * count)) == nullptr) {
+    if ((entries = reinterpret_cast<char **> (malloc(sizeof(char *) * count))) == nullptr) {
         std::cerr << "azure_object_list_add: Unable to allocate memory for object list." << std::endl;
         return ENOMEM;
     }
 
+    // Populate entries with the object string.
     for (int i = 0; i < count; i++) {
         if ((entries[i] = strdup(objects[i].c_str())) == nullptr) {
             std::cerr << "azure_object_list_add: Unable to allocate memory for object string." << std::endl;
@@ -389,9 +379,19 @@ azure_file_system_exists(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const
 {
     WT_UNUSED(file_system);
     WT_UNUSED(session);
-    WT_UNUSED(name);
-    WT_UNUSED(existp);
+    azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
 
+    std::cout << "azure_file_system_exists: Checking object: " << name << " exists in Azure."
+              << std::endl;
+
+    // Check whether the object exists in the cloud.
+    azure_fs->azure_conn->object_exists(name, *existp);
+    if (!&existp) {
+        std::cerr << "azure_file_system_exists: Object: " << name << " does not exist in Azure."
+                  << std::endl;
+        return ENOENT;
+    }
+    std::cout << "azure_file_system_exists: Object: " << name << " exists in Azure." << std::endl;
     return 0;
 }
 
