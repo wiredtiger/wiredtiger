@@ -188,7 +188,7 @@ __validate_next_stack(WT_SESSION_IMPL *session, WT_INSERT *next_stack[WT_SKIP_MA
         if (next_stack[i] == NULL)
             WT_ASSERT_ALWAYS(session, next_stack[i + 1] == NULL,
               "Invalid next_stack: Level %d is NULL but higher level %d has pointer %p", i, i + 1,
-              next_stack[i + 1]);
+              (void *)next_stack[i + 1]);
 
         /*
          * Skip if either pointer is to the end of the skiplist, or if both pointers are the same.
