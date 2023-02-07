@@ -202,8 +202,7 @@ azure_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYST
     }
 
     bool exists_native = false;
-    int ret;
-    = wtFileSystem->fs_exist(
+    int ret = wtFileSystem->fs_exist(
       wtFileSystem, session, std::filesystem::canonical(source).string().c_str(), &exists_native);
     if (ret != 0) {
         std::cerr << "azure_flush: Failed to check for the existence of " << source
@@ -215,7 +214,6 @@ azure_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYST
         std::cerr << "azure_flush: " << object << " No such file." << std::endl;
         return ENOENT;
     }
-
     std::cout << "azure_flush: Uploading object: " << object << " into bucket using put_object."
               << std::endl;
 
