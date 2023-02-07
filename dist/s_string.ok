@@ -47,6 +47,7 @@ BLmRrSVv
 BOOL
 BSR
 BTREE
+BTree
 BUF
 BZ
 Barack
@@ -57,7 +58,6 @@ Bitwise
 BqRv
 Brueckner
 Bsearch
-BTree
 Btree
 Buf
 Bxxx
@@ -1168,6 +1168,7 @@ lzo
 madvise
 majmin
 majorp
+makehash
 malloc
 mappable
 marshall
