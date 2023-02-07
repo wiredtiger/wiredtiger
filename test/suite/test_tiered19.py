@@ -110,12 +110,24 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         non_exist_bucket = "non_exist" 
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_customize_file_system(
-                session, non_exist_bucket, None, self.get_fs_config(prefix)), err_msg)
+                session, non_exist_bucket, self.auth_token, self.get_fs_config(prefix)), err_msg)
         # Provide a bucket name that exists but we do not have access to. 
         no_access_bucket = "test_cred"
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_customize_file_system(
-                session, no_access_bucket, None, self.get_fs_config(prefix)), err_msg)
+                session, no_access_bucket, self.auth_token, self.get_fs_config(prefix)), err_msg)
+
+        # Test fs_open_file.
+        
+        # We cannot use the file system to create files, it is readonly.
+        # So use python I/O to build up the file.
+        f = open('foobar', 'wb')
+
+        fh = fs.fs_open_file(session, 'test_put', file_system.open_file_type_data, file_system.open_readonly)
+
+        self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
+            lambda: fs.fs_open_file(
+                session, 'foobar', file_system.open_file_type_data, file_system.open_readonly), err_msg)
 
         fs.terminate(session)
         ss.terminate(session)
