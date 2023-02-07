@@ -493,7 +493,19 @@ azure_file_read(
 static int
 azure_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *sizep)
 {
-    return file_handle->fh_size(file_handle, session, sizep);
+    azure_file_handle *azure_fh = reinterpret_cast<azure_file_handle *>(file_handle);
+    int ret;
+    bool exists;
+    size_t size = 0;
+    if ((ret = azure_fh->fs->azure_conn->object_exists(azure_fh->name, exists, size)) != 0) {
+        std::cerr << "azure_file_open: object_exists request to Azure failed." << std::endl;
+        return ret;
+    }
+    if (exists == false) {
+        std::cerr << "azure_file_open: no such file." << std::endl;
+        return EINVAL;
+    }
+    return size;
 }
 
 // An Azure storage source library - creates an entry point to the Azure extension.
