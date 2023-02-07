@@ -224,7 +224,7 @@ __wt_rec_child_modify(
              * We should never be here during eviction, active child pages in an evicted page's
              * subtree fails the eviction attempt.
              */
-            WT_RET_ASSERT(session, WT_DIAGNOSTIC_DATA_LOSS, !F_ISSET(r, WT_REC_EVICT), EBUSY,
+            WT_RET_ASSERT(session, WT_DIAGNOSTIC_EVICTION_CHECK, !F_ISSET(r, WT_REC_EVICT), EBUSY,
               "unexpected WT_REF_LOCKED child state during eviction reconciliation");
 
             /* If the page is being read from disk, it's not modified by definition. */
@@ -247,7 +247,7 @@ __wt_rec_child_modify(
              * We should never be here during eviction, active child pages in an evicted page's
              * subtree fails the eviction attempt.
              */
-            WT_RET_ASSERT(session, WT_DIAGNOSTIC_DATA_LOSS, !F_ISSET(r, WT_REC_EVICT), EBUSY,
+            WT_RET_ASSERT(session, WT_DIAGNOSTIC_EVICTION_CHECK, !F_ISSET(r, WT_REC_EVICT), EBUSY,
               "unexpected WT_REF_MEM child state during eviction reconciliation");
 
             /*
@@ -351,7 +351,7 @@ __wt_rec_child_modify(
              * checkpoint, all splits in process will have completed before we walk any pages for
              * checkpoint.
              */
-            WT_RET_ASSERT(session, WT_DIAGNOSTIC_DATA_LOSS, false, EBUSY,
+            WT_RET_ASSERT(session, WT_DIAGNOSTIC_EVICTION_CHECK, false, EBUSY,
               "unexpected WT_REF_SPLIT child state during reconciliation");
             /* NOTREACHED */
             return (EBUSY);

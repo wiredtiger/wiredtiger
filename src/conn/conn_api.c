@@ -1964,13 +1964,13 @@ int
 __wt_extra_diagnostics_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
     static const WT_NAME_FLAG extra_diagnostics_types[] = {{"all", WT_DIAGNOSTIC_ALL},
-      {"checkpoint_validation", WT_DIAGNOSTIC_CHECKPOINT_VALIDATION},
-      {"cursor_acquisition", WT_DIAGNOSTIC_CURSOR_ACQUISITION},
-      {"data_loss", WT_DIAGNOSTIC_DATA_LOSS}, {"disk_validation", WT_DIAGNOSTIC_DISK_VALIDATION},
-      {"hs_validation", WT_DIAGNOSTIC_HS_VALIDATION},
-      {"log_validation", WT_DIAGNOSTIC_LOG_VALIDATION},
+      {"checkpoint_validate", WT_DIAGNOSTIC_CHECKPOINT_VALIDATE},
+      {"cursor_check", WT_DIAGNOSTIC_CURSOR_CHECK}, {"disk_validate", WT_DIAGNOSTIC_DISK_VALIDATE},
+      {"eviction_check", WT_DIAGNOSTIC_EVICTION_CHECK},
+      {"generation_check", WT_DIAGNOSTIC_GENERATION_CHECK},
+      {"hs_validate", WT_DIAGNOSTIC_HS_VALIDATE},
       {"key_out_of_order", WT_DIAGNOSTIC_KEY_OUT_OF_ORDER},
-      {"obsolete_data", WT_DIAGNOSTIC_OBSOLETE_DATA}, {"prepared", WT_DIAGNOSTIC_PREPARED},
+      {"log_validate", WT_DIAGNOSTIC_LOG_VALIDATE}, {"prepared", WT_DIAGNOSTIC_PREPARED},
       {"slow_operation", WT_DIAGNOSTIC_SLOW_OPERATION},
       {"txn_visibility", WT_DIAGNOSTIC_TXN_VISIBILITY}, {NULL, 0}};
 

@@ -665,7 +665,7 @@ retry:
     clsm->dsk_gen = lsm_tree->dsk_gen;
 
 err:
-    if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_CURSOR_ACQUISITION)) {
+    if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_CURSOR_CHECK)) {
         /* Check that all cursors are open as expected. */
         if (ret == 0 && F_ISSET(clsm, WT_CLSM_OPEN_READ)) {
             for (i = 0; i != clsm->nchunks; i++) {
