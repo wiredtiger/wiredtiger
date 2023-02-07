@@ -42,7 +42,7 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
             is_local_storage = False,
             auth_token = get_auth_token('azure_store'), 
             bucket = 'pythontest',
-            bucket_prefix = "pfx_",
+            bucket_prefix = wttest.getss_random_prefix(),
             ss_name = 'azure_store')),
         ('gcp_store', dict(is_tiered = True,
             is_local_storage = False,
@@ -153,11 +153,9 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
 
         # We cannot use the file system to create files, it is readonly.
         # So use python I/O to build up the file.
-        f = open('foobar', 'wb')
-
-        outbytes = ('MORE THAN ENOUGH DATA\n' * 100000).encode()
-        f.write(outbytes)
-        f.close()
+        with open('foobar', 'wb') as f:
+            outbytes = ('MORE THAN ENOUGH DATA\n'*100000).encode()
+            f.write(outbytes)
 
         # Flush valid file into Azure.
         self.assertEqual(ss.ss_flush(session, azure_fs_1, 'foobar', 'foobar', None), 0)

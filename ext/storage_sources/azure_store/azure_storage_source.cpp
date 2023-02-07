@@ -204,6 +204,8 @@ static int
 azure_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYSTEM *file_system,
   const char *source, const char *object, const char *config)
 {
+    WT_UNUSED(storage_source);
+    WT_UNUSED(config);
     azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
     WT_FILE_SYSTEM *wt_filesystem = azure_fs->wt_fs;
 
@@ -241,6 +243,10 @@ static int
 azure_flush_finish(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
   WT_FILE_SYSTEM *file_system, const char *source, const char *object, const char *config)
 {
+    WT_UNUSED(storage_source);
+    WT_UNUSED(session);
+    WT_UNUSED(config);
+    WT_UNUSED(source);
     azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
 
     std::cout << "azure_flush_finish: Checking object: " + std::string(object) + " exists in Azure."
