@@ -1303,15 +1303,6 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
         }
     }
 
-    /*
-     * Discard remaining pages by decrementing entries until it matches eviction candidates and
-     * clearing each entry from eviction list.
-     */
-    while (entries > queue->evict_candidates)
-        __evict_list_clear(session, &queue->evict_queue[--entries]);
-
-    queue->evict_entries = entries;
-
     WT_STAT_CONN_INCRV(session, cache_eviction_pages_queued_post_lru, queue->evict_candidates);
     queue->evict_current = queue->evict_queue;
     __wt_spin_unlock(session, &queue->evict_lock);
