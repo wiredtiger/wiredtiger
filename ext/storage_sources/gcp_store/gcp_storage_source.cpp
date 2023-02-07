@@ -40,7 +40,7 @@ struct gcp_file_handle {
     WT_FILE_HANDLE *wt_file_handle;
 };
 
-static std::string gcp_path(const std::string &dir, const std::string &path);
+static std::filesystem::path gcp_path(const std::filesystem::path &dir, const std::filesystem::path &path);
 static int gcp_customize_file_system(WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *,
   const char *, WT_FILE_SYSTEM **) __attribute__((__unused__));
 static int gcp_add_reference(WT_STORAGE_SOURCE *) __attribute__((__unused__));
@@ -71,13 +71,11 @@ static int gcp_object_list_free(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_
 static int gcp_terminate(WT_STORAGE_SOURCE *, WT_SESSION *) __attribute__((__unused__));
 
 // Construct a pathname from the directory and the object name.
-static std::string
-gcp_path(const std::string &dir, const std::string &path)
+static std::filesystem::path
+gcp_path(const std::filesystem::path &dir, const std::filesystem::path &path)
 {
     // Skip over "./" and variations (".//", ".///./././//") at the beginning of the name.
-    int i = path.find_first_not_of(".", 0);
-    std::string strippedName = path.substr(i, path.length() - i);
-    return (dir + "/" + strippedName);
+    return (dir / std::filesystem::canonical(path));
 }
 
 static int
