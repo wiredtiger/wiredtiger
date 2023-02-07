@@ -42,7 +42,7 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
             is_local_storage = False,
             auth_token = get_auth_token('azure_store'), 
             bucket = 'pythontest',
-            bucket_prefix = wttest.getss_random_prefix(),
+            bucket_prefix = 'pfx_',
             ss_name = 'azure_store')),
         ('gcp_store', dict(is_tiered = True,
             is_local_storage = False,
