@@ -40,7 +40,7 @@ struct gcp_file_handle {
     WT_FILE_HANDLE *wt_file_handle;
 };
 
-static std::string gcp_path(const std::string &dir, const std::string &name);
+static std::string gcp_path(const std::string &dir, const std::string &path);
 static int gcp_customize_file_system(WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *,
   const char *, WT_FILE_SYSTEM **) __attribute__((__unused__));
 static int gcp_add_reference(WT_STORAGE_SOURCE *) __attribute__((__unused__));
@@ -72,18 +72,11 @@ static int gcp_terminate(WT_STORAGE_SOURCE *, WT_SESSION *) __attribute__((__unu
 
 // Construct a pathname from the directory and the object name.
 static std::string
-gcp_path(const std::string &dir, const std::string &name)
+gcp_path(const std::string &dir, const std::string &path)
 {
     // Skip over "./" and variations (".//", ".///./././//") at the beginning of the name.
-    int i = 0;
-    while (name[i] == '.') {
-        if (name[i + 1] != '/')
-            break;
-        i += 2;
-        while (name[i] == '/')
-            i++;
-    }
-    std::string strippedName = name.substr(i, name.length() - i);
+    int i = path.find_first_not_of(".", 0);
+    std::string strippedName = path.substr(i, path.length() - i);
     return (dir + "/" + strippedName);
 }
 
@@ -264,7 +257,6 @@ gcp_flush_finish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM
 
     gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
     // Constructing the pathname for source.
-    std::string src_path = gcp_path(fs->home_dir, source);
     bool exists = false;
     size_t size;
     int ret = fs->gcp_conn->object_exists(object, exists, size);
