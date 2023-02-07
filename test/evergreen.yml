@@ -2213,6 +2213,38 @@ tasks:
         vars:
           unit_test_args: --hook timestamp
 
+  # Versions of the tiered and timestamp hook tests, scaled down for PR tests.
+  # A small (1 out of N) random sample is run.
+  - name: unit-test-hook-tiered-quick
+    tags: ["pull_request", "python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook tiered --random-sample 20
+
+  - name: unit-test-hook-tiered-timestamp-quick
+    tags: ["pull_request", "python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook tiered --hook timestamp --random-sample 20
+
+  - name: unit-test-hook-timestamp-quick
+    tags: ["pull_request", "python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook timestamp --random-sample 20
+
   # The test_prepare_hs03.py test, when run with timestamp hooks, is run multiple times to facilitate
   # catching intermittent problems in the test.
   - name: test-prepare-hs03-hook-timestamp
