@@ -381,7 +381,7 @@ azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
 
     // Check if there is already an existing file handle open.
     auto fh_iterator = std::find_if(azure_fs->azure_fh.begin(), azure_fs->azure_fh.end(),
-      [name](azure_file_handle *fh) { return strcmp(name, fh->name.c_str()) == 0; });
+      [name](azure_file_handle *fh) { return fh->name.compare(name) == 0; });
 
     // Active file handle for file exists, increment reference count
     if (fh_iterator != azure_fs->azure_fh.end()) {
