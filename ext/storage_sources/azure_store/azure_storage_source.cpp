@@ -419,7 +419,7 @@ azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
         std::cerr << "azure_file_open: object_exists request to Azure failed." << std::endl;
         return ret;
     }
-    if (exists == false) {
+    if (!exists) {
         std::cerr << "azure_file_open: no such file named " << name << "." << std::endl;
         return EINVAL;
     }
