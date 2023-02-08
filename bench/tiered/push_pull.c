@@ -213,7 +213,7 @@ recover_validate(const char *home, uint32_t num_records, uint64_t file_size, uin
 {
     struct timeval start, end;
 
-    char buf[1024], rm_cmd[512], bucket_name[512];
+    char bucket_name[512], buf[1024], rm_cmd[512];
     char *ret;
     double diff_sec;
     int status;

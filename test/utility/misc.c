@@ -405,7 +405,7 @@ void
 testutil_wiredtiger_open(TEST_OPTS *opts, const char *home, const char *config,
   WT_EVENT_HANDLER *event_handler, WT_CONNECTION **connectionp, bool rerun, bool benchmarkrun)
 {
-    char bucket_name[256], auth_token[256];
+    char auth_token[256], bucket_name[256];
     char buf[1024], tiered_ext_cfg[512];
     const char *access_key, *secret_key;
 
