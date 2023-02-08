@@ -405,7 +405,7 @@ azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
         return EINVAL;
     }
 
-    // Only data files should be opened; although this constraint can be relaxed in future.
+    // Only data files and regular files should be opened.
     if (file_type != WT_FS_OPEN_FILE_TYPE_DATA && file_type != WT_FS_OPEN_FILE_TYPE_REGULAR) {
         std::cerr << "azure_file_open: only data file and regular types supported." << std::endl;
         return EINVAL;
