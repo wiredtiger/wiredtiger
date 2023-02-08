@@ -5002,10 +5002,6 @@ buildvariants:
     - name: ".stress-test-4-nonstandalone"
     - name: ".stress-test-no-barrier-nonstandalone"
     - name: format-abort-recovery-stress-test-nonstandalone
-    - name: skiplist-stress-test-nonstandalone
-    - name: skiplist-stress-test
-    - name: split-stress-test-nonstandalone
-    - name: split-stress-test
 
 - name: large-scale-tests
   display_name: "Large scale tests"
