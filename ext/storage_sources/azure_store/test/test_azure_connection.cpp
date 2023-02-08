@@ -180,8 +180,8 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
         REQUIRE(std::find(container.begin(), container.end(), bucket_prefix + object_name + "1") !=
           std::end(container));
         // Check that when putting an object fails that object is not in the container.
-        REQUIRE(std::find(container.begin(), container.end(), bucket_prefix + non_exist_object_key) ==
-          std::end(container));
+        REQUIRE(std::find(container.begin(), container.end(),
+                  bucket_prefix + non_exist_object_key) == std::end(container));
 
         blob_client.Delete();
     }
