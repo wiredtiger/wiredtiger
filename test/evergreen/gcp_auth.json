@@ -2,8 +2,8 @@
     "type": "service_account",
     "project_id": "axial-radius-373703",
     "private_key_id": "f4628fbbe1227933d8909320b8711d873961205b",
-    "private_key": "${private_key}",
-    "client_email": "sona-pm2681@axial-radius-373703.iam.gserviceaccount.com",
+    "private_key": "hi",
+    "client_email": "sona-pm2681@axial-radius-373703.iam.gserviceaccount.com", // FIXME: 
     "client_id": "109257621466270488764",
     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
     "token_uri": "https://oauth2.googleapis.com/token",
