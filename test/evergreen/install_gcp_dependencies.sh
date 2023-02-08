@@ -1,6 +1,9 @@
 #!/bin/sh
 set -o errexit  # Exit the script with error if any of the commands fail
 
+# Used to install dependencies for the GCP SDK. This method is being used instead of having them installed on system
+# to reduce any versioning problems in the future if the GCP SDK requirements were to change.
+
 install_abseil ()
 {
     mkdir -p Downloads/abseil-cpp && cd Downloads/abseil-cpp

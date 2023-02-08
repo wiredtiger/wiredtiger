@@ -2948,7 +2948,6 @@ tasks:
             # Run S3 extension unit testing.
             ext/storage_sources/s3_store/test/run_s3_unit_tests
   - name: azure-tiered-unittest-test
-    tags: ["pull_request"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2968,7 +2967,7 @@ tasks:
             # Run AZURE extension unit testing.
             ext/storage_sources/azure_store/test/run_azure_unit_tests
   - name: azure-gcp-tiered-test-small
-    tags: ["pull_request", "python"]
+    tags: ["python"]
     commands:
       - func: "get project"
       - func: "install gcp dependencies"
@@ -2990,7 +2989,6 @@ tasks:
           python_binary: $(pwd)/venv/bin/python3
           tiered_storage_test_name: tiered19
   - name: gcp-tiered-unittest-test
-    tags: ["pull_request"]
     commands:
       - func: "get project"
       - func: "install gcp dependencies"
@@ -3004,7 +3002,7 @@ tasks:
           shell: bash
           script: |
             set -o errexit
-            cat ../test/evergreen/gcp_auth.json | sed -i 's/privateKey/${gcp_private_key}/' ../test/evergreen/gcp_auth.json
+            cat ../test/evergreen/gcp_auth.json | sed -i 's/privateKey/$gcp_private_key/' ../test/evergreen/gcp_auth.json
             export GOOGLE_APPLICATION_CREDENTIALS="../test/evergreen/gcp_auth.json"
             set -o verbose
 
