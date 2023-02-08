@@ -76,7 +76,6 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
     std::string bucket_prefix = randomize_test_prefix();
 
     azure_connection conn = azure_connection("myblobcontainer1", bucket_prefix);
-    azure_connection conn_second = azure_connection("myblobcontainer1", "pfx_");
     azure_connection conn_bad = azure_connection("myblobcontainer1", "bad_prefix_");
 
     std::vector<std::pair<std::string, std::string>> blob_objects;
@@ -133,7 +132,7 @@ TEST_CASE("Testing Azure Connection Class", "azure-connection")
         // List single. Object size should be 1.
         REQUIRE(conn.list_objects(object_name, objects, true) == 0);
         REQUIRE(objects.size() == 1);
-        
+
         objects.clear();
     }
 
