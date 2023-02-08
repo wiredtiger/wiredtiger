@@ -549,7 +549,9 @@ azure_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *size
         std::cerr << "azure_file_open: no such file." << std::endl;
         return EINVAL;
     }
-    return size;
+
+    *sizep = size;
+    return 0;
 }
 
 // An Azure storage source library - creates an entry point to the Azure extension.

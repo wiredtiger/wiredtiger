@@ -167,24 +167,46 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         # Check file system exists for an existing object.
         self.assertTrue(azure_fs_1.fs_exist(session, 'foobar'))
 
-        # Open existing file in the cloud
+        # Open existing file in the cloud. Only one active file handle exists for each open file.
+        # A reference count keeps track of open file instances so we can get a pointer to the same
+        # file handle as long as there are more open file calls than close file calls (i.e. reference
+        # count is greater than 0).
         fh_1 = azure_fs_1.fs_open_file(session, 'foobar', file_system.open_file_type_data, file_system.open_readonly)
+        assert(fh_1 != None)
         fh_2 = azure_fs_1.fs_open_file(session, 'foobar', file_system.open_file_type_data, file_system.open_readonly)
+        assert(fh_2 != None)
 
+        # File handle lock call not used in Azure implementation.
+        self.assertEqual(fh_1.fh_lock(session, True), 0)
+        self.assertEqual(fh_1.fh_lock(session, False), 0)
+
+        # Read using a valid file handle.
         inbytes_1 = bytes(1000000)
-        fh_1.fh_read(session, 0, inbytes_1)
+        self.assertEqual(fh_1.fh_read(session, 0, inbytes_1), 0)
         self.assertEquals(outbytes[0:1000000], inbytes_1)
 
-        fh_1.close(session)
+        # Close a valid file handle.
+        self.assertEqual(fh_1.close(session), 0)
 
+        # Read using a valid file handle.
         inbytes_2 = bytes(1000000)
-        fh_2.fh_read(session, 0, inbytes_2)
+        self.assertEqual(fh_2.fh_read(session, 0, inbytes_2), 0)
         self.assertEquals(outbytes[0:1000000], inbytes_2)
-        #self.assertEquals(azure_fs_1.fs_size(session, 'foobar'), len(outbytes))
-        #self.assertEquals(fh_1.fh_size(session), len(outbytes))
 
-        fh_2.close(session)
+        # File size succeeds.
+        self.assertEqual(fh_1.fh_size(session), 2200000)
 
+        # Close a valid file handle.
+        self.assertEquals(fh_2.close(session), 0)
+
+        # Test that opening invalid file fails.
+        bad_file = 'bad_file'
+        err_msg = '/Exception: Invalid argument/'
+        self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
+            lambda: azure_fs_1.fs_open_file(session, bad_file,
+                file_system.open_file_type_data,file_system.open_readonly), err_msg)
+
+        err_msg = '/Exception: No such file or directory/'
         # Flush non valid file into Azure will result in an exception.
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_flush(session, azure_fs_1, 'non_existing_file', 'non_existing_file', None), err_msg)
