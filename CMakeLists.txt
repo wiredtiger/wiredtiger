@@ -49,6 +49,7 @@ include(cmake/configs/base.cmake)
 # Import our third party library definitions.
 include(cmake/third_party/aws_sdk.cmake)
 include(cmake/third_party/gperftools.cmake)
+include(cmake/third_party/lazyfs.cmake)
 include(cmake/third_party/lz4.cmake)
 include(cmake/third_party/memkind.cmake)
 include(cmake/third_party/snappy.cmake)

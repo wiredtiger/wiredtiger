@@ -48,6 +48,7 @@ static const char *const uri = "table:main";
 static bool compaction;
 static bool compat;
 static bool inmem;
+static bool lazyfs;
 
 #define MAX_TH 12
 #define MIN_TH 5
@@ -63,7 +64,8 @@ static bool inmem;
 #define LAZYFS_CONFIG_FILE "lazyfs-config.toml"
 #define LAZYFS_CONTROL_FILE "lazyfs-control.fifo"
 #define LAZYFS_LOG_FILE "lazyfs.log"
-#define LAZYFS_PATH "../../../../test/3rdparty/lazyfs-0.0.1/lazyfs"
+#define LAZYFS_PATH "../../../lazyfs/src/lazyfs/lazyfs"
+#define LAZYFS_SUFFIX "_lazyfs"
 
 #define RECORDS_DIR "records"
 #define WT_HOME_DIR "WT_HOME"
@@ -82,6 +84,10 @@ static bool inmem;
 #define ENV_CONFIG_TXNSYNC                                                                        \
     "create,log=(file_max=10M,enabled),"                                                          \
     "transaction_sync=(enabled,method=none),statistics=(all),statistics_log=(json,on_close,wait=" \
+    "1)"
+#define ENV_CONFIG_TXNSYNC_FSYNC                                                                   \
+    "create,log=(file_max=10M,enabled),"                                                           \
+    "transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(json,on_close,wait=" \
     "1)"
 
 /*
@@ -337,6 +343,8 @@ fill_db(uint32_t nth)
         testutil_die(errno, "Child chdir: %s", home);
     if (inmem)
         strcpy(envconf, ENV_CONFIG_DEF);
+    else if (lazyfs)
+        strcpy(envconf, ENV_CONFIG_TXNSYNC_FSYNC);
     else
         strcpy(envconf, ENV_CONFIG_TXNSYNC);
     if (compat)
@@ -658,11 +666,30 @@ is_mounted(const char *mount_dir)
 }
 
 /*
+ * lazyfs_is_implicitly_enabled --
+ *     Check whether LazyFS is implicitly enabled through being the executable name.
+ */
+static bool
+lazyfs_is_implicitly_enabled(void)
+{
+    size_t len;
+
+    if (progname == NULL)
+        return false;
+
+    len = strlen(progname);
+    if (len < strlen(LAZYFS_SUFFIX))
+        return false;
+
+    return strcmp(progname + (len - strlen(LAZYFS_SUFFIX)), LAZYFS_SUFFIX) == 0;
+}
+
+/*
  * lazyfs_discover --
  *     Find LazyFS's home directory.
  */
 static void
-lazyfs_discover()
+lazyfs_discover(void)
 {
 #ifndef __linux__
     if (lazyfs) {
@@ -674,7 +701,7 @@ lazyfs_discover()
     char buf[PATH_MAX];
     char program_dir[PATH_MAX];
 
-    /* Find LazyFS relative to the current executable's path. */
+    /* Find LazyFS relative to the path to the current executable. */
     testutil_assert_errno(readlink("/proc/self/exe", buf, sizeof(buf)) >= 0);
     testutil_check(__wt_snprintf(program_dir, sizeof(program_dir), "%s", dirname(buf)));
 
@@ -685,7 +712,7 @@ lazyfs_discover()
 }
 
 /*
- * lazyfs_mount --
+ * lazyfs_setup --
  *     Set up LazyFS. Note that the path to the FIFO file must be absolute.
  */
 static void
@@ -797,15 +824,15 @@ lazyfs_mount(const char *mount_dir, const char *base_dir, const char *lazyfs_con
 static void
 lazyfs_unmount(const char *mount_dir, pid_t lazyfs_pid)
 {
-    int status;
     struct stat sb;
+    int status;
     char buf[PATH_MAX];
 
     /* Check whether the file system is mounted. */
     if (stat(mount_dir, &sb) != 0) {
         if (errno == ENOENT)
-            return; /* It's ok if the mountpoint doesn't exist. */
-        testutil_die(errno, "Error while accessing the LazyFS mountpoint.");
+            return; /* It's ok if the mount point doesn't exist. */
+        testutil_die(errno, "Error while accessing the LazyFS mount point.");
     }
     if (!is_mounted(mount_dir))
         return;
@@ -878,19 +905,19 @@ main(int argc, char *argv[])
     char lazyfs_logfile[PATH_MAX];    /* The LazyFS log file */
     char *str;
     const char *working_dir;
-    bool lazyfs, preserve, rand_th, rand_time, verify_only;
+    bool preserve, rand_th, rand_time, verify_only;
 
     (void)testutil_set_progname(argv);
 
     compaction = compat = inmem = false;
-    lazyfs = false;
+    lazyfs = lazyfs_is_implicitly_enabled();
     lazyfs_pid = 0;
     nth = MIN_TH;
     preserve = false;
     rand_th = rand_time = true;
     timeout = MIN_TIME;
     verify_only = false;
-    working_dir = "WT_TEST.random-abort";
+    working_dir = lazyfs ? "WT_TEST.random-abort-lazyfs" : "WT_TEST.random-abort";
 
     while ((ch = __wt_getopt(progname, argc, argv, "Cch:LmpT:t:v")) != EOF)
         switch (ch) {
@@ -1071,7 +1098,7 @@ main(int argc, char *argv[])
 
     /*
      * Clear the cache, if we are using LazyFS. Do this after we save the data for debugging
-     * puproses, so that we can see what we might have lost. If we are using LazyFS, the underlying
+     * purposes, so that we can see what we might have lost. If we are using LazyFS, the underlying
      * directory shows the state that we'd get after we clear the cache.
      */
     if (!verify_only && lazyfs) {
@@ -1088,7 +1115,7 @@ main(int argc, char *argv[])
      * Clean up.
      */
 
-    /* At this point, $CWD is inside `home`, which we intend to delete. cd to the parent dir. */
+    /* At this point, we are inside `home`, which we intend to delete. cd to the parent dir. */
     if (chdir(cwd_start) != 0)
         testutil_die(errno, "root chdir: %s", home);
 

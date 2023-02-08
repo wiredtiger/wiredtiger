@@ -272,6 +272,8 @@ LTE
 LWN
 LZ
 LZO
+LazyFS
+LazyFS's
 LeafGreen
 LevelDB
 Levyx
@@ -347,6 +349,7 @@ Opcode
 Optane
 Outfmt
 PARAM
+PDEATHSIG
 PFX
 POS
 POSIX
@@ -494,6 +497,7 @@ UnlockFile
 Unmap
 UnmapViewOfFile
 Unmarshall
+Unmount
 Unordered
 Uryyb
 VALGRIND
@@ -911,6 +915,7 @@ fgetln
 fgets
 fh
 fhandle
+fifo
 fileX
 filefrag
 filehandle
@@ -955,6 +960,7 @@ fuzzer
 fuzzutil
 fvisibility
 fwrite
+gb
 gc
 gcc
 gdb
@@ -1096,6 +1102,7 @@ kvs
 lang
 las
 latencies
+lazyfs
 lbrace
 lbracket
 ld
@@ -1312,6 +1319,7 @@ pclose
 pcpu
 perf
 pfx
+pid
 pluggable
 pmem
 poc
@@ -1343,6 +1351,7 @@ primary's
 printf
 printlog
 priv
+proc
 prog
 progname
 programmatically
@@ -1489,6 +1498,8 @@ strtouq
 struct
 structs
 su
+subdir
+subdirectories
 subdirectory
 subget
 subgetraw
@@ -1497,6 +1508,7 @@ subinit
 sublicense
 subone
 suboptimal
+subprocess
 subsystem's
 subtest
 subtree
@@ -1542,6 +1554,7 @@ tokstart
 toktype
 tolower
 tombstoned
+toml
 toolchain
 toplevel
 totalsec
@@ -1575,6 +1588,7 @@ uS
 ui
 uint
 uintmax
+umount
 unbare
 unbuffered
 uncacheable
@@ -1602,6 +1616,7 @@ unmarshall
 unmarshalled
 unmerged
 unmodify
+unmount
 unordered
 unpackv
 unpadded
