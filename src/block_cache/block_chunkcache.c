@@ -8,6 +8,7 @@
 
 #include "wt_internal.h"
 
+#ifdef HAVE_DIAGNOSTIC
 #define WT_BLOCK_BEGINS_IN_CHUNK(chunk_off, block_off, chunk_size, block_size)   \
     (block_off >= chunk_off && (block_off < chunk_off + (wt_off_t)chunk_size) && \
       (block_off + (wt_off_t)block_size) > (chunk_off + (wt_off_t)chunk_size))
@@ -37,6 +38,7 @@
         TAILQ_INSERT_HEAD(&chunkcache->chunkcache_lru_list, chunk, next_lru_item); \
         __wt_spin_unlock(session, &chunkcache->chunkcache_lru_lock);               \
     }
+#endif
 
 #define WT_CHUNK_OFFSET(chunkcache, offset) \
     (wt_off_t)(((size_t)offset / chunkcache->chunk_size) * chunkcache->chunk_size)
