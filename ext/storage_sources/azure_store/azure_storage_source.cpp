@@ -507,7 +507,7 @@ azure_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
 static int
 azure_file_lock(WT_FILE_HANDLE *file_handle, WT_SESSION *session, bool lock)
 {
-    // Finle lock is not used in Azure implementation. Locks are always granted.
+    // Since the file is in the cloud, locks are always granted because concurrent reads are fine.
     WT_UNUSED(file_handle);
     WT_UNUSED(session);
     WT_UNUSED(lock);
@@ -545,12 +545,10 @@ azure_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *size
         std::cerr << "azure_file_open: object_exists request to Azure failed." << std::endl;
         return ret;
     }
-    if (exists == false) {
-        std::cerr << "azure_file_open: no such file." << std::endl;
-        return EINVAL;
-    }
 
     *sizep = size;
+    WT_UNUSED(exists);
+
     return 0;
 }
 
