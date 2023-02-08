@@ -245,7 +245,7 @@ recover_validate(const char *home, uint32_t num_records, uint64_t file_size, uin
     else {
         ret = strchr(S3_STORE_BUCKET_NAME, ';');
         str_length = (size_t)(ret - S3_STORE_BUCKET_NAME);
-        strncpy(bucket_name, S3_STORE_BUCKET_NAME, str_length);
+        memcpy(bucket_name, S3_STORE_BUCKET_NAME, str_length);
         bucket_name[str_length] = '\0';
     }
     testutil_check(
