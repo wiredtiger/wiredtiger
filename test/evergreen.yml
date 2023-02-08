@@ -2213,7 +2213,7 @@ tasks:
         vars:
           unit_test_args: -v 2 --hook timestamp
 
-  # A versions of the tiered, timestamp hook test, scaled down for running during pull requests.
+  # A version of the tiered, timestamp hook test, scaled down for running during pull requests.
   # A small (1 out of N) random sample is run.
   - name: unit-test-hook-tiered-timestamp-quick
     tags: ["pull_request", "python"]
