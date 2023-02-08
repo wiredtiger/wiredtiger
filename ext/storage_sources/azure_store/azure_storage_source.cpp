@@ -232,7 +232,7 @@ azure_flush_finish(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     bool existsp = false;
     std::cout << "azure_flush_finish: Checking object: " << object << " exists in Azure."
               << std::endl;
-    return (azure_file_system_exists(file_system, session, object, &existsp));
+    return azure_file_system_exists(file_system, session, object, &existsp);
 }
 
 // Discard any resources on termination.
@@ -301,8 +301,8 @@ static int
 azure_object_list(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *directory,
   const char *prefix, char ***dirlistp, uint32_t *countp)
 {
-    return (
-      azure_object_list_helper(file_system, session, directory, prefix, dirlistp, countp, false));
+    return azure_object_list_helper(
+      file_system, session, directory, prefix, dirlistp, countp, false);
 }
 
 // Return a single object name for the given location.
@@ -310,8 +310,8 @@ static int
 azure_object_list_single(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *directory,
   const char *prefix, char ***dirlistp, uint32_t *countp)
 {
-    return (
-      azure_object_list_helper(file_system, session, directory, prefix, dirlistp, countp, true));
+    return azure_object_list_helper(
+      file_system, session, directory, prefix, dirlistp, countp, true);
 }
 
 // Free memory allocated by azure_object_list.
