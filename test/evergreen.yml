@@ -3003,7 +3003,7 @@ tasks:
           shell: bash
           script: |
             set -o errexit
-            cat ../test/evergreen/gcp_auth.json | sed -i 's/privateKey/$gcp_private_key/' ../test/evergreen/gcp_auth.json
+            sed -i "s/\${privateKey}/${gcp_private_key}/"" ../test/evergreen/gcp_auth.json
             export GOOGLE_APPLICATION_CREDENTIALS="../test/evergreen/gcp_auth.json"
             set -o verbose
 
