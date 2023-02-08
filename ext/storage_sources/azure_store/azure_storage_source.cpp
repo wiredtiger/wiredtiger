@@ -506,7 +506,8 @@ azure_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
 static int
 azure_file_lock(WT_FILE_HANDLE *file_handle, WT_SESSION *session, bool lock)
 {
-    // Since the file is in the cloud, locks are always granted because concurrent reads are fine.
+    // Since the file is in the cloud, locks are always granted because concurrent reads do not
+    // require a lock.
     WT_UNUSED(file_handle);
     WT_UNUSED(session);
     WT_UNUSED(lock);
@@ -532,7 +533,7 @@ azure_file_read(
     return 0;
 }
 
-// Get the size of a file in bytes, by file handle.
+// Get the size of a file in bytes.
 static int
 azure_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *sizep)
 {
