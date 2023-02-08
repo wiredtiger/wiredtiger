@@ -326,7 +326,6 @@ azure_file_system_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
     azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
     azure_store *azure_storage = azure_fs->store;
 
-
     // Remove from the active file system list. The lock will be freed when the scope is exited.
     {
         std::lock_guard<std::mutex> lock_guard(azure_storage->fs_mutex);
@@ -473,7 +472,6 @@ azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
         azure_fs->azure_fh.push_back(azure_fh);
     }
     *file_handlep = &azure_fh->fh;
-
 
     return 0;
 }
