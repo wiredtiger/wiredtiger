@@ -40,8 +40,7 @@ struct gcp_file_handle {
     WT_FILE_HANDLE *wt_file_handle;
 };
 
-static std::filesystem::path gcp_path(
-  const std::filesystem::path &dir, const std::filesystem::path &path);
+static gcp_file_system *get_gcp_file_system(WT_FILE_SYSTEM *);
 static int gcp_customize_file_system(WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *,
   const char *, WT_FILE_SYSTEM **) __attribute__((__unused__));
 static int gcp_add_reference(WT_STORAGE_SOURCE *) __attribute__((__unused__));
@@ -71,12 +70,10 @@ static int gcp_object_list_free(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_
   __attribute__((__unused__));
 static int gcp_terminate(WT_STORAGE_SOURCE *, WT_SESSION *) __attribute__((__unused__));
 
-// Construct a pathname from the directory and the object name.
-static std::filesystem::path
-gcp_path(const std::filesystem::path &dir, const std::filesystem::path &path)
+static gcp_file_system *
+get_gcp_file_system(WT_FILE_SYSTEM *file_system)
 {
-    // Skip over "./" and variations (".//", ".///./././//") at the beginning of the path.
-    return (dir / std::filesystem::canonical(path));
+    return reinterpret_cast<gcp_file_system *>(file_system);
 }
 
 static int
@@ -224,42 +221,33 @@ gcp_file_system_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
 }
 
 static int
-gcp_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYSTEM *file_system,
-  const char *source, const char *object, const char *config)
+gcp_flush(WT_STORAGE_SOURCE * /*storage_source*/, WT_SESSION *session, WT_FILE_SYSTEM *file_system,
+  const char *source, const char *object, const char * /*config*/)
 {
-    WT_UNUSED(storage_source);
-    WT_UNUSED(config);
-
-    gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
-    WT_FILE_SYSTEM *wt_file_system = fs->wt_file_system;
-
-    // Confirm that the file exists on the native filesystem.
-    std::string src_path;
     try {
-        src_path = gcp_path(fs->home_dir, source);
-    } catch (...) {
+        gcp_file_system *fs = get_gcp_file_system(file_system);
+        WT_FILE_SYSTEM *wt_file_system = fs->wt_file_system;
+
+        // Confirm that the file exists on the native filesystem.
+        std::filesystem::path path = std::filesystem::canonical(source);
+        bool native_exist = false;
+        int ret = wt_file_system->fs_exist(wt_file_system, session, path.c_str(), &native_exist);
+        if (ret != 0)
+            return ret;
+        if (!native_exist)
+            return ENOENT;
+        return fs->gcp_conn->put_object(object, path);
+    } catch (const std::exception &ex) {
+        std::cerr << "Canonical path for " << source << " not found:\n" << ex.what() << std::endl;
         return ENOENT;
     }
-    bool native_exist = false;
-    int ret = wt_file_system->fs_exist(wt_file_system, session, src_path.c_str(), &native_exist);
-    if (ret != 0)
-        return ret;
-    if (!native_exist)
-        return ENOENT;
-    ret = fs->gcp_conn->put_object(object, src_path);
-
-    return ret;
 }
 
 static int
-gcp_flush_finish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM *file_system,
-  const char *source, const char *object, const char *config)
+gcp_flush_finish(WT_STORAGE_SOURCE * /*storage*/, WT_SESSION * /*session*/,
+  WT_FILE_SYSTEM *file_system, const char *source, const char *object, const char * /*config*/)
 {
-    WT_UNUSED(storage);
-    WT_UNUSED(session);
-    WT_UNUSED(config);
-
-    gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
+    gcp_file_system *fs = get_gcp_file_system(file_system);
 
     bool exists = false;
     size_t size;
