@@ -420,7 +420,7 @@ azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
         return ret;
     }
     if (exists == false) {
-        std::cerr << "azure_file_open: no such file." << std::endl;
+        std::cerr << "azure_file_open: no such file named " << name << "." << std::endl;
         return EINVAL;
     }
 
