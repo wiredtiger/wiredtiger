@@ -240,7 +240,7 @@ void thread_pair(int loop_count, std::ostream& ostream) {
 
     auto test_writes_then_reads_one_barrier_one_atomic =
             test_config("Test writes then reads with one barrier and one atomic",
-                        "Each thread writes then reads, with atomic increments used for for one write, "
+                        "Each thread writes then reads, with atomic increments used for one write, "
                         "and a barrier used between the write and read in the other thread. "
                         "Out of orders are NOT POSSIBLE.",
                         thread_1_atomic_increment_and_read,
