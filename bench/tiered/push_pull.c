@@ -244,9 +244,9 @@ recover_validate(const char *home, uint32_t num_records, uint64_t file_size, uin
         strcpy(bucket_name, DIR_STORE_BUCKET_NAME);
     else {
         ret = strchr(S3_STORE_BUCKET_NAME, ';');
-        length = (size_t)(ret - S3_STORE_BUCKET_NAME);
-        strncpy(bucket_name, S3_STORE_BUCKET_NAME, length);
-        bucket_name[length] = '\0';
+        str_length = (size_t)(ret - S3_STORE_BUCKET_NAME);
+        strncpy(bucket_name, S3_STORE_BUCKET_NAME, str_length);
+        bucket_name[str_length] = '\0';
     }
     testutil_check(
       __wt_snprintf(rm_cmd, sizeof(rm_cmd), "rm -rf %s/cache-%s/*", home, bucket_name));
