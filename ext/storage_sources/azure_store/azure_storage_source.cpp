@@ -397,7 +397,6 @@ azure_file_system_exists(
     if (!*existp) {
         std::cerr << "azure_file_system_exists: Object: " << name << " does not exist in Azure."
                   << std::endl;
-        return ENOENT;
     }
     std::cout << "azure_file_system_exists: Object: " << name << " exists in Azure." << std::endl;
     return 0;
