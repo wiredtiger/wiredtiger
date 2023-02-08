@@ -238,7 +238,8 @@ gcp_flush(WT_STORAGE_SOURCE * /*storage_source*/, WT_SESSION *session, WT_FILE_S
             return ENOENT;
         return fs->gcp_conn->put_object(object, path);
     } catch (const std::exception &ex) {
-        std::cerr << "Canonical path for " << source << " not found:\n" << ex.what() << std::endl;
+        std::cerr << "gcp_flush: Canonical path for " << source << " not found:\n"
+                  << ex.what() << std::endl;
         return ENOENT;
     }
 }
