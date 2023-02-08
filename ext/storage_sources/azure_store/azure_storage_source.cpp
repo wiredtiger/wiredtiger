@@ -322,10 +322,10 @@ azure_object_list_free(
 static int
 azure_file_system_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
 {
+    WT_UNUSED(session);
     azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
     azure_store *azure_storage = azure_fs->store;
 
-    WT_UNUSED(session);
 
     // Remove from the active file system list. The lock will be freed when the scope is exited.
     {
@@ -347,12 +347,12 @@ azure_file_exists(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *
     azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
     int ret;
     size_t size = 0;
+    WT_UNUSED(session);
+    WT_UNUSED(size);
     if ((ret = azure_fs->azure_conn->object_exists(std::string(name), *existp, size)) != 0) {
         std::cerr << "azure_file_open: object_exists request to Azure failed." << std::endl;
         return ret;
     }
-    WT_UNUSED(session);
-    WT_UNUSED(size);
     return 0;
 }
 
@@ -397,6 +397,7 @@ static int
 azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
   WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags, WT_FILE_HANDLE **file_handlep)
 {
+    WT_UNUSED(session);
     azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
 
     // Azure only supports opening the file in read only mode.
@@ -415,6 +416,7 @@ azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
     bool exists;
     int ret;
     size_t size = 0;
+    WT_UNUSED(size);
     if ((ret = azure_fs->azure_conn->object_exists(std::string(name), exists, size)) != 0) {
         std::cerr << "azure_file_open: object_exists request to Azure failed." << std::endl;
         return ret;
@@ -472,8 +474,6 @@ azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
     }
     *file_handlep = &azure_fh->fh;
 
-    WT_UNUSED(session);
-    WT_UNUSED(size);
 
     return 0;
 }
@@ -483,6 +483,8 @@ static int
 azure_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
 {
     azure_file_handle *azure_fh = reinterpret_cast<azure_file_handle *>(file_handle);
+    WT_UNUSED(session);
+
     // If there are other active instances of the file being open, do not close file handle.
     if (--azure_fh->reference_count != 0)
         return 0;
@@ -496,8 +498,6 @@ azure_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
           std::remove(azure_fs->azure_fh.begin(), azure_fs->azure_fh.end(), azure_fh),
           azure_fs->azure_fh.end());
     }
-
-    WT_UNUSED(session);
 
     return 0;
 }
@@ -520,6 +520,7 @@ static int
 azure_file_read(
   WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t offset, size_t len, void *buf)
 {
+    WT_UNUSED(session);
     azure_file_handle *azure_fh = reinterpret_cast<azure_file_handle *>(file_handle);
     azure_file_system *azure_fs = azure_fh->fs;
 
@@ -528,7 +529,6 @@ azure_file_read(
         std::cerr << "azure_file_read: read_object request to Azure failed." << std::endl;
         return ret;
     }
-    WT_UNUSED(session);
 
     return 0;
 }
@@ -540,6 +540,7 @@ azure_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *size
     azure_file_handle *azure_fh = reinterpret_cast<azure_file_handle *>(file_handle);
     int ret;
     bool exists;
+    WT_UNUSED(exists);
     size_t size = 0;
     if ((ret = azure_fh->fs->azure_conn->object_exists(azure_fh->name, exists, size)) != 0) {
         std::cerr << "azure_file_open: object_exists request to Azure failed." << std::endl;
@@ -547,7 +548,6 @@ azure_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *size
     }
 
     *sizep = size;
-    WT_UNUSED(exists);
 
     return 0;
 }
