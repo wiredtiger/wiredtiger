@@ -217,7 +217,7 @@ recover_validate(const char *home, uint32_t num_records, uint64_t file_size, uin
     char *ret;
     double diff_sec;
     int status;
-    size_t length, val_1_size, val_2_size;
+    size_t str_length, val_1_size, val_2_size;
     uint64_t key, i, v;
 
     WT_CONNECTION *conn;
@@ -240,7 +240,7 @@ recover_validate(const char *home, uint32_t num_records, uint64_t file_size, uin
     v = (uint32_t)getpid() + num_records + (2 * counter);
     __wt_random_init_custom_seed(&rnd, v);
 
-    if (strcmp(opts->tiered_storage_source, "dir_store") == 0)
+    if (strcmp(opts->tiered_storage_source, DIR_STORE) == 0)
         strcpy(bucket_name, DIR_STORE_BUCKET_NAME);
     else {
         ret = strchr(S3_STORE_BUCKET_NAME, ';');
