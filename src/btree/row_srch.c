@@ -269,16 +269,21 @@ __validate_next_stack(
           (char *)lower_key.data, i + 1, (char *)upper_key.data);
     }
 
-    /*
-     * Finally, confirm that next_stack[0] is greater than srch_key. We've already confirmed that
-     * all keys on higher levels are larger than next_stack[0] and therefore also larger than
-     * srch_key.
-     */
-    WT_RET(__wt_compare(session, collator, srch_key, &lower_key, &cmp));
-    WT_ASSERT_ALWAYS(session, cmp < 0,
-      "Invalid next_stack: Search key is larger than keys on next_stack: srch_key = %s, "
-      "next_stack[0] = %s",
-      (char *)srch_key->data, (char *)lower_key.data);
+    if(next_stack[0] != NULL) {
+        /*
+         * Finally, confirm that next_stack[0] is greater than srch_key. We've already confirmed that
+         * all keys on higher levels are larger than next_stack[0] and therefore also larger than
+         * srch_key.
+         */
+        lower_key.data = WT_INSERT_KEY(next_stack[0]);
+        lower_key.size = WT_INSERT_KEY_SIZE(next_stack[0]);
+
+        WT_RET(__wt_compare(session, collator, srch_key, &lower_key, &cmp));
+        WT_ASSERT_ALWAYS(session, cmp < 0,
+        "Invalid next_stack: Search key is larger than keys on next_stack: srch_key = %s, "
+        "next_stack[0] = %s",
+        (char *)srch_key->data, (char *)lower_key.data);
+    }
 
     return (0);
 }
