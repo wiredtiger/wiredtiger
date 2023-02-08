@@ -181,7 +181,7 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_flush_finish(session, azure_fs_1, 'non_existing_file', 'non_existing_file', None), err_msg)
         
-        # Test that the no new objects exist after failed flush. 
+        # Test that the no new objects exist after failed flush.
         self.assertEquals(azure_fs_1.fs_directory_list(session, '', prefix_1), [prefix_1 + 'foobar'])
 
         err_not_sup_msg = '/Exception: Operation not supported/'
@@ -200,10 +200,10 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         # Check that second file exists in Azure.
         self.assertEqual(ss.ss_flush_finish(session, azure_fs_1, 'foobar', 'foobar2', None), 0)
 
-        # Directory list should show 2 objects in Azure. 
+        # Directory list should show 2 objects in Azure.
         self.assertEquals(azure_fs_1.fs_directory_list(session, '', prefix_1), [prefix_1 + 'foobar', prefix_1 + 'foobar2'])
 
-        # Directory list single should show 1 object. 
+        # Directory list single should show 1 object.
         self.assertEquals(azure_fs_1.fs_directory_list_single(session, '', prefix_1), [prefix_1 + 'foobar'])
 
         # Test that azure file system terminate succeeds.
