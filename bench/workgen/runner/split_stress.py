@@ -41,21 +41,41 @@ conn_config = "cache_size=100MB,log=(enabled=false),statistics=[fast],statistics
 conn = context.wiredtiger_open("create," + conn_config)
 s = conn.open_session("")
 
-# Table configuration. 
-table_config = "leaf_page_max=2048k,internal_page_max=8k,leaf_key_max=1433,leaf_value_max=1433,type=file,memory_page_max=512MB,split_deepen_min_child=100000"
-tname = "file:test"
-table = Table(tname)
-s.create(tname, 'key_format=S,value_format=S,' + table_config)
-table.options.key_size = 64
-table.options.value_size = 10
-table.options.range = 100000000 # 100 million
+# Table configuration.
+table_config = "leaf_page_max=8k,internal_page_max=8k,leaf_key_max=1433,leaf_value_max=1433,type=file,memory_page_max=1MB,split_deepen_min_child=100"
+tables = []
+table_count = 3
+for i in range(0, table_count):
+    tname = "file:test" + str(i)
+    table = Table(tname)
+    s.create(tname, 'key_format=S,value_format=S,' + table_config)
+    table.options.key_size = 64
+    table.options.value_size = 200
+    table.options.range = 100000000 # 100 million
+    tables.append(table)
+
+# Populate phase.
+populate_threads = 1
+icount = 50000
+# There are multiple tables to be filled during populate,
+# the icount is split between them all.
+pop_ops = Operation(Operation.OP_INSERT, tables[0])
+pop_ops = op_multi_table(pop_ops, tables)
+nops_per_thread = icount // (populate_threads * table_count)
+pop_thread = Thread(pop_ops * nops_per_thread)
+pop_workload = Workload(context, populate_threads * pop_thread)
+print('populate:')
+ret = pop_workload.run(conn)
+assert ret == 0, ret
 
 # Run phase.
-ops = Operation(Operation.OP_INSERT, table)
+ops = Operation(Operation.OP_INSERT, tables[0])
+ops = op_multi_table(ops, tables, False)
 thread0 = Thread(ops)
-workload = Workload(context, 50 * thread0)
+
+workload = Workload(context, 20 * thread0)
 workload.options.report_interval=5
-workload.options.run_time=360
+workload.options.run_time=300
 print('Split stress workload running...')
 ret = workload.run(conn)
 assert ret == 0, ret
