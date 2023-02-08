@@ -230,11 +230,11 @@ gcp_flush(WT_STORAGE_SOURCE * /*storage_source*/, WT_SESSION *session, WT_FILE_S
 
         // Confirm that the file exists on the native filesystem.
         std::filesystem::path path = std::filesystem::canonical(source);
-        bool native_exist = false;
-        int ret = wt_file_system->fs_exist(wt_file_system, session, path.c_str(), &native_exist);
+        bool exist_native = false;
+        int ret = wt_file_system->fs_exist(wt_file_system, session, path.c_str(), &exist_native);
         if (ret != 0)
             return ret;
-        if (!native_exist)
+        if (!exist_native)
             return ENOENT;
         return fs->gcp_conn->put_object(object, path);
     } catch (const std::exception &ex) {
