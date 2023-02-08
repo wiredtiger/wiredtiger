@@ -331,7 +331,7 @@ azure_object_list_free(
     return 0;
 }
 
-// Add objects retrieved from Azure container into the object list, and allocate the memory needed.
+// Add objects retrieved from Azure bucket into the object list, and allocate the memory needed.
 static int
 azure_object_list_add(
   char ***dirlistp, const std::vector<std::string> &objects, const uint32_t count)
