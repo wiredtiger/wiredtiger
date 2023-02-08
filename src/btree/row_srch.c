@@ -8,7 +8,8 @@
 
 #include "wt_internal.h"
 
-static inline int __validate_next_stack(WT_SESSION_IMPL *session, WT_INSERT *next_stack[WT_SKIP_MAXDEPTH]);
+static inline int __validate_next_stack(
+  WT_SESSION_IMPL *session, WT_INSERT *next_stack[WT_SKIP_MAXDEPTH], WT_ITEM *srch_key);
 
 /*
  * __search_insert_append --
@@ -209,7 +210,7 @@ __wt_search_insert(
      * second needs to change this to WT_DIAGNOSTIC_BTREE_VALIDATE.
      */
     if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_DATA_VALIDATION))
-        WT_RET(__validate_next_stack(session, cbt->next_stack));
+        WT_RET(__validate_next_stack(session, cbt->next_stack, srch_key));
     return (0);
 }
 
@@ -219,7 +220,8 @@ __wt_search_insert(
  *     to larger inserts than lower levels.
  */
 static inline int
-__validate_next_stack(WT_SESSION_IMPL *session, WT_INSERT *next_stack[WT_SKIP_MAXDEPTH])
+__validate_next_stack(
+  WT_SESSION_IMPL *session, WT_INSERT *next_stack[WT_SKIP_MAXDEPTH], WT_ITEM *srch_key)
 {
 
     WT_ITEM upper_key, lower_key;
@@ -262,10 +264,22 @@ __validate_next_stack(WT_SESSION_IMPL *session, WT_INSERT *next_stack[WT_SKIP_MA
 
         /* Force match to zero for a full comparison of keys */
         WT_RET(__wt_compare(session, collator, &upper_key, &lower_key, &cmp));
-        WT_ASSERT_ALWAYS((WT_SESSION_IMPL *)session, cmp >= 0,
-          "Invalid next_stack: Lower level points to larger key: Level %d = %s, Level %d = %s",
-          i, (char *)lower_key.data, i + 1, (char *)upper_key.data);
+        WT_ASSERT_ALWAYS(session, cmp >= 0,
+          "Invalid next_stack: Lower level points to larger key: Level %d = %s, Level %d = %s", i,
+          (char *)lower_key.data, i + 1, (char *)upper_key.data);
     }
+
+    /*
+     * Finally, confirm that next_stack[0] is greater than srch_key. We've already confirmed that
+     * all keys on higher levels are larger than next_stack[0] and therefore also larger than
+     * srch_key.
+     */
+    WT_RET(__wt_compare(session, collator, srch_key, &lower_key, &cmp));
+    WT_ASSERT_ALWAYS(session, cmp < 0,
+      "Invalid next_stack: Search key is larger than keys on next_stack: srch_key = %s, "
+      "next_stack[0] = %s",
+      (char *)srch_key->data, (char *)lower_key.data);
+
     return (0);
 }
 
