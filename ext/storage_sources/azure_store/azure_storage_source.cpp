@@ -261,27 +261,27 @@ azure_terminate(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session)
 // Helper to return a list of object names for the given location.
 static int
 azure_object_list_helper(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *directory,
-  const char *prefix, char ***dirlistp, uint32_t *countp, bool list_single)
+  const char *search_prefix, char ***dirlistp, uint32_t *countp, bool list_single)
 {
     azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
     std::vector<std::string> objects;
-    std::string completePrefix;
+    std::string complete_prefix;
 
     *countp = 0;
 
     if (directory != nullptr) {
-        completePrefix += directory;
+        complete_prefix += directory;
         // Add a terminating '/' if one doesn't exist.
-        if (completePrefix.length() > 1 && completePrefix.back() != '/')
-            completePrefix += '/';
+        if (complete_prefix.length() > 1 && complete_prefix.back() != '/')
+            complete_prefix += '/';
     }
-    if (prefix != nullptr)
-        completePrefix += prefix;
+    if (search_prefix != nullptr)
+        complete_prefix += search_prefix;
 
     int ret;
 
-    ret = list_single ? azure_fs->azure_conn->list_objects(completePrefix, objects, true) :
-                        azure_fs->azure_conn->list_objects(completePrefix, objects, false);
+    ret = list_single ? azure_fs->azure_conn->list_objects(complete_prefix, objects, true) :
+                        azure_fs->azure_conn->list_objects(complete_prefix, objects, false);
 
     if (ret != 0) {
         std::cerr << "azure_object_list: list_objects request to Azure failed." << std::endl;
