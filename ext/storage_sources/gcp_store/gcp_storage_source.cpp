@@ -224,24 +224,26 @@ static int
 gcp_flush(WT_STORAGE_SOURCE * /*storage_source*/, WT_SESSION *session, WT_FILE_SYSTEM *file_system,
   const char *source, const char *object, const char * /*config*/)
 {
-    try {
-        gcp_file_system *fs = get_gcp_file_system(file_system);
-        WT_FILE_SYSTEM *wt_file_system = fs->wt_file_system;
 
-        // Confirm that the file exists on the native filesystem.
-        std::filesystem::path path = std::filesystem::canonical(source);
-        bool exist_native = false;
-        int ret = wt_file_system->fs_exist(wt_file_system, session, path.c_str(), &exist_native);
-        if (ret != 0)
-            return ret;
-        if (!exist_native)
-            return ENOENT;
-        return fs->gcp_conn->put_object(object, path);
-    } catch (const std::exception &ex) {
-        std::cerr << "gcp_flush: Canonical path for " << source << " not found:\n"
-                  << ex.what() << std::endl;
+    gcp_file_system *fs = get_gcp_file_system(file_system);
+    WT_FILE_SYSTEM *wt_file_system = fs->wt_file_system;
+
+    // std::filesystem::canonical will throw an exception if object does not exist so
+    // check if the object exists.
+    if (!std::filesystem::exists(source)) {
+        std::cerr << "gcp_flush: Object: " << object << " does not exist." << std::endl;
         return ENOENT;
     }
+
+    // Confirm that the file exists on the native filesystem.
+    std::filesystem::path path = std::filesystem::canonical(source);
+    bool exist_native = false;
+    int ret = wt_file_system->fs_exist(wt_file_system, session, path.c_str(), &exist_native);
+    if (ret != 0)
+        return ret;
+    if (!exist_native)
+        return ENOENT;
+    return fs->gcp_conn->put_object(object, path);
 }
 
 static int
