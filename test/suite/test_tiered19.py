@@ -150,6 +150,10 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         # Create another file systems to make sure that terminate works.
         ss.ss_customize_file_system(
             session, self.bucket, None, self.get_fs_config(prefix_2))
+        
+        # The object doesn't exist yet.
+        self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
+            lambda: azure_fs_1.fs_exist(session, 'foobar'), err_msg)
 
         # We cannot use the file system to create files, it is readonly.
         # So use python I/O to build up the file.
@@ -157,18 +161,51 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
             outbytes = ('MORE THAN ENOUGH DATA\n'*100000).encode()
             f.write(outbytes)
 
+        # The object still doesn't exist yet.
+        self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
+            lambda: azure_fs_1.fs_exist(session, 'foobar'), err_msg)
+
         # Flush valid file into Azure.
         self.assertEqual(ss.ss_flush(session, azure_fs_1, 'foobar', 'foobar', None), 0)
         # Check that file exists in Azure.
         self.assertEqual(ss.ss_flush_finish(session, azure_fs_1, 'foobar', 'foobar', None), 0)
 
+        # The object exists now.
+        self.assertEquals(azure_fs_1.fs_directory_list(session, '', prefix_1), [prefix_1 + 'foobar'])
+        self.assertTrue(azure_fs_1.fs_exist(session, 'foobar'))
+
         # Flush non valid file into Azure will result in an exception.
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_flush(session, azure_fs_1, 'non_existing_file', 'non_existing_file', None), err_msg)
-        # Check that file does not exist in Azure. 
+        # Check that file does not exist in Azure.
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_flush_finish(session, azure_fs_1, 'non_existing_file', 'non_existing_file', None), err_msg)
         
+        # Test that the no new objects exist after failed flush. 
+        self.assertEquals(azure_fs_1.fs_directory_list(session, '', prefix_1), [prefix_1 + 'foobar'])
+
+        err_not_sup_msg = '/Exception: Operation not supported/'
+        
+        # Test that POSIX Remove and Rename are not supported.
+        self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
+            lambda: azure_fs_1.fs_remove(session, 'foobar', 0), err_not_sup_msg)
+        self.assertEquals(azure_fs_1.fs_directory_list(session, '', prefix_1), [prefix_1 + 'foobar'])
+
+        self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
+            lambda: azure_fs_1.fs_rename(session, 'foobar', 'foobar2', 0), err_not_sup_msg)
+        self.assertEquals(azure_fs_1.fs_directory_list(session, '', prefix_1), [prefix_1 + 'foobar'])
+
+        # Flush second valid file into Azure.
+        self.assertEqual(ss.ss_flush(session, azure_fs_1, 'foobar', 'foobar2', None), 0)
+        # Check that second file exists in Azure.
+        self.assertEqual(ss.ss_flush_finish(session, azure_fs_1, 'foobar', 'foobar2', None), 0)
+
+        # Directory list should show 2 objects in Azure. 
+        self.assertEquals(azure_fs_1.fs_directory_list(session, '', prefix_1), [prefix_1 + 'foobar', prefix_1 + 'foobar2'])
+
+        # Directory list single should show 1 object. 
+        self.assertEquals(azure_fs_1.fs_directory_list_single(session, '', prefix_1), [prefix_1 + 'foobar'])
+
         # Test that azure file system terminate succeeds.
         self.assertEqual(azure_fs_1.terminate(session), 0)
 
