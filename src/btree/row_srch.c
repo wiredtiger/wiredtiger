@@ -8,8 +8,7 @@
 
 #include "wt_internal.h"
 
-static inline int __validate_next_stack(
-  WT_SESSION_IMPL *session, WT_INSERT *next_stack[WT_SKIP_MAXDEPTH]);
+static inline int __validate_next_stack(WT_SESSION_IMPL *session, WT_INSERT *next_stack[WT_SKIP_MAXDEPTH]);
 
 /*
  * __search_insert_append --
@@ -225,7 +224,11 @@ __validate_next_stack(WT_SESSION_IMPL *session, WT_INSERT *next_stack[WT_SKIP_MA
 
     WT_ITEM upper_key, lower_key;
     int32_t i, cmp;
-    size_t match;
+    WT_COLLATOR *collator;
+    WT_BTREE *btree;
+
+    btree = S2BT(session);
+    collator = btree->collator;
 
     upper_key.mem = NULL;
     upper_key.memsize = 0;
@@ -258,11 +261,10 @@ __validate_next_stack(WT_SESSION_IMPL *session, WT_INSERT *next_stack[WT_SKIP_MA
         upper_key.size = WT_INSERT_KEY_SIZE(next_stack[i + 1]);
 
         /* Force match to zero for a full comparison of keys */
-        match = 0;
-        WT_RET(__wt_compare_skip(session, NULL, &upper_key, &lower_key, &cmp, &match));
+        WT_RET(__wt_compare(session, collator, &upper_key, &lower_key, &cmp));
         WT_ASSERT_ALWAYS((WT_SESSION_IMPL *)session, cmp >= 0,
-          "Invalid next_stack: Lower level points to larger key: Level %d = %s, Level %d = %s", i,
-          (char *)lower_key.data, i + 1, (char *)upper_key.data);
+          "Invalid next_stack: Lower level points to larger key: Level %d = %s, Level %d = %s",
+          i, (char *)lower_key.data, i + 1, (char *)upper_key.data);
     }
     return (0);
 }
