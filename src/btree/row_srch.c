@@ -176,14 +176,10 @@ __wt_search_insert(
 
         if (cmp > 0) { /* Keep going at this level */
             insp = &ins->next[i];
-            WT_ASSERT_ALWAYS(session, match >= skiplow,
-              "Detected low key that has fewer common prefix bytes than the previous low key.");
             skiplow = match;
         } else if (cmp < 0) { /* Drop down a level */
             cbt->next_stack[i] = ins;
             cbt->ins_stack[i--] = insp--;
-            WT_ASSERT_ALWAYS(session, match >= skiphigh,
-              "Detected high key that has fewer common prefix bytes than the previous high key.");
             skiphigh = match;
         } else
             for (; i >= 0; i--) {
