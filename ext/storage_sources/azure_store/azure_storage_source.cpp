@@ -428,7 +428,7 @@ azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
     auto fh_iterator = std::find_if(azure_fs->azure_fh.begin(), azure_fs->azure_fh.end(),
       [name](azure_file_handle *fh) { return fh->name.compare(name) == 0; });
 
-    // Active file handle for file exists, increment reference count
+    // Active file handle for file exists, increment reference count.
     if (fh_iterator != azure_fs->azure_fh.end()) {
         (*fh_iterator)->reference_count++;
         *file_handlep = reinterpret_cast<WT_FILE_HANDLE *>(*fh_iterator);
@@ -484,9 +484,8 @@ azure_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
 {
     azure_file_handle *azure_fh = reinterpret_cast<azure_file_handle *>(file_handle);
     // If there are other active instances of the file being open, do not close file handle.
-    if (--azure_fh->reference_count != 0) {
+    if (--azure_fh->reference_count != 0)
         return 0;
-    }
 
     // No more active instances of open file, close the file handle.
     azure_file_system *azure_fs = azure_fh->fs;
