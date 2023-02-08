@@ -797,15 +797,15 @@ variables:
     ENABLE_S3: -DENABLE_S3=1
     IMPORT_S3_SDK: -DIMPORT_S3_SDK=external
 
-  # Configure flags for tiered storage GCP extension.
-  - &configure_flags_tiered_storage_gcp
-    ENABLE_GCP: -DENABLE_GCP=1
-    IMPORT_GCP_SDK: -DIMPORT_GCP_SDK=external
-
   # Configure flags for tiered storage Azure extension.
   - &configure_flags_tiered_storage_azure
     ENABLE_AZURE: -DENABLE_AZURE=1
     IMPORT_AZURE_SDK: -DIMPORT_AZURE_SDK=external
+
+  # Configure flags for tiered storage GCP extension.
+  - &configure_flags_tiered_storage_gcp
+    ENABLE_GCP: -DENABLE_GCP=1
+    IMPORT_GCP_SDK: -DIMPORT_GCP_SDK=external
 
   # Configure flags for address sanitizer for stable mongodb toolchain clang (include builtins).
   - &configure_flags_address_sanitizer_mongodb_stable_clang_with_builtins
@@ -2948,7 +2948,6 @@ tasks:
             # Run S3 extension unit testing.
             ext/storage_sources/s3_store/test/run_s3_unit_tests
   - name: azure-tiered-unittest-test
-    tags: ["pull_request"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2970,8 +2969,32 @@ tasks:
 
             # Run AZURE extension unit testing.
             ext/storage_sources/azure_store/test/run_azure_unit_tests
+  - name: gcp-tiered-unittest-test
+    commands:
+      - func: "get project"
+      - func: "install gcp dependencies"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_tiered_storage_gcp
+          HAVE_UNITTEST: -DHAVE_UNITTEST=1
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build"
+          shell: bash
+          include_expansions_in_env:
+            - gcp_private_key
+          script: |
+            # GCP requires a path to a credentials file for authorization. To not expose the private key within the file, 
+            # use a placeholder private key and replace it with the evergreen expansion variable. 
+            set -o errexit
+            sed -i "s/\${private_key}/${gcp_private_key}/" ../test/evergreen/gcp_auth.json
+            export GOOGLE_APPLICATION_CREDENTIALS="../test/evergreen/gcp_auth.json"
+            set -o verbose
+
+            # Run GCP extension unit testing.
+            ext/storage_sources/gcp_store/test/run_gcp_unit_tests
   - name: azure-gcp-tiered-test-small
-    tags: ["pull_request", "python"]
+    tags: ["python"]
     commands:
       - func: "get project"
       - func: "install gcp dependencies"
@@ -3002,31 +3025,6 @@ tasks:
           # Set this in case of a core to get the correct python binary.
           python_binary: $(pwd)/venv/bin/python3
           tiered_storage_test_name: tiered19
-  - name: gcp-tiered-unittest-test
-    tags: ["pull_request"]
-    commands:
-      - func: "get project"
-      - func: "install gcp dependencies"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_tiered_storage_gcp
-          HAVE_UNITTEST: -DHAVE_UNITTEST=1
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build"
-          shell: bash
-          include_expansions_in_env:
-            - gcp_private_key
-          script: |
-            # GCP requires a path to a credentials file for authorization. To not expose the private key within the file, 
-            # use a placeholder private key and replace it with the evergreen expansion variable. 
-            set -o errexit
-            sed -i "s/\${private_key}/${gcp_private_key}/" ../test/evergreen/gcp_auth.json
-            export GOOGLE_APPLICATION_CREDENTIALS="../test/evergreen/gcp_auth.json"
-            set -o verbose
-
-            # Run GCP extension unit testing.
-            ext/storage_sources/gcp_store/test/run_gcp_unit_tests
   - name: spinlock-gcc-test
     commands:
       - func: "get project"
@@ -4878,7 +4876,7 @@ buildvariants:
       PATH=/opt/mongodbtoolchain/v4/bin:$PATH
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.python !tiered-unittest-test !azure-tiered-unittest-test  !gcp-tiered-unittest-test"
+    - name: ".pull_request !.pull_request_compilers !.python !tiered-unittest-test"
     - name: examples-c-test
     - name: format-asan-smoke-test
 
