@@ -3479,7 +3479,7 @@ tasks:
           times: 1       # No of times to run the loop
           no_of_procs: 10 # No of processes to run in the background
 
-  - name: split-stress-test-1
+  - name: skiplist-stress-test-1
     tags: ["stress-test-1", "stress-test-zseries-1"]
     exec_timeout_secs: 43200
     commands:
@@ -3494,10 +3494,10 @@ tasks:
             set -o errexit
             set -o verbose
             for i in $(seq ${times|150}); do
-                ${test_env_vars|} ${python_binary|python3} split_stress.py
+                ${test_env_vars|} ${python_binary|python3} skiplist_stress.py
             done
 
-  - name: split-stress-test-2
+  - name: skiplist-stress-test-2
     tags: ["stress-test-1", "stress-test-zseries-1"]
     exec_timeout_secs: 43200
     commands:
@@ -3512,10 +3512,10 @@ tasks:
             set -o errexit
             set -o verbose
             for i in $(seq ${times|150}); do
-                ${test_env_vars|} ${python_binary|python3} split_stress.py
+                ${test_env_vars|} ${python_binary|python3} skiplist_stress.py
             done
 
-  - name: split-stress-test-3
+  - name: skiplist-stress-test-3
     tags: ["stress-test-1", "stress-test-zseries-1"]
     exec_timeout_secs: 43200
     commands:
@@ -3530,10 +3530,10 @@ tasks:
             set -o errexit
             set -o verbose
             for i in $(seq ${times|150}); do
-                ${test_env_vars|} ${python_binary|python3} split_stress.py
+                ${test_env_vars|} ${python_binary|python3} skiplist_stress.py
             done
 
-  - name: split-stress-test-4
+  - name: skiplist-stress-test-4
     tags: ["stress-test-1", "stress-test-zseries-1"]
     exec_timeout_secs: 43200
     commands:
@@ -3548,10 +3548,10 @@ tasks:
             set -o errexit
             set -o verbose
             for i in $(seq ${times|150}); do
-                ${test_env_vars|} ${python_binary|python3} split_stress.py
+                ${test_env_vars|} ${python_binary|python3} skiplist_stress.py
             done
 
-  - name: split-stress-test-5
+  - name: skiplist-stress-test-5
     tags: ["stress-test-1", "stress-test-zseries-1"]
     exec_timeout_secs: 43200
     commands:
@@ -3566,10 +3566,10 @@ tasks:
             set -o errexit
             set -o verbose
             for i in $(seq ${times|150}); do
-                ${test_env_vars|} ${python_binary|python3} split_stress.py
+                ${test_env_vars|} ${python_binary|python3} skiplist_stress.py
             done
 
-  - name: split-stress-test-6
+  - name: skiplist-stress-test-6
     tags: ["stress-test-1", "stress-test-zseries-1"]
     exec_timeout_secs: 43200
     commands:
@@ -3584,10 +3584,10 @@ tasks:
             set -o errexit
             set -o verbose
             for i in $(seq ${times|150}); do
-                ${test_env_vars|} ${python_binary|python3} split_stress.py
+                ${test_env_vars|} ${python_binary|python3} skiplist_stress.py
             done
 
-  - name: split-stress-test-7
+  - name: skiplist-stress-test-7
     tags: ["stress-test-1", "stress-test-zseries-1"]
     exec_timeout_secs: 43200
     commands:
@@ -3602,10 +3602,10 @@ tasks:
             set -o errexit
             set -o verbose
             for i in $(seq ${times|150}); do
-                ${test_env_vars|} ${python_binary|python3} split_stress.py
+                ${test_env_vars|} ${python_binary|python3} skiplist_stress.py
             done
 
-  - name: split-stress-test-8
+  - name: skiplist-stress-test-8
     tags: ["stress-test-1", "stress-test-zseries-1"]
     exec_timeout_secs: 43200
     commands:
@@ -3620,10 +3620,10 @@ tasks:
             set -o errexit
             set -o verbose
             for i in $(seq ${times|150}); do
-                ${test_env_vars|} ${python_binary|python3} split_stress.py
+                ${test_env_vars|} ${python_binary|python3} skiplist_stress.py
             done
 
-  - name: split-stress-test-9
+  - name: skiplist-stress-test-9
     tags: ["stress-test-1", "stress-test-zseries-1"]
     exec_timeout_secs: 43200
     commands:
@@ -3638,10 +3638,10 @@ tasks:
             set -o errexit
             set -o verbose
             for i in $(seq ${times|150}); do
-                ${test_env_vars|} ${python_binary|python3} split_stress.py
+                ${test_env_vars|} ${python_binary|python3} skiplist_stress.py
             done
 
-  - name: split-stress-test-10
+  - name: skiplist-stress-test-10
     tags: ["stress-test-1", "stress-test-zseries-1"]
     exec_timeout_secs: 43200
     commands:
@@ -3656,10 +3656,10 @@ tasks:
             set -o errexit
             set -o verbose
             for i in $(seq ${times|150}); do
-                ${test_env_vars|} ${python_binary|python3} split_stress.py
+                ${test_env_vars|} ${python_binary|python3} skiplist_stress.py
             done
 
-  - name: split-stress-test-11
+  - name: skiplist-stress-test-11
     tags: ["stress-test-1", "stress-test-zseries-1"]
     exec_timeout_secs: 43200
     commands:
@@ -3674,10 +3674,10 @@ tasks:
             set -o errexit
             set -o verbose
             for i in $(seq ${times|150}); do
-                ${test_env_vars|} ${python_binary|python3} split_stress.py
+                ${test_env_vars|} ${python_binary|python3} skiplist_stress.py
             done
 
-  - name: split-stress-test-12
+  - name: skiplist-stress-test-12
     tags: ["stress-test-1", "stress-test-zseries-1"]
     exec_timeout_secs: 43200
     commands:
@@ -3692,10 +3692,10 @@ tasks:
             set -o errexit
             set -o verbose
             for i in $(seq ${times|150}); do
-                ${test_env_vars|} ${python_binary|python3} split_stress.py
+                ${test_env_vars|} ${python_binary|python3} skiplist_stress.py
             done
 
-  - name: split-stress-test-nonstandalone-1
+  - name: skiplist-stress-test-nonstandalone-1
     tags: ["stress-test-1-nonstandalone"]
     exec_timeout_secs: 43200
     commands:
@@ -3711,10 +3711,10 @@ tasks:
             set -o errexit
             set -o verbose
             for i in $(seq ${times|150}); do
-                ${test_env_vars|} ${python_binary|python3} split_stress.py
+                ${test_env_vars|} ${python_binary|python3} skiplist_stress.py
             done
 
-  - name: split-stress-test-nonstandalone-2
+  - name: skiplist-stress-test-nonstandalone-2
     tags: ["stress-test-1-nonstandalone"]
     exec_timeout_secs: 43200
     commands:
@@ -3730,10 +3730,10 @@ tasks:
             set -o errexit
             set -o verbose
             for i in $(seq ${times|150}); do
-                ${test_env_vars|} ${python_binary|python3} split_stress.py
+                ${test_env_vars|} ${python_binary|python3} skiplist_stress.py
             done
 
-  - name: split-stress-test-nonstandalone-3
+  - name: skiplist-stress-test-nonstandalone-3
     tags: ["stress-test-1-nonstandalone"]
     exec_timeout_secs: 43200
     commands:
@@ -3749,10 +3749,10 @@ tasks:
             set -o errexit
             set -o verbose
             for i in $(seq ${times|150}); do
-                ${test_env_vars|} ${python_binary|python3} split_stress.py
+                ${test_env_vars|} ${python_binary|python3} skiplist_stress.py
             done
 
-  - name: split-stress-test-nonstandalone-4
+  - name: skiplist-stress-test-nonstandalone-4
     tags: ["stress-test-1-nonstandalone"]
     exec_timeout_secs: 43200
     commands:
@@ -3768,10 +3768,10 @@ tasks:
             set -o errexit
             set -o verbose
             for i in $(seq ${times|150}); do
-                ${test_env_vars|} ${python_binary|python3} split_stress.py
+                ${test_env_vars|} ${python_binary|python3} skiplist_stress.py
             done
 
-  - name: split-stress-test-nonstandalone-5
+  - name: skiplist-stress-test-nonstandalone-5
     tags: ["stress-test-1-nonstandalone"]
     exec_timeout_secs: 43200
     commands:
@@ -3787,10 +3787,10 @@ tasks:
             set -o errexit
             set -o verbose
             for i in $(seq ${times|150}); do
-                ${test_env_vars|} ${python_binary|python3} split_stress.py
+                ${test_env_vars|} ${python_binary|python3} skiplist_stress.py
             done
 
-  - name: split-stress-test-nonstandalone-6
+  - name: skiplist-stress-test-nonstandalone-6
     tags: ["stress-test-1-nonstandalone"]
     exec_timeout_secs: 43200
     commands:
@@ -3806,10 +3806,10 @@ tasks:
             set -o errexit
             set -o verbose
             for i in $(seq ${times|150}); do
-                ${test_env_vars|} ${python_binary|python3} split_stress.py
+                ${test_env_vars|} ${python_binary|python3} skiplist_stress.py
             done
 
-  - name: split-stress-test-nonstandalone-7
+  - name: skiplist-stress-test-nonstandalone-7
     tags: ["stress-test-1-nonstandalone"]
     exec_timeout_secs: 43200
     commands:
@@ -3825,10 +3825,10 @@ tasks:
             set -o errexit
             set -o verbose
             for i in $(seq ${times|150}); do
-                ${test_env_vars|} ${python_binary|python3} split_stress.py
+                ${test_env_vars|} ${python_binary|python3} skiplist_stress.py
             done
 
-  - name: split-stress-test-nonstandalone-8
+  - name: skiplist-stress-test-nonstandalone-8
     tags: ["stress-test-1-nonstandalone"]
     exec_timeout_secs: 43200
     commands:
@@ -3844,10 +3844,10 @@ tasks:
             set -o errexit
             set -o verbose
             for i in $(seq ${times|150}); do
-                ${test_env_vars|} ${python_binary|python3} split_stress.py
+                ${test_env_vars|} ${python_binary|python3} skiplist_stress.py
             done
 
-  - name: split-stress-test-nonstandalone-9
+  - name: skiplist-stress-test-nonstandalone-9
     tags: ["stress-test-1-nonstandalone"]
     exec_timeout_secs: 43200
     commands:
@@ -3863,10 +3863,10 @@ tasks:
             set -o errexit
             set -o verbose
             for i in $(seq ${times|150}); do
-                ${test_env_vars|} ${python_binary|python3} split_stress.py
+                ${test_env_vars|} ${python_binary|python3} skiplist_stress.py
             done
 
-  - name: split-stress-test-nonstandalone-10
+  - name: skiplist-stress-test-nonstandalone-10
     tags: ["stress-test-1-nonstandalone"]
     exec_timeout_secs: 43200
     commands:
@@ -3882,7 +3882,7 @@ tasks:
             set -o errexit
             set -o verbose
             for i in $(seq ${times|150}); do
-                ${test_env_vars|} ${python_binary|python3} split_stress.py
+                ${test_env_vars|} ${python_binary|python3} skiplist_stress.py
             done
 
   - name: format-stress-zseries-test
@@ -5328,26 +5328,26 @@ buildvariants:
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
   tasks:
-    - name: split-stress-test-nonstandalone-1
-    - name: split-stress-test-nonstandalone-2
-    - name: split-stress-test-nonstandalone-3
-    - name: split-stress-test-nonstandalone-4
-    - name: split-stress-test-nonstandalone-5
-    - name: split-stress-test-nonstandalone-6
-    - name: split-stress-test-nonstandalone-7
-    - name: split-stress-test-nonstandalone-8
-    - name: split-stress-test-nonstandalone-9
-    - name: split-stress-test-nonstandalone-10
-    - name: split-stress-test-1
-    - name: split-stress-test-2
-    - name: split-stress-test-3
-    - name: split-stress-test-4
-    - name: split-stress-test-5
-    - name: split-stress-test-6
-    - name: split-stress-test-7
-    - name: split-stress-test-8
-    - name: split-stress-test-9
-    - name: split-stress-test-10
+    - name: skiplist-stress-test-nonstandalone-1
+    - name: skiplist-stress-test-nonstandalone-2
+    - name: skiplist-stress-test-nonstandalone-3
+    - name: skiplist-stress-test-nonstandalone-4
+    - name: skiplist-stress-test-nonstandalone-5
+    - name: skiplist-stress-test-nonstandalone-6
+    - name: skiplist-stress-test-nonstandalone-7
+    - name: skiplist-stress-test-nonstandalone-8
+    - name: skiplist-stress-test-nonstandalone-9
+    - name: skiplist-stress-test-nonstandalone-10
+    - name: skiplist-stress-test-1
+    - name: skiplist-stress-test-2
+    - name: skiplist-stress-test-3
+    - name: skiplist-stress-test-4
+    - name: skiplist-stress-test-5
+    - name: skiplist-stress-test-6
+    - name: skiplist-stress-test-7
+    - name: skiplist-stress-test-8
+    - name: skiplist-stress-test-9
+    - name: skiplist-stress-test-10
 
 - name: large-scale-tests
   display_name: "Large scale tests"
