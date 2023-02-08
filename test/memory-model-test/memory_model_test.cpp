@@ -30,7 +30,6 @@ const bool is_arm64 = true;
 #define MEMORY_BARRIER asm volatile(BARRIER_INSTRUCTION ::: "memory")
 #define COMPILER_BARRIER asm volatile("" ::: "memory")
 
-
 template<typename code>
 void thread_function(std::string const& thread_name,
                      std::binary_semaphore& start_semaphore,
@@ -46,7 +45,6 @@ void thread_function(std::string const& thread_name,
         end_semaphore.release();
     }
 }
-
 
 template<typename thread_1_code_t, typename thread_2_code_t, typename out_of_order_check_code_t>
 class test_config {
@@ -72,7 +70,6 @@ public:
     out_of_order_check_code_t _out_of_order_check_code;
     bool _out_of_order_allowed;
 };
-
 
 template<typename thread_1_code, typename thread_2_code, typename out_of_order_check_code>
 void perform_test(test_config<thread_1_code, thread_2_code, out_of_order_check_code> config,
@@ -139,7 +136,6 @@ void perform_test(test_config<thread_1_code, thread_2_code, out_of_order_check_c
     thread_1.join();
     thread_2.join();
 }
-
 
 void thread_pair(int loop_count, std::ostream& ostream) {
 
@@ -380,7 +376,6 @@ void thread_pair(int loop_count, std::ostream& ostream) {
                  progress);
 }
 
-
 int main(int argc, char *argv[]) {
     std::cout << "WiredTiger Memory Model Test" << std::endl;
     std::cout << "============================" << std::endl;
@@ -421,5 +416,3 @@ int main(int argc, char *argv[]) {
         thread.join();
     }
 }
-
-
