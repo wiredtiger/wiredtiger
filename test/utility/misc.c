@@ -405,13 +405,32 @@ void
 testutil_wiredtiger_open(TEST_OPTS *opts, const char *home, const char *config,
   WT_EVENT_HANDLER *event_handler, WT_CONNECTION **connectionp, bool rerun, bool benchmarkrun)
 {
+    char bucket_name[256], auth_token[256];
     char buf[1024], tiered_ext_cfg[512];
+    const char *access_key, *secret_key;
 
-    if (opts->tiered_storage)
+    auth_token[0] = '\0';
+    if (opts->tiered_storage) {
+        strcpy(bucket_name,
+          strcmp(opts->tiered_storage_source, DIR_STORE) == 0 ? DIR_STORE_BUCKET_NAME :
+                                                                S3_STORE_BUCKET_NAME);
+
+        if (strcmp(opts->tiered_storage_source, S3_STORE) == 0) {
+            access_key = getenv("aws_sdk_s3_ext_access_key");
+            secret_key = getenv("aws_sdk_s3_ext_secret_key");
+
+            if (access_key == NULL || secret_key == NULL)
+                testutil_die(EINVAL, "AWS S3 access key or secret key is not set");
+
+            testutil_check(
+              __wt_snprintf(auth_token, sizeof(auth_token), "%s;%s", access_key, secret_key));
+        }
         testutil_check(__wt_snprintf(tiered_ext_cfg, sizeof(tiered_ext_cfg),
           TESTUTIL_ENV_CONFIG_TIERED_EXT TESTUTIL_ENV_CONFIG_TIERED, opts->build_dir,
           opts->tiered_storage_source, opts->tiered_storage_source, opts->delay_ms, opts->error_ms,
-          opts->force_delay, opts->force_error, benchmarkrun ? 0 : 2, opts->tiered_storage_source));
+          opts->force_delay, opts->force_error, bucket_name, benchmarkrun ? 0 : 2,
+          opts->tiered_storage_source, auth_token));
+    }
 
     testutil_check(__wt_snprintf(buf, sizeof(buf), "%s%s%s%s", config == NULL ? "" : config,
       (rerun ? TESTUTIL_ENV_CONFIG_REC : ""), (opts->compat ? TESTUTIL_ENV_CONFIG_COMPAT : ""),
