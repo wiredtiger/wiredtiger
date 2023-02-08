@@ -385,6 +385,7 @@ Qsort
 RCS
 RDNOLOCK
 RDONLY
+README
 READONLY
 REALLOC
 RECNO
@@ -593,6 +594,7 @@ aspell
 assertfmt
 async
 atomicity
+atomics
 atou
 auth
 autocommit
@@ -1175,6 +1177,7 @@ maxv
 mb
 mbll
 mbss
+md
 mem
 memalign
 membar
