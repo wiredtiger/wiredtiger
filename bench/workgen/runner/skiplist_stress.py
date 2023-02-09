@@ -39,10 +39,10 @@ context = Context()
 # Connection configuration.
 conn_config = "cache_size=100MB,log=(enabled=false),statistics=[fast],statistics_log=(wait=1,json=false)"
 conn = context.wiredtiger_open("create," + conn_config)
-s = conn.open_session("")
+s = conn.open_session("debug=(stress_skiplist=1)")
 
 # Table configuration.
-table_config = "leaf_page_max=2048k,internal_page_max=8k,leaf_key_max=1433,leaf_value_max=1433,type=file,memory_page_max=512MB,split_deepen_min_child=100000"
+table_config = "split_deepen_min_child=100000"
 tname = "file:test"
 table = Table(tname)
 s.create(tname, 'key_format=S,value_format=S,' + table_config)
