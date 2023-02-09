@@ -934,13 +934,21 @@ copy_cell_restart:
         /* The cell is followed by a 4B data length and a chunk of data. */
         WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &v));
 
-        /* Unpack the record and/or user byte counts if the chunk of data includes it. */
-        if (F_ISSET(dsk, WT_PAGE_STAT_EXISTS))
+        /*
+         * Unpack the record and/or user byte counts if the chunk of data includes it. The block
+         * manager address cookie will also be stored in a different location if these page stats
+         * are encoded.
+         */
+        if (F_ISSET(dsk, WT_PAGE_STAT_EXISTS)) {
             WT_RET(__wt_addr_cookie_btree_unpack(p, &ps->records, &ps->user_bytes));
-
-        unpack->data = p;
-        unpack->size = (uint32_t)v;
-        unpack->__len = (uint32_t)(WT_PTRDIFF32(p, cell) + v);
+            unpack->data = WT_ADDR_COOKIE_BLOCK(p);
+            unpack->size = WT_ADDR_COOKIE_BLOCK_LEN(p);
+            unpack->__len = (uint32_t)(WT_PTRDIFF32(p, cell) + v);
+        } else {
+            unpack->data = p;
+            unpack->size = (uint32_t)v;
+            unpack->__len = (uint32_t)(WT_PTRDIFF32(p, cell) + v);
+        }
         break;
 
     case WT_CELL_KEY:
