@@ -149,9 +149,11 @@ thread_pair(int loop_count, std::ostream &ostream)
 
     // We declare the shared variables above the lambdas so the lambdas have access to them.
 
-    // Spacers are inserted to push the fields x, y, r1 and r2 onto different cache lines.
-    // This dramatically increases the chances of seeing out-of-order operations
-    // in group 2 tests on ARM 64 Evergreen instances.
+    /*
+     * Spacers are inserted to push the fields x, y, r1 and r2 onto different cache lines.
+     * This dramatically increases the chances of seeing out-of-order operations
+     * in group 2 tests on ARM 64 Evergreen instances.
+     */
     const int space = 128 - sizeof(int);
     struct var_holder {
         int x = 0;
@@ -391,7 +393,7 @@ main(int argc, char *argv[])
         std::cout << "Running on ARM64";
     else
         std::cout << "Running on x86";
-    std::cout << " with " << num_thread_pairs << " thread pairs and loop count " << loop_count
+    std::cout << " with " << num_thread_pair(s) << " thread pairs and loop count " << loop_count
               << std::endl
               << std::endl;
 

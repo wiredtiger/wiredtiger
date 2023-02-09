@@ -66,9 +66,15 @@ The test uses the C++ 20 semaphore library as it is supported on both Mac and Ub
 
 ### Running the test
 
-`./memory_model_test` to run the default loop count of 1,000,000 which takes a few tens of seconds.
+`./memory_model_test` to run the default loop count of 1,000,000, using a single thread pair,
+which typically takes a few tens of seconds.
 
 `./memory_model_test -n <loop count>` to run a custom loop count of `<loop count>`.
+
+`./memory_model_test -p <pair count>` to run a custom number of `<pair count>` thread pairs.
+This invokes an experimental mode where more than one thread pair is executed simultaneously.
+However, it appears that this option does not seem to increase the number of out-of-order events,
+and is therefore not of great value. Note that the messages from each thread pair are currently interleaved.
 
 ### Expected results:
 
