@@ -554,7 +554,7 @@ azure_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *size
     int ret;
     bool exists;
     size_t size = 0;
-    sizep = 0;
+    *sizep = 0;
 
     WT_UNUSED(exists);
 
