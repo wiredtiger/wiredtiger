@@ -61,7 +61,6 @@ class azure_connection {
     int delete_object(const std::string &object_key) const;
     int read_object(const std::string &object_key, int64_t offset, size_t len, void *buf) const;
     int object_exists(const std::string &object_key, bool &exists, size_t &object_size) const;
-    int object_size(const std::string &object_key) const;
 
     private:
     const std::string _bucket_name;
