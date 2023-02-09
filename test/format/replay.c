@@ -215,7 +215,7 @@ replay_operation_enabled(thread_op op)
 /*
  * replay_pick_timestamp --
  *     Pick the next timestamp for this operation. That timestamp is used for any commits and also
- *     determines which 'lane' we are in, to prevent races from occurring on operations on a single
+ *     determines which lane we are in, to prevent races from occurring on operations on a single
  *     key. Also, by using the timestamp to seed the random number generators, it also determines
  *     precisely the nature of the operation.
  */
@@ -227,8 +227,8 @@ replay_pick_timestamp(TINFO *tinfo)
     bool in_use;
 
     /*
-     * Choose a unique timestamp for commits. When we do predictable replay. If we're here with the
-     * 'again' flag, we already have a timestamp picked for us.
+     * Choose a unique timestamp for commits. When we do predictable replay. If the field for
+     * replaying again is set, we already have a timestamp picked for us.
      */
     if (tinfo->replay_again) {
         /*
@@ -298,7 +298,7 @@ replay_loop_begin(TINFO *tinfo, bool intxn)
          * We're here at the start of the loop for one of four reasons:
          *   1) We needed to rollback the transaction, so we didn't give up our replay timestamp,
          * and we set the again flag.
-         *   2) We successfully committed the last transaction, but our lane was 'behind',
+         *   2) We successfully committed the last transaction, but our lane was behind,
          * and was skipped over, so we're obligated to perform the next timestamp in our lane.
          * In that case, we have a replay timestamp and the again flag is set.
          *   3) We successfully committed the last transaction, and our lane was not behind.
@@ -353,10 +353,8 @@ replay_run_begin(WT_SESSION *session)
 {
     (void)session;
 
-    if (GV(RUNS_PREDICTABLE_REPLAY)) {
+    if (GV(RUNS_PREDICTABLE_REPLAY))
         replay_run_reset();
-        /* show_timestamps(session, "beginning of run"); */
-    }
 }
 
 /*
@@ -368,10 +366,8 @@ replay_run_end(WT_SESSION *session)
 {
     (void)session;
 
-    if (GV(RUNS_PREDICTABLE_REPLAY)) {
-        /* show_timestamps(session, "end of run"); */
+    if (GV(RUNS_PREDICTABLE_REPLAY))
         replay_run_reset();
-    }
 }
 
 /*
@@ -402,19 +398,28 @@ replay_prepare_ts(TINFO *tinfo)
 
     testutil_assert(GV(RUNS_PREDICTABLE_REPLAY));
 
-    prepare_ts = tinfo->replay_ts;
-    if (prepare_ts != 0) {
+    /* See if we're just starting a run. */
+    if (tinfo->replay_ts == 0 || tinfo->replay_ts <= g.replay_start_timestamp + LANE_COUNT)
         /*
-         * Except when starting a run, the read timestamp cannot advance beyond our lane's last
-         * commit timestamp, which will always be tinfo->replay_ts - LANE_COUNT. Picking a timestamp
-         * between there and our eventual commit timestamp (replay_ts) is safe for a prepare
-         * timestamp.
+         * When we're starting a run, we'll just use the final commit timestamp for our prepare
+         * timestamp. We know that's safe.
          */
-        if (prepare_ts > g.replay_start_timestamp + LANE_COUNT) {
-            ts = prepare_ts - LANE_COUNT / 2;
-            if (ts < g.oldest_timestamp)
-                prepare_ts = ts;
-        }
+        prepare_ts = tinfo->replay_ts;
+    else {
+        /*
+         * Our lane's current operation will have a commit timestamp tinfo->replay_ts. Our lane's
+         * previous commit timestamp was that number minus LANE_COUNT. The global stable timestamp
+         * generally should not be advanced past our lane's previous commit timestamp. So a prepare
+         * timestamp halfway between the lane's previous commit timestamp and the current commit
+         * timestamp should be valid.
+         */
+        ts = tinfo->replay_ts - LANE_COUNT / 2;
+
+        /* As a sanity check, make sure the timestamp hasn't completely aged out. */
+        if (ts < g.oldest_timestamp)
+            prepare_ts = ts;
+        else
+            prepare_ts = tinfo->replay_ts;
     }
     return (prepare_ts);
 }

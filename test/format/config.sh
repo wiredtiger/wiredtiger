@@ -244,13 +244,13 @@ CONFIG configuration_list[] = {
 
 {"runs.in_memory", "configure in-memory", C_BOOL | C_IGNORE, 0, 0, 1}
 
-{"runs.ops", "operations per run", 0x0, 0, M(2), M(100)}
-
 {"runs.mirror", "mirror tables", C_BOOL | C_IGNORE | C_TABLE, 0, 0, 0}
 
-{"runs.rows", "number of rows", C_TABLE, 10, M(1), M(100)}
+{"runs.ops", "operations per run", 0x0, 0, M(2), M(100)}
 
 {"runs.predictable_replay", "configure predictable replay", C_BOOL, 0, 0, 0}
+
+{"runs.rows", "number of rows", C_TABLE, 10, M(1), M(100)}
 
 {"runs.source", "data source type (file | lsm | table)", C_IGNORE | C_STRING | C_TABLE, 0, 0, 0}
 

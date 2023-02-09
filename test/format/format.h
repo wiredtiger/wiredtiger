@@ -84,6 +84,38 @@
 #define STR(s) #s
 #define XSTR(s) STR(s)
 
+#include "config.h"
+extern CONFIG configuration_list[];
+
+typedef struct {
+    uint32_t v; /* integral value */
+    char *vstr; /* string value */
+    bool set;   /* value explicitly set */
+} CONFIGV;
+
+/*
+ * The LANE data structure is used with predictable replay. With predictable replay, we want to make
+ * sure that two threads can never act on the same key. The last bits of the timestamp to be used to
+ * determine a lane, so it takes a while (LANE_COUNT operations) to cycle through the lanes. A lane
+ * only acts on key numbers whose last bits match the lane. We also keep track of lanes via the
+ * g.lanes array. This guarantees that a lane is only being used one at a time, which in turn
+ * guarantees that a key can only be used once at a time.
+ *
+ * A more complete description of how this fits into predictable replay is in replay.c .
+ */
+typedef struct {
+    uint64_t last_commit_ts;
+    bool in_use;
+} LANE;
+#define LANE_NONE UINT32_MAX /* A lane number guaranteed to be illegal */
+#define LANE_COUNT 1024u
+
+/* Arguments to the read scanner. */
+typedef struct {
+    WT_CONNECTION *conn;
+    WT_RAND_STATE *rnd;
+} READ_SCAN_ARGS;
+
 /*
  * Abstract lock that lets us use either pthread reader-writer locks or WiredTiger's own (likely
  * faster) implementation.
@@ -102,12 +134,6 @@ typedef struct {
     const char *track; /* Tag for tracking operation progress */
 } SAP;
 
-/* Arguments to the read scanner. */
-typedef struct {
-    WT_CONNECTION *conn;
-    WT_RAND_STATE *rnd;
-} READ_SCAN_ARGS;
-
 /*
  * Default fixed-length column-store value when there's no available base mirror value, something
  * with half the bits set.
@@ -117,32 +143,6 @@ typedef struct {
 /* There's no out-of-band value for FLCS, use 0xff as the least likely to match any existing value.
  */
 #define FIX_VALUE_WRONG 0xff
-
-#include "config.h"
-extern CONFIG configuration_list[];
-
-typedef struct {
-    uint32_t v; /* integral value */
-    char *vstr; /* string value */
-    bool set;   /* value explicitly set */
-} CONFIGV;
-
-/*
- * The LANE data structure is used with predictable replay. With predictable replay, we want to make
- * sure that two threads can never act on the same key. The last bits of the timestamp to be used to
- * determine a "lane", so it takes a while (LANE_COUNT operations) to cycle through the lanes. A
- * lane only acts on key numbers whose last bits match the lane. We also keep track of lanes via the
- * g.lanes array. This guarantees that a lane is only being used one at a time, which in turn
- * guarantees that a key can only be used once at a time.
- *
- * A more complete description of how this fits into predictable replay is in replay.c .
- */
-typedef struct {
-    uint64_t last_commit_ts;
-    bool in_use;
-} LANE;
-#define LANE_NONE UINT32_MAX /* A lane number guaranteed to be illegal */
-#define LANE_COUNT 1024u
 
 typedef enum { FIX, ROW, VAR } table_type;
 typedef struct {
@@ -256,8 +256,8 @@ typedef struct {
 
     uint64_t truncate_cnt; /* truncation operation counter */
 
-    uint32_t replay_calculate_committed; /* Times before recalculating cached committed */
     uint64_t replay_cached_committed;    /* Our committed timestamp, cached */
+    uint32_t replay_calculate_committed; /* Times before recalculating cached committed */
     uint64_t replay_start_timestamp;     /* Timestamp at the beginning of a run */
     uint64_t stop_timestamp;             /* If non-zero, stop when stable reaches this */
     uint64_t timestamp_copy;             /* A copy of the timestamp, for safety checks */
@@ -350,8 +350,8 @@ typedef struct {
     WT_RAND_STATE data_rnd;  /* thread RNG state for data operations */
     WT_RAND_STATE extra_rnd; /* thread RNG state for extra operations */
 
-    thread_op op;      /* Operation */
     uint32_t lane;     /* Current lane for replay */
+    thread_op op;      /* Operation */
     bool replay_again; /* Need to redo an operation at a timestamp. */
 
     volatile bool quit; /* thread should quit */
