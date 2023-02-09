@@ -249,22 +249,21 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
         // Read GCP objects under the test bucket with no offset.
         char buf[1024];
 
-        REQUIRE(conn.read_object(object_name, 0, 15, buf) == 0);
+        REQUIRE(conn.read_object(object_name, 0, payload.length(), buf) == 0);
         REQUIRE(payload.compare(buf) == 0);
         memset(buf, 0, 1000);
 
         // Read GCP objects under the test bucket with offset.
-        REQUIRE(conn.read_object(object_name, 4, 11, buf) == 0);
+        const int str_len = payload.length() - payload.find(" ");
+        REQUIRE(conn.read_object(object_name, payload.find(" "), str_len, buf) == 0);
         REQUIRE(payload.substr(4, 16).compare(buf) == 0);
         memset(buf, 0, 1000);
 
         // Read GCP objects under the test bucket with len > file length.
         REQUIRE(conn.read_object(object_name, 0, 100000, buf) == EINVAL);
-        memset(buf, 0, 1000);
 
         // Read GCP objects under the test bucket with offset < 0.
         REQUIRE(conn.read_object(object_name, -5, 15, buf) == EINVAL);
-        memset(buf, 0, 1000);
 
         // Read GCP objects under the test bucket with offset > file length.
         REQUIRE(conn.read_object(object_name, 1000, 15, buf) == EINVAL);
