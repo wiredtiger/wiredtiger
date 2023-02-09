@@ -399,12 +399,13 @@ azure_file_system_exists(
         std::cout << "azure_file_system_exists: Object: " << name << " does not exist in Azure."
                   << std::endl;
     } else
-        std::cout << "azure_file_system_exists: Object: " << name << " exists in Azure." << std::endl;
+        std::cout << "azure_file_system_exists: Object: " << name << " exists in Azure."
+                  << std::endl;
     return 0;
 
-    err:
-        std::cerr << "azure_file_system_exists: Error with searching for object: " << name << std::endl;
-        return ret;
+err:
+    std::cerr << "azure_file_system_exists: Error with searching for object: " << name << std::endl;
+    return ret;
 }
 
 // POSIX remove, not supported for cloud objects.
