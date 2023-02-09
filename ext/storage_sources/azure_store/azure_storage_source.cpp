@@ -239,10 +239,10 @@ azure_flush_finish(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     WT_UNUSED(source);
     WT_UNUSED(size);
 
-    bool existsp = false;
+    bool existp = false;
     std::cout << "azure_flush_finish: Checking object: " << object << " exists in Azure."
               << std::endl;
-    return azure_file_system_exists(file_system, session, object, &existsp);
+    return azure_file_system_exists(file_system, session, object, &existp);
 }
 
 // Discard any resources on termination.
