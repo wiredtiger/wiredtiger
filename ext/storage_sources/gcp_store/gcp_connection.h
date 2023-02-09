@@ -50,7 +50,6 @@ class gcp_connection {
     int object_exists(const std::string &object_key, bool &exists, size_t &object_size);
     int read_object(const std::string &object_key, int64_t offset, size_t len, void *buf);
     int handle_error(const google::cloud::Status status, const std::string &error_message) const;
-    google::cloud::storage::Client get_client();
 
     ~gcp_connection() = default;
 

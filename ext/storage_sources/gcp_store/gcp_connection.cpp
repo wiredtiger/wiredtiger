@@ -187,9 +187,3 @@ gcp_connection::handle_error(
         return (toErrno.at(status.code()));
     return -1;
 }
-
-google::cloud::storage::Client
-gcp_connection::get_client()
-{
-    return _gcp_client;
-}

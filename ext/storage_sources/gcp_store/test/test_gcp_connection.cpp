@@ -60,11 +60,7 @@ check_exist(gcs::Client client, std::string bucket_name, const std::string bucke
     auto metadata = client.GetObjectMetadata(bucket_name, bucket_prefix + object_name);
 
     // Metadata ok implies that the file is present.
-    if (metadata.ok()) {
-        return true;
-    }
-
-    return false;
+    return metadata.ok();
 }
 
 static bool
