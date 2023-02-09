@@ -3,6 +3,10 @@
 The WiredTiger Memory Model Test performs a series of operations that, depending on the processor,
 may generate out-of-order memory accesses that are visible to the code.
 
+It is not a 'pass or fail' type of test. It is a technology demo and testbed for what can occur with
+out-of-order memory accesses, and clearly shows in concrete form the differences in behaviour
+between the ARM64 and x86_64 memory models.
+
 This test was inspired, in part, by the work at https://preshing.com/20120515/memory-reordering-caught-in-the-act/, 
 which is worth reading to understand these tests.
 
@@ -27,9 +31,9 @@ There are two broad groups of tests:
 ## Building and running the tests
 
 ### Requirements
-* ARM or x86 based CPU
+* ARM64 or x86_64 based CPU
 * C++ compiler that supports C++ 20
-* CMake and ninja
+* (optional) CMake and ninja
 
 ### Build
 
@@ -41,11 +45,15 @@ There are two options:
   cmake -G Ninja ../.
   ninja
   ```
-* On an Evergreen host:
+* Use `g++` directly.
+
+  For Evergreen, first ensure that the correct C++ compiler is on the path:
+  
   ```
-  /opt/mongodbtoolchain/v4/bin/g++ -o memory_model_test -O2 memory_model_test.cpp -lpthread -std=c++20
+  export "PATH=/opt/mongodbtoolchain/v4/bin:$PATH"
   ```
-* On a Mac:
+
+  On both Mac or Evergreen, compile using g++:
   ```
   g++ -o memory_model_test -O2 memory_model_test.cpp -lpthread -std=c++20
   ```
@@ -53,8 +61,8 @@ There are two options:
 Some tests use compiler barriers to prevent the compiler re-ordering memory accesses during optimisation.
 
 Note: if you get compile errors related to `#include <semaphore>` or semaphores in general,
-then check that you are compiling for C++ 20. The test uses the C++ 20 semaphore library as it is
-supported on both Mac and Ubuntu.
+then check that you are using both the correct compiler and compiling for C++ 20. 
+The test uses the C++ 20 semaphore library as it is supported on both Mac and Ubuntu.
 
 ### Running the test
 
@@ -69,9 +77,15 @@ Each test displays if/when out of order operations are possible.
 Some tests should never show out of order operations because of either the correct use of memory barriers/atomics, 
 or the processor design. If any of these tests report out of order operations, then that is an error.
 
-Some tests can report out of order operations, but that does not mean they will report them.
+Some tests **can** report out of order operations, but that does not mean they **will** report them.
+This is due to the randomness of the timing between the two threads, as well as the low incidence of
+measurable out-of-order effects on some test/hardware combinations.
 
-All x86 and ARM processors will likely show some out of order operations for some of the first group of tests.
+All x86_64 and ARM64 processors will likely show some out of order operations for some of the first group of tests.
+However, as consequence of the different memory models, only ARM can show out of order operations in the second group.
+
+Current ARM64 results show that group two tests show high out-of-order rates on M1 Pro/Max processors,
+but much lower (by several orders of magnitude) out-of-order rates on current Evergreen instances.
 
 
 # References
