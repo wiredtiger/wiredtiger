@@ -28,6 +28,7 @@
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
 #include <algorithm>
+#include <fstream>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -231,9 +232,13 @@ static int
 azure_flush_finish(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
   WT_FILE_SYSTEM *file_system, const char *source, const char *object, const char *config)
 {
+    size_t size = 0;
+
     WT_UNUSED(storage_source);
     WT_UNUSED(config);
     WT_UNUSED(source);
+    WT_UNUSED(size);
+
     bool existsp = false;
     std::cout << "azure_flush_finish: Checking object: " << object << " exists in Azure."
               << std::endl;
