@@ -221,8 +221,9 @@ gcp_file_system_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
 }
 
 static int
-gcp_flush(WT_STORAGE_SOURCE * /*storage_source*/, WT_SESSION *session, WT_FILE_SYSTEM *file_system,
-  const char *source, const char *object, const char * /*config*/)
+gcp_flush([[maybe_unused]] WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
+  WT_FILE_SYSTEM *file_system, const char *source, const char *object,
+  [[maybe_unused]] const char *config)
 {
 
     gcp_file_system *fs = get_gcp_file_system(file_system);
@@ -247,8 +248,9 @@ gcp_flush(WT_STORAGE_SOURCE * /*storage_source*/, WT_SESSION *session, WT_FILE_S
 }
 
 static int
-gcp_flush_finish(WT_STORAGE_SOURCE * /*storage*/, WT_SESSION * /*session*/,
-  WT_FILE_SYSTEM *file_system, const char *source, const char *object, const char * /*config*/)
+gcp_flush_finish([[maybe_unused]] WT_STORAGE_SOURCE *storage, [[maybe_unused]] WT_SESSION *session,
+  WT_FILE_SYSTEM *file_system, const char *source, const char *object,
+  [[maybe_unused]] const char *config)
 {
     gcp_file_system *fs = get_gcp_file_system(file_system);
 
