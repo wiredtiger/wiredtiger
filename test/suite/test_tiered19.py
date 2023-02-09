@@ -117,18 +117,18 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
             lambda: ss.ss_customize_file_system(
                 session, no_access_bucket, None, self.get_fs_config(prefix)), err_msg)
         
-        # We cannot use the file system to create files, it is readonly.
-        # So use python I/O to build up the file.
+        # The file system is read only so cannot be used to create files because of this
+        # the python I/O is used to build files.
         local_file_name = "test_tiered19_local_file"
         with open(local_file_name, 'wb') as local_file:
             outbytes = ('MORE THAN ENOUGH DATA\n'*100000).encode()
             local_file.write(outbytes)
 
-        # Flushing copies the file into the file system.
+        # We expect a valid file to flush to Google cloud.
         self.assertEquals(ss.ss_flush(session, fs, local_file_name, local_file_name, None), 0)
         self.assertEquals(ss.ss_flush_finish(session, fs, local_file_name, local_file_name, None), 0)
 
-        # Flush non valid file into GCP will result in an exception.
+        # We expect an exception to be raised when flushing a file that does not exist.
         err_msg = "Exception: No such file or directory"
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_flush(session, fs, 'non_existing_file', 'non_existing_file', None), err_msg)
