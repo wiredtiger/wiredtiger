@@ -124,7 +124,7 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
             outbytes = ('MORE THAN ENOUGH DATA\n'*100000).encode()
             local_file.write(outbytes)
 
-        # We expect a valid file to flush to Google cloud.
+        # We expect a valid file to flush to GCP.
         self.assertEquals(ss.ss_flush(session, fs, local_file_name, local_file_name, None), 0)
         self.assertEquals(ss.ss_flush_finish(session, fs, local_file_name, local_file_name, None), 0)
 
