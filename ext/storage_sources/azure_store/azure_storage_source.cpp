@@ -118,6 +118,7 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
     // Get the value of the config key from the string
     azure_store *azure_storage = reinterpret_cast<azure_store *>(storage_source);
     int ret;
+
     if ((ret = azure_storage->wt_api->config_get_string(
            azure_storage->wt_api, session, config, "prefix", &obj_prefix_config)) == 0)
         obj_prefix = std::string(obj_prefix_config.str, obj_prefix_config.len);
@@ -176,6 +177,7 @@ static int
 azure_add_reference(WT_STORAGE_SOURCE *storage_source)
 {
     azure_store *azure_storage = reinterpret_cast<azure_store *>(storage_source);
+
     if (azure_storage->reference_count == 0 || azure_storage->reference_count + 1 == 0) {
         std::cerr << "azure_add_reference: missing reference or overflow." << std::endl;
         return EINVAL;
@@ -276,6 +278,7 @@ azure_terminate(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session)
     }
 
     delete azure_storage;
+
     return 0;
 }
 
@@ -336,6 +339,7 @@ azure_file_system_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
     }
     azure_fs->azure_conn.reset();
     free(azure_fs);
+
     return 0;
 }
 
@@ -348,10 +352,12 @@ azure_file_exists(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *
     size_t size = 0;
     WT_UNUSED(session);
     WT_UNUSED(size);
+
     if ((ret = azure_fs->azure_conn->object_exists(std::string(name), *existp, size)) != 0) {
         std::cerr << "azure_file_open: object_exists request to Azure failed." << std::endl;
         return ret;
     }
+
     return 0;
 }
 
@@ -416,6 +422,7 @@ azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
     int ret;
     size_t size = 0;
     WT_UNUSED(size);
+
     if ((ret = azure_fs->azure_conn->object_exists(std::string(name), exists, size)) != 0) {
         std::cerr << "azure_file_open: object_exists request to Azure failed." << std::endl;
         return ret;
@@ -540,6 +547,7 @@ azure_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *size
     bool exists;
     WT_UNUSED(exists);
     size_t size = 0;
+
     if ((ret = azure_fh->fs->azure_conn->object_exists(azure_fh->name, exists, size)) != 0) {
         std::cerr << "azure_file_open: object_exists request to Azure failed." << std::endl;
         return ret;
