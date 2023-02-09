@@ -256,7 +256,7 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         r->cell_zero = false;
 
         addr = &multi->addr;
-        __wt_rec_cell_build_addr(session, r, addr, NULL, WT_RECNO_OOB, NULL);
+        WT_RET(__wt_rec_cell_build_addr(session, r, addr, NULL, WT_RECNO_OOB, NULL));
 
         /* Boundary: split or write the page. */
         if (__wt_rec_need_split(r, key->len + val->len))
@@ -399,13 +399,13 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         page_del = NULL;
         if (__wt_off_page(page, addr)) {
             page_del = cms.state == WT_CHILD_PROXY ? &cms.del : NULL;
-            __wt_rec_cell_build_addr(session, r, addr, NULL, WT_RECNO_OOB, page_del);
+            WT_ERR(__wt_rec_cell_build_addr(session, r, addr, NULL, WT_RECNO_OOB, page_del));
             source_ta = &addr->ta;
         } else if (cms.state == WT_CHILD_PROXY) {
             /* Proxy cells require additional information in the address cell. */
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
             page_del = &cms.del;
-            __wt_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del);
+            WT_ERR(__wt_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del));
             source_ta = &vpack->ta;
         } else {
             /*
@@ -421,7 +421,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
               "Proxy cell is selected with original child image");
 
             if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
-                __wt_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del);
+                WT_ERR(__wt_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del));
             } else {
                 val->buf.data = ref->addr;
                 val->buf.size = __wt_cell_total_len(vpack);

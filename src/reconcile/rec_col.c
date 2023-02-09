@@ -187,7 +187,7 @@ __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
         /* Build the value cell. */
         addr = &multi->addr;
-        __wt_rec_cell_build_addr(session, r, addr, NULL, r->recno, NULL);
+        WT_RET(__wt_rec_cell_build_addr(session, r, addr, NULL, r->recno, NULL));
 
         /* Boundary: split or write the page. */
         if (__wt_rec_need_split(r, val->len))
@@ -288,7 +288,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
         if (addr == NULL && __wt_off_page(page, ref->addr))
             addr = ref->addr;
         if (addr != NULL) {
-            __wt_rec_cell_build_addr(session, r, addr, NULL, ref->ref_recno, page_del);
+            WT_ERR(__wt_rec_cell_build_addr(session, r, addr, NULL, ref->ref_recno, page_del));
             WT_TIME_AGGREGATE_COPY(&ta, &addr->ta);
         } else {
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
@@ -298,7 +298,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
                  * info.
                  */
                 WT_ASSERT(session, vpack->type != WT_CELL_ADDR_DEL || page_del != NULL);
-                __wt_rec_cell_build_addr(session, r, NULL, vpack, ref->ref_recno, page_del);
+                WT_ERR(__wt_rec_cell_build_addr(session, r, NULL, vpack, ref->ref_recno, page_del));
             } else {
                 /* Copy the entire existing cell, including any page-delete information. */
                 val->buf.data = ref->addr;

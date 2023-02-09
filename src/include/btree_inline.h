@@ -7,6 +7,37 @@
  */
 
 /*
+ * __wt_addr_cookie_btree_pack --
+ *     Pack the btree part of the address cookie.
+ */
+static inline int
+__wt_addr_cookie_btree_pack(void *addr, uint64_t records, uint64_t user_bytes)
+{
+    uint8_t *p;
+
+    p = WT_ADDR_COOKIE_BTREE(addr);
+    WT_RET(__wt_vpack_uint(&p, 0, records));
+    WT_RET(__wt_vpack_uint(&p, 0, user_bytes));
+    WT_ADDR_COOKIE_BTREE_LEN(addr) = (uint8_t)WT_PTRDIFF(p, addr);
+    return (0);
+}
+
+/*
+ * __wt_addr_cookie_btree_unpack --
+ *     Unpack the btree part of the address cookie.
+ */
+static inline int
+__wt_addr_cookie_btree_unpack(const void *addr, uint64_t *recordsp, uint64_t *user_bytesp)
+{
+    const uint8_t *p;
+
+    p = WT_ADDR_COOKIE_BTREE(addr);
+    WT_RET(__wt_vunpack_uint(&p, 0, recordsp));
+    WT_RET(__wt_vunpack_uint(&p, 0, user_bytesp));
+    return (0);
+}
+
+/*
  * __wt_ref_is_root --
  *     Return if the page reference is for the root page.
  */
@@ -1495,7 +1526,7 @@ struct __wt_addr_copy {
     WT_PAGE_DELETED del; /* Fast-truncate page information */
     bool del_set;
 
-    WT_PAGE_STAT ps; /* Page information including row and byte counts */
+    WT_PAGE_STAT ps; /* Page information including record and user byte counts */
 };
 
 /*

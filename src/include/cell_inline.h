@@ -195,7 +195,7 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
  */
 static inline size_t
 __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, uint64_t recno,
-  WT_PAGE_DELETED *page_del, WT_PAGE_STAT *ps, WT_TIME_AGGREGATE *ta, size_t size)
+  WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta, size_t size)
 {
     uint8_t *p;
 
@@ -223,14 +223,6 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
         cell->__chunk[0] |= (uint8_t)(cell_type | WT_CELL_64V);
         /* Record number */
         WT_IGNORE_RET(__wt_vpack_uint(&p, 0, recno));
-    }
-
-    /* If passed page stat information, append the row and byte counts. */
-    if (ps != NULL && __wt_process.page_stats_2022) {
-        if (WT_PAGE_STAT_HAS_USER_BYTES(ps))
-            WT_IGNORE_RET(__wt_vpack_int(&p, 0, ps->user_bytes));
-        if (WT_PAGE_STAT_HAS_RECORDS(ps))
-            WT_IGNORE_RET(__wt_vpack_int(&p, 0, ps->records));
     }
 
     /* Length */
@@ -924,24 +916,33 @@ copy_cell_restart:
     case WT_CELL_KEY_OVFL_RM:
     case WT_CELL_VALUE_OVFL:
     case WT_CELL_VALUE_OVFL_RM:
-        /*
-         * Set overflow flag.
-         */
+        /* The cell is followed by a 4B data length and a chunk of data. */
+        WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &v));
+
+        unpack->data = p;
+        unpack->size = (uint32_t)v;
+        unpack->__len = (uint32_t)(WT_PTRDIFF32(p, cell) + v);
+
+        /* Set overflow flag. */
         F_SET(unpack, WT_CELL_UNPACK_OVERFLOW);
-        /* FALLTHROUGH */
+        break;
 
     case WT_CELL_ADDR_DEL:
     case WT_CELL_ADDR_INT:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
-        /* Unpack the row and/or byte counts if the chunk of data includes it. */
-        if (ps != NULL && __wt_process.page_stats_2022) {
-            if (F_ISSET(dsk, WT_PAGE_STAT_EXISTS)) {
-                WT_RET(__wt_vunpack_int(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ps->user_bytes));
-                WT_RET(__wt_vunpack_int(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ps->records));
-            }
-        }
-        /* FALLTHROUGH */
+        /* The cell is followed by a 4B data length and a chunk of data. */
+        WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &v));
+
+        /* Unpack the record and/or user byte counts if the chunk of data includes it. */
+        if (F_ISSET(dsk, WT_PAGE_STAT_EXISTS))
+            WT_RET(__wt_addr_cookie_btree_unpack(p, &ps->records, &ps->user_bytes));
+
+        unpack->data = p;
+        unpack->size = (uint32_t)v;
+        unpack->__len = (uint32_t)(WT_PTRDIFF32(p, cell) + v);
+        break;
+
     case WT_CELL_KEY:
     case WT_CELL_KEY_PFX:
     case WT_CELL_VALUE:
