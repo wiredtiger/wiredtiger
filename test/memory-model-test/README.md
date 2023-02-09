@@ -93,6 +93,60 @@ However, as consequence of the different memory models, only ARM can show out of
 Current ARM64 results show that group two tests show high out-of-order rates on M1 Pro/Max processors,
 but much lower (by several orders of magnitude) out-of-order rates on current Evergreen instances.
 
+Here is an example of the output from running the tool on a Mac Studio with an M1 Max ARM processor.
+Note that out-of-order operations are occurring in all scenarios where they are possible on an ARM64.
+
+
+```
+WiredTiger Memory Model Test
+============================
+Running on ARM64 with 1 thread pairs(s) and loop count 1000000
+
+-- Group 1: Tests that have a read and a write in each thread --
+
+Test name:        Test writes then reads
+Test description: Each thread writes then reads. Out of orders ARE POSSIBLE.
+Total of 176874 out of orders detected out of 1000000 iterations (17.6874%) in test Test writes then reads
+
+Test name:        Test writes then reads with one barrier
+Test description: Each thread writes then reads, with one barrier between the write and read on thread 2. Out of orders ARE POSSIBLE.
+Total of 6898 out of orders detected out of 1000000 iterations (0.6898%) in test Test writes then reads with one barrier
+
+Test name:        Test writes then reads with two barriers
+Test description: Each thread writes then reads, with a barrier between the write and read on each thread. Out of orders are NOT POSSIBLE.
+Total of 0 out of orders detected out of 1000000 iterations (0%) in test Test writes then reads with two barriers
+
+Test name:        Test writes then reads with one atomic
+Test description: Each thread writes then reads, with one atomic increment used for one write. Out of orders ARE POSSIBLE.
+Total of 65025 out of orders detected out of 1000000 iterations (6.5025%) in test Test writes then reads with one atomic
+
+Test name:        Test writes then reads with two atomics
+Test description: Each thread writes then reads, with atomic increments used for both writes. Out of orders are NOT POSSIBLE.
+Total of 0 out of orders detected out of 1000000 iterations (0%) in test Test writes then reads with two atomics
+
+-- Group 2: Tests that have two reads in one thread, and two writes in the other thread --
+
+Test name:        Test writes and reads
+Test description: One thread has two writes, the other has two reads. Out of orders ARE POSSIBLE on ARM64.
+Total of 9892 out of orders detected out of 1000000 iterations (0.9892%) in test Test writes and reads
+
+Test name:        Test writes and reads, with barrier between writes
+Test description: One thread has two writes with a barrier between them, the other has two reads. Out of orders ARE POSSIBLE on ARM64.
+Total of 2671 out of orders detected out of 1000000 iterations (0.2671%) in test Test writes and reads, with barrier between writes
+
+Test name:        Test writes and reads, with barrier between reads
+Test description: One thread has two writes, the other has two reads with a barrier between them. Out of orders are NOT POSSIBLE.
+Total of 0 out of orders detected out of 1000000 iterations (0%) in test Test writes and reads, with barrier between reads
+
+Test name:        Test writes and reads, with barrier between writes and between reads
+Test description: One thread has two writes with a barrier between them, the other has two reads with a barrier between them. Out of orders are NOT POSSIBLE.
+Total of 0 out of orders detected out of 1000000 iterations (0%) in test Test writes and reads, with barrier between writes and between reads
+
+Test name:        Test writes and reads, with atomics
+Test description: One thread has two writes using atomic increments, the other has two reads. Out of orders are ARE POSSIBLE on ARM64.
+Total of 810 out of orders detected out of 1000000 iterations (0.081%) in test Test writes and reads, with atomics
+
+```
 
 # References
 

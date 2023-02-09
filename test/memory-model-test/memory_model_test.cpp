@@ -393,7 +393,7 @@ main(int argc, char *argv[])
         std::cout << "Running on ARM64";
     else
         std::cout << "Running on x86";
-    std::cout << " with " << num_thread_pair(s) << " thread pairs and loop count " << loop_count
+    std::cout << " with " << num_thread_pairs << " thread pairs(s) and loop count " << loop_count
               << std::endl
               << std::endl;
 
