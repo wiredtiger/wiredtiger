@@ -21,8 +21,7 @@ class insert_list_dump(gdb.Command):
         key = gdb.selected_inferior().read_memory(int(insert) + key_struct['offset'], key_struct['size']).tobytes().replace(b'\x00',b'').decode()
         return key.strip('0')
 
-    def walk_level(self, head, id):
-        #print(start.dereference())
+    def walk_skiplist(self, head, id):
         current = head['head'][0]
         while current != 0x0:
             key = self.get_key(current)
@@ -37,7 +36,7 @@ class insert_list_dump(gdb.Command):
     def invoke(self, insert_head, from_tty):
         head = gdb.parse_and_eval(insert_head).dereference().dereference()
         f.write(str(head)+ "\n")
-        self.walk_level(head, 0)
+        self.walk_skiplist(head, 0)
 
 # This registers our class with the gdb runtime at "source" time.
 insert_list_dump()

@@ -1999,18 +1999,18 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 static inline u_int
 __wt_skip_choose_depth(WT_SESSION_IMPL *session)
 {
-    u_int d, p;
+    u_int depth, probability;
 
-    p = WT_SKIP_PROBABILITY;
+    probability = WT_SKIP_PROBABILITY;
 #ifdef HAVE_DIAGNOSTIC
     /* Go from 1/4 chance of having a link to the next element to ~7/8 */
-    if (F_ISSET(session, WT_SESSION_DEBUG_DENSER_SKIPLIST))
-        p = WT_SKIP_PROBABILITY << 1;
+    if (F_ISSET(session, WT_SESSION_DEBUG_STRESS_SKIPLIST))
+        probability = WT_SKIP_PROBABILITY << 1;
 #endif
 
-    for (d = 1; d < WT_SKIP_MAXDEPTH && __wt_random(&session->rnd) < p; d++)
+    for (depth = 1; depth < WT_SKIP_MAXDEPTH && __wt_random(&session->rnd) < probability; depth++)
         ;
-    return (d);
+    return (depth);
 }
 
 /*
