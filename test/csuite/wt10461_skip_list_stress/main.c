@@ -27,8 +27,8 @@
  */
 
 /*
- * This test reproduces WT-10461 in which platforms with a weak memory model like ARM
- * can insert items into a skiplist with an incorrect next_stack. Upper levels of
+ * This test reproduces WT-10461 in which platforms with weak memory models such as ARM
+ * can insert items into a skiplist using an incorrect next_stack. Upper levels of
  * the next_stack should always point to larger keys than lower levels of the stack
  * but we can violate this constraint if we have the following (simplified) scenario:
  *
@@ -39,22 +39,23 @@
  * 3. As C is being inserted A's next_stack pointers - previously pointing at D - will
  *    be updated to point to C. These pointers are updated from the bottom of A's
  *    next_stack upwards.
- * 4. As B is preparing to be inserted it builds its next_stack by choosing pointers from
- *    the top of A's next_stack and moving downwards.
+ * 4. As B is preparing to be inserted it builds its own next_stack by choosing pointers
+ *    from the top of A's next_stack and moving downwards.
  * 5. Provided that pointers in step 3 are written bottom up and pointers in step 4 are
  *    read top down the resulting pointers in B's next_stack will be consistent, but if
- *    pointers are read out of order in step 4 then B can set an old pointer to key D in
- *    a lower level and then set a newer pointer to C in an upper level violating our
+ *    pointers are read out of order in step 4 (due to weak memory models being more
+ *    lenient about ordering of reads from memory) B can set an old pointer to key D
+ *    in a lower level and then set a newer pointer to C in an upper level violating our
  *    constraint that upper levels in next_stacks must point to larger keys than lower
  *    levels.
  *
  * To reproduce the above we set up a scenario with a skip list containing keys "0" (A)
- * and "9999999999" (D). New keys are continually inserted in a decreasing order to represent
+ * and "99999" (D). New keys are continually inserted in a decreasing order to represent
  * the insertion of C, while in a parallel thread we emulate the insertion of B by continually
  * calling __wt_search_insert for key "00". Note that we're not actually inserting B here,
  * just repeating the critical section of B's insertion where the out of order read can occur.
- * We run this section in parallel across as many threads as possible to increase the chance of
- * the error firing.
+ * We run this __wt_search_insert in parallel across as many threads as possible to increase
+ * the chance of the error firing.
  */
 
 #include <time.h>
@@ -67,6 +68,9 @@ static const char *uri = "table:wt10014_skip_stress_test";
 
 static volatile bool inserts_finished;
 static volatile uint32_t active_search_insert_threads;
+
+#define NUM_KEYS 10000
+#define KEY_SIZE 6
 
 /*
  * usage --
@@ -81,7 +85,7 @@ usage(void)
 
 /*
  * insert_key --
- *     Helper function to insert a key. For this test we only care about keys so just insert a dummy
+ *     Helper function to insert a key. For this test we only care about keys and insert a dummy
  *     value.
  */
 static void
@@ -95,12 +99,12 @@ insert_key(WT_CURSOR *cursor, const char *key)
 /*
  * thread_search_insert_run --
  *     Find the insert list under test and then continually build a list of skiplist pointers as if
- *     we were going to insert a new key. This function does not insert a new key though, as we want
+ *     we were going to insert a new key. This function does not insert a new key though as we want
  *     to stress the construction of the next_stack built by the function. If out-of-order reads
- *     occur as a result of this function call it is caught by an assertion in _wt_search_insert.
+ *     occur as a result of this function call it is caught by an assertion in __wt_search_insert.
  *
  * !!!! Note !!!! This function is not a proper usage of the WT API. It's white box and accesses
- *     internal WiredTiger functions in order to stress the __wt_search_insert function.
+ *     internal WiredTiger functions in order to directly stress the __wt_search_insert function.
  */
 static WT_THREAD_RET
 thread_search_insert_run(void *arg)
@@ -112,6 +116,7 @@ thread_search_insert_run(void *arg)
     WT_SESSION *session;
 
     conn = (WT_CONNECTION *)arg;
+    /* FIXME WT-10561 - Add denser_skiplist to config once WT-10561 is merged. */
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /*
@@ -144,6 +149,7 @@ thread_search_insert_run(void *arg)
           __wt_search_insert((WT_SESSION_IMPL *)session, cbt, cbt->ins_head, &check_key));
     __wt_atomic_subv32(&active_search_insert_threads, 1);
 
+    cursor->close(cursor);
     session->close(session, "");
     return (WT_THREAD_RET_VALUE);
 }
@@ -151,8 +157,7 @@ thread_search_insert_run(void *arg)
 /*
  * run --
  *     Setup the skiplist under stress, spin up search_insert threads to run in parallel, and then
- *     start inserting keys in decreasing order. Any errors triggered by this workflow are caught by
- *     an assertion in search_insert.
+ *     start inserting keys in decreasing order.
  */
 static void
 run(const char *working_dir)
@@ -161,8 +166,8 @@ run(const char *working_dir)
     uint32_t num_search_insert_threads;
 
     WT_CONNECTION *conn;
-    WT_CURSOR *cursor;
     WT_SESSION *session;
+    WT_CURSOR *cursor;
     char *key;
 
     int status;
@@ -177,6 +182,7 @@ run(const char *working_dir)
         testutil_die(status, "system: %s", command);
 
     testutil_check(wiredtiger_open(home, NULL, "create", &conn));
+    /* FIXME WT-10561 - Add denser_skiplist to config once WT-10561 is merged. */
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     /*
      * We want this whole test to run on a single insert list. Set a very large memory_page_max to
@@ -188,7 +194,7 @@ run(const char *working_dir)
 
     /* Insert keys A and D from the description at the top of the file. */
     insert_key(cursor, "0");
-    insert_key(cursor, "9999999999");
+    insert_key(cursor, "99999");
 
     /*
      * Wait for search_insert threads to be up and running. We have one insert thread and everything
@@ -202,10 +208,11 @@ run(const char *working_dir)
     while (active_search_insert_threads != num_search_insert_threads)
         ;
 
-    key = dmalloc(10);
+    key = dmalloc(KEY_SIZE);
     testutil_check(session->begin_transaction(session, NULL));
-    for (uint32_t i = 10000; i > 0; i--) {
-        sprintf(key, "%0*u", 9, i);
+    for (uint32_t i = NUM_KEYS; i > 0; i--) {
+        /* All keys use leading zeros. Otherwise "2" is consider larger than "11". */
+        sprintf(key, "%0*u", KEY_SIZE - 1, i);
         insert_key(cursor, key);
     }
     testutil_check(session->commit_transaction(session, NULL));
@@ -224,7 +231,8 @@ run(const char *working_dir)
 
 /*
  * main --
- *     Test body
+ *     Stress test for out-of-order reads in __wt_search_insert on platforms with weak memory
+ *     ordering.
  */
 int
 main(int argc, char *argv[])
@@ -252,8 +260,6 @@ main(int argc, char *argv[])
     for (int j = 0;; j++) {
         printf("Run %d\n", j);
         run(working_dir);
-        /* Evergreen buffers logging. Flush so we can see that the test is progressing. */
-        fflush(stdout);
 
         __wt_epoch(NULL, &now);
         if (WT_TIMEDIFF_SEC(now, start) >= (15 * WT_MINUTE))

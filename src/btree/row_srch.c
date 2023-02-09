@@ -202,18 +202,17 @@ __wt_search_insert(
     cbt->ins_head = ins_head;
 
     /*
-     * FIXME WT-10439 - Available categories are changing in WT-10439. Whichever change merges
-     * second needs to change this to WT_DIAGNOSTIC_BTREE_VALIDATE.
+     * FIXME WT-10561 - Move behind the new denser_skiplist flag once WT-10525 is merged.
      */
-    if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_DATA_VALIDATION))
-        WT_RET(__validate_next_stack(session, cbt->next_stack, srch_key));
+    WT_RET(__validate_next_stack(session, cbt->next_stack, srch_key));
     return (0);
 }
 
 /*
  * __validate_next_stack --
  *     Verify that for each level in the provided next_stack that higher levels on the stack point
- *     to larger inserts than lower levels.
+ *     to larger inserts than lower levels, and all inserts are larger than the srch_key used in
+ *     building the next_stack.
  */
 static inline int
 __validate_next_stack(
@@ -223,42 +222,31 @@ __validate_next_stack(
     WT_ITEM upper_key, lower_key;
     int32_t i, cmp;
     WT_COLLATOR *collator;
-    WT_BTREE *btree;
 
-    btree = S2BT(session);
-    collator = btree->collator;
-
-    upper_key.mem = NULL;
-    upper_key.memsize = 0;
-    upper_key.flags = 0;
-
-    lower_key.mem = NULL;
-    lower_key.memsize = 0;
-    lower_key.flags = 0;
-
+    collator = S2BT(session)->collator;
+    WT_CLEAR(upper_key);
+    WT_CLEAR(lower_key);
     cmp = 0;
+
     for (i = WT_SKIP_MAXDEPTH - 2; i >= 0; i--) {
 
-        /* Ensure that if a lower level points to the end of the skiplist the higher level does as
-         * well. */
+        /* If lower level point to the end of the skiplist higher levels must as well. */
         if (next_stack[i] == NULL)
             WT_ASSERT_ALWAYS(session, next_stack[i + 1] == NULL,
               "Invalid next_stack: Level %d is NULL but higher level %d has pointer %p", i, i + 1,
               (void *)next_stack[i + 1]);
 
-        /*
-         * Skip if either pointer is to the end of the skiplist, or if both pointers are the same.
-         */
+        /* We only need to compare when both levels point to different, non-NULL inserts. */
         if (next_stack[i] == NULL || next_stack[i + 1] == NULL ||
-          (next_stack[i] == next_stack[i + 1]))
+          next_stack[i] == next_stack[i + 1])
             continue;
+
         lower_key.data = WT_INSERT_KEY(next_stack[i]);
         lower_key.size = WT_INSERT_KEY_SIZE(next_stack[i]);
 
         upper_key.data = WT_INSERT_KEY(next_stack[i + 1]);
         upper_key.size = WT_INSERT_KEY_SIZE(next_stack[i + 1]);
 
-        /* Force match to zero for a full comparison of keys */
         WT_RET(__wt_compare(session, collator, &upper_key, &lower_key, &cmp));
         WT_ASSERT_ALWAYS(session, cmp >= 0,
           "Invalid next_stack: Lower level points to larger key: Level %d = %s, Level %d = %s", i,
