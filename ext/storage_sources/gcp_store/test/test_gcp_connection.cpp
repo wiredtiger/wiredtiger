@@ -30,7 +30,6 @@
 #include "gcp_connection.h"
 
 #include <catch2/catch.hpp>
-#include <typeinfo>
 
 namespace gcs = google::cloud::storage;
 using namespace gcs;
@@ -54,7 +53,7 @@ upload_file(gcs::Client client, std::string bucket_name, const std::string bucke
 }
 
 static bool
-check_exist(gcs::Client client, std::string bucket_name, const std::string bucket_prefix,
+file_exists_in_bucket(gcs::Client client, std::string bucket_name, const std::string bucket_prefix,
   const std::string object_name)
 {
     auto metadata = client.GetObjectMetadata(bucket_name, bucket_prefix + object_name);
@@ -63,19 +62,19 @@ check_exist(gcs::Client client, std::string bucket_name, const std::string bucke
     return metadata.ok();
 }
 
-static bool
-check_object_num(
-  gcs::Client client, std::string bucket_name, const std::string bucket_prefix, const int num)
+static int
+num_objects_in_bucket(gcs::Client client, std::string bucket_name, const std::string bucket_prefix)
 {
     auto objects_iterator = client.ListObjects(bucket_name, gcs::Prefix(bucket_prefix));
-    return std::distance(objects_iterator.begin(), objects_iterator.end()) == num;
+    return std::distance(objects_iterator.begin(), objects_iterator.end());
 }
 
 // Concatenates a random suffix to the prefix being used for the test object keys. Example of
 // generated test prefix: "gcptest/unit/2022-31-01-16-34-10/623843294/".
 static std::string
-generate_test_prefix(std::string prefix)
+generate_test_prefix()
 {
+    std::string prefix = "gcptest/unit/";
     char time_str[100];
     std::time_t t = std::time(nullptr);
 
@@ -97,10 +96,9 @@ generate_test_prefix(std::string prefix)
 TEST_CASE("Testing class gcpConnection", "gcp-connection")
 {
     std::string test_bucket_name = "unit_testing_gcp";
-    std::string prefix = "gcptest/unit/";
 
     // Set up the test environment.
-    std::string test_bucket_prefix = generate_test_prefix(prefix);
+    std::string test_bucket_prefix = generate_test_prefix();
     gcp_connection conn(test_bucket_name, test_bucket_prefix);
 
     const std::string object_name = "test_object";
@@ -121,12 +119,15 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
         REQUIRE(conn.list_objects(objects, false) == 0);
         REQUIRE(objects.empty());
 
-        // No matching objects with list_single. Object size should be 0.
+        // No matching objects with list_single. Objects list should be empty.
         REQUIRE(conn.list_objects(objects, list_single) == 0);
         REQUIRE(objects.empty());
 
-        // Upload 1 file to the bucket and test list_objects, should return an objects list with size 1.
-        upload_file(client, test_bucket_name, test_bucket_prefix, file_name, object_name);
+        // Upload 1 file to the bucket and test list_objects, should return an objects list with
+        // size 1.
+        REQUIRE(
+          upload_file(client, test_bucket_name, test_bucket_prefix, file_name, object_name).ok());
+        REQUIRE(file_exists_in_bucket(client, test_bucket_name, test_bucket_prefix, object_name));
         REQUIRE(conn.list_objects(objects, false) == 0);
         REQUIRE(objects.size() == 1);
         objects.clear();
@@ -142,20 +143,24 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
         for (int i = 0; i < total_objects; i++) {
             std::string multi_file_name = object_name + std::to_string(i);
             REQUIRE(
-              upload_file(client, test_bucket_name, test_bucket_prefix, file_name, multi_file_name).ok());
+              upload_file(client, test_bucket_name, test_bucket_prefix, file_name, multi_file_name)
+                .ok());
         }
+
+        // List objects should return a list with size total_objects.
         REQUIRE(conn.list_objects(objects, false) == 0);
         REQUIRE(objects.size() == total_objects);
         objects.clear();
 
-        // Test if list single only returns one object.
+        // Test if list single correctly returns one object.
         REQUIRE(conn.list_objects(objects, list_single) == 0);
         REQUIRE(objects.size() == 1);
         objects.clear();
 
         // Delete all object we uploaded.
         for (int i = 0; i < total_objects; i++) {
-            client.DeleteObject(test_bucket_name, test_bucket_prefix + object_name + std::to_string(i));
+            client.DeleteObject(
+              test_bucket_name, test_bucket_prefix + object_name + std::to_string(i));
         }
 
         // Bucket should be cleared.
@@ -170,22 +175,16 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
         REQUIRE(conn.put_object(non_existant_object_name, non_existant_file_name) == ENOENT);
 
         // Check number of files with the given prefix that are currently in the bucket.
-        REQUIRE(check_object_num(client, test_bucket_name, test_bucket_prefix, 0));
+        REQUIRE(num_objects_in_bucket(client, test_bucket_name, test_bucket_prefix) == 0);
 
         // Upload a test file.
         REQUIRE(conn.put_object(object_name, "./" + file_name) == 0);
 
-        REQUIRE(check_object_num(client, test_bucket_name, test_bucket_prefix, 1));
-
         // Check the bucket contains the uploaded file.
-        bool exists = check_exist(client, test_bucket_name, test_bucket_prefix, object_name);
-        REQUIRE(exists);
+        REQUIRE(file_exists_in_bucket(client, test_bucket_name, test_bucket_prefix, object_name));
 
         // Delete the uploaded file.
         client.DeleteObject(test_bucket_name, test_bucket_prefix + object_name);
-
-        exists = check_exist(client, test_bucket_name, test_bucket_prefix, object_name);
-        REQUIRE_FALSE(exists);
     }
 
     SECTION("Simple delete test", "[gcp-connection]")
@@ -195,20 +194,16 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
         REQUIRE(conn.delete_object(non_existant_object_name) == ENOENT);
 
         // Upload a test file.
-        auto metadata = upload_file(client, test_bucket_name, test_bucket_prefix, file_name, object_name);
-        REQUIRE(metadata.ok());
-
-        REQUIRE(check_object_num(client, test_bucket_name, test_bucket_prefix, 1));
+        REQUIRE(
+          upload_file(client, test_bucket_name, test_bucket_prefix, file_name, object_name).ok());
+        REQUIRE(file_exists_in_bucket(client, test_bucket_name, test_bucket_prefix, object_name));
 
         // Delete the uploaded file.
         REQUIRE(conn.delete_object(object_name) == 0);
 
         // Check that the file has been deleted.
-        REQUIRE(check_object_num(client, test_bucket_name, test_bucket_prefix, 0));
-
-        bool exists = check_exist(client, test_bucket_name, test_bucket_prefix, object_name);
-        REQUIRE_FALSE(exists);
-        REQUIRE_FALSE(check_exist(client, test_bucket_name, test_bucket_prefix, object_name));
+        REQUIRE_FALSE(
+          file_exists_in_bucket(client, test_bucket_name, test_bucket_prefix, object_name));
     }
 
     SECTION("Simple object exists test", "[gcp-connection]")
@@ -221,10 +216,9 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
         REQUIRE(size == 0);
 
         // Upload a test file.
-        auto metadata = upload_file(client, test_bucket_name, test_bucket_prefix, file_name, object_name);
-        REQUIRE(metadata.status().ok());
-
-        REQUIRE(check_object_num(client, test_bucket_name, test_bucket_prefix, 1));
+        REQUIRE(
+          upload_file(client, test_bucket_name, test_bucket_prefix, file_name, object_name).ok());
+        REQUIRE(num_objects_in_bucket(client, test_bucket_name, test_bucket_prefix) == 1);
 
         // Check the bucket contains the uploaded file.
         REQUIRE(conn.object_exists(object_name, exists, size) == 0);
@@ -236,8 +230,11 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
         REQUIRE(dl_metadata.ok());
 
         // Check that the file has been deleted.
-        REQUIRE(check_object_num(client, test_bucket_name, test_bucket_prefix, 0));
+        REQUIRE_FALSE(
+          file_exists_in_bucket(client, test_bucket_name, test_bucket_prefix, object_name));
 
+        // Check for a file that is not in the bucket, object exists should modify the exists
+        // variable to false.
         REQUIRE(conn.object_exists(object_name, exists, size) == 0);
         REQUIRE(exists == false);
         REQUIRE(size == 0);
@@ -246,10 +243,9 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
     SECTION("Read tests", "[gcp-connection]")
     {
         // Upload a test file.
-        auto metadata = upload_file(client, test_bucket_name, test_bucket_prefix, file_name, object_name);
-        REQUIRE(metadata.status().ok());
-
-        REQUIRE(check_object_num(client, test_bucket_name, test_bucket_prefix, 1));
+        REQUIRE(
+          upload_file(client, test_bucket_name, test_bucket_prefix, file_name, object_name).ok());
+        REQUIRE(file_exists_in_bucket(client, test_bucket_name, test_bucket_prefix, object_name));
 
         // Read GCP objects under the test bucket with no offset.
         char buf[1024];
@@ -277,10 +273,12 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
 
     // Cleanup
     // List and loop through objects with prefix.
-    for (auto &&object_metadata : client.ListObjects(test_bucket_name, gcs::Prefix(test_bucket_prefix))) {
+    for (auto &&object_metadata :
+      client.ListObjects(test_bucket_name, gcs::Prefix(test_bucket_prefix))) {
         // Delete the test file.
         if (object_metadata) {
-            auto dl_metadata = client.DeleteObject(test_bucket_name, object_metadata.value().name());
+            auto dl_metadata =
+              client.DeleteObject(test_bucket_name, object_metadata.value().name());
             REQUIRE(dl_metadata.ok());
         }
     }
