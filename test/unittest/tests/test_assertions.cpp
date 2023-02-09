@@ -259,7 +259,7 @@ TEST_CASE("Connection config: check multiple enabled categories", "[assertions]"
 /* Asserts that categories are enabled/disabled following the connection configuration. */
 TEST_CASE("Connection config: check disabled category", "[assertions]")
 {
-    ConnectionWrapper conn(DB_HOME, "create, extra_diagnostics = [data_loss]");
+    ConnectionWrapper conn(DB_HOME, "create, extra_diagnostics = [eviction_check]");
     WT_SESSION_IMPL *session = conn.createSession();
 
     REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_SLOW_OPERATION) == false);
@@ -298,7 +298,7 @@ TEST_CASE("Reconfigure: extra_diagnostics with invalid item", "[assertions]")
 
     all_diag_asserts_off(session);
     REQUIRE(connection->reconfigure(
-      connection, "extra_diagnostics=[slow_operation, data_loss, INVALID]"));
+      connection, "extra_diagnostics=[slow_operation, eviction_check, INVALID]"));
     all_diag_asserts_off(session);
 }
 
@@ -310,7 +310,7 @@ TEST_CASE("Reconfigure: extra_diagnostics with valid items", "[assertions]")
     WT_SESSION_IMPL *session = conn.createSession();
 
     connection->reconfigure(
-      connection, "extra_diagnostics=[checkpoint_validation, log_validation, data_loss]");
+      connection, "extra_diagnostics=[checkpoint_validate, log_validate, eviction_check]");
 
     REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_CHECKPOINT_VALIDATE) == true);
     REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_LOG_VALIDATE) == true);
@@ -333,7 +333,7 @@ TEST_CASE("Reconfigure: Transition cases", "[assertions]")
     REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_CHECKPOINT_VALIDATE) == false);
 
     connection->reconfigure(
-      connection, "extra_diagnostics=[checkpoint_validation, key_out_of_order, slow_operation]");
+      connection, "extra_diagnostics=[checkpoint_validate, key_out_of_order, slow_operation]");
     REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_KEY_OUT_OF_ORDER) == true);
     REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_CHECKPOINT_VALIDATE) == true);
     REQUIRE(EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_SLOW_OPERATION) == true);

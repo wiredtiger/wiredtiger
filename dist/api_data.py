@@ -674,9 +674,9 @@ connection_runtime_config = [
         \c HAVE_DIAGNOSTIC=1 all assertions are enabled and cannot be reconfigured
         ''',
         type='list', choices=[
-            "all", "checkpoint_validation", "cursor_acquisition", "data_loss", 
-            "disk_validation", "hs_validation", "key_out_of_order", "log_validation", 
-            "obsolete_data", "prepared", "slow_operation", "txn_visibility"]),
+            "all", "checkpoint_validate", "cursor_check", "eviction_check", 
+            "disk_validate", "hs_validation", "key_out_of_order", "log_validate", 
+            "log_validate", "prepared", "slow_operation", "txn_visibility"]),
     Config('file_manager', '', r'''
         control how file handles are managed''',
         type='category', subconfig=[
