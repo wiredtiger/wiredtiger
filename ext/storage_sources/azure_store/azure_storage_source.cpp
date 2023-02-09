@@ -270,13 +270,13 @@ azure_object_list_helper(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const
     *countp = 0;
 
     if (directory != nullptr) {
-        complete_prefix += directory;
+        complete_prefix.append(directory);
         // Add a terminating '/' if one doesn't exist.
         if (complete_prefix.length() > 1 && complete_prefix.back() != '/')
-            complete_prefix += '/';
+            complete_prefix.push_back('/');
     }
     if (search_prefix != nullptr)
-        complete_prefix += search_prefix;
+        complete_prefix.append(search_prefix);
 
     int ret;
 
@@ -387,19 +387,24 @@ azure_file_system_exists(
 {
     WT_UNUSED(file_system);
     WT_UNUSED(session);
+    WT_DECL_RET;
     azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
 
     std::cout << "azure_file_system_exists: Checking object: " << name << " exists in Azure."
               << std::endl;
 
     // Check whether the object exists in the cloud.
-    azure_fs->azure_conn->object_exists(name, *existp);
+    WT_ERR(azure_fs->azure_conn->object_exists(name, *existp));
     if (!*existp) {
-        std::cerr << "azure_file_system_exists: Object: " << name << " does not exist in Azure."
+        std::cout << "azure_file_system_exists: Object: " << name << " does not exist in Azure."
                   << std::endl;
-    }
-    std::cout << "azure_file_system_exists: Object: " << name << " exists in Azure." << std::endl;
+    } else
+        std::cout << "azure_file_system_exists: Object: " << name << " exists in Azure." << std::endl;
     return 0;
+
+    err:
+        std::cerr << "azure_file_system_exists: Error with searching for object: " << name << std::endl;
+        return ret;
 }
 
 // POSIX remove, not supported for cloud objects.
