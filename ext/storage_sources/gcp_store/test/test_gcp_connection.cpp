@@ -87,8 +87,7 @@ generate_test_prefix()
     unsigned seed = my_random_device();
     std::default_random_engine my_random_engine(seed);
 
-    prefix += '/' + std::to_string(my_random_engine());
-    prefix += "/";
+    prefix += "/" + std::to_string(my_random_engine()) + "/";
 
     return prefix;
 }
