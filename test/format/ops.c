@@ -332,8 +332,8 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     wt_wrap_open_session(conn, &sap, NULL, &session);
 
     /* Initialize and start the worker threads. */
-    tinfo_init();
     lanes_init();
+    tinfo_init();
     trace_msg(session, "%s", "=============== thread ops start");
 
     replay_run_begin(session);

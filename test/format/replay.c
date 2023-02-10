@@ -68,11 +68,11 @@
  * key number, but the bottom k bits of the key number are set to the bottom k bits of the timestamp
  * being worked. Those bottom k bits also determine the lane we are in. Each lane has a flag that
  * determines whether the lane is in use by some operation. If thread T1 working an operation at
- * timestamp X takes a sufficiently long time relative to other operations, it may be that current
- * timestamp has advanced to X + LANE_COUNT. If that is the case, a different thread T2 that gets
- * that larger timestamp will see that the lane is occupied. Rather than using that timestamp and
- * potentially getting the same key number, the T2 leaves that timestamp, knowing that T1 will do
- * it, and advances to another timestamp to work on. When T1 finishes its long operation, it will
+ * timestamp X takes a sufficiently long time relative to other operations, it may be that the
+ * current timestamp has advanced to X + LANE_COUNT. If that is the case, a different thread T2 that
+ * gets that larger timestamp will see that the lane is occupied. Rather than using that timestamp
+ * and potentially getting the same key number, the T2 leaves that timestamp, knowing that T1 will
+ * do it, and advances to another timestamp to work on. When T1 finishes its long operation, it will
  * notice if there are other timestamps that have been left for it. If so, it keeps the lane
  * occupied, and works on the new timestamp. At some point, it will notice that all the timestamps
  * in the lane have been processed up to that point, and it can release the lane, and go back to
@@ -153,29 +153,6 @@ replay_operation_enabled(thread_op op)
         return (true);
 
     /*
-     * We don't permit truncate operations with predictable replay.
-     *
-     * Currently, we use an operation's timestamp to help derive the operation's key.
-     * The last N bits of the timestamp are used as the last bits of the key (where
-     * 2^N == LANE_COUNT). These last N bits give the lane number, and within each
-     * lane we track the progress of operations for that lane. Using lanes, we can
-     * track and guarantee that only a single operation is active in a lane at once,
-     * and therefore we can't have multiple operations on a single key performed out
-     * of order or simultaneously. The truncate operation, for a small set of keys,
-     * would reserve multiple consecutive lanes (probably okay) and for larger sets,
-     * would reserve the entire set of lanes. This would effectively require all
-     * threads to get into a holding state, waiting for the truncate to start and then
-     * complete before continuing with their next operation. While we could fudge this
-     * in certain ways (e.g. operations with 10000 timestamps of a truncate would be
-     * forced to stay out of its table), there still would be a lot of details, and
-     * some rethink of our lane strategy. Even getting this to work, we would have
-     * a truncate that had the whole table to itself, which doesn't seem like an
-     * effective test.
-     */
-    if (op == TRUNCATE)
-        return (false);
-
-    /*
      * We don't permit modify operations with predictable replay.
      *
      * The problem is read timestamps. As currently implemented, the read timestamp selected is
@@ -207,6 +184,29 @@ replay_operation_enabled(thread_op op)
      * runs.
      */
     if (op == REMOVE)
+        return (false);
+
+    /*
+     * We don't permit truncate operations with predictable replay.
+     *
+     * Currently, we use an operation's timestamp to help derive the operation's key.
+     * The last N bits of the timestamp are used as the last bits of the key (where
+     * 2^N == LANE_COUNT). These last N bits give the lane number, and within each
+     * lane we track the progress of operations for that lane. Using lanes, we can
+     * track and guarantee that only a single operation is active in a lane at once,
+     * and therefore we can't have multiple operations on a single key performed out
+     * of order or simultaneously. The truncate operation, for a small set of keys,
+     * would reserve multiple consecutive lanes (probably okay) and for larger sets,
+     * would reserve the entire set of lanes. This would effectively require all
+     * threads to get into a holding state, waiting for the truncate to start and then
+     * complete before continuing with their next operation. While we could fudge this
+     * in certain ways (e.g. operations with 10000 timestamps of a truncate would be
+     * forced to stay out of its table), there still would be a lot of details, and
+     * some rethink of our lane strategy. Even getting this to work, we would have
+     * a truncate that had the whole table to itself, which doesn't seem like an
+     * effective test.
+     */
+    if (op == TRUNCATE)
         return (false);
 
     return (true);
