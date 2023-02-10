@@ -481,13 +481,6 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
             F_CLR(session, WT_SESSION_DEBUG_RELEASE_EVICT);
     }
 
-    if ((ret = __wt_config_getones(session, config, "debug.stress_skiplist", &cval)) == 0) {
-        if (cval.val)
-            F_SET(session, WT_SESSION_DEBUG_STRESS_SKIPLIST);
-        else
-            F_CLR(session, WT_SESSION_DEBUG_STRESS_SKIPLIST);
-    }
-
     WT_ERR_NOTFOUND_OK(ret, false);
 
     ret = __wt_config_getones(session, config, "cache_max_wait_ms", &cval);
