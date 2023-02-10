@@ -257,7 +257,7 @@ handle_general(WT_EVENT_HANDLER *handler, WT_CONNECTION *conn, WT_SESSION *sessi
 static void
 usage(void)
 {
-    fprintf(stderr, "usage: %s %s [-T threads] [-t time] [-Cmvz]\n", progname, opts->usage);
+    fprintf(stderr, "usage: %s %s [-T threads] [-t time] [-CcLlsvz]\n", progname, opts->usage);
     exit(EXIT_FAILURE);
 }
 

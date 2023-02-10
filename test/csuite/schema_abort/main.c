@@ -152,7 +152,7 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
 usage(void)
 {
-    fprintf(stderr, "usage: %s [-h dir] [-T threads] [-t time] [-BCmvxz]\n", progname);
+    fprintf(stderr, "usage: %s [-h dir] [-T threads] [-t time] [-BClmvxz]\n", progname);
     exit(EXIT_FAILURE);
 }
 
