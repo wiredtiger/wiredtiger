@@ -241,6 +241,7 @@ struct __wt_cursor_btree {
     WT_ITEM *lastkey, _lastkey;
     uint64_t lastrecno;
 
+    /* Record where the last key is when we see it to help debugging out of order issues. */
     WT_REF *lastref;    /* The page where the last key is */
     uint32_t lastslot;  /* WT_COL/WT_ROW 0-based slot */
     WT_INSERT *lastins; /* The last insert list */
