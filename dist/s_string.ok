@@ -453,6 +453,7 @@ Stoica
 StoreLoad
 StoreStore
 Su
+Subdirectory
 Syscall
 TAILQ
 TCMalloc
@@ -1123,6 +1124,7 @@ libsodium
 libtool
 libwiredtiger
 linkers
+linux
 liveness
 llll
 llu

@@ -65,7 +65,7 @@ static char home[1024]; /* Program working dir */
 #define MIN_TIME 10
 #define PREPARE_FREQ 5
 #define PREPARE_YIELD (PREPARE_FREQ * 10)
-#define RECORDS_FILE "records-%" PRIu32
+#define RECORDS_FILE RECORDS_DIR DIR_DELIM_STR "records-%" PRIu32
 #define STABLE_PERIOD 100
 
 static const char *const uri = "table:wt";
@@ -1109,7 +1109,7 @@ main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    /* Init LazyFS for the application. */
+    /* Initialize LazyFS for the application. */
     if (lazyfs)
         lazyfs_init();
 
@@ -1249,7 +1249,7 @@ main(int argc, char *argv[])
         lazyfs_display_cache_usage(lazyfs_control);
         lazyfs_clear_cache(lazyfs_control);
     }
-    
+
     printf("Open database, run recovery and verify content\n");
 
     /*

@@ -719,7 +719,7 @@ main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    /* Init LazyFS for the application. */
+    /* Initialize LazyFS for the application. */
     if (lazyfs)
         lazyfs_init();
 
