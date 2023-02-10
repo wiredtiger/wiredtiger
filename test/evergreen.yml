@@ -3478,7 +3478,7 @@ tasks:
 
   - name: skiplist-stress-test
     tags: ["stress-test-1", "stress-test-zseries-1"]
-    exec_timeout_secs: 43200
+    exec_timeout_secs: 3600 # 1 hour
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -3496,7 +3496,7 @@ tasks:
 
   - name: skiplist-stress-test-nonstandalone
     tags: ["stress-test-1-nonstandalone"]
-    exec_timeout_secs: 43200
+    exec_timeout_secs: 3600 # 1 hour
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
