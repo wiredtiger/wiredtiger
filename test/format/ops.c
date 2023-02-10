@@ -261,7 +261,7 @@ rollback_to_stable(WT_SESSION *session)
  *     Perform a number of operations in a set of threads.
  */
 void
-operations(u_int ops_seconds, u_int run_number, u_int run_count)
+operations(u_int ops_seconds, u_int run_current, u_int run_total)
 {
     SAP sap;
     TINFO *tinfo, total;
@@ -274,7 +274,7 @@ operations(u_int ops_seconds, u_int run_number, u_int run_count)
     bool lastrun, running;
 
     conn = g.wts_conn;
-    lastrun = (run_number == run_count);
+    lastrun = (run_current == run_total);
 
     /* Make the modify pad character printable to simplify debugging and logging. */
     __wt_process.modify_pad_byte = FORMAT_PAD_BYTE;
@@ -316,7 +316,7 @@ operations(u_int ops_seconds, u_int run_number, u_int run_count)
              */
             thread_ops = -1;
             ops_seconds = 0;
-            g.stop_timestamp = (GV(RUNS_OPS) * run_number) / run_count;
+            g.stop_timestamp = (GV(RUNS_OPS) * run_current) / run_total;
         } else
             thread_ops = GV(RUNS_OPS) / GV(RUNS_THREADS);
     }

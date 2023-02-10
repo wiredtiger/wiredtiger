@@ -405,18 +405,18 @@ config_table(TABLE *table, void *arg)
         /*
          * We don't support some operations in predictable replay.
          */
-        if (!replay_operation_enabled(TRUNCATE)) {
-            if (config_explicit(table, "ops.truncate") && TV(OPS_TRUNCATE))
-                WARN("turning off truncate for table%" PRIu32 " to work with predictable replay",
-                  table->id);
-            config_single(table, "ops.truncate=0", false);
-        }
         if (!replay_operation_enabled(MODIFY)) {
             if (config_explicit(table, "ops.pct.modify") && TV(OPS_PCT_MODIFY))
                 WARN("turning off modify operations for table%" PRIu32
                      " to work with predictable replay",
                   table->id);
             config_single(table, "ops.pct.modify=0", false);
+        }
+        if (!replay_operation_enabled(TRUNCATE)) {
+            if (config_explicit(table, "ops.truncate") && TV(OPS_TRUNCATE))
+                WARN("turning off truncate for table%" PRIu32 " to work with predictable replay",
+                  table->id);
+            config_single(table, "ops.truncate=0", false);
         }
     }
 
@@ -1395,8 +1395,8 @@ config_transaction(void)
 {
     /* Predictable replay requires timestamps. */
     if (GV(RUNS_PREDICTABLE_REPLAY)) {
-        config_single(NULL, "transaction.timestamps=on", true);
         config_single(NULL, "transaction.implicit=0", false);
+        config_single(NULL, "transaction.timestamps=on", true);
     }
 
     /* Transaction prepare requires timestamps and is incompatible with logging. */
