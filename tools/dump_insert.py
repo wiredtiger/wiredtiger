@@ -1,6 +1,7 @@
 import gdb
 
-f = open("dump.txt", "w")
+filename = "dump.txt"
+f = open(filename, "w")
 inserts = {}
 
 class insert():
@@ -49,6 +50,7 @@ class insert_list_dump(gdb.Command):
         head = gdb.parse_and_eval(insert_head).dereference().dereference()
         f.write(str(head)+ "\n")
         self.walk_skiplist(head, 0)
+        print("Saved results to {}".format(filename))
 
 # This registers our class with the gdb runtime at "source" time.
 insert_list_dump()
