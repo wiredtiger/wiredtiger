@@ -31,13 +31,23 @@
 
 #include <azure/core.hpp>
 
-static const std::map<int32_t, Azure::Core::Diagnostics::Logger::Level> verbosity_mapping = {
-  {WT_VERBOSE_ERROR, Azure::Core::Diagnostics::Logger::Level::Error},
-  {WT_VERBOSE_WARNING, Azure::Core::Diagnostics::Logger::Level::Warning},
-  {WT_VERBOSE_INFO, Azure::Core::Diagnostics::Logger::Level::Informational},
-  {WT_VERBOSE_DEBUG_1, Azure::Core::Diagnostics::Logger::Level::Verbose},
-  {WT_VERBOSE_DEBUG_2, Azure::Core::Diagnostics::Logger::Level::Verbose},
-  {WT_VERBOSE_DEBUG_3, Azure::Core::Diagnostics::Logger::Level::Verbose},
-  {WT_VERBOSE_DEBUG_4, Azure::Core::Diagnostics::Logger::Level::Verbose},
-  {WT_VERBOSE_DEBUG_5, Azure::Core::Diagnostics::Logger::Level::Verbose},
-};
+// static const std::map<int32_t, Azure::Core::Diagnostics::Logger::Level> verbosity_mapping = {
+//   {WT_VERBOSE_ERROR, Azure::Core::Diagnostics::Logger::Level::Error},
+//   {WT_VERBOSE_WARNING, Azure::Core::Diagnostics::Logger::Level::Warning},
+//   {WT_VERBOSE_INFO, Azure::Core::Diagnostics::Logger::Level::Informational},
+//   {WT_VERBOSE_DEBUG_1, Azure::Core::Diagnostics::Logger::Level::Verbose},
+//   {WT_VERBOSE_DEBUG_2, Azure::Core::Diagnostics::Logger::Level::Verbose},
+//   {WT_VERBOSE_DEBUG_3, Azure::Core::Diagnostics::Logger::Level::Verbose},
+//   {WT_VERBOSE_DEBUG_4, Azure::Core::Diagnostics::Logger::Level::Verbose},
+//   {WT_VERBOSE_DEBUG_5, Azure::Core::Diagnostics::Logger::Level::Verbose},
+// };
+
+/*
+1. Investigate what the azure logs look like
+
+2. Design
+
+3. Implementation
+*/
+
+//class azure_log_system {}
