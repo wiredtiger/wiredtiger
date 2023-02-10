@@ -231,7 +231,7 @@ __validate_next_stack(
 
     for (i = WT_SKIP_MAXDEPTH - 2; i >= 0; i--) {
 
-        /* If lower level point to the end of the skiplist higher levels must as well. */
+        /* If lower levels point to the end of the skiplist, higher levels must as well. */
         if (next_stack[i] == NULL)
             WT_ASSERT_ALWAYS(session, next_stack[i + 1] == NULL,
               "Invalid next_stack: Level %d is NULL but higher level %d has pointer %p", i, i + 1,
