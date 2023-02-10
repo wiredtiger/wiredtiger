@@ -1834,7 +1834,6 @@ err:
     }
 
     if (op->_random_table) {
-
         const std::shared_lock lock(*_icontext->_dyn_mutex);
         // For operations on random tables, if a table has been selected, decrement the
         // reference counter.
@@ -1842,13 +1841,8 @@ err:
         // Use atomic here as we can race with another thread that acquires the shared lock.
         (void)workgen_atomic_sub32(&_icontext->_dyn_table_runtime[tint]._in_use, 1);
         op_clear_table(op);
-/*
-        if (_in_transaction && _icontext->_dyn_table_runtime[tint]._in_use == 0) {
-            std::cerr << "table '" << table_uri << "' is NOT in use! thread = " << this 
-                << " _in_transaction = " << _in_transaction << std::endl;
-        }
-*/
     }
+
     return (ret);
 }
 
