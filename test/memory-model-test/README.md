@@ -148,6 +148,53 @@ Total of 810 out of orders detected out of 1000000 iterations (0.081%) in test T
 
 ```
 
+Here is an example of the output from running the tool on an ubuntu2004-arm64-small ARM64 Evergreen instance
+(Evergreen has removed blank lines).
+
+Note that out-of-order operations are occurring:
+* much less frequently (by approx 3 orders of magnitude) compared to the example above from a Mac Studio with an M1 Max ARM processor.
+* in all but one of scenarios where they are possible on an ARM64. 
+  * It is unclear why the Group 2 test '_Test writes and reads, with barrier between writes_' is not showing any out-of-order 
+    operations when they are possible on ARM64, but it could be they are too rare to show up.
+
+```
+WiredTiger Memory Model Test
+============================
+Running on ARM64 with 1 thread pairs(s) and loop count 100000000
+-- Group 1: Tests that have a read and a write in each thread --
+Test name:        Test writes then reads
+Test description: Each thread writes then reads. Out of orders ARE POSSIBLE.
+Total of 27147 out of orders detected out of 100000000 iterations (0.027147%) in test Test writes then reads
+Test name:        Test writes then reads with one barrier
+Test description: Each thread writes then reads, with one barrier between the write and read on thread 2. Out of orders ARE POSSIBLE.
+Total of 359 out of orders detected out of 100000000 iterations (0.000359%) in test Test writes then reads with one barrier
+Test name:        Test writes then reads with two barriers
+Test description: Each thread writes then reads, with a barrier between the write and read on each thread. Out of orders are NOT POSSIBLE.
+Total of 0 out of orders detected out of 100000000 iterations (0%) in test Test writes then reads with two barriers
+Test name:        Test writes then reads with one atomic
+Test description: Each thread writes then reads, with one atomic increment used for one write. Out of orders ARE POSSIBLE.
+Total of 996 out of orders detected out of 100000000 iterations (0.000996%) in test Test writes then reads with one atomic
+Test name:        Test writes then reads with two atomics
+Test description: Each thread writes then reads, with atomic increments used for both writes. Out of orders are NOT POSSIBLE.
+Total of 0 out of orders detected out of 100000000 iterations (0%) in test Test writes then reads with two atomics
+-- Group 2: Tests that have two reads in one thread, and two writes in the other thread --
+Test name:        Test writes and reads
+Test description: One thread has two writes, the other has two reads. Out of orders ARE POSSIBLE on ARM64.
+Total of 360 out of orders detected out of 100000000 iterations (0.00036%) in test Test writes and reads
+Test name:        Test writes and reads, with barrier between writes
+Test description: One thread has two writes with a barrier between them, the other has two reads. Out of orders ARE POSSIBLE on ARM64.
+Total of 0 out of orders detected out of 100000000 iterations (0%) in test Test writes and reads, with barrier between writes
+Test name:        Test writes and reads, with barrier between reads
+Test description: One thread has two writes, the other has two reads with a barrier between them. Out of orders are NOT POSSIBLE.
+Total of 0 out of orders detected out of 100000000 iterations (0%) in test Test writes and reads, with barrier between reads
+Test name:        Test writes and reads, with barrier between writes and between reads
+Test description: One thread has two writes with a barrier between them, the other has two reads with a barrier between them. Out of orders are NOT POSSIBLE.
+Total of 0 out of orders detected out of 100000000 iterations (0%) in test Test writes and reads, with barrier between writes and between reads
+Test name:        Test writes and reads, with atomics
+Test description: One thread has two writes using atomic increments, the other has two reads. Out of orders are ARE POSSIBLE on ARM64.
+Total of 41 out of orders detected out of 100000000 iterations (4.1e-05%) in test Test writes and reads, with atomics
+```
+
 # References
 
 - This test was inspired by the work at https://preshing.com/20120515/memory-reordering-caught-in-the-act/
