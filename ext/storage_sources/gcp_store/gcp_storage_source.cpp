@@ -59,6 +59,9 @@ static int gcp_rename(WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *
   __attribute__((__unused__));
 static int gcp_file_size(WT_FILE_SYSTEM *, WT_SESSION *, const char *, wt_off_t *)
   __attribute__((__unused__));
+static int
+gcp_object_list_helper(WT_FILE_SYSTEM *, WT_SESSION *, const char *,
+  const char *, char ***, uint32_t *, bool);
 static int gcp_object_list(
   WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
 static int gcp_object_list_add(const gcp_store &, char ***, const std::vector<std::string> &,
@@ -270,25 +273,16 @@ gcp_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name
 static int
 gcp_remove(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, uint32_t flags)
 {
-    WT_UNUSED(file_system);
-    WT_UNUSED(session);
-    WT_UNUSED(name);
-    WT_UNUSED(flags);
-
-    return 0;
+    std::cerr << "gcp_remove: object: " << name << ": file removal is not supported." << std::endl;
+    return ENOTSUP;
 }
 
 static int
 gcp_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *from, const char *to,
   uint32_t flags)
 {
-    WT_UNUSED(file_system);
-    WT_UNUSED(session);
-    WT_UNUSED(from);
-    WT_UNUSED(to);
-    WT_UNUSED(flags);
-
-    return 0;
+    std::cerr << "gcp_rename: object: " << from << ": file renaming is not supported." << std::endl;
+    return ENOTSUP;
 }
 
 static int
@@ -303,27 +297,69 @@ gcp_file_size(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name
 }
 
 static int
+gcp_object_list_helper(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *directory,
+  const char *prefix, char ***object_list, uint32_t *count, bool list_single)
+{
+    gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
+    gcp_store *gcp = reinterpret_cast<gcp_file_system *>(fs)->storage_source;
+    std::vector<std::string> objects;
+    std::string complete_prefix;
+
+    *count = 0;
+
+    if (directory != nullptr) {
+      complete_prefix += directory;
+      if (complete_prefix.length() > 1 && complete_prefix.back() != '/')
+            complete_prefix += '/';
+    }
+
+    if (prefix != nullptr)
+        complete_prefix += prefix;
+
+    int ret;
+
+    ret = list_single ? fs->gcp_conn->list_objects(complete_prefix, objects, true):
+                       fs->gcp_conn->list_objects(complete_prefix, objects, false);
+
+    if (ret != 0) {
+        std::cerr << "gcp_object_list: ListObjects request to google cloud failed." << std::endl;
+        return (ret);
+    }
+    *count = objects.size();
+
+    std::cerr << "gcp_object_list: ListObjects request to google cloud succeeded. Received " +
+      std::to_string(*count) + " objects." << std::endl;
+    gcp_object_list_add(*gcp, object_list, objects, *count);
+
+    return ret;
+}
+
+static int
 gcp_object_list(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *directory,
   const char *prefix, char ***object_list, uint32_t *count)
 {
-    WT_UNUSED(file_system);
-    WT_UNUSED(session);
-    WT_UNUSED(directory);
-    WT_UNUSED(prefix);
-    WT_UNUSED(object_list);
-    WT_UNUSED(count);
-
-    return 0;
+    return 
+    gcp_object_list_helper(file_system, session, directory, prefix, object_list, count, false);
 }
 
 static int
 gcp_object_list_add(const gcp_store &gcp_, char ***object_list,
   const std::vector<std::string> &objects, const uint32_t count)
 {
-    WT_UNUSED(gcp_);
-    WT_UNUSED(object_list);
-    WT_UNUSED(objects);
-    WT_UNUSED(count);
+    char **entries;
+    if ((entries = reinterpret_cast<char **>(malloc(sizeof(char *) * count))) == nullptr) {
+        std::cerr << "gcp_object_list_add: unable to allocate memory for object list." << std::endl;
+        return ENOMEM;
+    }
+
+    for (int i = 0; i < count; i++) {
+        if ((entries[i] = strdup(objects[i].c_str())) == nullptr) {
+            std::cerr << "gcp_object_list_add: unable to allocate memory for object string." << std::endl;
+            return ENOMEM;
+        }
+    }
+
+    *object_list = entries;
 
     return 0;
 }
@@ -332,24 +368,19 @@ static int
 gcp_object_list_single(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *directory,
   const char *prefix, char ***object_list, uint32_t *count)
 {
-    WT_UNUSED(file_system);
-    WT_UNUSED(session);
-    WT_UNUSED(directory);
-    WT_UNUSED(prefix);
-    WT_UNUSED(object_list);
-    WT_UNUSED(count);
-
-    return 0;
+    return 
+    gcp_object_list_helper(file_system, session, directory, prefix, object_list, count, true);
 }
 
 static int
 gcp_object_list_free(
   WT_FILE_SYSTEM *file_system, WT_SESSION *session, char **object_list, uint32_t count)
 {
-    WT_UNUSED(file_system);
-    WT_UNUSED(session);
-    WT_UNUSED(object_list);
-    WT_UNUSED(count);
+    if (object_list != nullptr) {
+        while (count > 0)
+            free(object_list[--count]);
+        free(object_list);
+    }
 
     return 0;
 }
