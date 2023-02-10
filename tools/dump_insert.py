@@ -18,11 +18,11 @@ To use this:
 0. Consider turning off pagination:
    (gdb) set pagination off
 1. Source the script, e.g.
-    (gdb) source tools/dump_insert.py
+   (gdb) source tools/dump_insert.py
 2. Give it an insert head:
-    (gdb) p head
-    $1 = (WT_INSERT_HEAD **) 0x36a62050
-    (gdb) insert_list_dump($1)
+   (gdb) p head
+   $1 = (WT_INSERT_HEAD **) 0x36a62050
+   (gdb) insert_list_dump($1)
 """
 class insert_list_dump(gdb.Command):
     def __init__(self):
