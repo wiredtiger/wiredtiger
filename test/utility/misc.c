@@ -568,6 +568,7 @@ bool
 is_mounted(const char *mount_dir)
 {
 #ifndef __linux__
+    WT_UNUSED(mount_dir);
     return false;
 #else
     struct stat sb, parent_sb;

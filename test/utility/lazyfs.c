@@ -68,10 +68,7 @@ void
 lazyfs_init(void)
 {
 #ifndef __linux__
-    if (lazyfs) {
-        fprintf(stderr, "LazyFS is only available on Linux.\n");
-        exit(EXIT_FAILURE);
-    }
+    testutil_die(ENOENT, "LazyFS is not available on this platform.");
 #else
     struct stat sb;
     char buf[PATH_MAX];
@@ -125,8 +122,10 @@ pid_t
 lazyfs_mount(const char *mount_dir, const char *base_dir, const char *lazyfs_config)
 {
 #ifndef __linux__
-    /* We should never get here. */
-    abort();
+    WT_UNUSED(mount_dir);
+    WT_UNUSED(base_dir);
+    WT_UNUSED(lazyfs_config);
+    testutil_die(ENOENT, "LazyFS is not available on this platform.");
 #else
     char subdir_arg[PATH_MAX];
     int e, count;
@@ -201,6 +200,11 @@ lazyfs_mount(const char *mount_dir, const char *base_dir, const char *lazyfs_con
 void
 lazyfs_unmount(const char *mount_dir, pid_t lazyfs_pid)
 {
+#ifndef __linux__
+    WT_UNUSED(mount_dir);
+    WT_UNUSED(lazyfs_pid);
+    testutil_die(ENOENT, "LazyFS is not available on this platform.");
+#else
     struct stat sb;
     int status;
     char buf[PATH_MAX];
@@ -220,6 +224,7 @@ lazyfs_unmount(const char *mount_dir, pid_t lazyfs_pid)
     testutil_check(system(buf));
     if (lazyfs_pid > 0)
         testutil_assert_errno(waitpid(lazyfs_pid, &status, 0) >= 0);
+#endif
 }
 
 /*
