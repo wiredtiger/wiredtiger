@@ -50,4 +50,11 @@
 3. Implementation
 */
 
-//class azure_log_system {}
+class azure_log_system {
+    public:
+    azure_log_system(WT_EXTENSION_API *wt_api, uint32_t wt_verbosity_lvl);
+
+    void log_err_msg(const std::string &message) const {}
+    void log_debug_msg(const std::string &message) const {}
+    void set_wt_verbosity_lvl(uint32_t wt_verbosity_lvl) const {}
+};
