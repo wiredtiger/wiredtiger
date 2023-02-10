@@ -57,10 +57,8 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session, bool big_sweep)
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor, *cursor_tmp;
     WT_CURSOR_LIST *cached_list;
-    WT_DECL_RET;
-#ifdef HAVE_DIAGNOSTIC
     WT_DATA_HANDLE *saved_dhandle;
-#endif
+    WT_DECL_RET;
     uint64_t now, sweep_max, sweep_min;
     uint32_t i, nbuckets, nclosed, nexamined, position;
     int t_ret;
@@ -106,9 +104,7 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session, bool big_sweep)
     position = session->cursor_sweep_position;
     productive = true;
     nbuckets = nclosed = nexamined = 0;
-#ifdef HAVE_DIAGNOSTIC
     saved_dhandle = session->dhandle;
-#endif
 
     /* Turn off caching so that cursor close doesn't try to cache. */
     F_CLR(session, WT_SESSION_CACHE_CURSORS);
@@ -146,7 +142,8 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session, bool big_sweep)
     WT_STAT_CONN_INCRV(session, cursor_sweep_examined, nexamined);
     WT_STAT_CONN_INCRV(session, cursor_sweep_closed, nclosed);
 
-    WT_ASSERT(session, session->dhandle == saved_dhandle);
+    WT_ASSERT_ALWAYS(
+      session, session->dhandle == saved_dhandle, "Session dhandle changed during cursor sweep");
     return (ret);
 }
 
@@ -491,6 +488,7 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
         session->cache_max_wait_us = (uint64_t)(cval.val * WT_THOUSAND);
     WT_ERR_NOTFOUND_OK(ret, false);
 
+    WT_ERR_NOTFOUND_OK(ret, false);
 err:
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
@@ -867,45 +865,6 @@ __session_alter_readonly(WT_SESSION *wt_session, const char *uri, const char *co
     SESSION_API_CALL_NOCONF(session, alter);
 
     WT_STAT_CONN_INCR(session, session_table_alter_fail);
-    ret = __wt_session_notsup(session);
-err:
-    API_END_RET(session, ret);
-}
-
-/*
- * __wt_session_count --
- *     WT_SESSION->count method.
- */
-int
-__wt_session_count(WT_SESSION *wt_session, const char *uri, int64_t *count)
-{
-    WT_DECL_RET;
-
-    WT_UNUSED(uri);
-    WT_UNUSED(wt_session);
-
-    *count = -1;
-    if (*count == -1)
-        ret = WT_NOTFOUND;
-
-    return (ret);
-}
-
-/*
- * __wt_session_count_notsup --
- *     WT_SESSION->count method; not supported version.
- */
-static int
-__wt_session_count_notsup(WT_SESSION *wt_session, const char *uri, int64_t *count)
-{
-    WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-
-    WT_UNUSED(uri);
-    WT_UNUSED(count);
-
-    session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL_NOCONF(session, count);
     ret = __wt_session_notsup(session);
 err:
     API_END_RET(session, ret);
@@ -2427,9 +2386,8 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         __session_truncate, __session_upgrade, __session_verify, __session_begin_transaction,
         __session_commit_transaction, __session_prepare_transaction, __session_rollback_transaction,
         __session_query_timestamp, __session_timestamp_transaction,
-        __session_timestamp_transaction_uint, __wt_session_count, __session_checkpoint,
-        __session_reset_snapshot, __session_transaction_pinned_range, __session_get_rollback_reason,
-        __wt_session_breakpoint},
+        __session_timestamp_transaction_uint, __session_checkpoint, __session_reset_snapshot,
+        __session_transaction_pinned_range, __session_get_rollback_reason, __wt_session_breakpoint},
       stds_min = {NULL, NULL, __session_close, __session_reconfigure_notsup,
         __session_flush_tier_readonly, __wt_session_strerror, __session_open_cursor,
         __session_alter_readonly, __session_create_readonly, __wt_session_compact_readonly,
@@ -2440,7 +2398,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         __session_commit_transaction_notsup, __session_prepare_transaction_readonly,
         __session_rollback_transaction_notsup, __session_query_timestamp_notsup,
         __session_timestamp_transaction_notsup, __session_timestamp_transaction_uint_notsup,
-        __wt_session_count_notsup, __session_checkpoint_readonly, __session_reset_snapshot_notsup,
+        __session_checkpoint_readonly, __session_reset_snapshot_notsup,
         __session_transaction_pinned_range_notsup, __session_get_rollback_reason,
         __wt_session_breakpoint},
       stds_readonly = {NULL, NULL, __session_close, __session_reconfigure,
@@ -2452,7 +2410,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         __session_verify, __session_begin_transaction, __session_commit_transaction,
         __session_prepare_transaction_readonly, __session_rollback_transaction,
         __session_query_timestamp, __session_timestamp_transaction,
-        __session_timestamp_transaction_uint, __wt_session_count, __session_checkpoint_readonly,
+        __session_timestamp_transaction_uint, __session_checkpoint_readonly,
         __session_reset_snapshot, __session_transaction_pinned_range, __session_get_rollback_reason,
         __wt_session_breakpoint};
     WT_DECL_RET;
@@ -2498,6 +2456,11 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
 
     session_ret->name = NULL;
     session_ret->id = i;
+
+#ifdef HAVE_UNITTEST_ASSERTS
+    session_ret->unittest_assert_hit = false;
+    memset(session->unittest_assert_msg, 0, WT_SESSION_UNITTEST_BUF_LEN);
+#endif
 
     /*
      * Initialize the pseudo random number generator. We're not seeding it, so all of the sessions

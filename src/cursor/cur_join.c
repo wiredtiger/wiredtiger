@@ -538,7 +538,7 @@ __curjoin_extract_insert(WT_CURSOR *cursor)
     WT_ASSERT(session, ikey.size > 0);
     --ikey.size;
 
-    ret = __curjoin_entry_in_range(session, cextract->entry, &ikey, false);
+    ret = __curjoin_entry_in_range(session, cextract->entry, &ikey, NULL);
     if (ret == WT_NOTFOUND)
         ret = 0;
     else if (ret == 0)
@@ -561,6 +561,7 @@ __curjoin_entry_member(
     WT_CURSOR *c;
     WT_CURSOR_STATIC_INIT(iface, __wt_cursor_get_key, /* get-key */
       __wt_cursor_get_value,                          /* get-value */
+      __wt_cursor_get_raw_key_value,                  /* get-raw-key-value */
       __wt_cursor_set_key,                            /* set-key */
       __wt_cursor_set_value,                          /* set-value */
       __wt_cursor_compare_notsup,                     /* compare */
@@ -1210,6 +1211,7 @@ __wt_curjoin_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
 {
     WT_CURSOR_STATIC_INIT(iface, __curjoin_get_key, /* get-key */
       __curjoin_get_value,                          /* get-value */
+      __wt_cursor_get_raw_key_value_notsup,         /* get-raw-key-value */
       __wt_cursor_set_key_notsup,                   /* set-key */
       __wt_cursor_set_value_notsup,                 /* set-value */
       __wt_cursor_compare_notsup,                   /* compare */

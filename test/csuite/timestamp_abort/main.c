@@ -71,7 +71,7 @@ static char home[1024]; /* Program working dir */
 /* Include worker threads and prepare extra sessions */
 #define SESSION_MAX (MAX_TH + 3 + MAX_TH * PREPARE_PCT)
 #define STAT_WAIT 1
-#define USEC_STAT 10000
+#define USEC_STAT (10 * WT_THOUSAND)
 
 static const char *table_pfx = "table";
 static const char *const uri_collection = "collection";
@@ -281,7 +281,7 @@ thread_ts_run(void *arg)
 
     __wt_seconds((WT_SESSION_IMPL *)session, &last_reconfig);
     /* Update the oldest/stable timestamps every 1 millisecond. */
-    for (last_ts = 0;; __wt_sleep(0, 1000)) {
+    for (last_ts = 0;; __wt_sleep(0, WT_THOUSAND)) {
         /* Get the last committed timestamp periodically in order to update the oldest
          * timestamp. */
         ts = maximum_stable_ts(active_timestamps, nth);
@@ -324,6 +324,20 @@ thread_ts_run(void *arg)
 }
 
 /*
+ * set_flush_tier_delay --
+ *     Set up a random delay for the next flush_tier.
+ */
+static void
+set_flush_tier_delay(WT_RAND_STATE *rnd)
+{
+    /*
+     * We are checkpointing with a random interval up to MAX_CKPT_INVL seconds, and we'll do a flush
+     * tier randomly every 0-10 seconds.
+     */
+    opts->tiered_flush_interval_us = __wt_random(rnd) % (10 * WT_MILLION + 1);
+}
+
+/*
  * thread_ckpt_run --
  *     Runner function for the checkpoint thread.
  */
@@ -336,10 +350,21 @@ thread_ckpt_run(void *arg)
     uint64_t stable;
     uint32_t sleep_time;
     int i;
-    bool first_ckpt;
+    char ckpt_flush_config[128], ckpt_config[128];
+    bool first_ckpt, flush_tier;
     char ts_string[WT_TS_HEX_STRING_SIZE];
 
     td = (THREAD_DATA *)arg;
+    flush_tier = false;
+    memset(ckpt_flush_config, 0, sizeof(ckpt_flush_config));
+    memset(ckpt_config, 0, sizeof(ckpt_config));
+
+    testutil_check(__wt_snprintf(ckpt_config, sizeof(ckpt_config), "use_timestamp=true"));
+    testutil_check(__wt_snprintf(
+      ckpt_flush_config, sizeof(ckpt_flush_config), "flush_tier=(enabled,force),%s", ckpt_config));
+
+    set_flush_tier_delay(&td->extra_rnd);
+
     /*
      * Keep a separate file with the records we wrote for checking.
      */
@@ -348,15 +373,30 @@ thread_ckpt_run(void *arg)
     first_ckpt = true;
     for (i = 1;; ++i) {
         sleep_time = __wt_random(&td->extra_rnd) % MAX_CKPT_INVL;
-        sleep(sleep_time);
+        testutil_tiered_sleep(opts, session, sleep_time, &flush_tier);
         /*
          * Since this is the default, send in this string even if running without timestamps.
          */
-        testutil_check(session->checkpoint(session, "use_timestamp=true"));
+        testutil_check(session->checkpoint(session, flush_tier ? ckpt_flush_config : ckpt_config));
         testutil_check(td->conn->query_timestamp(td->conn, ts_string, "get=last_checkpoint"));
         testutil_assert(sscanf(ts_string, "%" SCNx64, &stable) == 1);
-        printf("Checkpoint %d complete at stable %" PRIu64 ".\n", i, stable);
+        printf("Checkpoint %d complete: Flush: %s, at stable %" PRIu64 ".\n", i,
+          flush_tier ? "YES" : "NO", stable);
         fflush(stdout);
+
+        if (flush_tier) {
+            /*
+             * FIXME: when we change the API to notify that a flush_tier has completed, we'll need
+             * to set up a general event handler and catch that notification, so we can pass the
+             * flush_tier "cookie" to the test utility function.
+             */
+            testutil_tiered_flush_complete(opts, session, NULL);
+            flush_tier = false;
+            printf("Finished a flush_tier\n");
+
+            set_flush_tier_delay(&td->extra_rnd);
+        }
+
         /*
          * Create the checkpoint file so that the parent process knows at least one checkpoint has
          * finished and can start its timer. If running with timestamps, wait until the stable
@@ -385,7 +425,7 @@ thread_run(void *arg)
     WT_ITEM data;
     WT_SESSION *prepared_session, *session;
     THREAD_DATA *td;
-    uint64_t i, active_ts;
+    uint64_t i, iter, active_ts;
     char cbuf[MAX_VAL], lbuf[MAX_VAL], obuf[MAX_VAL];
     char kname[64], tscfg[64], uri[128];
     bool durable_ahead_commit, use_prep;
@@ -456,7 +496,7 @@ thread_run(void *arg)
      */
     printf("Thread %" PRIu32 " starts at %" PRIu64 "\n", td->info, td->start);
     active_ts = 0;
-    for (i = td->start;; ++i) {
+    for (i = td->start, iter = 0;; ++i, ++iter) {
         testutil_check(session->begin_transaction(session, NULL));
         if (use_prep)
             testutil_check(prepared_session->begin_transaction(prepared_session, NULL));
@@ -466,7 +506,7 @@ thread_run(void *arg)
              * Set the active timestamp to the first of the three timestamps we reserve for use this
              * iteration. Use the first reserved timestamp.
              */
-            active_ts = RESERVED_TIMESTAMPS_FOR_ITERATION(td->info, i);
+            active_ts = RESERVED_TIMESTAMPS_FOR_ITERATION(td->info, iter);
             testutil_check(
               __wt_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%" PRIx64, active_ts));
             /*
@@ -674,6 +714,15 @@ run_workload(void)
      */
     testutil_check(session->close(session, NULL));
 
+    opts->conn = conn;
+
+    if (opts->tiered_storage) {
+        set_flush_tier_delay(&opts->extra_rnd);
+        testutil_tiered_begin(opts);
+    }
+
+    opts->running = true;
+
     /* The checkpoint, timestamp and worker threads are added at the end. */
     ckpt_id = nth;
     init_thread_data(&td[ckpt_id], conn, 0, nth);
@@ -775,7 +824,6 @@ main(int argc, char *argv[])
 
     (void)testutil_set_progname(argv);
 
-    buf[0] = '\0';
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
 
@@ -879,11 +927,11 @@ main(int argc, char *argv[])
           opts->compat ? "true" : "false", opts->inmem ? "true" : "false",
           stress ? "true" : "false", use_ts ? "true" : "false");
         printf("Parent: Create %" PRIu32 " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
-        printf("CONFIG: %s%s%s%s%s%s -h %s -T %" PRIu32 " -t %" PRIu32 " " TESTUTIL_SEED_FORMAT
+        printf("CONFIG: %s%s%s%s%s%s%s -h %s -T %" PRIu32 " -t %" PRIu32 " " TESTUTIL_SEED_FORMAT
                "\n",
           progname, opts->compat ? " -C" : "", columns ? " -c" : "", opts->inmem ? " -m" : "",
-          stress ? " -s" : "", !use_ts ? " -z" : "", opts->home, nth, timeout, opts->data_seed,
-          opts->extra_seed);
+          opts->tiered_storage ? " -PT" : "", stress ? " -s" : "", !use_ts ? " -z" : "", opts->home,
+          nth, timeout, opts->data_seed, opts->extra_seed);
         /*
          * Fork a child to insert as many items. We will then randomly kill the child, run recovery
          * and make sure all items we wrote exist after recovery runs.
@@ -938,7 +986,7 @@ main(int argc, char *argv[])
     /*
      * Open the connection which forces recovery to be run.
      */
-    testutil_wiredtiger_open(opts, NULL, buf, &my_event, &conn, true, false);
+    testutil_wiredtiger_open(opts, NULL, NULL, &my_event, &conn, true, false);
 
     printf("Connection open and recovery complete. Verify content\n");
     /* Sleep to guarantee the statistics thread has enough time to run. */

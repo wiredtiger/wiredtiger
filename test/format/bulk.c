@@ -121,7 +121,7 @@ table_load(TABLE *base, TABLE *table)
         if (table->type == ROW)
             key_gen(table, &key, keyno);
         if (base == NULL)
-            val_gen(table, NULL, &value, &bitv, keyno);
+            val_gen(table, &g.data_rnd, &value, &bitv, keyno);
         else {
             testutil_check(read_op(base_cursor, NEXT, NULL));
             testutil_check(base_cursor->get_value(base_cursor, &value));
@@ -168,6 +168,12 @@ table_load(TABLE *base, TABLE *table)
             testutil_assertfmt(base == NULL && (ret == WT_CACHE_FULL || ret == WT_ROLLBACK),
               "WT_CURSOR.insert failed: %d", ret);
 
+            /*
+             * If this occurs with predictable replay, we may need to redo the bulk load with fewer
+             * keys in each batch. For now, we just don't handle it.
+             */
+            testutil_assert(!GV(RUNS_PREDICTABLE_REPLAY));
+
             if (g.transaction_timestamps_config) {
                 bulk_rollback_transaction(session);
                 bulk_begin_transaction(session);
@@ -194,7 +200,8 @@ table_load(TABLE *base, TABLE *table)
          * When first starting up, report the progress for every 10 keys in the first 5K keys. After
          * 5K records, report every 5K keys.
          */
-        report_progress = (keyno < 5000 && keyno % 10 == 0) || keyno % 5000 == 0;
+        report_progress =
+          (keyno < (5 * WT_THOUSAND) && keyno % 10 == 0) || keyno % (5 * WT_THOUSAND) == 0;
         /* Report on progress. */
         if (report_progress)
             track(track_buf, keyno);
