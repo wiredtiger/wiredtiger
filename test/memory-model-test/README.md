@@ -91,7 +91,7 @@ All x86_64 and ARM64 processors will likely show some out of order operations fo
 However, as consequence of the different memory models, only ARM can show out of order operations in the second group.
 
 Current ARM64 results show that group two tests show high out-of-order rates on M1 Pro/Max processors,
-but much lower (by several orders of magnitude) out-of-order rates on current Evergreen instances.
+but much lower (by several orders of magnitude) out-of-order rates on current Evergreen Graviton instances.
 
 Here is an example of the output from running the tool on a Mac Studio with an M1 Max ARM processor.
 Note that out-of-order operations are occurring in all scenarios where they are possible on an ARM64.
