@@ -202,9 +202,10 @@ __wt_search_insert(
     cbt->ins_head = ins_head;
 
     /*
-     * FIXME WT-10561 - Move behind the new denser_skiplist flag once WT-10525 is merged.
+     * FIXME WT-10525 - This is an expensive call so we only want to enabled it behind the
+     * stress_skiplist session flag which will be delivered in WT-10525.
+     * WT_RET(__validate_next_stack(session, cbt->next_stack, srch_key));
      */
-    WT_RET(__validate_next_stack(session, cbt->next_stack, srch_key));
     return (0);
 }
 
