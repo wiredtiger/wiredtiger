@@ -63,6 +63,17 @@ define_c_test(
     DEPENDS "WT_POSIX"
 )
 
+if(ENABLE_LAZYFS)
+    define_c_test(
+        TARGET test_schema_abort_lazyfs
+        SOURCES schema_abort/main.c
+        DIR_NAME schema_abort
+        EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/schema_abort/smoke_lazyfs.sh
+        ARGUMENTS $<TARGET_FILE:test_schema_abort_lazyfs>
+        DEPENDS "WT_POSIX" "ENABLE_LAZYFS"
+    )
+endif()
+
 define_c_test(
     TARGET test_scope
     SOURCES scope/main.c
@@ -101,6 +112,17 @@ define_c_test(
     ARGUMENTS -b $<TARGET_FILE:test_timestamp_abort>
     DEPENDS "WT_POSIX"
 )
+
+if(ENABLE_LAZYFS)
+    define_c_test(
+        TARGET test_timestamp_abort_lazyfs
+        SOURCES timestamp_abort/main.c
+        DIR_NAME timestamp_abort
+        EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/timestamp_abort/smoke_lazyfs.sh
+        ARGUMENTS -b $<TARGET_FILE:test_timestamp_abort_lazyfs>
+        DEPENDS "WT_POSIX" "ENABLE_LAZYFS"
+    )
+endif()
 
 define_c_test(
     TARGET test_truncated_log

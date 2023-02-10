@@ -75,7 +75,7 @@ static const char *const uri_collection = "table:collection";
 
 static const char *const ckpt_file = "checkpoint_done";
 
-static bool use_columns, use_ts, use_txn;
+static bool lazyfs, use_columns, use_ts, use_txn;
 static volatile bool stable_set;
 
 static uint32_t nth; /* Number of threads. */
@@ -103,6 +103,10 @@ static TEST_OPTS *opts, _opts;
 #define ENV_CONFIG_TXNSYNC \
     ENV_CONFIG_DEF         \
     ",transaction_sync=(enabled,method=none)"
+
+#define ENV_CONFIG_TXNSYNC_FSYNC \
+    ENV_CONFIG_DEF               \
+    ",transaction_sync=(enabled,method=fsync)"
 
 /*
  * A minimum width of 10, along with zero filling, means that all the keys sort according to their
@@ -889,11 +893,13 @@ run_workload(void)
         testutil_die(errno, "Child chdir: %s", home);
     if (opts->inmem)
         strcpy(envconf, ENV_CONFIG_DEF);
+    else if (lazyfs)
+        strcpy(envconf, ENV_CONFIG_TXNSYNC_FSYNC);
     else
         strcpy(envconf, ENV_CONFIG_TXNSYNC);
 
     /* Open WiredTiger without recovery. */
-    testutil_wiredtiger_open(opts, NULL, envconf, &event_handler, &conn, false, false);
+    testutil_wiredtiger_open(opts, WT_HOME_DIR, envconf, &event_handler, &conn, false, false);
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
@@ -1015,19 +1021,29 @@ main(int argc, char *argv[])
     WT_CURSOR *cur_coll, *cur_local, *cur_oplog;
     WT_DECL_RET;
     WT_SESSION *session;
-    pid_t pid;
+    pid_t lazyfs_pid, pid;
     uint64_t absent_coll, absent_local, absent_oplog, count, key, last_key;
     uint64_t stable_fp, stable_val;
     uint32_t i, rand_value, timeout;
     int ch, status;
-    char buf[1024], statname[1024];
-    char fname[64], kname[64];
+    char buf[PATH_MAX], fname[64], kname[64], statname[1024];
+    char cwd_start[PATH_MAX];         /* The working directory when we started */
+    char home_canonical[PATH_MAX];    /* The canonical path to the home directory */
+    char lazyfs_base[PATH_MAX];       /* The base home directory under LazyFS, if using it */
+    char lazyfs_config[PATH_MAX];     /* The LazyFS config file */
+    char lazyfs_control[PATH_MAX];    /* The LazyFS FIFO file for controlling it */
+    char lazyfs_mountpoint[PATH_MAX]; /* The mount home directory under LazyFS, if using it */
+    char lazyfs_logfile[PATH_MAX];    /* The LazyFS log file */
+    char *str;
     bool fatal, rand_th, rand_time, verify_only;
 
     (void)testutil_set_progname(argv);
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
+
+    lazyfs = lazyfs_is_implicitly_enabled();
+    lazyfs_pid = 0;
     use_ts = true;
     /*
      * Setting this to false forces us to use internal library code. Allow an override but default
@@ -1041,11 +1057,14 @@ main(int argc, char *argv[])
 
     testutil_parse_begin_opt(argc, argv, "b:CmPTh:pv", opts);
 
-    while ((ch = __wt_getopt(progname, argc, argv, "Cch:mpP:T:t:vxz")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "Cch:lmpP:T:t:vxz")) != EOF)
         switch (ch) {
         case 'c':
             /* Variable-length columns only; fixed would require considerable changes */
             use_columns = true;
+            break;
+        case 'l':
+            lazyfs = true;
             break;
         case 'T':
             rand_th = false;
@@ -1089,8 +1108,51 @@ main(int argc, char *argv[])
         fprintf(stderr, "Verify option requires specifying number of threads\n");
         exit(EXIT_FAILURE);
     }
-    if (!verify_only) {
+
+    /* Init LazyFS for the application. */
+    if (lazyfs)
+        lazyfs_init();
+
+    /* Remember the current working directory. */
+    testutil_assert_errno(getcwd(cwd_start, sizeof(cwd_start)) != NULL);
+
+    /* Create the test's home directory and get its canonical path. */
+    if (!verify_only)
         testutil_make_work_dir(home);
+    testutil_assert_errno((str = canonicalize_file_name(home)) != NULL);
+    testutil_check(__wt_snprintf(home_canonical, sizeof(home_canonical), "%s", str));
+    free(str);
+
+    /* Create the database, run the test, and fail. */
+    if (!verify_only) {
+        /* Set up the test subdirectories. */
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, RECORDS_DIR));
+        testutil_make_work_dir(buf);
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, WT_HOME_DIR));
+        testutil_make_work_dir(buf);
+
+        /* Set up LazyFS. */
+        if (lazyfs) {
+            /* Create the base directory on the underlying file system. */
+            testutil_check(__wt_snprintf(
+              lazyfs_base, sizeof(lazyfs_base), "%s/%s", home_canonical, LAZYFS_BASE_DIR));
+            testutil_make_work_dir(lazyfs_base);
+
+            /* Set up the relevant LazyFS files. */
+            testutil_check(__wt_snprintf(lazyfs_control, sizeof(lazyfs_control), "%s/%s",
+              home_canonical, LAZYFS_CONTROL_FILE));
+            testutil_check(__wt_snprintf(
+              lazyfs_config, sizeof(lazyfs_config), "%s/%s", home_canonical, LAZYFS_CONFIG_FILE));
+            testutil_check(__wt_snprintf(
+              lazyfs_logfile, sizeof(lazyfs_logfile), "%s/%s", home_canonical, LAZYFS_LOG_FILE));
+            lazyfs_create_config(lazyfs_config, lazyfs_control, lazyfs_logfile);
+
+            /* Mount LazyFS. */
+            testutil_check(__wt_snprintf(
+              lazyfs_mountpoint, sizeof(lazyfs_mountpoint), "%s/%s", home_canonical, WT_HOME_DIR));
+            lazyfs_pid = lazyfs_mount(lazyfs_mountpoint, lazyfs_base, lazyfs_config);
+        }
+
         if (opts->tiered_storage) {
             testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/bucket", home));
             testutil_make_work_dir(buf);
@@ -1124,8 +1186,9 @@ main(int argc, char *argv[])
           opts->compat ? "true" : "false", opts->inmem ? "true" : "false",
           use_ts ? "true" : "false", opts->tiered_storage ? "true" : "false");
         printf("Parent: Create %" PRIu32 " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
-        printf("CONFIG: %s%s%s%s%s -h %s -T %" PRIu32 " -t %" PRIu32 " " TESTUTIL_SEED_FORMAT "\n",
-          progname, opts->compat ? " -C" : "", opts->inmem ? " -m" : "",
+        printf("CONFIG: %s%s%s%s%s%s -h %s -T %" PRIu32 " -t %" PRIu32 " " TESTUTIL_SEED_FORMAT
+               "\n",
+          progname, opts->compat ? " -C" : "", lazyfs ? " -l" : "", opts->inmem ? " -m" : "",
           opts->tiered_storage ? " -PT" : "", !use_ts ? " -z" : "", opts->home, nth, timeout,
           opts->data_seed, opts->extra_seed);
         /*
@@ -1176,12 +1239,23 @@ main(int argc, char *argv[])
 
     /* Copy the data to a separate folder for debugging purpose. */
     testutil_copy_data(home);
+
+    /*
+     * Clear the cache, if we are using LazyFS. Do this after we save the data for debugging
+     * purposes, so that we can see what we might have lost. If we are using LazyFS, the underlying
+     * directory shows the state that we'd get after we clear the cache.
+     */
+    if (!verify_only && lazyfs) {
+        lazyfs_display_cache_usage(lazyfs_control);
+        lazyfs_clear_cache(lazyfs_control);
+    }
+    
     printf("Open database, run recovery and verify content\n");
 
     /*
      * Open the connection which forces recovery to be run.
      */
-    testutil_wiredtiger_open(opts, NULL, NULL, &event_handler, &conn, true, false);
+    testutil_wiredtiger_open(opts, WT_HOME_DIR, NULL, &event_handler, &conn, true, false);
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     /*
@@ -1350,16 +1424,35 @@ main(int argc, char *argv[])
         printf("OPLOG: %" PRIu64 " record(s) absent from %" PRIu64 "\n", absent_oplog, count);
         fatal = true;
     }
-    if (fatal)
-        return (EXIT_FAILURE);
-    printf("%" PRIu64 " records verified\n", count);
-    if (!opts->preserve) {
-        testutil_clean_test_artifacts(home);
-        /* At this point $PATH is inside `home`, which we intend to delete. cd to the parent dir. */
-        if (chdir("../") != 0)
-            testutil_die(errno, "root chdir: %s", home);
-        testutil_clean_work_dir(home);
+    if (fatal) {
+        ret = EXIT_FAILURE;
+    } else {
+        ret = EXIT_SUCCESS;
+        printf("%" PRIu64 " records verified\n", count);
     }
+
+    /*
+     * Clean up.
+     */
+
+    /* Clean up the test directory. */
+    if (ret == EXIT_SUCCESS && !opts->preserve)
+        testutil_clean_test_artifacts(home);
+
+    /* At this point, we are inside `home`, which we intend to delete. cd to the parent dir. */
+    if (chdir(cwd_start) != 0)
+        testutil_die(errno, "root chdir: %s", home);
+
+    /* Clean up LazyFS. */
+    if (lazyfs && !verify_only) {
+        lazyfs_unmount(lazyfs_mountpoint, lazyfs_pid);
+        testutil_clean_work_dir(lazyfs_mountpoint);
+    }
+
+    /* Delete the work directory. */
+    if (ret == EXIT_SUCCESS && !opts->preserve)
+        testutil_clean_work_dir(home);
+
     testutil_cleanup(opts);
-    return (EXIT_SUCCESS);
+    return (ret);
 }

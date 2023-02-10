@@ -45,6 +45,16 @@
 #define DEFAULT_TABLE_SCHEMA "key_format=i,value_format=S"
 #define MKDIR_COMMAND "mkdir "
 
+/* Subdirectory names, if we need to split the test directory into multiple subdirectories. */
+#define RECORDS_DIR "records"
+#define WT_HOME_DIR "WT_HOME"
+
+/* Default file and subdirectory names to use for LazyFS in the tests. */
+#define LAZYFS_BASE_DIR "base"
+#define LAZYFS_CONFIG_FILE "lazyfs-config.toml"
+#define LAZYFS_CONTROL_FILE "lazyfs-control.fifo"
+#define LAZYFS_LOG_FILE "lazyfs.log"
+
 #ifdef _WIN32
 #include "windows_shim.h"
 #endif
@@ -382,6 +392,15 @@ const char *example_setup(int, char *const *);
  */
 int handle_op_error(WT_EVENT_HANDLER *, WT_SESSION *, int, const char *);
 int handle_op_message(WT_EVENT_HANDLER *, WT_SESSION *, const char *);
+bool is_mounted(const char *);
+void lazyfs_command(const char *, const char *);
+void lazyfs_clear_cache(const char *);
+void lazyfs_create_config(const char *, const char *, const char *);
+void lazyfs_display_cache_usage(const char *);
+void lazyfs_init(void);
+bool lazyfs_is_implicitly_enabled(void);
+pid_t lazyfs_mount(const char *, const char *, const char *);
+void lazyfs_unmount(const char *, pid_t);
 void op_bulk(void *);
 void op_bulk_unique(void *);
 void op_create(void *);
