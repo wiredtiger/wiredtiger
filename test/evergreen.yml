@@ -977,7 +977,9 @@ tasks:
       - func: "cleanup"
 
   - name: compile-gcc
-    tags: ["pull_request", "pull_request_compilers"]
+    # The task is disabled as a package is missed on the ubuntu2004-wt-large distro.
+    # We can re-enable the task once the missing package is added. WT-10595.
+    # tags: ["pull_request", "pull_request_compilers"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
