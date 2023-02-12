@@ -33,7 +33,15 @@
 
 #include <string>
 #include <vector>
-#include <iostream>
+
+// Mapping between HTTP response codes and corresponding errno values to be used by the Azure
+// connection methods to return errno values expected by the filesystem interface.
+static const std::map<Azure::Core::Http::HttpStatusCode, int32_t> to_errno = {
+  {Azure::Core::Http::HttpStatusCode::NotFound, ENOENT},
+  {Azure::Core::Http::HttpStatusCode::Forbidden, EACCES},
+  {Azure::Core::Http::HttpStatusCode::Conflict, EBUSY},
+  {Azure::Core::Http::HttpStatusCode::BadRequest, EINVAL},
+  {Azure::Core::Http::HttpStatusCode::InternalServerError, EAGAIN}};
 
 /*
  * This class represents an active connection to the Azure endpoint and allows for interaction with
@@ -46,18 +54,19 @@
  */
 class azure_connection {
     public:
-    azure_connection(const std::string &bucket_name, const std::string &obj_prefix = "");
+    azure_connection(const std::string &bucket_name, const std::string &bucket_prefix = "");
     int list_objects(
-      const std::string &prefix, std::vector<std::string> &objects, bool list_single) const;
+      const std::string &search_prefix, std::vector<std::string> &objects, bool list_single) const;
     int put_object(const std::string &object_key, const std::string &file_path) const;
     int delete_object(const std::string &object_key) const;
     int read_object(const std::string &object_key, int64_t offset, size_t len, void *buf) const;
-    int object_exists(const std::string &object_key, bool &exists) const;
+    int object_exists(const std::string &object_key, bool &exists, size_t &object_size) const;
 
     private:
     const std::string _bucket_name;
-    const std::string _object_prefix;
+    const std::string _bucket_prefix;
     const Azure::Storage::Blobs::BlobContainerClient _azure_client;
 
+    const int http_to_errno(const Azure::Core::RequestFailedException &e) const;
     int bucket_exists(bool &exists) const;
 };
