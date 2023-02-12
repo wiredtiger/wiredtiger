@@ -49,7 +49,7 @@ static int gcp_flush(WT_STORAGE_SOURCE *, WT_SESSION *, WT_FILE_SYSTEM *, const 
 static int gcp_flush_finish(WT_STORAGE_SOURCE *, WT_SESSION *, WT_FILE_SYSTEM *, const char *,
   const char *, const char *) __attribute__((__unused__));
 static int gcp_file_close(WT_FILE_HANDLE *, WT_SESSION *) __attribute__((__unused__));
-static int gcp_file_exists(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *)
+static int gcp_file_system_exists(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *)
   __attribute__((__unused__));
 static int gcp_file_open(WT_FILE_SYSTEM *, WT_SESSION *, const char *, WT_FS_OPEN_FILE_TYPE,
   uint32_t, WT_FILE_HANDLE **) __attribute__((__unused__));
@@ -145,7 +145,7 @@ gcp_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session
     fs->file_system.fs_directory_list_single = gcp_object_list_single;
     fs->file_system.fs_directory_list_free = gcp_object_list_free;
     fs->file_system.terminate = gcp_file_system_terminate;
-    fs->file_system.fs_exist = gcp_file_exists;
+    fs->file_system.fs_exist = gcp_file_system_exists;
     fs->file_system.fs_open_file = gcp_file_open;
     fs->file_system.fs_remove = gcp_remove;
     fs->file_system.fs_rename = gcp_rename;
@@ -245,7 +245,7 @@ gcp_flush_finish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM
 }
 
 static int
-gcp_file_exists(
+gcp_file_system_exists(
   WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, bool *file_exists)
 {
     WT_UNUSED(file_system);
