@@ -41,6 +41,7 @@ struct gcp_file_handle {
     uint32_t reference_count;
 };
 
+static gcp_file_system *get_gcp_file_system(WT_FILE_SYSTEM *);
 static int gcp_customize_file_system(WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *,
   const char *, WT_FILE_SYSTEM **) __attribute__((__unused__));
 static int gcp_add_reference(WT_STORAGE_SOURCE *) __attribute__((__unused__));
@@ -72,6 +73,12 @@ static int gcp_object_list_single(WT_FILE_SYSTEM *, WT_SESSION *, const char *, 
 static int gcp_object_list_free(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t)
   __attribute__((__unused__));
 static int gcp_terminate(WT_STORAGE_SOURCE *, WT_SESSION *) __attribute__((__unused__));
+
+static gcp_file_system *
+get_gcp_file_system(WT_FILE_SYSTEM *file_system)
+{
+    return reinterpret_cast<gcp_file_system *>(file_system);
+}
 
 static int
 gcp_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
@@ -192,12 +199,17 @@ gcp_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
     WT_UNUSED(session);
 
     gcp_file_handle *gcp_fh = reinterpret_cast<gcp_file_handle *>(file_handle);
-    gcp_file_system *fs = reinterpret_cast<gcp_file_handle *>(gcp_fh)->file_system;
 
-    // We require exclusive access to the list of file handles when removing file handles. The
-    // lock_guard will be unlocked automatically once the scope is exited.
+    // If there are other active instances of the file being open, do not close file handle.
+    if (--gcp_fh->reference_count != 0) {
+        return 0;
+    }
+
+    // No more active instances of open file, close the file handle.
+    gcp_file_system *fs = reinterpret_cast<gcp_file_handle *>(gcp_fh)->file_system;
     {
         std::lock_guard<std::mutex> lock(fs->fh_list_mutex);
+        // Erase remove idiom is used here to remove specific file system.
         fs->fh_list.erase(
           std::remove(fs->fh_list.begin(), fs->fh_list.end(), gcp_fh), fs->fh_list.end());
     }
@@ -230,29 +242,46 @@ gcp_file_system_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
 }
 
 static int
-gcp_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYSTEM *file_system,
-  const char *source, const char *object, const char *config)
+gcp_flush([[maybe_unused]] WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
+  WT_FILE_SYSTEM *file_system, const char *source, const char *object,
+  [[maybe_unused]] const char *config)
 {
-    WT_UNUSED(storage_source);
-    WT_UNUSED(session);
-    WT_UNUSED(file_system);
-    WT_UNUSED(source);
-    WT_UNUSED(object);
-    WT_UNUSED(config);
 
-    return 0;
+    gcp_file_system *fs = get_gcp_file_system(file_system);
+    WT_FILE_SYSTEM *wt_file_system = fs->wt_file_system;
+
+    // std::filesystem::canonical will throw an exception if object does not exist so
+    // check if the object exists.
+    if (!std::filesystem::exists(source)) {
+        std::cerr << "gcp_flush: Object: " << object << " does not exist." << std::endl;
+        return ENOENT;
+    }
+
+    // Confirm that the file exists on the native filesystem.
+    std::filesystem::path path = std::filesystem::canonical(source);
+    bool exist_native = false;
+    int ret = wt_file_system->fs_exist(wt_file_system, session, path.c_str(), &exist_native);
+    if (ret != 0)
+        return ret;
+    if (!exist_native)
+        return ENOENT;
+    return fs->gcp_conn->put_object(object, path);
 }
 
 static int
-gcp_flush_finish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM *file_system,
-  const char *source, const char *object, const char *config)
+gcp_flush_finish([[maybe_unused]] WT_STORAGE_SOURCE *storage, [[maybe_unused]] WT_SESSION *session,
+  WT_FILE_SYSTEM *file_system, const char *source, const char *object,
+  [[maybe_unused]] const char *config)
 {
-    WT_UNUSED(storage);
-    WT_UNUSED(session);
-    WT_UNUSED(file_system);
-    WT_UNUSED(source);
-    WT_UNUSED(object);
-    WT_UNUSED(config);
+    gcp_file_system *fs = get_gcp_file_system(file_system);
+
+    bool exists = false;
+    size_t size;
+    int ret = fs->gcp_conn->object_exists(object, exists, size);
+    if (ret != 0)
+        return ret;
+    if (!exists)
+        return ENOENT;
 
     return 0;
 }
@@ -268,7 +297,6 @@ gcp_file_exists(
     bool exists;
     size_t size;
 
-    // Check if object exists in the cloud.
     if ((ret = fs->gcp_conn->object_exists(name, exists, size)) != 0) {
         std::cerr << "gcp_file_exists: object exists request to google cloud failed." << std::endl;
     }
@@ -288,37 +316,38 @@ gcp_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name
   WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags, WT_FILE_HANDLE **file_handle_ptr)
 {
     WT_UNUSED(session);
-
     gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
-    bool exists;
-    size_t size;
-
     *file_handle_ptr = nullptr;
 
-    // We only support opening the file in read only mode.
+    // Google cloud only supports opening the file in read only mode.
     if ((flags & WT_FS_OPEN_READONLY) == 0 || (flags & WT_FS_OPEN_CREATE) != 0) {
         std::cerr << "gcp_file_open: read-only access required." << std::endl;
         return EINVAL;
     }
 
-    // Currently, only data files should be being opened; although this constraint can be relaxed in
-    // the future.
+    // Only data files and regular files should be opened.
     if (file_type != WT_FS_OPEN_FILE_TYPE_DATA && file_type != WT_FS_OPEN_FILE_TYPE_REGULAR) {
         std::cerr << "gcp_file_open: only data file and regular types supported." << std::endl;
         return EINVAL;
     }
 
     // Check if object exists in the cloud.
-    if ((fs->gcp_conn->object_exists(name, exists, size) == 0) && !exists) {
-        std::cerr << "gcp_file_open: object with name " << name << " does not exist in the bucket."
+    bool exists;
+    size_t size;
+    int ret;
+    if (ret = (fs->gcp_conn->object_exists(name, exists, size) != 0)) {
+        std::cerr << "gcp_file_open: object_exists request to google cloud failed." << std::endl;
+        return ret;
+    }
+    if (!exists) {
+        std::cerr << "gcp_file_open: object named " << name << " does not exist in the bucket."
                   << std::endl;
         return EINVAL;
     }
 
     // Check if there is already an existing file handle open.
-    std::vector<gcp_file_handle *>::iterator fh_iterator =
-      std::find_if(fs->fh_list.begin(), fs->fh_list.end(),
-        [name](gcp_file_handle *fh) { return strcmp(name, fh->name.c_str()) == 0; });
+    auto fh_iterator = std::find_if(fs->fh_list.begin(), fs->fh_list.end(),
+      [name](gcp_file_handle *fh) { return fh->name.compare(name); });
 
     if (fh_iterator != fs->fh_list.end()) {
         (*fh_iterator)->reference_count++;
@@ -327,7 +356,7 @@ gcp_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name
         return 0;
     }
 
-    // If file handle does not exist.
+    // If an active file handle does not exist, create a new file handle for the current file.
     gcp_file_handle *gcp_fh;
     try {
         gcp_fh = new gcp_file_handle;
@@ -336,10 +365,10 @@ gcp_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name
         return ENOMEM;
     }
     gcp_fh->file_system = fs;
-    gcp_fh->name = std::string(name);
+    gcp_fh->name = name;
     gcp_fh->reference_count = 1;
 
-    WT_FILE_HANDLE *file_handle = &gcp_fh->fh;
+    // Define functions needed for google cloud with read-only privilleges.
     gcp_fh->fh.close = gcp_file_close;
     gcp_fh->fh.fh_advise = nullptr;
     gcp_fh->fh.fh_extend = nullptr;
@@ -356,14 +385,14 @@ gcp_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name
     gcp_fh->fh.fh_truncate = nullptr;
     gcp_fh->fh.fh_write = nullptr;
 
-    // We require exclusive access to the list of file handles when adding file handles to it. The
-    // lock_guard will be unlocked automatically when the scope is exited.
+    // Exclusive Access is required when adding file handles to list of file handles.
+    // lock_guard will unlock automatically when the scope is exited.
     {
         std::lock_guard<std::mutex> lock(fs->fh_list_mutex);
         fs->fh_list.push_back(gcp_fh);
     }
 
-    *file_handle_ptr = file_handle;
+    *file_handle_ptr = &gcp_fh->fh;
 
     return 0;
 }
@@ -413,11 +442,17 @@ gcp_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *sizep)
     gcp_file_system *fs = reinterpret_cast<gcp_file_handle *>(gcp_fh)->file_system;
     bool exists;
     size_t size;
+    int ret;
+    *sizep = 0;
 
     // Get file size if the object exists.
-    fs->gcp_conn->object_exists(object_key, exists, size);
+    if ((fs->gcp_conn->object_exists(object_key, exists, size))) {
+        std::cerr << "gcp_file_size: object_exists request to google cloud failed." << std::endl;
 
-    sizep = reinterpret_cast<wt_off_t *>(size);
+        return ret;
+    }
+
+    *sizep = size;
 
     return 0;
 }
