@@ -105,8 +105,8 @@ restart:
             goto restart;
         }
         /*
-         * CPU may reorder the read and read a stale value which wrongly skip a value in the lower
-         * level of the skip list.
+         * CPU may reorder the read and read a stale value. This can lead us to wrongly skip a value
+         * in the lower level of the skip list.
          *
          * For example, if we have A -> C initially for both level 0 and level 1 and we have an
          * concurrent insert of B into both level 0 and level 1. If B is visible on level 1 to this
