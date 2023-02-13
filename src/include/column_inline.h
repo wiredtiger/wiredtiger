@@ -17,9 +17,9 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
     int i;
 
     /*
-     * CPU may reorder the reads and return a stale value of the tail.
+     * Compiler may replace the following usage of the variable with another read.
      *
-     * Place a read barrier here to avoid this issue.
+     * Place a read barrier to avoid this issue.
      */
     WT_ORDERED_READ(ins, WT_SKIP_LAST(ins_head));
 
@@ -63,16 +63,11 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
      * There isn't any safety testing because we confirmed such a record exists before searching.
      */
     if ((ins = ret_ins) == NULL)
-        /*
-         * CPU may reorder the reads and return a stale value of the head.
-         *
-         * Place a read barrier here to avoid this issue.
-         */
-        WT_ORDERED_READ(ins, WT_SKIP_FIRST(ins_head));
+        ins = WT_SKIP_FIRST(ins_head);
     while (recno >= WT_INSERT_RECNO(ins))
         /*
-         * CPU may reorder the read and we may read a stale next value and incorrectly skip that
-         * key.
+         * CPU may reorder the read and we may read a stale next value and incorrectly skip a key
+         * that is concurrently inserted.
          *
          * Place a read barrier to avoid this issue.
          */
@@ -202,9 +197,7 @@ __col_insert_search(
     int cmp, i;
 
     /*
-     * Compiler may replace the following usage of the variable with another read. Note that we
-     * don't need to consider CPU reordering here as there is a single thread happen before
-     * relationship for the usage of the variable in the following if sections.
+     * Compiler may replace the following usage of the variable with another read.
      *
      * Place a read barrier to avoid this issue.
      */
@@ -234,8 +227,8 @@ __col_insert_search(
          * Compiler and CPU may reorder the reads causing us to read a stale value here. Different
          * to the row store version, it is generally OK here to read a stale value as we don't have
          * prefix search optimization for column store. Therefore, we cannot wrongly skip the prefix
-         * comparison. However, we should still place a read barrier here to ensure we see a valid
-         * skip list down the search to prevent any unexpected behavior.
+         * comparison. However, we should still place a read barrier here to ensure we see
+         * consistent values in the lower levels to prevent any unexpected behavior.
          */
         WT_ORDERED_READ(ret_ins, *insp);
         if (ret_ins == NULL) {
@@ -260,8 +253,9 @@ __col_insert_search(
         else if (cmp == 0) /* Exact match: return */
             for (; i >= 0; i--) {
                 /*
-                 * It is possible that we read an old value down the stack due to CPU read
-                 * reordering. Add a read barrier to avoid this issue.
+                 * It is possible that we read an old value that is inconsistent to the higher
+                 * levels of the skip list due to CPU read reordering. Add a read barrier to avoid
+                 * this issue.
                  */
                 WT_ORDERED_READ(next_stack[i], ret_ins->next[i]);
                 ins_stack[i] = &ret_ins->next[i];
