@@ -246,12 +246,27 @@ gcp_flush_finish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM
 
 static int
 gcp_file_system_exists(
-  WT_FILE_SYSTEM *file_system, [[unused]] WT_SESSION *session, const char *name, bool *file_exists)
+  WT_FILE_SYSTEM *file_system, [[unused]] WT_SESSION *session, const char *name, bool *existp)
 {
     gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
     size_t size;
     WT_DECL_RET;
-    
+       std::cout << "gcp_file_system_exists: Checking object: " << name << " exists in GCP."
+              << std::endl;
+
+    // Check whether the object exists in the cloud.
+    WT_ERR(fs->gcp_conn->object_exists(name, *existp, size));
+    if (!*existp) {
+        std::cout << "gcp_file_system_exists: Object: " << name << " does not exist in GCP."
+                  << std::endl;
+    } else
+        std::cout << "gcp_file_system_exists: Object: " << name << " exists in GCP."
+                  << std::endl;
+    return 0;
+
+    err:
+        std::cerr << "gcp_file_system_exists: Error with searching for object: " << name << std::endl;
+        return ret;
 
     return 0;
 }
