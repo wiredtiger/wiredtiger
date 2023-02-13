@@ -290,25 +290,12 @@ static int
 gcp_file_exists(
   WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, bool *file_exists)
 {
+    WT_UNUSED(file_system);
     WT_UNUSED(session);
+    WT_UNUSED(name);
+    WT_UNUSED(file_exists);
 
-    gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
-    int ret;
-    bool exists;
-    size_t size;
-
-    if ((ret = fs->gcp_conn->object_exists(name, exists, size)) != 0) {
-        std::cerr << "gcp_file_exists: object exists request to google cloud failed." << std::endl;
-    }
-
-    if (exists) {
-        std::cerr << "gcp_file_exists: found file in google cloud." << std::endl;
-    } else {
-        std::cerr << "gcp_file_exists: object with name " << name << " does not exist."
-                  << std::endl;
-    }
-
-    return ret;
+    return 0;
 }
 
 static int
