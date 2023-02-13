@@ -270,7 +270,7 @@ gcp_flush_finish([[maybe_unused]] WT_STORAGE_SOURCE *storage, [[maybe_unused]] W
 
 static int
 gcp_file_system_exists(
-  WT_FILE_SYSTEM *file_system, [[unused]] WT_SESSION *session, const char *name, bool *existp)
+  WT_FILE_SYSTEM *file_system, [[maybe_unused]] WT_SESSION *session, const char *name, bool *existp)
 {
     gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
     size_t size;
@@ -288,7 +288,7 @@ gcp_file_system_exists(
                   << std::endl;
     return 0;
 
-  err:
+err:
     std::cerr << "gcp_file_system_exists: Error with searching for object: " << name << std::endl;
     return ret;
 }
@@ -323,14 +323,17 @@ gcp_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *from, c
 }
 
 static int
-gcp_object_size(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, wt_off_t *sizep)
+gcp_object_size(WT_FILE_SYSTEM *file_system, [[maybe_unused]] WT_SESSION *session, const char *name, wt_off_t *sizep)
 {
-    WT_UNUSED(file_system);
-    WT_UNUSED(session);
-    WT_UNUSED(name);
-    WT_UNUSED(sizep);
+    bool exists;
+    size_t size;
     gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
-    fs->gcp_conn->object_exists()
+    int ret = fs->gcp_conn->object_exists(name, exists, size);
+    if (ret != 0) {
+        std::cerr << "gcp_object_size: GetObjectMetadata request to google cloud failed." << std::endl;
+        return (ret);
+    }
+    sizep = reinterpret_cast<wt_off_t *> (size);
 
     return 0;
 }
