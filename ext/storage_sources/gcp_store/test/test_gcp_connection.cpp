@@ -122,8 +122,8 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
         REQUIRE(conn.list_objects(objects, list_single) == 0);
         REQUIRE(objects.empty());
 
-        // Upload 1 file to the bucket and test list_objects, should return an objects list with
-        // size 1.
+        // Upload 1 file to the bucket and test list_objects function.
+        // List_objects should return an objects list with size 1.
         REQUIRE(
           upload_file(client, test_bucket_name, test_bucket_prefix, file_name, object_name).ok());
         REQUIRE(file_exists_in_bucket(client, test_bucket_name, test_bucket_prefix, object_name));
@@ -131,7 +131,8 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
         REQUIRE(objects.size() == 1);
         objects.clear();
 
-        // Delete the object we uploaded and test list_objects, should return an empty objects list.
+        // Delete the object we uploaded and test list_objects function.
+        // List_objects should return an empty objects list.
         client.DeleteObject(test_bucket_name, test_bucket_prefix + object_name);
         REQUIRE(conn.list_objects(objects, false) == 0);
         REQUIRE(objects.empty());
@@ -232,8 +233,8 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
         REQUIRE_FALSE(
           file_exists_in_bucket(client, test_bucket_name, test_bucket_prefix, object_name));
 
-        // Check for a file that is not in the bucket, object exists should modify the exists
-        // variable to false.
+        // Check for a file that is not in the bucket.
+        // Object exists should modify the exists variable and set it to false.
         REQUIRE(conn.object_exists(object_name, exists, size) == 0);
         REQUIRE(exists == false);
         REQUIRE(size == 0);
@@ -256,7 +257,7 @@ TEST_CASE("Testing class gcpConnection", "gcp-connection")
         // Read GCP objects under the test bucket with offset.
         const int str_len = payload.length() - payload.find(" ");
         REQUIRE(conn.read_object(object_name, payload.find(" "), str_len, buf) == 0);
-        REQUIRE(payload.substr(4, 16).compare(buf) == 0);
+        REQUIRE(payload.substr(payload.find(" "), str_len).compare(buf) == 0);
         memset(buf, 0, 1000);
 
         // Read GCP objects under the test bucket with len > file length.
