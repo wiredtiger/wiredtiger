@@ -57,7 +57,7 @@ static int gcp_remove(WT_FILE_SYSTEM *, WT_SESSION *, const char *, uint32_t)
   __attribute__((__unused__));
 static int gcp_rename(WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, uint32_t)
   __attribute__((__unused__));
-static int gcp_file_size(WT_FILE_SYSTEM *, WT_SESSION *, const char *, wt_off_t *)
+static int gcp_object_size(WT_FILE_SYSTEM *, WT_SESSION *, const char *, wt_off_t *)
   __attribute__((__unused__));
 static int
 gcp_object_list_helper(WT_FILE_SYSTEM *, WT_SESSION *, const char *,
@@ -149,7 +149,7 @@ gcp_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session
     fs->file_system.fs_open_file = gcp_file_open;
     fs->file_system.fs_remove = gcp_remove;
     fs->file_system.fs_rename = gcp_rename;
-    fs->file_system.fs_size = gcp_file_size;
+    fs->file_system.fs_size = gcp_object_size;
 
     // Add to the list of the active file systems. Lock will be freed when the scope is exited.
     {
@@ -264,11 +264,9 @@ gcp_file_system_exists(
                   << std::endl;
     return 0;
 
-    err:
-        std::cerr << "gcp_file_system_exists: Error with searching for object: " << name << std::endl;
-        return ret;
-
-    return 0;
+  err:
+    std::cerr << "gcp_file_system_exists: Error with searching for object: " << name << std::endl;
+    return ret;
 }
 
 static int
@@ -301,12 +299,14 @@ gcp_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *from, c
 }
 
 static int
-gcp_file_size(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, wt_off_t *sizep)
+gcp_object_size(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, wt_off_t *sizep)
 {
     WT_UNUSED(file_system);
     WT_UNUSED(session);
     WT_UNUSED(name);
     WT_UNUSED(sizep);
+    gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
+    fs->gcp_conn->object_exists()
 
     return 0;
 }
