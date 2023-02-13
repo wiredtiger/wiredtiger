@@ -67,7 +67,9 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
     while (recno >= WT_INSERT_RECNO(ins))
         /*
          * CPU may reorder the read and we may read a stale next value and incorrectly skip a key
-         * that is concurrently inserted.
+         * that is concurrently inserted. For example, if we have A -> C -> E initially, D is
+         * inserted, then B is inserted. If the current thread sees B, it would be consistent to not
+         * see D.
          *
          * Place a read barrier to avoid this issue.
          */
