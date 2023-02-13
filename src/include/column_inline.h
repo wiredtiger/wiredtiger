@@ -91,9 +91,9 @@ __col_insert_search_lt(WT_INSERT_HEAD *ins_head, uint64_t recno)
     int i;
 
     /*
-     * CPU may reorder the reads and return a stale value of the head.
+     * Compiler may replace the following usage of the variable with another read.
      *
-     * Place a read barrier here to avoid this issue.
+     * Place a read barrier to avoid this issue.
      */
     WT_ORDERED_READ(ins, WT_SKIP_FIRST(ins_head));
 
@@ -141,14 +141,14 @@ __col_insert_search_match(WT_INSERT_HEAD *ins_head, uint64_t recno)
     int cmp, i;
 
     /*
-     * CPU may reorder the reads and return a stale value of the tail.
+     * Compiler may replace the following usage of the variable with another read.
      *
-     * Place a read barrier here to avoid this issue.
+     * Place a read barrier to avoid this issue.
      */
     WT_ORDERED_READ(ins, WT_SKIP_LAST(ins_head));
 
     /* If there's no insert chain to search, we're done. */
-    if ((ins = WT_SKIP_LAST(ins_head)) == NULL)
+    if (ins == NULL)
         return (NULL);
 
     /* Fast path the check for values at the end of the skiplist. */
@@ -202,9 +202,9 @@ __col_insert_search(
     int cmp, i;
 
     /*
-     * CPU may reorder the reads and return a stale value of the tail.
+     * Compiler may replace the following usage of the variable with another read.
      *
-     * Place a read barrier here to avoid this issue.
+     * Place a read barrier to avoid this issue.
      */
     WT_ORDERED_READ(ret_ins, WT_SKIP_LAST(ins_head));
 
