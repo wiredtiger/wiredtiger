@@ -82,7 +82,13 @@ restart:
         for (; i >= 0; i--) {
             cbt->ins_stack[i] = NULL;
             cbt->next_stack[i] = NULL;
-            ins = cbt->ins_head->head[i];
+            /*
+             * Compiler may replace the usage of the variable with another read in the following
+             * code.
+             *
+             * Place a read barrier to avoid this issue.
+             */
+            WT_ORDERED_READ(ins, cbt->ins_head->head[i]);
             if (ins != NULL && ins != current)
                 break;
         }
