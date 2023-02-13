@@ -37,7 +37,7 @@ static int handle_message(WT_EVENT_HANDLER *, WT_SESSION *, const char *);
 static void onint(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void cleanup(bool);
 static int usage(void);
-static int wt_connect(const char *);
+static void wt_connect(const char *);
 static int wt_shutdown(void);
 
 extern int __wt_optind;
@@ -79,7 +79,8 @@ main(int argc, char *argv[])
 
     testutil_parse_begin_opt(argc, argv, SHARED_PARSE_OPTIONS, &g.opts);
 
-    while ((ch = __wt_getopt(progname, argc, argv, "C:c:Dk:l:mn:pr:s:T:t:vW:xX" SHARED_PARSE_OPTIONS)) != EOF)
+    while ((ch = __wt_getopt(
+              progname, argc, argv, "C:c:Dk:l:mn:pr:s:T:t:vW:xX" SHARED_PARSE_OPTIONS)) != EOF)
         switch (ch) {
         case 'c':
             g.checkpoint_name = __wt_optarg;
@@ -218,10 +219,7 @@ main(int argc, char *argv[])
 
         g.opts.running = true;
 
-        if ((ret = wt_connect(config_open)) != 0) {
-            (void)log_print_err("Connection failed", ret, 1);
-            break;
-        }
+        wt_connect(config_open);
 
         if (verify_only) {
             WT_SESSION *session;
@@ -269,7 +267,7 @@ run_complete:
  * wt_connect --
  *     Configure the WiredTiger connection.
  */
-static int
+static void
 wt_connect(const char *config_open)
 {
     static WT_EVENT_HANDLER event_handler = {handle_error, handle_message, NULL, NULL, NULL};
@@ -336,8 +334,6 @@ wt_connect(const char *config_open)
         set_flush_tier_delay(&rnd);
         testutil_tiered_begin(&g.opts);
     }
-
-    return (0);
 }
 
 /*
