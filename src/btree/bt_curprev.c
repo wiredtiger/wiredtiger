@@ -105,14 +105,12 @@ restart:
             goto restart;
         }
         /*
-         * CPU may reorder the read and read a stale value. This can lead us to wrongly skip a value
-         * in the lower level of the skip list.
+         * CPU may reorder the read and return a stale value. This can lead us to wrongly skip a
+         * value in the lower levels of the skip list.
          *
-         * For example, if we have A -> C initially for both level 0 and level 1 and we have an
-         * concurrent insert of B into both level 0 and level 1. If B is visible on level 1 to this
-         * thread then it must be also visible on level 0. Otherwise, we will record an inconsistent
-         * stack. However, CPU reordering may cause us to see a stale value of the pointer A and
-         * thus not seeing B on level 0.
+         * For example, if we have A -> C initially for both level 0 and level 1 and we concurrently
+         * insert B into both level 0 and level 1. If B is visible on level 1 to this thread, it
+         * must also be visible on level 0. Otherwise, we would record an inconsistent stack.
          *
          * Place a read barrier to avoid this issue.
          */
@@ -121,8 +119,8 @@ restart:
             ins = next_ins;
         else { /* Drop down a level */
             /*
-             * It is possible that we read an old value down the stack due to CPU read reordering.
-             * Add a read barrier to avoid this issue.
+             * It is possible that we read an old value that is inconsistent to the higher levels of
+             * the skip list due to CPU read reordering. Add a read barrier to avoid this issue.
              */
             WT_ORDERED_READ(cbt->next_stack[i], ins->next[i]);
             cbt->ins_stack[i] = &ins->next[i];
