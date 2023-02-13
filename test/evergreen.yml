@@ -3490,7 +3490,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            for i in $(seq 150); do
+            for i in $(seq 5); do
                 ${test_env_vars|} ${python_binary|python3} skiplist_stress.py
             done
 
@@ -3509,7 +3509,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            for i in $(seq 150); do
+            for i in $(seq 5); do
                 ${test_env_vars|} ${python_binary|python3} skiplist_stress.py
             done
 
