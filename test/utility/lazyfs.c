@@ -241,7 +241,7 @@ lazyfs_command(const char *lazyfs_control, const char *command)
 
     testutil_assert_errno(fprintf(f, "lazyfs::%s\n", command) >= 0);
     testutil_check(fclose(f));
-    sleep(1);
+    usleep(500 * WT_THOUSAND);
 }
 
 /*
@@ -262,4 +262,68 @@ void
 lazyfs_display_cache_usage(const char *lazyfs_control)
 {
     lazyfs_command(lazyfs_control, "display-cache-usage");
+}
+
+/*
+ * testutil_lazyfs_setup --
+ *     Set up LazyFS for the test. Note that the home directory must already exist.
+ */
+void
+testutil_lazyfs_setup(WT_LAZY_FS *lazyfs, const char *home)
+{
+    char home_canonical[PATH_MAX];
+    char *str;
+
+    memset(lazyfs, 0, sizeof(*lazyfs));
+
+    /* Initialize LazyFS for the application. */
+    lazyfs_init();
+
+    /* Get the canonical path to the home directory. */
+    testutil_assert_errno((str = canonicalize_file_name(home)) != NULL);
+    testutil_check(__wt_snprintf(home_canonical, sizeof(home_canonical), "%s", str));
+    free(str);
+
+    /* Create the base directory on the underlying file system. */
+    testutil_check(
+      __wt_snprintf(lazyfs->base, sizeof(lazyfs->base), "%s/%s", home_canonical, LAZYFS_BASE_DIR));
+    testutil_make_work_dir(lazyfs->base);
+
+    /* Set up the relevant LazyFS files. */
+    testutil_check(__wt_snprintf(
+      lazyfs->control, sizeof(lazyfs->control), "%s/%s", home_canonical, LAZYFS_CONTROL_FILE));
+    testutil_check(__wt_snprintf(
+      lazyfs->config, sizeof(lazyfs->config), "%s/%s", home_canonical, LAZYFS_CONFIG_FILE));
+    testutil_check(__wt_snprintf(
+      lazyfs->logfile, sizeof(lazyfs->logfile), "%s/%s", home_canonical, LAZYFS_LOG_FILE));
+    lazyfs_create_config(lazyfs->config, lazyfs->control, lazyfs->logfile);
+
+    /* Mount LazyFS. */
+    testutil_check(__wt_snprintf(
+      lazyfs->mountpoint, sizeof(lazyfs->mountpoint), "%s/%s", home_canonical, WT_HOME_DIR));
+    lazyfs->pid = lazyfs_mount(lazyfs->mountpoint, lazyfs->base, lazyfs->config);
+}
+
+/*
+ * testutil_lazyfs_clear_cache --
+ *     Clear the cache. Also print the cache usage to the log for debugging purposes.
+ */
+void
+testutil_lazyfs_clear_cache(WT_LAZY_FS *lazyfs)
+{
+    lazyfs_display_cache_usage(lazyfs->control);
+    lazyfs_clear_cache(lazyfs->control);
+}
+
+/*
+ * testutil_lazyfs_cleanup --
+ *     Clean up LazyFS: Unmount the file system and delete the (now empty) working directory.
+ */
+void
+testutil_lazyfs_cleanup(WT_LAZY_FS *lazyfs)
+{
+    lazyfs_unmount(lazyfs->mountpoint, lazyfs->pid);
+    lazyfs->pid = 0;
+
+    testutil_clean_work_dir(lazyfs->mountpoint);
 }

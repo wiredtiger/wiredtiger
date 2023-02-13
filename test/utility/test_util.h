@@ -143,6 +143,18 @@ typedef struct {
 } TEST_PER_THREAD_OPTS;
 
 /*
+ * A data structure for everything that we need to keep track of when using LazyFS.
+ */
+typedef struct {
+    char base[PATH_MAX];       /* The base home directory under LazyFS, if using it */
+    char config[PATH_MAX];     /* The LazyFS config file */
+    char control[PATH_MAX];    /* The LazyFS FIFO file for controlling it */
+    char mountpoint[PATH_MAX]; /* The mount home directory under LazyFS, if using it */
+    char logfile[PATH_MAX];    /* The LazyFS log file */
+    pid_t pid;                 /* The PID of the LazyFS process */
+} WT_LAZY_FS;
+
+/*
  * testutil_assert --
  *     Complain and quit if something isn't true, with no error value.
  */
@@ -419,6 +431,9 @@ void testutil_create_backup_directory(const char *);
 void testutil_deduce_build_dir(TEST_OPTS *opts);
 int testutil_general_event_handler(
   WT_EVENT_HANDLER *, WT_CONNECTION *, WT_SESSION *, WT_EVENT_TYPE, void *);
+void testutil_lazyfs_cleanup(WT_LAZY_FS *);
+void testutil_lazyfs_clear_cache(WT_LAZY_FS *);
+void testutil_lazyfs_setup(WT_LAZY_FS *, const char *);
 void testutil_make_work_dir(const char *);
 void testutil_modify_apply(WT_ITEM *, WT_ITEM *, WT_MODIFY *, int, uint8_t);
 void testutil_parse_begin_opt(int, char *const *, const char *, TEST_OPTS *);
