@@ -629,7 +629,7 @@ azure_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *size
     *sizep = 0;
 
     if ((ret = azure_fh->fs->azure_conn->object_exists(azure_fh->name, exists, size)) != 0) {
-        std::cerr << "azure_file_open: object_exists request to Azure failed." << std::endl;
+        std::cerr << "azure_file_size: object_exists request to Azure failed." << std::endl;
         return ret;
     }
 
