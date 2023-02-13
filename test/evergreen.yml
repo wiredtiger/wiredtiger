@@ -3222,7 +3222,7 @@ tasks:
             set -o verbose
             export "PATH=/opt/mongodbtoolchain/v4/bin:$PATH"
             g++ -o memory_model_test -O2 memory_model_test.cpp -lpthread -std=c++20
-            ./memory_model_test
+            ./memory_model_test -n 100000000
 
   - name: data-validation-stress-test-checkpoint
     tags: ["data-validation-stress-test"]
