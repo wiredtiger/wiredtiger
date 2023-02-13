@@ -3213,7 +3213,7 @@ tasks:
       - func: "get project"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/test/memory-model-test"
+          working_dir: "wiredtiger/tools/memory-model-test"
           script: |
             set -o errexit
             set -o verbose
