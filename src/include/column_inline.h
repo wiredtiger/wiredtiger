@@ -202,7 +202,9 @@ __col_insert_search(
     int cmp, i;
 
     /*
-     * Compiler may replace the following usage of the variable with another read.
+     * Compiler may replace the following usage of the variable with another read. Note that we
+     * don't need to consider CPU reordering here as there is a single thread happen before
+     * relationship for the usage of the variable in the following if sections.
      *
      * Place a read barrier to avoid this issue.
      */
