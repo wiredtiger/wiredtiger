@@ -246,12 +246,12 @@ gcp_flush_finish(WT_STORAGE_SOURCE *storage, WT_SESSION *session, WT_FILE_SYSTEM
 
 static int
 gcp_file_system_exists(
-  WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, bool *file_exists)
+  WT_FILE_SYSTEM *file_system, [[unused]] WT_SESSION *session, const char *name, bool *file_exists)
 {
-    WT_UNUSED(file_system);
-    WT_UNUSED(session);
-    WT_UNUSED(name);
-    WT_UNUSED(file_exists);
+    gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
+    size_t size;
+    WT_DECL_RET;
+    
 
     return 0;
 }
