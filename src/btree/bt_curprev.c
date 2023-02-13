@@ -34,7 +34,7 @@
 static inline int
 __cursor_skip_prev(WT_CURSOR_BTREE *cbt)
 {
-    WT_INSERT *current, *ins;
+    WT_INSERT *current, *ins, *next_ins;
     WT_ITEM key;
     WT_SESSION_IMPL *session;
     uint64_t recno;
@@ -98,11 +98,28 @@ restart:
             cbt->next_stack[0] = NULL;
             goto restart;
         }
-        if (ins->next[i] != current) /* Stay at this level */
-            ins = ins->next[i];
+        /*
+         * CPU may reorder the read and read a stale value which wrongly skip a value in the lower
+         * level of the skip list.
+         *
+         * For example, if we have A -> C initially for both level 0 and level 1 and we have an
+         * concurrent insert of B into both level 0 and level 1. If B is visible on level 1 to this
+         * thread then it must be also visible on level 0. Otherwise, we will record an inconsistent
+         * stack. However, CPU reordering may cause us to see a stale value of the pointer A and
+         * thus not seeing B on level 0.
+         *
+         * Place a read barrier to avoid this issue.
+         */
+        WT_ORDERED_READ(next_ins, ins->next[i]);
+        if (next_ins != current) /* Stay at this level */
+            ins = next_ins;
         else { /* Drop down a level */
+            /*
+             * It is possible that we read an old value down the stack due to CPU read reordering.
+             * Add a read barrier to avoid this issue.
+             */
+            WT_ORDERED_READ(next_stack[i], ins->next[i]);
             cbt->ins_stack[i] = &ins->next[i];
-            cbt->next_stack[i] = ins->next[i];
             --i;
         }
     }
