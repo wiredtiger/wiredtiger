@@ -456,6 +456,7 @@ azure_object_size(
   WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, wt_off_t *sizep)
 {
     azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
+
     WT_UNUSED(session);
 
     int ret;
