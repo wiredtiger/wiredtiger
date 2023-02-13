@@ -160,6 +160,13 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET ex_tiered
+    SOURCES ex_tiered.c
+    DIR_NAME ex_tiered
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:ex_tiered>/WT_HOME>
+)
+
+define_c_test(
     TARGET ex_verbose
     SOURCES ex_verbose.c
     DIR_NAME ex_verbose
