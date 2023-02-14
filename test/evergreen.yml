@@ -122,8 +122,10 @@ functions:
           ${GNU_C_VERSION|} \
           ${GNU_CXX_VERSION|} \
           ${ENABLE_S3|} \
+          ${ENABLE_GCP|} \
           ${ENABLE_CPPSUITE|} \
           ${IMPORT_S3_SDK|} \
+          ${IMPORT_GCP_SDK|} \
           ${SPINLOCK_TYPE|} \
           ${CC_OPTIMIZE_LEVEL|}"
 
@@ -825,6 +827,11 @@ variables:
   - &configure_flags_tiered_storage_s3
     ENABLE_S3: -DENABLE_S3=1
     IMPORT_S3_SDK: -DIMPORT_S3_SDK=external
+
+  # Configure flags for tiered storage S3 extension.
+  - &configure_flags_tiered_storage_gcp
+    ENABLE_S3: -DENABLE_GCP=1
+    IMPORT_S3_SDK: -DIMPORT_GCP_SDK=external
 
   # Configure flags for address sanitizer for stable mongodb toolchain clang (include builtins).
   - &configure_flags_address_sanitizer_mongodb_stable_clang_with_builtins
@@ -2978,6 +2985,35 @@ tasks:
 
             # Run S3 extension unit testing.
             ext/storage_sources/s3_store/test/run_s3_unit_tests
+  - name: gcp-tiered-unittest-test
+    tags: ["pull_request"]
+    commands:
+      - func: "get project"
+      - func: "install gcp dependencies"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_tiered_storage_gcp
+          HAVE_UNITTEST: -DHAVE_UNITTEST=1
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build"
+          shell: bash
+          include_expansions_in_env:
+            - gcp_sdk_ext_private_key
+            - gcp_sdk_ext_private_key_id
+          script: | 
+            set -o errexit
+
+            # GCP requires a path to a credentials file for authorization. To not expose the private key within the file, 
+            # use a placeholder private key and replace it with the evergreen expansion variable.
+            
+            # sed -i 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|;s|gcp_private_id|${gcp_sdk_ext_private_key_id}|' ../test/evergreen/gcp_auth.json
+            
+            # export GOOGLE_APPLICATION_CREDENTIALS="../test/evergreen/gcp_auth.json"
+            export GOOGLE_APPLICATION_CREDENTIALS=$( cat ../test/evergreen/gcp_auth.json | sed 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|;s|gcp_private_id|${gcp_sdk_ext_private_key_id}|' ../test/evergreen/gcp_auth.json )
+
+            # Run GCP extension unit testing.
+            ext/storage_sources/gcp_store/test/run_gcp_unit_tests
   - name: spinlock-gcc-test
     commands:
       - func: "get project"
