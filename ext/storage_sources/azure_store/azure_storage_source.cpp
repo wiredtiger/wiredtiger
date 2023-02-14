@@ -39,6 +39,12 @@
 #include <azure_log_system.h>
 #include "wt_internal.h"
 
+#include <azure/core/diagnostics/logger.hpp>
+
+using namespace Azure::Core::Diagnostics;
+
+
+
 struct azure_file_system;
 struct azure_file_handle;
 struct azure_store {
@@ -634,8 +640,22 @@ azure_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *size
 int
 wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 {
+    Logger::SetLevel(Logger::Level::Verbose);
+    // SetListener accepts std::function<>, which can be either lambda or a function pointer.
+    Logger::SetListener([&](auto lvl, auto msg){std::cout << "Listener ACCESSED! Level: " << (int)lvl << ", with message: " << msg << std::endl; });
+
     azure_store *azure_storage = new azure_store;
+    WT_CONFIG_ITEM v;
+
     azure_storage->wt_api = connection->get_extension_api(connection);
+    int ret = azure_storage->wt_api->config_get(
+      azure_storage->wt_api, nullptr, config, "verbose.tiered", &v);
+
+    // Initialise logger for the storage source.
+    if (ret == 0 && v.val >= WT_VERBOSE_ERROR && v.val <= WT_VERBOSE_DEBUG_5) {
+
+    }
+    // std::shared_ptr<Azure::Core::Diagnostics::Logger> azure_log = azure_storage->log;
 
     azure_storage->store.ss_customize_file_system = azure_customize_file_system;
     azure_storage->store.ss_add_reference = azure_add_reference;

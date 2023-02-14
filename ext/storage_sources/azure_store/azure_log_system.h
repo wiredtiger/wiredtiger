@@ -31,30 +31,42 @@
 
 #include <azure/core.hpp>
 
-// static const std::map<int32_t, Azure::Core::Diagnostics::Logger::Level> verbosity_mapping = {
-//   {WT_VERBOSE_ERROR, Azure::Core::Diagnostics::Logger::Level::Error},
-//   {WT_VERBOSE_WARNING, Azure::Core::Diagnostics::Logger::Level::Warning},
-//   {WT_VERBOSE_INFO, Azure::Core::Diagnostics::Logger::Level::Informational},
-//   {WT_VERBOSE_DEBUG_1, Azure::Core::Diagnostics::Logger::Level::Verbose},
-//   {WT_VERBOSE_DEBUG_2, Azure::Core::Diagnostics::Logger::Level::Verbose},
-//   {WT_VERBOSE_DEBUG_3, Azure::Core::Diagnostics::Logger::Level::Verbose},
-//   {WT_VERBOSE_DEBUG_4, Azure::Core::Diagnostics::Logger::Level::Verbose},
-//   {WT_VERBOSE_DEBUG_5, Azure::Core::Diagnostics::Logger::Level::Verbose},
-// };
-
-/*
-1. Investigate what the azure logs look like
-
-2. Design
-
-3. Implementation
-*/
+static const std::map<int32_t, Azure::Core::Diagnostics::Logger::Level> verbosity_mapping = {
+  {WT_VERBOSE_ERROR, Azure::Core::Diagnostics::Logger::Level::Error},
+  {WT_VERBOSE_WARNING, Azure::Core::Diagnostics::Logger::Level::Warning},
+  {WT_VERBOSE_INFO, Azure::Core::Diagnostics::Logger::Level::Informational},
+  {WT_VERBOSE_DEBUG_1, Azure::Core::Diagnostics::Logger::Level::Verbose},
+  {WT_VERBOSE_DEBUG_2, Azure::Core::Diagnostics::Logger::Level::Verbose},
+  {WT_VERBOSE_DEBUG_3, Azure::Core::Diagnostics::Logger::Level::Verbose},
+  {WT_VERBOSE_DEBUG_4, Azure::Core::Diagnostics::Logger::Level::Verbose},
+  {WT_VERBOSE_DEBUG_5, Azure::Core::Diagnostics::Logger::Level::Verbose},
+};
 
 class azure_log_system {
     public:
     azure_log_system(WT_EXTENSION_API *wt_api, uint32_t wt_verbosity_lvl);
 
-    void log_err_msg(const std::string &message) const {}
-    void log_debug_msg(const std::string &message) const {}
-    void set_wt_verbosity_lvl(uint32_t wt_verbosity_lvl) const {}
+    // Send error messages to WiredTiger's error level log stream.
+    void
+    log_err_msg(const std::string &message) const
+    {
+        log_verbose_msg(WT_VERBOSE_ERROR, message);
+    }
+
+    // Send error messages to WiredTiger's debug level log stream.
+    void
+    log_debug_msg(const std::string &message) const
+    {
+        log_verbose_msg(WT_VERBOSE_DEBUG_1, message);
+    }
+
+    // Sets the WiredTiger Extension's verbosity level and matches the Azure log levels to this.
+    void set_wt_verbosity_lvl(int32_t wt_verbosity_lvl);
+
+    private:
+    void log_azure_msg(const std::string &message) const;
+    void log_verbose_msg(int32_t verbosity_level, const std::string &message) const;
+    std::atomic<Azure::Core::Diagnostics::Logger::Level> _azure_log_level;
+    WT_EXTENSION_API *_wt_api;
+    int32_t _wt_verbosity_lvl;
 };

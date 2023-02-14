@@ -30,15 +30,21 @@
 // Includes necessary for connection
 #include <azure/core.hpp>
 #include <azure/storage/blobs.hpp>
+// #include <azure/core/diagnostics/logger.hpp>
 
 #include <filesystem>
 #include <iostream>
+
+using namespace Azure::Core::Diagnostics;
 
 azure_connection::azure_connection(const std::string &bucket_name, const std::string &bucket_prefix)
     : _azure_client(Azure::Storage::Blobs::BlobContainerClient::CreateFromConnectionString(
         std::getenv("AZURE_STORAGE_CONNECTION_STRING"), bucket_name)),
       _bucket_name(bucket_name), _bucket_prefix(bucket_prefix)
 {
+//     Logger::SetLevel(Logger::Level::Verbose);
+//     // SetListener accepts std::function<>, which can be either lambda or a function pointer.
+//     Logger::SetListener([&](auto lvl, auto msg){std::cout << "Listener ACCESSED! Level: " << (int)lvl << ", with message: " << msg << std::endl; });
     // Confirm that we can access the bucket, else fail.
     bool exists;
     int ret = bucket_exists(exists);
@@ -88,7 +94,6 @@ azure_connection::put_object(const std::string &object_key, const std::string &f
         blob_client.UploadFrom(file_path);
     } catch (const Azure::Core::RequestFailedException &e) {
         return http_to_errno(e);
-    } catch (const std::exception &e) {
         std::cerr << e.what() << std::endl;
         return -1;
     }
