@@ -271,6 +271,11 @@ lazyfs_display_cache_usage(const char *lazyfs_control)
 void
 testutil_lazyfs_setup(WT_LAZY_FS *lazyfs, const char *home)
 {
+#ifndef __linux__
+    WT_UNUSED(lazyfs);
+    WT_UNUSED(home);
+    testutil_die(ENOENT, "LazyFS is not available on this platform.");
+#else
     char home_canonical[PATH_MAX];
     char *str;
 
@@ -302,6 +307,7 @@ testutil_lazyfs_setup(WT_LAZY_FS *lazyfs, const char *home)
     testutil_check(__wt_snprintf(
       lazyfs->mountpoint, sizeof(lazyfs->mountpoint), "%s/%s", home_canonical, WT_HOME_DIR));
     lazyfs->pid = lazyfs_mount(lazyfs->mountpoint, lazyfs->base, lazyfs->config);
+#endif
 }
 
 /*
