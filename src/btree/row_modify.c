@@ -334,10 +334,9 @@ __wt_row_insert_alloc(WT_SESSION_IMPL *session, const WT_ITEM *key, u_int skipde
 
 /*
  * __wt_update_obsolete_check --
- *     Check for obsolete updates and force evict the page if the update list is too long. We
- *     require the page is locked before calling this function.
+ *     Check for obsolete updates and force evict the page if the update list is too long.
  */
-WT_UPDATE *
+void
 __wt_update_obsolete_check(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, bool update_accounting)
 {
@@ -351,6 +350,10 @@ __wt_update_obsolete_check(
     next = NULL;
     page = cbt->ref->page;
     txn_global = &S2C(session)->txn_global;
+
+    /* If we can't lock it, don't scan, that's okay. */
+    if (WT_PAGE_TRYLOCK(session, page) != 0)
+        return;
 
     upd_seen = upd_unstable = 0;
     oldest = txn_global->has_oldest_timestamp ? txn_global->oldest_timestamp : WT_TS_NONE;
@@ -411,6 +414,8 @@ __wt_update_obsolete_check(
         }
     }
 
+    WT_PAGE_UNLOCK(session, page);
+
     /*
      * Force evict a page when there are more than WT_THOUSAND updates to a single item. Increasing
      * the minSnapshotHistoryWindowInSeconds to 300 introduced a performance regression in which the
@@ -422,8 +427,10 @@ __wt_update_obsolete_check(
         __wt_page_evict_soon(session, cbt->ref);
     }
 
-    if (next != NULL)
-        return (next);
+    if (next != NULL) {
+        __wt_free_update_list(session, &next);
+        return;
+    }
 
     /*
      * If the list is long, don't retry checks on this page until the transaction state has moved
@@ -435,6 +442,4 @@ __wt_update_obsolete_check(
         if (txn_global->has_pinned_timestamp)
             page->modify->obsolete_check_timestamp = txn_global->pinned_timestamp;
     }
-
-    return (NULL);
 }
