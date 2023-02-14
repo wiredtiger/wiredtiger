@@ -131,8 +131,30 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.assertEquals(ss.ss_flush(session, fs, local_file_name, local_file_name, None), 0)
         self.assertEquals(ss.ss_flush_finish(session, fs, local_file_name, local_file_name, None), 0)
 
-        # The object exists now
+        # The object exists now.
         self.assertTrue(fs.fs_exist(session, local_file_name))
+
+        # Test directory list is able to find the file.
+        self.assertEquals(fs.fs_directory_list(session, '', ''), [prefix + local_file_name])
+
+        err_msg = '/Exception: Operation not supported/'
+
+        # Test that POSIX Remove and Rename are not supported.
+        self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
+            lambda: fs.fs_remove(session, 'foobar', 0), err_msg)
+        self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
+            lambda: fs.fs_rename(session, 'foobar', 'foobar2', 0), err_msg)
+
+        # Flush to test directory list and list single.
+        new_file_name = local_file_name + "1"
+        self.assertEquals(ss.ss_flush(session, fs, local_file_name, new_file_name, None), 0)
+        self.assertEquals(ss.ss_flush_finish(session, fs, local_file_name, new_file_name, None), 0)
+
+        # Test list single, expects only one element.
+        self.assertEquals(fs.fs_directory_list_single(session, '', ''), [prefix + local_file_name])
+
+        # Test directory list is able to find both files.
+        self.assertEquals(fs.fs_directory_list(session, '', ''), [prefix + local_file_name, prefix + new_file_name])
 
         # We expect an exception to be raised when flushing a file that does not exist.
         err_msg = "Exception: No such file or directory"
