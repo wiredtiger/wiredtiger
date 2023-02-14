@@ -414,8 +414,6 @@ __wt_update_obsolete_check(
         }
     }
 
-    WT_PAGE_UNLOCK(session, page);
-
     /*
      * Force evict a page when there are more than WT_THOUSAND updates to a single item. Increasing
      * the minSnapshotHistoryWindowInSeconds to 300 introduced a performance regression in which the
@@ -427,19 +425,20 @@ __wt_update_obsolete_check(
         __wt_page_evict_soon(session, cbt->ref);
     }
 
-    if (next != NULL) {
+    if (next != NULL)
         __wt_free_update_list(session, &next);
-        return;
+    else {
+        /*
+         * If the list is long, don't retry checks on this page until the transaction state has
+         * moved forwards. This function is used to trim update lists independently of the page
+         * state, ensure there is a modify structure.
+         */
+        if (count > 20 && page->modify != NULL) {
+            page->modify->obsolete_check_txn = txn_global->last_running;
+            if (txn_global->has_pinned_timestamp)
+                page->modify->obsolete_check_timestamp = txn_global->pinned_timestamp;
+        }
     }
 
-    /*
-     * If the list is long, don't retry checks on this page until the transaction state has moved
-     * forwards. This function is used to trim update lists independently of the page state, ensure
-     * there is a modify structure.
-     */
-    if (count > 20 && page->modify != NULL) {
-        page->modify->obsolete_check_txn = txn_global->last_running;
-        if (txn_global->has_pinned_timestamp)
-            page->modify->obsolete_check_timestamp = txn_global->pinned_timestamp;
-    }
+    WT_PAGE_UNLOCK(session, page);
 }
