@@ -398,10 +398,11 @@ __wt_update_obsolete_check(
      */
     if (first != NULL && (next = first->next) != NULL) {
         /*
-         * No need to use a compare and swap because we have obtained a lock before entering this
+         * No need to use a compare and swap because we have obtained a lock at the start of the
          * function.
          */
         first->next = NULL;
+
         /*
          * Decrement the dirty byte count while holding the page lock, else we can race with
          * checkpoints cleaning a page.
