@@ -368,7 +368,6 @@ create_database(const char *home, WT_CONNECTION **connp)
     if (max == 0)
         testutil_die(ENOMEM, "wiredtiger_open configuration buffer too small");
 
-    printf("test print config: %s\n", config);
     testutil_checkfmt(wiredtiger_open(home, &event_handler, config, &conn), "%s", home);
 
     *connp = conn;
