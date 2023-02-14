@@ -201,12 +201,11 @@ gcp_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
     gcp_file_handle *gcp_fh = reinterpret_cast<gcp_file_handle *>(file_handle);
 
     // If there are other active instances of the file being open, do not close file handle.
-    if (--gcp_fh->reference_count != 0) {
+    if (--gcp_fh->reference_count != 0)
         return 0;
-    }
 
     // No more active instances of open file, close the file handle.
-    gcp_file_system *fs = reinterpret_cast<gcp_file_handle *>(gcp_fh)->file_system;
+    gcp_file_system *fs = gcp_fh->file_system;
     {
         std::lock_guard<std::mutex> lock(fs->fh_list_mutex);
         // Erase remove idiom is used here to remove specific file system.
@@ -334,7 +333,7 @@ gcp_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name
 
     // Check if there is already an existing file handle open.
     auto fh_iterator = std::find_if(fs->fh_list.begin(), fs->fh_list.end(),
-      [name](gcp_file_handle *fh) { return fh->name.compare(name); });
+      [name](gcp_file_handle *fh) { return (fh->name.compare(name) == 0); });
 
     if (fh_iterator != fs->fh_list.end()) {
         (*fh_iterator)->reference_count++;
@@ -425,17 +424,15 @@ gcp_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *sizep)
     WT_UNUSED(session);
 
     gcp_file_handle *gcp_fh = reinterpret_cast<gcp_file_handle *>(file_handle);
-    std::string object_key = gcp_fh->name;
-    gcp_file_system *fs = reinterpret_cast<gcp_file_handle *>(gcp_fh)->file_system;
+    gcp_file_system *fs = gcp_fh->file_system;
     bool exists;
     size_t size;
     int ret;
     *sizep = 0;
 
     // Get file size if the object exists.
-    if ((fs->gcp_conn->object_exists(object_key, exists, size))) {
+    if ((fs->gcp_conn->object_exists(gcp_fh->name, exists, size))) {
         std::cerr << "gcp_file_size: object_exists request to google cloud failed." << std::endl;
-
         return ret;
     }
 
@@ -462,16 +459,14 @@ gcp_file_read(
     WT_UNUSED(session);
 
     gcp_file_handle *gcp_fh = reinterpret_cast<gcp_file_handle *>(file_handle);
-    std::string object_key = gcp_fh->name;
-    gcp_file_system *fs = reinterpret_cast<gcp_file_handle *>(gcp_fh)->file_system;
+    gcp_file_system *fs = gcp_fh->file_system;
 
     int ret;
 
-    if ((ret = fs->gcp_conn->read_object(object_key, offset, len, buf)) != 0) {
+    if ((ret = fs->gcp_conn->read_object(gcp_fh->name, offset, len, buf)) != 0)
         std::cerr << "gcp_file_read: read attempt failed." << std::endl;
-    } else {
+    else
         std::cerr << "gcp_file_read: read succeeded." << std::endl;
-    }
 
     return ret;
 }
