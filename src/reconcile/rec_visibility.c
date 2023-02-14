@@ -910,10 +910,18 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         supd_restore = F_ISSET(r, WT_REC_EVICT) &&
           (has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
 
-        upd_memsize = __rec_calc_upd_memsize(onpage_upd, upd_select->tombstone, upd_memsize);
-        WT_RET(__rec_update_save(
-          session, r, ins, rip, onpage_upd, upd_select->tombstone, supd_restore, upd_memsize));
-
+        /*
+         * No need to save the update chain when it meets the following:
+         * 1. No need to restore the update chain
+         * 2. No on-disk entry exist
+         * 3. No further updates exist in the update chain to be written to the history store.
+         */
+        if (supd_restore || vpack != NULL || onpage_upd->next != NULL) {
+            upd_memsize = __rec_calc_upd_memsize(onpage_upd, upd_select->tombstone, upd_memsize);
+            WT_RET(__rec_update_save(
+              session, r, ins, rip, onpage_upd, upd_select->tombstone, supd_restore, upd_memsize));
+            upd_saved = upd_select->upd_saved = true;
+        }
         /*
          * Mark the selected update (and potentially the tombstone preceding it) as being destined
          * for the data store. Subsequent reconciliations should know that they can select this
@@ -923,7 +931,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
             F_SET(upd_select->upd, WT_UPDATE_DS);
         if (upd_select->tombstone != NULL)
             F_SET(upd_select->tombstone, WT_UPDATE_DS);
-        upd_saved = upd_select->upd_saved = true;
     }
 
     /*
