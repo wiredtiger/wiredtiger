@@ -274,7 +274,7 @@ gcp_file_system_exists(
 {
     gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
     size_t size;
-    WT_DECL_RET;
+    int ret = 0;
        std::cout << "gcp_file_system_exists: Checking object: " << name << " exists in GCP."
               << std::endl;
 
@@ -286,7 +286,7 @@ gcp_file_system_exists(
     } else
         std::cout << "gcp_file_system_exists: Object: " << name << " exists in GCP."
                   << std::endl;
-    return 0;
+    return ret;
 
 err:
     std::cerr << "gcp_file_system_exists: Error with searching for object: " << name << std::endl;
