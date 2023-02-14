@@ -799,6 +799,15 @@ functions:
           set -o errexit
           set -o verbose
           ./test/evergreen/verify_wt_datafiles.sh 2>&1
+  
+  "install gcp dependencies":
+    - command: shell.exec
+      params:
+        working_dir: "wiredtiger"
+        shell: bash
+        script: |
+          set -o errexit
+          . test/evergreen/install_gcp_dependencies.sh
 
 #######################################
 #               Variables             #
