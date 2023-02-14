@@ -88,11 +88,14 @@ testutil_set_progname(char *const *argv)
      * of '\\', so check both just in case.
      */
     if ((str = strrchr(argv[0], '/')) != NULL)
-        return (str + 1);
+        progname = str + 1;
+    else
 #endif
-    if ((str = strrchr(argv[0], DIR_DELIM)) != NULL)
-        return (str + 1);
-    return (argv[0]);
+      if ((str = strrchr(argv[0], DIR_DELIM)) != NULL)
+        progname = str + 1;
+    else
+        progname = argv[0];
+    return (progname);
 }
 
 /*
