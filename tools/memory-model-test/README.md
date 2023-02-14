@@ -18,8 +18,8 @@ All shared variables are set to 0 before each test.
 
 There are two broad groups of tests:
 - Group 1: 
-  - Each thread writes 1 to a shared variable (`x` for thread 1, and `y` for thead 2),
-    and then reads from the other shared variable (`y` for thread 1, and `x` for thead 2)
+  - Each thread writes 1 to a shared variable (`x` for thread 1, and `y` for thread 2),
+    and then reads from the other shared variable (`y` for thread 1, and `x` for thread 2)
   - Variants of the test are run with no barriers, with one barrier or atomic, or with two barriers or atomics
   - If out-of-order memory accesses occur, then the results of the reads of `x` and `y` can lead to both being 0.
 - Group 2:
@@ -41,7 +41,7 @@ There are two options:
 
 * Use the CMakeLists.txt file with CMake:
   ```
-  md build
+  mkdir build
   cmake -G Ninja ../.
   ninja
   ```
@@ -55,7 +55,7 @@ There are two options:
 
   On both Mac or Evergreen, compile using g++:
   ```
-  g++ -o memory_model_test -O2 memory_model_test.cpp -lpthread -std=c++20
+  g++ -o memory_model_test -O2 memory_model_test.cpp -lpthread -std=c++20 -Wall -Werror
   ```
 
 Some tests use compiler barriers to prevent the compiler re-ordering memory accesses during optimisation.

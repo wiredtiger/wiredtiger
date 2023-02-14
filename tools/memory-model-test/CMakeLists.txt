@@ -9,3 +9,4 @@ find_package(Threads REQUIRED)
 
 add_executable(memory_model_test memory_model_test.cpp)
 target_link_libraries(memory_model_test Threads::Threads)
+target_compile_options(memory_model_test PRIVATE -O2 -Wall -Werror)
