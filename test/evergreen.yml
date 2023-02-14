@@ -3212,6 +3212,7 @@ tasks:
             ./wtperf -O ./split_heavy.wtperf -o verbose=2
 
   - name: memory-model-test
+    exec_timeout_secs: 86400
     commands:
       - func: "get project"
       - command: shell.exec
