@@ -129,6 +129,8 @@ Decrypt
 DeleteFileW
 Destructor
 Deterministically
+Dk
+DmpvXx
 Dxxx
 EACCES
 EAGAIN
@@ -191,6 +193,7 @@ Fsync
 Fuerst
 GBR
 GCC
+GCP
 GF
 GIDs
 GLIBC
@@ -565,6 +568,7 @@ aa
 aaa
 abcdef
 abcdefghijklmnopqrstuvwxyz
+acstu
 addl
 addr
 addrs
@@ -748,7 +752,6 @@ cryptobad
 cryptographic
 cryptographically
 cstring
-cstu
 csuite
 csv
 ctime
@@ -1197,6 +1200,7 @@ mips
 mkdir
 mmap
 mmrand
+mn
 mnt
 mongod
 movemask
@@ -1694,6 +1698,7 @@ wtperf's
 wts
 wtstats
 xF
+xX
 xdeadbeef
 xff
 xfff
