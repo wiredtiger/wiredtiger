@@ -334,7 +334,8 @@ __wt_row_insert_alloc(WT_SESSION_IMPL *session, const WT_ITEM *key, u_int skipde
 
 /*
  * __wt_update_obsolete_check --
- *     Check for obsolete updates and force evict the page if the update list is too long.
+ *     Check for obsolete updates and force evict the page if the update list is too long. We
+ *     require the page is locked before calling this function.
  */
 WT_UPDATE *
 __wt_update_obsolete_check(
@@ -392,8 +393,12 @@ __wt_update_obsolete_check(
      * subsequent to it, other threads of control will terminate their walk in this element. Save a
      * reference to the list we will discard, and terminate the list.
      */
-    if (first != NULL && (next = first->next) != NULL &&
-      __wt_atomic_cas_ptr(&first->next, next, NULL)) {
+    if (first != NULL && (next = first->next) != NULL) {
+        /*
+         * No need to use a compare and swap because we have obtained a lock before entering this
+         * function.
+         */
+        first->next = NULL;
         /*
          * Decrement the dirty byte count while holding the page lock, else we can race with
          * checkpoints cleaning a page.
