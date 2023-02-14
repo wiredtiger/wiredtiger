@@ -402,7 +402,8 @@ azure_file_system_exists(
 
     WT_UNUSED(session);
     WT_UNUSED(size);
-    WT_DECL_RET;
+
+    int ret;
 
     std::cout << "azure_file_system_exists: Checking object: " << name << " exists in Azure."
               << std::endl;

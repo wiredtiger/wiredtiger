@@ -276,7 +276,7 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         # Directory list single should show 1 object.
         self.assertEquals(azure_fs.fs_directory_list_single(session, None, None), [prefix_1 + 'foobar'])
 
-        # File system size on foobar should result in the length of foobar.
+        # Verify that file system size returns the size in bytes of the 'foobar' object.
         self.assertEquals(azure_fs.fs_size(session, 'foobar'), len(outbytes))
 
         # Open existing file in the cloud. Only one active file handle exists for each open file.
