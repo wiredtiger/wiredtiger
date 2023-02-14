@@ -379,9 +379,9 @@ __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *add
 
     /*
      * Encode the page stats into the address cookie of the cell if the feature flag is set. In this
-     * scenario, the layout of the address cookie will be as follows: block manager address cookie
-     * length, block manager address cookie, btree address cookie length, btree address cookie
-     * (contains the page stats).
+     * scenario, the address cookie will have the following layout: block manager address cookie
+     * length, block manager address cookie, page stat address cookie length, page stat address
+     * cookie.
      *
      * Don't copy the data into the buffer in simple cases where there are no page stats information
      * to be encoded, it's not necessary; just re-point the buffer's data/length fields.
@@ -389,30 +389,20 @@ __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *add
     if (vpack == NULL) {
         WT_ASSERT(session, addr != NULL);
 
-        if (__wt_process.page_stats_2022) {
-            WT_RET(__wt_buf_init(session, &val->buf, WT_ADDR_COOKIE_MAX));
-            memcpy(WT_ADDR_COOKIE_BLOCK(val->buf.mem), addr->addr, addr->size);
-            WT_ADDR_COOKIE_BLOCK_LEN(val->buf.mem) = (uint8_t)addr->size;
+        if (__wt_process.page_stats_2022 && WT_PAGE_STAT_VALID(&addr->ps))
             WT_RET(
-              __wt_addr_cookie_btree_pack(val->buf.mem, addr->ps.records, addr->ps.user_bytes));
-            val->buf.size = (uint8_t)(1 + WT_ADDR_COOKIE_BLOCK_LEN(val->buf.mem) + 1 +
-              WT_ADDR_COOKIE_BTREE_LEN(val->buf.mem));
-        } else {
+              __wt_combined_addr_cookie_pack(session, &val->buf, addr->addr, addr->size, addr->ps));
+        else {
             val->buf.data = addr->addr;
             val->buf.size = addr->size;
         }
     } else {
         WT_ASSERT(session, addr == NULL);
 
-        if (__wt_process.page_stats_2022) {
-            WT_RET(__wt_buf_init(session, &val->buf, WT_ADDR_COOKIE_MAX));
-            memcpy(WT_ADDR_COOKIE_BLOCK(val->buf.mem), vpack->data, vpack->size);
-            WT_ADDR_COOKIE_BLOCK_LEN(val->buf.mem) = (uint8_t)vpack->size;
-            WT_RET(
-              __wt_addr_cookie_btree_pack(val->buf.mem, vpack->ps.records, vpack->ps.user_bytes));
-            val->buf.size = (uint8_t)(1 + WT_ADDR_COOKIE_BLOCK_LEN(val->buf.mem) + 1 +
-              WT_ADDR_COOKIE_BTREE_LEN(val->buf.mem));
-        } else {
+        if (__wt_process.page_stats_2022 && WT_PAGE_STAT_VALID(&vpack->ps))
+            WT_RET(__wt_combined_addr_cookie_pack(
+              session, &val->buf, (void *)vpack->data, (uint8_t)vpack->size, vpack->ps));
+        else {
             val->buf.data = vpack->data;
             val->buf.size = vpack->size;
         }

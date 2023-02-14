@@ -7,33 +7,69 @@
  */
 
 /*
- * __wt_addr_cookie_btree_pack --
- *     Pack the btree part of the address cookie.
+ * __wt_combined_addr_cookie_pack --
+ *     Pack a combined address cookie containing both block manager and page stat address cookie
+ *     parts.
  */
 static inline int
-__wt_addr_cookie_btree_pack(void *addr, uint64_t records, uint64_t user_bytes)
+__wt_combined_addr_cookie_pack(WT_SESSION_IMPL *session, WT_ITEM *addr, void *block_addr,
+  uint8_t block_addr_size, WT_PAGE_STAT ps)
 {
-    uint8_t *p;
+    /* Initialize the combined address cookie buffer. */
+    WT_RET(__wt_buf_init(session, addr, WT_ADDR_COOKIE_MAX));
 
-    p = WT_ADDR_COOKIE_BTREE(addr);
-    WT_RET(__wt_vpack_uint(&p, 0, records));
-    WT_RET(__wt_vpack_uint(&p, 0, user_bytes));
-    WT_ADDR_COOKIE_BTREE_LEN(addr) = (uint8_t)WT_PTRDIFF(p, addr);
+    WT_ADDR_COOKIE_BLOCK_LEN(addr->mem) = block_addr_size;
+    memcpy(WT_ADDR_COOKIE_BLOCK(addr->mem), block_addr, block_addr_size);
+    WT_RET(__wt_addr_cookie_page_stat_pack(addr->mem, ps));
+
+    /* Update the size of the combined address cookie. */
+    addr->size =
+      (uint8_t)(1 + WT_ADDR_COOKIE_BLOCK_LEN(addr) + 1 + WT_ADDR_COOKIE_PAGE_STAT_LEN(addr));
     return (0);
 }
 
 /*
- * __wt_addr_cookie_btree_unpack --
- *     Unpack the btree part of the address cookie.
+ * __wt_combined_addr_cookie_unpack --
+ *     Unpack a combined address cookie containing both block manager and page stat address cookie
+ *     parts.
  */
 static inline int
-__wt_addr_cookie_btree_unpack(const void *addr, uint64_t *recordsp, uint64_t *user_bytesp)
+__wt_combined_addr_cookie_unpack(const void *addr, WT_CELL_UNPACK_COMMON *unpack, WT_PAGE_STAT *ps)
+{
+    WT_RET(__wt_addr_cookie_page_stat_unpack(addr, ps));
+    unpack->data = WT_ADDR_COOKIE_BLOCK(addr);
+    unpack->size = WT_ADDR_COOKIE_BLOCK_LEN(addr);
+    return (0);
+}
+
+/*
+ * __wt_addr_cookie_page_stat_pack --
+ *     Pack the page stat part of the address cookie.
+ */
+static inline int
+__wt_addr_cookie_page_stat_pack(void *addr, WT_PAGE_STAT ps)
+{
+    uint8_t *p;
+
+    p = WT_ADDR_COOKIE_PAGE_STAT(addr);
+    WT_RET(__wt_vpack_uint(&p, 0, ps.records));
+    WT_RET(__wt_vpack_uint(&p, 0, ps.user_bytes));
+    WT_ADDR_COOKIE_PAGE_STAT_LEN(addr) = (uint8_t)WT_PTRDIFF(p, addr);
+    return (0);
+}
+
+/*
+ * __wt_addr_cookie_page_stat_unpack --
+ *     Unpack the page stat part of the address cookie.
+ */
+static inline int
+__wt_addr_cookie_page_stat_unpack(const void *addr, WT_PAGE_STAT *ps)
 {
     const uint8_t *p;
 
-    p = WT_ADDR_COOKIE_BTREE(addr);
-    WT_RET(__wt_vunpack_uint(&p, 0, recordsp));
-    WT_RET(__wt_vunpack_uint(&p, 0, user_bytesp));
+    p = WT_ADDR_COOKIE_PAGE_STAT(addr);
+    WT_RET(__wt_vunpack_uint(&p, 0, &ps->records));
+    WT_RET(__wt_vunpack_uint(&p, 0, &ps->user_bytes));
     return (0);
 }
 

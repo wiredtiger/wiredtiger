@@ -940,9 +940,7 @@ copy_cell_restart:
          * are encoded.
          */
         if (F_ISSET(dsk, WT_PAGE_STAT_EXISTS)) {
-            WT_RET(__wt_addr_cookie_btree_unpack(p, &ps->records, &ps->user_bytes));
-            unpack->data = WT_ADDR_COOKIE_BLOCK(p);
-            unpack->size = WT_ADDR_COOKIE_BLOCK_LEN(p);
+            WT_RET(__wt_combined_addr_cookie_unpack(p, unpack, ps));
             unpack->__len = (uint32_t)(WT_PTRDIFF32(p, cell) + v);
         } else {
             unpack->data = p;
