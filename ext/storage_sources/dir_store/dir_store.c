@@ -573,9 +573,9 @@ dir_store_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *s
         cachedir.len = strlen(buf);
     }
     if ((ret = dir_store_get_directory(
-             fs->home_dir, cachedir.str, (ssize_t)cachedir.len, true, &fs->cache_dir)) != 0) {
+           fs->home_dir, cachedir.str, (ssize_t)cachedir.len, true, &fs->cache_dir)) != 0) {
         ret = dir_store_err(
-            dir_store, session, ret, "%*s: cache directory", (int)cachedir.len, cachedir.str);
+          dir_store, session, ret, "%*s: cache directory", (int)cachedir.len, cachedir.str);
         goto err;
     }
 
@@ -725,7 +725,6 @@ dir_store_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_
     dir_store = (DIR_STORE *)storage_source;
     ret = 0;
 
-	printf("Calling dir_store_flush with %s as source and %s as object, and %s as config\n", source, object, config);
     if (file_system == NULL || source == NULL || object == NULL)
         return dir_store_err(dir_store, session, EINVAL, "ss_flush: required arguments missing");
 
@@ -739,10 +738,8 @@ dir_store_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_
         goto err;
 
     if ((ret = dir_store_file_copy(
-			 dir_store, session, src_path, dest_path, WT_FS_OPEN_FILE_TYPE_DATA, true)) != 0) {
-		printf("Copy failed from %s to %s\n", src_path, dest_path);
+           dir_store, session, src_path, dest_path, WT_FS_OPEN_FILE_TYPE_DATA, true)) != 0)
         goto err;
-	}
 
     dir_store->object_writes++;
 
@@ -1031,8 +1028,8 @@ dir_store_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
         ret = stat(cache_path, &sb);
         if (ret != 0) {
             if (errno != ENOENT) {
-                ret = dir_store_err(dir_store, session, errno, "%s: dir_store_open stat",
-                                    cache_path);
+                ret =
+                  dir_store_err(dir_store, session, errno, "%s: dir_store_open stat", cache_path);
                 goto err;
             }
 
@@ -1045,18 +1042,16 @@ dir_store_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
             if ((ret = dir_store_delay(dir_store)) != 0)
                 goto err;
 
-            if ((ret = dir_store_file_copy(
-                     dir_store, session, bucket_path, cache_path, WT_FS_OPEN_FILE_TYPE_DATA,
-                     false)) != 0)
+            if ((ret = dir_store_file_copy(dir_store, session, bucket_path, cache_path,
+                   WT_FS_OPEN_FILE_TYPE_DATA, false)) != 0)
                 goto err;
         }
-        if ((ret = wt_fs->fs_open_file(wt_fs, session, cache_path, file_type, flags, &wt_fh))
-            != 0) {
+        if ((ret = wt_fs->fs_open_file(wt_fs, session, cache_path, file_type, flags, &wt_fh)) !=
+          0) {
             ret = dir_store_err(dir_store, session, ret, "ss_open_object: open: %s", name);
             goto err;
         }
-    }
-    else {
+    } else {
         if ((ret = dir_store_bucket_path(file_system, name, &bucket_path)) != 0)
             goto err;
         ret = stat(bucket_path, &sb);
@@ -1064,8 +1059,8 @@ dir_store_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
             ret = dir_store_err(dir_store, session, errno, "%s: dir_store_open stat", bucket_path);
             goto err;
         }
-        if ((ret = wt_fs->fs_open_file(wt_fs, session, bucket_path, file_type, flags, &wt_fh))
-            != 0) {
+        if ((ret = wt_fs->fs_open_file(wt_fs, session, bucket_path, file_type, flags, &wt_fh)) !=
+          0) {
             ret = dir_store_err(dir_store, session, ret, "ss_open_object: open: %s", name);
             goto err;
         }

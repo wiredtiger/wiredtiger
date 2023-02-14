@@ -1341,7 +1341,7 @@ checkpoint_worker(void *arg)
             if (stop || wtperf->error)
                 break;
         }
-        /* If tiered storage is enabled we want a final checkpoint. */
+        /* If tiered storage is disabled we are done. Otherwise, we want a final checkpoint. */
         if (wtperf->error || (stop && opts->tiered_flush_interval == 0))
             break;
 
@@ -1399,8 +1399,9 @@ flush_tier_worker(void *arg)
         for (i = 0; i < opts->tiered_flush_interval; i++) {
             sleep(1);
             /*
-             * We need to know if we stop before the call to flush_tier. Don't keep rereading the
-             * global value.
+             * We need to make a final call to flush_tier after the stop signal arrives. We
+             * therefore save the global stop signal into a local variable, so we are sure to
+             * complete another iteration of this loop and the final flush_tier before we exit.
              */
             stop = wtperf->stop;
             if (stop || wtperf->error)
@@ -1410,18 +1411,15 @@ flush_tier_worker(void *arg)
         if (wtperf->error)
             break;
         /*
-         * In order to get all the data into the last object when the work is done, we need to call
-         * checkpoint with flush_tier enabled to get all the data into this object.
+         * In order to get all the data into the object when the work is done, we need to call
+         * checkpoint with flush_tier enabled.
          */
-		wtperf->flush = true;
-        if (stop) {
-            lprintf(wtperf, 0, 1, "Last call before stopping flush_tier");
-            if ((ret = session->checkpoint(session, "flush_tier=(enabled)")) != 0) {
-                lprintf(wtperf, ret, 0, "Checkpoint failed.");
-                goto err;
-            }
+        wtperf->flush = true;
+        if ((ret = session->checkpoint(session, "flush_tier=(enabled)")) != 0) {
+            lprintf(wtperf, ret, 0, "Checkpoint failed.");
+            goto err;
         }
-		wtperf->flush = false;
+        wtperf->flush = false;
         ++thread->flush.ops;
     }
 
