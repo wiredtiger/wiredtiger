@@ -60,9 +60,8 @@ static int gcp_rename(WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *
   __attribute__((__unused__));
 static int gcp_object_size(WT_FILE_SYSTEM *, WT_SESSION *, const char *, wt_off_t *)
   __attribute__((__unused__));
-static int
-gcp_object_list_helper(WT_FILE_SYSTEM *, WT_SESSION *, const char *,
-  const char *, char ***, uint32_t *, bool);
+static int gcp_object_list_helper(
+  WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *, bool);
 static int gcp_object_list(
   WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
 static int gcp_object_list_add(const gcp_store &, char ***, const std::vector<std::string> &,
@@ -275,7 +274,7 @@ gcp_file_system_exists(
     gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
     size_t size;
     int ret = 0;
-       std::cout << "gcp_file_system_exists: Checking object: " << name << " exists in GCP."
+    std::cout << "gcp_file_system_exists: Checking object: " << name << " exists in GCP."
               << std::endl;
 
     // Check whether the object exists in the cloud.
@@ -284,8 +283,7 @@ gcp_file_system_exists(
         std::cout << "gcp_file_system_exists: Object: " << name << " does not exist in GCP."
                   << std::endl;
     } else
-        std::cout << "gcp_file_system_exists: Object: " << name << " exists in GCP."
-                  << std::endl;
+        std::cout << "gcp_file_system_exists: Object: " << name << " exists in GCP." << std::endl;
     return ret;
 
 err:
@@ -323,17 +321,19 @@ gcp_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *from, c
 }
 
 static int
-gcp_object_size(WT_FILE_SYSTEM *file_system, [[maybe_unused]] WT_SESSION *session, const char *name, wt_off_t *sizep)
+gcp_object_size(WT_FILE_SYSTEM *file_system, [[maybe_unused]] WT_SESSION *session, const char *name,
+  wt_off_t *sizep)
 {
     bool exists;
     size_t size;
     gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
     int ret = fs->gcp_conn->object_exists(name, exists, size);
     if (ret != 0) {
-        std::cerr << "gcp_object_size: GetObjectMetadata request to google cloud failed." << std::endl;
+        std::cerr << "gcp_object_size: GetObjectMetadata request to google cloud failed."
+                  << std::endl;
         return (ret);
     }
-    sizep = reinterpret_cast<wt_off_t *> (size);
+    *sizep = size;
 
     return 0;
 }
@@ -350,8 +350,8 @@ gcp_object_list_helper(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const c
     *count = 0;
 
     if (directory != nullptr) {
-      complete_prefix += directory;
-      if (complete_prefix.length() > 1 && complete_prefix.back() != '/')
+        complete_prefix += directory;
+        if (complete_prefix.length() > 1 && complete_prefix.back() != '/')
             complete_prefix += '/';
     }
 
@@ -360,8 +360,8 @@ gcp_object_list_helper(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const c
 
     int ret;
 
-    ret = list_single ? fs->gcp_conn->list_objects(complete_prefix, objects, true):
-                       fs->gcp_conn->list_objects(complete_prefix, objects, false);
+    ret = list_single ? fs->gcp_conn->list_objects(complete_prefix, objects, true) :
+                        fs->gcp_conn->list_objects(complete_prefix, objects, false);
 
     if (ret != 0) {
         std::cerr << "gcp_object_list: ListObjects request to google cloud failed." << std::endl;
@@ -370,7 +370,8 @@ gcp_object_list_helper(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const c
     *count = objects.size();
 
     std::cerr << "gcp_object_list: ListObjects request to google cloud succeeded. Received " +
-      std::to_string(*count) + " objects." << std::endl;
+        std::to_string(*count) + " objects."
+              << std::endl;
     gcp_object_list_add(*gcp, object_list, objects, *count);
 
     return ret;
@@ -380,8 +381,8 @@ static int
 gcp_object_list(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *directory,
   const char *prefix, char ***object_list, uint32_t *count)
 {
-    return 
-    gcp_object_list_helper(file_system, session, directory, prefix, object_list, count, false);
+    return gcp_object_list_helper(
+      file_system, session, directory, prefix, object_list, count, false);
 }
 
 static int
@@ -396,7 +397,8 @@ gcp_object_list_add(const gcp_store &gcp_, char ***object_list,
 
     for (int i = 0; i < count; i++) {
         if ((entries[i] = strdup(objects[i].c_str())) == nullptr) {
-            std::cerr << "gcp_object_list_add: unable to allocate memory for object string." << std::endl;
+            std::cerr << "gcp_object_list_add: unable to allocate memory for object string."
+                      << std::endl;
             return ENOMEM;
         }
     }
@@ -410,8 +412,8 @@ static int
 gcp_object_list_single(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *directory,
   const char *prefix, char ***object_list, uint32_t *count)
 {
-    return 
-    gcp_object_list_helper(file_system, session, directory, prefix, object_list, count, true);
+    return gcp_object_list_helper(
+      file_system, session, directory, prefix, object_list, count, true);
 }
 
 static int

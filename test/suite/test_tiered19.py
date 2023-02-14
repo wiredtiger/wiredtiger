@@ -124,9 +124,15 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
             outbytes = ('MORE THAN ENOUGH DATA\n'*100000).encode()
             local_file.write(outbytes)
 
+        # The object doesn't exist yet.
+        self.assertFalse(fs.fs_exist(session, local_file_name))
+
         # We expect a valid file to flush to GCP.
         self.assertEquals(ss.ss_flush(session, fs, local_file_name, local_file_name, None), 0)
         self.assertEquals(ss.ss_flush_finish(session, fs, local_file_name, local_file_name, None), 0)
+
+        # The object exists now
+        self.assertTrue(fs.fs_exist(session, local_file_name))
 
         # We expect an exception to be raised when flushing a file that does not exist.
         err_msg = "Exception: No such file or directory"
@@ -135,6 +141,10 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         # Check that file does not exist in GCP.
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_flush_finish(session, fs, 'non_existing_file', 'non_existing_file', None), err_msg)
+        
+        # Check the file size is returned
+        self.assertEquals(fs.fs_size(session, local_file_name), len(outbytes))
+
 
         fs.terminate(session)
         ss.terminate(session)
@@ -194,7 +204,7 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.assertEqual(ss.ss_flush(session, azure_fs, 'foobar', 'foobar', None), 0)
         # Check that file exists in Azure.
         self.assertEqual(ss.ss_flush_finish(session, azure_fs, 'foobar', 'foobar', None), 0)
-
+        
         # The object exists now.
         self.assertEquals(azure_fs.fs_directory_list(session, '', prefix_1), [prefix_1 + 'foobar'])
         try:
