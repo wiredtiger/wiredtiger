@@ -81,20 +81,19 @@ testutil_die(int e, const char *fmt, ...)
 const char *
 testutil_set_progname(char *const *argv)
 {
-    char *str;
 #ifdef _WIN32
     /*
-     * On some Windows environments, such as CYGWIN, argv[0] can use '/' as a path delimiter instead
+     * On some Windows environments, such as Cygwin, argv[0] can use '/' as a path delimiter instead
      * of '\\', so check both just in case.
      */
-    if ((str = strrchr(argv[0], '/')) != NULL)
-        progname = str + 1;
-    else
+    if ((progname = strrchr(argv[0], '/')) != NULL)
+        return (++progname);
 #endif
-      if ((str = strrchr(argv[0], DIR_DELIM)) != NULL)
-        progname = str + 1;
-    else
-        progname = argv[0];
+
+    if ((progname = strrchr(argv[0], DIR_DELIM)) != NULL)
+        return (++progname);
+
+    progname = argv[0];
     return (progname);
 }
 

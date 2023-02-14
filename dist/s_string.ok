@@ -85,7 +85,6 @@ CStream
 CURFILE
 CURSORs
 CURSTD
-CYGWIN
 CallsCustDate
 Castagnoli
 CentOS
@@ -108,6 +107,7 @@ CreateFileW
 Crt
 Crummey
 CustomersPhone
+Cygwin
 DAX
 DECL
 DECR
