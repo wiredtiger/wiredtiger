@@ -725,6 +725,7 @@ dir_store_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_
     dir_store = (DIR_STORE *)storage_source;
     ret = 0;
 
+	printf("Calling dir_store_flush with %s as source and %s as object, and %s as config\n", source, object, config);
     if (file_system == NULL || source == NULL || object == NULL)
         return dir_store_err(dir_store, session, EINVAL, "ss_flush: required arguments missing");
 
@@ -738,8 +739,10 @@ dir_store_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_
         goto err;
 
     if ((ret = dir_store_file_copy(
-           dir_store, session, src_path, dest_path, WT_FS_OPEN_FILE_TYPE_DATA, true)) != 0)
+			 dir_store, session, src_path, dest_path, WT_FS_OPEN_FILE_TYPE_DATA, true)) != 0) {
+		printf("Copy failed from %s to %s\n", src_path, dest_path);
         goto err;
+	}
 
     dir_store->object_writes++;
 

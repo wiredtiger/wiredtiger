@@ -1411,21 +1411,17 @@ flush_tier_worker(void *arg)
             break;
         /*
          * In order to get all the data into the last object when the work is done, we need to call
-         * checkpoint to get all the data into this object before calling flush_tier.
+         * checkpoint with flush_tier enabled to get all the data into this object.
          */
+		wtperf->flush = true;
         if (stop) {
             lprintf(wtperf, 0, 1, "Last call before stopping flush_tier");
-            if ((ret = session->checkpoint(session, NULL)) != 0) {
+            if ((ret = session->checkpoint(session, "flush_tier=(enabled)")) != 0) {
                 lprintf(wtperf, ret, 0, "Checkpoint failed.");
                 goto err;
             }
         }
-        wtperf->flush = true;
-        if ((ret = session->flush_tier(session, NULL)) != 0) {
-            lprintf(wtperf, ret, 0, "Flush_tier failed.");
-            goto err;
-        }
-        wtperf->flush = false;
+		wtperf->flush = false;
         ++thread->flush.ops;
     }
 
