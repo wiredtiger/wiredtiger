@@ -424,9 +424,12 @@ __wt_rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r, const void *d
   WT_TIME_WINDOW *tw, uint64_t rle)
 {
     WT_BTREE *btree;
+    WT_PAGE_STAT ovfl_ps;
     WT_REC_KV *val;
 
     btree = S2BT(session);
+    ovfl_ps.records = WT_STAT_NONE;
+    ovfl_ps.user_bytes = (uint64_t)size;
     val = &r->v;
 
     /*
@@ -447,7 +450,8 @@ __wt_rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r, const void *d
         if (val->buf.size > btree->maxleafvalue) {
             WT_STAT_DATA_INCR(session, rec_overflow_value);
 
-            return (__wt_rec_cell_build_ovfl(session, r, val, WT_CELL_VALUE_OVFL, tw, rle));
+            return (
+              __wt_rec_cell_build_ovfl(session, r, val, WT_CELL_VALUE_OVFL, tw, ovfl_ps, rle));
         }
     }
     __rec_cell_tw_stats(r, tw);

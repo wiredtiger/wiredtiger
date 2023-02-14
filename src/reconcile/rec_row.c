@@ -81,6 +81,7 @@ __rec_cell_build_leaf_key(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, const void *data, size_t size, bool *is_ovflp)
 {
     WT_BTREE *btree;
+    WT_PAGE_STAT ovfl_ps;
     WT_REC_KV *key;
     size_t pfx_max;
     uint8_t pfx;
@@ -90,6 +91,8 @@ __rec_cell_build_leaf_key(
 
     btree = S2BT(session);
     key = &r->k;
+    ovfl_ps.records = WT_STAT_NONE;
+    ovfl_ps.user_bytes = (uint64_t)size;
 
     pfx = 0;
     if (data == NULL)
@@ -157,7 +160,7 @@ __rec_cell_build_leaf_key(
             WT_STAT_CONN_DATA_INCR(session, rec_overflow_key_leaf);
 
             *is_ovflp = true;
-            return (__wt_rec_cell_build_ovfl(session, r, key, WT_CELL_KEY_OVFL, NULL, 0));
+            return (__wt_rec_cell_build_ovfl(session, r, key, WT_CELL_KEY_OVFL, NULL, ovfl_ps, 0));
         }
         return (__rec_cell_build_leaf_key(session, r, NULL, 0, is_ovflp));
     }
@@ -807,8 +810,13 @@ __wt_rec_row_leaf(
                 if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)) {
                     r->ovfl_items = true;
 
-                    val->buf.data = vpack->data;
-                    val->buf.size = vpack->size;
+                    if (__wt_process.page_stats_2022 && WT_PAGE_STAT_VALID(&vpack->ovfl_ps))
+                        WT_ERR(__wt_combined_addr_cookie_pack(
+                          session, &val->buf, (void *)vpack->data, (uint8_t)vpack->size, vpack->ovfl_ps));
+                    else {
+                        val->buf.data = vpack->data;
+                        val->buf.size = vpack->size;
+                    }
 
                     /* Rebuild the cell. */
                     val->cell_len =

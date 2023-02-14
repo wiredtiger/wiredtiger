@@ -1916,7 +1916,7 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
       __wt_process.fast_truncate_2022)
         F_SET(dsk, WT_PAGE_FT_UPDATE);
 
-    /* Set the page stat cell information flag. */
+    /* Set the page stat cell information flag if there are page stats to write to disk. */
     if (__wt_process.page_stats_2022 && WT_PAGE_STAT_VALID(&chunk->ps))
         F_SET(dsk, WT_PAGE_STAT_EXISTS);
 
@@ -2743,7 +2743,7 @@ err:
  */
 int
 __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv, uint8_t type,
-  WT_TIME_WINDOW *tw, uint64_t rle)
+  WT_TIME_WINDOW *tw, WT_PAGE_STAT ovfl_ps, uint64_t rle)
 {
     WT_BM *bm;
     WT_BTREE *btree;
@@ -2795,8 +2795,15 @@ __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *k
             WT_ERR(__wt_ovfl_reuse_add(session, page, addr, size, kv->buf.data, kv->buf.size));
     }
 
-    /* Set the callers K/V to reference the overflow record's address. */
-    WT_ERR(__wt_buf_set(session, &kv->buf, addr, size));
+    /*
+     * If the page stats feature flag is set, set the callers K/V to reference the combined address
+     * cookie which packs the page stats information with the overflow record's address. Otherwise,
+     * just set the callers K/V to reference the overflow record's address.
+     */
+    if (__wt_process.page_stats_2022 && WT_PAGE_STAT_VALID(&ovfl_ps))
+        WT_ERR(__wt_combined_addr_cookie_pack(session, &kv->buf, addr, (uint8_t)size, ovfl_ps));
+    else
+        WT_ERR(__wt_buf_set(session, &kv->buf, addr, size));
 
     /* Build the cell and return. */
     kv->cell_len = __wt_cell_pack_ovfl(session, &kv->cell, type, tw, rle, kv->buf.size);
