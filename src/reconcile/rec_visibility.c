@@ -252,9 +252,11 @@ __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_
  *     Return if we need to save the update chain
  */
 static inline bool
-__rec_need_save_upd(
-  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE_SELECT *upd_select, bool has_newer_updates)
+__rec_need_save_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE_SELECT *upd_select,
+  WT_CELL_UNPACK_KV *vpack, bool has_newer_updates)
 {
+    bool supd_restore;
+
     if (upd_select->tw.prepare)
         return (true);
 
@@ -275,6 +277,18 @@ __rec_need_save_upd(
 
     /* When in checkpoint, no need to save update if no onpage value is selected. */
     if (F_ISSET(r, WT_REC_CHECKPOINT) && upd_select->upd == NULL)
+        return (false);
+
+    /*
+     * No need to save the update chain when it meets the following:
+     * 1. No need to restore the update chain
+     * 2. No on-disk entry exist
+     * 3. No further updates exist in the update chain to be written to the history store.
+     */
+    supd_restore =
+      F_ISSET(r, WT_REC_EVICT) && (has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
+
+    if (!supd_restore && vpack == NULL && upd_select->upd != NULL && upd_select->upd->next == NULL)
         return (false);
 
     if (WT_TIME_WINDOW_HAS_STOP(&upd_select->tw))
@@ -902,7 +916,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
      *
      * Additionally history store reconciliation is not set skip saving an update.
      */
-    if (__rec_need_save_upd(session, r, upd_select, has_newer_updates)) {
+    if (__rec_need_save_upd(session, r, upd_select, vpack, has_newer_updates)) {
         /*
          * We should restore the update chains to the new disk image if there are newer updates in
          * eviction, or for cases that don't support history store, such as an in-memory database.
@@ -910,28 +924,21 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         supd_restore = F_ISSET(r, WT_REC_EVICT) &&
           (has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
 
-        /*
-         * No need to save the update chain when it meets the following:
-         * 1. No need to restore the update chain
-         * 2. No on-disk entry exist
-         * 3. No further updates exist in the update chain to be written to the history store.
-         */
-        if (supd_restore || vpack != NULL || onpage_upd->next != NULL) {
-            upd_memsize = __rec_calc_upd_memsize(onpage_upd, upd_select->tombstone, upd_memsize);
-            WT_RET(__rec_update_save(
-              session, r, ins, rip, onpage_upd, upd_select->tombstone, supd_restore, upd_memsize));
-            upd_saved = upd_select->upd_saved = true;
-        }
-        /*
-         * Mark the selected update (and potentially the tombstone preceding it) as being destined
-         * for the data store. Subsequent reconciliations should know that they can select this
-         * update regardless of visibility.
-         */
-        if (upd_select->upd != NULL)
-            F_SET(upd_select->upd, WT_UPDATE_DS);
-        if (upd_select->tombstone != NULL)
-            F_SET(upd_select->tombstone, WT_UPDATE_DS);
+        upd_memsize = __rec_calc_upd_memsize(onpage_upd, upd_select->tombstone, upd_memsize);
+        WT_RET(__rec_update_save(
+          session, r, ins, rip, onpage_upd, upd_select->tombstone, supd_restore, upd_memsize));
+        upd_saved = upd_select->upd_saved = true;
     }
+
+    /*
+     * Mark the selected update (and potentially the tombstone preceding it) as being destined for
+     * the data store. Subsequent reconciliations should know that they can select this update
+     * regardless of visibility.
+     */
+    if (upd_select->upd != NULL)
+        F_SET(upd_select->upd, WT_UPDATE_DS);
+    if (upd_select->tombstone != NULL)
+        F_SET(upd_select->tombstone, WT_UPDATE_DS);
 
     /*
      * Set statistics for update restore evictions. Update restore eviction debug mode forces update
