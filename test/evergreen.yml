@@ -5184,6 +5184,8 @@ buildvariants:
   tasks:
     - name: compile
     - name: make-check-test
+    # FIXME: WT-9575
+    # Using a special version of unit test for macOS to reduce the concurrency level.
     - name: unit-test-macos
     - name: fops
 
