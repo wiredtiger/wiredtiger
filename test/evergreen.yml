@@ -839,7 +839,7 @@ variables:
     ENABLE_STATIC: -DENABLE_STATIC=1
 
   # Configure flags for tiered storage Azure extension.
-  - &configure_flags_tiered_storage_gcp
+  - &configure_flags_tiered_storage_azure
     ENABLE_S3: -DENABLE_AZURE=1
     IMPORT_S3_SDK: -DIMPORT_AZURE_SDK=external
   
