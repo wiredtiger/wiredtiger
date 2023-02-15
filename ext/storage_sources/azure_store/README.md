@@ -21,7 +21,7 @@ There are two CMake flags associated with the Azure extension: `ENABLE_AZURE` an
     *    This flag should be set alongside the `ENABLE_AZURE` flag.
     *    If the `IMPORT_AZURE_SDK` flag is not specified, the compiler will assume a system installation of the SDK which will be implemented at a later stage.
 
-### letting CMake manage the SDK dependency as an external project
+### Letting CMake manage the SDK dependency as an external project
 
 This method configures CMake to download, compile, and install the Azure SDK while building the Azure extension.
 
@@ -37,7 +37,7 @@ ninja
 * The compiler flag `IMPORT_AZURE_SDK` must be set to `external` for this build method.
 * `ENABLE_AZURE` defaults to looking for a local version, the `IMPORT_AZURE_SDK` setting will override that default.
 ## Development
-In order to run this extension after building, the developer must have an Azure connection string locally to a container with the right permissions. The connection string must be stored in an environmental variable called `AZURE_STORAGE_CONNECTION_STRING`
+In order to run this extension after building, the developer must have an Azure connection string locally to a container with the right permissions. The connection string must be stored in an environmental variable called `AZURE_STORAGE_CONNECTION_STRING`. To store your connection string into an environmental variable type `export AZURE_STORAGE_CONNECTION_STRING="your Azure connection string"` into your terminal.
 ## Testing
 
 ### To run the tiered python tests for Azure:
