@@ -1431,6 +1431,7 @@ record_loop:
                 }
             } else {
                 twp = &upd_select.tw;
+                psp = &clear_ps;
 
                 switch (upd->type) {
                 case WT_UPDATE_MODIFY:
@@ -1449,6 +1450,7 @@ record_loop:
                 case WT_UPDATE_TOMBSTONE:
                     deleted = true;
                     twp = &clear_tw;
+                    psp = &clear_ps;
                     break;
                 default:
                     WT_ERR(__wt_illegal_value(session, upd->type));
@@ -1511,6 +1513,7 @@ compare:
             }
 
             WT_TIME_WINDOW_COPY(&last.tw, twp);
+            WT_PAGE_STAT_COPY(&last.ps, psp);
             last.deleted = deleted;
             rle = repeat_count;
         }
@@ -1561,16 +1564,20 @@ compare:
                     skip = (n - src_recno) - 1;
                     rle += skip;
                     src_recno += skip;
-                } else
+                } else {
                     /* Set time window for the first deleted key in a deleted range. */
                     twp = &clear_tw;
+                    psp = &clear_ps;
+                }
             } else if (upd == NULL) {
                 /* The updates on the key are all uncommitted so we write a deleted key to disk. */
                 twp = &clear_tw;
+                psp = &clear_ps;
                 deleted = true;
             } else {
                 /* Set time window for the key. */
                 twp = &upd_select.tw;
+                psp = &clear_ps;
 
                 switch (upd->type) {
                 case WT_UPDATE_MODIFY:
@@ -1591,6 +1598,7 @@ compare:
                     break;
                 case WT_UPDATE_TOMBSTONE:
                     twp = &clear_tw;
+                    psp = &clear_ps;
                     deleted = true;
                     break;
                 default:
@@ -1646,6 +1654,7 @@ compare:
 
             /* Ready for the next loop, reset the RLE counter. */
             WT_TIME_WINDOW_COPY(&last.tw, twp);
+            WT_PAGE_STAT_COPY(&last.ps, psp);
             last.deleted = deleted;
             rle = 1;
 
