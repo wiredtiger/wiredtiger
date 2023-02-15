@@ -3,13 +3,31 @@
 This extension to WiredTiger allows WiredTiger storage source extensions to read from and write to objects stored in Azure Blob Storage using WiredTiger’s provided internal abstraction for storing data in an object storage service.
 
 ## 2. Building and running
-This section should describe how to build WiredTiger with the extension enabled. Be specific with version requirements for both the platform and any installed software.
+This section describes how to build WiredTiger with the Azure extension enabled.
 
 ### Requirements
 <li> CMake 3.13 or higher <p>
 
+Check your CMake version by typing `cmake --version`.
 
-This is a guide to build WiredTiger with the Azure extension enabled.
+### How to install requirements (skip this step if all requirements have been met)
+
+If the CMake version is not 3.13 or higher update your CMake to 3.13 using the following.
+```bash
+wget https://cmake.org/files/v3.13/cmake-3.13.0.tar.gz
+
+tar xf cmake-3.13.0.tar.gz
+
+cd cmake-3.13.0
+
+./configure
+
+make
+
+sudo make install
+```
+
+Check that your CMake has been updated using the following command `cmake --version`.
 
 There is current only 1 way to build WiredTiger with Azure extension:
 1. Letting CMake manage the Azure SDK dependency as an external project, letting it download, link and build the extension.
