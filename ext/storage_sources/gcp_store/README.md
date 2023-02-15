@@ -1,6 +1,6 @@
 # WiredTiger's GCP Extension
 ## 1. Introduction
-This extension to WiredTiger allows WiredTiger storage source extensions to read from and write to objects stored in Google Cloud Storage using WiredTiger’s provided internal abstraction for storing data in an object storage service.
+This extension allows WiredTiger storage source extensions to read from and write to objects stored in Google Cloud Storage using WiredTiger’s provided internal abstraction for storing data in an object storage service.
 
 ## 2. Building and running
 This section describes how to build WiredTiger with the GCP extension enabled.
@@ -10,7 +10,7 @@ This section describes how to build WiredTiger with the GCP extension enabled.
 <li> nlohmann_json library 3.11.2
 <li> crc32c 1.1.2<p>
 
-### How to install requirements (skip this step if all requirements have been met)
+### How to install requirements (skip this step if requirements have been met)
 Abseil LTS 20230125
 ```bash
 mkdir -p $HOME/Downloads/abseil-cpp && cd $HOME/Downloads/abseil-cpp
@@ -54,9 +54,7 @@ cd ..
 sudo cmake --build cmake-out --target install
 sudo ldconfig
 ```
-
-This is a guide to build WiredTiger with the GCP extension enabled. The above requirements must be satisfied.
-
+### Building
 There is current only 1 way to build WiredTiger with GCP extension:
 1. Letting CMake manage the GCP SDK dependency as an external project, letting it download, link and build the extension.
 
@@ -82,9 +80,9 @@ ninja
 * The compiler flag `IMPORT_GCP_SDK` must be set to `external` for this build method.
 * `ENABLE_GCP` defaults to looking for a local version, the `IMPORT_GCP_SDK` setting will override that default.
 
-## Development
+## 3. Development
 In order to run this extension after building, the developer must have a GCP credentials file locally with the right permissions. The path to this json file must be stored in an environmental variable called `GOOGLE_APPLICATION_CREDENTIALS`. To store your environmental variable type `export GOOGLE_APPLICATION_CREDENTIALS="path/to/json/"` into your terminal.
-## Testing
+## 4. Testing
 
 ### To run the tiered python tests for GCP:
 
@@ -106,5 +104,5 @@ To add any additional unit testing, add to the file `test_GCP_connection.cpp`, a
 wish to add a new test file, add it to the `SOURCES` list in `create_test_executable()`
 (in `GCP_store/test/CMakeLists.txt`).
 
-## Evergreen Testing
+## 5. Evergreen Testing
 This section should describe the tasks defined in evergreen.yml for testing the extension code (that a developer would include in patch builds) and how a developer can add additional evergreen tests to the extension.
