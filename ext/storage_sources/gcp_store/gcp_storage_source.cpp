@@ -58,7 +58,7 @@ static int gcp_remove(WT_FILE_SYSTEM *, WT_SESSION *, const char *, uint32_t)
   __attribute__((__unused__));
 static int gcp_rename(WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, uint32_t)
   __attribute__((__unused__));
-static int gcp_object_size(WT_FILE_SYSTEM *, WT_SESSION *, const char *, size_t *)
+static int gcp_object_size(WT_FILE_SYSTEM *, WT_SESSION *, const char *, wt_off_t *)
   __attribute__((__unused__));
 static int gcp_object_list_helper(
   WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *, bool);
@@ -310,6 +310,7 @@ gcp_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name
     return 0;
 }
 
+// POSIX remove, not supported for cloud objects.
 static int
 gcp_remove(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, uint32_t flags)
 {
@@ -328,7 +329,7 @@ gcp_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *from, c
 
 static int
 gcp_object_size(WT_FILE_SYSTEM *file_system, [[maybe_unused]] WT_SESSION *session, const char *name,
-  size_t *sizep)
+  wt_off_t *sizep)
 {
     bool exists;
     size_t size;
@@ -344,6 +345,7 @@ gcp_object_size(WT_FILE_SYSTEM *file_system, [[maybe_unused]] WT_SESSION *sessio
     return 0;
 }
 
+// Helper function to return a list of object names for the given location.
 static int
 gcp_object_list_helper(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *directory,
   const char *prefix, char ***object_list, uint32_t *count, bool list_single)
@@ -357,6 +359,7 @@ gcp_object_list_helper(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const c
 
     if (directory != nullptr) {
         complete_prefix += directory;
+        // Add a terminating '/' if one doesn't exist.
         if (complete_prefix.length() > 1 && complete_prefix.back() != '/')
             complete_prefix += '/';
     }
@@ -383,6 +386,7 @@ gcp_object_list_helper(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const c
     return ret;
 }
 
+// Return a list of object names for the given location.
 static int
 gcp_object_list(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *directory,
   const char *prefix, char ***object_list, uint32_t *count)
@@ -391,6 +395,8 @@ gcp_object_list(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *di
       file_system, session, directory, prefix, object_list, count, false);
 }
 
+// Add objects retrieved from Google cloud bucket into the object list, and allocate the memory
+// needed.
 static int
 gcp_object_list_add(const gcp_store &gcp_, char ***object_list,
   const std::vector<std::string> &objects, const uint32_t count)
@@ -401,6 +407,7 @@ gcp_object_list_add(const gcp_store &gcp_, char ***object_list,
         return ENOMEM;
     }
 
+    // Populate entries with the object string.
     for (int i = 0; i < count; i++) {
         if ((entries[i] = strdup(objects[i].c_str())) == nullptr) {
             std::cerr << "gcp_object_list_add: unable to allocate memory for object string."
@@ -414,6 +421,7 @@ gcp_object_list_add(const gcp_store &gcp_, char ***object_list,
     return 0;
 }
 
+// Return a single object name for the given location.
 static int
 gcp_object_list_single(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *directory,
   const char *prefix, char ***object_list, uint32_t *count)
@@ -422,6 +430,7 @@ gcp_object_list_single(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const c
       file_system, session, directory, prefix, object_list, count, true);
 }
 
+// Free memory allocated by gcp_object_list.
 static int
 gcp_object_list_free([[maybe_unused]] WT_FILE_SYSTEM *file_system,
   [[maybe_unused]] WT_SESSION *session, char **object_list, uint32_t count)
