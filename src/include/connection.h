@@ -458,9 +458,12 @@ struct __wt_connection_impl {
 
     WT_SESSION_IMPL *tiered_session; /* Tiered thread session */
     wt_thread_t tiered_tid;          /* Tiered thread */
+    wt_thread_t tiered_shared_tid;   /* Tiered shared thread */
     bool tiered_tid_set;             /* Tiered thread set */
+    bool tiered_shared_tid_set;      /* Tiered shared thread set */
     WT_CONDVAR *flush_cond;          /* Flush wait mutex */
     WT_CONDVAR *tiered_cond;         /* Tiered wait mutex */
+    WT_CONDVAR *tiered_shared_cond;  /* Tiered shared wait mutex */
     uint64_t tiered_interval;        /* Tiered work interval */
     bool tiered_server_running;      /* Internal tiered server operating */
     bool flush_ckpt_complete;        /* Checkpoint after flush completed */

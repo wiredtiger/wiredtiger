@@ -421,6 +421,37 @@ err:
 }
 
 /*
+ * __tiered_shared_server --
+ *     The tiered shared storage server thread.
+ */
+static WT_THREAD_RET
+__tiered_shared_server(void *arg)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_SESSION_IMPL *session;
+    uint64_t cond_time;
+    bool signalled;
+
+    session = arg;
+    conn = S2C(session);
+
+    /* Condition timeout is in microseconds. */
+    cond_time = conn->tiered_interval * WT_MILLION;
+    signalled = false;
+    for (;;) {
+        /* Wait until the next event. */
+        __wt_cond_wait_signal(
+          session, conn->tiered_shared_cond, cond_time, __tiered_server_run_chk, &signalled);
+
+        /* Check if we're quitting or being reconfigured. */
+        if (!__tiered_server_run_chk(session))
+            break;
+    }
+
+    return (WT_THREAD_RET_VALUE);
+}
+
+/*
  * __wt_tiered_storage_create --
  *     Start the tiered storage subsystem.
  */
@@ -435,6 +466,7 @@ __wt_tiered_storage_create(WT_SESSION_IMPL *session)
     /* Start the internal thread. */
     WT_ERR(__wt_cond_alloc(session, "flush tier", &conn->flush_cond));
     WT_ERR(__wt_cond_alloc(session, "storage server", &conn->tiered_cond));
+    WT_ERR(__wt_cond_alloc(session, "shared storage server", &conn->tiered_shared_cond));
     FLD_SET(conn->server_flags, WT_CONN_SERVER_TIERED);
 
     WT_ERR(__wt_open_internal_session(conn, "tiered-server", true, 0, 0, &conn->tiered_session));
@@ -449,6 +481,13 @@ __wt_tiered_storage_create(WT_SESSION_IMPL *session)
     /* Start the thread. */
     WT_ERR(__wt_thread_create(session, &conn->tiered_tid, __tiered_server, session));
     conn->tiered_tid_set = true;
+
+    /* Start the shared thread. */
+    if (conn->bstorage->tiered_shared) {
+        WT_ERR(
+          __wt_thread_create(session, &conn->tiered_shared_tid, __tiered_shared_server, session));
+        conn->tiered_shared_tid_set = true;
+    }
 
     if (0) {
 err:
@@ -492,12 +531,19 @@ __wt_tiered_storage_destroy(WT_SESSION_IMPL *session, bool final_flush)
             __wt_tiered_work_free(session, entry);
         }
     }
+    if (conn->tiered_shared_tid_set) {
+        WT_ASSERT(session, conn->tiered_shared_cond != NULL);
+        __wt_cond_signal(session, conn->tiered_shared_cond);
+        WT_TRET(__wt_thread_join(session, &conn->tiered_shared_tid));
+        conn->tiered_shared_tid_set = false;
+    }
     if (conn->tiered_session != NULL) {
         WT_TRET(__wt_session_close_internal(conn->tiered_session));
         conn->tiered_session = NULL;
     }
 
     /* Destroy all condition variables after threads have stopped. */
+    __wt_cond_destroy(session, &conn->tiered_shared_cond);
     __wt_cond_destroy(session, &conn->tiered_cond);
     /* The flush condition variable must be last because any internal thread could be using it. */
     __wt_cond_destroy(session, &conn->flush_cond);
