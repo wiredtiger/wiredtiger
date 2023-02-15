@@ -14,7 +14,7 @@ download_clang_format() {
         return 1
     fi
 
-    archive=./dist/clang-format.tar.gz
+    archive=dist/clang-format.tar.gz
     sys_os=$(uname)
     if [ "$sys_os" = "Linux" ]; then
         curl -s https://s3.amazonaws.com/boxes.10gen.com/build/clang-format-llvm-"$version"-x86_64-linux-gnu-ubuntu-20.04.tar-1.gz -o ./$archive
@@ -42,7 +42,7 @@ if [ -n "$is_mongo_repo" ] ; then
 fi
 cd "$dest_dir" || exit 1
 
-# Check if Clang-Format is already available with the desire version.
+# Check if Clang-Format is already available with the desired version.
 desired_version="10.0.0"
 if ! command -v clang-format &> /dev/null; then
     download_clang_format $desired_version || exit 1
@@ -50,7 +50,8 @@ elif ! clang-format --version | grep -q $desired_version; then
     download_clang_format $desired_version || exit 1
 fi
 
-# If we're not allowed to run clang-format, let's exit (should be obvious from the dialog).
+# Users may need to manually approve binaries.
+# If we're not allowed to run Clang-Format, let's exit (should be obvious from the dialog).
 clang-format --version &> /dev/null || exit 1
 
 exclude=true
