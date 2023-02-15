@@ -1,6 +1,6 @@
 # WiredTiger's Azure Extension
 ## 1. Introduction
-This extension to WiredTiger allows WiredTiger storage source extensions to read from and write to objects stored in Azure Blob Storage using WiredTiger’s provided internal abstraction for storing data in an object storage service.
+This extension allows WiredTiger storage source extensions to read from and write to objects stored in Azure Blob Storage using WiredTiger’s provided internal abstraction for storing data in an object storage service.
 
 ## 2. Building and running
 This section describes how to build WiredTiger with the Azure extension enabled.
@@ -10,20 +10,17 @@ This section describes how to build WiredTiger with the Azure extension enabled.
 
 Check your CMake version by typing `cmake --version`.
 
-### How to install requirements (skip this step if all requirements have been met)
+### How to install requirements (skip this step if requirements have been met)
 
 If the CMake version is not 3.13 or higher update your CMake to 3.13 using the following.
 ```bash
 wget https://cmake.org/files/v3.13/cmake-3.13.0.tar.gz
-
 tar xf cmake-3.13.0.tar.gz
 
 cd cmake-3.13.0
 
 ./configure
-
 make
-
 sudo make install
 ```
 
@@ -45,7 +42,7 @@ This method configures CMake to download, compile, and install the Azure SDK whi
 
 ```bash
 # Create a new directory to run your build from
-$ mkdir build && cd build
+mkdir build && cd build
 
 # Configure and run cmake with Ninja
 cmake -DENABLE_PYTHON=1 -DHAVE_UNITTEST=1 -DIMPORT_AZURE_SDK=external -DENABLE_AZURE=1 -G Ninja ../.
@@ -54,9 +51,9 @@ ninja
 
 * The compiler flag `IMPORT_AZURE_SDK` must be set to `external` for this build method.
 * `ENABLE_AZURE` defaults to looking for a local version, the `IMPORT_AZURE_SDK` setting will override that default.
-## Development
+## 3. Development
 In order to run this extension after building, the developer must have an Azure connection string locally to a container with the right permissions. The connection string must be stored in an environmental variable called `AZURE_STORAGE_CONNECTION_STRING`. To store your connection string into an environmental variable type `export AZURE_STORAGE_CONNECTION_STRING="your Azure connection string"` into your terminal.
-## Testing
+## 4. Testing
 
 ### To run the tiered python tests for Azure:
 
@@ -78,7 +75,7 @@ To add any additional unit testing, add to the file `test_azure_connection.cpp`,
 wish to add a new test file, add it to the `SOURCES` list in `create_test_executable()`
 (in `azure_store/test/CMakeLists.txt`).
 
-## Evergreen Testing
+## 5. Evergreen Testing
 Currently the Evergreen testing runs both `test_tiered19.py` and the unit tests in `test_azure_connection.cpp`. Should a developer wish to additional tests to the extension, they would first have to write the tests before adding it as a task to the evergreen.yml file.
 
 When creating a new task, a developer should note that the CMake binary should be set to the MongoDB V4 toolchain due to the CMake 3.13 minimum requirement.
