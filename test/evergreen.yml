@@ -3017,7 +3017,6 @@ tasks:
           shell: bash
           include_expansions_in_env:
             - azure_sdk_ext_access_key
-            - gcp_sdk_ext_private_key
           script: |
             set -o errexit
             # Set the Azure credentials using config variable.
@@ -3041,8 +3040,8 @@ tasks:
           working_dir: "wiredtiger/cmake_build"
           shell: bash
           include_expansions_in_env:
-            - azure_sdk_ext_access_key
             - gcp_sdk_ext_private_key
+            - gcp_sdk_ext_private_key_id
           script: |
             set -o errexit
 
