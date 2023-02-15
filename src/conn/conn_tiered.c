@@ -482,8 +482,8 @@ __wt_tiered_storage_create(WT_SESSION_IMPL *session)
     WT_ERR(__wt_thread_create(session, &conn->tiered_tid, __tiered_server, session));
     conn->tiered_tid_set = true;
 
-    /* Start the shared thread. */
-    if (conn->bstorage->tiered_shared) {
+    /* Start the shared storage thread. */
+    if (conn->bstorage != NULL && conn->bstorage->tiered_shared) {
         WT_ERR(
           __wt_thread_create(session, &conn->tiered_shared_tid, __tiered_shared_server, session));
         conn->tiered_shared_tid_set = true;
