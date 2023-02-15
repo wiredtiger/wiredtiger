@@ -3019,10 +3019,20 @@ tasks:
             # sed -i 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|;s|gcp_private_id|${gcp_sdk_ext_private_key_id}|' ../test/evergreen/gcp_auth.json
             
             # export GOOGLE_APPLICATION_CREDENTIALS="../test/evergreen/gcp_auth.json"
-            export GOOGLE_APPLICATION_CREDENTIALS=$( cat ../test/evergreen/gcp_auth.json | sed 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|;s|gcp_private_id|${gcp_sdk_ext_private_key_id}|' ../test/evergreen/gcp_auth.json )
+            # export GOOGLE_APPLICATION_CREDENTIALS=$( cat ../test/evergreen/gcp_auth.json | sed 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|;s|gcp_private_id|${gcp_sdk_ext_private_key_id}|' ../test/evergreen/gcp_auth.json )
+
+
+            # test tmp file
+            file=$(mktemp)
+            sed 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|;s|gcp_private_id|${gcp_sdk_ext_private_key_id}|' ../test/evergreen/gcp_auth.json >> $file
+            export GOOGLE_APPLICATION_CREDENTIALS="$file"
 
             # Run GCP extension unit testing.
             ext/storage_sources/gcp_store/test/run_gcp_unit_tests
+
+            # remove temp file
+            rm $file
+            
   - name: spinlock-gcc-test
     commands:
       - func: "get project"
