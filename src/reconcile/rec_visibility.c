@@ -255,7 +255,8 @@ static inline bool
 __rec_need_save_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE_SELECT *upd_select,
   WT_CELL_UNPACK_KV *vpack, bool has_newer_updates)
 {
-    bool supd_restore;
+    WT_UPDATE *upd;
+    bool supd_restore, visible_all;
 
     if (upd_select->tw.prepare)
         return (true);
@@ -279,22 +280,34 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE_SELECT 
     if (F_ISSET(r, WT_REC_CHECKPOINT) && upd_select->upd == NULL)
         return (false);
 
+    if (WT_TIME_WINDOW_HAS_STOP(&upd_select->tw))
+        visible_all = __wt_txn_tw_stop_visible_all(session, &upd_select->tw);
+    else
+        visible_all = __wt_txn_tw_start_visible_all(session, &upd_select->tw);
+
+    if (visible_all)
+        return (false);
+
     /*
      * No need to save the update chain when it meets the following:
-     * 1. No need to restore the update chain
-     * 2. No on-disk entry exist
+     * 1. No need to restore the update chain.
+     * 2. No on-disk entry exists.
      * 3. No further updates exist in the update chain to be written to the history store.
      */
     supd_restore =
       F_ISSET(r, WT_REC_EVICT) && (has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
 
-    if (!supd_restore && vpack == NULL && upd_select->upd != NULL && upd_select->upd->next == NULL)
+    if (!supd_restore && vpack == NULL && upd_select->upd != NULL) {
+        upd = upd_select->upd;
+        while (upd->next != NULL) {
+            upd = upd->next;
+            if (upd->txnid != WT_TXN_ABORTED)
+                return (true);
+        }
         return (false);
+    }
 
-    if (WT_TIME_WINDOW_HAS_STOP(&upd_select->tw))
-        return (!__wt_txn_tw_stop_visible_all(session, &upd_select->tw));
-    else
-        return (!__wt_txn_tw_start_visible_all(session, &upd_select->tw));
+    return (true);
 }
 
 /*
