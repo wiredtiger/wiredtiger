@@ -3,7 +3,7 @@
 This extension to WiredTiger allows WiredTiger storage source extensions to read from and write to objects stored in Google Cloud Storage using WiredTiger’s provided internal abstraction for storing data in an object storage service.
 
 ## 2. Building and running
-This section should describe how to build WiredTiger with the extension enabled. Be specific with version requirements for both the platform and any installed software.
+This section describes how to build WiredTiger with the GCP extension enabled.
 
 ### Requirements
 <li> Abseil LTS 20230125
@@ -83,7 +83,7 @@ ninja
 * `ENABLE_GCP` defaults to looking for a local version, the `IMPORT_GCP_SDK` setting will override that default.
 
 ## Development
-In order to run this extension after building, the developer must have a GCP credentials file locally with the right permissions. The path to this json file must be stored in an environmental variable called `GOOGLE_APPLICATION_CREDENTIALS`
+In order to run this extension after building, the developer must have a GCP credentials file locally with the right permissions. The path to this json file must be stored in an environmental variable called `GOOGLE_APPLICATION_CREDENTIALS`. To store your environmental variable type `export GOOGLE_APPLICATION_CREDENTIALS="path/to/json/"` into your terminal.
 ## Testing
 
 ### To run the tiered python tests for GCP:
