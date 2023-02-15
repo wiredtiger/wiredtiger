@@ -2994,9 +2994,7 @@ tasks:
             # use a placeholder private key. The placeholders are then replaced in the command line with the evergreen expansion variables 
             # and stored in a temporary file. The file is deleted after the unit tests are run.
             file=$(mktemp)
-            # sed 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|;s|gcp_private_id|${gcp_sdk_ext_private_key_id}|' ../test/evergreen/gcp_auth.json >> $file
-            sed 's|gcp_private_key|${gcp_sdk_ext_private_key}|;s|gcp_private_id|${gcp_sdk_ext_private_key_id}|' ../test/evergreen/gcp_auth.json >> $file
-            
+            sed 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|;s|gcp_private_id|${gcp_sdk_ext_private_key_id}|' ../test/evergreen/gcp_auth.json >> $file            
             export GOOGLE_APPLICATION_CREDENTIALS="$file"
 
             # Run GCP extension unit testing.
@@ -3054,9 +3052,7 @@ tasks:
             # use a placeholder private key. The placeholders are then replaced in the command line with the evergreen expansion variables 
             # and stored in a temporary file. The file is deleted after the unit tests are run.
             file=$(mktemp)
-            # sed 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|;s|gcp_private_id|${gcp_sdk_ext_private_key_id}|' ../test/evergreen/gcp_auth.json >> $file
-            sed 's|gcp_private_key|${gcp_sdk_ext_private_key}|;s|gcp_private_id|${gcp_sdk_ext_private_key_id}|' ../test/evergreen/gcp_auth.json >> $file
-            
+            sed 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|;s|gcp_private_id|${gcp_sdk_ext_private_key_id}|' ../test/evergreen/gcp_auth.json >> $file
             export GOOGLE_APPLICATION_CREDENTIALS="$file"
 
             # Remove temporary file.
