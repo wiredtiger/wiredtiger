@@ -26,6 +26,8 @@ sudo make install
 
 Check that your CMake has been updated using the following command `cmake --version`.
 
+### Building
+
 There is current only 1 way to build WiredTiger with Azure extension:
 1. Letting CMake manage the Azure SDK dependency as an external project, letting it download, link and build the extension.
 
