@@ -121,11 +121,13 @@ functions:
           ${HAVE_DIAGNOSTIC|} \
           ${GNU_C_VERSION|} \
           ${GNU_CXX_VERSION|} \
-          ${ENABLE_S3|} \
+          ${ENABLE_AZURE|} \
           ${ENABLE_GCP|} \
+          ${ENABLE_S3|} \
           ${ENABLE_CPPSUITE|} \
-          ${IMPORT_S3_SDK|} \
+          ${IMPORT_AZURE_SDK|} \
           ${IMPORT_GCP_SDK|} \
+          ${IMPORT_S3_SDK|} \
           ${SPINLOCK_TYPE|} \
           ${CC_OPTIMIZE_LEVEL|}"
 
@@ -149,7 +151,11 @@ functions:
             . automation-scripts/evergreen/find_gperftools.sh ${s3_access_key} ${s3_secret_key} ${build_variant} $is_cmake_build
           fi
           # Compiling with CMake.
-          . test/evergreen/find_cmake.sh
+          if [ "${cmake_binary|}" ]; then
+            CMAKE=${cmake_binary|}
+          else
+            . test/evergreen/find_cmake.sh
+          fi
           # If we've fetched the wiredtiger artifact from a previous compilation/build, it's best to remove
           # the previous build directory so we can create a fresh configuration. We can't use the the previous
           # CMake Cache configuration as its likely it will have absolute paths related to the previous build machine.
@@ -832,15 +838,20 @@ variables:
     ENABLE_SHARED: -DENABLE_SHARED=0
     ENABLE_STATIC: -DENABLE_STATIC=1
 
+  # Configure flags for tiered storage Azure extension.
+  - &configure_flags_tiered_storage_gcp
+    ENABLE_S3: -DENABLE_AZURE=1
+    IMPORT_S3_SDK: -DIMPORT_AZURE_SDK=external
+  
+  # Configure flags for tiered storage GCP extension.
+  - &configure_flags_tiered_storage_gcp
+    ENABLE_S3: -DENABLE_GCP=1
+    IMPORT_S3_SDK: -DIMPORT_GCP_SDK=external
+  
   # Configure flags for tiered storage S3 extension.
   - &configure_flags_tiered_storage_s3
     ENABLE_S3: -DENABLE_S3=1
     IMPORT_S3_SDK: -DIMPORT_S3_SDK=external
-
-  # Configure flags for tiered storage S3 extension.
-  - &configure_flags_tiered_storage_gcp
-    ENABLE_S3: -DENABLE_GCP=1
-    IMPORT_S3_SDK: -DIMPORT_GCP_SDK=external
 
   # Configure flags for address sanitizer for stable mongodb toolchain clang (include builtins).
   - &configure_flags_address_sanitizer_mongodb_stable_clang_with_builtins
@@ -2994,6 +3005,31 @@ tasks:
 
             # Run S3 extension unit testing.
             ext/storage_sources/s3_store/test/run_s3_unit_tests
+  - name: azure-tiered-unittest-test
+    tags: ["pull_request"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_tiered_storage_azure
+          HAVE_UNITTEST: -DHAVE_UNITTEST=1
+          cmake_binary: /opt/mongodbtoolchain/v4/bin/cmake
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build"
+          shell: bash
+          include_expansions_in_env:
+            - azure_sdk_ext_access_key
+          script: |
+            set -o errexit
+            # Set the Azure credentials using config variable.
+
+            export AZURE_STORAGE_CONNECTION_STRING="${azure_sdk_ext_access_key}"
+
+            set -o verbose
+
+            # Run AZURE extension unit testing.
+            ext/storage_sources/azure_store/test/run_azure_unit_tests
   - name: gcp-tiered-unittest-test
     tags: ["pull_request"]
     commands:
@@ -3014,25 +3050,81 @@ tasks:
             set -o errexit
 
             # GCP requires a path to a credentials file for authorization. To not expose the private key within the file, 
-            # use a placeholder private key and replace it with the evergreen expansion variable.
-            
-            # sed -i 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|;s|gcp_private_id|${gcp_sdk_ext_private_key_id}|' ../test/evergreen/gcp_auth.json
-            
-            # export GOOGLE_APPLICATION_CREDENTIALS="../test/evergreen/gcp_auth.json"
-            # export GOOGLE_APPLICATION_CREDENTIALS=$( cat ../test/evergreen/gcp_auth.json | sed 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|;s|gcp_private_id|${gcp_sdk_ext_private_key_id}|' ../test/evergreen/gcp_auth.json )
-
-
-            # test tmp file
+            # use a placeholder private key. The placeholders are then replaced in the command line with the evergreen expansion variables 
+            # and stored in a temporary file. The file is deleted after the unit tests are run.
             file=$(mktemp)
-            sed 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|;s|gcp_private_id|${gcp_sdk_ext_private_key_id}|' ../test/evergreen/gcp_auth.json >> $file
+            # sed 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|;s|gcp_private_id|${gcp_sdk_ext_private_key_id}|' ../test/evergreen/gcp_auth.json >> $file
+            sed 's|gcp_private_key|${gcp_sdk_ext_private_key}|;s|gcp_private_id|${gcp_sdk_ext_private_key_id}|' ../test/evergreen/gcp_auth.json >> $file
+            
             export GOOGLE_APPLICATION_CREDENTIALS="$file"
 
             # Run GCP extension unit testing.
             ext/storage_sources/gcp_store/test/run_gcp_unit_tests
 
-            # remove temp file
+            # Remove temporary file.
             rm $file
+  - name: azure-tiered-test-small
+    tags: ["python", "pull_request"]
+    commands:
+      - func: "get project"
+      - func: "install gcp dependencies"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_tiered_storage_azure
+          cmake_binary: /opt/mongodbtoolchain/v4/bin/cmake
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build"
+          shell: bash
+          include_expansions_in_env:
+            - azure_sdk_ext_access_key
+            - gcp_sdk_ext_private_key
+          script: |
+            set -o errexit
+            # Set the Azure credentials using config variable.
+            export AZURE_STORAGE_CONNECTION_STRING="${azure_sdk_ext_access_key}"
+      - func: "run tiered storage test"
+        vars:
+          # Set this in case of a core to get the correct python binary.
+          python_binary: $(pwd)/venv/bin/python3
+          tiered_storage_test_name: tiered19
+  - name: gcp-tiered-test-small
+    tags: ["python", "pull_request"]
+    commands:
+      - func: "get project"
+      - func: "install gcp dependencies"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_tiered_storage_gcp
+          cmake_binary: /opt/mongodbtoolchain/v4/bin/cmake
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build"
+          shell: bash
+          include_expansions_in_env:
+            - azure_sdk_ext_access_key
+            - gcp_sdk_ext_private_key
+          script: |
+            set -o errexit
+
+            set -o errexit
+
+            # GCP requires a path to a credentials file for authorization. To not expose the private key within the file, 
+            # use a placeholder private key. The placeholders are then replaced in the command line with the evergreen expansion variables 
+            # and stored in a temporary file. The file is deleted after the unit tests are run.
+            file=$(mktemp)
+            # sed 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|;s|gcp_private_id|${gcp_sdk_ext_private_key_id}|' ../test/evergreen/gcp_auth.json >> $file
+            sed 's|gcp_private_key|${gcp_sdk_ext_private_key}|;s|gcp_private_id|${gcp_sdk_ext_private_key_id}|' ../test/evergreen/gcp_auth.json >> $file
             
+            export GOOGLE_APPLICATION_CREDENTIALS="$file"
+
+            # Remove temporary file.
+            rm $file 
+      - func: "run tiered storage test"
+        vars:
+          # Set this in case of a core to get the correct python binary.
+          python_binary: $(pwd)/venv/bin/python3
+          tiered_storage_test_name: tiered19  
   - name: spinlock-gcc-test
     commands:
       - func: "get project"
