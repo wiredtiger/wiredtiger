@@ -1600,15 +1600,9 @@ struct __wt_col_fix_auxiliary_header {
  * examining an index, we don't want the oldest split generation to move forward and potentially
  * free it.
  */
-#define WT_ENTER_PAGE_INDEX(session)      \
-    do {                                  \
-        bool __entered_split_gen = false; \
-        WT_ENTER_GENERATION((session), WT_GEN_SPLIT, __entered_split_gen);
+#define WT_ENTER_PAGE_INDEX(session) WT_ENTER_GENERATION((session), WT_GEN_SPLIT);
 
-#define WT_LEAVE_PAGE_INDEX(session)                                   \
-    WT_LEAVE_GENERATION((session), WT_GEN_SPLIT, __entered_split_gen); \
-    }                                                                  \
-    while (0)
+#define WT_LEAVE_PAGE_INDEX(session) WT_LEAVE_GENERATION((session), WT_GEN_SPLIT);
 
 #define WT_WITH_PAGE_INDEX(session, e) \
     WT_ENTER_PAGE_INDEX(session);      \
@@ -1619,15 +1613,19 @@ struct __wt_col_fix_auxiliary_header {
  * Manage the given generation number with support for re-entry. Re-entry is allowed as the previous
  * generation as it must be as low as the current generation.
  */
-#define WT_ENTER_GENERATION(session, generation, entered) \
-    if (__wt_session_gen((session), (generation)) == 0) { \
-        __wt_session_gen_enter((session), (generation));  \
-        (entered) = true;                                 \
-    }
+#define WT_ENTER_GENERATION(session, generation)              \
+    do {                                                      \
+        bool __entered_##generation = false;                  \
+        if (__wt_session_gen((session), (generation)) == 0) { \
+            __wt_session_gen_enter((session), (generation));  \
+            __entered_##generation = true;                    \
+        }
 
-#define WT_LEAVE_GENERATION(session, generation, entered) \
-    if ((entered))                                        \
-        __wt_session_gen_leave((session), (generation));
+#define WT_LEAVE_GENERATION(session, generation)         \
+    if (__entered_##generation)                          \
+        __wt_session_gen_leave((session), (generation)); \
+    }                                                    \
+    while (0)
 
 /*
  * WT_VERIFY_INFO -- A structure to hold all the information related to a verify operation.
