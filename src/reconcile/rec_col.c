@@ -1107,7 +1107,8 @@ __wt_rec_col_fix_write_auxheader(WT_SESSION_IMPL *session, uint32_t entries,
  */
 static int
 __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKIE *salvage,
-  WT_ITEM *value, WT_TIME_WINDOW *tw, uint64_t rle, bool deleted, bool *ovfl_usedp)
+  WT_ITEM *value, WT_TIME_WINDOW *tw, WT_PAGE_STAT *ovfl_ps, uint64_t rle, bool deleted,
+  bool *ovfl_usedp)
 {
     WT_BTREE *btree;
     WT_REC_KV *val;
@@ -1154,10 +1155,17 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
         val->buf.size = 0;
         val->len = val->cell_len;
     } else if (ovfl_usedp != NULL) {
+        if (__wt_process.page_stats_2022 && WT_PAGE_STAT_VALID(ovfl_ps))
+            WT_RET(__wt_combined_addr_cookie_pack(
+              session, &val->buf, (void *)value->data, (uint8_t)value->size, *ovfl_ps));
+        else {
+            val->buf.data = value->data;
+            val->buf.size = value->size;
+        }
+
         val->cell_len =
           __wt_cell_pack_ovfl(session, &val->cell, WT_CELL_VALUE_OVFL, tw, rle, value->size);
-        val->buf.data = value->data;
-        val->buf.size = value->size;
+
         val->len = val->cell_len + value->size;
         *ovfl_usedp = true;
     } else
@@ -1190,6 +1198,7 @@ __wt_rec_col_var(
     enum { OVFL_IGNORE, OVFL_UNUSED, OVFL_USED } ovfl_state;
     struct {
         WT_ITEM *value; /* Value */
+        WT_PAGE_STAT ps;
         WT_TIME_WINDOW tw;
         bool deleted; /* If deleted */
     } last;
@@ -1202,6 +1211,7 @@ __wt_rec_col_var(
     WT_DECL_RET;
     WT_INSERT *ins;
     WT_PAGE *page;
+    WT_PAGE_STAT clear_ps, *psp;
     WT_TIME_WINDOW clear_tw, *twp;
     WT_UPDATE *upd;
     WT_UPDATE_SELECT upd_select;
@@ -1213,7 +1223,9 @@ __wt_rec_col_var(
     btree = S2BT(session);
     vpack = &_vpack;
     page = pageref->page;
+    WT_PAGE_STAT_INIT(&clear_ps);
     WT_TIME_WINDOW_INIT(&clear_tw);
+    psp = NULL;
     twp = NULL;
     upd = NULL;
     size = 0;
@@ -1226,6 +1238,7 @@ __wt_rec_col_var(
 
     /* Set the "last" values to cause failure if they're not set. */
     last.value = r->last;
+    WT_PAGE_STAT_INIT(&last.ps);
     WT_TIME_WINDOW_INIT(&last.tw);
     last.deleted = false;
 
@@ -1256,7 +1269,7 @@ __wt_rec_col_var(
             salvage->take += salvage->missing;
         } else
             WT_ERR(__rec_col_var_helper(
-              session, r, NULL, NULL, &clear_tw, salvage->missing, true, NULL));
+              session, r, NULL, NULL, &clear_tw, NULL, salvage->missing, true, NULL));
     }
 
     /*
@@ -1334,6 +1347,7 @@ record_loop:
             if (upd == NULL && orig_stale) {
                 /* The on-disk value is stale and there was no update. Treat it as deleted. */
                 deleted = true;
+                psp = &clear_ps;
                 twp = &clear_tw;
             } else if (upd == NULL) {
                 update_no_copy = false; /* Maybe data copy */
@@ -1353,9 +1367,11 @@ record_loop:
                  */
                 deleted = orig_deleted;
                 if (deleted) {
+                    psp = &clear_ps;
                     twp = &clear_tw;
                     goto compare;
                 }
+                psp = &vpack->ovfl_ps;
                 twp = &vpack->tw;
 
                 /* Clear the on-disk cell time window if it is obsolete. */
@@ -1374,15 +1390,15 @@ record_loop:
                      * We're going to copy the on-page cell, write out any record we're tracking.
                      */
                     if (rle != 0) {
-                        WT_ERR(__rec_col_var_helper(
-                          session, r, salvage, last.value, &last.tw, rle, last.deleted, NULL));
+                        WT_ERR(__rec_col_var_helper(session, r, salvage, last.value, &last.tw, NULL,
+                          rle, last.deleted, NULL));
                         rle = 0;
                     }
 
                     last.value->data = vpack->data;
                     last.value->size = vpack->size;
-                    WT_ERR(__rec_col_var_helper(
-                      session, r, salvage, last.value, twp, repeat_count, false, &ovfl_used));
+                    WT_ERR(__rec_col_var_helper(session, r, salvage, last.value, twp, &last.ps,
+                      repeat_count, false, &ovfl_used));
 
                     wrote_real_values = true;
 
@@ -1470,7 +1486,7 @@ compare:
                 if (!last.deleted)
                     wrote_real_values = true;
                 WT_ERR(__rec_col_var_helper(
-                  session, r, salvage, last.value, &last.tw, rle, last.deleted, NULL));
+                  session, r, salvage, last.value, &last.tw, NULL, rle, last.deleted, NULL));
             }
 
             /*
@@ -1610,7 +1626,7 @@ compare:
                 if (!last.deleted)
                     wrote_real_values = true;
                 WT_ERR(__rec_col_var_helper(
-                  session, r, salvage, last.value, &last.tw, rle, last.deleted, NULL));
+                  session, r, salvage, last.value, &last.tw, NULL, rle, last.deleted, NULL));
             }
 
             /*
@@ -1655,8 +1671,8 @@ next:
     if (rle != 0) {
         if (!last.deleted)
             wrote_real_values = true;
-        WT_ERR(
-          __rec_col_var_helper(session, r, salvage, last.value, &last.tw, rle, last.deleted, NULL));
+        WT_ERR(__rec_col_var_helper(
+          session, r, salvage, last.value, &last.tw, NULL, rle, last.deleted, NULL));
     }
 
     /*

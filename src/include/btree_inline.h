@@ -23,8 +23,8 @@ __wt_combined_addr_cookie_pack(WT_SESSION_IMPL *session, WT_ITEM *addr, void *bl
     WT_RET(__wt_addr_cookie_page_stat_pack(addr->mem, ps));
 
     /* Update the size of the combined address cookie. */
-    addr->size =
-      (uint8_t)(1 + WT_ADDR_COOKIE_BLOCK_LEN(addr->mem) + 1 + WT_ADDR_COOKIE_PAGE_STAT_LEN(addr->mem));
+    addr->size = (uint8_t)(
+      1 + WT_ADDR_COOKIE_BLOCK_LEN(addr->mem) + 1 + WT_ADDR_COOKIE_PAGE_STAT_LEN(addr->mem));
     return (0);
 }
 

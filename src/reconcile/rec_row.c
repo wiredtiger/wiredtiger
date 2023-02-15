@@ -811,8 +811,8 @@ __wt_rec_row_leaf(
                     r->ovfl_items = true;
 
                     if (__wt_process.page_stats_2022 && WT_PAGE_STAT_VALID(&vpack->ovfl_ps))
-                        WT_ERR(__wt_combined_addr_cookie_pack(
-                          session, &val->buf, (void *)vpack->data, (uint8_t)vpack->size, vpack->ovfl_ps));
+                        WT_ERR(__wt_combined_addr_cookie_pack(session, &val->buf,
+                          (void *)vpack->data, (uint8_t)vpack->size, vpack->ovfl_ps));
                     else {
                         val->buf.data = vpack->data;
                         val->buf.size = vpack->size;
