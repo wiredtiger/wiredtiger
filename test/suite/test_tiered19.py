@@ -164,7 +164,7 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_flush_finish(session, fs, 'non_existing_file', 'non_existing_file', None), err_msg)
         
-        # Check the file size is returned
+        # Check the file size is returned.
         self.assertEquals(fs.fs_size(session, local_file_name), len(outbytes))
 
 

@@ -58,7 +58,7 @@ static int gcp_remove(WT_FILE_SYSTEM *, WT_SESSION *, const char *, uint32_t)
   __attribute__((__unused__));
 static int gcp_rename(WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, uint32_t)
   __attribute__((__unused__));
-static int gcp_object_size(WT_FILE_SYSTEM *, WT_SESSION *, const char *, wt_off_t *)
+static int gcp_object_size(WT_FILE_SYSTEM *, WT_SESSION *, const char *, size_t *)
   __attribute__((__unused__));
 static int gcp_object_list_helper(
   WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *, bool);
@@ -78,6 +78,7 @@ get_gcp_file_system(WT_FILE_SYSTEM *file_system)
     return reinterpret_cast<gcp_file_system *>(file_system);
 }
 
+// Return a customised file system to access GCP storage source.
 static int
 gcp_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
   const char *bucket, const char *auth_file, const char *config, WT_FILE_SYSTEM **file_system)
@@ -168,6 +169,7 @@ gcp_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session
     return 0;
 }
 
+// Add a reference to the storage source so we can reference count to know when to terminate.
 static int
 gcp_add_reference(WT_STORAGE_SOURCE *storage_source)
 {
@@ -222,6 +224,7 @@ gcp_file_system_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
     return 0;
 }
 
+// Flush a file to the GCP storage.
 static int
 gcp_flush([[maybe_unused]] WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
   WT_FILE_SYSTEM *file_system, const char *source, const char *object,
@@ -249,6 +252,7 @@ gcp_flush([[maybe_unused]] WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessio
     return fs->gcp_conn->put_object(object, path);
 }
 
+// Check if a file has been flushed successfully by checking if it exists in the cloud.
 static int
 gcp_flush_finish([[maybe_unused]] WT_STORAGE_SOURCE *storage, [[maybe_unused]] WT_SESSION *session,
   WT_FILE_SYSTEM *file_system, const char *source, const char *object,
@@ -267,6 +271,7 @@ gcp_flush_finish([[maybe_unused]] WT_STORAGE_SOURCE *storage, [[maybe_unused]] W
     return 0;
 }
 
+// Check if the object exists in the GCP storage source.
 static int
 gcp_file_system_exists(
   WT_FILE_SYSTEM *file_system, [[maybe_unused]] WT_SESSION *session, const char *name, bool *existp)
@@ -312,6 +317,7 @@ gcp_remove(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, u
     return ENOTSUP;
 }
 
+// POSIX rename, not supported for cloud objects.
 static int
 gcp_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *from, const char *to,
   uint32_t flags)
@@ -322,7 +328,7 @@ gcp_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *from, c
 
 static int
 gcp_object_size(WT_FILE_SYSTEM *file_system, [[maybe_unused]] WT_SESSION *session, const char *name,
-  wt_off_t *sizep)
+  size_t *sizep)
 {
     bool exists;
     size_t size;
@@ -417,8 +423,8 @@ gcp_object_list_single(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const c
 }
 
 static int
-gcp_object_list_free(
-  WT_FILE_SYSTEM *file_system, WT_SESSION *session, char **object_list, uint32_t count)
+gcp_object_list_free([[maybe_unused]] WT_FILE_SYSTEM *file_system,
+  [[maybe_unused]] WT_SESSION *session, char **object_list, uint32_t count)
 {
     if (object_list != nullptr) {
         while (count > 0)
