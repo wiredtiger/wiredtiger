@@ -619,6 +619,10 @@ connection_runtime_config = [
         Config('slow_checkpoint', 'false', r'''
             if true, slow down checkpoint creation by slowing down internal page processing.''',
             type='boolean'),
+        Config('stress_skiplist', 'false', r'''
+            Configure various internal parameters to encourage race conditions and other issues
+            with internal skip lists, e.g. using a more dense representation.''',
+            type='boolean'),
         Config('table_logging', 'false', r'''
             if true, write transaction related information to the log for all operations, even
             operations for tables with logging turned off. This additional logging information
@@ -795,8 +799,8 @@ connection_runtime_config = [
         stress testing of WiredTiger.''',
         type='list', undoc=True,
         choices=[
-        'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page', 'checkpoint_slow',
-        'checkpoint_stop', 'compact_slow', 'evict_reposition',
+        'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page', 'checkpoint_handle',
+        'checkpoint_slow', 'checkpoint_stop', 'compact_slow', 'evict_reposition',
         'failpoint_eviction_fail_after_reconciliation',
         'failpoint_history_store_delete_key_from_ts', 'history_store_checkpoint_delay',
         'history_store_search', 'history_store_sweep_race', 'prepare_checkpoint_delay',

@@ -107,6 +107,7 @@ CreateFileW
 Crt
 Crummey
 CustomersPhone
+Cygwin
 DAX
 DECL
 DECR
@@ -129,6 +130,8 @@ Decrypt
 DeleteFileW
 Destructor
 Deterministically
+Dk
+DmpvXx
 Dxxx
 EACCES
 EAGAIN
@@ -385,6 +388,7 @@ Qsort
 RCS
 RDNOLOCK
 RDONLY
+README
 READONLY
 REALLOC
 RECNO
@@ -593,6 +597,7 @@ aspell
 assertfmt
 async
 atomicity
+atomics
 atou
 auth
 autocommit
@@ -1175,6 +1180,7 @@ maxv
 mb
 mbll
 mbss
+md
 mem
 memalign
 membar
@@ -1198,6 +1204,7 @@ mips
 mkdir
 mmap
 mmrand
+mn
 mnt
 mongod
 movemask
@@ -1695,6 +1702,7 @@ wtperf's
 wts
 wtstats
 xF
+xX
 xdeadbeef
 xff
 xfff

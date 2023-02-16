@@ -96,7 +96,7 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured", 0x0, 5, 100, 3600,
     V_GLOBAL_CHECKPOINT_WAIT},
 
-  {"debug.checkpoint_retention", "adjust log removal to retain the log records", 0x0, 0, 128, 1024,
+  {"debug.checkpoint_retention", "adjust log removal to retain the log records", 0x0, 0, 10, 1024,
     V_GLOBAL_DEBUG_CHECKPOINT_RETENTION},
 
   {"debug.cursor_reposition",
@@ -109,7 +109,7 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
     C_BOOL, 2, 0, 0, V_GLOBAL_DEBUG_EVICTION},
 
   {"debug.log_retention", "adjust log removal to retain at least this number of log files", 0x0, 0,
-    128, 1024, V_GLOBAL_DEBUG_LOG_RETENTION},
+    10, 1024, V_GLOBAL_DEBUG_LOG_RETENTION},
 
   {"debug.realloc_exact", "reallocation of memory will only provide the exact amount requested",
     C_BOOL, 0, 0, 0, V_GLOBAL_DEBUG_REALLOC_EXACT},
@@ -146,6 +146,20 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"disk.mmap_all", "configure mmap operations (read and write)", C_BOOL, 5, 0, 0,
     V_GLOBAL_DISK_MMAP_ALL},
+
+  /* Test format can only handle 32 tables so we use a maximum value of 32 here. */
+  {"file_manager.close_handle_minimum",
+    "number of handles open before the file manager will look for handles to close", 0x0, 0, 32, 32,
+    V_GLOBAL_FILE_MANAGER_CLOSE_HANDLE_MINIMUM},
+
+  {"file_manager.close_idle_time",
+    "amount of time in seconds a file handle needs to be idle before attempting to close it. A "
+    "setting of 0 means that idle handles are not closed",
+    0x0, 0, 60, 100000, V_GLOBAL_FILE_MANAGER_CLOSE_IDLE_TIME},
+
+  {"file_manager.close_scan_interval",
+    "interval in seconds at which to check for files that are inactive and close them", 0x0, 0, 30,
+    100000, V_GLOBAL_FILE_MANAGER_CLOSE_SCAN_INTERVAL},
 
   {"format.abort", "drop core during timed run", C_BOOL, 0, 0, 0, V_GLOBAL_FORMAT_ABORT},
 
@@ -236,11 +250,20 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"quiet", "quiet run (same as -q)", C_BOOL | C_IGNORE, 0, 0, 1, V_GLOBAL_QUIET},
 
+  {"random.data_seed", "set random seed for data operations", 0x0, 0, 0, UINT_MAX,
+    V_GLOBAL_RANDOM_DATA_SEED},
+
+  {"random.extra_seed", "set random seed for extra operations", 0x0, 0, 0, UINT_MAX,
+    V_GLOBAL_RANDOM_EXTRA_SEED},
+
   {"runs.in_memory", "configure in-memory", C_BOOL | C_IGNORE, 0, 0, 1, V_GLOBAL_RUNS_IN_MEMORY},
+
+  {"runs.mirror", "mirror tables", C_BOOL | C_IGNORE | C_TABLE, 0, 0, 0, V_TABLE_RUNS_MIRROR},
 
   {"runs.ops", "operations per run", 0x0, 0, M(2), M(100), V_GLOBAL_RUNS_OPS},
 
-  {"runs.mirror", "mirror tables", C_BOOL | C_IGNORE | C_TABLE, 0, 0, 0, V_TABLE_RUNS_MIRROR},
+  {"runs.predictable_replay", "configure predictable replay", C_BOOL, 0, 0, 0,
+    V_GLOBAL_RUNS_PREDICTABLE_REPLAY},
 
   {"runs.rows", "number of rows", C_TABLE, 10, M(1), M(100), V_TABLE_RUNS_ROWS},
 
