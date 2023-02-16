@@ -17,18 +17,15 @@ download_clang_format() {
     archive=dist/clang-format.tar.gz
     sys_os=$(uname)
     if [ "$sys_os" = "Linux" ]; then
-        curl -s https://s3.amazonaws.com/boxes.10gen.com/build/clang-format-llvm-"$version"-x86_64-linux-gnu-ubuntu-20.04.tar-1.gz -o $archive
-        tar --strip=1 -C . -xf $archive clang-format-llvm-"$version"-x86_64-linux-gnu-ubuntu-20.04/clang-format && rm $archive
+        curl https://s3.amazonaws.com/boxes.10gen.com/build/clang-format-llvm-"$version"-x86_64-linux-gnu-ubuntu-20.04.tar-1.gz -o $archive
+        tar --strip=1 -C dist/ -xf $archive clang-format-llvm-"$version"-x86_64-linux-gnu-ubuntu-20.04/clang-format && rm $archive
     elif [ "$sys_os" = "Darwin" ]; then
-        curl -s https://s3.amazonaws.com/boxes.10gen.com/build/build/clang-format-llvm-"$version"-x86_64-apple-darwin.tar.gz -o $archive
-        tar --strip=1 -C ./ -xf $archive clang-format-llvm-"$version"-x86_64-apple-darwin/clang-format && rm $archive
+        curl https://s3.amazonaws.com/boxes.10gen.com/build/build/clang-format-llvm-"$version"-x86_64-apple-darwin.tar.gz -o $archive
+        tar --strip=1 -C dist/ -xf $archive clang-format-llvm-"$version"-x86_64-apple-darwin/clang-format && rm $archive
     else
         echo "$0: unsupported environment $sys_os"
         return 1
     fi
-
-    # Override existing Clang-Format versions in the PATH.
-    export PATH=$PWD/dist:$PATH
 }
 
 # Find the top-level WiredTiger directory.
@@ -41,6 +38,9 @@ if [ -n "$is_mongo_repo" ] ; then
        dest_dir="$dest_dir/src/third_party/wiredtiger"
 fi
 cd "$dest_dir" || exit 1
+
+# Override existing Clang-Format versions in the PATH.
+export PATH="${PWD}/dist":$PATH
 
 # Check if Clang-Format is already available with the desired version.
 desired_version="10.0.0"
