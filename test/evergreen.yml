@@ -3045,22 +3045,24 @@ tasks:
           script: |
             set -o errexit
 
-            set -o errexit
-
             # GCP requires a path to a credentials file for authorization. To not expose the private key within the file, 
             # use a placeholder private key. The placeholders are then replaced in the command line with the evergreen expansion variables 
             # and stored in a temporary file. The file is deleted after the unit tests are run.
             file=$(mktemp)
             sed 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|;s|gcp_private_id|${gcp_sdk_ext_private_key_id}|' ../test/evergreen/gcp_auth.json >> $file
             export GOOGLE_APPLICATION_CREDENTIALS="$file"
-
-            # Remove temporary file.
-            rm $file 
       - func: "run tiered storage test"
         vars:
           # Set this in case of a core to get the correct python binary.
           python_binary: $(pwd)/venv/bin/python3
           tiered_storage_test_name: tiered19  
+      - command: shell.exec
+        params:
+          shell: bash
+          script: |
+            set -o errexit
+            # Remove temporary file.
+            rm $file 
   - name: spinlock-gcc-test
     commands:
       - func: "get project"
