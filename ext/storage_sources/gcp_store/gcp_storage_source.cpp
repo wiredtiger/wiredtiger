@@ -371,8 +371,8 @@ gcp_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name
     gcp_fh->fh.fh_truncate = nullptr;
     gcp_fh->fh.fh_write = nullptr;
 
-    // Exclusive Access is required when adding file handles to list of file handles.
-    // lock_guard will unlock automatically when the scope is exited.
+    // Exclusive access is required when adding file handles to list of file handles. The lock_guard
+    // will unlock automatically when the scope is exited.
     {
         std::lock_guard<std::mutex> lock(fs->fh_list_mutex);
         fs->fh_list.push_back(gcp_fh);
@@ -408,21 +408,16 @@ gcp_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *from, c
 }
 
 static int
-gcp_file_lock(WT_FILE_HANDLE *file_handle, WT_SESSION *session, bool lock)
+gcp_file_lock([[maybe_unused]] WT_FILE_HANDLE *file_handle, [[maybe_unused]] WT_SESSION *session,
+  [[maybe_unused]] bool lock)
 {
     // Locks are always granted.
-    WT_UNUSED(file_handle);
-    WT_UNUSED(session);
-    WT_UNUSED(lock);
-
     return 0;
 }
 
 static int
-gcp_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *sizep)
+gcp_file_size([[maybe_unused]] WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *sizep)
 {
-    WT_UNUSED(session);
-
     gcp_file_handle *gcp_fh = reinterpret_cast<gcp_file_handle *>(file_handle);
     gcp_file_system *fs = gcp_fh->file_system;
     bool exists;
@@ -453,11 +448,9 @@ gcp_object_size(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
 }
 
 static int
-gcp_file_read(
-  WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t offset, size_t len, void *buf)
+gcp_file_read([[maybe_unused]] WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t offset,
+  size_t len, void *buf)
 {
-    WT_UNUSED(session);
-
     gcp_file_handle *gcp_fh = reinterpret_cast<gcp_file_handle *>(file_handle);
     gcp_file_system *fs = gcp_fh->file_system;
 
@@ -465,8 +458,6 @@ gcp_file_read(
 
     if ((ret = fs->gcp_conn->read_object(gcp_fh->name, offset, len, buf)) != 0)
         std::cerr << "gcp_file_read: read attempt failed." << std::endl;
-    else
-        std::cerr << "gcp_file_read: read succeeded." << std::endl;
 
     return ret;
 }

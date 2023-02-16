@@ -111,7 +111,7 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_customize_file_system(
                 session, non_exist_bucket, self.auth_token, self.get_fs_config(prefix)), err_msg)
-        # Provide a bucket name that exists but we do not have access to. 
+        # Provide a bucket name that exists but we do not have access to.
         no_access_bucket = "test_cred"
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_customize_file_system(
@@ -122,8 +122,8 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
             lambda: fs.fs_open_file(
                 session, 'test_put', file_system.open_file_type_data, file_system.open_readonly), err_msg)
         
-        # We cannot use the file system to create files, it is readonly.
-        # So use python I/O to build up the file.
+        # We cannot use the file system to create files, it is read-only. So we use python I/O to
+        # build up the file.
         f = open('foobar', 'wb')
         
         # Test fs_open_file fails when the target file exists locally but is not in the bucket.
