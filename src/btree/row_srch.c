@@ -203,12 +203,10 @@ __wt_search_insert(
 
     /*
      * This is an expensive call on a performance-critical path, so we only want to enable it behind
-     * the stress_skiplist session flag. Hide the flag check for non-diagnostics builds, too.
+     * the stress_skiplist session flag.
      */
-#ifdef HAVE_DIAGNOSTIC
     if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_STRESS_SKIPLIST))
         WT_RET(__validate_next_stack(session, cbt->next_stack, srch_key));
-#endif
 
     return (0);
 }
@@ -227,6 +225,13 @@ __validate_next_stack(
     WT_ITEM upper_key, lower_key;
     int32_t i, cmp;
     WT_COLLATOR *collator;
+
+    /*
+     * Hide the flag check for non-diagnostics builds, too.
+     */
+#ifndef HAVE_DIAGNOSTIC
+    return (0);
+#endif
 
     collator = S2BT(session)->collator;
     WT_CLEAR(upper_key);
