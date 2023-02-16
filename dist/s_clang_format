@@ -10,7 +10,7 @@ download_clang_format() {
     # FIXME-WT-10583
     arch=$(uname -m)
     if [ ! "$arch" = "x86_64" ]; then
-        echo "$0: unsupported architecture $arch"
+        echo "$0: unsupported architecture $arch to run clang_format"
         return 1
     fi
 
