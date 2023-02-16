@@ -407,7 +407,7 @@ gcp_object_list_add(const gcp_store &gcp_, char ***object_list,
     }
 
     char **entries;
-    if ((entries = reinterpret_cast<char**>(malloc(sizeof(char *) * count))) == nullptr){
+    if ((entries = reinterpret_cast<char **>(malloc(sizeof(char *) * count))) == nullptr) {
         std::cerr << "gcp_object_list_add: unable to allocate memory for object list." << std::endl;
         return ENOMEM;
     }
