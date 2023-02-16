@@ -310,20 +310,20 @@ gcp_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name
     return 0;
 }
 
-// POSIX remove, not supported for cloud objects.
+// POSIX remove is not supported for cloud objects.
 static int
 gcp_remove(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, uint32_t flags)
 {
-    std::cerr << "gcp_remove: object: " << name << ": file removal is not supported." << std::endl;
+    std::cerr << "gcp_remove: file removal is not supported." << std::endl;
     return ENOTSUP;
 }
 
-// POSIX rename, not supported for cloud objects.
+// POSIX rename is not supported for cloud objects.
 static int
 gcp_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *from, const char *to,
   uint32_t flags)
 {
-    std::cerr << "gcp_rename: object: " << from << ": file renaming is not supported." << std::endl;
+    std::cerr << "gcp_rename: file renaming is not supported." << std::endl;
     return ENOTSUP;
 }
 
