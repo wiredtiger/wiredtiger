@@ -360,7 +360,7 @@ gcp_object_list_helper(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const c
     if (directory != nullptr) {
         complete_prefix += directory;
         // Add a terminating '/' if one doesn't exist.
-        if (complete_prefix.length() > 1 && complete_prefix.back() != '/')
+        if (!complete_prefix.empty() && complete_prefix.back() != '/')
             complete_prefix += '/';
     }
 
