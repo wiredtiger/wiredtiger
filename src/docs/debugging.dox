@@ -67,7 +67,7 @@ The following diagnostic categories (\c WT_DIAGNOSTIC_*) are defined:
 @row{\c WT_DIAGNOSTIC_HS_VALIDATE, Ensure correctness of records in the history store and data fetched from it.}
 @row{\c WT_DIAGNOSTIC_KEY_OUT_OF_ORDER, Verify correct ordering of keys in the btree.}
 @row{\c WT_DIAGNOSTIC_LOG_VALIDATE, Verify correctness of the Write Ahead Log.}
-@row{\c WT_DIAGNOSTIC_PREPARED, Ensure correct behaviour of prepared transactions.}
+@row{\c WT_DIAGNOSTIC_PREPARED, Ensure correct behavior of prepared transactions.}
 @row{\c WT_DIAGNOSTIC_SLOW_OPERATION, Identify and abort on slow operations in WiredTiger.}
 @row{\c WT_DIAGNOSTIC_TXN_VISIBILITY, Verify correct visibility of transactional data.}
 </table>
