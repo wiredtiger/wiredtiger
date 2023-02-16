@@ -401,32 +401,16 @@ static int
 gcp_object_list_add(const gcp_store &gcp_, char ***object_list,
   const std::vector<std::string> &objects, const uint32_t count)
 {
-    // char **entries;
-    // if ((entries = reinterpret_cast<char **>(malloc(sizeof(char *) * count))) == nullptr) {
-    //     std::cerr << "gcp_object_list_add: unable to allocate memory for object list." << std::endl;
-    //     return ENOMEM;
-    // }
-
-    // // Populate entries with the object string.
-    // for (int i = 0; i < count; i++) {
-    //     if ((entries[i] = strdup(objects[i].c_str())) == nullptr) {
-    //         std::cerr << "gcp_object_list_add: unable to allocate memory for object string."
-    //                   << std::endl;
-    //         return ENOMEM;
-    //     }
-    // }
-
-    // *object_list = entries;
-
-    // return 0;
     if (count < 1) {
-    *object_list = nullptr;
-     return 0;
+        *object_list = nullptr;
+        return 0;
     }
 
     char **entries;
-    if ((entries = reinterpret_cast<char**>(malloc(sizeof(char *) * count))) == nullptr)
+    if ((entries = reinterpret_cast<char**>(malloc(sizeof(char *) * count))) == nullptr){
+        std::cerr << "gcp_object_list_add: unable to allocate memory for object list." << std::endl;
         return ENOMEM;
+    }
 
     uint32_t copied;
     for (copied = 0; copied < count; copied++) {
