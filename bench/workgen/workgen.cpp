@@ -289,7 +289,7 @@ WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn)
          * Drop the table. Keep retrying on EBUSY failure - it is an expected return when
          * checkpoints are happening.
          */
-        while ((ret = session->drop(session, uri, "force,checkpoint_wait=false")) == EBUSY)
+        while ((ret = session->drop(session, uri, "checkpoint_wait=false")) == EBUSY)
             sleep(1);
 
         if (ret != 0) {
@@ -650,10 +650,11 @@ WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
          */
         for (auto uri : drop_files) {
             WT_DECL_RET;
-            // Spin on EBUSY, we do not expect to get stuck
+            // Spin on EBUSY. We do not expect to get stuck.
             while (
-              (ret = session->drop(session, uri.c_str(), "force,checkpoint_wait=false")) == EBUSY) {
+              (ret = session->drop(session, uri.c_str(), "checkpoint_wait=false")) == EBUSY) {
                 VERBOSE(*_workload, "Drop returned EBUSY for table: " << uri);
+                sleep(1);
             }
             if (ret != 0)
                 THROW("Table drop failed for '" << uri << "' in start_tables_drop.");
