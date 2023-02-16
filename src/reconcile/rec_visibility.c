@@ -289,10 +289,10 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE_SELECT 
         return (false);
 
     /*
-     * No need to save the update chain when it meets the following:
-     * 1. No need to restore the update chain.
-     * 2. No on-disk entry exists.
-     * 3. No further updates exist in the update chain to be written to the history store.
+     * Update chains are only need to be saved when there are:
+     * 1. Newer uncommitted updates or database is configured for in-memory storage.
+     * 2. On-disk entry exists.
+     * 3. Valid updates exist in the update chain to be written to the history store.
      */
     supd_restore =
       F_ISSET(r, WT_REC_EVICT) && (has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
