@@ -675,7 +675,8 @@ connection_runtime_config = [
         ''',
         type='list', choices=[
             "all", "checkpoint_validate", "cursor_check", "disk_validate", "eviction_check", 
-            "generation_check", "hs_validate", "key_out_of_order", "log_validate", "prepared", "slow_operation", "txn_visibility"]),
+            "generation_check", "hs_validate", "key_out_of_order", "log_validate", "prepared", 
+            "slow_operation", "txn_visibility"]),
     Config('file_manager', '', r'''
         control how file handles are managed''',
         type='category', subconfig=[
