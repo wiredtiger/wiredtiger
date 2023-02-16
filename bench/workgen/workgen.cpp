@@ -417,7 +417,7 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
     std::string mirror_uri = std::string();
     int creates, retries, status;
     char rand_chars[DYNAMIC_TABLE_LEN];
-    
+
     // Add app_metadata to the config to indicate the table was created dynamically (can be
     // selected for random deletion), the name of the table's mirror if mirroring is enabled,
     // and if this table is a base table or a mirror. We want these settings to persist over
@@ -1474,7 +1474,7 @@ ThreadRunner::op_kv_gen(Operation *op, const tint_t tint)
     // A potential race: thread1 is inserting, and increments Context->_recno[] for fileX.wt.
     // thread2 is doing one of remove/search/update and grabs the new value of Context->_recno[]
     // for fileX.wt. thread2 randomly chooses the highest recno (which has not yet been inserted
-    // by thread1), and when it accesses the record will get WT_NOTFOUND. It should be somewhat 
+    // by thread1), and when it accesses the record will get WT_NOTFOUND. It should be somewhat
     // rare (and most likely when the threads are first beginning). Any WT_NOTFOUND returns are
     // allowed and get their own statistic bumped.
     uint64_t recno = 0;
@@ -1706,7 +1706,6 @@ ThreadRunner::op_run(Operation *op)
             } else {
                 snprintf(buf, BUF_SIZE, "%s", op->transaction->_begin_config.c_str());
             }
-            std::cerr << "begin_transaction: thread = " << this << std::endl;
             WT_ERR(_session->begin_transaction(_session, buf));
 
             _in_transaction = true;
@@ -1736,13 +1735,6 @@ ThreadRunner::op_run(Operation *op)
             default:
                 ASSERT(false);
             }
-            if (_in_transaction) {
-                std::cerr << "op_run _in_transaction: op = " << op->_optype
-                    << " table = " << op->_table._uri
-                    << " thread = " << this
-                    << " txnid = " << ((WT_SESSION_IMPL*)_session)->txn->id
-                    << std::endl;
-            }
 
             // Assume success and no retry unless ROLLBACK.
             retry_op = false;
@@ -1753,8 +1745,6 @@ ThreadRunner::op_run(Operation *op)
             else {
                 retry_op = true;
                 track->rollbacks++;
-                std::cerr << "rollback_transaction: thread = " << this
-                    << " txnid = " << ((WT_SESSION_IMPL*)_session)->txn->id << std::endl;
                 WT_ERR(_session->rollback_transaction(_session, nullptr));
                 _in_transaction = false;
                 ret = 0;
@@ -1803,8 +1793,6 @@ err:
         WT_TRET(cursor->close(cursor));
     if (op->transaction != nullptr) {
         if (ret != 0 || op->transaction->_rollback) {
-            std::cerr << "rollback_transaction: thread = " << this 
-                << " txnid = " << ((WT_SESSION_IMPL*)_session)->txn->id << std::endl;
             WT_TRET(_session->rollback_transaction(_session, nullptr));
         }
         else if (_in_transaction) {
@@ -1815,18 +1803,12 @@ err:
                 ret = _session->prepare_transaction(_session, buf);
                 snprintf(buf, BUF_SIZE, "commit_timestamp=%" PRIu64 ",durable_timestamp=%" PRIu64,
                   time_us, time_us);
-                std::cerr << "commit_transaction: thread = " << this
-                    << " txnid = " << ((WT_SESSION_IMPL*)_session)->txn->id << std::endl;
                 ret = _session->commit_transaction(_session, buf);
             } else if (op->transaction->use_commit_timestamp) {
                 uint64_t commit_time_us = WorkgenTimeStamp::get_timestamp();
                 snprintf(buf, BUF_SIZE, "commit_timestamp=%" PRIu64, commit_time_us);
-                std::cerr << "commit_transaction: thread = " << this
-                    << " txnid = " << ((WT_SESSION_IMPL*)_session)->txn->id << std::endl;
                 ret = _session->commit_transaction(_session, buf);
             } else {
-                std::cerr << "commit_transaction: thread = " << this
-                    << " txnid = " << ((WT_SESSION_IMPL*)_session)->txn->id << std::endl;
                 ret =
                   _session->commit_transaction(_session, op->transaction->_commit_config.c_str());
             }
