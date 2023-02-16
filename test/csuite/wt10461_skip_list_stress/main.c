@@ -181,7 +181,7 @@ run(const char *working_dir)
     if ((status = system(command)) < 0)
         testutil_die(status, "system: %s", command);
 
-    testutil_check(wiredtiger_open(home, NULL, "create", &conn));
+    testutil_check(wiredtiger_open(home, NULL, "create,debug_mode=(stress_skiplist=1)", &conn));
     /* FIXME WT-10525 - Add stress_skiplist to the session/conn config once WT-10525 is merged. */
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     /*

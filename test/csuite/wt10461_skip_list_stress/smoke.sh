@@ -18,4 +18,4 @@ else
     test_bin=$binary_dir/wt10461_skip_list_stress
 fi
 
-$TEST_WRAPPER $test_bin -v 3
+$TEST_WRAPPER $test_bin

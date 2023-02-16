@@ -202,10 +202,14 @@ __wt_search_insert(
     cbt->ins_head = ins_head;
 
     /*
-     * FIXME WT-10525 - This is an expensive call so we only want to enabled it behind the
-     * stress_skiplist session flag which will be delivered in WT-10525.
-     * WT_RET(__validate_next_stack(session, cbt->next_stack, srch_key));
+     * This is an expensive call on a performance-critical path, so we only want to enable it behind
+     * the stress_skiplist session flag. Hide the flag check for non-diagnostics builds, too.
      */
+#ifdef HAVE_DIAGNOSTIC
+    if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_STRESS_SKIPLIST))
+        WT_RET(__validate_next_stack(session, cbt->next_stack, srch_key));
+#endif
+
     return (0);
 }
 
