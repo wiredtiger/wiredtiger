@@ -5263,10 +5263,9 @@ buildvariants:
   display_name: "macOS 11.00 ARM64"
   run_on:
     - macos-1100-arm64
-  batchtime: 1440 # 24 hours
+  batchtime: 40320 # 28 days
   tasks:
     - name: memory-model-test-mac
-      batchtime: 40320 # 28 days
 
 - name: little-endian
   display_name: "~ Little-endian (x86)"
