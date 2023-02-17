@@ -1307,7 +1307,7 @@ ThreadRunner::run()
         _throttle = new Throttle(*this, options->throttle, options->throttle_burst);
     }
     for (int cnt = 0; !_stop && (_repeat || cnt < 1) && ret == 0; cnt++) {
-        WT_ERR(op_run_prepare(&_thread->_op));
+        WT_ERR(op_run_setup(&_thread->_op));
     }
 
 err :
@@ -1510,7 +1510,7 @@ ThreadRunner::op_kv_gen(Operation *op, const tint_t tint)
 }
 
 int
-ThreadRunner::op_run_prepare(Operation *op)
+ThreadRunner::op_run_setup(Operation *op)
 {
     WT_DECL_RET;
 
@@ -1665,7 +1665,7 @@ ThreadRunner::op_run(Operation *op)
         track->begin();
 
     // Set the cursor for the key and value first, outside the transaction which may
-    // be retried. The key and value are generated in op_run_prepare.
+    // be retried. The key and value are generated in op_run_setup.
     if (op->is_table_op()) {
 
         const std::string key_format(cursor->key_format);
@@ -1781,7 +1781,7 @@ ThreadRunner::op_run(Operation *op)
             for (int count = 0; (!_stop || _in_transaction) && count < op->_repeatgroup; count++) {
                 for (std::vector<Operation>::iterator i = op->_group->begin();
                      i != op->_group->end(); i++) {
-                    WT_ERR(op_run_prepare(&*i));
+                    WT_ERR(op_run_setup(&*i));
                 }
             }
             workgen_clock(&now);
