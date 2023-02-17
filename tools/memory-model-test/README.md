@@ -35,7 +35,7 @@ There are two broad groups of tests:
 * C++ compiler that supports C++ 17 or (better) C++ 20
 * (optional) CMake and ninja
 
-By default, the Memory Model Tool will use the C++ 20 `std::binary_semaphore`. Unforgettably, this class is not
+By default, the Memory Model Tool will use the C++ 20 `std::binary_semaphore`. Unfortunately, this class is not
 available in all compilers that say they support C++ 20. If necessary, define the `AVOID_CPP20_SEMAPHORE` macro to 
 use the `basic_semaphore` class included in this project instead of `std::binary_semaphore`.
 
