@@ -168,7 +168,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     do {                                         \
         __asm__ volatile("lfence" ::: "memory"); \
     } while (0)
-/* We only need a compiler barrier for x86 as it has a strong memory order. */
+/* We only need a compiler barrier for x86 as its memory ordering is strong enough. */
 #define WT_READ_BARRIER_WEAK() WT_BARRIER()
 #define WT_WRITE_BARRIER()                       \
     do {                                         \
@@ -182,7 +182,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
         __asm__ volatile("lock; addl $0, 0(%%esp)" ::: "memory"); \
     } while (0)
 #define WT_READ_BARRIER() WT_FULL_BARRIER()
-/* We only need a compiler barrier for i386 as it has a strong memory order */
+/* We only need a compiler barrier for i386 as its memory ordering is strong enough. */
 #define WT_READ_BARRIER_WEAK() WT_BARRIER()
 #define WT_READ_BARRIER() WT_FULL_BARRIER()
 #define WT_WRITE_BARRIER() WT_FULL_BARRIER()
