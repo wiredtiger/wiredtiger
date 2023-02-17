@@ -26,47 +26,32 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#pragma once
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
 
 #include <azure/core.hpp>
 
-static const std::map<int32_t, Azure::Core::Diagnostics::Logger::Level> verbosity_mapping = {
-  {WT_VERBOSE_ERROR, Azure::Core::Diagnostics::Logger::Level::Error},
-  {WT_VERBOSE_WARNING, Azure::Core::Diagnostics::Logger::Level::Warning},
-  {WT_VERBOSE_INFO, Azure::Core::Diagnostics::Logger::Level::Informational},
-  {WT_VERBOSE_DEBUG_1, Azure::Core::Diagnostics::Logger::Level::Verbose},
-  {WT_VERBOSE_DEBUG_2, Azure::Core::Diagnostics::Logger::Level::Verbose},
-  {WT_VERBOSE_DEBUG_3, Azure::Core::Diagnostics::Logger::Level::Verbose},
-  {WT_VERBOSE_DEBUG_4, Azure::Core::Diagnostics::Logger::Level::Verbose},
-  {WT_VERBOSE_DEBUG_5, Azure::Core::Diagnostics::Logger::Level::Verbose},
+using namespace Azure::Core::Diagnostics;
+
+static const std::map<int32_t, Logger::Level> wt_to_azure_verbosity_mapping = {
+  {WT_VERBOSE_ERROR, Logger::Level::Error},
+  {WT_VERBOSE_WARNING, Logger::Level::Warning},
+  {WT_VERBOSE_INFO, Logger::Level::Informational},
+  {WT_VERBOSE_DEBUG_1, Logger::Level::Verbose},
+  {WT_VERBOSE_DEBUG_2, Logger::Level::Verbose},
+  {WT_VERBOSE_DEBUG_3, Logger::Level::Verbose},
+  {WT_VERBOSE_DEBUG_4, Logger::Level::Verbose},
+  {WT_VERBOSE_DEBUG_5, Logger::Level::Verbose},
 };
 
-class azure_log_system {
-    public:
-    azure_log_system(WT_EXTENSION_API *wt_api, uint32_t wt_verbosity_lvl);
-
-    // Send error messages to WiredTiger's error level log stream.
-    void
-    log_err_msg(const std::string &message) const
-    {
-        log_verbose_msg(WT_VERBOSE_ERROR, message);
-    }
-
-    // Send error messages to WiredTiger's debug level log stream.
-    void
-    log_debug_msg(const std::string &message) const
-    {
-        log_verbose_msg(WT_VERBOSE_DEBUG_1, message);
-    }
-
-    // Sets the WiredTiger Extension's verbosity level and matches the Azure log levels to this.
-    void set_wt_verbosity_lvl(int32_t wt_verbosity_lvl);
-
-    private:
-    void log_azure_msg(const std::string &message) const;
-    void log_verbose_msg(int32_t verbosity_level, const std::string &message) const;
-    std::atomic<Azure::Core::Diagnostics::Logger::Level> _azure_log_level;
-    WT_EXTENSION_API *_wt_api;
-    int32_t _wt_verbosity_lvl;
+static const std::map<Logger::Level, int32_t> azure_to_wt_verbosity_mapping = {
+  {Logger::Level::Error, WT_VERBOSE_ERROR},
+  {Logger::Level::Warning, WT_VERBOSE_WARNING},
+  {Logger::Level::Informational, WT_VERBOSE_INFO},
+  {Logger::Level::Verbose, WT_VERBOSE_DEBUG_5},
 };
+
+Logger::Level wt_to_azure_verbosity_level(int32_t wt_verbosity_level);
+
+int32_t azure_to_wt_verbosity_level(Logger::Level);

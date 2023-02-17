@@ -1,51 +1,50 @@
 
 #include "azure_log_system.h"
+#include "azure_storage_source.cpp"
 #include <azure/core/diagnostics/logger.hpp>
 
-// Constructor for azure_log_system that calls to set the WiredTiger verbosity level.
-azure_log_system::azure_log_system(WT_EXTENSION_API *wt_api, uint32_t wt_verbosity_lvl)
-    : _wt_api(wt_api)
+using namespace Azure::Core::Diagnostics;
+
+Logger::Level
+wt_to_azure_verbosity_level(int32_t wt_verbosity_level)
 {
-    set_wt_verbosity_lvl(wt_verbosity_lvl);
+    Logger::Level azure_log_level = Azure::Core::Diagnostics::Logger::Level::Error;
+
+    if (wt_to_azure_verbosity_mapping.find(wt_verbosity_level) !=
+      wt_to_azure_verbosity_mapping.end())
+        azure_log_level = wt_to_azure_verbosity_mapping.at(wt_verbosity_level);
+
+    return azure_log_level;
 }
 
-
-// Directs the message to WiredTiger's log streams.
-void
-azure_log_system::log_azure_msg(const std::string &message) const
+int32_t
+azure_to_wt_verbosity_level(Logger::Level azure_verbosity_level)
 {
-    return;
+    int32_t wt_verbosity_level = WT_VERBOSE_ERROR;
+    if (azure_to_wt_verbosity_mapping.find(azure_verbosity_level) !=
+      azure_to_wt_verbosity_mapping.end())
+        wt_verbosity_level = azure_to_wt_verbosity_mapping.at(azure_verbosity_level);
+
+    return wt_verbosity_level;
 }
 
-// SetListener wrapper level, message
-//
-
-// Directs the message to WiredTiger's log streams matched at WiredTiger's log stream levels.
-//  send to wt
-// called in init
-void
-azure_log_system::log_verbose_msg(int32_t verbosity_level, const std::string &message) const
+static void
+log_verbose_message(azure_store azure_store, int32_t verbosity_level, const std::string &message)
 {
-    //Azure::Core::Diagnostics::Logger::SetListener([&](auto level, auto msg) {
-    //     if (level <= _azure_log_level) {
-    //         if (level < WT_VERBOSE_NOTICE)
-    //             _wt_api->err_printf(_wt_api, NULL, "%s", msg.c_str());
-    //         else
-    //             _wt_api->msg_printf(_wt_api, NULL, "%s", msg.c_str());
-    //     }
-    // });
-
-    return;
+    // if (verbosity_level <= azure_store->verbose) {
+    //     if (verbosity_level < WT_VERBOSE_NOTICE)
+    //         azure_store->wt_api->err_printf(azure_store->wt_api, NULL, "%s", message.c_str());
+    //     else
+    //         azure_store->wt_api->msg_printf(azure_store->wt_api, NULL, "%s", message.c_str());
+    // }
 }
 
-// Sets the WiredTiger Extension's verbosity level and matches the Azure log levels to this.
 void
-azure_log_system::set_wt_verbosity_lvl(int32_t wt_verbosity_lvl)
-{
-    //Azure::Core::Diagnostics::Logger azure_logger;
-    _wt_verbosity_lvl = wt_verbosity_lvl;
-    if (verbosity_mapping.find(_wt_verbosity_lvl) != verbosity_mapping.end())
-        _azure_log_level = verbosity_mapping.at(_wt_verbosity_lvl);
-    else
-        _azure_log_level = Azure::Core::Diagnostics::Logger::Level::Error;
+log_err_msg(const std::string &message) {
+    //log_verbose_message
+}
+
+void
+log_debug_message(const std::string &message) {
+
 }

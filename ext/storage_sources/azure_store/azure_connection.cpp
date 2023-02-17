@@ -42,9 +42,10 @@ azure_connection::azure_connection(const std::string &bucket_name, const std::st
         std::getenv("AZURE_STORAGE_CONNECTION_STRING"), bucket_name)),
       _bucket_name(bucket_name), _bucket_prefix(bucket_prefix)
 {
-//     Logger::SetLevel(Logger::Level::Verbose);
-//     // SetListener accepts std::function<>, which can be either lambda or a function pointer.
-//     Logger::SetListener([&](auto lvl, auto msg){std::cout << "Listener ACCESSED! Level: " << (int)lvl << ", with message: " << msg << std::endl; });
+    //     Logger::SetLevel(Logger::Level::Verbose);
+    //     // SetListener accepts std::function<>, which can be either lambda or a function pointer.
+    //     Logger::SetListener([&](auto lvl, auto msg){std::cout << "Listener ACCESSED! Level: " <<
+    //     (int)lvl << ", with message: " << msg << std::endl; });
     // Confirm that we can access the bucket, else fail.
     bool exists;
     int ret = bucket_exists(exists);

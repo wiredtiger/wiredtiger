@@ -43,8 +43,6 @@
 
 using namespace Azure::Core::Diagnostics;
 
-
-
 struct azure_file_system;
 struct azure_file_handle;
 struct azure_store {
@@ -54,6 +52,7 @@ struct azure_store {
     std::mutex fs_mutex;
     std::vector<azure_file_system *> azure_fs;
     uint32_t reference_count;
+    int32_t verbose;
 };
 
 struct azure_file_system {
@@ -650,10 +649,6 @@ azure_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *size
 int
 wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 {
-    Logger::SetLevel(Logger::Level::Verbose);
-    // SetListener accepts std::function<>, which can be either lambda or a function pointer.
-    Logger::SetListener([&](auto lvl, auto msg){std::cout << "Listener ACCESSED! Level: " << (int)lvl << ", with message: " << msg << std::endl; });
-
     azure_store *azure_storage = new azure_store;
     WT_CONFIG_ITEM v;
 
@@ -661,11 +656,24 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     int ret = azure_storage->wt_api->config_get(
       azure_storage->wt_api, nullptr, config, "verbose.tiered", &v);
 
+    azure_storage->verbose = WT_VERBOSE_ERROR;
     // Initialise logger for the storage source.
     if (ret == 0 && v.val >= WT_VERBOSE_ERROR && v.val <= WT_VERBOSE_DEBUG_5) {
-
+        azure_storage->verbose = v.val;
+        Logger::SetLevel(wt_to_azure_verbosity_level(v.val));
     }
-    // std::shared_ptr<Azure::Core::Diagnostics::Logger> azure_log = azure_storage->log;
+    // SetLevel(wt_level_to_azure(given config))
+    else if (ret != WT_NOTFOUND) {
+        // log error message
+        delete (azure_storage);
+        return (ret != 0 ? ret : EINVAL);
+    }
+    Logger::SetListener([azure_storage](auto lvl, auto msg) {
+        if (azure_to_wt_verbosity_level(lvl) <= azure_storage->verbose)
+            azure_storage->wt_api->err_printf(azure_storage->wt_api, NULL, "%s", msg.c_str());
+        else
+            azure_storage->wt_api->msg_printf(azure_storage->wt_api, NULL, "%s", msg.c_str());
+    });
 
     azure_storage->store.ss_customize_file_system = azure_customize_file_system;
     azure_storage->store.ss_add_reference = azure_add_reference;
