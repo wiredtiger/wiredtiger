@@ -502,10 +502,8 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
     return 0;
 }
 
-// Randomly select a dynamic table to drop. The selected table is flagged for deletion and
-// added to a pending delete list. If the table has a mirror, the mirror is also flagged for
-// deletion and added to the pending delete list. The function returns an EEXIST error status
-// if the selected table is already scheduled for deletion.
+// Randomly select a dynamic table to drop and schedule it for deletion. The function
+// returns an EEXIST error status if the selected table is already scheduled for deletion.
 int
 WorkloadRunner::select_table_for_drop(std::vector<std::string> &pending_delete)
 {
@@ -516,32 +514,33 @@ WorkloadRunner::select_table_for_drop(std::vector<std::string> &pending_delete)
     if (icontext->_dyn_table_runtime[table_itr->second]._pending_delete) {
         return EEXIST;
     }
+    schedule_table_for_drop(table_itr, pending_delete);
 
-    // Flag table for deletion.
-    VERBOSE(*_workload, "Flagging pending delete for: " << table_itr->first);
-    std::cerr << "Flagging pending delete for: " << table_itr->first << std::endl;
-    icontext->_dyn_table_runtime[table_itr->second]._pending_delete = true;
-
-    // Add table to the pending delete list.
-    ASSERT(std::find(pending_delete.begin(), pending_delete.end(), table_itr->first) ==
-      pending_delete.end());
-    pending_delete.push_back(table_itr->first);
-
-    // If the table has a mirror, prepare the mirror table for deletion too.
+    // If the table has a mirror, schedule the mirror table for deletion too.
     if (icontext->_dyn_table_runtime[table_itr->second].has_mirror()) {
         auto mirror_itr =
           icontext->_dyn_tint.find(icontext->_dyn_table_runtime[table_itr->second]._mirror);
-        ASSERT(mirror_itr != icontext->_dyn_tint.end());
-
-        VERBOSE(*_workload, "Flagging pending delete for: " << mirror_itr->first);
-        std::cerr << "Flagging pending delete for: " << mirror_itr->first << std::endl;
-        icontext->_dyn_table_runtime[mirror_itr->second]._pending_delete = true;
-
-        ASSERT(std::find(pending_delete.begin(), pending_delete.end(), mirror_itr->first) ==
-          pending_delete.end());
-        pending_delete.push_back(mirror_itr->first);
+        schedule_table_for_drop(mirror_itr, pending_delete);
     }
     return 0;
+}
+
+// The table specified by the dynamic table iterator is flagged for deletion and added to the
+// pending delete list. If the table has a mirror, the mirror is also flagged for deletion and
+// added to the pending delete list.
+void
+WorkloadRunner::schedule_table_for_drop(
+  const std::map<std::string, tint_t>::iterator &itr, std::vector<std::string> &pending_delete)
+{
+    ContextInternal *icontext = _workload->_context->_internal;
+    ASSERT(itr != icontext->_dyn_tint.end());
+    VERBOSE(*_workload, "Flagging pending delete for: " << itr->first);
+    std::cerr << "Flagging pending delete for: " << itr->first << std::endl;
+    icontext->_dyn_table_runtime[itr->second]._pending_delete = true;
+
+    ASSERT(
+      std::find(pending_delete.begin(), pending_delete.end(), itr->first) == pending_delete.end());
+    pending_delete.push_back(itr->first);
 }
 
 /*

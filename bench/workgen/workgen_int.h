@@ -332,6 +332,8 @@ private:
     int create_table(WT_SESSION *session, const std::string &config, const std::string &uri,
       const std::string &mirror_uri, const bool is_base);
     void final_report(timespec &);
+    void schedule_table_for_drop(const std::map<std::string, tint_t>::iterator &itr,
+      std::vector<std::string> &pending_delete);
     void get_stats(Stats *stats);
     int open_all();
     void open_report_file(std::ofstream &, const std::string&, const std::string&);
