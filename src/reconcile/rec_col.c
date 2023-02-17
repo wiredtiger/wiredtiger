@@ -784,7 +784,8 @@ __wt_rec_col_fix(
          * that are greater in the history store for this key.
          */
         if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone)
-            WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, upd_select.tw.durable_stop_ts, recno, NULL, upd->type == WT_UPDATE_TOMBSTONE ? false : true));
+            WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, upd_select.tw.durable_stop_ts, recno,
+              NULL, upd->type == WT_UPDATE_TOMBSTONE ? false : true));
 
         /* Write the data. */
         __bit_setv(r->first_free, recno - curstartrecno, btree->bitcnt, val);
@@ -1429,8 +1430,8 @@ record_loop:
                  * versions that are greater in the history store for this key.
                  */
                 if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone)
-                    WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, twp->durable_stop_ts, src_recno, NULL,
-                      upd->type == WT_UPDATE_TOMBSTONE ? false : true));
+                    WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, twp->durable_stop_ts,
+                      src_recno, NULL, upd->type == WT_UPDATE_TOMBSTONE ? false : true));
             }
 
 compare:
@@ -1585,7 +1586,7 @@ compare:
                  * When a tombstone without a timestamp is written to disk, remove any historical
                  * versions that are greater in the history store for this key.
                  */
-                if (upd_select.no_ts_tombstone && r->hs_clear_on_tombstone)
+                if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone)
                     WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, src_recno, NULL,
                       upd->type == WT_UPDATE_TOMBSTONE ? false : true));
             }
