@@ -164,7 +164,7 @@ struct ThreadRunner {
     void op_get_static_counts(Operation *, Stats &, int);
     void op_kv_gen(Operation *op, const tint_t tint);
     int op_run(Operation *);
-    int op_run_prepare(Operation *);
+    int op_run_setup(Operation *);
     void op_set_table(Operation *op, const std::string &uri, const tint_t tint);
     float random_signed();
     uint32_t random_value();
