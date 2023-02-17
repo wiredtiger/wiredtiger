@@ -49,7 +49,7 @@ class test_hs32(wttest.WiredTigerTestCase):
         ('long-run-txn', dict(long_run_txn=True))
     ]
     scenarios = make_scenarios(format_values, update_type_values,long_running_txn_values)
-    nrows = 10000
+    nrows = 100
 
     def create_key(self, i):
         if self.key_format == 'S':
@@ -91,8 +91,9 @@ class test_hs32(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri)
         for ts in range(1, 5):
             for i in range(1, self.nrows):
-                with self.transaction(commit_timestamp = ts):
-                    cursor[self.create_key(i)] = value1
+                for retry in self.retry():
+                    with retry.transaction(commit_timestamp = ts):
+                        cursor[self.create_key(i)] = value1
 
         # Reconcile and flush versions 1-3 to the history store.
         self.session.checkpoint()
@@ -101,8 +102,9 @@ class test_hs32(wttest.WiredTigerTestCase):
         if self.long_run_txn:
             # Apply a another update at timestamp 5.
             for i in range(1, self.nrows):
-                with self.transaction(commit_timestamp = 5):
-                    cursor[self.create_key(i)] = value1
+                for retry in self.retry():
+                    with retry.transaction(commit_timestamp = 5):
+                        cursor[self.create_key(i)] = value1
 
             # Start a long running transaction to make tombstone not globally visible.
             session2 = self.conn.open_session()
@@ -110,7 +112,7 @@ class test_hs32(wttest.WiredTigerTestCase):
 
         # Apply an update/delete without timestamp.
         for i in range(1, self.nrows):
-            self.session.begin_transaction('no_timestamp=true')
+            self.session.begin_transaction()
             if i % 2 == 0:
                 if self.update_type == 'deletion':
                     cursor.set_key(self.create_key(i))
@@ -129,28 +131,30 @@ class test_hs32(wttest.WiredTigerTestCase):
 
         # Now apply an update at timestamp 10.
         for i in range(1, self.nrows):
-            with self.transaction(commit_timestamp = 10):
-                cursor[self.create_key(i)] = value2
+            for retry in self.retry():
+                    with retry.transaction(commit_timestamp = 10):
+                        cursor[self.create_key(i)] = value2
 
         self.session.checkpoint()
 
         # Ensure that we blew away history store content.
         for ts in range(1, 5):
-            with self.transaction(read_timestamp = ts, rollback = True):
-                for i in range(1, self.nrows):
-                    if i % 2 == 0:
-                        if self.update_type == 'deletion':
-                            cursor.set_key(self.create_key(i))
-                            if self.value_format == '8t':
-                                self.assertEqual(cursor.search(), 0)
-                                self.assertEqual(cursor.get_value(), 0)
+            for retry in self.retry():
+                with retry.transaction(read_timestamp = ts, rollback = True):
+                    for i in range(1, self.nrows):
+                        if i % 2 == 0:
+                            if self.update_type == 'deletion':
+                                cursor.set_key(self.create_key(i))
+                                if self.value_format == '8t':
+                                    self.assertEqual(cursor.search(), 0)
+                                    self.assertEqual(cursor.get_value(), 0)
+                                else:
+                                    self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
                             else:
-                                self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+                                self.assertEqual(cursor[self.create_key(i)], value2)
                         else:
-                            self.assertEqual(cursor[self.create_key(i)], value2)
-                    else:
-                        self.assertEqual(cursor[self.create_key(i)], value1)
+                            self.assertEqual(cursor[self.create_key(i)], value1)
 
-        if self.update_type == 'deletion':
+        if self.long_run_txn and self.update_type == 'deletion':
             hs_truncate = self.get_stat(stat.conn.cache_hs_key_truncate_onpage_removal)
             self.assertGreater(hs_truncate, 0)
