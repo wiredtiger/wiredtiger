@@ -380,7 +380,6 @@ WorkloadRunner::create_table(WT_SESSION *session, const std::string &config, con
         icontext->_dyn_table_runtime[tint] = TableRuntime(is_base, mirror_uri);
         ++icontext->_dyn_tint_last;
         VERBOSE(*_workload, "Created table and added to the dynamic set: " << uri);
-        std::cerr << "Created table: " << uri << std::endl;
     }
 
     return 0;
@@ -535,7 +534,6 @@ WorkloadRunner::schedule_table_for_drop(
     ContextInternal *icontext = _workload->_context->_internal;
     ASSERT(itr != icontext->_dyn_tint.end());
     VERBOSE(*_workload, "Flagging pending delete for: " << itr->first);
-    std::cerr << "Flagging pending delete for: " << itr->first << std::endl;
     icontext->_dyn_table_runtime[itr->second]._pending_delete = true;
 
     ASSERT(
@@ -658,7 +656,6 @@ WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
                 THROW("Table drop failed for '" << uri << "' in start_tables_drop.");
 
             VERBOSE(*_workload, "Dropped table: " << uri);
-            std::cerr << "Dropped '" << uri << "'." << std::endl;
         }
 
         sleep(_workload->options.drop_interval);
