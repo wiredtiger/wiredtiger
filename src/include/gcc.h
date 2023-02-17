@@ -223,10 +223,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     do {                                         \
         __asm__ volatile("lwsync" ::: "memory"); \
     } while (0)
-/*
- * FIXME: not sure about whether its memory ordering is strong enough. Put a read barrier here for
- * correctness.
- */
+/* PPC has a weak memory model. Use an actual read barrier to prevent CPU read reordering. */
 #define WT_READ_BARRIER_WEAK() WT_READ_BARRIER()
 #define WT_WRITE_BARRIER()                       \
     do {                                         \
@@ -267,6 +264,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     do {                                            \
         __asm__ volatile("dmb ishld" ::: "memory"); \
     } while (0)
+/* ARM has a weak memory model. Use an actual read barrier to prevent CPU read reordering. */
 #define WT_READ_BARRIER_WEAK() WT_READ_BARRIER()
 #define WT_WRITE_BARRIER()                          \
     do {                                            \
