@@ -27,6 +27,7 @@
  */
 #include "test_util.h"
 #include <math.h>
+#include <dirent.h>
 
 /*
  * This test is to calculate benchmarks for tiered storage:
@@ -108,6 +109,11 @@ main(int argc, char *argv[])
          * Run test with 10 Mb file size. Row store case.
          */
         run_test_clean("10MB", NUM_RECORDS * 100);
+
+        /*
+         * Run test with 50 Mb file size. Row store case.
+         */
+        run_test_clean("50MB", NUM_RECORDS * 500);
 
         /*
          * Run test with 100 Mb file size. Row store case.
@@ -205,6 +211,69 @@ fill_random_data(void)
 }
 
 /*
+ * is_dir_store --
+ *     Check if the external storage is dir_store.
+ */
+static bool
+is_dir_store()
+{
+    bool dir_store;
+
+    dir_store = strcmp(opts->tiered_storage_source, DIR_STORE) == 0 ? true : false;
+    return (dir_store);
+}
+
+/*
+ * remove_local_cached_files --
+ *     Remove local cached files and cached folders.
+ */
+static void
+remove_local_cached_files(const char *home)
+{
+    struct dirent *dir_entry;
+    DIR *folder;
+
+    char bucket_folder[512], delete_file[512], rm_cmd[512];
+    char *ret;
+    const char *file_name, *bucket_name;
+    int status;
+    size_t str_length;
+
+    if (!is_dir_store())
+        bucket_name = getenv("WT_S3_EXT_BUCKET");
+
+    if (bucket_name == NULL)
+        testutil_die(EINVAL, "S3 bucket name environment variable is not set");
+
+    if (is_dir_store())
+        testutil_check(__wt_snprintf(bucket_folder, sizeof(bucket_folder), "%s/%s", home, DIR_STORE_BUCKET_NAME));
+    else
+        testutil_check(__wt_snprintf(bucket_folder, sizeof(bucket_folder), "%s/cache-%s", home, bucket_name));
+
+    folder = opendir(bucket_folder);
+    testutil_assert(folder != NULL);
+	while ((dir_entry = readdir(folder)) != NULL) {
+		if (strcmp(dir_entry->d_name, ".") == 0 || strcmp(dir_entry->d_name, "..") == 0)
+            continue;
+        /* Get the file name after the prefix. */
+        file_name = strchr(dir_entry->d_name, '-');
+        testutil_check(
+            __wt_snprintf(delete_file, sizeof(delete_file), "rm -rf %s/%s", home, file_name+1));
+		        status = system(delete_file);
+        if (status < 0)
+            testutil_die(status, "system: %s", delete_file);
+	}
+
+    closedir(folder);
+
+    testutil_check(
+      __wt_snprintf(rm_cmd, sizeof(rm_cmd), "rm -rf %s/cache-*", home));
+    status = system(rm_cmd);
+    if (status < 0)
+        testutil_die(status, "system: %s", rm_cmd);
+}
+
+/*
  * recover_validate --
  *     Open wiredtiger and validate the data.
  */
@@ -213,11 +282,9 @@ recover_validate(const char *home, uint32_t num_records, uint64_t file_size, uin
 {
     struct timeval start, end;
 
-    char bucket_name[512], buf[1024], rm_cmd[512];
-    char *ret;
+    char buf[1024];
     double diff_sec;
-    int status;
-    size_t str_length, val_1_size, val_2_size;
+    size_t val_1_size, val_2_size;
     uint64_t key, i, v;
 
     WT_CONNECTION *conn;
@@ -230,6 +297,13 @@ recover_validate(const char *home, uint32_t num_records, uint64_t file_size, uin
 
     key = 0;
     buf[0] = '\0';
+
+    /*
+     * Remove cached files and cached buckets.
+     */
+    if (opts->tiered_storage)
+        remove_local_cached_files(home);
+
     /*
      * Open the connection which forces recovery to be run.
      */
@@ -239,21 +313,6 @@ recover_validate(const char *home, uint32_t num_records, uint64_t file_size, uin
     /* Seed the random number generator */
     v = (uint32_t)getpid() + num_records + (2 * counter);
     __wt_random_init_custom_seed(&rnd, v);
-
-    if (strcmp(opts->tiered_storage_source, DIR_STORE) == 0)
-        strcpy(bucket_name, DIR_STORE_BUCKET_NAME);
-    else {
-        ret = strchr(S3_STORE_BUCKET_NAME, ';');
-        str_length = (size_t)(ret - S3_STORE_BUCKET_NAME);
-        memcpy(bucket_name, S3_STORE_BUCKET_NAME, str_length);
-        bucket_name[str_length] = '\0';
-    }
-    testutil_check(
-      __wt_snprintf(rm_cmd, sizeof(rm_cmd), "rm -rf %s/cache-%s/*", home, bucket_name));
-
-    status = system(rm_cmd);
-    if (status < 0)
-        testutil_die(status, "system: %s", rm_cmd);
 
     testutil_check(session->open_cursor(session, opts->uri, NULL, NULL, &cursor));
     val_1_size = MAX_VALUE_SIZE;
@@ -291,8 +350,6 @@ static void
 run_test(const char *home, uint32_t num_records, uint32_t counter)
 {
     struct timeval start, end;
-
-    bool is_dir_store;
     char buf[1024];
     double diff_sec;
     uint64_t file_size;
@@ -300,9 +357,8 @@ run_test(const char *home, uint32_t num_records, uint32_t counter)
     WT_CONNECTION *conn;
     WT_SESSION *session;
 
-    is_dir_store = strcmp(opts->tiered_storage_source, DIR_STORE) == 0 ? true : false;
     testutil_make_work_dir(home);
-    if (opts->tiered_storage && is_dir_store) {
+    if (opts->tiered_storage && (is_dir_store())) {
         testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, DIR_STORE_BUCKET_NAME));
         testutil_make_work_dir(buf);
     }
@@ -388,8 +444,6 @@ compute_tiered_file_size(const char *home, const char *tablename, uint64_t *file
         /* Return if the stat fails that means the file does not exist. */
         if (stat(stat_path, &stats) == 0)
             *file_size += (uint64_t)stats.st_size;
-        else
-            return;
     }
 }
 
