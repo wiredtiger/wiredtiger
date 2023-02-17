@@ -60,10 +60,11 @@ static void compute_wt_file_size(const char *, const char *, uint64_t *);
 static void compute_tiered_file_size(const char *, const char *, uint64_t *);
 static void fill_random_data(void);
 static void get_file_size(const char *, uint64_t *);
+static bool is_dir_store(void);
+static void populate(WT_SESSION *, uint32_t, uint32_t);
 static void recover_validate(const char *, uint32_t, uint64_t, uint32_t);
 static void run_test_clean(const char *, uint32_t);
 static void run_test(const char *, uint32_t, uint32_t);
-static void populate(WT_SESSION *, uint32_t, uint32_t);
 
 static double avg_wtime_arr[MAX_RUN], avg_rtime_arr[MAX_RUN], avg_wthroughput_arr[MAX_RUN],
   avg_rthroughput_arr[MAX_RUN];
@@ -215,7 +216,7 @@ fill_random_data(void)
  *     Check if the external storage is dir_store.
  */
 static bool
-is_dir_store()
+is_dir_store(void)
 {
     bool dir_store;
 
@@ -234,11 +235,10 @@ remove_local_cached_files(const char *home)
     DIR *folder;
 
     char bucket_folder[512], delete_file[512], rm_cmd[512];
-    char *ret;
     const char *file_name, *bucket_name;
     int status;
-    size_t str_length;
 
+    bucket_name = NULL;
     if (!is_dir_store())
         bucket_name = getenv("WT_S3_EXT_BUCKET");
 
