@@ -236,7 +236,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
 #elif defined(__aarch64__)
 /*
  * Use an isb instruction here to be closer to the original x86 pause instruction. The yield
- * instruction that was previously here is a nop that is intended to provide a hint that a
+ * instruction that was previously here is a nop that is intended  to provide a hint that a
  * thread in a SMT system could yield. This is different from the x86 pause instruction
  * which delays execution by O(100) cycles. The isb will typically delay execution by about
  * 50 cycles so it's a reasonable alternative.
@@ -281,7 +281,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     } while (0)
 #define WT_READ_BARRIER() WT_FULL_BARRIER()
 /*
- * FIXME: not sure about whether its memory ordering is strong enough. Put a read barrier here for
+ * FIXME: not sure whether its memory ordering is strong enough. Put a read barrier here for
  * correctness.
  */
 #define WT_READ_BARRIER_WEAK() WT_READ_BARRIER()
@@ -304,10 +304,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
         __asm__ volatile("" ::: "memory"); \
     } while (0)
 
-/*
- * On UltraSparc machines, TSO is used, and so there is no need for membar. READ_BARRIER =
- * #LoadLoad, and WRITE_BARRIER = #StoreStore are noop.
- */
+/* We only need a compiler barrier for sparc as its memory ordering is strong enough. */
 #define WT_READ_BARRIER_WEAK() WT_READ_BARRIER()
 
 #define WT_WRITE_BARRIER()                 \
@@ -349,7 +346,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
         __asm__ volatile("fence r, r" ::: "memory"); \
     } while (0)
 /*
- * FIXME: not sure about whether its memory ordering is strong enough. Put a read barrier here for
+ * FIXME: not sure whether its memory ordering is strong enough. Put a read barrier here for
  * correctness.
  */
 #define WT_READ_BARRIER_WEAK() WT_READ_BARRIER()
@@ -369,7 +366,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
         __asm__ volatile("dbar 0" ::: "memory"); \
     } while (0)
 /*
- * FIXME: not sure about whether its memory ordering is strong enough. Put a read barrier here for
+ * FIXME: not sure whether its memory ordering is strong enough. Put a read barrier here for
  * correctness.
  */
 #define WT_READ_BARRIER_WEAK() WT_READ_BARRIER()
