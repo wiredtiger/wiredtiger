@@ -1453,7 +1453,6 @@ ThreadRunner::op_clear_table(Operation *op)
     }
 }
 
-// Generate and set a key and value for the operation managed by this thread.
 // Set the table uri and tint value for a dynamic table operation.
 void
 ThreadRunner::op_set_table(Operation *op, const std::string &uri, const tint_t tint)
@@ -1464,6 +1463,7 @@ ThreadRunner::op_set_table(Operation *op, const std::string &uri, const tint_t t
     }
 }
 
+// Generate and set a key and value for the operation managed by this thread.
 void
 ThreadRunner::op_kv_gen(Operation *op, const tint_t tint)
 {
