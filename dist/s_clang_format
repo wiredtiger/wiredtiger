@@ -16,9 +16,6 @@ if [ -n "$is_mongo_repo" ] ; then
 fi
 cd "$dest_dir" || exit 1
 
-# Override existing Clang-Format versions in the PATH.
-export PATH="${PWD}/dist":$PATH
-
 # Check if Clang-Format is already available with the desired version.
 desired_version="12.0.1"
 if ! command -v clang-format &> /dev/null; then
