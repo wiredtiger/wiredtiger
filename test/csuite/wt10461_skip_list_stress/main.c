@@ -116,7 +116,6 @@ thread_search_insert_run(void *arg)
     WT_SESSION *session;
 
     conn = (WT_CONNECTION *)arg;
-    /* FIXME WT-10525 - Add stress_skiplist to the session/conn config once WT-10525 is merged. */
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /*
@@ -182,7 +181,6 @@ run(const char *working_dir)
         testutil_die(status, "system: %s", command);
 
     testutil_check(wiredtiger_open(home, NULL, "create,debug_mode=(stress_skiplist=1)", &conn));
-    /* FIXME WT-10525 - Add stress_skiplist to the session/conn config once WT-10525 is merged. */
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     /*
      * We want this whole test to run on a single insert list. Set a very large memory_page_max to
