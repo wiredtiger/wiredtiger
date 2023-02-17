@@ -123,7 +123,7 @@ WT_READ_BARRIER(void)
  *  has a strong memory model, the weak barrier is a compiler barrier.
  */
 static inline void
-WT_READ_BARRIER(void)
+WT_READ_BARRIER_WEAK(void)
 {
     WT_BARRIER();
 }
