@@ -21,8 +21,12 @@ export PATH="${PWD}/dist":$PATH
 
 # Check if Clang-Format is already available with the desired version.
 desired_version="12.0.1"
-if ! command -v clang-format &> /dev/null || ! clang-format --version | grep -q $desired_version; then
-    echo "Failed to find Clang-Format, make sure the binary (version: $desired_version) is in your env PATH."
+if ! command -v clang-format &> /dev/null; then
+    echo "Failed to find clang-format, make sure the binary (version: $desired_version) is in your env PATH."
+    exit 1
+fi
+if ! clang-format --version | grep -q $desired_version; then
+    echo "The binary $(which clang-format) does not have the expected version: $desired_version."
     exit 1
 fi
 
