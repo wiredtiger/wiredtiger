@@ -2577,7 +2577,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            sh s_all -A -E 2>&1
+            ${test_env_vars|} sh s_all -A -E 2>&1
 
   - name: conf-dump-test
     tags: ["pull_request", "python"]
@@ -4834,6 +4834,7 @@ buildvariants:
     test_env_vars:
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
       LD_PRELOAD=$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
