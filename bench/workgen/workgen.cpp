@@ -1593,8 +1593,8 @@ ThreadRunner::op_run_prepare(Operation *op)
     new_op._group = &new_group;
     new_op._repeatgroup = 1;
 
+    Transaction txn;
     if (!_in_transaction) {
-        Transaction txn;
         new_op.transaction = &txn;
     }
 
