@@ -198,7 +198,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
         __asm__ volatile("sync; ld $0, %0" ::"m"(*(long *)0xffffffff80000000) : "memory"); \
     } while (0)
 /*
- * FIXME: not sure about whether its memory ordering is strong enough. Put a read barrier here for
+ * The memory ordering of MIPS depends on implementation. Put an actual read barrier to ensure
  * correctness.
  */
 #define WT_READ_BARRIER_WEAK() WT_READ_BARRIER()
@@ -343,10 +343,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     do {                                             \
         __asm__ volatile("fence r, r" ::: "memory"); \
     } while (0)
-/*
- * FIXME: not sure whether its memory ordering is strong enough. Put a read barrier here for
- * correctness.
- */
+/* RISC-V has a weak memory model. Use an actual read barrier to prevent CPU read reordering. */
 #define WT_READ_BARRIER_WEAK() WT_READ_BARRIER()
 #define WT_WRITE_BARRIER()                           \
     do {                                             \
