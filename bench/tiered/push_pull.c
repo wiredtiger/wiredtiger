@@ -96,27 +96,27 @@ main(int argc, char *argv[])
           "\n");
 
         /*
-         * Run test with 100K file size. Row store case.
+         * Run test with 100K file size.
          */
         run_test_clean("100KB", NUM_RECORDS);
 
         /*
-         * Run test with 1Mb file size. Row store case.
+         * Run test with 1Mb file size.
          */
         run_test_clean("1MB", NUM_RECORDS * 10);
 
         /*
-         * Run test with 10 Mb file size. Row store case.
+         * Run test with 10 Mb file size.
          */
         run_test_clean("10MB", NUM_RECORDS * 100);
 
         /*
-         * Run test with 50 Mb file size. Row store case.
+         * Run test with 50 Mb file size.
          */
         run_test_clean("50MB", NUM_RECORDS * 500);
 
         /*
-         * Run test with 100 Mb file size. Row store case.
+         * Run test with 100 Mb file size.
          */
         run_test_clean("100MB", NUM_RECORDS * WT_THOUSAND);
         flush = true;
@@ -246,28 +246,29 @@ remove_local_cached_files(const char *home)
         testutil_die(EINVAL, "S3 bucket name environment variable is not set");
 
     if (is_dir_store())
-        testutil_check(__wt_snprintf(bucket_folder, sizeof(bucket_folder), "%s/%s", home, DIR_STORE_BUCKET_NAME));
+        testutil_check(__wt_snprintf(
+          bucket_folder, sizeof(bucket_folder), "%s/%s", home, DIR_STORE_BUCKET_NAME));
     else
-        testutil_check(__wt_snprintf(bucket_folder, sizeof(bucket_folder), "%s/cache-%s", home, bucket_name));
+        testutil_check(
+          __wt_snprintf(bucket_folder, sizeof(bucket_folder), "%s/cache-%s", home, bucket_name));
 
     folder = opendir(bucket_folder);
     testutil_assert(folder != NULL);
-	while ((dir_entry = readdir(folder)) != NULL) {
-		if (strcmp(dir_entry->d_name, ".") == 0 || strcmp(dir_entry->d_name, "..") == 0)
+    while ((dir_entry = readdir(folder)) != NULL) {
+        if (strcmp(dir_entry->d_name, ".") == 0 || strcmp(dir_entry->d_name, "..") == 0)
             continue;
         /* Get the file name after the prefix. */
         file_name = strchr(dir_entry->d_name, '-');
         testutil_check(
-            __wt_snprintf(delete_file, sizeof(delete_file), "rm -rf %s/%s", home, file_name+1));
-		        status = system(delete_file);
+          __wt_snprintf(delete_file, sizeof(delete_file), "rm -rf %s/%s", home, file_name + 1));
+        status = system(delete_file);
         if (status < 0)
             testutil_die(status, "system: %s", delete_file);
-	}
+    }
 
     closedir(folder);
 
-    testutil_check(
-      __wt_snprintf(rm_cmd, sizeof(rm_cmd), "rm -rf %s/cache-*", home));
+    testutil_check(__wt_snprintf(rm_cmd, sizeof(rm_cmd), "rm -rf %s/cache-*", home));
     status = system(rm_cmd);
     if (status < 0)
         testutil_die(status, "system: %s", rm_cmd);
