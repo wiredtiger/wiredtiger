@@ -118,6 +118,17 @@ WT_READ_BARRIER(void)
 }
 
 /*
+ * WT_READ_BARRIER_WEAK --
+ *	MSVC implementation of WT_READ_BARRIER_WEAK. Since we only support x86 on windows and x86
+ *  has a strong memory model, the weak barrier is a compiler barrier.
+ */
+static inline void
+WT_READ_BARRIER(void)
+{
+    WT_BARRIER();
+}
+
+/*
  * WT_WRITE_BARRIER --
  *	MSVC implementation of WT_WRITE_BARRIER.
  */

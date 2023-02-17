@@ -26,6 +26,16 @@
     } while (0)
 
 /*
+ * Read a shared location and guarantee that the value is only read once and subsequent reads do not
+ * see any earlier state in architectures with weak memory ordering.
+ */
+#define WT_ORDERED_READ_WEAK(v, val) \
+    do {                             \
+        (v) = (val);                 \
+        WT_READ_BARRIER_WEAK();      \
+    } while (0)
+
+/*
  * Atomic versions of the flag set/clear macros.
  */
 #define FLD_ISSET_ATOMIC_16(field, mask) ((field) & (uint16_t)(mask))

@@ -19,9 +19,9 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
     /*
      * Compiler may replace the following usage of the variable with another read.
      *
-     * Place a read barrier to avoid this issue.
+     * Place a weak read barrier to avoid this issue.
      */
-    WT_ORDERED_READ(ins, WT_SKIP_LAST(ins_head));
+    WT_ORDERED_READ_WEAK(ins, WT_SKIP_LAST(ins_head));
 
     /* If there's no insert chain to search, we're done. */
     if (ins == NULL)
@@ -41,7 +41,7 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
          * Use a local variable to access the insert because the skip list can change across
          * references.
          */
-        WT_ORDERED_READ(ins, *insp);
+        WT_ORDERED_READ_WEAK(ins, *insp);
         if (ins != NULL && recno >= WT_INSERT_RECNO(ins)) {
             /* GTE: keep going at this level */
             insp = &ins->next[i];
@@ -71,9 +71,9 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
          * inserted, then B is inserted. If the current thread sees B, it would be consistent to not
          * see D.
          *
-         * Place a read barrier to avoid this issue.
+         * Place a weak read barrier to avoid this issue.
          */
-        WT_ORDERED_READ(ins, WT_SKIP_NEXT(ins));
+        WT_ORDERED_READ_WEAK(ins, WT_SKIP_NEXT(ins));
     return (ins);
 }
 
@@ -90,9 +90,9 @@ __col_insert_search_lt(WT_INSERT_HEAD *ins_head, uint64_t recno)
     /*
      * Compiler may replace the following usage of the variable with another read.
      *
-     * Place a read barrier to avoid this issue.
+     * Place a weak read barrier to avoid this issue.
      */
-    WT_ORDERED_READ(ins, WT_SKIP_FIRST(ins_head));
+    WT_ORDERED_READ_WEAK(ins, WT_SKIP_FIRST(ins_head));
 
     /* If there's no insert chain to search, we're done. */
     if (ins == NULL)
@@ -112,7 +112,7 @@ __col_insert_search_lt(WT_INSERT_HEAD *ins_head, uint64_t recno)
          * Use a local variable to access the insert because the skip list can change across
          * references.
          */
-        WT_ORDERED_READ(ins, *insp);
+        WT_ORDERED_READ_WEAK(ins, *insp);
         if (ins != NULL && recno > WT_INSERT_RECNO(ins)) {
             /* GT: keep going at this level */
             insp = &ins->next[i];
@@ -140,9 +140,9 @@ __col_insert_search_match(WT_INSERT_HEAD *ins_head, uint64_t recno)
     /*
      * Compiler may replace the following usage of the variable with another read.
      *
-     * Place a read barrier to avoid this issue.
+     * Place a weak read barrier to avoid this issue.
      */
-    WT_ORDERED_READ(ins, WT_SKIP_LAST(ins_head));
+    WT_ORDERED_READ_WEAK(ins, WT_SKIP_LAST(ins_head));
 
     /* If there's no insert chain to search, we're done. */
     if (ins == NULL)
@@ -163,7 +163,7 @@ __col_insert_search_match(WT_INSERT_HEAD *ins_head, uint64_t recno)
          * Use a local variable to access the insert because the skip list can change across
          * references.
          */
-        WT_ORDERED_READ(ins, *insp);
+        WT_ORDERED_READ_WEAK(ins, *insp);
         if (ins == NULL) {
             --i;
             --insp;

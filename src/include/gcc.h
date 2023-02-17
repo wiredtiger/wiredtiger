@@ -168,6 +168,8 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     do {                                         \
         __asm__ volatile("lfence" ::: "memory"); \
     } while (0)
+/* We only need a compiler barrier for x86 as it has a strong memory order. */
+#define WT_READ_BARRIER_WEAK() WT_BARRIER()
 #define WT_WRITE_BARRIER()                       \
     do {                                         \
         __asm__ volatile("sfence" ::: "memory"); \
@@ -179,6 +181,9 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     do {                                                          \
         __asm__ volatile("lock; addl $0, 0(%%esp)" ::: "memory"); \
     } while (0)
+#define WT_READ_BARRIER() WT_FULL_BARRIER()
+/* We only need a compiler barrier for i386 as it has a strong memory order */
+#define WT_READ_BARRIER_WEAK() WT_BARRIER()
 #define WT_READ_BARRIER() WT_FULL_BARRIER()
 #define WT_WRITE_BARRIER() WT_FULL_BARRIER()
 
@@ -192,6 +197,11 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     do {                                                                                   \
         __asm__ volatile("sync; ld $0, %0" ::"m"(*(long *)0xffffffff80000000) : "memory"); \
     } while (0)
+/*
+ * FIXME: not sure about whether mips memory ordering is strong enough. Put a read barrier here for
+ * correctness.
+ */
+#define WT_READ_BARRIER_WEAK() WT_READ_BARRIER()
 #define WT_WRITE_BARRIER()                                                                 \
     do {                                                                                   \
         __asm__ volatile("sync; ld $0, %0" ::"m"(*(long *)0xffffffff80000000) : "memory"); \
@@ -205,12 +215,19 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
         __asm__ volatile("sync" ::: "memory"); \
     } while (0)
 
-/* TODO: ISA 2.07 Elemental Memory Barriers would be better,
-   specifically mbll, and mbss, but they are not supported by POWER 8 */
+/*
+ * TODO: ISA 2.07 Elemental Memory Barriers would be better,
+   specifically mbll, and mbss, but they are not supported by POWER 8
+ */
 #define WT_READ_BARRIER()                        \
     do {                                         \
         __asm__ volatile("lwsync" ::: "memory"); \
     } while (0)
+/*
+ * FIXME: not sure about whether its memory ordering is strong enough. Put a read barrier here for
+ * correctness.
+ */
+#define WT_READ_BARRIER_WEAK() WT_READ_BARRIER()
 #define WT_WRITE_BARRIER()                       \
     do {                                         \
         __asm__ volatile("lwsync" ::: "memory"); \
@@ -250,6 +267,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     do {                                            \
         __asm__ volatile("dmb ishld" ::: "memory"); \
     } while (0)
+#define WT_READ_BARRIER_WEAK() WT_READ_BARRIER()
 #define WT_WRITE_BARRIER()                          \
     do {                                            \
         __asm__ volatile("dmb ishst" ::: "memory"); \
@@ -262,6 +280,11 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
         __asm__ volatile("bcr 15,0\n" ::: "memory"); \
     } while (0)
 #define WT_READ_BARRIER() WT_FULL_BARRIER()
+/*
+ * FIXME: not sure about whether its memory ordering is strong enough. Put a read barrier here for
+ * correctness.
+ */
+#define WT_READ_BARRIER_WEAK() WT_READ_BARRIER()
 #define WT_WRITE_BARRIER() WT_FULL_BARRIER()
 
 #elif defined(__sparc__)
@@ -280,6 +303,12 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     do {                                   \
         __asm__ volatile("" ::: "memory"); \
     } while (0)
+
+/*
+ * On UltraSparc machines, TSO is used, and so there is no need for membar. READ_BARRIER =
+ * #LoadLoad, and WRITE_BARRIER = #StoreStore are noop.
+ */
+#define WT_READ_BARRIER_WEAK() WT_READ_BARRIER()
 
 #define WT_WRITE_BARRIER()                 \
     do {                                   \
@@ -319,6 +348,11 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     do {                                             \
         __asm__ volatile("fence r, r" ::: "memory"); \
     } while (0)
+/*
+ * FIXME: not sure about whether its memory ordering is strong enough. Put a read barrier here for
+ * correctness.
+ */
+#define WT_READ_BARRIER_WEAK() WT_READ_BARRIER()
 #define WT_WRITE_BARRIER()                           \
     do {                                             \
         __asm__ volatile("fence w, w" ::: "memory"); \
@@ -334,6 +368,11 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     do {                                         \
         __asm__ volatile("dbar 0" ::: "memory"); \
     } while (0)
+/*
+ * FIXME: not sure about whether its memory ordering is strong enough. Put a read barrier here for
+ * correctness.
+ */
+#define WT_READ_BARRIER_WEAK() WT_READ_BARRIER()
 #define WT_WRITE_BARRIER()                       \
     do {                                         \
         __asm__ volatile("dbar 0" ::: "memory"); \

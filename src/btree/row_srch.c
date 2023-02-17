@@ -27,16 +27,17 @@ __search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT
     btree = S2BT(session);
     collator = btree->collator;
 
-    if ((ins = WT_SKIP_LAST(ins_head)) == NULL)
-        return (0);
     /*
      * Since the head of the skip list doesn't get mutated within this function, the compiler may
      * move this assignment above within the loop below if it needs to (and may read a different
      * value on each loop due to other threads mutating the skip list).
      *
-     * Place a read barrier here to avoid this issue.
+     * Place a weak read barrier here to avoid this issue.
      */
-    WT_READ_BARRIER();
+    WT_ORDERED_READ_WEAK(ins, WT_SKIP_LAST(ins_head));
+    if (ins == NULL)
+        return (0);
+
     key.data = WT_INSERT_KEY(ins);
     key.size = WT_INSERT_KEY_SIZE(ins);
 
@@ -110,9 +111,9 @@ __wt_search_insert(
          * In addition, a CPU with weak memory ordering, such as ARM, may reorder the reads and read
          * a stale value. It is not OK and the reason is explained in the following comment.
          *
-         * Place a read barrier here to avoid these issues.
+         * Place a weak read barrier here to avoid these issues.
          */
-        WT_ORDERED_READ(ins, *insp);
+        WT_ORDERED_READ_WEAK(ins, *insp);
         if (ins == NULL) {
             cbt->next_stack[i] = NULL;
             cbt->ins_stack[i--] = insp--;
@@ -182,9 +183,9 @@ __wt_search_insert(
             for (; i >= 0; i--) {
                 /*
                  * It is possible that we read an old value down the stack due to CPU read
-                 * reordering. Add a read barrier to avoid this issue.
+                 * reordering. Add a weak read barrier to avoid this issue.
                  */
-                WT_ORDERED_READ(cbt->next_stack[i], ins->next[i]);
+                WT_ORDERED_READ_WEAK(cbt->next_stack[i], ins->next[i]);
                 cbt->ins_stack[i] = &ins->next[i];
             }
     }
