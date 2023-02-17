@@ -2566,7 +2566,6 @@ tasks:
   # End of Python unit test tasks
 
   - name: s-all
-    tags: ["pull_request"]
     depends_on:
     - name: compile
     commands:
@@ -4847,6 +4846,7 @@ buildvariants:
     - name: ".pull_request !.pull_request_compilers"
     - name: ".unit_test_long"
     - name: compile
+    - name: s-all
     - name: doc-compile
     - name: make-check-test
     - name: unit-test
