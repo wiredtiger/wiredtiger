@@ -590,3 +590,27 @@ is_mounted(const char *mount_dir)
     return sb.st_dev != parent_sb.st_dev;
 #endif
 }
+
+/*
+ * testutil_system --
+ *     A convenience function that combines snprintf, system, and testutil_check.
+ */
+void
+testutil_system(const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((format(printf, 1, 2)))
+{
+    WT_DECL_RET;
+    char buf[4096];
+    size_t len;
+    va_list ap;
+
+    len = 0;
+
+    va_start(ap, fmt);
+    ret = __wt_vsnprintf_len_incr(buf, sizeof(buf), &len, fmt, ap);
+    va_end(ap);
+    testutil_check(ret);
+    if (len >= sizeof(buf))
+        testutil_die(ERANGE, "The command is too long.");
+
+    testutil_check(system(buf));
+}
