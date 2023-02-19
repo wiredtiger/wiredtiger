@@ -216,14 +216,16 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     } while (0)
 
 /*
- * TODO: ISA 2.07 Elemental Memory Barriers would be better,
-   specifically mbll, and mbss, but they are not supported by POWER 8
+ * TODO: ISA 2.07 Elemental Memory Barriers would be better, specifically mbll, and mbss, but they
+ * are not supported by POWER 8.
  */
 #define WT_READ_BARRIER()                        \
     do {                                         \
         __asm__ volatile("lwsync" ::: "memory"); \
     } while (0)
-/* PPC has a weak memory model. Use an actual read barrier to prevent CPU read reordering. */
+/*
+ * PPC has a weak memory ordering model. Use an actual read barrier to prevent CPU read reordering.
+ */
 #define WT_READ_BARRIER_WEAK() WT_READ_BARRIER()
 #define WT_WRITE_BARRIER()                       \
     do {                                         \
@@ -233,7 +235,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
 #elif defined(__aarch64__)
 /*
  * Use an isb instruction here to be closer to the original x86 pause instruction. The yield
- * instruction that was previously here is a nop that is intended  to provide a hint that a
+ * instruction that was previously here is a nop that is intended to provide a hint that a
  * thread in a SMT system could yield. This is different from the x86 pause instruction
  * which delays execution by O(100) cycles. The isb will typically delay execution by about
  * 50 cycles so it's a reasonable alternative.
@@ -264,7 +266,9 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     do {                                            \
         __asm__ volatile("dmb ishld" ::: "memory"); \
     } while (0)
-/* ARM has a weak memory model. Use an actual read barrier to prevent CPU read reordering. */
+/*
+ * ARM has a weak memory ordering model. Use an actual read barrier to prevent CPU read reordering.
+ */
 #define WT_READ_BARRIER_WEAK() WT_READ_BARRIER()
 #define WT_WRITE_BARRIER()                          \
     do {                                            \
@@ -278,11 +282,8 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
         __asm__ volatile("bcr 15,0\n" ::: "memory"); \
     } while (0)
 #define WT_READ_BARRIER() WT_FULL_BARRIER()
-/*
- * FIXME: not sure whether its memory ordering is strong enough. Put a read barrier here for
- * correctness.
- */
-#define WT_READ_BARRIER_WEAK() WT_READ_BARRIER()
+/* We only need a compiler barrier for zSeries as its memory ordering is strong enough. */
+#define WT_READ_BARRIER_WEAK() WT_BARRIER()
 #define WT_WRITE_BARRIER() WT_FULL_BARRIER()
 
 #elif defined(__sparc__)
@@ -343,7 +344,10 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     do {                                             \
         __asm__ volatile("fence r, r" ::: "memory"); \
     } while (0)
-/* RISC-V has a weak memory model. Use an actual read barrier to prevent CPU read reordering. */
+/*
+ * RISC-V has a weak memory ordering model. Use an actual read barrier to prevent CPU read
+ * reordering.
+ */
 #define WT_READ_BARRIER_WEAK() WT_READ_BARRIER()
 #define WT_WRITE_BARRIER()                           \
     do {                                             \
