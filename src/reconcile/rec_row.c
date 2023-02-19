@@ -569,8 +569,8 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
         if (upd_select.ooo_tombstone && r->hs_clear_on_tombstone) {
             tmpkey->data = WT_INSERT_KEY(ins);
             tmpkey->size = WT_INSERT_KEY_SIZE(ins);
-            WT_ERR(__wt_rec_hs_clear_on_tombstone(
-              session, r, WT_RECNO_OOB, tmpkey, upd->type == WT_UPDATE_TOMBSTONE ? false : true));
+            WT_ERR(__wt_rec_hs_clear_on_tombstone(session, r, upd_select.tw.durable_stop_ts,
+              WT_RECNO_OOB, tmpkey, upd->type == WT_UPDATE_TOMBSTONE ? false : true));
         }
 
         if (upd->type == WT_UPDATE_TOMBSTONE)
