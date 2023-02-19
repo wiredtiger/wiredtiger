@@ -365,8 +365,8 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
         __asm__ volatile("dbar 0" ::: "memory"); \
     } while (0)
 /*
- * FIXME: not sure whether its memory ordering is strong enough. Put a read barrier here for
- * correctness.
+ * loongarch has a weak memory ordering model. Use an actual read barrier to prevent CPU read
+ * reordering.
  */
 #define WT_READ_BARRIER_WEAK() WT_READ_BARRIER()
 #define WT_WRITE_BARRIER()                       \
