@@ -339,6 +339,7 @@ read:
         case WT_REF_SPLIT:
             return (WT_RESTART);
         case WT_REF_MEM:
+            WT_ASSERT(session, btree == NULL || !F_ISSET(btree, WT_BTREE_VERIFY));
             /*
              * The page is in memory.
              *

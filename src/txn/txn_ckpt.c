@@ -2456,6 +2456,8 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
     if (!btree->modified && !bulk)
         return (__wt_evict_file(session, WT_SYNC_DISCARD));
 
+    WT_ASSERT(session, btree == NULL || !F_ISSET(btree, WT_BTREE_VERIFY));
+
     /*
      * Don't flush data from modified trees independent of system-wide checkpoint. Flushing trees
      * can lead to files that are inconsistent on disk after a crash.
