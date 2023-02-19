@@ -282,7 +282,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
         __asm__ volatile("bcr 15,0\n" ::: "memory"); \
     } while (0)
 #define WT_READ_BARRIER() WT_FULL_BARRIER()
-/* We only need a compiler barrier for zSeries as its memory ordering is strong enough. */
+/* We only need a compiler barrier for s390x as its memory ordering is strong enough. */
 #define WT_READ_BARRIER_WEAK() WT_BARRIER()
 #define WT_WRITE_BARRIER() WT_FULL_BARRIER()
 
