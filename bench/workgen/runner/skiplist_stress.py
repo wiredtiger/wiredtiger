@@ -27,33 +27,39 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
-import re, os
-from setuptools import setup, Extension
+# A workload with small cache, small internal page size, large leaf page
+# sizes, very fast splits and multiple threads inserting keys in random
+# order.
 
-# OS X hack: turn off the Universal binary support that is built into the
-# Python build machinery, just build for the default CPU architecture.
-if not 'ARCHFLAGS' in os.environ:
-    os.environ['ARCHFLAGS'] = ''
+from runner import *
+from wiredtiger import *
+from workgen import *
 
-# Suppress warnings building SWIG generated code.  SWIG boiler plate
-# functions have sign conversion warnings, so those warnings must be disabled.
-extra_cflags = [ '-w', '-I../../src/include', '-Wno-sign-conversion']
+context = Context()
+# Connection configuration.
+conn_config = "cache_size=100MB,log=(enabled=false),statistics=[fast],statistics_log=(wait=1,json=false),debug_mode=(stress_skiplist=1)"
+conn = context.wiredtiger_open("create," + conn_config)
+s = conn.open_session("")
 
-dir = os.path.dirname(__file__)
+# Table configuration.
+table_config = "split_deepen_min_child=100000,"
+tname = "file:test"
+table = Table(tname)
+s.create(tname, 'key_format=S,value_format=S,' + table_config)
+table.options.key_size = 64
+table.options.value_size = 10
+table.options.range = 100000000 # 100 million
 
-# Read the version information from the RELEASE_INFO file
-for l in open(os.path.join(dir, '..', '..', 'RELEASE_INFO')):
-    if re.match(r'WIREDTIGER_VERSION_(?:MAJOR|MINOR|PATCH)=', l):
-        exec(l)
+# Run phase.
+ops = Operation(Operation.OP_INSERT, table)
+thread0 = Thread(ops)
+workload = Workload(context, 50 * thread0)
+workload.options.report_interval=5
+workload.options.run_time=360
+print('Skiplist stress workload running...')
+ret = workload.run(conn)
+assert ret == 0, ret
 
-wt_ver = '%d.%d' % (WIREDTIGER_VERSION_MAJOR, WIREDTIGER_VERSION_MINOR)
-
-setup(name='wiredtiger', version=wt_ver,
-    ext_modules=[Extension('_wiredtiger',
-                [os.path.join(dir, 'wiredtiger_wrap.c')],
-        libraries=['wiredtiger'],
-        extra_compile_args=extra_cflags,
-    )],
-    package_dir={'' : dir},
-    packages=['wiredtiger'],
-)
+latency_filename = context.args.home + "/latency.out"
+latency.workload_latency(workload, latency_filename)
+conn.close()

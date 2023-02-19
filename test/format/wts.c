@@ -197,6 +197,23 @@ configure_timing_stress(char **p, size_t max)
 }
 
 /*
+ * configure_file_manager --
+ *     Configure file manager settings.
+ */
+static void
+configure_file_manager(char **p, size_t max)
+{
+    CONFIG_APPEND(*p, ",file_manager=[");
+    if (GV(FILE_MANAGER_CLOSE_HANDLE_MINIMUM) != 0)
+        CONFIG_APPEND(*p, ",close_handle_minimum=%" PRIu32, GV(FILE_MANAGER_CLOSE_HANDLE_MINIMUM));
+    if (GV(FILE_MANAGER_CLOSE_IDLE_TIME) != 0)
+        CONFIG_APPEND(*p, ",close_idle_time=%" PRIu32, GV(FILE_MANAGER_CLOSE_IDLE_TIME));
+    if (GV(FILE_MANAGER_CLOSE_SCAN_INTERVAL) != 0)
+        CONFIG_APPEND(*p, ",close_scan_interval=%" PRIu32, GV(FILE_MANAGER_CLOSE_SCAN_INTERVAL));
+    CONFIG_APPEND(*p, "]");
+}
+
+/*
  * configure_debug_mode --
  *     Configure debug settings.
  */
@@ -207,6 +224,8 @@ configure_debug_mode(char **p, size_t max)
 
     if (GV(DEBUG_CHECKPOINT_RETENTION) != 0)
         CONFIG_APPEND(*p, ",checkpoint_retention=%" PRIu32, GV(DEBUG_CHECKPOINT_RETENTION));
+    if (GV(DEBUG_CURSOR_REPOSITION))
+        CONFIG_APPEND(*p, ",cursor_reposition=true");
     if (GV(DEBUG_EVICTION))
         CONFIG_APPEND(*p, ",eviction=true");
     /*
@@ -322,6 +341,9 @@ create_database(const char *home, WT_CONNECTION **connp)
     /* Optional timing stress. */
     configure_timing_stress(&p, max);
 
+    /* Optional file manager. */
+    configure_file_manager(&p, max);
+
     /* Optional debug mode. */
     configure_debug_mode(&p, max);
 
@@ -385,10 +407,10 @@ create_object(TABLE *table, void *arg)
      * Configure the maximum key/value sizes, but leave it as the default if we come up with
      * something crazy.
      */
-    maxleafkey = mmrand(NULL, table->max_leaf_page / 50, table->max_leaf_page / 40);
+    maxleafkey = mmrand(&g.extra_rnd, table->max_leaf_page / 50, table->max_leaf_page / 40);
     if (maxleafkey > 20)
         CONFIG_APPEND(p, ",leaf_key_max=%" PRIu32, maxleafkey);
-    maxleafvalue = mmrand(NULL, table->max_leaf_page * 10, table->max_leaf_page / 40);
+    maxleafvalue = mmrand(&g.extra_rnd, table->max_leaf_page * 10, table->max_leaf_page / 40);
     if (maxleafvalue > 40 && maxleafvalue < 100 * 1024)
         CONFIG_APPEND(p, ",leaf_value_max=%" PRIu32, maxleafvalue);
 
@@ -406,7 +428,7 @@ create_object(TABLE *table, void *arg)
         if (TV(BTREE_HUFFMAN_VALUE))
             CONFIG_APPEND(p, ",huffman_value=english");
         if (TV(BTREE_DICTIONARY))
-            CONFIG_APPEND(p, ",dictionary=%" PRIu32, mmrand(NULL, 123, 517));
+            CONFIG_APPEND(p, ",dictionary=%" PRIu32, mmrand(&g.extra_rnd, 123, 517));
         break;
     }
 
@@ -523,6 +545,9 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
 
     /* Optional timing stress. */
     configure_timing_stress(&p, max);
+
+    /* Optional file manager. */
+    configure_file_manager(&p, max);
 
     /* Optional debug mode. */
     configure_debug_mode(&p, max);

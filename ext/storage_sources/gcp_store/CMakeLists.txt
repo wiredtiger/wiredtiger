@@ -1,13 +1,16 @@
 project(gcp_store CXX)
 
-find_package(google_cloud_cpp_common CONFIG REQUIRED)
-find_package(google_cloud_cpp_rest_internal CONFIG REQUIRED)
-find_package(google_cloud_cpp_storage CONFIG REQUIRED)
+# Using the Google Cloud Storage SDK produces a reference problem where a google library
+# indirectly depends on an internal google library. Fixing this problem requires setting
+# the linker flags and runtime path.
+set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} -Wl,--disable-new-dtags)
+set(CMAKE_INSTALL_RPATH "${CMAKE_BINARY_DIR}/gcp-sdk-cpp/install/lib")
 
 # Create an intermediate library to build the helper library.
 add_library(gcp_bucket_util STATIC gcp_connection.cpp)
 set_property(TARGET gcp_bucket_util PROPERTY POSITION_INDEPENDENT_CODE ON)
 
+find_package(absl)
 target_include_directories(
     gcp_bucket_util
     PUBLIC
@@ -22,10 +25,11 @@ target_compile_options(
 target_link_libraries(
     gcp_bucket_util
     PUBLIC
-        google-cloud-cpp::storage
-        google-cloud-cpp::common
-        google-cloud-cpp::rest_internal
+        gcp_storage_lib
+        gcp_common_lib
+        absl::variant
 )
+add_dependencies(gcp_bucket_util gcp-sdk)
 
 # Build the gcp extension as a library.
 add_library(wiredtiger_gcp_store MODULE gcp_storage_source.cpp)

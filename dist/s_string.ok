@@ -37,12 +37,13 @@ BBBBBBBBBB
 BBBBBBBBBBBBB
 BBBBBBBBBBBBBBBB
 BBBBBBBBBBBBBBBBBB
-BCmvxz
+BClmvxz
 BDB
 BDB's
 BDmpvXx
 BIGENDIAN
 BLKCACHE
+BLmRrSVv
 BOOL
 BSR
 BTREE
@@ -86,6 +87,8 @@ CURSORs
 CURSTD
 CallsCustDate
 Castagnoli
+CcLlsvz
+Cclmpv
 CentOS
 Checkpointing
 Checksum
@@ -94,7 +97,6 @@ CityHash
 CloseHandle
 CmP
 CmPTh
-Cmvz
 Collet
 Comparator
 Compressibility
@@ -106,12 +108,12 @@ CreateFileW
 Crt
 Crummey
 CustomersPhone
+Cygwin
 DAX
 DECL
 DECR
 DESC
 DHANDLE
-DIAG
 DIRECTIO
 DNE
 DOI
@@ -128,6 +130,8 @@ Decrypt
 DeleteFileW
 Destructor
 Deterministically
+Dk
+DmpvXx
 Dxxx
 EACCES
 EAGAIN
@@ -190,6 +194,7 @@ Fsync
 Fuerst
 GBR
 GCC
+GCP
 GF
 GIDs
 GLIBC
@@ -271,11 +276,12 @@ LTE
 LWN
 LZ
 LZO
+LazyFS
+LazyFS's
 LeafGreen
 LevelDB
 Levyx
 LibFuzzer
-LmRrSVv
 LoadLoad
 LockFile
 LogSystemInterface
@@ -348,7 +354,9 @@ Opcode
 Optane
 Outfmt
 PARAM
+PDEATHSIG
 PFX
+PID
 POS
 POSIX
 PPC
@@ -364,6 +372,7 @@ PTR
 PackInputStream
 PackOutputStream
 Pandis
+Pe
 Phong
 PlatformSDK
 Podir
@@ -377,12 +386,14 @@ Preload
 Prepend
 Prepending
 Prev
+Px
 QQQS
 QSQ
 Qsort
 RCS
 RDNOLOCK
 RDONLY
+README
 READONLY
 REALLOC
 RECNO
@@ -451,6 +462,7 @@ Stoica
 StoreLoad
 StoreStore
 Su
+Subdirectory
 Syscall
 TAILQ
 TCMalloc
@@ -495,6 +507,7 @@ UnlockFile
 Unmap
 UnmapViewOfFile
 Unmarshall
+Unmount
 Unordered
 Uryyb
 VALGRIND
@@ -564,11 +577,13 @@ aa
 aaa
 abcdef
 abcdefghijklmnopqrstuvwxyz
+acstu
 addl
 addr
 addrs
 addtw
 agc
+ajn
 alfred
 alloc
 allocator
@@ -589,6 +604,7 @@ aspell
 assertfmt
 async
 atomicity
+atomics
 atou
 auth
 autocommit
@@ -910,6 +926,7 @@ fgetln
 fgets
 fh
 fhandle
+fifo
 fileX
 filefrag
 filehandle
@@ -954,6 +971,7 @@ fuzzer
 fuzzutil
 fvisibility
 fwrite
+gb
 gc
 gcc
 gdb
@@ -1095,6 +1113,7 @@ kvs
 lang
 las
 latencies
+lazyfs
 lbrace
 lbracket
 ld
@@ -1115,6 +1134,7 @@ libsodium
 libtool
 libwiredtiger
 linkers
+linux
 liveness
 llll
 llu
@@ -1171,6 +1191,7 @@ maxv
 mb
 mbll
 mbss
+md
 mem
 memalign
 membar
@@ -1194,6 +1215,7 @@ mips
 mkdir
 mmap
 mmrand
+mn
 mnt
 mongod
 movemask
@@ -1284,6 +1306,7 @@ oplist
 oplog
 optimizations
 optrack
+optwt
 optype
 ori
 origstartrecno
@@ -1310,6 +1333,7 @@ pclose
 pcpu
 perf
 pfx
+pid
 pluggable
 pmem
 poc
@@ -1341,6 +1365,7 @@ primary's
 printf
 printlog
 priv
+proc
 prog
 progname
 programmatically
@@ -1487,6 +1512,8 @@ strtouq
 struct
 structs
 su
+subdir
+subdirectories
 subdirectory
 subget
 subgetraw
@@ -1495,6 +1522,7 @@ subinit
 sublicense
 subone
 suboptimal
+subprocess
 subsystem's
 subtest
 subtree
@@ -1540,6 +1568,7 @@ tokstart
 toktype
 tolower
 tombstoned
+toml
 toolchain
 toplevel
 totalsec
@@ -1573,6 +1602,7 @@ uS
 ui
 uint
 uintmax
+umount
 unbare
 unbuffered
 uncacheable
@@ -1600,6 +1630,7 @@ unmarshall
 unmarshalled
 unmerged
 unmodify
+unmount
 unordered
 unpackv
 unpadded
@@ -1690,6 +1721,7 @@ wtperf's
 wts
 wtstats
 xF
+xX
 xdeadbeef
 xff
 xfff

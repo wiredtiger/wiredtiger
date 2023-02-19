@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -25,23 +25,37 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-#
-# test_count01.py
-#   Tests WT_SESSION->count
-#
 
-import wiredtiger, wttest
+# Common functions used by python scripts in this directory.
 
-class test_count01(wttest.WiredTigerTestCase):
-    tablename = 'test_count01'
-    uri = 'table:' + tablename
+import os, sys
 
-    def test_count_api(self):
-        self.session.create(self.uri, 'key_format=i,value_format=i')
-       
-        self.assertRaisesException(
-            wiredtiger.WiredTigerError, lambda: self.session.count(self.uri))
+# Set the system path to include the python build directory if we can find it.
+def setup_python_path():
+    # Assuming we're somewhere in a build directory, walk the tree up
+    # looking for the wt program.
+    curdir = os.getcwd()
+    d = curdir
+    found = False
+    while d != '/':
+        if os.path.isfile(os.path.join(d, 'wt')) or os.path.isfile(os.path.join(d, 'wt.exe')):
+            found = True
+            break
+        d = os.path.dirname(d)
+    if found:
+        sys.path.insert(1, os.path.join(d, 'lang', 'python'))
+    else:
+        print('Cannot find wt, must run this from a build directory')
+        sys.exit(1)
 
+# Import the wiredtiger directory and return the wiredtiger_open function.
+def import_wiredtiger():
+    try:
+        from wiredtiger import wiredtiger_open
+    except:
+        setup_python_path()
+        from wiredtiger import wiredtiger_open
+    return wiredtiger_open
 
-if __name__ == '__main__':
-    wttest.run()
+# This name will be exported
+wiredtiger_open = import_wiredtiger()

@@ -147,12 +147,14 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
     WT_DECL_ITEM(val);
     WT_DECL_RET;
     const char *filename, **p,
-      *filecfg[] = {WT_CONFIG_BASE(session, file_meta), config, NULL, NULL, NULL, NULL};
+      *filecfg[] = {WT_CONFIG_BASE(session, file_meta), config, NULL, NULL, NULL, NULL},
+      *filestripped;
     char *fileconf, *filemeta;
     uint32_t allocsize;
     bool against_stable, exists, import, import_repair, is_metadata;
 
     fileconf = filemeta = NULL;
+    filestripped = NULL;
     import = F_ISSET(session, WT_SESSION_IMPORT);
 
     import_repair = false;
@@ -278,7 +280,12 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
             /* Try to recreate the associated metadata from the imported data source. */
             WT_ERR(__wt_import_repair(session, uri, &fileconf));
         }
-        WT_ERR(__wt_metadata_insert(session, uri, fileconf));
+
+        /* Strip any configuration settings that should not be persisted. */
+        filecfg[1] = fileconf;
+        filecfg[2] = NULL;
+        WT_ERR(__wt_config_tiered_strip(session, filecfg, &filestripped));
+        WT_ERR(__wt_metadata_insert(session, uri, filestripped));
 
         /*
          * Ensure that the timestamps in the imported data file are not in the future relative to
@@ -289,7 +296,7 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
               __wt_config_getones(session, config, "import.compare_timestamp", &cval) == 0 &&
               (WT_STRING_MATCH("stable", cval.str, cval.len) ||
                 WT_STRING_MATCH("stable_timestamp", cval.str, cval.len));
-            WT_ERR(__check_imported_ts(session, uri, fileconf, against_stable));
+            WT_ERR(__check_imported_ts(session, uri, filestripped, against_stable));
         }
     }
 
@@ -315,6 +322,7 @@ err:
     __wt_scr_free(session, &val);
     __wt_free(session, fileconf);
     __wt_free(session, filemeta);
+    __wt_free(session, filestripped);
     return (ret);
 }
 
@@ -426,6 +434,72 @@ __wt_find_import_metadata(WT_SESSION_IMPL *session, const char *uri, const char 
 }
 
 /*
+ * __schema_is_tiered_storage_shared --
+ *     Check whether the table is configured for tiered storage, and if so, whether the tiered table
+ *     is shared.
+ */
+static bool
+__schema_is_tiered_storage_shared(WT_SESSION_IMPL *session, const char *config)
+{
+    WT_CONFIG_ITEM cval;
+
+    /*
+     * The tiered storage shared table needs to have two column groups that point to the
+     * underlying active and shared files. The following checks are carried out to determine
+     * whether the table can be created as a tiered storage shared table or not based on
+     * the table creation configuration.
+     *
+     * A table is not a shared if any of the following are true:
+     * 1. The table configuration does not specify an underlying source.
+     * 2. The table configuration does not specify an underlying type of the storage.
+     * 3. The connection is not configured for tiered storage or the table is not
+     *    configured for tiered storage.
+     * 4. The connection is not configured for tiered storage shared or the table is
+     *    not configured for tiered storage shared.
+     */
+    if (__wt_config_getones(session, config, "source", &cval) == 0 && cval.len != 0)
+        return (false);
+    else if (__wt_config_getones(session, config, "type", &cval) == 0 &&
+      !WT_STRING_MATCH("file", cval.str, cval.len))
+        return (false);
+    else if ((S2C(session)->bstorage == NULL) ||
+      (__wt_config_getones(session, config, "tiered_storage.name", &cval) == 0 && cval.len != 0 &&
+        WT_STRING_MATCH("none", cval.str, cval.len)))
+        return (false);
+    else if (!S2C(session)->bstorage->tiered_shared ||
+      ((__wt_config_getones(session, config, "tiered_storage.shared", &cval) == 0) && !cval.val))
+        return (false);
+
+    return (true);
+}
+
+/*
+ * __schema_tiered_shared_colgroup_source --
+ *     Get the tiered storage shared URI of the data source for a column group. For a shared tiered
+ *     table named table:name the active table is always file:name.wt and the shared table is
+ *     tiered:name which points to the shared components.
+ */
+static int
+__schema_tiered_shared_colgroup_source(
+  WT_SESSION_IMPL *session, WT_TABLE *table, bool active, WT_ITEM *buf)
+{
+    size_t len;
+    const char *prefix, *suffix, *tablename;
+
+    tablename = table->iface.name + strlen("table:");
+    if (active) {
+        prefix = "file";
+        suffix = ".wt";
+    } else {
+        prefix = "tiered";
+        suffix = "";
+    }
+
+    len = strlen(prefix);
+    return (__wt_buf_fmt(session, buf, "%.*s:%s%s", (int)len, prefix, tablename, suffix));
+}
+
+/*
  * __create_colgroup --
  *     Create a column group.
  */
@@ -433,10 +507,12 @@ static int
 __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, const char *config)
 {
     WT_CONFIG_ITEM cval;
+    WT_DECL_ITEM(buf);
     WT_DECL_RET;
     WT_ITEM confbuf, fmt, namebuf;
     WT_TABLE *table;
     size_t tlen;
+    int i, ncolgroups;
     char *cgconf, *origconf;
     const char **cfgp, *cfg[4] = {WT_CONFIG_BASE(session, colgroup_meta), config, NULL, NULL};
     const char *cgname, *source, *sourceconf, *tablename;
@@ -481,58 +557,83 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
         WT_ERR_MSG(session, ret == WT_NOTFOUND ? EINVAL : ret,
           "Column group '%s' not found in table '%.*s'", cgname, (int)tlen, tablename);
 
-    /* Check if the column group already exists. */
-    if ((ret = __wt_metadata_search(session, name, &origconf)) == 0) {
-        if (exclusive)
-            WT_ERR(EEXIST);
-        exists = true;
-    }
-    WT_ERR_NOTFOUND_OK(ret, false);
-
-    /* Find the first NULL entry in the cfg stack. */
-    for (cfgp = &cfg[1]; *cfgp; cfgp++)
-        ;
-
-    /* Add the source to the colgroup config before collapsing. */
-    if (__wt_config_getones(session, config, "source", &cval) == 0 && cval.len != 0) {
-        WT_ERR(__wt_buf_fmt(session, &namebuf, "%.*s", (int)cval.len, cval.str));
-        source = namebuf.data;
-    } else {
-        WT_ERR(__wt_schema_colgroup_source(session, table, cgname, config, &namebuf));
-        source = namebuf.data;
-        WT_ERR(__wt_buf_fmt(session, &confbuf, "source=\"%s\"", source));
-        *cfgp++ = confbuf.data;
-    }
-
-    if (session->import_list != NULL)
-        /* Use the import configuration, it should have key and value format configurations. */
-        WT_ERR(__wt_find_import_metadata(session, source, &sourcecfg[0]));
-    else {
-        /* Calculate the key/value formats: these go into the source config. */
-        WT_ERR(__wt_buf_fmt(session, &fmt, "key_format=%s", table->key_format));
-        if (cgname == NULL)
-            WT_ERR(__wt_buf_catfmt(session, &fmt, ",value_format=%s", table->value_format));
-        else {
-            if (__wt_config_getones(session, config, "columns", &cval) != 0)
-                WT_ERR_MSG(session, EINVAL, "No 'columns' configuration for '%s'", name);
-            WT_ERR(__wt_buf_catfmt(session, &fmt, ",value_format="));
-            WT_ERR(__wt_struct_reformat(session, table, cval.str, cval.len, NULL, true, &fmt));
+    WT_ERR(__wt_scr_alloc(session, 0, &buf));
+    /*
+     * A simple table have default one column group except the tiered storage shared table that will
+     * have default 2 column groups.
+     */
+    ncolgroups = table->is_tiered_shared ? 2 : 1;
+    for (i = 0; i < ncolgroups; i++) {
+        /* Get the column group name. */
+        if (table->is_tiered_shared) {
+            WT_ERR(__wt_schema_tiered_shared_colgroup_name(
+              session, tablename, i == 0 ? true : false, buf));
+            name = buf->data;
         }
 
-        sourcecfg[1] = fmt.data;
-    }
+        /* Check if the column group already exists. */
+        if ((ret = __wt_metadata_search(session, name, &origconf)) == 0) {
+            if (exclusive)
+                WT_ERR(EEXIST);
+            exists = true;
+        }
+        WT_ERR_NOTFOUND_OK(ret, false);
 
-    WT_ERR(__wt_config_merge(session, sourcecfg, NULL, &sourceconf));
-    WT_ERR(__wt_schema_create(session, source, sourceconf));
+        /* Find the first NULL entry in the cfg stack. */
+        for (cfgp = &cfg[1]; *cfgp; cfgp++)
+            ;
 
-    WT_ERR(__wt_config_collapse(session, cfg, &cgconf));
+        /* Add the source to the colgroup config before collapsing. */
+        if (__wt_config_getones(session, config, "source", &cval) == 0 && cval.len != 0) {
+            WT_ERR(__wt_buf_fmt(session, &namebuf, "%.*s", (int)cval.len, cval.str));
+            source = namebuf.data;
+        } else if (table->is_tiered_shared) {
+            WT_ERR(__schema_tiered_shared_colgroup_source(
+              session, table, i == 0 ? true : false, &namebuf));
+            source = namebuf.data;
+            WT_ERR(__wt_buf_fmt(session, &confbuf, "source=\"%s\"", source));
+            *cfgp++ = confbuf.data;
+        } else {
+            WT_ERR(__wt_schema_colgroup_source(session, table, cgname, config, &namebuf));
+            source = namebuf.data;
+            WT_ERR(__wt_buf_fmt(session, &confbuf, "source=\"%s\"", source));
+            *cfgp++ = confbuf.data;
+        }
 
-    if (!exists) {
-        WT_ERR(__wt_metadata_insert(session, name, cgconf));
-        WT_ERR(__wt_schema_open_colgroups(session, table));
+        if (session->import_list != NULL)
+            /* Use the import configuration, it should have key and value format configurations. */
+            WT_ERR(__wt_find_import_metadata(session, source, &sourcecfg[0]));
+        else {
+            /* Calculate the key/value formats: these go into the source config. */
+            WT_ERR(__wt_buf_fmt(session, &fmt, "key_format=%s", table->key_format));
+            if (cgname == NULL)
+                WT_ERR(__wt_buf_catfmt(session, &fmt, ",value_format=%s", table->value_format));
+            else {
+                if (__wt_config_getones(session, config, "columns", &cval) != 0)
+                    WT_ERR_MSG(session, EINVAL, "No 'columns' configuration for '%s'", name);
+                WT_ERR(__wt_buf_catfmt(session, &fmt, ",value_format="));
+                WT_ERR(__wt_struct_reformat(session, table, cval.str, cval.len, NULL, true, &fmt));
+            }
+
+            sourcecfg[1] = fmt.data;
+        }
+
+        WT_ERR(__wt_config_merge(session, sourcecfg, NULL, &sourceconf));
+        WT_ERR(__wt_schema_create(session, source, sourceconf));
+
+        WT_ERR(__wt_config_collapse(session, cfg, &cgconf));
+
+        if (!exists) {
+            WT_ERR(__wt_metadata_insert(session, name, cgconf));
+            WT_ERR(__wt_schema_open_colgroups(session, table));
+        }
+
+        /* Reset the last filled configuration for the next column group. */
+        *--cfgp = NULL;
     }
 
 err:
+    __wt_scr_free(session, &buf);
     __wt_free(session, cgconf);
     __wt_free(session, sourceconf);
     __wt_free(session, origconf);
@@ -814,6 +915,7 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
 {
     WT_CONFIG conf;
     WT_CONFIG_ITEM cgkey, cgval, ckey, cval;
+    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_TABLE *table;
     size_t len;
@@ -882,7 +984,16 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
     WT_ERR_NOTFOUND_OK(ret, false);
 
     WT_ERR(__wt_config_collapse(session, cfg, &tablecfg));
-    WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
+
+    if (__schema_is_tiered_storage_shared(session, config)) {
+        WT_ASSERT(session, import == false);
+        WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+
+        /* Concatenate the metadata base string with the tiered storage shared string. */
+        WT_ERR(__wt_buf_fmt(session, tmp, "%s,%s", tablecfg, "shared=true"));
+        WT_ERR(__wt_metadata_insert(session, uri, tmp->mem));
+    } else
+        WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
 
     if (ncolgroups == 0) {
         len = strlen("colgroup:") + strlen(tablename) + 1;
@@ -914,6 +1025,7 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
 
 err:
     WT_TRET(__wt_schema_release_table(session, &table));
+    __wt_scr_free(session, &tmp);
     __wt_free(session, cgcfg);
     __wt_free(session, cgname);
     __wt_free(session, filecfg);
@@ -924,15 +1036,35 @@ err:
 }
 
 /*
+ * __tiered_metadata_insert --
+ *     Wrapper function to insert the tiered object metadata entry.
+ */
+static int
+__tiered_metadata_insert(WT_SESSION_IMPL *session, const char *uri, const char **config)
+{
+    WT_DECL_RET;
+    const char *metadata;
+
+    WT_RET(__wt_config_tiered_strip(session, config, &metadata));
+    ret = __wt_metadata_insert(session, uri, metadata);
+    __wt_free(session, metadata);
+
+    return (ret);
+}
+
+/*
  * __create_object --
  *     Create a tiered object for the given name.
  */
 static int
 __create_object(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const char *config)
 {
+    const char *cfg[] = {WT_CONFIG_BASE(session, object_meta), NULL, NULL};
+
     WT_UNUSED(exclusive);
-    WT_RET(__wt_metadata_insert(session, uri, config));
-    return (0);
+    cfg[1] = config;
+
+    return (__tiered_metadata_insert(session, uri, cfg));
 }
 
 /*
@@ -943,9 +1075,12 @@ int
 __wt_tiered_tree_create(
   WT_SESSION_IMPL *session, const char *uri, bool exclusive, const char *config)
 {
+    const char *cfg[] = {WT_CONFIG_BASE(session, tier_meta), NULL, NULL};
+
     WT_UNUSED(exclusive);
-    WT_RET(__wt_metadata_insert(session, uri, config));
-    return (0);
+    cfg[1] = config;
+
+    return (__tiered_metadata_insert(session, uri, cfg));
 }
 
 /*
@@ -999,7 +1134,7 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
             cfg[1] = tmp->data;
             cfg[2] = config;
             cfg[3] = "tiers=()";
-            WT_ERR(__wt_config_merge(session, cfg, NULL, &metadata));
+            WT_ERR(__wt_config_tiered_strip(session, cfg, &metadata));
         }
 
         WT_ERR(__wt_metadata_insert(session, uri, metadata));

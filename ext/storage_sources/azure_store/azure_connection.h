@@ -32,17 +32,41 @@
 #include <azure/storage/blobs.hpp>
 
 #include <string>
+#include <vector>
 
+// Mapping between HTTP response codes and corresponding errno values to be used by the Azure
+// connection methods to return errno values expected by the filesystem interface.
+static const std::map<Azure::Core::Http::HttpStatusCode, int32_t> to_errno = {
+  {Azure::Core::Http::HttpStatusCode::NotFound, ENOENT},
+  {Azure::Core::Http::HttpStatusCode::Forbidden, EACCES},
+  {Azure::Core::Http::HttpStatusCode::Conflict, EBUSY},
+  {Azure::Core::Http::HttpStatusCode::BadRequest, EINVAL},
+  {Azure::Core::Http::HttpStatusCode::InternalServerError, EAGAIN}};
+
+/*
+ * This class represents an active connection to the Azure endpoint and allows for interaction with
+ * the Azure client. The Azure cloud storage names buckets as containers and objects as blobs. The
+ * azure_connection allows for the following functionality: Listing the container contents filtered
+ * by a given prefix and output all or output single, puts a blob to the cloud, gets a blob from the
+ * cloud, and deletes a blob from the cloud. It also can check for the existence of a unique
+ * container or blob. Each azure_connection is associated with a unique azure_client with its own
+ * unique container.
+ */
 class azure_connection {
     public:
-    azure_connection(const std::string &bucket_name, const std::string &obj_prefix = "");
-    int list_objects(std::vector<std::string> &objects) const;
-    int put_object(const std::string &file_name) const;
-    int delete_object() const;
-    int get_object(const std::string &path) const;
+    azure_connection(const std::string &bucket_name, const std::string &bucket_prefix = "");
+    int list_objects(
+      const std::string &search_prefix, std::vector<std::string> &objects, bool list_single) const;
+    int put_object(const std::string &object_key, const std::string &file_path) const;
+    int delete_object(const std::string &object_key) const;
+    int read_object(const std::string &object_key, int64_t offset, size_t len, void *buf) const;
+    int object_exists(const std::string &object_key, bool &exists, size_t &object_size) const;
 
     private:
     const std::string _bucket_name;
-    const std::string _object_prefix;
+    const std::string _bucket_prefix;
     const Azure::Storage::Blobs::BlobContainerClient _azure_client;
+
+    const int http_to_errno(const Azure::Core::RequestFailedException &e) const;
+    int bucket_exists(bool &exists) const;
 };

@@ -1652,7 +1652,8 @@ __wt_page_del_visible(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, bool 
             return (false);
     }
 
-    return (__wt_txn_visible(session, page_del->txnid, page_del->timestamp));
+    return (
+      __wt_txn_visible(session, page_del->txnid, page_del->timestamp, page_del->durable_timestamp));
 }
 
 /*
@@ -1870,8 +1871,10 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * remains until the next reconciliation, and nothing prevents that from occurring before the
      * transaction commits.
      */
-    if (mod->inst_updates != NULL)
+    if (mod->inst_updates != NULL) {
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_uncommitted_truncate);
         return (false);
+    }
 
     /*
      * We can't split or evict multiblock row-store pages where the parent's key for the page is an
@@ -1881,8 +1884,10 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * matter the size of the key.)
      */
     if (__wt_btree_syncing_by_other_session(session) &&
-      F_ISSET_ATOMIC_16(ref->home, WT_PAGE_INTL_OVERFLOW_KEYS))
+      F_ISSET_ATOMIC_16(ref->home, WT_PAGE_INTL_OVERFLOW_KEYS)) {
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_overflow_keys);
         return (false);
+    }
 
     /*
      * Check for in-memory splits before other eviction tests. If the page should split in-memory,
@@ -1903,7 +1908,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * internal page already written in the checkpoint, leaving the checkpoint inconsistent.
      */
     if (modified && __wt_btree_syncing_by_other_session(session)) {
-        WT_STAT_CONN_DATA_INCR(session, cache_eviction_checkpoint);
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_checkpoint);
         return (false);
     }
 
@@ -1920,13 +1925,17 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      */
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) &&
       !F_ISSET(session->dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_EXCLUSIVE) &&
-      __wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen))
+      __wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen)) {
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_internal_page_split);
         return (false);
+    }
 
     /* If the metadata page is clean but has modifications that appear too new to evict, skip it. */
     if (WT_IS_METADATA(S2BT(session)->dhandle) && !modified &&
-      !__wt_txn_visible_all(session, mod->rec_max_txn, mod->rec_max_timestamp))
+      !__wt_txn_visible_all(session, mod->rec_max_txn, mod->rec_max_timestamp)) {
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_recently_modified);
         return (false);
+    }
 
     return (true);
 }
@@ -1991,11 +2000,18 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 static inline u_int
 __wt_skip_choose_depth(WT_SESSION_IMPL *session)
 {
-    u_int d;
+    u_int depth, probability;
 
-    for (d = 1; d < WT_SKIP_MAXDEPTH && __wt_random(&session->rnd) < WT_SKIP_PROBABILITY; d++)
+    probability = WT_SKIP_PROBABILITY;
+#ifdef HAVE_DIAGNOSTIC
+    /* Go from 1/4 chance of having a link to the next element to ~90%. */
+    if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_STRESS_SKIPLIST))
+        probability = 0xe6666665; /* ~90% of the value of uint32 max. */
+#endif
+
+    for (depth = 1; depth < WT_SKIP_MAXDEPTH && __wt_random(&session->rnd) < probability; depth++)
         ;
-    return (d);
+    return (depth);
 }
 
 /*
@@ -2304,7 +2320,8 @@ __wt_btcur_skip_page(
          * point added to the page during the last reconciliation.
          */
         if (addr.ta.newest_stop_txn != WT_TXN_MAX && addr.ta.newest_stop_ts != WT_TS_MAX &&
-          __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts)) {
+          __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts,
+            addr.ta.newest_stop_durable_ts)) {
             *skipp = true;
             goto unlock;
         }

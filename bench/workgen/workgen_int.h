@@ -27,7 +27,7 @@
  */
 #include <map>
 #include <memory>
-#include <mutex>
+#include <shared_mutex>
 #include <ostream>
 #include <set>
 #include <string>
@@ -222,14 +222,14 @@ struct ContextInternal {
     std::map<tint_t, TableRuntime> _dyn_table_runtime;
     tint_t _dyn_tint_last;
     // This mutex should be used to protect the access to the dynamic tables set.
-    std::mutex* _dyn_mutex;
+    std::shared_mutex* _dyn_mutex;
 
     // unique id per context, to work with multiple contexts, starts at 1.
     uint32_t _context_count;
 
     ContextInternal();
     ~ContextInternal();
-    int create_all();
+    int create_all(WT_CONNECTION *conn);
 };
 
 struct OperationInternal {
@@ -246,9 +246,11 @@ struct OperationInternal {
 };
 
 struct CheckpointOperationInternal : OperationInternal {
-    CheckpointOperationInternal() : OperationInternal() {}
+    std::string ckpt_config;
+    CheckpointOperationInternal() : OperationInternal(), ckpt_config() {}
     CheckpointOperationInternal(const CheckpointOperationInternal &other) :
-	OperationInternal(other) {}
+	OperationInternal(other), ckpt_config(other.ckpt_config)  {}
+    virtual void parse_config(const std::string &config);
     virtual int run(ThreadRunner *runner, WT_SESSION *session);
 };
 
@@ -298,6 +300,7 @@ struct TableInternal {
 // Workload::run() method.
 struct WorkloadRunner {
     Workload *_workload;
+    workgen_random_state *_rand_state;
     std::vector<ThreadRunner> _trunners;
     std::ostream *_report_out;
     std::string _wt_home;
@@ -305,7 +308,7 @@ struct WorkloadRunner {
     bool stopping;
 
     WorkloadRunner(Workload *);
-    ~WorkloadRunner() = default;
+    ~WorkloadRunner();
     int run(WT_CONNECTION *conn);
     int increment_timestamp(WT_CONNECTION *conn);
     int start_table_idle_cycle(WT_CONNECTION *conn);
