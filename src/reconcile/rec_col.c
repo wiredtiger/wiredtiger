@@ -1155,7 +1155,7 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
         val->buf.size = 0;
         val->len = val->cell_len;
     } else if (ovfl_usedp != NULL) {
-        if (__wt_process.page_stats_2022 && WT_PAGE_STAT_VALID(ovfl_ps))
+        if (__wt_process.page_stats_2022)
             WT_RET(__wt_combined_addr_cookie_pack(
               session, &val->buf, (void *)value->data, (uint8_t)value->size, *ovfl_ps));
         else {

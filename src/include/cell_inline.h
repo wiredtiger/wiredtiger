@@ -684,7 +684,6 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
         WT_TIME_WINDOW tw;
     } copy;
     WT_CELL_UNPACK_COMMON *unpack;
-    WT_PAGE_STAT *ps;
     WT_PAGE_DELETED *page_del;
     WT_TIME_AGGREGATE *ta;
     WT_TIME_WINDOW *tw;
@@ -699,8 +698,6 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
 
     if (unpack_addr == NULL) {
         unpack = (WT_CELL_UNPACK_COMMON *)unpack_value;
-        ps = &unpack_value->ovfl_ps;
-        WT_PAGE_STAT_INIT(ps);
         tw = &unpack_value->tw;
         WT_TIME_WINDOW_INIT(tw);
         ta = NULL;
@@ -708,8 +705,6 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
         WT_ASSERT(session, unpack_value == NULL);
 
         unpack = (WT_CELL_UNPACK_COMMON *)unpack_addr;
-        ps = &unpack_addr->ps;
-        WT_PAGE_STAT_INIT(ps);
         ta = &unpack_addr->ta;
         WT_TIME_AGGREGATE_INIT(ta);
         tw = NULL;
@@ -917,47 +912,15 @@ copy_cell_restart:
     case WT_CELL_KEY_OVFL_RM:
     case WT_CELL_VALUE_OVFL:
     case WT_CELL_VALUE_OVFL_RM:
-        /* The cell is followed by a 4B data length and a chunk of data. */
-        WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &v));
-
-        /*
-         * Unpack the record and/or user byte counts if the chunk of data includes it. The block
-         * manager address cookie will also be stored in a different location if these page stats
-         * are encoded.
-         */
-        if (F_ISSET(dsk, WT_PAGE_STAT_EXISTS))
-            WT_RET(__wt_combined_addr_cookie_unpack(p, unpack, ps));
-        else {
-            unpack->data = p;
-            unpack->size = (uint32_t)v;
-        }
-        unpack->__len = (uint32_t)(WT_PTRDIFF32(p, cell) + v);
-
         /* Set overflow flag. */
         F_SET(unpack, WT_CELL_UNPACK_OVERFLOW);
-        break;
+        /* FALLTHROUGH */
 
     case WT_CELL_ADDR_DEL:
     case WT_CELL_ADDR_INT:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
-        /* The cell is followed by a 4B data length and a chunk of data. */
-        WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &v));
-
-        /*
-         * Unpack the record and/or user byte counts if the chunk of data includes it. The block
-         * manager address cookie will also be stored in a different location if these page stats
-         * are encoded.
-         */
-        if (F_ISSET(dsk, WT_PAGE_STAT_EXISTS)) {
-            WT_RET(__wt_combined_addr_cookie_unpack(p, unpack, ps));
-            unpack->__len = (uint32_t)(WT_PTRDIFF32(p, cell) + v);
-        } else {
-            unpack->data = p;
-            unpack->size = (uint32_t)v;
-            unpack->__len = (uint32_t)(WT_PTRDIFF32(p, cell) + v);
-        }
-        break;
+        /* FALLTHROUGH */
 
     case WT_CELL_KEY:
     case WT_CELL_KEY_PFX:
@@ -1230,7 +1193,6 @@ __wt_cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL
          * zero-length item), the value must be stable.
          */
         WT_TIME_WINDOW_INIT(&unpack_value->tw);
-        WT_PAGE_STAT_INIT(&unpack_value->ovfl_ps);
 
         return;
     }

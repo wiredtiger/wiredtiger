@@ -389,7 +389,7 @@ __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *add
     if (vpack == NULL) {
         WT_ASSERT(session, addr != NULL);
 
-        if (__wt_process.page_stats_2022 && WT_PAGE_STAT_VALID(&addr->ps))
+        if (__wt_process.page_stats_2022)
             WT_RET(
               __wt_combined_addr_cookie_pack(session, &val->buf, addr->addr, addr->size, addr->ps));
         else {
@@ -399,7 +399,7 @@ __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *add
     } else {
         WT_ASSERT(session, addr == NULL);
 
-        if (__wt_process.page_stats_2022 && WT_PAGE_STAT_VALID(&vpack->ps))
+        if (__wt_process.page_stats_2022)
             WT_RET(__wt_combined_addr_cookie_pack(
               session, &val->buf, (void *)vpack->data, (uint8_t)vpack->size, vpack->ps));
         else {

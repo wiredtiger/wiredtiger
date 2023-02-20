@@ -998,7 +998,6 @@ __rec_split_chunk_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *
     /* Don't touch the key item memory, that memory is reused. */
     chunk->key.size = 0;
     chunk->entries = 0;
-    WT_PAGE_STAT_INIT(&chunk->ps);
     WT_TIME_AGGREGATE_INIT_MERGE(&chunk->ta);
 
     chunk->min_recno = WT_RECNO_OOB;
@@ -1917,7 +1916,7 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
         F_SET(dsk, WT_PAGE_FT_UPDATE);
 
     /* Set the page stat cell information flag if there are page stats to write to disk. */
-    if (__wt_process.page_stats_2022 && WT_PAGE_STAT_VALID(&chunk->ps))
+    if (__wt_process.page_stats_2022)
         F_SET(dsk, WT_PAGE_STAT_EXISTS);
 
     dsk->unused = 0;
@@ -2110,8 +2109,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     /* Make sure there's enough room for another write. */
     WT_RET(__wt_realloc_def(session, &r->multi_allocated, r->multi_next + 1, &r->multi));
     multi = &r->multi[r->multi_next++];
-
-    WT_PAGE_STAT_COPY(&multi->addr.ps, &chunk->ps);
 
     /* Initialize the address (set the addr type for the parent). */
     WT_TIME_AGGREGATE_COPY(&multi->addr.ta, &chunk->ta);
@@ -2800,7 +2797,7 @@ __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *k
      * cookie which packs the page stats information with the overflow record's address. Otherwise,
      * just set the callers K/V to reference the overflow record's address.
      */
-    if (__wt_process.page_stats_2022 && WT_PAGE_STAT_VALID(&ovfl_ps))
+    if (__wt_process.page_stats_2022)
         WT_ERR(__wt_combined_addr_cookie_pack(session, &kv->buf, addr, (uint8_t)size, ovfl_ps));
     else
         WT_ERR(__wt_buf_set(session, &kv->buf, addr, size));

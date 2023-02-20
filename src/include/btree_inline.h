@@ -38,7 +38,8 @@ __wt_combined_addr_cookie_unpack(const void *addr, WT_CELL_UNPACK_COMMON *unpack
 {
     WT_RET(__wt_addr_cookie_page_stat_unpack(addr, ps));
     unpack->data = WT_ADDR_COOKIE_BLOCK(addr);
-    unpack->size = WT_ADDR_COOKIE_BLOCK_LEN(addr);
+    unpack->size =
+      (uint8_t)(1 + WT_ADDR_COOKIE_BLOCK_LEN(addr) + 1 + WT_ADDR_COOKIE_PAGE_STAT_LEN(addr));
     return (0);
 }
 
