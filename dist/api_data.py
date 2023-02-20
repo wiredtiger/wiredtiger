@@ -1254,6 +1254,9 @@ cursor_runtime_config = [
         if the record exists, and WT_CURSOR::update fails with ::WT_NOTFOUND if the record does
         not exist''',
         type='boolean'),
+    Config('prefix_search', 'false', r'''
+        this option is no longer supported, retained for backward compatibility.''',
+        type='boolean', undoc=True),
 ]
 
 methods = {
