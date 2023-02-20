@@ -260,7 +260,7 @@ __col_insert_search(
                  * levels of the skip list due to read reordering on CPUs with weak memory ordering.
                  * Add a read barrier to avoid this issue.
                  */
-                WT_ORDERED_READFOR_FOR_WEAK_MEMORY_ORDERING_ARCH(next_stack[i], ret_ins->next[i]);
+                WT_ORDERED_READ_FOR_WEAK_MEMORY_ORDERING_ARCH(next_stack[i], ret_ins->next[i]);
                 ins_stack[i] = &ret_ins->next[i];
             }
         else { /* Drop down a level */
