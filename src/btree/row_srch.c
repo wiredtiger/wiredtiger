@@ -111,7 +111,7 @@ __wt_search_insert(
          * In addition, a CPU with weak memory ordering, such as ARM, may reorder the reads and read
          * a stale value. It is not OK and the reason is explained in the following comment.
          *
-         * Place a weak read barrier here to avoid these issues.
+         * Place a read barrier here to avoid these issues.
          */
         WT_ORDERED_READ_FOR_WEAK_MEMORY_ORDERING_ARCH(ins, *insp);
         if (ins == NULL) {
@@ -182,8 +182,8 @@ __wt_search_insert(
         } else
             for (; i >= 0; i--) {
                 /*
-                 * It is possible that we read an old value down the stack due to CPU read
-                 * reordering. Add a weak read barrier to avoid this issue.
+                 * It is possible that we read an old value down the stack due to read reordering on
+                 * CPUs with weak memory ordering. Add a weak read barrier to avoid this issue.
                  */
                 WT_ORDERED_READ_FOR_WEAK_MEMORY_ORDERING_ARCH(cbt->next_stack[i], ins->next[i]);
                 cbt->ins_stack[i] = &ins->next[i];

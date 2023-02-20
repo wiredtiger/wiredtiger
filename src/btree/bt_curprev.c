@@ -105,14 +105,14 @@ restart:
             goto restart;
         }
         /*
-         * CPU may reorder the read and return a stale value. This can lead us to wrongly skip a
-         * value in the lower levels of the skip list.
+         * CPUs with weak memory ordering may reorder the read and return a stale value. This can
+         * lead us to wrongly skip a value in the lower levels of the skip list.
          *
          * For example, if we have A -> C initially for both level 0 and level 1 and we concurrently
          * insert B into both level 0 and level 1. If B is visible on level 1 to this thread, it
          * must also be visible on level 0. Otherwise, we would record an inconsistent stack.
          *
-         * Place a weak read barrier to avoid this issue.
+         * Place a read barrier to avoid this issue.
          */
         WT_ORDERED_READ_FOR_WEAK_MEMORY_ORDERING_ARCH(next_ins, ins->next[i]);
         if (next_ins != current) /* Stay at this level */
