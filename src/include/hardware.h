@@ -26,15 +26,22 @@
     } while (0)
 
 /*
- * Read a shared location and guarantee that the value is only read once and subsequent reads do not
- * see any earlier state in architectures with weak memory ordering.
+ * In some architectures with weak memory ordering, the CPU can reorder the reads across full
+ * barriers in other threads. Guarantee that subsequent reads do not see any earlier state in those
+ * architectures.
  */
-#define WT_ORDERED_READ_WEAK(v, val) \
-    do {                             \
-        (v) = (val);                 \
-        WT_READ_BARRIER_WEAK();      \
+#define WT_ORDERED_READ_FOR_WEAK_MEMORY_ORDERING_ARCH(v, val) \
+    do {                                                      \
+        (v) = (val);                                          \
+        WT_READ_BARRIER_FOR_WEAK_MEMORY_ORDERING_ARCH();      \
     } while (0)
 
+/* Ensure the value is only read once using a compiler barrier. */
+#define WT_READ_ONCE(v, val) \
+    do {                     \
+        (v) = (val);         \
+        WT_BARRIER();        \
+    } while (0)
 /*
  * Atomic versions of the flag set/clear macros.
  */

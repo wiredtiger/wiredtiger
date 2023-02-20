@@ -32,9 +32,9 @@ __search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT
      * move this assignment within the loop below if it needs to (and may read a different value on
      * each loop due to other threads mutating the skip list).
      *
-     * Place a weak read barrier here to avoid this issue.
+     * Place a compiler barrier here to avoid this issue.
      */
-    WT_ORDERED_READ_WEAK(ins, WT_SKIP_LAST(ins_head));
+    WT_READ_ONCE(ins, WT_SKIP_LAST(ins_head));
     if (ins == NULL)
         return (0);
 
@@ -113,7 +113,7 @@ __wt_search_insert(
          *
          * Place a weak read barrier here to avoid these issues.
          */
-        WT_ORDERED_READ_WEAK(ins, *insp);
+        WT_ORDERED_READ_FOR_WEAK_MEMORY_ORDERING_ARCH(ins, *insp);
         if (ins == NULL) {
             cbt->next_stack[i] = NULL;
             cbt->ins_stack[i--] = insp--;
@@ -185,7 +185,7 @@ __wt_search_insert(
                  * It is possible that we read an old value down the stack due to CPU read
                  * reordering. Add a weak read barrier to avoid this issue.
                  */
-                WT_ORDERED_READ_WEAK(cbt->next_stack[i], ins->next[i]);
+                WT_ORDERED_READ_FOR_WEAK_MEMORY_ORDERING_ARCH(cbt->next_stack[i], ins->next[i]);
                 cbt->ins_stack[i] = &ins->next[i];
             }
     }

@@ -86,9 +86,9 @@ restart:
              * Compiler may replace the usage of the variable with another read in the following
              * code.
              *
-             * Place a weak read barrier to avoid this issue.
+             * Place a compiler barrier to avoid this issue.
              */
-            WT_ORDERED_READ_WEAK(ins, cbt->ins_head->head[i]);
+            WT_READ_ONCE(ins, cbt->ins_head->head[i]);
             if (ins != NULL && ins != current)
                 break;
         }
@@ -114,7 +114,7 @@ restart:
          *
          * Place a weak read barrier to avoid this issue.
          */
-        WT_ORDERED_READ_WEAK(next_ins, ins->next[i]);
+        WT_ORDERED_READ_FOR_WEAK_MEMORY_ORDERING_ARCH(next_ins, ins->next[i]);
         if (next_ins != current) /* Stay at this level */
             ins = next_ins;
         else { /* Drop down a level */
