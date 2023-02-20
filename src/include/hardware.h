@@ -30,8 +30,8 @@
  * barriers in other threads. Guarantee that subsequent reads do not see any earlier state in those
  * architectures.
  *
- * !!! This is a temporary solution to avoid a performance regression in x86. Do not use it and we
- * will revisit this later.
+ * !!! This is a temporary solution to avoid a performance regression in x86. Do not use this macro
+ * and we will revisit it later.
  */
 #define WT_ORDERED_READ_WEAK_MEMORDER(v, val) \
     do {                                      \
