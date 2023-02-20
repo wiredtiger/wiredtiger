@@ -114,7 +114,7 @@ restart:
          *
          * Place a read barrier to avoid this issue.
          */
-        WT_ORDERED_READ_FOR_WEAK_MEMORY_ORDERING_ARCH(next_ins, ins->next[i]);
+        WT_ORDERED_READ_WEAK_MEMORDER(next_ins, ins->next[i]);
         if (next_ins != current) /* Stay at this level */
             ins = next_ins;
         else { /* Drop down a level */

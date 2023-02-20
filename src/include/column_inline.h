@@ -41,7 +41,7 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
          * CPUs with weak memory ordering may reorder the reads which may lead us to read a stale
          * and inconsistent value in the lower level. Place a read barrier to avoid this issue.
          */
-        WT_ORDERED_READ_FOR_WEAK_MEMORY_ORDERING_ARCH(ins, *insp);
+        WT_ORDERED_READ_WEAK_MEMORDER(ins, *insp);
         if (ins != NULL && recno >= WT_INSERT_RECNO(ins)) {
             /* GTE: keep going at this level */
             insp = &ins->next[i];
@@ -73,7 +73,7 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
          *
          * Place a read barrier to avoid this issue.
          */
-        WT_ORDERED_READ_FOR_WEAK_MEMORY_ORDERING_ARCH(ins, WT_SKIP_NEXT(ins));
+        WT_ORDERED_READ_WEAK_MEMORDER(ins, WT_SKIP_NEXT(ins));
     return (ins);
 }
 
@@ -112,7 +112,7 @@ __col_insert_search_lt(WT_INSERT_HEAD *ins_head, uint64_t recno)
          * CPUs with weak memory ordering may reorder the reads which may lead us to read a stale
          * and inconsistent value in the lower level. Place a read barrier to avoid this issue.
          */
-        WT_ORDERED_READ_FOR_WEAK_MEMORY_ORDERING_ARCH(ins, *insp);
+        WT_ORDERED_READ_WEAK_MEMORDER(ins, *insp);
         if (ins != NULL && recno > WT_INSERT_RECNO(ins)) {
             /* GT: keep going at this level */
             insp = &ins->next[i];
@@ -163,7 +163,7 @@ __col_insert_search_match(WT_INSERT_HEAD *ins_head, uint64_t recno)
          * CPUs with weak memory ordering may reorder the reads which may lead us to read a stale
          * and inconsistent value in the lower level. Place a read barrier to avoid this issue.
          */
-        WT_ORDERED_READ_FOR_WEAK_MEMORY_ORDERING_ARCH(ins, *insp);
+        WT_ORDERED_READ_WEAK_MEMORDER(ins, *insp);
         if (ins == NULL) {
             --i;
             --insp;
@@ -233,7 +233,7 @@ __col_insert_search(
          * here to ensure we see consistent values in the lower levels to prevent any unexpected
          * behavior.
          */
-        WT_ORDERED_READ_FOR_WEAK_MEMORY_ORDERING_ARCH(ret_ins, *insp);
+        WT_ORDERED_READ_WEAK_MEMORDER(ret_ins, *insp);
         if (ret_ins == NULL) {
             next_stack[i] = NULL;
             ins_stack[i--] = insp--;
@@ -260,7 +260,7 @@ __col_insert_search(
                  * levels of the skip list due to read reordering on CPUs with weak memory ordering.
                  * Add a read barrier to avoid this issue.
                  */
-                WT_ORDERED_READ_FOR_WEAK_MEMORY_ORDERING_ARCH(next_stack[i], ret_ins->next[i]);
+                WT_ORDERED_READ_WEAK_MEMORDER(next_stack[i], ret_ins->next[i]);
                 ins_stack[i] = &ret_ins->next[i];
             }
         else { /* Drop down a level */

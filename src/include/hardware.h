@@ -30,10 +30,10 @@
  * barriers in other threads. Guarantee that subsequent reads do not see any earlier state in those
  * architectures.
  */
-#define WT_ORDERED_READ_FOR_WEAK_MEMORY_ORDERING_ARCH(v, val) \
-    do {                                                      \
-        (v) = (val);                                          \
-        WT_READ_BARRIER_FOR_WEAK_MEMORY_ORDERING_ARCH();      \
+#define WT_ORDERED_READ_WEAK_MEMORDER(v, val) \
+    do {                                      \
+        (v) = (val);                          \
+        WT_READ_BARRIER_WEAK_MEMORDER();      \
     } while (0)
 
 /* Ensure the value is only read once using a compiler barrier. */

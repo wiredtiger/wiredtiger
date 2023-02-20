@@ -169,7 +169,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
         __asm__ volatile("lfence" ::: "memory"); \
     } while (0)
 /* We only need a compiler barrier for x86 as its memory ordering is strong enough. */
-#define WT_READ_BARRIER_FOR_WEAK_MEMORY_ORDERING_ARCH() WT_BARRIER()
+#define WT_READ_BARRIER_WEAK_MEMORDER() WT_BARRIER()
 #define WT_WRITE_BARRIER()                       \
     do {                                         \
         __asm__ volatile("sfence" ::: "memory"); \
@@ -183,7 +183,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     } while (0)
 #define WT_READ_BARRIER() WT_FULL_BARRIER()
 /* We only need a compiler barrier for i386 as its memory ordering is strong enough. */
-#define WT_READ_BARRIER_FOR_WEAK_MEMORY_ORDERING_ARCH() WT_BARRIER()
+#define WT_READ_BARRIER_WEAK_MEMORDER() WT_BARRIER()
 #define WT_READ_BARRIER() WT_FULL_BARRIER()
 #define WT_WRITE_BARRIER() WT_FULL_BARRIER()
 
@@ -201,7 +201,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
  * The memory ordering of MIPS depends on implementation. Put an actual read barrier to ensure
  * correctness.
  */
-#define WT_READ_BARRIER_FOR_WEAK_MEMORY_ORDERING_ARCH() WT_READ_BARRIER()
+#define WT_READ_BARRIER_WEAK_MEMORDER() WT_READ_BARRIER()
 #define WT_WRITE_BARRIER()                                                                 \
     do {                                                                                   \
         __asm__ volatile("sync; ld $0, %0" ::"m"(*(long *)0xffffffff80000000) : "memory"); \
@@ -226,7 +226,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
 /*
  * PPC has a weak memory ordering model. Use an actual read barrier to prevent CPU read reordering.
  */
-#define WT_READ_BARRIER_FOR_WEAK_MEMORY_ORDERING_ARCH() WT_READ_BARRIER()
+#define WT_READ_BARRIER_WEAK_MEMORDER() WT_READ_BARRIER()
 #define WT_WRITE_BARRIER()                       \
     do {                                         \
         __asm__ volatile("lwsync" ::: "memory"); \
@@ -269,7 +269,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
 /*
  * ARM has a weak memory ordering model. Use an actual read barrier to prevent CPU read reordering.
  */
-#define WT_READ_BARRIER_FOR_WEAK_MEMORY_ORDERING_ARCH() WT_READ_BARRIER()
+#define WT_READ_BARRIER_WEAK_MEMORDER() WT_READ_BARRIER()
 #define WT_WRITE_BARRIER()                          \
     do {                                            \
         __asm__ volatile("dmb ishst" ::: "memory"); \
@@ -283,7 +283,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     } while (0)
 #define WT_READ_BARRIER() WT_FULL_BARRIER()
 /* We only need a compiler barrier for s390x as its memory ordering is strong enough. */
-#define WT_READ_BARRIER_FOR_WEAK_MEMORY_ORDERING_ARCH() WT_BARRIER()
+#define WT_READ_BARRIER_WEAK_MEMORDER() WT_BARRIER()
 #define WT_WRITE_BARRIER() WT_FULL_BARRIER()
 
 #elif defined(__sparc__)
@@ -304,7 +304,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     } while (0)
 
 /* We only need a compiler barrier for sparc as its memory ordering is strong enough. */
-#define WT_READ_BARRIER_FOR_WEAK_MEMORY_ORDERING_ARCH() WT_READ_BARRIER()
+#define WT_READ_BARRIER_WEAK_MEMORDER() WT_READ_BARRIER()
 
 #define WT_WRITE_BARRIER()                 \
     do {                                   \
@@ -348,7 +348,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
  * RISC-V has a weak memory ordering model. Use an actual read barrier to prevent CPU read
  * reordering.
  */
-#define WT_READ_BARRIER_FOR_WEAK_MEMORY_ORDERING_ARCH() WT_READ_BARRIER()
+#define WT_READ_BARRIER_WEAK_MEMORDER() WT_READ_BARRIER()
 #define WT_WRITE_BARRIER()                           \
     do {                                             \
         __asm__ volatile("fence w, w" ::: "memory"); \
@@ -368,7 +368,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
  * loongarch has a weak memory ordering model. Use an actual read barrier to prevent CPU read
  * reordering.
  */
-#define WT_READ_BARRIER_FOR_WEAK_MEMORY_ORDERING_ARCH() WT_READ_BARRIER()
+#define WT_READ_BARRIER_WEAK_MEMORDER() WT_READ_BARRIER()
 #define WT_WRITE_BARRIER()                       \
     do {                                         \
         __asm__ volatile("dbar 0" ::: "memory"); \
