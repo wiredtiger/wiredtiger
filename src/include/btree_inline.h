@@ -13,7 +13,7 @@
  */
 static inline int
 __wt_combined_addr_cookie_pack(WT_SESSION_IMPL *session, WT_ITEM *addr, void *block_addr,
-  uint8_t block_addr_size, WT_PAGE_STAT ps)
+  uint8_t block_addr_size, WT_PAGE_STAT *ps)
 {
     /* Initialize the combined address cookie buffer. */
     WT_RET(__wt_buf_init(session, addr, WT_ADDR_COOKIE_MAX));
@@ -29,32 +29,17 @@ __wt_combined_addr_cookie_pack(WT_SESSION_IMPL *session, WT_ITEM *addr, void *bl
 }
 
 /*
- * __wt_combined_addr_cookie_unpack --
- *     Unpack a combined address cookie containing both block manager and page stat address cookie
- *     parts.
- */
-static inline int
-__wt_combined_addr_cookie_unpack(const void *addr, WT_CELL_UNPACK_COMMON *unpack, WT_PAGE_STAT *ps)
-{
-    WT_RET(__wt_addr_cookie_page_stat_unpack(addr, ps));
-    unpack->data = WT_ADDR_COOKIE_BLOCK(addr);
-    unpack->size =
-      (uint8_t)(1 + WT_ADDR_COOKIE_BLOCK_LEN(addr) + 1 + WT_ADDR_COOKIE_PAGE_STAT_LEN(addr));
-    return (0);
-}
-
-/*
  * __wt_addr_cookie_page_stat_pack --
  *     Pack the page stat part of the address cookie.
  */
 static inline int
-__wt_addr_cookie_page_stat_pack(void *addr, WT_PAGE_STAT ps)
+__wt_addr_cookie_page_stat_pack(void *addr, WT_PAGE_STAT *ps)
 {
     uint8_t *p;
 
     p = WT_ADDR_COOKIE_PAGE_STAT(addr);
-    WT_RET(__wt_vpack_uint(&p, 0, ps.records));
-    WT_RET(__wt_vpack_uint(&p, 0, ps.user_bytes));
+    WT_RET(__wt_vpack_uint(&p, 0, ps->records));
+    WT_RET(__wt_vpack_uint(&p, 0, ps->user_bytes));
     WT_ADDR_COOKIE_PAGE_STAT_LEN(addr) = (uint8_t)WT_PTRDIFF(p, WT_ADDR_COOKIE_PAGE_STAT(addr));
     return (0);
 }

@@ -323,7 +323,7 @@ __wt_rec_auximage_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint32_t count
  */
 static inline int
 __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *addr,
-  WT_CELL_UNPACK_ADDR *vpack, uint64_t recno, WT_PAGE_DELETED *page_del)
+  WT_CELL_UNPACK_ADDR *vpack, uint64_t recno, WT_PAGE_DELETED *page_del, WT_PAGE_STAT *ps)
 {
     WT_REC_KV *val;
     WT_TIME_AGGREGATE *ta;
@@ -389,9 +389,8 @@ __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *add
     if (vpack == NULL) {
         WT_ASSERT(session, addr != NULL);
 
-        if (__wt_process.page_stats_2022)
-            WT_RET(
-              __wt_combined_addr_cookie_pack(session, &val->buf, addr->addr, addr->size, addr->ps));
+        if (__wt_process.page_stats_2022 && ps != NULL)
+            WT_RET(__wt_combined_addr_cookie_pack(session, &val->buf, addr->addr, addr->size, ps));
         else {
             val->buf.data = addr->addr;
             val->buf.size = addr->size;
@@ -399,9 +398,9 @@ __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *add
     } else {
         WT_ASSERT(session, addr == NULL);
 
-        if (__wt_process.page_stats_2022)
+        if (__wt_process.page_stats_2022 && ps != NULL)
             WT_RET(__wt_combined_addr_cookie_pack(
-              session, &val->buf, (void *)vpack->data, (uint8_t)vpack->size, vpack->ps));
+              session, &val->buf, (void *)vpack->data, (uint8_t)vpack->size, ps));
         else {
             val->buf.data = vpack->data;
             val->buf.size = vpack->size;
@@ -451,7 +450,7 @@ __wt_rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r, const void *d
             WT_STAT_DATA_INCR(session, rec_overflow_value);
 
             return (
-              __wt_rec_cell_build_ovfl(session, r, val, WT_CELL_VALUE_OVFL, tw, ovfl_ps, rle));
+              __wt_rec_cell_build_ovfl(session, r, val, WT_CELL_VALUE_OVFL, tw, &ovfl_ps, rle));
         }
     }
     __rec_cell_tw_stats(r, tw);

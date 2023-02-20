@@ -1282,7 +1282,7 @@ extern int __wt_realloc_aligned(WT_SESSION_IMPL *session, size_t *bytes_allocate
 extern int __wt_realloc_noclear(WT_SESSION_IMPL *session, size_t *bytes_allocated_ret,
   size_t bytes_to_allocate, void *retp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv,
-  uint8_t type, WT_TIME_WINDOW *tw, WT_PAGE_STAT ovfl_ps, uint64_t rle)
+  uint8_t type, WT_TIME_WINDOW *tw, WT_PAGE_STAT *ovfl_ps, uint64_t rle)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_rec_child_modify(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref,
   WT_CHILD_MODIFY_STATE *cmsp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -2093,7 +2093,7 @@ static inline bool __wt_txn_visible_id_snapshot(uint64_t id, uint64_t snap_min, 
   uint64_t *snapshot, uint32_t snapshot_count) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline double __wt_eviction_dirty_target(WT_CACHE *cache)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_addr_cookie_page_stat_pack(void *addr, WT_PAGE_STAT ps)
+static inline int __wt_addr_cookie_page_stat_pack(void *addr, WT_PAGE_STAT *ps)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_addr_cookie_page_stat_unpack(const void *addr, WT_PAGE_STAT *ps)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -2129,10 +2129,8 @@ static inline int __wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page
   uint64_t *recnop, u_int skipdepth, bool exclusive)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_combined_addr_cookie_pack(WT_SESSION_IMPL *session, WT_ITEM *addr,
-  void *block_addr, uint8_t block_addr_size, WT_PAGE_STAT ps)
+  void *block_addr, uint8_t block_addr_size, WT_PAGE_STAT *ps)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_combined_addr_cookie_unpack(const void *addr, WT_CELL_UNPACK_COMMON *unpack,
-  WT_PAGE_STAT *ps) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_compare(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
   const WT_ITEM *user_item, const WT_ITEM *tree_item, int *cmpp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -2226,7 +2224,7 @@ static inline int __wt_prefix_match(const WT_ITEM *prefix, const WT_ITEM *tree_i
 static inline int __wt_read(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t len,
   void *buf) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *addr,
-  WT_CELL_UNPACK_ADDR *vpack, uint64_t recno, WT_PAGE_DELETED *page_del)
+  WT_CELL_UNPACK_ADDR *vpack, uint64_t recno, WT_PAGE_DELETED *page_del, WT_PAGE_STAT *ps)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r,
   const void *data, size_t size, WT_TIME_WINDOW *tw, uint64_t rle)

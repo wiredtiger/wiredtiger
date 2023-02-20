@@ -2740,7 +2740,7 @@ err:
  */
 int
 __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv, uint8_t type,
-  WT_TIME_WINDOW *tw, WT_PAGE_STAT ovfl_ps, uint64_t rle)
+  WT_TIME_WINDOW *tw, WT_PAGE_STAT *ovfl_ps, uint64_t rle)
 {
     WT_BM *bm;
     WT_BTREE *btree;

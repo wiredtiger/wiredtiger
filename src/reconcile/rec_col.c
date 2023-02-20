@@ -187,7 +187,7 @@ __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
         /* Build the value cell. */
         addr = &multi->addr;
-        WT_RET(__wt_rec_cell_build_addr(session, r, addr, NULL, r->recno, NULL));
+        WT_RET(__wt_rec_cell_build_addr(session, r, addr, NULL, r->recno, NULL, NULL));
 
         /* Boundary: split or write the page. */
         if (__wt_rec_need_split(r, val->len))
@@ -288,7 +288,8 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
         if (addr == NULL && __wt_off_page(page, ref->addr))
             addr = ref->addr;
         if (addr != NULL) {
-            WT_ERR(__wt_rec_cell_build_addr(session, r, addr, NULL, ref->ref_recno, page_del));
+            WT_ERR(
+              __wt_rec_cell_build_addr(session, r, addr, NULL, ref->ref_recno, page_del, NULL));
             WT_TIME_AGGREGATE_COPY(&ta, &addr->ta);
         } else {
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
@@ -298,7 +299,8 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
                  * info.
                  */
                 WT_ASSERT(session, vpack->type != WT_CELL_ADDR_DEL || page_del != NULL);
-                WT_ERR(__wt_rec_cell_build_addr(session, r, NULL, vpack, ref->ref_recno, page_del));
+                WT_ERR(__wt_rec_cell_build_addr(
+                  session, r, NULL, vpack, ref->ref_recno, page_del, NULL));
             } else {
                 /* Copy the entire existing cell, including any page-delete information. */
                 val->buf.data = ref->addr;
@@ -1155,9 +1157,9 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
         val->buf.size = 0;
         val->len = val->cell_len;
     } else if (ovfl_usedp != NULL) {
-        if (__wt_process.page_stats_2022)
+        if (__wt_process.page_stats_2022 && ovfl_ps != NULL)
             WT_RET(__wt_combined_addr_cookie_pack(
-              session, &val->buf, (void *)value->data, (uint8_t)value->size, *ovfl_ps));
+              session, &val->buf, (void *)value->data, (uint8_t)value->size, ovfl_ps));
         else {
             val->buf.data = value->data;
             val->buf.size = value->size;
@@ -1211,7 +1213,7 @@ __wt_rec_col_var(
     WT_DECL_RET;
     WT_INSERT *ins;
     WT_PAGE *page;
-    WT_PAGE_STAT clear_ps, *psp;
+    WT_PAGE_STAT clear_ps, ovfl_ps, *psp;
     WT_TIME_WINDOW clear_tw, *twp;
     WT_UPDATE *upd;
     WT_UPDATE_SELECT upd_select;
@@ -1224,6 +1226,7 @@ __wt_rec_col_var(
     vpack = &_vpack;
     page = pageref->page;
     WT_PAGE_STAT_INIT(&clear_ps);
+    WT_PAGE_STAT_INIT(&ovfl_ps);
     WT_TIME_WINDOW_INIT(&clear_tw);
     psp = NULL;
     twp = NULL;
@@ -1371,7 +1374,7 @@ record_loop:
                     twp = &clear_tw;
                     goto compare;
                 }
-                psp = &vpack->ovfl_ps;
+                psp = &ovfl_ps;
                 twp = &vpack->tw;
 
                 /* Clear the on-disk cell time window if it is obsolete. */
