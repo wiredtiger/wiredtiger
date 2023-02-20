@@ -113,9 +113,10 @@ class test_hs11(wttest.WiredTigerTestCase):
         # Apply a modify update at timestamp 5.
         if self.modify and self.value_format != '8t':
             for i in range(1, self.nrows):
-                with self.transaction(commit_timestamp = 5):
-                    cursor.set_key(self.create_key(i))
-                    cursor.modify([wiredtiger.Modify("m", 0, 1)])
+                for retry in self.retry():
+                    with retry.transaction(commit_timestamp = 5):
+                        cursor.set_key(self.create_key(i))
+                        cursor.modify([wiredtiger.Modify("m", 0, 1)])
             self.timestamps += 1
 
         # Start a long running transaction at timestamp 5. 
@@ -151,23 +152,24 @@ class test_hs11(wttest.WiredTigerTestCase):
 
         # Ensure that we blew away history store content.
         for ts in range(1, self.timestamps):
-            with self.transaction(read_timestamp = ts, rollback = True):
-                for i in range(1, self.nrows):
-                    if i % 2 == 0:
-                        if self.update_type == 'deletion':
-                            cursor.set_key(self.create_key(i))
-                            if self.value_format == '8t':
-                                self.assertEqual(cursor.search(), 0)
-                                self.assertEqual(cursor.get_value(), 0)
+            for retry in self.retry():
+                with retry.transaction(read_timestamp = ts, rollback = True):
+                    for i in range(1, self.nrows):
+                        if i % 2 == 0:
+                            if self.update_type == 'deletion':
+                                cursor.set_key(self.create_key(i))
+                                if self.value_format == '8t':
+                                    self.assertEqual(cursor.search(), 0)
+                                    self.assertEqual(cursor.get_value(), 0)
+                                else:
+                                    self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
                             else:
-                                self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+                                self.assertEqual(cursor[self.create_key(i)], value2)
                         else:
-                            self.assertEqual(cursor[self.create_key(i)], value2)
-                    else:
-                        if ts == 5 and self.modify and self.value_format != '8t':
-                            self.assertEqual(cursor[self.create_key(i)], mod_value)
-                        else:
-                            self.assertEqual(cursor[self.create_key(i)], value1)
+                            if ts == 5 and self.modify and self.value_format != '8t':
+                                self.assertEqual(cursor[self.create_key(i)], mod_value)
+                            else:
+                                self.assertEqual(cursor[self.create_key(i)], value1)
 
         if self.update_type == 'deletion':
             hs_truncate = self.get_stat(stat.conn.cache_hs_key_truncate_onpage_removal)
@@ -201,9 +203,10 @@ class test_hs11(wttest.WiredTigerTestCase):
         # Apply a modify update at timestamp 5.
         if self.modify and self.value_format != '8t':
             for i in range(1, self.nrows):
-                with self.transaction(commit_timestamp = 5):
-                    cursor.set_key(self.create_key(i))
-                    cursor.modify([wiredtiger.Modify("m", 0, 1)])
+                for retry in self.retry():
+                    with retry.transaction(commit_timestamp = 5):
+                        cursor.set_key(self.create_key(i))
+                        cursor.modify([wiredtiger.Modify("m", 0, 1)])
             self.timestamps += 1
 
         # Remove the key with timestamp 10.
