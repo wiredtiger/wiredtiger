@@ -28,7 +28,7 @@ Check that your CMake has been updated using the following command `cmake --vers
 
 ### Building
 
-There is current only 1 way to build WiredTiger with Azure extension:
+There is currently only 1 way to build WiredTiger with Azure extension:
 1. Letting CMake manage the Azure SDK dependency as an external project, letting it download, link and build the extension.
 
 There are two CMake flags associated with the Azure extension: `ENABLE_AZURE` and `IMPORT_AZURE_SDK`.
@@ -60,7 +60,7 @@ In order to run this extension after building, the developer must have an Azure 
 ### To run the tiered python tests for Azure:
 
 ```bash
-# This will run all the tests on the Azure storage source. The following command will run the tests from the build directory that was built earlier.
+# This will run all the tests in test_tiered19.py on the Azure storage source. The following command will run the tests from the build directory that was made earlier.
 cd build
 env WT_BUILDDIR=$(pwd) python3 ../test/suite/run.py -j 10 -v 4 test_tiered19
 ```
