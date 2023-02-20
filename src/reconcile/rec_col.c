@@ -1157,13 +1157,8 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
         val->buf.size = 0;
         val->len = val->cell_len;
     } else if (ovfl_usedp != NULL) {
-        if (__wt_process.page_stats_2022 && ovfl_ps != NULL)
-            WT_RET(__wt_combined_addr_cookie_pack(
-              session, &val->buf, (void *)value->data, (uint8_t)value->size, ovfl_ps));
-        else {
-            val->buf.data = value->data;
-            val->buf.size = value->size;
-        }
+        WT_RET(__wt_addr_cookie_pack(
+          session, &val->buf, (void *)value->data, (uint8_t)value->size, ovfl_ps));
 
         val->cell_len =
           __wt_cell_pack_ovfl(session, &val->cell, WT_CELL_VALUE_OVFL, tw, rle, value->size);

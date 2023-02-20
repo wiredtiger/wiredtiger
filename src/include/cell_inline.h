@@ -915,13 +915,11 @@ copy_cell_restart:
         /* Set overflow flag. */
         F_SET(unpack, WT_CELL_UNPACK_OVERFLOW);
         /* FALLTHROUGH */
-
     case WT_CELL_ADDR_DEL:
     case WT_CELL_ADDR_INT:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
         /* FALLTHROUGH */
-
     case WT_CELL_KEY:
     case WT_CELL_KEY_PFX:
     case WT_CELL_VALUE:

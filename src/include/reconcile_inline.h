@@ -377,34 +377,13 @@ __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *add
             page_del->prepare_state == WT_PREPARE_RESOLVED);
     }
 
-    /*
-     * Encode the page stats into the address cookie of the cell if the feature flag is set. In this
-     * scenario, the address cookie will have the following layout: block manager address cookie
-     * length, block manager address cookie, page stat address cookie length, page stat address
-     * cookie.
-     *
-     * Don't copy the data into the buffer in simple cases where there are no page stats information
-     * to be encoded, it's not necessary; just re-point the buffer's data/length fields.
-     */
     if (vpack == NULL) {
         WT_ASSERT(session, addr != NULL);
-
-        if (__wt_process.page_stats_2022 && ps != NULL)
-            WT_RET(__wt_combined_addr_cookie_pack(session, &val->buf, addr->addr, addr->size, ps));
-        else {
-            val->buf.data = addr->addr;
-            val->buf.size = addr->size;
-        }
+        WT_RET(__wt_addr_cookie_pack(session, &val->buf, addr->addr, addr->size, ps));
     } else {
         WT_ASSERT(session, addr == NULL);
-
-        if (__wt_process.page_stats_2022 && ps != NULL)
-            WT_RET(__wt_combined_addr_cookie_pack(
-              session, &val->buf, (void *)vpack->data, (uint8_t)vpack->size, ps));
-        else {
-            val->buf.data = vpack->data;
-            val->buf.size = vpack->size;
-        }
+        WT_RET(
+          __wt_addr_cookie_pack(session, &val->buf, (void *)vpack->data, (uint8_t)vpack->size, ps));
     }
 
     val->cell_len =

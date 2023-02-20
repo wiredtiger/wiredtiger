@@ -7,24 +7,39 @@
  */
 
 /*
- * __wt_combined_addr_cookie_pack --
- *     Pack a combined address cookie containing both block manager and page stat address cookie
- *     parts.
+ * __wt_addr_cookie_pack --
+ *     Pack the address cookie. Encode the page stats into the address cookie of the cell if the
+ *     feature flag is set. In this scenario, the address cookie will have the following layout:
+ *     block manager address cookie length, block manager address cookie, page stat address cookie
+ *     length, page stat address cookie.
  */
 static inline int
-__wt_combined_addr_cookie_pack(WT_SESSION_IMPL *session, WT_ITEM *addr, void *block_addr,
+__wt_addr_cookie_pack(WT_SESSION_IMPL *session, WT_ITEM *addr, void *block_addr,
   uint8_t block_addr_size, WT_PAGE_STAT *ps)
 {
-    /* Initialize the combined address cookie buffer. */
-    WT_RET(__wt_buf_init(session, addr, WT_ADDR_COOKIE_MAX));
+    if (__wt_process.page_stats_2022) {
+        /* Initialize the combined address cookie buffer. */
+        WT_RET(__wt_buf_init(session, addr, WT_ADDR_COOKIE_MAX));
 
-    WT_ADDR_COOKIE_BLOCK_LEN(addr->mem) = block_addr_size;
-    memcpy(WT_ADDR_COOKIE_BLOCK(addr->mem), block_addr, block_addr_size);
-    WT_RET(__wt_addr_cookie_page_stat_pack(addr->mem, ps));
+        /* Store the block manager address cookie and its length. */
+        WT_ADDR_COOKIE_BLOCK_LEN(addr->mem) = block_addr_size;
+        memcpy(WT_ADDR_COOKIE_BLOCK(addr->mem), block_addr, block_addr_size);
 
-    /* Update the size of the combined address cookie. */
-    addr->size = (uint8_t)(
-      1 + WT_ADDR_COOKIE_BLOCK_LEN(addr->mem) + 1 + WT_ADDR_COOKIE_PAGE_STAT_LEN(addr->mem));
+        /* Store the page stat address cookie and its length. */
+        WT_RET(__wt_addr_cookie_page_stat_pack(addr->mem, ps));
+
+        /* Update the size of the combined address cookie. */
+        addr->size = (uint8_t)(
+          1 + WT_ADDR_COOKIE_BLOCK_LEN(addr->mem) + 1 + WT_ADDR_COOKIE_PAGE_STAT_LEN(addr->mem));
+    } else {
+        /*
+         * Don't copy the data into the buffer in simple cases where there are no page stats
+         * information to be encoded, it's not necessary; just re-point the buffer's data/length
+         * fields.
+         */
+        addr->data = block_addr;
+        addr->size = block_addr_size;
+    }
     return (0);
 }
 

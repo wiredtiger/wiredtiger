@@ -2797,10 +2797,7 @@ __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *k
      * cookie which packs the page stats information with the overflow record's address. Otherwise,
      * just set the callers K/V to reference the overflow record's address.
      */
-    if (__wt_process.page_stats_2022)
-        WT_ERR(__wt_combined_addr_cookie_pack(session, &kv->buf, addr, (uint8_t)size, ovfl_ps));
-    else
-        WT_ERR(__wt_buf_set(session, &kv->buf, addr, size));
+    WT_ERR(__wt_addr_cookie_pack(session, &kv->buf, addr, (uint8_t)size, ovfl_ps));
 
     /* Build the cell and return. */
     kv->cell_len = __wt_cell_pack_ovfl(session, &kv->cell, type, tw, rle, kv->buf.size);

@@ -814,13 +814,8 @@ __wt_rec_row_leaf(
                 if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)) {
                     r->ovfl_items = true;
 
-                    if (__wt_process.page_stats_2022)
-                        WT_ERR(__wt_combined_addr_cookie_pack(
-                          session, &val->buf, (void *)vpack->data, (uint8_t)vpack->size, &ovfl_ps));
-                    else {
-                        val->buf.data = vpack->data;
-                        val->buf.size = vpack->size;
-                    }
+                    WT_ERR(__wt_addr_cookie_pack(
+                      session, &val->buf, (void *)vpack->data, (uint8_t)vpack->size, &ovfl_ps));
 
                     /* Rebuild the cell. */
                     val->cell_len =
