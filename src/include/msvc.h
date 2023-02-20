@@ -120,7 +120,7 @@ WT_READ_BARRIER(void)
 /*
  * WT_READ_BARRIER_FOR_WEAK_MEMORY_ORDERING_ARCH --
  *	MSVC implementation of WT_READ_BARRIER_FOR_WEAK_MEMORY_ORDERING_ARCH. Since we only support
- *  x86 on windows and x86 has a strong memory model, we only need a compiler barrier here.
+ *	x86 on windows and x86 has a strong memory model, we only need a compiler barrier here.
  */
 static inline void
 WT_READ_BARRIER_FOR_WEAK_MEMORY_ORDERING_ARCH(void)
