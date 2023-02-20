@@ -227,7 +227,7 @@ class Operation:
     def __init_skip_del_null(self, line):
         self.type = OpType.SKIP_DEL_NULL
         self.file = self.__extract_file(line)
-        self.ref = self.__extract_point('ref', line)
+        self.ref = self.__extract_pointer('ref', line)
 
     def __init_ondisk_abort_tw(self, line):
         self.type = OpType.ONDISK_ABORT_TW
@@ -329,7 +329,7 @@ class Operation:
     def __init_stable_pg_walk_skip(self, line):
         self.type = OpType.KEY_REMOVED
         self.file = self.__extract_file(line)
-        self.addr = self.__extract_pointr('ref', line)
+        self.addr = self.__extract_pointer('ref', line)
 
     def __init_skip_unmodified(self, line):
         self.type = OpType.SKIP_UNMODIFIED

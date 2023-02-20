@@ -692,17 +692,19 @@ class WiredTigerTestCase(unittest.TestCase):
             for f in files:
                 os.chmod(os.path.join(root, f), 0o666)
 
-    # Return value should be a tuple with the first value an integer (non-zero to indicate failure),
-    # and the second value a string suitable for printing when the test fails.
+    # Return value of each action should be a tuple with the first value an integer (non-zero to indicate
+    # failure), and the second value a string suitable for printing when the test fails.
     def addTearDownAction(self, action):
         self.teardown_actions.append(action)
 
     def tearDown(self, dueToRetry=False):
-        for action in self.teardown_actions:
-            tmp = action()
-            if tmp[0] != 0:
-                WiredTigerTestCase.prout('ERROR: teardown action failed, message=' + tmp[1])
-                self.fail('teardown action failed, message={}'.format(tmp[1]))
+        teardown_failed = False
+        if not dueToRetry:
+            for action in self.teardown_actions:
+                tmp = action()
+                if tmp[0] != 0:
+                    self.pr('ERROR: teardown action failed, message=' + tmp[1])
+                    teardown_failed = True
 
         # This approach works for all our support Python versions and
         # is suggested by one of the answers in:
@@ -719,7 +721,7 @@ class WiredTigerTestCase(unittest.TestCase):
         exc_failure = (sys.exc_info() != (None, None, None))
 
         self._failed = error or failure or exc_failure
-        passed = not self._failed
+        passed = not (self._failed or teardown_failed)
 
         self.platform_api.tearDown()
 
