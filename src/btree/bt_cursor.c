@@ -1050,10 +1050,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
             else
                 exact = cbt->recno < state.recno ? -1 : cbt->recno == state.recno ? 0 : 1;
         }
-        goto done;
-    }
-
-    if (__cursor_fix_implicit(btree, cbt)) {
+    } else if (__cursor_fix_implicit(btree, cbt)) {
         cbt->recno = cursor->recno;
         cbt->v = 0;
         cursor->value.data = &cbt->v;
@@ -1067,7 +1064,6 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
         WT_ERR(ret);
     }
 
-done:
     if (ret == 0)
         WT_ERR(__wt_btcur_evict_reposition(cbt));
 err:
