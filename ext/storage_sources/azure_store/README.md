@@ -6,25 +6,41 @@ This extension allows WiredTiger storage source extensions to read from and writ
 This section describes how to build WiredTiger with the Azure extension enabled.
 
 ### Requirements
-<li> CMake 3.13 or higher <p>
+<li> CMake 3.13 or higher
+<li> G++ 8.4 or higher <p>
 
 Check your CMake version by typing `cmake --version`.
+Check your g++ version typing `g++ --version`.
 
 ### How to install requirements (skip this step if requirements have been met)
 
 If the CMake version is not 3.13 or higher update your CMake to 3.13 using the following.
 ```bash
+sudo apt remove cmake
 wget https://cmake.org/files/v3.13/cmake-3.13.0.tar.gz
 tar xf cmake-3.13.0.tar.gz
 
 cd cmake-3.13.0
 
 ./configure
-make
+make -j $nproc
 sudo make install
 ```
 
 Check that your CMake has been updated using the following command `cmake --version`.
+
+If your cmake is not in `/usr/bin/` create a symbolic link using the following.
+```bash
+sudo ln -s /usr/local/bin/cmake /usr/bin/cmake
+```
+
+If the G++ version is not 8.4 or higher update your G++ to 8.4 using the following.
+```bash
+sudo apt-get install gcc-8 g++-8
+sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-8 20 --slave /usr/bin/g++ g++ /usr/bin/g++-8
+```
+
+Check that your G++ has been updated using the following command `g++ --version`.
 
 ### Building
 
