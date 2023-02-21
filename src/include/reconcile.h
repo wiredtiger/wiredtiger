@@ -322,6 +322,8 @@ struct __wt_reconcile {
      */
     bool hs_clear_on_tombstone;
     WT_CURSOR *hs_cursor;
+
+    bool has_page_stats;
 };
 
 typedef struct {

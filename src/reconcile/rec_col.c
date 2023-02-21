@@ -213,6 +213,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
     WT_CHILD_MODIFY_STATE cms;
     WT_DECL_RET;
     WT_PAGE *child, *page;
+    WT_PAGE_STAT ps;
     WT_PAGE_DELETED *page_del;
     WT_REC_KV *val;
     WT_REF *ref;
@@ -221,6 +222,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
     btree = S2BT(session);
     page = pageref->page;
     child = NULL;
+    WT_PAGE_STAT_INIT(&ps);
     WT_TIME_AGGREGATE_INIT(&ta);
     WT_TIME_AGGREGATE_INIT_MERGE(&ft_ta);
 
@@ -288,11 +290,19 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
         if (addr == NULL && __wt_off_page(page, ref->addr))
             addr = ref->addr;
         if (addr != NULL) {
+            /* Attempt to unpack previously written page stats, if any. */
+            if (__wt_process.page_stats_2022 && r->has_page_stats)
+                WT_ERR(__wt_addr_cookie_page_stat_unpack(addr->addr, &ps));
             WT_ERR(
-              __wt_rec_cell_build_addr(session, r, addr, NULL, ref->ref_recno, page_del, NULL));
+              __wt_rec_cell_build_addr(session, r, addr, NULL, ref->ref_recno, page_del, &ps));
             WT_TIME_AGGREGATE_COPY(&ta, &addr->ta);
         } else {
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
+
+            /* Attempt to unpack previously written page stats, if any. */
+            if (__wt_process.page_stats_2022 && r->has_page_stats)
+                WT_ERR(__wt_addr_cookie_page_stat_unpack((void *)vpack->data, &ps));
+
             if (cms.state == WT_CHILD_PROXY || F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
                 /*
                  * Need to build a proxy (page-deleted) cell or rebuild the cell with updated time
@@ -300,7 +310,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
                  */
                 WT_ASSERT(session, vpack->type != WT_CELL_ADDR_DEL || page_del != NULL);
                 WT_ERR(__wt_rec_cell_build_addr(
-                  session, r, NULL, vpack, ref->ref_recno, page_del, NULL));
+                  session, r, NULL, vpack, ref->ref_recno, page_del, &ps));
             } else {
                 /* Copy the entire existing cell, including any page-delete information. */
                 val->buf.data = ref->addr;
@@ -1157,6 +1167,10 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
         val->buf.size = 0;
         val->len = val->cell_len;
     } else if (ovfl_usedp != NULL) {
+        /* Attempt to unpack previously written page stats, if any. */
+        if (__wt_process.page_stats_2022 && r->has_page_stats)
+            WT_RET(__wt_addr_cookie_page_stat_unpack(value->data, ovfl_ps));
+
         WT_RET(__wt_addr_cookie_pack(
           session, &val->buf, (void *)value->data, (uint8_t)value->size, ovfl_ps));
 

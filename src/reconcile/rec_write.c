@@ -564,6 +564,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     /* Remember the configuration. */
     r->ref = ref;
     r->page = page;
+    r->has_page_stats = F_ISSET(&r->chunk_A.image, WT_PAGE_STAT_EXISTS);
 
     /*
      * Save the transaction generations before reading the page. These are all ordered reads, but we
