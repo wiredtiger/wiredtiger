@@ -50,7 +50,7 @@
 #endif
 
 #define DIR_STORE_BUCKET_NAME "bucket"
-#define S3_STORE_BUCKET_NAME "s3testext;ap-southeast-2"
+#define S3_DEFAULT_BUCKET_NAME "s3testext;ap-southeast-2"
 
 #define DIR_STORE "dir_store"
 #define S3_STORE "s3_store"
@@ -403,6 +403,7 @@ void op_create_unique(void *);
 void op_cursor(void *);
 void op_drop(void *);
 bool testutil_is_flag_set(const char *);
+bool testutil_is_dir_store(TEST_OPTS *);
 void testutil_build_dir(TEST_OPTS *, char *, int);
 void testutil_clean_test_artifacts(const char *);
 void testutil_clean_work_dir(const char *);

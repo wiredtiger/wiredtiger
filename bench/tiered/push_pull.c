@@ -60,7 +60,6 @@ static void compute_wt_file_size(const char *, const char *, uint64_t *);
 static void compute_tiered_file_size(const char *, const char *, uint64_t *);
 static void fill_random_data(void);
 static void get_file_size(const char *, uint64_t *);
-static bool is_dir_store(void);
 static void populate(WT_SESSION *, uint32_t, uint32_t);
 static void recover_validate(const char *, uint32_t, uint64_t, uint32_t);
 static void run_test_clean(const char *, uint32_t);
@@ -212,19 +211,6 @@ fill_random_data(void)
 }
 
 /*
- * is_dir_store --
- *     Check if the external storage is dir_store.
- */
-static bool
-is_dir_store(void)
-{
-    bool dir_store;
-
-    dir_store = strcmp(opts->tiered_storage_source, DIR_STORE) == 0 ? true : false;
-    return (dir_store);
-}
-
-/*
  * remove_local_cached_files --
  *     Remove local cached files and cached folders.
  */
@@ -232,41 +218,54 @@ static void
 remove_local_cached_files(const char *home)
 {
     struct dirent *dir_entry;
-    DIR *folder;
+    DIR *dir;
 
-    char bucket_folder[512], delete_file[512], rm_cmd[512];
-    const char *file_name, *bucket_name;
-    int status;
+    char *tablename;
+    char delete_file[512], file_prefix[1024], rm_cmd[512];
+    int highest, index, nmatches, objnum, status, success_status;
 
-    bucket_name = NULL;
-    if (!is_dir_store())
-        bucket_name = getenv("WT_S3_EXT_BUCKET");
+    nmatches = highest = objnum = success_status = 0;
+    tablename = opts->uri;
 
-    if (bucket_name == NULL)
-        testutil_die(EINVAL, "S3 bucket name environment variable is not set");
+    if (!WT_PREFIX_SKIP(tablename, "table:"))
+        testutil_die(EINVAL, "unexpected uri: %s", opts->uri);
 
-    if (is_dir_store())
-        testutil_check(__wt_snprintf(
-          bucket_folder, sizeof(bucket_folder), "%s/%s", home, DIR_STORE_BUCKET_NAME));
-    else
-        testutil_check(
-          __wt_snprintf(bucket_folder, sizeof(bucket_folder), "%s/cache-%s", home, bucket_name));
+    testutil_check(__wt_snprintf(file_prefix, sizeof(file_prefix), "%s-000", tablename));
 
-    folder = opendir(bucket_folder);
-    testutil_assert(folder != NULL);
-    while ((dir_entry = readdir(folder)) != NULL) {
+    dir = opendir(home);
+    testutil_assert(dir != NULL);
+
+    while ((dir_entry = readdir(dir)) != NULL) {
         if (strcmp(dir_entry->d_name, ".") == 0 || strcmp(dir_entry->d_name, "..") == 0)
             continue;
-        /* Get the file name after the prefix. */
-        file_name = strchr(dir_entry->d_name, '-');
-        testutil_check(
-          __wt_snprintf(delete_file, sizeof(delete_file), "rm -rf %s/%s", home, file_name + 1));
-        status = system(delete_file);
-        if (status < 0)
-            testutil_die(status, "system: %s", delete_file);
+
+        if (!WT_PREFIX_MATCH(dir_entry->d_name, tablename))
+            continue;
+
+        ++nmatches;
+
+        sscanf(dir_entry->d_name, "%*[^0-9]%d", &objnum);
+        highest = WT_MAX(highest, objnum);
     }
 
-    closedir(folder);
+    closedir(dir);
+
+    if (highest > 1 && nmatches > 1) {
+        for (index = 1; index < highest; index++) {
+            testutil_check(__wt_snprintf(
+              delete_file, sizeof(delete_file), "rm -f %s/%s*0%d.wtobj", home, file_prefix, index));
+            status = system(delete_file);
+
+            /* Count the number of times the files are deleted. */
+            if (status == 0)
+                ++success_status;
+
+            if (status < 0)
+                testutil_die(status, "system: %s", delete_file);
+        }
+    }
+
+    testutil_assert(success_status == (nmatches - 1));
 
     testutil_check(__wt_snprintf(rm_cmd, sizeof(rm_cmd), "rm -rf %s/cache-*", home));
     status = system(rm_cmd);
@@ -359,7 +358,7 @@ run_test(const char *home, uint32_t num_records, uint32_t counter)
     WT_SESSION *session;
 
     testutil_make_work_dir(home);
-    if (opts->tiered_storage && (is_dir_store())) {
+    if (opts->tiered_storage && testutil_is_dir_store(opts)) {
         testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, DIR_STORE_BUCKET_NAME));
         testutil_make_work_dir(buf);
     }
