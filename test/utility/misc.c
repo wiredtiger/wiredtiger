@@ -421,6 +421,7 @@ testutil_wiredtiger_open(TEST_OPTS *opts, const char *home, const char *config,
     char auth_token[256], buf[1024], tiered_ext_cfg[512];
     const char *s3_access_key, *s3_secret_key, *s3_bucket_name;
 
+    s3_bucket_name = NULL;
     auth_token[0] = '\0';
     if (opts->tiered_storage) {
         if (!testutil_is_dir_store(opts)) {
