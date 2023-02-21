@@ -135,7 +135,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
     if (ret == 0) {
         WT_ERR(cursor->get_key(cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 
-        if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_OUT_OF_ORDER | WT_DIAG_VISIBILITY)) {
+        if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_HS_VALIDATE)) {
             /* Allocate buffer for the existing history store value for the same key. */
             WT_ERR(__wt_scr_alloc(session, 0, &existing_val));
 
@@ -547,6 +547,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
         if (oldest_upd->type == WT_UPDATE_TOMBSTONE && oldest_upd->start_ts == WT_TS_NONE) {
             WT_ERR(
               __wt_hs_delete_key(session, hs_cursor, btree->id, key, false, error_on_ts_ordering));
+
+            WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate);
 
             /* Reset the update without a timestamp if it is the last update in the chain. */
             if (oldest_upd == no_ts_upd)
@@ -1111,7 +1113,7 @@ __hs_delete_record(
          * the update chain, then delete it from the history store. These checks ensure we've
          * retrieved the correct update from the history store.
          */
-        if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_VISIBILITY)) {
+        if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_HS_VALIDATE)) {
             __wt_hs_upd_time_window(r->hs_cursor, &hs_tw);
             WT_ASSERT_ALWAYS(session,
               hs_tw->start_txn == WT_TXN_NONE || hs_tw->start_txn == upd->txnid,
