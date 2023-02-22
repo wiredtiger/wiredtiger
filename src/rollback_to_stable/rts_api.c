@@ -84,6 +84,11 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
           ", snapshot count: %" PRIu32,
           conn->recovery_ckpt_snap_min, conn->recovery_ckpt_snap_max,
           conn->recovery_ckpt_snapshot_count);
+    else {
+        WT_ASSERT(session, conn->recovery_ckpt_snap_min == WT_TXN_NONE);
+        WT_ASSERT(session, conn->recovery_ckpt_snap_max == WT_TXN_NONE);
+        WT_ASSERT(session, conn->recovery_ckpt_snapshot_count == 0);
+    }
 
     WT_ERR(__wt_rts_btree_apply_all(session, rollback_timestamp));
 
@@ -102,6 +107,10 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
 
 err:
     F_CLR(session, WT_SESSION_ROLLBACK_TO_STABLE);
+    conn->recovery_ckpt_snap_min = WT_TXN_NONE;
+    conn->recovery_ckpt_snap_max = WT_TXN_NONE;
+    conn->recovery_ckpt_snapshot_count = 0;
+
     return (ret);
 }
 
