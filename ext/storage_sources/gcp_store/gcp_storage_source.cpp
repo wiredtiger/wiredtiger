@@ -11,7 +11,6 @@
 
 struct gcp_file_system;
 struct gcp_file_handle;
-
 /*
  * The first struct member must be the WiredTiger interface that is being implemented.
  */
