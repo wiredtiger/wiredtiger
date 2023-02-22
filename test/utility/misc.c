@@ -40,9 +40,11 @@ const char *progname = "program name not set";
 
 /*
  * Backup directory initialize command, remove and re-create the primary backup directory, plus a
- * copy we maintain for recovery testing.
+ * copy we maintain for recovery testing and a copy for checking against the source.
  */
-#define HOME_BACKUP_INIT_CMD "rm -rf %s/BACKUP %s/BACKUP.copy && mkdir %s/BACKUP %s/BACKUP.copy"
+#define HOME_BACKUP_INIT_CMD                                                               \
+    "rm -rf %s/BACKUP %s/BACKUP.copy %s/BACKUP.srctest && mkdir %s/BACKUP %s/BACKUP.copy " \
+    "%s/BACKUP.srctest"
 
 /*
  * testutil_die --
@@ -323,11 +325,96 @@ testutil_create_backup_directory(const char *home)
     size_t len;
     char *cmd;
 
-    len = strlen(home) * 4 + strlen(HOME_BACKUP_INIT_CMD) + 1;
+    len = strlen(home) * 6 + strlen(HOME_BACKUP_INIT_CMD) + 1;
     cmd = dmalloc(len);
-    testutil_check(__wt_snprintf(cmd, len, HOME_BACKUP_INIT_CMD, home, home, home, home));
+    testutil_check(
+      __wt_snprintf(cmd, len, HOME_BACKUP_INIT_CMD, home, home, home, home, home, home));
     testutil_checkfmt(system(cmd), "%s", "backup directory creation failed");
     free(cmd);
+}
+
+/*
+ * testutil_verify_src_backup --
+ *     Verify a backup source home directory against a backup directory after recovery.
+ */
+void
+testutil_verify_src_backup(WT_CONNECTION *conn, const char *backup, const char *home)
+{
+    struct stat sb;
+    WT_CURSOR *cursor, *file_cursor;
+    WT_DECL_RET;
+    WT_SESSION *session;
+    uint64_t next_offset, offset, size, type;
+    int i, j, status;
+    char buf[1024], *filename, *id[WT_BLKINCR_MAX];
+    const char *idstr;
+
+    WT_CLEAR(buf);
+    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    testutil_check(session->open_cursor(session, "backup:query_id", NULL, buf, &cursor));
+    i = 0;
+    while ((ret = cursor->next(cursor)) == 0) {
+        testutil_check(cursor->get_key(cursor, &idstr));
+        id[i++] = dstrdup(idstr);
+    }
+    testutil_check(cursor->close(cursor));
+    testutil_assert(i <= WT_BLKINCR_MAX);
+    /* Go through each id and open a backup cursor on it to test incremental values. */
+    for (j = 0; j < i; ++j) {
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "incremental=(src_id=%s)", id[j]));
+        testutil_check(session->open_cursor(session, "backup:", NULL, buf, &cursor));
+        while ((ret = cursor->next(cursor)) == 0) {
+            testutil_check(cursor->get_key(cursor, &filename));
+            testutil_check(__wt_snprintf(buf, sizeof(buf), "incremental=(file=%s)", filename));
+            testutil_check(session->open_cursor(session, NULL, cursor, buf, &file_cursor));
+            next_offset = 0;
+            while ((ret = file_cursor->next(file_cursor)) == 0) {
+                testutil_check(file_cursor->get_key(file_cursor, &offset, &size, &type));
+                /* We only want to check ranges for files. So if it is a full file copy, ignore. */
+                if (type != WT_BACKUP_RANGE)
+                    break;
+                /*
+                 * If the offset indicates it is the expected next offset, then the blocks have
+                 * changed and we expect them to be different. If the offset is not the next
+                 * incremental block it was skipped and the blocks must be identical.
+                 */
+                testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", backup, filename));
+                ret = stat(buf, &sb);
+                /*
+                 * The file may not exist in the backup directory. If the stat call doesn't succeed
+                 * skip this file. If we're skipping changed blocks go to the next one.
+                 */
+                if (ret != 0)
+                    break;
+                /*
+                 * If the block is changed we cannot check it (for differences, for example). The
+                 * source id may be older and we've already copied the block, or not, so we don't
+                 * know if it should be different or not. But if a block is indicated as unchanged
+                 * then we know for sure it better match.
+                 */
+                if (offset == next_offset)
+                    next_offset += size;
+                else {
+                    /* Compare each chunk until the current changed offset. */
+                    while (offset > next_offset) {
+                        testutil_check(__wt_snprintf(buf, sizeof(buf),
+                          "cmp -n %" PRIu64 " %s/%s %s/%s %" PRIu64 " %" PRIu64, size, home,
+                          filename, backup, filename, next_offset, next_offset));
+                        status = system(buf);
+                        if (status != 0)
+                            fprintf(
+                              stderr, "FAIL: status %d ID %s from cmd: %s\n", status, id[j], buf);
+                        testutil_assert(status == 0);
+                        next_offset += size;
+                    }
+                }
+            }
+            testutil_check(file_cursor->close(file_cursor));
+        }
+        testutil_check(cursor->close(cursor));
+        free(id[j]);
+    }
+    testutil_check(session->close(session, NULL));
 }
 
 /*
@@ -346,11 +433,16 @@ testutil_copy_file(WT_SESSION *session, const char *name)
     testutil_check(__wt_copy_and_sync(session, name, first));
 
     /*
-     * Save another copy of the original file to make debugging recovery errors easier.
+     * Save another copy of the original file to make debugging recovery errors easier and for
+     * source incremental testing.
+     *
+     * Allocate based on the length of BACKUP.srctest as that is longer than BACKUP.copy.
      */
-    len = strlen("BACKUP.copy") + strlen(name) + 10;
+    len = strlen("BACKUP.srctest") + strlen(name) + 10;
     second = dmalloc(len);
     testutil_check(__wt_snprintf(second, len, "BACKUP.copy/%s", name));
+    testutil_check(__wt_copy_and_sync(session, first, second));
+    testutil_check(__wt_snprintf(second, len, "BACKUP.srctest/%s", name));
     testutil_check(__wt_copy_and_sync(session, first, second));
 
     free(first);
