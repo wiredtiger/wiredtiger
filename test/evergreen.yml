@@ -2975,11 +2975,11 @@ tasks:
     tags: ["pull_request"]
     commands:
       - func: "get project"
-      - func: "install gcp dependencies"
       - func: "compile wiredtiger"
         vars:
           <<: *configure_flags_tiered_storage_gcp
           HAVE_UNITTEST: -DHAVE_UNITTEST=1
+      - func: "install gcp dependencies"
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build"
@@ -3023,10 +3023,10 @@ tasks:
     tags: ["python", "pull_request"]
     commands:
       - func: "get project"
-      - func: "install gcp dependencies"
       - func: "compile wiredtiger"
         vars:
           <<: *configure_flags_tiered_storage_gcp
+      - func: "install gcp dependencies"
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build"
