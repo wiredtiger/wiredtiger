@@ -119,13 +119,18 @@ WT_READ_BARRIER(void)
 
 /*
  * WT_READ_BARRIER_WEAK_MEMORDER --
- *	MSVC implementation of WT_READ_BARRIER_WEAK_MEMORDER. Since we only support
- *	x86 on windows and x86 has a strong memory model, we only need a compiler barrier here.
+ *	MSVC implementation of WT_READ_BARRIER_WEAK_MEMORDER.
  */
 static inline void
 WT_READ_BARRIER_WEAK_MEMORDER(void)
 {
+    /* x86 has a strong memory model, so we only need a compiler barrier here. */
+#ifdef _M_AMD64
     WT_BARRIER();
+#else
+    /* Default to a stronger read barrier for other platforms. */
+    WT_READ_BARRIER();
+#endif
 }
 
 /*

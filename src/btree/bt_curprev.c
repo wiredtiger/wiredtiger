@@ -84,7 +84,8 @@ restart:
             cbt->next_stack[i] = NULL;
             /*
              * Compiler may replace the usage of the variable with another read in the following
-             * code.
+             * code. Here we don't need to worry about CPU reordering as we are reading a thread
+             * local value.
              *
              * Place a compiler barrier to avoid this issue.
              */
