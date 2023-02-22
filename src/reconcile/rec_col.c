@@ -869,6 +869,13 @@ __wt_rec_col_fix(
             upd = NULL;
             /* Make sure not to apply an uninitialized time window, or one from another key. */
             WT_TIME_WINDOW_INIT(&unpack.tw);
+
+            /* Initialize the selected update. */
+            upd_select.upd = NULL;
+            upd_select.tombstone = NULL;
+            upd_select.upd_saved = false;
+            upd_select.no_ts_tombstone = false;
+            WT_TIME_WINDOW_INIT(&upd_select.tw);
         } else {
             /* We shouldn't ever get appends during salvage. */
             WT_ASSERT(session, salvage == NULL);
@@ -898,7 +905,7 @@ __wt_rec_col_fix(
             if (nrecs > 0) {
                 /* There's still space; write the inserted value. */
                 WT_ASSERT(session, curstartrecno + entry == recno);
-                if (upd == NULL || upd->type == WT_UPDATE_TOMBSTONE) {
+                if (upd == NULL || upd->type == WT_UPDATE_TOMBSTONE)
                     /*
                      * If there's no update because we had no insert list and we're filling in at
                      * the end of an in-memory split, write a globally visible zero with no time
@@ -909,7 +916,7 @@ __wt_rec_col_fix(
                      * nonempty window in upd_select.tw, but we're supposed to ignore it.
                      */
                     val = 0;
-                } else {
+                else {
                     /* MODIFY is not allowed in FLCS, so the update must be an ordinary value. */
                     WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
                     val = *upd->data;
