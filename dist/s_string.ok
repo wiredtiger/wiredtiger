@@ -47,7 +47,6 @@ BLmRrSVv
 BOOL
 BSR
 BTREE
-BTree
 BUF
 BZ
 Barack
@@ -95,7 +94,7 @@ CentOS
 Checkpointing
 Checksum
 Checksums
-Chunkcache
+Chunk cache
 CityHash
 CloseHandle
 CmP
@@ -219,7 +218,6 @@ HHHHLL
 HHHLL
 HILQr
 HOTBACKUP
-Hashtable
 HSdump
 Hendrik
 HyperLevelDB
@@ -712,7 +710,6 @@ children's
 chk
 chmod
 chongo
-chunkcache
 cip
 ciphertext
 cjoin
@@ -1183,7 +1180,6 @@ lzo
 madvise
 majmin
 majorp
-makehash
 malloc
 mappable
 marshall

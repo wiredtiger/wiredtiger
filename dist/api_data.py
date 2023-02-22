@@ -523,32 +523,6 @@ connection_runtime_config = [
         the maximum number of milliseconds an application thread will wait for space to be
         available in cache before giving up. Default will wait forever''',
         min=0),
-<<<<<<< HEAD
-    Config('chunk_cache', '', r'''
-        chunk cache configuration options''',
-        type='category', subconfig=[
-        Config('capacity', '0', r'''
-            maximum memory to allocate for the chunk cache''',
-            min='0', max='100TB'),
-        Config('chunk_size', '1MB', r'''
-            size of cached chunks''',
-            min='512KB', max='100GB'),
-        Config('enabled', 'false', r'''
-            enable chunk cache''',
-            type='boolean'),
-        Config('evict_trigger', '90', r'''
-            cache percent full that triggers eviction''',
-            min='0', max='100'),
-        Config('device_path', '', r'''
-            the absolute path to the file system or a block device used as cache location'''),
-        Config('hashsize', '1024', r'''
-            number of buckets in the hashtable that keeps track of objects''',
-            min='64', max='1048576'),
-        Config('type', '', r'''
-            cache location: DRAM or FILE (file system or block device)'''),
-        ]),
-=======
->>>>>>> develop
     Config('cache_overhead', '8', r'''
         assume the heap allocator overhead is the specified percentage, and adjust the cache
         usage by that amount (for example, if there is 10GB of data in cache, a percentage of
@@ -571,6 +545,29 @@ connection_runtime_config = [
             seconds to wait between each checkpoint; setting this value above 0 configures
             periodic checkpoints''',
             min='0', max='100000'),
+        ]),
+    Config('chunk_cache', '', r'''
+        chunk cache configuration options''',
+        type='category', subconfig=[
+        Config('capacity', '10GB', r'''
+            maximum memory to allocate for the chunk cache''',
+            min='0', max='100TB'),
+        Config('chunk_size', '1MB', r'''
+            size of cached chunks''',
+            min='512KB', max='100GB'),
+        Config('enabled', 'false', r'''
+            enable chunk cache''',
+            type='boolean'),
+        Config('evict_trigger', '90', r'''
+            cache percent full that triggers eviction''',
+            min='0', max='100'),
+        Config('device_path', '', r'''
+            the absolute path to the file system or a block device used as cache location'''),
+        Config('hashsize', '1024', r'''
+            number of buckets in the hashtable that keeps track of objects''',
+            min='64', max='1048576'),
+        Config('type', '', r'''
+            cache location: DRAM or FILE (file system or block device)'''),
         ]),
     Config('debug_mode', '', r'''
         control the settings of various extended debugging features''',
@@ -707,14 +704,9 @@ connection_runtime_config = [
         \c HAVE_DIAGNOSTIC=1 all assertions are enabled and cannot be reconfigured
         ''',
         type='list', choices=[
-<<<<<<< HEAD
-            "all", "concurrent_access", "data_validation", "invalid_op", "out_of_order",
-            "panic", "slow_operation", "visibility"]),
-=======
             "all", "checkpoint_validate", "cursor_check", "disk_validate", "eviction_check", 
             "generation_check", "hs_validate", "key_out_of_order", "log_validate", "prepared", 
             "slow_operation", "txn_visibility"]),
->>>>>>> develop
     Config('file_manager', '', r'''
         control how file handles are managed''',
         type='category', subconfig=[

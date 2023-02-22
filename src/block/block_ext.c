@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *  All rights reserved.
+ *	All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -10,7 +10,7 @@
 
 /*
  * WT_BLOCK_RET --
- *  Handle extension list errors that would normally panic the system but
+ *	Handle extension list errors that would normally panic the system but
  * which should fail gracefully when verifying.
  */
 #define WT_BLOCK_RET(session, block, v, ...)                                        \
@@ -594,7 +594,6 @@ __wt_block_free(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr, 
     WT_RET(__wt_block_ext_prealloc(session, 5));
     __wt_spin_lock(session, &block->live_lock);
     ret = __wt_block_off_free(session, block, objectid, offset, (wt_off_t)size);
-    __wt_chunkcache_remove(session, block, objectid, offset, size);
     __wt_spin_unlock(session, &block->live_lock);
 
     return (ret);
@@ -719,39 +718,39 @@ __block_ext_overlap(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *ael, 
      *
      * We can think of the overlap possibilities as 11 different cases:
      *
-     *      AAAAAAAAAAAAAAAAAA
-     * #1       BBBBBBBBBBBBBBBBBB      ranges are the same
-     * #2   BBBBBBBBBBBBB               overlaps the beginning
-     * #3           BBBBBBBBBBBBBBBB    overlaps the end
-     * #4       BBBBB               B is a prefix of A
-     * #5           BBBBBB          B is middle of A
-     * #6           BBBBBBBBBB      B is a suffix of A
+     *		AAAAAAAAAAAAAAAAAA
+     * #1		BBBBBBBBBBBBBBBBBB		ranges are the same
+     * #2	BBBBBBBBBBBBB				overlaps the beginning
+     * #3			BBBBBBBBBBBBBBBB	overlaps the end
+     * #4		BBBBB				B is a prefix of A
+     * #5			BBBBBB			B is middle of A
+     * #6			BBBBBBBBBB		B is a suffix of A
      *
      * and:
      *
-     *      BBBBBBBBBBBBBBBBBB
-     * #7   AAAAAAAAAAAAA               same as #3
-     * #8           AAAAAAAAAAAAAAAA    same as #2
-     * #9       AAAAA               A is a prefix of B
-     * #10          AAAAAA          A is middle of B
-     * #11          AAAAAAAAAA      A is a suffix of B
+     *		BBBBBBBBBBBBBBBBBB
+     * #7	AAAAAAAAAAAAA				same as #3
+     * #8			AAAAAAAAAAAAAAAA	same as #2
+     * #9		AAAAA				A is a prefix of B
+     * #10			AAAAAA			A is middle of B
+     * #11			AAAAAAAAAA		A is a suffix of B
      *
      *
      * By swapping the arguments so "A" is always the lower range, we can
      * eliminate cases #2, #8, #10 and #11, and only handle 7 cases:
      *
-     *      AAAAAAAAAAAAAAAAAA
-     * #1       BBBBBBBBBBBBBBBBBB      ranges are the same
-     * #3           BBBBBBBBBBBBBBBB    overlaps the end
-     * #4       BBBBB               B is a prefix of A
-     * #5           BBBBBB          B is middle of A
-     * #6           BBBBBBBBBB      B is a suffix of A
+     *		AAAAAAAAAAAAAAAAAA
+     * #1		BBBBBBBBBBBBBBBBBB		ranges are the same
+     * #3			BBBBBBBBBBBBBBBB	overlaps the end
+     * #4		BBBBB				B is a prefix of A
+     * #5			BBBBBB			B is middle of A
+     * #6			BBBBBBBBBB		B is a suffix of A
      *
      * and:
      *
-     *      BBBBBBBBBBBBBBBBBB
-     * #7   AAAAAAAAAAAAA               same as #3
-     * #9       AAAAA               A is a prefix of B
+     *		BBBBBBBBBBBBBBBBBB
+     * #7	AAAAAAAAAAAAA				same as #3
+     * #9		AAAAA				A is a prefix of B
      */
     a = *ap;
     b = *bp;
