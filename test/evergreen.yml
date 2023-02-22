@@ -813,6 +813,8 @@ functions:
         shell: bash
         script: |
           set -o errexit
+          . test/evergreen/find_cmake.sh
+
           . test/evergreen/install_gcp_dependencies.sh
 
 #######################################
@@ -2975,11 +2977,11 @@ tasks:
     tags: ["pull_request"]
     commands:
       - func: "get project"
+      - func: "install gcp dependencies"
       - func: "compile wiredtiger"
         vars:
           <<: *configure_flags_tiered_storage_gcp
           HAVE_UNITTEST: -DHAVE_UNITTEST=1
-      - func: "install gcp dependencies"
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build"
@@ -2993,7 +2995,7 @@ tasks:
             # GCP requires a path to a credentials file for authorization. To not expose the private key within the file, 
             # use a placeholder private key. The placeholders are then replaced in the command line with the evergreen expansion variables 
             # and stored in a temporary file. The file is deleted after the unit tests are run.
-            file=$(mktemp)
+            file=$(mktemp --suffix ".json")
             sed 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|;s|gcp_private_id|${gcp_sdk_ext_private_key_id}|' ../test/evergreen/gcp_auth.json >> $file            
             export GOOGLE_APPLICATION_CREDENTIALS="$file"
 
@@ -3023,10 +3025,10 @@ tasks:
     tags: ["python", "pull_request"]
     commands:
       - func: "get project"
+      - func: "install gcp dependencies"
       - func: "compile wiredtiger"
         vars:
           <<: *configure_flags_tiered_storage_gcp
-      - func: "install gcp dependencies"
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build"
@@ -3040,7 +3042,7 @@ tasks:
             # GCP requires a path to a credentials file for authorization. To not expose the private key within the file, 
             # use a placeholder private key. The placeholders are then replaced in the command line with the evergreen expansion variables 
             # and stored in a temporary file.
-            file=$(mktemp)
+            file=$(mktemp --suffix ".json")
             sed 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|;s|gcp_private_id|${gcp_sdk_ext_private_key_id}|' ../test/evergreen/gcp_auth.json >> $file
             export GOOGLE_APPLICATION_CREDENTIALS="$file"
             
