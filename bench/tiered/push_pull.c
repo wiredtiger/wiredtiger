@@ -25,9 +25,11 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
-#include "test_util.h"
-#include <math.h>
+#ifndef _WIN32
 #include <dirent.h>
+#endif
+#include <math.h>
+#include "test_util.h"
 
 /*
  * This test is to calculate benchmarks for tiered storage:
@@ -64,6 +66,9 @@ static void populate(WT_SESSION *, uint32_t, uint32_t);
 static void recover_validate(const char *, uint32_t, uint64_t, uint32_t);
 static void run_test_clean(const char *, uint32_t);
 static void run_test(const char *, uint32_t, uint32_t);
+#ifndef _WIN32
+static void remove_local_cached_files(const char *);
+#endif
 
 static double avg_wtime_arr[MAX_RUN], avg_rtime_arr[MAX_RUN], avg_wthroughput_arr[MAX_RUN],
   avg_rthroughput_arr[MAX_RUN];
@@ -210,6 +215,7 @@ fill_random_data(void)
     data_str[str_len - 1] = '\0';
 }
 
+#ifndef _WIN32
 /*
  * remove_local_cached_files --
  *     Remove local cached files and cached folders.
@@ -222,16 +228,18 @@ remove_local_cached_files(const char *home)
 
     char *tablename;
     char delete_file[512], file_prefix[1024], rm_cmd[512];
-    int highest, index, nmatches, objnum, status, success_status;
+    int highest, index, nmatches, objnum, status;
 
-    nmatches = highest = objnum = success_status = 0;
+    highest = nmatches = objnum = 0;
     tablename = opts->uri;
 
     if (!WT_PREFIX_SKIP(tablename, "table:"))
         testutil_die(EINVAL, "unexpected uri: %s", opts->uri);
 
-    testutil_check(__wt_snprintf(file_prefix, sizeof(file_prefix), "%s-000", tablename));
-
+    /*
+     * This code is to remove all the .wtobj files except the object file with highest object number
+     * because that is the writable object.
+     */
     dir = opendir(home);
     testutil_assert(dir != NULL);
 
@@ -250,6 +258,7 @@ remove_local_cached_files(const char *home)
 
     closedir(dir);
 
+    testutil_check(__wt_snprintf(file_prefix, sizeof(file_prefix), "%s-000", tablename));
     if (highest > 1 && nmatches > 1) {
         for (index = 1; index < highest; index++) {
             testutil_check(__wt_snprintf(
@@ -257,21 +266,17 @@ remove_local_cached_files(const char *home)
             status = system(delete_file);
 
             /* Count the number of times the files are deleted. */
-            if (status == 0)
-                ++success_status;
-
-            if (status < 0)
+            if (status != 0)
                 testutil_die(status, "system: %s", delete_file);
         }
     }
-
-    testutil_assert(success_status == (nmatches - 1));
 
     testutil_check(__wt_snprintf(rm_cmd, sizeof(rm_cmd), "rm -rf %s/cache-*", home));
     status = system(rm_cmd);
     if (status < 0)
         testutil_die(status, "system: %s", rm_cmd);
 }
+#endif
 
 /*
  * recover_validate --
@@ -298,11 +303,13 @@ recover_validate(const char *home, uint32_t num_records, uint64_t file_size, uin
     key = 0;
     buf[0] = '\0';
 
+#ifndef _WIN32
     /*
      * Remove cached files and cached buckets.
      */
     if (opts->tiered_storage)
         remove_local_cached_files(home);
+#endif
 
     /*
      * Open the connection which forces recovery to be run.
