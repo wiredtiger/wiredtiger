@@ -37,7 +37,7 @@ BBBBBBBBBB
 BBBBBBBBBBBBB
 BBBBBBBBBBBBBBBB
 BBBBBBBBBBBBBBBBBB
-BCmvxz
+BClmvxz
 BDB
 BDB's
 BDmpvXx
@@ -87,6 +87,8 @@ CURSORs
 CURSTD
 CallsCustDate
 Castagnoli
+CcLlsvz
+Cclmpv
 CentOS
 Checkpointing
 Checksum
@@ -95,7 +97,6 @@ CityHash
 CloseHandle
 CmP
 CmPTh
-Cmvz
 Collet
 Comparator
 Compressibility
@@ -107,12 +108,12 @@ CreateFileW
 Crt
 Crummey
 CustomersPhone
+Cygwin
 DAX
 DECL
 DECR
 DESC
 DHANDLE
-DIAG
 DIRECTIO
 DNE
 DOI
@@ -129,6 +130,8 @@ Decrypt
 DeleteFileW
 Destructor
 Deterministically
+Dk
+DmpvXx
 Dxxx
 EACCES
 EAGAIN
@@ -273,6 +276,8 @@ LTE
 LWN
 LZ
 LZO
+LazyFS
+LazyFS's
 LeafGreen
 LevelDB
 Levyx
@@ -348,7 +353,9 @@ Opcode
 Optane
 Outfmt
 PARAM
+PDEATHSIG
 PFX
+PID
 POS
 POSIX
 PPC
@@ -385,6 +392,7 @@ Qsort
 RCS
 RDNOLOCK
 RDONLY
+README
 READONLY
 REALLOC
 RECNO
@@ -453,6 +461,7 @@ Stoica
 StoreLoad
 StoreStore
 Su
+Subdirectory
 Syscall
 TAILQ
 TCMalloc
@@ -497,6 +506,7 @@ UnlockFile
 Unmap
 UnmapViewOfFile
 Unmarshall
+Unmount
 Unordered
 Uryyb
 VALGRIND
@@ -593,6 +603,7 @@ aspell
 assertfmt
 async
 atomicity
+atomics
 atou
 auth
 autocommit
@@ -914,6 +925,7 @@ fgetln
 fgets
 fh
 fhandle
+fifo
 fileX
 filefrag
 filehandle
@@ -958,6 +970,7 @@ fuzzer
 fuzzutil
 fvisibility
 fwrite
+gb
 gc
 gcc
 gdb
@@ -1099,6 +1112,7 @@ kvs
 lang
 las
 latencies
+lazyfs
 lbrace
 lbracket
 ld
@@ -1119,6 +1133,7 @@ libsodium
 libtool
 libwiredtiger
 linkers
+linux
 liveness
 llll
 llu
@@ -1175,6 +1190,7 @@ maxv
 mb
 mbll
 mbss
+md
 mem
 memalign
 membar
@@ -1198,6 +1214,7 @@ mips
 mkdir
 mmap
 mmrand
+mn
 mnt
 mongod
 movemask
@@ -1315,6 +1332,7 @@ pclose
 pcpu
 perf
 pfx
+pid
 pluggable
 pmem
 poc
@@ -1347,6 +1365,7 @@ primary's
 printf
 printlog
 priv
+proc
 prog
 progname
 programmatically
@@ -1493,6 +1512,8 @@ strtouq
 struct
 structs
 su
+subdir
+subdirectories
 subdirectory
 subget
 subgetraw
@@ -1501,6 +1522,7 @@ subinit
 sublicense
 subone
 suboptimal
+subprocess
 subsystem's
 subtest
 subtree
@@ -1546,6 +1568,7 @@ tokstart
 toktype
 tolower
 tombstoned
+toml
 toolchain
 toplevel
 totalsec
@@ -1579,6 +1602,7 @@ uS
 ui
 uint
 uintmax
+umount
 unbare
 unbuffered
 uncacheable
@@ -1606,6 +1630,7 @@ unmarshall
 unmarshalled
 unmerged
 unmodify
+unmount
 unordered
 unpackv
 unpadded
@@ -1696,6 +1721,7 @@ wtperf's
 wts
 wtstats
 xF
+xX
 xdeadbeef
 xff
 xfff

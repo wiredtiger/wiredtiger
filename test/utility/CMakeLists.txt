@@ -2,11 +2,12 @@ project(libtest C)
 
 set(sources
     misc.c
-    util_modify.c
+    lazyfs.c
     parse_opts.c
-    util_random.c
     thread.c
     tiered.c
+    util_modify.c
+    util_random.c
 )
 
 set(link_type)
