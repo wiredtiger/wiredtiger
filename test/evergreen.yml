@@ -3088,14 +3088,10 @@ tasks:
 
             # Run GCP extension unit testing.
             ext/storage_sources/gcp_store/test/run_gcp_unit_tests
-
-            # Remove temporary file.
-            rm $file
   - name: azure-tiered-test-small
     tags: ["python", "pull_request"]
     commands:
       - func: "get project"
-      - func: "install gcp dependencies"
       - func: "compile wiredtiger"
         vars:
           <<: *configure_flags_tiered_storage_azure
@@ -3110,11 +3106,8 @@ tasks:
             set -o errexit
             # Set the Azure credentials using config variable.
             export AZURE_STORAGE_CONNECTION_STRING="${azure_sdk_ext_access_key}"
-      - func: "run tiered storage test"
-        vars:
-          # Set this in case of a core to get the correct python binary.
-          python_binary: $(pwd)/venv/bin/python3
-          tiered_storage_test_name: tiered19
+
+            ${test_env_vars|} python3 ../test/suite/run.py -j 4 tiered19
   - name: gcp-tiered-test-small
     tags: ["python", "pull_request"]
     commands:
@@ -3123,7 +3116,6 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           <<: *configure_flags_tiered_storage_gcp
-          cmake_binary: /opt/mongodbtoolchain/v4/bin/cmake
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build"
@@ -3136,22 +3128,13 @@ tasks:
 
             # GCP requires a path to a credentials file for authorization. To not expose the private key within the file, 
             # use a placeholder private key. The placeholders are then replaced in the command line with the evergreen expansion variables 
-            # and stored in a temporary file. The file is deleted after the unit tests are run.
+            # and stored in a temporary file.
             file=$(mktemp)
             sed 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|;s|gcp_private_id|${gcp_sdk_ext_private_key_id}|' ../test/evergreen/gcp_auth.json >> $file
             export GOOGLE_APPLICATION_CREDENTIALS="$file"
-      - func: "run tiered storage test"
-        vars:
-          # Set this in case of a core to get the correct python binary.
-          python_binary: $(pwd)/venv/bin/python3
-          tiered_storage_test_name: tiered19  
-      - command: shell.exec
-        params:
-          shell: bash
-          script: |
-            set -o errexit
-            # Remove temporary file.
-            rm $file 
+            
+            ${test_env_vars|} python3 ../test/suite/run.py -j 4 tiered19
+
   - name: spinlock-gcc-test
     commands:
       - func: "get project"
