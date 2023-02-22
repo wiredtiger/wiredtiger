@@ -208,6 +208,7 @@ __txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
 {
     WT_TXN *txn;
     WT_TXN_OP *op;
+    uint64_t btree_txn_id_prev;
 
     *opp = NULL;
 
@@ -224,6 +225,19 @@ __txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
     op = &txn->mod[txn->mod_count++];
     WT_CLEAR(*op);
     op->btree = S2BT(session);
+
+    /*
+     * Store the ID of the latest transaction that is making an update. It can be used to determine
+     * if there is an active transaction on the btree. Retry if we race with another thread, but
+     * give up if that update is newer than this one.
+     */
+    btree_txn_id_prev = op->btree->max_upd_txn;
+    while (WT_TXNID_LT(btree_txn_id_prev, txn->id)) {
+        if (__wt_atomic_cas64(&op->btree->max_upd_txn, btree_txn_id_prev, txn->id))
+            break;
+        btree_txn_id_prev = op->btree->max_upd_txn;
+    }
+
     (void)__wt_atomic_addi32(&session->dhandle->session_inuse, 1);
     *opp = op;
     return (0);

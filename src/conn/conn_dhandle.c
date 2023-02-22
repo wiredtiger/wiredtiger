@@ -313,6 +313,15 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead)
     btree = is_btree ? dhandle->handle : NULL;
 
     if (is_btree) {
+
+        /* Don't close the btree if there are changes not yet globally visible. */
+        /*
+         * !! Check if we have exclusive access here, else a transaction can start on this btree after
+         * this check !!
+         */
+        if (!__wt_txn_visible_all(session, btree->max_upd_txn, WT_TS_NONE))
+            return (EBUSY);
+
         /* Turn off eviction. */
         WT_RET(__wt_evict_file_exclusive_on(session));
 
