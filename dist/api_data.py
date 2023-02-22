@@ -523,6 +523,7 @@ connection_runtime_config = [
         the maximum number of milliseconds an application thread will wait for space to be
         available in cache before giving up. Default will wait forever''',
         min=0),
+<<<<<<< HEAD
     Config('chunk_cache', '', r'''
         chunk cache configuration options''',
         type='category', subconfig=[
@@ -546,6 +547,8 @@ connection_runtime_config = [
         Config('type', '', r'''
             cache location: DRAM or FILE (file system or block device)'''),
         ]),
+=======
+>>>>>>> develop
     Config('cache_overhead', '8', r'''
         assume the heap allocator overhead is the specified percentage, and adjust the cache
         usage by that amount (for example, if there is 10GB of data in cache, a percentage of
@@ -617,6 +620,10 @@ connection_runtime_config = [
             min='0', max='10M'),
         Config('slow_checkpoint', 'false', r'''
             if true, slow down checkpoint creation by slowing down internal page processing.''',
+            type='boolean'),
+        Config('stress_skiplist', 'false', r'''
+            Configure various internal parameters to encourage race conditions and other issues
+            with internal skip lists, e.g. using a more dense representation.''',
             type='boolean'),
         Config('table_logging', 'false', r'''
             if true, write transaction related information to the log for all operations, even
@@ -700,8 +707,14 @@ connection_runtime_config = [
         \c HAVE_DIAGNOSTIC=1 all assertions are enabled and cannot be reconfigured
         ''',
         type='list', choices=[
+<<<<<<< HEAD
             "all", "concurrent_access", "data_validation", "invalid_op", "out_of_order",
             "panic", "slow_operation", "visibility"]),
+=======
+            "all", "checkpoint_validate", "cursor_check", "disk_validate", "eviction_check", 
+            "generation_check", "hs_validate", "key_out_of_order", "log_validate", "prepared", 
+            "slow_operation", "txn_visibility"]),
+>>>>>>> develop
     Config('file_manager', '', r'''
         control how file handles are managed''',
         type='category', subconfig=[
@@ -817,8 +830,8 @@ connection_runtime_config = [
         stress testing of WiredTiger.''',
         type='list', undoc=True,
         choices=[
-        'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page', 'checkpoint_slow',
-        'checkpoint_stop', 'compact_slow', 'evict_reposition',
+        'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page', 'checkpoint_handle',
+        'checkpoint_slow', 'checkpoint_stop', 'compact_slow', 'evict_reposition',
         'failpoint_eviction_fail_after_reconciliation',
         'failpoint_history_store_delete_key_from_ts', 'history_store_checkpoint_delay',
         'history_store_search', 'history_store_sweep_race', 'prepare_checkpoint_delay',

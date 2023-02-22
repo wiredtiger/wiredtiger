@@ -214,7 +214,7 @@ __clsm_enter(WT_CURSOR_LSM *clsm, bool reset, bool update)
                     switch_txn = clsm->chunks[i]->switch_txn;
                     if (WT_TXNID_LT(switch_txn, pinned_id))
                         break;
-                    WT_ASSERT_OPTIONAL(session, WT_DIAG_VISIBILITY,
+                    WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_TXN_VISIBILITY,
                       !__wt_txn_visible_all(session, switch_txn, WT_TS_NONE),
                       "Switch transaction is not globally visible");
                 }
@@ -665,7 +665,7 @@ retry:
     clsm->dsk_gen = lsm_tree->dsk_gen;
 
 err:
-    if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_DATA_VALIDATION)) {
+    if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_CURSOR_CHECK)) {
         /* Check that all cursors are open as expected. */
         if (ret == 0 && F_ISSET(clsm, WT_CLSM_OPEN_READ)) {
             for (i = 0; i != clsm->nchunks; i++) {
@@ -1409,7 +1409,8 @@ __clsm_put(WT_SESSION_IMPL *session, WT_CURSOR_LSM *clsm, const WT_ITEM *key, co
 
     for (i = 0, slot = clsm->nchunks - 1; i < clsm->nupdates; i++, slot--) {
         /* Check if we need to keep updating old chunks. */
-        if (i > 0 && __wt_txn_visible(session, clsm->chunks[slot]->switch_txn, WT_TS_NONE)) {
+        if (i > 0 &&
+          __wt_txn_visible(session, clsm->chunks[slot]->switch_txn, WT_TS_NONE, WT_TS_NONE)) {
             clsm->nupdates = i;
             break;
         }
