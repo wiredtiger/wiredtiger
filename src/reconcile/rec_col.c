@@ -871,11 +871,7 @@ __wt_rec_col_fix(
             WT_TIME_WINDOW_INIT(&unpack.tw);
 
             /* Initialize the selected update. */
-            upd_select.upd = NULL;
-            upd_select.tombstone = NULL;
-            upd_select.upd_saved = false;
-            upd_select.no_ts_tombstone = false;
-            WT_TIME_WINDOW_INIT(&upd_select.tw);
+            WT_UPDATE_SELECT_INIT(&upd_select);
         } else {
             /* We shouldn't ever get appends during salvage. */
             WT_ASSERT(session, salvage == NULL);
