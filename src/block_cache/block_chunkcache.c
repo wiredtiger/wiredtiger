@@ -169,7 +169,7 @@ __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
  *     Populate the hash data structure, which uniquely identifies the chunk, and return the hash
  *     table bucket number corresponding to this hash.
  */
-static inline uint
+static inline unsigned int
 __chunkcache_make_hash(WT_CHUNKCACHE *chunkcache, WT_CHUNKCACHE_HASHID *hash_id, WT_BLOCK *block,
   uint32_t objectid, wt_off_t offset)
 {
@@ -182,7 +182,7 @@ __chunkcache_make_hash(WT_CHUNKCACHE *chunkcache, WT_CHUNKCACHE_HASHID *hash_id,
     hash = __wt_hash_city64((void *)hash_id, sizeof(WT_CHUNKCACHE_HASHID));
 
     /* Return the bucket ID. */
-    return (uint)(hash % chunkcache->hashtable_size);
+    return (unsigned int)(hash % chunkcache->hashtable_size);
 }
 
 /*
