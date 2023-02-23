@@ -9,18 +9,17 @@
 #include "wt_internal.h"
 
 #ifdef HAVE_DIAGNOSTIC
-
 #define WT_BLOCK_OVERLAPS_CHUNK(chunk_off, block_off, chunk_size, block_size) \
     (block_off < chunk_off + (wt_off_t)chunk_size) && (chunk_off < block_off + (wt_off_t)block_size)
+#endif
 
-#define WT_CHUNK_MARK_VALID(session, chunkcache, chunk)                            \
+#define WT_CHUNK_MARK_VALID(session, chunkcache, chunk)                 \
     if (!chunk->valid) {                                                           \
         (void)__wt_atomic_addv32(&chunk->valid, 1);                                \
         __wt_spin_lock(session, &chunkcache->chunkcache_lru_lock);                 \
         TAILQ_INSERT_HEAD(&chunkcache->chunkcache_lru_list, chunk, next_lru_item); \
         __wt_spin_unlock(session, &chunkcache->chunkcache_lru_lock);               \
     }
-#endif
 
 /* This rounds down to the chunk boundary. */
 #define WT_CHUNK_OFFSET(chunkcache, offset) \
