@@ -2964,9 +2964,7 @@ tasks:
           script: |
             set -o errexit
             # Set the Azure credentials using config variable.
-
             export AZURE_STORAGE_CONNECTION_STRING="${azure_sdk_ext_access_key}"
-
             set -o verbose
 
             # Run AZURE extension unit testing.
@@ -2988,13 +2986,13 @@ tasks:
             - gcp_sdk_ext_private_key_id
           script: | 
             set -o errexit
-
             # GCP requires a path to a credentials file for authorization. To not expose the private key within the file, 
             # use a placeholder private key. The placeholders are then replaced in the command line with the evergreen expansion variables 
             # and stored in a temporary file. The file is deleted after the unit tests are run.
             file=$(mktemp --suffix ".json")
             sed 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|;s|gcp_private_id|${gcp_sdk_ext_private_key_id}|' ../test/evergreen/gcp_auth.json >> $file            
             export GOOGLE_APPLICATION_CREDENTIALS="$file"
+            set -o verbose
 
             # Run GCP extension unit testing.
             ext/storage_sources/gcp_store/test/run_gcp_unit_tests
@@ -3016,6 +3014,7 @@ tasks:
             set -o errexit
             # Set the Azure credentials using config variable.
             export AZURE_STORAGE_CONNECTION_STRING="${azure_sdk_ext_access_key}"
+            set -o verbose
 
             ${test_env_vars|} python3 ../test/suite/run.py -j $(nproc) tiered19
   - name: gcp-tiered-test-small
@@ -3035,13 +3034,13 @@ tasks:
             - gcp_sdk_ext_private_key_id
           script: |
             set -o errexit
-
             # GCP requires a path to a credentials file for authorization. To not expose the private key within the file, 
             # use a placeholder private key. The placeholders are then replaced in the command line with the evergreen expansion variables 
             # and stored in a temporary file.
             file=$(mktemp --suffix ".json")
             sed 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|;s|gcp_private_id|${gcp_sdk_ext_private_key_id}|' ../test/evergreen/gcp_auth.json >> $file
             export GOOGLE_APPLICATION_CREDENTIALS="$file"
+            set -o verbose
             
             ${test_env_vars|} python3 ../test/suite/run.py -j $(nproc) tiered19
 
