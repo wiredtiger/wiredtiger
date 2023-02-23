@@ -353,6 +353,21 @@ __session_open_hs_ckpt(WT_SESSION_IMPL *session, const char *checkpoint, const c
 }
 
 /*
+ * __ckpt_compare_reverse_order --
+ *     Qsort comparison routine for a checkpoint list, sort from most recent order to oldest.
+ */
+static int
+__ckpt_compare_reverse_order(const void *a, const void *b)
+{
+    WT_CKPT *ackpt, *bckpt;
+
+    ackpt = (WT_CKPT *)a;
+    bckpt = (WT_CKPT *)b;
+
+    return (ackpt->order <= bckpt->order ? 1 : -1);
+}
+
+/*
  * __wt_session_get_btree_ckpt --
  *     Check the configuration strings for a checkpoint name. If opening a checkpoint, resolve the
  *     checkpoint name, get a btree handle for it, load that into the session, and if requested with
@@ -368,14 +383,19 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
   uint32_t flags, WT_DATA_HANDLE **hs_dhandlep, WT_CKPT_SNAPSHOT *ckpt_snapshot)
 {
     WT_CONFIG_ITEM cval;
+    WT_CKPT *ckpt, *ckptbase;
     WT_DECL_RET;
-    uint64_t ds_time, first_snapshot_time, hs_time, oldest_time, snapshot_time, stable_time;
+    uint64_t ds_time, first_snapshot_time, hs_time, num_checkpoints, oldest_time, snapshot_time,
+      stable_time;
     int64_t ds_order, hs_order;
     const char *checkpoint, *hs_checkpoint;
     bool is_unnamed_ckpt, must_resolve;
+    size_t checkpoint_len;
 
-    ds_time = first_snapshot_time = hs_time = oldest_time = snapshot_time = stable_time = 0;
+    ds_time = first_snapshot_time = hs_time = num_checkpoints = oldest_time = snapshot_time =
+      stable_time = 0;
     ds_order = hs_order = 0;
+    checkpoint_len = 0;
     checkpoint = NULL;
     hs_checkpoint = NULL;
 
@@ -400,10 +420,9 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
      * call the underlying function directly.
      */
     WT_RET_NOTFOUND_OK(__wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
-    if (cval.len == 0) {
+    if (cval.len == 0)
         /* We are not opening a checkpoint. This is the simple case; retire it immediately. */
         return (__wt_session_get_dhandle(session, uri, NULL, cfg, flags));
-    }
 
     /*
      * Here and below is only for checkpoints.
@@ -425,9 +444,9 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
      * (because old unnamed checkpoints are garbage collected) the proper matching history store
      * wouldn't exist any more and we'd be stuck.
      *
-     * The scheme is as follows: 1. Read checkpoint info out of the metadata, and retry until we get
-     * a consistent set; then 2. Open both dhandles and retry the whole thing if we didn't get the
-     * trees we expected.
+     * The scheme is as follows: 1. Read checkpoint info out of the metadata; then 2. Open both
+     * dhandles. In the case of an inconsistent set of information, try the previous checkpoints
+     * until one gives a consistent set of information. If none does, return WT_ERROR.
      *
      * For the first part, we look up the requested checkpoint in both the data store and history
      * store's metadata (either by name or for WiredTigerCheckpoint by picking the most recent
@@ -453,14 +472,14 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
      * snapshot time. If any of the items are newer, they were written by a currently running
      * checkpoint that hasn't finished yet, and we need to retry.
      *
-     * (For the timestamps it is slightly easier; either timestamp might not be present, in which
+     * For the timestamps it is slightly easier; either timestamp might not be present, in which
      * case both the timestamp and its associated time will read back as zero. We take advantage of
      * the knowledge that for both these timestamps the system cannot transition from a state with
      * the timestamp set to one where it is not, and therefore once any checkpoint includes either
      * timestamp, every subsequent checkpoint will too. Therefore, the timestamps' wall times should
      * either match the snapshot or be zero; and if they're zero, it doesn't matter if they were
      * actually zero in a newer, currently running checkpoint, because then they must have always
-     * been zero.)
+     * been zero.
      *
      * This scheme relies on the fact that the checkpoint wall clock time always moves forward. Each
      * checkpoint is given a wall clock time at least one second greater than the previous
@@ -483,24 +502,39 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
      * life of the checkpoint cursor.
      */
 
+    /*
+     * If we are requested to open on the latest internal WiredTiger checkpoint, it may not be
+     * possible. If this happens, try a previous existing checkpoint until one can be used. For
+     * this, retrieve all the checkpoints and sort them from the latest created to the oldest one.
+     */
+    WT_RET(__wt_strndup(session, cval.str, cval.len, &checkpoint));
+    if (WT_STRING_MATCH(WT_CHECKPOINT, cval.str, cval.len)) {
+        WT_RET(__wt_metadata_get_ckptlist((WT_SESSION *)session, uri, &ckptbase));
+
+        WT_CKPT_FOREACH (ckptbase, ckpt)
+            ++num_checkpoints;
+
+        __wt_qsort(ckptbase, num_checkpoints, sizeof(WT_CKPT), __ckpt_compare_reverse_order);
+    }
+
     if (strcmp(uri, WT_HS_URI) == 0)
         /* We're opening the history store directly, so don't open it twice. */
         hs_dhandlep = NULL;
 
-    /*
-     * Test for the internal checkpoint name (WiredTigerCheckpoint). Note: must_resolve is true in a
-     * subset of the cases where is_unnamed_ckpt is true.
-     */
-    must_resolve = WT_STRING_MATCH(WT_CHECKPOINT, cval.str, cval.len);
-    is_unnamed_ckpt = cval.len >= strlen(WT_CHECKPOINT) && WT_PREFIX_MATCH(cval.str, WT_CHECKPOINT);
-
     /* This is the top of a retry loop. */
     do {
         ret = 0;
+        if (checkpoint == NULL)
+            WT_RET(__wt_strndup(session, ckptbase->name, strlen(ckptbase->name), &checkpoint));
 
-        if (!must_resolve)
-            /* Copy the checkpoint name first because we may need it to get the first wall time. */
-            WT_RET(__wt_strndup(session, cval.str, cval.len, &checkpoint));
+        /*
+         * Test for the internal checkpoint name (WiredTigerCheckpoint). Note: must_resolve is true
+         * in a subset of the cases where is_unnamed_ckpt is true.
+         */
+        checkpoint_len = strlen(checkpoint);
+        must_resolve = WT_STRING_MATCH(WT_CHECKPOINT, checkpoint, checkpoint_len);
+        is_unnamed_ckpt =
+          checkpoint_len >= strlen(WT_CHECKPOINT) && WT_PREFIX_MATCH(checkpoint, WT_CHECKPOINT);
 
         if (ckpt_snapshot != NULL) {
             /* We're about to re-fetch this; discard the prior version. No effect the first time. */
@@ -546,11 +580,10 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
               ckpt_snapshot, &snapshot_time, &stable_time, &oldest_time));
 
             /*
-             * Check if we raced with a running checkpoint.
+             * Check if the cursor can use the selected checkpoint's data.
              *
              * If the two copies of the snapshot don't match, or if any of the other metadata items'
-             * time is newer than the snapshot, we read in the middle of that material being updated
-             * and we need to retry.
+             * time is newer than the snapshot, we try to use an older checkpoint.
              *
              * Otherwise we have successfully gotten a matching set, as described above.
              *
@@ -562,11 +595,24 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
              * snapshot its time will be 0 and the check will fail gratuitously and lead to retrying
              * forever.
              */
-
             if (first_snapshot_time != snapshot_time || ds_time > snapshot_time ||
-              hs_time > snapshot_time || stable_time > snapshot_time || oldest_time > snapshot_time)
-                ret = __wt_set_return(session, EBUSY);
-            else {
+              hs_time > snapshot_time || stable_time > snapshot_time ||
+              oldest_time > snapshot_time) {
+
+                /*
+                 * A named checkpoint cannot lead to an inconsistent set of information unless the
+                 * application is regenerating it which should not happen.
+                 */
+                WT_ASSERT(session, is_unnamed_ckpt);
+
+                /* Try with the previous checkpoint if it exists. */
+                ++ckptbase;
+                if (ckptbase->name == NULL)
+                    ret = __wt_set_return(session, WT_ERROR);
+                else
+                    ret = __wt_set_return(session, EBUSY);
+
+            } else {
                 /* Crosscheck that we didn't somehow get an older timestamp. */
                 WT_ASSERT(session, stable_time == snapshot_time || stable_time == 0);
                 WT_ASSERT(session, oldest_time == snapshot_time || oldest_time == 0);
