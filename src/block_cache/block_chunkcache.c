@@ -13,7 +13,7 @@
     (block_off < chunk_off + (wt_off_t)chunk_size) && (chunk_off < block_off + (wt_off_t)block_size)
 #endif
 
-#define WT_CHUNK_MARK_VALID(session, chunkcache, chunk)                 \
+#define WT_CHUNK_MARK_VALID(session, chunkcache, chunk)                            \
     if (!chunk->valid) {                                                           \
         (void)__wt_atomic_addv32(&chunk->valid, 1);                                \
         __wt_spin_lock(session, &chunkcache->chunkcache_lru_lock);                 \

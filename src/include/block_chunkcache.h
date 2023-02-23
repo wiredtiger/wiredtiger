@@ -67,7 +67,7 @@ struct __wt_chunkcache {
     bool chunkcache_exiting;
     bool configured;
     size_t chunk_size;
-    char *dev_path;       /* the storage path if we are on a file system or a block device */
+    char *dev_path; /* the storage path if we are on a file system or a block device */
     unsigned int evict_watermark; /* When this percent of cache is full, we trigger eviction. */
     unsigned int hashtable_size;
     int type; /* location of the chunk cache (volatile memory or file) */
