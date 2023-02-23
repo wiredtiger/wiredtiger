@@ -28,7 +28,7 @@
 #
 
 # This is the tiered microbenchmark base class that has the common code needed
-# for microbenchmark-tiered-checkpoint.py and microbenchmark-tiered-checkpoint-flush.py
+# for other workloads
 #
 
 import sys

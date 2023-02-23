@@ -27,9 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # This workload is used to measure the impact of running checkpoint without flush_tier calls.
-# It imports all the insert/read/update threads from microbenchmark_tiered
-# class and configures checkpoint thread. The latency output files generated
-# from this test will be compared against latency files from microbenchmark-tiered-checkpoint-flush.py.
+# The latency output files generated from this test will be compared against latency files
+# of other workload.
 #
 
 from runner import *
