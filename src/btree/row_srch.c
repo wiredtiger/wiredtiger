@@ -37,7 +37,6 @@ __search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT
      * Place a read barrier here to avoid this issue.
      */
     WT_READ_BARRIER();
-
     key.data = WT_INSERT_KEY(ins);
     key.size = WT_INSERT_KEY_SIZE(ins);
 
