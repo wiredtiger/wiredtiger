@@ -23,7 +23,7 @@ tar xf cmake-3.13.0.tar.gz
 cd cmake-3.13.0
 
 ./configure
-make -j $nproc
+make -j $(nproc)
 sudo make install
 ```
 
@@ -73,6 +73,11 @@ ninja
 In order to run this extension after building, the developer must have an Azure connection string locally to a container with the right permissions. The connection string must be stored in an environmental variable called `AZURE_STORAGE_CONNECTION_STRING`. To store your connection string into an environmental variable type `export AZURE_STORAGE_CONNECTION_STRING="your Azure connection string"` into your terminal.
 ## 4. Testing
 
+Before running the tests set the `LD_LIBRARY_PATH` to tell the dynamic link loader where to look for the dynamic shared libraries that we made earlier.
+```bash
+export LD_LIBRARY_PATH=$(pwd)/azure-sdk-cpp/install/lib:$LD_LIBRARY_PATH
+```
+
 ### To run the tiered python tests for Azure:
 
 ```bash
@@ -95,5 +100,7 @@ wish to add a new test file, add it to the `SOURCES` list in `create_test_execut
 
 ## 5. Evergreen Testing
 Currently the Evergreen testing runs both `test_tiered19.py` and the unit tests in `test_azure_connection.cpp`. Should a developer wish to additional tests to the extension, they would first have to write the tests before adding it as a task to the evergreen.yml file.
+
+Evergreen has hidden the connection string for Azure so it's necessary for the developer to store this in the environmental variable in Step 3.
 
 When creating a new task, a developer should note that the CMake binary should be set to the MongoDB V4 toolchain due to the CMake 3.13 minimum requirement.
