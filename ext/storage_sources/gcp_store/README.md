@@ -6,56 +6,89 @@ This extension allows WiredTiger storage source extensions to read from and writ
 This section describes how to build WiredTiger with the GCP extension enabled.
 
 ### Requirements
+<li> CMake 3.11 or higher
+<li> G++ 8.4 or higher
 <li> Abseil LTS 20230125
 <li> nlohmann_json library 3.11.2
 <li> crc32c 1.1.2<p>
 
 ### How to install requirements (skip this step if requirements have been met)
-Abseil LTS 20230125
+If the CMake version is not 3.11 or higher update your CMake to 3.11 using the following.
+```bash
+sudo apt remove cmake
+wget https://cmake.org/files/v3.11/cmake-3.11.0.tar.gz
+tar xf cmake-3.11.0.tar.gz
+
+cd cmake-3.11.0
+
+./configure
+make -j $nproc
+sudo make install
+```
+Check that your CMake has been updated using the following command cmake --version.
+
+If your cmake is not in /usr/bin/ create a symbolic link using the following.
+
+```bash
+sudo ln -s /usr/local/bin/cmake /usr/bin/cmake
+```
+
+If the G++ version is not 8.4 or higher update your G++ to 8.4 using the following.
+
+```bash
+sudo apt-get install gcc-8 g++-8
+sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-8 20 --slave /usr/bin/g++ g++ /usr/bin/g++-8
+```
+Check that your G++ has been updated using the following command `g++ --version`.
+
+To download Abseil LTS 20230125 use the following.
 ```bash
 mkdir -p $HOME/Downloads/abseil-cpp && cd $HOME/Downloads/abseil-cpp
 
-curl -ssl https://github.com/abseil/abseil-cpp/archive/20230125.0.tar.gz | tar -xzf - --strip-components=1
+curl -sSL https://github.com/abseil/abseil-cpp/archive/20230125.0.tar.gz | \
+  tar -xzf - --strip-components=1
 
 mkdir cmake-out && cd cmake-out
 
-cmake -DCMAKE_BUILD_TYPE=Release -DABSL_BUILD_TESTING=OFF -DBUILD_SHARED_LIBS=yes ../. && make -j4
+cmake -DCMAKE_BUILD_TYPE=Release -DABSL_BUILD_TESTING=OFF -DBUILD_SHARED_LIBS=yes ../. && make -j $nproc
 
 cd ..
 sudo cmake --build cmake-out --target install
 sudo ldconfig
 ```
 
-nlohmann_json library
+To download the nlohmann_json library use the following.
 ```bash
 mkdir -p $HOME/Downloads/json && cd $HOME/Downloads/json
 
-curl -ssl https://github.com/nlohmann/json/archive/v3.11.2.tar.gz | tar -xzf - --strip-components=1
+curl -sSL https://github.com/nlohmann/json/archive/v3.11.2.tar.gz | \
+  tar -xzf - --strip-components=1
 
 mkdir cmake-out && cd cmake-out
 
-cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=yes -DBUILD_TESTING=OFF -DJSON_BuildTests=OFF ../. && make -j4
+cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=yes -DBUILD_TESTING=OFF -DJSON_BuildTests=OFF ../. && make -j $nproc
 
 cd ..
 sudo cmake --build cmake-out --target install
 sudo ldconfig
 ```
-crc32c
+To download crc32c use the following.
 ```bash
 mkdir -p $HOME/Downloads/crc32c && cd $HOME/Downloads/crc32c
 
-curl -ssl https://github.com/google/crc32c/archive/1.1.2.tar.gz | tar -xzf - --strip-components=1
+curl -sSL https://github.com/google/crc32c/archive/1.1.2.tar.gz | \
+  tar -xzf - --strip-components=1
 
 mkdir cmake-out && cd cmake-out
 
-cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=yes -DCRC32C_BUILD_TESTS=OFF -DCRC32C_BUILD_BENCHMARKS=OFF -DCRC32C_USE_GLOG=OFF ../. && make -j4
+cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=yes -DCRC32C_BUILD_TESTS=OFF -DCRC32C_BUILD_BENCHMARKS=OFF -DCRC32C_USE_GLOG=OFF ../. && make -j $nproc
 
 cd ..
 sudo cmake --build cmake-out --target install
 sudo ldconfig
 ```
 ### Building
-There is current only 1 way to build WiredTiger with GCP extension:
+There is currently only 1 way to build WiredTiger with GCP extension:
 1. Letting CMake manage the GCP SDK dependency as an external project, letting it download, link and build the extension.
 
 There are two CMake flags associated with the GCP extension: `ENABLE_GCP` and `IMPORT_GCP_SDK`.
@@ -87,7 +120,7 @@ In order to run this extension after building, the developer must have a GCP cre
 ### To run the tiered python tests for GCP:
 
 ```bash
-# This will run all the test in test_tiered19.py on the GCP storage source. The following command will run the tests from the build directory that was built earlier.
+# This will run all the tests in test_tiered19.py on the GCP storage source. The following command will run the tests from the build directory that was made earlier.
 cd build
 env WT_BUILDDIR=$(pwd) python3 ../test/suite/run.py -j 10 -v 4 test_tiered19
 ```
@@ -97,7 +130,7 @@ env WT_BUILDDIR=$(pwd) python3 ../test/suite/run.py -j 10 -v 4 test_tiered19
 ```bash
 # Once WiredTiger has been built with the GCP Extension, run the tests from the build directory
 cd build
-ext/storage_sources/gcp_store/test/run_GCP_unit_tests
+ext/storage_sources/gcp_store/test/run_gcp_unit_tests
 ```
 
 To add any additional unit testing, add to the file `test_GCP_connection.cpp`, alternatively if you
