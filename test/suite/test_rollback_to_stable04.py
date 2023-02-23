@@ -29,7 +29,7 @@
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
-from test_rollback_to_stable01 import test_rollback_to_stable_base
+from rollback_to_stable_util import test_rollback_to_stable_base
 
 def mod_val(value, char, location, nbytes=1):
     return value[0:location] + char + value[location+nbytes:]

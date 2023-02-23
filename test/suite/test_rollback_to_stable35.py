@@ -33,7 +33,7 @@ from helper import simulate_crash_restart
 from wiredtiger import stat
 from helper import copy_wiredtiger_home
 from wtscenario import make_scenarios
-from test_rollback_to_stable01 import test_rollback_to_stable_base
+from rollback_to_stable_util import test_rollback_to_stable_base
 
 # test_rollback_to_stable35.py
 # Test that log is flushed for all writes that occurred in the checkpoint.

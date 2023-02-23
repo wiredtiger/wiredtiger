@@ -31,7 +31,7 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 from wiredtiger import stat
 from helper import simulate_crash_restart
-from test_rollback_to_stable01 import test_rollback_to_stable_base
+from rollback_to_stable_util import test_rollback_to_stable_base
 
 # Test that rollback to stable does not open any dhandles that don't have unstable updates.
 class test_rollback_to_stable20(test_rollback_to_stable_base):

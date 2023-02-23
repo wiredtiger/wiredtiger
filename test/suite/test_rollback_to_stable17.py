@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 from helper import simulate_crash_restart
-from test_rollback_to_stable01 import verify_rts_logs
+from rollback_to_stable_util import verify_rts_logs
 import wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
