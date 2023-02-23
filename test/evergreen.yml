@@ -2948,8 +2948,7 @@ tasks:
             # Run S3 extension unit testing.
             ext/storage_sources/s3_store/test/run_s3_unit_tests
   - name: azure-tiered-unittest-test
-    tags: ["pull_request"]
-    commands:
+   commands:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
@@ -2973,7 +2972,6 @@ tasks:
             # Run AZURE extension unit testing.
             ext/storage_sources/azure_store/test/run_azure_unit_tests
   - name: gcp-tiered-unittest-test
-    tags: ["pull_request"]
     commands:
       - func: "get project"
       - func: "install gcp dependencies"
@@ -3001,7 +2999,7 @@ tasks:
             # Run GCP extension unit testing.
             ext/storage_sources/gcp_store/test/run_gcp_unit_tests
   - name: azure-tiered-test-small
-    tags: ["python", "pull_request"]
+    tags: ["python"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -3019,9 +3017,9 @@ tasks:
             # Set the Azure credentials using config variable.
             export AZURE_STORAGE_CONNECTION_STRING="${azure_sdk_ext_access_key}"
 
-            ${test_env_vars|} python3 ../test/suite/run.py -j 4 tiered19
+            ${test_env_vars|} python3 ../test/suite/run.py -j $(nproc) tiered19
   - name: gcp-tiered-test-small
-    tags: ["python", "pull_request"]
+    tags: ["python"]
     commands:
       - func: "get project"
       - func: "install gcp dependencies"
@@ -3045,7 +3043,7 @@ tasks:
             sed 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|;s|gcp_private_id|${gcp_sdk_ext_private_key_id}|' ../test/evergreen/gcp_auth.json >> $file
             export GOOGLE_APPLICATION_CREDENTIALS="$file"
             
-            ${test_env_vars|} python3 ../test/suite/run.py -j 4 tiered19
+            ${test_env_vars|} python3 ../test/suite/run.py -j $(nproc) tiered19
 
   - name: spinlock-gcc-test
     commands:
