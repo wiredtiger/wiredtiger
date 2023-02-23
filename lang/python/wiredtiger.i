@@ -593,6 +593,7 @@ NOTFOUND_OK(__wt_cursor::search)
 NOTFOUND_OK(__wt_cursor::update)
 NOTFOUND_OK(__wt_cursor::_modify)
 NOTFOUND_OK(__wt_cursor::largest_key)
+ANY_OK(__wt_cursor::checkpoint_id)
 ANY_OK(__wt_modify::__wt_modify)
 ANY_OK(__wt_modify::~__wt_modify)
 
