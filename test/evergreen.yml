@@ -2914,7 +2914,7 @@ tasks:
           # Set this in case of a core to get the correct python binary.
           python_binary: $(pwd)/venv/bin/python3
           tiered_storage_test_name: tiered
-  - name: tiered-test-small
+  - name: s3-tiered-test-small
     tags: ["pull_request", "python"]
     commands:
       - func: "get project"
@@ -2926,8 +2926,8 @@ tasks:
           # Set this in case of a core to get the correct python binary.
           python_binary: $(pwd)/venv/bin/python3
           tiered_storage_test_name: tiered06
-  - name: tiered-unittest-test
-    tags: ["pull_request"]
+  - name: s3-tiered-unittest-test
+    tags: ["pull_request", "tiered_unittest"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2948,7 +2948,8 @@ tasks:
             # Run S3 extension unit testing.
             ext/storage_sources/s3_store/test/run_s3_unit_tests
   - name: azure-tiered-unittest-test
-   commands:
+    tags: ["pull_request", "tiered_unittest"]
+    commands:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
@@ -2970,6 +2971,7 @@ tasks:
             # Run AZURE extension unit testing.
             ext/storage_sources/azure_store/test/run_azure_unit_tests
   - name: gcp-tiered-unittest-test
+    tags: ["pull_request", "tiered_unittest"]
     commands:
       - func: "get project"
       - func: "install gcp dependencies"
@@ -2997,7 +2999,7 @@ tasks:
             # Run GCP extension unit testing.
             ext/storage_sources/gcp_store/test/run_gcp_unit_tests
   - name: azure-tiered-test-small
-    tags: ["python"]
+    tags: ["pull_request", "python"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -3018,7 +3020,7 @@ tasks:
 
             ${test_env_vars|} python3 ../test/suite/run.py -j $(nproc) tiered19
   - name: gcp-tiered-test-small
-    tags: ["python"]
+    tags: ["pull_request", "python"]
     commands:
       - func: "get project"
       - func: "install gcp dependencies"
@@ -3041,7 +3043,7 @@ tasks:
             sed 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|;s|gcp_private_id|${gcp_sdk_ext_private_key_id}|' ../test/evergreen/gcp_auth.json >> $file
             export GOOGLE_APPLICATION_CREDENTIALS="$file"
             set -o verbose
-            
+
             ${test_env_vars|} python3 ../test/suite/run.py -j $(nproc) tiered19
 
   - name: spinlock-gcc-test
@@ -4993,7 +4995,7 @@ buildvariants:
       PATH=/opt/mongodbtoolchain/v4/bin:$PATH
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.python !tiered-unittest-test"
+    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest"
     - name: examples-c-test
     - name: format-asan-smoke-test
 
