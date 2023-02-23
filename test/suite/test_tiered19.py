@@ -159,14 +159,12 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         assert(fh_2 != None)
 
 
-
         # Test directory list is able to find the file.
         self.assertEquals(fs.fs_directory_list(session, '', ''), [prefix + local_file_name])
 
         # File handle lock call not used in GCP implementation.
         self.assertEqual(fh_1.fh_lock(session, True), 0)
         self.assertEqual(fh_1.fh_lock(session, False), 0)
-
 
 
         err_msg = '/Exception: Operation not supported/'
@@ -187,32 +185,33 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.assertEqual(fh_1.close(session), 0)
 
 
-
-        # Flush to test directory list and list single.
-        new_file_name = local_file_name + "1"
-        self.assertEquals(ss.ss_flush(session, fs, local_file_name, new_file_name, None), 0)
-        self.assertEquals(ss.ss_flush_finish(session, fs, local_file_name, new_file_name, None), 0)
-
         # Read using a valid file handle.
         inbytes_2 = bytes(1000000)
         self.assertEqual(fh_2.fh_read(session, 0, inbytes_2), 0)
         self.assertEquals(outbytes[0:1000000], inbytes_2)
 
-
-
-        # Test list single, expects only one element.
-        self.assertEquals(fs.fs_directory_list_single(session, '', ''), [prefix + local_file_name])
-
         # File size succeeds.
         self.assertEqual(fh_2.fh_size(session), 2200000)
 
-
-
-        # Test directory list is able to find both files.
-        self.assertEquals(fs.fs_directory_list(session, '', ''), [prefix + local_file_name, prefix + new_file_name])
-
         # Close a valid file handle.
         self.assertEqual(fh_2.close(session), 0)
+
+        
+        # Test directory listing.
+        
+        # Create a second file in storage.
+        new_file_name = local_file_name + "1"
+        self.assertEquals(ss.ss_flush(session, fs, local_file_name, new_file_name, None), 0)
+        self.assertEquals(ss.ss_flush_finish(session, fs, local_file_name, new_file_name, None), 0)
+        
+        test_files = {prefix + f for f in [local_file_name, new_file_name]}
+
+        file_list = fs.fs_directory_list_single(session, '', '')
+        self.assertEquals(len(file_list), 1)
+        self.assertIn(file_list[0], test_files)
+
+        file_list = fs.fs_directory_list(session, '', '')
+        self.assertSetEqual(set(file_list), test_files)
 
 
         # We expect an exception to be raised when flushing a file that does not exist.

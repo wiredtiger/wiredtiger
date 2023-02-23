@@ -68,8 +68,7 @@ static int gcp_object_list_helper(
 static int gcp_file_read(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t, void *);
 static int gcp_object_list(
   WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
-static int gcp_object_list_add(const gcp_store &, char ***, const std::vector<std::string> &,
-  const uint32_t) __attribute__((__unused__));
+static int make_object_list(char ***, const std::vector<std::string> &, const uint32_t);
 static int gcp_object_list_single(WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *,
   char ***, uint32_t *) __attribute__((__unused__));
 static int gcp_object_list_free(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t)
@@ -471,7 +470,6 @@ gcp_object_list_helper(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const c
   const char *prefix, char ***object_list, uint32_t *count, bool list_single)
 {
     gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
-    gcp_store *gcp = reinterpret_cast<gcp_file_system *>(fs)->storage_source;
     std::vector<std::string> objects;
     std::string complete_prefix;
 
@@ -493,17 +491,14 @@ gcp_object_list_helper(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const c
                         fs->gcp_conn->list_objects(complete_prefix, objects, false);
 
     if (ret != 0) {
-        std::cerr << "gcp_object_list: ListObjects request to google cloud failed." << std::endl;
+        std::cerr << "gcp_object_list_helper: ListObjects request to google cloud failed." << std::endl;
         return (ret);
     }
     *count = objects.size();
 
-    std::cerr << "gcp_object_list: ListObjects request to google cloud succeeded. Received " +
-        std::to_string(*count) + " objects."
-              << std::endl;
-    gcp_object_list_add(*gcp, object_list, objects, *count);
-
-    return ret;
+    std::cerr << "gcp_object_list_helper: ListObjects request to google cloud succeeded. Received " <<
+        *count<< " objects." << std::endl;
+    return make_object_list(object_list, objects, *count);
 }
 
 // Return a list of object names for the given location.
@@ -530,11 +525,13 @@ gcp_object_list(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *di
       file_system, session, directory, prefix, object_list, count, false);
 }
 
-// Add objects retrieved from Google cloud bucket into the object list, and allocate the memory
-// needed.
+// Allocate and initialize an array of C strings from vector of strings.
+//
+// Requires count <= objects.list().
+// count==0 is valid, and in this case object_list will be set to nullptr.
+// Caller is responsible for memory allocated for object_list.
 static int
-gcp_object_list_add(const gcp_store &gcp_, char ***object_list,
-  const std::vector<std::string> &objects, const uint32_t count)
+make_object_list(char ***object_list, const std::vector<std::string> &objects, const uint32_t count)
 {
     if (count < 1) {
         *object_list = nullptr;
@@ -543,7 +540,7 @@ gcp_object_list_add(const gcp_store &gcp_, char ***object_list,
 
     char **entries;
     if ((entries = reinterpret_cast<char **>(malloc(sizeof(char *) * count))) == nullptr) {
-        std::cerr << "gcp_object_list_add: unable to allocate memory for object list." << std::endl;
+        std::cerr << "make_object_list: unable to allocate memory for object list." << std::endl;
         return ENOMEM;
     }
 
@@ -554,10 +551,10 @@ gcp_object_list_add(const gcp_store &gcp_, char ***object_list,
     }
 
     if (copied < count) {
-        uint32_t i;
-        for (i = 0; i < copied; i++)
+        for (uint32_t i = 0; i < copied; i++)
             free(entries[i]);
         free(entries);
+        std::cerr << "make_object_list: unable to allocate memory for object list." << std::endl;
         return ENOMEM;
     }
 
