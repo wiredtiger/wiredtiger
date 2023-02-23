@@ -2741,7 +2741,7 @@ err:
  */
 int
 __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv, uint8_t type,
-  WT_TIME_WINDOW *tw, WT_PAGE_STAT *ovfl_ps, uint64_t rle)
+  WT_TIME_WINDOW *tw, size_t ovfl_size, uint64_t rle)
 {
     WT_BM *bm;
     WT_BTREE *btree;
@@ -2749,6 +2749,7 @@ __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *k
     WT_DECL_RET;
     WT_PAGE *page;
     WT_PAGE_HEADER *dsk;
+    WT_PAGE_STAT ovfl_ps;
     size_t size;
     uint8_t *addr, buf[WT_BTREE_MAX_ADDR_COOKIE];
 
@@ -2758,6 +2759,7 @@ __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *k
 
     /* Track if page has overflow items. */
     r->ovfl_items = true;
+    ovfl_ps->records = WT_STAT_NONE : ovfl_ps->user_bytes = (uint64_t)ovfl_size;
 
     /*
      * See if this overflow record has already been written and reuse it if possible, otherwise
@@ -2798,7 +2800,7 @@ __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *k
      * cookie which packs the page stats information with the overflow record's address. Otherwise,
      * just set the callers K/V to reference the overflow record's address.
      */
-    WT_ERR(__wt_addr_cookie_pack(session, &kv->buf, addr, (uint8_t)size, ovfl_ps));
+    WT_ERR(__wt_addr_cookie_pack(session, &kv->buf, addr, size, &ovfl_ps));
 
     /* Build the cell and return. */
     kv->cell_len = __wt_cell_pack_ovfl(session, &kv->cell, type, tw, rle, kv->buf.size);

@@ -1280,7 +1280,7 @@ extern int __wt_realloc_aligned(WT_SESSION_IMPL *session, size_t *bytes_allocate
 extern int __wt_realloc_noclear(WT_SESSION_IMPL *session, size_t *bytes_allocated_ret,
   size_t bytes_to_allocate, void *retp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv,
-  uint8_t type, WT_TIME_WINDOW *tw, WT_PAGE_STAT *ovfl_ps, uint64_t rle)
+  uint8_t type, WT_TIME_WINDOW *tw, size_t ovfl_size, uint64_t rle)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_rec_child_modify(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref,
   WT_CHILD_MODIFY_STATE *cmsp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

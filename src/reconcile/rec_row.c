@@ -81,7 +81,6 @@ __rec_cell_build_leaf_key(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, const void *data, size_t size, bool *is_ovflp)
 {
     WT_BTREE *btree;
-    WT_PAGE_STAT ovfl_ps;
     WT_REC_KV *key;
     size_t pfx_max;
     uint8_t pfx;
@@ -91,8 +90,6 @@ __rec_cell_build_leaf_key(
 
     btree = S2BT(session);
     key = &r->k;
-    ovfl_ps.records = WT_STAT_NONE;
-    ovfl_ps.user_bytes = (uint64_t)size;
 
     pfx = 0;
     if (data == NULL)
@@ -160,7 +157,7 @@ __rec_cell_build_leaf_key(
             WT_STAT_CONN_DATA_INCR(session, rec_overflow_key_leaf);
 
             *is_ovflp = true;
-            return (__wt_rec_cell_build_ovfl(session, r, key, WT_CELL_KEY_OVFL, NULL, &ovfl_ps, 0));
+            return (__wt_rec_cell_build_ovfl(session, r, key, WT_CELL_KEY_OVFL, NULL, size, 0));
         }
         return (__rec_cell_build_leaf_key(session, r, NULL, 0, is_ovflp));
     }
@@ -299,8 +296,8 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_DECL_RET;
     WT_IKEY *ikey;
     WT_PAGE *child;
-    WT_PAGE_STAT ps;
     WT_PAGE_DELETED *page_del;
+    WT_PAGE_STAT ps;
     WT_REC_KV *key, *val;
     WT_REF *ref;
     WT_TIME_AGGREGATE ft_ta, *source_ta, ta;

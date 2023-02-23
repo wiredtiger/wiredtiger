@@ -37,8 +37,7 @@ __wt_addr_cookie_pack(WT_SESSION_IMPL *session, WT_ITEM *addr, void *block_addr,
          * information to be encoded, it's not necessary; just re-point the buffer's data/length
          * fields.
          */
-        addr->data = block_addr;
-        addr->size = block_addr_size;
+        WT_RET(__wt_buf_set(session, addr, block_addr, block_addr_size));
     }
     return (0);
 }
@@ -1555,7 +1554,7 @@ __wt_row_leaf_value_cell(
 struct __wt_addr_copy {
     uint8_t type;
 
-    uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
+    uint8_t addr[WT_ADDR_COOKIE_MAX];
     uint8_t size;
 
     WT_TIME_AGGREGATE ta;
