@@ -29,7 +29,6 @@ __search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT
 
     if ((ins = WT_SKIP_LAST(ins_head)) == NULL)
         return (0);
-
     /*
      * Since the head of the skip list doesn't get mutated within this function, the compiler may
      * move this assignment above within the loop below if it needs to (and may read a different
