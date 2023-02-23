@@ -19,7 +19,7 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
     /*
      * Compiler may replace the following usage of the variable with another read.
      *
-     * Place a compiler barrier to avoid this issue.
+     * Place a read barrier to avoid this issue.
      */
     WT_ORDERED_READ_WEAK_MEMORDER(ins, WT_SKIP_LAST(ins_head));
 
@@ -93,7 +93,7 @@ __col_insert_search_lt(WT_INSERT_HEAD *ins_head, uint64_t recno)
     /*
      * Compiler may replace the following usage of the variable with another read.
      *
-     * Place a compiler barrier to avoid this issue.
+     * Place a read barrier to avoid this issue.
      */
     WT_ORDERED_READ_WEAK_MEMORDER(ins, WT_SKIP_FIRST(ins_head));
 
@@ -146,7 +146,7 @@ __col_insert_search_match(WT_INSERT_HEAD *ins_head, uint64_t recno)
     /*
      * Compiler may replace the following usage of the variable with another read.
      *
-     * Place a compiler barrier to avoid this issue.
+     * Place a read barrier to avoid this issue.
      */
     WT_ORDERED_READ_WEAK_MEMORDER(ins, WT_SKIP_LAST(ins_head));
 
@@ -210,7 +210,7 @@ __col_insert_search(
     /*
      * Compiler may replace the following usage of the variable with another read.
      *
-     * Place a compiler barrier to avoid this issue.
+     * Place a read barrier to avoid this issue.
      */
     WT_ORDERED_READ_WEAK_MEMORDER(ret_ins, WT_SKIP_LAST(ins_head));
 

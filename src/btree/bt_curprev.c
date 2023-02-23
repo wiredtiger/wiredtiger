@@ -87,7 +87,7 @@ restart:
              * code. Here we don't need to worry about CPU reordering as we are reading a thread
              * local value.
              *
-             * Place a compiler barrier to avoid this issue.
+             * Place a read barrier to avoid this issue.
              */
             WT_ORDERED_READ_WEAK_MEMORDER(ins, cbt->ins_head->head[i]);
             if (ins != NULL && ins != current)
