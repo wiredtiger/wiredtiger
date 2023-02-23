@@ -17,9 +17,17 @@ __wt_dlopen(WT_SESSION_IMPL *session, const char *path, WT_DLH **dlhp)
 {
     WT_DECL_RET;
     WT_DLH *dlh;
+    // void * fd;
 
     WT_RET(__wt_calloc_one(session, &dlh));
     WT_ERR(__wt_strdup(session, path == NULL ? "local" : path, &dlh->name));
+
+    // fd = dlopen("/home/ubuntu/wiredtiger/a/ext/storage_sources/azure_store/libwiredtiger_azure_store.so", RTLD_NOW);
+    // if (fd == NULL) {
+    //     printf("%s\n", dlerror());
+    //     printf("i love cats\n");
+    //     WT_ASSERT(session, 1 == 0);
+    // }
 
     if ((dlh->handle = dlopen(path, RTLD_LAZY)) == NULL)
         WT_ERR_MSG(session, __wt_errno(), "dlopen(%s): %s", path, dlerror());

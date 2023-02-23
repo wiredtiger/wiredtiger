@@ -947,7 +947,6 @@ __conn_load_extension_int(
     WT_ERR(__wt_config_gets(session, cfg, "early_load", &cval));
     if ((cval.val == 0 && early_load) || (cval.val != 0 && !early_load))
         return (0);
-
     /*
      * This assumes the underlying shared libraries are reference counted, that is, that re-opening
      * a shared library simply increments a ref count, and closing it simply decrements the ref

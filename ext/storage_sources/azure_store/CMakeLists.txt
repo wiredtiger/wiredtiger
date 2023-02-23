@@ -9,6 +9,10 @@ cmake_minimum_required(VERSION 3.13)
 set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} -Wl,--disable-new-dtags)
 set(CMAKE_INSTALL_RPATH "${CMAKE_BINARY_DIR}/azure-sdk-cpp/install/lib")
 
+message(STATUS ${CMAKE_EXE_LINKER_FLAGS})
+message(STATUS ${CMAKE_INSTALL_RPATH})
+message(STATUS ${CMAKE_BINARY_DIR})
+
 # Create an intermediate library to build the helper library.
 add_library(azure_container_util STATIC azure_connection.cpp)
 set_property(TARGET azure_container_util PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -18,11 +22,15 @@ target_include_directories(
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
 )
+message(STATUS  ${CMAKE_CURRENT_SOURCE_DIR})
 
 target_compile_options(
     azure_container_util
     PRIVATE ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
 )
+
+message(STATUS ${COMPILER_DIAGNOSTIC_CXX_FLAGS})
+message(STATUS ${CMAKE_SOURCE_DIR})
 
 target_link_libraries(
     azure_container_util
