@@ -957,7 +957,7 @@ main(int argc, char *argv[])
         }
 
         /* Close and reopen the connection once in a while. */
-        if (__wt_random(&rnd) % 5 == 0) {
+        if (iter != 0 && __wt_random(&rnd) % 5 == 0) {
             VERBOSE(2, "Close and reopen the connection %d\n", nreopens);
             testutil_check(conn->close(conn, NULL));
             /* Check the source bitmap after restart. Copy while closed. */
@@ -970,7 +970,6 @@ main(int argc, char *argv[])
             testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
             /* Test both against the last backup directory and copied directory. */
-            testutil_verify_src_backup(conn, backup_dir, home);
             testutil_verify_src_backup(conn, backup_src, home);
             nreopens++;
         }
@@ -980,6 +979,7 @@ main(int argc, char *argv[])
             check_backup(backup_dir, backup_check, &tinfo);
         } else {
             incr_backup(conn, home, backup_dir, &tinfo, &active);
+            testutil_verify_src_backup(conn, backup_dir, home);
             check_backup(backup_dir, backup_check, &tinfo);
             if (__wt_random(&rnd) % 10 == 0) {
                 base_backup(conn, &rnd, home, backup_dir, &tinfo, &active);

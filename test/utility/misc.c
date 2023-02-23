@@ -344,7 +344,7 @@ testutil_verify_src_backup(WT_CONNECTION *conn, const char *backup, const char *
     WT_CURSOR *cursor, *file_cursor;
     WT_DECL_RET;
     WT_SESSION *session;
-    uint64_t next_offset, offset, size, type;
+    uint64_t cmp_size, next_offset, offset, size, type;
     int i, j, status;
     char buf[1024], *filename, *id[WT_BLKINCR_MAX];
     const char *idstr;
@@ -392,22 +392,18 @@ testutil_verify_src_backup(WT_CONNECTION *conn, const char *backup, const char *
                  * know if it should be different or not. But if a block is indicated as unchanged
                  * then we know for sure it better match.
                  */
-                if (offset == next_offset)
-                    next_offset += size;
-                else {
-                    /* Compare each chunk until the current changed offset. */
-                    while (offset > next_offset) {
-                        testutil_check(__wt_snprintf(buf, sizeof(buf),
-                          "cmp -n %" PRIu64 " %s/%s %s/%s %" PRIu64 " %" PRIu64, size, home,
-                          filename, backup, filename, next_offset, next_offset));
-                        status = system(buf);
-                        if (status != 0)
-                            fprintf(
-                              stderr, "FAIL: status %d ID %s from cmd: %s\n", status, id[j], buf);
-                        testutil_assert(status == 0);
-                        next_offset += size;
-                    }
+                if (offset > next_offset) {
+                    /* Compare the unchanged chunk. */
+                    cmp_size = offset - next_offset;
+                    testutil_check(__wt_snprintf(buf, sizeof(buf),
+                      "cmp -n %" PRIu64 " %s/%s %s/%s %" PRIu64 " %" PRIu64, cmp_size, home,
+                      filename, backup, filename, next_offset, next_offset));
+                    status = system(buf);
+                    if (status != 0)
+                        fprintf(stderr, "FAIL: status %d ID %s from cmd: %s\n", status, id[j], buf);
+                    testutil_assert(status == 0);
                 }
+                next_offset = offset + size;
             }
             testutil_check(file_cursor->close(file_cursor));
         }
