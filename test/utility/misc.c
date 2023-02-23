@@ -338,7 +338,7 @@ testutil_create_backup_directory(const char *home)
  *     Verify a backup source home directory against a backup directory after recovery.
  */
 void
-testutil_verify_src_backup(WT_CONNECTION *conn, const char *backup, const char *home, char *srcid)
+testutil_verify_src_backup(WT_CONNECTION *conn, const char *backup, const char *home)
 {
     struct stat sb;
     WT_CURSOR *cursor, *file_cursor;
@@ -349,26 +349,16 @@ testutil_verify_src_backup(WT_CONNECTION *conn, const char *backup, const char *
     char buf[1024], *filename, *id[WT_BLKINCR_MAX];
     const char *idstr;
 
+    WT_CLEAR(buf);
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    /*
-     * If we are given a source ID use it. Otherwise query the backup and check against all IDs that
-     * exist in the system.
-     */
-    if (srcid == NULL) {
-        WT_CLEAR(buf);
-        testutil_check(session->open_cursor(session, "backup:query_id", NULL, buf, &cursor));
-        i = 0;
-        while ((ret = cursor->next(cursor)) == 0) {
-            testutil_check(cursor->get_key(cursor, &idstr));
-            id[i++] = dstrdup(idstr);
-        }
-        testutil_check(cursor->close(cursor));
-        testutil_assert(i <= WT_BLKINCR_MAX);
-    } else {
-        id[0] = srcid;
-        id[1] = NULL;
-        i = 1;
+    testutil_check(session->open_cursor(session, "backup:query_id", NULL, buf, &cursor));
+    i = 0;
+    while ((ret = cursor->next(cursor)) == 0) {
+        testutil_check(cursor->get_key(cursor, &idstr));
+        id[i++] = dstrdup(idstr);
     }
+    testutil_check(cursor->close(cursor));
+    testutil_assert(i <= WT_BLKINCR_MAX);
     /* Go through each id and open a backup cursor on it to test incremental values. */
     for (j = 0; j < i; ++j) {
         testutil_check(__wt_snprintf(buf, sizeof(buf), "incremental=(src_id=%s)", id[j]));
@@ -418,8 +408,7 @@ testutil_verify_src_backup(WT_CONNECTION *conn, const char *backup, const char *
             testutil_check(file_cursor->close(file_cursor));
         }
         testutil_check(cursor->close(cursor));
-        if (srcid == NULL)
-            free(id[j]);
+        free(id[j]);
     }
     testutil_check(session->close(session, NULL));
 }
