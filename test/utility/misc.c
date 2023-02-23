@@ -335,7 +335,8 @@ testutil_create_backup_directory(const char *home)
 
 /*
  * testutil_verify_src_backup --
- *     Verify a backup source home directory against a backup directory after recovery.
+ *     Verify a backup source home directory against a backup directory for changes to blocks that
+ *     are not marked as changed.
  */
 void
 testutil_verify_src_backup(WT_CONNECTION *conn, const char *backup, const char *home)
@@ -344,7 +345,7 @@ testutil_verify_src_backup(WT_CONNECTION *conn, const char *backup, const char *
     WT_CURSOR *cursor, *file_cursor;
     WT_DECL_RET;
     WT_SESSION *session;
-    uint64_t cmp_size, next_offset, offset, size, type;
+    uint64_t cmp_size, offset, prev_offset, size, type;
     int i, j, status;
     char buf[1024], *filename, *id[WT_BLKINCR_MAX];
     const char *idstr;
@@ -367,7 +368,7 @@ testutil_verify_src_backup(WT_CONNECTION *conn, const char *backup, const char *
             testutil_check(cursor->get_key(cursor, &filename));
             testutil_check(__wt_snprintf(buf, sizeof(buf), "incremental=(file=%s)", filename));
             testutil_check(session->open_cursor(session, NULL, cursor, buf, &file_cursor));
-            next_offset = 0;
+            prev_offset = 0;
             while ((ret = file_cursor->next(file_cursor)) == 0) {
                 testutil_check(file_cursor->get_key(file_cursor, &offset, &size, &type));
                 /* We only want to check ranges for files. So if it is a full file copy, ignore. */
@@ -392,18 +393,18 @@ testutil_verify_src_backup(WT_CONNECTION *conn, const char *backup, const char *
                  * know if it should be different or not. But if a block is indicated as unchanged
                  * then we know for sure it better match.
                  */
-                if (offset > next_offset) {
+                if (offset > prev_offset) {
                     /* Compare the unchanged chunk. */
-                    cmp_size = offset - next_offset;
+                    cmp_size = offset - prev_offset;
                     testutil_check(__wt_snprintf(buf, sizeof(buf),
                       "cmp -n %" PRIu64 " %s/%s %s/%s %" PRIu64 " %" PRIu64, cmp_size, home,
-                      filename, backup, filename, next_offset, next_offset));
+                      filename, backup, filename, prev_offset, prev_offset));
                     status = system(buf);
                     if (status != 0)
                         fprintf(stderr, "FAIL: status %d ID %s from cmd: %s\n", status, id[j], buf);
                     testutil_assert(status == 0);
                 }
-                next_offset = offset + size;
+                prev_offset = offset + size;
             }
             testutil_check(file_cursor->close(file_cursor));
         }
