@@ -486,7 +486,7 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
     if (cval.val == 0)
         return (0);
 
-    WT_RET(__wt_config_gets(session, cfg, "chunk_cache.evict_trigger", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "chunk_cache.chunk_cache_evict_trigger", &cval));
     if (((chunkcache->evict_watermark = (u_int)cval.val) == 0) ||
       (chunkcache->evict_watermark > 100))
         WT_RET_MSG(session, EINVAL, "evict trigger must be between 0 and 100");

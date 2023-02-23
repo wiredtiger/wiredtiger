@@ -558,8 +558,8 @@ connection_runtime_config = [
         Config('enabled', 'false', r'''
             enable chunk cache''',
             type='boolean'),
-        Config('evict_trigger', '90', r'''
-            cache percent full that triggers eviction''',
+        Config('chunk_cache_evict_trigger', '90', r'''
+            chunk cache percent full that triggers eviction''',
             min='0', max='100'),
         Config('device_path', '', r'''
             the absolute path to the file system or a block device used as cache location'''),
