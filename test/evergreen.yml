@@ -814,8 +814,7 @@ functions:
         script: |
           set -o errexit
           . test/evergreen/find_cmake.sh
-
-          . test/evergreen/install_gcp_dependencies.sh
+          . test/evergreen/install_gcp_dependencies.sh $CMAKE
 
 #######################################
 #               Variables             #

@@ -57,11 +57,12 @@ install_crc32c ()
     cd ..
 }
 
-if [ -z "$CMAKE" ]; then
-    echo "\$CMAKE variable is not set for installing google cloud dependencies."
+if [ "$#" -ne 1 ]; then
+    echo "Usage: install_gcp_dependencies.sh <cmake_path>"
     exit 1
 fi
 
+CMAKE=$1
 install_abseil
 install_nlohmann
 install_crc32c
