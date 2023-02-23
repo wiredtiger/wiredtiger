@@ -2207,6 +2207,8 @@ struct __wt_connection {
      * options defined as follows.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;capacity, maximum memory to
      * allocate for the chunk cache., an integer between \c 0 and \c 100TB; default \c 10GB.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;chunk_cache_evict_trigger, chunk cache percent full that
+     * triggers eviction., an integer between \c 0 and \c 100; default \c 90.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;chunk_size, size of cached chunks., an integer between \c
      * 512KB and \c 100GB; default \c 1MB.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;device_path, the
@@ -2214,10 +2216,8 @@ struct __wt_connection {
      * empty.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable chunk cache., a boolean flag; default
      * \c false.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;evict_trigger, cache percent full that triggers
-     * eviction., an integer between \c 0 and \c 100; default \c 90.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;hashsize, number of buckets in the hashtable that keeps track
-     * of objects., an integer between \c 64 and \c 1048576; default \c 1024.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;hashsize, number of buckets in the hashtable that
+     * keeps track of objects., an integer between \c 64 and \c 1048576; default \c 1024.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;type, cache location: DRAM or FILE (file system or block
      * device)., a string; default empty.}
      * @config{ ),,}
@@ -2953,18 +2953,19 @@ struct __wt_connection {
  * options defined as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;capacity, maximum memory to allocate
  * for the chunk cache., an integer between \c 0 and \c 100TB; default \c 10GB.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;chunk_size, size of cached chunks., an integer between \c 512KB
- * and \c 100GB; default \c 1MB.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;device_path, the absolute path to
- * the file system or a block device used as cache location., a string; default empty.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable chunk cache., a boolean flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;evict_trigger, cache percent full that triggers eviction., an
- * integer between \c 0 and \c 100; default \c 90.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;hashsize, number
- * of buckets in the hashtable that keeps track of objects., an integer between \c 64 and \c
- * 1048576; default \c 1024.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;type, cache location: DRAM or FILE
- * (file system or block device)., a string; default empty.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;chunk_cache_evict_trigger, chunk cache percent full that triggers
+ * eviction., an integer between \c 0 and \c 100; default \c 90.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+ * chunk_size, size of cached chunks., an integer between \c 512KB and \c 100GB; default \c 1MB.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;device_path, the absolute path to the file system or a block
+ * device used as cache location., a string; default empty.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+ * enabled, enable chunk cache., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+ * hashsize, number of buckets in the hashtable that keeps track of objects., an integer between \c
+ * 64 and \c 1048576; default \c 1024.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;type, cache location: DRAM
+ * or FILE (file system or block device)., a string; default empty.}
  * @config{ ),,}
  * @config{compatibility = (, set compatibility version of database.  Changing the compatibility
  * version requires that there are no active operations for the duration of the call., a set of
