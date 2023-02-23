@@ -870,8 +870,9 @@ main(int argc, char *argv[])
         rnd.v = seed;
 
     testutil_work_dir_from_path(home, sizeof(home), working_dir);
-    testutil_check(__wt_snprintf(backup_dir, sizeof(backup_dir), "./%s.BACKUP", home));
+    /* Put the backup directories as the same level as the home directory. */
     testutil_check(__wt_snprintf(backup_check, sizeof(backup_check), "./%s.CHECK", home));
+    testutil_check(__wt_snprintf(backup_dir, sizeof(backup_dir), "./%s.BACKUP", home));
     testutil_check(__wt_snprintf(backup_src, sizeof(backup_src), "./%s.BACKUP.SRC", home));
     printf("Seed: %" PRIu64 "\n", seed);
 
@@ -971,9 +972,7 @@ main(int argc, char *argv[])
             testutil_check(wiredtiger_open(home, NULL, conf, &conn));
             testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-            /* Test both against the copied directory. */
-            fflush(stdout);
-            fflush(stderr);
+            /* Test against the copied directory. */
             testutil_verify_src_backup(conn, backup_src, home);
             nreopens++;
         }
