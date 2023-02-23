@@ -972,6 +972,8 @@ main(int argc, char *argv[])
             testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
             /* Test both against the last backup directory and copied directory. */
+            fflush(stdout);
+            fflush(stderr);
             testutil_verify_src_backup(conn, backup_src, home, NULL);
             nreopens++;
         }
@@ -984,6 +986,8 @@ main(int argc, char *argv[])
             testutil_check(
               __wt_snprintf(command, sizeof(command), "ID%" PRIu32, tinfo.full_backup_number));
             VERBOSE(2, "Verify source after incremental backup with id %s\n", command);
+            fflush(stdout);
+            fflush(stderr);
             testutil_verify_src_backup(conn, backup_dir, home, command);
             check_backup(backup_dir, backup_check, &tinfo);
             if (__wt_random(&rnd) % 10 == 0) {
