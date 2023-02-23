@@ -89,7 +89,7 @@ restart:
              *
              * Place a compiler barrier to avoid this issue.
              */
-            WT_READ_ONCE(ins, cbt->ins_head->head[i]);
+            WT_ORDERED_READ_WEAK_MEMORDER(ins, cbt->ins_head->head[i]);
             if (ins != NULL && ins != current)
                 break;
         }

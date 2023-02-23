@@ -39,12 +39,6 @@
         WT_READ_BARRIER_WEAK_MEMORDER();      \
     } while (0)
 
-/* Ensure the value is only read once using a compiler barrier. */
-#define WT_READ_ONCE(v, val) \
-    do {                     \
-        (v) = (val);         \
-        WT_BARRIER();        \
-    } while (0)
 /*
  * Atomic versions of the flag set/clear macros.
  */
