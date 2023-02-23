@@ -193,9 +193,8 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
     buf->size = size;
 
     /*
-     * Check the chunk cache for the needed data. If the data is not there, the chunk cache may ask
-     * the underlying storage system to read more data than the BTree had asked for. In that case,
-     * the chunk pointer will be valid and its contents will indicate how much data to read.
+     * Check if the chunk cache has the needed data. If it does not, the chunk cache may read it
+     * the file.
      */
     if (!__wt_chunkcache_get(session, block, objectid, offset, size, buf->mem))
         WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
