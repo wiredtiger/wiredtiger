@@ -43,14 +43,9 @@ if (IMPORT_AZURE_SDK_EXTERNAL)
         INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/azure-sdk-cpp/install
         TEST_COMMAND ""
         UPDATE_COMMAND ""
-        message(STATUS ${CMAKE_CURRENT_BINARY_DIR})
-        message(STATUS ${CMAKE_INSTALL_LIBDIR})
-        message(STATUS ${CMAKE_SHARED_LIBRARY_SUFFIX})
     )
     ExternalProject_Get_Property(azure-sdk INSTALL_DIR)
     file(MAKE_DIRECTORY ${INSTALL_DIR}/${CMAKE_INSTALL_INCLUDEDIR})
-    message(${INSTALL_DIR})
-    message(${CMAKE_INSTALL_INCLUDEDIR})
 
     # Set the path variables to be used for the AZURE targets.
     set(azure_sdk_include_location ${INSTALL_DIR}/${CMAKE_INSTALL_INCLUDEDIR})
@@ -58,11 +53,6 @@ if (IMPORT_AZURE_SDK_EXTERNAL)
     set(azure_core_lib_location ${INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libazure-core${CMAKE_SHARED_LIBRARY_SUFFIX})
     set(azure_storage_common_lib_location ${INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libazure-storage-common${CMAKE_SHARED_LIBRARY_SUFFIX})
 endif()
-message(STATUS ${CMAKE_SHARED_LIBRARY_SUFFIX})
-message(STATUS ${azure_storage_lib_location})
-message(STATUS ${azure_sdk_include_location})
-message(STATUS ${azure_core_lib_location})
-message(STATUS ${azure_storage_common_lib_location})
 
 add_library(azure_storage_lib SHARED IMPORTED)
 add_library(azure_core_lib SHARED IMPORTED)
