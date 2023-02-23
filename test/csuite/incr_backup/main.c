@@ -661,6 +661,8 @@ incr_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABL
                 testutil_check(file_cursor->get_key(file_cursor, &offset, &size, &type));
                 testutil_assert(type == WT_BACKUP_FILE || type == WT_BACKUP_RANGE);
                 if (type == WT_BACKUP_RANGE) {
+                    VERBOSE(3, "RANGE: %s: offset %" PRIu64 " size %" PRIu64 "\n", filename, offset,
+                      size);
                     nrange++;
                     tmp = dcalloc(1, size);
 
@@ -827,8 +829,8 @@ main(int argc, char *argv[])
     uint32_t file_max, iter, max_value_size, next_checkpoint, rough_size, slot;
     int ch, ncheckpoints, nreopens, status;
     const char *backup_verbose, *working_dir;
-    char command[4096], conf[1024], home[1024], backup_check[1024], backup_dir[1024],
-      backup_src[1024];
+    char backup_check[1024], backup_dir[1024], backup_src[1024], command[4096], conf[1024],
+      home[1024];
     bool preserve;
 
     preserve = false;
@@ -970,7 +972,7 @@ main(int argc, char *argv[])
             testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
             /* Test both against the last backup directory and copied directory. */
-            testutil_verify_src_backup(conn, backup_src, home);
+            testutil_verify_src_backup(conn, backup_src, home, NULL);
             nreopens++;
         }
 
@@ -979,7 +981,10 @@ main(int argc, char *argv[])
             check_backup(backup_dir, backup_check, &tinfo);
         } else {
             incr_backup(conn, home, backup_dir, &tinfo, &active);
-            testutil_verify_src_backup(conn, backup_dir, home);
+            testutil_check(
+              __wt_snprintf(command, sizeof(command), "ID%" PRIu32, tinfo.full_backup_number));
+            VERBOSE(2, "Verify source after incremental backup with id %s\n", command);
+            testutil_verify_src_backup(conn, backup_dir, home, command);
             check_backup(backup_dir, backup_check, &tinfo);
             if (__wt_random(&rnd) % 10 == 0) {
                 base_backup(conn, &rnd, home, backup_dir, &tinfo, &active);
