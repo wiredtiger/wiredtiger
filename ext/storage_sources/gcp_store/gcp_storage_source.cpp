@@ -81,7 +81,7 @@ get_gcp_file_system(WT_FILE_SYSTEM *file_system)
     return reinterpret_cast<gcp_file_system *>(file_system);
 }
 
-// Return a customised file system to access GCP storage source.
+// Return a customized file system to access GCP storage source.
 static int
 gcp_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
   const char *bucket, const char *auth_file, const char *config, WT_FILE_SYSTEM **file_system)
@@ -351,7 +351,7 @@ gcp_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name
 
     // Check if there is already an existing file handle open.
     auto fh_iterator = std::find_if(fs->fh_list.begin(), fs->fh_list.end(),
-      [name](gcp_file_handle *fh) { return (fh->name.compare(name) == 0); });
+      [name](gcp_file_handle *fh) { return fh->name.compare(name) == 0; });
 
     if (fh_iterator != fs->fh_list.end()) {
         (*fh_iterator)->reference_count++;
@@ -403,7 +403,8 @@ gcp_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name
 
 // POSIX remove is not supported for cloud objects.
 static int
-gcp_remove(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, uint32_t flags)
+gcp_remove([[maybe_unused]] WT_FILE_SYSTEM *file_system, [[maybe_unused]] WT_SESSION *session,
+           [[maybe_unused]] const char *name, [[maybe_unused]] uint32_t flags)
 {
     std::cerr << "gcp_remove: file removal is not supported." << std::endl;
     return ENOTSUP;
@@ -411,7 +412,8 @@ gcp_remove(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, u
 
 // POSIX rename is not supported for cloud objects.
 static int
-gcp_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *from, const char *to,
+gcp_rename([[maybe_unused]] WT_FILE_SYSTEM *file_system, [[maybe_unused]] WT_SESSION *session,
+           [[maybe_unused]] const char *from, const char *to,
   uint32_t flags)
 {
     std::cerr << "gcp_rename: file renaming is not supported." << std::endl;
@@ -420,14 +422,14 @@ gcp_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *from, c
 
 static int
 gcp_file_lock([[maybe_unused]] WT_FILE_HANDLE *file_handle, [[maybe_unused]] WT_SESSION *session,
-  [[maybe_unused]] bool lock)
+              [[maybe_unused]] bool lock)
 {
     // Locks are always granted.
     return 0;
 }
 
 static int
-gcp_file_size([[maybe_unused]] WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *sizep)
+gcp_file_size(WT_FILE_HANDLE *file_handle, [[maybe_unused]] WT_SESSION *session, wt_off_t *sizep)
 {
     gcp_file_handle *gcp_fh = reinterpret_cast<gcp_file_handle *>(file_handle);
     gcp_file_system *fs = gcp_fh->file_system;
@@ -437,7 +439,7 @@ gcp_file_size([[maybe_unused]] WT_FILE_HANDLE *file_handle, WT_SESSION *session,
     *sizep = 0;
 
     // Get file size if the object exists.
-    if ((fs->gcp_conn->object_exists(gcp_fh->name, exists, size))) {
+    if ((ret = fs->gcp_conn->object_exists(gcp_fh->name, exists, size)) != 0) {
         std::cerr << "gcp_file_size: object_exists request to google cloud failed." << std::endl;
         return ret;
     }
@@ -457,7 +459,7 @@ gcp_object_size(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
     if (ret != 0) {
         std::cerr << "gcp_object_size: GetObjectMetadata request to google cloud failed."
                   << std::endl;
-        return (ret);
+        return ret;
     }
     *sizep = size;
 
@@ -492,7 +494,7 @@ gcp_object_list_helper(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const c
 
     if (ret != 0) {
         std::cerr << "gcp_object_list_helper: ListObjects request to google cloud failed." << std::endl;
-        return (ret);
+        return ret;
     }
     *count = objects.size();
 
@@ -624,8 +626,8 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     } else if (ret != WT_NOTFOUND) {
         std::cerr << "wiredtiger_extension_init: error parsing config for verbosity level." << v.val
                   << std::endl;
-        delete (gcp);
-        return (ret != 0 ? ret : EINVAL);
+        delete gcp;
+        return ret != 0 ? ret : EINVAL;
     }
 
     // Allocate a gcp storage structure, with a WT_STORAGE structure as the first field.
