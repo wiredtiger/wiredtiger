@@ -19,6 +19,7 @@ __wt_bm_read(
     WT_BLOCK *block;
     wt_off_t offset;
     uint32_t checksum, objectid, size;
+
     block = bm->block;
 
     /* Crack the cookie. */
