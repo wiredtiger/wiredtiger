@@ -26,8 +26,10 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# This workload will import everything from microbenchmark_tiered_base.py
-# run configured number of threads and checkpoint files at every 30 seconds.
+# This workload is mainly used to measure the impact of running checkpoint with flush_tier calls.
+# It imports all the insert/read/update threads from microbenchmark_tiered
+# class and configures checkpoint thread with flush calls. The latency output files generated
+# from this test will be compared against latency files from microbenchmark-tiered-checkpoint.py.
 #
 
 from runner import *
@@ -35,18 +37,16 @@ from workgen import *
 
 from microbenchmark_tiered_base import *
 
-ops = Operation(Operation.OP_SLEEP, "30") + \
-    Operation(Operation.OP_CHECKPOINT, "")
+tiered = microbenchmark_tiered()
+tiered.populate()
 
-checkpoint_thread = Thread(ops)
+ops = Operation(Operation.OP_SLEEP, "30") + Operation(Operation.OP_CHECKPOINT, "") + \
+    Operation(Operation.OP_SLEEP, "30") + Operation(Operation.OP_CHECKPOINT, "flush_tier=(enabled,force)")
 
-workload = Workload(get_context(), 8 * get_reader_thread() + 2 * get_update_thread() + 2 * get_insert_thread() + checkpoint_thread)
-workload.options.run_time=300
-workload.options.report_interval=5
-#workload.options.max_latency=5000
-ret = workload.run(get_conn())
-assert ret == 0, ret
-latency_filename = get_context().args.home + "/latency.out"
-latency.workload_latency(workload, latency_filename)
+checkpoint_thread = Thread(ops) 
+tiered.set_checkpoint_thread(checkpoint_thread)
+tiered.run_workload()
 
-get_conn().close()
+# Sanity check to see if any file exists in the bucket directory.
+bucket_path = tiered.context.args.home + "/" + tiered.get_bucket_name()
+assert len(os.listdir(bucket_path)) != 0, "The bucket directory " + bucket_path + " is empty. Check if the flush tier worked correctly."
