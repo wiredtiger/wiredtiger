@@ -1,20 +1,18 @@
 # WiredTiger's Azure Extension
 ## 1. Introduction
-This extension allows WiredTiger storage source extensions to read from and write to objects stored in Azure Blob Storage using WiredTiger’s provided internal abstraction for storing data in an object storage service.
+This extension allows WiredTiger storage source extensions to read from and write to objects stored
+in Azure Blob Storage using WiredTiger’s provided internal abstraction for storing data in an object
+storage service.
 
 ## 2. Building and running
 This section describes how to build WiredTiger with the Azure extension enabled.
 
 ### Requirements
-<li> CMake 3.13 or higher
-<li> G++ 8.4 or higher <p>
-
-Check your CMake version by typing `cmake --version`.
-Check your g++ version typing `g++ --version`.
-
+* CMake 3.13 or higher
+* G++ 8.4 or higher
 ### How to install requirements (skip this step if requirements have been met)
 
-If the CMake version is not 3.13 or higher update your CMake to 3.13 using the following.
+If the CMake version is not 3.13 or higher update CMake to 3.13 using the following.
 ```bash
 sudo apt remove cmake
 wget https://cmake.org/files/v3.13/cmake-3.13.0.tar.gz
@@ -27,39 +25,43 @@ make -j $(nproc)
 sudo make install
 ```
 
-Check that your CMake has been updated using the following command `cmake --version`.
+Check that CMake has been updated using the following command `cmake --version`.
 
-If your cmake is not in `/usr/bin/` create a symbolic link using the following.
+If CMake is not in `/usr/bin/` create a symbolic link using the following.
 ```bash
 sudo ln -s /usr/local/bin/cmake /usr/bin/cmake
 ```
 
-If the G++ version is not 8.4 or higher update your G++ to 8.4 using the following.
+If the G++ version is not 8.4 or higher update G++ to 8.4 using the following.
 ```bash
 sudo apt-get install gcc-8 g++-8
-sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-8 20 --slave /usr/bin/g++ g++ /usr/bin/g++-8
+sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-8 20
+    --slave /usr/bin/g++ g++ /usr/bin/g++-8
 ```
 
-Check that your G++ has been updated using the following command `g++ --version`.
+Check that G++ has been updated using the following command `g++ --version`.
 
 ### Building
 
 There is currently only 1 way to build WiredTiger with Azure extension:
-1. Letting CMake manage the Azure SDK dependency as an external project, letting it download, link and build the extension.
+1. Letting CMake manage the Azure SDK dependency as an external project, letting it download, link
+    and build the extension.
 
 There are two CMake flags associated with the Azure extension: `ENABLE_AZURE` and `IMPORT_AZURE_SDK`.
 * `ENABLE_AZURE=1` is required to build the Azure extension.
 * `IMPORT_AZURE_SDK={external}` is used to set the build method.
     *   `external` tells the compiler to search for an existing system installation of the SDK.
     *    This flag should be set alongside the `ENABLE_AZURE` flag.
-    *    If the `IMPORT_AZURE_SDK` flag is not specified, the compiler will assume a system installation of the SDK which will be implemented at a later stage.
+    *    If the `IMPORT_AZURE_SDK` flag is not specified, the compiler will assume a system
+            installation of the SDK which will be implemented at a later stage.
 
 ### Letting CMake manage the SDK dependency as an external project
 
-This method configures CMake to download, compile, and install the Azure SDK while building the Azure extension.
+This method configures CMake to download, compile, and install the Azure SDK while building the
+Azure extension.
 
 ```bash
-# Create a new directory to run your build from
+# Create a new directory to run the build from
 mkdir build && cd build
 
 # Configure and run cmake with Ninja
@@ -68,12 +70,18 @@ ninja
 ```
 
 * The compiler flag `IMPORT_AZURE_SDK` must be set to `external` for this build method.
-* `ENABLE_AZURE` defaults to looking for a local version, the `IMPORT_AZURE_SDK` setting will override that default.
+* `ENABLE_AZURE` defaults to looking for a local version, the `IMPORT_AZURE_SDK` setting will
+  override that default.
 ## 3. Development
-In order to run this extension after building, the developer must have an Azure connection string locally to a container with the right permissions. The connection string must be stored in an environmental variable called `AZURE_STORAGE_CONNECTION_STRING`. To store your connection string into an environmental variable type `export AZURE_STORAGE_CONNECTION_STRING="your Azure connection string"` into your terminal.
+In order to run this extension after building, the developer must have an Azure connection string
+locally to a container with the right permissions. The connection string must be stored in an
+environment variable called `AZURE_STORAGE_CONNECTION_STRING`. To store the connection string
+into an environment variable type
+`export AZURE_STORAGE_CONNECTION_STRING="Azure connection string"` into the terminal.
 ## 4. Testing
 
-Before running the tests set the `LD_LIBRARY_PATH` to tell the dynamic link loader where to look for the dynamic shared libraries that we made earlier.
+Before running the tests set the `LD_LIBRARY_PATH` to tell the loader where to look for the dynamic 
+shared libraries that we made earlier.
 ```bash
 export LD_LIBRARY_PATH=$(pwd)/azure-sdk-cpp/install/lib:$LD_LIBRARY_PATH
 ```
@@ -81,7 +89,8 @@ export LD_LIBRARY_PATH=$(pwd)/azure-sdk-cpp/install/lib:$LD_LIBRARY_PATH
 ### To run the tiered python tests for Azure:
 
 ```bash
-# This will run all the tests in test_tiered19.py on the Azure storage source. The following command will run the tests from the build directory that was made earlier.
+# This will run all the tests in test_tiered19.py on the Azure storage source. The following
+#command will run the tests from the build directory that was made earlier.
 cd build
 env WT_BUILDDIR=$(pwd) python3 ../test/suite/run.py -j 10 -v 4 test_tiered19
 ```
@@ -94,13 +103,17 @@ cd build
 ext/storage_sources/azure_store/test/run_azure_unit_tests
 ```
 
-To add any additional unit testing, add to the file `test_azure_connection.cpp`, alternatively if you
-wish to add a new test file, add it to the `SOURCES` list in `create_test_executable()`
-(in `azure_store/test/CMakeLists.txt`).
+To add any additional unit testing, add to the file `test_azure_connection.cpp`, alternatively if
+the developer wishes to add a new test file, add it to the `SOURCES` list in
+`create_test_executable()` (in `azure_store/test/CMakeLists.txt`).
 
 ## 5. Evergreen Testing
-Currently the Evergreen testing runs both `test_tiered19.py` and the unit tests in `test_azure_connection.cpp`. Should a developer wish to additional tests to the extension, they would first have to write the tests before adding it as a task to the evergreen.yml file.
+Currently the Evergreen testing runs both `test_tiered19.py` and the unit tests in
+`test_azure_connection.cpp`. Should a developer wish to additional tests to the extension, they
+would first have to write the tests before adding it as a task to the evergreen.yml file.
 
-Evergreen has hidden the connection string for Azure so it's necessary for the developer to store this in the environmental variable in Step 3.
+Additionally, Evergreen has hidden the connection string for Azure and this is stored within the
+Evergreen system.
 
-When creating a new task, a developer should note that the CMake binary should be set to the MongoDB V4 toolchain due to the CMake 3.13 minimum requirement.
+When creating a new task, a developer should note that the CMake binary should be set to the MongoDB
+V4 toolchain due to the CMake 3.13 minimum requirement.
