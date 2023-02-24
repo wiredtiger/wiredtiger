@@ -550,14 +550,14 @@ connection_runtime_config = [
         chunk cache configuration options''',
         type='category', subconfig=[
         Config('capacity', '10GB', r'''
-            maximum memory to allocate for the chunk cache''',
+            maximum memory or storage to use for the chunk cache''',
             min='0', max='100TB'),
-        Config('chunk_size', '1MB', r'''
-            size of cached chunks''',
-            min='512KB', max='100GB'),
         Config('chunk_cache_evict_trigger', '90', r'''
             chunk cache percent full that triggers eviction''',
             min='0', max='100'),
+        Config('chunk_size', '1MB', r'''
+            size of cached chunks''',
+            min='512KB', max='100GB'),
         Config('device_path', '', r'''
             the absolute path to the file system or a block device used as cache location'''),
         Config('enabled', 'false', r'''
