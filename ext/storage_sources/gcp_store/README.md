@@ -14,95 +14,6 @@ This section describes how to build WiredTiger with the GCP extension enabled.
 * nlohmann_json library 3.11.2
 * crc32c 1.1.2
 
-### How to install requirements (skip this step if requirements have been met)
-If the CMake version is not 3.11 or higher update CMake to 3.11 using the following.
-```bash
-sudo apt remove cmake
-wget https://cmake.org/files/v3.11/cmake-3.11.0.tar.gz
-tar xf cmake-3.11.0.tar.gz
-
-cd cmake-3.11.0
-
-./configure
-make -j $(nproc)
-sudo make install
-```
-Check that CMake has been updated using the following command `cmake --version`.
-
-If cmake is not in `/usr/bin/` create a symbolic link using the following.
-
-```bash
-sudo ln -s /usr/local/bin/cmake /usr/bin/cmake
-```
-
-If the G++ version is not 8.4 or higher update G++ to 8.4 using the following.
-
-```bash
-sudo apt-get install gcc-8 g++-8
-sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-8 20
-  --slave /usr/bin/g++ g++ /usr/bin/g++-8
-```
-Check that G++ has been updated using the following command `g++ --version`.
-
-### Check Abseil exists locally
-```bash
-sudo find /usr/ -iname absl
-# if /usr/local/lib/cmake/absl or /usr/local/include/absl is not found absl doesn't exist!
-
-# Instructions to download Abseil if Abseil doesn't exist.
-mkdir -p $HOME/Downloads/abseil-cpp && cd $HOME/Downloads/abseil-cpp
-
-curl -sSL https://github.com/abseil/abseil-cpp/archive/20230125.0.tar.gz | \
-  tar -xzf - --strip-components=1
-
-mkdir cmake-out && cd cmake-out
-
-cmake -DCMAKE_BUILD_TYPE=Release -DABSL_BUILD_TESTING=OFF -DBUILD_SHARED_LIBS=yes ../.
-  && make -j $(nproc)
-
-cd ..
-sudo cmake --build cmake-out --target install
-```
-
-### Check the nlohmann_json library exists locally
-```bash
-sudo find /usr/ -iname nlohmann
-# if /usr/local/include/nlohmann is not found nlohmann_json ibrary doesn't exist!
-
-# Instructions to download nlohmann_json library if nlohmann_json library doesn't exist.
-mkdir -p $HOME/Downloads/json && cd $HOME/Downloads/json
-
-curl -sSL https://github.com/nlohmann/json/archive/v3.11.2.tar.gz | \
-  tar -xzf - --strip-components=1
-
-mkdir cmake-out && cd cmake-out
-
-cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=yes -DBUILD_TESTING=OFF
-  -DJSON_BuildTests=OFF ../. && make -j $(nproc)
-
-cd ..
-sudo cmake --build cmake-out --target install
-```
-
-### Check if crc32c exists locally
-```bash
-sudo find /usr/ -iname crc32c
-# if /usr/local/lib/cmake/Crc32c or /usr/local/include/crc32c is not found crc32c doesn't exist!
-
-# Instructions to download crc32c if crc32c doesn't exist.
-mkdir -p $HOME/Downloads/crc32c && cd $HOME/Downloads/crc32c
-
-curl -sSL https://github.com/google/crc32c/archive/1.1.2.tar.gz | \
-  tar -xzf - --strip-components=1
-
-mkdir cmake-out && cd cmake-out
-
-cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=yes -DCRC32C_BUILD_TESTS=OFF
-  -DCRC32C_BUILD_BENCHMARKS=OFF -DCRC32C_USE_GLOG=OFF ../. && make -j $(nproc)
-
-cd ..
-sudo cmake --build cmake-out --target install
-```
 ### Building
 There is currently only 1 way to build WiredTiger with GCP extension:
 1. Letting CMake manage the GCP SDK dependency as an external project, letting it download, link
@@ -115,6 +26,7 @@ There are two CMake flags associated with the GCP extension: `ENABLE_GCP` and `I
     *    This flag should be set alongside the `ENABLE_GCP` flag.
     *    If the `IMPORT_GCP_SDK` flag is not specified, the compiler will assume a system
           installation of the SDK which will is currently not supported.
+
 ### Letting CMake manage the SDK dependency as an external project
 
 This method configures CMake to download, compile, and install the GCP SDK while building
@@ -141,12 +53,6 @@ variable called `GOOGLE_APPLICATION_CREDENTIALS`. To store the environment varia
 
 ## 4. Testing
 
-Before running the tests set the LD_LIBRARY_PATH to tell the loader where to look for the
-dynamic shared libraries that we made earlier.
-
-```bash
-export LD_LIBRARY_PATH=$(pwd)/gcp-sdk-cpp/install/lib:/usr/local/lib/:$LD_LIBRARY_PATH
-```
 ### To run the tiered python tests for GCP:
 
 ```bash
