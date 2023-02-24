@@ -292,7 +292,8 @@ gcp_flush_finish([[maybe_unused]] WT_STORAGE_SOURCE *storage, [[maybe_unused]] W
 
 // Check if the object exists in the GCP storage source.
 static int
-gcp_file_system_exists(WT_FILE_SYSTEM *file_system, [[maybe_unused]] WT_SESSION *session, const char *name, bool *existp)
+gcp_file_system_exists(
+  WT_FILE_SYSTEM *file_system, [[maybe_unused]] WT_SESSION *session, const char *name, bool *existp)
 {
     gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
     size_t size;
@@ -302,7 +303,8 @@ gcp_file_system_exists(WT_FILE_SYSTEM *file_system, [[maybe_unused]] WT_SESSION 
 
     ret = fs->gcp_conn->object_exists(name, *existp, size);
     if (ret != 0)
-        std::cerr << "gcp_file_system_exists: Error with searching for object: " << name << std::endl;
+        std::cerr << "gcp_file_system_exists: Error with searching for object: " << name
+                  << std::endl;
     else if (!*existp)
         std::cout << "gcp_file_system_exists: Object: " << name << " does not exist in GCP."
                   << std::endl;
@@ -314,7 +316,7 @@ gcp_file_system_exists(WT_FILE_SYSTEM *file_system, [[maybe_unused]] WT_SESSION 
 
 static int
 gcp_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
-              WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags, WT_FILE_HANDLE **file_handle_ptr)
+  WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags, WT_FILE_HANDLE **file_handle_ptr)
 {
     WT_UNUSED(session);
     gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
@@ -401,7 +403,7 @@ gcp_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name
 // POSIX remove is not supported for cloud objects.
 static int
 gcp_remove([[maybe_unused]] WT_FILE_SYSTEM *file_system, [[maybe_unused]] WT_SESSION *session,
-           [[maybe_unused]] const char *name, [[maybe_unused]] uint32_t flags)
+  [[maybe_unused]] const char *name, [[maybe_unused]] uint32_t flags)
 {
     std::cerr << "gcp_remove: file removal is not supported." << std::endl;
     return ENOTSUP;
@@ -410,8 +412,7 @@ gcp_remove([[maybe_unused]] WT_FILE_SYSTEM *file_system, [[maybe_unused]] WT_SES
 // POSIX rename is not supported for cloud objects.
 static int
 gcp_rename([[maybe_unused]] WT_FILE_SYSTEM *file_system, [[maybe_unused]] WT_SESSION *session,
-           [[maybe_unused]] const char *from, const char *to,
-  uint32_t flags)
+  [[maybe_unused]] const char *from, const char *to, uint32_t flags)
 {
     std::cerr << "gcp_rename: file renaming is not supported." << std::endl;
     return ENOTSUP;
@@ -419,7 +420,7 @@ gcp_rename([[maybe_unused]] WT_FILE_SYSTEM *file_system, [[maybe_unused]] WT_SES
 
 static int
 gcp_file_lock([[maybe_unused]] WT_FILE_HANDLE *file_handle, [[maybe_unused]] WT_SESSION *session,
-              [[maybe_unused]] bool lock)
+  [[maybe_unused]] bool lock)
 {
     // Locks are always granted.
     return 0;
@@ -490,13 +491,14 @@ gcp_object_list_helper(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const c
                         fs->gcp_conn->list_objects(complete_prefix, objects, false);
 
     if (ret != 0) {
-        std::cerr << "gcp_object_list_helper: ListObjects request to google cloud failed." << std::endl;
+        std::cerr << "gcp_object_list_helper: ListObjects request to google cloud failed."
+                  << std::endl;
         return ret;
     }
     *count = objects.size();
 
-    std::cerr << "gcp_object_list_helper: ListObjects request to google cloud succeeded. Received " <<
-        *count<< " objects." << std::endl;
+    std::cerr << "gcp_object_list_helper: ListObjects request to google cloud succeeded. Received "
+              << *count << " objects." << std::endl;
     return make_object_list(object_list, objects, *count);
 }
 
@@ -526,13 +528,13 @@ gcp_object_list(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *di
 
 // Allocate and initialize an array of C strings from vector of strings.
 //
-// Requires count <= objects.list().
+// Requires count <= objects.size().
 // count==0 is valid, and in this case object_list will be set to nullptr.
 // Caller is responsible for memory allocated for object_list.
 static int
 make_object_list(char ***object_list, const std::vector<std::string> &objects, const uint32_t count)
 {
-    if (count < 1) {
+    if (count == 0) {
         *object_list = nullptr;
         return 0;
     }
