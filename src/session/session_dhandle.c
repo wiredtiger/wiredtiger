@@ -382,8 +382,8 @@ int
 __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
   uint32_t flags, WT_DATA_HANDLE **hs_dhandlep, WT_CKPT_SNAPSHOT *ckpt_snapshot)
 {
-    WT_CONFIG_ITEM cval;
     WT_CKPT *ckpt, *ckptbase;
+    WT_CONFIG_ITEM cval;
     WT_DECL_RET;
     uint64_t ds_time, first_snapshot_time, hs_time, num_checkpoints, oldest_time, snapshot_time,
       stable_time;
@@ -392,6 +392,7 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
     bool is_unnamed_ckpt, must_resolve;
     size_t checkpoint_len;
 
+    ckpt = ckptbase = NULL;
     ds_time = first_snapshot_time = hs_time = num_checkpoints = oldest_time = snapshot_time =
       stable_time = 0;
     ds_order = hs_order = 0;
@@ -524,8 +525,10 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
     /* This is the top of a retry loop. */
     do {
         ret = 0;
-        if (checkpoint == NULL)
+        if (checkpoint == NULL) {
+            WT_ASSERT(session, ckptbase != NULL);
             WT_RET(__wt_strndup(session, ckptbase->name, strlen(ckptbase->name), &checkpoint));
+        }
 
         /*
          * Test for the internal checkpoint name (WiredTigerCheckpoint). Note: must_resolve is true
@@ -606,6 +609,7 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
                 WT_ASSERT(session, is_unnamed_ckpt);
 
                 /* Try with the previous checkpoint if it exists. */
+                WT_ASSERT(session, ckptbase != NULL);
                 ++ckptbase;
                 if (ckptbase->name == NULL)
                     ret = __wt_set_return(session, WT_ERROR);
