@@ -90,7 +90,7 @@ export LD_LIBRARY_PATH=$(pwd)/azure-sdk-cpp/install/lib:$LD_LIBRARY_PATH
 
 ```bash
 # This will run all the tests in test_tiered19.py on the Azure storage source. The following
-#command will run the tests from the build directory that was made earlier.
+# command will run the tests from the build directory that was made earlier.
 cd build
 env WT_BUILDDIR=$(pwd) python3 ../test/suite/run.py -j 10 -v 4 test_tiered19
 ```
