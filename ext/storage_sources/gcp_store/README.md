@@ -13,6 +13,7 @@ This section describes how to build WiredTiger with the GCP extension enabled.
 * Abseil LTS 20230125
 * nlohmann_json library 3.11.2
 * crc32c 1.1.2
+* clang 6.0.0
 
 ### Building
 There is currently only 1 way to build WiredTiger with GCP extension:
