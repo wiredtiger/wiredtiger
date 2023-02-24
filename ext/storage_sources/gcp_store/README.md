@@ -1,6 +1,8 @@
 # WiredTiger's GCP Extension
 ## 1. Introduction
-This extension allows WiredTiger storage source extensions to read from and write to objects stored in Google Cloud Storage using WiredTiger’s provided internal abstraction for storing data in an object storage service.
+This extension allows WiredTiger storage source extensions to read from and write to objects stored
+in Google Cloud Storage using WiredTiger’s provided internal abstraction for storing data in an
+object storage service.
 
 ## 2. Building and running
 This section describes how to build WiredTiger with the GCP extension enabled.
@@ -37,7 +39,8 @@ If the G++ version is not 8.4 or higher update G++ to 8.4 using the following.
 
 ```bash
 sudo apt-get install gcc-8 g++-8
-sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-8 20 --slave /usr/bin/g++ g++ /usr/bin/g++-8
+sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-8 20
+  --slave /usr/bin/g++ g++ /usr/bin/g++-8
 ```
 Check that G++ has been updated using the following command `g++ --version`.
 
@@ -54,7 +57,8 @@ curl -sSL https://github.com/abseil/abseil-cpp/archive/20230125.0.tar.gz | \
 
 mkdir cmake-out && cd cmake-out
 
-cmake -DCMAKE_BUILD_TYPE=Release -DABSL_BUILD_TESTING=OFF -DBUILD_SHARED_LIBS=yes ../. && make -j $(nproc)
+cmake -DCMAKE_BUILD_TYPE=Release -DABSL_BUILD_TESTING=OFF -DBUILD_SHARED_LIBS=yes ../.
+  && make -j $(nproc)
 
 cd ..
 sudo cmake --build cmake-out --target install
@@ -73,7 +77,8 @@ curl -sSL https://github.com/nlohmann/json/archive/v3.11.2.tar.gz | \
 
 mkdir cmake-out && cd cmake-out
 
-cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=yes -DBUILD_TESTING=OFF -DJSON_BuildTests=OFF ../. && make -j $(nproc)
+cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=yes -DBUILD_TESTING=OFF
+  -DJSON_BuildTests=OFF ../. && make -j $(nproc)
 
 cd ..
 sudo cmake --build cmake-out --target install
@@ -92,27 +97,31 @@ curl -sSL https://github.com/google/crc32c/archive/1.1.2.tar.gz | \
 
 mkdir cmake-out && cd cmake-out
 
-cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=yes -DCRC32C_BUILD_TESTS=OFF -DCRC32C_BUILD_BENCHMARKS=OFF -DCRC32C_USE_GLOG=OFF ../. && make -j $(nproc)
+cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=yes -DCRC32C_BUILD_TESTS=OFF
+  -DCRC32C_BUILD_BENCHMARKS=OFF -DCRC32C_USE_GLOG=OFF ../. && make -j $(nproc)
 
 cd ..
 sudo cmake --build cmake-out --target install
 ```
 ### Building
 There is currently only 1 way to build WiredTiger with GCP extension:
-1. Letting CMake manage the GCP SDK dependency as an external project, letting it download, link and build the extension.
+1. Letting CMake manage the GCP SDK dependency as an external project, letting it download, link
+  and build the extension.
 
 There are two CMake flags associated with the GCP extension: `ENABLE_GCP` and `IMPORT_GCP_SDK`.
 * `ENABLE_GCP=1` is required to build the GCP extension.
 * `IMPORT_GCP_SDK={external}` is used to set the build method.
     *   `external` tells the compiler to search for an existing system installation of the SDK.
     *    This flag should be set alongside the `ENABLE_GCP` flag.
-    *    If the `IMPORT_GCP_SDK` flag is not specified, the compiler will assume a system installation of the SDK which will is currently not supported.
+    *    If the `IMPORT_GCP_SDK` flag is not specified, the compiler will assume a system
+          installation of the SDK which will is currently not supported.
 ### Letting CMake manage the SDK dependency as an external project
 
-This method configures CMake to download, compile, and install the GCP SDK while building the GCP extension.
+This method configures CMake to download, compile, and install the GCP SDK while building
+the GCP extension.
 
 ```bash
-# Create a new directory to run your build from
+# Create a new directory to run the build from
 $ mkdir build && cd build
 
 # Configure and run cmake with Ninja
@@ -121,13 +130,19 @@ ninja
 ```
 
 * The compiler flag `IMPORT_GCP_SDK` must be set to `external` for this build method.
-* `ENABLE_GCP` defaults to looking for a local version, the `IMPORT_GCP_SDK` setting will override that default.
+* `ENABLE_GCP` defaults to looking for a local version, the `IMPORT_GCP_SDK` setting will
+    override that default.
 
 ## 3. Development
-In order to run this extension after building, the developer must have a GCP credentials file locally with the right permissions. The path to this json file must be stored in an environmental variable called `GOOGLE_APPLICATION_CREDENTIALS`. To store your environmental variable type `export GOOGLE_APPLICATION_CREDENTIALS="path/to/json/"` into your terminal.
+In order to run this extension after building, the developer must have a GCP credentials file
+locally with the right permissions. The path to this json file must be stored in an environment
+variable called `GOOGLE_APPLICATION_CREDENTIALS`. To store the environment variable type
+`export GOOGLE_APPLICATION_CREDENTIALS="path/to/json/"` into the terminal.
+
 ## 4. Testing
 
-Before running the tests set the LD_LIBRARY_PATH to tell the loader where to look for the dynamic shared libraries that we made earlier.
+Before running the tests set the LD_LIBRARY_PATH to tell the loader where to look for the
+dynamic shared libraries that we made earlier.
 
 ```bash
 export LD_LIBRARY_PATH=$(pwd)/gcp-sdk-cpp/install/lib:/usr/local/lib/:$LD_LIBRARY_PATH
@@ -135,7 +150,8 @@ export LD_LIBRARY_PATH=$(pwd)/gcp-sdk-cpp/install/lib:/usr/local/lib/:$LD_LIBRAR
 ### To run the tiered python tests for GCP:
 
 ```bash
-# This will run all the tests in test_tiered19.py on the GCP storage source. The following command will run the tests from the build directory that was made earlier.
+# This will run all the tests in test_tiered19.py on the GCP storage source. The following command
+# will run the tests from the build directory that was made earlier.
 cd build
 env WT_BUILDDIR=$(pwd) python3 ../test/suite/run.py -j 10 -v 4 test_tiered19
 ```
@@ -148,12 +164,18 @@ cd build
 ext/storage_sources/gcp_store/test/run_gcp_unit_tests
 ```
 
-To add any additional unit testing, add to the file `test_GCP_connection.cpp`, alternatively if you
-wish to add a new test file, add it to the `SOURCES` list in `create_test_executable()`
+To add any additional unit testing, add to the file `test_GCP_connection.cpp`, alternatively if the
+developer wishes to add a new test file, add it to the `SOURCES` list in `create_test_executable()`
 (in `GCP_store/test/CMakeLists.txt`).
 
 ## 5. Evergreen Testing
 
-Currently the Evergreen testing runs both `test_tiered19.py` and the unit tests in `test_gcp_connection.cpp`. Should a developer wish to additional tests to the extension, they would first have to write the tests before adding it as a task to the evergreen.yml file.
+Currently the Evergreen testing runs both `test_tiered19.py` and the unit tests in
+`test_gcp_connection.cpp`. Should a developer wish to additional tests to the extension, they would
+first have to write the tests before adding it as a task to the evergreen.yml file.
 
-Additionally, Evergreen has hidden the private key and private key id for GCP and these are stored within the Evergreen system. Due to GCP requiring a json authentication file to authenticate the connection, a temporary file of the json authentication file is required to be subsitituted with the private key and private key id hidden earlier. Evergreen also has a script to install all the dependencies that GCP requires.
+Additionally, Evergreen has hidden the private key and private key id for GCP and these are stored
+within the Evergreen system. Due to GCP requiring a json authentication file to authenticate the
+connection, a temporary file of the json authentication file is required to be subsitituted with the
+private key and private key id hidden earlier. Evergreen also has a script to install all the
+dependencies that GCP requires.
