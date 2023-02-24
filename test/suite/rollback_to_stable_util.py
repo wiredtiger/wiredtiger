@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import pathlib, os, subprocess, wiredtiger, wttest
+import os, pathlib, subprocess, wiredtiger, wttest
 from time import sleep
 from wiredtiger import wiredtiger_strerror, WiredTigerError, WT_ROLLBACK
 from wtscenario import make_scenarios
