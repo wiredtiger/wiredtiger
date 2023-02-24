@@ -173,12 +173,15 @@ __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_ADDR *addr;
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
+    WT_PAGE_STAT ps;
     WT_REC_KV *val;
     uint32_t i;
 
     mod = page->modify;
 
     val = &r->v;
+
+    WT_PAGE_STAT_INIT(&ps);
 
     /* For each entry in the split array... */
     for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
@@ -187,7 +190,12 @@ __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
         /* Build the value cell. */
         addr = &multi->addr;
-        WT_RET(__wt_rec_cell_build_addr(session, r, addr, NULL, r->recno, NULL, NULL));
+
+        /* Attempt to unpack previously written page stats, if any. */
+        if (__wt_process.page_stats_2022 && r->has_page_stats)
+            WT_RET(__wt_addr_cookie_page_stat_unpack(addr->addr, &ps));
+
+        WT_RET(__wt_rec_cell_build_addr(session, r, addr, NULL, r->recno, NULL, &ps));
 
         /* Boundary: split or write the page. */
         if (__wt_rec_need_split(r, val->len))
