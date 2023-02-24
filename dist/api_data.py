@@ -555,14 +555,14 @@ connection_runtime_config = [
         Config('chunk_size', '1MB', r'''
             size of cached chunks''',
             min='512KB', max='100GB'),
-        Config('enabled', 'false', r'''
-            enable chunk cache''',
-            type='boolean'),
         Config('chunk_cache_evict_trigger', '90', r'''
             chunk cache percent full that triggers eviction''',
             min='0', max='100'),
         Config('device_path', '', r'''
             the absolute path to the file system or a block device used as cache location'''),
+        Config('enabled', 'false', r'''
+            enable chunk cache''',
+            type='boolean'),
         Config('hashsize', '1024', r'''
             number of buckets in the hashtable that keeps track of objects''',
             min='64', max='1048576'),
