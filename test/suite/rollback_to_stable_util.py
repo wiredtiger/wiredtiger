@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, subprocess, wiredtiger, wttest
+import pathlib, os, subprocess, wiredtiger, wttest
 from time import sleep
 from wiredtiger import wiredtiger_strerror, WiredTigerError, WT_ROLLBACK
 from wtscenario import make_scenarios
@@ -35,8 +35,19 @@ def get_git_root():
     output = subprocess.run(["git", "rev-parse", "--show-toplevel"], check=True, capture_output=True)
     return output.stdout.strip().decode("utf-8")
 
+def get_rts_verify_path():
+    rel_path = os.path.join('tools', 'rts_verifier', 'rts_verify.py')
+    try:
+        root = get_git_root()
+        return os.path.join(root, rel_path)
+    except:
+        pass
+
+    this_dir = pathlib.Path(__file__).resolve()
+    return os.path.join(this_dir, '..', '..', rel_path)
+
 def verify_rts_logs():
-    binary_path = os.path.join(get_git_root(), 'tools', 'rts_verifier', 'rts_verify.py')
+    binary_path = get_rts_verify_path()
     stdout_path = os.path.join(os.getcwd(), 'stdout.txt')
 
     if os.name == 'nt':

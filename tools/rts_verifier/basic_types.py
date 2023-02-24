@@ -1,16 +1,16 @@
 from enum import Enum
 
 class PrepareState(Enum):
-    PREPARE_INIT = 0
-    PREPARE_INPROGRESS = 1
-    PREPARE_LOCKED = 2
-    PREPARE_RESOLVED = 3
+    WT_PREPARE_INIT = 0
+    WT_PREPARE_INPROGRESS = 1
+    WT_PREPARE_LOCKED = 2
+    WT_PREPARE_RESOLVED = 3
 
 class UpdateType(Enum):
-    UPDATE_MODIFY = 0
-    UPDATE_RESERVE = 1
-    UPDATE_STANDARD = 2
-    UPDATE_TOMBSTONE = 3
+    WT_UPDATE_MODIFY = 0
+    WT_UPDATE_RESERVE = 1
+    WT_UPDATE_STANDARD = 2
+    WT_UPDATE_TOMBSTONE = 3
 
 class Timestamp():
     def __init__(self, start, stop):
