@@ -10,6 +10,7 @@ This section describes how to build WiredTiger with the Azure extension enabled.
 ### Requirements
 * CMake 3.13 or higher
 * G++ 8.4 or higher
+* clang version 6.0.0
 
 ### Building
 
