@@ -10,36 +10,6 @@ This section describes how to build WiredTiger with the Azure extension enabled.
 ### Requirements
 * CMake 3.13 or higher
 * G++ 8.4 or higher
-### How to install requirements (skip this step if requirements have been met)
-
-If the CMake version is not 3.13 or higher update CMake to 3.13 using the following.
-```bash
-sudo apt remove cmake
-wget https://cmake.org/files/v3.13/cmake-3.13.0.tar.gz
-tar xf cmake-3.13.0.tar.gz
-
-cd cmake-3.13.0
-
-./configure
-make -j $(nproc)
-sudo make install
-```
-
-Check that CMake has been updated using the following command `cmake --version`.
-
-If CMake is not in `/usr/bin/` create a symbolic link using the following.
-```bash
-sudo ln -s /usr/local/bin/cmake /usr/bin/cmake
-```
-
-If the G++ version is not 8.4 or higher update G++ to 8.4 using the following.
-```bash
-sudo apt-get install gcc-8 g++-8
-sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-8 20
-    --slave /usr/bin/g++ g++ /usr/bin/g++-8
-```
-
-Check that G++ has been updated using the following command `g++ --version`.
 
 ### Building
 
@@ -79,12 +49,6 @@ environment variable called `AZURE_STORAGE_CONNECTION_STRING`. To store the conn
 into an environment variable type
 `export AZURE_STORAGE_CONNECTION_STRING="Azure connection string"` into the terminal.
 ## 4. Testing
-
-Before running the tests set the `LD_LIBRARY_PATH` to tell the loader where to look for the dynamic 
-shared libraries that we made earlier.
-```bash
-export LD_LIBRARY_PATH=$(pwd)/azure-sdk-cpp/install/lib:$LD_LIBRARY_PATH
-```
 
 ### To run the tiered python tests for Azure:
 
