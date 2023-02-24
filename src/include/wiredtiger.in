@@ -2205,8 +2205,8 @@ struct __wt_connection {
      * @config{ ),,}
      * @config{chunk_cache = (, chunk cache configuration options., a set of related configuration
      * options defined as follows.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;capacity, maximum memory to
-     * allocate for the chunk cache., an integer between \c 0 and \c 100TB; default \c 10GB.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;capacity, maximum memory or
+     * storage to use for the chunk cache., an integer between \c 0 and \c 100TB; default \c 10GB.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;chunk_cache_evict_trigger, chunk cache percent full that
      * triggers eviction., an integer between \c 0 and \c 100; default \c 90.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;chunk_size, size of cached chunks., an integer between \c
@@ -2951,8 +2951,8 @@ struct __wt_connection {
  * boolean flag; default \c true.}
  * @config{chunk_cache = (, chunk cache configuration options., a set of related configuration
  * options defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;capacity, maximum memory to allocate
- * for the chunk cache., an integer between \c 0 and \c 100TB; default \c 10GB.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;capacity, maximum memory or storage
+ * to use for the chunk cache., an integer between \c 0 and \c 100TB; default \c 10GB.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;chunk_cache_evict_trigger, chunk cache percent full that triggers
  * eviction., an integer between \c 0 and \c 100; default \c 90.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
