@@ -43,7 +43,7 @@ def get_rts_verify_path():
     except:
         pass
 
-    this_dir = pathlib.Path(__file__).resolve()
+    this_dir = pathlib.Path(__file__).parent.resolve()
     return os.path.join(this_dir, '..', '..', rel_path)
 
 def verify_rts_logs():
