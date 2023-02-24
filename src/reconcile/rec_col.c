@@ -193,7 +193,7 @@ __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
         /* Attempt to unpack previously written page stats, if any. */
         if (__wt_process.page_stats_2022 && r->has_page_stats)
-            WT_RET(__wt_addr_cookie_page_stat_unpack(addr->addr, &ps));
+            WT_RET(__wt_addr_cookie_btree_unpack(addr->addr, &ps));
 
         WT_RET(__wt_rec_cell_build_addr(session, r, addr, NULL, r->recno, NULL, &ps));
 
@@ -300,7 +300,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
         if (addr != NULL) {
             /* Attempt to unpack previously written page stats, if any. */
             if (__wt_process.page_stats_2022 && r->has_page_stats)
-                WT_ERR(__wt_addr_cookie_page_stat_unpack(addr->addr, &ps));
+                WT_ERR(__wt_addr_cookie_btree_unpack(addr->addr, &ps));
             WT_ERR(__wt_rec_cell_build_addr(session, r, addr, NULL, ref->ref_recno, page_del, &ps));
             WT_TIME_AGGREGATE_COPY(&ta, &addr->ta);
         } else {
@@ -308,7 +308,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 
             /* Attempt to unpack previously written page stats, if any. */
             if (__wt_process.page_stats_2022 && r->has_page_stats)
-                WT_ERR(__wt_addr_cookie_page_stat_unpack((void *)vpack->data, &ps));
+                WT_ERR(__wt_addr_cookie_btree_unpack((void *)vpack->data, &ps));
 
             if (cms.state == WT_CHILD_PROXY || F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
                 /*
@@ -1176,7 +1176,7 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
     } else if (ovfl_usedp != NULL) {
         /* Attempt to unpack previously written page stats, if any. */
         if (__wt_process.page_stats_2022 && r->has_page_stats)
-            WT_RET(__wt_addr_cookie_page_stat_unpack(value->data, ovfl_ps));
+            WT_RET(__wt_addr_cookie_btree_unpack(value->data, ovfl_ps));
 
         WT_RET(__wt_addr_cookie_pack(
           session, &val->buf, (void *)value->data, (uint8_t)value->size, ovfl_ps));

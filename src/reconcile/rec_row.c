@@ -262,7 +262,7 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
         /* Attempt to unpack previously written page stats, if any. */
         if (__wt_process.page_stats_2022 && r->has_page_stats)
-            WT_RET(__wt_addr_cookie_page_stat_unpack(addr->addr, &ps));
+            WT_RET(__wt_addr_cookie_btree_unpack(addr->addr, &ps));
 
         WT_RET(__wt_rec_cell_build_addr(session, r, addr, NULL, WT_RECNO_OOB, NULL, &ps));
 
@@ -412,7 +412,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
             /* Attempt to unpack previously written page stats, if any. */
             if (__wt_process.page_stats_2022 && r->has_page_stats)
-                WT_ERR(__wt_addr_cookie_page_stat_unpack(addr->addr, &ps));
+                WT_ERR(__wt_addr_cookie_btree_unpack(addr->addr, &ps));
 
             WT_ERR(__wt_rec_cell_build_addr(session, r, addr, NULL, WT_RECNO_OOB, page_del, &ps));
             source_ta = &addr->ta;
@@ -423,7 +423,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
             /* Attempt to unpack previously written page stats, if any. */
             if (__wt_process.page_stats_2022 && r->has_page_stats)
-                WT_ERR(__wt_addr_cookie_page_stat_unpack((void *)vpack->data, &ps));
+                WT_ERR(__wt_addr_cookie_btree_unpack((void *)vpack->data, &ps));
 
             WT_ERR(__wt_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del, &ps));
             source_ta = &vpack->ta;
@@ -442,7 +442,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
             /* Attempt to unpack previously written page stats, if any. */
             if (__wt_process.page_stats_2022 && r->has_page_stats)
-                WT_ERR(__wt_addr_cookie_page_stat_unpack((void *)vpack->data, &ps));
+                WT_ERR(__wt_addr_cookie_btree_unpack((void *)vpack->data, &ps));
 
             if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
                 WT_ERR(
@@ -837,7 +837,7 @@ __wt_rec_row_leaf(
 
                     /* Attempt to unpack previously written page stats, if any. */
                     if (__wt_process.page_stats_2022 && r->has_page_stats)
-                        WT_ERR(__wt_addr_cookie_page_stat_unpack(vpack->data, &ovfl_ps));
+                        WT_ERR(__wt_addr_cookie_btree_unpack(vpack->data, &ovfl_ps));
 
                     WT_ERR(__wt_addr_cookie_pack(
                       session, &val->buf, (void *)vpack->data, (uint8_t)vpack->size, &ovfl_ps));

@@ -127,9 +127,9 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
 
 /*
  * The address cookie will have the following layout: block manager address cookie length, block
- * manager address cookie, page stat address cookie length, page stat address cookie. The maximum
- * size for a block manager cookie is 255B and the page stat cookie consists of a pair of packed
- * 8B values to encode aggregated record- and user byte- counts for the subtree at the location.
+ * manager address cookie, btree address cookie length, btree address cookie. The maximum size
+ * for a block manager cookie is 255B and the page stat cookie consists of a pair of packed 8B
+ * values to encode aggregated record- and user byte- counts for the subtree at the location.
  */
 #define WT_ADDR_COOKIE_MAX (1 + 255 + 1 + WT_INTPACK64_MAXSIZE * 2)
 
@@ -138,14 +138,13 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
  *
  *     WT_ADDR_COOKIE_BLOCK            block manager cookie start
  *     WT_ADDR_COOKIE_BLOCK_LEN        block manager cookie length
- *     WT_ADDR_COOKIE_PAGE_STAT        page stat cookie start
- *     WT_ADDR_COOKIE_PAGE_STAT_LEN    page stat cookie len
+ *     WT_ADDR_COOKIE_BTREE            btree cookie start
+ *     WT_ADDR_COOKIE_BTREE_LEN        btree cookie len
  */
 #define WT_ADDR_COOKIE_BLOCK(addr) ((uint8_t *)(addr) + 1)
 #define WT_ADDR_COOKIE_BLOCK_LEN(addr) (*(uint8_t *)(addr))
-#define WT_ADDR_COOKIE_PAGE_STAT(addr) ((uint8_t *)(addr) + 1 + WT_ADDR_COOKIE_BLOCK_LEN(addr) + 1)
-#define WT_ADDR_COOKIE_PAGE_STAT_LEN(addr) \
-    (*((uint8_t *)(addr) + 1 + WT_ADDR_COOKIE_BLOCK_LEN(addr)))
+#define WT_ADDR_COOKIE_BTREE(addr) ((uint8_t *)(addr) + 1 + WT_ADDR_COOKIE_BLOCK_LEN(addr) + 1)
+#define WT_ADDR_COOKIE_BTREE_LEN(addr) (*((uint8_t *)(addr) + 1 + WT_ADDR_COOKIE_BLOCK_LEN(addr)))
 
 /*
  * WT_PAGE_STAT --
