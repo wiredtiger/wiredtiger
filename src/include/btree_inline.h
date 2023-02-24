@@ -10,8 +10,8 @@
  * __wt_addr_cookie_pack --
  *     Pack the address cookie. Encode the page stats into the address cookie of the cell if the
  *     feature flag is set. In this scenario, the address cookie will have the following layout:
- *     block manager address cookie length, block manager address cookie, btree address cookie
- *     length, btree address cookie.
+ *     btree address cookie length, btree address cookie, block manager address cookie length,
+ *     block manager address cookie.
  */
 static inline int
 __wt_addr_cookie_pack(WT_SESSION_IMPL *session, WT_ITEM *addr, void *block_addr,
@@ -21,16 +21,16 @@ __wt_addr_cookie_pack(WT_SESSION_IMPL *session, WT_ITEM *addr, void *block_addr,
         /* Initialize the combined address cookie buffer. */
         WT_RET(__wt_buf_init(session, addr, WT_ADDR_COOKIE_MAX));
 
+        /* Store the btree address cookie and its length. */
+        WT_RET(__wt_addr_cookie_btree_pack(addr->mem, ps));
+
         /* Store the block manager address cookie and its length. */
         WT_ADDR_COOKIE_BLOCK_LEN(addr->mem) = block_addr_size;
         memcpy(WT_ADDR_COOKIE_BLOCK(addr->mem), block_addr, block_addr_size);
 
-        /* Store the btree address cookie and its length. */
-        WT_RET(__wt_addr_cookie_btree_pack(addr->mem, ps));
-
         /* Update the size of the combined address cookie. */
         addr->size = (uint8_t)(
-          1 + WT_ADDR_COOKIE_BLOCK_LEN(addr->mem) + 1 + WT_ADDR_COOKIE_BTREE_LEN(addr->mem));
+          1 + WT_ADDR_COOKIE_BTREE_LEN(addr->mem) + 1 + WT_ADDR_COOKIE_BLOCK_LEN(addr->mem));
     } else {
         /*
          * Don't copy the data into the buffer in simple cases where there are no page stats

@@ -2093,12 +2093,12 @@ static inline bool __wt_txn_visible_id_snapshot(uint64_t id, uint64_t snap_min, 
   uint64_t *snapshot, uint32_t snapshot_count) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline double __wt_eviction_dirty_target(WT_CACHE *cache)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_addr_cookie_pack(WT_SESSION_IMPL *session, WT_ITEM *addr, void *block_addr,
-  uint8_t block_addr_size, WT_PAGE_STAT *ps) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_addr_cookie_btree_pack(void *addr, WT_PAGE_STAT *ps)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_addr_cookie_btree_unpack(const void *addr, WT_PAGE_STAT *ps)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_addr_cookie_pack(WT_SESSION_IMPL *session, WT_ITEM *addr, void *block_addr,
+  uint8_t block_addr_size, WT_PAGE_STAT *ps) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_btcur_bounds_early_exit(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
   bool next, bool *key_out_of_boundsp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_btcur_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, void *context,
