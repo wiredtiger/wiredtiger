@@ -292,8 +292,7 @@ gcp_flush_finish([[maybe_unused]] WT_STORAGE_SOURCE *storage, [[maybe_unused]] W
 
 // Check if the object exists in the GCP storage source.
 static int
-gcp_file_system_exists(
-  WT_FILE_SYSTEM *file_system, [[maybe_unused]] WT_SESSION *session, const char *name, bool *existp)
+gcp_file_system_exists(WT_FILE_SYSTEM *file_system, [[maybe_unused]] WT_SESSION *session, const char *name, bool *existp)
 {
     gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
     size_t size;
@@ -301,23 +300,21 @@ gcp_file_system_exists(
     std::cout << "gcp_file_system_exists: Checking object: " << name << " exists in GCP."
               << std::endl;
 
-    // Check whether the object exists in the cloud.
-    WT_ERR(fs->gcp_conn->object_exists(name, *existp, size));
-    if (!*existp) {
+    ret = fs->gcp_conn->object_exists(name, *existp, size);
+    if (ret != 0)
+        std::cerr << "gcp_file_system_exists: Error with searching for object: " << name << std::endl;
+    else if (!*existp)
         std::cout << "gcp_file_system_exists: Object: " << name << " does not exist in GCP."
                   << std::endl;
-    } else
+    else
         std::cout << "gcp_file_system_exists: Object: " << name << " exists in GCP." << std::endl;
-    return ret;
 
-err:
-    std::cerr << "gcp_file_system_exists: Error with searching for object: " << name << std::endl;
     return ret;
 }
 
 static int
 gcp_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
-  WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags, WT_FILE_HANDLE **file_handle_ptr)
+              WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags, WT_FILE_HANDLE **file_handle_ptr)
 {
     WT_UNUSED(session);
     gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
