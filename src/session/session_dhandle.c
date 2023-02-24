@@ -612,7 +612,7 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
                 WT_ASSERT(session, ckptbase != NULL);
                 ++ckptbase;
                 if (ckptbase->name == NULL)
-                    ret = __wt_set_return(session, WT_ERROR);
+                    ret = __wt_set_return(session, WT_NOTFOUND);
                 else
                     ret = __wt_set_return(session, EBUSY);
 
@@ -675,9 +675,11 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
          *
          * For named checkpoints, we don't retry, I guess because the application ought not to try
          * to open its checkpoints while regenerating them.
+         *
+         * If the current checkpoint could not be used, check if there's more, otherwise we are
+         * done.
          */
-
-    } while (is_unnamed_ckpt && (ret == WT_NOTFOUND || ret == EBUSY));
+    } while (is_unnamed_ckpt && ckptbase->name != NULL && (ret == WT_NOTFOUND || ret == EBUSY));
 
     return (ret);
 }
