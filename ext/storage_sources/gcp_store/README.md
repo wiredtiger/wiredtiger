@@ -26,7 +26,7 @@ There are two CMake flags associated with the GCP extension: `ENABLE_GCP` and `I
     *   `external` tells the compiler to search for an existing system installation of the SDK.
     *    This flag should be set alongside the `ENABLE_GCP` flag.
     *    If the `IMPORT_GCP_SDK` flag is not specified, the compiler will assume a system
-          installation of the SDK which will is currently not supported.
+          installation of the SDK which will be implemented at a later stage.
 
 ### Letting CMake manage the SDK dependency as an external project
 
