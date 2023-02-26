@@ -17,8 +17,8 @@ This section describes how to build WiredTiger with the GCP extension enabled.
 
 ### Building
 There is currently only 1 way to build WiredTiger with GCP extension:
-1. Letting CMake manage the GCP SDK dependency as an external project, letting it download, link
-  and build the extension.
+This way manages the GCP SDK dependency as an external project. This method will download the
+GCP SDK, and link to the WiredTiger's build system and build the extension.
 
 There are two CMake flags associated with the GCP extension: `ENABLE_GCP` and `IMPORT_GCP_SDK`.
 * `ENABLE_GCP=1` is required to build the GCP extension.
