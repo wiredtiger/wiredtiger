@@ -3044,7 +3044,16 @@ tasks:
             # use a placeholder private key. The placeholders are then replaced in the command line with the evergreen expansion variables 
             # and stored in a temporary file.
             file=$(mktemp --suffix ".json")
-            sed 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|;s|gcp_private_id|${gcp_sdk_ext_private_key_id}|' ../test/evergreen/gcp_auth.json >> $file
+
+            # Use '|' as the delimiter instead of default behaviour because the private key contains
+            # slash characters.
+            sed -e 's|gcp_private_id|${gcp_sdk_ext_project_id}|'           \
+                -e 's|gcp_private_key|${gcp_sdk_ext_private_key}|'         \
+                -e 's|gcp_private_id|${gcp_sdk_ext_private_key_id}|'       \ 
+                -e 's|gcp_private_id|${gcp_sdk_ext_client_email}|'         \ 
+                -e 's|gcp_private_id|${gcp_sdk_ext_client_id}|'            \ 
+                -e 's|gcp_private_id|${gcp_sdk_ext_client_x509_cert_url}|' \ 
+                ../test/evergreen/gcp_auth.json >> $file       
             export GOOGLE_APPLICATION_CREDENTIALS="$file"
             set -o verbose
 
