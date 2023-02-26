@@ -10,7 +10,7 @@ This section describes how to build WiredTiger with the Azure extension enabled.
 ### Requirements
 * CMake 3.13 or higher
 * G++ 8.4 or higher
-* clang version 6.0.0
+* clang version 6.0.0 or higher
 
 ### Building
 
@@ -41,8 +41,7 @@ ninja
 ```
 
 * The compiler flag `IMPORT_AZURE_SDK` must be set to `external` for this build method.
-* `ENABLE_AZURE` defaults to looking for a local version, the `IMPORT_AZURE_SDK` setting will
-  override that default.
+* `ENABLE_AZURE` will error out if the `IMPORT_AZURE_SDK` setting is not set.
 ## 3. Development
 In order to run this extension after building, the developer must have an Azure connection string
 locally to a container with the right permissions. The connection string must be stored in an
