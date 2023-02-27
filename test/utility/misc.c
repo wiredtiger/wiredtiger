@@ -374,11 +374,6 @@ testutil_verify_src_backup(WT_CONNECTION *conn, const char *backup, const char *
                 /* We only want to check ranges for files. So if it is a full file copy, ignore. */
                 if (type != WT_BACKUP_RANGE)
                     break;
-                /*
-                 * If the offset indicates it is the expected next offset, then the blocks have
-                 * changed and we expect them to be different. If the offset is not the next
-                 * incremental block it was skipped and the blocks must be identical.
-                 */
                 testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", backup, filename));
                 ret = stat(buf, &sb);
                 /*
@@ -391,7 +386,7 @@ testutil_verify_src_backup(WT_CONNECTION *conn, const char *backup, const char *
                  * If the block is changed we cannot check it (for differences, for example). The
                  * source id may be older and we've already copied the block, or not, so we don't
                  * know if it should be different or not. But if a block is indicated as unchanged
-                 * then we know for sure it better match.
+                 * then it better be identical.
                  */
                 if (offset > prev_offset) {
                     /* Compare the unchanged chunk. */
