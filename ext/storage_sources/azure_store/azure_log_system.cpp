@@ -60,13 +60,7 @@ void
 azure_log_system::set_wt_verbosity_level(int32_t wt_verbosity_level)
 {
     _wt_verbosity_level = wt_verbosity_level;
-    // If the verbosity level is out of range it will default to Azure SDK Error level.
     _azure_log_level = wt_to_azure_verbosity_level(wt_verbosity_level);
-    // if (wt_to_azure_verbosity_mapping.find(wt_verbosity_level) !=
-    //   wt_to_azure_verbosity_mapping.end())
-    //     _azure_log_level = wt_to_azure_verbosity_mapping.at(wt_verbosity_level);
-    // else
-    //     _azure_log_level = Azure::Core::Diagnostics::Logger::Level::Error;
 }
 
 void
