@@ -3040,9 +3040,10 @@ tasks:
             - gcp_sdk_ext_private_key_id
           script: |
             set -o errexit
-            # GCP requires a path to a credentials file for authorization. To not expose the private key within the file, 
-            # use a placeholder private key. The placeholders are then replaced in the command line with the evergreen expansion variables 
-            # and stored in a temporary file.
+            # GCP requires a path to a credentials file for authorization. To not expose the private
+            # information within the file, we use a placeholder private variable which are replaced 
+            # in the command line with the evergreen expansion variables and stored in a temporary 
+            # file.
             file=$(mktemp --suffix ".json")
 
             # Use '|' as the delimiter instead of default behaviour because the private key contains
