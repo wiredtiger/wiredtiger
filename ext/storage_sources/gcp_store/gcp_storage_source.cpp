@@ -51,8 +51,7 @@ static int gcp_flush(
   WT_STORAGE_SOURCE *, WT_SESSION *, WT_FILE_SYSTEM *, const char *, const char *, const char *);
 static int gcp_flush_finish(
   WT_STORAGE_SOURCE *, WT_SESSION *, WT_FILE_SYSTEM *, const char *, const char *, const char *);
-static int gcp_file_system_exists(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *)
-  __attribute__((__unused__));
+static int gcp_file_system_exists(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *);
 static int gcp_file_open(
   WT_FILE_SYSTEM *, WT_SESSION *, const char *, WT_FS_OPEN_FILE_TYPE, uint32_t, WT_FILE_HANDLE **);
 static int gcp_remove(WT_FILE_SYSTEM *, WT_SESSION *, const char *, uint32_t);
