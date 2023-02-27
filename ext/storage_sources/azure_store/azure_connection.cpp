@@ -39,6 +39,7 @@ azure_connection::azure_connection(const std::string &bucket_name, const std::st
         std::getenv("AZURE_STORAGE_CONNECTION_STRING"), bucket_name)),
       _bucket_name(bucket_name), _bucket_prefix(bucket_prefix)
 {
+    // Confirm that we can access the bucket, else fail.
     bool exists;
     int ret = bucket_exists(exists);
     if (ret != 0)
