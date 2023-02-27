@@ -95,6 +95,7 @@ azure_connection::put_object(const std::string &object_key, const std::string &f
         blob_client.UploadFrom(file_path);
     } catch (const Azure::Core::RequestFailedException &e) {
         return http_to_errno(e);
+    } catch (const std::exception &e) {
         std::cerr << e.what() << std::endl;
         return -1;
     }

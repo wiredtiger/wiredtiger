@@ -30,28 +30,45 @@
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
 
-#include <azure/core.hpp>
+#include <azure/core/diagnostics/logger.hpp>
 
-using namespace Azure::Core::Diagnostics;
+#include <atomic>
+#include <map>
 
-static const std::map<int32_t, Logger::Level> wt_to_azure_verbosity_mapping = {
-  {WT_VERBOSE_ERROR, Logger::Level::Error},
-  {WT_VERBOSE_WARNING, Logger::Level::Warning},
-  {WT_VERBOSE_INFO, Logger::Level::Informational},
-  {WT_VERBOSE_DEBUG_1, Logger::Level::Verbose},
-  {WT_VERBOSE_DEBUG_2, Logger::Level::Verbose},
-  {WT_VERBOSE_DEBUG_3, Logger::Level::Verbose},
-  {WT_VERBOSE_DEBUG_4, Logger::Level::Verbose},
-  {WT_VERBOSE_DEBUG_5, Logger::Level::Verbose},
+const std::map<int32_t, Azure::Core::Diagnostics::Logger::Level> wt_to_azure_verbosity_mapping = {
+  {WT_VERBOSE_ERROR, Azure::Core::Diagnostics::Logger::Level::Error},
+  {WT_VERBOSE_WARNING, Azure::Core::Diagnostics::Logger::Level::Warning},
+  {WT_VERBOSE_INFO, Azure::Core::Diagnostics::Logger::Level::Informational},
+  {WT_VERBOSE_DEBUG_1, Azure::Core::Diagnostics::Logger::Level::Verbose},
+  {WT_VERBOSE_DEBUG_2, Azure::Core::Diagnostics::Logger::Level::Verbose},
+  {WT_VERBOSE_DEBUG_3, Azure::Core::Diagnostics::Logger::Level::Verbose},
+  {WT_VERBOSE_DEBUG_4, Azure::Core::Diagnostics::Logger::Level::Verbose},
+  {WT_VERBOSE_DEBUG_5, Azure::Core::Diagnostics::Logger::Level::Verbose},
 };
 
-static const std::map<Logger::Level, int32_t> azure_to_wt_verbosity_mapping = {
-  {Logger::Level::Error, WT_VERBOSE_ERROR},
-  {Logger::Level::Warning, WT_VERBOSE_WARNING},
-  {Logger::Level::Informational, WT_VERBOSE_INFO},
-  {Logger::Level::Verbose, WT_VERBOSE_DEBUG_5},
+const std::map<Azure::Core::Diagnostics::Logger::Level, int32_t> azure_to_wt_verbosity_mapping = {
+  {Azure::Core::Diagnostics::Logger::Level::Error, WT_VERBOSE_ERROR},
+  {Azure::Core::Diagnostics::Logger::Level::Warning, WT_VERBOSE_WARNING},
+  {Azure::Core::Diagnostics::Logger::Level::Informational, WT_VERBOSE_INFO},
+  {Azure::Core::Diagnostics::Logger::Level::Verbose, WT_VERBOSE_DEBUG_5},
 };
 
-Logger::Level wt_to_azure_verbosity_level(int32_t wt_verbosity_level);
+const Azure::Core::Diagnostics::Logger::Level wt_to_azure_verbosity_level(
+  int32_t wt_verbosity_level);
 
-int32_t azure_to_wt_verbosity_level(Logger::Level);
+const int32_t azure_to_wt_verbosity_level(
+  Azure::Core::Diagnostics::Logger::Level azure_verbosity_level);
+
+class azure_log_system {
+    public:
+    azure_log_system(WT_EXTENSION_API *wt_api, uint32_t wt_verbosity_level);
+    void set_wt_verbosity_level(int32_t wt_verbosity_level);
+    void log_err_msg(const std::string &message) const;
+    void log_debug_message(const std::string &message) const;
+
+    private:
+    void log_verbose_message(int32_t verbosity_level, const std::string &message) const;
+    WT_EXTENSION_API *_wt_api;
+    int32_t _wt_verbosity_level;
+    std::atomic<Azure::Core::Diagnostics::Logger::Level> _azure_log_level;
+};

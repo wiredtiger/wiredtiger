@@ -36,7 +36,7 @@
 #include <vector>
 
 #include "azure_connection.h"
-#include <azure_log_system.h>
+#include "azure_log_system.h"
 #include "wt_internal.h"
 
 #include <azure/core/diagnostics/logger.hpp>
@@ -48,6 +48,7 @@ struct azure_file_handle;
 struct azure_store {
     WT_STORAGE_SOURCE store;
     WT_EXTENSION_API *wt_api;
+    std::unique_ptr<azure_log_system> log;
 
     std::mutex fs_mutex;
     std::vector<azure_file_system *> azure_fs;
@@ -89,7 +90,8 @@ static int azure_object_list(
 static int azure_object_list_single(
   WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
 static int azure_object_list_free(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t);
-static int azure_object_list_add(char ***, const std::vector<std::string> &, const uint32_t);
+static int azure_object_list_add(
+  const azure_store &, char ***, const std::vector<std::string> &, const uint32_t);
 static int azure_file_system_terminate(WT_FILE_SYSTEM *, WT_SESSION *);
 static int azure_file_system_exists(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *);
 static int azure_remove(WT_FILE_SYSTEM *, WT_SESSION *, const char *, uint32_t);
@@ -109,8 +111,12 @@ static int
 azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
   const char *bucket, const char *auth_token, const char *config, WT_FILE_SYSTEM **file_system)
 {
+    // Get the value of the config key from the string
+    azure_store *azure_storage = reinterpret_cast<azure_store *>(storage_source);
+    int ret;
+
     if (bucket == nullptr || strlen(bucket) == 0) {
-        std::cerr << "azure_customize_file_system: Bucket not specified." << std::endl;
+        azure_storage->log->log_err_msg("azure_customize_file_system: Bucket not specified.");
         return EINVAL;
     }
 
@@ -118,16 +124,12 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
     WT_CONFIG_ITEM obj_prefix_config;
     std::string obj_prefix;
 
-    // Get the value of the config key from the string
-    azure_store *azure_storage = reinterpret_cast<azure_store *>(storage_source);
-    int ret;
-
     if ((ret = azure_storage->wt_api->config_get_string(
            azure_storage->wt_api, session, config, "prefix", &obj_prefix_config)) == 0)
         obj_prefix = std::string(obj_prefix_config.str, obj_prefix_config.len);
     else if (ret != WT_NOTFOUND) {
-        std::cerr << "azure_customize_file_system: error parsing config for object prefix."
-                  << std::endl;
+        azure_storage->log->log_err_msg(
+          "azure_customize_file_system: error parsing config for object prefix.");
         return ret;
     }
 
@@ -142,7 +144,7 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
     try {
         azure_fs = new azure_file_system;
     } catch (std::bad_alloc &e) {
-        std::cerr << std::string("azure_customize_file_system: ") + e.what() << std::endl;
+        azure_storage->log->log_err_msg(std::string("azure_customize_file_system: ") + e.what());
         return ENOMEM;
     }
 
@@ -153,7 +155,7 @@ azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
     try {
         azure_fs->azure_conn = std::make_unique<azure_connection>(bucket, obj_prefix);
     } catch (std::runtime_error &e) {
-        std::cerr << std::string("azure_customize_file_system: ") + e.what() << std::endl;
+        azure_storage->log->log_err_msg(std::string("azure_customize_file_system: ") + e.what());
         return ENOENT;
     }
     azure_fs->fs.fs_directory_list = azure_object_list;
@@ -182,7 +184,7 @@ azure_add_reference(WT_STORAGE_SOURCE *storage_source)
     azure_store *azure_storage = reinterpret_cast<azure_store *>(storage_source);
 
     if (azure_storage->reference_count == 0 || azure_storage->reference_count + 1 == 0) {
-        std::cerr << "azure_add_reference: missing reference or overflow." << std::endl;
+        azure_storage->log->log_err_msg("azure_add_reference: missing reference or overflow.");
         return EINVAL;
     }
     ++azure_storage->reference_count;
@@ -195,16 +197,17 @@ azure_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYST
   const char *source, const char *object, const char *config)
 {
     azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
+    azure_store *azure_storage = reinterpret_cast<azure_store *>(storage_source);
     WT_FILE_SYSTEM *wtFileSystem = azure_fs->wt_fs;
 
-    WT_UNUSED(storage_source);
     WT_UNUSED(source);
     WT_UNUSED(config);
 
     // std::filesystem::canonical will throw an exception if object does not exist so
     // check if the object exists.
     if (!std::filesystem::exists(source)) {
-        std::cerr << "azure_flush: Object: " << object << " does not exist." << std::endl;
+        azure_storage->log->log_err_msg(
+          "azure_flush: Object: " + std::string(object) + " does not exist.");
         return ENOENT;
     }
 
@@ -212,23 +215,23 @@ azure_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYST
     int ret = wtFileSystem->fs_exist(
       wtFileSystem, session, std::filesystem::canonical(source).string().c_str(), &exists_native);
     if (ret != 0) {
-        std::cerr << "azure_flush: Failed to check for the existence of " << source
-                  << " on the native filesystem." << std::endl;
+        azure_storage->log->log_err_msg("azure_flush: Failed to check for the existence of " +
+          std::string(source) + " on the native filesystem.");
         return ret;
     }
 
     if (!exists_native) {
-        std::cerr << "azure_flush: " << object << " No such file." << std::endl;
+        azure_storage->log->log_err_msg("azure_flush: " + std::string(object) + " No such file.");
         return ENOENT;
     }
-    std::cout << "azure_flush: Uploading object: " << object << " into bucket using put_object."
-              << std::endl;
+    azure_storage->log->log_debug_message(
+      "azure_flush: Uploading object: " + std::string(object) + " into bucket using put_object.");
 
     // Upload the object into the bucket.
     if (azure_fs->azure_conn->put_object(object, std::filesystem::canonical(source)) != 0)
-        std::cerr << "azure_flush: Put object request to Azure failed." << std::endl;
+        azure_storage->log->log_err_msg("azure_flush: Put object request to Azure failed.");
     else
-        std::cout << "azure_flush: Uploaded object to Azure." << std::endl;
+        azure_storage->log->log_debug_message("azure_flush: Uploaded object to Azure.");
     return ret;
 }
 
@@ -237,16 +240,16 @@ static int
 azure_flush_finish(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
   WT_FILE_SYSTEM *file_system, const char *source, const char *object, const char *config)
 {
+    azure_store *azure_storage = reinterpret_cast<azure_store *>(storage_source);
     size_t size = 0;
 
-    WT_UNUSED(storage_source);
     WT_UNUSED(config);
     WT_UNUSED(source);
     WT_UNUSED(size);
 
     bool existp = false;
-    std::cout << "azure_flush_finish: Checking object: " << object << " exists in Azure."
-              << std::endl;
+    azure_storage->log->log_debug_message(
+      "azure_flush_finish: Checking object: " + std::string(object) + " exists in Azure.");
     return azure_file_system_exists(file_system, session, object, &existp);
 }
 
@@ -280,6 +283,7 @@ azure_object_list_helper(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const
   const char *search_prefix, char ***dirlistp, uint32_t *countp, bool list_single)
 {
     azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
+    azure_store *azure_storage = azure_fs->store;
     std::vector<std::string> objects;
     std::string complete_prefix;
 
@@ -300,14 +304,17 @@ azure_object_list_helper(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const
                         azure_fs->azure_conn->list_objects(complete_prefix, objects, false);
 
     if (ret != 0) {
-        std::cerr << "azure_object_list: list_objects request to Azure failed." << std::endl;
+        azure_storage->log->log_err_msg("azure_object_list: list_objects request to Azure failed.");
         return ret;
     }
     *countp = objects.size();
 
+    // azure_storage->log->log_err_msg(
+    //   "azure_object_list: list_objects request to Azure succeeded. Received " +
+    //   std::to_string(**countp) + " objects.");
     std::cerr << "azure_object_list: list_objects request to Azure succeeded. Received " << *countp
               << " objects." << std::endl;
-    azure_object_list_add(dirlistp, objects, *countp);
+    azure_object_list_add(*azure_storage, dirlistp, objects, *countp);
 
     return ret;
 }
@@ -349,22 +356,22 @@ azure_object_list_free(
 
 // Add objects retrieved from Azure bucket into the object list, and allocate the memory needed.
 static int
-azure_object_list_add(
-  char ***dirlistp, const std::vector<std::string> &objects, const uint32_t count)
+azure_object_list_add(const azure_store &azure_storage, char ***dirlistp,
+  const std::vector<std::string> &objects, const uint32_t count)
 {
 
     char **entries;
     if ((entries = reinterpret_cast<char **>(malloc(sizeof(char *) * count))) == nullptr) {
-        std::cerr << "azure_object_list_add: Unable to allocate memory for object list."
-                  << std::endl;
+        azure_storage.log->log_err_msg(
+          "azure_object_list_add: Unable to allocate memory for object list.");
         return ENOMEM;
     }
 
     // Populate entries with the object string.
     for (int i = 0; i < count; i++) {
         if ((entries[i] = strdup(objects[i].c_str())) == nullptr) {
-            std::cerr << "azure_object_list_add: Unable to allocate memory for object string."
-                      << std::endl;
+            azure_storage.log->log_err_msg(
+              "azure_object_list_add: Unable to allocate memory for object string.");
             return ENOMEM;
         }
     }
@@ -403,6 +410,7 @@ azure_file_system_exists(
   WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, bool *existp)
 {
     azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
+    azure_store *azure_storage = azure_fs->store;
     size_t size = 0;
 
     WT_UNUSED(session);
@@ -410,21 +418,22 @@ azure_file_system_exists(
 
     int ret;
 
-    std::cout << "azure_file_system_exists: Checking object: " << name << " exists in Azure."
-              << std::endl;
+    azure_storage->log->log_debug_message(
+      "azure_file_system_exists: Checking object: " + std::string(name) + " exists in Azure.");
 
     // Check whether the object exists in the cloud.
     WT_ERR(azure_fs->azure_conn->object_exists(name, *existp, size));
     if (!*existp) {
-        std::cout << "azure_file_system_exists: Object: " << name << " does not exist in Azure."
-                  << std::endl;
+        azure_storage->log->log_err_msg(
+          "azure_file_system_exists: Object: " + std::string(name) + " does not exist in Azure.");
     } else
-        std::cout << "azure_file_system_exists: Object: " << name << " exists in Azure."
-                  << std::endl;
+        azure_storage->log->log_debug_message(
+          "azure_file_system_exists: Object: " + std::string(name) + " exists in Azure.");
     return 0;
 
 err:
-    std::cerr << "azure_file_system_exists: Error with searching for object: " << name << std::endl;
+    azure_storage->log->log_err_msg(
+      "azure_file_system_exists: Error with searching for object: " + std::string(name));
     return ret;
 }
 
@@ -432,12 +441,14 @@ err:
 static int
 azure_remove(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, uint32_t flags)
 {
-    WT_UNUSED(file_system);
+    azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
+    azure_store *azure_storage = azure_fs->store;
     WT_UNUSED(session);
     WT_UNUSED(name);
     WT_UNUSED(flags);
 
-    std::cerr << "azure_remove: Object: " << name << ": remove of file not supported." << std::endl;
+    azure_storage->log->log_err_msg(
+      "azure_remove: Object: " + std::string(name) + ": remove of file not supported.");
     return ENOTSUP;
 }
 
@@ -446,13 +457,15 @@ static int
 azure_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *from, const char *to,
   uint32_t flags)
 {
-    WT_UNUSED(file_system);
+    azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
+    azure_store *azure_storage = azure_fs->store;
     WT_UNUSED(session);
     WT_UNUSED(from);
     WT_UNUSED(to);
     WT_UNUSED(flags);
 
-    std::cerr << "azure_rename: Object: " << from << ": rename of file not supported." << std::endl;
+    azure_storage->log->log_err_msg(
+      "azure_rename: Object: " + std::string(from) + ": rename of file not supported.");
     return ENOTSUP;
 }
 
@@ -462,7 +475,7 @@ azure_object_size(
   WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, wt_off_t *sizep)
 {
     azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
-
+    azure_store *azure_storage = azure_fs->store;
     WT_UNUSED(session);
 
     int ret;
@@ -471,7 +484,8 @@ azure_object_size(
     *sizep = 0;
 
     if ((ret = azure_fs->azure_conn->object_exists(name, exists, size)) != 0) {
-        std::cerr << "azure_object_size: object_exists request to Azure failed." << std::endl;
+        azure_storage->log->log_err_msg(
+          "azure_object_size: object_exists request to Azure failed.");
         return ret;
     }
 
@@ -486,18 +500,19 @@ azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
   WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags, WT_FILE_HANDLE **file_handlep)
 {
     azure_file_system *azure_fs = reinterpret_cast<azure_file_system *>(file_system);
-
+    azure_store *azure_storage = azure_fs->store;
     WT_UNUSED(session);
 
     // Azure only supports opening the file in read only mode.
     if ((flags & WT_FS_OPEN_READONLY) == 0 || (flags & WT_FS_OPEN_CREATE) != 0) {
-        std::cerr << "azure_file_open: read-only access required." << std::endl;
+        azure_storage->log->log_err_msg("azure_file_open: read-only access required.");
         return EINVAL;
     }
 
     // Only data files and regular files should be opened.
     if (file_type != WT_FS_OPEN_FILE_TYPE_DATA && file_type != WT_FS_OPEN_FILE_TYPE_REGULAR) {
-        std::cerr << "azure_file_open: only data file and regular types supported." << std::endl;
+        azure_storage->log->log_err_msg(
+          "azure_file_open: only data file and regular types supported.");
         return EINVAL;
     }
 
@@ -509,11 +524,12 @@ azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
     WT_UNUSED(size);
 
     if ((ret = azure_fs->azure_conn->object_exists(std::string(name), exists, size)) != 0) {
-        std::cerr << "azure_file_open: object_exists request to Azure failed." << std::endl;
+        azure_storage->log->log_err_msg("azure_file_open: object_exists request to Azure failed.");
         return ret;
     }
     if (!exists) {
-        std::cerr << "azure_file_open: no such file named " << name << "." << std::endl;
+        azure_storage->log->log_err_msg(
+          "azure_file_open: no such file named " + std::string(name) + ".");
         return EINVAL;
     }
 
@@ -533,7 +549,7 @@ azure_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *na
     try {
         azure_fh = new azure_file_handle;
     } catch (std::bad_alloc &e) {
-        std::cerr << std::string("azure_file_open: ") + e.what() << std::endl;
+        azure_storage->log->log_err_msg(std::string("azure_file_open: ") + e.what());
         return ENOMEM;
     }
     azure_fh->name = name;
@@ -613,12 +629,13 @@ azure_file_read(
 {
     azure_file_handle *azure_fh = reinterpret_cast<azure_file_handle *>(file_handle);
     azure_file_system *azure_fs = azure_fh->fs;
+    azure_store *azure_storage = azure_fs->store;
 
     WT_UNUSED(session);
 
     int ret;
     if ((ret = azure_fs->azure_conn->read_object(azure_fh->name, offset, len, buf) != 0)) {
-        std::cerr << "azure_file_read: read_object request to Azure failed." << std::endl;
+        azure_storage->log->log_err_msg("azure_file_read: read_object request to Azure failed.");
         return ret;
     }
 
@@ -630,13 +647,15 @@ static int
 azure_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *sizep)
 {
     azure_file_handle *azure_fh = reinterpret_cast<azure_file_handle *>(file_handle);
+    azure_file_system *azure_fs = azure_fh->fs;
+    azure_store *azure_storage = azure_fs->store;
     WT_DECL_RET;
     bool exists;
     size_t size = 0;
     *sizep = 0;
 
     if ((ret = azure_fh->fs->azure_conn->object_exists(azure_fh->name, exists, size)) != 0) {
-        std::cerr << "azure_file_size: object_exists request to Azure failed." << std::endl;
+        azure_storage->log->log_err_msg("azure_file_size: object_exists request to Azure failed.");
         return ret;
     }
 
@@ -668,6 +687,9 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
         delete (azure_storage);
         return (ret != 0 ? ret : EINVAL);
     }
+
+    azure_storage->log =
+      std::make_unique<azure_log_system>(azure_storage->wt_api, azure_storage->verbose);
     Logger::SetListener([azure_storage](auto lvl, auto msg) {
         if (azure_to_wt_verbosity_level(lvl) <= azure_storage->verbose)
             azure_storage->wt_api->err_printf(azure_storage->wt_api, NULL, "%s", msg.c_str());
@@ -687,9 +709,8 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     // Load the storage.
     if ((connection->add_storage_source(
           connection, "azure_store", &azure_storage->store, nullptr)) != 0) {
-        std::cerr
-          << "wiredtiger_extension_init: Could not load Azure storage source, shutting down."
-          << std::endl;
+        azure_storage->log->log_err_msg(
+          "wiredtiger_extension_init: Could not load Azure storage source, shutting down.");
         delete azure_storage;
         return -1;
     }
