@@ -5,6 +5,15 @@ include(${CMAKE_SOURCE_DIR}/cmake/helpers.cmake)
 set(c_tests)
 
 define_c_test(
+    TARGET test_wt10461_skip_list_stress
+    SOURCES wt10461_skip_list_stress/main.c
+    DIR_NAME wt10461_skip_list_stress
+    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/wt10461_skip_list_stress/smoke.sh
+    ARGUMENTS $<TARGET_FILE:test_wt10461_skip_list_stress>
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
     TARGET test_incr_backup
     SOURCES incr_backup/main.c
     DIR_NAME incr_backup
@@ -20,6 +29,15 @@ define_c_test(
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/random_abort/smoke.sh
     ARGUMENTS $<TARGET_FILE:test_random_abort>
     DEPENDS "WT_POSIX"
+)
+
+define_c_test(
+    TARGET test_random_abort_lazyfs
+    SOURCES random_abort/main.c
+    DIR_NAME random_abort
+    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/random_abort/smoke_lazyfs.sh
+    ARGUMENTS $<TARGET_FILE:test_random_abort_lazyfs>
+    DEPENDS "WT_POSIX" "ENABLE_LAZYFS"
 )
 
 define_c_test(
@@ -50,6 +68,15 @@ define_c_test(
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/schema_abort/smoke.sh
     ARGUMENTS $<TARGET_FILE:test_schema_abort>
     DEPENDS "WT_POSIX"
+)
+
+define_c_test(
+    TARGET test_schema_abort_lazyfs
+    SOURCES schema_abort/main.c
+    DIR_NAME schema_abort
+    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/schema_abort/smoke_lazyfs.sh
+    ARGUMENTS $<TARGET_FILE:test_schema_abort_lazyfs>
+    DEPENDS "WT_POSIX" "ENABLE_LAZYFS"
 )
 
 define_c_test(
@@ -89,6 +116,15 @@ define_c_test(
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/timestamp_abort/smoke.sh
     ARGUMENTS -b $<TARGET_FILE:test_timestamp_abort>
     DEPENDS "WT_POSIX"
+)
+
+define_c_test(
+    TARGET test_timestamp_abort_lazyfs
+    SOURCES timestamp_abort/main.c
+    DIR_NAME timestamp_abort
+    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/timestamp_abort/smoke_lazyfs.sh
+    ARGUMENTS -b $<TARGET_FILE:test_timestamp_abort_lazyfs>
+    DEPENDS "WT_POSIX" "ENABLE_LAZYFS"
 )
 
 define_c_test(
