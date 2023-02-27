@@ -82,6 +82,6 @@ first have to write the tests before adding it as a task to the evergreen.yml fi
 
 Additionally, Evergreen has hidden the private key and private key id for GCP and these are stored
 within the Evergreen system. Due to GCP requiring a json authentication file, a template json
-authentication file is required to be subsitituted with the private key and private key id to create
-a temporary authentication file. Evergreen also has a script to install all the dependencies that
-GCP requires.
+authentication file is provided. The "real" private key (and key id) can be subsitituted into this
+to create a temporary authentication file. Evergreen also has a script to install all the
+dependencies that GCP requires.
