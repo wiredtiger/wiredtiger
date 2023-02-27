@@ -140,7 +140,6 @@
 /*
  * BUILD_ASSERTION_STRING --
  *  Append a common prefix to an assertion message and save into the provided buffer.
- *  Used for Atlas log parsing.
  */
 #define BUILD_ASSERTION_STRING(session, buf, len, exp, ...)                                        \
     do {                                                                                           \
@@ -166,9 +165,6 @@
               session, "A non-NULL session must be provided when unit testing assertions"); \
             __wt_abort(session);                                                            \
         }                                                                                   \
-        /*                                                                                  \
-         * For Atlas log parsing purposes.                                                  \
-         */                                                                                 \
         BUILD_ASSERTION_STRING(                                                             \
           session, (session)->unittest_assert_msg, WT_ERR_MSG_BUF_LEN, exp, __VA_ARGS__);   \
         (session)->unittest_assert_hit = true;                                              \
