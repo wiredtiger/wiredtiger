@@ -2991,13 +2991,13 @@ tasks:
 
             # Use '|' as the delimiter instead of default behaviour because the private key contains
             # slash characters.
-            sed -e 's|gcp_private_id|${gcp_sdk_ext_project_id}|'           \
-                -e 's|gcp_private_key|${gcp_sdk_ext_private_key}|'         \
-                -e 's|gcp_private_id|${gcp_sdk_ext_private_key_id}|'       \ 
-                -e 's|gcp_private_id|${gcp_sdk_ext_client_email}|'         \ 
-                -e 's|gcp_private_id|${gcp_sdk_ext_client_id}|'            \ 
-                -e 's|gcp_private_id|${gcp_sdk_ext_client_x509_cert_url}|' \ 
-                ../test/evergreen/gcp_auth.json >> $file            
+            sed -e 's|gcp_project_id|${gcp_sdk_ext_project_id}|'                      \
+                -e 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|'                \
+                -e 's|gcp_private_id|${gcp_sdk_ext_private_key_id}|'                  \ 
+                -e 's|gcp_client_email|${gcp_sdk_ext_client_email}|'                  \ 
+                -e 's|gcp_client_id|${gcp_sdk_ext_client_id}|'                        \ 
+                -e 's|gcp_client_x509_cert_url|${gcp_sdk_ext_client_x509_cert_url}|'  \ 
+                ../test/evergreen/gcp_auth.json >> $file         
             export GOOGLE_APPLICATION_CREDENTIALS="$file"
             set -o verbose
 
@@ -3047,12 +3047,12 @@ tasks:
 
             # Use '|' as the delimiter instead of default behaviour because the private key contains
             # slash characters.
-            sed -e 's|gcp_private_id|${gcp_sdk_ext_project_id}|'           \
-                -e 's|gcp_private_key|${gcp_sdk_ext_private_key}|'         \
-                -e 's|gcp_private_id|${gcp_sdk_ext_private_key_id}|'       \ 
-                -e 's|gcp_private_id|${gcp_sdk_ext_client_email}|'         \ 
-                -e 's|gcp_private_id|${gcp_sdk_ext_client_id}|'            \ 
-                -e 's|gcp_private_id|${gcp_sdk_ext_client_x509_cert_url}|' \ 
+            sed -e 's|gcp_project_id|${gcp_sdk_ext_project_id}|'                      \
+                -e 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|'                \
+                -e 's|gcp_private_id|${gcp_sdk_ext_private_key_id}|'                  \ 
+                -e 's|gcp_client_email|${gcp_sdk_ext_client_email}|'                  \ 
+                -e 's|gcp_client_id|${gcp_sdk_ext_client_id}|'                        \ 
+                -e 's|gcp_client_x509_cert_url|${gcp_sdk_ext_client_x509_cert_url}|'  \ 
                 ../test/evergreen/gcp_auth.json >> $file       
             export GOOGLE_APPLICATION_CREDENTIALS="$file"
             set -o verbose
