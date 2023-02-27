@@ -266,6 +266,7 @@ call_log_manager::call_log_rollback_transaction(const json &call_log_entry)
     int ret = session->rollback_transaction(config);
 
     int ret_expected [[maybe_unused]] = call_log_entry["return"]["return_val"].get<int>();
+    int ret_expected = call_log_entry["return"]["return_val"].get<int>();
     /* The ret value should be equal to the expected ret value. */
     assert(ret == ret_expected);
 
@@ -288,7 +289,9 @@ call_log_manager::call_log_set_timestamp(const json &call_log_entry)
         return;
 
     int ret = _conn->set_timestamp(config);
+
     int ret_expected [[maybe_unused]] = call_log_entry["return"]["return_val"].get<int>();
+    int ret_expected = call_log_entry["return"]["return_val"].get<int>();
     /* The ret value should be equal to the expected ret value. */
     assert(ret == ret_expected);
 

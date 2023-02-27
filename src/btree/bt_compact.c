@@ -111,6 +111,7 @@ __compact_page_replace_addr(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY 
      */
     addr = ref->addr;
     WT_ASSERT(session, addr != NULL);
+    unpack.raw = 0; /* [-Werror=maybe-uninitialized] with gcc and release build. */
 
     if (__wt_off_page(ref->home, addr))
         __wt_free(session, addr->addr);
