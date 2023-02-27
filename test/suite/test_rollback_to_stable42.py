@@ -33,8 +33,35 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 from test_rollback_to_stable01 import test_rollback_to_stable_base
 
-def custom_validator(pattern):
-    pass
+# There's one message we need to see for the test to pass ("needle"), and
+# a set of messages that are acceptable. Fail if a message is either
+# unacceptable or we don't see the needle at all.
+def custom_validator(data):
+    acceptable = [
+        "page with reconciled",
+        "performing shutdown rollback",
+        "performing rollback to stable",
+        "tree rolled back",
+        "connection logging enabled",
+        "WT_VERB_RTS",
+    ]
+    needle = "skipped performing rollback to stable"
+
+    found = False
+    for line in data.splitlines():
+        ok = False
+        if needle in line:
+            found = True
+        for s in acceptable:
+            print(f"looking for {s} in {line}")
+            if s in line:
+                ok = True
+                break
+        if not ok:
+            raise Exception("Got unexpected message: {}".format(line))
+
+    if not found:
+        raise Exception('Failed to find "{}" in stdout'.format(needle))
 
 # test_rollback_to_stable42.py
 # Test that rollback to stable on a missing file complains and bails.
@@ -43,18 +70,25 @@ class test_rollback_to_stable42(test_rollback_to_stable_base):
         return 'verbose=(rts:1)'
 
     format_values = [
-        # ('column', dict(key_format='r', value_format='S')),
-        # ('column_fix', dict(key_format='r', value_format='8t')),
+        ('column', dict(key_format='r', value_format='S')),
+        ('column_fix', dict(key_format='r', value_format='8t')),
         ('row_integer', dict(key_format='i', value_format='S')),
     ]
 
     scenarios = make_scenarios(format_values)
 
     def test_reopen_after_delete(self):
+        # We remove the test file while WiredTiger still has it open,
+        # which Windows doesn't like.
+        if os.name == 'nt':
+            return
+
+        # RTS runs as part of shutdown, but it won't succeed since we
+        # remove the file that needs rollback.
+        self.ignoreTearDownLogs = True
+
         uri = 'table:test_rollback_to_stable42'
         nrows = 1000
-
-        self.ignoreTearDownLogs = True
 
         if self.value_format == '8t':
             value_a = 97
@@ -67,6 +101,7 @@ class test_rollback_to_stable42(test_rollback_to_stable_base):
         ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
 
+        # Save some unstable updates to disk.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
         self.large_updates(uri, value_b, ds, nrows, False, 60)
         self.session.checkpoint()

@@ -190,13 +190,18 @@ class CapturedFd(object):
         """
         if self.file != None:
             self.file.flush()
-        gotstr = self.readFileFrom(self.filename, self.expectpos, 1500)
+
+        # Custom validators probably don't want to see truncated output.
+        # Give them the whole string.
+        new_expectpos = os.path.getsize(self.filename)
+        diff = new_expectpos - self.expectpos
+        gotstr = self.readFileFrom(self.filename, self.expectpos, diff)
         try:
             f(gotstr)
         except Exception as e:
             testcase.fail('in ' + self.desc +
                           ', custom validator failed: ' + str(e))
-        self.expectpos = os.path.getsize(self.filename)
+        self.expectpos = new_expectpos
 
 class TestSuiteConnection(object):
     def __init__(self, conn, connlist):
