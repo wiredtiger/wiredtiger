@@ -212,6 +212,7 @@ MADV
 MALLOC
 MEM
 MEMALIGN
+MEMORDER
 MERCHANTABILITY
 MOVEFILE
 MRXB
@@ -877,6 +878,7 @@ logsize
 logtest
 lookaside
 lookups
+loongarch
 lossy
 lr
 lru
@@ -1126,6 +1128,7 @@ snaplen
 snapsort
 snprintf
 sp
+sparc
 spinlock
 spinlocks
 src
