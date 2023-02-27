@@ -44,6 +44,18 @@ extern int __wt_optind;
 extern char *__wt_optarg;
 
 /*
+ * init_thread_data --
+ *     Initialize the thread data struct.
+ */
+static void
+init_thread_data(THREAD_DATA *td, int info)
+{
+    td->info = info;
+    testutil_random_from_random(&td->data_rnd, &g.opts.data_rnd);
+    testutil_random_from_random(&td->extra_rnd, &g.opts.extra_rnd);
+}
+
+/*
  * main --
  *     TODO: Add a comment describing this function.
  */
@@ -182,6 +194,9 @@ main(int argc, char *argv[])
     if (argc != 0)
         return (usage());
 
+    /*
+     * Among other things, this initializes the random number generators in the option structure.
+     */
     testutil_parse_end_opt(&g.opts);
     /* Clean up on signal. */
     (void)signal(SIGINT, onint);
@@ -193,6 +208,8 @@ main(int argc, char *argv[])
     g.ts_oldest = 1;
 
     printf("%s: process %" PRIu64 "\n", progname, (uint64_t)getpid());
+    printf("CONFIG: %s " TESTUTIL_SEED_FORMAT "\n", progname, g.opts.data_seed, g.opts.extra_seed);
+
     for (cnt = 1; (runs == 0 || cnt <= runs) && g.status == 0; ++cnt) {
         cleanup(cnt == 1 && !verify_only); /* Clean up previous runs */
 
@@ -203,7 +220,6 @@ main(int argc, char *argv[])
             (void)log_print_err("No memory", ENOMEM, 1);
             break;
         }
-
         for (i = 0; i < g.ntables; ++i) {
             g.cookies[i].id = i;
             if (ttype == MIX) {
@@ -216,6 +232,21 @@ main(int argc, char *argv[])
             testutil_check(__wt_snprintf(
               g.cookies[i].uri, sizeof(g.cookies[i].uri), "%s%04d", URI_BASE, g.cookies[i].id));
         }
+
+        /*
+         * Setup thread data. There are N worker threads, a checkpoint thread and possibly a clock
+         * thread. The workers are ID 0 to N-1, checkpoint thread as N, and the clock thread as N +
+         * 1.
+         */
+        if ((g.td = calloc((size_t)(g.nworkers + 2), sizeof(THREAD_DATA))) == NULL) {
+            (void)log_print_err("No memory", ENOMEM, 1);
+            break;
+        }
+        for (i = 0; i < g.nworkers; ++i) {
+            init_thread_data(&g.td[i], i);
+        }
+        init_thread_data(&g.td[g.nworkers], g.nworkers);         /* Checkpoint thread. */
+        init_thread_data(&g.td[g.nworkers + 1], g.nworkers + 1); /* Clock thread. */
 
         g.opts.running = true;
 
@@ -245,6 +276,8 @@ main(int argc, char *argv[])
 run_complete:
         free(g.cookies);
         g.cookies = NULL;
+        free(g.td);
+        g.td = NULL;
         if ((ret = wt_shutdown()) != 0) {
             (void)log_print_err("Shutdown failed", ret, 1);
             break;
@@ -271,7 +304,6 @@ static void
 wt_connect(const char *config_open)
 {
     static WT_EVENT_HANDLER event_handler = {handle_error, handle_message, NULL, NULL, NULL};
-    WT_RAND_STATE rnd;
     char buf[512], config[1024];
     bool fast_eviction;
 
@@ -280,8 +312,7 @@ wt_connect(const char *config_open)
     /*
      * Randomly decide on the eviction rate (fast or default).
      */
-    __wt_random_init_seed(NULL, &rnd);
-    if ((__wt_random(&rnd) % 15) % 2 == 0)
+    if ((__wt_random(&g.opts.extra_rnd) % 15) % 2 == 0)
         fast_eviction = true;
 
     /* Set up the basic configuration string first. */
@@ -331,7 +362,7 @@ wt_connect(const char *config_open)
         g.opts.conn = g.conn;
 
         /* Set up a random delay for the first flush. */
-        set_flush_tier_delay(&rnd);
+        set_flush_tier_delay(&g.opts.extra_rnd);
         testutil_tiered_begin(&g.opts);
     }
 }

@@ -55,6 +55,12 @@ typedef struct {
 } COOKIE;
 
 typedef struct {
+    int info;
+    WT_RAND_STATE data_rnd;
+    WT_RAND_STATE extra_rnd;
+} THREAD_DATA;
+
+typedef struct {
     TEST_OPTS opts;              /* Shared test options */
     char *home;                  /* Home directory */
     const char *checkpoint_name; /* Checkpoint name */
@@ -84,7 +90,8 @@ typedef struct {
 
     bool use_timestamps; /* Use txn timestamps. Start clock thread */
 
-    COOKIE *cookies;               /* Per-thread info */
+    COOKIE *cookies;               /* Per-table info */
+    THREAD_DATA *td;               /* Per-thread info */
     WT_RWLOCK clock_lock;          /* Clock synchronization */
     wt_thread_t checkpoint_thread; /* Checkpoint thread */
     wt_thread_t clock_thread;      /* Clock thread */

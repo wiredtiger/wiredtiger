@@ -32,7 +32,7 @@ static WT_THREAD_RET checkpointer(void *);
 static WT_THREAD_RET clock_thread(void *);
 static int compare_cursors(WT_CURSOR *, table_type, WT_CURSOR *, table_type);
 static int diagnose_key_error(WT_CURSOR *, table_type, int, WT_CURSOR *, table_type, int);
-static int real_checkpointer(void);
+static int real_checkpointer(THREAD_DATA *);
 
 /*
  * set_stable --
@@ -59,10 +59,15 @@ void
 start_threads(void)
 {
     set_stable();
-    testutil_check(__wt_thread_create(NULL, &g.checkpoint_thread, checkpointer, NULL));
+    /*
+     * If there are N worker threads (0 - N-1), the checkpoint thread has an ID of N and the clock
+     * thread an ID of N + 1.
+     */
+    testutil_check(__wt_thread_create(NULL, &g.checkpoint_thread, checkpointer, &g.td[g.nworkers]));
     if (g.use_timestamps) {
         testutil_check(__wt_rwlock_init(NULL, &g.clock_lock));
-        testutil_check(__wt_thread_create(NULL, &g.clock_thread, clock_thread, NULL));
+        testutil_check(
+          __wt_thread_create(NULL, &g.clock_thread, clock_thread, &g.td[g.nworkers + 1]));
     }
 }
 
@@ -93,14 +98,13 @@ end_threads(void)
 static WT_THREAD_RET
 clock_thread(void *arg)
 {
-    WT_RAND_STATE rnd;
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
+    THREAD_DATA *td;
     uint64_t delay;
 
-    WT_UNUSED(arg);
+    td = (THREAD_DATA *)arg;
 
-    __wt_random_init(&rnd);
     testutil_check(g.conn->open_session(g.conn, NULL, NULL, &wt_session));
     session = (WT_SESSION_IMPL *)wt_session;
 
@@ -119,14 +123,14 @@ clock_thread(void *arg)
             /*
              * Random value between 6 and 10 seconds.
              */
-            delay = __wt_random(&rnd) % 5;
+            delay = __wt_random(&td->extra_rnd) % 5;
             __wt_sleep(delay + 6, 0);
         }
         __wt_writeunlock(session, &g.clock_lock);
         /*
          * Random value between 5000 and 10000.
          */
-        delay = __wt_random(&rnd) % 5001;
+        delay = __wt_random(&td->extra_rnd) % 5001;
         __wt_sleep(0, delay + 5 * WT_THOUSAND);
     }
 
@@ -144,13 +148,11 @@ checkpointer(void *arg)
 {
     char tid[128];
 
-    WT_UNUSED(arg);
-
     testutil_check(__wt_thread_str(tid, sizeof(tid)));
     printf("checkpointer thread starting: tid: %s\n", tid);
     fflush(stdout);
 
-    (void)real_checkpointer();
+    (void)real_checkpointer((THREAD_DATA *)arg);
     return (WT_THREAD_RET_VALUE);
 }
 
@@ -179,9 +181,8 @@ set_flush_tier_delay(WT_RAND_STATE *rnd)
  *     in a timely fashion.
  */
 static int
-real_checkpointer(void)
+real_checkpointer(THREAD_DATA *td)
 {
-    WT_RAND_STATE rnd;
     WT_SESSION *session;
     wt_timestamp_t stable_ts, oldest_ts, verify_ts;
     uint64_t delay;
@@ -197,7 +198,6 @@ real_checkpointer(void)
     if (!g.opts.running)
         return (log_print_err("Checkpoint thread started stopped\n", EINVAL, 1));
 
-    __wt_random_init(&rnd);
     while (g.ntables > g.ntables_created && g.opts.running)
         __wt_yield();
 
@@ -216,7 +216,8 @@ real_checkpointer(void)
     testutil_check(__wt_snprintf(
       flush_tier_config, sizeof(flush_tier_config), "flush_tier=(enabled,force),%s", ts_config));
 
-    set_flush_tier_delay(&rnd);
+    /* Use the extra random generator as the tier delay doesn't affect the actual data content. */
+    set_flush_tier_delay(&td->extra_rnd);
 
     while (g.opts.running) {
         /*
@@ -233,7 +234,8 @@ real_checkpointer(void)
             if (stable_ts <= oldest_ts)
                 verify_ts = stable_ts;
             else
-                verify_ts = __wt_random(&rnd) % (stable_ts - oldest_ts + 1) + oldest_ts;
+                /* Use the extra random generator as the data is not getting modified. */
+                verify_ts = __wt_random(&td->extra_rnd) % (stable_ts - oldest_ts + 1) + oldest_ts;
             __wt_writelock((WT_SESSION_IMPL *)session, &g.clock_lock);
             g.ts_oldest = g.ts_stable;
             __wt_writeunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
@@ -255,7 +257,11 @@ real_checkpointer(void)
             flush_tier = false;
             printf("Finished a flush_tier\n");
 
-            set_flush_tier_delay(&rnd);
+            /*
+             * Use the extra random generator as the tier delay doesn't affect the actual data
+             * content.
+             */
+            set_flush_tier_delay(&td->extra_rnd);
         }
 
         if (!g.opts.running)
@@ -277,8 +283,11 @@ real_checkpointer(void)
         }
 
         if (g.sweep_stress)
-            /* Random value between 4 and 8 seconds. */
-            delay = __wt_random(&rnd) % 5 + 4;
+            /*
+             * Random value between 4 and 8 seconds. Use the extra random generator as the tier
+             * sleep delay doesn't affect the actual data content.
+             */
+            delay = __wt_random(&td->extra_rnd) % 5 + 4;
         else
             /* Just find out if we should flush_tier. */
             delay = 0;

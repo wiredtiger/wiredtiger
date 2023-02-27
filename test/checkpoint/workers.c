@@ -31,7 +31,7 @@
 #define MAX_MODIFY_ENTRIES 5
 
 static char modify_repl[256];
-static int real_worker(void);
+static int real_worker(THREAD_DATA *);
 static WT_THREAD_RET worker(void *);
 
 /*
@@ -120,9 +120,9 @@ start_workers(void)
 
     (void)gettimeofday(&start, NULL);
 
-    /* Create threads. */
+    /* Create threads. The N workers have ID 0 to N - 1. */
     for (i = 0; i < g.nworkers; ++i)
-        testutil_check(__wt_thread_create(NULL, &tids[i], worker, &g.cookies[i]));
+        testutil_check(__wt_thread_create(NULL, &tids[i], worker, &g.td[i]));
 
     /* Wait for the threads. */
     for (i = 0; i < g.nworkers; ++i)
@@ -336,13 +336,11 @@ worker(void *arg)
 {
     char tid[128];
 
-    WT_UNUSED(arg);
-
     testutil_check(__wt_thread_str(tid, sizeof(tid)));
     printf("worker thread starting: tid: %s\n", tid);
     fflush(stdout);
 
-    (void)real_worker();
+    (void)real_worker((THREAD_DATA *)arg);
     return (WT_THREAD_RET_VALUE);
 }
 
@@ -351,10 +349,9 @@ worker(void *arg)
  *     A single worker thread that transactionally updates all tables with consistent values.
  */
 static int
-real_worker(void)
+real_worker(THREAD_DATA *td)
 {
     WT_CURSOR **cursors;
-    WT_RAND_STATE rnd;
     WT_SESSION *session;
     u_int i, keyno, next_rnd;
     int j, ret, t_ret;
@@ -383,8 +380,6 @@ real_worker(void)
             begin_cfg = "read_timestamp=1,roundup_timestamps=(read=true)";
     }
 
-    __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
-
     for (j = 0; j < g.ntables; j++)
         if ((ret = session->open_cursor(session, g.cookies[j].uri, NULL, NULL, &cursors[j])) != 0) {
             (void)log_print_err("session.open_cursor", ret, 1);
@@ -402,9 +397,10 @@ real_worker(void)
             new_txn = true;
             start_txn = false;
         }
-        keyno = __wt_random(&rnd) % g.nkeys + 1;
+        keyno = __wt_random(&td->data_rnd) % g.nkeys + 1;
         /* If we have specified to run with mix mode deletes we need to do it in it's own txn. */
-        if (g.use_timestamps && g.no_ts_deletes && new_txn && __wt_random(&rnd) % 72 == 0) {
+        if (g.use_timestamps && g.no_ts_deletes && new_txn &&
+          __wt_random(&td->data_rnd) % 72 == 0) {
             new_txn = false;
             for (j = 0; j < g.ntables; j++) {
                 ret = worker_no_ts_delete(cursors[j], keyno);
@@ -436,11 +432,11 @@ real_worker(void)
             (void)log_print_err("worker op failed", ret, 1);
             goto err;
         } else if (ret == 0) {
-            next_rnd = __wt_random(&rnd);
+            next_rnd = __wt_random(&td->data_rnd);
             if (next_rnd % 7 == 0) {
                 if (g.use_timestamps) {
                     if (__wt_try_readlock((WT_SESSION_IMPL *)session, &g.clock_lock) == 0) {
-                        next_rnd = __wt_random(&rnd);
+                        next_rnd = __wt_random(&td->data_rnd);
                         if (g.prepare && next_rnd % 2 == 0) {
                             testutil_check(__wt_snprintf(
                               buf, sizeof(buf), "prepare_timestamp=%" PRIx64, g.ts_stable + 1));
