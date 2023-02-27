@@ -652,6 +652,7 @@ class WiredTigerTestCase(unittest.TestCase):
             namefile.write(str(self) + '\n')
         self.fdSetUp()
         self._threadLocal.currentTestCase = self
+        self.ignoreTearDownLogs = False
         # tearDown needs a conn field, set it here in case the open fails.
         self.conn = None
         try:
@@ -732,7 +733,7 @@ class WiredTigerTestCase(unittest.TestCase):
         self._connections = []
         try:
             self.fdTearDown()
-            if not dueToRetry:
+            if not (dueToRetry or self.ignoreTearDownLogs):
                 self.captureout.check(self)
                 self.captureerr.check(self)
         finally:

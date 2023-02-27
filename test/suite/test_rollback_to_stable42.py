@@ -54,6 +54,8 @@ class test_rollback_to_stable42(test_rollback_to_stable_base):
         uri = 'table:test_rollback_to_stable42'
         nrows = 1000
 
+        self.ignoreTearDownLogs = True
+
         if self.value_format == '8t':
             value_a = 97
             value_b = 98
