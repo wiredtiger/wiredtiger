@@ -38,12 +38,15 @@ from test_rollback_to_stable01 import test_rollback_to_stable_base
 # unacceptable or we don't see the needle at all.
 def custom_validator(data):
     acceptable = [
-        "page with reconciled",
-        "performing shutdown rollback",
-        "performing rollback to stable",
-        "tree rolled back",
         "connection logging enabled",
-        "WT_VERB_RTS",
+        "deleted page walk skipped",
+        "page with reconciled",
+        "performing recovery rollback",
+        "performing rollback to stable",
+        "performing shutdown rollback",
+        "recovered checkpoint snapshot",
+        "tree rolled back",
+        "update aborted with txnid",
     ]
     needle = "skipped performing rollback to stable"
 
