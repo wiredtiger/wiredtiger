@@ -93,11 +93,9 @@ class test_rollback_to_stable42(test_rollback_to_stable_base):
         nrows = 1000
 
         if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
+            value = 97
         else:
-            value_a = 'a' * 10
-            value_b = 'b' * 10
+            value = 'a' * 10
 
         # Create our table.
         ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
@@ -105,7 +103,7 @@ class test_rollback_to_stable42(test_rollback_to_stable_base):
 
         # Save some unstable updates to disk.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
-        self.large_updates(uri, value_b, ds, nrows, False, 60)
+        self.large_updates(uri, value, ds, nrows, False, 60)
         self.session.checkpoint()
 
         os.remove('test_rollback_to_stable42.wt')
