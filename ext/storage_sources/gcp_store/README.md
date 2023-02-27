@@ -16,9 +16,9 @@ This section describes how to build WiredTiger with the GCP extension enabled.
 * clang 6.0.0 or higher
 
 ### Building
-There is currently only 1 way to build WiredTiger with GCP extension:
+There is currently only 1 way to build WiredTiger with the GCP extension:
 This way manages the GCP SDK dependency as an external project. This method will download the
-GCP SDK, and link to the WiredTiger's build system and build the extension.
+GCP SDK, link to WiredTiger's build system, and build the extension.
 
 There are two CMake flags associated with the GCP extension: `ENABLE_GCP` and `IMPORT_GCP_SDK`.
 * `ENABLE_GCP=1` is required to build the GCP extension.
@@ -70,14 +70,14 @@ cd build
 ext/storage_sources/gcp_store/test/run_gcp_unit_tests
 ```
 
-To add any additional unit testing, add to the file `test_GCP_connection.cpp`, alternatively if the
+To add any additional unit testing, add to the file `test_gcp_connection.cpp`, alternatively if the
 developer wishes to add a new test file, add it to the `SOURCES` list in `create_test_executable()`
-(in `GCP_store/test/CMakeLists.txt`).
+(in `gcp_store/test/CMakeLists.txt`).
 
 ## 5. Evergreen Testing
 
 Currently the Evergreen testing runs both `test_tiered19.py` and the unit tests in
-`test_gcp_connection.cpp`. Should a developer wish to additional tests to the extension, they would
+`test_gcp_connection.cpp`. Should a developer wish to add additional tests to the extension, they would
 first have to write the tests before adding it as a task to the evergreen.yml file.
 
 Additionally, Evergreen has hidden the private key and private key id for GCP and these are stored
