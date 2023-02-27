@@ -56,7 +56,6 @@ def custom_validator(data):
         if needle in line:
             found = True
         for s in acceptable:
-            print(f"looking for {s} in {line}")
             if s in line:
                 ok = True
                 break
@@ -111,6 +110,10 @@ class test_rollback_to_stable42(test_rollback_to_stable_base):
 
         os.remove('test_rollback_to_stable42.wt')
 
+        # RTS runs at shutdown and startup, and we need WiredTiger to
+        # see that the file was deleted from under it (it might all be
+        # in memory if we call conn.rollback_to_stable()). Kill both
+        # of these birds with one stone.
         with self.customStdoutPattern(custom_validator):
             simulate_crash_restart(self, ".", "RESTART")
 
