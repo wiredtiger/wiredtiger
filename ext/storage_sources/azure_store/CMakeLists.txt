@@ -33,11 +33,11 @@ target_link_libraries(
 )
 
 add_dependencies(azure_container_util azure-sdk)
-# Build the Azure extension as a library 
+# Build the Azure extension as a library
 add_library(wiredtiger_azure_store MODULE azure_storage_source.cpp)
-target_include_directories( 
+target_include_directories(
     wiredtiger_azure_store
-    PRIVATE    
+    PRIVATE
         ${CMAKE_SOURCE_DIR}/src/include
         ${CMAKE_BINARY_DIR}/include
         ${CMAKE_BINARY_DIR}/config
