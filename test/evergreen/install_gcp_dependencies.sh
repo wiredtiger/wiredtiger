@@ -18,7 +18,7 @@ install_abseil ()
         -DBUILD_SHARED_LIBS=yes ../.
     make -j $(nproc)
     cd ..
-    sudo /opt/cmake/bin/cmake --build cmake-out --target install
+    $CMAKE --build cmake-out --target install
     cd ..
 }
 
@@ -35,7 +35,7 @@ install_nlohmann_json ()
         -DJSON_BuildTests=OFF ../.
     make -j $(nproc)
     cd ..
-    sudo /opt/cmake/bin/cmake --build cmake-out --target install
+    $CMAKE --build cmake-out --target install
     cd ..
 }
 
@@ -52,7 +52,7 @@ install_crc32c ()
         -DCRC32C_USE_GLOG=OFF ../.
     make -j $(nproc)
     cd ..
-    sudo /opt/cmake/bin/cmake --build cmake-out --target install
+    $CMAKE --build cmake-out --target install
     cd ..
 }
 
