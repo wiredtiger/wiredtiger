@@ -309,11 +309,9 @@ azure_object_list_helper(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const
     }
     *countp = objects.size();
 
-    // azure_storage->log->log_err_msg(
-    //   "azure_object_list: list_objects request to Azure succeeded. Received " +
-    //   std::to_string(**countp) + " objects.");
-    std::cerr << "azure_object_list: list_objects request to Azure succeeded. Received " << *countp
-              << " objects." << std::endl;
+    azure_storage->log->log_debug_message(
+      "azure_object_list: list_objects request to Azure succeeded. Received " +
+      std::to_string(objects.size()) + " objects.");
     azure_object_list_add(*azure_storage, dirlistp, objects, *countp);
 
     return ret;
