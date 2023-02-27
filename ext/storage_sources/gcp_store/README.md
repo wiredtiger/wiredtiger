@@ -66,8 +66,8 @@ env WT_BUILDDIR=$(pwd) python3 ../test/suite/run.py -j 10 -v 4 test_tiered19
 
 ```bash
 # Once WiredTiger has been built with the GCP Extension, run the tests from the build directory
-cd build
-ext/storage_sources/gcp_store/test/run_gcp_unit_tests
+cd build/ext/storage_sources/gcp_store/test/
+./run_gcp_unit_tests
 ```
 
 To add any additional unit testing, add to the file `test_gcp_connection.cpp`, alternatively if the
@@ -81,7 +81,7 @@ Currently the Evergreen testing runs both `test_tiered19.py` and the unit tests 
 first have to write the tests before adding it as a task to the evergreen.yml file.
 
 Additionally, Evergreen has hidden the private key and private key id for GCP and these are stored
-within the Evergreen system. Due to GCP requiring a json authentication file to authenticate the
-connection, a temporary file of the json authentication file is required to be subsitituted with the
-private key and private key id hidden earlier. Evergreen also has a script to install all the
-dependencies that GCP requires.
+within the Evergreen system. Due to GCP requiring a json authentication file, a template json
+authentication file is required to be subsitituted with the private key and private key id to create
+a temporary authentication file. Evergreen also has a script to install all the dependencies that
+GCP requires.
