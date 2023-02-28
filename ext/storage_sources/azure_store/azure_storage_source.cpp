@@ -91,7 +91,7 @@ static int azure_object_list_single(
   WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
 static int azure_object_list_free(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t);
 static int azure_object_list_add(
-  const azure_store &, char ***, const std::vector<std::string> &, const uint32_t);
+  const azure_file_system &, char ***, const std::vector<std::string> &, const uint32_t);
 static int azure_file_system_terminate(WT_FILE_SYSTEM *, WT_SESSION *);
 static int azure_file_system_exists(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *);
 static int azure_remove(WT_FILE_SYSTEM *, WT_SESSION *, const char *, uint32_t);
@@ -677,8 +677,6 @@ int
 wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 {
     azure_store *azure_storage = new azure_store;
-	auto log = azure_storage->log.get();
-
     WT_CONFIG_ITEM v;
 
     azure_storage->wt_api = connection->get_extension_api(connection);
@@ -691,7 +689,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
         azure_storage->verbose = v.val;
         Logger::SetLevel(wt_to_azure_verbosity_level(v.val));
     } else if (ret != WT_NOTFOUND) {
-        log->log_err_msg(
+        azure_storage->log->log_err_msg(
           "wiredtiger_extension_init: error parsing config for verbose level.");
         delete (azure_storage);
         return (ret != 0 ? ret : EINVAL);
@@ -718,7 +716,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     // Load the storage.
     if ((connection->add_storage_source(
           connection, "azure_store", &azure_storage->store, nullptr)) != 0) {
-        log->log_err_msg(
+        azure_storage->log->log_err_msg(
           "wiredtiger_extension_init: Could not load Azure storage source, shutting down.");
         delete azure_storage;
         return -1;
