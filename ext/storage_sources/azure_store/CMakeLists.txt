@@ -1,8 +1,13 @@
 project(azure_store CXX)
 
 find_package(CURL REQUIRED) 
-find_package(azure-storage-blobs-cpp CONFIG REQUIRED)
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.13)
+
+# Using the Azure SDK produces a reference problem where an Azure Library
+# indirectly depends on an internal Azure library. Fixing this problem requires setting
+# the linker flags and runtime path.
+set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} -Wl,--disable-new-dtags)
+set(CMAKE_INSTALL_RPATH "${CMAKE_BINARY_DIR}/azure-sdk-cpp/install/lib")
 
 # Create an intermediate library to build the helper library.
 add_library(azure_container_util STATIC azure_connection.cpp)
@@ -22,14 +27,17 @@ target_compile_options(
 target_link_libraries(
     azure_container_util
     PUBLIC
-        Azure::azure-storage-blobs
+        azure_core_lib
+        azure_storage_lib
+        azure_storage_common_lib
 )
 
-# Build the Azure extension as a library 
+add_dependencies(azure_container_util azure-sdk)
+# Build the Azure extension as a library
 add_library(wiredtiger_azure_store MODULE azure_storage_source.cpp)
-target_include_directories( 
+target_include_directories(
     wiredtiger_azure_store
-    PRIVATE    
+    PRIVATE
         ${CMAKE_SOURCE_DIR}/src/include
         ${CMAKE_BINARY_DIR}/include
         ${CMAKE_BINARY_DIR}/config
