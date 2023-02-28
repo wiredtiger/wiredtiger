@@ -4987,6 +4987,10 @@ buildvariants:
       batchtime: 40320 # 28 days
     - name: s-string
       batchtime: 129600 # 90 days
+    - name: ".tiered_unittest"
+    - name: azure-tiered-test-small
+    - name: gcp-tiered-test-small
+
 
 - name: ubuntu2004-asan
   display_name: "! Ubuntu 20.04 ASAN"
