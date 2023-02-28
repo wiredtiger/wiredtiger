@@ -35,6 +35,7 @@ azure_log_system::azure_log_system(WT_EXTENSION_API *wt_api, uint32_t wt_verbosi
     set_wt_verbosity_level(wt_verbosity_level);
 }
 
+// Find Azure Logger level given WiredTiger verbosity level returns Error if not found.
 const Azure::Core::Diagnostics::Logger::Level
 wt_to_azure_verbosity_level(int32_t wt_verbosity_level)
 {
@@ -45,6 +46,7 @@ wt_to_azure_verbosity_level(int32_t wt_verbosity_level)
         return Azure::Core::Diagnostics::Logger::Level::Error;
 }
 
+// Find WiredTiger verbosity level given Azure Logger level returns Error if not found.
 const int32_t
 azure_to_wt_verbosity_level(Azure::Core::Diagnostics::Logger::Level azure_verbosity_level)
 {

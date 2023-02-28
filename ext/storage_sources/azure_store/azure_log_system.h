@@ -59,6 +59,11 @@ const Azure::Core::Diagnostics::Logger::Level wt_to_azure_verbosity_level(
 const int32_t azure_to_wt_verbosity_level(
   Azure::Core::Diagnostics::Logger::Level azure_verbosity_level);
 
+/*
+ * This class represents the Azure Logging System which is used for all logging output, with
+ * configurable logging levels. The Azure errors are mapped to their WiredTiger equivalent and logged
+ * through the use of the WT_EXTENSION_API.
+ */
 class azure_log_system {
     public:
     azure_log_system(WT_EXTENSION_API *wt_api, uint32_t wt_verbosity_level);
