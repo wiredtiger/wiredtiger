@@ -61,8 +61,8 @@ const int32_t azure_to_wt_verbosity_level(
 
 /*
  * This class represents the Azure Logging System which is used for all logging output, with
- * configurable logging levels. The Azure errors are mapped to their WiredTiger equivalent and logged
- * through the use of the WT_EXTENSION_API.
+ * configurable logging levels. The Azure errors are mapped to their WiredTiger equivalent and
+ * logged through the use of the WT_EXTENSION_API.
  */
 class azure_log_system {
     public:
