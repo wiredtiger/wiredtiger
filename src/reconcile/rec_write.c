@@ -577,8 +577,8 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     r->orig_txn_checkpoint_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
 
 #ifdef HAVE_DIAGNOSTIC
-    /* Track that the page is being reconciled and if it is expected to be occur exclusively. */
     WT_ASSERT(session, page->modify->flags == 0);
+    /* Track that the page is being reconciled and if it is exclusive (e.g. eviction). */
     F_SET(page->modify, WT_PAGE_MODIFY_RECONCILING);
     if (LF_ISSET(WT_REC_EVICT))
         F_SET(page->modify, WT_PAGE_MODIFY_EXCLUSIVE);
