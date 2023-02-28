@@ -26,6 +26,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <cassert>
+
 #include "azure_log_system.h"
 
 // Constructor for azure_log_system that calls to set the WiredTiger verbosity level.
@@ -40,9 +42,9 @@ const Azure::Core::Diagnostics::Logger::Level
 wt_to_azure_verbosity_level(int32_t wt_verbosity_level)
 {
     auto res = wt_to_azure_verbosity_mapping.find(wt_verbosity_level);
-    WT_ASSERT(res != wt_to_azure_verbosity_mapping.end());
+    assert(res != wt_to_azure_verbosity_mapping.end());
     if (res != wt_to_azure_verbosity_mapping.end())
-        return *res;
+        return res->second;
     else
         return Azure::Core::Diagnostics::Logger::Level::Warning;
 }
@@ -52,9 +54,11 @@ const int32_t
 azure_to_wt_verbosity_level(Azure::Core::Diagnostics::Logger::Level azure_verbosity_level)
 {
     auto res = azure_to_wt_verbosity_mapping.find(azure_verbosity_level);
-    WT_ASSERT(res != azure_to_wt_verbosity_mapping.end());
+    assert(res != azure_to_wt_verbosity_mapping.end());
     if (res != azure_to_wt_verbosity_mapping.end())
-        return *res else return WT_VERBOSE_NOTICE;
+        return res->second;
+    else
+        return WT_VERBOSE_NOTICE;
 }
 
 // Sets the WiredTiger verbosity level by mapping the Azure SDK log level.
