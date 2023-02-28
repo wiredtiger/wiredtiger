@@ -44,7 +44,7 @@ __chunkcache_alloc(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
         ret = __wt_malloc(session, chunk->chunk_size, &chunk->chunk_location);
     else {
 #ifdef ENABLE_MEMKIND
-        chunk->chunk_location = memkind_malloc(chunkcache->mem_kind, chunk->chunk_size);
+        chunk->chunk_location = memkind_malloc(chunkcache->memkind, chunk->chunk_size);
         if (chunk->chunk_location == NULL)
             ret = WT_ERROR;
 #else
@@ -155,7 +155,7 @@ __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
         __wt_free(session, chunk->chunk_location);
     else {
 #ifdef ENABLE_MEMKIND
-        memkind_free(chunkcache->pmem_kind, chunk->chunk_location);
+        memkind_free(chunkcache->memkind, chunk->chunk_location);
 #else
         __wt_err(session, EINVAL,
           "Chunk cache requires libmemkind, unless it is configured to be in DRAM");
@@ -528,8 +528,7 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
 
     if (chunkcache->type != WT_CHUNKCACHE_IN_VOLATILE_MEMORY) {
 #ifdef ENABLE_MEMKIND
-        if ((ret = memkind_create_pmem(chunkcache->dev_path, 0, &chunkcache->memkind)) != 0)
-            WT_RET_MSG(session, ret, "chunk cache failed to initialize: memkind_create_pmem");
+        WT_RET(memkind_create_pmem(chunkcache->dev_path, 0, &chunkcache->memkind));
 #else
         WT_RET_MSG(session, EINVAL, "Chunk cache that is not in DRAM requires libmemkind");
 #endif
