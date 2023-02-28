@@ -10,9 +10,9 @@ This section describes how to build WiredTiger with the GCP extension enabled.
 ### Requirements
 * CMake 3.11 or higher
 * G++ 8.4 or higher
-* Abseil LTS 20230125
-* nlohmann_json library 3.11.2
-* crc32c 1.1.2
+* Abseil 20200923 Patch 3
+* nlohmann_json library 3.4.0 or higher
+* crc32c 1.0.6 or higher
 * clang 6.0.0 or higher
 
 ### Building
@@ -80,8 +80,9 @@ Currently the Evergreen testing runs both `test_tiered19.py` and the unit tests 
 `test_gcp_connection.cpp`. Should a developer wish to add additional tests to the extension, they would
 first have to write the tests before adding it as a task to the evergreen.yml file.
 
-Additionally, Evergreen has hidden the private key and private key id for GCP and these are stored
-within the Evergreen system. Due to GCP requiring a json authentication file, a template json
-authentication file is provided. The "real" private key (and key id) can be subsitituted into this
-to create a temporary authentication file. Evergreen also has a script to install all the
-dependencies that GCP requires.
+Additionally, Evergreen has hidden the private key, private key id, project id, client email,
+client id and client x509 certificiate url for GCP and these are stored within the Evergreen system.
+Due to GCP requiring a json authentication file, a template json authentication file is provided.
+The "real" private key, private key id, project id, client email, client id and client x509
+certificiate url can be subsitituted into this to create a temporary authentication file. Evergreen
+also has a script to install all the dependencies that GCP requires.
