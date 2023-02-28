@@ -523,30 +523,6 @@ connection_runtime_config = [
         the maximum number of milliseconds an application thread will wait for space to be
         available in cache before giving up. Default will wait forever''',
         min=0),
-    Config('extra_diagnostics', '[]', r'''
-        enable additional diagnostics in WiredTiger. These additional diagnostics include 
-        diagnostic assertions that can cause WiredTiger to abort when an invalid state 
-        is detected.
-        Options are given as a list, such as 
-        <code>"extra_diagnostics=[out_of_order,visibility]"</code>.
-        Choosing \c all enables all assertions. When WiredTiger is compiled with 
-        \c HAVE_DIAGNOSTIC=1 all assertions are enabled and cannot be reconfigured
-        ''',
-        type='list', choices=[
-            "all", "concurrent_access", "data_validation", "invalid_op", "out_of_order",
-            "panic", "slow_operation", "visibility"]),
-
-    Config('history_store', '', r'''
-        history store configuration options''',
-        type='category', subconfig=[
-        Config('file_max', '0', r'''
-            the maximum number of bytes that WiredTiger is allowed to use for its history store
-            mechanism. If the history store file exceeds this size, a panic will be triggered. The
-            default value means that the history store file is unbounded and may use as much
-            space as the filesystem will accommodate. The minimum non-zero setting is 100MB.''',
-            # !!! Must match WT_HS_FILE_MIN
-            min='0')
-        ]),
     Config('cache_overhead', '8', r'''
         assume the heap allocator overhead is the specified percentage, and adjust the cache
         usage by that amount (for example, if there is 10GB of data in cache, a percentage of
@@ -618,6 +594,10 @@ connection_runtime_config = [
             min='0', max='10M'),
         Config('slow_checkpoint', 'false', r'''
             if true, slow down checkpoint creation by slowing down internal page processing.''',
+            type='boolean'),
+        Config('stress_skiplist', 'false', r'''
+            Configure various internal parameters to encourage race conditions and other issues
+            with internal skip lists, e.g. using a more dense representation.''',
             type='boolean'),
         Config('table_logging', 'false', r'''
             if true, write transaction related information to the log for all operations, even
@@ -691,6 +671,19 @@ connection_runtime_config = [
         cache_size and has to be greater than its counterpart \c eviction_updates_target. This
         setting only alters behavior if it is lower than \c eviction_trigger''',
         min=0, max='10TB'),
+    Config('extra_diagnostics', '[]', r'''
+        enable additional diagnostics in WiredTiger. These additional diagnostics include 
+        diagnostic assertions that can cause WiredTiger to abort when an invalid state 
+        is detected.
+        Options are given as a list, such as 
+        <code>"extra_diagnostics=[out_of_order,visibility]"</code>.
+        Choosing \c all enables all assertions. When WiredTiger is compiled with 
+        \c HAVE_DIAGNOSTIC=1 all assertions are enabled and cannot be reconfigured
+        ''',
+        type='list', choices=[
+            "all", "checkpoint_validate", "cursor_check", "disk_validate", "eviction_check", 
+            "generation_check", "hs_validate", "key_out_of_order", "log_validate", "prepared", 
+            "slow_operation", "txn_visibility"]),
     Config('file_manager', '', r'''
         control how file handles are managed''',
         type='category', subconfig=[
@@ -704,6 +697,17 @@ connection_runtime_config = [
         Config('close_scan_interval', '10', r'''
             interval in seconds at which to check for files that are inactive and close them''',
             min=1, max=100000),
+        ]),
+    Config('history_store', '', r'''
+        history store configuration options''',
+        type='category', subconfig=[
+        Config('file_max', '0', r'''
+            the maximum number of bytes that WiredTiger is allowed to use for its history store
+            mechanism. If the history store file exceeds this size, a panic will be triggered. The
+            default value means that the history store file is unbounded and may use as much
+            space as the filesystem will accommodate. The minimum non-zero setting is 100MB.''',
+            # !!! Must match WT_HS_FILE_MIN
+            min='0')
         ]),
     Config('io_capacity', '', r'''
         control how many bytes per second are written and read. Exceeding the capacity results
@@ -795,8 +799,8 @@ connection_runtime_config = [
         stress testing of WiredTiger.''',
         type='list', undoc=True,
         choices=[
-        'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page', 'checkpoint_slow',
-        'checkpoint_stop', 'compact_slow', 'evict_reposition',
+        'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page', 'checkpoint_handle',
+        'checkpoint_slow', 'checkpoint_stop', 'compact_slow', 'evict_reposition',
         'failpoint_eviction_fail_after_reconciliation',
         'failpoint_history_store_delete_key_from_ts', 'history_store_checkpoint_delay',
         'history_store_search', 'history_store_sweep_race', 'prepare_checkpoint_delay',
@@ -1251,11 +1255,7 @@ cursor_runtime_config = [
         not exist''',
         type='boolean'),
     Config('prefix_search', 'false', r'''
-        when performing a search near for a prefix, if set to true this configuration will allow
-        the search near to exit early if it has left the key range defined by the prefix. This
-        is relevant when the table contains a large number of records which potentially aren't
-        visible to the caller of search near, as such a large number of records could be skipped.
-        The prefix_search configuration provides a fast exit in this scenario.''',
+        this option is no longer supported, retained for backward compatibility.''',
         type='boolean', undoc=True),
 ]
 

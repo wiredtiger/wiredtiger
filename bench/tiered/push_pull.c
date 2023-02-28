@@ -265,7 +265,6 @@ remove_local_cached_files(const char *home)
               delete_file, sizeof(delete_file), "rm -f %s/%s*0%d.wtobj", home, file_prefix, index));
             status = system(delete_file);
 
-            /* Count the number of times the files are deleted. */
             if (status != 0)
                 testutil_die(status, "system: %s", delete_file);
         }

@@ -789,12 +789,11 @@ struct __wt_cursor {
 #define WT_CURSTD_META_INUSE		0x004000000ull
 #define WT_CURSTD_OPEN			0x008000000ull
 #define WT_CURSTD_OVERWRITE		0x010000000ull
-#define WT_CURSTD_PREFIX_SEARCH		0x020000000ull
-#define WT_CURSTD_RAW			0x040000000ull
-#define WT_CURSTD_RAW_SEARCH		0x080000000ull
-#define WT_CURSTD_VALUE_EXT		0x100000000ull /* Value points out of tree. */
-#define WT_CURSTD_VALUE_INT		0x200000000ull /* Value points into tree. */
-#define WT_CURSTD_VERSION_CURSOR	0x400000000ull /* Version cursor. */
+#define WT_CURSTD_RAW			0x020000000ull
+#define WT_CURSTD_RAW_SEARCH		0x040000000ull
+#define WT_CURSTD_VALUE_EXT		0x080000000ull /* Value points out of tree. */
+#define WT_CURSTD_VALUE_INT		0x100000000ull /* Value points into tree. */
+#define WT_CURSTD_VERSION_CURSOR	0x200000000ull /* Version cursor. */
 /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
 #define	WT_CURSTD_KEY_SET	(WT_CURSTD_KEY_EXT | WT_CURSTD_KEY_INT)
 #define	WT_CURSTD_VALUE_SET	(WT_CURSTD_VALUE_EXT | WT_CURSTD_VALUE_INT)
@@ -2280,14 +2279,18 @@ struct __wt_connection {
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;slow_checkpoint,
 	 * if true\, slow down checkpoint creation by slowing down internal page processing., a
 	 * boolean flag; default \c false.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;table_logging, if true\,
-	 * write transaction related information to the log for all operations\, even operations for
-	 * tables with logging turned off.  This additional logging information is intended for
-	 * debugging and is informational only\, that is\, it is ignored during recovery., a boolean
-	 * flag; default \c false.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;update_restore_evict, if true\,
-	 * control all dirty page evictions through forcing update restore eviction., a boolean
-	 * flag; default \c false.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;stress_skiplist,
+	 * Configure various internal parameters to encourage race conditions and other issues with
+	 * internal skip lists\, e.g.  using a more dense representation., a boolean flag; default
+	 * \c false.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;table_logging, if true\, write transaction
+	 * related information to the log for all operations\, even operations for tables with
+	 * logging turned off.  This additional logging information is intended for debugging and is
+	 * informational only\, that is\, it is ignored during recovery., a boolean flag; default \c
+	 * false.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;update_restore_evict, if true\, control all dirty
+	 * page evictions through forcing update restore eviction., a boolean flag; default \c
+	 * false.}
 	 * @config{ ),,}
 	 * @config{error_prefix, prefix string for error messages., a string; default empty.}
 	 * @config{eviction = (, eviction configuration options., a set of related configuration
@@ -2347,8 +2350,10 @@ struct __wt_connection {
 	 * <code>"extra_diagnostics=[out_of_order\,visibility]"</code>. Choosing \c all enables all
 	 * assertions.  When WiredTiger is compiled with \c HAVE_DIAGNOSTIC=1 all assertions are
 	 * enabled and cannot be reconfigured., a list\, with values chosen from the following
-	 * options: \c "all"\, \c "concurrent_access"\, \c "data_validation"\, \c "invalid_op"\, \c
-	 * "out_of_order"\, \c "panic"\, \c "slow_operation"\, \c "visibility"; default \c [].}
+	 * options: \c "all"\, \c "checkpoint_validate"\, \c "cursor_check"\, \c "disk_validate"\,
+	 * \c "eviction_check"\, \c "generation_check"\, \c "hs_validate"\, \c "key_out_of_order"\,
+	 * \c "log_validate"\, \c "prepared"\, \c "slow_operation"\, \c "txn_visibility"; default \c
+	 * [].}
 	 * @config{file_manager = (, control how file handles are managed., a set of related
 	 * configuration options defined as follows.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
@@ -3019,13 +3024,17 @@ struct __wt_connection {
  * and \c 10M; default \c 0.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;slow_checkpoint, if true\, slow down
  * checkpoint creation by slowing down internal page processing., a boolean flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;table_logging, if true\, write transaction related information to
- * the log for all operations\, even operations for tables with logging turned off.  This additional
- * logging information is intended for debugging and is informational only\, that is\, it is ignored
- * during recovery., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;stress_skiplist, Configure various internal parameters to
+ * encourage race conditions and other issues with internal skip lists\, e.g.  using a more dense
+ * representation., a boolean flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * update_restore_evict, if true\, control all dirty page evictions through forcing update restore
- * eviction., a boolean flag; default \c false.}
+ * table_logging, if true\, write transaction related information to the log for all operations\,
+ * even operations for tables with logging turned off.  This additional logging information is
+ * intended for debugging and is informational only\, that is\, it is ignored during recovery., a
+ * boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;update_restore_evict, if true\,
+ * control all dirty page evictions through forcing update restore eviction., a boolean flag;
+ * default \c false.}
  * @config{ ),,}
  * @config{direct_io, Use \c O_DIRECT on POSIX systems\, and \c FILE_FLAG_NO_BUFFERING on Windows to
  * access files.  Options are given as a list\, such as <code>"direct_io=[data]"</code>. Configuring
@@ -3115,8 +3124,9 @@ struct __wt_connection {
  * <code>"extra_diagnostics=[out_of_order\,visibility]"</code>. Choosing \c all enables all
  * assertions.  When WiredTiger is compiled with \c HAVE_DIAGNOSTIC=1 all assertions are enabled and
  * cannot be reconfigured., a list\, with values chosen from the following options: \c "all"\, \c
- * "concurrent_access"\, \c "data_validation"\, \c "invalid_op"\, \c "out_of_order"\, \c "panic"\,
- * \c "slow_operation"\, \c "visibility"; default \c [].}
+ * "checkpoint_validate"\, \c "cursor_check"\, \c "disk_validate"\, \c "eviction_check"\, \c
+ * "generation_check"\, \c "hs_validate"\, \c "key_out_of_order"\, \c "log_validate"\, \c
+ * "prepared"\, \c "slow_operation"\, \c "txn_visibility"; default \c [].}
  * @config{file_extend, file size extension configuration.  If set\, extend files of the given type
  * in allocations of the given size\, instead of a block at a time as each new block is written.
  * For example\, <code>file_extend=(data=16MB)</code>. If set to 0\, disable file size extension for
