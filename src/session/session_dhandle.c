@@ -372,12 +372,13 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
     uint64_t ds_time, first_snapshot_time, hs_time, oldest_time, snapshot_time, stable_time;
     int64_t ds_order, hs_order;
     const char *checkpoint, *hs_checkpoint;
-    bool is_unnamed_ckpt, must_resolve;
+    bool is_hs, is_unnamed_ckpt, is_reserved_name, must_resolve;
 
     ds_time = first_snapshot_time = hs_time = oldest_time = snapshot_time = stable_time = 0;
     ds_order = hs_order = 0;
     checkpoint = NULL;
     hs_checkpoint = NULL;
+    is_hs = is_unnamed_ckpt = is_reserved_name = must_resolve = false;
 
     /* These should only be set together. Asking for only one doesn't make sense. */
     WT_ASSERT(session, (hs_dhandlep == NULL) == (ckpt_snapshot == NULL));
@@ -481,17 +482,20 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
      * life of the checkpoint cursor.
      */
 
-    /*
-     * The internal checkpoint name is special, applications aren't allowed to use it. Be aggressive
-     * and disallow any matching prefix.
-     */
-    if (cval.len > strlen(WT_CHECKPOINT) && WT_PREFIX_MATCH(cval.str, WT_CHECKPOINT))
-        WT_RET_MSG(
-          session, EINVAL, "the prefix \"%s\" for checkpoint cursors is reserved", WT_CHECKPOINT);
-
-    if (strcmp(uri, WT_HS_URI) == 0)
+    is_hs = strcmp(uri, WT_HS_URI) == 0;
+    if (is_hs)
         /* We're opening the history store directly, so don't open it twice. */
         hs_dhandlep = NULL;
+
+    /*
+     * The internal checkpoint name is special, applications aren't allowed to use it. Be aggressive
+     * and disallow any matching prefix. However, internally we may want to open the history store
+     * with a specific version, this is allowed.
+     */
+    is_reserved_name = cval.len > strlen(WT_CHECKPOINT) && WT_PREFIX_MATCH(cval.str, WT_CHECKPOINT);
+    if (is_reserved_name && (!is_hs || session->hs_checkpoint == NULL))
+        WT_RET_MSG(
+          session, EINVAL, "the prefix \"%s\" for checkpoint cursors is reserved", WT_CHECKPOINT);
 
     /*
      * Test for the internal checkpoint name (WiredTigerCheckpoint). Note: must_resolve is true in a
