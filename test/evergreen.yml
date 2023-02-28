@@ -2944,7 +2944,7 @@ tasks:
             # Run S3 extension unit testing.
             ext/storage_sources/s3_store/test/run_s3_unit_tests
   - name: azure-tiered-unittest-test
-    tags: ["pull_request", "tiered_unittest"]
+    tags: ["tiered_unittest"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2997,7 +2997,7 @@ tasks:
                 -e 's|gcp_client_email|${gcp_sdk_ext_client_email}|'                  \ 
                 -e 's|gcp_client_id|${gcp_sdk_ext_client_id}|'                        \ 
                 -e 's|gcp_client_x509_cert_url|${gcp_sdk_ext_client_x509_cert_url}|'  \ 
-                ../test/evergreen/gcp_auth.json >> $file         
+                ../test/evergreen/gcp_auth.json > $file
             export GOOGLE_APPLICATION_CREDENTIALS="$file"
             set -o verbose
 
@@ -3024,7 +3024,7 @@ tasks:
 
             ${test_env_vars|} python3 ../test/suite/run.py -j $(nproc) tiered19
   - name: gcp-tiered-test-small
-    tags: ["pull_request", "python"]
+    tags: ["python"]
     commands:
       - func: "get project"
       - func: "install gcp dependencies"
@@ -3054,7 +3054,7 @@ tasks:
                 -e 's|gcp_client_email|${gcp_sdk_ext_client_email}|'                  \ 
                 -e 's|gcp_client_id|${gcp_sdk_ext_client_id}|'                        \ 
                 -e 's|gcp_client_x509_cert_url|${gcp_sdk_ext_client_x509_cert_url}|'  \ 
-                ../test/evergreen/gcp_auth.json >> $file       
+                ../test/evergreen/gcp_auth.json > $file       
             export GOOGLE_APPLICATION_CREDENTIALS="$file"
             set -o verbose
 
