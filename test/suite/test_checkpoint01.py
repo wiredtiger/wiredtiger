@@ -344,6 +344,8 @@ class test_checkpoint_illegal_name(wttest.WiredTigerTestCase):
             'checkpoint=WiredTigerCheckpointX'):
                 self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                     lambda: self.session.open_cursor(uri, None, conf), msg)
+                self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                    lambda: self.session.open_cursor("file:WiredTigerHS.wt", None, conf), msg)
 
 # Check we can't name checkpoints that include LSM tables.
 class test_checkpoint_lsm_name(wttest.WiredTigerTestCase):
