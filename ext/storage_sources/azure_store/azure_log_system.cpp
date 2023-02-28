@@ -49,7 +49,7 @@ wt_to_azure_verbosity_level(int32_t wt_verbosity_level)
         return Azure::Core::Diagnostics::Logger::Level::Warning;
 }
 
-// Find WiredTiger verbosity level given Azure Logger level returns Warning if not found.
+// Find WiredTiger verbosity level given Azure Logger level returns Notice if not found.
 const int32_t
 azure_to_wt_verbosity_level(Azure::Core::Diagnostics::Logger::Level azure_verbosity_level)
 {
