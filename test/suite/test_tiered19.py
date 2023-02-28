@@ -420,4 +420,4 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
 
         # Test that azure storage source terminate succeeds.
         self.assertEqual(ss.terminate(session), 0)
-        self.ignoreStdoutPatternIfExists('HTTP status code')
+        self.ignoreStdoutPatternIfExists('HTTP status code 2')
