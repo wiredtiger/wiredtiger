@@ -35,24 +35,26 @@ azure_log_system::azure_log_system(WT_EXTENSION_API *wt_api, int32_t wt_verbosit
     set_wt_verbosity_level(wt_verbosity_level);
 }
 
-// Find Azure Logger level given WiredTiger verbosity level returns Error if not found.
+// Find Azure Logger level given WiredTiger verbosity level returns Warning if not found.
 const Azure::Core::Diagnostics::Logger::Level
 wt_to_azure_verbosity_level(int32_t wt_verbosity_level)
 {
-    if (wt_to_azure_verbosity_mapping.find(wt_verbosity_level) !=
-      wt_to_azure_verbosity_mapping.end())
-        return wt_to_azure_verbosity_mapping.at(wt_verbosity_level);
+    auto res = wt_to_azure_verbosity_mapping.find(wt_verbosity_level);
+    WT_ASSERT(res != wt_to_azure_verbosity_mapping.end());
+    if (res != wt_to_azure_verbosity_mapping.end())
+        return *res;
     else
-        return Azure::Core::Diagnostics::Logger::Level::Error;
+        return Azure::Core::Diagnostics::Logger::Level::Warning;
 }
 
-// Find WiredTiger verbosity level given Azure Logger level returns Error if not found.
+// Find WiredTiger verbosity level given Azure Logger level returns Warning if not found.
 const int32_t
 azure_to_wt_verbosity_level(Azure::Core::Diagnostics::Logger::Level azure_verbosity_level)
 {
-    if (azure_to_wt_verbosity_mapping.find(azure_verbosity_level) !=
-      azure_to_wt_verbosity_mapping.end())
-        return azure_to_wt_verbosity_mapping.at(azure_verbosity_level);
+    auto res = azure_to_wt_verbosity_mapping.find(azure_verbosity_level);
+    WT_ASSERT(res != azure_to_wt_verbosity_mapping.end());
+    if (res != azure_to_wt_verbosity_mapping.end())
+        return *res
     else
         return WT_VERBOSE_NOTICE;
 }
