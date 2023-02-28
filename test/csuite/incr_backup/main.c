@@ -973,7 +973,7 @@ main(int argc, char *argv[])
             testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
             /* Test against the copied directory. */
-            testutil_verify_src_backup(conn, backup_src, home);
+            testutil_verify_src_backup(conn, backup_src, home, NULL);
             nreopens++;
         }
 

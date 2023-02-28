@@ -42,9 +42,7 @@ const char *progname = "program name not set";
  * Backup directory initialize command, remove and re-create the primary backup directory, plus a
  * copy we maintain for recovery testing and a copy for checking against the source.
  */
-#define HOME_BACKUP_INIT_CMD                                                               \
-    "rm -rf %s/BACKUP %s/BACKUP.copy %s/BACKUP.srctest && mkdir %s/BACKUP %s/BACKUP.copy " \
-    "%s/BACKUP.srctest"
+#define HOME_BACKUP_INIT_CMD "rm -rf %s/BACKUP %s/BACKUP.copy && mkdir %s/BACKUP %s/BACKUP.copy "
 
 /*
  * testutil_die --
@@ -327,8 +325,7 @@ testutil_create_backup_directory(const char *home)
 
     len = strlen(home) * 6 + strlen(HOME_BACKUP_INIT_CMD) + 1;
     cmd = dmalloc(len);
-    testutil_check(
-      __wt_snprintf(cmd, len, HOME_BACKUP_INIT_CMD, home, home, home, home, home, home));
+    testutil_check(__wt_snprintf(cmd, len, HOME_BACKUP_INIT_CMD, home, home, home, home));
     testutil_checkfmt(system(cmd), "%s", "backup directory creation failed");
     free(cmd);
 }
@@ -339,7 +336,7 @@ testutil_create_backup_directory(const char *home)
  *     are not marked as changed.
  */
 void
-testutil_verify_src_backup(WT_CONNECTION *conn, const char *backup, const char *home)
+testutil_verify_src_backup(WT_CONNECTION *conn, const char *backup, const char *home, char *srcid)
 {
     struct stat sb;
     WT_CURSOR *cursor, *file_cursor;
@@ -353,13 +350,24 @@ testutil_verify_src_backup(WT_CONNECTION *conn, const char *backup, const char *
     WT_CLEAR(buf);
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     testutil_check(session->open_cursor(session, "backup:query_id", NULL, buf, &cursor));
-    i = 0;
-    while ((ret = cursor->next(cursor)) == 0) {
-        testutil_check(cursor->get_key(cursor, &idstr));
-        id[i++] = dstrdup(idstr);
+    /*
+     * If we are given a source ID, use it. Otherwise query the backup and check against all IDs
+     * that exist in the system.
+     */
+    if (srcid == NULL) {
+        i = 0;
+        while ((ret = cursor->next(cursor)) == 0) {
+            testutil_check(cursor->get_key(cursor, &idstr));
+            id[i++] = dstrdup(idstr);
+        }
+        testutil_check(cursor->close(cursor));
+    } else {
+        id[0] = srcid;
+        id[1] = NULL;
+        i = 1;
     }
-    testutil_check(cursor->close(cursor));
     testutil_assert(i <= WT_BLKINCR_MAX);
+
     /* Go through each id and open a backup cursor on it to test incremental values. */
     for (j = 0; j < i; ++j) {
         testutil_check(__wt_snprintf(buf, sizeof(buf), "incremental=(src_id=%s)", id[j]));
@@ -404,7 +412,8 @@ testutil_verify_src_backup(WT_CONNECTION *conn, const char *backup, const char *
             testutil_check(file_cursor->close(file_cursor));
         }
         testutil_check(cursor->close(cursor));
-        free(id[j]);
+        if (srcid == NULL)
+            free(id[j]);
     }
     testutil_check(session->close(session, NULL));
 }
@@ -425,16 +434,11 @@ testutil_copy_file(WT_SESSION *session, const char *name)
     testutil_check(__wt_copy_and_sync(session, name, first));
 
     /*
-     * Save another copy of the original file to make debugging recovery errors easier and for
-     * source incremental testing.
-     *
-     * Allocate based on the length of BACKUP.srctest as that is longer than BACKUP.copy.
+     * Save another copy of the original file to make debugging recovery errors easier.
      */
-    len = strlen("BACKUP.srctest") + strlen(name) + 10;
+    len = strlen("BACKUP.copy") + strlen(name) + 10;
     second = dmalloc(len);
     testutil_check(__wt_snprintf(second, len, "BACKUP.copy/%s", name));
-    testutil_check(__wt_copy_and_sync(session, first, second));
-    testutil_check(__wt_snprintf(second, len, "BACKUP.srctest/%s", name));
     testutil_check(__wt_copy_and_sync(session, first, second));
 
     free(first);
