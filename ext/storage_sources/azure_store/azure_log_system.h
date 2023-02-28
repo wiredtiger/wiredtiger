@@ -66,7 +66,7 @@ const int32_t azure_to_wt_verbosity_level(
  */
 class azure_log_system {
     public:
-    azure_log_system(WT_EXTENSION_API *wt_api, uint32_t wt_verbosity_level);
+    explicit azure_log_system(WT_EXTENSION_API *wt_api, int32_t wt_verbosity_level);
     void set_wt_verbosity_level(int32_t wt_verbosity_level);
     void log_err_msg(const std::string &message) const;
     void log_debug_message(const std::string &message) const;

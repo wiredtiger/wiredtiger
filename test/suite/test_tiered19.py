@@ -196,14 +196,14 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         # Close a valid file handle.
         self.assertEqual(fh_2.close(session), 0)
 
-        
+
         # Test directory listing.
-        
+
         # Create a second file in storage.
         new_file_name = local_file_name + "1"
         self.assertEquals(ss.ss_flush(session, fs, local_file_name, new_file_name, None), 0)
         self.assertEquals(ss.ss_flush_finish(session, fs, local_file_name, new_file_name, None), 0)
-        
+
         test_files = {prefix + f for f in [local_file_name, new_file_name]}
 
         file_list = fs.fs_directory_list_single(session, '', '')
@@ -221,7 +221,7 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         # Check that file does not exist in GCP.
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_flush_finish(session, fs, 'non_existing_file', 'non_existing_file', None), err_msg)
-        
+
         # Check the file size is returned.
         self.assertEquals(fs.fs_size(session, local_file_name), len(outbytes))
 
@@ -288,7 +288,7 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.assertEqual(ss.ss_flush(session, azure_fs, 'foobar', 'foobar', None), 0)
         # Check that file exists in Azure.
         self.assertEqual(ss.ss_flush_finish(session, azure_fs, 'foobar', 'foobar', None), 0)
-        
+
         # The object exists now.
         self.assertEquals(azure_fs.fs_directory_list(session, None, None), [prefix_1 + 'foobar'])
         try:

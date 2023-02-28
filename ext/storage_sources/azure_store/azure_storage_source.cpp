@@ -111,7 +111,7 @@ static int
 azure_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
   const char *bucket, const char *auth_token, const char *config, WT_FILE_SYSTEM **file_system)
 {
-    // Get the value of the config key from the string
+    // Get the value of the config key from the string.
     azure_store *azure_storage = reinterpret_cast<azure_store *>(storage_source);
     int ret;
 
@@ -678,9 +678,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     if (ret == 0 && v.val >= WT_VERBOSE_ERROR && v.val <= WT_VERBOSE_DEBUG_5) {
         azure_storage->verbose = v.val;
         Logger::SetLevel(wt_to_azure_verbosity_level(v.val));
-    }
-    // SetLevel(wt_level_to_azure(given config))
-    else if (ret != WT_NOTFOUND) {
+    } else if (ret != WT_NOTFOUND) {
         azure_storage->log->log_err_msg(
           "wiredtiger_extension_init: error parsing config for verbose level.");
         delete (azure_storage);
