@@ -686,6 +686,9 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     WT_ASSERT(session, !F_ISSET(session->dhandle, WT_DHANDLE_DEAD));
 
+    /* Assert we are not modifying a page that is being reconciled exclusively (eviction). */
+    WT_ASSERT(session, !F_ISSET(page->modify, WT_PAGE_MODIFY_EXCLUSIVE));
+
     last_running = 0;
     if (page->modify->page_state == WT_PAGE_CLEAN)
         last_running = S2C(session)->txn_global.last_running;
@@ -780,7 +783,10 @@ __wt_page_modify_clear(WT_SESSION_IMPL *session, WT_PAGE *page)
      * page is owned by a single thread.
      *
      * Allow the call to be made on clean pages.
+     *
+     * Assert the page is not being reconciled.
      */
+    WT_ASSERT(session, page->modify == NULL || !F_ISSET(page->modify, WT_PAGE_MODIFY_RECONCILING));
     if (__wt_page_is_modified(page)) {
         /*
          * The only part where ordering matters is during reconciliation where updates on other
