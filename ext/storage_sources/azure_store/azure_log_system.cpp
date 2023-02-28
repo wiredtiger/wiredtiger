@@ -54,9 +54,7 @@ azure_to_wt_verbosity_level(Azure::Core::Diagnostics::Logger::Level azure_verbos
     auto res = azure_to_wt_verbosity_mapping.find(azure_verbosity_level);
     WT_ASSERT(res != azure_to_wt_verbosity_mapping.end());
     if (res != azure_to_wt_verbosity_mapping.end())
-        return *res
-    else
-        return WT_VERBOSE_NOTICE;
+        return *res else return WT_VERBOSE_NOTICE;
 }
 
 // Sets the WiredTiger verbosity level by mapping the Azure SDK log level.
