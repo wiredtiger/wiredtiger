@@ -2966,7 +2966,7 @@ tasks:
             # Run Azure extension unit testing.
             ext/storage_sources/azure_store/test/run_azure_unit_tests
   - name: gcp-tiered-unittest-test
-    tags: ["pull_request", "tiered_unittest"]
+    tags: ["tiered_unittest"]
     commands:
       - func: "get project"
       - func: "install gcp dependencies"
@@ -3004,7 +3004,7 @@ tasks:
             # Run GCP extension unit testing.
             ext/storage_sources/gcp_store/test/run_gcp_unit_tests
   - name: azure-tiered-test-small
-    tags: ["pull_request", "python"]
+    tags: ["python"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
