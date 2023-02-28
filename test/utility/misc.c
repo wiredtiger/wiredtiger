@@ -333,7 +333,8 @@ testutil_create_backup_directory(const char *home)
 /*
  * testutil_verify_src_backup --
  *     Verify a backup source home directory against a backup directory for changes to blocks that
- *     are not marked as changed.
+ *     are not marked as changed. If an ID is given, then the backup directory is only compared
+ *     against that ID, otherwise walk and compare against all IDs.
  */
 void
 testutil_verify_src_backup(WT_CONNECTION *conn, const char *backup, const char *home, char *srcid)
