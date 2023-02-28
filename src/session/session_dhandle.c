@@ -473,15 +473,21 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
      * confusion caused by older versions that don't include these values.
      *
      * Also note that only the exact name "WiredTigerCheckpoint" needs to be resolved. Requests to
-     * open specific versions, such as "WiredTigerCheckpoint.6", must be looked up like named
-     * checkpoints but are otherwise still treated as unnamed. This is necessary so that the
-     * matching history store checkpoint we find can be itself opened later.
+     * open specific versions, such as "WiredTigerCheckpoint.6", is forbidden.
      *
      * It is also at least theoretically possible for there to be no matching history store
      * checkpoint. If looking up the checkpoint names finds no history store checkpoint, its name
      * will come back as null and we must avoid trying to open it, either here or later on in the
      * life of the checkpoint cursor.
      */
+
+    /*
+     * The internal checkpoint name is special, applications aren't allowed to use it. Be aggressive
+     * and disallow any matching prefix.
+     */
+    if (cval.len > strlen(WT_CHECKPOINT) && WT_PREFIX_MATCH(cval.str, WT_CHECKPOINT))
+        WT_RET_MSG(
+          session, EINVAL, "the prefix \"%s\" for checkpoint cursors is reserved", WT_CHECKPOINT);
 
     if (strcmp(uri, WT_HS_URI) == 0)
         /* We're opening the history store directly, so don't open it twice. */
