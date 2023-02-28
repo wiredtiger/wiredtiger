@@ -32,7 +32,6 @@
 
 #include <azure/core/diagnostics/logger.hpp>
 
-#include <atomic>
 #include <map>
 
 const std::map<int32_t, Azure::Core::Diagnostics::Logger::Level> wt_to_azure_verbosity_mapping = {
@@ -75,5 +74,5 @@ class azure_log_system {
     void log_verbose_message(int32_t verbosity_level, const std::string &message) const;
     WT_EXTENSION_API *_wt_api;
     int32_t _wt_verbosity_level;
-    std::atomic<Azure::Core::Diagnostics::Logger::Level> _azure_log_level;
+    Azure::Core::Diagnostics::Logger::Level _azure_log_level;
 };
