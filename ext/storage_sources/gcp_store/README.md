@@ -10,7 +10,7 @@ This section describes how to build WiredTiger with the GCP extension enabled.
 ### Requirements
 * CMake 3.11 or higher
 * G++ 8.4 or higher
-* Abseil 20200923 Patch 3
+* Abseil 20200923 Patch 3 or higher
 * nlohmann_json library 3.4.0 or higher
 * crc32c 1.0.6 or higher
 * clang 6.0.0 or higher
