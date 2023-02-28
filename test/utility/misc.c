@@ -599,8 +599,8 @@ void
 testutil_system(const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((format(printf, 1, 2)))
 {
     WT_DECL_RET;
-    char buf[4096];
     size_t len;
+    char buf[4096];
     va_list ap;
 
     len = 0;

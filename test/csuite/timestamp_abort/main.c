@@ -87,6 +87,9 @@ static uint32_t backup_granularity_kb;
 
 static TEST_OPTS *opts, _opts;
 
+extern int __wt_optind;
+extern char *__wt_optarg;
+
 /*
  * The configuration sets the eviction update and dirty targets at 20% so that on average, each
  * thread can have a couple of dirty pages before eviction threads kick in. See below where these
@@ -424,16 +427,17 @@ backup_create_incremental(WT_CONNECTION *conn, uint32_t src_index, uint32_t inde
 {
     WT_CURSOR *cursor, *file_cursor;
     WT_SESSION *session;
-    void *tmp;
     ssize_t rdsize;
     uint64_t offset, size, type;
-    bool first_range;
-    int rfd, ret, wfd, nfiles;
+    int rfd, ret, wfd, nfiles, nranges;
     char backup_home[PATH_MAX], src_backup_home[PATH_MAX];
     char buf[4096];
     char *filename;
+    bool first_range;
+    void *tmp;
 
     nfiles = 0;
+    nranges = 0;
 
     testutil_check(
       __wt_snprintf(src_backup_home, sizeof(src_backup_home), "backup.%" PRIu32, src_index));
@@ -491,6 +495,8 @@ backup_create_incremental(WT_CONNECTION *conn, uint32_t src_index, uint32_t inde
                 testutil_assert(rdsize >= 0);
                 testutil_assert(pwrite(wfd, tmp, (size_t)rdsize, (wt_off_t)offset) == rdsize);
                 free(tmp);
+
+                nranges++;
             } else {
 
                 /* We are supposed to do the full file copy. */
@@ -518,6 +524,8 @@ backup_create_incremental(WT_CONNECTION *conn, uint32_t src_index, uint32_t inde
     testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/done", backup_home));
     testutil_assert((wfd = open(buf, O_WRONLY | O_CREAT, 0666)) >= 0);
     testutil_assert(close(wfd) == 0);
+
+    printf("Create backup: Files: %" PRId32 ", Ranges: %" PRId32 "\n", nfiles, nranges);
 }
 
 /*
@@ -528,12 +536,12 @@ backup_create_incremental(WT_CONNECTION *conn, uint32_t src_index, uint32_t inde
 static void
 backup_delete_old_backups(int retain)
 {
+    struct dirent *dir;
     struct stat sb;
     DIR *d;
-    struct dirent *dir;
-    bool done;
     int count, i, indexes[256];
     char buf[256];
+    bool done;
 
     do {
         done = true;
@@ -1029,9 +1037,6 @@ run_workload(uint32_t iteration)
     _exit(EXIT_SUCCESS);
 }
 
-extern int __wt_optind;
-extern char *__wt_optarg;
-
 /*
  * initialize_rep --
  *     Initialize a report structure. Since zero is a valid key we cannot just clear it.
@@ -1111,7 +1116,8 @@ recover_and_verify(uint32_t backup_index)
         printf("Connection open and recovery complete. Verify content\n");
     } else {
         testutil_check(__wt_snprintf(buf, sizeof(buf), "backup.%" PRIu32, backup_index));
-        testutil_wiredtiger_open(opts, buf, NULL, &my_event, &conn, true, false);
+        testutil_system("rm -rf check; cp -rf %s check", buf);
+        testutil_wiredtiger_open(opts, "check", NULL, &my_event, &conn, true, false);
     }
 
     /* Sleep to guarantee the statistics thread has enough time to run. */
@@ -1341,8 +1347,8 @@ recover_and_verify(uint32_t backup_index)
 static void
 backup_verify()
 {
-    DIR *d;
     struct dirent *dir;
+    DIR *d;
     uint32_t index;
 
     testutil_assert_errno((d = opendir(".")) != NULL);
@@ -1377,7 +1383,7 @@ main(int argc, char *argv[])
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
 
-    backup_granularity_kb = 128;
+    backup_granularity_kb = 16;
     columns = stress = false;
     num_iterations = 1;
     nth = MIN_TH;
