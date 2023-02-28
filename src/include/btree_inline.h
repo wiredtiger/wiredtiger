@@ -10,8 +10,8 @@
  * __wt_addr_cookie_pack --
  *     Pack the address cookie. Encode the page stats into the address cookie of the cell if the
  *     feature flag is set. In this scenario, the address cookie will have the following layout:
- *     btree address cookie length, btree address cookie, block manager address cookie length,
- *     block manager address cookie.
+ *     btree address cookie length, btree address cookie, block manager address cookie length, block
+ *     manager address cookie.
  */
 static inline int
 __wt_addr_cookie_pack(WT_SESSION_IMPL *session, WT_ITEM *addr, void *block_addr,
