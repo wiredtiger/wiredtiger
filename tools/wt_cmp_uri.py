@@ -33,7 +33,7 @@ from wt_tools_common import wiredtiger_open
 from wiredtiger import WT_NOTFOUND, wiredtiger_strerror
 
 def usage_exit():
-    print('Usage: wt_cmp_uri [ -t timestamp ] [ -v ] dir1/uri1 [ -t timestamp2 ] dir2/uri2')
+    print('Usage: wt_cmp_uri.py [ -t timestamp ] [ -v ] dir1/uri1 [ -t timestamp2 ] dir2/uri2')
     print('  dir1 and dir2 are POSIX pathnames to WiredTiger home directories,')
     print('  uri1 and uri2 are WiredTiger URIs, e.g. table:foo or file:abc.wt')
     print('Options:')
