@@ -798,8 +798,6 @@ __wt_page_modify_clear(WT_SESSION_IMPL *session, WT_PAGE *page)
      * page is owned by a single thread.
      *
      * Allow the call to be made on clean pages.
-     *
-     * Assert the page is not being reconciled.
      */
     if (__wt_page_is_modified(page)) {
         WT_ASSERT_ALWAYS(session,
