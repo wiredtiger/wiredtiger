@@ -40,7 +40,7 @@ const char *progname = "program name not set";
 
 /*
  * Backup directory initialize command, remove and re-create the primary backup directory, plus a
- * copy we maintain for recovery testing and a copy for checking against the source.
+ * copy we maintain for recovery testing.
  */
 #define HOME_BACKUP_INIT_CMD "rm -rf %s/BACKUP %s/BACKUP.copy && mkdir %s/BACKUP %s/BACKUP.copy "
 
@@ -323,7 +323,7 @@ testutil_create_backup_directory(const char *home)
     size_t len;
     char *cmd;
 
-    len = strlen(home) * 6 + strlen(HOME_BACKUP_INIT_CMD) + 1;
+    len = strlen(home) * 4 + strlen(HOME_BACKUP_INIT_CMD) + 1;
     cmd = dmalloc(len);
     testutil_check(__wt_snprintf(cmd, len, HOME_BACKUP_INIT_CMD, home, home, home, home));
     testutil_checkfmt(system(cmd), "%s", "backup directory creation failed");
