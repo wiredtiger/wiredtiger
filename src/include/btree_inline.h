@@ -153,6 +153,21 @@ __wt_page_is_modified(WT_PAGE *page)
 }
 
 /*
+ * __wt_page_is_reconciling --
+ *     Return if the page is being reconciled.
+ */
+static inline bool
+__wt_page_is_reconciling(WT_PAGE *page)
+{
+    /*
+     * Be cautious modifying this function: it's reading fields set by checkpoint reconciliation,
+     * and we're not blocking checkpoints (although we must block eviction as it might clear and
+     * free these structures).
+     */
+    return (page->modify != NULL && F_ISSET(page->modify, WT_PAGE_MODIFY_RECONCILING));
+}
+
+/*
  * __wt_btree_block_free --
  *     Helper function to free a block from the current tree.
  */
@@ -789,7 +804,7 @@ __wt_page_modify_clear(WT_SESSION_IMPL *session, WT_PAGE *page)
     if (__wt_page_is_modified(page)) {
         WT_ASSERT_ALWAYS(session,
           F_ISSET(session->dhandle, WT_DHANDLE_DEAD) || F_ISSET(S2C(session), WT_CONN_CLOSING) ||
-            !F_ISSET(page->modify, WT_PAGE_MODIFY_RECONCILING),
+            !__wt_page_is_reconciling(page),
           "Illegal attempt to mark a page clean that is being reconciled");
 
         /*
@@ -801,6 +816,7 @@ __wt_page_modify_clear(WT_SESSION_IMPL *session, WT_PAGE *page)
          * separate thread, there's no write barrier needed here.
          */
         page->modify->page_state = WT_PAGE_CLEAN;
+        page->modify->flags = 0;
         __wt_cache_dirty_decr(session, page);
     }
 }
