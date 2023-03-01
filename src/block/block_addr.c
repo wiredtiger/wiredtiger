@@ -19,9 +19,10 @@ static int
 __block_addr_unpack(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t **pp, size_t addr_size,
   uint32_t *objectidp, wt_off_t *offsetp, uint32_t *sizep, uint32_t *checksump)
 {
+    size_t block_addr_size;
     uint64_t i, o, s, c;
     uint8_t flags;
-    const uint8_t *begin;
+    const uint8_t *begin, *block_pp;
 
     /*
      * Address cookies are a file offset, size and checksum triplet, with optional object ID: unpack
@@ -34,15 +35,32 @@ __block_addr_unpack(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t **p
      * size is not 0. We could alternatively have a "checkpoint cookie" boolean, or use a NULL
      * object ID address when never returning a object ID, but a cookie size of 0 seems equivalent.)
      */
-    begin = *pp;
-    WT_RET(__wt_vunpack_uint(pp, 0, &o));
-    WT_RET(__wt_vunpack_uint(pp, 0, &s));
-    WT_RET(__wt_vunpack_uint(pp, 0, &c));
+
+    /*
+     * If there is a btree information section stored in the address cookie, the block address
+     * cookie needs to be unpacked from a different location as defined by the macro
+     * WT_ADDR_COOKIE_BLOCK. However, we need a way to distinguish between address cookies stored in
+     * the old vs new format.
+     */
+    if (__wt_process.page_stats_2022) {
+        begin = WT_ADDR_COOKIE_BLOCK(*pp);
+        block_pp = WT_ADDR_COOKIE_BLOCK(*pp);
+        block_addr_size = (addr_size == 0 ? 0 : WT_ADDR_COOKIE_BLOCK_LEN(*pp));
+    } else {
+        begin = *pp;
+        block_pp = *pp;
+        block_addr_size = addr_size;
+    }
+
+    WT_RET(__wt_vunpack_uint(&block_pp, 0, &o));
+    WT_RET(__wt_vunpack_uint(&block_pp, 0, &s));
+    WT_RET(__wt_vunpack_uint(&block_pp, 0, &c));
+
     i = 0;
     flags = 0;
-    if (addr_size != 0 && WT_PTRDIFF(*pp, begin) < addr_size) {
-        flags = **pp;
-        ++(*pp);
+    if (block_addr_size != 0 && WT_PTRDIFF(block_pp, begin) < block_addr_size) {
+        flags = *block_pp;
+        ++block_pp;
         if (LF_ISSET(WT_BLOCK_COOKIE_FILEID))
             WT_RET(__wt_vunpack_uint(pp, 0, &i));
     }
@@ -54,8 +72,8 @@ __block_addr_unpack(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t **p
      * equality).
      */
     WT_ASSERT(session,
-      addr_size == 0 || (flags != 0 && flags != WT_BLOCK_COOKIE_FILEID) ||
-        WT_PTRDIFF(*pp, begin) == addr_size);
+      block_addr_size == 0 || (flags != 0 && flags != WT_BLOCK_COOKIE_FILEID) ||
+        WT_PTRDIFF(block_pp, begin) == block_addr_size);
 
     /*
      * To avoid storing large offsets, we minimize the value by subtracting a block for description
@@ -76,7 +94,7 @@ __block_addr_unpack(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t **p
         *sizep = (uint32_t)s * block->allocsize;
         *checksump = (uint32_t)c;
     }
-
+    *pp = block_pp;
     return (0);
 }
 
