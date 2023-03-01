@@ -80,10 +80,10 @@ class test_rollback_to_stable42(test_rollback_to_stable_base):
     scenarios = make_scenarios(format_values)
 
     def test_reopen_after_delete(self):
-        # We remove the test file while WiredTiger still has it open,
-        # which Windows doesn't like.
+        if 'tiered' in self.hook_names:
+            self.skipTest("We cannot reliably remove specific file names under tiered storage")
         if os.name == 'nt':
-            return
+            self.skipTest("Windows doesn't like removing a file with another process using it")
 
         # RTS runs as part of shutdown, but it won't succeed since we
         # remove the file that needs rollback.
