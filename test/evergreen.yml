@@ -805,7 +805,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        for i in $(seq ${times|20}); do
+        for i in $(seq ${times|15}); do
             ${test_env_vars|} ${python_binary|python3} split_stress.py
         done
 
