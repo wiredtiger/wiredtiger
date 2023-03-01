@@ -150,6 +150,7 @@ thread_search_insert_run(void *arg)
 
     cursor->close(cursor);
     session->close(session, "");
+    free((void *)check_key.data);
     return (WT_THREAD_RET_VALUE);
 }
 
@@ -220,6 +221,7 @@ run(const char *working_dir)
         testutil_check(__wt_thread_join(NULL, &thr[i]));
 
     free(thr);
+    free(key);
     testutil_check(cursor->close(cursor));
     testutil_check(session->close(session, ""));
     testutil_check(conn->close(conn, ""));
