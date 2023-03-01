@@ -34,6 +34,7 @@ class OpType(Enum):
     HS_ABORT_STOP = 25
     HS_RESTORE_TOMBSTONE = 26
     FILE_SKIP = 27
+    SKIP_DAMAGE = 28
 
 class Operation:
     def __init__(self, line):
@@ -41,8 +42,9 @@ class Operation:
 
         # Extract the RTS message type, e.g. 'PAGE_ROLLBACK'.
         matches = re.search('\[WT_VERB_RTS\]\[DEBUG_\d+\]: \[(\w+)\]', line)
-        if matches.group(1) is None:
-            raise Exception("Checker got a verbose RTS message in a format it didn't understand!")
+        if matches is None or matches.group(1) is None:
+            raise Exception("Checker got a verbose RTS message in a format it didn't understand: {}"
+                            .format(line))
 
         # 'PAGE_ROLLBACK' -> 'page_rollback' since we're using it to search for a function
         # and our names are all lowercase.
@@ -450,3 +452,8 @@ class Operation:
     def __init_file_skip(self, line):
         self.type = OpType.TREE_SKIP
         self.file = self.__extract_file(line)
+
+    def __init_skip_damage(self, line):
+        self.type = OpType.SKIP_DAMAGE
+        self.file = self.__extract_file(line)
+        self.corrupted = "corrupt" in line

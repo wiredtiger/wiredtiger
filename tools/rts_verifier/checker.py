@@ -136,10 +136,6 @@ class Checker:
         # TODO expand this out
         pass
 
-    def __apply_check_file_skip(self, operation):
-        # TODO expand this out
-        pass
-
     def __apply_check_skip_del_null(self, operation):
         # TODO expand this out
         pass
@@ -209,5 +205,9 @@ class Checker:
         pass
 
     def __apply_check_file_skip(self, operation):
+        # TODO expand this out
+        pass
+
+    def __apply_check_skip_damage(self, operation):
         # TODO expand this out
         pass
