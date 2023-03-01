@@ -420,7 +420,7 @@ __wt_debug_offset(
     WT_BLOCK *block;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
-    uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE], *endp;
+    uint8_t addr[WT_ADDR_COOKIE_MAX], *endp;
 
     WT_ASSERT(session, S2BT_SAFE(session) != NULL);
 
