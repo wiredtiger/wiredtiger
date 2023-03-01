@@ -67,9 +67,6 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
     page = *pagep;
     *pagep = NULL;
 
-    /* Assert we are not discarding a page that is being reconciled. */
-    WT_ASSERT(session, page->modify == NULL || !F_ISSET(page->modify, WT_PAGE_MODIFY_RECONCILING));
-
     /*
      * Unless we have a dead handle or we're closing the database, we should never discard a dirty
      * page. We do ordinary eviction from dead trees until sweep gets to them, so we may not in the
@@ -79,6 +76,8 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
         __wt_page_modify_clear(session, page);
 
     WT_ASSERT_ALWAYS(session, !__wt_page_is_modified(page), "Attempting to discard dirty page");
+    WT_ASSERT_ALWAYS(session, !F_ISSET(page->modify, WT_PAGE_MODIFY_RECONCILING),
+      "Attempting to disable page being reconciled");
     WT_ASSERT_ALWAYS(session, !F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU),
       "Attempting to discard page queued for eviction");
 
@@ -279,10 +278,9 @@ __wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pa
     if (ref == NULL)
         return;
 
-    /* Assert we are not freeing a ref that is being reconciled. */
-    WT_ASSERT(session,
-      ref->page == NULL || ref->page->modify == NULL ||
-        !F_ISSET(ref->page->modify, WT_PAGE_MODIFY_RECONCILING));
+    WT_ASSERT_ALWAYS(session,
+      !__wt_page_is_modified(ref->page) || !F_ISSET(ref->page->modify, WT_PAGE_MODIFY_RECONCILING),
+      "Attempting to free ref when page is being reconciled");
 
     /*
      * We create WT_REFs in many places, assert a WT_REF has been configured as either an internal
@@ -335,9 +333,6 @@ __free_page_int(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_PAGE_INDEX *pindex;
     uint32_t i;
 
-    /* Assert we are not discarding a page that is being reconciled. */
-    WT_ASSERT(session, page->modify == NULL || !F_ISSET(page->modify, WT_PAGE_MODIFY_RECONCILING));
-
     for (pindex = WT_INTL_INDEX_GET_SAFE(page), i = 0; i < pindex->entries; ++i)
         __wt_free_ref(session, pindex->index[i], page->type, false);
 
@@ -357,8 +352,9 @@ __wt_free_ref_index(WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE_INDEX *pind
     if (pindex == NULL)
         return;
 
-    /* Assert we are not discarding a page that is being reconciled. */
-    WT_ASSERT(session, page->modify == NULL || !F_ISSET(page->modify, WT_PAGE_MODIFY_RECONCILING));
+    WT_ASSERT_ALWAYS(session,
+      !__wt_page_is_modified(page) || !F_ISSET(page->modify, WT_PAGE_MODIFY_RECONCILING),
+      "Attempting to free ref index when page it is being reconciled");
 
     for (i = 0; i < pindex->entries; ++i) {
         ref = pindex->index[i];

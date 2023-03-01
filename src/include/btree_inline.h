@@ -686,8 +686,8 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     WT_ASSERT(session, !F_ISSET(session->dhandle, WT_DHANDLE_DEAD));
 
-    /* Assert we are not modifying a page that is being reconciled exclusively (eviction). */
-    WT_ASSERT(session, !F_ISSET(page->modify, WT_PAGE_MODIFY_EXCLUSIVE));
+    WT_ASSERT_ALWAYS(session, !F_ISSET(page->modify, WT_PAGE_MODIFY_EXCLUSIVE),
+      "Illegal attempt to modify a page that is being exclusively reconciled");
 
     last_running = 0;
     if (page->modify->page_state == WT_PAGE_CLEAN)
@@ -786,8 +786,12 @@ __wt_page_modify_clear(WT_SESSION_IMPL *session, WT_PAGE *page)
      *
      * Assert the page is not being reconciled.
      */
-    WT_ASSERT(session, page->modify == NULL || !F_ISSET(page->modify, WT_PAGE_MODIFY_RECONCILING));
     if (__wt_page_is_modified(page)) {
+        WT_ASSERT_ALWAYS(session,
+          F_ISSET(session->dhandle, WT_DHANDLE_DEAD) || F_ISSET(S2C(session), WT_CONN_CLOSING) ||
+            !F_ISSET(page->modify, WT_PAGE_MODIFY_RECONCILING),
+          "Illegal attempt to mark a page clean that is being reconciled");
+
         /*
          * The only part where ordering matters is during reconciliation where updates on other
          * threads are performing writes to the page state that need to be visible to the
