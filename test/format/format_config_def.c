@@ -57,8 +57,8 @@ CONFIG configuration_list[] = {
   {"btree.memory_page_max", "maximum cache page size",
     C_TABLE, 1, 10, 128, V_TABLE_BTREE_MEMORY_PAGE_MAX},
 
-  {"btree.prefix_len", "common key prefix",
-    C_TABLE | C_TYPE_ROW | C_ZERO_NOTSET, PREFIX_LEN_CONFIG_MIN, PREFIX_LEN_CONFIG_MAX, PREFIX_LEN_CONFIG_MAX, V_TABLE_BTREE_PREFIX_LEN},
+  {"btree.prefix_len", "common key prefix", C_TABLE | C_TYPE_ROW | C_ZERO_NOTSET,
+    PREFIX_LEN_CONFIG_MIN, PREFIX_LEN_CONFIG_MAX, PREFIX_LEN_CONFIG_MAX, V_TABLE_BTREE_PREFIX_LEN},
 
   {"btree.prefix_compression", "configure prefix compressed keys",
     C_BOOL | C_TABLE | C_TYPE_ROW, 80, 0, 0, V_TABLE_BTREE_PREFIX_COMPRESSION},
@@ -105,11 +105,12 @@ CONFIG configuration_list[] = {
   {"debug.checkpoint_retention", "adjust log removal to retain the log records",
     0x0, 0, 10, 1024, V_GLOBAL_DEBUG_CHECKPOINT_RETENTION},
 
-  {"debug.cursor_reposition", "cursor temporarily releases any page requiring forced eviction and then repositions back to the page for further operations",
-    C_BOOL, 5, 0, 0, V_GLOBAL_DEBUG_CURSOR_REPOSITION},
+  {"debug.cursor_reposition", "cursor temporarily releases any page requiring forced eviction and "
+    "then repositions back to the page for further operations", C_BOOL, 5, 0, 0,
+    V_GLOBAL_DEBUG_CURSOR_REPOSITION},
 
-  {"debug.eviction", "modify internal algorithms to force history store eviction to happen more aggressively",
-    C_BOOL, 2, 0, 0, V_GLOBAL_DEBUG_EVICTION},
+  {"debug.eviction", "modify internal algorithms to force history store eviction to happen more "
+    "aggressively", C_BOOL, 2, 0, 0, V_GLOBAL_DEBUG_EVICTION},
 
   {"debug.log_retention", "adjust log removal to retain at least this number of log files",
     0x0, 0, 10, 1024, V_GLOBAL_DEBUG_LOG_RETENTION},
@@ -120,14 +121,14 @@ CONFIG configuration_list[] = {
   {"debug.realloc_malloc", "every realloc call will force a new memory allocation by using malloc",
     C_BOOL, 5, 0, 0, V_GLOBAL_DEBUG_REALLOC_MALLOC},
 
-  {"debug.slow_checkpoint", "slow down checkpoint creation by slowing down internal page processing",
-    C_BOOL, 2, 0, 0, V_GLOBAL_DEBUG_SLOW_CHECKPOINT},
+  {"debug.slow_checkpoint", "slow down checkpoint creation by slowing down internal page "
+    "processing", C_BOOL, 2, 0, 0, V_GLOBAL_DEBUG_SLOW_CHECKPOINT},
 
   {"debug.table_logging", "write transaction related information to the log for all operations",
     C_BOOL, 2, 0, 0, V_GLOBAL_DEBUG_TABLE_LOGGING},
 
-  {"debug.update_restore_evict", "control all dirty page evictions through forcing update restore eviction",
-    C_BOOL, 2, 0, 0, V_GLOBAL_DEBUG_UPDATE_RESTORE_EVICT},
+  {"debug.update_restore_evict", "control all dirty page evictions through forcing update restore "
+    "eviction", C_BOOL, 2, 0, 0, V_GLOBAL_DEBUG_UPDATE_RESTORE_EVICT},
 
   {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)",
     C_IGNORE | C_STRING | C_TABLE, 0, 0, 0, V_TABLE_DISK_CHECKSUM},
@@ -151,14 +152,15 @@ CONFIG configuration_list[] = {
     C_BOOL, 5, 0, 0, V_GLOBAL_DISK_MMAP_ALL},
 
 /* Test format can only handle 32 tables so we use a maximum value of 32 here. */
-  {"file_manager.close_handle_minimum", "number of handles open before the file manager will look for handles to close",
-    0x0, 0, 32, 32, V_GLOBAL_FILE_MANAGER_CLOSE_HANDLE_MINIMUM},
+  {"file_manager.close_handle_minimum", "number of handles open before the file manager will look "
+    "for handles to close", 0x0, 0, 32, 32, V_GLOBAL_FILE_MANAGER_CLOSE_HANDLE_MINIMUM},
 
-  {"file_manager.close_idle_time", "amount of time in seconds a file handle needs to be idle before attempting to close it. A setting of 0 means that idle handles are not closed",
+  {"file_manager.close_idle_time", "amount of time in seconds a file handle needs to be idle before"
+    " attempting to close it. A setting of 0 means that idle handles are not closed",
     0x0, 0, 60, 100000, V_GLOBAL_FILE_MANAGER_CLOSE_IDLE_TIME},
 
-  {"file_manager.close_scan_interval", "interval in seconds at which to check for files that are inactive and close them",
-    0x0, 0, 30, 100000, V_GLOBAL_FILE_MANAGER_CLOSE_SCAN_INTERVAL},
+  {"file_manager.close_scan_interval", "interval in seconds at which to check for files that are "
+    "inactive and close them", 0x0, 0, 30, 100000, V_GLOBAL_FILE_MANAGER_CLOSE_SCAN_INTERVAL},
 
   {"format.abort", "drop core during timed run",
     C_BOOL, 0, 0, 0, V_GLOBAL_FORMAT_ABORT},
@@ -321,8 +323,9 @@ CONFIG configuration_list[] = {
   {"stress.evict_reposition", "stress evict reposition",
     C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_EVICT_REPOSITION},
 
-  {"stress.failpoint_eviction_fail_after_reconciliation", "stress failpoint eviction fail after reconciliation",
-    C_BOOL, 30, 0, 0, V_GLOBAL_STRESS_FAILPOINT_EVICTION_FAIL_AFTER_RECONCILIATION},
+  {"stress.failpoint_eviction_fail_after_reconciliation", "stress failpoint eviction fail after "
+    "reconciliation", C_BOOL, 30, 0, 0,
+    V_GLOBAL_STRESS_FAILPOINT_EVICTION_FAIL_AFTER_RECONCILIATION},
 
   {"stress.failpoint_hs_delete_key_from_ts", "stress failpoint history store delete key from ts",
     C_BOOL, 30, 0, 0, V_GLOBAL_STRESS_FAILPOINT_HS_DELETE_KEY_FROM_TS},
