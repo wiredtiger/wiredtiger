@@ -91,9 +91,7 @@ def get_mirror_file(db_dir, filename):
 
         if app_metadata['workgen_dynamic_table'] == 'true':
             mirror = app_metadata['workgen_table_mirror']
-            is_base = (app_metadata['workgen_base_table'] == 'true')
-
-        mirror = mirror.split(':')[1] + '.wt'
+            mirror = mirror.split(':')[1] + '.wt'
 
     session.close()    
     connection.close()
