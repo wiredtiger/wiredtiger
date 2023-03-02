@@ -123,7 +123,7 @@ if test $? -eq 0; then
 fi
 echo "$COMMANDS" | xargs $xp -I{} /bin/sh -c {}
 
-# For each command check if an output file has been generated. If it has report the contents and
+# For each command check if an output file has been generated. If it has, report the contents and
 # the command used to populate it.
 echo "$COMMANDS" | while read -r line; do
     outputfile=$(echo "$line" | sed -e 's/.* > //')
