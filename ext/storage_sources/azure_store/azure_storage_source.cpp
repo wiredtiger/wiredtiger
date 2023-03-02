@@ -683,7 +683,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     } else if (ret != WT_NOTFOUND) {
         azure_storage->log->log_err_msg(
           "wiredtiger_extension_init: error parsing config for verbose level.");
-        delete (azure_storage);
+        delete azure_storage;
         return (ret != 0 ? ret : EINVAL);
     }
 
