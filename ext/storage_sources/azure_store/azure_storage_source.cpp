@@ -668,7 +668,6 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 {
     azure_store *azure_storage = new azure_store;
     WT_CONFIG_ITEM v;
-    std::string msg;
 
     azure_storage->wt_api = connection->get_extension_api(connection);
     int ret = azure_storage->wt_api->config_get(
