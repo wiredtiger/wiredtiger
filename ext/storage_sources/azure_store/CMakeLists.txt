@@ -1,6 +1,6 @@
 project(azure_store CXX)
 
-find_package(CURL REQUIRED) 
+find_package(CURL REQUIRED)
 cmake_minimum_required(VERSION 3.13)
 
 # Using the Azure SDK produces a reference problem where an Azure Library
@@ -34,7 +34,7 @@ target_link_libraries(
 
 add_dependencies(azure_container_util azure-sdk)
 # Build the Azure extension as a library
-add_library(wiredtiger_azure_store MODULE azure_storage_source.cpp)
+add_library(wiredtiger_azure_store MODULE azure_storage_source.cpp azure_log_system.cpp)
 target_include_directories(
     wiredtiger_azure_store
     PRIVATE
