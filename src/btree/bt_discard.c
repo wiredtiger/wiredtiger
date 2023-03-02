@@ -266,6 +266,9 @@ __wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref)
             return;
     } while (!__wt_atomic_cas_ptr(&ref->addr, ref_addr, NULL));
 
+    /* Encourage races. */
+    __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_8, NULL);
+
     if (home == NULL || __wt_off_page(home, ref_addr)) {
         __wt_free(session, ((WT_ADDR *)ref_addr)->addr);
         __wt_free(session, ref_addr);
