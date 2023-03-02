@@ -58,27 +58,27 @@ def get_mirrors(db_dir, db_files):
     mirrors = []
     db_files_remaining = set(db_files)
 
-    for uri in db_files:
-        if uri not in db_files_remaining:
+    for filename in db_files:
+        if filename not in db_files_remaining:
             continue
-        db_files_remaining.remove(uri)
-        mirror_uri = get_mirror_uri(db_dir, f'file:{uri}')
-        if mirror_uri is not None:
-            db_files_remaining.remove(mirror_uri)
-            mirrors.append([f'{db_dir}/file:{uri}',
-                            f'{db_dir}/file:{mirror_uri}'])
+        db_files_remaining.remove(filename)
+        mirror_filename = get_mirror_file(db_dir, f'file:{filename}')
+        if mirror_filename is not None:
+            db_files_remaining.remove(mirror_filename)
+            mirrors.append([f'{db_dir}/file:{filename}',
+                            f'{db_dir}/file:{mirror_filename}'])
 
     return mirrors
 
-# Get the mirror for the specified uri by examining the uri's metadata. Mirror names
-# are stored in the 'app_metadata' by workgen when mirroring is enabled. If the uri has
+# Get the mirror for the specified file by examining the file's metadata. Mirror names
+# are stored in the 'app_metadata' by workgen when mirroring is enabled. If the file has
 # a mirror, the name of the mirror is returned. Otherwise, the function returns None.
-def get_mirror_uri(db_dir, uri):
+def get_mirror_file(db_dir, filename):
 
     connection = wiredtiger_open(db_dir, 'readonly')
     session = connection.open_session()
     c = session.open_cursor('metadata:', None, None)
-    metadata = c[uri]
+    metadata = c[filename]
     c.close()
 
     result=re.findall('app_metadata="([^"]*)"', metadata)
