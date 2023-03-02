@@ -63,4 +63,5 @@ gcp_log_system::set_wt_verbosity_level(int32_t wt_verbosity_level)
         _gcp_log_level = verbosity_mapping.at(_wt_verbosity_level);
     else
         _gcp_log_level = google::cloud::Severity::GCP_LS_ERROR;
+    google::cloud::LogSink::Instance().set_minimum_severity(_gcp_log_level);
 }
