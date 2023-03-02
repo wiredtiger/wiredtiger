@@ -689,12 +689,6 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 
     azure_storage->log =
       std::make_unique<azure_log_system>(azure_storage->wt_api, azure_storage->verbose);
-    Logger::SetListener([azure_storage](auto lvl, auto msg) {
-        if (azure_to_wt_verbosity_level(lvl) <= azure_storage->verbose)
-            azure_storage->wt_api->err_printf(azure_storage->wt_api, NULL, "%s", msg.c_str());
-        else
-            azure_storage->wt_api->msg_printf(azure_storage->wt_api, NULL, "%s", msg.c_str());
-    });
 
     azure_storage->store.ss_customize_file_system = azure_customize_file_system;
     azure_storage->store.ss_add_reference = azure_add_reference;

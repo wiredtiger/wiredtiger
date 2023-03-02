@@ -35,6 +35,7 @@ azure_log_system::azure_log_system(WT_EXTENSION_API *wt_api, int32_t wt_verbosit
     : _wt_api(wt_api)
 {
     set_wt_verbosity_level(wt_verbosity_level);
+    set_listener();
 }
 
 // Find Azure Logger level given WiredTiger verbosity level returns Warning if not found.
@@ -90,4 +91,13 @@ void
 azure_log_system::log_debug_message(const std::string &message) const
 {
     log_verbose_message(WT_VERBOSE_DEBUG_1, message);
+}
+
+void azure_log_system::set_listener() const {
+    Azure::Core::Diagnostics::Logger::SetListener([this](auto lvl, auto msg) {
+        if (azure_to_wt_verbosity_level(lvl) <= _wt_verbosity_level)
+            _wt_api->err_printf(_wt_api, NULL, "%s", msg.c_str());
+        else
+            _wt_api->msg_printf(_wt_api, NULL, "%s", msg.c_str());
+    });
 }
