@@ -496,7 +496,6 @@ begin_transaction_ts(TINFO *tinfo)
 
     session = tinfo->session;
 
-retry:
     /* Pick a read timestamp. */
     if (GV(RUNS_PREDICTABLE_REPLAY))
         ts = replay_read_ts(tinfo);
@@ -525,13 +524,6 @@ retry:
 
         testutil_assert(ret == EINVAL);
         testutil_check(session->rollback_transaction(session, NULL));
-
-        /*
-         * For predictable retry, we'll get another read timestamp. For regular runs, we'll continue
-         * without an explicit read timestamp.
-         */
-        if (GV(RUNS_PREDICTABLE_REPLAY))
-            goto retry;
     }
 
     wt_wrap_begin_transaction(session, NULL);
