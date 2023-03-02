@@ -193,7 +193,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
     buf->size = size;
 
     /*
-     * Check if the chunk cache has the needed data. If it does not, the chunk cache may read it the
+     * Check if the chunk cache has the needed data. If it does not, the chunk cache may read it from the
      * file.
      */
     if (!__wt_chunkcache_get(session, block, objectid, offset, size, buf->mem))
