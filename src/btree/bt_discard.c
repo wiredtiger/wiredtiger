@@ -248,8 +248,6 @@ __wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_PAGE *home;
     void *ref_addr;
 
-    home = ref->home;
-
     /*
      * In order to free the WT_REF.addr field we need to read and clear the address without a race.
      * The WT_REF may be a child of a page being split, in which case the addr field could be
@@ -258,8 +256,10 @@ __wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref)
      *
      * However as we could be the child of a page being split the ref->home pointer which tells us
      * whether the addr is on or off page could change concurrently. To avoid this we save the home
-     * pointer before we do the compare and swap.
+     * pointer before we do the compare and swap. Additionally ref->home is marked as volatile so
+     * the compile won't be able to replace this with multiple reads throughout the function.
      */
+    home = ref->home;
     do {
         WT_ORDERED_READ(ref_addr, ref->addr);
         if (ref_addr == NULL)
