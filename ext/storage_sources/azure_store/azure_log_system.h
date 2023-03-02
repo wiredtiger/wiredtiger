@@ -45,13 +45,6 @@ const std::map<int32_t, Azure::Core::Diagnostics::Logger::Level> wt_to_azure_ver
   {WT_VERBOSE_DEBUG_5, Azure::Core::Diagnostics::Logger::Level::Verbose},
 };
 
-const std::map<Azure::Core::Diagnostics::Logger::Level, int32_t> azure_to_wt_verbosity_mapping = {
-  {Azure::Core::Diagnostics::Logger::Level::Error, WT_VERBOSE_ERROR},
-  {Azure::Core::Diagnostics::Logger::Level::Warning, WT_VERBOSE_WARNING},
-  {Azure::Core::Diagnostics::Logger::Level::Informational, WT_VERBOSE_INFO},
-  {Azure::Core::Diagnostics::Logger::Level::Verbose, WT_VERBOSE_DEBUG_5},
-};
-
 /*
  * This class represents the Azure Logging System which is used for all logging output, with
  * configurable logging levels. The Azure errors are mapped to their WiredTiger equivalent and
