@@ -300,4 +300,4 @@ table10.ops.pct.write=65
 table10.ops.truncate=0
 table10.runs.source=file
 table10.runs.type=variable-length column-store
-########################################s
+########################################
