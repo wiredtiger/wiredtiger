@@ -35,12 +35,11 @@ azure_log_system::azure_log_system(WT_EXTENSION_API *wt_api, int32_t wt_verbosit
     : _wt_api(wt_api)
 {
     set_wt_verbosity_level(wt_verbosity_level);
-    set_listener();
 }
 
 // Find Azure Logger level given WiredTiger verbosity level returns Warning if not found.
 const Azure::Core::Diagnostics::Logger::Level
-wt_to_azure_verbosity_level(int32_t wt_verbosity_level)
+azure_log_system::wt_to_azure_verbosity_level(int32_t wt_verbosity_level)
 {
     auto res = wt_to_azure_verbosity_mapping.find(wt_verbosity_level);
     assert(res != wt_to_azure_verbosity_mapping.end());
@@ -50,24 +49,13 @@ wt_to_azure_verbosity_level(int32_t wt_verbosity_level)
         return Azure::Core::Diagnostics::Logger::Level::Warning;
 }
 
-// Find WiredTiger verbosity level given Azure Logger level returns Notice if not found.
-const int32_t
-azure_to_wt_verbosity_level(Azure::Core::Diagnostics::Logger::Level azure_verbosity_level)
-{
-    auto res = azure_to_wt_verbosity_mapping.find(azure_verbosity_level);
-    assert(res != azure_to_wt_verbosity_mapping.end());
-    if (res != azure_to_wt_verbosity_mapping.end())
-        return res->second;
-    else
-        return WT_VERBOSE_NOTICE;
-}
-
 // Sets the WiredTiger verbosity level by mapping the Azure SDK log level.
 void
 azure_log_system::set_wt_verbosity_level(int32_t wt_verbosity_level)
 {
     _wt_verbosity_level = wt_verbosity_level;
     _azure_log_level = wt_to_azure_verbosity_level(wt_verbosity_level);
+    Azure::Core::Diagnostics::Logger::SetLevel(_azure_log_level);
 }
 
 void
@@ -94,12 +82,10 @@ azure_log_system::log_debug_message(const std::string &message) const
 }
 
 void
-azure_log_system::set_listener() const
+azure_log_system::azure_log_listener(Azure::Core::Diagnostics::Logger::Level lvl, std::string msg)
 {
-    Azure::Core::Diagnostics::Logger::SetListener([this](auto lvl, auto msg) {
-        if (azure_to_wt_verbosity_level(lvl) <= _wt_verbosity_level)
-            _wt_api->err_printf(_wt_api, NULL, "%s", msg.c_str());
-        else
-            _wt_api->msg_printf(_wt_api, NULL, "%s", msg.c_str());
-    });
+    if (lvl <= _azure_log_level)
+        _wt_api->err_printf(_wt_api, NULL, "%s", msg.c_str());
+    else
+        _wt_api->msg_printf(_wt_api, NULL, "%s", msg.c_str());
 }

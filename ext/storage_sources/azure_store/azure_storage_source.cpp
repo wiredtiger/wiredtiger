@@ -41,8 +41,6 @@
 
 #include <azure/core/diagnostics/logger.hpp>
 
-using namespace Azure::Core::Diagnostics;
-
 struct azure_file_system;
 struct azure_file_handle;
 struct azure_store {
@@ -670,6 +668,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 {
     azure_store *azure_storage = new azure_store;
     WT_CONFIG_ITEM v;
+    std::string msg;
 
     azure_storage->wt_api = connection->get_extension_api(connection);
     int ret = azure_storage->wt_api->config_get(
@@ -679,16 +678,18 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     // Initialise logger for the storage source.
     if (ret == 0 && v.val >= WT_VERBOSE_ERROR && v.val <= WT_VERBOSE_DEBUG_5) {
         azure_storage->verbose = v.val;
-        Logger::SetLevel(wt_to_azure_verbosity_level(v.val));
+        azure_storage->log->set_wt_verbosity_level(azure_storage->verbose);
     } else if (ret != WT_NOTFOUND) {
         azure_storage->log->log_err_msg(
           "wiredtiger_extension_init: error parsing config for verbose level.");
         delete azure_storage;
-        return (ret != 0 ? ret : EINVAL);
+        return ret != 0 ? ret : EINVAL;
     }
 
     azure_storage->log =
       std::make_unique<azure_log_system>(azure_storage->wt_api, azure_storage->verbose);
+    Azure::Core::Diagnostics::Logger::SetListener(
+      [azure_storage](auto lvl, auto msg) { azure_storage->log->azure_log_listener(lvl, msg); });
 
     azure_storage->store.ss_customize_file_system = azure_customize_file_system;
     azure_storage->store.ss_add_reference = azure_add_reference;
