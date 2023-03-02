@@ -103,3 +103,4 @@ azure_log_system::set_listener() const
             _wt_api->msg_printf(_wt_api, NULL, "%s", msg.c_str());
     });
 }
+
