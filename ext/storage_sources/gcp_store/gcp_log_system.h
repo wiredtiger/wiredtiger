@@ -32,7 +32,7 @@
 
 #include <atomic>
 
-// Mapping the desired WiredTiger extension verbosity level to a rough equivalent AWS
+// Mapping the desired WiredTiger extension verbosity level to a rough equivalent GCP
 // SDK verbosity level.
 static const std::map<int32_t, google::cloud::Severity> verbosity_mapping = {
   {WT_VERBOSE_ERROR, google::cloud::Severity::GCP_LS_ERROR},
@@ -46,10 +46,12 @@ static const std::map<int32_t, google::cloud::Severity> verbosity_mapping = {
 };
 
 /*
- * Provides the S3 Store with a logger implementation that redirects the generated logs to
- * WiredTiger's logging streams. This class implements AWS's LogSystemInterface class, an interface
+ * Provides the GCP Store with a logger implementation that redirects the generated logs to
+ * WiredTiger's logging streams. This class implements GCP's LogBackend class, an interface
  * for logging implementations. Functions are derived from the interface to incorporate the logging
- * with WiredTiger's logging system.
+ * with WiredTiger's logging system. 
+ * 
+ * GCP's LogSink is used to initialize the intialized log system to the SDK.
  */
 class gcp_log_system : public google::cloud::LogBackend {
     public:
@@ -77,7 +79,7 @@ class gcp_log_system : public google::cloud::LogBackend {
         log_verbose_message(WT_VERBOSE_DEBUG_1, message);
     }
 
-    // Sets the WiredTiger Extension's verbosity level and matches the AWS log levels
+    // Sets the WiredTiger Extension's verbosity level and matches the GCP log levels
     // to this.
     void set_wt_verbosity_level(int32_t wtVerbosityLevel);
     private:

@@ -53,12 +53,12 @@ void gcp_log_system::Process(google::cloud::LogRecord const &log_record) {
     _wt_api->err_printf(_wt_api, NULL, "%s", log_record.message.c_str());
 }
 
-// Sets the WiredTiger verbosity level by mapping the AWS SDK log level.
+// Sets the WiredTiger verbosity level by mapping the Google Cloud SDK log level.
 void
 gcp_log_system::set_wt_verbosity_level(int32_t wt_verbosity_level)
 {
     _wt_verbosity_level = wt_verbosity_level;
-    // If the verbosity level is out of range it will default to AWS SDK Error level.
+    // If the verbosity level is out of range it will default to GCP SDK Error level.
     if (verbosity_mapping.find(_wt_verbosity_level) != verbosity_mapping.end())
         _gcp_log_level = verbosity_mapping.at(_wt_verbosity_level);
     else
