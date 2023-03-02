@@ -2483,9 +2483,9 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
 #else
     /*
      * Most applications that are not using transactions to read/walk with a cursor cannot handle
-     * having rollback nor should the API reset and retry the operation, losing the cursor's
-     * position. Skip the check if there are no updates, the thread operation did not time out and
-     * the operation is not running in a transaction.
+     * having rollback returned nor should the API reset and retry the operation, losing the
+     * cursor's position. Skip the check if there are no updates, the thread operation did not time
+     * out and the operation is not running in a transaction.
      */
     if (txn->mod_count == 0 && !__wt_op_timer_fired(session) && !F_ISSET(txn, WT_TXN_RUNNING))
         return (0);
