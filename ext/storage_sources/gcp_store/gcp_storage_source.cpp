@@ -19,7 +19,7 @@ struct gcp_file_handle;
 struct gcp_store {
     WT_STORAGE_SOURCE storage_source;
     WT_EXTENSION_API *wt_api;
-    static std::shared_ptr<gcp_log_system> log;
+    std::shared_ptr<gcp_log_system> log;
     google::cloud::LogSink::BackendId log_id;
     std::mutex fs_list_mutex;
     std::vector<gcp_file_system *> fs_list;
