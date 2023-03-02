@@ -131,7 +131,8 @@ for f in `find . -name ${t_pfx}\*`; do
         # s_evergree_validate, $FAILED_CMD can be parsed incorrectly and result in a failing
         # script being ignored. Use `[^\w]` to ensure we match on the full command name and
         # not just a substring
-        FAILED_CMD=$(echo "$COMMANDS" | grep "${LOCAL_NAME}[^\w]")
+        CMD_NAME=${LOCAL_NAME#"$t_pfx"}
+        FAILED_CMD=$(echo "$COMMANDS" | grep "${CMD_NAME}[^\w]")
         TRIMMED_CMD=$(echo "$FAILED_CMD" | sed -e 's/ >.*//' -e 's/2>&1 //')
         errchk "$TRIMMED_CMD" "$f"
     fi
