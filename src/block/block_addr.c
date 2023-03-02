@@ -62,7 +62,7 @@ __block_addr_unpack(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t **p
         flags = *block_pp;
         ++block_pp;
         if (LF_ISSET(WT_BLOCK_COOKIE_FILEID))
-            WT_RET(__wt_vunpack_uint(pp, 0, &i));
+            WT_RET(__wt_vunpack_uint(&block_pp, 0, &i));
     }
 
     /*
