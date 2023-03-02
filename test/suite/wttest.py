@@ -92,6 +92,10 @@ class CapturedFd(object):
         self.desc = desc
         self.expectpos = 0
         self.file = None
+        self.ignore_regex = None
+
+    def setIgnorePattern(self, regex):
+        self.ignore_regex = regex
 
     def readFileFrom(self, filename, pos, maxchars):
         """
@@ -128,7 +132,15 @@ class CapturedFd(object):
             return
         if self.file != None:
             self.file.flush()
-        return self.expectpos < os.path.getsize(self.filename)
+        new_size = os.path.getsize(self.filename)
+        if self.ignore_regex is None:
+            return self.expectpos < new_size
+
+        gotstr = self.readFileFrom(self.filename, self.expectpos, new_size - self.expectpos)
+        for line in list(filter(None, gotstr.split('\n'))):
+            if self.ignore_regex.search(line) is None:
+                return True
+        return False
 
     def check(self, testcase):
         """
@@ -181,6 +193,27 @@ class CapturedFd(object):
                           ', expected pattern "' + pat + '", but got "' +
                           gotstr + '"')
         self.expectpos = os.path.getsize(self.filename)
+
+    def checkCustomValidator(self, testcase, f):
+        """
+        Check to see that an additional string has been added to the
+        output file.  If it has not, raise it as a test failure.
+        In any case, reset the expected pos to account for the new output.
+        """
+        if self.file != None:
+            self.file.flush()
+
+        # Custom validators probably don't want to see truncated output.
+        # Give them the whole string.
+        new_expectpos = os.path.getsize(self.filename)
+        diff = new_expectpos - self.expectpos
+        gotstr = self.readFileFrom(self.filename, self.expectpos, diff)
+        try:
+            f(gotstr)
+        except Exception as e:
+            testcase.fail('in ' + self.desc +
+                          ', custom validator failed: ' + str(e))
+        self.expectpos = new_expectpos
 
 class TestSuiteConnection(object):
     def __init__(self, conn, connlist):
@@ -339,6 +372,8 @@ class WiredTigerTestCase(unittest.TestCase):
         self.captureerr = CapturedFd('stderr.txt', 'error output')
         sys.stdout = self.captureout.capture()
         sys.stderr = self.captureerr.capture()
+        if self.ignore_regex is not None:
+            self.captureout.setIgnorePattern(self.ignore_regex)
 
     def fdTearDown(self):
         # restore stderr/stdout
@@ -352,6 +387,8 @@ class WiredTigerTestCase(unittest.TestCase):
             assert(len(self.scenarios) == len(dict(self.scenarios)))
         unittest.TestCase.__init__(self, *args, **kwargs)
         self.skipped = False
+        self.ignore_regex = None
+        self.teardown_actions = []
         if not self._globalSetup:
             WiredTigerTestCase.globalSetup()
         self.platform_api = WiredTigerTestCase._hookmgr.get_platform_api()
@@ -636,6 +673,7 @@ class WiredTigerTestCase(unittest.TestCase):
             namefile.write(str(self) + '\n')
         self.fdSetUp()
         self._threadLocal.currentTestCase = self
+        self.ignoreTearDownLogs = False
         # tearDown needs a conn field, set it here in case the open fails.
         self.conn = None
         try:
@@ -663,6 +701,9 @@ class WiredTigerTestCase(unittest.TestCase):
     def checkStdout(self):
         self.captureout.check(self)
 
+    def ignoreStdoutPattern(self, pattern, re_flags = 0):
+        self.ignore_regex = re.compile(pattern, re_flags)
+
     def readyDirectoryForRemoval(self, directory):
         # Make sure any read-only files or directories left behind
         # are made writeable in preparation for removal.
@@ -673,7 +714,20 @@ class WiredTigerTestCase(unittest.TestCase):
             for f in files:
                 os.chmod(os.path.join(root, f), 0o666)
 
+    # Return value of each action should be a tuple with the first value an integer (non-zero to indicate
+    # failure), and the second value a string suitable for printing when the test fails.
+    def addTearDownAction(self, action):
+        self.teardown_actions.append(action)
+
     def tearDown(self, dueToRetry=False):
+        teardown_failed = False
+        if not dueToRetry:
+            for action in self.teardown_actions:
+                tmp = action()
+                if tmp[0] != 0:
+                    self.pr('ERROR: teardown action failed, message=' + tmp[1])
+                    teardown_failed = True
+
         # This approach works for all our support Python versions and
         # is suggested by one of the answers in:
         # https://stackoverflow.com/questions/4414234/getting-pythons-unittest-results-in-a-teardown-method
@@ -689,7 +743,7 @@ class WiredTigerTestCase(unittest.TestCase):
         exc_failure = (sys.exc_info() != (None, None, None))
 
         self._failed = error or failure or exc_failure
-        passed = not self._failed
+        passed = not (self._failed or teardown_failed)
 
         self.platform_api.tearDown()
 
@@ -716,7 +770,7 @@ class WiredTigerTestCase(unittest.TestCase):
         self._connections = []
         try:
             self.fdTearDown()
-            if not dueToRetry:
+            if not (dueToRetry or self.ignoreTearDownLogs):
                 self.captureout.check(self)
                 self.captureerr.check(self)
         finally:
@@ -787,6 +841,12 @@ class WiredTigerTestCase(unittest.TestCase):
         self.captureerr.check(self)
         yield
         self.captureerr.checkAdditionalPattern(self, pat, re_flags)
+
+    @contextmanager
+    def customStdoutPattern(self, f):
+        self.captureout.check(self)
+        yield
+        self.captureout.checkCustomValidator(self, f)
 
     def readStdout(self, maxchars=10000):
         return self.captureout.readFileFrom(self.captureout.filename, self.captureout.expectpos, maxchars)

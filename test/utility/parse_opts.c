@@ -26,8 +26,6 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 #include "test_util.h"
-#define DIR_STORE "dir_store"
-#define S3_STORE "s3_store"
 
 extern char *__wt_optarg; /* argument associated with option */
 extern int __wt_optind;
@@ -227,6 +225,7 @@ testutil_parse_begin_opt(int argc, char *const *argv, const char *getopts_string
     opts->argc = 0;
     opts->argv = NULL;
     opts->do_data_ops = false;
+    opts->home = NULL;
     opts->preserve = false;
     opts->running = true;
     opts->verbose = false;
