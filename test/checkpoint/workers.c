@@ -334,13 +334,17 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
 static WT_THREAD_RET
 worker(void *arg)
 {
+    THREAD_DATA *td;
     char tid[128];
 
+    td = (THREAD_DATA *)arg;
+
     testutil_check(__wt_thread_str(tid, sizeof(tid)));
-    printf("worker thread starting: tid: %s\n", tid);
+    printf("worker thread starting: tid: %s key-range: %" PRIu32 " - %" PRIu32 "\n", tid,
+      td->start_key, td->start_key + td->key_range);
     fflush(stdout);
 
-    (void)real_worker((THREAD_DATA *)arg);
+    (void)real_worker(td);
     return (WT_THREAD_RET_VALUE);
 }
 
@@ -397,7 +401,7 @@ real_worker(THREAD_DATA *td)
             new_txn = true;
             start_txn = false;
         }
-        keyno = __wt_random(&td->data_rnd) % g.nkeys + 1;
+        keyno = __wt_random(&td->data_rnd) % td->key_range + td->start_key;
         /* If we have specified to run with mix mode deletes we need to do it in it's own txn. */
         if (g.use_timestamps && g.no_ts_deletes && new_txn &&
           __wt_random(&td->data_rnd) % 72 == 0) {

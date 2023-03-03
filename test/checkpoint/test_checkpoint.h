@@ -56,6 +56,8 @@ typedef struct {
 
 typedef struct {
     int info;
+    u_int start_key;
+    u_int key_range;
     WT_RAND_STATE data_rnd;
     WT_RAND_STATE extra_rnd;
 } THREAD_DATA;
@@ -88,7 +90,8 @@ typedef struct {
     bool prepare;                                      /* Use prepare transactions */
     bool race_timestamps;                              /* Async update to oldest timestamp */
 
-    bool use_timestamps; /* Use txn timestamps. Start clock thread */
+    bool use_timestamps;     /* Use txn timestamps. Start clock thread */
+    bool predictable_replay; /* Run such that a predictable replay is possible. */
 
     COOKIE *cookies;               /* Per-table info */
     THREAD_DATA *td;               /* Per-thread info */
