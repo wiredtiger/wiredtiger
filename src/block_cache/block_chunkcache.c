@@ -13,14 +13,6 @@
     (block_off < chunk_off + (wt_off_t)chunk_size) && (chunk_off < block_off + (wt_off_t)block_size)
 #endif
 
-#define WT_CHUNK_MARK_VALID(session, chunkcache, chunk)                            \
-    if (!chunk->valid) {                                                           \
-        (void)__wt_atomic_addv32(&chunk->valid, 1);                                \
-        __wt_spin_lock(session, &chunkcache->chunkcache_lru_lock);                 \
-        TAILQ_INSERT_HEAD(&chunkcache->chunkcache_lru_list, chunk, next_lru_item); \
-        __wt_spin_unlock(session, &chunkcache->chunkcache_lru_lock);               \
-    }
-
 /* This rounds down to the chunk boundary. */
 #define WT_CHUNK_OFFSET(chunkcache, offset) \
     (wt_off_t)(((size_t)offset / chunkcache->chunk_size) * chunkcache->chunk_size)
@@ -41,11 +33,11 @@ __chunkcache_alloc(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
     chunkcache = &S2C(session)->chunkcache;
 
     if (chunkcache->type == WT_CHUNKCACHE_IN_VOLATILE_MEMORY)
-        ret = __wt_malloc(session, chunk->chunk_size, &chunk->chunk_location);
+        ret = __wt_malloc(session, chunk->chunk_size, &chunk->chunk_memory);
     else {
 #ifdef ENABLE_MEMKIND
-        chunk->chunk_location = memkind_malloc(chunkcache->memkind, chunk->chunk_size);
-        if (chunk->chunk_location == NULL)
+        chunk->chunk_memory = memkind_malloc(chunkcache->memkind, chunk->chunk_size);
+        if (chunk->chunk_memory == NULL)
             ret = WT_ERROR;
 #else
         WT_RET_MSG(session, EINVAL,
@@ -152,10 +144,10 @@ __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
     WT_STAT_CONN_DECR(session, chunk_cache_chunks);
 
     if (chunkcache->type == WT_CHUNKCACHE_IN_VOLATILE_MEMORY)
-        __wt_free(session, chunk->chunk_location);
+        __wt_free(session, chunk->chunk_memory);
     else {
 #ifdef ENABLE_MEMKIND
-        memkind_free(chunkcache->memkind, chunk->chunk_location);
+        memkind_free(chunkcache->memkind, chunk->chunk_memory);
 #else
         __wt_err(session, EINVAL,
           "Chunk cache requires libmemkind, unless it is configured to be in DRAM");
@@ -252,7 +244,7 @@ __chunkcache_eviction_thread(void *arg)
         /* Try evicting a chunk if we have exceeded capacity. */
         while (!chunkcache->chunkcache_exiting &&
           ((chunkcache->bytes_used + chunkcache->chunk_size) >
-            chunkcache->evict_watermark * chunkcache->capacity / 100))
+            chunkcache->evict_trigger * chunkcache->capacity / 100))
             __chunkcache_evict_one(session);
         __wt_sleep(1, 0); /* a more appropriate frequency must be chosen */
     }
@@ -322,7 +314,7 @@ retry:
                   (size_t)chunk->chunk_offset + chunk->chunk_size - (size_t)offset;
                 size_copied = WT_MIN(readable_in_chunk, left_to_read);
                 memcpy((void *)((uint64_t)dst + already_read),
-                  chunk->chunk_location + (offset + (wt_off_t)already_read - chunk->chunk_offset),
+                  chunk->chunk_memory + (offset + (wt_off_t)already_read - chunk->chunk_offset),
                   size_copied);
                 __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
 
@@ -335,7 +327,7 @@ retry:
                 break;
             }
         }
-        /* The chunk is not cached. Read it from storage and insert into the cache. */
+        /* The chunk is not cached. Allocate space for it. Prepare for reading it from storage. */
         if (!chunk_cached) {
             if (__chunkcache_alloc_chunk(
                   session, offset + (wt_off_t)already_read, block, &hash_id, &chunk) != 0) {
@@ -343,15 +335,15 @@ retry:
                 return (false);
             }
             /*
-             * Insert the chunk into the bucket before releasing the lock and doing I/O. This way we
-             * avoid two threads trying to cache the same chunk.
+             * Insert the invalid chunk into the bucket before releasing the lock and doing I/O.
+             * This way we avoid two threads trying to cache the same chunk.
              */
             TAILQ_INSERT_HEAD(WT_BUCKET_CHUNKS(chunkcache, bucket_id), chunk, next_chunk);
             __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
 
-            /* Read the chunk and mark it as valid. */
+            /* Read the new chunk. Only one thread would be caching the new chunk. */
             if (__wt_read(session, block->fh, chunk->chunk_offset, chunk->chunk_size,
-                  chunk->chunk_location) != 0) {
+                  chunk->chunk_memory) != 0) {
                 __wt_spin_lock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
                 TAILQ_REMOVE(WT_BUCKET_CHUNKS(chunkcache, bucket_id), chunk, next_chunk);
                 __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
@@ -359,7 +351,20 @@ retry:
                 WT_STAT_CONN_INCR(session, chunk_cache_io_failed);
                 return (false);
             }
-            WT_CHUNK_MARK_VALID(session, chunkcache, chunk);
+
+            /*
+             * Mark chunk as valid. The only thread that could be executing this code is the thread
+             * that won the race and inserted this (invalid) chunk into the hash table. This thread
+             * has now read the chunk, while any other threads that were looking for the same chunk
+             * would be spin-waiting for this chunk to become valid. The current thread will mark
+             * the chunk as valid, and any waiters will unblock and proceed reading it.
+             */
+            (void)__wt_atomic_addv32(&chunk->valid, 1);
+
+            /* Insert the new chunk into the LRU list */
+            __wt_spin_lock(session, &chunkcache->chunkcache_lru_lock);
+            TAILQ_INSERT_HEAD(&chunkcache->chunkcache_lru_list, chunk, next_lru_item);
+            __wt_spin_unlock(session, &chunkcache->chunkcache_lru_lock);
 
             __wt_verbose(session, WT_VERB_CHUNKCACHE,
               "insert: %s(%u), offset=%" PRId64 ", size=%lu", (char *)block->name, objectid,
@@ -486,8 +491,7 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
         return (0);
 
     WT_RET(__wt_config_gets(session, cfg, "chunk_cache.chunk_cache_evict_trigger", &cval));
-    if (((chunkcache->evict_watermark = (u_int)cval.val) == 0) ||
-      (chunkcache->evict_watermark > 100))
+    if (((chunkcache->evict_trigger = (u_int)cval.val) == 0) || (chunkcache->evict_trigger > 100))
         WT_RET_MSG(session, EINVAL, "evict trigger must be between 0 and 100");
 
     WT_RET(__wt_config_gets(session, cfg, "chunk_cache.hashsize", &cval));

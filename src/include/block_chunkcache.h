@@ -35,7 +35,7 @@ struct __wt_chunkcache_chunk {
 
     WT_CHUNKCACHE_HASHID hash_id;
     volatile bool being_evicted;
-    char *chunk_location;
+    char *chunk_memory;
     size_t chunk_size;
     unsigned int bucket_id; /* save bucket ID for quick removal */
     volatile uint32_t valid;
@@ -67,8 +67,8 @@ struct __wt_chunkcache {
     bool chunkcache_exiting;
     bool configured;
     size_t chunk_size;
-    char *dev_path; /* the storage path if we are on a file system or a block device */
-    unsigned int evict_watermark; /* When this percent of cache is full, we trigger eviction. */
+    char *dev_path;             /* the storage path if we are on a file system or a block device */
+    unsigned int evict_trigger; /* When this percent of cache is full, we trigger eviction. */
     unsigned int hashtable_size;
     int type; /* location of the chunk cache (volatile memory or file) */
 };

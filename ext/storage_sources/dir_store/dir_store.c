@@ -1439,7 +1439,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     dir_store->reference_count = 1;
 
     /* Cache files locally by default */
-    dir_store->cache = 1;
+    dir_store->cache = 0;
 
     if ((ret = dir_store_configure(dir_store, config)) != 0) {
         free(dir_store);
