@@ -350,12 +350,12 @@ testutil_verify_src_backup(WT_CONNECTION *conn, const char *backup, const char *
 
     WT_CLEAR(buf);
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    testutil_check(session->open_cursor(session, "backup:query_id", NULL, buf, &cursor));
     /*
      * If we are given a source ID, use it. Otherwise query the backup and check against all IDs
      * that exist in the system.
      */
     if (srcid == NULL) {
+        testutil_check(session->open_cursor(session, "backup:query_id", NULL, buf, &cursor));
         i = 0;
         while ((ret = cursor->next(cursor)) == 0) {
             testutil_check(cursor->get_key(cursor, &idstr));

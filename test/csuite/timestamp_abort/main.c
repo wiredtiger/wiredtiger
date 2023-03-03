@@ -82,7 +82,7 @@ static const char *const uri_shadow = "shadow";
 
 static const char *const ckpt_file = "checkpoint_done";
 
-static bool columns, stress, use_backups, use_lazyfs, use_ts;
+static bool backup_quick_test, columns, stress, use_backups, use_lazyfs, use_ts;
 static uint32_t backup_granularity_kb;
 
 static TEST_OPTS *opts, _opts;
@@ -1341,6 +1341,40 @@ recover_and_verify(uint32_t backup_index)
 }
 
 /*
+ * backup_exists --
+ *     Check whether the backup with the given ID exists in the database.
+ */
+static bool
+backup_exists(uint32_t index)
+{
+    WT_CONNECTION *conn;
+    WT_CURSOR *cursor;
+    WT_SESSION *session;
+    char backup_id[64];
+    const char *idstr;
+    bool found;
+
+    testutil_check(__wt_snprintf(backup_id, sizeof(backup_id), "ID%" PRIu32, index));
+    testutil_wiredtiger_open(opts, WT_HOME_DIR, NULL, &my_event, &conn, true, false);
+    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+
+    testutil_check(session->open_cursor(session, "backup:query_id", NULL, NULL, &cursor));
+    found = false;
+    while (cursor->next(cursor) == 0) {
+        testutil_check(cursor->get_key(cursor, &idstr));
+        if (strcmp(idstr, backup_id) == 0) {
+            found = true;
+            break;
+        }
+    }
+    testutil_check(cursor->close(cursor));
+
+    testutil_check(session->close(session, NULL));
+    testutil_check(conn->close(conn, NULL));
+    return (found);
+}
+
+/*
  * backup_verify --
  *     Verify previous backups.
  */
@@ -1349,13 +1383,32 @@ backup_verify()
 {
     struct dirent *dir;
     DIR *d;
+    WT_CONNECTION *conn;
     uint32_t index;
+    char backup_id[64];
 
     testutil_assert_errno((d = opendir(".")) != NULL);
     while ((dir = readdir(d)) != NULL) {
         if (strncmp(dir->d_name, "backup.", 7) == 0) {
             index = (uint32_t)atoi(dir->d_name + 7);
-            testutil_check(recover_and_verify(index));
+
+            if (backup_quick_test) {
+                /* Just check that chunks that are supposed to be different are indeed different. */
+                printf("Verify backup %" PRIu32 " (quick)\n", index);
+
+                /* Continue the verification only if we have the backup ID. */
+                if (backup_exists(index)) {
+                    testutil_check(
+                      __wt_snprintf(backup_id, sizeof(backup_id), "ID%" PRIu32, index));
+                    testutil_wiredtiger_open(
+                      opts, WT_HOME_DIR, NULL, &my_event, &conn, true, false);
+                    testutil_verify_src_backup(conn, dir->d_name, WT_HOME_DIR, backup_id);
+                    testutil_check(conn->close(conn, NULL));
+                }
+            } else {
+                /* Perform a full test. */
+                testutil_check(recover_and_verify(index));
+            }
         }
     }
     testutil_check(closedir(d));
@@ -1384,6 +1437,7 @@ main(int argc, char *argv[])
     memset(opts, 0, sizeof(*opts));
 
     backup_granularity_kb = 16;
+    backup_quick_test = true;
     columns = stress = false;
     num_iterations = 1;
     nth = MIN_TH;
