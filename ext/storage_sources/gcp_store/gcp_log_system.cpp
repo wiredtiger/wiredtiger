@@ -57,10 +57,7 @@ void
 gcp_log_system::set_wt_verbosity_level(int32_t wt_verbosity_level)
 {
     _wt_verbosity_level = wt_verbosity_level;
-    // If the verbosity level is out of range it will default to GCP SDK Error level.
-    if (verbosity_mapping.find(_wt_verbosity_level) != verbosity_mapping.end())
-        _gcp_log_level = verbosity_mapping.at(_wt_verbosity_level);
-    else
-        _gcp_log_level = google::cloud::Severity::GCP_LS_WARNING;
+    assert(verbosity_mapping.find(_wt_verbosity_level) != verbosity_mapping.end());
+    _gcp_log_level = verbosity_mapping.at(_wt_verbosity_level);
     google::cloud::LogSink::Instance().set_minimum_severity(_gcp_log_level);
 }

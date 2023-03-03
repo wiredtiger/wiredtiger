@@ -89,7 +89,7 @@ class gcp_log_system : public google::cloud::LogBackend {
 
     private:
     void log_verbose_message(int32_t verbosity_level, const std::string &message) const;
-    std::atomic<google::cloud::Severity> _gcp_log_level;
+    google::cloud::Severity _gcp_log_level;
     WT_EXTENSION_API *_wt_api;
     int32_t _wt_verbosity_level;
 };
