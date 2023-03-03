@@ -26,16 +26,14 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 #include "gcp_log_system.h"
-#include <cstdarg>
 
-// Constructor for gcp_log_system that calls to set the WiredTiger verbosity level.
-gcp_log_system::gcp_log_system(WT_EXTENSION_API *wt_api, uint32_t wt_verbosity_level) : _wt_api(wt_api)
+gcp_log_system::gcp_log_system(WT_EXTENSION_API *wt_api, int32_t wt_verbosity_level)
+    : _wt_api(wt_api)
 {
     set_wt_verbosity_level(wt_verbosity_level);
     google::cloud::LogSink::Instance().set_minimum_severity(_gcp_log_level);
 }
 
-// Directs the message to WiredTiger's log streams matched at WiredTiger's log stream levels.
 void
 gcp_log_system::log_verbose_message(int32_t verbosity_level, const std::string &message) const
 {
@@ -49,11 +47,12 @@ gcp_log_system::log_verbose_message(int32_t verbosity_level, const std::string &
     }
 }
 
-void gcp_log_system::Process(google::cloud::LogRecord const &log_record) {
+void
+gcp_log_system::Process(const google::cloud::LogRecord &log_record)
+{
     _wt_api->err_printf(_wt_api, NULL, "%s", log_record.message.c_str());
 }
 
-// Sets the WiredTiger verbosity level by mapping the Google Cloud SDK log level.
 void
 gcp_log_system::set_wt_verbosity_level(int32_t wt_verbosity_level)
 {
@@ -62,6 +61,6 @@ gcp_log_system::set_wt_verbosity_level(int32_t wt_verbosity_level)
     if (verbosity_mapping.find(_wt_verbosity_level) != verbosity_mapping.end())
         _gcp_log_level = verbosity_mapping.at(_wt_verbosity_level);
     else
-        _gcp_log_level = google::cloud::Severity::GCP_LS_ERROR;
+        _gcp_log_level = google::cloud::Severity::GCP_LS_WARNING;
     google::cloud::LogSink::Instance().set_minimum_severity(_gcp_log_level);
 }

@@ -36,29 +36,33 @@
 // SDK verbosity level.
 static const std::map<int32_t, google::cloud::Severity> verbosity_mapping = {
   {WT_VERBOSE_ERROR, google::cloud::Severity::GCP_LS_ERROR},
-  {WT_VERBOSE_WARNING,  google::cloud::Severity::GCP_LS_WARNING},
+  {WT_VERBOSE_WARNING, google::cloud::Severity::GCP_LS_WARNING},
   {WT_VERBOSE_INFO, google::cloud::Severity::GCP_LS_INFO},
   {WT_VERBOSE_DEBUG_1, google::cloud::Severity::GCP_LS_DEBUG},
   {WT_VERBOSE_DEBUG_2, google::cloud::Severity::GCP_LS_DEBUG},
   {WT_VERBOSE_DEBUG_3, google::cloud::Severity::GCP_LS_DEBUG},
   {WT_VERBOSE_DEBUG_4, google::cloud::Severity::GCP_LS_DEBUG},
-  {WT_VERBOSE_DEBUG_5, google::cloud::Severity::GCP_LS_TRACE}
-};
+  {WT_VERBOSE_DEBUG_5, google::cloud::Severity::GCP_LS_TRACE}};
 
 /*
  * Provides the GCP Store with a logger implementation that redirects the generated logs to
- * WiredTiger's logging streams. This class implements GCP's LogBackend class, an interface
- * for logging implementations. Functions are derived from the interface to incorporate the logging
- * with WiredTiger's logging system. 
- * 
+ * WiredTiger's logging streams. This class implements GCP's LogBackend class, an interface for
+ * logging implementations. Functions are derived from the interface to incorporate the logging with
+ * WiredTiger's logging system.
+ *
  * GCP's LogSink is used to initialize the intialized log system to the SDK.
  */
 class gcp_log_system : public google::cloud::LogBackend {
     public:
-    gcp_log_system(WT_EXTENSION_API *wt_api, uint32_t wt_verbosity_level);
-    
-    void Process (google::cloud::LogRecord const &log_record) override;
-    void ProcessWithOwnership (google::cloud::LogRecord log_record) override { Process(log_record); };
+    explicit gcp_log_system(WT_EXTENSION_API *wt_api, int32_t wt_verbosity_level);
+
+    void Process(const google::cloud::LogRecord &log_record) override;
+
+    void
+    ProcessWithOwnership(google::cloud::LogRecord log_record) override
+    {
+        Process(log_record);
+    };
     // Inherited from LogBackend and is not used.
     void
     Flush() override final
@@ -82,6 +86,7 @@ class gcp_log_system : public google::cloud::LogBackend {
     // Sets the WiredTiger Extension's verbosity level and matches the GCP log levels
     // to this.
     void set_wt_verbosity_level(int32_t wtVerbosityLevel);
+
     private:
     void log_verbose_message(int32_t verbosity_level, const std::string &message) const;
     std::atomic<google::cloud::Severity> _gcp_log_level;
