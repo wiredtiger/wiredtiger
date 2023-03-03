@@ -34,13 +34,15 @@
 
 import binascii, codecs, io, os, string, sys
 
+decode_version = "2023-03-03.0"
+
+# A container for fields in the WT_PAGE_HEADER
 class PageHeader:
     pass
 
+# A container for fields in the WT_BLOCK_HEADER
 class BlockHeader:
     pass
-
-decode_version = "2023-02-17.0"
 
 ################################################################
 # Borrowed from intpacking.py, with small adjustments.
@@ -79,37 +81,23 @@ UINT64_MASK = 0xffffffffffffffff
 
 _python3 = (sys.version_info >= (3, 0, 0))
 
-if _python3:
-    def _ord(b):
-        return b
+if not _python3:
+    raise Exception('This script requires Python 3')
 
-    def _chr(x, y=None):
-        a = [x]
-        if y != None:
-            a.append(y)
-        return bytes(a)
+def _ord(b):
+    return b
 
-    def _is_string(s):
-        return type(s) is str
+def _chr(x, y=None):
+    a = [x]
+    if y != None:
+        a.append(y)
+    return bytes(a)
 
-    def _string_result(s):
-        return s.decode()
+def _is_string(s):
+    return type(s) is str
 
-else:
-    def _ord(b):
-        return ord(b)
-
-    def _chr(x, y=None):
-        s = chr(x)
-        if y != None:
-            s += chr(y)
-        return s
-
-    def _is_string(s):
-        return type(s) is unicode
-
-    def _string_result(s):
-        return s
+def _string_result(s):
+    return s.decode()
 
 def getbits(x, start, end=0):
     '''return the least significant bits of x, from start to end'''
@@ -124,17 +112,10 @@ def get_int(b, size):
 def unpack_int(b):
     marker = _ord(b[0])
     if marker < NEG_2BYTE_MARKER:
-        #print('MARKER: ' + str(marker))
         sz = 8 - getbits(marker, 4)
-        #return ((-1 << (sz << 3)) | get_int(b[1:], sz), b[sz+1:])
-        #print('SZ: ' + str(sz))
         part1 = (-1 << (sz << 3))
-        #print("PART1: " + hex(part1))
         part2 = get_int(b[1:], sz)
-        #print("PART2: " + hex(part2))
         part3 = b[sz+1:]
-        #print("PART3: " + hex(part3))
-        #print("got all parts")
         return (part1 | part2, part3)
     elif marker < NEG_1BYTE_MARKER:
         return (NEG_2BYTE_MIN + ((getbits(marker, 5) << 8) | _ord(b[1])), b[2:])
@@ -218,7 +199,12 @@ class BinFile(object):
         self.saved = bytearray()
         return result
 
-# Manages printing to output
+# Manages printing to output.
+# We keep track of cells, the first line printed for a new cell
+# shows the cell number, subsequent lines are indented a little.
+# If the split option is on, we show any bytes that were used
+# in decoding before the regular decoding output appears.
+# Those 'input bytes' are shown shifted to the right.
 class Printer(object):
     def __init__(self, binfile, issplit):
         self.binfile = binfile
@@ -234,7 +220,7 @@ class Printer(object):
     def end_cell(self):
         self.in_cell = False
 
-    # This is the 'print' function
+    # This is the 'print' function, used as p.rint()
     def rint(self, s):
         if self.issplit:
             saved_bytes = self.binfile.saved_bytes()[:]
@@ -267,7 +253,7 @@ class Printer(object):
         pfx = self.cellpfx
         self.cellpfx = ''
         if pfx == '' and self.in_cell:
-            pfx = ' '
+            pfx = '  '
         print(pfx + s)
 
 # 'b' as an argument below indicates a binary file or io.BytesIO type
@@ -293,6 +279,23 @@ def unpack_uint64(b):
     arr = file_as_array(b)
     val, arr = unpack_int(arr)
     return val
+
+# Print the bytes, which may be keys or values.
+def raw_bytes(b):
+    result = ''
+
+    # If the high bit of the first byte is on, it's likely we have
+    # a packed integer.  If the high bit is off, it's possible we have
+    # a packed integer (it would be negative) but it's harder to guess,
+    # we'll presume ASCII.  But if the byte is 0x7f, that's ASCII DEL,
+    # very unlikely to be the beginning of a string, but it decodes as -1,
+    # so seems more likely to be an int.
+    while len(b) > 0 and b[0] >= 0x7f:
+        val, b = unpack_int(b)
+        result += f'<packed {d_and_h(val)}>'
+    if len(b) > 0 or len(result) == 0:
+        result += f'"{b.decode()}"'
+    return result
 
 # Return a length as used in a cell that isn't a "short" cell.  Lengths that are
 # less or equal to 64 (WT_CELL_SIZE_ADJUST) are packed in a short cell, so if a
@@ -365,36 +368,36 @@ def file_header_decode(p, b):
     p.rint('')
 
 def print_timestamps(p, b, extra):
-        # Cell.h
-        WT_CELL_PREPARE = 0x01
-        WT_CELL_TS_DURABLE_START = 0x02
-        WT_CELL_TS_DURABLE_STOP = 0x04
-        WT_CELL_TS_START = 0x08
-        WT_CELL_TS_STOP = 0x10
-        WT_CELL_TXN_START = 0x20
-        WT_CELL_TXN_STOP = 0x40
+    # from cell.h
+    WT_CELL_PREPARE = 0x01
+    WT_CELL_TS_DURABLE_START = 0x02
+    WT_CELL_TS_DURABLE_STOP = 0x04
+    WT_CELL_TS_START = 0x08
+    WT_CELL_TS_STOP = 0x10
+    WT_CELL_TXN_START = 0x20
+    WT_CELL_TXN_STOP = 0x40
         
-        if extra != 0:
-            p.rint('cell has timestamps:')
-            if extra & WT_CELL_PREPARE != 0:
-                p.rint(' prepared')
-            if extra & WT_CELL_TS_DURABLE_START != 0:
-                p.rint(' durable start ts: ' + ts(unpack_uint64(b)))
-            if extra & WT_CELL_TS_DURABLE_STOP != 0:
-                p.rint(' durable stop ts: ' + ts(unpack_uint64(b)))
-            if extra & WT_CELL_TS_START != 0:
-                p.rint(' start ts: ' + ts(unpack_uint64(b)))
-            if extra & WT_CELL_TS_STOP != 0:
-                p.rint(' stop ts: ' + ts(unpack_uint64(b)))
-            if extra & WT_CELL_TXN_START != 0:
-                p.rint(' start txn: ' + txn(unpack_uint64(b)))
-            if extra & WT_CELL_TXN_STOP != 0:
-                p.rint(' stop txn: ' + txn(unpack_uint64(b)))
-            if extra & 0x80:
-                p.rint(' *** JUNK in extra descriptor: ' + hex(extra))
+    if extra != 0:
+        p.rint('cell has timestamps:')
+        if extra & WT_CELL_PREPARE != 0:
+            p.rint(' prepared')
+        if extra & WT_CELL_TS_DURABLE_START != 0:
+            p.rint(' durable start ts: ' + ts(unpack_uint64(b)))
+        if extra & WT_CELL_TS_DURABLE_STOP != 0:
+            p.rint(' durable stop ts: ' + ts(unpack_uint64(b)))
+        if extra & WT_CELL_TS_START != 0:
+            p.rint(' start ts: ' + ts(unpack_uint64(b)))
+        if extra & WT_CELL_TS_STOP != 0:
+            p.rint(' stop ts: ' + ts(unpack_uint64(b)))
+        if extra & WT_CELL_TXN_START != 0:
+            p.rint(' start txn: ' + txn(unpack_uint64(b)))
+        if extra & WT_CELL_TXN_STOP != 0:
+            p.rint(' stop txn: ' + txn(unpack_uint64(b)))
+        if extra & 0x80:
+            p.rint(' *** JUNK in extra descriptor: ' + hex(extra))
 
-# from cell.h
 def celltype_string(b):
+    # from cell.h
     if b == 0:
         return 'WT_CELL_ADDR_DEL'
     elif b == 1:
@@ -425,31 +428,33 @@ def celltype_string(b):
         return '*** unknown cell type ***'
 
 def block_decode(p, b, disk_pos):
-    pagehead = PageHeader()
     # WT_PAGE_HEADER in btmem.h
-    p.rint('recno: ' + str(uint64(b)))
-    p.rint('writegen: ' + str(uint64(b)))
-    p.rint('memsize: ' + str(uint32(b)))
+    pagehead = PageHeader()
+    p.rint('Page Header:')
+    p.rint('  recno: ' + str(uint64(b)))
+    p.rint('  writegen: ' + str(uint64(b)))
+    p.rint('  memsize: ' + str(uint32(b)))
     pagehead.ncells = uint32(b)
-    p.rint('ncells (oflow len): ' + str(pagehead.ncells))
+    p.rint('  ncells (oflow len): ' + str(pagehead.ncells))
     pagehead.type = uint8(b)
-    p.rint('page type: ' + str(pagehead.type))
+    p.rint('  page type: ' + str(pagehead.type))
     pagehead.flags = uint8(b)
-    p.rint('page flags: ' + hex(pagehead.flags))
+    p.rint('  page flags: ' + hex(pagehead.flags))
     unused = uint8(b)
     if unused != 0:
         p.rint('garbage in unused bytes')
         return
     pagehead.version = uint8(b)
-    p.rint('version: ' + str(pagehead.version))
+    p.rint('  version: ' + str(pagehead.version))
 
     # WT_BLOCK_HEADER in block.h
     blockhead = BlockHeader()
+    p.rint('Block Header:')
     blockhead.disk_size = uint32(b)
-    p.rint('disk_size: ' + str(blockhead.disk_size))
-    p.rint('checksum: ' + hex(uint32(b)))
+    p.rint('  disk_size: ' + str(blockhead.disk_size))
+    p.rint('  checksum: ' + hex(uint32(b)))
     blockhead.flags = uint8(b)
-    p.rint('block flags: ' + hex(blockhead.flags))
+    p.rint('  block flags: ' + hex(blockhead.flags))
     if uint8(b) != 0 or uint8(b) != 0 or uint8(b) != 0:
         p.rint('garbage in unused bytes')
         return
@@ -477,10 +482,10 @@ def row_decode(p, b, pagehead, blockhead, disk_pos):
     #  1: cell descriptor byte
     #  1: prefix compression count
     #  1: secondary descriptor byte
-    # 36: 4 timestamps		(uint64_t encoding, max 9 bytes)
-    # 18: 2 transaction IDs	(uint64_t encoding, max 9 bytes)
-    #  9: associated 64-bit value	(uint64_t encoding, max 9 bytes)
-    #  5: data length		(uint32_t encoding, max 5 bytes)
+    # 36: 4 timestamps (uint64_t encoding, max 9 bytes)
+    # 18: 2 transaction IDs (uint64_t encoding, max 9 bytes)
+    #  9: associated 64-bit value (uint64_t encoding, max 9 bytes)
+    #  5: data length (uint32_t encoding, max 5 bytes)
     for cellnum in range(0, pagehead.ncells):
         cellpos = b.tell()
         if cellpos > disk_pos + blockhead.disk_size:
@@ -562,7 +567,7 @@ def row_decode(p, b, pagehead, blockhead, disk_pos):
                 s = 'short val {} bytes'.format(l)
             x = b.read(l)
         p.rint(f'{desc_str}{s}:')
-        p.rint(str(x))
+        p.rint(raw_bytes(x))
 
         if x == '?' or s == '?':
             dumpraw(p, b, cellpos)
