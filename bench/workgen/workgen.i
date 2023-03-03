@@ -174,23 +174,30 @@ WorkgenFrozenClass(WorkloadOptions)
         if config == None:
             config = self.default_config
         self.initialize()
-        /* 
-         * For tiered storage get the bucket directory name from the connection string and 
-         * create if does not exist.
-         */
+        # For tiered storage get the bucket directory name from the connection string and 
+        # create if does not exist.
         bucketConfigIndex = config.find("bucket=")
         if bucketConfigIndex != -1:
             bucketString = config[bucketConfigIndex:]
-            bucketParams = [args.split('=', 1) for args in bucketString.split(',',1)]
-            bucketValue = bucketParams[0][1]
-            if bucketValue[0] == '/':
-                bucketDirectory = bucketValue
-            else:
-                bucketDirectory = bucketValue.split("/")[-1]
 
-            bucket_path = self.args.home + "/" + bucketDirectory
-            if not os.path.isdir(bucket_path):
-                os.mkdir(bucket_path)
+            bucketParams = [args.split('=', 1) for args in bucketString.split(',')]
+            for param_key, param_value in bucketParams :
+                if param_key == 'name' :
+                    storage = param_value
+                elif param_key == 'bucket':
+                    bucketValue = param_value
+
+            # Create a bucket directory if the storage is dir_store.
+            if storage[:-1] == "dir_store":
+                if bucketValue[0] == '/':
+                    bucketDirectory = bucketValue
+                else:
+                    bucketDirectory = bucketValue.split("/")[-1]
+
+                bucket_path = self.args.home + "/" + bucketDirectory
+                if not os.path.isdir(bucket_path):
+                    os.mkdir(bucket_path)
+
         return wiredtiger.wiredtiger_open(self.args.home, self.wiredtiger_open_config(config))
 
     def initialize(self):

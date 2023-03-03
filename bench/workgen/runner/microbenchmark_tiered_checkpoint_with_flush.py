@@ -45,7 +45,4 @@ ops = Operation(Operation.OP_SLEEP, "30") + Operation(Operation.OP_CHECKPOINT, "
 checkpoint_thread = Thread(ops) 
 tiered.set_checkpoint_thread(checkpoint_thread)
 tiered.run_workload()
-
-# Sanity check to see if any file exists in the bucket directory.
-bucket_path = tiered.context.args.home + "/" + tiered.get_bucket_name()
-assert len(os.listdir(bucket_path)) != 0, "The bucket directory " + bucket_path + " is empty. Check if the flush tier worked correctly."
+tiered.print_stats()
