@@ -257,7 +257,7 @@ __wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref)
      * However as we could be the child of a page being split the ref->home pointer which tells us
      * whether the addr is on or off page could change concurrently. To avoid this we save the home
      * pointer before we do the compare and swap. Additionally ref->home is marked as volatile so
-     * the compile won't be able to replace this with multiple reads throughout the function.
+     * the compiler won't be able to replace this with multiple reads throughout the function.
      */
     home = ref->home;
     do {
