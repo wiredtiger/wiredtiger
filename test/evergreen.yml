@@ -121,8 +121,12 @@ functions:
           ${HAVE_DIAGNOSTIC|} \
           ${GNU_C_VERSION|} \
           ${GNU_CXX_VERSION|} \
-          ${ENABLE_S3|} \
+          ${ENABLE_AZURE|} \
           ${ENABLE_CPPSUITE|} \
+          ${ENABLE_GCP|} \
+          ${ENABLE_S3|} \
+          ${IMPORT_AZURE_SDK|} \
+          ${IMPORT_GCP_SDK|} \
           ${IMPORT_S3_SDK|} \
           ${SPINLOCK_TYPE|} \
           ${CC_OPTIMIZE_LEVEL|}"
@@ -797,6 +801,27 @@ functions:
           set -o errexit
           set -o verbose
           ./test/evergreen/verify_wt_datafiles.sh 2>&1
+  
+  "install gcp dependencies":
+    - command: shell.exec
+      params:
+        working_dir: "wiredtiger"
+        shell: bash
+        script: |
+          set -o errexit
+          . test/evergreen/find_cmake.sh
+          . test/evergreen/install_gcp_dependencies.sh $CMAKE
+
+  "split stress test":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/bench/workgen/runner"
+      script: |
+        set -o errexit
+        set -o verbose
+        for i in $(seq ${times|15}); do
+            ${test_env_vars|} ${python_binary|python3} split_stress.py
+        done
 
 #######################################
 #               Variables             #
@@ -821,6 +846,16 @@ variables:
     ENABLE_SHARED: -DENABLE_SHARED=0
     ENABLE_STATIC: -DENABLE_STATIC=1
 
+  # Configure flags for tiered storage Azure extension.
+  - &configure_flags_tiered_storage_azure
+    ENABLE_S3: -DENABLE_AZURE=1
+    IMPORT_S3_SDK: -DIMPORT_AZURE_SDK=external
+  
+  # Configure flags for tiered storage GCP extension.
+  - &configure_flags_tiered_storage_gcp
+    ENABLE_S3: -DENABLE_GCP=1
+    IMPORT_S3_SDK: -DIMPORT_GCP_SDK=external
+  
   # Configure flags for tiered storage S3 extension.
   - &configure_flags_tiered_storage_s3
     ENABLE_S3: -DENABLE_S3=1
@@ -2494,6 +2529,22 @@ tasks:
             set -o verbose
             sh s_all -A -E 2>&1
 
+  - name: s-string
+    # Run the script with "-r" option to remove no-longer-needed words in s_string.ok
+    # This task only needs to be scheduled every a few months. A failure can remind us
+    # to keep the s_string.ok word list up-to-date.
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/dist"
+          script: |
+            set -o errexit
+            set -o verbose
+            sh s_string -r 2>&1
+
   - name: conf-dump-test
     tags: ["pull_request", "python"]
     depends_on:
@@ -2870,7 +2921,7 @@ tasks:
           # Set this in case of a core to get the correct python binary.
           python_binary: $(pwd)/venv/bin/python3
           tiered_storage_test_name: tiered
-  - name: tiered-test-small
+  - name: s3-tiered-test-small
     tags: ["pull_request", "python"]
     commands:
       - func: "get project"
@@ -2882,8 +2933,8 @@ tasks:
           # Set this in case of a core to get the correct python binary.
           python_binary: $(pwd)/venv/bin/python3
           tiered_storage_test_name: tiered06
-  - name: tiered-unittest-test
-    tags: ["pull_request"]
+  - name: s3-tiered-unittest-test
+    tags: ["pull_request", "tiered_unittest"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2903,6 +2954,122 @@ tasks:
 
             # Run S3 extension unit testing.
             ext/storage_sources/s3_store/test/run_s3_unit_tests
+  - name: azure-tiered-unittest-test
+    tags: ["tiered_unittest"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_tiered_storage_azure
+          HAVE_UNITTEST: -DHAVE_UNITTEST=1
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build"
+          shell: bash
+          include_expansions_in_env:
+            - azure_sdk_ext_access_key
+          script: |
+            set -o errexit
+            # Set the Azure credentials using config variable.
+            export AZURE_STORAGE_CONNECTION_STRING="${azure_sdk_ext_access_key}"
+            set -o verbose
+
+            # Run Azure extension unit testing.
+            ext/storage_sources/azure_store/test/run_azure_unit_tests
+  - name: gcp-tiered-unittest-test
+    tags: ["tiered_unittest"]
+    commands:
+      - func: "get project"
+      - func: "install gcp dependencies"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_tiered_storage_gcp
+          HAVE_UNITTEST: -DHAVE_UNITTEST=1
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build"
+          shell: bash
+          include_expansions_in_env:
+            - gcp_sdk_ext_private_key
+            - gcp_sdk_ext_private_key_id
+          script: | 
+            set -o errexit
+            # GCP requires a path to a credentials file for authorization. To not expose the private
+            # information within the file, we use a placeholder private variable which are replaced 
+            # in the command line with the evergreen expansion variables and stored in a temporary 
+            # file.
+            file=$(mktemp --suffix ".json")
+
+            # Use '|' as the delimiter instead of default behaviour because the private key contains
+            # slash characters.
+            sed -e 's|gcp_project_id|${gcp_sdk_ext_project_id}|'                      \
+                -e 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|'                \
+                -e 's|gcp_private_id|${gcp_sdk_ext_private_key_id}|'                  \
+                -e 's|gcp_client_email|${gcp_sdk_ext_client_email}|'                  \
+                -e 's|gcp_client_id|${gcp_sdk_ext_client_id}|'                        \
+                -e 's|gcp_client_x509_cert_url|${gcp_sdk_ext_client_x509_cert_url}|'  ../test/evergreen/gcp_auth.json > $file
+            export GOOGLE_APPLICATION_CREDENTIALS="$file"
+            set -o verbose
+
+            # Run GCP extension unit testing.
+            ext/storage_sources/gcp_store/test/run_gcp_unit_tests
+  - name: azure-tiered-test-small
+    tags: ["python"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_tiered_storage_azure
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build"
+          shell: bash
+          include_expansions_in_env:
+            - azure_sdk_ext_access_key
+          script: |
+            set -o errexit
+            # Set the Azure credentials using config variable.
+            export AZURE_STORAGE_CONNECTION_STRING="${azure_sdk_ext_access_key}"
+            set -o verbose
+
+            ${test_env_vars|} python3 ../test/suite/run.py -j $(nproc) tiered19
+  - name: gcp-tiered-test-small
+    tags: ["python"]
+    commands:
+      - func: "get project"
+      - func: "install gcp dependencies"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_tiered_storage_gcp
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build"
+          shell: bash
+          include_expansions_in_env:
+            - gcp_sdk_ext_private_key
+            - gcp_sdk_ext_private_key_id
+          script: |
+            set -o errexit
+            # GCP requires a path to a credentials file for authorization. To not expose the private
+            # information within the file, we use a placeholder private variable which are replaced 
+            # in the command line with the evergreen expansion variables and stored in a temporary 
+            # file.
+            file=$(mktemp --suffix ".json")
+
+            # Use '|' as the delimiter instead of default behaviour because the private key contains
+            # slash characters.
+            sed -e 's|gcp_project_id|${gcp_sdk_ext_project_id}|'                      \
+                -e 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|'                \
+                -e 's|gcp_private_id|${gcp_sdk_ext_private_key_id}|'                  \
+                -e 's|gcp_client_email|${gcp_sdk_ext_client_email}|'                  \
+                -e 's|gcp_client_id|${gcp_sdk_ext_client_id}|'                        \
+                -e 's|gcp_client_x509_cert_url|${gcp_sdk_ext_client_x509_cert_url}|'  \
+                ../test/evergreen/gcp_auth.json > $file       
+            export GOOGLE_APPLICATION_CREDENTIALS="$file"
+            set -o verbose
+
+            ${test_env_vars|} python3 ../test/suite/run.py -j $(nproc) tiered19
+
   - name: spinlock-gcc-test
     commands:
       - func: "get project"
@@ -3518,32 +3685,24 @@ tasks:
             done
 
   - name: split-stress-test
-    tags: ["stress-test-1", "stress-test-zseries-1"]
+    tags: ["stress-test-1", "stress-test-ppc-1", "stress-test-zseries-1"]
+    # Set 2.5 hours timeout (60 * 60 * 2.5)
+    exec_timeout_secs: 9000
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/bench/workgen/runner"
-          script: |
-            set -o errexit
-            set -o verbose
-            for i in {1..10}; do ${test_env_vars|} ${python_binary|python3} split_stress.py; done
+      - func: "split stress test"
 
   - name: split-stress-test-nonstandalone
     tags: ["stress-test-1-nonstandalone"]
+    # Set 2.5 hours timeout (60 * 60 * 2.5)
+    exec_timeout_secs: 9000
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
           NONSTANDALONE: -DWT_STANDALONE_BUILD=0
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/bench/workgen/runner"
-          script: |
-            set -o errexit
-            set -o verbose
-            for i in {1..10}; do ${test_env_vars|} ${python_binary|python3} split_stress.py; done
+      - func: "split stress test"
 
   - name: format-stress-zseries-test
     tags: ["stress-test-zseries-1"]
@@ -4828,6 +4987,11 @@ buildvariants:
     - name: unittest-assertions
     - name: memory-model-test
       batchtime: 40320 # 28 days
+    - name: s-string
+      batchtime: 129600 # 90 days
+    - name: ".tiered_unittest"
+    - name: azure-tiered-test-small
+    - name: gcp-tiered-test-small
 
 - name: ubuntu2004-asan
   display_name: "! Ubuntu 20.04 ASAN"
@@ -4850,7 +5014,7 @@ buildvariants:
       PATH=/opt/mongodbtoolchain/v4/bin:$PATH
       LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.python !tiered-unittest-test"
+    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest"
     - name: examples-c-test
     - name: format-asan-smoke-test
 
