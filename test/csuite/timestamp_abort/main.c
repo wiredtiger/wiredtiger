@@ -1379,7 +1379,7 @@ backup_exists(uint32_t index)
  *     Verify previous backups.
  */
 static void
-backup_verify()
+backup_verify(void)
 {
     struct dirent *dir;
     DIR *d;
