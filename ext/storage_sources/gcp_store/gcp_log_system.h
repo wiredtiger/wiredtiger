@@ -50,7 +50,7 @@ static const std::map<int32_t, google::cloud::Severity> verbosity_mapping = {
  * logging implementations. Functions are derived from the interface to incorporate the logging with
  * WiredTiger's logging system.
  *
- * GCP's LogSink is used to initialize the intialized log system to the SDK.
+ * GCP's LogSink is used to initialize the log system to the SDK.
  */
 class gcp_log_system : public google::cloud::LogBackend {
     public:
