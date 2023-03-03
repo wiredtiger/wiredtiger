@@ -71,11 +71,10 @@ azure_connection::list_objects(
 
     auto list_blobs_response = _azure_client.ListBlobs(blob_parameters);
 
-    for (const auto blob_item : list_blobs_response.Blobs) {
-        objects.push_back(blob_item.Name);
-    }
+    for (const auto blob_item : list_blobs_response.Blobs)
+        objects.push_back(blob_item.Name.substr(_bucket_prefix.length()));
+
     return 0;
-}
 
 // Puts an object into the cloud storage using the prefix and file name.
 int
