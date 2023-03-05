@@ -70,6 +70,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
     WT_SESSION_IMPL *session_impl;
     int ch, format_specifiers, i;
     char *checkpoint, *ofile, *p, *simpleuri, *timestamp, *uri;
+    const char *start_key, *end_key;
     bool hex, json, pretty, reverse;
 
     session_impl = (WT_SESSION_IMPL *)session;
@@ -78,7 +79,10 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
     hs_dump_cursor = NULL;
     checkpoint = ofile = simpleuri = uri = timestamp = NULL;
     hex = json = pretty = reverse = false;
-    while ((ch = __wt_getopt(progname, argc, argv, "c:f:t:jprx?")) != EOF)
+    start_key = NULL;
+    end_key = NULL;
+
+    while ((ch = __wt_getopt(progname, argc, argv, "c:e:f:l:t:u:jprx?")) != EOF)
         switch (ch) {
         case 'c':
             checkpoint = __wt_optarg;
@@ -89,6 +93,9 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         case 'j':
             json = true;
             break;
+        case 'l':
+            start_key = __wt_optarg;
+            break;
         case 'p':
             pretty = true;
             break;
@@ -97,6 +104,9 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
             break;
         case 't':
             timestamp = __wt_optarg;
+            break;
+        case 'u':
+            end_key = __wt_optarg;
             break;
         case 'x':
             hex = true;
@@ -193,8 +203,23 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         if (dump_config(session, simpleuri, cursor, pretty, hex, json) != 0)
             goto err;
 
+        if (start_key != NULL) {
+            cursor->set_key(cursor, start_key);
+            if (cursor->bound(cursor, "action=set,bound=lower") != 0)
+                goto err;
+        }
+        if (end_key != NULL) {
+            cursor->set_key(cursor, end_key);
+            if (cursor->bound(cursor, "action=set,bound=upper") != 0)
+                goto err;
+        }
+
         if (dump_record(cursor, reverse, json) != 0)
             goto err;
+
+        if ((start_key != NULL || end_key != NULL) && cursor->bound(cursor, "action=clear") != 0)
+            goto err;
+
         if (json && dump_json_table_end(session) != 0)
             goto err;
 
@@ -641,8 +666,8 @@ dump_record(WT_CURSOR *cursor, bool reverse, bool json)
     bool once;
 
     session = cursor->session;
-
     once = false;
+
     if (json) {
         prefix = "\n{\n";
         infix = ",\n";
