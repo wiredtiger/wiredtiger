@@ -717,7 +717,7 @@ thread_run(void *arg)
     stable_ts = 0;
     for (i = td->start, iter = 0;; ++i, ++iter) {
         /* Give other threads a chance to run and move their timestamps forward. */
-        if (use_ts && !stable_set && (iter+1) % 100 == 0)
+        if (use_ts && !stable_set && (iter + 1) % 100 == 0)
             __wt_sleep(2, 0);
 
         /*
