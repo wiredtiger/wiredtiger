@@ -2533,10 +2533,8 @@ tasks:
     # Run the script with "-r" option to remove no-longer-needed words in s_string.ok
     # This task only needs to be scheduled every a few months. A failure can remind us
     # to keep the s_string.ok word list up-to-date.
-    depends_on:
-    - name: compile
     commands:
-      - func: "fetch artifacts"
+      - func: "get project"
       - command: shell.exec
         params:
           working_dir: "wiredtiger/dist"
@@ -2549,10 +2547,8 @@ tasks:
     # Detect any FIXME comments in the codebase tied to closed Jira tickets. 
     # This will send a GET request to JIRA for each FIXME ticket so we don't 
     # want to run it too frequently. 
-    depends_on:
-    - name: compile
     commands:
-      - func: "fetch artifacts"
+      - func: "get project"
       - command: shell.exec
         params:
           working_dir: "wiredtiger/dist"
@@ -5560,7 +5556,6 @@ buildvariants:
     cmake_generator: Ninja
     make_command: ninja
   tasks:
-    - name: compile
     - name: memory-model-test
       batchtime: 40320 # 28 days
     - name: s-outdated-fixmes
