@@ -202,6 +202,9 @@ the \c -f option re-directs the output to the specified file.
 Dump in JSON (<a href="http://www.json.org">JavaScript Object Notation</a>)
 format.
 
+@par \c -l
+The lower bound of the key range to dump.
+
 @par \c -p
 Dump in human-readable format (pretty-print). The \c -p flag is incompatible
 with the \c load command. The \c -p flag can be combined with \c -x. In this case, raw data elements
@@ -214,6 +217,9 @@ Dump in reverse order, from largest key to smallest.
 By default, the \c dump command opens the most recent version of the data
 source; the \c -t option changes the \c dump command to dump as of the specified
 timestamp.
+
+@par \c -u
+The upper bound of the key range to dump.
 
 @par \c -x
 Dump all characters in a hexadecimal encoding (the default is to leave
