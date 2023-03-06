@@ -662,45 +662,52 @@ dump_record(WT_CURSOR *cursor, const char *key, bool reverse, bool search_near, 
         suffix = "\n";
     }
 
-    /* A specific is requested. */
-    if (key != NULL) {
-        current_key = key;
-        cursor->set_key(cursor, current_key);
-        if (search_near)
-            ret = cursor->search_near(cursor, &exact);
-        else
-            ret = cursor->search(cursor);
+    while (ret == 0) {
 
-        if (ret != 0 && ret != WT_NOTFOUND)
-            return (util_cerr(cursor, search_near ? "search_near" : "search", ret));
+        /* A specific key is requested. */
+        if (key != NULL) {
+            current_key = key;
+            cursor->set_key(cursor, current_key);
 
-        if (ret == 0) {
-            if (search_near && exact != 0) {
-                /* Retrieve the nearest key. */
+            if (search_near)
+                ret = cursor->search_near(cursor, &exact);
+            else
+                ret = cursor->search(cursor);
+
+            if (ret != 0 && ret != WT_NOTFOUND)
+                return (util_cerr(cursor, search_near ? "search_near" : "search", ret));
+
+            if (ret == 0) {
+                if (search_near && exact != 0) {
+                    /* Retrieve the nearest key. */
+                    if ((ret = cursor->get_key(cursor, &current_key)) != 0)
+                        return (util_cerr(cursor, "get_key", ret));
+                }
+                if ((ret = cursor->get_value(cursor, &value)) != 0)
+                    return (util_cerr(cursor, "get_value", ret));
+            }
+
+        } else {
+            /* Continue parsing the file. */
+            ret = reverse ? cursor->prev(cursor) : cursor->next(cursor);
+            if (ret == 0) {
                 if ((ret = cursor->get_key(cursor, &current_key)) != 0)
                     return (util_cerr(cursor, "get_key", ret));
+                if ((ret = cursor->get_value(cursor, &value)) != 0)
+                    return (util_cerr(cursor, "get_value", ret));
             }
-            if ((ret = cursor->get_value(cursor, &value)) != 0)
-                return (util_cerr(cursor, "get_value", ret));
+        }
 
+        if (ret == 0) {
             if (fprintf(fp, "%s%s%s%s%s%s", json && once ? "," : "", prefix, current_key, infix,
                   value, suffix) < 0)
                 return (util_err(session, EIO, NULL));
             once = true;
         }
 
-    } else {
-        /* Parse the whole file. */
-        while ((ret = (reverse ? cursor->prev(cursor) : cursor->next(cursor))) == 0) {
-            if ((ret = cursor->get_key(cursor, &current_key)) != 0)
-                return (util_cerr(cursor, "get_key", ret));
-            if ((ret = cursor->get_value(cursor, &value)) != 0)
-                return (util_cerr(cursor, "get_value", ret));
-            if (fprintf(fp, "%s%s%s%s%s%s", json && once ? "," : "", prefix, current_key, infix,
-                  value, suffix) < 0)
-                return (util_err(session, EIO, NULL));
-            once = true;
-        }
+        /* When only one key is requested, we are done. */
+        if (key != NULL)
+            break;
     }
 
     if (json && once && fprintf(fp, "\n") < 0)
