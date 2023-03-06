@@ -76,9 +76,6 @@ NEG_2BYTE_MIN = -2**13 + NEG_1BYTE_MIN
 POS_1BYTE_MAX = 2**6 - 1
 POS_2BYTE_MAX = 2**13 + POS_1BYTE_MAX
 
-MINUS_BIT = -1 << 64
-UINT64_MASK = 0xffffffffffffffff
-
 _python3 = (sys.version_info >= (3, 0, 0))
 
 if not _python3:
@@ -284,6 +281,10 @@ def unpack_uint64(b):
 def raw_bytes(b):
     result = ''
 
+    if type(b) != type(b''):
+        # Not bytes, it's already a string.
+        return b
+
     # If the high bit of the first byte is on, it's likely we have
     # a packed integer.  If the high bit is off, it's possible we have
     # a packed integer (it would be negative) but it's harder to guess,
@@ -300,7 +301,7 @@ def raw_bytes(b):
 # Return a length as used in a cell that isn't a "short" cell.  Lengths that are
 # less or equal to 64 (WT_CELL_SIZE_ADJUST) are packed in a short cell, so if a
 # non-short cell is used, the length numbering starts at 64.
-def long_length(b):
+def long_length(p, b):
     l = unpack_uint64(b) + 64
     if l < 0:
         p.rint('? unexpected negative length: ' + str(l))
@@ -460,7 +461,7 @@ def block_decode(p, b, disk_pos):
         return
 
     if pagehead.type == WT_PAGE_INVALID:
-        pass    # a blank page: TODO mayber should check that it's all zeros?
+        pass    # a blank page: TODO maybe should check that it's all zeros?
     elif pagehead.type == WT_PAGE_BLOCK_MANAGER:
         p.rint('? unimplemented decode for page type WT_PAGE_BLOCK_MANAGER')
         dumpraw(p, b, disk_pos)
@@ -532,23 +533,23 @@ def row_decode(p, b, pagehead, blockhead, disk_pos):
                     # If there is an extra descriptor byte, the length is a regular encoded int.
                     l = unpack_uint64(b)
                 else:
-                    l = long_length(b)
+                    l = long_length(p, b)
                 s = 'val {} bytes'.format(l)
                 x = b.read(l)
             elif celltype == 'WT_CELL_KEY':
                 # 64 is WT_CELL_SIZE_ADJUST.  If the size was less than that,
                 # we would have used the "short" packing.
-                l = long_length(b)
+                l = long_length(p, b)
                 s = 'key {} bytes'.format(l)
                 x = b.read(l)
             elif celltype == 'WT_CELL_ADDR_LEAF_NO':
-                l = long_length(b)
+                l = long_length(p, b)
                 s = 'addr (leaf no-overflow) {} bytes'.format(l)
                 x = b.read(l)
             elif celltype == 'WT_CELL_KEY_PFX':
                 #TODO: not right...
                 prefix = uint8(b)
-                l = long_length(b)
+                l = long_length(p, b)
                 s = 'key prefix={} {} bytes'.format(hex(prefix), l)
                 x = b.read(l)
             else:
@@ -583,9 +584,12 @@ def wtdecode_file_object(b, opts, nbytes):
         startblock = opts.offset
 
     while (nbytes == 0 or startblock < nbytes) and (opts.pages == 0 or pagecount < opts.pages):
-        print('Decode at ' + hex(startblock))
+        print('Decode at ' + d_and_h(startblock))
         b.seek(startblock)
-        block_decode(p, b, startblock)
+        try:
+            block_decode(p, b, startblock)
+        except:
+            p.rint(f'ERROR decoding block at {d_and_h(startblock)}')
         p.rint('')
         startblock = (b.tell() + 0x1ff) & ~(0x1FF)
         pagecount += 1
