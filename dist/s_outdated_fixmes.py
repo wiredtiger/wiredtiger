@@ -3,7 +3,7 @@
 # Identify all FIXME comments in the codebase associated with a WT ticket and then confirm all of
 # these tickets are still open. If a closed ticket is found report the error.
 
-import glob, os, re, subprocess
+import glob, os, re, subprocess, sys
 
 def all_files():
     """
