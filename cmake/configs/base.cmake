@@ -375,8 +375,16 @@ if(ENABLE_DEBUG_INFO)
         # Ensure a PDB file can be generated for debugging symbols.
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /DEBUG")
     else()
-        add_compile_options(-g)
+        add_compile_options(-g3)
         add_compile_options(-ggdb)
+        add_compile_options(-gdwarf)
+        if("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
+            # Emit macro debug information which allows us to use macros in gdb, for example: 
+            # `p S2C(session)`.
+            # We only need the `debug-macro` flag for Clang. For gcc the flags `-g3` and `-gdwarf` 
+            # above are enough to output macro debug info. 
+            add_compile_options(-fdebug-macro)
+        endif()
     endif()
 endif()
 
