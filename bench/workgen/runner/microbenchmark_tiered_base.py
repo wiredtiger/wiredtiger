@@ -47,7 +47,7 @@ class microbenchmark_tiered:
         tiered_storage_config += ",extensions=(./ext/storage_sources/dir_store/libwiredtiger_dir_store.so=(early_load=true))"
         conn_config = ",cache_size=2G,log=(enabled,file_max=10MB),statistics=(fast),statistics_log=(json,wait=1)"  # explicitly added
         conn_config += tiered_storage_config
-        self.conn = self.context.wiredtiger_open("create," + conn_config)
+        self.conn = self.context.wiredtiger_open("create," + conn_config, self.create_bucket)
         self.session = self.conn.open_session(None)
         wtperf_table_config = "key_format=S,value_format=S," +\
             "exclusive=true,allocation_size=4kb," +\
@@ -91,6 +91,11 @@ class microbenchmark_tiered:
         assert ret == 0, ret
         print ("Populate tables end")
 
+    def create_bucket(self, home):
+        bucket_path = home + "/" + "bucket"
+        if not os.path.isdir(bucket_path):
+            os.mkdir(bucket_path)
+
     def set_checkpoint_thread(self, ckpt_thread):
         self.checkpoint_thread = ckpt_thread
 
@@ -98,7 +103,7 @@ class microbenchmark_tiered:
         stat_cursor = self.session.open_cursor('statistics:')
         flush_count = stat_cursor[stat.conn.flush_tier][2]
         stat_cursor.close()
-        print ("Number of Flush tier calls -- " + str(flush_count))
+        assert flush_count > 2, flush_count
 
     def run_workload(self):
         workload = Workload(self.context, 8 * self.read_thread + 2 * self.update_thread + 2 * self.insert_thread + self.checkpoint_thread)

@@ -33,9 +33,8 @@
 
 from runner import *
 from workgen import *
-
 from microbenchmark_tiered_base import *
-  
+
 tiered = microbenchmark_tiered()
 tiered.populate()
 
