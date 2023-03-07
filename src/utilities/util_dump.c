@@ -37,12 +37,12 @@ usage(void)
     static const char *options[] = {"-c checkpoint",
       "dump as of the named checkpoint (the default is the most recent version of the data)",
       "-f output", "dump to the specified file (the default is stdout)", "-j",
-      "dump in JSON format", "-p",
+      "dump in JSON format", "-l", "lower bound of the key range to dump", "-p",
       "dump in human readable format (pretty-print). The -p flag can be combined with -x. In this "
       "case, raw data elements will be formatted like -x with hexadecimal encoding.",
       "-r", "dump in reverse order", "-t timestamp",
       "dump as of the specified timestamp (the default is the most recent version of the data)",
-      "-x",
+      "-u", "upper bound of the key range to dump", "-x",
       "dump all characters in a hexadecimal encoding (by default printable characters are not "
       "encoded). The -x flag can be combined with -p. In this case, the dump will be formatted "
       "similar to -p except for raw data elements, which will look like -x with hexadecimal "
@@ -50,7 +50,7 @@ usage(void)
       "-?", "show this message", NULL, NULL};
 
     util_usage(
-      "dump [-jprx] [-c checkpoint] [-f output-file] [-t timestamp] uri", "options:", options);
+      "dump [-jlprux] [-c checkpoint] [-f output-file] [-t timestamp] uri", "options:", options);
     return (1);
 }
 
