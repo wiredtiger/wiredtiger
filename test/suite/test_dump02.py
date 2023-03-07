@@ -48,28 +48,47 @@ class test_dump(wttest.WiredTigerTestCase, suite_subprocess):
 
     def gen_value(self, i):
         return 'value' + str(i)
-
+    
     def get_num_data_lines_from_dump(self, file):
         """
         Get the number of lines corresponding to data from a dump file.
         """
         lines = open(file).readlines()
-        data_started = False
-        num_lines = 0
-        for line in lines:
-            if data_started:
-                num_lines += 1
-
-            if line == self.data_header:
-                assert not data_started
-                data_started = True
-        return num_lines
+        data_start = lines.index(self.data_header)
+        assert self.data_header not in lines[data_start + 1:]
+        return len(lines) - data_start - 1
 
     def populate_table(self, uri, n_rows):
         cursor = self.session.open_cursor(uri, None, None)
         for i in range(1, n_rows):
             cursor[self.gen_key(i)] = self.gen_value(i)
         cursor.close()
+
+    def test_dump(self):
+        self.session.create(self.uri, self.table_format)
+        self.populate_table(self.uri, self.n_rows)
+
+        self.runWt(['dump', self.uri], outfilename=self.output)
+        assert self.get_num_data_lines_from_dump(self.output) == (self.n_rows - 1) * 2
+
+    def test_dump_single_key(self):
+        self.session.create(self.uri, self.table_format)
+        self.populate_table(self.uri, self.n_rows)
+
+        # The key does not exist.
+        self.runWt(['dump', '-k', 'key0', self.uri], outfilename=self.output)
+        num_lines = self.get_num_data_lines_from_dump(self.output)
+        assert num_lines == 0, num_lines
+
+        # The nearest key should be found.
+        self.runWt(['dump', '-k', 'key0', '-n', self.uri], outfilename=self.output)
+        num_lines = self.get_num_data_lines_from_dump(self.output)
+        assert num_lines == 2, num_lines
+
+        # Existing key.
+        self.runWt(['dump', '-k', 'key1', self.uri], outfilename=self.output)
+        num_lines = self.get_num_data_lines_from_dump(self.output)
+        assert num_lines == 2, num_lines
 
     def test_dump_bounds(self):
         self.session.create(self.uri, self.table_format)
