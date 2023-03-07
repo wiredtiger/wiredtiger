@@ -9,6 +9,62 @@
 #include "wt_internal.h"
 
 /*
+ * __wt_readahead_create --
+ *     Start the readahead server.
+ */
+int
+__wt_readahead_create(WT_SESSION_IMPL *session)
+{
+    F_SET(session, WT_SESSION_READAHEAD_RUN);
+
+    WT_RET(__wt_thread_group_create(session, &session->readahead_threads, "readahead-server",
+        1, 1, 0, __wt_readahead_thread_chk, __wt_readahead_thread_run,
+        __wt_readahead_thread_stop));
+
+    session->readahead_running = true;
+
+    return (0);
+}
+
+/*
+ * __wt_readahead_thread_chk --
+ *     Check to decide if the readahead thread should continue running.
+ */
+bool
+__wt_readahead_thread_chk(WT_SESSION_IMPL *session)
+{
+    return (F_ISSET(session, WT_SESSION_READAHEAD_RUN));
+}
+
+/*
+ * __wt_readahead_thread_run --
+ *     Entry function for a readahead thread. This is called repeatedly from the thread group code
+ *     so it does not need to loop itself.
+ */
+int
+__wt_readahead_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
+{
+    WT_REF *ref;
+
+    WT_UNUSED(thread);
+
+    WT_ORDERED_READ(ref, session->readahead_prev_ref);
+
+    if (__wt_session_readahead_check(session, ref))
+        WT_RET(__wt_btree_read_ahead(session, ref));
+
+    return (0);
+}
+
+int
+__wt_readahead_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
+{
+    WT_UNUSED(thread);
+    F_CLR(session, WT_SESSION_READAHEAD_RUN);
+    return (0);
+}
+
+/*
  * __wt_session_readahead_check --
  *     Check to see whether cursors owned by this session might benefit from doing read ahead
  */
