@@ -1139,9 +1139,9 @@ struct __wt_ref {
  * inserted padding which would break the world.
  */
 #ifdef HAVE_REF_TRACK
-#define WT_REF_SIZE (56 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
+#define WT_REF_SIZE (64 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
 #else
-#define WT_REF_SIZE 56
+#define WT_REF_SIZE 64
 #endif
 
 /* A macro wrapper allowing us to remember the callers code location */
