@@ -669,13 +669,14 @@ dump_record(WT_CURSOR *cursor, const char *key, bool reverse, bool search_near, 
             current_key = key;
             cursor->set_key(cursor, current_key);
 
-            if (search_near)
-                ret = cursor->search_near(cursor, &exact);
-            else
-                ret = cursor->search(cursor);
+            ret = cursor->search_near(cursor, &exact);
 
             if (ret != 0 && ret != WT_NOTFOUND)
                 return (util_cerr(cursor, search_near ? "search_near" : "search", ret));
+
+            /* If search near is disabled and there is not an exact match, the key is missing. */
+            if(!search_near && exact != 0)
+                ret = WT_NOTFOUND;
 
             if (ret == 0) {
                 if (search_near && exact != 0) {
