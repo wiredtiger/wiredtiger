@@ -171,8 +171,6 @@ struct __wt_session_impl {
     WT_REF *readahead_prev_ref;
     uint64_t readahead_prev_index_offset;
     uint64_t readahead_prev_split_gen; /* TODO: Do we care if an internal page splits? */
-    WT_THREAD_GROUP readahead_threads;
-    bool readahead_running;
 
     void *block_manager; /* Block-manager support */
     int (*block_manager_cleanup)(WT_SESSION_IMPL *);
@@ -260,11 +258,10 @@ struct __wt_session_impl {
 #define WT_SESSION_NO_DATA_HANDLES 0x01000u
 #define WT_SESSION_NO_RECONCILE 0x02000u
 #define WT_SESSION_QUIET_CORRUPT_FILE 0x04000u
-#define WT_SESSION_READAHEAD_RUN 0x08000u
-#define WT_SESSION_READ_WONT_NEED 0x10000u
-#define WT_SESSION_RESOLVING_TXN 0x20000u
-#define WT_SESSION_ROLLBACK_TO_STABLE 0x40000u
-#define WT_SESSION_SCHEMA_TXN 0x80000u
+#define WT_SESSION_READ_WONT_NEED 0x08000u
+#define WT_SESSION_RESOLVING_TXN 0x10000u
+#define WT_SESSION_ROLLBACK_TO_STABLE 0x20000u
+#define WT_SESSION_SCHEMA_TXN 0x40000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 

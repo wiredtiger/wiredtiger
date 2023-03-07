@@ -396,9 +396,11 @@ restart:
                 *refp = ref;
                 WT_ASSERT(session, ref != ref_orig);
 
-                if (__wt_session_readahead_check(session, ref))
+                if (__wt_session_readahead_check(session, ref)) {
                     /* TODO: Is it OK to return an error? */
-                    WT_ERR(__wt_btree_read_ahead(session, ref));
+                    ++ref->refcount;
+                    TAILQ_INSERT_TAIL(&S2C(session)->raqh, ref, q);
+                }
                 goto done;
             }
 

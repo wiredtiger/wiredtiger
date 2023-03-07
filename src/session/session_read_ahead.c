@@ -15,13 +15,15 @@
 int
 __wt_readahead_create(WT_SESSION_IMPL *session)
 {
-    F_SET(session, WT_SESSION_READAHEAD_RUN);
+    WT_CONNECTION_IMPL *conn;
 
-    WT_RET(__wt_thread_group_create(session, &session->readahead_threads, "readahead-server",
+    conn = S2C(session);
+
+    F_SET(conn, WT_CONN_READAHEAD_RUN);
+
+    WT_RET(__wt_thread_group_create(session, &conn->readahead_threads, "readahead-server",
         1, 1, 0, __wt_readahead_thread_chk, __wt_readahead_thread_run,
         __wt_readahead_thread_stop));
-
-    session->readahead_running = true;
 
     return (0);
 }
@@ -33,7 +35,7 @@ __wt_readahead_create(WT_SESSION_IMPL *session)
 bool
 __wt_readahead_thread_chk(WT_SESSION_IMPL *session)
 {
-    return (F_ISSET(session, WT_SESSION_READAHEAD_RUN));
+    return (F_ISSET(S2C(session), WT_CONN_READAHEAD_RUN));
 }
 
 /*
@@ -44,14 +46,19 @@ __wt_readahead_thread_chk(WT_SESSION_IMPL *session)
 int
 __wt_readahead_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_REF *ref;
 
+    conn = S2C(session);
     WT_UNUSED(thread);
 
-    WT_ORDERED_READ(ref, session->readahead_prev_ref);
+    while ((ref = TAILQ_FIRST(&conn->raqh)) != NULL) {
+        TAILQ_REMOVE(&conn->raqh, ref, q);
 
-    if (__wt_session_readahead_check(session, ref))
+        WT_ASSERT_ALWAYS(session, ref->refcount > 0);
+        --ref->refcount;
         WT_RET(__wt_btree_read_ahead(session, ref));
+    }
 
     return (0);
 }
@@ -60,7 +67,7 @@ int
 __wt_readahead_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
 {
     WT_UNUSED(thread);
-    F_CLR(session, WT_SESSION_READAHEAD_RUN);
+    F_CLR(S2C(session), WT_CONN_READAHEAD_RUN);
     return (0);
 }
 

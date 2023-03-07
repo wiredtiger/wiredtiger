@@ -2499,8 +2499,6 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     session_ret->isolation = WT_ISO_SNAPSHOT;
     WT_ERR(__wt_txn_init(session, session_ret));
 
-    WT_RET(__wt_readahead_create(session_ret));
-
     /*
      * The session's hazard pointer memory isn't discarded during normal session close because
      * access to it isn't serialized. Allocate the first time we open this session.

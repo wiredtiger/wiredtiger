@@ -29,6 +29,7 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
     TAILQ_INIT(&conn->extractorqh);  /* Extractor list */
     TAILQ_INIT(&conn->storagesrcqh); /* Storage source list */
     TAILQ_INIT(&conn->tieredqh);     /* Tiered work unit list */
+    TAILQ_INIT(&conn->raqh);         /* Readahead ref list */
 
     TAILQ_INIT(&conn->lsmqh); /* WT_LSM_TREE list */
 
