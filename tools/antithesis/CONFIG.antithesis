@@ -1,11 +1,11 @@
 # A reasonable configuration for stress testing.
 btree.huffman_value=0
-cache=300:500
+cache=50:150
 cache.minimum=20
 runs.rows=100000:200000
-runs.tables=3:5
+runs.tables=3:8
 runs.threads=4:32
-runs.timer=5
+runs.timer=5:8
 runs.type=row,var
 # Disable in memory while making progress on setup with Antithesis
 runs.in_memory=0
