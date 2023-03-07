@@ -36,17 +36,20 @@ __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /*
      * TODO: Does the actual reading need to be out-of-band (i.e done in another thread?). I'd
-     * rather not need to queue/pop, and have a utility thread. OTOH: We don't really need an async
-     * mechanism - there is already a mechanism to ensure only a single thread reads a page into
-     * cache.
+     * rather not need to queue/pop, and have a utility thread. OTOH: We don't really need an
+     * asynchronous mechanism - there is already a mechanism to ensure only a single thread reads
+     * a page into cache.
      */
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
-    __wt_session_gen_enter(session, WT_GEN_SPLIT);
+    /*
+     * This requires a split generation be held. It usually seems to already have one.
+     * __wt_session_gen_enter(session, WT_GEN_SPLIT);
+     */
 
     /* Load and decompress a set of pages into the block cache. */
     WT_INTL_FOREACH_BEGIN (session, ref->home, next_ref)
         /*
-         * Only prefetch pages that aren't already in the cache, this is imprecise (the state could
+         * Only pre-fetch pages that aren't already in the cache, this is imprecise (the state could
          * change), but it doesn't matter. It would just fetch the same block twice.
          */
         if (ref->state == WT_REF_DISK && __wt_ref_addr_copy(session, next_ref, &addr)) {
@@ -56,9 +59,9 @@ __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_INTL_FOREACH_END;
 
 err:
-    __wt_session_gen_leave(session, WT_GEN_SPLIT);
+    /*__wt_session_gen_leave(session, WT_GEN_SPLIT);*/
     __wt_scr_free(session, &tmp);
 
-    WT_STAT_CONN_INCRV(session, block_preload, block_preload);
+    WT_STAT_CONN_INCRV(session, block_readahead_pages, block_preload);
     return (ret);
 }
