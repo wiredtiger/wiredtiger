@@ -394,7 +394,7 @@ __curversion_next_int(WT_CURSOR *cursor)
         ret = WT_NOTFOUND;
     else {
         cbt->upd_value->type = WT_UPDATE_STANDARD;
-        __wt_value_return(cbt, cbt->upd_value);
+        WT_ERR(__wt_value_return(cbt, cbt->upd_value));
     }
 
 err:
