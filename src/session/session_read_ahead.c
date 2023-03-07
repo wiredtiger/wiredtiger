@@ -46,18 +46,25 @@ __wt_readahead_thread_chk(WT_SESSION_IMPL *session)
 int
 __wt_readahead_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 {
+    WT_ADDR_COPY addr;
     WT_CONNECTION_IMPL *conn;
     struct __wt_readahead *ra;
+    WT_DECL_ITEM(tmp);
+
+    WT_UNUSED(thread);
 
     conn = S2C(session);
-    WT_UNUSED(thread);
+    WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
     while ((ra = TAILQ_FIRST(&conn->raqh)) != NULL) {
         TAILQ_REMOVE(&conn->raqh, ra, q);
 
-        WT_ASSERT_ALWAYS(session, ra->ref->refcount > 0, "uh oh, ref count tracking is borked");
-        --ra->ref->refcount;
-        WT_RET(__wt_btree_read_ahead(ra->session, ra->ref));
+        WT_ASSERT_ALWAYS(session, ra->ref->home->refcount > 0, "uh oh, ref count tracking is borked");
+        if (__wt_ref_addr_copy(ra->session, ra->ref, &addr))
+            WT_RET(__wt_blkcache_read(ra->session, tmp, addr.addr, addr.size));
+
+        --ra->ref->home->refcount;
+        free(ra);
     }
 
     return (0);

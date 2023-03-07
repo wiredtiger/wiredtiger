@@ -51,14 +51,19 @@ __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
         /*
          * Only pre-fetch pages that aren't already in the cache, this is imprecise (the state could
          * change), but it doesn't matter. It would just fetch the same block twice.
+         *
+         * TODO we can probably get rid of the ref_addr_copy - will we push too much to the queue?
          */
         if (ref->state == WT_REF_DISK && __wt_ref_addr_copy(session, next_ref, &addr)) {
-            WT_ERR(__wt_blkcache_read(session, tmp, addr.addr, addr.size));
+            ++ref->home->refcount;
+            struct __wt_readahead *ra = malloc(sizeof(struct __wt_readahead));
+            ra->ref = ref;
+            ra->session = session;
+            TAILQ_INSERT_TAIL(&S2C(session)->raqh, ra, q);
             ++block_preload;
         }
     WT_INTL_FOREACH_END;
 
-err:
     /*__wt_session_gen_leave(session, WT_GEN_SPLIT);*/
     __wt_scr_free(session, &tmp);
 

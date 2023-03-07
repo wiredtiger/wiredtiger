@@ -499,6 +499,9 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
     WT_REF *child;
     bool visible;
 
+    if (parent->page->refcount != 0)
+        return (__wt_set_return(session, EBUSY));
+
     /*
      * There may be cursors in the tree walking the list of child pages. The parent is locked, so
      * all we care about is cursors already in the child pages, no thread can enter them. Any cursor
