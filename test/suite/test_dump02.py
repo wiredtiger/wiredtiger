@@ -54,16 +54,9 @@ class test_dump(wttest.WiredTigerTestCase, suite_subprocess):
         Get the number of lines corresponding to data from a dump file.
         """
         lines = open(file).readlines()
-        data_started = False
-        num_lines = 0
-        for line in lines:
-            if data_started:
-                num_lines += 1
-
-            if line == self.data_header:
-                assert not data_started
-                data_started = True
-        return num_lines
+        data_start = lines.index(self.data_header)
+        assert self.data_header not in lines[data_start + 1:]
+        return len(lines) - data_start - 1
 
     def populate_table(self, uri, n_rows):
         cursor = self.session.open_cursor(uri, None, None)
