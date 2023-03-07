@@ -1446,6 +1446,7 @@ scan_worker(void *arg)
     WT_CONNECTION *conn;
     WT_CURSOR *cursor, **cursors;
     WT_SESSION *session;
+    bool lookup;
     char *key_buf;
     uint32_t i, ntables, pct, table_start;
     uint64_t cur_id, end_id, incr, items, start_id, tot_items;
@@ -1459,6 +1460,12 @@ scan_worker(void *arg)
     session = NULL;
     cursors = NULL;
     items = 0;
+
+    /* At the moment only lookup and forward scan are supported, decode that into a boolean. */
+    if (strcmp(opts->scan_type, "lookup") == 0)
+       lookup = true;
+    else
+       lookup = false;
 
     /*
      * Figure out how many items we should scan. We base the percentage on the icount.
@@ -1513,14 +1520,27 @@ scan_worker(void *arg)
         items = 0;
         while (items < tot_items && !wtperf->stop) {
             cursor = cursors[map_key_to_table(opts, cur_id) - table_start];
-            generate_key(opts, key_buf, cur_id);
-            cursor->set_key(cursor, key_buf);
-            if ((ret = cursor->search(cursor)) != 0) {
-                lprintf(wtperf, ret, 0, "Failed scan search key %s, items %d", key_buf, (int)items);
-                goto err;
-            }
+            if (lookup) {
+                generate_key(opts, key_buf, cur_id);
+                cursor->set_key(cursor, key_buf);
+                if ((ret = cursor->search(cursor)) != 0) {
+                    lprintf(wtperf, ret, 0, "Failed scan search key %s, items %d", key_buf, (int)items);
+                    goto err;
+                }
 
-            items++;
+                items++;
+            } else {
+                /*
+                 * Traverse to the next record. Nothing special needs to happen if not found
+                 * is returned. The traversal hit the end of the tree. The next step will start at
+                 * the beginning again.
+                 */
+                if ((ret = cursor->next(cursor)) != 0 && ret != WT_NOTFOUND) {
+                    lprintf(wtperf, ret, 0, "Failed scan next traversal");
+                    goto err;
+                }
+                items++;
+            }
             cur_id += incr;
             if (cur_id >= end_id) {
                 /*

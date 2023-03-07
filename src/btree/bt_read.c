@@ -415,6 +415,20 @@ read:
             }
 
 skip_evict:
+            page = ref->page;
+            /*
+             * Keep track of whether a session is reading leaf pages into the cache. This allows for
+             * the session to decide whether read ahead would be helpful. It might not work if a
+             * session has multiple cursors on different tables open, since the operations on
+             * different tables get in the way of the heuristic. That isn't super likely - this is
+             * to catch traversals through a btree, not complex multi-table user transactions.
+             */
+            if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
+                if (page->read_gen == WT_READGEN_WONT_NEED)
+                    ++session->readahead_disk_read_count;
+                else
+                    session->readahead_disk_read_count = 0;
+            }
             /*
              * If we read the page and are configured to not trash the cache, and no other thread
              * has already used the page, set the read generation so the page is evicted soon.
@@ -423,7 +437,6 @@ skip_evict:
              * generation and the page isn't already flagged for forced eviction, update the page
              * read generation.
              */
-            page = ref->page;
             if (page->read_gen == WT_READGEN_NOTSET) {
                 if (wont_need)
                     page->read_gen = WT_READGEN_WONT_NEED;

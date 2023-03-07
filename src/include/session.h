@@ -167,6 +167,11 @@ struct __wt_session_impl {
     WT_TXN_ISOLATION isolation;
     WT_TXN *txn; /* Transaction state */
 
+    uint64_t readahead_disk_read_count; /* Sequential cache requests that caused a leaf read */
+    WT_REF *readahead_prev_ref;
+    uint64_t readahead_prev_index_offset;
+    uint64_t readahead_prev_split_gen; /* TODO: Do we care if an internal page splits? */
+
     void *block_manager; /* Block-manager support */
     int (*block_manager_cleanup)(WT_SESSION_IMPL *);
 

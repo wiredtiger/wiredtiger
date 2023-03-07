@@ -781,6 +781,11 @@ config_sanity(WTPERF *wtperf)
         return (EINVAL);
     }
 
+    if (strcmp(opts->scan_type, "lookup") != 0 && strcmp(opts->scan_type, "forward") != 0) {
+        fprintf(stderr, "Invalid scan_type specified: %s\n", opts->scan_type);
+        return (EINVAL);
+    }
+
     if (opts->value_sz_max < opts->value_sz) {
         if (F_ISSET(wtperf, CFG_GROW)) {
             fprintf(stderr,
