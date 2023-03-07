@@ -1248,6 +1248,10 @@ static const char *const __stats_connection_desc[] = {
   "block-cache: number of hits",
   "block-cache: number of misses",
   "block-cache: number of put bypasses on checkpoint I/O",
+  "block-cache: read ahead not triggered after single disk read",
+  "block-cache: read ahead not triggered by page read",
+  "block-cache: read ahead page count",
+  "block-cache: read ahead triggered by page read",
   "block-cache: removed blocks",
   "block-cache: time sleeping to remove block (usecs)",
   "block-cache: total blocks",
@@ -1878,6 +1882,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_cache_hits = 0;
     stats->block_cache_misses = 0;
     stats->block_cache_bypass_chkpt = 0;
+    stats->block_readahead_disk_one = 0;
+    stats->block_readahead_skipped = 0;
+    stats->block_readahead_pages = 0;
+    stats->block_readahead_attempts = 0;
     stats->block_cache_blocks_removed = 0;
     stats->block_cache_blocks_removed_blocked = 0;
     stats->block_cache_blocks = 0;
@@ -2463,6 +2471,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_cache_hits += WT_STAT_READ(from, block_cache_hits);
     to->block_cache_misses += WT_STAT_READ(from, block_cache_misses);
     to->block_cache_bypass_chkpt += WT_STAT_READ(from, block_cache_bypass_chkpt);
+    to->block_readahead_disk_one += WT_STAT_READ(from, block_readahead_disk_one);
+    to->block_readahead_skipped += WT_STAT_READ(from, block_readahead_skipped);
+    to->block_readahead_pages += WT_STAT_READ(from, block_readahead_pages);
+    to->block_readahead_attempts += WT_STAT_READ(from, block_readahead_attempts);
     to->block_cache_blocks_removed += WT_STAT_READ(from, block_cache_blocks_removed);
     to->block_cache_blocks_removed_blocked +=
       WT_STAT_READ(from, block_cache_blocks_removed_blocked);

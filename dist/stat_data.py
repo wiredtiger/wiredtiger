@@ -211,6 +211,11 @@ conn_stats = [
     BlockCacheStat('block_cache_misses', 'number of misses'),
     BlockCacheStat('block_cache_not_evicted_overhead', 'number of blocks not evicted due to overhead'),
 
+    BlockCacheStat('block_readahead_attempts', 'read ahead triggered by page read'),
+    BlockCacheStat('block_readahead_disk_one', 'read ahead not triggered after single disk read'),
+    BlockCacheStat('block_readahead_pages', 'read ahead page count'),
+    BlockCacheStat('block_readahead_skipped', 'read ahead not triggered by page read'),
+
     ##########################################
     # Block manager statistics
     ##########################################
