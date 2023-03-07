@@ -644,6 +644,21 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
 }
 
 /*
+ * __wt_session_dhandle_clear --
+ *     Close any cached handles in a session.
+ */
+int
+__wt_session_dhandle_clear(WT_SESSION_IMPL *session)
+{
+    if (session->dhandle_session != NULL && !F_ISSET(session, WT_SESSION_DATA_HANDLE_INTERNAL)) {
+        if (session->dhandle_session->dhandle_cursor != NULL)
+            WT_RET(session->dhandle_session->dhandle_cursor->close(session->dhandle_session->dhandle_cursor));
+        WT_RET(__wt_session_close_internal(session->dhandle_session));
+    }
+    return (0);
+}
+
+/*
  * __wt_session_close_cache --
  *     Close any cached handles in a session.
  */
@@ -719,7 +734,7 @@ __session_find_shared_dhandle(WT_SESSION_IMPL *session, const char *uri, const c
 
     if (ret == 0 && !(WT_IS_INT_FILE(uri))) {
         WT_DATA_HANDLE *dhandle;
-        ret = __wt_conn_dhandle_store_search(S2C(session), uri, &dhandle);
+        ret = __wt_conn_dhandle_store_search(session, uri, &dhandle);
         WT_ASSERT(session, ret == 0 && dhandle == session->dhandle);
     }
 
@@ -732,7 +747,7 @@ __session_find_shared_dhandle(WT_SESSION_IMPL *session, const char *uri, const c
 
     /* Insert the dhandle into the dhandle store. */
     if (ret == 0)
-        WT_RET(__wt_conn_dhandle_store_insert(S2C(session), session->dhandle));
+        WT_RET(__wt_conn_dhandle_store_insert(session, session->dhandle));
 
     return (ret);
 }
@@ -834,11 +849,20 @@ int
 __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *checkpoint,
   const char *cfg[], uint32_t flags)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
     bool is_dead;
 
+    conn = S2C(session);
+
     WT_ASSERT(session, !F_ISSET(session, WT_SESSION_NO_DATA_HANDLES));
+
+    if (session->dhandle_session == NULL && !F_ISSET(session, WT_SESSION_DATA_HANDLE_INTERNAL | WT_SESSION_EVICTION)) {
+        WT_RET(
+          __wt_open_internal_session(conn, "dh_store", false, 0, 0, &session->dhandle_session));
+        F_SET(session->dhandle_session, WT_SESSION_DATA_HANDLE_INTERNAL);
+    }
 
     for (;;) {
         WT_RET(__session_get_dhandle(session, uri, checkpoint));

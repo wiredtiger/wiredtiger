@@ -367,6 +367,9 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
     /* Discard metadata tracking. */
     __wt_meta_track_discard(session);
 
+    /* Discard metadata tracking. */
+    WT_TRET(__wt_session_dhandle_clear(session));
+
     /*
      * Close the file where we tracked long operations. Do this before releasing resources, as we do
      * scratch buffer management when we flush optrack buffers to disk.
@@ -2537,6 +2540,9 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
      */
     if (config != NULL)
         WT_ERR(__session_reconfigure((WT_SESSION *)session_ret, config));
+
+    session_ret->dhandle_session = NULL;
+    session_ret->dhandle_cursor = NULL;
 
     /*
      * Publish: make the entry visible to server threads. There must be a barrier for two reasons,

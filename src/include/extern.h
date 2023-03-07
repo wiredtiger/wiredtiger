@@ -491,11 +491,11 @@ extern int __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, con
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t flags)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_conn_dhandle_store_insert(WT_CONNECTION_IMPL *conn, WT_DATA_HANDLE *dhandle)
+extern int __wt_conn_dhandle_store_insert(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_conn_dhandle_store_remove(WT_CONNECTION_IMPL *conn, const char *uri)
+extern int __wt_conn_dhandle_store_remove(WT_SESSION_IMPL *session, const char *uri)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_conn_dhandle_store_search(WT_CONNECTION_IMPL *conn, const char *uri,
+extern int __wt_conn_dhandle_store_search(WT_SESSION_IMPL *session, const char *uri,
   WT_DATA_HANDLE **dhandlep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_optrack_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1462,6 +1462,8 @@ extern int __wt_session_copy_values(WT_SESSION_IMPL *session)
 extern int __wt_session_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session, bool big_sweep)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_session_dhandle_clear(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_session_dhandle_try_writelock(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
