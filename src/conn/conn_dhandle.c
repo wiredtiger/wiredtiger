@@ -882,6 +882,10 @@ __wt_conn_dhandle_discard_single(WT_SESSION_IMPL *session, bool final, bool mark
 
     /* Try to remove the handle, protected by the data handle lock. */
     WT_WITH_HANDLE_LIST_WRITE_LOCK(session, tret = __conn_dhandle_remove(session, final));
+    if (tret == 0) {
+        tret = __wt_conn_dhandle_store_remove(S2C(session), dhandle->name);
+        WT_ASSERT(session, tret == 0);
+    }
     if (set_pass_intr)
         (void)__wt_atomic_subv32(&S2C(session)->cache->pass_intr, 1);
     WT_TRET(tret);
@@ -1036,5 +1040,125 @@ __wt_verbose_dump_handles(WT_SESSION_IMPL *session)
               __wt_msg(session, "  Session with exclusive use: %p", (void *)dhandle->excl_session));
         WT_RET(__wt_msg(session, "  Flags: 0x%08" PRIx32, dhandle->flags));
     }
+    return (0);
+}
+
+/*
+ * __wt_conn_dhandle_store_insert --
+ *     Insert into dhandle store.
+ */
+int
+__wt_conn_dhandle_store_insert(WT_CONNECTION_IMPL *conn, WT_DATA_HANDLE *dhandle)
+{
+    WT_CURSOR *dh_cur;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    if (WT_IS_INT_FILE(dhandle->name))
+        return (0);
+
+    WT_RET(__wt_open_internal_session(conn, "dh_store_insert", false, 0, 0, &session));
+    const char *dh_cur_cfg[] = {
+      WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite=false", NULL, NULL};
+    WT_RET(__wt_open_cursor(session, WT_DH_TABLE_URI, NULL, dh_cur_cfg, &dh_cur));
+    dh_cur->set_key(dh_cur, dhandle->name);
+    dh_cur->set_value(dh_cur, dhandle);
+    ret = dh_cur->insert(dh_cur);
+    WT_ASSERT(session, ret == 0);
+    WT_RET(ret);
+    __wt_verbose_notice(session, WT_VERB_DHANDLE,
+      "Added dhandle named:%s pointer:%p to the dhandle store.", dhandle->name, (void *)dhandle);
+    WT_RET(dh_cur->close(dh_cur));
+    WT_RET(__wt_session_close_internal(session));
+
+    return (0);
+}
+
+/*
+ * __wt_conn_dhandle_store_remove --
+ *     Remove from the dhandle store.
+ */
+int
+__wt_conn_dhandle_store_remove(WT_CONNECTION_IMPL *conn, const char *uri)
+{
+    WT_CURSOR *dh_cur;
+    WT_SESSION_IMPL *session;
+
+    if (WT_IS_INT_FILE(uri))
+        return (0);
+
+    WT_RET(__wt_open_internal_session(conn, "dh_store_remove", false, 0, 0, &session));
+    __wt_verbose_notice(session, WT_VERB_DHANDLE, "Removing %s from the dhandle store.", uri);
+    WT_RET(__wt_open_cursor(session, WT_DH_TABLE_URI, NULL, NULL, &dh_cur));
+    dh_cur->set_key(dh_cur, uri);
+    WT_RET(dh_cur->remove(dh_cur));
+    __wt_verbose_notice(session, WT_VERB_DHANDLE, "Removed %s from the dhandle store.", uri);
+    WT_RET(dh_cur->close(dh_cur));
+
+    WT_RET(__wt_session_close_internal(session));
+
+    return (0);
+}
+
+/*
+ * __wt_conn_dhandle_store_search --
+ *     Search the dhandle store for a dhandle.
+ */
+int
+__wt_conn_dhandle_store_search(WT_CONNECTION_IMPL *conn, const char *uri, WT_DATA_HANDLE **dhandlep)
+{
+    WT_CURSOR *dh_cur;
+    WT_DATA_HANDLE *dhandle;
+    WT_SESSION_IMPL *session;
+
+    *dhandlep = NULL;
+
+    if (WT_IS_INT_FILE(uri))
+        return (0);
+
+    WT_RET(__wt_open_internal_session(conn, "dh_store_search", false, 0, 0, &session));
+    __wt_verbose_notice(session, WT_VERB_DHANDLE, "Searching %s in the dhandle store.", uri);
+    WT_RET(__wt_open_cursor(session, WT_DH_TABLE_URI, NULL, NULL, &dh_cur));
+    dh_cur->set_key(dh_cur, uri);
+    WT_RET(dh_cur->search(dh_cur));
+    dh_cur->get_value(dh_cur, &dhandle);
+    WT_ASSERT(session, WT_STREQ(dhandle->name, uri));
+    __wt_verbose_notice(session, WT_VERB_DHANDLE, "Found %s in the dhandle store.", uri);
+    WT_RET(dh_cur->close(dh_cur));
+
+    WT_RET(__wt_session_close_internal(session));
+
+    *dhandlep = dhandle;
+
+    return (0);
+}
+
+/*
+ * __wt_conn_dhandle_create_dh_table --
+ *     Create dhandle store and put entries for the internal files.
+ */
+int
+__wt_conn_dhandle_create_dh_table(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *dhandle;
+
+    conn = S2C(session);
+
+    /* Create the table. */
+    WT_RET(__wt_session_create(session, WT_DH_TABLE_URI, WT_HD_TABLE_CONFIG));
+
+    /*
+     * Walk the existing handle list and put those entries into the table. We are called from
+     * wiredtiger_open, do we need a lock here on the handle list?
+     */
+    for (dhandle = NULL;;) {
+        WT_WITH_HANDLE_LIST_READ_LOCK(session, WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q));
+        if (dhandle == NULL)
+            break;
+
+        WT_RET(__wt_conn_dhandle_store_insert(conn, dhandle));
+    }
+
     return (0);
 }

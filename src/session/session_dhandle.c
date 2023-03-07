@@ -717,12 +717,22 @@ __session_find_shared_dhandle(WT_SESSION_IMPL *session, const char *uri, const c
       if ((ret = __wt_conn_dhandle_find(session, uri, checkpoint)) == 0)
         WT_DHANDLE_ACQUIRE(session->dhandle));
 
+    if (ret == 0 && !(WT_IS_INT_FILE(uri))) {
+        WT_DATA_HANDLE *dhandle;
+        ret = __wt_conn_dhandle_store_search(S2C(session), uri, &dhandle);
+        WT_ASSERT(session, ret == 0 && dhandle == session->dhandle);
+    }
+
     if (ret != WT_NOTFOUND)
         return (ret);
 
     WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
       if ((ret = __wt_conn_dhandle_alloc(session, uri, checkpoint)) == 0)
         WT_DHANDLE_ACQUIRE(session->dhandle));
+
+    /* Insert the dhandle into the dhandle store. */
+    if (ret == 0)
+        WT_RET(__wt_conn_dhandle_store_insert(S2C(session), session->dhandle));
 
     return (ret);
 }

@@ -822,6 +822,7 @@ connection_runtime_config = [
             'checkpoint_progress',
             'compact',
             'compact_progress',
+            'dhandle',
             'error_returns',
             'evict',
             'evict_stuck',

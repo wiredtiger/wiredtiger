@@ -6,6 +6,15 @@
  * See the file LICENSE for redistribution information.
  */
 
+#define WT_DH_TABLE_URI "file:WiredTigerDH.wt" /* dhandle store table URI */
+#define WT_HD_TABLE_CONFIG                                      \
+    "key_format=S,value_format=Q,assert=(read_timestamp=never)" \
+    ",cache_resident=true,log=(enabled=false)"
+
+#define WT_IS_INT_FILE(uri)                                               \
+    WT_STREQ(uri, WT_HS_URI) || WT_STREQ(uri, "file:WiredTigerLAS.wt") || \
+      WT_STREQ(uri, WT_METAFILE_URI) || WT_STREQ(uri, WT_DH_TABLE_URI)
+
 /*******************************************
  * Global per-process structure.
  *******************************************/
@@ -190,6 +199,7 @@ struct __wt_name_flag {
 
 #define WT_CONN_DHANDLE_REMOVE(conn, dhandle, bucket)                                            \
     do {                                                                                         \
+        printf("Removing %s \n", dhandle->name);                                                 \
         WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST_WRITE)); \
         TAILQ_REMOVE(&(conn)->dhqh, dhandle, q);                                                 \
         TAILQ_REMOVE(&(conn)->dhhash[bucket], dhandle, hashq);                                   \

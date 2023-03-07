@@ -407,6 +407,7 @@ WinNT
 WiredTiger
 WiredTiger's
 WiredTigerCheckpoint
+WiredTigerDH
 WiredTigerHS
 WiredTigerLAS
 WiredTigerLog
