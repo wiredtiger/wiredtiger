@@ -928,6 +928,13 @@ struct __wt_ref_hist {
     uint16_t state;
 };
 
+/* TODO put this somewhere sensible. */
+struct __wt_readahead {
+    WT_SESSION_IMPL *session;
+    WT_REF *ref;
+    TAILQ_ENTRY(__wt_readahead) q; /* List of readaheads planned. */
+};
+
 /*
  * WT_REF --
  *	A single in-memory page and state information.
@@ -1100,9 +1107,6 @@ struct __wt_ref {
      */
     WT_PAGE_DELETED *page_del; /* Page-delete information for a deleted page. */
 
-    TAILQ_ENTRY(__wt_ref) q; /* List of refs to read ahead. */
-
-
 #ifdef HAVE_REF_TRACK
 /*
  * In DIAGNOSTIC mode we overwrite the WT_REF on free to force failures, but we want to retain ref
@@ -1139,9 +1143,9 @@ struct __wt_ref {
  * inserted padding which would break the world.
  */
 #ifdef HAVE_REF_TRACK
-#define WT_REF_SIZE (64 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
+#define WT_REF_SIZE (48 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
 #else
-#define WT_REF_SIZE 64
+#define WT_REF_SIZE 48
 #endif
 
 /* A macro wrapper allowing us to remember the callers code location */

@@ -47,17 +47,17 @@ int
 __wt_readahead_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_REF *ref;
+    struct __wt_readahead *ra;
 
     conn = S2C(session);
     WT_UNUSED(thread);
 
-    while ((ref = TAILQ_FIRST(&conn->raqh)) != NULL) {
-        TAILQ_REMOVE(&conn->raqh, ref, q);
+    while ((ra = TAILQ_FIRST(&conn->raqh)) != NULL) {
+        TAILQ_REMOVE(&conn->raqh, ra, q);
 
-        WT_ASSERT_ALWAYS(session, ref->refcount > 0);
-        --ref->refcount;
-        WT_RET(__wt_btree_read_ahead(session, ref));
+        WT_ASSERT_ALWAYS(session, ra->ref->refcount > 0, "uh oh, ref count tracking is borked");
+        --ra->ref->refcount;
+        WT_RET(__wt_btree_read_ahead(ra->session, ra->ref));
     }
 
     return (0);
