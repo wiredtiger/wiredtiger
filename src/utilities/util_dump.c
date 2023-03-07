@@ -37,7 +37,8 @@ usage(void)
     static const char *options[] = {"-c checkpoint",
       "dump as of the named checkpoint (the default is the most recent version of the data)",
       "-f output", "dump to the specified file (the default is stdout)", "-j",
-      "dump in JSON format", "-p",
+      "dump in JSON format", "-k", "specify a key too look for", "-n",
+      "if the specified key to look for cannot be found, return the result from search_near", "-p",
       "dump in human readable format (pretty-print). The -p flag can be combined with -x. In this "
       "case, raw data elements will be formatted like -x with hexadecimal encoding.",
       "-r", "dump in reverse order", "-t timestamp",
@@ -50,7 +51,7 @@ usage(void)
       "-?", "show this message", NULL, NULL};
 
     util_usage(
-      "dump [-jprx] [-c checkpoint] [-f output-file] [-t timestamp] uri", "options:", options);
+      "dump [-jknprx] [-c checkpoint] [-f output-file] [-t timestamp] uri", "options:", options);
     return (1);
 }
 
