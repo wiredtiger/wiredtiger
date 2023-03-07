@@ -696,7 +696,8 @@ dump_record(WT_CURSOR *cursor, const char *key, bool reverse, bool search_near, 
                     return (util_cerr(cursor, "get_key", ret));
                 if ((ret = cursor->get_value(cursor, &value)) != 0)
                     return (util_cerr(cursor, "get_value", ret));
-            }
+            } else if(ret != WT_NOTFOUND)
+                return (util_cerr(cursor, (reverse ? "prev" : "next"), ret));
         }
 
         if (ret == 0) {
@@ -706,7 +707,7 @@ dump_record(WT_CURSOR *cursor, const char *key, bool reverse, bool search_near, 
             once = true;
         }
 
-        /* When only one key is requested, we are done. */
+        /* When a specific key is requested, we are done. */
         if (key != NULL)
             break;
     }
@@ -714,9 +715,10 @@ dump_record(WT_CURSOR *cursor, const char *key, bool reverse, bool search_near, 
     if (json && once && fprintf(fp, "\n") < 0)
         return (util_err(session, EIO, NULL));
 
-    if (key != NULL)
-        return (ret);
-    return (ret == WT_NOTFOUND ? 0 : util_cerr(cursor, (reverse ? "prev" : "next"), ret));
+    /* When a key is not specified, WT_NOTFOUND means we have reached the end of the file. */
+    if(key == NULL && ret == WT_NOTFOUND)
+        ret = 0;
+    return (ret);
 }
 
 /*
