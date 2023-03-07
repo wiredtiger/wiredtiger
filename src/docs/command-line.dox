@@ -203,7 +203,7 @@ Dump in JSON (<a href="http://www.json.org">JavaScript Object Notation</a>)
 format.
 
 @par \c -k
-The specific key to look for.
+The specific key to look for in the format of the data packed into key items.
 
 @par \c -n
 Use \c search_near instead of \c search when a key is given through the \c -k option.
