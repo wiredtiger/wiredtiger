@@ -41,7 +41,8 @@ class test_cursor18(wttest.WiredTigerTestCase):
     types = [
         ('row', dict(keyformat='i', valueformat='i')),
         ('var', dict(keyformat='r', valueformat='i')),
-        ('fix', dict(keyformat='r', valueformat='8t')),
+        # WiredTiger 5.0 didn't support timestamps on fixed length column stores
+        # ('fix', dict(keyformat='r', valueformat='8t')),
     ]
 
     scenarios = make_scenarios(types)
