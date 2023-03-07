@@ -673,15 +673,19 @@ dump_record(WT_CURSOR *cursor, const char *key, bool reverse, bool search_near, 
             ret = cursor->search_near(cursor, &exact);
 
             if (ret != 0 && ret != WT_NOTFOUND)
-                return (util_cerr(cursor, search_near ? "search_near" : "search", ret));
+                return (util_cerr(cursor, "search_near", ret));
 
-            /* If search near is disabled and there is not an exact match, the key is missing. */
-            if(!search_near && exact != 0)
+            /*
+             * If a key has been found but search near is disabled and there is no exact match, the
+             * requested key is missing.
+             */
+            if (ret == 0 && !search_near && exact != 0)
                 ret = WT_NOTFOUND;
 
+            /* A key has been found. */
             if (ret == 0) {
                 if (search_near && exact != 0) {
-                    /* Retrieve the nearest key. */
+                    /* Retrieve the key found by search_near. */
                     if ((ret = cursor->get_key(cursor, &current_key)) != 0)
                         return (util_cerr(cursor, "get_key", ret));
                 }
@@ -697,7 +701,7 @@ dump_record(WT_CURSOR *cursor, const char *key, bool reverse, bool search_near, 
                     return (util_cerr(cursor, "get_key", ret));
                 if ((ret = cursor->get_value(cursor, &value)) != 0)
                     return (util_cerr(cursor, "get_value", ret));
-            } else if(ret != WT_NOTFOUND)
+            } else if (ret != WT_NOTFOUND)
                 return (util_cerr(cursor, (reverse ? "prev" : "next"), ret));
         }
 
@@ -717,7 +721,7 @@ dump_record(WT_CURSOR *cursor, const char *key, bool reverse, bool search_near, 
         return (util_err(session, EIO, NULL));
 
     /* When a key is not specified, WT_NOTFOUND means we have reached the end of the file. */
-    if(key == NULL && ret == WT_NOTFOUND)
+    if (key == NULL && ret == WT_NOTFOUND)
         ret = 0;
     return (ret);
 }
