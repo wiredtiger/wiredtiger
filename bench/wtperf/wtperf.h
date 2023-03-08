@@ -41,7 +41,7 @@ typedef struct __truncate_queue_entry TRUNCATE_QUEUE_ENTRY;
 
 #define EXT_PFX ",extensions=("
 #define EXT_SFX ")"
-#define EXTPATH "../../ext/" /* Extensions path */
+#define EXTPATH "./ext/" /* Extensions path */
 #define BLKCMP_PFX "block_compressor="
 
 /* Compressor Extensions */
@@ -172,6 +172,7 @@ struct __wtperf {         /* Per-database structure */
     uint64_t ckpt_ops;     /* checkpoint operations */
     uint64_t flush_ops;    /* flush operations */
     uint64_t scan_ops;     /* scan operations */
+    uint64_t scan_time;    /* scan time in milliseconds */
     uint64_t insert_ops;   /* insert operations */
     uint64_t modify_ops;   /* modify operations */
     uint64_t read_ops;     /* read operations */
@@ -277,16 +278,17 @@ struct __wtperf_thread {    /* Per-thread structure */
 
     TRUNCATE_CONFIG trunc_cfg; /* Truncate configuration */
 
-    TRACK backup;         /* Backup operations */
-    TRACK ckpt;           /* Checkpoint operations */
-    TRACK flush;          /* Flush_tier operations */
-    TRACK insert;         /* Insert operations */
-    TRACK modify;         /* Modify operations */
-    TRACK read;           /* Read operations */
-    TRACK scan;           /* Scan operations */
-    TRACK truncate;       /* Truncate operations */
-    TRACK truncate_sleep; /* Truncate sleep operations */
-    TRACK update;         /* Update operations */
+    TRACK backup;           /* Backup operations */
+    TRACK ckpt;             /* Checkpoint operations */
+    TRACK flush;            /* Flush_tier operations */
+    TRACK insert;           /* Insert operations */
+    TRACK modify;           /* Modify operations */
+    TRACK read;             /* Read operations */
+    TRACK scan;             /* Scan operations */
+    TRACK truncate;         /* Truncate operations */
+    TRACK truncate_sleep;   /* Truncate sleep operations */
+    TRACK update;           /* Update operations */
+    uint64_t scan_total_ms; /* A bit hacky, but knowing time spent scanning is useful */
 };
 
 void backup_read(WTPERF *, const char *);
@@ -316,6 +318,7 @@ uint64_t sum_backup_ops(WTPERF *);
 uint64_t sum_ckpt_ops(WTPERF *);
 uint64_t sum_flush_ops(WTPERF *);
 uint64_t sum_scan_ops(WTPERF *);
+uint64_t sum_scan_time(WTPERF *);
 uint64_t sum_insert_ops(WTPERF *);
 uint64_t sum_modify_ops(WTPERF *);
 uint64_t sum_pop_ops(WTPERF *);

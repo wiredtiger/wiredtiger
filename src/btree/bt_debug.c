@@ -1641,11 +1641,11 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 }
 
 /*
- * __debug_ref_state --
+ * __wt_debug_ref_state --
  *     Return a string representing the WT_REF state.
  */
-static const char *
-__debug_ref_state(u_int state)
+const char *
+__wt_debug_ref_state(u_int state)
 {
     switch (state) {
     case WT_REF_DISK:
@@ -1679,7 +1679,7 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
     session = ds->session;
 
     WT_RET(ds->f(ds, "\t%p, ", (void *)ref));
-    WT_RET(ds->f(ds, "%s", __debug_ref_state(ref->state)));
+    WT_RET(ds->f(ds, "%s", __wt_debug_ref_state(ref->state)));
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
         WT_RET(ds->f(ds, ", %s", "internal"));
     if (F_ISSET(ref, WT_REF_FLAG_LEAF))

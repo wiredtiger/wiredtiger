@@ -23,6 +23,7 @@ __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_DECL_RET;
     WT_REF *next_ref;
     uint64_t block_preload;
+    struct __wt_readahead *ra;
 
     btree = S2BT(session);
     block_preload = 0;
@@ -35,10 +36,14 @@ __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
         return (0);
 
     /*
+    fprintf(stderr, "Doing read ahead from %p in parent page %p\n", ref, ref);
+    */
+
+    /*
      * TODO: Does the actual reading need to be out-of-band (i.e done in another thread?). I'd
      * rather not need to queue/pop, and have a utility thread. OTOH: We don't really need an
-     * asynchronous mechanism - there is already a mechanism to ensure only a single thread reads
-     * a page into cache.
+     * asynchronous mechanism - there is already a mechanism to ensure only a single thread reads a
+     * page into cache.
      */
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
     /*
@@ -46,17 +51,24 @@ __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
      * __wt_session_gen_enter(session, WT_GEN_SPLIT);
      */
 
+    session->readahead_prev_ref = ref;
     /* Load and decompress a set of pages into the block cache. */
-    WT_INTL_FOREACH_BEGIN (session, ref->home, next_ref)
+    WT_ASSERT(session, ref->state == WT_REF_MEM);
+    WT_INTL_FOREACH_BEGIN (session, ref->page, next_ref)
+        /*
+        fprintf(stderr, "\tref %p, state %s, type %s\n", next_ref,
+          __wt_debug_ref_state(next_ref->state),
+          F_ISSET(next_ref, WT_REF_FLAG_INTERNAL) ? "internal" : "leaf");
+          */
         /*
          * Only pre-fetch pages that aren't already in the cache, this is imprecise (the state could
          * change), but it doesn't matter. It would just fetch the same block twice.
          *
          * TODO we can probably get rid of the ref_addr_copy - will we push too much to the queue?
          */
-        if (ref->state == WT_REF_DISK && __wt_ref_addr_copy(session, next_ref, &addr)) {
+        if (next_ref->state == WT_REF_DISK && __wt_ref_addr_copy(session, next_ref, &addr)) {
             ++ref->home->refcount;
-            struct __wt_readahead *ra = malloc(sizeof(struct __wt_readahead));
+            ra = malloc(sizeof(struct __wt_readahead));
             ra->ref = ref;
             ra->session = session;
             TAILQ_INSERT_TAIL(&S2C(session)->raqh, ra, q);

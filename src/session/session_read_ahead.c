@@ -125,8 +125,12 @@ __wt_session_readahead_check(WT_SESSION_IMPL *session, WT_REF *ref)
         return (true);
     }
 
-    WT_ASSERT_ALWAYS(session, session->readahead_prev_ref->state == WT_REF_MEM,
-      "Any ref being used for read-ahead better already be in cache.");
+    /*
+     * This seemed reasonable, but it's OK for a page to have been evicted after
+     * it was used for read ahead (and I saw that)
+     * WT_ASSERT_ALWAYS(session, session->readahead_prev_ref->state == WT_REF_MEM,
+     *  "Any ref being used for read-ahead better already be in cache.");
+     */
 
     WT_ASSERT_ALWAYS(session, F_ISSET(session->readahead_prev_ref, WT_REF_FLAG_INTERNAL),
       "Any ref being used for read-ahead better reference an internal page");

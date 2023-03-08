@@ -1,25 +1,21 @@
 # wtperf options file: evict btree configuration
 conn_config="cache_size=1G,checkpoint=(wait=60,log_size=2GB),eviction=(threads_min=12,threads_max=12),log=(enabled=true),session_max=600,statistics=(fast),statistics_log=(wait=1,json)"
-# 1B records * (key=12 + value=138) is about 150G total data size
 key_sz=12
 value_sz=138
-log_like_table=true
 table_config="type=file"
-icount=100000
+compression="snappy"
+icount=10000000
 report_interval=5
-run_time=120
-# Scans every 10 minutes for all the scan specific tables.
-# .4B records * (key=12 + value=138) is about 60G total data size for scan
-# Running on a machine with 64G physical memory, this exhausts both the
-# WT cache and the system cache.
-scan_interval=5
-scan_pct=20
+run_time=60
+scan_interval=2 # Wait 2 seconds between scans
+scan_pct=20 # Scan 2 percent of data each time
 scan_table_count=1
-scan_icount=40000000
+scan_icount=60000000 # 60 million records
 scan_type=forward
 populate_threads=1
 table_count=1
-threads=((count=1,reads=1,throttle=500))
+# Do reads in a different collection to keep some cache activity
+threads=((count=1,reads=1,throttle=5))
 # Add throughput/latency monitoring
 max_latency=50000
 sample_interval=5
