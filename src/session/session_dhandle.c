@@ -735,6 +735,7 @@ __session_find_shared_dhandle(WT_SESSION_IMPL *session, const char *uri, const c
         WT_DHANDLE_ACQUIRE(session->dhandle));
 
     if (ret == 0 && !(WT_IS_INT_FILE(uri))) {
+        WT_RET(__wt_conn_dhandle_store_ensure_session(session, uri));
         WT_WITH_HANDLE_LIST_READ_LOCK(session, ret = __wt_conn_dhandle_store_search(session, uri, &dhandle));
         if (ret != 0 || dhandle != session->dhandle) {
             __wt_verbose_notice(session, WT_VERB_DHANDLE,
