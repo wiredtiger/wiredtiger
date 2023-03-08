@@ -19,14 +19,14 @@ static int dump_json_separator(WT_SESSION *);
 static int dump_json_table_end(WT_SESSION *);
 static const char *get_dump_type(bool, bool, bool);
 static int dump_prefix(WT_SESSION *, bool, bool, bool);
-static int dump_record(WT_CURSOR *, const char *, bool, bool, bool, int);
+static int dump_record(WT_CURSOR *, const char *, bool, bool, bool, uint64_t);
 static int dump_suffix(WT_SESSION *, bool);
 static int dump_table_config(WT_SESSION *, WT_CURSOR *, WT_CURSOR *, const char *, bool);
 static int dump_table_parts_config(WT_SESSION *, WT_CURSOR *, const char *, const char *, bool);
 static int dup_json_string(const char *, char **);
 static int print_config(WT_SESSION *, const char *, const char *, bool, bool);
 static int time_pair_to_timestamp(WT_SESSION_IMPL *, char *, WT_ITEM *);
-static int dump_all_records(WT_CURSOR *cursor, bool reverse, bool json);
+static int dump_all_records(WT_CURSOR *, bool, bool);
 
 
 /*
@@ -72,10 +72,11 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_SESSION_IMPL *session_impl;
-    int ch, format_specifiers, i, window;
+    int ch, format_specifiers, i;
     char *checkpoint, *ofile, *p, *simpleuri, *timestamp, *uri;
     const char *key;
     bool hex, json, pretty, reverse, search_near;
+    uint64_t window;
 
     session_impl = (WT_SESSION_IMPL *)session;
     cursor = NULL;
@@ -112,8 +113,12 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
             timestamp = __wt_optarg;
             break;
         case 'w':
-            /* TODO */
-            window = 1;
+            if ((ret = util_str2num(session, __wt_optarg, true, &window)) != 0) {
+                fprintf(stderr,
+                  "%s argument to -w must be a number >0 cannot parse %s",
+                  progname, __wt_optarg);
+                return (usage());
+            }
             break;
         case 'x':
             hex = true;
@@ -684,13 +689,14 @@ print_record(WT_CURSOR *cursor, bool json)
  *     Dump a single record, advance cursor to next/prev, along with JSON formatting if needed.
  */
 static int
-dump_record(WT_CURSOR *cursor, const char *key, bool reverse, bool search_near, bool json, int window)
+dump_record(WT_CURSOR *cursor, const char *key, bool reverse, bool search_near, bool json, uint64_t window)
 {
     WT_DECL_RET;
     WT_SESSION *session;
-    int exact, n, total_window;
+    int exact;
     const char *current_key;
     bool once;
+    unsigned int n, total_window;
     int (*fwd)(WT_CURSOR *);
     int (*bck)(WT_CURSOR *);
 
