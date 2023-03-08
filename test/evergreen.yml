@@ -121,6 +121,8 @@ functions:
           ${HAVE_UNITTEST} \
           ${NON_BARRIER_DIAGNOSTIC_YIELDS|} \
           ${HAVE_DIAGNOSTIC|} \
+          ${CLANG_C_VERSION|} \
+          ${CLANG_CXX_VERSION|} \
           ${GNU_C_VERSION|} \
           ${GNU_CXX_VERSION|} \
           ${ENABLE_AZURE|} \
@@ -1327,7 +1329,12 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
+          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Release
+      - func: "compile wiredtiger"
+        vars:
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
           HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
+          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Debug
       - func: "compile wiredtiger"
         vars:
           CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
@@ -1350,7 +1357,12 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
+          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Release
+      - func: "compile wiredtiger"
+        vars:
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
           HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
+          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Debug
       - func: "compile wiredtiger"
         vars:
           CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
@@ -6410,7 +6422,7 @@ buildvariants:
       patchable: false
 
 - name: ubuntu2004-release
-  display_name: "~ Ubuntu 20.04 (Release Build Type)"
+  display_name: "~ Ubuntu 20.04 (Release Build)"
   run_on:
   - ubuntu2004-small
   batchtime: 720 # 12 hours
@@ -6441,7 +6453,7 @@ buildvariants:
     - name: unit-test-nonstandalone
 
 - name: ubuntu2004-release-arm64
-  display_name: "~ Ubuntu 20.04 ARM64 (Release Build Type)"
+  display_name: "~ Ubuntu 20.04 (ARM64, Release Build)"
   run_on:
   - ubuntu2004-arm64-small
   batchtime: 720 # 12 hours
@@ -6474,3 +6486,66 @@ buildvariants:
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
     - name: unit-test-nonstandalone
+
+- name: ubuntu2004-release-stress-tests
+  display_name: Ubuntu 20.04 Stress tests (Release Build)
+  run_on:
+  - ubuntu2004-test
+  batchtime: 1440 # 24 hours
+  expansions:
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Release
+    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+    make_command: ninja
+    test_env_vars:
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+      WT_TOPDIR=$(git rev-parse --show-toplevel)
+      WT_BUILDDIR=$WT_TOPDIR/cmake_build
+      LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
+      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so:$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
+    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
+  tasks:
+    - name: ".stress-test-1"
+    - name: ".stress-test-2"
+    - name: ".stress-test-no-barrier"
+    - name: ".stress-test-no-barrier-sanitizer"
+    - name: ".stress-test-sanitizer-1"
+    - name: ".stress-test-sanitizer-2"
+    - name: format-abort-recovery-stress-test
+    - name: ".stress-test-1-nonstandalone"
+    - name: ".stress-test-2-nonstandalone"
+    - name: ".stress-test-no-barrier-nonstandalone"
+    - name: format-abort-recovery-stress-test-nonstandalone
+    - name: format-predictable-test
+
+# When running the Python tests on this variant tcmalloc must be preloaded otherwise the wiredtiger library
+# fails to load and resolve its dependency.
+- name: ubuntu2004-release-stress-tests-arm64
+  display_name: Ubuntu 20.04 Stress tests (ARM64, Release Build)
+  run_on:
+  - ubuntu2004-arm64-large
+  batchtime: 1440 # 24 hours
+  expansions:
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Release
+    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+    make_command: ninja
+    test_env_vars:
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+      WT_TOPDIR=$(git rev-parse --show-toplevel)
+      WT_BUILDDIR=$WT_TOPDIR/cmake_build
+      LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libeatmydata.so:$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
+      LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
+    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
+  tasks:
+  # FIXME-WT-8947: For now run the whole stress test suite like we do on the x86 platform. But later
+  # find a smaller set of tests that give an optimal test coverage while being mindful of machine
+  # costs and availability.
+    - name: ".stress-test-1"
+    - name: ".stress-test-2"
+    - name: ".stress-test-no-barrier"
+    - name: format-abort-recovery-stress-test
+    - name: ".stress-test-1-nonstandalone"
+    - name: ".stress-test-2-nonstandalone"
+    - name: ".stress-test-no-barrier-nonstandalone"
+    - name: format-abort-recovery-stress-test-nonstandalone
