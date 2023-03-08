@@ -114,11 +114,8 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
             timestamp = __wt_optarg;
             break;
         case 'w':
-            if ((ret = util_str2num(session, __wt_optarg, true, &window)) != 0) {
-                fprintf(stderr, "%s argument to -w must be a positive integer\n",
-                  progname);
+            if ((ret = util_str2num(session, __wt_optarg, true, &window)) != 0)
                 return (usage());
-            }
             break;
         case 'x':
             hex = true;
