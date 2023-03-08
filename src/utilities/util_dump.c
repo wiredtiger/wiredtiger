@@ -29,7 +29,6 @@ static int print_config(WT_SESSION *, const char *, const char *, bool, bool);
 static int print_record(WT_CURSOR *, bool);
 static int time_pair_to_timestamp(WT_SESSION_IMPL *, char *, WT_ITEM *);
 
-
 /*
  * usage --
  *     Display a usage message for the dump command.
@@ -46,8 +45,7 @@ usage(void)
       "case, raw data elements will be formatted like -x with hexadecimal encoding.",
       "-r", "dump in reverse order", "-t timestamp",
       "dump as of the specified timestamp (the default is the most recent version of the data)",
-      "-w n", "dump n records before and after the record sought",
-      "-x",
+      "-w n", "dump n records before and after the record sought", "-x",
       "dump all characters in a hexadecimal encoding (by default printable characters are not "
       "encoded). The -x flag can be combined with -p. In this case, the dump will be formatted "
       "similar to -p except for raw data elements, which will look like -x with hexadecimal "
@@ -73,11 +71,11 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_SESSION_IMPL *session_impl;
+    uint64_t window;
     int ch, format_specifiers, i;
     char *checkpoint, *ofile, *p, *simpleuri, *timestamp, *uri;
     const char *key;
     bool hex, json, pretty, reverse, search_near;
-    uint64_t window;
 
     session_impl = (WT_SESSION_IMPL *)session;
     cursor = NULL;
@@ -215,8 +213,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         if (key == NULL) {
             if (dump_all_records(cursor, reverse, json) != 0)
                 goto err;
-        }
-        else {
+        } else {
             if (dump_record(cursor, key, reverse, search_near, json, window) != 0)
                 goto err;
         }
@@ -688,12 +685,13 @@ print_record(WT_CURSOR *cursor, bool json)
 
 /*
  * dump_record --
- *     Dump the record specified by key or one near to it. If a window is specified print out
- *     up to that many records before and after sought record. The window will be truncated if
- *     it would move past the first or last entry.
+ *     Dump the record specified by key or one near to it. If a window is specified print out up to
+ *     that many records before and after sought record. The window will be truncated if it would
+ *     move past the first or last entry.
  */
 static int
-dump_record(WT_CURSOR *cursor, const char *key, bool reverse, bool search_near, bool json, uint64_t window)
+dump_record(
+  WT_CURSOR *cursor, const char *key, bool reverse, bool search_near, bool json, uint64_t window)
 {
     WT_DECL_RET;
     WT_SESSION *session;
@@ -708,7 +706,7 @@ dump_record(WT_CURSOR *cursor, const char *key, bool reverse, bool search_near, 
     once = false;
     exact = 0;
 
-    WT_ASSERT((WT_SESSION_IMPL*)session, key != NULL);
+    WT_ASSERT((WT_SESSION_IMPL *)session, key != NULL);
 
     current_key = key;
     cursor->set_key(cursor, current_key);
@@ -746,7 +744,7 @@ dump_record(WT_CURSOR *cursor, const char *key, bool reverse, bool search_near, 
          * record in the total window size.
          */
         total_window = ((n == 0) ? 1 : n) + window;
-        
+
         for (n = 0; n < total_window; n++) {
             if (json && once) {
                 if (fputc(',', fp) == EOF)
@@ -760,7 +758,6 @@ dump_record(WT_CURSOR *cursor, const char *key, bool reverse, bool search_near, 
             print_record(cursor, json);
             once = true;
         }
-
     }
 
     if (json && once && fprintf(fp, "\n") < 0)
@@ -796,7 +793,6 @@ dump_all_records(WT_CURSOR *cursor, bool reverse, bool json)
     return (0);
 }
 
-
 /*
  * dump_suffix --
  *     Output the dump file header suffix.
@@ -806,9 +802,9 @@ dump_suffix(WT_SESSION *session, bool json)
 {
     if (json) {
         if (fprintf(fp,
-            "        },\n"
-            "        {\n"
-            "            \"data\" : [") < 0)
+              "        },\n"
+              "        {\n"
+              "            \"data\" : [") < 0)
             return (util_err(session, EIO, NULL));
     } else {
         if (fprintf(fp, "Data\n") < 0)
