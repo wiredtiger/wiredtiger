@@ -1168,10 +1168,10 @@ __wt_conn_dhandle_store_search(WT_SESSION_IMPL *s, const char *uri, WT_DATA_HAND
     dh_cur = session_dhandle->dhandle_cursor;
 
     dh_cur->set_key(dh_cur, uri);
-    ret = dh_cur->search(dh_cur);
-    WT_ASSERT(s, ret == 0);
+    WT_RET(dh_cur->search(dh_cur));
     ret = dh_cur->get_value(dh_cur, &dhandle);
     WT_ASSERT(s, ret == 0 && dhandle != NULL);
+    WT_RET(ret);
     WT_ASSERT(s, WT_STREQ(dhandle->name, uri));
     *dhandlep = dhandle;
     WT_RET(dh_cur->reset(dh_cur));
