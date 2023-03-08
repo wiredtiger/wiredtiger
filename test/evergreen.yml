@@ -6538,9 +6538,6 @@ buildvariants:
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
     python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
   tasks:
-  # FIXME-WT-8947: For now run the whole stress test suite like we do on the x86 platform. But later
-  # find a smaller set of tests that give an optimal test coverage while being mindful of machine
-  # costs and availability.
     - name: ".stress-test-1"
     - name: ".stress-test-2"
     - name: ".stress-test-no-barrier"
