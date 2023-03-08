@@ -50,31 +50,57 @@ __wt_readahead_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     WT_CONNECTION_IMPL *conn;
     struct __wt_readahead *ra;
     WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
 
     WT_UNUSED(thread);
+
+    WT_ASSERT(session, session->id != 0);
 
     conn = S2C(session);
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
-    while ((ra = TAILQ_FIRST(&conn->raqh)) != NULL) {
+    while ((ra = TAILQ_FIRST(&conn->raqh)) != NULL && F_ISSET(conn, WT_CONN_READAHEAD_RUN)) {
         TAILQ_REMOVE(&conn->raqh, ra, q);
 
         WT_ASSERT_ALWAYS(session, ra->ref->home->refcount > 0, "uh oh, ref count tracking is borked");
         if (__wt_ref_addr_copy(ra->session, ra->ref, &addr))
-            WT_RET(__wt_blkcache_read(ra->session, tmp, addr.addr, addr.size));
+            WT_ERR(__wt_blkcache_read(ra->session, tmp, addr.addr, addr.size));
 
         --ra->ref->home->refcount;
         free(ra);
     }
 
+ err:
+    __wt_scr_free(session, &tmp);
+    return (ret);
+}
+
+/*
+ * __wt_readahead_destroy --
+ *     Destroy the readahead threads.
+ */
+int
+__wt_readahead_destroy(WT_SESSION_IMPL *session)
+{
+    F_CLR(S2C(session), WT_CONN_READAHEAD_RUN);
+
+    __wt_writelock(session, &S2C(session)->readahead_threads.lock);
+
+    WT_RET(__wt_thread_group_destroy(session, &S2C(session)->readahead_threads));
+
     return (0);
 }
 
+/*
+ * __wt_readahead_thread_stop --
+ *     Shutdown function for a readahead thread. TODO can we remove this?
+ */
 int
 __wt_readahead_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
 {
     WT_UNUSED(thread);
-    F_CLR(S2C(session), WT_CONN_READAHEAD_RUN);
+    WT_UNUSED(session);
+
     return (0);
 }
 
