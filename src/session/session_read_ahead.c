@@ -64,8 +64,11 @@ __wt_readahead_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
         WT_ASSERT_ALWAYS(session, ra->ref->home == ra->first_home, "The home changed while queued for read ahead");
         WT_ASSERT_ALWAYS(session, ra->ref->home->refcount > 0, "uh oh, ref count tracking is borked");
-        if (__wt_ref_addr_copy(ra->session, ra->ref, &addr))
-            WT_ERR(__wt_blkcache_read(ra->session, tmp, addr.addr, addr.size));
+        if (__wt_ref_addr_copy(ra->session, ra->ref, &addr)) {
+            WT_WITH_DHANDLE(session, ra->dhandle,
+                    ret = __wt_blkcache_read(ra->session, tmp, addr.addr, addr.size));
+            WT_ERR(ret);
+        }
 
         --ra->ref->home->refcount;
         __wt_free(session, ra);

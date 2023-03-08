@@ -397,11 +397,7 @@ restart:
                 WT_ASSERT(session, ref != ref_orig);
 
                 if (__wt_session_readahead_check(session, ref)) {
-                    /* TODO this should be more WT-ish. */
-                    struct __wt_readahead *s = malloc(sizeof(struct __wt_readahead));
-                    s->ref = ref;
-                    s->session = session;
-                    TAILQ_INSERT_TAIL(&S2C(session)->raqh, s, q);
+                    WT_RET(__wt_btree_read_ahead(session, ref));
                 }
                 goto done;
             }
