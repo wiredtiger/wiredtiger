@@ -652,7 +652,8 @@ __wt_session_dhandle_clear(WT_SESSION_IMPL *session)
 {
     if (session->dhandle_session != NULL && !F_ISSET(session, WT_SESSION_DATA_HANDLE_INTERNAL)) {
         if (session->dhandle_session->dhandle_cursor != NULL)
-            WT_RET(session->dhandle_session->dhandle_cursor->close(session->dhandle_session->dhandle_cursor));
+            WT_RET(session->dhandle_session->dhandle_cursor->close(
+              session->dhandle_session->dhandle_cursor));
         WT_RET(__wt_session_close_internal(session->dhandle_session));
     }
     return (0);
@@ -858,7 +859,8 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
 
     WT_ASSERT(session, !F_ISSET(session, WT_SESSION_NO_DATA_HANDLES));
 
-    if (session->dhandle_session == NULL && !F_ISSET(session, WT_SESSION_DATA_HANDLE_INTERNAL | WT_SESSION_EVICTION)) {
+    if (session->dhandle_session == NULL &&
+      !F_ISSET(session, WT_SESSION_DATA_HANDLE_INTERNAL | WT_SESSION_EVICTION)) {
         WT_RET(
           __wt_open_internal_session(conn, "dh_store", false, 0, 0, &session->dhandle_session));
         F_SET(session->dhandle_session, WT_SESSION_DATA_HANDLE_INTERNAL);
