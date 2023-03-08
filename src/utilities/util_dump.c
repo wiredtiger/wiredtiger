@@ -698,7 +698,7 @@ dump_record(WT_CURSOR *cursor, const char *key, bool reverse, bool search_near, 
     once = false;
     exact = 0;
 
-    /* Assert key != NULL */
+    WT_ASSERT(session, key != NULL);
 
     current_key = key;
     cursor->set_key(cursor, current_key);
