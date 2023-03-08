@@ -199,7 +199,6 @@ struct __wt_name_flag {
 
 #define WT_CONN_DHANDLE_REMOVE(conn, dhandle, bucket)                                            \
     do {                                                                                         \
-        printf("Removing %s \n", dhandle->name);                                                 \
         WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST_WRITE)); \
         TAILQ_REMOVE(&(conn)->dhqh, dhandle, q);                                                 \
         TAILQ_REMOVE(&(conn)->dhhash[bucket], dhandle, hashq);                                   \

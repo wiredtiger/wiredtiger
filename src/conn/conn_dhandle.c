@@ -1044,6 +1044,29 @@ __wt_verbose_dump_handles(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_conn_dhandle_store_ensure_session --
+ *     Start an internal session and a cursor on dhandle store if not already there
+ */
+int
+__wt_conn_dhandle_store_ensure_session(WT_SESSION_IMPL *session)
+{
+    const char *dh_cur_cfg[] = {
+      WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite=false", NULL, NULL};
+    if (session->dhandle_session == NULL &&
+      !F_ISSET(session, WT_SESSION_DATA_HANDLE_INTERNAL | WT_SESSION_EVICTION)) {
+        WT_RET(__wt_open_internal_session(
+          S2C(session), "dh_store", false, 0, 0, &session->dhandle_session));
+        F_SET(session->dhandle_session, WT_SESSION_DATA_HANDLE_INTERNAL);
+    }
+    if (session->dhandle_session->dhandle_cursor == NULL) {
+        WT_RET(__wt_open_cursor(session->dhandle_session, WT_DH_TABLE_URI, NULL, dh_cur_cfg,
+          &session->dhandle_session->dhandle_cursor));
+    }
+
+    return (0);
+}
+
+/*
  * __wt_conn_dhandle_store_insert --
  *     Insert into dhandle store.
  */
@@ -1052,9 +1075,7 @@ __wt_conn_dhandle_store_insert(WT_SESSION_IMPL *s, WT_DATA_HANDLE *dhandle)
 {
     WT_CURSOR *dh_cur;
     WT_DECL_RET;
-    WT_SESSION_IMPL *session_dhandle = s->dhandle_session;
-    const char *dh_cur_cfg[] = {
-      WT_CONFIG_BASE(session_dhandle, WT_SESSION_open_cursor), "overwrite=false", NULL, NULL};
+    WT_SESSION_IMPL *session_dhandle;
 
     if (F_ISSET(s, WT_SESSION_DATA_HANDLE_INTERNAL))
         return (0);
@@ -1062,18 +1083,22 @@ __wt_conn_dhandle_store_insert(WT_SESSION_IMPL *s, WT_DATA_HANDLE *dhandle)
     if (WT_IS_INT_FILE(dhandle->name))
         return (0);
 
-    if (session_dhandle->dhandle_cursor == NULL)
-        WT_RET(__wt_open_cursor(
-          session_dhandle, WT_DH_TABLE_URI, NULL, dh_cur_cfg, &session_dhandle->dhandle_cursor));
+    __wt_verbose_notice(s, WT_VERB_DHANDLE,
+      "Adding dhandle named:%s pointer:%p to the dhandle store.", dhandle->name, (void *)dhandle);
+
+    WT_RET(__wt_conn_dhandle_store_ensure_session(s));
+    WT_ASSERT(s, s->dhandle_session != NULL && s->dhandle_session->dhandle_cursor != NULL);
+    session_dhandle = s->dhandle_session;
     dh_cur = session_dhandle->dhandle_cursor;
 
     dh_cur->set_key(dh_cur, dhandle->name);
     dh_cur->set_value(dh_cur, dhandle);
     ret = dh_cur->insert(dh_cur);
-    WT_RET(dh_cur->reset(dh_cur));
-    WT_ASSERT(session_dhandle, ret == 0);
+    WT_ASSERT(s, ret == 0);
     WT_RET(ret);
-    __wt_verbose_notice(session_dhandle, WT_VERB_DHANDLE,
+    WT_RET(dh_cur->reset(dh_cur));
+
+    __wt_verbose_notice(s, WT_VERB_DHANDLE,
       "Added dhandle named:%s pointer:%p to the dhandle store.", dhandle->name, (void *)dhandle);
     return (0);
 }
@@ -1086,9 +1111,11 @@ int
 __wt_conn_dhandle_store_remove(WT_SESSION_IMPL *s, const char *uri)
 {
     WT_CURSOR *dh_cur;
-    WT_SESSION_IMPL *session_dhandle = s->dhandle_session;
-    const char *dh_cur_cfg[] = {
-      WT_CONFIG_BASE(session_dhandle, WT_SESSION_open_cursor), "overwrite=false", NULL, NULL};
+    WT_SESSION_IMPL *session_dhandle;
+
+    /* Ignore removal as we will discard the dhandle store on restart. */
+    if (F_ISSET(S2C(s), WT_CONN_CLOSING))
+        return (0);
 
     if (F_ISSET(s, WT_SESSION_DATA_HANDLE_INTERNAL))
         return (0);
@@ -1096,18 +1123,18 @@ __wt_conn_dhandle_store_remove(WT_SESSION_IMPL *s, const char *uri)
     if (WT_IS_INT_FILE(uri))
         return (0);
 
-    if (session_dhandle->dhandle_cursor == NULL)
-        WT_RET(__wt_open_cursor(
-          session_dhandle, WT_DH_TABLE_URI, NULL, dh_cur_cfg, &session_dhandle->dhandle_cursor));
+    __wt_verbose_notice(s, WT_VERB_DHANDLE, "Removing %s from the dhandle store.", uri);
+
+    WT_RET(__wt_conn_dhandle_store_ensure_session(s));
+    WT_ASSERT(s, s->dhandle_session != NULL && s->dhandle_session->dhandle_cursor != NULL);
+    session_dhandle = s->dhandle_session;
     dh_cur = session_dhandle->dhandle_cursor;
-    __wt_verbose_notice(
-      session_dhandle, WT_VERB_DHANDLE, "Removing %s from the dhandle store.", uri);
+
     dh_cur->set_key(dh_cur, uri);
     WT_RET(dh_cur->remove(dh_cur));
-
     WT_RET(dh_cur->reset(dh_cur));
-    __wt_verbose_notice(
-      session_dhandle, WT_VERB_DHANDLE, "Removed %s from the dhandle store.", uri);
+
+    __wt_verbose_notice(s, WT_VERB_DHANDLE, "Removed %s from the dhandle store.", uri);
 
     return (0);
 }
@@ -1121,12 +1148,11 @@ __wt_conn_dhandle_store_search(WT_SESSION_IMPL *s, const char *uri, WT_DATA_HAND
 {
     WT_CURSOR *dh_cur;
     WT_DATA_HANDLE *dhandle;
-    WT_SESSION_IMPL *session_dhandle = s->dhandle_session;
-    const char *dh_cur_cfg[] = {
-      WT_CONFIG_BASE(session_dhandle, WT_SESSION_open_cursor), "overwrite=false", NULL, NULL};
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session_dhandle;
 
     *dhandlep = NULL;
-    session_dhandle = s->dhandle_session;
+    dhandle = NULL;
 
     if (F_ISSET(s, WT_SESSION_DATA_HANDLE_INTERNAL))
         return (0);
@@ -1134,19 +1160,23 @@ __wt_conn_dhandle_store_search(WT_SESSION_IMPL *s, const char *uri, WT_DATA_HAND
     if (WT_IS_INT_FILE(uri))
         return (0);
 
-    if (session_dhandle->dhandle_cursor == NULL)
-        WT_RET(__wt_open_cursor(
-          session_dhandle, WT_DH_TABLE_URI, NULL, dh_cur_cfg, &session_dhandle->dhandle_cursor));
+    __wt_verbose_notice(s, WT_VERB_DHANDLE, "Searching %s in the dhandle store.", uri);
+
+    WT_RET(__wt_conn_dhandle_store_ensure_session(s));
+    WT_ASSERT(s, s->dhandle_session != NULL && s->dhandle_session->dhandle_cursor != NULL);
+    session_dhandle = s->dhandle_session;
     dh_cur = session_dhandle->dhandle_cursor;
-    __wt_verbose_notice(
-      session_dhandle, WT_VERB_DHANDLE, "Searching %s in the dhandle store.", uri);
+
     dh_cur->set_key(dh_cur, uri);
-    WT_RET(dh_cur->search(dh_cur));
-    dh_cur->get_value(dh_cur, &dhandle);
-    WT_ASSERT(session_dhandle, WT_STREQ(dhandle->name, uri));
+    ret = dh_cur->search(dh_cur);
+    WT_ASSERT(s, ret == 0);
+    ret = dh_cur->get_value(dh_cur, &dhandle);
+    WT_ASSERT(s, ret == 0 && dhandle != NULL);
+    WT_ASSERT(s, WT_STREQ(dhandle->name, uri));
     *dhandlep = dhandle;
     WT_RET(dh_cur->reset(dh_cur));
-    __wt_verbose_notice(session_dhandle, WT_VERB_DHANDLE, "Found %s in the dhandle store.", uri);
+
+    __wt_verbose_notice(s, WT_VERB_DHANDLE, "Found %s in the dhandle store.", uri);
 
     return (0);
 }
@@ -1160,8 +1190,14 @@ __wt_conn_dhandle_create_dh_table(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
+    const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "force=true", NULL};
 
     conn = S2C(session);
+
+    /* Drop the existing table first, force=true means ignore errors from non-existing tables. */
+    WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_drop(session, WT_DH_TABLE_URI, drop_cfg));
+    WT_RET(ret);
 
     /* Create the table. */
     WT_RET(__wt_session_create(session, WT_DH_TABLE_URI, WT_HD_TABLE_CONFIG));

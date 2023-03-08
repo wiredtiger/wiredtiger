@@ -491,6 +491,8 @@ extern int __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, con
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t flags)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_conn_dhandle_store_ensure_session(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_dhandle_store_insert(WT_SESSION_IMPL *s, WT_DATA_HANDLE *dhandle)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_dhandle_store_remove(WT_SESSION_IMPL *s, const char *uri)
