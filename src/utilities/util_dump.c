@@ -87,7 +87,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
     hex = json = pretty = reverse = search_near = false;
     window = 0;
 
-    while ((ch = __wt_getopt(progname, argc, argv, "c:f:k:t:jnprw:x?")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "c:f:k:t:w:jnprx?")) != EOF)
         switch (ch) {
         case 'c':
             checkpoint = __wt_optarg;
@@ -115,9 +115,8 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
             break;
         case 'w':
             if ((ret = util_str2num(session, __wt_optarg, true, &window)) != 0) {
-                fprintf(stderr,
-                  "%s argument to -w must be a number >0 cannot parse %s",
-                  progname, __wt_optarg);
+                fprintf(stderr, "%s argument to -w must be a positive integer\n",
+                  progname);
                 return (usage());
             }
             break;
@@ -657,6 +656,11 @@ dump_prefix(WT_SESSION *session, bool pretty, bool hex, bool json)
     return (0);
 }
 
+/*
+ * print_record --
+ *     Output text representation of key and value.
+ *
+ */
 static int
 print_record(WT_CURSOR *cursor, bool json)
 {
@@ -687,7 +691,9 @@ print_record(WT_CURSOR *cursor, bool json)
 
 /*
  * dump_record --
- *     Dump a single record, advance cursor to next/prev, along with JSON formatting if needed.
+ *     Dump the record specified by key or one near to it. If a window is specified print out
+ *     up to that many records before and after sought record. The window will be truncated if
+ *     it would move past the first or last entry.
  */
 static int
 dump_record(WT_CURSOR *cursor, const char *key, bool reverse, bool search_near, bool json, uint64_t window)
@@ -766,6 +772,10 @@ dump_record(WT_CURSOR *cursor, const char *key, bool reverse, bool search_near, 
     return (0);
 }
 
+/*
+ * dump_all_records --
+ *     Dump all the records.
+ */
 static int
 dump_all_records(WT_CURSOR *cursor, bool reverse, bool json)
 {

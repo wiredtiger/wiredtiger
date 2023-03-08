@@ -34,8 +34,8 @@ import wttest
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 
-# test_dump02.py
-# Test the dump utility to find different keys.
+# test_dump03.py
+#     Test 'wt dump' window functionality.
 class test_dump(wttest.WiredTigerTestCase, suite_subprocess):
     table_format = 'key_format=u,value_format=u'
     uri = 'table:test_dump'
@@ -79,7 +79,7 @@ class test_dump(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.create(self.uri, self.table_format)
         self.populate_table(self.uri, self.n_rows)
 
-        # The nearest key should be found.
+        
         self.runWt(['dump', '-k', self.key, '-w', str(self.winsize), self.uri], outfilename=self.output)
         num_lines = self.get_num_data_lines_from_dump(self.output)
         assert num_lines == self.expected_num_lines, num_lines
