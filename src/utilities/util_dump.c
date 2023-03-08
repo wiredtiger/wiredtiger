@@ -85,7 +85,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
     hex = json = pretty = reverse = search_near = false;
     window = 0;
 
-    while ((ch = __wt_getopt(progname, argc, argv, "c:f:k:t:jnprx?")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "c:f:k:t:jnprwx?")) != EOF)
         switch (ch) {
         case 'c':
             checkpoint = __wt_optarg;
@@ -721,7 +721,7 @@ dump_record(WT_CURSOR *cursor, const char *key, bool reverse, bool search_near, 
         fwd = (reverse) ? cursor->prev : cursor->next;
         bck = (reverse) ? cursor->next : cursor->prev;
         /* Move to start of window.  */
-        for (n = 0; n > -window; n--) {
+        for (n = 0; n >= -window; n--) {
             if ((ret = bck(cursor)) != 0) {
                 if (ret == WT_NOTFOUND)
                     break;
