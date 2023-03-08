@@ -728,28 +728,33 @@ static int
 __session_find_shared_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *checkpoint)
 {
     WT_DECL_RET;
+    WT_DATA_HANDLE *dhandle;
+    int ret2;
 
+    if (!(WT_IS_INT_FILE(uri)))
+        ret2 = __wt_conn_dhandle_store_search(session, uri, &dhandle);
     WT_WITH_HANDLE_LIST_READ_LOCK(session,
       if ((ret = __wt_conn_dhandle_find(session, uri, checkpoint)) == 0)
         WT_DHANDLE_ACQUIRE(session->dhandle));
 
     if (ret == 0 && !(WT_IS_INT_FILE(uri))) {
-        WT_DATA_HANDLE *dhandle;
-        ret = __wt_conn_dhandle_store_search(session, uri, &dhandle);
-        if (ret != 0 || dhandle != session->dhandle) {
+        if (ret2 != 0 || dhandle != session->dhandle) {
             __wt_verbose_notice(session, WT_VERB_DHANDLE,
-              "error: Ret:%d dhandle:%p, session->dhandle:%p", ret, dhandle, session->dhandle);
+              "error: Ret:%d dhandle:%p, session->dhandle:%p", ret2, dhandle, session->dhandle);
         }
-        WT_ASSERT(session, ret == 0 && dhandle == session->dhandle);
+        WT_ASSERT(session, ret2 == 0 && dhandle == session->dhandle);
     }
 
     if (ret != WT_NOTFOUND)
         return (ret);
 
     WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
-      if ((ret = __wt_conn_dhandle_alloc(session, uri, checkpoint)) == 0 &&
-        (ret = __wt_conn_dhandle_store_insert(session, session->dhandle)) == 0)
+      if ((ret = __wt_conn_dhandle_alloc(session, uri, checkpoint)) == 0)
         WT_DHANDLE_ACQUIRE(session->dhandle));
+    if (ret == 0) {
+        ret = __wt_conn_dhandle_store_insert(session, session->dhandle);
+        WT_ASSERT(session, ret == 0);
+    }
 
     return (ret);
 }
