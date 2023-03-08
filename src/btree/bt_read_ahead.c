@@ -17,7 +17,6 @@
 int
 __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    WT_ADDR_COPY addr;
     WT_BTREE *btree;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
@@ -55,21 +54,21 @@ __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
     /* Load and decompress a set of pages into the block cache. */
     WT_ASSERT(session, ref->state == WT_REF_MEM);
     WT_INTL_FOREACH_BEGIN (session, ref->page, next_ref)
-        /*
         fprintf(stderr, "\tref %p, state %s, type %s\n", next_ref,
           __wt_debug_ref_state(next_ref->state),
           F_ISSET(next_ref, WT_REF_FLAG_INTERNAL) ? "internal" : "leaf");
-          */
         /*
          * Only pre-fetch pages that aren't already in the cache, this is imprecise (the state could
          * change), but it doesn't matter. It would just fetch the same block twice.
          *
          * TODO we can probably get rid of the ref_addr_copy - will we push too much to the queue?
          */
-        if (next_ref->state == WT_REF_DISK && __wt_ref_addr_copy(session, next_ref, &addr)) {
-            ++ref->home->refcount;
-            ra = malloc(sizeof(struct __wt_readahead));
-            ra->ref = ref;
+        if (next_ref->state == WT_REF_DISK && F_ISSET(next_ref, WT_REF_FLAG_LEAF)) {
+            WT_RET(__wt_calloc_one(session, &ra));
+            WT_ASSERT(session, next_ref->home == ref->page);
+            ++next_ref->home->refcount;
+            ra->ref = next_ref;
+            ra->first_home = next_ref->home;
             ra->session = session;
             TAILQ_INSERT_TAIL(&S2C(session)->raqh, ra, q);
             ++block_preload;

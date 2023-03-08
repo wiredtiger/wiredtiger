@@ -62,12 +62,13 @@ __wt_readahead_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     while ((ra = TAILQ_FIRST(&conn->raqh)) != NULL && F_ISSET(conn, WT_CONN_READAHEAD_RUN)) {
         TAILQ_REMOVE(&conn->raqh, ra, q);
 
+        WT_ASSERT_ALWAYS(session, ra->ref->home == ra->first_home, "The home changed while queued for read ahead");
         WT_ASSERT_ALWAYS(session, ra->ref->home->refcount > 0, "uh oh, ref count tracking is borked");
         if (__wt_ref_addr_copy(ra->session, ra->ref, &addr))
             WT_ERR(__wt_blkcache_read(ra->session, tmp, addr.addr, addr.size));
 
         --ra->ref->home->refcount;
-        free(ra);
+        __wt_free(session, ra);
     }
 
  err:

@@ -934,6 +934,7 @@ struct __wt_ref_hist {
 struct __wt_readahead {
     WT_SESSION_IMPL *session;
     WT_REF *ref;
+    WT_PAGE *first_home;
     TAILQ_ENTRY(__wt_readahead) q; /* List of readaheads planned. */
 };
 
