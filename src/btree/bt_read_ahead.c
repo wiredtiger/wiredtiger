@@ -22,7 +22,7 @@ __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_DECL_RET;
     WT_REF *next_ref;
     uint64_t block_preload;
-    struct __wt_readahead *ra;
+    WT_READAHEAD *ra;
 
     btree = S2BT(session);
     block_preload = 0;

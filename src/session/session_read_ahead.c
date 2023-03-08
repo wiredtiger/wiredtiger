@@ -39,6 +39,24 @@ __wt_readahead_thread_chk(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __readahead_page_in --
+ *     Does the heavy lifting of reading a page into the cache. Immediately releases the page since
+ *     reading it in is the useful side effect here. Must be called while holding a dhandle.
+ */
+static int
+__readahead_page_in(WT_SESSION_IMPL *session, WT_READAHEAD *ra)
+{
+    WT_ADDR_COPY addr;
+
+    if (__wt_ref_addr_copy(session, ra->ref, &addr)) {
+        WT_RET(__wt_page_in(session, ra->ref, 0));
+        WT_RET(__wt_page_release(session, ra->ref, 0));
+    }
+
+    return (0);
+}
+
+/*
  * __wt_readahead_thread_run --
  *     Entry function for a readahead thread. This is called repeatedly from the thread group code
  *     so it does not need to loop itself.
@@ -46,12 +64,10 @@ __wt_readahead_thread_chk(WT_SESSION_IMPL *session)
 int
 __wt_readahead_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 {
-    WT_ADDR_COPY addr;
     WT_CONNECTION_IMPL *conn;
-    struct __wt_readahead *ra;
-    WT_DECL_ITEM(tmp);
+    WT_READAHEAD *ra;
     WT_DECL_RET;
-    bool got_address;
+    WT_DECL_ITEM(tmp);
 
     WT_UNUSED(thread);
 
@@ -66,16 +82,8 @@ __wt_readahead_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         WT_ASSERT_ALWAYS(session, ra->ref->home == ra->first_home, "The home changed while queued for read ahead");
         WT_ASSERT_ALWAYS(session, ra->ref->home->refcount > 0, "uh oh, ref count tracking is borked");
         WT_ASSERT_ALWAYS(session, ra->dhandle != NULL, "Read ahead needs to save a valid dhandle");
-        WT_WITH_DHANDLE(session, ra->dhandle,
-            got_address = __wt_ref_addr_copy(session, ra->ref, &addr));
-        if (got_address) {
-            WT_WITH_DHANDLE(session, ra->dhandle,
-                    ret = __wt_page_in(session, ra->ref, 0));
-            WT_ERR(ret);
-            WT_WITH_DHANDLE(session, ra->dhandle,
-                    ret = __wt_page_release(session, ra->ref, 0));
-            WT_ERR(ret);
-        }
+        WT_WITH_DHANDLE(session, ra->dhandle, ret = __readahead_page_in(session, ra));
+        WT_ERR(ret);
 
         --ra->ref->home->refcount;
         __wt_free(session, ra);

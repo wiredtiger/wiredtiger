@@ -303,6 +303,8 @@ struct __wt_page_stat;
 typedef struct __wt_page_stat WT_PAGE_STAT;
 struct __wt_process;
 typedef struct __wt_process WT_PROCESS;
+struct __wt_readahead;
+typedef struct __wt_readahead WT_READAHEAD;
 struct __wt_rec_chunk;
 typedef struct __wt_rec_chunk WT_REC_CHUNK;
 struct __wt_rec_dictionary;
