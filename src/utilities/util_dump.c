@@ -730,9 +730,12 @@ dump_record(WT_CURSOR *cursor, const char *key, bool reverse, bool search_near, 
             }
         }
 
-        /* Calculate the maximum possible window size based on how far it was possible to back up in
-         * the window. If it was not possible to backup (n==0) it is then necessary to include the
-         * searched for record in the total window size. */
+        /* Calculate the maximum window size based on how far it was possible to back up in the
+         * window above.
+         *
+         * If it was not possible to backup (n==0) it is then necessary to include the searched for
+         * record in the total window size.
+         */
         total_window = ((n == 0) ? 1 : n) + window;
         
         for (n = 0; n < total_window; n++) {
