@@ -1078,10 +1078,10 @@ __wt_conn_dhandle_store_insert(WT_SESSION_IMPL *s, WT_DATA_HANDLE *dhandle)
     WT_SESSION_IMPL *session_dhandle;
 
     if (F_ISSET(s, WT_SESSION_DATA_HANDLE_INTERNAL))
-        return (0);
+        return (ret);
 
     if (WT_IS_INT_FILE(dhandle->name))
-        return (0);
+        return (ret);
 
     __wt_verbose_notice(s, WT_VERB_DHANDLE,
       "Adding dhandle named:%s pointer:%p to the dhandle store.", dhandle->name, (void *)dhandle);
@@ -1155,10 +1155,10 @@ __wt_conn_dhandle_store_search(WT_SESSION_IMPL *s, const char *uri, WT_DATA_HAND
     dhandle = NULL;
 
     if (F_ISSET(s, WT_SESSION_DATA_HANDLE_INTERNAL))
-        return (0);
+        return (ret);
 
     if (WT_IS_INT_FILE(uri))
-        return (0);
+        return (ret);
 
     __wt_verbose_notice(s, WT_VERB_DHANDLE, "Searching %s in the dhandle store.", uri);
 
