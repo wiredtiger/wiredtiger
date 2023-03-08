@@ -85,7 +85,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
     hex = json = pretty = reverse = search_near = false;
     window = 0;
 
-    while ((ch = __wt_getopt(progname, argc, argv, "c:f:k:t:jnprwx?")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "c:f:k:t:jnprw:x?")) != EOF)
         switch (ch) {
         case 'c':
             checkpoint = __wt_optarg;
@@ -688,7 +688,7 @@ dump_record(WT_CURSOR *cursor, const char *key, bool reverse, bool search_near, 
 {
     WT_DECL_RET;
     WT_SESSION *session;
-    int exact, n;
+    int exact, n, total_window;
     const char *current_key;
     bool once;
     int (*fwd)(WT_CURSOR *);
@@ -698,7 +698,7 @@ dump_record(WT_CURSOR *cursor, const char *key, bool reverse, bool search_near, 
     once = false;
     exact = 0;
 
-    WT_ASSERT(session, key != NULL);
+    WT_ASSERT((WT_SESSION_IMPL*)session, key != NULL);
 
     current_key = key;
     cursor->set_key(cursor, current_key);
@@ -720,15 +720,22 @@ dump_record(WT_CURSOR *cursor, const char *key, bool reverse, bool search_near, 
     else {
         fwd = (reverse) ? cursor->prev : cursor->next;
         bck = (reverse) ? cursor->next : cursor->prev;
-        /* Move to start of window.  */
-        for (n = 0; n >= -window; n--) {
+
+        /* Back up as far as possible in the window. */
+        for (n = 0; n <= window; n++) {
             if ((ret = bck(cursor)) != 0) {
                 if (ret == WT_NOTFOUND)
                     break;
                 return (util_cerr(cursor, "cursor", ret));
             }
         }
-        for (; n < window; n++) {
+
+        /* Calculate the maximum possible window size based on how far it was possible to back up in
+         * the window. If it was not possible to backup (n==0) it is then necessary to include the
+         * searched for record in the total window size. */
+        total_window = ((n == 0) ? 1 : n) + window;
+        
+        for (n = 0; n < total_window; n++) {
             if (json && once) {
                 if (fputc(',', fp) == EOF)
                     return (util_err(session, EIO, NULL));
