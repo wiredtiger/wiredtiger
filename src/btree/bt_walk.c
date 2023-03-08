@@ -397,7 +397,6 @@ restart:
                 WT_ASSERT(session, ref != ref_orig);
 
                 if (__wt_session_readahead_check(session, ref)) {
-                    ++ref->refcount;
                     /* TODO this should be more WT-ish. */
                     struct __wt_readahead *s = malloc(sizeof(struct __wt_readahead));
                     s->ref = ref;
