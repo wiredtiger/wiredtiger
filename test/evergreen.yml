@@ -6507,14 +6507,11 @@ buildvariants:
   tasks:
     - name: ".stress-test-1"
     - name: ".stress-test-2"
-    - name: ".stress-test-no-barrier"
-    - name: ".stress-test-no-barrier-sanitizer"
     - name: ".stress-test-sanitizer-1"
     - name: ".stress-test-sanitizer-2"
     - name: format-abort-recovery-stress-test
     - name: ".stress-test-1-nonstandalone"
     - name: ".stress-test-2-nonstandalone"
-    - name: ".stress-test-no-barrier-nonstandalone"
     - name: format-abort-recovery-stress-test-nonstandalone
     - name: format-predictable-test
 
@@ -6540,9 +6537,7 @@ buildvariants:
   tasks:
     - name: ".stress-test-1"
     - name: ".stress-test-2"
-    - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
     - name: ".stress-test-1-nonstandalone"
     - name: ".stress-test-2-nonstandalone"
-    - name: ".stress-test-no-barrier-nonstandalone"
     - name: format-abort-recovery-stress-test-nonstandalone
