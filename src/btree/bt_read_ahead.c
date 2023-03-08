@@ -72,7 +72,6 @@ __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
             ra->ref = next_ref;
             ra->first_home = next_ref->home;
             ra->dhandle = session->dhandle;
-            ra->session = session;
             TAILQ_INSERT_TAIL(&S2C(session)->raqh, ra, q);
             ++block_preload;
         }

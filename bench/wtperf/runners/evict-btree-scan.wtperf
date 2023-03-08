@@ -1,10 +1,10 @@
 # wtperf options file: evict btree configuration
-conn_config="cache_size=1G,checkpoint=(wait=60,log_size=2GB),eviction=(threads_min=12,threads_max=12),log=(enabled=true),session_max=600,statistics=(fast),statistics_log=(wait=1,json)"
+conn_config="cache_size=1G,checkpoint=(wait=60,log_size=2GB),eviction=(threads_min=12,threads_max=12),log=(enabled=true),session_max=600,statistics=(fast),statistics_log=(wait=1,json),block_cache=(enabled,size=1GB,type=DRAM)"
 key_sz=12
 value_sz=138
 table_config="type=file"
 compression="snappy"
-icount=10000000
+icount=1000000
 report_interval=5
 run_time=60
 scan_interval=2 # Wait 2 seconds between scans

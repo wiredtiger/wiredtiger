@@ -932,7 +932,6 @@ struct __wt_ref_hist {
 
 /* TODO put this somewhere sensible. */
 struct __wt_readahead {
-    WT_SESSION_IMPL *session;
     WT_REF *ref;
     WT_PAGE *first_home;
     WT_DATA_HANDLE *dhandle;

@@ -51,6 +51,7 @@ __wt_readahead_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     struct __wt_readahead *ra;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
+    bool got_address;
 
     WT_UNUSED(thread);
 
@@ -64,9 +65,15 @@ __wt_readahead_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
         WT_ASSERT_ALWAYS(session, ra->ref->home == ra->first_home, "The home changed while queued for read ahead");
         WT_ASSERT_ALWAYS(session, ra->ref->home->refcount > 0, "uh oh, ref count tracking is borked");
-        if (__wt_ref_addr_copy(ra->session, ra->ref, &addr)) {
+        WT_ASSERT_ALWAYS(session, ra->dhandle != NULL, "Read ahead needs to save a valid dhandle");
+        WT_WITH_DHANDLE(session, ra->dhandle,
+            got_address = __wt_ref_addr_copy(session, ra->ref, &addr));
+        if (got_address) {
             WT_WITH_DHANDLE(session, ra->dhandle,
-                    ret = __wt_blkcache_read(ra->session, tmp, addr.addr, addr.size));
+                    ret = __wt_page_in(session, ra->ref, 0));
+            WT_ERR(ret);
+            WT_WITH_DHANDLE(session, ra->dhandle,
+                    ret = __wt_page_release(session, ra->ref, 0));
             WT_ERR(ret);
         }
 
