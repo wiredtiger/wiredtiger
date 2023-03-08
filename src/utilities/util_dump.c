@@ -12,6 +12,7 @@
 #define STRING_MATCH_CONFIG(s, item) \
     (strncmp(s, (item).str, (item).len) == 0 && (s)[(item).len] == '\0')
 
+static int dump_all_records(WT_CURSOR *, bool, bool);
 static int dump_config(WT_SESSION *, const char *, WT_CURSOR *, bool, bool, bool);
 static int dump_json_begin(WT_SESSION *);
 static int dump_json_end(WT_SESSION *);
@@ -25,8 +26,8 @@ static int dump_table_config(WT_SESSION *, WT_CURSOR *, WT_CURSOR *, const char 
 static int dump_table_parts_config(WT_SESSION *, WT_CURSOR *, const char *, const char *, bool);
 static int dup_json_string(const char *, char **);
 static int print_config(WT_SESSION *, const char *, const char *, bool, bool);
+static int print_record(WT_CURSOR *, bool);
 static int time_pair_to_timestamp(WT_SESSION_IMPL *, char *, WT_ITEM *);
-static int dump_all_records(WT_CURSOR *, bool, bool);
 
 
 /*
@@ -720,9 +721,8 @@ dump_record(WT_CURSOR *cursor, const char *key, bool reverse, bool search_near, 
     if (ret == 0 && !search_near && exact != 0)
         return (WT_NOTFOUND);
 
-    if (window <= 0) {
+    if (window <= 0)
         ret = print_record(cursor, json);
-    }
     else {
         fwd = (reverse) ? cursor->prev : cursor->next;
         bck = (reverse) ? cursor->next : cursor->prev;

@@ -49,7 +49,8 @@ class test_dump(wttest.WiredTigerTestCase, suite_subprocess):
         ('window-size-1-at-start', dict(key='key1', winsize=1, expected_num_lines=2*2)),
         ('window-size-1-at-end', dict(key='key99', winsize=1, expected_num_lines=2*2)),
         ('window-size-2', dict(key='key3', winsize=2, expected_num_lines=5*2)),
-        ('window-size-3', dict(key='key5', winsize=3, expected_num_lines=7*2))
+        ('window-size-3', dict(key='key5', winsize=3, expected_num_lines=7*2)),
+        ('window-size-0', dict(key='key61', winsize=0, expected_num_lines=1*2))
     ]
     scenarios = make_scenarios(format_values)
     
