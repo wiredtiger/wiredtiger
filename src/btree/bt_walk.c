@@ -397,9 +397,8 @@ restart:
                 WT_ASSERT(session, ref != ref_orig);
 
                 if (__wt_session_readahead_check(session, ref)) {
-                    /* TODO use this in ref freeing code */
                     ++ref->refcount;
-                    /* TODO free this */
+                    /* TODO this should be more WT-ish. */
                     struct __wt_readahead *s = malloc(sizeof(struct __wt_readahead));
                     s->ref = ref;
                     s->session = session;

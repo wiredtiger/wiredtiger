@@ -951,9 +951,7 @@ struct __wt_ref {
     WT_PAGE *volatile home;        /* Reference page */
     volatile uint32_t pindex_hint; /* Reference page index hint */
 
-    uint16_t refcount;
-
-    /* uint8_t unused[2];*/ /* Padding: before the flags field so flags can be easily expanded. */
+    uint8_t unused[2]; /* Padding: before the flags field so flags can be easily expanded. */
 
 /*
  * Define both internal- and leaf-page flags for now: we only need one, but it provides an easy way
