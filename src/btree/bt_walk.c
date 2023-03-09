@@ -473,6 +473,9 @@ descend:
                     WT_ASSERT(session, ref != ref_orig);
                     goto done;
                 }
+                if (__wt_session_readahead_check(session, ref)) {
+                    WT_RET(__wt_btree_read_ahead(session, ref));
+                }
 
                 /* Set the new "couple" value. */
                 couple = ref;

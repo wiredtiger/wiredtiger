@@ -428,8 +428,13 @@ skip_evict:
              * different tables get in the way of the heuristic. That isn't super likely - this is
              * to catch traversals through a btree, not complex multi-table user transactions.
              */
-            if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
-                if (page->read_gen == WT_READGEN_NOTSET)
+            if (!LF_ISSET(WT_READ_AHEAD) && F_ISSET(ref, WT_REF_FLAG_LEAF)) {
+                /*
+                 * If the page was read by this retrieval or was pulled into the cache via
+                 * the read ahead mechanism, count that as a page read directly from disk.
+                 */
+                if (F_ISSET_ATOMIC_16(page, WT_PAGE_READAHEAD) ||
+                        page->read_gen == WT_READGEN_NOTSET)
                     ++session->readahead_disk_read_count;
                 else
                     session->readahead_disk_read_count = 0;
