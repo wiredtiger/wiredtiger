@@ -712,14 +712,11 @@ dump_record(
     cursor->set_key(cursor, current_key);
     ret = cursor->search_near(cursor, &exact);
 
-    if (ret != 0 && ret != WT_NOTFOUND)
+    if (ret != 0)
         return (util_cerr(cursor, "search_near", ret));
 
-    /*
-     * If a key has been found but search near is disabled and there is no exact match, the
-     * requested key is missing.
-     */
-    if (ret == 0 && !search_near && exact != 0)
+    /* Unable to find the exact key specified. */
+    if (exact != 0 && !search_near)
         return (WT_NOTFOUND);
 
     if (window == 0)
