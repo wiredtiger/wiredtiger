@@ -58,8 +58,6 @@ class PerfConfig:
                  run_max: int = 1,
                  verbose: bool = False,
                  improved_accuracy=None):
-        if json_info is None:
-            json_info = {}
         self.test_type: TestType = test_type
         self.exec_path: str = exec_path
         self.home_dir: str = home_dir
