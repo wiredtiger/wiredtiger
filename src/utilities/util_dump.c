@@ -927,7 +927,7 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
 
             printf("Current position:\n");
             printf("key:%s\n", key);
-            printf("key:%s\n", value);
+            printf("value:%s\n", value);
             break;
         /* Bookmarks. */
         case 'b':
