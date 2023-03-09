@@ -84,6 +84,6 @@ __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
     /*__wt_session_gen_leave(session, WT_GEN_SPLIT);*/
     __wt_scr_free(session, &tmp);
 
-    WT_STAT_CONN_INCRV(session, block_readahead_pages, block_preload);
+    WT_STAT_CONN_INCRV(session, block_readahead_pages_queued, block_preload);
     return (ret);
 }

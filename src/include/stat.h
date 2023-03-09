@@ -367,7 +367,8 @@ struct __wt_connection_stats {
     int64_t block_cache_bypass_chkpt;
     int64_t block_readahead_disk_one;
     int64_t block_readahead_skipped;
-    int64_t block_readahead_pages;
+    int64_t block_readahead_pages_read;
+    int64_t block_readahead_pages_queued;
     int64_t block_readahead_attempts;
     int64_t block_cache_blocks_removed;
     int64_t block_cache_blocks_removed_blocked;

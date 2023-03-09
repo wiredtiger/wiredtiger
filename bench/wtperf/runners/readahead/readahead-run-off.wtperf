@@ -6,7 +6,7 @@ table_config="type=file"
 create=false
 #compression="snappy"
 icount=10000
-scan_icount=120000000 # 60 million records
+scan_icount=50000000 # 60 million records
 report_interval=5
 populate_threads=1
 run_time=60

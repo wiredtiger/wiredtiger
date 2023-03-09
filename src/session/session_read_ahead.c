@@ -21,7 +21,7 @@ __wt_readahead_create(WT_SESSION_IMPL *session)
 
     F_SET(conn, WT_CONN_READAHEAD_RUN);
 
-    WT_RET(__wt_thread_group_create(session, &conn->readahead_threads, "readahead-server", 1, 5, 0,
+    WT_RET(__wt_thread_group_create(session, &conn->readahead_threads, "readahead-server", 5, 5, 0,
       __wt_readahead_thread_chk, __wt_readahead_thread_run, __wt_readahead_thread_stop));
 
     return (0);
@@ -51,6 +51,11 @@ __readahead_page_in(WT_SESSION_IMPL *session, WT_READAHEAD *ra)
       session, ra->ref->home == ra->first_home, "The home changed while queued for read ahead");
     WT_ASSERT_ALWAYS(session, ra->ref->home->refcount > 0, "uh oh, ref count tracking is borked");
     WT_ASSERT_ALWAYS(session, ra->dhandle != NULL, "Read ahead needs to save a valid dhandle");
+    WT_ASSERT_ALWAYS(
+      session, !F_ISSET(ra->ref, WT_REF_FLAG_INTERNAL), "Read ahead should only see leaf pages");
+
+    if (ra->ref->state == WT_REF_DISK)
+        WT_STAT_CONN_INCR(session, block_readahead_pages_read);
 
     if (__wt_ref_addr_copy(session, ra->ref, &addr)) {
         WT_RET(__wt_page_in(session, ra->ref, WT_READ_AHEAD));

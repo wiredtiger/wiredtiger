@@ -429,7 +429,7 @@ skip_evict:
              * to catch traversals through a btree, not complex multi-table user transactions.
              */
             if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
-                if (page->read_gen == WT_READGEN_WONT_NEED)
+                if (page->read_gen == WT_READGEN_NOTSET)
                     ++session->readahead_disk_read_count;
                 else
                     session->readahead_disk_read_count = 0;
