@@ -227,6 +227,9 @@ timestamp.
 @par \c -u
 The upper bound of the key range to dump.
 
+@par \c -w
+Dump n records before and after the record sought.
+
 @par \c -x
 Dump all characters in a hexadecimal encoding (the default is to leave
 printable characters unencoded). The \c -x flag can be combined with \c -p. In this case, the dump
