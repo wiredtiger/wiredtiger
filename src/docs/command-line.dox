@@ -516,14 +516,16 @@ If the \c write command is called with the \c -a option, each command-line
 argument is a single value to be appended to the specified column-store
 data source. If the \c write command is called with the \c -r option,
 the command-line argument is an existing key. If the \c write command is
-neither called with the \c -a nor \c -r option, the command-line arguments
+called with neither the \c -a nor the \c -r option, the command-line arguments
 are key/value pairs.
 
 Attempting to overwrite an already existing record will fail.
 
 @subsection util_write_synopsis Synopsis
 `wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] write -a uri value ...`
+<br>
 `wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] write -r uri key`
+<br>
 `wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] write [-o] uri key value ...`
 
 @subsection util_write_options Options
