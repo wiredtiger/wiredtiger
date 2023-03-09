@@ -168,7 +168,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
     if (ofile == NULL)
         fp = stdout;
     else if (explore) {
-        fprintf(stderr, "%s: the options are -e and -f are incompatible\n", progname);
+        fprintf(stderr, "%s: the options -e and -f are incompatible\n", progname);
         return (usage());
     } else if ((fp = fopen(ofile, "w")) == NULL)
         return (util_err(session, errno, "%s: open", ofile));
