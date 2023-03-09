@@ -442,8 +442,10 @@ struct __wt_connection_impl {
     uint32_t evict_threads_max; /* Max eviction threads */
     uint32_t evict_threads_min; /* Min eviction threads */
 
+#define WT_MAX_READ_AHEAD_QUEUE 20
     WT_SPINLOCK readahead_lock;
     WT_THREAD_GROUP readahead_threads;
+    uint64_t read_ahead_queue_count;
     /* Queue of refs to read ahead from */
     TAILQ_HEAD(__wt_ra_qh, __wt_readahead) raqh; /* Locked: readahead_lock */
     bool read_ahead_auto_on;

@@ -6,14 +6,14 @@ table_config="type=file"
 create=false
 #compression="snappy"
 icount=10000
-scan_icount=50000000 # 60 million records
+scan_icount=120000000
 report_interval=5
 populate_threads=1
-run_time=60
+run_time=25
 scan_table_count=1
 scan_type=forward
-scan_interval=1 # Wait 2 seconds between scans
-scan_pct=10 # Scan 2 percent of data each time
+scan_interval=1
+scan_pct=50
 table_count=1
 # The benchmark needs some non-scan acticity
 threads=((count=1,reads=1,throttle=5))

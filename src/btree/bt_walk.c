@@ -467,14 +467,16 @@ descend:
                 /* Success, so "couple" has been released. */
                 couple = NULL;
 
+                /* Check if read ahead would help. */
+                if (__wt_session_readahead_check(session, ref)) {
+                    WT_RET(__wt_btree_read_ahead(session, ref));
+                }
+
                 /* Return leaf pages to our caller. */
                 if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
                     *refp = ref;
                     WT_ASSERT(session, ref != ref_orig);
                     goto done;
-                }
-                if (__wt_session_readahead_check(session, ref)) {
-                    WT_RET(__wt_btree_read_ahead(session, ref));
                 }
 
                 /* Set the new "couple" value. */

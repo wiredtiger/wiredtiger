@@ -315,6 +315,11 @@ read:
             evict_skip = true;
             F_CLR(session->dhandle, WT_DHANDLE_EVICTED);
 
+#if 0
+            fprintf(stderr, "Read page (ref %p[%" PRIu32 "]), parent (%p) into cache. %s\n",
+                    ref, ref->pindex_hint, ref->home, LF_ISSET(WT_READ_AHEAD) ? "readahead" : "app");
+#endif
+
             /*
              * If configured to not trash the cache, leave the page generation unset, we'll set it
              * before returning to the oldest read generation, so the page is forcibly evicted as

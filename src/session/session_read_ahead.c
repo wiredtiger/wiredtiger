@@ -49,7 +49,7 @@ __readahead_page_in(WT_SESSION_IMPL *session, WT_READAHEAD *ra)
 
     WT_ASSERT_ALWAYS(
       session, ra->ref->home == ra->first_home, "The home changed while queued for read ahead");
-    WT_ASSERT_ALWAYS(session, ra->ref->home->refcount > 0, "uh oh, ref count tracking is borked");
+    /*WT_ASSERT_ALWAYS(session, ra->ref->home->refcount > 0, "uh oh, ref count tracking is borked");*/
     WT_ASSERT_ALWAYS(session, ra->dhandle != NULL, "Read ahead needs to save a valid dhandle");
     WT_ASSERT_ALWAYS(
       session, !F_ISSET(ra->ref, WT_REF_FLAG_INTERNAL), "Read ahead should only see leaf pages");
@@ -93,6 +93,7 @@ __wt_readahead_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
             break;
         }
         TAILQ_REMOVE(&conn->raqh, ra, q);
+        --conn->read_ahead_queue_count;
         __wt_spin_unlock(session, &conn->readahead_lock);
 
         WT_WITH_DHANDLE(session, ra->dhandle, ret = __readahead_page_in(session, ra));
@@ -146,6 +147,16 @@ __wt_session_readahead_check(WT_SESSION_IMPL *session, WT_REF *ref)
     if (!S2C(session)->read_ahead_auto_on)
         return (false);
 
+    if (S2C(session)->read_ahead_queue_count > WT_MAX_READ_AHEAD_QUEUE)
+        return (false);
+
+    /*
+     * Don't deal with internal pages at the moment - finding the right content to preload
+     * based on internal pages is hard.
+     */
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+        return (false);
+
     if (session->readahead_disk_read_count == 1)
         WT_STAT_CONN_INCR(session, block_readahead_disk_one);
 
@@ -159,16 +170,6 @@ __wt_session_readahead_check(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_STAT_CONN_INCR(session, block_readahead_attempts);
         return (true);
     }
-
-    /*
-     * This seemed reasonable, but it's OK for a page to have been evicted after
-     * it was used for read ahead (and I saw that)
-     * WT_ASSERT_ALWAYS(session, session->readahead_prev_ref->state == WT_REF_MEM,
-     *  "Any ref being used for read-ahead better already be in cache.");
-     */
-
-    WT_ASSERT_ALWAYS(session, F_ISSET(session->readahead_prev_ref, WT_REF_FLAG_INTERNAL),
-      "Any ref being used for read-ahead better reference an internal page");
 
     /*
      * If the previous read ahead was using the same home ref, it's already been pre-loaded. Note

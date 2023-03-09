@@ -19,7 +19,6 @@ __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_READAHEAD *ra;
     WT_REF *next_ref;
@@ -36,53 +35,45 @@ __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
     if (btree->type != BTREE_ROW)
         return (0);
 
+    WT_ASSERT_ALWAYS(session, F_ISSET(ref, WT_REF_FLAG_LEAF),
+            "Read ahead starts with a leaf page and reviews the parent");
+
     /*
     fprintf(stderr, "Doing read ahead from %p in parent page %p\n", ref, ref);
     */
-
-    /*
-     * TODO: Does the actual reading need to be out-of-band (i.e done in another thread?). I'd
-     * rather not need to queue/pop, and have a utility thread. OTOH: We don't really need an
-     * asynchronous mechanism - there is already a mechanism to ensure only a single thread reads a
-     * page into cache.
-     */
-    WT_RET(__wt_scr_alloc(session, 0, &tmp));
-    /*
-     * This requires a split generation be held. It usually seems to already have one.
-     * __wt_session_gen_enter(session, WT_GEN_SPLIT);
-     */
+    WT_ASSERT_ALWAYS(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0,
+            "Read ahead requires a split generation to traverse internal page(s)");
 
     session->readahead_prev_ref = ref;
     /* Load and decompress a set of pages into the block cache. */
-    WT_ASSERT(session, ref->state == WT_REF_MEM);
-    WT_INTL_FOREACH_BEGIN (session, ref->page, next_ref)
+    WT_INTL_FOREACH_BEGIN (session, ref->home, next_ref)
         /*
         fprintf(stderr, "\tref %p, state %s, type %s\n", next_ref,
           __wt_debug_ref_state(next_ref->state),
           F_ISSET(next_ref, WT_REF_FLAG_INTERNAL) ? "internal" : "leaf");
           */
+        /* Don't let the read ahead queue get overwhelmed. */
+        if (conn->read_ahead_queue_count > WT_MAX_READ_AHEAD_QUEUE)
+            break;
+
         /*
-         * Only pre-fetch pages that aren't already in the cache, this is imprecise (the state could
-         * change), but it doesn't matter. It would just fetch the same block twice.
-         *
-         * TODO we can probably get rid of the ref_addr_copy - will we push too much to the queue?
-         */
+         * Skip queuing pages that are already in cache or are internal. They aren't the pages
+         * we are looking for.
+         */ 
         if (next_ref->state == WT_REF_DISK && F_ISSET(next_ref, WT_REF_FLAG_LEAF)) {
             WT_RET(__wt_calloc_one(session, &ra));
-            WT_ASSERT(session, next_ref->home == ref->page);
+            WT_ASSERT(session, next_ref->home == ref->home);
             ++next_ref->home->refcount;
             ra->ref = next_ref;
             ra->first_home = next_ref->home;
             ra->dhandle = session->dhandle;
             __wt_spin_lock(session, &conn->readahead_lock);
             TAILQ_INSERT_TAIL(&conn->raqh, ra, q);
+            ++conn->read_ahead_queue_count;
             __wt_spin_unlock(session, &conn->readahead_lock);
             ++block_preload;
         }
     WT_INTL_FOREACH_END;
-
-    /*__wt_session_gen_leave(session, WT_GEN_SPLIT);*/
-    __wt_scr_free(session, &tmp);
 
     WT_STAT_CONN_INCRV(session, block_readahead_pages_queued, block_preload);
     return (ret);
