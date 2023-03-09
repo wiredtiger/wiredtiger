@@ -722,40 +722,41 @@ dump_record(
     if (ret == 0 && !search_near && exact != 0)
         return (WT_NOTFOUND);
 
-    if (window <= 0)
+    if (window == 0)
         ret = print_record(cursor, json);
     else {
         fwd = (reverse) ? cursor->prev : cursor->next;
         bck = (reverse) ? cursor->next : cursor->prev;
 
         /* Back up as far as possible in the window. */
-        for (n = 0; n <= window; n++) {
+        for (n = 0; n < window; n++) {
             if ((ret = bck(cursor)) != 0) {
-                if (ret == WT_NOTFOUND)
+                if (ret == WT_NOTFOUND) {
+                    /* The cursor must point at the first record in the window. */
+                    fwd(cursor);
                     break;
+                }
                 return (util_cerr(cursor, "cursor", ret));
             }
         }
 
-        /* Calculate the maximum window size based on how far it was possible to back up in the
-         * window above.
-         *
-         * If it was not possible to backup (n==0) it is then necessary to include the searched for
-         * record in the total window size.
+        /*
+         * Calculate the maximum possible window size based on how far it was possible to back up in
+         * the window.
          */
-        total_window = ((n == 0) ? 1 : n) + window;
+        total_window = n + 1 + window;
 
         for (n = 0; n < total_window; n++) {
             if (json && once) {
                 if (fputc(',', fp) == EOF)
                     return (util_err(session, EIO, NULL));
             }
+            print_record(cursor, json);
             if ((ret = fwd(cursor)) != 0) {
                 if (ret == WT_NOTFOUND)
                     break;
                 return (util_cerr(cursor, "cursor", ret));
             }
-            print_record(cursor, json);
             once = true;
         }
     }
