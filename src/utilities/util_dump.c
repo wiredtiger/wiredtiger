@@ -1063,14 +1063,8 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
             if (ret == WT_NOTFOUND) {
                 printf("Error: %d\n", ret);
                 ret = 0;
-            } else {
-                if ((ret = cursor->get_key(cursor, &key)) != 0)
-                    return (util_cerr(cursor, "get_key", ret));
-                if ((ret = cursor->get_value(cursor, &value)) != 0)
-                    return (util_cerr(cursor, "get_value", ret));
-                if (fprintf(fp, "%s%s%s%s%s", prefix, key, infix, value, suffix) < 0)
-                    return (util_err(session, EIO, NULL));
-            }
+            } else
+                ret = print_record(cursor, json);
             break;
         /* Range cursor. */
         case 'r':
