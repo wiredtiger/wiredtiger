@@ -1074,7 +1074,7 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
             break;
         /* Range cursor. */
         case 'r':
-            if (first_arg[1] != 'l' && first_arg[1] != 'u' && first_arg[1] != 'c') {
+            if (strchr("luc", first_arg[1]) == NULL) {
                 printf(
                   "Error: use 'rl' for lower range, 'ru' for upper range and 'rc' to clear "
                   "range.\n");
