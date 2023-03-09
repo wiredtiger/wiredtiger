@@ -39,7 +39,8 @@ usage(void)
 {
     static const char *options[] = {"-c checkpoint",
       "dump as of the named checkpoint (the default is the most recent version of the data)", "-e",
-      "explore a file in an interactive fashion, everything is to stdout, hence incompatible with "
+      "explore a file in an interactive fashion, everything is redirected to stdout, hence "
+      "incompatible with "
       "the -f option",
       "-f output", "dump to the specified file (the default is stdout)", "-j",
       "dump in JSON format", "-k", "specify a key too look for", "-n",
