@@ -161,6 +161,9 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
         __wt_evict_list_clear_page(session, ref);
     }
 
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_READAHEAD))
+        WT_STAT_CONN_INCR(session, cache_eviction_consider_readahead);
+
     /*
      * Review the page for conditions that would block its eviction. If the check fails (for
      * example, we find a page with active children), quit. Make this check for clean pages, too:

@@ -9,19 +9,20 @@
 #define WT_RECNO_OOB 0 /* Illegal record number */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_READ_CACHE 0x0001u
-#define WT_READ_IGNORE_CACHE_SIZE 0x0002u
-#define WT_READ_NOTFOUND_OK 0x0004u
-#define WT_READ_NO_GEN 0x0008u
-#define WT_READ_NO_SPLIT 0x0010u
-#define WT_READ_NO_WAIT 0x0020u
-#define WT_READ_PREV 0x0040u
-#define WT_READ_RESTART_OK 0x0080u
-#define WT_READ_SKIP_DELETED 0x0100u
-#define WT_READ_SKIP_INTL 0x0200u
-#define WT_READ_TRUNCATE 0x0400u
-#define WT_READ_VISIBLE_ALL 0x0800u
-#define WT_READ_WONT_NEED 0x1000u
+#define WT_READ_AHEAD 0x0001u
+#define WT_READ_CACHE 0x0002u
+#define WT_READ_IGNORE_CACHE_SIZE 0x0004u
+#define WT_READ_NOTFOUND_OK 0x0008u
+#define WT_READ_NO_GEN 0x0010u
+#define WT_READ_NO_SPLIT 0x0020u
+#define WT_READ_NO_WAIT 0x0040u
+#define WT_READ_PREV 0x0080u
+#define WT_READ_RESTART_OK 0x0100u
+#define WT_READ_SKIP_DELETED 0x0200u
+#define WT_READ_SKIP_INTL 0x0400u
+#define WT_READ_TRUNCATE 0x0800u
+#define WT_READ_VISIBLE_ALL 0x1000u
+#define WT_READ_WONT_NEED 0x2000u
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
@@ -720,10 +721,11 @@ struct __wt_page {
 #define WT_PAGE_EVICT_LRU 0x010u          /* Page is on the LRU queue */
 #define WT_PAGE_EVICT_NO_PROGRESS 0x020u  /* Eviction doesn't count as progress */
 #define WT_PAGE_INTL_OVERFLOW_KEYS 0x040u /* Internal page has overflow keys (historic only) */
-#define WT_PAGE_SPLIT_INSERT 0x080u       /* A leaf page was split for append */
-#define WT_PAGE_UPDATE_IGNORE 0x100u      /* Ignore updates on page discard */
-                                          /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
-    uint16_t flags_atomic;                /* Atomic flags, use F_*_ATOMIC_16 */
+#define WT_PAGE_READAHEAD 0x080u
+#define WT_PAGE_SPLIT_INSERT 0x100u  /* A leaf page was split for append */
+#define WT_PAGE_UPDATE_IGNORE 0x200u /* Ignore updates on page discard */
+                                     /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
+    uint16_t flags_atomic;           /* Atomic flags, use F_*_ATOMIC_16 */
 
     uint8_t unused; /* Unused padding */
 

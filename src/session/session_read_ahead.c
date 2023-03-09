@@ -53,7 +53,7 @@ __readahead_page_in(WT_SESSION_IMPL *session, WT_READAHEAD *ra)
     WT_ASSERT_ALWAYS(session, ra->dhandle != NULL, "Read ahead needs to save a valid dhandle");
 
     if (__wt_ref_addr_copy(session, ra->ref, &addr)) {
-        WT_RET(__wt_page_in(session, ra->ref, 0));
+        WT_RET(__wt_page_in(session, ra->ref, WT_READ_AHEAD));
         WT_RET(__wt_page_release(session, ra->ref, 0));
     }
 
