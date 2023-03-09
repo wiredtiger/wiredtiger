@@ -18,6 +18,7 @@ int
 __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_READAHEAD *ra;
@@ -25,6 +26,7 @@ __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
     uint64_t block_preload;
 
     btree = S2BT(session);
+    conn = S2C(session);
     block_preload = 0;
 
     /*
@@ -72,7 +74,9 @@ __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
             ra->ref = next_ref;
             ra->first_home = next_ref->home;
             ra->dhandle = session->dhandle;
-            TAILQ_INSERT_TAIL(&S2C(session)->raqh, ra, q);
+            __wt_spin_lock(session, &conn->readahead_lock);
+            TAILQ_INSERT_TAIL(&conn->raqh, ra, q);
+            __wt_spin_unlock(session, &conn->readahead_lock);
             ++block_preload;
         }
     WT_INTL_FOREACH_END;
