@@ -13,6 +13,7 @@
     (strncmp(s, (item).str, (item).len) == 0 && (s)[(item).len] == '\0')
 
 static int dump_config(WT_SESSION *, const char *, WT_CURSOR *, bool, bool, bool);
+static int dump_explore(WT_CURSOR *, const char *, bool, bool, bool, bool);
 static int dump_json_begin(WT_SESSION *);
 static int dump_json_end(WT_SESSION *);
 static int dump_json_separator(WT_SESSION *);
@@ -35,7 +36,9 @@ static int
 usage(void)
 {
     static const char *options[] = {"-c checkpoint",
-      "dump as of the named checkpoint (the default is the most recent version of the data)",
+      "dump as of the named checkpoint (the default is the most recent version of the data)", "-e",
+      "explore a file in an interactive fashion, everything is to stdout, hence incompatible with "
+      "the -f option",
       "-f output", "dump to the specified file (the default is stdout)", "-j",
       "dump in JSON format", "-k", "specify a key too look for", "-n",
       "if the specified key to look for cannot be found, return the result from search_near", "-p",
@@ -51,8 +54,25 @@ usage(void)
       "-?", "show this message", NULL, NULL};
 
     util_usage(
-      "dump [-jknprx] [-c checkpoint] [-f output-file] [-t timestamp] uri", "options:", options);
+      "dump [-ejknprx] [-c checkpoint] [-f output-file] [-t timestamp] uri", "options:", options);
     return (1);
+}
+
+/*
+ * explore_usage --
+ *     Display a usage message for the explore functionality.
+ */
+static void
+explore_usage(void)
+{
+    static const char *options[] = {"a", "show the current cursor's position", "b",
+      "list bookmarks", "b bookmark", "jump to bookmark", "bd bookmark", "delete bookmark", "bs",
+      "save cursor's position to bookmarks", "c", "reset the cursor", "d key",
+      "delete the given key", "h", "show this message", "i key value", "insert the key/value pair",
+      "m", "dump the config", "n", "call cursor next", "p", "call cursor prev", "q", "exit", "rl",
+      "set the lower bound", "ru", "set the upper bound", "s key", "search for a key", "sn key",
+      "search for a key using search_near", "u key value", "update the key/value pair", NULL, NULL};
+    util_usage(NULL, NULL, options);
 }
 
 static FILE *fp;
@@ -72,19 +92,22 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
     int ch, format_specifiers, i;
     char *checkpoint, *ofile, *p, *simpleuri, *timestamp, *uri;
     const char *key;
-    bool hex, json, pretty, reverse, search_near;
+    bool explore, hex, json, pretty, reverse, search_near;
 
     session_impl = (WT_SESSION_IMPL *)session;
     cursor = NULL;
     hs_dump_cursor = NULL;
     key = NULL;
     checkpoint = ofile = simpleuri = uri = timestamp = NULL;
-    hex = json = pretty = reverse = search_near = false;
+    explore = hex = json = pretty = reverse = search_near = false;
 
-    while ((ch = __wt_getopt(progname, argc, argv, "c:f:k:t:jnprx?")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "c:f:k:t:ejnprx?")) != EOF)
         switch (ch) {
         case 'c':
             checkpoint = __wt_optarg;
+            break;
+        case 'e':
+            explore = true;
             break;
         case 'f':
             ofile = __wt_optarg;
@@ -144,10 +167,14 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
     /* Open any optional output file. */
     if (ofile == NULL)
         fp = stdout;
-    else if ((fp = fopen(ofile, "w")) == NULL)
+    else if (explore) {
+        fprintf(stderr, "%s: the options are -e and -f are incompatible\n", progname);
+        return (usage());
+    } else if ((fp = fopen(ofile, "w")) == NULL)
         return (util_err(session, errno, "%s: open", ofile));
 
-    if (json && (dump_json_begin(session) != 0 || dump_prefix(session, pretty, hex, json) != 0))
+    if (!explore && json &&
+      (dump_json_begin(session) != 0 || dump_prefix(session, pretty, hex, json) != 0))
         goto err;
 
     WT_RET(__wt_scr_alloc(session_impl, 0, &tmp));
@@ -200,12 +227,17 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
             F_SET(hs_dump_cursor->child, WT_CURSTD_IGNORE_TOMBSTONE);
         }
 
-        if (dump_config(session, simpleuri, cursor, pretty, hex, json) != 0)
-            goto err;
-        if (dump_record(cursor, key, reverse, search_near, json) != 0)
-            goto err;
-        if (json && dump_json_table_end(session) != 0)
-            goto err;
+        if (explore) {
+            if (dump_explore(cursor, simpleuri, reverse, pretty, hex, json) != 0)
+                goto err;
+        } else {
+            if (dump_config(session, simpleuri, cursor, pretty, hex, json) != 0)
+                goto err;
+            if (dump_record(cursor, key, reverse, search_near, json) != 0)
+                goto err;
+            if (json && dump_json_table_end(session) != 0)
+                goto err;
+        }
 
         if (hs_dump_cursor != NULL)
             F_CLR(hs_dump_cursor->child, WT_CURSTD_IGNORE_TOMBSTONE);
@@ -723,6 +755,321 @@ dump_record(WT_CURSOR *cursor, const char *key, bool reverse, bool search_near, 
     /* When a key is not specified, WT_NOTFOUND means we have reached the end of the file. */
     if (key == NULL && ret == WT_NOTFOUND)
         ret = 0;
+    return (ret);
+}
+
+/*
+ * dump_explore --
+ *     Dump content in an interactive fashion.
+ */
+static int
+dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool hex, bool json)
+{
+#define MAX_LIMIT 256
+    WT_DECL_RET;
+    WT_SESSION *session;
+    const char *infix, *key, *prefix, *suffix, *value;
+    char *args[MAX_LIMIT], *bookmarks[MAX_LIMIT];
+    char *first_arg, user_input[MAX_LIMIT], *current_arg;
+    bool once, search_near;
+    int i, exact, num_args;
+    uint64_t bookmark_index;
+
+    session = cursor->session;
+    once = search_near = false;
+    i = exact = num_args = 0;
+    bookmark_index = 0;
+    for (i = 0; i < MAX_LIMIT; ++i)
+        bookmarks[i] = NULL;
+
+    printf("**************************\n");
+    printf("Explore mode for %s.\n", uri);
+    printf("**************************\n");
+    printf("Enter 'h' for help, 'q' to exit.\n\n");
+
+    if (json) {
+        prefix = "\n{\n";
+        infix = ",\n";
+        suffix = "\n}";
+    } else {
+        prefix = "";
+        infix = "\n";
+        suffix = "\n";
+    }
+
+    while (ret == 0) {
+        i = num_args = 0;
+        fgets(user_input, MAX_LIMIT, stdin);
+
+        /* Remove new line character. */
+        user_input[strlen(user_input) - 1] = '\0';
+        if (strlen(user_input) == 0 && !once)
+            continue;
+        once = true;
+
+        /* Time to exit. */
+        if (strlen(user_input) == 1 && user_input[0] == 'q')
+            break;
+
+        /* Parse the input. */
+        current_arg = strtok(user_input, " ");
+        while (current_arg != NULL) {
+            args[i] = malloc(MAX_LIMIT);
+            strcpy(args[i++], current_arg);
+            ++num_args;
+            current_arg = strtok(NULL, " ");
+        }
+
+        first_arg = args[0];
+        switch (first_arg[0]) {
+        /* Cursor info. */
+        case 'a':
+            ret = cursor->get_key(cursor, &key);
+            if (ret != 0 && ret != EINVAL)
+                return (util_cerr(cursor, "get_key", ret));
+            else if (ret == EINVAL) {
+                printf("Error: the cursor needs to be positioned.\n");
+                ret = 0;
+                break;
+            }
+
+            if ((ret = cursor->get_value(cursor, &value)) != 0)
+                return (util_cerr(cursor, "get_value", ret));
+
+            printf("Current position:\n");
+            printf("key:%s\n", key);
+            printf("key:%s\n", value);
+            break;
+        /* Bookmarks. */
+        case 'b':
+            if (strcmp(first_arg, "b") == 0) {
+                /* List existing bookmarks. */
+                if (num_args < 2) {
+                    printf("List of bookmarks:\n");
+                    for (i = 0; i < MAX_LIMIT; ++i) {
+                        if (bookmarks[i] != NULL)
+                            printf("#%d: %s\n", i, bookmarks[i]);
+                    }
+                }
+                /* Jump to the bookmark. */
+                else {
+                    if (util_str2num(session, args[1], true, &bookmark_index) != 0 ||
+                      bookmark_index >= MAX_LIMIT) {
+                        printf("Error: please indicate a value between 0 and %d\n", MAX_LIMIT);
+                        break;
+                    }
+                    key = bookmarks[bookmark_index];
+                    if (key == NULL) {
+                        printf(
+                          "Error: no keys associated with bookmark %" PRIu64 ".\n", bookmark_index);
+                        break;
+                    }
+
+                    /* Set the cursor to the bookmark. */
+                    cursor->set_key(cursor, key);
+                    ret = cursor->search(cursor);
+                    if (ret != 0 && ret != WT_NOTFOUND)
+                        return (util_cerr(cursor, "search", ret));
+                    else if (ret == WT_NOTFOUND) {
+                        printf("Error: %d\n", ret);
+                        ret = 0;
+                    } else
+                        printf("Cursor positioned on key %s.\n", key);
+                }
+            }
+            /* Delete. */
+            else if (strcmp(first_arg, "bd") == 0) {
+                if (num_args < 2) {
+                    printf("Error: please indicate the bookmark you want to delete.\n");
+                    break;
+                }
+                if (util_str2num(session, args[1], true, &bookmark_index) != 0 ||
+                  bookmark_index >= MAX_LIMIT)
+                    printf("Error: please indicate a value between 0 and %d\n", MAX_LIMIT);
+                else {
+                    free(bookmarks[bookmark_index]);
+                    bookmarks[bookmark_index] = NULL;
+                    printf("Bookmark %" PRIu64 " deleted.\n", bookmark_index);
+                }
+            }
+            /* Save. */
+            else if (strcmp(first_arg, "bs") == 0) {
+                ret = cursor->get_key(cursor, &key);
+                if (ret != 0 && ret != EINVAL)
+                    return (util_cerr(cursor, "get_key", ret));
+                else if (ret == EINVAL) {
+                    printf("Error: the cursor needs to be positioned to create a bookmark.\n");
+                    ret = 0;
+                    break;
+                }
+                for (i = 0; i < MAX_LIMIT; ++i) {
+                    if (bookmarks[i] == NULL) {
+                        if ((bookmarks[i] = malloc(strlen(key))) == NULL)
+                            return (util_err(session, errno, NULL));
+                        strcpy(bookmarks[i], key);
+                        printf("Added bookmark %d: %s.\n", i, key);
+                        break;
+                    }
+                }
+                if (i >= MAX_LIMIT)
+                    printf("Error: bookmark list full.\n");
+            }
+            break;
+        /* Cursor reset. */
+        case 'c':
+            if ((ret = cursor->reset(cursor)) != 0)
+                return (util_cerr(cursor, "reset", ret));
+            printf("Cursor reset.\n");
+            break;
+        /* Cursor delete. */
+        case 'd':
+            if (num_args < 2) {
+                printf("Error: please indicate the key to delete.\n");
+                break;
+            }
+            key = args[1];
+            cursor->set_key(cursor, key);
+            ret = cursor->remove(cursor);
+            if (ret != 0 && ret != WT_NOTFOUND)
+                return (util_cerr(cursor, "remove", ret));
+            if (ret == 0)
+                printf("Removed key '%s'.\n", key);
+            else {
+                printf("Error: the key '%s' does not exist.\n", key);
+                ret = 0;
+            }
+            break;
+        /* Help. */
+        case 'h':
+            explore_usage();
+            break;
+        /* Cursor insert/update. */
+        case 'i':
+            if (num_args < 3) {
+                printf("Error: please indicate the key/value pair to insert.\n");
+                break;
+            }
+            key = args[1];
+            value = args[2];
+            cursor->set_key(cursor, key);
+            cursor->set_value(cursor, value);
+            if ((ret = cursor->insert(cursor)) != 0)
+                return (util_cerr(cursor, "insert", ret));
+            printf("Inserted key '%s' and value '%s'.\n", key, value);
+            break;
+        /* Dump metadata. */
+        case 'm':
+            ret = dump_config(session, uri, cursor, pretty, hex, json);
+            break;
+        /* Cursor next. */
+        case 'n':
+        /* Cursor prev. */
+        case 'p':
+            if (first_arg[0] == 'n')
+                ret = (reverse ? cursor->prev(cursor) : cursor->next(cursor));
+            else
+                ret = (reverse ? cursor->next(cursor) : cursor->prev(cursor));
+            if (ret != 0 && ret != WT_NOTFOUND)
+                return (util_cerr(cursor, (reverse ? "prev" : "next"), ret));
+            if (ret == WT_NOTFOUND) {
+                printf("Error: %d\n", ret);
+                ret = 0;
+            } else {
+                if ((ret = cursor->get_key(cursor, &key)) != 0)
+                    return (util_cerr(cursor, "get_key", ret));
+                if ((ret = cursor->get_value(cursor, &value)) != 0)
+                    return (util_cerr(cursor, "get_value", ret));
+                if (fprintf(fp, "%s%s%s%s%s", prefix, key, infix, value, suffix) < 0)
+                    return (util_err(session, EIO, NULL));
+            }
+            break;
+        /* Range cursor. */
+        case 'r':
+            if (first_arg[1] != 'l' && first_arg[1] != 'u' && first_arg[1] != 'c') {
+                printf(
+                  "Error: use 'rl' for lower range, 'ru' for upper range and 'rc' to clear "
+                  "range.\n");
+                break;
+            }
+
+            /* Clear range. */
+            if (first_arg[1] == 'c') {
+                if (cursor->bound(cursor, "action=clear") != 0)
+                    return (util_cerr(cursor, "bound clear", ret));
+                printf("Cursor bounds cleared.\n");
+                break;
+            }
+
+            if (num_args < 2) {
+                printf("Error: please indicate the value for the range.\n");
+                break;
+            }
+
+            key = args[1];
+            cursor->set_key(cursor, key);
+
+            if (first_arg[1] == 'l')
+                ret = cursor->bound(cursor, "action=set,bound=lower");
+            else
+                ret = cursor->bound(cursor, "action=set,bound=upper");
+
+            if (ret != 0 && ret != EINVAL)
+                return (util_cerr(cursor, "bound set", ret));
+            else if (ret == EINVAL) {
+                printf("Error: please reset the cursor before setting its bounds.\n");
+                ret = 0;
+            } else
+                printf("%s bound set.\n", first_arg[1] == 'l' ? "Lower" : "Upper");
+            break;
+        /* Search. */
+        case 's':
+            if (num_args < 2) {
+                printf("Error: please indicate a key to look for.\n");
+                break;
+            }
+
+            key = args[1];
+            cursor->set_key(cursor, key);
+
+            /* Search near. */
+            search_near = first_arg[1] == 'n';
+            ret = cursor->search_near(cursor, &exact);
+
+            if (ret != 0 && ret != WT_NOTFOUND)
+                return (util_cerr(cursor, "search_near", ret));
+            if (ret == WT_NOTFOUND || (!search_near && exact != 0)) {
+                printf("Error: %d\n", ret);
+                ret = 0;
+            } else {
+                if (search_near && exact != 0) {
+                    if ((ret = cursor->get_key(cursor, &key)) != 0)
+                        return (util_cerr(cursor, "get_key", ret));
+                }
+                if ((ret = cursor->get_value(cursor, &value)) != 0)
+                    return (util_cerr(cursor, "get_value", ret));
+                if (fprintf(fp, "%s%s%s%s%s", prefix, key, infix, value, suffix) < 0)
+                    return (util_err(session, EIO, NULL));
+            }
+            break;
+        /* Cursor update. */
+        case 'u':
+            if (num_args < 3) {
+                printf("Error: please indicate the key/value pair to update.\n");
+                break;
+            }
+            key = args[1];
+            value = args[2];
+            cursor->set_key(cursor, key);
+            cursor->set_value(cursor, value);
+            if ((ret = cursor->insert(cursor)) != 0)
+                return (util_cerr(cursor, "update", ret));
+            printf("Updated key '%s' to value '%s'.\n", key, value);
+            break;
+        default:
+            break;
+        }
+    }
+
     return (ret);
 }
 
