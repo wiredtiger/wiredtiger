@@ -825,7 +825,7 @@ dump_all_records(WT_CURSOR *cursor, bool reverse, bool json)
 
 /*
  * dump_explore --
- *     Dump content in an interactive fashion.
+ *     Dump data in an interactive fashion.
  */
 static int
 dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool hex, bool json)
