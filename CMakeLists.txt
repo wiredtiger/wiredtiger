@@ -59,6 +59,7 @@ include(cmake/third_party/snappy.cmake)
 include(cmake/third_party/sodium.cmake)
 include(cmake/third_party/zlib.cmake)
 include(cmake/third_party/zstd.cmake)
+include(cmake/third_party/iaa.cmake)
 
 # Skip the AZURE SDK build step if the extension is not enabled.
 if(ENABLE_AZURE)
@@ -154,6 +155,10 @@ endif()
 
 if(HAVE_BUILTIN_EXTENSION_ZSTD)
     list(APPEND builtin_objs $<TARGET_OBJECTS:wiredtiger_zstd>)
+endif()
+
+if(HAVE_BUILTIN_EXTENSION_IAA)
+    list(APPEND builtin_objs $<TARGET_OBJECTS:wiredtiger_iaa>)
 endif()
 
 # Generate wiredtiger.h include file.
