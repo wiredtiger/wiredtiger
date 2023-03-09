@@ -69,9 +69,9 @@ int
 __wt_readahead_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_READAHEAD *ra;
-    WT_DECL_RET;
     WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    WT_READAHEAD *ra;
 
     WT_UNUSED(thread);
 
@@ -97,7 +97,7 @@ __wt_readahead_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         __wt_free(session, ra);
     }
 
- err:
+err:
     __wt_scr_free(session, &tmp);
     return (ret);
 }
@@ -138,6 +138,9 @@ __wt_readahead_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
 bool
 __wt_session_readahead_check(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+    if (!S2C(session)->read_ahead_auto_on)
+        return (false);
+
     if (session->readahead_disk_read_count == 1)
         WT_STAT_CONN_INCR(session, block_readahead_disk_one);
 

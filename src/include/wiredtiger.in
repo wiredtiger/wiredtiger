@@ -3240,6 +3240,8 @@ struct __wt_connection {
  * is not an absolute path\, the path is relative to the database home (see @ref absolute_path for
  * more information)., a string; default \c ".".}
  * @config{ ),,}
+ * @config{readahead, Enable automatic detection of scans by applications\, and attempt to pre-fetch
+ * future content into the cache., a boolean flag; default \c false.}
  * @config{readonly, open connection in read-only mode.  The database must exist.  All methods that
  * may modify a database are disabled.  See @ref readonly for more information., a boolean flag;
  * default \c false.}

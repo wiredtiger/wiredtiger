@@ -446,6 +446,7 @@ struct __wt_connection_impl {
     WT_THREAD_GROUP readahead_threads;
     /* Queue of refs to read ahead from */
     TAILQ_HEAD(__wt_ra_qh, __wt_readahead) raqh; /* Locked: readahead_lock */
+    bool read_ahead_auto_on;
 
 #define WT_STATLOG_FILENAME "WiredTigerStat.%d.%H"
     WT_SESSION_IMPL *stat_session; /* Statistics log session */

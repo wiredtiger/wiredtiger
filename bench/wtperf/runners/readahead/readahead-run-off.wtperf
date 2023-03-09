@@ -3,18 +3,19 @@ conn_config="cache_size=1G,checkpoint=(wait=60,log_size=2GB),eviction=(threads_m
 key_sz=12
 value_sz=138
 table_config="type=file"
+create=false
 #compression="snappy"
-icount=1000000
+icount=10000
+scan_icount=120000000 # 60 million records
 report_interval=5
-run_time=20
-scan_interval=1 # Wait 2 seconds between scans
-scan_pct=20 # Scan 2 percent of data each time
-scan_table_count=1
-scan_icount=60000000 # 60 million records
-scan_type=forward
 populate_threads=1
+run_time=60
+scan_table_count=1
+scan_type=forward
+scan_interval=1 # Wait 2 seconds between scans
+scan_pct=10 # Scan 2 percent of data each time
 table_count=1
-# Do reads in a different collection to keep some cache activity
+# The benchmark needs some non-scan acticity
 threads=((count=1,reads=1,throttle=5))
 # Add throughput/latency monitoring
 max_latency=50000
