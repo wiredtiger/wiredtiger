@@ -180,7 +180,6 @@ def parse_args() -> argparse.Namespace:
                         '--reuse',
                         action="store_true",
                         help='reuse and reanalyse results from previous tests rather than running tests again')
-    parser.add_argument('-i', '--json_info', help='additional test information in a json format string')
     parser.add_argument('-bf', '--batch_file', help='Run all specified configurations for a single test')
     parser.add_argument('-args', '--arguments', help='Additional arguments to pass into the test')
     parser.add_argument('-ops', '--operations', help='List of operations to report metrics for')
@@ -200,7 +199,6 @@ def parse_args() -> argparse.Namespace:
         print("  Operations:        {}".format(args.operations))
         print("  Outfile:           {}".format(args.outfile))
         print("  Runmax:            {}".format(args.runmax))
-        print("  JSON info          {}".format(args.json_info))
         print("  Reuse results:     {}".format(args.reuse))
         print("  Brief output:      {}".format(args.brief_output))
 
@@ -220,7 +218,6 @@ def parse_args() -> argparse.Namespace:
 
 
 def parse_json_args(args: argparse.Namespace) -> Tuple[List[str], List[str], PerfConfig, Dict]:
-    json_info = json.loads(args.json_info) if args.json_info else {}
     arguments = json.loads(args.arguments) if args.arguments else None
     operations = json.loads(args.operations) if args.operations else None
     test_type = TestType(is_wtperf=args.wtperf, is_workgen=args.workgen)
@@ -234,7 +231,6 @@ def parse_json_args(args: argparse.Namespace) -> Tuple[List[str], List[str], Per
                         operations=operations,
                         run_max=args.runmax,
                         verbose=args.verbose,
-                        json_info=json_info,
                         improved_accuracy=args.improved_accuracy)
 
     batch_file_contents = None

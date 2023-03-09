@@ -57,7 +57,6 @@ class PerfConfig:
                  operations=None,
                  run_max: int = 1,
                  verbose: bool = False,
-                 json_info=None,
                  improved_accuracy=None):
         if json_info is None:
             json_info = {}
@@ -70,7 +69,6 @@ class PerfConfig:
         self.operations = operations
         self.run_max: int = run_max
         self.verbose: bool = verbose
-        self.json_info: dict = json_info
         self.improved_accuracy = improved_accuracy
 
     def to_value_dict(self):
@@ -82,6 +80,5 @@ class PerfConfig:
                    'home_dir': self.home_dir,
                    'run_max': self.run_max,
                    'verbose': self.verbose,
-                   'json_info': self.json_info,
                    'improved_accuracy': self.improved_accuracy}
         return as_dict
