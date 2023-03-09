@@ -58,7 +58,7 @@ usage(void)
       "encoding.",
       "-?", "show this message", NULL, NULL};
 
-    util_usage("dump [-ejklnpruwx] [-c checkpoint] [-f output-file] [-t timestamp] uri",
+    util_usage("dump [-ejklnprux] [-c checkpoint] [-f output-file] [-t timestamp] [-w n] uri",
       "options:", options);
     return (1);
 }
