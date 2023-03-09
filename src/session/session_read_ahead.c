@@ -21,9 +21,8 @@ __wt_readahead_create(WT_SESSION_IMPL *session)
 
     F_SET(conn, WT_CONN_READAHEAD_RUN);
 
-    WT_RET(__wt_thread_group_create(session, &conn->readahead_threads, "readahead-server",
-        1, 5, 0, __wt_readahead_thread_chk, __wt_readahead_thread_run,
-        __wt_readahead_thread_stop));
+    WT_RET(__wt_thread_group_create(session, &conn->readahead_threads, "readahead-server", 1, 5, 0,
+      __wt_readahead_thread_chk, __wt_readahead_thread_run, __wt_readahead_thread_stop));
 
     return (0);
 }
@@ -48,7 +47,8 @@ __readahead_page_in(WT_SESSION_IMPL *session, WT_READAHEAD *ra)
 {
     WT_ADDR_COPY addr;
 
-    WT_ASSERT_ALWAYS(session, ra->ref->home == ra->first_home, "The home changed while queued for read ahead");
+    WT_ASSERT_ALWAYS(
+      session, ra->ref->home == ra->first_home, "The home changed while queued for read ahead");
     WT_ASSERT_ALWAYS(session, ra->ref->home->refcount > 0, "uh oh, ref count tracking is borked");
     WT_ASSERT_ALWAYS(session, ra->dhandle != NULL, "Read ahead needs to save a valid dhandle");
 
