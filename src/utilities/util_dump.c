@@ -46,8 +46,8 @@ usage(void)
       "case, raw data elements will be formatted like -x with hexadecimal encoding.",
       "-r", "dump in reverse order", "-t timestamp",
       "dump as of the specified timestamp (the default is the most recent version of the data)",
-      "-u", "upper bound of the key range to dump", "-x",
-      "-w n", "dump n records before and after the record sought", "-x",
+      "-u", "upper bound of the key range to dump", "-x", "-w n",
+      "dump n records before and after the record sought", "-x",
       "dump all characters in a hexadecimal encoding (by default printable characters are not "
       "encoded). The -x flag can be combined with -p. In this case, the dump will be formatted "
       "similar to -p except for raw data elements, which will look like -x with hexadecimal "
@@ -221,7 +221,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         if (dump_config(session, simpleuri, cursor, pretty, hex, json) != 0)
             goto err;
 
-        if(key == NULL) {
+        if (key == NULL) {
             if (start_key != NULL) {
                 cursor->set_key(cursor, start_key);
                 if (cursor->bound(cursor, "action=set,bound=lower") != 0)
@@ -238,7 +238,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
               cursor->bound(cursor, "action=clear") != 0)
                 goto err;
         } else if (dump_record(cursor, key, reverse, search_near, json, window) != 0)
-                goto err;
+            goto err;
 
         if (json && dump_json_table_end(session) != 0)
             goto err;
