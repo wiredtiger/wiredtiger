@@ -80,7 +80,7 @@ explore_usage(void)
       "insert the key/value pair", "m", "dump the config", "n", "call cursor next", "p",
       "call cursor prev", "q", "exit", "rl", "set the lower bound", "ru", "set the upper bound",
       "s key", "search for a key", "sn key", "search for a key using search_near", "u key value",
-      "update the key/value pair", NULL, NULL};
+      "update the key/value pair", "w value", "set the windowing to the given value", NULL, NULL};
     util_usage(NULL, NULL, options);
 }
 
@@ -863,17 +863,17 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
 {
     WT_DECL_RET;
     WT_SESSION *session;
-    uint64_t bookmark_index;
+    uint64_t bookmark_index, window;
     int i, exact, num_args;
     char *args[MAX_ARGS], *bookmarks[MAX_BOOKMARKS];
     char *first_arg, user_input[MAX_ARGS], *current_arg;
-    const char *infix, *key, *prefix, *suffix, *value;
+    const char *key, *value;
     bool once, search_near;
 
     session = cursor->session;
     once = search_near = false;
     i = exact = num_args = 0;
-    bookmark_index = 0;
+    bookmark_index = window = 0;
     for (i = 0; i < MAX_BOOKMARKS; ++i)
         bookmarks[i] = NULL;
 
@@ -881,16 +881,6 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
     printf("Explore mode for %s.\n", uri);
     printf("**************************\n");
     printf("Enter 'h' for help, 'q' to exit.\n\n");
-
-    if (json) {
-        prefix = "\n{\n";
-        infix = ",\n";
-        suffix = "\n}";
-    } else {
-        prefix = "";
-        infix = "\n";
-        suffix = "\n";
-    }
 
     while (ret == 0) {
         i = num_args = 0;
@@ -1135,25 +1125,13 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
 
             key = args[1];
             cursor->set_key(cursor, key);
-
-            /* Search near. */
             search_near = first_arg[1] == 'n';
-            ret = cursor->search_near(cursor, &exact);
+            ret = dump_record(cursor, key, reverse, search_near, json, window);
 
-            if (ret != 0 && ret != WT_NOTFOUND)
-                return (util_cerr(cursor, "search_near", ret));
-            if (ret == WT_NOTFOUND || (!search_near && exact != 0)) {
-                printf("Error: %d\n", ret == 0 ? WT_NOTFOUND : ret);
-                ret = 0;
-            } else {
-                if (search_near && exact != 0) {
-                    if ((ret = cursor->get_key(cursor, &key)) != 0)
-                        return (util_cerr(cursor, "get_key", ret));
-                }
-                if ((ret = cursor->get_value(cursor, &value)) != 0)
-                    return (util_cerr(cursor, "get_value", ret));
-                if (fprintf(fp, "%s%s%s%s%s", prefix, key, infix, value, suffix) < 0)
-                    return (util_err(session, EIO, NULL));
+            if (ret != 0) {
+                printf("Error: %d\n", ret);
+                if (ret == WT_NOTFOUND)
+                    ret = 0;
             }
             break;
         /* Cursor update. */
@@ -1169,6 +1147,14 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
             if ((ret = cursor->insert(cursor)) != 0)
                 return (util_cerr(cursor, "update", ret));
             printf("Updated key '%s' to value '%s'.\n", key, value);
+            break;
+        /* Window. */
+        case 'w':
+            if (num_args < 2)
+                printf("Error: please indicate the window value you want to set.\n");
+            else
+                util_str2num(session, args[1], true, &window);
+            printf("Window value: %" PRIu64 ".\n", window);
             break;
         default:
             break;
