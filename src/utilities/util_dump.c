@@ -842,6 +842,9 @@ dump_all_records(WT_CURSOR *cursor, bool reverse, bool json)
         once = true;
     }
 
+    if (ret != WT_NOTFOUND)
+        return (util_err(session, ret, reverse ? "WT_CURSOR.prev" : "WT_CURSOR.next"));
+
     if (json && once && fprintf(fp, "\n") < 0)
         return (util_err(session, EIO, NULL));
     return (0);
