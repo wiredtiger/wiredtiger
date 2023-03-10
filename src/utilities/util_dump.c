@@ -71,8 +71,8 @@ static void
 explore_usage(void)
 {
     static const char *options[] = {"a", "show the current cursor's position", "b",
-      "list bookmarks", "b bookmark", "jump to bookmark", "bd bookmark", "delete bookmark", "bs",
-      "save cursor's position to bookmarks", "c", "reset the cursor", "d key",
+      "list bookmarks", "b bookmark", "jump to bookmark", "bd bookmark", "delete bookmark", "bs [key]",
+      "save cursor's position to bookmarks or the given key", "c", "reset the cursor", "d key",
       "delete the given key", "h", "show this message", "i key value", "insert the key/value pair",
       "m", "dump the config", "n", "call cursor next", "p", "call cursor prev", "q", "exit", "rl",
       "set the lower bound", "ru", "set the upper bound", "s key", "search for a key", "sn key",
@@ -986,6 +986,13 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
             }
             /* Save. */
             else if (strcmp(first_arg, "bs") == 0) {
+                if (num_args >= 2) {
+                    key = args[1];
+                    cursor->set_key(cursor, key);
+                    ret = cursor->search(cursor);
+                    if (ret != 0)
+                        return (util_cerr(cursor, "search", ret));
+                }
                 ret = cursor->get_key(cursor, &key);
                 if (ret != 0 && ret != EINVAL)
                     return (util_cerr(cursor, "get_key", ret));
