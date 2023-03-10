@@ -71,12 +71,13 @@ static void
 explore_usage(void)
 {
     static const char *options[] = {"a", "show the current cursor's position", "b",
-      "list bookmarks", "b bookmark", "jump to bookmark", "bd bookmark", "delete bookmark", "bs [key]",
-      "save cursor's position to bookmarks or the given key", "c", "reset the cursor", "d key",
-      "delete the given key", "h", "show this message", "i key value", "insert the key/value pair",
-      "m", "dump the config", "n", "call cursor next", "p", "call cursor prev", "q", "exit", "rl",
-      "set the lower bound", "ru", "set the upper bound", "s key", "search for a key", "sn key",
-      "search for a key using search_near", "u key value", "update the key/value pair", NULL, NULL};
+      "list bookmarks", "b bookmark", "jump to bookmark", "bd bookmark", "delete bookmark",
+      "bs [key]", "save cursor's position to bookmarks or the given key", "c", "reset the cursor",
+      "d key", "delete the given key", "h", "show this message", "i key value",
+      "insert the key/value pair", "m", "dump the config", "n", "call cursor next", "p",
+      "call cursor prev", "q", "exit", "rl", "set the lower bound", "ru", "set the upper bound",
+      "s key", "search for a key", "sn key", "search for a key using search_near", "u key value",
+      "update the key/value pair", NULL, NULL};
     util_usage(NULL, NULL, options);
 }
 
@@ -1042,8 +1043,7 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
                         break;
                     }
                 }
-            }
-            else {
+            } else {
                 printf("Error: the key '%s' does not exist.\n", key);
                 ret = 0;
             }
