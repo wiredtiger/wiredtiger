@@ -515,9 +515,9 @@ string values.
 If the \c write command is called with the \c -a option, each command-line
 argument is a single value to be appended to the specified column-store
 data source. If the \c write command is called with the \c -r option,
-the command-line argument is an existing key. If the \c write command is
-called with neither the \c -a nor the \c -r option, the command-line arguments
-are key/value pairs.
+the command-line argument is a key. If the \c write command is called with
+neither the \c -a nor the \c -r option, the command-line arguments are
+key/value pairs.
 
 Attempting to overwrite an already existing record will fail.
 
