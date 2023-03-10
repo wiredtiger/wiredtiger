@@ -6427,11 +6427,15 @@ buildvariants:
   - ubuntu2004-small
   batchtime: 720 # 12 hours
   expansions:
-    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Release
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     test_env_vars:
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
+    smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
+    cmake_generator: Ninja
+    make_command: ninja
   tasks:
     - name: compile
     - name: make-check-test
@@ -6458,7 +6462,7 @@ buildvariants:
   - ubuntu2004-arm64-small
   batchtime: 720 # 12 hours
   expansions:
-    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Release
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     test_env_vars:
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
@@ -6493,7 +6497,7 @@ buildvariants:
   - ubuntu2004-test
   batchtime: 1440 # 24 hours
   expansions:
-    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Release
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
     test_env_vars:
@@ -6523,7 +6527,7 @@ buildvariants:
   - ubuntu2004-arm64-large
   batchtime: 1440 # 24 hours
   expansions:
-    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Release
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
     test_env_vars:
