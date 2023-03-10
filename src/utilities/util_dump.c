@@ -1024,8 +1024,18 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
             ret = cursor->remove(cursor);
             if (ret != 0 && ret != WT_NOTFOUND)
                 return (util_cerr(cursor, "remove", ret));
-            if (ret == 0)
+            if (ret == 0) {
                 printf("Removed key '%s'.\n", key);
+                /* Remove the bookmark associated with the key, if any. */
+                for (i = 0; i < MAX_LIMIT; ++i) {
+                    if (bookmarks[i] != NULL && strcmp(bookmarks[i], key) == 0) {
+                        free(bookmarks[i]);
+                        bookmarks[i] = NULL;
+                        printf("Bookmark %d deleted.\n", i);
+                        break;
+                    }
+                }
+            }
             else {
                 printf("Error: the key '%s' does not exist.\n", key);
                 ret = 0;
