@@ -776,7 +776,7 @@ dump_record(
         return (WT_NOTFOUND);
 
     if (window == 0)
-        ret = print_record(cursor, json);
+        WT_RET(print_record(cursor, json));
     else {
         fwd = (reverse) ? cursor->prev : cursor->next;
         bck = (reverse) ? cursor->next : cursor->prev;
@@ -804,7 +804,7 @@ dump_record(
                 if (fputc(',', fp) == EOF)
                     return (util_err(session, EIO, NULL));
             }
-            print_record(cursor, json);
+            WT_RET(print_record(cursor, json));
             if ((ret = fwd(cursor)) != 0) {
                 if (ret == WT_NOTFOUND)
                     break;
@@ -838,7 +838,7 @@ dump_all_records(WT_CURSOR *cursor, bool reverse, bool json)
             if (fputc(',', fp) == EOF)
                 return (util_err(session, EIO, NULL));
         }
-        print_record(cursor, json);
+        WT_RET(print_record(cursor, json));
         once = true;
     }
 
@@ -1064,7 +1064,7 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
                 printf("Error: %d\n", ret);
                 ret = 0;
             } else
-                ret = print_record(cursor, json);
+                WT_RET(print_record(cursor, json));
             break;
         /* Range cursor. */
         case 'r':
