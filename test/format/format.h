@@ -184,7 +184,6 @@ typedef struct {
  */
 extern TABLE *tables[V_MAX_TABLES_CONFIG + 1]; /* Table array */
 extern u_int ntables;
-extern struct timespec test_start_time;
 
 /*
  * Global and table-specific macros to retrieve configuration information. All of the tables contain
@@ -205,22 +204,6 @@ extern struct timespec test_start_time;
 #define NT_EXPLICIT_OFF(table, off) (NT_EXPLICIT_SET(table, off) && !NTV(table, off))
 
 #define DATASOURCE(table, ds) (strcmp((table)->v[V_TABLE_RUNS_SOURCE].vstr, ds) == 0)
-#define LAPSED_TS_MSG(msg)                                                                     \
-    {                                                                                          \
-        struct timespec test_time_now;                                                         \
-        __wt_epoch(NULL, &test_time_now);                                                      \
-        printf(                                                                                \
-          "Lapsed %" PRIu64 " ms: %s\n", WT_TIMEDIFF_MS(test_time_now, test_start_time), msg); \
-        fflush(stdout);                                                                        \
-    }
-#define LAPSED_TS_MSG_D64(msg, v)                                  \
-    {                                                              \
-        struct timespec test_time_now;                             \
-        __wt_epoch(NULL, &test_time_now);                          \
-        printf("Lapsed %" PRIu64 " ms: %s%" PRId64 "\n",           \
-          WT_TIMEDIFF_MS(test_time_now, test_start_time), msg, v); \
-        fflush(stdout);                                            \
-    }
 
 typedef struct {
     WT_CONNECTION *wts_conn;

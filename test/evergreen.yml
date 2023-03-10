@@ -4958,23 +4958,6 @@ tasks:
           test_path: bench/wt2853_perf/wt2853_perf
 
 #######################################
-#     Antithesis Integration          #
-#######################################
-
-  - name: build-and-push-antithesis-containers
-    tags: ["antithesis"]
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-      - command: subprocess.exec
-        params:
-          working_dir: wiredtiger/tools/antithesis
-          binary: bash
-          add_expansions_to_env: true
-          args:
-          - "./build_and_push_containers.sh"
-
-#######################################
 #            Buildvariants            #
 #######################################
 
@@ -5082,18 +5065,6 @@ buildvariants:
     - name: fops
     - name: unittest-test
     - name: examples-c-test
-
-# Antithesis build and push
-- name: ubuntu2004-antithesis
-  display_name: "Ubuntu 20.04 Antithesis"
-  run_on:
-  - ubuntu2004-test
-  expansions:
-    posix_configure_flags: -DENABLE_ANTITHESIS=1 -DENABLE_STRICT=0
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_clang.cmake
-    make_command: ninja
-  tasks:
-    - name: build-and-push-antithesis-containers
 
 - name: ubuntu2004-msan
   display_name: "! Ubuntu 20.04 MSAN"
