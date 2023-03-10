@@ -1064,7 +1064,7 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
             if (ret != 0 && ret != WT_NOTFOUND)
                 return (util_cerr(cursor, (reverse ? "prev" : "next"), ret));
             if (ret == WT_NOTFOUND) {
-                printf("Error: %d\n", ret);
+                printf("Start/End of file reached.\n");
                 ret = 0;
             } else
                 WT_RET(print_record(cursor, json));
