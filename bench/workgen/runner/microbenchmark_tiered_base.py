@@ -103,12 +103,17 @@ class microbenchmark_tiered:
         stat_cursor = self.session.open_cursor('statistics:')
         flush_count = stat_cursor[stat.conn.flush_tier][2]
         stat_cursor.close()
+        # With the timing for the test run and the frequency of flush_tier, we would expect 3 or more flush_tier calls.
+        # We want that many to examine the impact of flush_tier response times.
+        # If we don't see that many, it may be that individual flush_tier calls are taking a very long time.
         assert flush_count > 2, flush_count
 
     def run_workload(self):
         workload = Workload(self.context, 8 * self.read_thread + 2 * self.update_thread + 2 * self.insert_thread + self.checkpoint_thread)
         workload.options.run_time=300
         workload.options.report_interval=5
+        workload.options.sample_interval_ms=1000
+        workload.options.max_latency=1000
         ret = workload.run(self.conn)
         assert ret == 0, ret
         latency_filename = self.context.args.home + "/latency.out"
