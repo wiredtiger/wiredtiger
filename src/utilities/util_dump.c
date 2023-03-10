@@ -9,6 +9,9 @@
 #include "util.h"
 #include "util_dump.h"
 
+#define ARG_BUF_SIZE 256
+#define MAX_ARGS 20
+#define MAX_BOOKMARKS 20
 #define STRING_MATCH_CONFIG(s, item) \
     (strncmp(s, (item).str, (item).len) == 0 && (s)[(item).len] == '\0')
 
@@ -858,21 +861,20 @@ dump_all_records(WT_CURSOR *cursor, bool reverse, bool json)
 static int
 dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool hex, bool json)
 {
-#define MAX_LIMIT 256
     WT_DECL_RET;
     WT_SESSION *session;
-    const char *infix, *key, *prefix, *suffix, *value;
-    char *args[MAX_LIMIT], *bookmarks[MAX_LIMIT];
-    char *first_arg, user_input[MAX_LIMIT], *current_arg;
-    bool once, search_near;
-    int i, exact, num_args;
     uint64_t bookmark_index;
+    int i, exact, num_args;
+    char *args[MAX_ARGS], *bookmarks[MAX_BOOKMARKS];
+    char *first_arg, user_input[MAX_ARGS], *current_arg;
+    const char *infix, *key, *prefix, *suffix, *value;
+    bool once, search_near;
 
     session = cursor->session;
     once = search_near = false;
     i = exact = num_args = 0;
     bookmark_index = 0;
-    for (i = 0; i < MAX_LIMIT; ++i)
+    for (i = 0; i < MAX_BOOKMARKS; ++i)
         bookmarks[i] = NULL;
 
     printf("**************************\n");
@@ -892,7 +894,7 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
 
     while (ret == 0) {
         i = num_args = 0;
-        fgets(user_input, MAX_LIMIT, stdin);
+        fgets(user_input, MAX_ARGS, stdin);
 
         /* Remove new line character. */
         user_input[strlen(user_input) - 1] = '\0';
@@ -907,7 +909,7 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
         /* Parse the input. */
         current_arg = strtok(user_input, " ");
         while (current_arg != NULL) {
-            args[i] = malloc(MAX_LIMIT);
+            args[i] = malloc(ARG_BUF_SIZE);
             strcpy(args[i++], current_arg);
             ++num_args;
             current_arg = strtok(NULL, " ");
@@ -939,7 +941,7 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
                 /* List existing bookmarks. */
                 if (num_args < 2) {
                     printf("List of bookmarks:\n");
-                    for (i = 0; i < MAX_LIMIT; ++i) {
+                    for (i = 0; i < MAX_BOOKMARKS; ++i) {
                         if (bookmarks[i] != NULL)
                             printf("#%d: %s\n", i, bookmarks[i]);
                     }
@@ -947,8 +949,8 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
                 /* Jump to the bookmark. */
                 else {
                     if (util_str2num(session, args[1], true, &bookmark_index) != 0 ||
-                      bookmark_index >= MAX_LIMIT) {
-                        printf("Error: please indicate a value between 0 and %d\n", MAX_LIMIT);
+                      bookmark_index >= MAX_BOOKMARKS) {
+                        printf("Error: please indicate a value between 0 and %d\n", MAX_BOOKMARKS);
                         break;
                     }
                     key = bookmarks[bookmark_index];
@@ -977,8 +979,8 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
                     break;
                 }
                 if (util_str2num(session, args[1], true, &bookmark_index) != 0 ||
-                  bookmark_index >= MAX_LIMIT)
-                    printf("Error: please indicate a value between 0 and %d\n", MAX_LIMIT);
+                  bookmark_index >= MAX_BOOKMARKS)
+                    printf("Error: please indicate a value between 0 and %d\n", MAX_BOOKMARKS);
                 else {
                     free(bookmarks[bookmark_index]);
                     bookmarks[bookmark_index] = NULL;
@@ -1002,7 +1004,7 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
                     ret = 0;
                     break;
                 }
-                for (i = 0; i < MAX_LIMIT; ++i) {
+                for (i = 0; i < MAX_BOOKMARKS; ++i) {
                     if (bookmarks[i] == NULL) {
                         if ((bookmarks[i] = malloc(strlen(key))) == NULL)
                             return (util_err(session, errno, NULL));
@@ -1011,7 +1013,7 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
                         break;
                     }
                 }
-                if (i >= MAX_LIMIT)
+                if (i >= MAX_BOOKMARKS)
                     printf("Error: bookmark list full.\n");
             }
             break;
@@ -1035,7 +1037,7 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
             if (ret == 0) {
                 printf("Removed key '%s'.\n", key);
                 /* Remove the bookmark associated with the key, if any. */
-                for (i = 0; i < MAX_LIMIT; ++i) {
+                for (i = 0; i < MAX_BOOKMARKS; ++i) {
                     if (bookmarks[i] != NULL && strcmp(bookmarks[i], key) == 0) {
                         free(bookmarks[i]);
                         bookmarks[i] = NULL;
