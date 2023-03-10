@@ -7,7 +7,6 @@ random_range=1000000000
 pareto=10
 range_partition=true
 report_interval=5
-
 run_ops=1000000
 populate_threads=0
 icount=0

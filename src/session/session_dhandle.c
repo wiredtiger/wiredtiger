@@ -727,31 +727,37 @@ __wt_session_dhandle_sweep(WT_SESSION_IMPL *session)
 static int
 __session_find_shared_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *checkpoint)
 {
-    WT_DECL_RET;
     WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
 
-    WT_WITH_HANDLE_LIST_READ_LOCK(session,
-      if ((ret = __wt_conn_dhandle_find(session, uri, checkpoint)) == 0)
-        WT_DHANDLE_ACQUIRE(session->dhandle));
-
-    if (ret == 0 && !(WT_IS_INT_FILE(uri))) {
+    if (WT_IS_INT_FILE(uri)) {
+        WT_WITH_HANDLE_LIST_READ_LOCK(session,
+          if ((ret = __wt_conn_dhandle_find(session, uri, checkpoint)) == 0)
+            WT_DHANDLE_ACQUIRE(session->dhandle));
+    } else {
         WT_RET(__wt_conn_dhandle_store_ensure_session(session, uri));
-        WT_WITH_HANDLE_LIST_READ_LOCK(session, ret = __wt_conn_dhandle_store_search(session, uri, &dhandle));
-        if (ret != 0 || dhandle != session->dhandle) {
-            __wt_verbose_notice(session, WT_VERB_DHANDLE,
-              "error: Ret:%d dhandle:%p, session->dhandle:%p", ret, dhandle, session->dhandle);
-        }
-        WT_ASSERT(session, ret == 0 && dhandle == session->dhandle);
+        WT_WITH_HANDLE_LIST_READ_LOCK(
+          session, ret = __wt_conn_dhandle_store_search(session, uri, &dhandle));
+        session->dhandle = dhandle;
+        //WT_ASSERT(session, ret == 0 && dhandle == session->dhandle);
     }
 
     if (ret != WT_NOTFOUND)
         return (ret);
 
-    ret = __wt_conn_dhandle_store_ensure_session(session, uri);
-    WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
-      if ((ret = __wt_conn_dhandle_alloc(session, uri, checkpoint)) == 0 && (ret = __wt_conn_dhandle_store_insert(session, session->dhandle)) == 0) 
-        WT_DHANDLE_ACQUIRE(session->dhandle));
-
+    if (WT_IS_INT_FILE(uri)) {
+        WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
+          if ((ret = __wt_conn_dhandle_alloc(session, uri, checkpoint, true)) == 0)
+            WT_DHANDLE_ACQUIRE(session->dhandle));
+    } else {
+        WT_RET(__wt_conn_dhandle_store_ensure_session(session, uri));
+        WT_RET(__wt_conn_dhandle_alloc(session, uri, checkpoint, false));
+        if ((ret = __wt_conn_dhandle_store_insert(session, session->dhandle)) == 0)
+            WT_DHANDLE_ACQUIRE(session->dhandle);
+        
+        if (ret == WT_ROLLBACK)
+            session->dhandle_session->iface.rollback_transaction(&session->dhandle_session->iface, NULL);
+    }
     return (ret);
 }
 
