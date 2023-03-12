@@ -30,7 +30,7 @@ buildvariants:
   tasks:
     - name: compile
     - name: ".btree-perf"
-    # Disable LSM perf tests till the support for LSM is restored.
+    # FIXME-WT-8867 Disable LSM perf tests till the support for LSM is restored.
     # - name: ".lsm-perf"
     - name: ".stress-perf"
     - name: ".checkpoint-perf"
@@ -95,7 +95,7 @@ buildvariants:
   tasks:
     - name: compile
     - name: ".btree-perf"
-    # Disable LSM perf tests till the support for LSM is restored.
+    # FIXME-WT-8867 Disable LSM perf tests till the support for LSM is restored.
     # - name: ".lsm-perf"
     - name: ".stress-perf"
     - name: ".checkpoint-perf"
