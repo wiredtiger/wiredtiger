@@ -1,28 +1,26 @@
 # Interaction with timestamps
 
-The main thing RTS is concerned with are the durable and stable
+The main timestamps RTS are concerned with are the durable and stable
 timestamps. The high-level details are covered above, what follows is a more
 detailed view of how we use these timestamps.
 
-We read `txn_global` for pinned and stable timestamps at the start of RTS,
-and in diagnostic builds we read them again at the end to assert they didn't
-change underneath us (indicating the system was not quiescent, and therefore
-a bug).
+In order to ensure that the system is in a quiescent state, in diagnostic
+builds we read the global pinned and stable timestamps at the start and end
+of RTS to assert they didn't change underneath us.
 
 Once RTS has finished, we roll back the global durable timestamp to the
-stable timestamp, since if there are no unstable updates, `txn_global`'s
-durable timestamp can by definition be moved backwards to the stable
-timestamp. If we weren't to do this, it wouldn't automatically be a problem,
-but we'd likely end up unnecessarily scanning tables the next time RTS is
-run.
+stable timestamp, since if there are no unstable updates, the global durable
+timestamp can, by definition, be moved backwards to the stable timestamp.
+This is a performance optimisation so we don't unnecessarily scan tables the
+next time RTS is run.
 
-Timestamps of updates in the history store can have some surprising
+Timestamps of updates in the history store can have some non-obvious
 properties:
 
 * The start timestamp can be equal to the stop timestamp if the original
   update's commit timestamp is in order.
 * During rollback of a prepared transaction, a history store update with a
-  stop timestamp may not get removed, leading to a duplocate record. RTS
+  stop timestamp may not get removed, leading to a duplicate record. RTS
   ignores these.
 * If we've had to fix any timestamps as part of RTS, a newly inserted update
   with an older timestamp may have a durable timestamp smaller than the
@@ -39,9 +37,9 @@ encountered record is greater than or equal to the previous record. We also
 validate that the timestamps in the key and the cell are the same (where
 possible).
 
-Fast-truncate is worth mentioning briefly. If the page has a `page_del`
-structure, we can look at its `durable_timestamp`, much the same as we would
-a normal page.
+Fast-truncate is worth mentioning briefly. If the page has a page delete
+structure, we can look at its durable timestamp, much the same as we would a
+normal page.
 
 # Interaction with transaction IDs
 
