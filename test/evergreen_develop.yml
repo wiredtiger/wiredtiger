@@ -45,7 +45,7 @@ buildvariants:
     - name: Wiredtiger-perf-btree-jobs
       execution_tasks:
       - ".btree-perf"
-    # Disable LSM perf tests till the support for LSM is restored.
+    # FIXME-WT-8867 Disable LSM perf tests till the support for LSM is restored.
     # - name: Wiredtiger-perf-lsm-jobs
     #   execution_tasks:
     #   - ".lsm-perf"
@@ -110,7 +110,7 @@ buildvariants:
     - name: Wiredtiger-perf-btree-jobs
       execution_tasks:
       - ".btree-perf"
-    # Disable LSM perf tests till the support for LSM is restored.
+    # FIXME-WT-8867 Disable LSM perf tests till the support for LSM is restored.
     # - name: Wiredtiger-perf-lsm-jobs
     #   execution_tasks:
     #   - ".lsm-perf"
