@@ -21,7 +21,7 @@ __wt_readahead_create(WT_SESSION_IMPL *session)
 
     F_SET(conn, WT_CONN_READAHEAD_RUN);
 
-    WT_RET(__wt_thread_group_create(session, &conn->readahead_threads, "readahead-server", 5, 5, 0,
+    WT_RET(__wt_thread_group_create(session, &conn->readahead_threads, "readahead-server", 9, 9, 0,
       __wt_readahead_thread_chk, __wt_readahead_thread_run, __wt_readahead_thread_stop));
 
     return (0);
@@ -49,7 +49,8 @@ __readahead_page_in(WT_SESSION_IMPL *session, WT_READAHEAD *ra)
 
     WT_ASSERT_ALWAYS(
       session, ra->ref->home == ra->first_home, "The home changed while queued for read ahead");
-    /*WT_ASSERT_ALWAYS(session, ra->ref->home->refcount > 0, "uh oh, ref count tracking is borked");*/
+    /*WT_ASSERT_ALWAYS(session, ra->ref->home->refcount > 0, "uh oh, ref count tracking is
+     * borked");*/
     WT_ASSERT_ALWAYS(session, ra->dhandle != NULL, "Read ahead needs to save a valid dhandle");
     WT_ASSERT_ALWAYS(
       session, !F_ISSET(ra->ref, WT_REF_FLAG_INTERNAL), "Read ahead should only see leaf pages");
@@ -151,8 +152,8 @@ __wt_session_readahead_check(WT_SESSION_IMPL *session, WT_REF *ref)
         return (false);
 
     /*
-     * Don't deal with internal pages at the moment - finding the right content to preload
-     * based on internal pages is hard.
+     * Don't deal with internal pages at the moment - finding the right content to preload based on
+     * internal pages is hard.
      */
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
         return (false);

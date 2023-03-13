@@ -324,11 +324,12 @@ read:
              * If configured to not trash the cache, leave the page generation unset, we'll set it
              * before returning to the oldest read generation, so the page is forcibly evicted as
              * soon as possible. We don't do that set here because we don't want to evict the page
-             * before we "acquire" it.
+             * before we "acquire" it. Also avoid queing a read ahead page for forced eviction
+             * before it has a chance of being used. Otherwise the work we've just done is wasted.
              */
             wont_need = LF_ISSET(WT_READ_WONT_NEED) ||
               F_ISSET(session, WT_SESSION_READ_WONT_NEED) ||
-              F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_NOKEEP);
+              (!LF_ISSET(WT_READ_AHEAD) && F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_NOKEEP));
             continue;
         case WT_REF_LOCKED:
             if (LF_ISSET(WT_READ_NO_WAIT))
@@ -435,11 +436,11 @@ skip_evict:
              */
             if (!LF_ISSET(WT_READ_AHEAD) && F_ISSET(ref, WT_REF_FLAG_LEAF)) {
                 /*
-                 * If the page was read by this retrieval or was pulled into the cache via
-                 * the read ahead mechanism, count that as a page read directly from disk.
+                 * If the page was read by this retrieval or was pulled into the cache via the read
+                 * ahead mechanism, count that as a page read directly from disk.
                  */
                 if (F_ISSET_ATOMIC_16(page, WT_PAGE_READAHEAD) ||
-                        page->read_gen == WT_READGEN_NOTSET)
+                  page->read_gen == WT_READGEN_NOTSET)
                     ++session->readahead_disk_read_count;
                 else
                     session->readahead_disk_read_count = 0;

@@ -1508,12 +1508,6 @@ scan_worker(void *arg)
         }
 
     while (!wtperf->stop) {
-        /* Break the sleep up, so we notice interrupts faster. */
-        for (i = 0; i < opts->scan_interval; i++) {
-            sleep(1);
-            if (wtperf->stop)
-                break;
-        }
         /* If the workers are done, don't bother with a final call. */
         if (wtperf->stop)
             break;
@@ -1561,6 +1555,12 @@ scan_worker(void *arg)
             thread->scan_total_ms += WT_CLOCKDIFF_MS(stop, start);
             wtperf->scan = false;
             ++thread->scan.ops;
+        }
+        /* Break the sleep up, so we notice interrupts faster. */
+        for (i = 0; i < opts->scan_interval; i++) {
+            sleep(1);
+            if (wtperf->stop)
+                break;
         }
     }
 
