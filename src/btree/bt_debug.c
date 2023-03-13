@@ -434,7 +434,7 @@ __wt_debug_offset(
      */
     block = S2BT(session)->bm->block;
     endp = addr;
-    WT_RET(__wt_block_addr_pack(block, &endp, block->objectid, offset, size, checksum));
+    WT_RET(__wt_block_cell_addr_pack(block, &endp, block->objectid, offset, size, checksum, false));
 
     /*
      * Read the address through the btree I/O functions (so the block is decompressed and/or

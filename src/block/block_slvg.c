@@ -152,7 +152,7 @@ __wt_block_salvage_next(
 
     /* Re-create the address cookie that should reference this block. */
     endp = addr;
-    WT_ERR(__wt_block_addr_pack(block, &endp, objectid, offset, size, checksum));
+    WT_ERR(__wt_block_cell_addr_pack(block, &endp, objectid, offset, size, checksum, false));
     *addr_sizep = WT_PTRDIFF(endp, addr);
 
 done:
@@ -176,8 +176,8 @@ __wt_block_salvage_valid(
      * Crack the cookie. If the upper layer took the block, move past it; if the upper layer
      * rejected the block, move past an allocation size chunk and free it.
      */
-    WT_RET(__wt_block_addr_unpack(
-      session, block, addr, addr_size, &objectid, &offset, &size, &checksum));
+    WT_RET(__wt_block_cell_addr_unpack(
+      session, block, addr, addr_size, &objectid, &offset, &size, &checksum, false));
     if (valid)
         block->slvg_off = offset + size;
     else {

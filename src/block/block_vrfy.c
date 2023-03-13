@@ -319,8 +319,8 @@ __wt_block_verify_addr(
     uint32_t checksum, objectid, size;
 
     /* Crack the cookie. */
-    WT_RET(__wt_block_addr_unpack(
-      session, block, addr, addr_size, &objectid, &offset, &size, &checksum));
+    WT_RET(__wt_block_cell_addr_unpack(
+      session, block, addr, addr_size, &objectid, &offset, &size, &checksum, false));
 
     /* Add to the per-file list. */
     WT_RET(__verify_filefrag_add(session, block, NULL, offset, size, false));
