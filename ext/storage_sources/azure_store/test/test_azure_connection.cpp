@@ -70,14 +70,14 @@ randomize_test_prefix()
 TEST_CASE("Testing Azure Connection Class", "azure-connection")
 {
     auto azure_client = Azure::Storage::Blobs::BlobContainerClient::CreateFromConnectionString(
-      std::getenv("AZURE_STORAGE_CONNECTION_STRING"), "myblobcontainer1");
+      std::getenv("AZURE_STORAGE_CONNECTION_STRING"), "azuretestext-us");
     bool exists = false;
     size_t object_size = 0;
 
     std::string bucket_prefix = randomize_test_prefix();
 
-    azure_connection conn = azure_connection("myblobcontainer1", bucket_prefix);
-    azure_connection conn_bad = azure_connection("myblobcontainer1", "bad_prefix_");
+    azure_connection conn = azure_connection("azuretestext-us", bucket_prefix);
+    azure_connection conn_bad = azure_connection("azuretestext-us", "bad_prefix_");
 
     std::vector<std::pair<std::string, std::string>> blob_objects;
 
