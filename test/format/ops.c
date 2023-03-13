@@ -1823,10 +1823,7 @@ row_truncate(TINFO *tinfo)
     /* The code assumes we're never truncating the entire object, assert that fact. */
     testutil_assert(tinfo->keyno != 0 || tinfo->last != 0);
 
-    trace_op(tinfo, "truncate %" PRIu64 " {%.*s} to %" PRIu64 " {%.*s}", tinfo->keyno,
-      (int)tinfo->key->size, (char *)tinfo->key->data, tinfo->last, (int)tinfo->lastkey->size,
-      (char *)tinfo->lastkey->data);
-
+    trace_op(tinfo, "truncate %" PRIu64 "-%" PRIu64 " start", tinfo->keyno, tinfo->last);
     if (tinfo->keyno == 0) {
         key_gen(tinfo->table, tinfo->key, tinfo->last);
         cursor->set_key(cursor, tinfo->key);
@@ -1849,9 +1846,7 @@ row_truncate(TINFO *tinfo)
     }
 
 err:
-    trace_op(tinfo, "truncate %" PRIu64 " {%.*s} to %" PRIu64 " {%.*s} ret = %d", tinfo->keyno,
-      (int)tinfo->key->size, (char *)tinfo->key->data, tinfo->last, (int)tinfo->lastkey->size,
-      (char *)tinfo->lastkey->data, ret);
+    trace_op(tinfo, "truncate %" PRIu64 "-%" PRIu64 " stop ret %d", tinfo->keyno, tinfo->last, ret);
 
     return (ret);
 }
