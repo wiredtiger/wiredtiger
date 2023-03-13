@@ -386,25 +386,21 @@ restart_read:
  *     Move to the next row-store item.
  */
 static inline int
-__cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp,
-  WT_ITEM *prefix, bool *key_out_of_boundsp)
+__cursor_row_next(
+  WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool *key_out_of_boundsp)
 {
     WT_CELL_UNPACK_KV kpack;
-    WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_INSERT *ins;
     WT_ITEM *key;
     WT_PAGE *page;
     WT_ROW *rip;
     WT_SESSION_IMPL *session;
-    bool prefix_search;
 
-    cursor = &cbt->iface;
     key = &cbt->iface.key;
     page = cbt->ref->page;
     session = CUR2S(cbt);
     *key_out_of_boundsp = false;
-    prefix_search = prefix != NULL && F_ISSET(cursor, WT_CURSTD_PREFIX_SEARCH);
     *skippedp = 0;
 
     /* If restarting after a prepare conflict, jump to the right spot. */
@@ -452,15 +448,6 @@ restart_read_insert:
         if ((ins = cbt->ins) != NULL) {
             key->data = WT_INSERT_KEY(ins);
             key->size = WT_INSERT_KEY_SIZE(ins);
-            /*
-             * If the cursor has prefix search configured we can early exit here if the key that we
-             * are visiting is after our prefix.
-             */
-            if (prefix_search && __wt_prefix_match(prefix, key) < 0) {
-                *key_out_of_boundsp = true;
-                WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
-                return (WT_NOTFOUND);
-            }
 
             /*
              * If an upper bound has been set ensure that the key is within the range, otherwise
@@ -513,16 +500,6 @@ restart_read_page:
          * value from the history store if the on-disk data is not visible.
          */
         WT_RET(__cursor_row_slot_key_return(cbt, rip, &kpack));
-
-        /*
-         * If the cursor has prefix search configured we can early exit here if the key that we are
-         * visiting is after our prefix.
-         */
-        if (prefix_search && __wt_prefix_match(prefix, &cbt->iface.key) < 0) {
-            *key_out_of_boundsp = true;
-            WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
-            return (WT_NOTFOUND);
-        }
 
         /*
          * If an upper bound has been set ensure that the key is within the range, otherwise early
@@ -581,6 +558,9 @@ __cursor_key_order_check_col(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
 
     if (cbt->lastrecno == WT_RECNO_OOB || (next && cmp < 0) || (!next && cmp > 0)) {
         cbt->lastrecno = cbt->recno;
+        cbt->lastref = cbt->ref;
+        cbt->lastslot = cbt->slot;
+        cbt->lastins = cbt->ins;
         return (0);
     }
 
@@ -616,8 +596,12 @@ __cursor_key_order_check_row(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
     if (cbt->lastkey->size != 0)
         WT_RET(__wt_compare(session, btree->collator, cbt->lastkey, key, &cmp));
 
-    if (cbt->lastkey->size == 0 || (next && cmp < 0) || (!next && cmp > 0))
+    if (cbt->lastkey->size == 0 || (next && cmp < 0) || (!next && cmp > 0)) {
+        cbt->lastref = cbt->ref;
+        cbt->lastslot = cbt->slot;
+        cbt->lastins = cbt->ins;
         return (__wt_buf_set(session, cbt->lastkey, cbt->iface.key.data, cbt->iface.key.size));
+    }
 
     WT_ERR(__wt_scr_alloc(session, 512, &a));
     WT_ERR(__wt_scr_alloc(session, 512, &b));
@@ -669,6 +653,10 @@ __wt_cursor_key_order_init(WT_CURSOR_BTREE *cbt)
 
     session = CUR2S(cbt);
 
+    cbt->lastref = cbt->ref;
+    cbt->lastslot = cbt->slot;
+    cbt->lastins = cbt->ins;
+
     /*
      * Cursor searches set the position for cursor movements, set the last-key value for diagnostic
      * checking.
@@ -699,6 +687,10 @@ __wt_cursor_key_order_reset(WT_CURSOR_BTREE *cbt)
     if (cbt->lastkey != NULL)
         cbt->lastkey->size = 0;
     cbt->lastrecno = WT_RECNO_OOB;
+
+    cbt->lastref = NULL;
+    cbt->lastslot = UINT32_MAX;
+    cbt->lastins = NULL;
 }
 #endif
 
@@ -767,12 +759,11 @@ __wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
 }
 
 /*
- * __wt_btcur_next_prefix --
- *     Move to the next record in the tree. Taking an optional prefix item for a special case of
- *     search near.
+ * __wt_btcur_next --
+ *     Move to the next record in the tree.
  */
 int
-__wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
+__wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -870,8 +861,7 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
                 total_skipped += skipped;
                 break;
             case WT_PAGE_ROW_LEAF:
-                ret =
-                  __cursor_row_next(cbt, newpage, restart, &skipped, prefix, &key_out_of_bounds);
+                ret = __cursor_row_next(cbt, newpage, restart, &skipped, &key_out_of_bounds);
                 total_skipped += skipped;
                 break;
             default:
@@ -881,11 +871,10 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
                 break;
 
             /*
-             * If we are doing a search near with prefix key configured or the cursor has bounds
-             * set, we need to check if we have exited the next function due to a prefix key
-             * mismatch or the key is out of bounds. If so, we break instead of walking onto the
-             * next page. We're not directly returning here to allow the cursor to be reset first
-             * before we return WT_NOTFOUND.
+             * If we are doing an operation when the cursor has bounds set, we need to check if we
+             * have exited the next function due to the key being out of bounds. If so, we break
+             * instead of walking onto the next page. We're not directly returning here to allow the
+             * cursor to be reset first before we return WT_NOTFOUND.
              */
             if (key_out_of_bounds)
                 break;
@@ -999,14 +988,4 @@ err:
         WT_RET(__wt_btcur_evict_reposition(cbt));
 
     return (ret);
-}
-
-/*
- * __wt_btcur_next --
- *     Move to the next record in the tree.
- */
-int
-__wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
-{
-    return (__wt_btcur_next_prefix(cbt, NULL, truncating));
 }

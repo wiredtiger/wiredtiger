@@ -458,9 +458,8 @@ __txn_assert_after_reads(WT_SESSION_IMPL *session, const char *op, wt_timestamp_
     uint32_t i, session_cnt;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
-    txn_global = &S2C(session)->txn_global;
-
-    if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAG_VISIBILITY)) {
+    if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_TXN_VISIBILITY)) {
+        txn_global = &S2C(session)->txn_global;
         WT_ORDERED_READ(session_cnt, S2C(session)->session_cnt);
         WT_STAT_CONN_INCR(session, txn_walk_sessions);
         WT_STAT_CONN_INCRV(session, txn_sessions_walked, session_cnt);
@@ -485,6 +484,7 @@ __txn_assert_after_reads(WT_SESSION_IMPL *session, const char *op, wt_timestamp_
         WT_UNUSED(session);
         WT_UNUSED(op);
         WT_UNUSED(ts);
+        WT_UNUSED(txn_global);
     }
 }
 
@@ -743,7 +743,7 @@ __wt_txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_
          * (There is a slight extra wrinkle at the moment, because it is possible for a transaction
          * to prepare and commit and be interacted with before it becomes durable. Currently such
          * transactions _must_ be replayed identically by the application to avoid inconsistency,
-         * or avoided. FIXME-WT-8747: remove this note when WT-8747 fixes this.)
+         * or avoided.
          *
          * Under other circumstances, that is, not during application-level recovery when ordinary
          * operations are excluded, use of "roundup=prepared" (for replaying transactions or

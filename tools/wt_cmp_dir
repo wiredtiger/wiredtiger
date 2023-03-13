@@ -140,12 +140,12 @@ if [ "$files1" != "$files2" ]; then
 fi
 
 # Get the script to run
-cmp_uri_script=$(dirname "$0")/wt_cmp_uri
+cmp_uri_script=$(dirname "$0")/wt_cmp_uri.py
 
 ecode=0
 for f in $files1; do
     echo $f
-    if ! python $cmp_uri_script $timestamp_opt1 "$dir1"/$f $timestamp_opt2 "$dir2"/$f; then
+    if ! python3 $cmp_uri_script $timestamp_opt1 "$dir1"/$f $timestamp_opt2 "$dir2"/$f; then
         ecode=1
     fi
 done

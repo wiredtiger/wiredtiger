@@ -26,22 +26,40 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_count01.py
-#   Tests WT_SESSION->count
-#
 
-import wiredtiger, wttest
+# A workload with small cache, small internal page size, large leaf page
+# sizes, very fast splits and multiple threads inserting keys in random
+# order.
 
-class test_count01(wttest.WiredTigerTestCase):
-    tablename = 'test_count01'
-    uri = 'table:' + tablename
+from runner import *
+from wiredtiger import *
+from workgen import *
 
-    def test_count_api(self):
-        self.session.create(self.uri, 'key_format=i,value_format=i')
-       
-        self.assertRaisesException(
-            wiredtiger.WiredTigerError, lambda: self.session.count(self.uri))
+context = Context()
+# Connection configuration.
+conn_config = "cache_size=100MB,log=(enabled=false),statistics=[fast],statistics_log=(wait=1,json=false),debug_mode=(stress_skiplist=1)"
+conn = context.wiredtiger_open("create," + conn_config)
+s = conn.open_session("")
 
+# Table configuration.
+table_config = "split_deepen_min_child=100000,"
+tname = "file:test"
+table = Table(tname)
+s.create(tname, 'key_format=S,value_format=S,' + table_config)
+table.options.key_size = 64
+table.options.value_size = 10
+table.options.range = 100000000 # 100 million
 
-if __name__ == '__main__':
-    wttest.run()
+# Run phase.
+ops = Operation(Operation.OP_INSERT, table)
+thread0 = Thread(ops)
+workload = Workload(context, 50 * thread0)
+workload.options.report_interval=5
+workload.options.run_time=360
+print('Skiplist stress workload running...')
+ret = workload.run(conn)
+assert ret == 0, ret
+
+latency_filename = context.args.home + "/latency.out"
+latency.workload_latency(workload, latency_filename)
+conn.close()

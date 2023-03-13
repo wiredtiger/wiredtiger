@@ -37,7 +37,7 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
      * state, so our check can race with readers without indicating a real problem. If we find a
      * hazard pointer, wait for it to be cleared.
      */
-    WT_ASSERT_OPTIONAL(session, WT_DIAG_CONCURRENT_ACCESS,
+    WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_EVICTION_CHECK,
       __wt_hazard_check_assert(session, ref, true),
       "Attempted to free a page with active hazard pointers");
 
@@ -76,6 +76,8 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
         __wt_page_modify_clear(session, page);
 
     WT_ASSERT_ALWAYS(session, !__wt_page_is_modified(page), "Attempting to discard dirty page");
+    WT_ASSERT_ALWAYS(
+      session, !__wt_page_is_reconciling(page), "Attempting to discard page being reconciled");
     WT_ASSERT_ALWAYS(session, !F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU),
       "Attempting to discard page queued for eviction");
 
@@ -289,6 +291,8 @@ __wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pa
      * clean explicitly.)
      */
     if (free_pages && ref->page != NULL) {
+        WT_ASSERT_ALWAYS(session, !__wt_page_is_reconciling(ref->page),
+          "Attempting to discard ref to a page being reconciled");
         __wt_page_modify_clear(session, ref->page);
         __wt_page_out(session, &ref->page);
     }
@@ -346,6 +350,9 @@ __wt_free_ref_index(WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE_INDEX *pind
     if (pindex == NULL)
         return;
 
+    WT_ASSERT_ALWAYS(session, !__wt_page_is_reconciling(page),
+      "Attempting to discard ref to a page being reconciled");
+
     for (i = 0; i < pindex->entries; ++i) {
         ref = pindex->index[i];
 
@@ -353,7 +360,7 @@ __wt_free_ref_index(WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE_INDEX *pind
          * Used when unrolling splits and other error paths where there should never have been a
          * hazard pointer taken.
          */
-        WT_ASSERT_OPTIONAL(session, WT_DIAG_CONCURRENT_ACCESS,
+        WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_EVICTION_CHECK,
           __wt_hazard_check_assert(session, ref, false),
           "Attempting to discard ref to a page with hazard pointers");
 
