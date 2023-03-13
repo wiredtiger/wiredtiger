@@ -866,7 +866,7 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
     uint64_t bookmark_index, window;
     int i, exact, num_args;
     char *args[MAX_ARGS], *bookmarks[MAX_BOOKMARKS];
-    char *first_arg, user_input[MAX_ARGS], *current_arg;
+    char *first_arg, user_input[ARG_BUF_SIZE], *current_arg;
     const char *key, *value;
     bool once, search_near;
 
