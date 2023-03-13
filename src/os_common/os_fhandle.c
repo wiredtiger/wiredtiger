@@ -286,8 +286,8 @@ __handle_close(WT_SESSION_IMPL *session, WT_FH *fh, bool locked)
 
     conn = S2C(session);
 
-    // if (fh->ref != 0)
-    //     __wt_errx(session, "Closing a file handle with open references: %s", fh->name);
+    if (fh->ref != 0)
+        __wt_errx(session, "Closing a file handle with open references: %s", fh->name);
 
     /* Remove from the list. */
     bucket = fh->name_hash & (conn->hash_size - 1);

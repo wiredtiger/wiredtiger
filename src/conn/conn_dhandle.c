@@ -135,11 +135,11 @@ err:
 }
 
 /*
- * __conn_dhandle_destroy --
+ * __wt_conn_dhandle_destroy --
  *     Destroy a data handle.
  */
-static int
-__conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, bool final)
+int
+__wt_conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, bool final)
 {
     WT_DECL_RET;
 
@@ -247,7 +247,7 @@ __wt_conn_dhandle_alloc(
     return (0);
 
 err:
-    WT_TRET(__conn_dhandle_destroy(session, dhandle, false));
+    WT_TRET(__wt_conn_dhandle_destroy(session, dhandle, false));
     return (ret);
 }
 
@@ -884,8 +884,9 @@ __wt_conn_dhandle_discard_single(WT_SESSION_IMPL *session, bool final, bool mark
     }
 
     /* Try to remove the handle, protected by the data handle lock. */
-    WT_WITH_HANDLE_LIST_WRITE_LOCK(session, tret = __conn_dhandle_remove(session, final));
-    if (!WT_IS_INT_FILE(dhandle->name))
+    if (WT_IS_INT_FILE(dhandle->name))
+        WT_WITH_HANDLE_LIST_WRITE_LOCK(session, tret = __conn_dhandle_remove(session, final));
+    else
         tret = __wt_conn_dhandle_store_remove(session, dhandle->name);
 
     if (set_pass_intr)
@@ -896,7 +897,7 @@ __wt_conn_dhandle_discard_single(WT_SESSION_IMPL *session, bool final, bool mark
      * After successfully removing the handle, clean it up.
      */
     if (ret == 0 || final) {
-        WT_TRET(__conn_dhandle_destroy(session, dhandle, final));
+        WT_TRET(__wt_conn_dhandle_destroy(session, dhandle, final));
         session->dhandle = NULL;
     }
 
@@ -1072,7 +1073,7 @@ __wt_conn_dhandle_store_ensure_session(WT_SESSION_IMPL *session, const char *uri
  *     Insert into dhandle store.
  */
 int
-__wt_conn_dhandle_store_insert(WT_SESSION_IMPL *s, WT_DATA_HANDLE *dhandle)
+__wt_conn_dhandle_store_insert(WT_SESSION_IMPL *s, const char *uri, const char *checkpoint)
 {
     WT_CURSOR *dh_cur;
     WT_DATA_HANDLE *search_dhandle;
@@ -1085,32 +1086,48 @@ __wt_conn_dhandle_store_insert(WT_SESSION_IMPL *s, WT_DATA_HANDLE *dhandle)
     if (F_ISSET(s, WT_SESSION_DATA_HANDLE_INTERNAL))
         return (ret);
 
-    if (WT_IS_INT_FILE(dhandle->name))
+    if (WT_IS_INT_FILE(uri))
         return (ret);
 
-    WT_RET(__wt_conn_dhandle_store_ensure_session(s, dhandle->name));
-    s->dhandle_session->iface.begin_transaction(&s->dhandle_session->iface, NULL);
-    if ((ret = __wt_conn_dhandle_store_search(s, dhandle->name, &search_dhandle)) == 0)
+    WT_RET(__wt_conn_dhandle_store_ensure_session(s, uri));
+    if ((ret = __wt_conn_dhandle_store_search(s, uri, &search_dhandle)) == 0) {
+        s->dhandle = search_dhandle;
         return (ret);
+    }
 
-    __wt_verbose(s, WT_VERB_DHANDLE,
-      "Adding dhandle named:%s pointer:%p to the dhandle store.", dhandle->name, (void *)dhandle);
+    WT_ERR(__wt_conn_dhandle_alloc(s, uri, checkpoint, false));
+    __wt_verbose(s, WT_VERB_DHANDLE, "Adding dhandle named:%s pointer:%p to the dhandle store.",
+      uri, (void *)s->dhandle);
 
     WT_ASSERT(s, s->dhandle_session != NULL && s->dhandle_session->dhandle_cursor != NULL);
     session_dhandle = s->dhandle_session;
     dh_cur = session_dhandle->dhandle_cursor;
 
-    dh_cur->set_key(dh_cur, dhandle->name);
-    dh_cur->set_value(dh_cur, dhandle);
+    dh_cur->set_key(dh_cur, uri);
+    dh_cur->set_value(dh_cur, s->dhandle);
     ret = dh_cur->insert(dh_cur);
-    WT_ASSERT(s, ret == 0 || ret == WT_ROLLBACK);
-    WT_RET(ret);
-    WT_RET(dh_cur->reset(dh_cur));
+    WT_ASSERT(s, ret == 0 || ret == WT_DUPLICATE_KEY);
+    WT_ERR(ret);
+    WT_ERR(dh_cur->reset(dh_cur));
 
-    s->dhandle_session->iface.commit_transaction(&s->dhandle_session->iface, NULL);
-    __wt_verbose(s, WT_VERB_DHANDLE,
-      "Added dhandle named:%s pointer:%p to the dhandle store.", dhandle->name, (void *)dhandle);
+    __wt_verbose(s, WT_VERB_DHANDLE, "Added dhandle named:%s pointer:%p to the dhandle store.",
+      uri, (void *)s->dhandle);
+
     return (0);
+err:
+    if (s->dhandle != NULL) {
+        search_dhandle = s->dhandle;
+        s->dhandle = NULL;
+        WT_TRET(__wt_conn_dhandle_destroy(s, search_dhandle, false));
+    }
+    if (ret == WT_DUPLICATE_KEY) {
+        if ((ret = __wt_conn_dhandle_store_search(s, uri, &search_dhandle)) == 0) {
+            s->dhandle = search_dhandle;
+        }
+        ret = 0;
+    }
+
+    return (ret);
 }
 
 /*
@@ -1224,7 +1241,7 @@ __wt_conn_dhandle_create_dh_table(WT_SESSION_IMPL *session)
         if (dhandle == NULL)
             break;
 
-        WT_RET(__wt_conn_dhandle_store_insert(session, dhandle));
+        WT_RET(__wt_conn_dhandle_store_insert(session, dhandle->name, dhandle->checkpoint));
     }
 
     return (0);

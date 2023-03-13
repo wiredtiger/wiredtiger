@@ -738,8 +738,10 @@ __session_find_shared_dhandle(WT_SESSION_IMPL *session, const char *uri, const c
         WT_RET(__wt_conn_dhandle_store_ensure_session(session, uri));
         WT_WITH_HANDLE_LIST_READ_LOCK(
           session, ret = __wt_conn_dhandle_store_search(session, uri, &dhandle));
-        session->dhandle = dhandle;
-        //WT_ASSERT(session, ret == 0 && dhandle == session->dhandle);
+        if (ret == 0) {
+            session->dhandle = dhandle;
+            WT_DHANDLE_ACQUIRE(session->dhandle);
+        }
     }
 
     if (ret != WT_NOTFOUND)
@@ -751,12 +753,13 @@ __session_find_shared_dhandle(WT_SESSION_IMPL *session, const char *uri, const c
             WT_DHANDLE_ACQUIRE(session->dhandle));
     } else {
         WT_RET(__wt_conn_dhandle_store_ensure_session(session, uri));
-        WT_RET(__wt_conn_dhandle_alloc(session, uri, checkpoint, false));
-        if ((ret = __wt_conn_dhandle_store_insert(session, session->dhandle)) == 0)
+        if ((ret = __wt_conn_dhandle_store_insert(session, uri, checkpoint)) == 0)
             WT_DHANDLE_ACQUIRE(session->dhandle);
-        
-        if (ret == WT_ROLLBACK)
-            session->dhandle_session->iface.rollback_transaction(&session->dhandle_session->iface, NULL);
+
+        if (ret == WT_DUPLICATE_KEY) {
+            ret = 0;
+            WT_DHANDLE_ACQUIRE(session->dhandle);
+        }
     }
     return (ret);
 }

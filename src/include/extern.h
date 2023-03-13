@@ -483,6 +483,8 @@ extern int __wt_conn_dhandle_close_all(WT_SESSION_IMPL *session, const char *uri
   bool mark_dead) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_dhandle_create_dh_table(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, bool final)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_dhandle_discard(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_dhandle_discard_single(WT_SESSION_IMPL *session, bool final, bool mark_dead)
@@ -493,8 +495,8 @@ extern int __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], u
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_dhandle_store_ensure_session(WT_SESSION_IMPL *session, const char *uri)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_conn_dhandle_store_insert(WT_SESSION_IMPL *s, WT_DATA_HANDLE *dhandle)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_conn_dhandle_store_insert(WT_SESSION_IMPL *s, const char *uri,
+  const char *checkpoint) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_dhandle_store_remove(WT_SESSION_IMPL *s, const char *uri)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_dhandle_store_search(WT_SESSION_IMPL *s, const char *uri,
