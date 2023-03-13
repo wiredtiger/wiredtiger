@@ -417,7 +417,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
             break;
         __wt_sleep(0, 250 * WT_THOUSAND); /* 1/4th of a second */
         __wt_epoch((WT_SESSION_IMPL *)session, &current_time);
-        running_secs = WT_TIMEDIFF_SEC(current_time, start_time);
+        running_secs = (uint32_t)WT_TIMEDIFF_SEC(current_time, start_time);
         timer_expired = ops_seconds > 0 && running_secs >= ops_seconds;
         if (running_secs >= max_over_secs) {
             fprintf(stderr, "%s\n", "format run more than 15 minutes past the maximum time");
