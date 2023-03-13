@@ -423,4 +423,3 @@ endif()
 if(ENABLE_ANTITHESIS)
     add_compile_options(-fsanitize-coverage=trace-pc-guard)
 endif()
-
