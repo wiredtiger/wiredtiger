@@ -15,5 +15,6 @@ COPY cmake_build/ext/collators/revint/libwiredtiger_revint_collator.so bin/ext/c
 RUN mkdir -p bin/ext/compressors/snappy
 COPY cmake_build/ext/compressors/snappy/libwiredtiger_snappy.so bin/ext/compressors/snappy
 COPY tools/antithesis/test.sh bin/
+COPY cmake_build/VERSION .
 RUN apt-get update
 RUN apt-get install -y libsnappy-dev

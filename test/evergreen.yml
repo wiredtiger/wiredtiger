@@ -5604,7 +5604,7 @@ buildvariants:
 
 # Antithesis build and push
 - name: ubuntu2004-antithesis
-  display_name: "Ubuntu 20.04 Antithesis"
+  display_name: "~ Ubuntu 20.04 Antithesis"
   run_on:
   - ubuntu2004-test
   batchtime: 10080 # 7 days
