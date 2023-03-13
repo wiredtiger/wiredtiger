@@ -1532,9 +1532,11 @@ ThreadRunner::op_run_setup(Operation *op)
 
     // If this is not a dynamic table operation, we still need to generate keys and values.
     if (op->has_table()) {
-        tint_t tint = op->_table._internal->_tint;
-
-        op_kv_gen(op, tint);
+        // Mirrored tables don't need key nor value here.
+        if (!op->_random_table) {
+            tint_t tint = op->_table._internal->_tint;
+            op_kv_gen(op, tint);
+        }
         return op_run(op);
     }
 
