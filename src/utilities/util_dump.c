@@ -863,6 +863,7 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
 {
     WT_DECL_RET;
     WT_SESSION *session;
+    WT_SESSION_IMPL *session_impl;
     uint64_t bookmark_index, window;
     int i, exact, num_args;
     char *args[MAX_ARGS], *bookmarks[MAX_BOOKMARKS];
@@ -871,11 +872,12 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
     bool once, search_near;
 
     session = cursor->session;
+    session_impl = (WT_SESSION_IMPL *)session;
     once = search_near = false;
     i = exact = num_args = 0;
     bookmark_index = window = 0;
-    for (i = 0; i < MAX_BOOKMARKS; ++i)
-        bookmarks[i] = NULL;
+    memset(args, 0, sizeof(args));
+    memset(bookmarks, 0, sizeof(bookmarks));
 
     printf("**************************\n");
     printf("Explore mode for %s.\n", uri);
@@ -892,12 +894,10 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
             continue;
         once = true;
 
-        /* Time to exit. */
-        if (strlen(user_input) == 1 && user_input[0] == 'q')
-            break;
-
         /* Parse the input. */
         current_arg = strtok(user_input, " ");
+        if (current_arg == NULL)
+            continue;
         while (current_arg != NULL) {
             args[i] = malloc(ARG_BUF_SIZE);
             strcpy(args[i++], current_arg);
@@ -910,16 +910,19 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
         /* Cursor info. */
         case 'a':
             ret = cursor->get_key(cursor, &key);
-            if (ret != 0 && ret != EINVAL)
-                return (util_cerr(cursor, "get_key", ret));
-            else if (ret == EINVAL) {
+            if (ret != 0 && ret != EINVAL) {
+                ret = util_cerr(cursor, "get_key", ret);
+                goto err;
+            } else if (ret == EINVAL) {
                 printf("Error: the cursor needs to be positioned.\n");
                 ret = 0;
                 break;
             }
 
-            if ((ret = cursor->get_value(cursor, &value)) != 0)
-                return (util_cerr(cursor, "get_value", ret));
+            if ((ret = cursor->get_value(cursor, &value)) != 0) {
+                ret = util_cerr(cursor, "get_value", ret);
+                goto err;
+            }
 
             printf("Current position:\n");
             printf("key:%s\n", key);
@@ -943,8 +946,7 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
                         printf("Error: please indicate a value between 0 and %d\n", MAX_BOOKMARKS);
                         break;
                     }
-                    key = bookmarks[bookmark_index];
-                    if (key == NULL) {
+                    if ((key = bookmarks[bookmark_index]) == NULL) {
                         printf(
                           "Error: no keys associated with bookmark %" PRIu64 ".\n", bookmark_index);
                         break;
@@ -953,9 +955,10 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
                     /* Set the cursor to the bookmark. */
                     cursor->set_key(cursor, key);
                     ret = cursor->search(cursor);
-                    if (ret != 0 && ret != WT_NOTFOUND)
-                        return (util_cerr(cursor, "search", ret));
-                    else if (ret == WT_NOTFOUND) {
+                    if (ret != 0 && ret != WT_NOTFOUND) {
+                        ret = util_cerr(cursor, "search", ret);
+                        goto err;
+                    } else if (ret == WT_NOTFOUND) {
                         printf("Error: %d\n", ret);
                         ret = 0;
                     } else
@@ -972,8 +975,7 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
                   bookmark_index >= MAX_BOOKMARKS)
                     printf("Error: please indicate a value between 0 and %d\n", MAX_BOOKMARKS);
                 else {
-                    free(bookmarks[bookmark_index]);
-                    bookmarks[bookmark_index] = NULL;
+                    __wt_free(session_impl, bookmarks[bookmark_index]);
                     printf("Bookmark %" PRIu64 " deleted.\n", bookmark_index);
                 }
             }
@@ -983,21 +985,26 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
                     key = args[1];
                     cursor->set_key(cursor, key);
                     ret = cursor->search(cursor);
-                    if (ret != 0)
-                        return (util_cerr(cursor, "search", ret));
+                    if (ret != 0) {
+                        ret = util_cerr(cursor, "search", ret);
+                        goto err;
+                    }
                 }
                 ret = cursor->get_key(cursor, &key);
-                if (ret != 0 && ret != EINVAL)
-                    return (util_cerr(cursor, "get_key", ret));
-                else if (ret == EINVAL) {
+                if (ret != 0 && ret != EINVAL) {
+                    ret = util_cerr(cursor, "get_key", ret);
+                    goto err;
+                } else if (ret == EINVAL) {
                     printf("Error: the cursor needs to be positioned to create a bookmark.\n");
                     ret = 0;
                     break;
                 }
                 for (i = 0; i < MAX_BOOKMARKS; ++i) {
                     if (bookmarks[i] == NULL) {
-                        if ((bookmarks[i] = malloc(strlen(key))) == NULL)
-                            return (util_err(session, errno, NULL));
+                        if ((bookmarks[i] = malloc(strlen(key))) == NULL) {
+                            ret = util_err(session, errno, NULL);
+                            goto err;
+                        }
                         strcpy(bookmarks[i], key);
                         printf("Added bookmark %d: %s.\n", i, key);
                         break;
@@ -1009,8 +1016,10 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
             break;
         /* Cursor reset. */
         case 'c':
-            if ((ret = cursor->reset(cursor)) != 0)
-                return (util_cerr(cursor, "reset", ret));
+            if ((ret = cursor->reset(cursor)) != 0) {
+                ret = util_cerr(cursor, "reset", ret);
+                goto err;
+            }
             printf("Cursor reset.\n");
             break;
         /* Cursor delete. */
@@ -1022,15 +1031,16 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
             key = args[1];
             cursor->set_key(cursor, key);
             ret = cursor->remove(cursor);
-            if (ret != 0 && ret != WT_NOTFOUND)
-                return (util_cerr(cursor, "remove", ret));
+            if (ret != 0 && ret != WT_NOTFOUND) {
+                ret = util_cerr(cursor, "remove", ret);
+                goto err;
+            }
             if (ret == 0) {
                 printf("Removed key '%s'.\n", key);
                 /* Remove the bookmark associated with the key, if any. */
                 for (i = 0; i < MAX_BOOKMARKS; ++i) {
                     if (bookmarks[i] != NULL && strcmp(bookmarks[i], key) == 0) {
-                        free(bookmarks[i]);
-                        bookmarks[i] = NULL;
+                        __wt_free(session_impl, bookmarks[i]);
                         printf("Bookmark %d deleted.\n", i);
                         break;
                     }
@@ -1044,7 +1054,7 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
         case 'h':
             explore_usage();
             break;
-        /* Cursor insert/update. */
+        /* Cursor insert. */
         case 'i':
             if (num_args < 3) {
                 printf("Error: please indicate the key/value pair to insert.\n");
@@ -1054,8 +1064,10 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
             value = args[2];
             cursor->set_key(cursor, key);
             cursor->set_value(cursor, value);
-            if ((ret = cursor->insert(cursor)) != 0)
-                return (util_cerr(cursor, "insert", ret));
+            if ((ret = cursor->insert(cursor)) != 0) {
+                ret = util_cerr(cursor, "insert", ret);
+                goto err;
+            }
             printf("Inserted key '%s' and value '%s'.\n", key, value);
             break;
         /* Dump metadata. */
@@ -1070,13 +1082,20 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
                 ret = (reverse ? cursor->prev(cursor) : cursor->next(cursor));
             else
                 ret = (reverse ? cursor->next(cursor) : cursor->prev(cursor));
-            if (ret != 0 && ret != WT_NOTFOUND)
-                return (util_cerr(cursor, (reverse ? "prev" : "next"), ret));
+            if (ret != 0 && ret != WT_NOTFOUND) {
+                ret = util_cerr(cursor, (reverse ? "prev" : "next"), ret);
+                goto err;
+            }
             if (ret == WT_NOTFOUND) {
                 printf("Start/End of file reached.\n");
                 ret = 0;
             } else
                 WT_RET(print_record(cursor, json));
+            break;
+        /* Exit. */
+        case 'q':
+            if (strcmp(first_arg, "q") == 0)
+                goto err;
             break;
         /* Range cursor. */
         case 'r':
@@ -1089,8 +1108,10 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
 
             /* Clear range. */
             if (first_arg[1] == 'c') {
-                if (cursor->bound(cursor, "action=clear") != 0)
-                    return (util_cerr(cursor, "bound clear", ret));
+                if (cursor->bound(cursor, "action=clear") != 0) {
+                    ret = util_cerr(cursor, "bound clear", ret);
+                    goto err;
+                }
                 printf("Cursor bounds cleared.\n");
                 break;
             }
@@ -1108,9 +1129,10 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
             else
                 ret = cursor->bound(cursor, "action=set,bound=upper");
 
-            if (ret != 0 && ret != EINVAL)
-                return (util_cerr(cursor, "bound set", ret));
-            else if (ret == EINVAL) {
+            if (ret != 0 && ret != EINVAL) {
+                ret = util_cerr(cursor, "bound set", ret);
+                goto err;
+            } else if (ret == EINVAL) {
                 printf("Error: please reset the cursor before setting its bounds.\n");
                 ret = 0;
             } else
@@ -1144,8 +1166,10 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
             value = args[2];
             cursor->set_key(cursor, key);
             cursor->set_value(cursor, value);
-            if ((ret = cursor->insert(cursor)) != 0)
-                return (util_cerr(cursor, "update", ret));
+            if ((ret = cursor->insert(cursor)) != 0) {
+                ret = util_cerr(cursor, "update", ret);
+                goto err;
+            }
             printf("Updated key '%s' to value '%s'.\n", key, value);
             break;
         /* Window. */
@@ -1159,8 +1183,16 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
         default:
             break;
         }
+
+        for (i = 0; i < MAX_ARGS; ++i)
+            __wt_free(session_impl, args[i]);
     }
 
+err:
+    for (i = 0; i < MAX_BOOKMARKS; ++i)
+        __wt_free(session_impl, bookmarks[i]);
+    for (i = 0; i < MAX_ARGS; ++i)
+        __wt_free(session_impl, args[i]);
     return (ret);
 }
 
