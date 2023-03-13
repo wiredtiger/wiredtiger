@@ -18,6 +18,10 @@
 static int dump_all_records(WT_CURSOR *, bool, bool);
 static int dump_config(WT_SESSION *, const char *, WT_CURSOR *, bool, bool, bool);
 static int dump_explore(WT_CURSOR *, const char *, bool, bool, bool, bool);
+static void dump_explore_bookmark_delete_key(WT_CURSOR *, char **, const char *);
+static int dump_explore_bookmark_save(WT_CURSOR *, char **);
+static int dump_explore_bookmark_select(WT_CURSOR *, char **, uint64_t);
+static void dump_explore_bookmarks_list(char **);
 static int dump_json_begin(WT_SESSION *);
 static int dump_json_end(WT_SESSION *);
 static int dump_json_separator(WT_SESSION *);
@@ -855,6 +859,108 @@ dump_all_records(WT_CURSOR *cursor, bool reverse, bool json)
 }
 
 /*
+ * dump_explore_bookmark_delete_key --
+ *     Delete the bookmark associated with the key.
+ */
+static void
+dump_explore_bookmark_delete_key(WT_CURSOR *cursor, char **bookmarks, const char *key)
+{
+    uint64_t i;
+
+    for (i = 0; i < MAX_BOOKMARKS; ++i) {
+        if (bookmarks[i] != NULL && strcmp(bookmarks[i], key) == 0) {
+            __wt_free((WT_SESSION_IMPL *)cursor->session, bookmarks[i]);
+            printf("Bookmark %" PRIu64 " deleted.\n", i);
+            break;
+        }
+    }
+}
+
+/*
+ * dump_explore_bookmark_save --
+ *     Save the cursor's position to bookmarks.
+ */
+static int
+dump_explore_bookmark_save(WT_CURSOR *cursor, char **bookmarks)
+{
+    WT_DECL_RET;
+    WT_SESSION *session;
+    uint64_t i;
+    const char *key;
+
+    session = cursor->session;
+
+    ret = cursor->get_key(cursor, &key);
+    if (ret != 0 && ret != EINVAL)
+        return (util_cerr(cursor, "get_key", ret));
+    if (ret == EINVAL) {
+        printf("Error: the cursor needs to be positioned to create a bookmark.\n");
+        return (0);
+    }
+
+    for (i = 0; i < MAX_BOOKMARKS; ++i) {
+        if (bookmarks[i] != NULL)
+            continue;
+        if ((bookmarks[i] = malloc(strlen(key))) == NULL)
+            return (util_err(session, errno, NULL));
+        strcpy(bookmarks[i], key);
+        printf("Added bookmark %" PRIu64 ": %s.\n", i, key);
+        break;
+    }
+    if (i >= MAX_BOOKMARKS)
+        printf("Error: bookmark list full.\n");
+    return (ret);
+}
+
+/*
+ * dump_explore_bookmark_select --
+ *     Set the cursor to the bookmark.
+ */
+static int
+dump_explore_bookmark_select(WT_CURSOR *cursor, char **bookmarks, uint64_t index)
+{
+    WT_DECL_RET;
+    const char *key;
+
+    if (index >= MAX_BOOKMARKS) {
+        printf("Error: please indicate a value between 0 and %d\n", MAX_BOOKMARKS);
+        return (0);
+    }
+
+    if ((key = bookmarks[index]) == NULL) {
+        printf("Error: no keys associated with bookmark %" PRIu64 ".\n", index);
+        return (0);
+    }
+
+    /* Set the cursor to the bookmark. */
+    cursor->set_key(cursor, key);
+    ret = cursor->search(cursor);
+    if (ret != 0 && ret != WT_NOTFOUND)
+        return (util_cerr(cursor, "search", ret));
+    else if (ret == WT_NOTFOUND) {
+        printf("Error: %d\n", ret);
+        ret = 0;
+    } else
+        printf("Cursor positioned on key %s.\n", key);
+    return (ret);
+}
+
+/*
+ * dump_explore_bookmarks_list --
+ *     List the existing bookmarks.
+ */
+static void
+dump_explore_bookmarks_list(char **bookmarks)
+{
+    uint64_t i;
+    printf("List of bookmarks:\n");
+    for (i = 0; i < MAX_BOOKMARKS; ++i) {
+        if (bookmarks[i] != NULL)
+            printf("#%" PRIu64 ": %s\n", i, bookmarks[i]);
+    }
+}
+
+/*
  * dump_explore --
  *     Dump data in an interactive fashion.
  */
@@ -899,7 +1005,8 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
         if (current_arg == NULL)
             continue;
         while (current_arg != NULL) {
-            args[i] = malloc(ARG_BUF_SIZE);
+            if ((args[i] = malloc(ARG_BUF_SIZE)) == NULL)
+                WT_ERR(util_err(session, errno, NULL));
             strcpy(args[i++], current_arg);
             ++num_args;
             current_arg = strtok(NULL, " ");
@@ -910,116 +1017,58 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
         /* Cursor info. */
         case 'a':
             ret = cursor->get_key(cursor, &key);
-            if (ret != 0 && ret != EINVAL) {
-                ret = util_cerr(cursor, "get_key", ret);
-                goto err;
-            } else if (ret == EINVAL) {
+            if (ret == EINVAL) {
                 printf("Error: the cursor needs to be positioned.\n");
                 ret = 0;
-                break;
-            }
-
-            if ((ret = cursor->get_value(cursor, &value)) != 0) {
-                ret = util_cerr(cursor, "get_value", ret);
-                goto err;
-            }
-
-            printf("Current position:\n");
-            printf("key:%s\n", key);
-            printf("value:%s\n", value);
+            } else
+                /* Any other error is handled in print_record(). */
+                print_record(cursor, json);
             break;
         /* Bookmarks. */
         case 'b':
             if (strcmp(first_arg, "b") == 0) {
                 /* List existing bookmarks. */
-                if (num_args < 2) {
-                    printf("List of bookmarks:\n");
-                    for (i = 0; i < MAX_BOOKMARKS; ++i) {
-                        if (bookmarks[i] != NULL)
-                            printf("#%d: %s\n", i, bookmarks[i]);
-                    }
-                }
+                if (num_args < 2)
+                    dump_explore_bookmarks_list(bookmarks);
                 /* Jump to the bookmark. */
-                else {
-                    if (util_str2num(session, args[1], true, &bookmark_index) != 0 ||
-                      bookmark_index >= MAX_BOOKMARKS) {
-                        printf("Error: please indicate a value between 0 and %d\n", MAX_BOOKMARKS);
-                        break;
-                    }
-                    if ((key = bookmarks[bookmark_index]) == NULL) {
-                        printf(
-                          "Error: no keys associated with bookmark %" PRIu64 ".\n", bookmark_index);
-                        break;
-                    }
-
-                    /* Set the cursor to the bookmark. */
-                    cursor->set_key(cursor, key);
-                    ret = cursor->search(cursor);
-                    if (ret != 0 && ret != WT_NOTFOUND) {
-                        ret = util_cerr(cursor, "search", ret);
-                        goto err;
-                    } else if (ret == WT_NOTFOUND) {
-                        printf("Error: %d\n", ret);
-                        ret = 0;
-                    } else
-                        printf("Cursor positioned on key %s.\n", key);
-                }
+                else if (util_str2num(session, args[1], true, &bookmark_index) == 0)
+                    WT_ERR(dump_explore_bookmark_select(cursor, bookmarks, bookmark_index));
             }
             /* Delete. */
             else if (strcmp(first_arg, "bd") == 0) {
-                if (num_args < 2) {
+                if (num_args < 2)
                     printf("Error: please indicate the bookmark you want to delete.\n");
-                    break;
-                }
-                if (util_str2num(session, args[1], true, &bookmark_index) != 0 ||
-                  bookmark_index >= MAX_BOOKMARKS)
-                    printf("Error: please indicate a value between 0 and %d\n", MAX_BOOKMARKS);
-                else {
-                    __wt_free(session_impl, bookmarks[bookmark_index]);
-                    printf("Bookmark %" PRIu64 " deleted.\n", bookmark_index);
+                else if (util_str2num(session, args[1], true, &bookmark_index) == 0) {
+                    if (bookmark_index >= MAX_BOOKMARKS)
+                        printf("Error: please indicate a value between 0 and %d\n", MAX_BOOKMARKS);
+                    else {
+                        __wt_free(session_impl, bookmarks[bookmark_index]);
+                        printf("Bookmark %" PRIu64 " deleted.\n", bookmark_index);
+                    }
                 }
             }
             /* Save. */
             else if (strcmp(first_arg, "bs") == 0) {
+                /* If a key is specified, save that key. */
                 if (num_args >= 2) {
                     key = args[1];
                     cursor->set_key(cursor, key);
                     ret = cursor->search(cursor);
-                    if (ret != 0) {
-                        ret = util_cerr(cursor, "search", ret);
-                        goto err;
-                    }
-                }
-                ret = cursor->get_key(cursor, &key);
-                if (ret != 0 && ret != EINVAL) {
-                    ret = util_cerr(cursor, "get_key", ret);
-                    goto err;
-                } else if (ret == EINVAL) {
-                    printf("Error: the cursor needs to be positioned to create a bookmark.\n");
-                    ret = 0;
-                    break;
-                }
-                for (i = 0; i < MAX_BOOKMARKS; ++i) {
-                    if (bookmarks[i] == NULL) {
-                        if ((bookmarks[i] = malloc(strlen(key))) == NULL) {
-                            ret = util_err(session, errno, NULL);
-                            goto err;
-                        }
-                        strcpy(bookmarks[i], key);
-                        printf("Added bookmark %d: %s.\n", i, key);
+                    if (ret != 0 && ret != WT_NOTFOUND)
+                        WT_ERR(util_cerr(cursor, "search", ret));
+                    if (ret == WT_NOTFOUND) {
+                        printf("Error: %d\n", ret);
+                        ret = 0;
                         break;
                     }
                 }
-                if (i >= MAX_BOOKMARKS)
-                    printf("Error: bookmark list full.\n");
+                WT_ERR(dump_explore_bookmark_save(cursor, bookmarks));
             }
             break;
         /* Cursor reset. */
         case 'c':
-            if ((ret = cursor->reset(cursor)) != 0) {
-                ret = util_cerr(cursor, "reset", ret);
-                goto err;
-            }
+            if ((ret = cursor->reset(cursor)) != 0)
+                WT_ERR(util_cerr(cursor, "reset", ret));
             printf("Cursor reset.\n");
             break;
         /* Cursor delete. */
@@ -1031,20 +1080,12 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
             key = args[1];
             cursor->set_key(cursor, key);
             ret = cursor->remove(cursor);
-            if (ret != 0 && ret != WT_NOTFOUND) {
-                ret = util_cerr(cursor, "remove", ret);
-                goto err;
-            }
+
+            if (ret != 0 && ret != WT_NOTFOUND)
+                WT_ERR(util_cerr(cursor, "remove", ret));
             if (ret == 0) {
                 printf("Removed key '%s'.\n", key);
-                /* Remove the bookmark associated with the key, if any. */
-                for (i = 0; i < MAX_BOOKMARKS; ++i) {
-                    if (bookmarks[i] != NULL && strcmp(bookmarks[i], key) == 0) {
-                        __wt_free(session_impl, bookmarks[i]);
-                        printf("Bookmark %d deleted.\n", i);
-                        break;
-                    }
-                }
+                dump_explore_bookmark_delete_key(cursor, bookmarks, key);
             } else {
                 printf("Error: the key '%s' does not exist.\n", key);
                 ret = 0;
@@ -1064,15 +1105,13 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
             value = args[2];
             cursor->set_key(cursor, key);
             cursor->set_value(cursor, value);
-            if ((ret = cursor->insert(cursor)) != 0) {
-                ret = util_cerr(cursor, "insert", ret);
-                goto err;
-            }
+            if ((ret = cursor->insert(cursor)) != 0)
+                WT_ERR(util_cerr(cursor, "insert", ret));
             printf("Inserted key '%s' and value '%s'.\n", key, value);
             break;
         /* Dump metadata. */
         case 'm':
-            ret = dump_config(session, uri, cursor, pretty, hex, json);
+            WT_ERR(dump_config(session, uri, cursor, pretty, hex, json));
             break;
         /* Cursor next. */
         case 'n':
@@ -1082,15 +1121,13 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
                 ret = (reverse ? cursor->prev(cursor) : cursor->next(cursor));
             else
                 ret = (reverse ? cursor->next(cursor) : cursor->prev(cursor));
-            if (ret != 0 && ret != WT_NOTFOUND) {
-                ret = util_cerr(cursor, (reverse ? "prev" : "next"), ret);
-                goto err;
-            }
+            if (ret != 0 && ret != WT_NOTFOUND)
+                WT_ERR(util_cerr(cursor, (reverse ? "prev" : "next"), ret));
             if (ret == WT_NOTFOUND) {
                 printf("Start/End of file reached.\n");
                 ret = 0;
             } else
-                WT_RET(print_record(cursor, json));
+                WT_ERR(print_record(cursor, json));
             break;
         /* Exit. */
         case 'q':
@@ -1099,7 +1136,7 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
             break;
         /* Range cursor. */
         case 'r':
-            if (strchr("luc", first_arg[1]) == NULL) {
+            if (strlen(first_arg) < 2 || strchr("luc", first_arg[1]) == NULL) {
                 printf(
                   "Error: use 'rl' for lower range, 'ru' for upper range and 'rc' to clear "
                   "range.\n");
@@ -1108,10 +1145,8 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
 
             /* Clear range. */
             if (first_arg[1] == 'c') {
-                if (cursor->bound(cursor, "action=clear") != 0) {
-                    ret = util_cerr(cursor, "bound clear", ret);
-                    goto err;
-                }
+                if (cursor->bound(cursor, "action=clear") != 0)
+                    WT_ERR(util_cerr(cursor, "bound clear", ret));
                 printf("Cursor bounds cleared.\n");
                 break;
             }
@@ -1129,13 +1164,11 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
             else
                 ret = cursor->bound(cursor, "action=set,bound=upper");
 
-            if (ret != 0 && ret != EINVAL) {
-                ret = util_cerr(cursor, "bound set", ret);
-                goto err;
-            } else if (ret == EINVAL) {
-                printf("Error: please reset the cursor before setting its bounds.\n");
+            if (ret != 0 && ret != EINVAL)
+                WT_ERR(util_cerr(cursor, "bound set", ret));
+            if (ret == EINVAL)
                 ret = 0;
-            } else
+            else
                 printf("%s bound set.\n", first_arg[1] == 'l' ? "Lower" : "Upper");
             break;
         /* Search. */
@@ -1154,6 +1187,8 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
                 printf("Error: %d\n", ret);
                 if (ret == WT_NOTFOUND)
                     ret = 0;
+                else
+                    WT_ERR(ret);
             }
             break;
         /* Cursor update. */
@@ -1166,19 +1201,16 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
             value = args[2];
             cursor->set_key(cursor, key);
             cursor->set_value(cursor, value);
-            if ((ret = cursor->insert(cursor)) != 0) {
-                ret = util_cerr(cursor, "update", ret);
-                goto err;
-            }
+            if ((ret = cursor->insert(cursor)) != 0)
+                WT_ERR(util_cerr(cursor, "update", ret));
             printf("Updated key '%s' to value '%s'.\n", key, value);
             break;
         /* Window. */
         case 'w':
             if (num_args < 2)
                 printf("Error: please indicate the window value you want to set.\n");
-            else
-                util_str2num(session, args[1], true, &window);
-            printf("Window value: %" PRIu64 ".\n", window);
+            else if (util_str2num(session, args[1], true, &window) == 0)
+                printf("Window value: %" PRIu64 ".\n", window);
             break;
         default:
             break;
