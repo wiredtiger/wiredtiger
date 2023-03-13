@@ -204,7 +204,7 @@ class test_tiered19(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.assertEquals(ss.ss_flush(session, fs, local_file_name, new_file_name, None), 0)
         self.assertEquals(ss.ss_flush_finish(session, fs, local_file_name, new_file_name, None), 0)
 
-        test_files = {prefix + f for f in [local_file_name, new_file_name]}
+        test_files = {f for f in [local_file_name, new_file_name]}
 
         file_list = fs.fs_directory_list_single(session, '', '')
         self.assertEquals(len(file_list), 1)
