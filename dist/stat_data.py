@@ -211,11 +211,11 @@ conn_stats = [
     BlockCacheStat('block_cache_misses', 'number of misses'),
     BlockCacheStat('block_cache_not_evicted_overhead', 'number of blocks not evicted due to overhead'),
 
-    BlockCacheStat('block_readahead_attempts', 'read ahead triggered by page read'),
-    BlockCacheStat('block_readahead_disk_one', 'read ahead not triggered after single disk read'),
-    BlockCacheStat('block_readahead_pages_queued', 'read ahead pages queued'),
-    BlockCacheStat('block_readahead_pages_read', 'read ahead page read in background'),
-    BlockCacheStat('block_readahead_skipped', 'read ahead not triggered by page read'),
+    BlockCacheStat('block_read_ahead_attempts', 'read ahead triggered by page read'),
+    BlockCacheStat('block_read_ahead_disk_one', 'read ahead not triggered after single disk read'),
+    BlockCacheStat('block_read_ahead_pages_queued', 'read ahead pages queued'),
+    BlockCacheStat('block_read_ahead_pages_read', 'read ahead page read in background'),
+    BlockCacheStat('block_read_ahead_skipped', 'read ahead not triggered by page read'),
 
     ##########################################
     # Block manager statistics
@@ -249,7 +249,7 @@ conn_stats = [
     CacheStat('cache_eviction_aggressive_set', 'eviction currently operating in aggressive mode', 'no_clear,no_scale'),
     CacheStat('cache_eviction_app', 'pages evicted by application threads'),
     CacheStat('cache_eviction_app_dirty', 'modified pages evicted by application threads'),
-    CacheStat('cache_eviction_consider_readahead', 'pages considered for eviction that were brought in by readahead', 'no_clear,no_scale'),
+    CacheStat('cache_eviction_consider_read_ahead', 'pages considered for eviction that were brought in by read_ahead', 'no_clear,no_scale'),
     CacheStat('cache_eviction_empty_score', 'eviction empty score', 'no_clear,no_scale'),
     CacheStat('cache_eviction_fail', 'pages selected for eviction unable to be evicted'),
     CacheStat('cache_eviction_fail_active_children_on_an_internal_page', 'pages selected for eviction unable to be evicted because of active children on an internal page'),
@@ -886,7 +886,7 @@ conn_dsrc_stats = [
     CacheStat('cache_inmem_split', 'in-memory page splits'),
     CacheStat('cache_inmem_splittable', 'in-memory page passed criteria to be split'),
     CacheStat('cache_pages_requested', 'pages requested from the cache'),
-    CacheStat('cache_pages_readahead', 'pages requested from the cache due to readahead'),
+    CacheStat('cache_pages_read_ahead', 'pages requested from the cache due to read_ahead'),
     CacheStat('cache_read', 'pages read into cache'),
     CacheStat('cache_read_deleted', 'pages read into cache after truncate'),
     CacheStat('cache_read_deleted_prepared', 'pages read into cache after truncate in prepare state'),

@@ -59,7 +59,7 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
     WT_RET(__wt_spin_init(session, &conn->storage_lock, "tiered storage"));
     WT_RET(__wt_spin_init(session, &conn->tiered_lock, "tiered work unit list"));
     WT_RET(__wt_spin_init(session, &conn->turtle_lock, "turtle file"));
-    WT_RET(__wt_spin_init(session, &conn->readahead_lock, "readahead"));
+    WT_RET(__wt_spin_init(session, &conn->read_ahead_lock, "read_ahead"));
 
     /* Read-write locks */
     WT_RWLOCK_INIT_SESSION_TRACKED(session, &conn->dhandle_lock, dhandle);
@@ -128,7 +128,7 @@ __wt_connection_destroy(WT_CONNECTION_IMPL *conn)
     __wt_rwlock_destroy(session, &conn->table_lock);
     __wt_spin_destroy(session, &conn->tiered_lock);
     __wt_spin_destroy(session, &conn->turtle_lock);
-    __wt_spin_destroy(session, &conn->readahead_lock);
+    __wt_spin_destroy(session, &conn->read_ahead_lock);
 
     /* Free LSM serialization resources. */
     __wt_spin_destroy(session, &conn->lsm_manager.switch_lock);

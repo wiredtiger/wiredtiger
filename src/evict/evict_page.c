@@ -162,7 +162,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     }
 
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_READAHEAD))
-        WT_STAT_CONN_INCR(session, cache_eviction_consider_readahead);
+        WT_STAT_CONN_INCR(session, cache_eviction_consider_read_ahead);
 
     /*
      * Review the page for conditions that would block its eviction. If the check fails (for

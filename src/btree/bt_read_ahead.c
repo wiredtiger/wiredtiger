@@ -20,7 +20,7 @@ __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_READAHEAD *ra;
+    WT_READ_AHEAD *ra;
     WT_REF *next_ref;
     uint64_t block_preload;
 
@@ -41,7 +41,7 @@ __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ASSERT_ALWAYS(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0,
       "Read ahead requires a split generation to traverse internal page(s)");
 
-    session->readahead_prev_ref = ref;
+    session->read_ahead_prev_ref = ref;
     /* Load and decompress a set of pages into the block cache. */
     WT_INTL_FOREACH_BEGIN (session, ref->home, next_ref)
         /* Don't let the read ahead queue get overwhelmed. */
@@ -59,14 +59,14 @@ __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
         ra->ref = next_ref;
         ra->first_home = next_ref->home;
         ra->dhandle = session->dhandle;
-        __wt_spin_lock(session, &conn->readahead_lock);
+        __wt_spin_lock(session, &conn->read_ahead_lock);
         TAILQ_INSERT_TAIL(&conn->raqh, ra, q);
         ++conn->read_ahead_queue_count;
-        __wt_spin_unlock(session, &conn->readahead_lock);
+        __wt_spin_unlock(session, &conn->read_ahead_lock);
         ++block_preload;
     }
     WT_INTL_FOREACH_END;
 
-    WT_STAT_CONN_INCRV(session, block_readahead_pages_queued, block_preload);
+    WT_STAT_CONN_INCRV(session, block_read_ahead_pages_queued, block_preload);
     return (ret);
 }

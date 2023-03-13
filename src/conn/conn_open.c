@@ -94,7 +94,7 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
     WT_TRET(__wt_statlog_destroy(session, true));
     WT_TRET(__wt_tiered_storage_destroy(session, false));
     WT_TRET(__wt_sweep_destroy(session));
-    WT_TRET(__wt_readahead_destroy(session));
+    WT_TRET(__wt_read_ahead_destroy(session));
 
     /* The eviction server is shut down last. */
     WT_TRET(__wt_evict_destroy(session));
@@ -254,8 +254,8 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     /* Start the optional checkpoint thread. */
     WT_RET(__wt_checkpoint_server_create(session, cfg));
 
-    /* Start the readahead thread. */
-    WT_RET(__wt_readahead_create(session));
+    /* Start the read_ahead thread. */
+    WT_RET(__wt_read_ahead_create(session));
 
     return (0);
 }

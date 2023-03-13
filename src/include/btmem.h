@@ -9,13 +9,13 @@
 #define WT_RECNO_OOB 0 /* Illegal record number */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_READ_AHEAD 0x0001u
-#define WT_READ_CACHE 0x0002u
-#define WT_READ_IGNORE_CACHE_SIZE 0x0004u
-#define WT_READ_NOTFOUND_OK 0x0008u
-#define WT_READ_NO_GEN 0x0010u
-#define WT_READ_NO_SPLIT 0x0020u
-#define WT_READ_NO_WAIT 0x0040u
+#define WT_READ_CACHE 0x0001u
+#define WT_READ_IGNORE_CACHE_SIZE 0x0002u
+#define WT_READ_NOTFOUND_OK 0x0004u
+#define WT_READ_NO_GEN 0x0008u
+#define WT_READ_NO_SPLIT 0x0010u
+#define WT_READ_NO_WAIT 0x0020u
+#define WT_READ_PREFETCH 0x0040u
 #define WT_READ_PREV 0x0080u
 #define WT_READ_RESTART_OK 0x0100u
 #define WT_READ_SKIP_DELETED 0x0200u
@@ -933,11 +933,11 @@ struct __wt_ref_hist {
 };
 
 /* TODO put this somewhere sensible. */
-struct __wt_readahead {
+struct __wt_read_ahead {
     WT_REF *ref;
     WT_PAGE *first_home;
     WT_DATA_HANDLE *dhandle;
-    TAILQ_ENTRY(__wt_readahead) q; /* List of readaheads planned. */
+    TAILQ_ENTRY(__wt_read_ahead) q; /* List of read_aheads planned. */
 };
 
 /*

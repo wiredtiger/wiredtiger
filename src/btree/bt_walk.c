@@ -396,7 +396,7 @@ restart:
                 *refp = ref;
                 WT_ASSERT(session, ref != ref_orig);
 
-                if (__wt_session_readahead_check(session, ref)) {
+                if (__wt_session_read_ahead_check(session, ref)) {
                     WT_RET(__wt_btree_read_ahead(session, ref));
                 }
                 goto done;
@@ -468,7 +468,7 @@ descend:
                 couple = NULL;
 
                 /* Check if read ahead would help. */
-                if (__wt_session_readahead_check(session, ref)) {
+                if (__wt_session_read_ahead_check(session, ref)) {
                     WT_RET(__wt_btree_read_ahead(session, ref));
                 }
 

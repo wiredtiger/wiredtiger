@@ -1155,7 +1155,7 @@ wiredtiger_open_common =\
         permit sharing between processes (will automatically start an RPC server for primary
         processes and use RPC for secondary processes). <b>Not yet supported in WiredTiger</b>''',
         type='boolean'),
-    Config('readahead', 'false', r'''
+    Config('read_ahead', 'false', r'''
         Enable automatic detection of scans by applications, and attempt to pre-fetch future
         content into the cache''',
         type='boolean'),

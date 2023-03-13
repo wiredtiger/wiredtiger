@@ -78,6 +78,7 @@ src/conn/conn_dhandle.c
 src/conn/conn_handle.c
 src/conn/conn_log.c
 src/conn/conn_open.c
+src/conn/conn_read_ahead.c
 src/conn/conn_reconfig.c
 src/conn/conn_stat.c
 src/conn/conn_sweep.c
