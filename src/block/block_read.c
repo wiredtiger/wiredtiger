@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -154,6 +154,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
   wt_off_t offset, uint32_t size, uint32_t checksum)
 {
     WT_BLOCK_HEADER *blk, swap;
+    WT_DECL_RET;
     size_t bufsize, check_size;
 
     __wt_verbose_debug2(session, WT_VERB_READ,
@@ -196,8 +197,12 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
      * Check if the chunk cache has the needed data. If it does not, the chunk cache may read it
      * from the file.
      */
-    if (!__wt_chunkcache_get(session, block, objectid, offset, size, buf->mem))
-        WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
+    if ((ret = __wt_chunkcache_get(session, block, objectid, offset, size, buf->mem)) != 0) {
+        if (ret != ENOMEM)
+            WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
+        else
+            return (ret);
+    }
 
     /*
      * We incrementally read through the structure before doing a checksum, do little- to big-endian

@@ -10,8 +10,6 @@ extern bool __wt_cell_type_check(uint8_t cell_type, uint8_t dsk_type)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_checksum_alt_match(const void *chunk, size_t len, uint32_t v)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern bool __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid,
-  wt_off_t offset, uint32_t size, void *dst) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_evict_thread_chk(WT_SESSION_IMPL *session)
@@ -395,6 +393,8 @@ extern int __wt_checkpoint_server_destroy(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_sync(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid,
+  wt_off_t offset, uint32_t size, void *dst) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
