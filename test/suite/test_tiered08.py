@@ -110,7 +110,7 @@ class test_tiered08(wttest.WiredTigerTestCase, TieredConfigMixin):
         # operations, creating races in tiered storage. It triggers several 
         # bugs that occur frequently in our testing. We will re-enable this
         # testing when the bugs have been addressed.
-        self.skipTest('Concurrent flush_tier, checkpoint, and insert operations cause races.')
+        #self.skipTest('Concurrent flush_tier, checkpoint, and insert operations cause races.')
 
         cfg = self.conn_config()
         self.pr('Config is: ' + cfg)

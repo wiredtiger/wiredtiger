@@ -165,7 +165,7 @@ struct __wt_block_ckpt {
 
 /*
  * WT_BM --
- *	Block manager handle, references a single checkpoint in a file.
+ *	Block manager handle, references a single checkpoint in a btree.
  */
 struct __wt_bm {
     /* Methods */
@@ -211,6 +211,13 @@ struct __wt_bm {
     size_t maplen;
     void *mapped_cookie;
 
+    /* Tiered storage */
+    bool is_tiered;                  /* This is a tiered btree */
+    WT_SPINLOCK handle_table_lock;   /* Lock for block handle table */
+    WT_BLOCK **handle_table;         /* Table of block handles */
+    size_t handle_table_allocated;   /* Size of handle table */
+    u_int handle_table_next;         /* Next open slot */
+
     /*
      * There's only a single block manager handle that can be written, all others are checkpoints.
      */
@@ -230,18 +237,13 @@ struct __wt_block {
     TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */
     bool linked;
 
-    WT_SPINLOCK cache_lock;   /* Block cache layer lock */
-    WT_BLOCK **related;       /* Related objects */
-    size_t related_allocated; /* Size of related object array */
-    u_int related_next;       /* Next open slot */
-
     WT_FH *fh;            /* Backing file handle */
     wt_off_t size;        /* File size */
     wt_off_t extend_size; /* File extended size */
     wt_off_t extend_len;  /* File extend chunk size */
 
-    bool close_on_checkpoint;   /* Close the handle after the next checkpoint */
     bool created_during_backup; /* Created during incremental backup */
+    bool sync_on_checkpoint;    /* fsync the handle after the next checkpoint */
 
     /* Configuration information, set when the file is opened. */
     uint32_t allocfirst; /* Allocation is first-fit */

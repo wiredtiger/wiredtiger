@@ -89,6 +89,13 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
         /* Crack the checkpoint cookie. */
         WT_ERR(__wt_block_ckpt_unpack(session, block, addr, addr_size, ci));
 
+        /*
+         * Swap block handles if needed. All the the addresses in a checkpoint cookie must be in 
+         * the same object. So we can use any of them for this check.
+         */ 
+        if (block->objectid != ci->root_objectid)
+            WT_RET(__wt_blkcache_get_handle(session, bm, ci->root_objectid, &block));
+
         /* Verify sets up next. */
         if (block->verify)
             WT_ERR(__wt_verify_ckpt_load(session, block, ci));

@@ -101,50 +101,50 @@ err:
  */
 int
 __wt_blkcache_get_handle(
-  WT_SESSION_IMPL *session, WT_BLOCK *current, uint32_t objectid, WT_BLOCK **blockp)
+  WT_SESSION_IMPL *session, WT_BM *bm, uint32_t objectid, WT_BLOCK **blockp)
 {
     WT_DECL_RET;
     u_int i;
 
     *blockp = NULL;
 
-    /* We should never be looking for our own object. */
-    WT_ASSERT(session, current->objectid != objectid);
+    /* We should never be looking for current active file. */
+    WT_ASSERT(session, bm->block->objectid != objectid);
 
     /*
-     * Check the local cache for the object. We don't have to check the name because we can only
-     * reference objects in our name space.
+     * Check the block handle table for the object. We don't have to check the name because we can
+     * only reference objects in our name space.
      */
-    for (i = 0; i < current->related_next; ++i)
-        if (current->related[i]->objectid == objectid) {
-            *blockp = current->related[i];
+    for (i = 0; i < bm->handle_table_next; ++i)
+        if (bm->handle_table[i]->objectid == objectid) {
+            *blockp = bm->handle_table[i];
             return (0);
         }
 
-    /* Lock the block cache layer.  */
-    __wt_spin_lock(session, &current->cache_lock);
+    /* Lock the block handle table.  */
+    __wt_spin_lock(session, &bm->handle_table_lock);
 
     /* Check to make sure the object wasn't cached while we locked. */
-    for (i = 0; i < current->related_next; ++i)
-        if (current->related[i]->objectid == objectid) {
-            *blockp = current->related[i];
+    for (i = 0; i < bm->handle_table_next; ++i)
+        if (bm->handle_table[i]->objectid == objectid) {
+            *blockp = bm->handle_table[i];
             break;
         }
 
     /* Open the object. */
     if (*blockp == NULL) {
-        /* Allocate space to store a reference (do first for less complicated cleanup). */
+        /* Allocate space to store a handle (do first for less complicated cleanup). */
         WT_ERR(__wt_realloc_def(
-          session, &current->related_allocated, current->related_next + 1, &current->related));
+          session, &bm->handle_table_allocated, bm->handle_table_next + 1, &bm->handle_table));
 
-        /* Get a reference to the object, opening it as necessary. */
+        /* Open the object */
         WT_ERR(__wt_blkcache_tiered_open(session, NULL, objectid, blockp));
 
-        /* Save a reference in the block in which we started for fast subsequent access. */
-        current->related[current->related_next++] = *blockp;
+        /* Add object th block handle table. */
+        bm->handle_table[bm->handle_table_next++] = *blockp;
     }
 
 err:
-    __wt_spin_unlock(session, &current->cache_lock);
+    __wt_spin_unlock(session, &bm->handle_table_lock);
     return (ret);
 }

@@ -32,9 +32,12 @@ __wt_bm_read(
      * live systems, the discard list. This only applies if the block is in this object.
      */
     if (objectid == block->objectid)
-        WT_RET(__wt_block_misplaced(
-          session, block, "read", offset, size, bm->is_live, __PRETTY_FUNCTION__, __LINE__));
+        WT_RET(__wt_block_misplaced(session, block, "read", offset, size, bm->is_live, __PRETTY_FUNCTION__, __LINE__));
 #endif
+
+    /* Swap file handles if reading from a different object. */
+    if (block->objectid != objectid)
+        WT_RET(__wt_blkcache_get_handle(session, bm, objectid, &block));
 
     /* Read the block. */
     __wt_capacity_throttle(session, size, WT_THROTTLE_READ);
@@ -161,10 +164,6 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
 
     WT_STAT_CONN_INCR(session, block_read);
     WT_STAT_CONN_INCRV(session, block_byte_read, size);
-
-    /* Swap file handles if reading from a different object. */
-    if (block->objectid != objectid)
-        WT_RET(__wt_blkcache_get_handle(session, block, objectid, &block));
 
     /*
      * Grow the buffer as necessary and read the block. Buffers should be aligned for reading, but
