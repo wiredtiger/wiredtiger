@@ -1498,7 +1498,7 @@ main(int argc, char *argv[])
 
     testutil_parse_begin_opt(argc, argv, SHARED_PARSE_OPTIONS, opts);
 
-    while ((ch = __wt_getopt(progname, argc, argv, "Bc:LlsT:t:vz" SHARED_PARSE_OPTIONS)) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "BcLlsT:t:vz" SHARED_PARSE_OPTIONS)) != EOF)
         switch (ch) {
         case 'B':
             use_backups = true;
