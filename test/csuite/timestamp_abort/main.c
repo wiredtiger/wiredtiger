@@ -793,7 +793,7 @@ print_missing(REPORT *r, const char *fname, const char *msg)
  *     Run the recovery and verify the database.
  */
 static int
-recover_and_verify()
+recover_and_verify(void)
 {
     FILE *fp;
     REPORT c_rep[MAX_TH], l_rep[MAX_TH], o_rep[MAX_TH];
