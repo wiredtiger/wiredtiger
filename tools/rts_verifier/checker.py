@@ -32,7 +32,7 @@ class Checker:
     def __apply_check_tree(self, operation):
         tree = Tree(operation.file)
         if tree in self.visited_trees:
-            raise Exception(f"visited file {operation.file} again, {operation=}")
+            raise Exception(f"visited file {operation.file} again, operation={operation}")
         self.visited_trees.add(tree)
         self.current_tree = tree
 
@@ -82,7 +82,7 @@ class Checker:
 
         if not(operation.txnid_not_visible or
                operation.stable_lt_durable or
-               operation.prepare_state == PrepareState.PREPARE_INPROGRESS):
+               operation.prepare_state == PrepareState.WT_PREPARE_INPROGRESS):
             raise Exception(f"aborted update with txnid={operation.txnid} for no reason")
 
         if operation.stable_lt_durable and not operation.stable < operation.durable:
@@ -108,7 +108,7 @@ class Checker:
 
     def __apply_check_key_clear_remove(self, operation):
         if operation.file != self.current_tree.file:
-            raise Exception(f"spurious visit to {operation.file}, {operation=}")
+            raise Exception(f"spurious visit to {operation.file}, operation={operation}")
 
         # TODO print session recovery flags to check the other way this can be wrong
         should_abort = (operation.removed_durable <= self.stable) or operation.removed_prepared
@@ -209,5 +209,9 @@ class Checker:
         pass
 
     def __apply_check_skip_damage(self, operation):
+        # TODO expand this out
+        pass
+
+    def __apply_check_hs_truncated(self, operation):
         # TODO expand this out
         pass

@@ -32,7 +32,7 @@ target_link_libraries(
 add_dependencies(gcp_bucket_util gcp-sdk)
 
 # Build the gcp extension as a library.
-add_library(wiredtiger_gcp_store MODULE gcp_storage_source.cpp)
+add_library(wiredtiger_gcp_store MODULE gcp_storage_source.cpp gcp_log_system.cpp)
 target_include_directories(
     wiredtiger_gcp_store
     PRIVATE

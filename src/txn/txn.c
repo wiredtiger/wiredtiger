@@ -859,9 +859,7 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
 #ifdef HAVE_DIAGNOSTIC
         __wt_abort(session);
 #endif
-#ifdef WT_STANDALONE_BUILD
         return (EINVAL);
-#endif
     }
 
     prev_op_durable_ts = upd->prev_durable_ts;
@@ -880,9 +878,7 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
 #ifdef HAVE_DIAGNOSTIC
         __wt_abort(session);
 #endif
-#ifdef WT_STANDALONE_BUILD
         return (EINVAL);
-#endif
     }
 
     /* Ordered consistency requires all updates be in timestamp order. */
@@ -895,9 +891,7 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
 #ifdef HAVE_DIAGNOSTIC
         __wt_abort(session);
 #endif
-#ifdef WT_STANDALONE_BUILD
         return (EINVAL);
-#endif
     }
 
     return (0);
@@ -2479,6 +2473,15 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
      * to confirm our caller is prepared for rollback).
      */
     if (txn->mod_count == 0 && !__wt_op_timer_fired(session))
+        return (0);
+#else
+    /*
+     * Most applications that are not using transactions to read/walk with a cursor cannot handle
+     * having rollback returned nor should the API reset and retry the operation, losing the
+     * cursor's position. Skip the check if there are no updates, the thread operation did not time
+     * out and the operation is not running in a transaction.
+     */
+    if (txn->mod_count == 0 && !__wt_op_timer_fired(session) && !F_ISSET(txn, WT_TXN_RUNNING))
         return (0);
 #endif
 

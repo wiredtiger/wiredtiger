@@ -1149,26 +1149,6 @@ print_missing(REPORT *r, const char *fname, const char *msg)
 }
 
 /*
- * handler --
- *     Signal handler to catch if the child died unexpectedly.
- */
-static void
-handler(int sig)
-{
-    pid_t pid;
-
-    WT_UNUSED(sig);
-    pid = wait(NULL);
-    if (pid < 0)
-        testutil_die(errno, "Failed while waiting for the child process to stop.");
-
-    /*
-     * The core file will indicate why the child exited. Choose EINVAL here.
-     */
-    testutil_die(EINVAL, "Child process %" PRIu64 " abnormally exited", (uint64_t)pid);
-}
-
-/*
  * recover_and_verify --
  *     Run the recovery and verify the database or the given backup (use 0 for the main database).
  */
@@ -1500,6 +1480,23 @@ backup_verify(void)
 }
 
 /*
+ * handler --
+ *     Signal handler to catch if the child died unexpectedly.
+ */
+static void
+handler(int sig)
+{
+    pid_t pid;
+
+    WT_UNUSED(sig);
+    pid = wait(NULL);
+    /*
+     * The core file will indicate why the child exited. Choose EINVAL here.
+     */
+    testutil_die(EINVAL, "Child process %" PRIu64 " abnormally exited", (uint64_t)pid);
+}
+
+/*
  * main --
  *     The entry point for the test.
  */
@@ -1623,7 +1620,8 @@ main(int argc, char *argv[])
             testutil_lazyfs_setup(&lazyfs, home);
 
         if (opts->tiered_storage) {
-            testutil_check(__wt_snprintf(bucket, sizeof(bucket), "%s/bucket", home));
+            testutil_check(
+              __wt_snprintf(bucket, sizeof(bucket), "%s/%s/bucket", home, WT_HOME_DIR));
             testutil_make_work_dir(bucket);
         }
 
