@@ -29,8 +29,8 @@
 #include "test_util.h"
 
 #include <sys/wait.h>
-#include <signal.h>
 #include <dirent.h>
+#include <signal.h>
 
 static char home[1024]; /* Program working dir */
 
@@ -56,7 +56,18 @@ static char home[1024]; /* Program working dir */
  *
  * Each worker thread creates its own records file that records the data it
  * inserted and it records the timestamp that was used for that insertion.
+ *
+ * This program can be also used to test backups in the presence of failures.
+ * It first creates a full backup, after which it periodically creates
+ * incremental backup.  Unlike other tests, each backup is created in a new
+ * directory (as opposed to "patching" the previous backup), because it is
+ * more robust and easier to reason about.  For example, if we crash while
+ * creating a backup, we would still have good backups from which we can
+ * recover.  Similarly, if we crash in the middle of taking a checkpoint after
+ * a backup, the database may not have properly recorded the ID of the last
+ * snapshot.
  */
+
 #define INVALID_KEY UINT64_MAX
 #define MAX_CKPT_INVL 5 /* Maximum interval between checkpoints */
 #define MAX_TH 200      /* Maximum configurable threads */
@@ -82,7 +93,8 @@ static const char *const uri_shadow = "shadow";
 
 static const char *const ckpt_file = "checkpoint_done";
 
-static bool backup_quick_test, columns, stress, use_backups, use_lazyfs, use_ts;
+static bool backup_quick_test, backup_verify_throughout;
+static bool columns, stress, use_backups, use_lazyfs, use_ts;
 static uint32_t backup_granularity_kb;
 
 static TEST_OPTS *opts, _opts;
@@ -135,8 +147,8 @@ extern char *__wt_optarg;
     ((td)->workload_iteration * 10 * WT_MILLION + ((iter)*nth + (td)->threadnum) * 3 + 1)
 
 /* The index of a backup. */
-#define BACKUP_INDEX(workload_iteration, sequence_number) \
-    ((workload_iteration)*WT_THOUSAND + (sequence_number))
+#define BACKUP_INDEX(td, sequence_number) \
+    ((td)->workload_iteration * WT_THOUSAND + (sequence_number))
 
 typedef struct {
     uint64_t absent_key; /* Last absent key */
@@ -416,6 +428,8 @@ backup_create_full(WT_CONNECTION *conn, bool consolidate, uint32_t index)
     testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/done", backup_home));
     testutil_assert((wfd = open(buf, O_WRONLY | O_CREAT, 0666)) >= 0);
     testutil_assert(close(wfd) == 0);
+
+    printf("Create backup: Files: %" PRId32 "\n", nfiles);
 }
 
 /*
@@ -429,7 +443,7 @@ backup_create_incremental(WT_CONNECTION *conn, uint32_t src_index, uint32_t inde
     WT_SESSION *session;
     ssize_t rdsize;
     uint64_t offset, size, type;
-    int rfd, ret, wfd, nfiles, nranges;
+    int rfd, ret, wfd, nfiles, nranges, nunmodified;
     char backup_home[PATH_MAX], src_backup_home[PATH_MAX];
     char buf[4096];
     char *filename;
@@ -438,11 +452,19 @@ backup_create_incremental(WT_CONNECTION *conn, uint32_t src_index, uint32_t inde
 
     nfiles = 0;
     nranges = 0;
+    nunmodified = 0;
 
     testutil_check(
       __wt_snprintf(src_backup_home, sizeof(src_backup_home), "backup.%" PRIu32, src_index));
+
     printf("Create backup: Type: incremental, Source ID: %" PRIu32 ", This ID: %" PRIu32 "\n",
       src_index, index);
+
+    /* Verify the source backup, just in case. */
+    if (backup_verify_throughout) {
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "ID%" PRIu32, src_index));
+        testutil_verify_src_backup(conn, src_backup_home, WT_HOME_DIR, buf);
+    }
 
     /* Prepare the directory. */
     testutil_check(__wt_snprintf(backup_home, sizeof(backup_home), "backup.%" PRIu32, index));
@@ -511,6 +533,12 @@ backup_create_incremental(WT_CONNECTION *conn, uint32_t src_index, uint32_t inde
         if (wfd > 0)
             testutil_assert(close(wfd) == 0);
 
+        if (first_range) {
+            /* "Copy" the file from the source backup (actually, just do a hard link!). */
+            testutil_system("ln %s/%s %s/%s", src_backup_home, filename, backup_home, filename);
+            nunmodified++;
+        }
+
         testutil_assert(ret == WT_NOTFOUND);
         testutil_check(file_cursor->close(file_cursor));
     }
@@ -525,7 +553,14 @@ backup_create_incremental(WT_CONNECTION *conn, uint32_t src_index, uint32_t inde
     testutil_assert((wfd = open(buf, O_WRONLY | O_CREAT, 0666)) >= 0);
     testutil_assert(close(wfd) == 0);
 
-    printf("Create backup: Files: %" PRId32 ", Ranges: %" PRId32 "\n", nfiles, nranges);
+    printf("Create backup: Files: %" PRId32 ", Ranges: %" PRId32 ", Unmodified: %" PRId32 "\n",
+      nfiles, nranges, nunmodified);
+
+    /* Immediately verify the backup. */
+    if (backup_verify_throughout) {
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "ID%" PRIu32, index));
+        testutil_verify_src_backup(conn, backup_home, WT_HOME_DIR, buf);
+    }
 }
 
 /*
@@ -584,19 +619,16 @@ thread_ckpt_run(void *arg)
 {
     FILE *fp;
     THREAD_DATA *td;
-    WT_CURSOR *cursor;
     WT_SESSION *session;
     uint64_t stable;
-    uint32_t last_backup, sleep_time, u;
-    int i, ret;
+    uint32_t sleep_time;
+    int i;
     char ckpt_flush_config[128], ckpt_config[128];
     bool first_ckpt, flush_tier;
     char ts_string[WT_TS_HEX_STRING_SIZE];
-    char *str;
 
     td = (THREAD_DATA *)arg;
     flush_tier = false;
-    last_backup = 0;
     memset(ckpt_flush_config, 0, sizeof(ckpt_flush_config));
     memset(ckpt_config, 0, sizeof(ckpt_config));
 
@@ -612,22 +644,6 @@ thread_ckpt_run(void *arg)
     (void)unlink(ckpt_file);
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
     first_ckpt = true;
-
-    /*
-     * Find the last successful backup.
-     */
-    if (use_backups && td->workload_iteration > 0) {
-        testutil_check(session->open_cursor(session, "backup:query_id", NULL, NULL, &cursor));
-        while ((ret = cursor->next(cursor)) == 0) {
-            testutil_check(cursor->get_key(cursor, &str));
-            testutil_assert(strncmp(str, "ID", 2) == 0);
-            u = (uint32_t)atoi(str + 2);
-            if (u > last_backup)
-                last_backup = u;
-        }
-        testutil_assert(ret == WT_NOTFOUND);
-        testutil_check(cursor->close(cursor));
-    }
 
     /*
      * Create checkpoints until we get killed.
@@ -660,18 +676,6 @@ thread_ckpt_run(void *arg)
         }
 
         /*
-         * Create a backup.
-         */
-        if (use_backups) {
-            u = BACKUP_INDEX(td->workload_iteration, (uint32_t)i);
-            if (last_backup == 0)
-                backup_create_full(td->conn, __wt_random(&td->extra_rnd) % 2, u);
-            else
-                backup_create_incremental(td->conn, last_backup, u);
-            last_backup = u;
-        }
-
-        /*
          * Create the checkpoint file so that the parent process knows at least one checkpoint has
          * finished and can start its timer. If running with timestamps, wait until the stable
          * timestamp has moved past WT_TS_NONE to give writer threads a chance to add something to
@@ -683,6 +687,61 @@ thread_ckpt_run(void *arg)
             testutil_assert_errno(fclose(fp) == 0);
         }
     }
+
+    /* NOTREACHED */
+}
+
+/*
+ * thread_backup_run --
+ *     Runner function for the backup thread.
+ */
+static WT_THREAD_RET
+thread_backup_run(void *arg)
+{
+    THREAD_DATA *td;
+    WT_CURSOR *cursor;
+    WT_SESSION *session;
+    uint32_t last_backup, sleep_time, u;
+    int i, ret;
+    char *str;
+
+    td = (THREAD_DATA *)arg;
+    last_backup = 0;
+
+    testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
+
+    /*
+     * Find the last successful backup.
+     */
+    if (use_backups && td->workload_iteration > 0) {
+        testutil_check(session->open_cursor(session, "backup:query_id", NULL, NULL, &cursor));
+        while ((ret = cursor->next(cursor)) == 0) {
+            testutil_check(cursor->get_key(cursor, &str));
+            testutil_assert(strncmp(str, "ID", 2) == 0);
+            u = (uint32_t)atoi(str + 2);
+            if (u > last_backup)
+                last_backup = u;
+        }
+        testutil_assert(ret == WT_NOTFOUND);
+        testutil_check(cursor->close(cursor));
+    }
+
+    /*
+     * Create backups until we get killed.
+     */
+    for (i = 1;; ++i) {
+        sleep_time = __wt_random(&td->extra_rnd) % MAX_CKPT_INVL;
+        __wt_sleep(sleep_time, 0);
+
+        u = BACKUP_INDEX(td, (uint32_t)i);
+        if (last_backup == 0)
+            backup_create_full(td->conn, __wt_random(&td->extra_rnd) % 2, u);
+        else
+            backup_create_incremental(td->conn, last_backup, u);
+
+        last_backup = u;
+    }
+
     /* NOTREACHED */
 }
 
@@ -929,12 +988,12 @@ run_workload(uint32_t iteration)
     WT_SESSION *session;
     THREAD_DATA *td;
     wt_thread_t *thr;
-    uint32_t cache_mb, ckpt_id, i, ts_id;
+    uint32_t backup_id, cache_mb, ckpt_id, i, ts_id;
     char envconf[512], uri[128];
     const char *table_config, *table_config_nolog;
 
-    thr = dcalloc(nth + 2, sizeof(*thr));
-    td = dcalloc(nth + 2, sizeof(THREAD_DATA));
+    thr = dcalloc(nth + 3, sizeof(*thr));
+    td = dcalloc(nth + 3, sizeof(THREAD_DATA));
     active_timestamps = dcalloc(nth, sizeof(wt_timestamp_t));
 
     /*
@@ -1011,27 +1070,53 @@ run_workload(uint32_t iteration)
     init_thread_data(&td[ckpt_id], conn, 0, nth, iteration);
     printf("Create checkpoint thread\n");
     testutil_check(__wt_thread_create(NULL, &thr[ckpt_id], thread_ckpt_run, &td[ckpt_id]));
+
     ts_id = nth + 1;
     if (use_ts) {
         init_thread_data(&td[ts_id], conn, 0, nth, iteration);
         printf("Create timestamp thread\n");
         testutil_check(__wt_thread_create(NULL, &thr[ts_id], thread_ts_run, &td[ts_id]));
     }
+
+    backup_id = nth + 2;
+    if (use_backups) {
+        init_thread_data(&td[backup_id], conn, 0, nth, iteration);
+        printf("Create backup thread\n");
+        testutil_check(
+          __wt_thread_create(NULL, &thr[backup_id], thread_backup_run, &td[backup_id]));
+    }
+
     printf("Create %" PRIu32 " writer threads\n", nth);
     for (i = 0; i < nth; ++i) {
+        /*
+         * We use the following key format:
+         *
+         *    12004000123
+         *     ^  ^     ^
+         *     |  |     |
+         *     |  |     +-- key
+         *     |  +-------- thread ID
+         *     +----------- iteration ID
+         *
+         * This setup creates a unique key-space for each thread execution. We can accommodate one
+         * million keys and one thousand threads for each iteration.
+         */
         init_thread_data(
           &td[i], conn, WT_BILLION * (uint64_t)iteration + WT_MILLION * (uint64_t)i, i, iteration);
         testutil_check(__wt_thread_create(NULL, &thr[i], thread_run, &td[i]));
     }
+
     /*
      * The threads never exit, so the child will just wait here until it is killed.
      */
     fflush(stdout);
-    for (i = 0; i <= ts_id; ++i)
+    for (i = 0; i <= backup_id; ++i)
         testutil_check(__wt_thread_join(NULL, &thr[i]));
+
     /*
      * NOTREACHED
      */
+
     free(thr);
     free(td);
     _exit(EXIT_SUCCESS);
@@ -1438,6 +1523,7 @@ main(int argc, char *argv[])
 
     backup_granularity_kb = 16;
     backup_quick_test = true;
+    backup_verify_throughout = true;
     columns = stress = false;
     num_iterations = 1;
     nth = MIN_TH;
