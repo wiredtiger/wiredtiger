@@ -2988,7 +2988,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_config_gets(session, cfg, "operation_timeout_ms", &cval));
     conn->operation_timeout_us = (uint64_t)(cval.val * WT_THOUSAND);
 
-    WT_ERR(__wt_config_gets(session, cfg, "readahead", &cval));
+    WT_ERR(__wt_config_gets(session, cfg, "read_ahead", &cval));
     conn->read_ahead_auto_on = cval.val != 0;
 
     WT_ERR(__wt_config_gets(session, cfg, "salvage", &cval));

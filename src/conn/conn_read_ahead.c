@@ -22,7 +22,7 @@ __wt_read_ahead_create(WT_SESSION_IMPL *session)
     F_SET(conn, WT_CONN_READ_AHEAD_RUN);
 
     WT_RET(__wt_thread_group_create(session, &conn->read_ahead_threads, "read-ahead-server", 9, 9,
-      0, __wt_read_ahead_thread_chk, __wt_read_ahead_thread_run, __wt_read_ahead_thread_stop));
+      0, __wt_read_ahead_thread_chk, __wt_read_ahead_thread_run, NULL));
 
     return (0);
 }
@@ -49,8 +49,6 @@ __read_ahead_page_in(WT_SESSION_IMPL *session, WT_READ_AHEAD *ra)
 
     WT_ASSERT_ALWAYS(
       session, ra->ref->home == ra->first_home, "The home changed while queued for read ahead");
-    /*WT_ASSERT_ALWAYS(session, ra->ref->home->refcount > 0, "uh oh, ref count tracking is
-     * borked");*/
     WT_ASSERT_ALWAYS(session, ra->dhandle != NULL, "Read ahead needs to save a valid dhandle");
     WT_ASSERT_ALWAYS(
       session, !F_ISSET(ra->ref, WT_REF_FLAG_INTERNAL), "Read ahead should only see leaf pages");
@@ -121,19 +119,6 @@ __wt_read_ahead_destroy(WT_SESSION_IMPL *session)
     __wt_writelock(session, &S2C(session)->read_ahead_threads.lock);
 
     WT_RET(__wt_thread_group_destroy(session, &S2C(session)->read_ahead_threads));
-
-    return (0);
-}
-
-/*
- * __wt_read_ahead_thread_stop --
- *     Shutdown function for a read_ahead thread. TODO can we remove this?
- */
-int
-__wt_read_ahead_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
-{
-    WT_UNUSED(thread);
-    WT_UNUSED(session);
 
     return (0);
 }

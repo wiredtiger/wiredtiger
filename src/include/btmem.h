@@ -932,12 +932,15 @@ struct __wt_ref_hist {
     uint16_t state;
 };
 
-/* TODO put this somewhere sensible. */
+/*
+ * WT_READ_AHEAD --
+ *	Queue entry for pages queued for read ahead.
+ */
 struct __wt_read_ahead {
     WT_REF *ref;
     WT_PAGE *first_home;
     WT_DATA_HANDLE *dhandle;
-    TAILQ_ENTRY(__wt_read_ahead) q; /* List of read_aheads planned. */
+    TAILQ_ENTRY(__wt_read_ahead) q; /* List of pages queued for read ahead. */
 };
 
 /*

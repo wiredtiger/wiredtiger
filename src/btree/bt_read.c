@@ -316,15 +316,15 @@ read:
             F_CLR(session->dhandle, WT_DHANDLE_EVICTED);
 
 #if 0
-            fprintf(stderr, "Read page (ref %p[%" PRIu32 "]), parent (%p) into cache. %s\n",
-                    ref, ref->pindex_hint, ref->home, LF_ISSET(WT_READ_PREFETCH) ? "read_ahead" : "app");
+            fprintf(stderr, "Read page (ref %p[%" PRIu32 "]), parent (%p) into cache. %s\n", ref,
+                    ref->pindex_hint, ref->home, LF_ISSET(WT_READ_PREFETCH) ? "read_ahead" : "app");
 #endif
 
             /*
              * If configured to not trash the cache, leave the page generation unset, we'll set it
              * before returning to the oldest read generation, so the page is forcibly evicted as
              * soon as possible. We don't do that set here because we don't want to evict the page
-             * before we "acquire" it. Also avoid queing a read ahead page for forced eviction
+             * before we "acquire" it. Also avoid queuing a read ahead page for forced eviction
              * before it has a chance of being used. Otherwise the work we've just done is wasted.
              */
             wont_need = LF_ISSET(WT_READ_WONT_NEED) ||

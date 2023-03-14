@@ -19,7 +19,6 @@ __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
     WT_READ_AHEAD *ra;
     WT_REF *next_ref;
     uint64_t block_preload;
@@ -68,5 +67,5 @@ __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_INTL_FOREACH_END;
 
     WT_STAT_CONN_INCRV(session, block_read_ahead_pages_queued, block_preload);
-    return (ret);
+    return (0);
 }

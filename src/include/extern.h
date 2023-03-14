@@ -1280,8 +1280,6 @@ extern int __wt_read_ahead_destroy(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_read_ahead_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_read_ahead_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_read_metadata_file(WT_SESSION_IMPL *session, const char *file,
   int (*meta_entry_worker_func)(WT_SESSION_IMPL *, WT_ITEM *, WT_ITEM *, void *), void *state,
   bool *file_exist) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

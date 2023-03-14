@@ -397,7 +397,7 @@ restart:
                 WT_ASSERT(session, ref != ref_orig);
 
                 if (__wt_session_read_ahead_check(session, ref)) {
-                    WT_RET(__wt_btree_read_ahead(session, ref));
+                    WT_ERR(__wt_btree_read_ahead(session, ref));
                 }
                 goto done;
             }
@@ -469,7 +469,7 @@ descend:
 
                 /* Check if read ahead would help. */
                 if (__wt_session_read_ahead_check(session, ref)) {
-                    WT_RET(__wt_btree_read_ahead(session, ref));
+                    WT_ERR(__wt_btree_read_ahead(session, ref));
                 }
 
                 /* Return leaf pages to our caller. */

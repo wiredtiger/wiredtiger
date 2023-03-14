@@ -288,7 +288,7 @@ struct __wtperf_thread {    /* Per-thread structure */
     TRACK truncate;         /* Truncate operations */
     TRACK truncate_sleep;   /* Truncate sleep operations */
     TRACK update;           /* Update operations */
-    uint64_t scan_total_ms; /* A bit hacky, but knowing time spent scanning is useful */
+    uint64_t scan_total_ms; /* Tracked time spent scanning */
 };
 
 void backup_read(WTPERF *, const char *);
