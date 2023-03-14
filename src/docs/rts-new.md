@@ -11,8 +11,6 @@ of RTS to assert they didn't change underneath us.
 Once RTS has finished, we roll back the global durable timestamp to the
 stable timestamp, since if there are no unstable updates, the global durable
 timestamp can, by definition, be moved backwards to the stable timestamp.
-This is a performance optimisation so we don't unnecessarily scan tables the
-next time RTS is run.
 
 Timestamps of updates in the history store can have some non-obvious
 properties:
@@ -45,13 +43,23 @@ normal page.
 
 This is a little simpler than the timestamp rules - we use normal snapshot
 visibility in most of the places we look at timestamps (see the timestamps
-section). One exception is that we treat all data as visible when RTS is
-called from the API (as opposed to startup or shutdown). 
+section).
 
 We also clear the transaction ID of updates we look at during RTS, because
 the connection's write generation will be initialised after RTS and the
 updates in the cache would be problematic for other parts of the code if
 they had a "legitimate" transaction ID.
+
+For example, suppose we restore an update from the history store with a
+transaction ID of 2000 and add it back to the update list. Later, after
+recovery, a new transaction starts with a minimum/maximum snapshot of (5,
+10). This would not see the update because it's transaction ID (2000) is
+greater than the maximum snapshot of the new transaction. By removing the
+transaction ID, the update becomes globally visible, solving this problem.
+
+We treat all data as visible when RTS is called from the API. Since we clear
+transaction IDs during RTS, we could also do this during the rollback that
+happens during startup and shutdown.
 
 # Operations on the history store
 
@@ -100,7 +108,9 @@ walk custom skipping functionality to check the page metadata, stuff like
 reconciliation results. These checks are fairly low-level, so they're
 outside the scope of this document.
 
-One final note is that we deliberately do not call RTS for internal pages.
+One final note is that we deliberately do not call RTS for internal pages,
+as they do not have updates. They are still read into the cache in order to
+navigate to their leaf pages.
 
 # Iterating over updates
 
