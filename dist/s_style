@@ -32,6 +32,7 @@ if [ "$single_file" -ne 1 ]; then
     sed -e '/Makefile.in/d' \
         -e '/test\/3rdparty/d' \
         -e '/test\/checksum\/power8/d' \
+        -e '/bench\/workgen\/workgen_wrap.cxx/d' \
         -e '/checksum\/zseries/d' |
     xargs $xp -I{} sh ./dist/s_style {}
 else
