@@ -68,7 +68,7 @@ checkpoint(void *arg)
     u_int counter, secs;
     char config_buf[64];
     const char *ckpt_config, *ckpt_vrfy_name;
-    bool backup_locked, named_checkpoints;
+    bool backup_locked, flush_tier, named_checkpoints;
 
     (void)arg;
 
@@ -95,7 +95,15 @@ checkpoint(void *arg)
         ckpt_config = NULL;
         ckpt_vrfy_name = "WiredTigerCheckpoint";
         backup_locked = false;
-        if (named_checkpoints)
+
+        /*
+         * Use checkpoint with flush_tier as often as configured. Don't mix with named checkpoints,
+         * we're not interested in testing that combination.
+         */
+        flush_tier = (mmrand(&g.extra_rnd, 1, 100) <= GV(TIERED_STORAGE_FLUSH_FREQUENCY));
+        if (flush_tier)
+            ckpt_config = "flush_tier=(enabled)";
+        else if (named_checkpoints)
             switch (mmrand(&g.extra_rnd, 1, 20)) {
             case 1:
                 /*

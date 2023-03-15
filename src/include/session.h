@@ -341,3 +341,18 @@ struct __wt_session_impl {
 #define WT_READING_CHECKPOINT(s)                                       \
     ((s)->dhandle != NULL && F_ISSET((s)->dhandle, WT_DHANDLE_OPEN) && \
       WT_DHANDLE_IS_CHECKPOINT((s)->dhandle))
+
+/* Temporarily turn off format's private callback function. */
+#define WT_WITHOUT_PRIVATE_CALLBACK(s, e)       \
+    do {                                        \
+        void (*__saved_callback)(int, void *);  \
+        __saved_callback = (s)->format_private; \
+        (s)->format_private = NULL;             \
+        e;                                      \
+        (s)->format_private = __saved_callback; \
+    } while (0)
+
+#define WT_WITH_BTREE(s, b, e) WT_WITH_DHANDLE(s, (b)->dhandle, e)
+
+/* Call a function without the caller's data handle, restore afterwards. */
+#define WT_WITHOUT_DHANDLE(s, e) WT_WITH_DHANDLE(s, NULL, e)

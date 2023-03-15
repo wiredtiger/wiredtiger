@@ -33,11 +33,16 @@
 #endif
 #include <signal.h>
 
-#define EXTPATH "../../ext/" /* Extensions path */
+#define BUILDDIR "../../"
+#define EXTPATH BUILDDIR "ext/" /* Extensions path */
 #ifndef EXT_LIBPATH
 #define EXT_LIBPATH ".libs/"
 #endif
 
+/* Collators. */
+#define REVERSE_PATH EXTPATH "collators/reverse/" EXT_LIBPATH "libwiredtiger_reverse_collator.so"
+
+/* Compressors. */
 #define LZ4_PATH EXTPATH "compressors/lz4/" EXT_LIBPATH "libwiredtiger_lz4.so"
 
 #define SNAPPY_PATH EXTPATH "compressors/snappy/" EXT_LIBPATH "libwiredtiger_snappy.so"
@@ -46,8 +51,7 @@
 
 #define ZSTD_PATH EXTPATH "compressors/zstd/" EXT_LIBPATH "libwiredtiger_zstd.so"
 
-#define REVERSE_PATH EXTPATH "collators/reverse/" EXT_LIBPATH "libwiredtiger_reverse_collator.so"
-
+/* Encryptors. */
 #define ROTN_PATH EXTPATH "encryptors/rotn/" EXT_LIBPATH "libwiredtiger_rotn.so"
 
 #define SODIUM_PATH EXTPATH "encryptors/sodium/" EXT_LIBPATH "libwiredtiger_sodium.so"
@@ -296,6 +300,7 @@ typedef struct {
     bool lsm_config;                    /* At least one LSM data source configured */
     bool multi_table_config;            /* If configuring multiple tables */
     bool transaction_timestamps_config; /* If transaction timestamps configured on any table */
+    bool tiered_storage;                /* If tiered storage is configured */
 
 #define CHECKPOINT_OFF 1
 #define CHECKPOINT_ON 2

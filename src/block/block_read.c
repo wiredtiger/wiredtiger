@@ -154,6 +154,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
   wt_off_t offset, uint32_t size, uint32_t checksum)
 {
     WT_BLOCK_HEADER *blk, swap;
+    WT_DECL_RET;
     size_t bufsize, check_size;
 
     __wt_verbose_debug2(session, WT_VERB_READ,
@@ -163,8 +164,16 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
     WT_STAT_CONN_INCRV(session, block_byte_read, size);
 
     /* Swap file handles if reading from a different object. */
-    if (block->objectid != objectid)
-        WT_RET(__wt_blkcache_get_handle(session, block, objectid, &block));
+
+    if (block->objectid != objectid) {
+        /*
+         * Format has a private callback that is called when a search completes. Part of getting a
+         * data handle may involve metadata searching, and we don't want that to interfere.
+         */
+        WT_WITHOUT_PRIVATE_CALLBACK(
+          session, ret = __wt_blkcache_get_handle(session, block, objectid, &block));
+        WT_RET(ret);
+    }
 
     /*
      * Grow the buffer as necessary and read the block. Buffers should be aligned for reading, but

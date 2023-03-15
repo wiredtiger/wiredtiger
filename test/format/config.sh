@@ -315,6 +315,10 @@ CONFIG configuration_list[] = {
 
 {"transaction.timestamps", "all transactions (or none), have timestamps", C_BOOL, 80, 0, 0}
 
+{"tiered_storage.flush_frequency", "calls to checkpoint that are flush_tier, if tiered storage enabled (percentage)", 0x0, 0, 50, 100 }
+
+{"tiered_storage.storage_source", "storage source used (azure_store | dir_store | gcp_store | none | s3_store)", C_IGNORE | C_STRING, 0, 0, 0}
+
 {"wiredtiger.config", "wiredtiger_open API configuration string", C_IGNORE | C_STRING, 0, 0, 0}
 
 {"wiredtiger.rwlock", "configure wiredtiger read/write mutexes", C_BOOL, 80, 0, 0}
