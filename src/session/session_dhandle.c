@@ -580,9 +580,12 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
                 /*
                  * When a system wide checkpoint is not running, we can hang here. This situation
                  * can occur when a checkpoint on a single file has been performed by a bulk
-                 * operation and no system wide checkpoint has been done since then.
+                 * operation and no system wide checkpoint has been done since then. It is also
+                 * possible to end up here when opening the history store using a checkpoint cursor
+                 * internally, we want to wait for the inconsistency to get resolved in this case.
                  */
-                if (!S2C(session)->txn_global.checkpoint_running) {
+                if (session->hs_checkpoint == NULL &&
+                  !S2C(session)->txn_global.checkpoint_running) {
                     ret = __wt_set_return(session, WT_NOTFOUND);
                     goto err;
                 } else
