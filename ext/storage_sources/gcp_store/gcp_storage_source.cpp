@@ -674,6 +674,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 
     // Allocate a gcp storage structure, with a WT_STORAGE structure as the first field. This allows
     // us to treat references to either type of structure as a reference to the other type.
+    // us to treat references to either type of structure as a reference to the other type.
     gcp->storage_source.ss_customize_file_system = gcp_customize_file_system;
     gcp->storage_source.ss_add_reference = gcp_add_reference;
     gcp->storage_source.terminate = gcp_terminate;
