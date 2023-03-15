@@ -5607,7 +5607,6 @@ buildvariants:
   display_name: "~ Ubuntu 20.04 Antithesis"
   run_on:
   - ubuntu2004-test
-  batchtime: 10080 # 7 days
   expansions:
     posix_configure_flags: -DENABLE_ANTITHESIS=1 -DENABLE_STRICT=0
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
