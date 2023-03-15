@@ -19,7 +19,7 @@ properties:
   update's commit timestamp is in order.
 * During rollback of a prepared transaction, a history store update with a
   stop timestamp may not get removed, leading to a duplicate record. RTS
-  ignores these.
+  ignores these, and they're removed during the next checkpoint.
 * If we've had to fix any timestamps as part of RTS, a newly inserted update
   with an older timestamp may have a durable timestamp smaller than the
   current stop durable timestamp.
