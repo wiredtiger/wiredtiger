@@ -63,7 +63,7 @@ class test_util12(wttest.WiredTigerTestCase, suite_subprocess):
     def test_write_overwrite(self):
         self.session.create('table:' + self.tablename, self.session_params)
         cursor = self.session.open_cursor('table:' + self.tablename, None, None)
-        cursor ['def'] = '789'
+        cursor['def'] = '789'
         cursor.close()
         errfile = 'writeerr.txt'
         self.runWt(['write', 'table:' + self.tablename,
