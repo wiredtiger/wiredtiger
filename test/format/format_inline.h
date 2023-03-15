@@ -291,8 +291,7 @@ wt_wrap_open_cursor(WT_SESSION *session, const char *uri, const char *config, WT
      */
     while ((ret = session->open_cursor(session, uri, NULL, config, cursorp)) == EBUSY)
         __wt_yield();
-    testutil_assertfmt(
-      ret == 0 || (is_checkpoint && ret == ENOENT), "%s", uri);
+    testutil_assertfmt(ret == 0 || (is_checkpoint && ret == ENOENT), "%s", uri);
     if (is_checkpoint && ret == ENOENT && *cursorp != NULL)
         testutil_check((*cursorp)->close(*cursorp));
 }
