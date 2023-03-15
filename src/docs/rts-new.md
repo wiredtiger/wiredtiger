@@ -46,7 +46,7 @@ visibility in most of the places we look at timestamps (see the timestamps
 section).
 
 We also clear the transaction ID of updates we look at during RTS, because
-the connection's write generation will be initialised after RTS and the
+the connection's write generation will be initialized after RTS and the
 updates in the cache would be problematic for other parts of the code if
 they had a "legitimate" transaction ID.
 
@@ -114,12 +114,12 @@ navigate to their leaf pages.
 
 # Iterating over updates
 
-While the details of what happens here depends on the page type
-(row-store, VLCS or FLCS), the overall idea is the same: we start by looking
-at the insert list (i.e. any items inserted before the first key on the
-page), iterate over all of the keys on the page, then look at the append
-list (i.e. any items inserted after the last key on the page). We mark the
-page as dirty so that we reconcile it in future.
+While the details of what happens here depends on the page type (row-store,
+VLCS or FLCS), the overall idea is the same: we start by looking at the
+insert list (i.e. any items inserted before the first key on the page),
+iterate over all of the keys on the page, then look at the append list
+(i.e. any items inserted after the last key on the page). We mark the page
+as dirty so that we reconcile it in future.
 
 The mechanics of deleting items (or inserting tombstones) from these places
 are quite involved, and out of scope for the architecture guide.
@@ -131,7 +131,7 @@ before RTS. This is part of the contract that the system must be in a
 quiescent state before running RTS, but it's also enforced by taking the
 session's checkpoint lock.
 
-Upon completion of RTS, a checkpoint is performed to that both in-memory and
+Upon completion of RTS, a checkpoint is performed so that both in-memory and
 on-disk versions of data are the same. It's possible for users to opt out of
 this, for example if they intended to do a checkpoint shortly after RTS
 anyway.
@@ -139,8 +139,8 @@ anyway.
 Eviction doesn't directly interact with RTS in any special way, but it's
 worth pointing out that RTS is likely to generate a large number of both
 clean and dirty pages, causing some amount of extra cache pressure. The
-clean pages aren't a big deal, but the dirty pages will need to be written
-out, causing a potentially large amount of I/O and the potential for
+clean pages can be evicted trivially, but the dirty pages will need to be
+written out, causing a potentially large amount of I/O and the potential for
 application threads to be forced into doing eviction work. Eviction triggers
 and targets apply the same way during RTS as they do at any other time.
 
@@ -148,24 +148,24 @@ and targets apply the same way during RTS as they do at any other time.
 
 Dry-run mode is a way of running RTS without making any changes to on-disk
 or in-memory data structures, including the history store. It uses the same
-code as "normal" RTS wherever possible, making it ideal for checking what
-RTS would do on a given system, without disturbing it. One limitation is
-that it stills needs to take the same locks as real RTS, so the system must
-still be quiescent.
+code as normal RTS wherever possible, making it ideal for checking what RTS
+would do on a given system, without disturbing it. One limitation is that it
+still needs to take the same locks as real RTS, so the system must still be
+quiescent.
 
 Dry-run mode does not, however, increment all of the same statistics as
-"normal" RTS. As a rule, it only updates statistics that reflect what it's
+normal RTS. As a rule, it only updates statistics that reflect what it's
 doing. For example, it will increment statistics about the number of trees
 and pages visited, but it will not change any statistics about the number of
 updates aborted (since it is doing real work visiting pages, but it isn't
 aborting any unstable updates).
 
-Dry-run mode will cause similar cache pressure to the real thing, since it
+Dry-run mode will cause similar cache pressure to the normal RTS, since it
 must visit the same trees and pages. There is a slight difference around
-eviction though, since it will not mark ny pages as dirty, meaning eviction
+eviction though, since it will not mark any pages as dirty, meaning eviction
 should have a much easier time cleaning up after a dry run.
 
-# `rollback_to_stable_one`
+# RTS for a single table
 
 There is an internal form of rollback to stable which can operate on a
 single object, called `rollback_to_stable_one`. The API requires a URI is
@@ -173,6 +173,6 @@ passed in, which contrasts to `rollback_to_stable` where it will
 deliberately look at every single tree in the database.
 
 This is primarily used for salvage. Salvage accepts a single URI to attempt
-fixing, so we don't want "regular" RTS to potentially read everything,
+fixing, so we don't want normal RTS to potentially read everything,
 especially when the database is in a state where salvage needed to be called
 in the first place.
