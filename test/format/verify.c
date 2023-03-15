@@ -172,8 +172,20 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
      */
     for (;;) {
         wt_wrap_open_cursor(session, base->uri, checkpoint == NULL ? NULL : buf, &base_cursor);
-        base_id = base_cursor->checkpoint_id(base_cursor);
         wt_wrap_open_cursor(session, table->uri, checkpoint == NULL ? NULL : buf, &table_cursor);
+
+        if (checkpoint != NULL && (base_cursor == NULL || table_cursor == NULL)) {
+            if (base_cursor != NULL)
+                testutil_check(base_cursor->close(base_cursor));
+            if (table_cursor != NULL)
+                testutil_check(table_cursor->close(table_cursor));
+            continue;
+        }
+
+        WT_ASSERT((WT_SESSION_IMPL *)session, base_cursor != NULL);
+        WT_ASSERT((WT_SESSION_IMPL *)session, table_cursor != NULL);
+
+        base_id = base_cursor->checkpoint_id(base_cursor);
         table_id = table_cursor->checkpoint_id(table_cursor);
 
         testutil_assert((checkpoint == NULL && base_id == 0 && table_id == 0) ||
