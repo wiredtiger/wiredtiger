@@ -30,7 +30,7 @@ __wt_addr_cookie_pack(WT_SESSION_IMPL *session, WT_ITEM *addr, void *block_addr,
 
         /* Update the size of the combined address cookie. */
         addr->size = (uint8_t)(
-          1 + WT_ADDR_COOKIE_BTREE_LEN(addr->mem) + 1 + WT_ADDR_COOKIE_BLOCK_LEN(addr->mem));
+          1 + WT_BTREE_INFO_LEN(addr->mem) + 1 + WT_ADDR_COOKIE_BLOCK_LEN(addr->mem));
     } else {
         /*
          * Don't copy the data into the buffer in simple cases where there are no page stats
@@ -51,10 +51,10 @@ __wt_addr_cookie_btree_pack(void *addr, WT_PAGE_STAT *ps)
 {
     uint8_t *p;
 
-    p = WT_ADDR_COOKIE_BTREE(addr);
+    p = WT_BTREE_INFO(addr);
     WT_RET(__wt_vpack_uint(&p, 0, ps->records));
     WT_RET(__wt_vpack_uint(&p, 0, ps->user_bytes));
-    WT_ADDR_COOKIE_BTREE_LEN(addr) = (uint8_t)WT_PTRDIFF(p, WT_ADDR_COOKIE_BTREE(addr));
+    WT_BTREE_INFO_LEN(addr) = (uint8_t)WT_PTRDIFF(p, WT_BTREE_INFO(addr));
     return (0);
 }
 
@@ -67,7 +67,7 @@ __wt_addr_cookie_btree_unpack(const void *addr, WT_PAGE_STAT *ps)
 {
     const uint8_t *p;
 
-    p = WT_ADDR_COOKIE_BTREE(addr);
+    p = WT_BTREE_INFO(addr);
     WT_RET(__wt_vunpack_uint(&p, 0, &ps->records));
     WT_RET(__wt_vunpack_uint(&p, 0, &ps->user_bytes));
     return (0);

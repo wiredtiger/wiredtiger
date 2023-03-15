@@ -138,13 +138,13 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
  *
  *     WT_ADDR_COOKIE_BLOCK            block manager cookie start
  *     WT_ADDR_COOKIE_BLOCK_LEN        block manager cookie length
- *     WT_ADDR_COOKIE_BTREE            btree cookie start
- *     WT_ADDR_COOKIE_BTREE_LEN        btree cookie len
+ *     WT_BTREE_INFO                   btree cookie start
+ *     WT_BTREE_INFO_LEN               btree cookie len
  */
-#define WT_ADDR_COOKIE_BTREE(addr) ((uint8_t *)(addr) + 1)
-#define WT_ADDR_COOKIE_BTREE_LEN(addr) (*(uint8_t *)(addr))
-#define WT_ADDR_COOKIE_BLOCK(addr) ((uint8_t *)(addr) + 1 + WT_ADDR_COOKIE_BTREE_LEN(addr) + 1)
-#define WT_ADDR_COOKIE_BLOCK_LEN(addr) (*((uint8_t *)(addr) + 1 + WT_ADDR_COOKIE_BTREE_LEN(addr)))
+#define WT_BTREE_INFO(addr) ((uint8_t *)(addr) + 1)
+#define WT_BTREE_INFO_LEN(addr) (*(uint8_t *)(addr))
+#define WT_ADDR_COOKIE_BLOCK(addr) ((uint8_t *)(addr) + 1 + WT_BTREE_INFO_LEN(addr) + 1)
+#define WT_ADDR_COOKIE_BLOCK_LEN(addr) (*((uint8_t *)(addr) + 1 + WT_BTREE_INFO_LEN(addr)))
 
 /*
  * WT_PAGE_STAT --
