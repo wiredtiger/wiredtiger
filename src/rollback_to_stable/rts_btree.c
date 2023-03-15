@@ -150,8 +150,10 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
               session, key, ins->upd, rollback_timestamp, &stable_update_found));
             if (stable_update_found && stable_updates_count != NULL)
                 (*stable_updates_count)++;
+            /*
             if (!stable_update_found && page->type == WT_PAGE_ROW_LEAF &&
               !F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+            */
                 /*
                  * When a new key is added to a page and the page is then checkpointed, updates for
                  * that key can be present in the History Store while the key isn't present in the
@@ -165,7 +167,7 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
                  * the impacts of a long term correction in WT-10017. Once completed this change can
                  * be reverted.
                  */
-                WT_ERR(__wt_rts_history_delete_hs(session, key, rollback_timestamp + 1));
+                /* WT_ERR(__wt_rts_history_delete_hs(session, key, rollback_timestamp + 1)); */
         }
 
 err:

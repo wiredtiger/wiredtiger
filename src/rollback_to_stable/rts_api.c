@@ -26,6 +26,30 @@ __rts_assert_timestamps_unchanged(
 #endif
 }
 
+static int
+__rts_check_hs_empty(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+    int next_ret = 0;
+
+    WT_CURSOR *hs_cursor;
+    ret = __wt_curhs_open(session, NULL, &hs_cursor);
+    /* RTS might run at startup, where there are not data files and no history store. */
+    if (ret == ENOENT)
+        return (0);
+    WT_ASSERT(session, ret == 0);
+
+    F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+    next_ret = hs_cursor->next(hs_cursor);
+
+    WT_RET(hs_cursor->close(hs_cursor));
+
+    if (next_ret == 0)
+        return (-420);
+
+    return (0);
+}
+
 /*
  * __rollback_to_stable_int --
  *     Rollback all modifications with timestamps more recent than the passed in timestamp.
@@ -87,6 +111,8 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
           conn->recovery_ckpt_snapshot_count);
 
     WT_ERR(__wt_rts_btree_apply_all(session, rollback_timestamp));
+
+    WT_RET(__rts_check_hs_empty(session));
 
     /* Rollback the global durable timestamp to the stable timestamp. */
     txn_global->has_durable_timestamp = txn_global->has_stable_timestamp;
