@@ -78,7 +78,7 @@ struct __wt_page_header {
 #define WT_PAGE_ENCRYPTED 0x08u    /* Page is encrypted on disk */
 #define WT_PAGE_UNUSED 0x10u       /* Historic lookaside store page updates, no longer used */
 #define WT_PAGE_FT_UPDATE 0x20u    /* Page contains updated fast-truncate information */
-#define WT_PAGE_STAT_EXISTS 0x40u  /* Page contains record count and user bytes information */
+#define WT_PAGE_BTREE_INFO 0x40u   /* Page contains stats information */
     uint8_t flags;                 /* 25: flags */
 
     /* A byte of padding, positioned to be added to the flags. */

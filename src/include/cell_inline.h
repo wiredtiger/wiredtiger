@@ -924,7 +924,7 @@ copy_cell_restart:
     case WT_CELL_ADDR_LEAF_NO:
         WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &v));
 
-        if (F_ISSET(dsk, WT_PAGE_STAT_EXISTS)) {
+        if (F_ISSET(dsk, WT_PAGE_BTREE_INFO)) {
             WT_RET(__wt_addr_cookie_btree_unpack(p, &unpack_ps));
             v = WT_ADDR_COOKIE_BLOCK_LEN(p);
             p = WT_ADDR_COOKIE_BLOCK(p);

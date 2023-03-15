@@ -564,7 +564,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     /* Remember the configuration. */
     r->ref = ref;
     r->page = page;
-    r->has_page_stats = F_ISSET(&r->chunk_A.image, WT_PAGE_STAT_EXISTS);
+    r->has_page_stats = F_ISSET(&r->chunk_A.image, WT_PAGE_BTREE_INFO);
 
     /*
      * Save the transaction generations before reading the page. These are all ordered reads, but we
@@ -1918,7 +1918,7 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
 
     /* Set the page stat cell information flag if there are page stats to write to disk. */
     if (__wt_process.page_stats_2022)
-        F_SET(dsk, WT_PAGE_STAT_EXISTS);
+        F_SET(dsk, WT_PAGE_BTREE_INFO);
 
     dsk->unused = 0;
     dsk->version = WT_PAGE_VERSION_TS;
