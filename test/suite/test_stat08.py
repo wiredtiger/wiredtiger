@@ -45,13 +45,13 @@ class test_stat08(wttest.WiredTigerTestCase):
         READ_TIME : "session: page read from disk to cache time (usecs)"}
 
     def get_stat(self, stat):
-        statc =  self.session.open_cursor('statistics:session', None, None)
+        statc =  self.session.open_cursor('statistics:session', None, "debug=(release_evict)")
         val = statc[stat][2]
         statc.close()
         return val
 
     def get_cstat(self, stat):
-        statc =  self.session.open_cursor('statistics:', None, None)
+        statc =  self.session.open_cursor('statistics:', None, "debug=(release_evict)")
         val = statc[stat][2]
         statc.close()
         return val
@@ -77,7 +77,7 @@ class test_stat08(wttest.WiredTigerTestCase):
         self.session = self.conn.open_session()
         self.session.create("table:test_stat08",
                             "key_format=i,value_format=S")
-        cursor =  self.session.open_cursor('table:test_stat08', None, None)
+        cursor = self.session.open_cursor('table:test_stat08', None, "debug=(release_evict)")
         self.session.begin_transaction()
         txn_dirty = self.get_stat(wiredtiger.stat.session.txn_bytes_dirty)
         cache_dirty = self.get_cstat(wiredtiger.stat.conn.cache_bytes_dirty)
@@ -95,13 +95,12 @@ class test_stat08(wttest.WiredTigerTestCase):
                 cache_dirty_txn = self.get_cstat(wiredtiger.stat.conn.cache_bytes_dirty)
                 # Make sure the txn's dirty bytes doesn't exceed the cache.
                 self.assertLessEqual(txn_dirty_after, cache_dirty_txn)
-                self.session.rollback_transaction()
+                self.session.commit_transaction()
                 self.session.begin_transaction()
                 txn_dirty = self.get_stat(wiredtiger.stat.session.txn_bytes_dirty)
                 self.assertEqual(txn_dirty, 0)
         self.session.commit_transaction()
         cursor.reset()
-
         # Read the entries.
         i = 0
         for key, value in cursor:
@@ -109,7 +108,7 @@ class test_stat08(wttest.WiredTigerTestCase):
         cursor.reset()
 
         # Now check the session statistics for bytes read into the cache.
-        stat_cur = self.session.open_cursor('statistics:session', None, None)
+        stat_cur = self.session.open_cursor('statistics:session', None, "debug=(release_evict)")
         for k in self.session_stats:
             self.check_stats(stat_cur, k)
 
