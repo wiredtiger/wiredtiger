@@ -55,7 +55,7 @@ def get_auth_token(storage_source):
 buckets = {
     "s3_store": ['s3testext-us;us-east-2', 's3testext;ap-southeast-2'],
     "dir_store": ['bucket1', 'bucket2'],
-    "gcp_store": ["gcptestext-us", "gcptestext-ap"],
+    "gcp_store": ["gcptestext-us-jie", "gcptestext-ap-jie"],
     "azure_store": ["azuretestext-us", "azuretestext-ap"]
 }
 # S3 buckets with their regions
