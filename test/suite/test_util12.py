@@ -61,6 +61,8 @@ class test_util12(wttest.WiredTigerTestCase, suite_subprocess):
         cursor = self.session.open_cursor('table:' + self.tablename, None, None)
         cursor['def'] = '789'
         cursor.close()
+        # The below command is expected to fail as we attempt to overwrite an existing key
+        # without specifying the "-o" command option.
         self.runWt(['write', 'table:' + self.tablename,
                     'def', '456', 'abc', '123'], errfilename=self.errfile, failure=True)
         self.check_file_contains(self.errfile, 'attempt to insert an existing key')
@@ -86,6 +88,7 @@ class test_util12(wttest.WiredTigerTestCase, suite_subprocess):
         self.runWt(['write', '-r', 'table:' + self.tablename, 'efg'],
             errfilename=self.errfile, failure=True)
         self.check_file_contains(self.errfile, 'item not found')
+        # The below command is expected to fail as more than one key are specified.
         self.runWt(['write', '-r', 'table:' + self.tablename, 'def', 'abc'],
             errfilename=self.errfile, failure=True)
         self.check_file_contains(self.errfile, 'usage:')
@@ -112,6 +115,7 @@ class test_util12(wttest.WiredTigerTestCase, suite_subprocess):
         Test write in a 'wt' process, with unexpected number of args
         """
         self.session.create('table:' + self.tablename, self.session_params)
+        # The below command is expected to fail as value for the 2nd key is missed.
         self.runWt(['write', 'table:' + self.tablename,
                     'def', '456', 'abc'], errfilename=self.errfile, failure=True)
         self.check_file_contains(self.errfile, 'usage:')
