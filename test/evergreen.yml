@@ -3084,7 +3084,7 @@ tasks:
             export AZURE_STORAGE_CONNECTION_STRING="${azure_sdk_ext_access_key}"
             set -o verbose
 
-            ${test_env_vars|} python3 ../test/suite/run.py -j $(nproc) tiered19
+            ${test_env_vars|} python3 ../test/suite/run.py -j $(nproc) tiered06
   - name: gcp-tiered-test-small
     tags: ["python"]
     commands:
@@ -3120,7 +3120,7 @@ tasks:
             export GOOGLE_APPLICATION_CREDENTIALS="$file"
             set -o verbose
 
-            ${test_env_vars|} python3 ../test/suite/run.py -j $(nproc) tiered19
+            ${test_env_vars|} python3 ../test/suite/run.py -j $(nproc) tiered06
 
   - name: spinlock-gcc-test
     commands:
