@@ -61,10 +61,9 @@ class test_util12(wttest.WiredTigerTestCase, suite_subprocess):
         cursor = self.session.open_cursor('table:' + self.tablename, None, None)
         cursor['def'] = '789'
         cursor.close()
-        errfile = 'writeerr.txt'
         self.runWt(['write', 'table:' + self.tablename,
-                    'def', '456', 'abc', '123'], errfilename=errfile, failure=True)
-        self.check_file_contains(errfile, 'attempt to insert an existing key')
+                    'def', '456', 'abc', '123'], errfilename=self.errfile, failure=True)
+        self.check_file_contains(self.errfile, 'attempt to insert an existing key')
         self.runWt(['write', '-o', 'table:' + self.tablename,
                     'def', '456', 'abc', '123'])
         cursor = self.session.open_cursor('table:' + self.tablename, None, None)
