@@ -146,7 +146,7 @@ testutil_tiered_storage_configuration(
                     testutil_check(
                       __wt_snprintf(dir, sizeof(dir), "%s/%s", opts->home, DIR_STORE_BUCKET_NAME));
                 else {
-                    getcwd(cwd, sizeof(cwd));
+                    (void)getcwd(cwd, sizeof(cwd));
                     testutil_check(__wt_snprintf(
                       dir, sizeof(dir), "%s/%s/%s", cwd, opts->home, DIR_STORE_BUCKET_NAME));
                 }
@@ -164,6 +164,7 @@ testutil_tiered_storage_configuration(
 
     } else {
         testutil_check(__wt_snprintf(ext_cfg, ext_cfg_size, "\"\""));
-        testutil_check(__wt_snprintf(tiered_cfg, tiered_cfg_size, ""));
+        testutil_assert(tiered_cfg_size > 0);
+        tiered_cfg[0] = '\0';
     }
 }

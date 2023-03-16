@@ -65,9 +65,10 @@
 #define DIR_STORE "dir_store"
 #define S3_STORE "s3_store"
 
-#define TESTUTIL_ENV_CONFIG_TIERED                   \
-    ",tiered_storage=(bucket=%s"                     \
-    ",bucket_prefix=pfx-,local_retention=%d,name=%s" \
+#define TESTUTIL_ENV_CONFIG_TIERED                 \
+    ",tiered_storage=(bucket=%s"                   \
+    ",bucket_prefix=pfx-,local_retention=%" PRIu32 \
+    ",name=%s"                                     \
     ",auth_token=%s)"
 #define TESTUTIL_ENV_CONFIG_TIERED_EXT                                         \
     "\"%s/ext/storage_sources/%s/libwiredtiger_%s.so\"=("                      \
