@@ -6,7 +6,6 @@ include:
 variables:
 # Template for perf-tasks
 - &perf-tasks-template
-  name: perf-tasks-template
   batchtime: 1440 # 1 day
   expansions: &ubuntu2004-perf-tests-expansions
     test_env_vars:
