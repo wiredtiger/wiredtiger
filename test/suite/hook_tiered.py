@@ -90,6 +90,10 @@ def wiredtiger_open_tiered(ignored_self, args):
     curconfig = args[-1]
     homedir = args[0]
 
+    # If there is already tiered storage enabled, we shouldn't enable it here.
+    # We might attempt to let the wiredtiger_open complete without alteration,
+    # however, we alter several other API methods that would do weird things with
+    # a different tiered_storage configuration. So better to skip the test entirely.
     if 'tiered_storage=' in curconfig:
         testcase.skipTest("cannot run tiered hook on a test that already uses tiered storage")
 
