@@ -82,18 +82,17 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
             value_d = "ddddd" * 100
 
         # Pin oldest and stable to timestamp 10.
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(5) +
-            ',stable_timestamp=' + self.timestamp_str(5))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +
+            ',stable_timestamp=' + self.timestamp_str(10))
 
         # Perform several updates.
-        self.large_updates(uri, value_a, ds, nrows, self.prepare, 6)
         self.large_updates(uri, value_a, ds, nrows, self.prepare, 20)
         self.large_updates(uri, value_b, ds, nrows, self.prepare, 30)
         self.large_updates(uri, value_c, ds, nrows, self.prepare, 40)
         self.large_updates(uri, value_d, ds, nrows, self.prepare, 50)
 
         # Verify data is visible and correct.
-        self.check(value_a, uri, nrows, None, 21 if self.prepare else 6)
+        self.check(value_a, uri, nrows, None, 21 if self.prepare else 20)
         self.check(value_b, uri, nrows, None, 31 if self.prepare else 30)
         self.check(value_c, uri, nrows, None, 41 if self.prepare else 40)
         self.check(value_d, uri, nrows, None, 51 if self.prepare else 50)
@@ -101,13 +100,12 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
         # Checkpoint to ensure the data is flushed, then rollback to the stable timestamp.
         if not self.in_memory:
             self.session.checkpoint()
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
         self.conn.rollback_to_stable()
 
         # Check that all keys are removed.
         # (For FLCS, at least for now, they will read back as 0, meaning deleted, rather
         # than disappear.)
-        self.check(value_a, uri, 0, nrows, 5)
+        self.check(value_a, uri, 0, nrows, 20)
         self.check(value_b, uri, 0, nrows, 30)
         self.check(value_c, uri, 0, nrows, 40)
         self.check(value_d, uri, 0, nrows, 50)
