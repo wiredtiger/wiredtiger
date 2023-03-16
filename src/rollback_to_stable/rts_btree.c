@@ -150,11 +150,6 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
               session, key, ins->upd, rollback_timestamp, &stable_update_found));
             if (stable_update_found && stable_updates_count != NULL)
                 (*stable_updates_count)++;
-            /*
-            if (!stable_update_found && page->type == WT_PAGE_ROW_LEAF &&
-              !F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
-                WT_ERR(__wt_rts_history_delete_hs(session, key, rollback_timestamp + 1));
-            */
         }
 
 err:
