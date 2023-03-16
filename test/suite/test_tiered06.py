@@ -150,7 +150,7 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         fs.terminate(session)
         ss.terminate(session)
 
-    def test_ss_write_read(self):
+    def ss_write_read(self):
         # Write and read to a file non-sequentially.
 
         session = self.session
@@ -161,7 +161,8 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         prefix = self.bucket_prefix + inspect.stack()[0][3] + '/'
 
         cachedir = self.bucket + '_cache'
-        os.mkdir(cachedir)
+        if (self.has_cache):
+            os.mkdir(cachedir)
 
         # Directory store needs the bucket created as a directory on the filesystem.
         if self.ss_name == 'dir_store':

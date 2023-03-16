@@ -445,7 +445,8 @@ gcp_remove(WT_FILE_SYSTEM *file_system, [[maybe_unused]] WT_SESSION *session,
     gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
     gcp_store *gcp = fs->storage_source;
 
-    gcp->log->log_error_message("gcp_remove: file removal is not supported.");
+    gcp->log->log_error_message(
+      "azure_rename: Object: " + std::string(name) + ": remove of file not supported.");
     return ENOTSUP;
 }
 
@@ -457,7 +458,8 @@ gcp_rename(WT_FILE_SYSTEM *file_system, [[maybe_unused]] WT_SESSION *session,
     gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
     gcp_store *gcp = fs->storage_source;
 
-    gcp->log->log_error_message("gcp_rename: file renaming is not supported.");
+    gcp->log->log_error_message(
+      "azure_rename: Object: " + std::string(from) + ": rename of file not supported.");
     return ENOTSUP;
 }
 
