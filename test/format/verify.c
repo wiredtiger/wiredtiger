@@ -167,13 +167,16 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
         testutil_check(__wt_snprintf(buf, sizeof(buf), "checkpoint=%s", checkpoint));
 
     /*
-     * If opening a checkpoint, retry if the cursor checkpoint IDs don't match, it just means that a
-     * checkpoint happened between the two open calls.
+     * If opening a checkpoint, retry if:
+     * - one of the cursors could not be opened or,
+     * - the cursor checkpoint IDs don't match, it just means that a checkpoint happened between the
+     * two open calls.
      */
     for (;;) {
         wt_wrap_open_cursor(session, base->uri, checkpoint == NULL ? NULL : buf, &base_cursor);
         wt_wrap_open_cursor(session, table->uri, checkpoint == NULL ? NULL : buf, &table_cursor);
 
+        /* Check both cursors were successfully opened. */
         if (checkpoint != NULL && (base_cursor == NULL || table_cursor == NULL)) {
             if (base_cursor != NULL)
                 testutil_check(base_cursor->close(base_cursor));
