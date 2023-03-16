@@ -33,13 +33,17 @@ __rts_check_hs_empty(WT_SESSION_IMPL *session)
     int next_ret = 0;
 
     WT_CURSOR *hs_cursor;
+
     ret = __wt_curhs_open(session, NULL, &hs_cursor);
     /* RTS might run at startup, where there are not data files and no history store. */
     if (ret == ENOENT)
         return (0);
     WT_ASSERT(session, ret == 0);
 
+    /* Use a lower isolation level - there's nothing else going on anyway. */
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+
+    /* Can't WT_RET() this, since we expect it to fail. */
     next_ret = hs_cursor->next(hs_cursor);
 
     WT_RET(hs_cursor->close(hs_cursor));
@@ -112,8 +116,6 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
 
     WT_ERR(__wt_rts_btree_apply_all(session, rollback_timestamp));
 
-    WT_RET(__rts_check_hs_empty(session));
-
     /* Rollback the global durable timestamp to the stable timestamp. */
     txn_global->has_durable_timestamp = txn_global->has_stable_timestamp;
     txn_global->durable_timestamp = txn_global->stable_timestamp;
@@ -126,6 +128,8 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
      */
     if (!F_ISSET(conn, WT_CONN_IN_MEMORY) && !no_ckpt && !dryrun)
         WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
+
+    WT_ERR(__rts_check_hs_empty(session));
 
 err:
     F_CLR(session, WT_SESSION_ROLLBACK_TO_STABLE);

@@ -153,21 +153,8 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
             /*
             if (!stable_update_found && page->type == WT_PAGE_ROW_LEAF &&
               !F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+                WT_ERR(__wt_rts_history_delete_hs(session, key, rollback_timestamp + 1));
             */
-                /*
-                 * When a new key is added to a page and the page is then checkpointed, updates for
-                 * that key can be present in the History Store while the key isn't present in the
-                 * disk image. RTS will then only remove these updates when there is a stable update
-                 * on-chain. These updates still need removing when no stable updates are on-chain,
-                 * so do so here explicitly. Pass in rollback_timestamp + 1 as history store cleanup
-                 * removes updates inclusive of the provided timestamp, but we only want to remove
-                 * unstable updates.
-                 *
-                 * FIXME-WT-10017: WT-9846 is an interim fix only for row-store while we investigate
-                 * the impacts of a long term correction in WT-10017. Once completed this change can
-                 * be reverted.
-                 */
-                /* WT_ERR(__wt_rts_history_delete_hs(session, key, rollback_timestamp + 1)); */
         }
 
 err:
