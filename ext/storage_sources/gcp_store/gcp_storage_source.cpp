@@ -289,14 +289,14 @@ gcp_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYSTEM
     // std::filesystem::canonical will throw an exception if object does not exist so
     // check if the object exists.
     if (!std::filesystem::exists(local_file_path)) {
-        gcp->log->log_error_message(
-          "gcp_flush: Object: " + std::string(object) + " No such file.");
+        gcp->log->log_error_message("gcp_flush: Object: No such file " + std::string(object) + ".");
         return ENOENT;
     }
     // Confirm that the file exists on the native filesystem.
     std::filesystem::path absolute_file_path = std::filesystem::canonical(local_file_path);
     bool exist_native = false;
-    int ret = wt_file_system->fs_exist(wt_file_system, session, absolute_file_path.c_str(), &exist_native);
+    int ret =
+      wt_file_system->fs_exist(wt_file_system, session, absolute_file_path.c_str(), &exist_native);
     if (ret != 0)
         return ret;
     if (!exist_native)

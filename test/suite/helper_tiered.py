@@ -62,9 +62,7 @@ buckets = {
 
 # Get name of the bucket at specified index in the list.
 def get_bucket_name(storage_source, i):
-    if storage_source in buckets:
-        return buckets[storage_source][i]
-    return None
+    return buckets[storage_source][i]
 
 # Set up configuration
 def get_conn_config(storage_source):
@@ -174,13 +172,14 @@ def gen_tiered_storage_sources(random_prefix='', test_name='', tiered_only=False
             bucket_prefix2 = generate_prefix(random_prefix, test_name),
             num_ops=100,
             ss_name = 'azure_store')),
+        # This must be the last item as we seperate the non-tiered from the tiered items later on.
         ('non_tiered', dict(is_tiered = False)),
     ]
 
     # Return a sublist to use for the tiered test scenarios as last item on list is not a scenario
     # for the tiered tests.  
     if tiered_only:
-        return tiered_storage_sources[:4]
+        return tiered_storage_sources[:-1]
 
     return tiered_storage_sources
 

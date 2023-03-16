@@ -222,13 +222,13 @@ azure_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYST
     // std::filesystem::canonical will throw an exception if object does not exist so
     // check if the object exists.
     if (!std::filesystem::exists(local_file_path)) {
-        log->log_err_msg("azure_flush: " + std::string(local_file_path) + " No such file.");
+        log->log_err_msg("azure_flush: No such file " + local_file_path + ".");
         return ENOENT;
     }
 
     bool exists_native = false;
-    int ret = wtFileSystem->fs_exist(
-      wtFileSystem, session, std::filesystem::canonical(local_file_path).string().c_str(), &exists_native);
+    int ret = wtFileSystem->fs_exist(wtFileSystem, session,
+      std::filesystem::canonical(local_file_path).string().c_str(), &exists_native);
     if (ret != 0) {
         log->log_err_msg("azure_flush: Failed to check for the existence of " +
           std::string(source) + " on the native filesystem.");
@@ -236,7 +236,7 @@ azure_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYST
     }
 
     if (!exists_native) {
-        log->log_err_msg("azure_flush: " + std::string(object) + " No such file.");
+        log->log_err_msg("azure_flush: No such file" + std::string(object) + ".");
         return ENOENT;
     }
     log->log_debug_message(
