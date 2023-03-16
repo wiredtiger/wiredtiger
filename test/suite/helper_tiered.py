@@ -127,7 +127,7 @@ def generate_s3_prefix(random_prefix = '', test_name = ''):
 
 def gen_tiered_storage_sources(random_prefix='', test_name='', tiered_only=False, tiered_shared=False):
     tiered_storage_sources = [
-        ('dirstore', dict(is_tiered = True,
+        ('dir_store', dict(is_tiered = True,
             is_tiered_shared = tiered_shared,
             is_local_storage = True,
             auth_token = get_auth_token('dir_store'),
@@ -138,7 +138,7 @@ def gen_tiered_storage_sources(random_prefix='', test_name='', tiered_only=False
             bucket_prefix2 = 'pfx2_',
             num_ops=100,
             ss_name = 'dir_store')),
-        ('s3', dict(is_tiered = True,
+        ('s3_store', dict(is_tiered = True,
             is_tiered_shared = tiered_shared,
             is_local_storage = False,
             auth_token = get_auth_token('s3_store'),
