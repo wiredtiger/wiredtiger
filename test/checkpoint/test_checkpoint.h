@@ -68,6 +68,7 @@ typedef struct {
     int info;
     u_int start_key;
     u_int key_range;
+    uint64_t ts;                /* Only used for runs with predictable replay. */
     WT_RAND_STATE data_rnd;
     WT_RAND_STATE extra_rnd;
 } THREAD_DATA;

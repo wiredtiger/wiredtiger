@@ -62,6 +62,13 @@ init_thread_data(THREAD_DATA *td, int info)
         td->start_key = 1;
         td->key_range = g.nkeys;
     }
+
+    /*
+     * For a predictable replay the worker threads use a predetermined set of timestamps. They
+     * publish their most recently used timestamps for the clock thread to read across the workers
+     * to base their decision on.
+     */
+    td->ts = 0;
     testutil_random_from_random(&td->data_rnd, &g.opts.data_rnd);
     testutil_random_from_random(&td->extra_rnd, &g.opts.extra_rnd);
 }
