@@ -45,13 +45,13 @@ class test_stat08(wttest.WiredTigerTestCase):
         READ_TIME : "session: page read from disk to cache time (usecs)"}
 
     def get_stat(self, stat):
-        statc =  self.session.open_cursor('statistics:session', None, "debug=(release_evict)")
+        statc =  self.session.open_cursor('statistics:session', None, None)
         val = statc[stat][2]
         statc.close()
         return val
 
     def get_cstat(self, stat):
-        statc =  self.session.open_cursor('statistics:', None, "debug=(release_evict)")
+        statc =  self.session.open_cursor('statistics:', None, None)
         val = statc[stat][2]
         statc.close()
         return val
@@ -108,7 +108,7 @@ class test_stat08(wttest.WiredTigerTestCase):
         cursor.reset()
 
         # Now check the session statistics for bytes read into the cache.
-        stat_cur = self.session.open_cursor('statistics:session', None, "debug=(release_evict)")
+        stat_cur = self.session.open_cursor('statistics:session', None, None)
         for k in self.session_stats:
             self.check_stats(stat_cur, k)
 
