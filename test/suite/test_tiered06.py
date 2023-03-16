@@ -150,7 +150,7 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         fs.terminate(session)
         ss.terminate(session)
 
-    def ss_write_read(self):
+    def test_ss_write_read(self):
         # Write and read to a file non-sequentially.
 
         session = self.session
