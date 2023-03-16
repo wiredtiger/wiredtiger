@@ -66,7 +66,7 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
             conf += ',cache_directory=' + cache_dir
         return conf
 
-    def ss_basic(self):
+    def test_ss_basic(self):
         # Test some basic functionality of the storage source API, calling
         # each supported method in the API at least once.
 
@@ -150,7 +150,7 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         fs.terminate(session)
         ss.terminate(session)
 
-    def ss_write_read(self):
+    def test_ss_write_read(self):
         # Write and read to a file non-sequentially.
 
         session = self.session
@@ -232,7 +232,7 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
                 else:
                     self.assertEquals(in_block, a_block)
             fh.close(session)
-            if (self.ss_name != "gcp_store" and self.ss_name != "azure_store"):
+            if (self.has_cache):
                 os.remove(os.path.join(cachedir, 'abc'))
 
         ss.terminate(session)

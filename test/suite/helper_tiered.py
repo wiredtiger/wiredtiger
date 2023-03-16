@@ -51,19 +51,14 @@ def get_auth_token(storage_source):
         auth_token = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
     return auth_token
 
-# Get buckets configured for the storage source
+# Buckets configured for the storage source.
 buckets = {
+    # S3 buckets requires a region.
     "s3_store": ['s3testext-us;us-east-2', 's3testext;ap-southeast-2'],
     "dir_store": ['bucket1', 'bucket2'],
     "gcp_store": ["gcptestext-us-jie", "gcptestext-ap-jie"],
     "azure_store": ["azuretestext-us", "azuretestext-ap"]
 }
-# S3 buckets with their regions
-
-s3_buckets = ['s3testext-us;us-east-2', 's3testext;ap-southeast-2']
-
-# Local buckets do not have a region
-local_buckets = ['bucket1', 'bucket2']
 
 # Get name of the bucket at specified index in the list.
 def get_bucket_name(storage_source, i):
