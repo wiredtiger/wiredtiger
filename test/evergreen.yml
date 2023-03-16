@@ -732,11 +732,9 @@ functions:
           fi
           ${virtualenv_binary} -p ${python_binary} venv
           source venv/bin/activate
-          ${pip3_binary} install psutil pygit2==1.10.1
-          JSON_TASK_INFO='{ "evergreen_task_info": { "is_patch": "'${is_patch}'", "task_id": "'${task_id}'", "distro_id": "'${distro_id}'", "execution": "'${execution}'", "task_name": "'${task_name}'", "version_id": "'${version_id}'", "branch_name": "'${branch_name}'" } }'
-          echo "JSON_TASK_INFO: $JSON_TASK_INFO"
-          ${test_env_vars|} ${python_binary} ../../../bench/perf_run_py/perf_run.py --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -g "../.." -v -i "$JSON_TASK_INFO" -b -o test_stats/evergreen_out_${perf-test-name}.json ${wtarg}
-          ${test_env_vars|} ${python_binary} ../../../bench/perf_run_py/perf_run.py --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -g "../.." -v -i "$JSON_TASK_INFO" -re -o test_stats/atlas_out_${perf-test-name}.json ${wtarg}
+          ${pip3_binary} install psutil==5.9.4
+          ${test_env_vars|} ${python_binary} ../../../bench/perf_run_py/perf_run.py --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -v -b -o test_stats/evergreen_out_${perf-test-name}.json ${wtarg}
+          ${test_env_vars|} ${python_binary} ../../../bench/perf_run_py/perf_run.py --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -v -re -o test_stats/atlas_out_${perf-test-name}.json ${wtarg}
 
   "csuite smoke test":
     command: shell.exec
@@ -762,11 +760,13 @@ functions:
           set -o errexit
           ${virtualenv_binary} -p ${python_binary} venv
           source venv/bin/activate
-          ${pip3_binary} install pymongo[srv]==3.12.2
+          ${pip3_binary} install pymongo[srv]==3.12.2 pygit2==1.10.1
           if [[ ! -d "automation-scripts" ]]; then
             git clone git@github.com:wiredtiger/automation-scripts.git
           fi
-          ${python_binary} automation-scripts/evergreen/upload_stats_atlas.py -u ${atlas_perf_test_username} -p ${atlas_perf_test_password} -f test_stats/atlas_out_${perf-test-name}.json -t ${created_at}
+          EVERGREEN_TASK_INFO='{ "evergreen_task_info": { "is_patch": "'${is_patch}'", "task_id": "'${task_id}'", "distro_id": "'${distro_id}'", "execution": "'${execution}'", "task_name": "'${task_name}'", "version_id": "'${version_id}'", "branch_name": "'${branch_name}'" } }'
+          echo "EVERGREEN_TASK_INFO: $EVERGREEN_TASK_INFO"
+          ${python_binary} automation-scripts/evergreen/upload_stats_atlas.py -u ${atlas_perf_test_username} -p ${atlas_perf_test_password} -c ${collection|} -f test_stats/atlas_out_${perf-test-name}.json -t ${created_at} -i "$EVERGREEN_TASK_INFO" -g "../../../"
     - command: perf.send
       params:
         file: ./wiredtiger/cmake_build/bench/wtperf/test_stats/evergreen_out_${perf-test-name}.json
@@ -1699,6 +1699,25 @@ tasks:
         vars:
           test_args: -b cmake_build/test/csuite/timestamp_abort/test_timestamp_abort
           test_binary: timestamp_abort
+
+  - name: csuite-timestamp-abort-test-s3
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_tiered_storage_s3
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/test/csuite/timestamp_abort"
+          shell: bash
+          include_expansions_in_env:
+            - aws_sdk_s3_ext_access_key
+            - aws_sdk_s3_ext_secret_key
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ./test_timestamp_abort -PT -Po s3_store
 
   - name: csuite-timestamp-abort-stress-test
     tags: ["pull_request"]
@@ -4384,7 +4403,7 @@ tasks:
           perf-test-name: update-checkpoint-btree.wtperf
 
   - name: perf-test-update-checkpoint-lsm
-    # Disable/Un-tag the LSM perf test till the support for LSM is restored.
+    # FIXME-WT-8867 Disable/Un-tag the LSM perf test till the support for LSM is restored.
     # tags: ["checkpoint-perf"]
     depends_on:
       - name: compile
@@ -4632,7 +4651,7 @@ tasks:
           perf-test-name: evict-btree-1.wtperf
 
   - name: perf-test-evict-lsm
-    # Disable/Un-tag the LSM perf test till the support for LSM is restored.
+    # FIXME-WT-8867 Disable/Un-tag the LSM perf test till the support for LSM is restored.
     # tags: ["evict-perf"]
     depends_on:
       - name: compile
@@ -4648,7 +4667,7 @@ tasks:
           perf-test-name: evict-lsm.wtperf
 
   - name: perf-test-evict-lsm-1
-    # Disable/Un-tag the LSM perf test till the support for LSM is restored.
+    # FIXME-WT-8867 Disable/Un-tag the LSM perf test till the support for LSM is restored.
     # tags: ["evict-perf"]
     depends_on:
       - name: compile
@@ -5022,6 +5041,7 @@ buildvariants:
     - name: azure-tiered-test-small
     - name: gcp-tiered-test-small
     - name: bench-tiered-push-pull-s3
+    - name: csuite-timestamp-abort-test-s3
 
 - name: ubuntu2004-asan
   display_name: "! Ubuntu 20.04 ASAN"
