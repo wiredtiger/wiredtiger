@@ -736,7 +736,8 @@ wts_stats(void)
     stats_data_print(session, "statistics:", fp);
 
     /*
-     * Data source statistics. Statistics cursors on tiered storage objects are not yet supported.
+     * Data source statistics.
+     *     FIXME-WT-9785: Statistics cursors on tiered storage objects are not yet supported.
      */
     if (!g.tiered_storage) {
         args.fp = fp;

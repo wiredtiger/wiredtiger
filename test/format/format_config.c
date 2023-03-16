@@ -1405,20 +1405,23 @@ config_tiered_storage(void)
         config_off(NULL, "transaction.implicit");
         config_single(NULL, "transaction.timestamps=on", true);
 
-        /* FIXME-WT-8727: Salvage and verify are not yet supported for tiered storage. */
-        config_off(NULL, "ops.salvage");
-        config_off(NULL, "ops.verify");
-
         /* If we are flushing, we need a checkpoint thread. */
         if (GV(TIERED_STORAGE_FLUSH_FREQUENCY) > 0)
             config_single(NULL, "checkpoint=on", false);
 
-        /* Backup is not yet supported for tiered tables. */
+        /* FIXME-WT-8727: Salvage and verify are not yet supported for tiered storage. */
+        config_off(NULL, "ops.salvage");
+        config_off(NULL, "ops.verify");
+
+        /* FIXME-PM-2532: Backup is not yet supported for tiered tables. */
         config_off(NULL, "backup");
         config_off(NULL, "backup.incremental");
 
+        /* FIXME-PM-2538: Compact is not yet supported for tiered tables. */
+        config_off(NULL, "ops.compaction");
+
     } else
-        /* Never flush during checkpoints if not running with tiered storage. */
+        /* Never try flush to tiered storage unless running with tiered storage. */
         config_single(NULL, "tiered_storage.flush_frequency=0", true);
 }
 
