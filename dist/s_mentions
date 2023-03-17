@@ -3,6 +3,12 @@
 # Find comments related to the ticket potentially indicated by the branch name. The script never
 # fails, it only warns the caller there are comments that are potentially worth checking.
 
+# Testing notes:
+# Different users have different structures in their development trees. When making changes to this
+# script, please test a few different scenarios including. When there are multiple populated
+# build directories, and when the Git repository is checkout out with the Jira ticket in the name
+# of the repo, and the current branch name matches the Jira ticket as well.
+
 # Retrieve the current branch name.
 branch_name=$(git rev-parse --abbrev-ref HEAD 2>&1 || echo "BRANCH_NOT_FOUND")
 
