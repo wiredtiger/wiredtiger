@@ -128,7 +128,7 @@ Timestamps of updates in the history store can have some non-obvious properties:
   is in order.
 * During rollback of a prepared transaction, a history store update with a stop timestamp may not
   get removed, leading to a duplicate record. RTS ignores these, and they're removed during the next
-  checkpoint.
+  reconciliation.
 * If we've had to fix any timestamps as part of RTS, a newly inserted update with an older timestamp
   may have a durable timestamp smaller than the current stop durable timestamp.
 * When a checkpoint writes a committed prepared update, it's possible for further updates on that
@@ -146,8 +146,8 @@ its durable timestamp, much the same as we would a normal page.
 
 @section interaction-with-transaction-ids Interaction with transaction IDs
 
-This is a little simpler than the timestamp rules - we use normal snapshot visibility in most of the
-places we look at timestamps (see the timestamps section).
+This is a little simpler than the timestamp rules - during recovery, we use normal snapshot
+visibility in most of the places we would look at timestamps (see the timestamps section).
 
 We also clear the transaction ID of updates we look at during RTS, because the connection's write
 generation will be initialized after RTS and the updates in the cache would be problematic for other
@@ -174,7 +174,7 @@ where we have updates to the key in the history store but not the disk image.
 
 History store deletions are done using a standard history store cursor, starting at the highest
 possible start timestamp, and removing keys from newest to oldest until we hit an update with a
-start timestamp larger than the rollback timestamp.
+start timestamp less than or equal to the rollback timestamp.
 
 Note: in-memory databases don't have a history store, so none of this section will apply.
 
@@ -194,11 +194,11 @@ the stable timestamp.
 @section iterating-over-pages Iterating over pages
 
 RTS tries to avoid looking at a page if it can. There are two ways we can avoid instantiating a
-page: if it was truncated at/before the stable timestamp, and if the page state is anything other
-than on-disk. If neither of these are satisfied, we need to instantiate the page to look at it, but
-that doesn't mean we look at the contents. Rather, we use the existing tree walk custom skipping
-functionality to check the page metadata, stuff like reconciliation results. These checks are fairly
-low-level, so they're outside the scope of this document.
+page: if it was truncated at/before the stable timestamp, or if the page state is on-disk. If
+neither of these are satisfied, we need to instantiate the page to look at it, but that doesn't mean
+we look at the contents. Rather, we use the existing tree walk custom skipping functionality to
+check the page metadata, stuff like reconciliation results. These checks are fairly low-level, so
+they're outside the scope of this document.
 
 One final note is that we deliberately do not call RTS for internal pages, as they do not have
 updates. They are still read into the cache in order to navigate to their leaf pages.
@@ -218,7 +218,7 @@ out of scope for the architecture guide.
 
 Checkpoints cannot be performed while RTS is running, even if they start before RTS. This is part of
 the contract that the system must be in a quiescent state before running RTS, but it's also enforced
-by taking the session's checkpoint lock.
+by taking the connection's checkpoint lock.
 
 Upon completion of RTS, a checkpoint is performed so that both in-memory and on-disk versions of
 data are the same. It's possible for users to opt out of this, for example if they intended to do a
@@ -227,9 +227,8 @@ checkpoint shortly after RTS anyway.
 Eviction doesn't directly interact with RTS in any special way, but it's worth pointing out that RTS
 is likely to generate a large number of both clean and dirty pages, causing some amount of extra
 cache pressure. The clean pages can be evicted trivially, but the dirty pages will need to be
-written out, causing a potentially large amount of I/O and the potential for application threads to
-be forced into doing eviction work. Eviction triggers and targets apply the same way during RTS as
-they do at any other time.
+written out, causing a potentially large amount of I/O. Eviction triggers and targets apply the same
+way during RTS as they do at any other time.
 
 @section dry-run-mode Dry-run mode
 
