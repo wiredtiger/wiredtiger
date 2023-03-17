@@ -55,11 +55,11 @@ struct azure_statistics {
 struct azure_store {
     WT_STORAGE_SOURCE store;
     WT_EXTENSION_API *wt_api;
-    
+
     std::mutex fs_mutex;
     std::vector<azure_file_system *> azure_fs;
     uint32_t reference_count;
-    
+
     int32_t verbose;
     std::unique_ptr<azure_log_system> log;
     azure_statistics statistics;
@@ -433,9 +433,9 @@ azure_file_system_exists(
     // Check whether the object exists in the cloud.
     int ret;
     if (ret = azure_fs->azure_conn->object_exists(name, *existp, size) != 0) {
-      log->log_err_msg(
-        "azure_file_system_exists: Error with searching for object: " + std::string(name));
-      return ret;
+        log->log_err_msg(
+          "azure_file_system_exists: Error with searching for object: " + std::string(name));
+        return ret;
     }
 
     if (!*existp)
