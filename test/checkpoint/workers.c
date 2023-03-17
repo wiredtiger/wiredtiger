@@ -473,13 +473,13 @@ real_worker(THREAD_DATA *td)
                         /* Commit majority of times. */
                         if (next_rnd % 49 != 0) {
                             if ((ret = session->commit_transaction(session, buf)) != 0) {
-                                if (g.predictable_replay)
-                                    WT_PUBLISH(td->ts, base_ts);
-                                else
+                                if (!g.predictable_replay)
                                     __wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
                                 (void)log_print_err("real_worker:commit_transaction", ret, 1);
                                 goto err;
                             }
+                            if (g.predictable_replay)
+                                WT_PUBLISH(td->ts, base_ts);
                         } else {
                             if ((ret = session->rollback_transaction(session, NULL)) != 0) {
                                 if (!g.predictable_replay)
