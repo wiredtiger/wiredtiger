@@ -176,7 +176,7 @@ __evict_clear_non_urgent_queues(WT_SESSION_IMPL *session)
 
         elem = queue->evict_max;
 
-        for (i = 0, evict = cache->evict_queues[q].evict_queue; i < elem; i++, evict++)
+        for (i = 0, evict = queue->evict_queue; i < elem; i++, evict++)
             __evict_list_clear(session, evict);
 
         __wt_spin_unlock(session, &queue->evict_lock);
