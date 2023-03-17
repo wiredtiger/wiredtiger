@@ -146,7 +146,8 @@ testutil_tiered_storage_configuration(
                     testutil_check(
                       __wt_snprintf(dir, sizeof(dir), "%s/%s", opts->home, DIR_STORE_BUCKET_NAME));
                 else {
-                    (void)getcwd(cwd, sizeof(cwd));
+                    if (getcwd(cwd, sizeof(cwd)) == NULL)
+                        testutil_die(ENOENT, "No such directory");
                     testutil_check(__wt_snprintf(
                       dir, sizeof(dir), "%s/%s/%s", cwd, opts->home, DIR_STORE_BUCKET_NAME));
                 }
