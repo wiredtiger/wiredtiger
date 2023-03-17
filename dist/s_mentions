@@ -5,7 +5,7 @@
 
 # Testing notes:
 # Different users have different structures in their development trees. When making changes to this
-# script, please test a few different scenarios including. When there are multiple populated
+# script, please test a few different scenarios including: When there are multiple populated
 # build directories, and when the Git repository is checkout out with the Jira ticket in the name
 # of the repo, and the current branch name matches the Jira ticket as well.
 
