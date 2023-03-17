@@ -229,8 +229,9 @@ main(int argc, char *argv[])
     g.ts_oldest = 1;
 
     printf("%s: process %" PRIu64 "\n", progname, (uint64_t)getpid());
-    printf("Config to seed for replay: %s " TESTUTIL_SEED_FORMAT "\n", progname, g.opts.data_seed,
-      g.opts.extra_seed);
+    if (g.predictable_replay)
+        printf("Config to seed for replay: %s -R " TESTUTIL_SEED_FORMAT "\n", progname,
+          g.opts.data_seed, g.opts.extra_seed);
 
     for (cnt = 1; (runs == 0 || cnt <= runs) && g.status == 0; ++cnt) {
         cleanup(cnt == 1 && !verify_only); /* Clean up previous runs */
