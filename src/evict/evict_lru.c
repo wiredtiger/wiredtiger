@@ -9,6 +9,7 @@
 #include "wt_internal.h"
 
 static int __evict_clear_all_walks(WT_SESSION_IMPL *);
+static void __evict_clear_non_urgent_queues(WT_SESSION_IMPL *);
 static int WT_CDECL __evict_lru_cmp(const void *, const void *);
 static int __evict_lru_pages(WT_SESSION_IMPL *, bool);
 static int __evict_lru_walk(WT_SESSION_IMPL *);
@@ -151,6 +152,37 @@ __evict_list_clear(WT_SESSION_IMPL *session, WT_EVICT_ENTRY *e)
     }
     e->ref = NULL;
     e->btree = WT_DEBUG_POINT;
+}
+
+/*
+ * __evict_clear_non_urgent_queues --
+ *     Clear all entries from eviction queues (except the urgent queue).
+ */
+static void
+__evict_clear_non_urgent_queues(WT_SESSION_IMPL *session)
+{
+    WT_CACHE *cache;
+    WT_EVICT_ENTRY *evict;
+    WT_EVICT_QUEUE *queue;
+    u_int elem, i, q;
+
+    cache = S2C(session)->cache;
+
+    __wt_spin_lock(session, &cache->evict_queue_lock);
+
+    for (q = 0; q < WT_EVICT_QUEUE_MAX - 1; q++) {
+        queue = &cache->evict_queues[q];
+        __wt_spin_lock(session, &queue->evict_lock);
+
+        elem = queue->evict_max;
+
+        for (i = 0, evict = cache->evict_queues[q].evict_queue; i < elem; i++, evict++)
+            __evict_list_clear(session, evict);
+
+        __wt_spin_unlock(session, &queue->evict_lock);
+    }
+
+    __wt_spin_unlock(session, &cache->evict_queue_lock);
 }
 
 /*
@@ -574,11 +606,9 @@ __evict_update_work(WT_SESSION_IMPL *session)
     WT_BTREE *hs_tree;
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
-    WT_EVICT_QUEUE *queue;
     double dirty_target, dirty_trigger, target, trigger, updates_target, updates_trigger;
     uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates;
     uint32_t flags;
-    u_int q;
 
     conn = S2C(session);
     cache = conn->cache;
@@ -670,27 +700,13 @@ __evict_update_work(WT_SESSION_IMPL *session)
     }
 
     /*
-     * Clear all non-candidate entries from the eviction queues if the eviction server is about to
-     * go idle, otherwise an under-loaded system can end up in a state where urgent eviction of
-     * pages can be blocked because non-candidate entries are already in the eviction queues, but
-     * are never being visited.
+     * Clear all the entries from the regular eviction queues if the eviction server is about to go
+     * idle, otherwise an under-loaded system can end up in a state where urgent eviction of pages
+     * can be blocked because entries are already in the eviction queues, but are never being
+     * visited.
      */
-    if (F_ISSET(cache, WT_CACHE_EVICT_ALL) && !LF_ISSET(WT_CACHE_EVICT_ALL)) {
-        /* clear all entries from eviction queues (except the urgent queue). */
-        __wt_spin_lock(session, &cache->evict_queue_lock);
-
-        for (q = 0; q < WT_EVICT_QUEUE_MAX - 1; q++) {
-            queue = &cache->evict_queues[q];
-            __wt_spin_lock(session, &queue->evict_lock);
-
-            while (queue->evict_candidates < queue->evict_entries)
-                __evict_list_clear(session, &queue->evict_queue[--queue->evict_entries]);
-
-            __wt_spin_unlock(session, &queue->evict_lock);
-        }
-
-        __wt_spin_unlock(session, &cache->evict_queue_lock);
-    }
+    if (F_ISSET(cache, WT_CACHE_EVICT_ALL) && !LF_ISSET(WT_CACHE_EVICT_ALL))
+        __evict_clear_non_urgent_queues(session);
 
     /* Update the global eviction state. */
     cache->flags = flags;
