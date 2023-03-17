@@ -5381,9 +5381,29 @@ buildvariants:
   display_name: "macOS 11.00 ARM64"
   run_on:
     - macos-1100-arm64
-  batchtime: 40320 # 28 days
+  batchtime: 120 # 2 hours
+  expansions:
+    # The cmake toolchain file is set to the mongodb toolchain gcc by defualt.
+    # Remove that configuration here and let MacOS use the default Xcode toolchain instead.
+    CMAKE_TOOLCHAIN_FILE:
+    python_binary: 'python3'
+    smp_command: -j $(sysctl -n hw.logicalcpu)
+    cmake_generator: "Unix Makefiles"
+    make_command: make
+    test_env_vars:
+      WT_BUILDDIR=$(git rev-parse --show-toplevel)/cmake_build
+      DYLD_LIBRARY_PATH=$WT_BUILDDIR
+    # Must disable TCMALLOC as it may be picked up locally and its not on all hosts.
+    posix_configure_flags: -DENABLE_TCMALLOC=0
   tasks:
+    - name: compile
+    - name: make-check-test
+    # FIXME: WT-9575
+    # Using a special version of unit test for macOS to reduce the concurrency level.
+    - name: unit-test-macos
+    - name: fops
     - name: memory-model-test-mac
+      batchtime: 40320 # 28 days
 
 - name: little-endian
   display_name: "~ Little-endian (x86)"
