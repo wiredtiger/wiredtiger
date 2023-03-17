@@ -22,7 +22,7 @@ search_function="grep -Iinr --exclude-dir=.git"
 build_files=$(find ../ -maxdepth 2 -name CMakeFiles)
 for build_dir in $build_files; do
     build_folder=$(basename $(dirname $build_dir))
-    search_function="$search_function --exclude-dir=$build_dir"
+    search_function="$search_function --exclude-dir=$build_folder"
 done
 
 search_function="$search_function $ticket_id ../ 2>&1"
