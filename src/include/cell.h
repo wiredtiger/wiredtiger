@@ -203,6 +203,8 @@ struct __wt_cell_unpack_addr {
     WT_TIME_AGGREGATE ta; /* Address validity window */
 
     WT_PAGE_DELETED page_del; /* Fast-truncate information */
+
+    WT_PAGE_STAT ps; /* Page information including row and byte counts */
 };
 
 /*
@@ -213,4 +215,6 @@ struct __wt_cell_unpack_kv {
     WT_CELL_COMMON_FIELDS;
 
     WT_TIME_WINDOW tw; /* Value validity window */
+
+    WT_PAGE_STAT ovfl_ps; /* Page information including row and byte counts */
 };

@@ -685,7 +685,6 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
     } copy;
     WT_CELL_UNPACK_COMMON *unpack;
     WT_PAGE_DELETED *page_del;
-    WT_PAGE_STAT unpack_ps;
     WT_TIME_AGGREGATE *ta;
     WT_TIME_WINDOW *tw;
     uint64_t v;
@@ -696,8 +695,6 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
     copy_cell = false;
     copy.len = 0; /* [-Wconditional-uninitialized] */
     copy.v = 0;   /* [-Wconditional-uninitialized] */
-
-    WT_PAGE_STAT_INIT(&unpack_ps);
 
     if (unpack_addr == NULL) {
         unpack = (WT_CELL_UNPACK_COMMON *)unpack_value;
@@ -922,25 +919,24 @@ copy_cell_restart:
     case WT_CELL_ADDR_INT:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
+        /* The cell is followed by a 4B data length and a chunk of data. */
         WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &v));
 
         if (F_ISSET(dsk, WT_PAGE_BTREE_INFO)) {
-            WT_RET(__wt_addr_cookie_btree_unpack(p, &unpack_ps));
-            v = WT_ADDR_COOKIE_BLOCK_LEN(p);
-            p = WT_ADDR_COOKIE_BLOCK(p);
+            WT_RET(__wt_addr_cookie_btree_unpack(p, &unpack_addr->ps));
+            unpack->data = WT_ADDR_COOKIE_BLOCK(p);
+            unpack->size = WT_ADDR_COOKIE_BLOCK_LEN(p);
+            unpack->__len = (uint32_t)(WT_PTRDIFF32(p, cell) + v);
+        } else {
+            unpack->data = p;
+            unpack->size = (uint32_t)v;
+            unpack->__len = (uint32_t)(WT_PTRDIFF32(p, cell) + v);
         }
-
-        unpack->data = p;
-        unpack->size = (uint32_t)v;
-        unpack->__len = (uint32_t)(WT_PTRDIFF32(p, cell) + v);
         break;
-
     case WT_CELL_KEY:
     case WT_CELL_KEY_PFX:
     case WT_CELL_VALUE:
-        /*
-         * The cell is followed by a 4B data length and a chunk of data.
-         */
+        /* The cell is followed by a 4B data length and a chunk of data. */
         WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &v));
 
         /*

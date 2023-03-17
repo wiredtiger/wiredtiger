@@ -29,16 +29,16 @@ __wt_addr_cookie_pack(WT_SESSION_IMPL *session, WT_ITEM *addr, void *block_addr,
         memcpy(WT_ADDR_COOKIE_BLOCK(addr->mem), block_addr, block_addr_size);
 
         /* Update the size of the combined address cookie. */
-        addr->size = (uint8_t)(
-          1 + WT_BTREE_INFO_LEN(addr->mem) + 1 + WT_ADDR_COOKIE_BLOCK_LEN(addr->mem));
-    } else {
+        addr->size =
+          (uint8_t)(1 + WT_BTREE_INFO_LEN(addr->mem) + 1 + WT_ADDR_COOKIE_BLOCK_LEN(addr->mem));
+    } else
         /*
          * Don't copy the data into the buffer in simple cases where there are no page stats
          * information to be encoded, it's not necessary; just re-point the buffer's data/length
          * fields.
          */
         WT_RET(__wt_buf_set(session, addr, block_addr, block_addr_size));
-    }
+
     return (0);
 }
 
