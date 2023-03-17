@@ -55,6 +55,8 @@ typedef enum { MIX = 0, COL, FIX, LSM, ROW } table_type; /* File type */
 #define RESERVED_TIMESTAMPS_FOR_ITERATION(threadcount, td, iter) \
     (((iter) * (uint64_t)(threadcount) + (uint64_t)((td)->info)) * 3 + 1)
 
+#define PRED_REPLAY_STABLE_PERIOD 100
+
 /*
  * Per-table cookie structure.
  */
@@ -68,7 +70,7 @@ typedef struct {
     int info;
     u_int start_key;
     u_int key_range;
-    uint64_t ts;                /* Only used for runs with predictable replay. */
+    uint64_t ts; /* Only used for runs with predictable replay. */
     WT_RAND_STATE data_rnd;
     WT_RAND_STATE extra_rnd;
 } THREAD_DATA;

@@ -39,15 +39,15 @@ static int real_checkpointer(THREAD_DATA *);
  *     Set the stable timestamp from g.ts_stable.
  */
 static void
-set_stable(void)
+set_stable(uint64_t stable_ts)
 {
     char buf[128];
 
     if (g.race_timestamps)
         testutil_check(__wt_snprintf(buf, sizeof(buf),
-          "stable_timestamp=%" PRIx64 ",oldest_timestamp=%" PRIx64, g.ts_stable, g.ts_stable));
+          "stable_timestamp=%" PRIx64 ",oldest_timestamp=%" PRIx64, stable_ts, stable_ts));
     else
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "stable_timestamp=%" PRIx64, g.ts_stable));
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "stable_timestamp=%" PRIx64, stable_ts));
     testutil_check(g.conn->set_timestamp(g.conn, buf));
 }
 
@@ -58,7 +58,7 @@ set_stable(void)
 void
 start_threads(void)
 {
-    set_stable();
+    set_stable(1); /* Let's start with 1 as the stable as 0 is not a valid timestamp. */
     /*
      * If there are N worker threads (0 - N-1), the checkpoint thread has an ID of N and the clock
      * thread an ID of N + 1.
@@ -92,6 +92,28 @@ end_threads(void)
 }
 
 /*
+ * get_all_committed_ts --
+ *     Returns the least of commit timestamps across all the threads. Returns UINT64_MAX if one of
+ *     the threads has not yet started.
+ */
+static uint64_t
+get_all_committed_ts(void)
+{
+    uint64_t ret;
+    int i;
+
+    ret = UINT64_MAX;
+    for (i = 0; i < g.nworkers; ++i) {
+        if (g.td[i].ts < ret)
+            ret = g.td[i].ts;
+        if (ret == 0)
+            return (UINT64_MAX);
+    }
+
+    return (ret);
+}
+
+/*
  * clock_thread --
  *     Clock thread: ticks up timestamps.
  */
@@ -101,37 +123,47 @@ clock_thread(void *arg)
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
     THREAD_DATA *td;
-    uint64_t delay;
+    uint64_t delay, last_ts, oldest_ts;
 
     td = (THREAD_DATA *)arg;
+    last_ts = 0;
 
     testutil_check(g.conn->open_session(g.conn, NULL, NULL, &wt_session));
     session = (WT_SESSION_IMPL *)wt_session;
 
     while (g.opts.running) {
-        __wt_writelock(session, &g.clock_lock);
-        if (g.prepare)
+        if (g.predictable_replay) {
+            oldest_ts = get_all_committed_ts();
+            if (oldest_ts != UINT64_MAX && oldest_ts - last_ts > PRED_REPLAY_STABLE_PERIOD) {
+                set_stable(oldest_ts);
+                last_ts = oldest_ts;
+            } else
+                __wt_sleep(0, WT_THOUSAND);
+        } else {
+            __wt_writelock(session, &g.clock_lock);
+            if (g.prepare)
+                /*
+                 * Leave a gap between timestamps so prepared insert followed by remove don't
+                 * overlap with stable timestamp.
+                 */
+                g.ts_stable += 5;
+            else
+                ++g.ts_stable;
+            set_stable(g.ts_stable);
+            if (g.ts_stable % 997 == 0) {
+                /*
+                 * Random value between 6 and 10 seconds.
+                 */
+                delay = __wt_random(&td->extra_rnd) % 5;
+                __wt_sleep(delay + 6, 0);
+            }
+            __wt_writeunlock(session, &g.clock_lock);
             /*
-             * Leave a gap between timestamps so prepared insert followed by remove don't overlap
-             * with stable timestamp.
+             * Random value between 5000 and 10000.
              */
-            g.ts_stable += 5;
-        else
-            ++g.ts_stable;
-        set_stable();
-        if (g.ts_stable % 997 == 0) {
-            /*
-             * Random value between 6 and 10 seconds.
-             */
-            delay = __wt_random(&td->extra_rnd) % 5;
-            __wt_sleep(delay + 6, 0);
+            delay = __wt_random(&td->extra_rnd) % 5001;
+            __wt_sleep(0, delay + 5 * WT_THOUSAND);
         }
-        __wt_writeunlock(session, &g.clock_lock);
-        /*
-         * Random value between 5000 and 10000.
-         */
-        delay = __wt_random(&td->extra_rnd) % 5001;
-        __wt_sleep(0, delay + 5 * WT_THOUSAND);
     }
 
     testutil_check(wt_session->close(wt_session, NULL));
