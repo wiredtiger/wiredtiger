@@ -57,7 +57,7 @@ usage(void)
       "case, raw data elements will be formatted like -x with hexadecimal encoding.",
       "-r", "dump in reverse order", "-t timestamp",
       "dump as of the specified timestamp (the default is the most recent version of the data)",
-      "-u", "upper bound of the key range to dump", "-x", "-w n",
+      "-u", "upper bound of the key range to dump", "-w n",
       "dump n records before and after the record sought", "-x",
       "dump all characters in a hexadecimal encoding (by default printable characters are not "
       "encoded). The -x flag can be combined with -p. In this case, the dump will be formatted "
