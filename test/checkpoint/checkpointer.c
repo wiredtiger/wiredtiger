@@ -268,9 +268,13 @@ real_checkpointer(THREAD_DATA *td)
             else
                 /* Use the extra random generator as the data is not getting modified. */
                 verify_ts = __wt_random(&td->extra_rnd) % (stable_ts - oldest_ts + 1) + oldest_ts;
-            __wt_writelock((WT_SESSION_IMPL *)session, &g.clock_lock);
-            g.ts_oldest = g.ts_stable;
-            __wt_writeunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
+            if (g.predictable_replay)
+                g.ts_oldest = get_all_committed_ts();
+            else {
+                __wt_writelock((WT_SESSION_IMPL *)session, &g.clock_lock);
+                g.ts_oldest = g.ts_stable;
+                __wt_writeunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
+            }
         }
 
         /* Execute a checkpoint */
