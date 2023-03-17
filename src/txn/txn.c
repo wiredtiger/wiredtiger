@@ -2423,10 +2423,10 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
               __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string));
             WT_TRET(conn->rts->rollback_to_stable(session, cfg, true));
 
-            /* Log an error if rollback to stable fails here. */
             if (ret != 0)
-                __wt_verbose(session, WT_VERB_RTS,
-                  "performing shutdown rollback to stable failed with code %d", ret);
+                __wt_verbose_notice(session, WT_VERB_RTS,
+                  "performing shutdown rollback to stable failed with code %s",
+                  __wt_strerror(session, ret, NULL, 0));
         }
 
         s = NULL;
