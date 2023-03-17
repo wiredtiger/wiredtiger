@@ -475,6 +475,8 @@ struct __wt_connection_stats {
     int64_t cache_hs_key_truncate;
     int64_t cache_hs_order_remove;
     int64_t cache_hs_key_truncate_onpage_removal;
+    int64_t cache_hs_key_truncate_rts_unstable_dryrun;
+    int64_t cache_hs_key_truncate_rts_dryrun;
     int64_t cache_hs_order_reinsert;
     int64_t cache_hs_write_squash;
     int64_t cache_inmem_splittable;
@@ -860,6 +862,8 @@ struct __wt_connection_stats {
     int64_t txn_rts_tree_walk_skip_pages;
     int64_t txn_rts_upd_aborted;
     int64_t txn_rts_hs_removed;
+    int64_t txn_rts_upd_aborted_dryrun;
+    int64_t txn_rts_hs_removed_dryrun;
     int64_t txn_sessions_walked;
     int64_t txn_set_ts;
     int64_t txn_set_ts_durable;
@@ -1002,6 +1006,8 @@ struct __wt_dsrc_stats {
     int64_t cache_hs_key_truncate;
     int64_t cache_hs_order_remove;
     int64_t cache_hs_key_truncate_onpage_removal;
+    int64_t cache_hs_key_truncate_rts_unstable_dryrun;
+    int64_t cache_hs_key_truncate_rts_dryrun;
     int64_t cache_hs_order_reinsert;
     int64_t cache_hs_write_squash;
     int64_t cache_inmem_splittable;
@@ -1184,6 +1190,7 @@ struct __wt_dsrc_stats {
     int64_t txn_rts_stable_rle_skipped;
     int64_t txn_rts_sweep_hs_keys;
     int64_t txn_rts_hs_removed;
+    int64_t txn_rts_hs_removed_dryrun;
     int64_t txn_checkpoint_obsolete_applied;
     int64_t txn_update_conflict;
 };
