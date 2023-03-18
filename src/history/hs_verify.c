@@ -71,7 +71,7 @@ __hs_verify_id(
         WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(ds_cbt, &key, false, NULL, false, NULL));
         WT_ERR(ret);
 
-        if (ds_cbt->compare != 0) {
+        if (CUR2BT(ds_cbt)->type == BTREE_ROW && ds_cbt->compare != 0) {
             F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
             WT_ERR_PANIC(session, WT_PANIC,
               "the associated history store key %s was not found in the data store %s",
