@@ -189,11 +189,24 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     const char *name;
     bool bm_start, quit;
 
+#ifdef WT_STANDALONE_BUILD
+    bool skip_hs;
+#endif
+
     btree = S2BT(session);
     bm = btree->bm;
     ckptbase = NULL;
     name = session->dhandle->name;
     bm_start = false;
+
+#ifdef WT_STANDALONE_BUILD
+    /*
+     * Skip the history store explicit call if we're performing a metadata verification. The
+     * metadata file is verified before we verify the history store, and it makes no sense to verify
+     * the history store against itself.
+     */
+    skip_hs = strcmp(name, WT_METAFILE_URI) == 0 || strcmp(name, WT_HS_URI) == 0;
+#endif
 
     WT_CLEAR(_vstuff);
     vs = &_vstuff;
@@ -269,6 +282,22 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             /* Verify the tree. */
             WT_WITH_PAGE_INDEX(
               session, ret = __verify_tree(session, &btree->root, &addr_unpack, vs));
+
+#ifdef WT_STANDALONE_BUILD
+            /*
+             * The checkpoints are in time-order, so the last one in the list is the most recent. If
+             * this is the most recent checkpoint, verify the history store against it.
+             */
+            if (ret == 0 && (ckpt + 1)->name == NULL && !skip_hs) {
+                /* Open a history store cursor. */
+                WT_TRET(__wt_hs_verify_one(session));
+                /*
+                 * We cannot error out here. If we got an error verifying the history store, we need
+                 * to follow through with reacquiring the exclusive call below. We'll error out
+                 * after that and unloading this checkpoint.
+                 */
+            }
+#endif
 
             /*
              * If the read_corrupt mode was turned on, we may have continued traversing and
