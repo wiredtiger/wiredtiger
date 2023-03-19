@@ -2425,6 +2425,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
 
             if (ret != 0)
                 __wt_verbose_notice(session, WT_VERB_RTS,
+                  WT_RTS_VERB_TAG_SHUTDOWN_RTS
                   "performing shutdown rollback to stable failed with code %s",
                   __wt_strerror(session, ret, NULL, 0));
         }
