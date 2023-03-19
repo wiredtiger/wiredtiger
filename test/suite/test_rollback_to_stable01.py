@@ -116,6 +116,7 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         keys_restored = stat_cursor[stat.conn.txn_rts_keys_restored][2]
         pages_visited = stat_cursor[stat.conn.txn_rts_pages_visited][2]
         upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
+        upd_aborted_dryrun = stat_cursor[stat.conn.txn_rts_upd_aborted_dryrun][2]
         stat_cursor.close()
 
         self.assertEqual(calls, 1)
@@ -123,8 +124,10 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         self.assertEqual(keys_removed, 0)
         if self.dryrun:
             self.assertEqual(upd_aborted, 0)
+            self.assertEqual(upd_aborted_dryrun, 0)
         elif self.in_memory:
             self.assertEqual(upd_aborted, nrows)
+            self.assertEqual(upd_aborted_dryrun, 0)
         else:
             self.assertEqual(upd_aborted + keys_restored, nrows)
         self.assertGreaterEqual(keys_restored, 0)
