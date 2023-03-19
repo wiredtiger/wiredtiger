@@ -221,9 +221,9 @@ class Operation:
     def __init_shutdown_rts(self, line):
         self.type = OpType.SHUTDOWN_RTS
 
-        matches = re.search('performing shutdown rollback to stable failed with code=(\w+)', line)
+        matches = re.search('performing shutdown rollback to stable failed with code (\w+)', line)
         self.shutdown_rts_error = matches.group(1).lower() != "0"
-        
+
     def __init_tree_skip(self, line):
         self.type = OpType.TREE_SKIP
         self.file = self.__extract_file(line)
