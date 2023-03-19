@@ -2967,7 +2967,34 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
+          <<: *configure_flags_tiered_storage_azure
+          <<: *configure_flags_tiered_storage_gcp
           <<: *configure_flags_tiered_storage_s3
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build"
+          shell: bash
+          script: |
+            set -o errexit
+            # Set the Azure credentials using config variable.
+            export AZURE_STORAGE_CONNECTION_STRING="${azure_sdk_ext_access_key}"
+
+            # GCP requires a path to a credentials file for authorization. To not expose the private
+            # information within the file, we use a placeholder private variable which are replaced 
+            # in the command line with the evergreen expansion variables and stored in a temporary 
+            # file.
+            file=$(mktemp --suffix ".json")
+
+            # Use '|' as the delimiter instead of default behaviour because the private key contains
+            # slash characters.
+            sed -e 's|gcp_project_id|${gcp_sdk_ext_project_id}|'                      \
+                -e 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|'                \
+                -e 's|gcp_private_id|${gcp_sdk_ext_private_key_id}|'                  \
+                -e 's|gcp_client_email|${gcp_sdk_ext_client_email}|'                  \
+                -e 's|gcp_client_id|${gcp_sdk_ext_client_id}|'                        \
+                -e 's|gcp_client_x509_cert_url|${gcp_sdk_ext_client_x509_cert_url}|'  ../test/evergreen/gcp_auth.json > $file
+            export GOOGLE_APPLICATION_CREDENTIALS="$file"
+            set -o verbose
       - func: "run tiered storage test"
         vars:
           # Set this in case of a core to get the correct python binary.
@@ -3018,8 +3045,6 @@ tasks:
         params:
           working_dir: "wiredtiger/cmake_build"
           shell: bash
-          include_expansions_in_env:
-            - azure_sdk_ext_access_key
           script: |
             set -o errexit
             # Set the Azure credentials using config variable.
@@ -3041,9 +3066,6 @@ tasks:
         params:
           working_dir: "wiredtiger/cmake_build"
           shell: bash
-          include_expansions_in_env:
-            - gcp_sdk_ext_private_key
-            - gcp_sdk_ext_private_key_id
           script: | 
             set -o errexit
             # GCP requires a path to a credentials file for authorization. To not expose the private
@@ -3076,8 +3098,6 @@ tasks:
         params:
           working_dir: "wiredtiger/cmake_build"
           shell: bash
-          include_expansions_in_env:
-            - azure_sdk_ext_access_key
           script: |
             set -o errexit
             # Set the Azure credentials using config variable.
@@ -3097,9 +3117,6 @@ tasks:
         params:
           working_dir: "wiredtiger/cmake_build"
           shell: bash
-          include_expansions_in_env:
-            - gcp_sdk_ext_private_key
-            - gcp_sdk_ext_private_key_id
           script: |
             set -o errexit
             # GCP requires a path to a credentials file for authorization. To not expose the private
