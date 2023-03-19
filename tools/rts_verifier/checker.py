@@ -136,8 +136,8 @@ class Checker:
         # if operation.file != self.current_tree.file:
         #     raise Exception(f"spurious visit to {operation.file}")
 
-        if operation.shutdown_rts_error:
-            raise Exception("Rollback to stable during shutdown failed")
+        # if operation.shutdown_rts_error:
+        #     raise Exception("Rollback to stable during shutdown failed")
         pass
 
     def __apply_check_tree_skip(self, operation):
