@@ -289,7 +289,7 @@ gcp_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYSTEM
     // std::filesystem::canonical will throw an exception if object does not exist so
     // check if the object exists.
     if (!std::filesystem::exists(local_file_path)) {
-        gcp->log->log_error_message("gcp_flush: Object: No such file " + std::string(object) + ".");
+        gcp->log->log_error_message("gcp_flush: No such file" + std::string(object) + ".");
         return ENOENT;
     }
     // Confirm that the file exists on the native filesystem.
@@ -446,7 +446,7 @@ gcp_remove(WT_FILE_SYSTEM *file_system, [[maybe_unused]] WT_SESSION *session,
     gcp_store *gcp = fs->storage_source;
 
     gcp->log->log_error_message(
-      "azure_rename: Object: " + std::string(name) + ": remove of file not supported.");
+      "gcp_remove: Object: " + std::string(name) + ": remove of file not supported.");
     return ENOTSUP;
 }
 
@@ -459,7 +459,7 @@ gcp_rename(WT_FILE_SYSTEM *file_system, [[maybe_unused]] WT_SESSION *session,
     gcp_store *gcp = fs->storage_source;
 
     gcp->log->log_error_message(
-      "azure_rename: Object: " + std::string(from) + ": rename of file not supported.");
+      "gcp_rename: Object: " + std::string(from) + ": rename of file not supported.");
     return ENOTSUP;
 }
 
