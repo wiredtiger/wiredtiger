@@ -90,6 +90,7 @@ def wiredtiger_open_tiered(ignored_self, args):
     curconfig = args[-1]
     homedir = args[0]
 
+    bucketpath = bucket
     # If there is already tiered storage enabled, we shouldn't enable it here.
     # We might attempt to let the wiredtiger_open complete without alteration,
     # however, we alter several other API methods that would do weird things with
