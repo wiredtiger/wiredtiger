@@ -101,6 +101,7 @@ static uint32_t backup_granularity_kb;
 
 static TEST_OPTS *opts, _opts;
 
+static int recover_and_verify(uint32_t backup_index);
 extern int __wt_optind;
 extern char *__wt_optarg;
 
@@ -1193,7 +1194,9 @@ backup_verify(WT_CONNECTION *conn)
                     printf("==== DONE Verify ID %s dir %s against backup source ====\n", backup_id,
                       dir->d_name);
                 }
-            }
+            } else
+                /* Perform a full test. */
+                testutil_check(recover_and_verify(index));
         }
     }
     testutil_check(closedir(d));
@@ -1237,13 +1240,17 @@ recover_and_verify(uint32_t backup_index)
             testutil_verify_src_backup(conn, buf, WT_HOME_DIR, NULL);
             printf("==== DONE Verify saved dir against backup source ====\n");
         }
+        /*
+         * Only call this when index is 0 because it calls back into here to verify a specific
+         * backup.
+         */
+        if (use_backups)
+            backup_verify(conn);
     } else {
         testutil_check(__wt_snprintf(buf, sizeof(buf), BACKUP_BASE "%" PRIu32, backup_index));
         testutil_system("rm -rf check; cp -rf %s check", buf);
         testutil_wiredtiger_open(opts, "check", NULL, &my_event, &conn, true, false);
     }
-    if (use_backups)
-        backup_verify(conn);
 
     /* Sleep to guarantee the statistics thread has enough time to run. */
     usleep(USEC_STAT + 10);
