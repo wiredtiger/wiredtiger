@@ -30,15 +30,16 @@ int
 __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, uint32_t flags)
 {
     WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
-    uint64_t start, now;
     bool no_reconcile_set, page_locked;
 
     btree = S2BT(session);
+    conn = S2C(session);
     page = ref->page;
 
-    __wt_seconds(session, &start);
+    session->reconcile_timeline.reconcile_start = __wt_clock(session);
 
     __wt_verbose(session, WT_VERB_RECONCILE, "%p reconcile %s (%s%s)", (void *)ref,
       __wt_page_type_string(page->type), LF_ISSET(WT_REC_EVICT) ? "evict" : "checkpoint",
@@ -106,10 +107,25 @@ err:
     if (!no_reconcile_set)
         F_CLR(session, WT_SESSION_NO_RECONCILE);
 
-    /* Track the longest reconciliation, ignoring races (it's just a statistic). */
-    __wt_seconds(session, &now);
-    if (now - start > S2C(session)->rec_maximum_seconds)
-        S2C(session)->rec_maximum_seconds = now - start;
+    /*
+     * Track the longest reconciliation and time spent in each reconciliation stage, ignoring races
+     * (it's just a statistic).
+     */
+    session->reconcile_timeline.reconcile_finish = __wt_clock(session);
+    if (WT_CLOCKDIFF_SEC(session->reconcile_timeline.hs_wrapup_finish,
+          session->reconcile_timeline.hs_wrapup_start) > conn->rec_maximum_hs_wrapup_seconds)
+        conn->rec_maximum_hs_wrapup_seconds =
+          WT_CLOCKDIFF_SEC(session->reconcile_timeline.hs_wrapup_finish,
+            session->reconcile_timeline.hs_wrapup_start);
+    if (WT_CLOCKDIFF_SEC(session->reconcile_timeline.image_build_finish,
+          session->reconcile_timeline.image_build_start) > conn->rec_maximum_image_build_seconds)
+        conn->rec_maximum_image_build_seconds =
+          WT_CLOCKDIFF_SEC(session->reconcile_timeline.image_build_finish,
+            session->reconcile_timeline.image_build_start);
+    if (WT_CLOCKDIFF_SEC(session->reconcile_timeline.reconcile_finish,
+          session->reconcile_timeline.reconcile_start) > conn->rec_maximum_seconds)
+        conn->rec_maximum_seconds = WT_CLOCKDIFF_SEC(session->reconcile_timeline.reconcile_finish,
+          session->reconcile_timeline.reconcile_start);
 
     return (ret);
 }
@@ -161,6 +177,8 @@ __reconcile_post_wrapup(
     WT_BTREE *btree;
 
     btree = S2BT(session);
+
+    page->modify->flags = 0;
 
     /* Release the reconciliation lock. */
     *page_lockedp = false;
@@ -235,6 +253,8 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     WT_RET(__rec_init(session, ref, flags, salvage, &session->reconcile));
     r = session->reconcile;
 
+    session->reconcile_timeline.image_build_start = __wt_clock(session);
+
     /* Reconcile the page. */
     switch (page->type) {
     case WT_PAGE_COL_FIX:
@@ -261,6 +281,8 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         ret = __wt_illegal_value(session, page->type);
         break;
     }
+
+    session->reconcile_timeline.image_build_finish = __wt_clock(session);
 
     /*
      * If we failed, don't bail out yet; we still need to update stats and tidy up.
@@ -552,6 +574,14 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     r->orig_btree_checkpoint_gen = btree->checkpoint_gen;
     r->orig_txn_checkpoint_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
 
+    WT_ASSERT_ALWAYS(
+      session, page->modify->flags == 0, "Illegal page state when initializing reconcile");
+
+    /* Track that the page is being reconciled and if it is exclusive (e.g. eviction). */
+    F_SET(page->modify, WT_PAGE_MODIFY_RECONCILING);
+    if (LF_ISSET(WT_REC_EVICT))
+        F_SET(page->modify, WT_PAGE_MODIFY_EXCLUSIVE);
+
     /*
      * Update the page state to indicate that all currently installed updates will be included in
      * this reconciliation if it would mark the page clean.
@@ -810,7 +840,6 @@ static int
 __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *addr_sizep,
   size_t *compressed_sizep, bool checkpoint, bool checkpoint_io, bool compressed)
 {
-#ifdef HAVE_DIAGNOSTIC
     WT_BTREE *btree;
     WT_DECL_ITEM(ctmp);
     WT_DECL_RET;
@@ -818,44 +847,55 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *addr_
     size_t result_len;
 
     btree = S2BT(session);
+    result_len = 0;
 
-    /* Checkpoint calls are different than standard calls. */
-    WT_ASSERT(session,
-      (!checkpoint && addr != NULL && addr_sizep != NULL) ||
-        (checkpoint && addr == NULL && addr_sizep == NULL));
+    if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_DISK_VALIDATE)) {
+        /* Checkpoint calls are different than standard calls. */
+        WT_ASSERT_ALWAYS(session,
+          (!checkpoint && addr != NULL && addr_sizep != NULL) ||
+            (checkpoint && addr == NULL && addr_sizep == NULL),
+          "Incorrect arguments passed to rec_write for a checkpoint call");
 
-    /* In-memory databases shouldn't write pages. */
-    WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
+        /* In-memory databases shouldn't write pages. */
+        WT_ASSERT_ALWAYS(session, !F_ISSET(S2C(session), WT_CONN_IN_MEMORY),
+          "Attempted to write page to disk when WiredTiger is configured to be in-memory");
 
-    /*
-     * We're passed a table's disk image. Decompress if necessary and verify the image. Always check
-     * the in-memory length for accuracy.
-     */
-    dsk = buf->mem;
-    if (compressed) {
-        WT_ASSERT(session, __wt_scr_alloc(session, dsk->mem_size, &ctmp));
+        /*
+         * We're passed a table's disk image. Decompress if necessary and verify the image. Always
+         * check the in-memory length for accuracy.
+         */
+        dsk = buf->mem;
+        if (compressed) {
+            WT_ASSERT_ALWAYS(session, __wt_scr_alloc(session, dsk->mem_size, &ctmp),
+              "Failed to allocate scratch buffer");
 
-        memcpy(ctmp->mem, buf->data, WT_BLOCK_COMPRESS_SKIP);
-        WT_ASSERT(session,
-          btree->compressor->decompress(btree->compressor, &session->iface,
-            (uint8_t *)buf->data + WT_BLOCK_COMPRESS_SKIP, buf->size - WT_BLOCK_COMPRESS_SKIP,
-            (uint8_t *)ctmp->data + WT_BLOCK_COMPRESS_SKIP, ctmp->memsize - WT_BLOCK_COMPRESS_SKIP,
-            &result_len) == 0);
-        WT_ASSERT(session, dsk->mem_size == result_len + WT_BLOCK_COMPRESS_SKIP);
-        ctmp->size = result_len + WT_BLOCK_COMPRESS_SKIP;
+            memcpy(ctmp->mem, buf->data, WT_BLOCK_COMPRESS_SKIP);
+            WT_ASSERT_ALWAYS(session,
+              btree->compressor->decompress(btree->compressor, &session->iface,
+                (uint8_t *)buf->data + WT_BLOCK_COMPRESS_SKIP, buf->size - WT_BLOCK_COMPRESS_SKIP,
+                (uint8_t *)ctmp->data + WT_BLOCK_COMPRESS_SKIP,
+                ctmp->memsize - WT_BLOCK_COMPRESS_SKIP, &result_len) == 0,
+              "Disk image decompression failed");
+            WT_ASSERT_ALWAYS(session, dsk->mem_size == result_len + WT_BLOCK_COMPRESS_SKIP,
+              "Incorrect disk image size after decompression");
+            ctmp->size = result_len + WT_BLOCK_COMPRESS_SKIP;
 
-        /* Return an error rather than assert because the test suite tests that the error hits. */
-        ret = __wt_verify_dsk(session, "[write-check]", ctmp);
+            /*
+             * Return an error rather than assert because the test suite tests that the error hits.
+             */
+            ret = __wt_verify_dsk(session, "[write-check]", ctmp);
 
-        __wt_scr_free(session, &ctmp);
-    } else {
-        WT_ASSERT(session, dsk->mem_size == buf->size);
+            __wt_scr_free(session, &ctmp);
+        } else {
+            WT_ASSERT_ALWAYS(session, dsk->mem_size == buf->size, "Unexpected disk image size");
 
-        /* Return an error rather than assert because the test suite tests that the error hits. */
-        ret = __wt_verify_dsk(session, "[write-check]", buf);
+            /*
+             * Return an error rather than assert because the test suite tests that the error hits.
+             */
+            ret = __wt_verify_dsk(session, "[write-check]", buf);
+        }
+        WT_RET(ret);
     }
-    WT_RET(ret);
-#endif
 
     return (__wt_blkcache_write(
       session, buf, addr, addr_sizep, compressed_sizep, checkpoint, checkpoint_io, compressed));
@@ -2305,6 +2345,7 @@ __wt_bulk_wrapup(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     __wt_page_modify_set(session, parent);
 
 err:
+    r->ref->page->modify->flags = 0;
     WT_TRET(__rec_cleanup(session, r));
     WT_TRET(__rec_destroy(session, &cbulk->reconcile));
 
@@ -2407,6 +2448,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 {
     WT_BM *bm;
     WT_BTREE *btree;
+    WT_DECL_RET;
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     WT_REF *ref;
@@ -2426,8 +2468,12 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
      * visible when reconciling this page, copy them into the database's history store. This can
      * fail, so try before clearing the page's previous reconciliation state.
      */
-    if (F_ISSET(r, WT_REC_HS))
-        WT_RET(__rec_hs_wrapup(session, r));
+    if (F_ISSET(r, WT_REC_HS)) {
+        session->reconcile_timeline.hs_wrapup_start = __wt_clock(session);
+        ret = __rec_hs_wrapup(session, r);
+        session->reconcile_timeline.hs_wrapup_finish = __wt_clock(session);
+        WT_RET(ret);
+    }
 
     /*
      * Wrap up overflow tracking. If we are about to create a checkpoint, the system must be
@@ -2678,8 +2724,6 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
      */
     WT_ASSERT_ALWAYS(session, !WT_IS_HS(btree->dhandle) && !WT_IS_METADATA(btree->dhandle),
       "Attempting to write updates from the history store or metadata file into the history store");
-    /* Flag as unused for non diagnostic builds. */
-    WT_UNUSED(btree);
 
     /*
      * Delete the updates left in the history store by prepared rollback first before moving updates

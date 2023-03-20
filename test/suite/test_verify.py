@@ -156,7 +156,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
             lambda: self.session.verify('table:' + self.tablename, "read_corrupt"),
             "/WT_SESSION.verify/")
         self.assertEqual(self.count_file_contains("stderr.txt",
-            "calculated block checksum doesn't match expected checksum"), 1)
+            "calculated block checksum of"), 1)
 
     def test_verify_api_read_corrupt_pages(self):
         """
@@ -190,7 +190,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         # a corruption if we overwrite free space or overwrite a page that is
         # a child of another page that we overwrite.
         self.assertGreater(self.count_file_contains("stderr.txt",
-            "calculated block checksum doesn't match expected checksum"), 1)
+            "calculated block checksum of"), 1)
 
     def test_verify_process_75pct_null(self):
         """
@@ -207,7 +207,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
             errfilename="verifyerr.out", failure=True)
         self.check_non_empty_file("verifyerr.out")
         self.assertEqual(self.count_file_contains("verifyerr.out",
-            "calculated block checksum doesn't match expected checksum"), 1)
+            "calculated block checksum of"), 1)
 
     def test_verify_process_25pct_junk(self):
         """
@@ -224,7 +224,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
             errfilename="verifyerr.out", failure=True)
         self.check_non_empty_file("verifyerr.out")
         self.assertEqual(self.count_file_contains("verifyerr.out",
-            "calculated block checksum doesn't match expected checksum"), 1)
+            "calculated block checksum of"), 1)
 
     def test_verify_process_read_corrupt_pages(self):
         """
@@ -255,7 +255,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         # a corruption if we overwrite free space or overwrite a page that is
         # a child of another page that we overwrite.
         self.assertGreater(self.count_file_contains("verifyerr.out",
-            "calculated block checksum doesn't match expected checksum"), 1)
+            "calculated block checksum of"), 1)
 
     def test_verify_process_truncated(self):
         """
@@ -287,6 +287,33 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         # The test may output the following error message while opening a file that
         # does not exist. Ignore that.
         self.ignoreStderrPatternIfExists('No such file or directory')
+
+    def test_verify_all(self):
+        """
+        Test verify in a 'wt' process without a specific table URI argument.
+        """
+        params = 'key_format=S,value_format=S'
+        ntables = 3
+
+        for i in range(ntables):
+            self.session.create('table:' + self.tablename + str(i), params)
+            self.populate(self.tablename + str(i))
+        self.session.checkpoint()
+
+        self.runWt(["verify"])
+
+        # Purposely corrupt the last two tables. Test that verifying the database
+        # with the abort option stops after seeing the first corrupted table.
+        for i in range(1, ntables):
+            with self.open_and_position(self.tablename + str(i), 75) as f:
+                for i in range(0, 4096):
+                    f.write(struct.pack('B', 0))
+
+        self.runWt(["verify", "-a"], errfilename="verifyerr.out", failure=True)
+        self.assertEqual(self.count_file_contains("verifyerr.out",
+            "table:test_verify.a1: WT_ERROR"), 1)
+        self.assertEqual(self.count_file_contains("verifyerr.out",
+            "table:test_verify.a2: WT_ERROR"), 0)
 
 if __name__ == '__main__':
     wttest.run()

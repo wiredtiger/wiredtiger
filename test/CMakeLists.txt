@@ -38,6 +38,8 @@ if(WT_POSIX)
         add_subdirectory(cppsuite)
     endif()
 
+    add_subdirectory(simulator)
+
     if(ENABLE_LLVM)
         # The fuzz test only works with llvm compilers. Restrict compilation of this test to only
         # when using Clang.

@@ -166,9 +166,14 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
         goto err;
     if (addr.ta.prepare)
         goto err;
-    /* History store data are always visible. No need to check visibility. */
+    /*
+     * History store data are always visible. No need to check visibility. Other than history store,
+     * use the max durable timestamp that is available in the page aggregation for the visibility
+     * checks as we do not track the aggregated commit timestamp.
+     */
     if (!WT_IS_HS(session->dhandle) &&
       !__wt_txn_visible(session, addr.ta.newest_txn,
+        WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts),
         WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts)))
         goto err;
 
@@ -523,11 +528,7 @@ __instantiate_col_var(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_DELETED *pa
                 WT_ASSERT(session, cbt.slot == WT_COL_SLOT(page, cip));
 
                 /* Attach the tombstone, using the update-restore path. */
-#ifdef HAVE_DIAGNOSTIC
                 WT_ERR(__wt_col_modify(&cbt, recno + j, NULL, upd, WT_UPDATE_INVALID, true, true));
-#else
-                WT_ERR(__wt_col_modify(&cbt, recno + j, NULL, upd, WT_UPDATE_INVALID, true));
-#endif
                 /* Null the pointer so we don't free it twice. */
                 upd = NULL;
             }

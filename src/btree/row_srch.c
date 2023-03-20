@@ -8,6 +8,9 @@
 
 #include "wt_internal.h"
 
+static inline int __validate_next_stack(
+  WT_SESSION_IMPL *session, WT_INSERT *next_stack[WT_SKIP_MAXDEPTH], WT_ITEM *srch_key);
+
 /*
  * __search_insert_append --
  *     Fast append search of a row-store insert list, creating a skiplist stack as we go.
@@ -102,7 +105,18 @@ __wt_search_insert(
     match = skiphigh = skiplow = 0;
     ins = last_ins = NULL;
     for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0;) {
-        if ((ins = *insp) == NULL) {
+        /*
+         * The algorithm requires that the skip list insert pointer is only read once within the
+         * loop. While the compiler can change the code in a way that it reads the insert pointer
+         * value from memory again in the following code.
+         *
+         * In addition, a CPU with weak memory ordering, such as ARM, may reorder the reads and read
+         * a stale value. It is not OK and the reason is explained in the following comment.
+         *
+         * Place a read barrier here to avoid these issues.
+         */
+        WT_ORDERED_READ_WEAK_MEMORDER(ins, *insp);
+        if (ins == NULL) {
             cbt->next_stack[i] = NULL;
             cbt->ins_stack[i--] = insp--;
             continue;
@@ -116,6 +130,46 @@ __wt_search_insert(
             last_ins = ins;
             key.data = WT_INSERT_KEY(ins);
             key.size = WT_INSERT_KEY_SIZE(ins);
+            /*
+             * We have an optimization to reduce the number of bytes we need to compare during the
+             * search if we know a prefix of the search key matches the keys we have already
+             * compared on the upper stacks. This works because we know the keys become denser down
+             * the stack.
+             *
+             * However, things become tricky if we have another key inserted concurrently next to
+             * the search key. The current search may or may not see the concurrently inserted key
+             * but it should always see a valid skip list. In other words,
+             *
+             * 1) at any level of the list, keys are in sorted order;
+             *
+             * 2) if a reader sees a key in level N, that key is also in all levels below N.
+             *
+             * Otherwise, we may wrongly skip the comparison of a prefix and land on the wrong spot.
+             * Here's an example:
+             *
+             * Suppose we have a skip list:
+             *
+             * L1: AA -> BA
+             *
+             * L0: AA -> BA
+             *
+             * and we want to search AB and a key AC is inserted concurrently. If we see the
+             * following skip list in the search:
+             *
+             * L1: AA -> AC -> BA
+             *
+             * L0: AA -> BA
+             *
+             * Since we have compared with AA and AC on level 1 before dropping down to level 0, we
+             * decide we can skip comparing the first byte of the key. However, since we don't see
+             * AC on level 0, we compare with BA and wrongly skip the comparison with prefix B.
+             *
+             * On architectures with strong memory ordering, the requirement is satisfied by
+             * inserting the new key to the skip list from lower stack to upper stack using an
+             * atomic compare and swap operation, which functions as a full barrier. However, it is
+             * not enough on the architecture that has weaker memory ordering, such as ARM.
+             * Therefore, an extra read barrier is needed for these platforms.
+             */
             match = WT_MIN(skiplow, skiphigh);
             WT_RET(__wt_compare_skip(session, collator, srch_key, &key, &cmp, &match));
         }
@@ -129,7 +183,11 @@ __wt_search_insert(
             skiphigh = match;
         } else
             for (; i >= 0; i--) {
-                cbt->next_stack[i] = ins->next[i];
+                /*
+                 * It is possible that we read an old value down the stack due to read reordering on
+                 * CPUs with weak memory ordering. Add a read barrier to avoid this issue.
+                 */
+                WT_ORDERED_READ_WEAK_MEMORDER(cbt->next_stack[i], ins->next[i]);
                 cbt->ins_stack[i] = &ins->next[i];
             }
     }
@@ -142,6 +200,85 @@ __wt_search_insert(
     cbt->compare = -cmp;
     cbt->ins = (ins != NULL) ? ins : last_ins;
     cbt->ins_head = ins_head;
+
+    /*
+     * This is an expensive call on a performance-critical path, so we only want to enable it behind
+     * the stress_skiplist session flag.
+     */
+    if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_STRESS_SKIPLIST))
+        WT_RET(__validate_next_stack(session, cbt->next_stack, srch_key));
+
+    return (0);
+}
+
+/*
+ * __validate_next_stack --
+ *     Verify that for each level in the provided next_stack that higher levels on the stack point
+ *     to larger inserts than lower levels, and all inserts are larger than the srch_key used in
+ *     building the next_stack.
+ */
+static inline int
+__validate_next_stack(
+  WT_SESSION_IMPL *session, WT_INSERT *next_stack[WT_SKIP_MAXDEPTH], WT_ITEM *srch_key)
+{
+
+    WT_ITEM upper_key, lower_key;
+    int32_t i, cmp;
+    WT_COLLATOR *collator;
+
+    /*
+     * Hide the flag check for non-diagnostics builds, too.
+     */
+#ifndef HAVE_DIAGNOSTIC
+    return (0);
+#endif
+
+    collator = S2BT(session)->collator;
+    WT_CLEAR(upper_key);
+    WT_CLEAR(lower_key);
+    cmp = 0;
+
+    for (i = WT_SKIP_MAXDEPTH - 2; i >= 0; i--) {
+
+        /* If lower levels point to the end of the skiplist, higher levels must as well. */
+        if (next_stack[i] == NULL)
+            WT_ASSERT_ALWAYS(session, next_stack[i + 1] == NULL,
+              "Invalid next_stack: Level %d is NULL but higher level %d has pointer %p", i, i + 1,
+              (void *)next_stack[i + 1]);
+
+        /* We only need to compare when both levels point to different, non-NULL inserts. */
+        if (next_stack[i] == NULL || next_stack[i + 1] == NULL ||
+          next_stack[i] == next_stack[i + 1])
+            continue;
+
+        lower_key.data = WT_INSERT_KEY(next_stack[i]);
+        lower_key.size = WT_INSERT_KEY_SIZE(next_stack[i]);
+
+        upper_key.data = WT_INSERT_KEY(next_stack[i + 1]);
+        upper_key.size = WT_INSERT_KEY_SIZE(next_stack[i + 1]);
+
+        WT_RET(__wt_compare(session, collator, &upper_key, &lower_key, &cmp));
+        WT_ASSERT_ALWAYS(session, cmp >= 0,
+          "Invalid next_stack: Lower level points to larger key: Level %d = %s, Level %d = %s", i,
+          (char *)lower_key.data, i + 1, (char *)upper_key.data);
+    }
+
+    if (next_stack[0] != NULL) {
+        /*
+         * Finally, confirm that next_stack[0] is greater than srch_key. We've already confirmed
+         * that all keys on higher levels are larger than next_stack[0] and therefore also larger
+         * than srch_key.
+         */
+        lower_key.data = WT_INSERT_KEY(next_stack[0]);
+        lower_key.size = WT_INSERT_KEY_SIZE(next_stack[0]);
+
+        WT_RET(__wt_compare(session, collator, srch_key, &lower_key, &cmp));
+        WT_ASSERT_ALWAYS(session, cmp < 0,
+          "Invalid next_stack: Search key is larger than keys on next_stack: srch_key = %s, "
+          "next_stack[0] = %s",
+          (char *)srch_key->data, (char *)lower_key.data);
+    }
+
     return (0);
 }
 

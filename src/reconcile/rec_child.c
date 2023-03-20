@@ -20,6 +20,7 @@ __rec_child_deleted(
     uint8_t prepare_state;
     bool visible, visible_all;
 
+    visible = visible_all = false;
     page_del = ref->page_del;
 
     cmsp->state = WT_CHILD_IGNORE;
@@ -35,13 +36,30 @@ __rec_child_deleted(
      * Check visibility. If the truncation is visible to us, we'll also want to know if it's visible
      * to everyone. Use the special-case logic in __wt_page_del_visible to hide prepared truncations
      * as we can't write them to disk.
+     *
+     * We can't write out uncommitted truncations so we need to check the committed flag on the page
+     * delete structure. The committed flag indicates that the truncation has finished being
+     * processed by the transaction commit call and is a separate concept to the visibility, which
+     * means that while the truncation may be visible it hasn't finished committing. This can occur
+     * with prepared truncations, which go through two distinct phases in __wt_txn_commit:
+     *   - Firstly the operations on the transaction are walked and the page delete structure has
+     *     its prepare state set to resolved. At this stage the truncate can appear to be visible.
+     *   - After the operations have been resolved the page delete structure is marked as being
+     *     committed.
+     *
+     * Given the order of these operations we must perform the inverse sequence. First check the
+     * committed flag and then check the visibility. There is a concurrency concern here as if the
+     * write to the page delete structure is reordered we may see it be set early. However this is
+     * handled by locking the ref in the commit path. Additionally this function locks the ref. Thus
+     * setting the page delete structure committed flag cannot overlap with us checking the flag.
      */
-    if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
-        visible = __wt_page_del_visible(session, page_del, true);
-        visible_all = visible ? __wt_page_del_visible_all(session, page_del, true) : false;
-    } else
-        visible = visible_all = __wt_page_del_visible_all(session, page_del, true);
-
+    if (__wt_page_del_committed_set(page_del)) {
+        if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
+            visible = __wt_page_del_visible(session, page_del, true);
+            visible_all = visible ? __wt_page_del_visible_all(session, page_del, true) : false;
+        } else
+            visible = visible_all = __wt_page_del_visible_all(session, page_del, true);
+    }
     /*
      * If an earlier reconciliation chose to write the fast truncate information to the page, we
      * should select it regardless of visibility unless it is globally visible. This is important as
@@ -198,7 +216,6 @@ __wt_rec_child_modify(
         switch (r->tested_ref_state = ref->state) {
         case WT_REF_DISK:
             /* On disk, not modified by definition. */
-            // 9417 IGNORE
             WT_ASSERT(session, ref->addr != NULL);
             /* DISK pages do not have fast-truncate info. */
             WT_ASSERT(session, ref->page_del == NULL);
@@ -225,7 +242,7 @@ __wt_rec_child_modify(
              * We should never be here during eviction, active child pages in an evicted page's
              * subtree fails the eviction attempt.
              */
-            WT_RET_ASSERT(session, !F_ISSET(r, WT_REC_EVICT), EBUSY,
+            WT_RET_ASSERT(session, WT_DIAGNOSTIC_EVICTION_CHECK, !F_ISSET(r, WT_REC_EVICT), EBUSY,
               "unexpected WT_REF_LOCKED child state during eviction reconciliation");
 
             /* If the page is being read from disk, it's not modified by definition. */
@@ -248,7 +265,7 @@ __wt_rec_child_modify(
              * We should never be here during eviction, active child pages in an evicted page's
              * subtree fails the eviction attempt.
              */
-            WT_RET_ASSERT(session, !F_ISSET(r, WT_REC_EVICT), EBUSY,
+            WT_RET_ASSERT(session, WT_DIAGNOSTIC_EVICTION_CHECK, !F_ISSET(r, WT_REC_EVICT), EBUSY,
               "unexpected WT_REF_MEM child state during eviction reconciliation");
 
             /*
@@ -352,8 +369,8 @@ __wt_rec_child_modify(
              * checkpoint, all splits in process will have completed before we walk any pages for
              * checkpoint.
              */
-            WT_RET_ASSERT(
-              session, false, EBUSY, "unexpected WT_REF_SPLIT child state during reconciliation");
+            WT_RET_ASSERT(session, WT_DIAGNOSTIC_EVICTION_CHECK, false, EBUSY,
+              "unexpected WT_REF_SPLIT child state during reconciliation");
             /* NOTREACHED */
             return (EBUSY);
 

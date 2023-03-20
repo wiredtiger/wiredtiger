@@ -625,7 +625,7 @@ snap_repeat(TINFO *tinfo, SNAP_OPS *snap)
 {
     WT_DECL_RET;
     WT_SESSION *session;
-#define MAX_RETRY_ON_ROLLBACK 1000
+#define MAX_RETRY_ON_ROLLBACK WT_THOUSAND
     u_int max_retry;
 
     session = tinfo->session;
@@ -677,7 +677,7 @@ snap_repeat_single(TINFO *tinfo)
      * Start at a random spot in the list of operations and look for a read to retry. Stop when
      * we've walked the entire list or found one.
      */
-    v = mmrand(&tinfo->rnd, 1, SNAP_LIST_SIZE) - 1;
+    v = mmrand(&tinfo->extra_rnd, 1, SNAP_LIST_SIZE) - 1;
     for (snap = &tinfo->snap_list[v], count = SNAP_LIST_SIZE; count > 0; --count, ++snap) {
         /* Wrap at the end of the circular buffer. */
         if (snap >= tinfo->snap_end)
