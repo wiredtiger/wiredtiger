@@ -994,7 +994,12 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
 
     while (ret == 0) {
         i = num_args = 0;
-        fgets(user_input, MAX_ARGS, stdin);
+        if (fgets(user_input, MAX_ARGS, stdin) == NULL) {
+            if (!feof(stdin))
+                continue;
+            printf("Error: EOF.\n");
+            goto err;
+        }
 
         /* Remove new line character. */
         user_input[strlen(user_input) - 1] = '\0';
