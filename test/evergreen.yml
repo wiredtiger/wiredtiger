@@ -4006,9 +4006,6 @@ tasks:
         params:
           working_dir: mongo-tests/largescale
           shell: bash
-          include_expansions_in_env:
-            - atlas_wt_perf_test_user
-            - atlas_wt_perf_pass
           script: |
             set -o errexit
             set -o verbose
