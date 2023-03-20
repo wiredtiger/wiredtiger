@@ -116,14 +116,17 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
 
         /* Verify sets up next. */
         if (block->verify) {
-            /* Verify isn't supported on tiered tables and should return before getting here. */
+            /*
+             * FIXME: We may need to change how we setup for verify when it supports tiered tables.
+             * Until then, an attempt to verify a tiered table should return before getting here.
+             */
             WT_ASSERT(session, block->objectid == 0 && ci->root_objectid == 0);
             WT_ERR(__wt_verify_ckpt_load(session, block, ci));
         }
 
         /* Read any root page. */
         if (ci->root_offset != WT_BLOCK_INVALID_OFFSET) {
-            /* A checkpoint shouldn't point to an object created after this one */
+            /* A checkpoint shouldn't point to an object created after this one. */
             WT_ASSERT(session, block->objectid >= ci->root_objectid);
 
             endp = root_addr;
@@ -134,7 +137,7 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
 
         if (!checkpoint) {
             /*
-             * The checkpoint address may point to an earlier object. If so the object backing this
+             * The checkpoint address may point to an earlier object. If so, the object backing this
              * block handle doesn't have valid data -- i.e., it must have been written after the
              * checkpoint we are opening. So we discard the incorrect extent lists and reinitialize
              * them to be empty.
@@ -210,7 +213,7 @@ __wt_block_checkpoint_unload(WT_SESSION_IMPL *session, WT_BLOCK *block, bool che
 /*
  * __wt_block_ckpt_destroy --
  *     Clear a checkpoint structure. Free the extent lists, but leave the rest of the state intact
- *     in case caller is re-using it.
+ *     in case the caller is re-using it.
  */
 void
 __wt_block_ckpt_destroy(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
