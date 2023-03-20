@@ -9,6 +9,7 @@
 #include "wt_internal.h"
 
 static int __evict_clear_all_walks(WT_SESSION_IMPL *);
+static void __evict_list_clear_ref(WT_SESSION_IMPL *, WT_REF *, bool);
 static int WT_CDECL __evict_lru_cmp(const void *, const void *);
 static int __evict_lru_pages(WT_SESSION_IMPL *, bool);
 static int __evict_lru_walk(WT_SESSION_IMPL *);
@@ -147,10 +148,45 @@ __evict_list_clear(WT_SESSION_IMPL *session, WT_EVICT_ENTRY *e)
 {
     if (e->ref != NULL) {
         WT_ASSERT(session, F_ISSET_ATOMIC_16(e->ref->page, WT_PAGE_EVICT_LRU));
-        F_CLR_ATOMIC_16(e->ref->page, WT_PAGE_EVICT_LRU);
+        F_CLR_ATOMIC_16(e->ref->page, WT_PAGE_EVICT_LRU | WT_PAGE_IN_URGENT_QUEUE);
     }
     e->ref = NULL;
     e->btree = WT_DEBUG_POINT;
+}
+
+/*
+ * __evict_list_clear_ref --
+ *     Clear a page in the LRU eviction list.
+ */
+static void
+__evict_list_clear_ref(WT_SESSION_IMPL *session, WT_REF *ref, bool exclude_urgent)
+{
+    WT_CACHE *cache;
+    WT_EVICT_ENTRY *evict;
+    uint32_t elem, i, q, total_queues;
+    bool found;
+
+    cache = S2C(session)->cache;
+    found = false;
+    total_queues = WT_EVICT_QUEUE_MAX - (exclude_urgent ? 1 : 0);
+
+    for (q = 0; q < total_queues && !found; q++) {
+        if (exclude_urgent)
+            WT_ASSERT_ALWAYS(session, q != WT_EVICT_URGENT_QUEUE,
+              "Ensure the contents of the urgent queue aren't accidentally cleared");
+
+        __wt_spin_lock(session, &cache->evict_queues[q].evict_lock);
+        elem = cache->evict_queues[q].evict_max;
+        for (i = 0, evict = cache->evict_queues[q].evict_queue; i < elem; i++, evict++)
+            if (evict->ref == ref) {
+                found = true;
+                __evict_list_clear(session, evict);
+                break;
+            }
+        __wt_spin_unlock(session, &cache->evict_queues[q].evict_lock);
+    }
+
+    WT_ASSERT(session, !F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU));
 }
 
 /*
@@ -162,9 +198,6 @@ void
 __wt_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_CACHE *cache;
-    WT_EVICT_ENTRY *evict;
-    uint32_t i, elem, q;
-    bool found;
 
     WT_ASSERT(session, __wt_ref_is_root(ref) || ref->state == WT_REF_LOCKED);
 
@@ -173,21 +206,10 @@ __wt_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref)
         return;
 
     cache = S2C(session)->cache;
+
     __wt_spin_lock(session, &cache->evict_queue_lock);
 
-    found = false;
-    for (q = 0; q < WT_EVICT_QUEUE_MAX && !found; q++) {
-        __wt_spin_lock(session, &cache->evict_queues[q].evict_lock);
-        elem = cache->evict_queues[q].evict_max;
-        for (i = 0, evict = cache->evict_queues[q].evict_queue; i < elem; i++, evict++)
-            if (evict->ref == ref) {
-                found = true;
-                __evict_list_clear(session, evict);
-                break;
-            }
-        __wt_spin_unlock(session, &cache->evict_queues[q].evict_lock);
-    }
-    WT_ASSERT(session, !F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU));
+    __evict_list_clear_ref(session, ref, false);
 
     __wt_spin_unlock(session, &cache->evict_queue_lock);
 }
@@ -2499,7 +2521,8 @@ __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ASSERT(session, !__wt_ref_is_root(ref));
 
     page = ref->page;
-    if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU) || S2BT(session)->evict_disabled > 0)
+
+    if (S2BT(session)->evict_disabled > 0 || F_ISSET_ATOMIC_16(page, WT_PAGE_IN_URGENT_QUEUE))
         return (false);
 
     /* Append to the urgent queue if we can. */
@@ -2508,8 +2531,16 @@ __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
     queued = false;
 
     __wt_spin_lock(session, &cache->evict_queue_lock);
-    if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU) || S2BT(session)->evict_disabled > 0)
+
+    if (S2BT(session)->evict_disabled > 0 || F_ISSET_ATOMIC_16(page, WT_PAGE_IN_URGENT_QUEUE))
         goto done;
+
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU)) {
+        if (!F_ISSET(cache, WT_CACHE_EVICT_ALL))
+            __evict_list_clear_ref(session, ref, true);
+        else
+            goto done;
+    }
 
     __wt_spin_lock(session, &urgent_queue->evict_lock);
     if (__evict_queue_empty(urgent_queue, false)) {
@@ -2521,6 +2552,7 @@ __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
       __evict_push_candidate(session, urgent_queue, evict, ref)) {
         ++urgent_queue->evict_candidates;
         queued = true;
+        FLD_SET(page->flags_atomic, WT_PAGE_IN_URGENT_QUEUE);
     }
     __wt_spin_unlock(session, &urgent_queue->evict_lock);
 
