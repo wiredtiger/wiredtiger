@@ -39,14 +39,14 @@ usage(void)
     static const char *options[] = {"-c checkpoint",
       "dump as of the named checkpoint (the default is the most recent version of the data)",
       "-f output", "dump to the specified file (the default is stdout)", "-j",
-      "dump in JSON format", "-k", "specify a key too look for", "-l",
+      "dump in JSON format", "-k", "specify a key too look for", "-l lower bound",
       "lower bound of the key range to dump", "-n",
       "if the specified key to look for cannot be found, return the result from search_near", "-p",
       "dump in human readable format (pretty-print). The -p flag can be combined with -x. In this "
       "case, raw data elements will be formatted like -x with hexadecimal encoding.",
       "-r", "dump in reverse order", "-t timestamp",
       "dump as of the specified timestamp (the default is the most recent version of the data)",
-      "-u", "upper bound of the key range to dump", "-w n",
+      "-u upper bound", "upper bound of the key range to dump", "-w n",
       "dump n records before and after the record sought", "-x",
       "dump all characters in a hexadecimal encoding (by default printable characters are not "
       "encoded). The -x flag can be combined with -p. In this case, the dump will be formatted "
@@ -54,7 +54,9 @@ usage(void)
       "encoding.",
       "-?", "show this message", NULL, NULL};
 
-    util_usage("dump [-jklnprux] [-c checkpoint] [-f output-file] [-t timestamp] [-w window] uri",
+    util_usage(
+      "dump [-jnprx] [-c checkpoint] [-f output-file] [-k key] [-l lower bound] [-t timestamp] [-u "
+      "upper bound] [-w window] uri",
       "options:", options);
     return (1);
 }
