@@ -762,7 +762,7 @@ dump_record(
     int exact;
     const char *current_key;
     bool once;
-    unsigned int n, total_window;
+    uint64_t n, total_window;
     int (*fwd)(WT_CURSOR *);
     int (*bck)(WT_CURSOR *);
 
@@ -992,7 +992,10 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
 
     while (ret == 0) {
         i = num_args = 0;
-        fgets(user_input, MAX_ARGS, stdin);
+        if (fgets(user_input, MAX_ARGS, stdin) == NULL) {
+            printf("Error: failed to get input.");
+            continue;
+        }
 
         /* Remove new line character. */
         user_input[strlen(user_input) - 1] = '\0';
