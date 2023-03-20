@@ -649,7 +649,9 @@ __wt_open_cursor(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, co
     hash_value = 0;
 
     /* We should not open other cursors when there are open history store cursors in the session. */
-    WT_ASSERT(session, strcmp(uri, WT_HS_URI) == 0 || session->hs_cursor_counter == 0 || (S2BT(session) != NULL && F_ISSET(S2BT(session), WT_BTREE_VERIFY)));
+    WT_ASSERT(session,
+      strcmp(uri, WT_HS_URI) == 0 || session->hs_cursor_counter == 0 ||
+        (S2BT(session) != NULL && F_ISSET(S2BT(session), WT_BTREE_VERIFY)));
 
     /* We do not cache any subordinate tables/files cursors. */
     if (owner == NULL) {

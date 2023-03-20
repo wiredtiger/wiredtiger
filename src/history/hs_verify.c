@@ -96,8 +96,8 @@ __wt_hs_verify_one(WT_SESSION_IMPL *session)
 {
     WT_CURSOR *ds_cursor, *hs_cursor;
     WT_DECL_RET;
-    char *uri_data;
     uint32_t btree_id;
+    char *uri_data;
 
     ds_cursor = hs_cursor = NULL;
     uri_data = NULL;
@@ -112,9 +112,8 @@ __wt_hs_verify_one(WT_SESSION_IMPL *session)
     /* If we positioned the cursor there is something to verify. */
     if ((ret = __wt_metadata_btree_id_to_uri(session, btree_id, &uri_data)) != 0) {
         F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
-        WT_ERR_PANIC(session, ret,
-            "Unable to find btree id %" PRIu32 " in the metadata file.",
-            btree_id);
+        WT_ERR_PANIC(
+          session, ret, "Unable to find btree id %" PRIu32 " in the metadata file.", btree_id);
     }
     WT_ERR(__wt_open_cursor(session, uri_data, NULL, NULL, &ds_cursor));
     F_SET(ds_cursor, WT_CURSOR_RAW_OK);
@@ -172,7 +171,8 @@ __wt_hs_verify(WT_SESSION_IMPL *session)
         if ((ret = __wt_metadata_btree_id_to_uri(session, btree_id, &uri_data)) != 0) {
             F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
             WT_ERR_PANIC(session, ret,
-              "Unable to find btree id %" PRIu32 " in the metadata file for the associated key '%s'.",
+              "Unable to find btree id %" PRIu32
+              " in the metadata file for the associated key '%s'.",
               btree_id, __wt_buf_set_printable(session, key.data, key.size, false, buf));
         }
         WT_ERR(__wt_open_cursor(session, uri_data, NULL, NULL, &ds_cursor));
