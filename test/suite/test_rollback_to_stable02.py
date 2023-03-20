@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+#
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
@@ -47,19 +47,19 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
     # and this workload (with every entry on the page modified repeatedly) isn't much like
     # anything that happens in production.
     format_values = [
-        # ('column', dict(key_format='r', value_format='S', extraconfig='')),
-        # ('column_fix', dict(key_format='r', value_format='8t', extraconfig=',leaf_page_max=4096')),
+        ('column', dict(key_format='r', value_format='S', extraconfig='')),
+        ('column_fix', dict(key_format='r', value_format='8t', extraconfig=',leaf_page_max=4096')),
         ('row_integer', dict(key_format='i', value_format='S', extraconfig='')),
     ]
 
     in_memory_values = [
         ('no_inmem', dict(in_memory=False)),
-        # ('inmem', dict(in_memory=True))
+        ('inmem', dict(in_memory=True))
     ]
 
     prepare_values = [
         ('no_prepare', dict(prepare=False)),
-        # ('prepare', dict(prepare=True))
+        ('prepare', dict(prepare=True))
     ]
 
     dryrun_values = [

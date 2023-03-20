@@ -60,7 +60,6 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
 
             if (!dryrun)
                 upd->txnid = WT_TXN_ABORTED;
-
             WT_RTS_STAT_CONN_INCR(session, txn_rts_upd_aborted);
         } else {
             /* Valid update is found. */
@@ -362,7 +361,6 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
               __wt_timestamp_to_string(pinned_ts, ts_string[0]));
             if (!dryrun)
                 WT_ERR(hs_cursor->remove(hs_cursor));
-
             WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
 
             continue;
@@ -469,7 +467,6 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
 
         if (!dryrun)
             WT_ERR(hs_cursor->remove(hs_cursor));
-
         WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
         WT_RTS_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts_unstable);
     }
@@ -572,7 +569,6 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
 
         if (!dryrun)
             WT_ERR(hs_cursor->remove(hs_cursor));
-
         WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
         WT_RTS_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts);
     }
