@@ -285,16 +285,19 @@ wt_wrap_open_cursor(WT_SESSION *session, const char *uri, const char *config, WT
 
     is_checkpoint = config != NULL && WT_PREFIX_MATCH(config, "checkpoint");
 
-    /* WT_SESSION.open_cursor can return EBUSY if concurrent with a metadata operation, retry. */
-    while ((ret = session->open_cursor(session, uri, NULL, config, cursorp)) == EBUSY)
-        __wt_yield();
+retry:
+    ret = session->open_cursor(session, uri, NULL, config, cursorp);
     /*
-     * WT_SESSION.open_cursor can also return ENOENT, this is fine in the case of a checkpoint
-     * cursor.
+     * WT_SESSION.open_cursor can return:
+     * - EBUSY if concurrent with a metadata operation.
+     * - ENOENT when trying to open a checkpoint cursor.
+     * In both cases, retry.
      */
-    testutil_assertfmt(ret == 0 || (is_checkpoint && ret == ENOENT), "%s", uri);
-    if (is_checkpoint && ret == ENOENT && *cursorp != NULL)
-        testutil_check((*cursorp)->close(*cursorp));
+    if (ret == EBUSY || (is_checkpoint && ret == ENOENT)) {
+        __wt_yield();
+        goto retry;
+    }
+    testutil_checkfmt(ret, "%s", uri);
 }
 
 /*
