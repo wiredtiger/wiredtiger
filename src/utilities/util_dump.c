@@ -694,12 +694,12 @@ dump_record(
 {
     WT_DECL_RET;
     WT_SESSION *session;
+    uint64_t n, total_window;
+    int (*bck)(WT_CURSOR *);
+    int (*fwd)(WT_CURSOR *);
     int exact;
     const char *current_key;
     bool once;
-    uint64_t n, total_window;
-    int (*fwd)(WT_CURSOR *);
-    int (*bck)(WT_CURSOR *);
 
     session = cursor->session;
     once = false;
