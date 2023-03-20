@@ -46,7 +46,7 @@ struct azure_file_handle;
 
 // Statistics to be collected for the Azure blob storage.
 struct azure_statistics {
-    uint64_t num_list_objects_requestst;
+    uint64_t num_list_objects_requests;
     uint64_t num_put_object_requests;
     uint64_t num_read_object_requests;
     uint64_t num_object_exists_requests;
@@ -303,7 +303,7 @@ azure_object_list_helper(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const
     std::string complete_prefix;
 
     *countp = 0;
-    azure_fs->store->statistics.num_list_objects_requestst++;
+    azure_fs->store->statistics.num_list_objects_requests++;
 
     if (directory != nullptr) {
         complete_prefix.append(directory);
@@ -682,7 +682,7 @@ static void
 azure_log_statistics(const azure_store &azure_storage)
 {
     azure_storage.log->log_debug_message("Azure list objects count: " +
-      std::to_string(azure_storage.statistics.num_list_objects_requestst));
+      std::to_string(azure_storage.statistics.num_list_objects_requests));
     azure_storage.log->log_debug_message("Azure put object count: " +
       std::to_string(azure_storage.statistics.num_put_object_requests));
     azure_storage.log->log_debug_message("Azure get object count: " +
