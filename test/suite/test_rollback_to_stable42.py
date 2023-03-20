@@ -42,7 +42,7 @@ def custom_validator(data):
         "deleted page walk skipped",
         "page with reconciled",
         "performing recovery rollback",
-        "performing rollback to stable",
+        "start rollback to stable",
         "performing shutdown rollback",
         "recovered checkpoint snapshot",
         "tree rolled back",
