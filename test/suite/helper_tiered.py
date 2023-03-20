@@ -260,22 +260,51 @@ class TieredConfigMixin:
         extlist.extension('storage_sources', self.ss_name + config)
 
     def download_objects(self, bucket_name, prefix):
-        import boto3
-        # The bucket from the storage source is expected to be a name and a region, separated by a 
-        # semi-colon. eg: 'abcd;ap-southeast-2'.
-        bucket_name, region = bucket_name.split(';')
-        
-        # Get the bucket resource and list the objects within that bucket that match the prefix for a
-        # given test.
-        s3 = boto3.resource('s3')
-        bucket = s3.Bucket(bucket_name)
-        objects = list(bucket.objects.filter(Prefix=prefix))
+        if (self.ss_name == 's3_store'):
+            import boto3
+            # The bucket from the storage source is expected to be a name and a region, separated by a 
+            # semi-colon. eg: 'abcd;ap-southeast-2'.
+            bucket_name, region = bucket_name.split(';')
+            
+            # Get the bucket resource and list the objects within that bucket that match the prefix for a
+            # given test.
+            s3 = boto3.resource('s3')
+            bucket = s3.Bucket(bucket_name)
+            objects = list(bucket.objects.filter(Prefix=prefix))
 
-        # Create a directory within the test directory to download the objects to.
-        s3_object_files_path = 's3_objects/'
-        if not os.path.exists(s3_object_files_path):
-            os.makedirs(s3_object_files_path)
+            # Create a directory within the test directory to download the objects to.
+            s3_object_files_path = 's3_objects/'
+            if not os.path.exists(s3_object_files_path):
+                os.makedirs(s3_object_files_path)
 
-        for o in objects:
-            filename = s3_object_files_path + '/' + o.key.split('/')[-1]
-            bucket.download_file(o.key, filename)
+            for o in objects:
+                filename = s3_object_files_path + '/' + o.key.split('/')[-1]
+                bucket.download_file(o.key, filename)
+        elif (self.ss_name == 'gcp_store'):
+            from google.cloud import storage
+            
+            storage_client = storage.Client()
+            bucket = storage_client.bucket(bucket_name)
+            blobs = storage_client.list_blobs(bucket_name, prefix=prefix)
+
+            gcp_object_files_path = 'gcp_objects/'
+            if not os.path.exists(gcp_object_files_path):
+                os.makedirs(gcp_object_files_path)
+            for blob in blobs:
+                filename = gcp_object_files_path + '/' + blob.split('/')[-1]
+                blob.download_to_filename(filename)
+        elif (self.ss_name == 'azure_store'):
+            from azure.storage.blob import BlobServiceClient
+
+            container_client = BlobServiceClient.get_container_client(container=bucket) 
+            blob_list = container_client.list_blobs()
+
+            azure_object_files_path = 'gcp_objects/'
+            if not os.path.exists(azure_object_files_path):
+                os.makedirs(azure_object_files_path)
+
+            for blob in blob_list:
+                filename = azure_object_files_path + '/' + blob.split('/')[-1]
+                with open(file=filename, mode="wb") as download_file:
+                    download_file.write(container_client.download_blob(blob.name).readall())
+
