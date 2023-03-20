@@ -197,7 +197,7 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
       session, WT_WITH_SCHEMA_LOCK(session, ret = __rollback_to_stable_int(session, no_ckpt)));
 
     __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-      WT_RTS_VERB_TAG_END "rollback to stable%s finished", dryrun ? " dryrun" : "");
+      WT_RTS_VERB_TAG_END "finished rollback to stable%s ", dryrun ? " dryrun" : "");
     WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 0);
 
     __rollback_to_stable_finalize(S2C(session)->rts);
