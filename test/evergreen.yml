@@ -5506,7 +5506,7 @@ buildvariants:
     - name: long-test
     - name: configure-combinations
     - name: format-smoke-test
-    - name: tiered-storage-extensions-test
+    - name: s3-tiered-storage-extensions-test
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
     - name: unit-test-nonstandalone
@@ -5551,7 +5551,7 @@ buildvariants:
     - name: ftruncate-test
     - name: long-test
     - name: format-smoke-test
-    - name: tiered-storage-extensions-test
+    - name: s3-tiered-storage-extensions-test
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
     - name: unit-test-nonstandalone
