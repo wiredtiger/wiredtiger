@@ -36,6 +36,8 @@ variables:
     - name: many-dhandle-stress
     - name: ".wt2853-perf"
     - name: cppsuite-bounded-cursor-perf-stress
+    - name: many-collection-test
+      distros: ubuntu2004-wt-large
   display_tasks:
     - name: Wiredtiger-perf-btree-jobs
       execution_tasks:
