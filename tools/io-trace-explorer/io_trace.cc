@@ -6,58 +6,55 @@
  * See the file LICENSE for redistribution information.
  */
 
-#include <glibmm/main.h>
-
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
 #include <vector>
 
-#include "trace.h"
+#include "io_trace.h"
 
 /*
- * Trace::Trace --
- *     Initialize a new Trace object.
+ * io_trace::io_trace --
+ *     Initialize a new io_trace object.
  */
-Trace::Trace(TraceCollection &parent, const char *name) : m_name(name), m_parent(parent) {}
+io_trace::io_trace(io_trace_collection &parent, const char *name) : _name(name), _parent(parent) {}
 
 /*
- * Trace::~Trace --
- *     Destroy a Trace object.
+ * io_trace::~io_trace --
+ *     Destroy a io_trace object.
  */
-Trace::~Trace() {}
+io_trace::~io_trace() {}
 
 /*
- * TraceCollection::TraceCollection --
+ * io_trace_collection::io_trace_collection --
  *     Initialize a new trace collection.
  */
-TraceCollection::TraceCollection() {}
+io_trace_collection::io_trace_collection() {}
 
 /*
- * TraceCollection::~TraceCollection --
+ * io_trace_collection::~io_trace_collection --
  *     Destroy a collection of traces.
  */
-TraceCollection::~TraceCollection()
+io_trace_collection::~io_trace_collection()
 {
-    for (auto &e : m_traces) {
+    for (auto &e : _traces) {
         delete e.second;
     }
 }
 
 /*
- * TraceCollection::add --
+ * io_trace_collection::add --
  *     Add a data point.
  */
 void
-TraceCollection::add_data_point(
-  const std::string &device_or_file, const TraceKind kind, const TraceOperation &item)
+io_trace_collection::add_data_point(
+  const std::string &device_or_file, const io_trace_kind kind, const io_trace_operation &item)
 {
     std::string name = device_or_file;
 
     /* Postprocess the data point. */
 
-    if (kind == TraceKind::WIRED_TIGER) {
+    if (kind == io_trace_kind::WIRED_TIGER) {
         const char *s = name.c_str();
         if (strstr(s, "Log.00000") || strstr(s, "log.00000")) {
             name = "WiredTiger Logs (combined)";
@@ -72,42 +69,42 @@ TraceCollection::add_data_point(
         }
     }
 
-    if (kind == TraceKind::DEVICE) {
+    if (kind == io_trace_kind::DEVICE) {
         name = "Raw Device: " + name;
     }
 
     /* Find the correct trace. */
 
-    auto ti = m_traces.find(name);
-    Trace *t;
-    if (ti == m_traces.end()) {
-        t = new Trace(*this, name.c_str());
-        m_traces[name] = t;
+    auto ti = _traces.find(name);
+    io_trace *t;
+    if (ti == _traces.end()) {
+        t = new io_trace(*this, name.c_str());
+        _traces[name] = t;
     } else {
         t = ti->second;
     }
 
     /* Insert the item into the correct place to keep the list sorted. */
 
-    if (t->m_operations.empty())
-        t->m_operations.push_back(item);
+    if (t->_operations.empty())
+        t->_operations.push_back(item);
 
     else {
-        const TraceOperation &last = t->m_operations.back();
+        const io_trace_operation &last = t->_operations.back();
         if (last.timestamp <= item.timestamp)
-            t->m_operations.push_back(item);
+            t->_operations.push_back(item);
         else
-            t->m_operations.insert(
-              std::upper_bound(t->m_operations.begin(), t->m_operations.end(), item), item);
+            t->_operations.insert(
+              std::upper_bound(t->_operations.begin(), t->_operations.end(), item), item);
     }
 }
 
 /*
- * TraceCollection::load_from_file --
+ * io_trace_collection::load_from_file --
  *     Load a collection from file.
  */
 void
-TraceCollection::load_from_file(const char *file)
+io_trace_collection::load_from_file(const char *file)
 {
     FILE *f = fopen(file, "r");
     if (!f)
@@ -137,12 +134,12 @@ TraceCollection::load_from_file(const char *file)
 }
 
 /*
- * TraceCollection::load_from_file_blkparse --
+ * io_trace_collection::load_from_file_blkparse --
  *     Load from the blkparse output, using default settings, optionally with the -t argument.
  */
 
 void
-TraceCollection::load_from_file_blkparse(FILE *f)
+io_trace_collection::load_from_file_blkparse(FILE *f)
 {
     /*
      * Sample output with the default settings from "blkparse -t":
@@ -203,7 +200,7 @@ TraceCollection::load_from_file_blkparse(FILE *f)
         /* Parse the common line data. */
 
         char *e;
-        TraceOperation item;
+        io_trace_operation item;
         bzero(&item, sizeof(item));
 
         std::string device = parts[0];
@@ -289,12 +286,12 @@ TraceCollection::load_from_file_blkparse(FILE *f)
 
         /* Postprocess and save the line. */
 
-        add_data_point(device, TraceKind::DEVICE, item);
+        add_data_point(device, io_trace_kind::DEVICE, item);
     }
 }
 
 void
-TraceCollection::load_from_file_wt_logs(FILE *f)
+io_trace_collection::load_from_file_wt_logs(FILE *f)
 {
     /*
      * Sample logs (with line breaks added):
@@ -369,7 +366,7 @@ TraceCollection::load_from_file_wt_logs(FILE *f)
         /* Parse the line, starting with the timestamps. */
 
         char *e;
-        TraceOperation item;
+        io_trace_operation item;
         bzero(&item, sizeof(item));
 
         item.timestamp = strtol(parts[0] + 1, &e, 10);
@@ -413,6 +410,6 @@ TraceCollection::load_from_file_wt_logs(FILE *f)
 
         /* Postprocess and save the line. */
 
-        add_data_point(path, TraceKind::WIRED_TIGER, item);
+        add_data_point(path, io_trace_kind::WIRED_TIGER, item);
     }
 }

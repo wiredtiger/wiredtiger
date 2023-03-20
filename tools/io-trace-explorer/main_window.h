@@ -6,54 +6,53 @@
  * See the file LICENSE for redistribution information.
  */
 
-#ifndef BLOCK_TRACE_EXPLORER_MAIN_WINDOW_H
-#define BLOCK_TRACE_EXPLORER_MAIN_WINDOW_H
+#pragma once
 
 #include <gtkmm.h>
 
+#include "io_trace.h"
 #include "plot.h"
-#include "trace.h"
 
 /*
- * MainWindow --
+ * main_window --
  *     The main window.
  */
-class MainWindow : public Gtk::ApplicationWindow {
+class main_window : public Gtk::ApplicationWindow {
 
 public:
-    MainWindow(TraceCollection &traces);
-    ~MainWindow();
+    main_window(io_trace_collection &traces);
+    ~main_window();
 
 protected:
     /* The toolbar (in the order of appearance). */
-    Gtk::Box m_toolbar_box;
-    Gtk::Button m_back_button;
-    Gtk::Button m_forward_button;
-    Gtk::Label m_label1;
-    Gtk::ToggleButton m_inspect_toggle;
-    Gtk::ToggleButton m_move_toggle;
-    Gtk::ToggleButton m_zoom_toggle;
-    Gtk::Label m_label2;
-    Gtk::Button m_zoom_in_button;
-    Gtk::Button m_zoom_out_button;
-    Gtk::Button m_reset_view_button;
+    Gtk::Box _toolbar_box;
+    Gtk::Button _back_button;
+    Gtk::Button _forward_button;
+    Gtk::Label _label1;
+    Gtk::ToggleButton _inspect_toggle;
+    Gtk::ToggleButton _move_toggle;
+    Gtk::ToggleButton _zoom_toggle;
+    Gtk::Label _label2;
+    Gtk::Button _zoom_in_button;
+    Gtk::Button _zoom_out_button;
+    Gtk::Button _reset_view_button;
 
     /* Event connections for the tool toggle buttons. */
-    sigc::connection m_inspect_toggle_connection;
-    sigc::connection m_move_toggle_connection;
-    sigc::connection m_zoom_toggle_connection;
+    sigc::connection _inspect_toggle_connection;
+    sigc::connection _move_toggle_connection;
+    sigc::connection _zoom_toggle_connection;
 
     /* The main area. */
-    Gtk::Box m_main_box;
-    PlotGroup m_plot_group;
-    std::vector<Plot *> m_plots;
-    std::vector<Gtk::Paned *> m_panes;
+    Gtk::Box _main_box;
+    plot_group _plot_group;
+    std::vector<plot_widget *> _plots;
+    std::vector<Gtk::Paned *> _panes;
 
     /* The status bar. */
-    Gtk::Statusbar m_status_bar;
+    Gtk::Statusbar _status_bar;
 
     /* Set the tool for user interaction with the plots. */
-    void set_plot_tool(PlotTool tool);
+    void set_plot_tool(plot_tool tool);
 
     /* Event handlers. */
     void on_inspect_toggle();
@@ -66,5 +65,3 @@ protected:
     void on_zoom_out();
     bool on_window_key_pressed(guint key, guint, Gdk::ModifierType state);
 };
-
-#endif /* BLOCK_TRACE_EXPLORER_MAIN_WINDOW_H */

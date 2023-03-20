@@ -6,23 +6,19 @@
  * See the file LICENSE for redistribution information.
  */
 
-#ifndef BLOCK_TRACE_EXPLORER_PLOT_H
-#define BLOCK_TRACE_EXPLORER_PLOT_H
+#pragma once
 
 #include <glibmm/main.h>
 #include <gtkmm.h>
 #include <iostream>
 
-#include "trace.h"
-
-/* The minimum distance in pixels for a mouse drag to be recognized as such. */
-#define BTE_PLOT_MIN_DRAG_DISTANCE 10
+#include "io_trace.h"
 
 /*
- * PlotView --
- *     A view definition for a Plot; i.e., what is visible within the given viewport.
+ * plot_view --
+ *     A view definition for the plot; i.e., what is visible within the given viewport.
  */
-struct PlotView {
+struct plot_view {
     double min_x;
     double max_x;
     double min_y;
@@ -81,7 +77,7 @@ struct PlotView {
      *     The equality operator.
      */
     inline bool
-    operator==(const PlotView &other) const
+    operator==(const plot_view &other) const
     {
         return min_x == other.min_x && max_x == other.max_x && min_y == other.min_y &&
           max_y == other.max_y;
@@ -92,7 +88,7 @@ struct PlotView {
      *     The inequality operator.
      */
     inline bool
-    operator!=(const PlotView &other) const
+    operator!=(const plot_view &other) const
     {
         return min_x != other.min_x || max_x != other.max_x || min_y != other.min_y ||
           max_y != other.max_y;
@@ -100,29 +96,29 @@ struct PlotView {
 };
 
 /*
- * PlotTool --
- *     A tool for user interaction with the Plot.
+ * plot_tool --
+ *     A tool for user interaction with the plot.
  */
-enum class PlotTool {
+enum class plot_tool {
     NONE,
     INSPECT,
     MOVE,
     ZOOM,
 };
 
-class PlotGroup;
+class plot_group;
 
 /*
- * Plot --
+ * plot_widget --
  *     The GTK+ component for drawing the plot.
  */
-class Plot : public Gtk::DrawingArea {
+class plot_widget : public Gtk::DrawingArea {
 
-    friend class PlotGroup;
+    friend class plot_group;
 
 public:
-    Plot(PlotGroup &group, const Trace &trace);
-    virtual ~Plot();
+    plot_widget(plot_group &group, const io_trace &trace);
+    virtual ~plot_widget();
 
     void view_back();
     void view_forward();
@@ -134,10 +130,10 @@ public:
      * active_tool --
      *     Get the active tool.
      */
-    inline PlotTool
+    inline plot_tool
     active_tool()
     {
-        return m_plot_tool;
+        return _plot_tool;
     }
 
     /*
@@ -145,90 +141,89 @@ public:
      *     Set the active tool.
      */
     inline void
-    set_active_tool(PlotTool tool)
+    set_active_tool(plot_tool tool)
     {
-        m_plot_tool = tool;
+        _plot_tool = tool;
     }
 
 protected:
-    void set_view(const PlotView &view, bool in_place = false);
+    void set_view(const plot_view &view, bool in_place = false);
 
     void on_draw(const Cairo::RefPtr<Cairo::Context> &cr, int width, int height);
     void on_drag_begin(GtkGestureDrag *gesture, double x, double y);
     void on_drag_update(GtkGestureDrag *gesture, double x, double y);
     void on_drag_end(GtkGestureDrag *gesture, double x, double y);
 
-    PlotGroup &m_group;
-    const Trace &m_trace;
-    PlotTool m_plot_tool;
+    plot_group &_group;
+    const io_trace &_trace;
+    plot_tool _plot_tool;
 
-    bool m_drag;
-    bool m_drag_horizontal;
-    bool m_drag_vertical;
+    bool _drag;
+    bool _drag_horizontal;
+    bool _drag_vertical;
 
-    int m_drag_start_x;
-    int m_drag_start_y;
-    int m_drag_last_x;
-    int m_drag_last_y;
-    int m_drag_end_x;
-    int m_drag_end_y;
+    int _drag_start_x;
+    int _drag_start_y;
+    int _drag_last_x;
+    int _drag_last_y;
+    int _drag_end_x;
+    int _drag_end_y;
 
-    PlotView m_toplevel_view;
-    PlotView m_view;
-    std::vector<PlotView> m_view_undo;
-    std::vector<PlotView> m_view_redo;
+    plot_view _toplevel_view;
+    plot_view _view;
+    std::vector<plot_view> _view_undo;
+    std::vector<plot_view> _view_redo;
 
-    Glib::RefPtr<Gdk::Pixbuf> m_pixbuf; /* The pixel buffer for the actual plot. */
-    PlotView m_pixbuf_view; /* The view coordinates for checking whether the plot needs to be
+    Glib::RefPtr<Gdk::Pixbuf> _pixbuf; /* The pixel buffer for the actual plot. */
+    plot_view _pixbuf_view; /* The view coordinates for checking whether the plot needs to be
                                re-rendered. */
 
-    int m_margin_top;
-    int m_margin_bottom;
-    int m_margin_left;
-    int m_margin_right;
+    int _margin_top;
+    int _margin_bottom;
+    int _margin_left;
+    int _margin_right;
 
 private:
-    static void static_drag_begin(GtkGestureDrag *gesture, double x, double y, Plot *widget);
-    static void static_drag_update(GtkGestureDrag *gesture, double x, double y, Plot *widget);
-    static void static_drag_end(GtkGestureDrag *gesture, double x, double y, Plot *widget);
+    static void static_drag_begin(GtkGestureDrag *gesture, double x, double y, plot_widget *widget);
+    static void static_drag_update(
+      GtkGestureDrag *gesture, double x, double y, plot_widget *widget);
+    static void static_drag_end(GtkGestureDrag *gesture, double x, double y, plot_widget *widget);
 
-    int render_worker(const std::vector<TraceOperation> &trace, int start, int end);
-    void view_sync(const PlotView &source, bool in_place = false);
+    int render_worker(const std::vector<io_trace_operation> &trace, int start, int end);
+    void view_sync(const plot_view &source, bool in_place = false);
 };
 
 /*
- * PlotGroup --
+ * plot_group --
  *     A collection of plots that should be synchronized, e.g., by having the same X axis.
  */
-class PlotGroup {
+class plot_group {
 
-    friend class Plot;
+    friend class plot_widget;
 
 public:
-    PlotGroup();
-    virtual ~PlotGroup();
+    plot_group();
+    virtual ~plot_group();
 
     void view_back();
     void view_forward();
     void view_reset();
     void view_reset_x();
-    void view_sync(Plot &source, bool in_place = false);
+    void view_sync(plot_widget &source, bool in_place = false);
 
     /*
      * active_plot --
      *     Get the active plot, i.e., the last plot with which the user interacted.
      */
-    inline Plot *
+    inline plot_widget *
     active_plot()
     {
-        return m_active_plot;
+        return _active_plot;
     }
 
 protected:
-    void add(Plot &plot);
+    void add(plot_widget &plot);
 
-    std::vector<Plot *> m_plots;
-    Plot *m_active_plot;
+    std::vector<plot_widget *> _plots;
+    plot_widget *_active_plot;
 };
-
-#endif /* BLOCK_TRACE_EXPLORER_PLOT_H */

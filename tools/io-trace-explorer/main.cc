@@ -14,23 +14,23 @@
 #include <unistd.h>
 #include <vector>
 
+#include "io_trace.h"
 #include "main_window.h"
 #include "plot.h"
-#include "trace.h"
 #include "util.h"
 
 /*
- * MyApp --
+ * io_trace_explorer --
  *     The application object.
  */
-class MyApp : public Gtk::Application {
+class io_trace_explorer : public Gtk::Application {
 
 public:
     /*
-     * MyApp --
+     * io_trace_explorer --
      *     Create the application object.
      */
-    MyApp()
+    io_trace_explorer()
         : Gtk::Application(
             "com.mongodb.block-trace-explorer", Gio::Application::Flags::HANDLES_COMMAND_LINE)
     {
@@ -77,7 +77,7 @@ protected:
             for (auto s : input_files) {
                 if (!quiet)
                     g_message("Loading %s", s.c_str());
-                m_traces.load_from_file(s.c_str());
+                _traces.load_from_file(s.c_str());
             }
             double load_time = current_time() - start_time;
             if (!quiet)
@@ -100,14 +100,14 @@ protected:
     void
     on_activate()
     {
-        m_main = new MainWindow(m_traces);
-        add_window(*m_main);
-        m_main->show();
-        m_main->grab_focus();
+        _main = new main_window(_traces);
+        add_window(*_main);
+        _main->show();
+        _main->grab_focus();
     }
 
-    Gtk::ApplicationWindow *m_main;
-    TraceCollection m_traces;
+    Gtk::ApplicationWindow *_main;
+    io_trace_collection _traces;
 };
 
 /**
@@ -117,5 +117,5 @@ protected:
 int
 main(int argc, char **argv)
 {
-    return MyApp().run(argc, argv);
+    return io_trace_explorer().run(argc, argv);
 }

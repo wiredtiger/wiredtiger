@@ -6,28 +6,27 @@
  * See the file LICENSE for redistribution information.
  */
 
-#ifndef BLOCK_TRACE_EXPLORER_TRACE_H
-#define BLOCK_TRACE_EXPLORER_TRACE_H
+#pragma once
 
 #include <map>
 #include <string>
 #include <vector>
 
 /*
- * TraceKind --
+ * io_trace_kind --
  *     The type (kind) of the trace.
  */
-enum class TraceKind {
+enum class io_trace_kind {
     DEVICE,
     FILE,
     WIRED_TIGER,
 };
 
 /*
- * TraceOperation --
+ * io_trace_operation --
  *     A single data point within a trace.
  */
-struct TraceOperation {
+struct io_trace_operation {
 
     double timestamp; /* The timestamp in seconds, relative to the start of the trace. */
     char action;      /* The action, as defined by blktrace, plus a few custom actions. */
@@ -45,13 +44,13 @@ struct TraceOperation {
 
     /*
      * wrap_timestamp --
-     *     Wrap a timestamp into an instance of TraceOperation, which is useful for filtering a
+     *     Wrap a timestamp into an instance of io_trace_operation, which is useful for filtering a
      * collection of traces.
      */
-    static TraceOperation
+    static io_trace_operation
     wrap_timestamp(double t)
     {
-        TraceOperation r;
+        io_trace_operation r;
         bzero(&r, sizeof(r));
         r.timestamp = t;
         return r;
@@ -62,7 +61,7 @@ struct TraceOperation {
      *     The "<" comparision operation.
      */
     inline bool
-    operator<(const TraceOperation &other) const
+    operator<(const io_trace_operation &other) const
     {
         return timestamp < other.timestamp;
     }
@@ -72,25 +71,25 @@ struct TraceOperation {
      *     The ">" comparision operation.
      */
     inline bool
-    operator>(const TraceOperation &other) const
+    operator>(const io_trace_operation &other) const
     {
         return timestamp > other.timestamp;
     }
 };
 
-class TraceCollection;
+class io_trace_collection;
 
 /*
- * Trace --
+ * io_trace --
  *     A trace from the same device.
  */
-class Trace {
+class io_trace {
 
-    friend class TraceCollection;
+    friend class io_trace_collection;
 
 public:
-    Trace(TraceCollection &parent, const char *name);
-    virtual ~Trace();
+    io_trace(io_trace_collection &parent, const char *name);
+    virtual ~io_trace();
 
     /*
      * name --
@@ -99,34 +98,34 @@ public:
     inline const char *
     name() const
     {
-        return m_name.c_str();
+        return _name.c_str();
     }
 
     /*
      * operations --
      *     Get the vector of operations.
      */
-    inline const std::vector<TraceOperation> &
+    inline const std::vector<io_trace_operation> &
     operations() const
     {
-        return m_operations;
+        return _operations;
     }
 
 protected:
-    TraceCollection &m_parent;
-    std::string m_name;
-    std::vector<TraceOperation> m_operations;
+    io_trace_collection &_parent;
+    std::string _name;
+    std::vector<io_trace_operation> _operations;
 };
 
 /*
- * TraceCollection --
+ * io_trace_collection --
  *     A collection of related traces (i.e., from the same workload run).
  */
-class TraceCollection {
+class io_trace_collection {
 
 public:
-    TraceCollection();
-    virtual ~TraceCollection();
+    io_trace_collection();
+    virtual ~io_trace_collection();
 
     void load_from_file(const char *file);
 
@@ -134,21 +133,19 @@ public:
      * traces --
      *     Get the (sorted) map of names to traces.
      */
-    inline const std::map<std::string, Trace *> &
+    inline const std::map<std::string, io_trace *> &
     traces() const
     {
-        return m_traces;
+        return _traces;
     }
 
 protected:
-    std::map<std::string, Trace *> m_traces;
+    std::map<std::string, io_trace *> _traces;
 
     void add_data_point(
-      const std::string &device_or_file, const TraceKind kind, const TraceOperation &item);
+      const std::string &device_or_file, const io_trace_kind kind, const io_trace_operation &item);
 
 private:
     void load_from_file_blkparse(FILE *f);
     void load_from_file_wt_logs(FILE *f);
 };
-
-#endif /* BLOCK_TRACE_EXPLORER_TRACE_H */

@@ -33,7 +33,7 @@ and then use "blkparse -t" to parse it.
 Note that if you combine traces from multiple devices and/or from the block device and from the
 files, you need to start their captures as close together as possible, so they are synchronized.
 
-You can also use a convenience script, such as run-wtperf.sh (however, please make sure you
+You can also use a convenience script, such as scripts/run-wtperf.sh (however, please make sure you
 understand what this script does before using it, as it formats the volume before starting the
 workload).
 
@@ -45,12 +45,12 @@ I/O Trace Explorer uses CMAKE. To prepare the build:
 
     mkdir -p build
     cd build
-    cmake -S ..
+    cmake -G Ninja ..
     cd ..
 
 Then to actually build the project, run:
 
-    make -C build
+    ninja -C build
 
 To run on macOS:
 

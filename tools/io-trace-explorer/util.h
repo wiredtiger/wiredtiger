@@ -6,8 +6,7 @@
  * See the file LICENSE for redistribution information.
  */
 
-#ifndef BLOCK_TRACE_EXPLORER_UTIL_H
-#define BLOCK_TRACE_EXPLORER_UTIL_H
+#pragma once
 
 #include <sys/time.h>
 
@@ -23,5 +22,3 @@ current_time(void)
 
     return tv.tv_sec + tv.tv_usec / 1.0e6;
 }
-
-#endif /* BLOCK_TRACE_EXPLORER_UTIL_H */
