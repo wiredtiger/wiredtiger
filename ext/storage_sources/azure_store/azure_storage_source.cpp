@@ -46,10 +46,10 @@ struct azure_file_handle;
 
 // Statistics to be collected for the Azure blob storage.
 struct azure_statistics {
-    uint64_t list_objects_count;  // Number of list objects requests
-    uint64_t put_object_count;    // Number of put object requests
-    uint64_t read_object_count;   // Number of get object requests
-    uint64_t object_exists_count; // Number of object exists requests
+    uint64_t num_list_objects_requestst;
+    uint64_t num_put_object_requests;
+    uint64_t num_read_object_requests;
+    uint64_t num_object_exists_requests;
 };
 
 struct azure_store {
@@ -217,7 +217,7 @@ azure_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYST
     WT_UNUSED(source);
     WT_UNUSED(config);
 
-    azure_fs->store->statistics.put_object_count++;
+    azure_fs->store->statistics.num_put_object_requests++;
     // std::filesystem::canonical will throw an exception if object does not exist so
     // check if the object exists.
     if (!std::filesystem::exists(source)) {
@@ -303,7 +303,7 @@ azure_object_list_helper(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const
     std::string complete_prefix;
 
     *countp = 0;
-    azure_fs->store->statistics.list_objects_count++;
+    azure_fs->store->statistics.num_list_objects_requestst++;
 
     if (directory != nullptr) {
         complete_prefix.append(directory);
@@ -426,7 +426,7 @@ azure_file_system_exists(
 
     WT_UNUSED(session);
     WT_UNUSED(size);
-    azure_fs->store->statistics.object_exists_count++;
+    azure_fs->store->statistics.num_object_exists_requests++;
 
     log->log_debug_message(
       "azure_file_system_exists: Checking object: " + std::string(name) + " exists in Azure.");
@@ -644,7 +644,7 @@ azure_file_read(
 
     WT_UNUSED(session);
 
-    azure_fs->store->statistics.read_object_count++;
+    azure_fs->store->statistics.num_read_object_requests++;
     int ret;
     if ((ret = azure_fs->azure_conn->read_object(azure_fh->name, offset, len, buf) != 0)) {
         log->log_err_msg("azure_file_read: read_object request to Azure failed.");
@@ -681,14 +681,14 @@ azure_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *size
 static void
 azure_log_statistics(const azure_store &azure_storage)
 {
-    azure_storage.log->log_debug_message(
-      "GCP list objects count: " + std::to_string(azure_storage.statistics.list_objects_count));
-    azure_storage.log->log_debug_message(
-      "GCP put object count: " + std::to_string(azure_storage.statistics.put_object_count));
-    azure_storage.log->log_debug_message(
-      "GCP get object count: " + std::to_string(azure_storage.statistics.read_object_count));
-    azure_storage.log->log_debug_message(
-      "GCP object exists count: " + std::to_string(azure_storage.statistics.object_exists_count));
+    azure_storage.log->log_debug_message("Azure list objects count: " +
+      std::to_string(azure_storage.statistics.num_list_objects_requestst));
+    azure_storage.log->log_debug_message("Azure put object count: " +
+      std::to_string(azure_storage.statistics.num_put_object_requests));
+    azure_storage.log->log_debug_message("Azure get object count: " +
+      std::to_string(azure_storage.statistics.num_read_object_requests));
+    azure_storage.log->log_debug_message("Azure object exists count: " +
+      std::to_string(azure_storage.statistics.num_object_exists_requests));
 }
 
 // An Azure storage source library - creates an entry point to the Azure extension.
@@ -714,9 +714,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
         return ret != 0 ? ret : EINVAL;
     }
 
-    // Set up statistics.
     azure_storage->statistics = {};
-
     azure_storage->log =
       std::make_unique<azure_log_system>(azure_storage->wt_api, azure_storage->verbose);
     Azure::Core::Diagnostics::Logger::SetListener(

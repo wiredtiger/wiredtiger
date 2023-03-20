@@ -42,10 +42,10 @@ struct gcp_file_handle;
 
 // Statistics to be collected for the Google cloud storage.
 struct gcp_statistics {
-    uint64_t list_objects_count;  // Number of list objects requests
-    uint64_t put_object_count;    // Number of put object requests
-    uint64_t read_object_count;   // Number of get object requests
-    uint64_t object_exists_count; // Number of object exists requests
+    uint64_t num_list_objects_request;
+    uint64_t num_put_object_request;
+    uint64_t num_read_object_request;
+    uint64_t num_object_exists_request;
 };
 
 /*
@@ -284,7 +284,7 @@ gcp_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYSTEM
     gcp_file_system *fs = get_gcp_file_system(file_system);
     WT_FILE_SYSTEM *wt_file_system = fs->wt_file_system;
 
-    gcp->statistics.put_object_count++;
+    gcp->statistics.num_put_object_request++;
     // std::filesystem::canonical will throw an exception if object does not exist so
     // check if the object exists.
     if (!std::filesystem::exists(source)) {
@@ -332,7 +332,7 @@ gcp_file_system_exists(
     size_t size;
     int ret = 0;
 
-    gcp->statistics.object_exists_count++;
+    gcp->statistics.num_object_exists_request++;
     gcp->log->log_debug_message(
       "gcp_file_system_exists: Checking object: " + std::string(name) + " exists in GCP.");
     ret = fs->gcp_conn->object_exists(name, *existp, size);
@@ -519,7 +519,7 @@ gcp_object_list_helper(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const c
     std::string complete_prefix;
 
     *count = 0;
-    gcp->statistics.list_objects_count++;
+    gcp->statistics.num_list_objects_request++;
 
     if (directory != nullptr) {
         complete_prefix += directory;
@@ -555,7 +555,7 @@ gcp_file_read(
     gcp_file_system *fs = gcp_fh->file_system;
     gcp_store *gcp = fs->storage_source;
 
-    gcp->statistics.read_object_count++;
+    gcp->statistics.num_read_object_request++;
     int ret;
     if ((ret = fs->gcp_conn->read_object(gcp_fh->name, offset, len, buf)) != 0)
         gcp->log->log_error_message("gcp_file_read: read attempt failed.");
@@ -665,13 +665,13 @@ static void
 gcp_log_statistics(const gcp_store &gcp)
 {
     gcp.log->log_debug_message(
-      "GCP list objects count: " + std::to_string(gcp.statistics.list_objects_count));
+      "GCP list objects count: " + std::to_string(gcp.statistics.num_list_objects_request));
     gcp.log->log_debug_message(
-      "GCP put object count: " + std::to_string(gcp.statistics.put_object_count));
+      "GCP put object count: " + std::to_string(gcp.statistics.num_put_object_request));
     gcp.log->log_debug_message(
-      "GCP get object count: " + std::to_string(gcp.statistics.read_object_count));
+      "GCP get object count: " + std::to_string(gcp.statistics.num_read_object_request));
     gcp.log->log_debug_message(
-      "GCP object exists count: " + std::to_string(gcp.statistics.object_exists_count));
+      "GCP object exists count: " + std::to_string(gcp.statistics.num_object_exists_request));
 }
 
 int
@@ -698,9 +698,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
         return ret != 0 ? ret : EINVAL;
     }
 
-    // Set up statistics.
     gcp->statistics = {};
-
     // Initialize the GCP logging.
     gcp->log_id = google::cloud::LogSink::Instance().AddBackend(gcp->log);
 
