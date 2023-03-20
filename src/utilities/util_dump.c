@@ -55,7 +55,7 @@ usage(void)
       "-?", "show this message", NULL, NULL};
 
     util_usage(
-      "dump [-jklnprux] [-c checkpoint] [-f output-file] [-t timestamp] uri", "options:", options);
+      "dump [-jklnprux] [-c checkpoint] [-f output-file] [-t timestamp] [-w window] uri", "options:", options);
     return (1);
 }
 
