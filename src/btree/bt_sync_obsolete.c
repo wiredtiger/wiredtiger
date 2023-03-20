@@ -21,7 +21,7 @@ __sync_obsolete_inmem_evict(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_PAGE_MODIFY *mod;
     WT_TIME_AGGREGATE newest_ta;
     uint32_t i;
-    char tp_string[WT_TP_STRING_SIZE];
+    char time_string[WT_TIME_STRING_SIZE];
     const char *tag;
     bool do_visibility_check, obsolete, ovfl_items;
 
@@ -95,7 +95,7 @@ __sync_obsolete_inmem_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 
     __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
       "%p in-memory page obsolete check: %s %s obsolete, stop time aggregate %s", (void *)ref, tag,
-      obsolete ? "" : "not ", __wt_time_aggregate_to_string(&newest_ta, tp_string));
+      obsolete ? "" : "not ", __wt_time_aggregate_to_string(&newest_ta, time_string));
     return (0);
 }
 
@@ -133,7 +133,7 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
     WT_ADDR_COPY addr;
     WT_DECL_RET;
     WT_TIME_AGGREGATE newest_ta;
-    char tp_string[WT_TP_STRING_SIZE];
+    char time_string[WT_TIME_STRING_SIZE];
     bool obsolete;
 
     *ref_deleted = false;
@@ -164,7 +164,7 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
     __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
       "%p on-disk page obsolete check: %s"
       "obsolete, stop time aggregate %s",
-      (void *)ref, obsolete ? "" : "not ", __wt_time_aggregate_to_string(&newest_ta, tp_string));
+      (void *)ref, obsolete ? "" : "not ", __wt_time_aggregate_to_string(&newest_ta, time_string));
 
     if (obsolete && ((ret = __wt_page_parent_modify_set(session, ref, true)) == 0)) {
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
