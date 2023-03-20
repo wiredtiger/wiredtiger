@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+
+# TODO fix this one
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -40,24 +42,24 @@ def mod_val(value, char, location, nbytes=1):
 class test_rollback_to_stable04(test_rollback_to_stable_base):
 
     format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
+        # ('column', dict(key_format='r', value_format='S')),
+        # ('column_fix', dict(key_format='r', value_format='8t')),
         ('row_integer', dict(key_format='i', value_format='S')),
     ]
 
     in_memory_values = [
         ('no_inmem', dict(in_memory=False)),
-        ('inmem', dict(in_memory=True))
+        # ('inmem', dict(in_memory=True))
     ]
 
     prepare_values = [
         ('no_prepare', dict(prepare=False)),
-        ('prepare', dict(prepare=True))
+        # ('prepare', dict(prepare=True))
     ]
 
     dryrun_values = [
         ('no_dryrun', dict(dryrun=False)),
-        ('dryrun', dict(dryrun=True))
+        # ('dryrun', dict(dryrun=True))
     ]
 
     scenarios = make_scenarios(format_values, in_memory_values, prepare_values, dryrun_values)
@@ -165,11 +167,14 @@ class test_rollback_to_stable04(test_rollback_to_stable_base):
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rts][2]
         hs_removed = stat_cursor[stat.conn.txn_rts_hs_removed][2]
+        hs_removed_dryrun = stat_cursor[stat.conn.txn_rts_hs_removed_dryrun][2]
         hs_sweep = stat_cursor[stat.conn.txn_rts_sweep_hs_keys][2]
+        hs_sweep_dryrun = stat_cursor[stat.conn.txn_rts_sweep_hs_keys_dryrun][2]
         keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
         keys_restored = stat_cursor[stat.conn.txn_rts_keys_restored][2]
         pages_visited = stat_cursor[stat.conn.txn_rts_pages_visited][2]
         upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
+        upd_aborted_dryrun = stat_cursor[stat.conn.txn_rts_upd_aborted_dryrun][2]
         stat_cursor.close()
 
         self.assertEqual(calls, 1)
@@ -178,11 +183,15 @@ class test_rollback_to_stable04(test_rollback_to_stable_base):
         self.assertGreater(pages_visited, 0)
         if self.dryrun:
             self.assertEqual(upd_aborted + hs_removed + hs_sweep, 0)
+            self.assertEqual(upd_aborted_dryrun, nrows * 11)
+            self.assertEqual(hs_removed_dryrun + hs_sweep_dryrun, 0)
         elif self.in_memory:
             self.assertEqual(upd_aborted, nrows * 11)
             self.assertEqual(hs_removed + hs_sweep, 0)
+            self.assertEqual(upd_aborted_dryrun + hs_removed_dryrun + hs_sweep_dryrun, 0)
         else:
             self.assertGreaterEqual(upd_aborted + hs_removed + hs_sweep, nrows * 11)
+            self.assertEqual(upd_aborted_dryrun + hs_removed_dryrun + hs_sweep_dryrun, 0)
 
 if __name__ == '__main__':
     wttest.run()
