@@ -2546,7 +2546,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            sh s_all -A -E 2>&1
+            sh -x s_all -A -E 2>&1
 
   - name: s-string
     # Run the script with "-r" option to remove no-longer-needed words in s_string.ok
@@ -4403,7 +4403,7 @@ tasks:
           perf-test-name: update-checkpoint-btree.wtperf
 
   - name: perf-test-update-checkpoint-lsm
-    # Disable/Un-tag the LSM perf test till the support for LSM is restored.
+    # FIXME-WT-8867 Disable/Un-tag the LSM perf test till the support for LSM is restored.
     # tags: ["checkpoint-perf"]
     depends_on:
       - name: compile
@@ -4651,7 +4651,7 @@ tasks:
           perf-test-name: evict-btree-1.wtperf
 
   - name: perf-test-evict-lsm
-    # Disable/Un-tag the LSM perf test till the support for LSM is restored.
+    # FIXME-WT-8867 Disable/Un-tag the LSM perf test till the support for LSM is restored.
     # tags: ["evict-perf"]
     depends_on:
       - name: compile
@@ -4667,7 +4667,7 @@ tasks:
           perf-test-name: evict-lsm.wtperf
 
   - name: perf-test-evict-lsm-1
-    # Disable/Un-tag the LSM perf test till the support for LSM is restored.
+    # FIXME-WT-8867 Disable/Un-tag the LSM perf test till the support for LSM is restored.
     # tags: ["evict-perf"]
     depends_on:
       - name: compile
@@ -5140,8 +5140,7 @@ buildvariants:
     - name: compile-production-disable-static
     - name: examples-c-production-disable-shared-test
     - name: examples-c-production-disable-static-test
-    # FIXME-WT-10386 Enable this test once this failure is resolved.
-    # - name: format-stress-pull-request-test
+    - name: format-stress-pull-request-test
     - name: make-check-test
     - name: cppsuite-operations-test-default
     - name: cppsuite-hs-cleanup-default

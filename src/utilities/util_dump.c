@@ -12,6 +12,7 @@
 #define STRING_MATCH_CONFIG(s, item) \
     (strncmp(s, (item).str, (item).len) == 0 && (s)[(item).len] == '\0')
 
+static int dump_all_records(WT_CURSOR *, bool, bool);
 static int dump_config(WT_SESSION *, const char *, WT_CURSOR *, bool, bool, bool);
 static int dump_json_begin(WT_SESSION *);
 static int dump_json_end(WT_SESSION *);
@@ -19,12 +20,13 @@ static int dump_json_separator(WT_SESSION *);
 static int dump_json_table_end(WT_SESSION *);
 static const char *get_dump_type(bool, bool, bool);
 static int dump_prefix(WT_SESSION *, bool, bool, bool);
-static int dump_record(WT_CURSOR *, bool, bool);
+static int dump_record(WT_CURSOR *, const char *, bool, bool, bool, uint64_t);
 static int dump_suffix(WT_SESSION *, bool);
 static int dump_table_config(WT_SESSION *, WT_CURSOR *, WT_CURSOR *, const char *, bool);
 static int dump_table_parts_config(WT_SESSION *, WT_CURSOR *, const char *, const char *, bool);
 static int dup_json_string(const char *, char **);
 static int print_config(WT_SESSION *, const char *, const char *, bool, bool);
+static int print_record(WT_CURSOR *, bool);
 static int time_pair_to_timestamp(WT_SESSION_IMPL *, char *, WT_ITEM *);
 
 /*
@@ -37,12 +39,13 @@ usage(void)
     static const char *options[] = {"-c checkpoint",
       "dump as of the named checkpoint (the default is the most recent version of the data)",
       "-f output", "dump to the specified file (the default is stdout)", "-j",
-      "dump in JSON format", "-p",
+      "dump in JSON format", "-k", "specify a key too look for", "-n",
+      "if the specified key to look for cannot be found, return the result from search_near", "-p",
       "dump in human readable format (pretty-print). The -p flag can be combined with -x. In this "
       "case, raw data elements will be formatted like -x with hexadecimal encoding.",
       "-r", "dump in reverse order", "-t timestamp",
       "dump as of the specified timestamp (the default is the most recent version of the data)",
-      "-x",
+      "-w n", "dump n records before and after the record sought", "-x",
       "dump all characters in a hexadecimal encoding (by default printable characters are not "
       "encoded). The -x flag can be combined with -p. In this case, the dump will be formatted "
       "similar to -p except for raw data elements, which will look like -x with hexadecimal "
@@ -50,7 +53,7 @@ usage(void)
       "-?", "show this message", NULL, NULL};
 
     util_usage(
-      "dump [-jprx] [-c checkpoint] [-f output-file] [-t timestamp] uri", "options:", options);
+      "dump [-jknprx] [-c checkpoint] [-f output-file] [-t timestamp] uri", "options:", options);
     return (1);
 }
 
@@ -68,17 +71,21 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_SESSION_IMPL *session_impl;
+    uint64_t window;
     int ch, format_specifiers, i;
     char *checkpoint, *ofile, *p, *simpleuri, *timestamp, *uri;
-    bool hex, json, pretty, reverse;
+    const char *key;
+    bool hex, json, pretty, reverse, search_near;
 
     session_impl = (WT_SESSION_IMPL *)session;
-
     cursor = NULL;
     hs_dump_cursor = NULL;
+    key = NULL;
     checkpoint = ofile = simpleuri = uri = timestamp = NULL;
-    hex = json = pretty = reverse = false;
-    while ((ch = __wt_getopt(progname, argc, argv, "c:f:t:jprx?")) != EOF)
+    hex = json = pretty = reverse = search_near = false;
+    window = 0;
+
+    while ((ch = __wt_getopt(progname, argc, argv, "c:f:k:t:w:jnprx?")) != EOF)
         switch (ch) {
         case 'c':
             checkpoint = __wt_optarg;
@@ -89,6 +96,12 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         case 'j':
             json = true;
             break;
+        case 'k':
+            key = __wt_optarg;
+            break;
+        case 'n':
+            search_near = true;
+            break;
         case 'p':
             pretty = true;
             break;
@@ -97,6 +110,10 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
             break;
         case 't':
             timestamp = __wt_optarg;
+            break;
+        case 'w':
+            if ((ret = util_str2num(session, __wt_optarg, true, &window)) != 0)
+                return (usage());
             break;
         case 'x':
             hex = true;
@@ -190,11 +207,16 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
             /* Set the "ignore tombstone" flag on the underlying cursor. */
             F_SET(hs_dump_cursor->child, WT_CURSTD_IGNORE_TOMBSTONE);
         }
+
         if (dump_config(session, simpleuri, cursor, pretty, hex, json) != 0)
             goto err;
-
-        if (dump_record(cursor, reverse, json) != 0)
-            goto err;
+        if (key == NULL) {
+            if (dump_all_records(cursor, reverse, json) != 0)
+                goto err;
+        } else {
+            if (dump_record(cursor, key, reverse, search_near, json, window) != 0)
+                goto err;
+        }
         if (json && dump_json_table_end(session) != 0)
             goto err;
 
@@ -629,20 +651,18 @@ dump_prefix(WT_SESSION *session, bool pretty, bool hex, bool json)
 }
 
 /*
- * dump_record --
- *     Dump a single record, advance cursor to next/prev, along with JSON formatting if needed.
+ * print_record --
+ *     Output text representation of key and value.
  */
 static int
-dump_record(WT_CURSOR *cursor, bool reverse, bool json)
+print_record(WT_CURSOR *cursor, bool json)
 {
     WT_DECL_RET;
     WT_SESSION *session;
-    const char *infix, *key, *prefix, *suffix, *value;
-    bool once;
+    const char *current_key, *infix, *prefix, *suffix, *value;
 
     session = cursor->session;
 
-    once = false;
     if (json) {
         prefix = "\n{\n";
         infix = ",\n";
@@ -652,19 +672,122 @@ dump_record(WT_CURSOR *cursor, bool reverse, bool json)
         infix = "\n";
         suffix = "\n";
     }
-    while ((ret = (reverse ? cursor->prev(cursor) : cursor->next(cursor))) == 0) {
-        if ((ret = cursor->get_key(cursor, &key)) != 0)
-            return (util_cerr(cursor, "get_key", ret));
-        if ((ret = cursor->get_value(cursor, &value)) != 0)
-            return (util_cerr(cursor, "get_value", ret));
-        if (fprintf(
-              fp, "%s%s%s%s%s%s", json && once ? "," : "", prefix, key, infix, value, suffix) < 0)
-            return (util_err(session, EIO, NULL));
-        once = true;
+
+    if ((ret = cursor->get_key(cursor, &current_key)) != 0)
+        return (util_cerr(cursor, "get_key", ret));
+    if ((ret = cursor->get_value(cursor, &value)) != 0)
+        return (util_cerr(cursor, "get_value", ret));
+    if (fprintf(fp, "%s%s%s%s%s", prefix, current_key, infix, value, suffix) < 0)
+        return (util_err(session, EIO, NULL));
+    return (0);
+}
+
+/*
+ * dump_record --
+ *     Dump the record specified by key or one near to it. If a window is specified print out up to
+ *     that many records before and after sought record. The window will be truncated if it would
+ *     move past the first or last entry.
+ */
+static int
+dump_record(
+  WT_CURSOR *cursor, const char *key, bool reverse, bool search_near, bool json, uint64_t window)
+{
+    WT_DECL_RET;
+    WT_SESSION *session;
+    uint64_t n, total_window;
+    int (*bck)(WT_CURSOR *);
+    int (*fwd)(WT_CURSOR *);
+    int exact;
+    const char *current_key;
+    bool once;
+
+    session = cursor->session;
+    once = false;
+    exact = 0;
+
+    WT_ASSERT((WT_SESSION_IMPL *)session, key != NULL);
+
+    current_key = key;
+    cursor->set_key(cursor, current_key);
+    ret = cursor->search_near(cursor, &exact);
+
+    if (ret != 0)
+        return (util_cerr(cursor, "search_near", ret));
+
+    /* Unable to find the exact key specified. */
+    if (exact != 0 && !search_near)
+        return (WT_NOTFOUND);
+
+    if (window == 0)
+        ret = print_record(cursor, json);
+    else {
+        fwd = (reverse) ? cursor->prev : cursor->next;
+        bck = (reverse) ? cursor->next : cursor->prev;
+
+        /* Back up as far as possible in the window. */
+        for (n = 0; n < window; n++) {
+            if ((ret = bck(cursor)) != 0) {
+                if (ret == WT_NOTFOUND) {
+                    /* The cursor must point at the first record in the window. */
+                    fwd(cursor);
+                    break;
+                }
+                return (util_cerr(cursor, "cursor", ret));
+            }
+        }
+
+        /*
+         * Calculate the maximum possible window size based on how far it was possible to back up in
+         * the window.
+         */
+        total_window = n + 1 + window;
+
+        for (n = 0; n < total_window; n++) {
+            if (json && once) {
+                if (fputc(',', fp) == EOF)
+                    return (util_err(session, EIO, NULL));
+            }
+            print_record(cursor, json);
+            if ((ret = fwd(cursor)) != 0) {
+                if (ret == WT_NOTFOUND)
+                    break;
+                return (util_cerr(cursor, "cursor", ret));
+            }
+            once = true;
+        }
     }
+
     if (json && once && fprintf(fp, "\n") < 0)
         return (util_err(session, EIO, NULL));
-    return (ret == WT_NOTFOUND ? 0 : util_cerr(cursor, (reverse ? "prev" : "next"), ret));
+
+    return (0);
+}
+
+/*
+ * dump_all_records --
+ *     Dump all the records.
+ */
+static int
+dump_all_records(WT_CURSOR *cursor, bool reverse, bool json)
+{
+    WT_DECL_RET;
+    WT_SESSION *session;
+    bool once;
+
+    session = cursor->session;
+    once = false;
+    while ((ret = (reverse ? cursor->prev(cursor) : cursor->next(cursor))) == 0) {
+        if (json && once) {
+            if (fputc(',', fp) == EOF)
+                return (util_err(session, EIO, NULL));
+        }
+        print_record(cursor, json);
+        once = true;
+    }
+
+    if (json && once && fprintf(fp, "\n") < 0)
+        return (util_err(session, EIO, NULL));
+    return (0);
 }
 
 /*

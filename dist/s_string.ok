@@ -441,7 +441,7 @@ allocator
 allocators
 allocfile
 allocsize
-ao
+aor
 ap
 api
 arg
@@ -835,7 +835,7 @@ isrc
 isspace
 iter
 jjj
-jprx
+jknprx
 js
 json
 kB
