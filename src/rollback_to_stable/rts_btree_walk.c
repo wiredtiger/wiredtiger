@@ -299,7 +299,7 @@ __wt_rts_btree_walk_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
     btree = S2BT(session);
     conn = S2C(session);
 
-    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
+    __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
       WT_RTS_VERB_TAG_TREE_LOGGING
       "rollback to stable connection_logging_enabled=%s and btree_logging_enabled=%s",
       FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ? "true" : "false",
