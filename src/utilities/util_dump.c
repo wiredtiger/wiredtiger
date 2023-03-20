@@ -697,7 +697,7 @@ dump_record(
     int exact;
     const char *current_key;
     bool once;
-    unsigned int n, total_window;
+    uint64_t n, total_window;
     int (*fwd)(WT_CURSOR *);
     int (*bck)(WT_CURSOR *);
 
