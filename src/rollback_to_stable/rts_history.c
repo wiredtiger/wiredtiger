@@ -54,13 +54,10 @@ __wt_rts_history_delete_hs(WT_SESSION_IMPL *session, WT_ITEM *key, wt_timestamp_
         if (hs_tw->stop_ts <= ts)
             break;
 
-        if (!dryrun) {
+        if (!dryrun)
             WT_ERR(hs_cursor->remove(hs_cursor));
-            WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed_dryrun);
-        } else {
-            printf("hs_removed_dryrun\n");
-            WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed_dryrun);
-        }
+
+        WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
 
         /*
          * The globally visible start time windows are cleared during history store reconciliation.

@@ -58,13 +58,10 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
               rollback_timestamp < upd->durable_ts ? "true" : "false",
               __wt_prepare_state_str(upd->prepare_state));
 
-            if (!dryrun) {
+            if (!dryrun)
                 upd->txnid = WT_TXN_ABORTED;
-                WT_RTS_STAT_CONN_INCR(session, txn_rts_upd_aborted_dryrun);
-            } else {
-                /* printf("updating dryrun stat\n"); */
-                WT_RTS_STAT_CONN_INCR(session, txn_rts_upd_aborted_dryrun);
-            }
+
+            WT_RTS_STAT_CONN_INCR(session, txn_rts_upd_aborted);
         } else {
             /* Valid update is found. */
             stable_upd = upd;
@@ -363,11 +360,10 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
               "history store stop is obsolete with time_window=%s and pinned_timestamp=%s",
               __wt_time_window_to_string(hs_tw, tw_string),
               __wt_timestamp_to_string(pinned_ts, ts_string[0]));
-            if (!dryrun) {
+            if (!dryrun)
                 WT_ERR(hs_cursor->remove(hs_cursor));
-                WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed_dryrun);
-            } else
-                WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed_dryrun);
+
+            WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
 
             continue;
         }
@@ -471,14 +467,11 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
         newer_hs_durable_ts = hs_durable_ts;
         first_record = false;
 
-        if (!dryrun) {
+        if (!dryrun)
             WT_ERR(hs_cursor->remove(hs_cursor));
-            WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed_dryrun);
-            WT_RTS_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts_unstable);
-        } else {
-            WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed_dryrun);
-            WT_RTS_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts_unstable_dryrun);
-        }
+
+        WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
+        WT_RTS_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts_unstable);
     }
 
     /*
@@ -577,14 +570,11 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
         /* Avoid freeing the updates while still in use if hs_cursor->remove fails. */
         upd = tombstone = NULL;
 
-        if (!dryrun) {
+        if (!dryrun)
             WT_ERR(hs_cursor->remove(hs_cursor));
-            WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed_dryrun);
-            WT_RTS_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts);
-        } else {
-            WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed_dryrun);
-            WT_RTS_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts_dryrun);
-        }
+
+        WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
+        WT_RTS_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts);
     }
 
     if (0) {

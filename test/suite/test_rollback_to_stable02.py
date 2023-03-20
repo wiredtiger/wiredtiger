@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 
-# TODO fix this one
-#
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
@@ -159,13 +157,10 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
 
         if self.dryrun:
             self.assertEqual(upd_aborted, 0)
-            stat_cursor = self.session.open_cursor('statistics:', None, None)
-            # print('txn_rts_upd_aborted_dryrun={}'.format(stat_cursor[stat.conn.txn_rts_upd_aborted_dryrun][2]))
             self.assertGreaterEqual(upd_aborted_dryrun, nrows * 2)
-            stat_cursor.close()
         else:
-            self.assertGreaterEqual(upd_aborted_dryrun, nrows * 2)
-            # self.assertEqual(upd_aborted_dryrun, 0)
+            self.assertGreaterEqual(upd_aborted, nrows * 2)
+            self.assertEqual(upd_aborted_dryrun, 0)
 
 if __name__ == '__main__':
     wttest.run()
