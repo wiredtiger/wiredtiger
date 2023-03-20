@@ -3045,7 +3045,7 @@ tasks:
         vars:
           # Set this in case of a core to get the correct python binary.
           python_binary: $(pwd)/venv/bin/python3
-          tiered_storage_test_name: tiered06
+          tiered_storage_test_name: tiered
   - name: azure-gcp-tiered-unittest-test
     tags: ["pull_request", "tiered_unittest"]
     commands:
@@ -3098,7 +3098,7 @@ tasks:
         vars:
           # Set this in case of a core to get the correct python binary.
           python_binary: $(pwd)/venv/bin/python3
-          tiered_storage_test_name: tiereds
+          tiered_storage_test_name: tiered06
 
   - name: spinlock-gcc-test
     commands:
