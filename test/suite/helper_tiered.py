@@ -291,6 +291,7 @@ class TieredConfigMixin:
             if not os.path.exists(gcp_object_files_path):
                 os.makedirs(gcp_object_files_path)
             for blob in blobs:
+                print(blob)
                 filename = gcp_object_files_path + '/' + blob.split('/')[-1]
                 blob.download_to_filename(filename)
         elif (self.ss_name == 'azure_store'):
