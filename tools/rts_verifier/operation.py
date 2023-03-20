@@ -35,6 +35,8 @@ class OpType(Enum):
     HS_RESTORE_TOMBSTONE = 26
     FILE_SKIP = 27
     SKIP_DAMAGE = 28
+    HS_TRUNCATED = 29
+    SHUTDOWN_RTS = 30
 
 class Operation:
     def __init__(self, line):
@@ -215,6 +217,12 @@ class Operation:
         self.type = OpType.SHUTDOWN_INIT
 
         self.stable = self.__extract_simple_timestamp('stable_timestamp', line)
+
+    def __init_shutdown_rts(self, line):
+        self.type = OpType.SHUTDOWN_RTS
+
+        matches = re.search('performing shutdown rollback to stable failed with code (\w+)', line)
+        self.shutdown_rts_error = matches.group(1).lower() != "0"
 
     def __init_tree_skip(self, line):
         self.type = OpType.TREE_SKIP
@@ -457,3 +465,9 @@ class Operation:
         self.type = OpType.SKIP_DAMAGE
         self.file = self.__extract_file(line)
         self.corrupted = "corrupt" in line
+
+    def __init_hs_truncated(self, line):
+        self.type = OpType.HS_TRUNCATED
+
+        matches = re.search('btree=(\d+)', line)
+        self.btree_id = int(matches.group(1))

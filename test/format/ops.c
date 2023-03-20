@@ -522,12 +522,6 @@ begin_transaction_ts(TINFO *tinfo)
             return;
         }
 
-        /*
-         * It should not be possible for a timestamp to age out of the system with predictable
-         * replay. If a begin transaction were to fail, we'd need to begin the transaction again
-         * with the same replay timestamp; we can never give up on a timestamp.
-         */
-        testutil_assert(!GV(RUNS_PREDICTABLE_REPLAY));
         testutil_assert(ret == EINVAL);
         testutil_check(session->rollback_transaction(session, NULL));
     }
@@ -1449,6 +1443,13 @@ read_row_worker(TINFO *tinfo, TABLE *table, WT_CURSOR *cursor, uint64_t keyno, W
 
         break;
     case ROW:
+        if (tinfo == NULL)
+            trace_msg(cursor->session, "read %" PRIu64 " {%.*s}, {%.*s}", keyno, (int)key->size,
+              (char *)key->data, (int)value->size, (char *)value->data);
+        else
+            trace_op(tinfo, "read %" PRIu64 " {%.*s}, {%.*s}", keyno, (int)key->size,
+              (char *)key->data, (int)value->size, (char *)value->data);
+        break;
     case VAR:
         if (tinfo == NULL)
             trace_msg(cursor->session, "read %" PRIu64 " {%.*s}", keyno, (int)value->size,
@@ -2131,7 +2132,8 @@ row_remove(TINFO *tinfo, bool positioned)
     if (ret != 0 && ret != WT_NOTFOUND)
         return (ret);
 
-    trace_op(tinfo, "remove %" PRIu64, tinfo->keyno);
+    trace_op(tinfo, "remove %" PRIu64 " {%.*s}", tinfo->keyno, (int)tinfo->key->size,
+      (char *)tinfo->key->data);
 
     return (ret);
 }
