@@ -66,7 +66,8 @@ usage(void)
       "-?", "show this message", NULL, NULL};
 
     util_usage(
-      "dump [-ejnprx] [-c checkpoint] [-f output-file] [-k key] [-l lower bound] [-t timestamp] [-u "
+      "dump [-ejnprx] [-c checkpoint] [-f output-file] [-k key] [-l lower bound] [-t timestamp] "
+      "[-u "
       "upper bound] [-w window] uri",
       "options:", options);
     return (1);
