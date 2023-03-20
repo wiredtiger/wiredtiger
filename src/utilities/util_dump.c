@@ -653,7 +653,6 @@ dump_prefix(WT_SESSION *session, bool pretty, bool hex, bool json)
 /*
  * print_record --
  *     Output text representation of key and value.
- *
  */
 static int
 print_record(WT_CURSOR *cursor, bool json)
