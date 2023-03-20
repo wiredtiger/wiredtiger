@@ -36,7 +36,8 @@ class OpType(Enum):
     FILE_SKIP = 27
     SKIP_DAMAGE = 28
     HS_TRUNCATED = 29
-    END = 30
+    SHUTDOWN_RTS = 30
+    END = 31
 
 class Operation:
     def __init__(self, line):
@@ -217,6 +218,12 @@ class Operation:
         self.type = OpType.SHUTDOWN_INIT
 
         self.stable = self.__extract_simple_timestamp('stable_timestamp', line)
+
+    def __init_shutdown_rts(self, line):
+        self.type = OpType.SHUTDOWN_RTS
+
+        matches = re.search('performing shutdown rollback to stable failed with code (\w+)', line)
+        self.shutdown_rts_error = matches.group(1).lower() != "0"
 
     def __init_tree_skip(self, line):
         self.type = OpType.TREE_SKIP
