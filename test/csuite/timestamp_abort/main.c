@@ -724,7 +724,7 @@ thread_backup_run(void *arg)
             backup_create_full(td->conn, __wt_random(&td->extra_rnd) % 2, u);
             last_full = u;
         } else
-            backup_create_incremental(td->conn, last_full, u);
+            backup_create_incremental(td->conn, last_backup, u);
 
         last_backup = u;
 
