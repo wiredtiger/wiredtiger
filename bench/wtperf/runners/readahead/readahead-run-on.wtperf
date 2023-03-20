@@ -4,7 +4,7 @@ key_sz=12
 value_sz=138
 table_config="type=file"
 create=false
-#compression="snappy"
+compression="snappy"
 icount=10000
 scan_icount=120000000
 report_interval=5

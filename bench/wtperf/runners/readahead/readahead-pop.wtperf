@@ -1,5 +1,5 @@
 # wtperf options file: evict btree configuration
-conn_config="cache_size=10G,checkpoint=(wait=60,log_size=2GB),eviction=(threads_min=12,threads_max=12),log=(enabled=true),session_max=600,statistics=(fast),statistics_log=(wait=1,json),read_ahead=false"
+conn_config="cache_size=1G,checkpoint=(wait=60,log_size=2GB),eviction=(threads_min=12,threads_max=12),session_max=600,statistics=(fast),statistics_log=(wait=1,json),read_ahead=false"
 key_sz=12
 value_sz=138
 table_config="type=file"
@@ -14,7 +14,7 @@ scan_type=forward
 scan_interval=1
 scan_pct=20
 table_count=1
-# The benchmark needs some non-scan acticity
+# The benchmark needs some non-scan activity
 threads=((count=1,reads=1,throttle=5))
 # Add throughput/latency monitoring
 max_latency=50000
