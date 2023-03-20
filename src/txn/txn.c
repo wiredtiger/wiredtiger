@@ -859,9 +859,7 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
 #ifdef HAVE_DIAGNOSTIC
         __wt_abort(session);
 #endif
-#ifdef WT_STANDALONE_BUILD
         return (EINVAL);
-#endif
     }
 
     prev_op_durable_ts = upd->prev_durable_ts;
@@ -880,9 +878,7 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
 #ifdef HAVE_DIAGNOSTIC
         __wt_abort(session);
 #endif
-#ifdef WT_STANDALONE_BUILD
         return (EINVAL);
-#endif
     }
 
     /* Ordered consistency requires all updates be in timestamp order. */
@@ -895,9 +891,7 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
 #ifdef HAVE_DIAGNOSTIC
         __wt_abort(session);
 #endif
-#ifdef WT_STANDALONE_BUILD
         return (EINVAL);
-#endif
     }
 
     return (0);
@@ -2428,6 +2422,12 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
               "[SHUTDOWN_INIT] performing shutdown rollback to stable, stable_timestamp=%s",
               __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string));
             WT_TRET(conn->rts->rollback_to_stable(session, cfg, true));
+
+            if (ret != 0)
+                __wt_verbose_notice(session, WT_VERB_RTS,
+                  WT_RTS_VERB_TAG_SHUTDOWN_RTS
+                  "performing shutdown rollback to stable failed with code %s",
+                  __wt_strerror(session, ret, NULL, 0));
         }
 
         s = NULL;
