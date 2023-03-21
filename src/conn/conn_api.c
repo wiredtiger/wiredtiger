@@ -2689,14 +2689,10 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_DECL_RET;
     const WT_NAME_FLAG *ft;
     WT_SESSION *wt_session;
-    WT_SESSION_IMPL *session;
+    WT_SESSION_IMPL *session, *verify_session;
     bool config_base_set, try_salvage, verify_meta;
     const char *enc_cfg[] = {NULL, NULL}, *merge_cfg;
     char version[64];
-
-#ifdef WT_STANDALONE_BUILD
-    WT_SESSION_IMPL *verify_session;
-#endif
 
     /* Leave lots of space for optional additional configuration. */
     const char *cfg[] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
@@ -2704,7 +2700,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     *connectionp = NULL;
 
     conn = NULL;
-    session = NULL;
+    session = verify_session = NULL;
     merge_cfg = NULL;
     config_base_set = try_salvage = verify_meta = false;
 
@@ -3122,7 +3118,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     /* Start the worker threads and run recovery. */
     WT_ERR(__wt_connection_workers(session, cfg));
 
-#ifdef WT_STANDALONE_BUILD
     /*
      * If the user wants to verify WiredTiger metadata, verify the history store now that the
      * metadata table may have been salvaged and eviction has been started and recovery run.
@@ -3133,7 +3128,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         WT_TRET(__wt_session_close_internal(verify_session));
         WT_ERR(ret);
     }
-#endif
 
     /*
      * The hash array sizes needed to be set up very early. Set them in the statistics here. Setting
