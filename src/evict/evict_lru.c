@@ -2554,9 +2554,10 @@ __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
      * not running.
      */
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU)) {
-        if (!F_ISSET(cache, WT_CACHE_EVICT_ALL))
+        if (!F_ISSET(cache, WT_CACHE_EVICT_ALL)) {
             __evict_list_clear_ref(session, ref, true);
-        else
+            WT_STAT_CONN_INCR(session, cache_eviction_clear_page_from_non_urgent_queues);
+        } else
             goto done;
     }
 
