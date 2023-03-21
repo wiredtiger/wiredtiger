@@ -755,7 +755,7 @@ class WiredTigerTestCase(unittest.TestCase):
         if hasattr(self, 'ss_name') and not self.skipped and \
             (not passed or WiredTigerTestCase._preserveFiles):
                 self.download_objects(self.bucket, self.bucket_prefix)
-                self.pr('downloading s3 files')
+                self.pr('downloading object files')
 
         self.pr('finishing')
 
