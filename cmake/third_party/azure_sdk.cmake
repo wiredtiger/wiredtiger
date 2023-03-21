@@ -21,7 +21,7 @@ set(azure_storage_common_lib_location)
 set(azure_sdk_include_location)
 
 if(IMPORT_AZURE_SDK_PACKAGE)
-    # FIXME-WT-10560
+    # FIXME-WT-10555 Currently the package import requires more investigate work.
     message(FATAL_ERROR "Azure SDK package import is not yet supported.")
 endif()
 
