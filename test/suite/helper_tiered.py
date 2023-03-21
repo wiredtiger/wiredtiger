@@ -164,7 +164,7 @@ def gen_tiered_storage_sources(random_prefix='', test_name='', tiered_only=False
             is_tiered_shared = tiered_shared,
             is_local_storage = False,
             has_cache = False,
-            auth_token = "",
+            auth_token = get_auth_token('azure_store'),
             bucket = get_bucket_name('azure_store', 0),
             bucket1 = get_bucket_name('azure_store', 1),
             bucket_prefix = generate_prefix(random_prefix, test_name),
@@ -297,7 +297,8 @@ class TieredConfigMixin:
         elif (self.ss_name == 'azure_store'):
             from azure.storage.blob import BlobServiceClient
 
-            container_client = BlobServiceClient.get_container_client(container=bucket) 
+            blob_service_client = BlobServiceClient.from_connection_string(self.auth_token) 
+            container_client = blob_service_client.get_container_client(container=bucket_name) 
             blob_list = container_client.list_blobs()
 
             azure_object_files_path = 'gcp_objects/'
@@ -305,7 +306,6 @@ class TieredConfigMixin:
                 os.makedirs(azure_object_files_path)
 
             for blob in blob_list:
-                filename = azure_object_files_path + '/' + blob.split('/')[-1]
+                filename = azure_object_files_path + '/' + blob.name.split('/')[-1]
                 with open(file=filename, mode="wb") as download_file:
                     download_file.write(container_client.download_blob(blob.name).readall())
-
