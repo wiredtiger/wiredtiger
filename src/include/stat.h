@@ -235,6 +235,11 @@ __wt_stats_clear(void *stats_arg, int slot)
         if ((session)->dhandle != NULL && (session)->dhandle->stat_array != NULL) \
             WT_STAT_INCRV(session, (session)->dhandle->stats, fld, value);        \
     } while (0)
+#define WT_STAT_DATA_INCRV_ATOMIC(session, fld, value)                                   \
+    do {                                                                          \
+        if ((session)->dhandle != NULL && (session)->dhandle->stat_array != NULL) \
+            WT_STAT_INCRV_ATOMIC(session, (session)->dhandle->stats, fld, value);        \
+    } while (0)
 #define WT_STAT_DATA_INCR(session, fld) WT_STAT_DATA_INCRV(session, fld, 1)
 #define WT_STAT_DATA_SET(session, fld, value)                                     \
     do {                                                                          \
@@ -260,6 +265,12 @@ __wt_stats_clear(void *stats_arg, int slot)
         WT_STAT_DATA_INCRV(session, fld, value);     \
     } while (0)
 #define WT_STAT_CONN_DATA_INCR(session, fld) WT_STAT_CONN_DATA_INCRV(session, fld, 1)
+#define WT_STAT_CONN_DATA_INCR_ATOMIC(session, fld)    \
+    do {                                               \
+        WT_STAT_CONN_INCR_ATOMIC(session, fld);        \
+        WT_STAT_DATA_INCRV_ATOMIC(session, fld, 1);     \
+    } while (0)
+
 /*
  * Update per session statistics.
  */

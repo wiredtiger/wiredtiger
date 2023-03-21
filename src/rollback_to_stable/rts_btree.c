@@ -567,6 +567,9 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
         /* Avoid freeing the updates while still in use if hs_cursor->remove fails. */
         upd = tombstone = NULL;
 
+        __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
+          WT_RTS_VERB_TAG_KEY_REMOVED "asdf1234 %s", "key removed");
+
         if (!dryrun)
             WT_ERR(hs_cursor->remove(hs_cursor));
         WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);

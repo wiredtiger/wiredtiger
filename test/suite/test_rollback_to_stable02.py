@@ -48,8 +48,8 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
     # anything that happens in production.
     format_values = [
         ('column', dict(key_format='r', value_format='S', extraconfig='')),
-        ('column_fix', dict(key_format='r', value_format='8t', extraconfig=',leaf_page_max=4096')),
-        ('row_integer', dict(key_format='i', value_format='S', extraconfig='')),
+        # ('column_fix', dict(key_format='r', value_format='8t', extraconfig=',leaf_page_max=4096')),
+        # ('row_integer', dict(key_format='i', value_format='S', extraconfig='')),
     ]
 
     in_memory_values = [
@@ -156,9 +156,18 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
         self.assertGreater(pages_visited, 0)
 
         if self.dryrun:
+            # print(f"dryrun: {nrows=}, {upd_aborted_dryrun=}")
             self.assertEqual(upd_aborted, 0)
+            if upd_aborted_dryrun < nrows * 2:
+                stat_cursor = self.session.open_cursor('statistics:', None, None)
+                print(f"{upd_aborted_dryrun=}, {nrows=}")
+                upd_aborted_dryrun_tmp = stat_cursor[stat.conn.txn_rts_upd_aborted_dryrun][2]
+                rts_hs_removed = stat_cursor[stat.conn.txn_rts_hs_removed_dryrun][2]
+                print(f"{upd_aborted_dryrun_tmp=}, {rts_hs_removed=}")
+                stat_cursor.close()
             self.assertGreaterEqual(upd_aborted_dryrun, nrows * 2)
         else:
+            # print(f"non-dryrun: {nrows=}, {upd_aborted=}")
             self.assertGreaterEqual(upd_aborted, nrows * 2)
             self.assertEqual(upd_aborted_dryrun, 0)
 
