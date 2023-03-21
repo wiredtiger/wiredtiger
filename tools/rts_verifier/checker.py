@@ -132,6 +132,14 @@ class Checker:
         # TODO expand this out
         pass
 
+    def __apply_check_shutdown_rts(self, operation):
+        # if operation.file != self.current_tree.file:
+        #     raise Exception(f"spurious visit to {operation.file}")
+
+        # if operation.shutdown_rts_error:
+        #     raise Exception("Rollback to stable during shutdown failed")
+        pass
+
     def __apply_check_tree_skip(self, operation):
         # TODO expand this out
         pass
@@ -213,5 +221,9 @@ class Checker:
         pass
 
     def __apply_check_hs_truncated(self, operation):
+        # TODO expand this out
+        pass
+
+    def __apply_check_end(self, operation):
         # TODO expand this out
         pass
