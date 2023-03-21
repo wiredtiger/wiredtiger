@@ -156,7 +156,9 @@ __evict_list_clear(WT_SESSION_IMPL *session, WT_EVICT_ENTRY *e)
 
 /*
  * __evict_list_clear_ref --
- *     Clear a page in the LRU eviction list.
+ *     This function searches for the page on all the eviction queues (except the urgent queue if
+ *     exclude_urgent is set) and clears it if found. It does not take the evict_queue_lock lock, so
+ *     the caller should hold the appropriate lock before calling this function.
  */
 static void
 __evict_list_clear_ref(WT_SESSION_IMPL *session, WT_REF *ref, bool exclude_urgent)
@@ -168,10 +170,13 @@ __evict_list_clear_ref(WT_SESSION_IMPL *session, WT_REF *ref, bool exclude_urgen
 
     cache = S2C(session)->cache;
     found = false;
+
+    /* If exclude_urgent is set, the urgent queue is excluded from the search. */
     total_queues = WT_EVICT_QUEUE_MAX - (exclude_urgent ? 1 : 0);
 
     for (q = 0; q < total_queues && !found; q++) {
         if (exclude_urgent)
+            /* Ensure that the page in the urgent queue is not accidentally cleared. */
             WT_ASSERT_ALWAYS(session, q != WT_EVICT_URGENT_QUEUE,
               "Ensure the contents of the urgent queue aren't accidentally cleared");
 
@@ -209,6 +214,7 @@ __wt_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref)
 
     __wt_spin_lock(session, &cache->evict_queue_lock);
 
+    /* Remove the reference from the eviction queues. */
     __evict_list_clear_ref(session, ref, false);
 
     __wt_spin_unlock(session, &cache->evict_queue_lock);
@@ -2536,9 +2542,17 @@ __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
 
     __wt_spin_lock(session, &cache->evict_queue_lock);
 
+    /*
+     * Check again if page eviction is disabled or the page is already in the urgent queue, as
+     * another thread may have modified these conditions since the initial check.
+     */
     if (S2BT(session)->evict_disabled > 0 || F_ISSET_ATOMIC_16(page, WT_PAGE_IN_URGENT_QUEUE))
         goto done;
 
+    /*
+     * If the page is already in the LRU eviction list, clear it from the list if eviction server is
+     * not running.
+     */
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU)) {
         if (!F_ISSET(cache, WT_CACHE_EVICT_ALL))
             __evict_list_clear_ref(session, ref, true);
