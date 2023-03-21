@@ -2527,7 +2527,7 @@ __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
 
     cache = S2C(session)->cache;
 
-    if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU) &&  F_ISSET(cache, WT_CACHE_EVICT_ALL))
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU) && F_ISSET(cache, WT_CACHE_EVICT_ALL))
         return (false);
 
     /* Append to the urgent queue if we can. */
