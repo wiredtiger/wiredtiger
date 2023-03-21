@@ -998,7 +998,6 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
         if (fgets(user_input, MAX_ARGS, stdin) == NULL) {
             if (!feof(stdin))
                 continue;
-            printf("Error: EOF.\n");
             goto err;
         }
 
