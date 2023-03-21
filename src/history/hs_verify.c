@@ -30,10 +30,6 @@ __hs_verify_id(
 
     WT_ERR(__wt_scr_alloc(session, 0, &prev_key));
 
-#ifndef HAVE_DIAGNOSTIC
-    WT_UNUSED(this_btree_id);
-#endif
-
     /*
      * If using standard cursors, we need to skip the non-globally visible tombstones in the data
      * table to verify the corresponding entries in the history store are too present in the data
