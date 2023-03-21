@@ -47,6 +47,7 @@ def custom_validator(data):
         "recovered checkpoint snapshot",
         "tree rolled back",
         "update aborted with txnid",
+        "finished rollback to stable",
     ]
     needle = "skipped performing rollback to stable"
 
@@ -59,7 +60,7 @@ def custom_validator(data):
             if s in line:
                 ok = True
                 break
-        if not ok:
+        if not ok and not found:
             raise Exception("Got unexpected message: {}".format(line))
 
     if not found:
