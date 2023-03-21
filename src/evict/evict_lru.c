@@ -2525,8 +2525,12 @@ __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
     if (S2BT(session)->evict_disabled > 0 || F_ISSET_ATOMIC_16(page, WT_PAGE_IN_URGENT_QUEUE))
         return (false);
 
-    /* Append to the urgent queue if we can. */
     cache = S2C(session)->cache;
+
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU) &&  F_ISSET(cache, WT_CACHE_EVICT_ALL))
+        return (false);
+
+    /* Append to the urgent queue if we can. */
     urgent_queue = &cache->evict_queues[WT_EVICT_URGENT_QUEUE];
     queued = false;
 
