@@ -38,6 +38,7 @@ from test_rollback_to_stable01 import test_rollback_to_stable_base
 # unacceptable or we don't see the needle at all.
 def custom_validator(data):
     acceptable = [
+        "aborting update with txnid",
         "connection_logging_enabled",
         "deleted page walk skipped",
         "page with reconciled",
@@ -45,8 +46,8 @@ def custom_validator(data):
         "start rollback to stable",
         "performing shutdown rollback",
         "recovered checkpoint snapshot",
+        "rolling back tree",
         "tree rolled back",
-        "update aborted with txnid",
         "finished rollback to stable",
     ]
     needle = "skipped performing rollback to stable"
