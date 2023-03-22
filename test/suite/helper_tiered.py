@@ -260,6 +260,9 @@ class TieredConfigMixin:
         extlist.extension('storage_sources', self.ss_name + config)
 
     def download_objects(self, bucket_name, prefix):
+        if (not self.is_tiered or self.is_local_storage):
+            return
+
         # Create a directory within the test directory to download the objects to.
         object_files_path = 'objects/'
         if not os.path.exists(object_files_path):
@@ -284,7 +287,6 @@ class TieredConfigMixin:
             from google.cloud import storage
             
             storage_client = storage.Client()
-            bucket = storage_client.bucket(bucket_name)
             blobs = storage_client.list_blobs(bucket_name, prefix=prefix)
 
             for blob in blobs:
@@ -295,9 +297,12 @@ class TieredConfigMixin:
 
             blob_service_client = BlobServiceClient.from_connection_string(self.auth_token) 
             container_client = blob_service_client.get_container_client(container=bucket_name) 
-            blob_list = container_client.list_blobs()
+            blob_list = container_client.list_blobs(name_starts_with=prefix)
 
             for blob in blob_list:
                 file_path = object_files_path + '/' + blob.name.split('/')[-1]
                 with open(file=file_path, mode="wb") as download_file:
                     download_file.write(container_client.download_blob(blob.name).readall())
+        else:
+            raise Exception("Storage source does not exist within the download object function")
+
