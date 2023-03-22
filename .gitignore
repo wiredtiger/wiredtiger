@@ -4,6 +4,3 @@ build/
 dist/clang-format
 /docs/
 test-compatibility-run/
-test/suite/__*
-test/3rdparty/*
-.gitignore
