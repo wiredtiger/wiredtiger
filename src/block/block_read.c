@@ -23,8 +23,8 @@ __wt_bm_read(
     block = bm->block;
 
     /* Crack the cookie. */
-    WT_RET(__wt_block_addr_unpack(
-      session, block, addr, addr_size, &objectid, &offset, &size, &checksum));
+    WT_RET(__wt_block_cell_addr_unpack(
+      session, block, addr, addr_size, &objectid, &offset, &size, &checksum, false));
 
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -103,8 +103,8 @@ __wt_bm_corrupt(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t
     WT_ERR(__wt_bm_read(bm, session, tmp, addr, addr_size));
 
     /* Crack the cookie, dump the block. */
-    WT_ERR(__wt_block_addr_unpack(
-      session, bm->block, addr, addr_size, &objectid, &offset, &size, &checksum));
+    WT_ERR(__wt_block_cell_addr_unpack(
+      session, bm->block, addr, addr_size, &objectid, &offset, &size, &checksum, false));
     WT_ERR(__wt_bm_corrupt_dump(session, tmp, objectid, offset, size, checksum));
 
 err:

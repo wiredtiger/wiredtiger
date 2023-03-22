@@ -81,6 +81,20 @@ __block_addr_unpack(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t **p
 }
 
 /*
+ * __wt_block_cell_addr_pack --
+ *     Pack different components into old or new address cookie format.
+ */
+int
+__wt_block_cell_addr_pack(WT_BLOCK *block, uint8_t **pp, uint32_t objectid, wt_off_t offset,
+  uint32_t size, uint32_t checksum, bool has_bt_info)
+{
+    if (!has_bt_info)
+        return (__wt_block_addr_pack(block, pp, objectid, offset, size, checksum));
+
+    return (0);
+}
+
+/*
  * __wt_block_addr_pack --
  *     Pack components into an address cookie, UPDATING the caller's buffer reference.
  */
@@ -122,6 +136,23 @@ __wt_block_addr_pack(WT_BLOCK *block, uint8_t **pp, uint32_t objectid, wt_off_t 
 }
 
 /*
+ * __wt_block_cell_addr_unpack --
+ *     Unpack different components into old or new address cookie format.
+ */
+int
+__wt_block_cell_addr_unpack(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *p,
+  size_t addr_size, uint32_t *objectidp, wt_off_t *offsetp, uint32_t *sizep, uint32_t *checksump,
+  bool has_bt_info)
+{
+    if (!has_bt_info) {
+        return (__wt_block_addr_unpack(
+          session, block, p, addr_size, objectidp, offsetp, sizep, checksump));
+    }
+
+    return (0);
+}
+
+/*
  * __wt_block_addr_unpack --
  *     Unpack an address cookie into components, NOT UPDATING the caller's buffer reference.
  */
@@ -150,8 +181,8 @@ __wt_block_addr_invalid(
     WT_UNUSED(live);
 
     /* Crack the cookie. */
-    WT_RET(__wt_block_addr_unpack(
-      session, block, addr, addr_size, &objectid, &offset, &size, &checksum));
+    WT_RET(__wt_block_cell_addr_unpack(
+      session, block, addr, addr_size, &objectid, &offset, &size, &checksum, false));
 
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -179,8 +210,8 @@ __wt_block_addr_string(
     uint32_t checksum, objectid, size;
 
     /* Crack the cookie. */
-    WT_RET(__wt_block_addr_unpack(
-      session, block, addr, addr_size, &objectid, &offset, &size, &checksum));
+    WT_RET(__wt_block_cell_addr_unpack(
+      session, block, addr, addr_size, &objectid, &offset, &size, &checksum, false));
 
     /* Printable representation. */
     WT_RET(__wt_buf_fmt(session, buf,

@@ -321,9 +321,9 @@ __wt_rec_auximage_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint32_t count
  * __wt_rec_cell_build_addr --
  *     Process an address or unpack reference and return a cell structure to be stored on the page.
  */
-static inline void
+static inline int
 __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *addr,
-  WT_CELL_UNPACK_ADDR *vpack, uint64_t recno, WT_PAGE_DELETED *page_del)
+  WT_CELL_UNPACK_ADDR *vpack, uint64_t recno, WT_PAGE_DELETED *page_del, WT_PAGE_STAT *ps)
 {
     WT_REC_KV *val;
     WT_TIME_AGGREGATE *ta;
@@ -377,25 +377,20 @@ __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *add
             page_del->prepare_state == WT_PREPARE_RESOLVED);
     }
 
-    /*
-     * We don't copy the data into the buffer, it's not necessary; just re-point the buffer's
-     * data/length fields.
-     */
     if (vpack == NULL) {
         WT_ASSERT(session, addr != NULL);
-        val->buf.data = addr->addr;
-        val->buf.size = addr->size;
-        val->cell_len = __wt_cell_pack_addr(
-          session, &val->cell, cell_type, recno, page_del, &addr->ps, ta, val->buf.size);
+        WT_RET(__wt_addr_cookie_pack(session, &val->buf, addr->addr, addr->size, ps));
     } else {
         WT_ASSERT(session, addr == NULL);
-        val->buf.data = vpack->data;
-        val->buf.size = vpack->size;
-        val->cell_len = __wt_cell_pack_addr(
-          session, &val->cell, cell_type, recno, page_del, &vpack->ps, ta, val->buf.size);
+        WT_RET(
+          __wt_addr_cookie_pack(session, &val->buf, (void *)vpack->data, (uint8_t)vpack->size, ps));
     }
 
+    val->cell_len =
+      __wt_cell_pack_addr(session, &val->cell, cell_type, recno, page_del, ta, val->buf.size);
+
     val->len = val->cell_len + val->buf.size;
+    return (0);
 }
 
 /*
@@ -430,7 +425,7 @@ __wt_rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r, const void *d
         if (val->buf.size > btree->maxleafvalue) {
             WT_STAT_DATA_INCR(session, rec_overflow_value);
 
-            return (__wt_rec_cell_build_ovfl(session, r, val, WT_CELL_VALUE_OVFL, tw, rle));
+            return (__wt_rec_cell_build_ovfl(session, r, val, WT_CELL_VALUE_OVFL, tw, size, rle));
         }
     }
     __rec_cell_tw_stats(r, tw);

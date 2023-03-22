@@ -100,8 +100,8 @@ __wt_blkcache_map_read(
     block = bm->block;
 
     /* Crack the cookie. */
-    WT_RET(__wt_block_addr_unpack(
-      session, block, addr, addr_size, &objectid, &offset, &size, &checksum));
+    WT_RET(__wt_block_cell_addr_unpack(
+      session, block, addr, addr_size, &objectid, &offset, &size, &checksum, false));
 
     /* Swap file handles if reading from a different object. */
     if (block->objectid != objectid)

@@ -154,7 +154,7 @@ struct __wt_ckpt {
 
     WT_BLOCK_MODS backup_blocks[WT_BLKINCR_MAX];
 
-    WT_PAGE_STAT ps; /* Page information including row and byte counts */
+    WT_PAGE_STAT ps; /* Page information including record and user byte counts */
 
     WT_TIME_AGGREGATE ta; /* Validity window */
 

@@ -157,7 +157,7 @@ __rec_cell_build_leaf_key(
             WT_STAT_CONN_DATA_INCR(session, rec_overflow_key_leaf);
 
             *is_ovflp = true;
-            return (__wt_rec_cell_build_ovfl(session, r, key, WT_CELL_KEY_OVFL, NULL, 0));
+            return (__wt_rec_cell_build_ovfl(session, r, key, WT_CELL_KEY_OVFL, NULL, size, 0));
         }
         return (__rec_cell_build_leaf_key(session, r, NULL, 0, is_ovflp));
     }
@@ -240,6 +240,7 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_ADDR *addr;
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
+    WT_PAGE_STAT ps;
     WT_REC_KV *key, *val;
     uint32_t i;
 
@@ -247,6 +248,8 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
     key = &r->k;
     val = &r->v;
+
+    WT_PAGE_STAT_INIT(&ps);
 
     /* For each entry in the split array... */
     for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
@@ -256,7 +259,12 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         r->cell_zero = false;
 
         addr = &multi->addr;
-        __wt_rec_cell_build_addr(session, r, addr, NULL, WT_RECNO_OOB, NULL);
+
+        /* Attempt to unpack previously written page stats, if any. */
+        if (__wt_process.page_stats_2022 && r->has_page_stats)
+            WT_RET(__wt_addr_cookie_btree_unpack(addr->addr, &ps));
+
+        WT_RET(__wt_rec_cell_build_addr(session, r, addr, NULL, WT_RECNO_OOB, NULL, &ps));
 
         /* Boundary: split or write the page. */
         if (__wt_rec_need_split(r, key->len + val->len))
@@ -289,6 +297,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_IKEY *ikey;
     WT_PAGE *child;
     WT_PAGE_DELETED *page_del;
+    WT_PAGE_STAT ps;
     WT_REC_KV *key, *val;
     WT_REF *ref;
     WT_TIME_AGGREGATE ft_ta, *source_ta, ta;
@@ -298,6 +307,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     btree = S2BT(session);
     child = NULL;
     WT_TIME_AGGREGATE_INIT_MERGE(&ft_ta);
+    WT_PAGE_STAT_INIT(&ps);
 
     key = &r->k;
     kpack = &_kpack;
@@ -399,13 +409,23 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         page_del = NULL;
         if (__wt_off_page(page, addr)) {
             page_del = cms.state == WT_CHILD_PROXY ? &cms.del : NULL;
-            __wt_rec_cell_build_addr(session, r, addr, NULL, WT_RECNO_OOB, page_del);
+
+            /* Attempt to unpack previously written page stats, if any. */
+            if (__wt_process.page_stats_2022 && r->has_page_stats)
+                WT_ERR(__wt_addr_cookie_btree_unpack(addr->addr, &ps));
+
+            WT_ERR(__wt_rec_cell_build_addr(session, r, addr, NULL, WT_RECNO_OOB, page_del, &ps));
             source_ta = &addr->ta;
         } else if (cms.state == WT_CHILD_PROXY) {
             /* Proxy cells require additional information in the address cell. */
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
             page_del = &cms.del;
-            __wt_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del);
+
+            /* Attempt to unpack previously written page stats, if any. */
+            if (__wt_process.page_stats_2022 && r->has_page_stats)
+                WT_ERR(__wt_addr_cookie_btree_unpack((void *)vpack->data, &ps));
+
+            WT_ERR(__wt_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del, &ps));
             source_ta = &vpack->ta;
         } else {
             /*
@@ -420,8 +440,13 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             WT_ASSERT_ALWAYS(session, vpack->type != WT_CELL_ADDR_DEL,
               "Proxy cell is selected with original child image");
 
+            /* Attempt to unpack previously written page stats, if any. */
+            if (__wt_process.page_stats_2022 && r->has_page_stats)
+                WT_ERR(__wt_addr_cookie_btree_unpack((void *)vpack->data, &ps));
+
             if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
-                __wt_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del);
+                WT_ERR(
+                  __wt_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del, &ps));
             } else {
                 val->buf.data = ref->addr;
                 val->buf.size = __wt_cell_total_len(vpack);
@@ -686,6 +711,7 @@ __wt_rec_row_leaf(
     WT_IKEY *ikey;
     WT_INSERT *ins;
     WT_PAGE *page;
+    WT_PAGE_STAT ovfl_ps;
     WT_REC_KV *key, *val;
     WT_ROW *rip;
     WT_TIME_WINDOW *twp;
@@ -711,6 +737,8 @@ __wt_rec_row_leaf(
 
     cbt = &r->update_modify_cbt;
     cbt->iface.session = (WT_SESSION *)session;
+
+    WT_PAGE_STAT_INIT(&ovfl_ps);
 
     WT_RET(__wt_rec_split_init(session, r, page, 0, btree->maxleafpage_precomp, 0));
 
@@ -807,8 +835,12 @@ __wt_rec_row_leaf(
                 if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)) {
                     r->ovfl_items = true;
 
-                    val->buf.data = vpack->data;
-                    val->buf.size = vpack->size;
+                    /* Attempt to unpack previously written page stats, if any. */
+                    if (__wt_process.page_stats_2022 && r->has_page_stats)
+                        WT_ERR(__wt_addr_cookie_btree_unpack(vpack->data, &ovfl_ps));
+
+                    WT_ERR(__wt_addr_cookie_pack(
+                      session, &val->buf, (void *)vpack->data, (uint8_t)vpack->size, &ovfl_ps));
 
                     /* Rebuild the cell. */
                     val->cell_len =

@@ -130,8 +130,8 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
             WT_ASSERT(session, block->objectid >= ci->root_objectid);
 
             endp = root_addr;
-            WT_ERR(__wt_block_addr_pack(
-              block, &endp, ci->root_objectid, ci->root_offset, ci->root_size, ci->root_checksum));
+            WT_ERR(__wt_block_cell_addr_pack(block, &endp, ci->root_objectid, ci->root_offset,
+              ci->root_size, ci->root_checksum, false));
             *root_addr_sizep = WT_PTRDIFF(endp, root_addr);
         }
 

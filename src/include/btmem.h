@@ -72,15 +72,14 @@ struct __wt_page_header {
 /*
  * No automatic generation: flag values cannot change, they're written to disk.
  */
-#define WT_PAGE_COMPRESSED 0x01u      /* Page is compressed on disk */
-#define WT_PAGE_EMPTY_V_ALL 0x02u     /* Page has all zero-length values */
-#define WT_PAGE_EMPTY_V_NONE 0x04u    /* Page has no zero-length values */
-#define WT_PAGE_ENCRYPTED 0x08u       /* Page is encrypted on disk */
-#define WT_PAGE_UNUSED 0x10u          /* Historic lookaside store page updates, no longer used */
-#define WT_PAGE_FT_UPDATE 0x20u       /* Page contains updated fast-truncate information */
-#define WT_PAGE_STAT_BYTE_COUNT 0x40u /* Page contains byte count information */
-#define WT_PAGE_STAT_ROW_COUNT 0x80u  /* Page contains row count information */
-    uint8_t flags;                    /* 25: flags */
+#define WT_PAGE_COMPRESSED 0x01u   /* Page is compressed on disk */
+#define WT_PAGE_EMPTY_V_ALL 0x02u  /* Page has all zero-length values */
+#define WT_PAGE_EMPTY_V_NONE 0x04u /* Page has no zero-length values */
+#define WT_PAGE_ENCRYPTED 0x08u    /* Page is encrypted on disk */
+#define WT_PAGE_UNUSED 0x10u       /* Historic lookaside store page updates, no longer used */
+#define WT_PAGE_FT_UPDATE 0x20u    /* Page contains updated fast-truncate information */
+#define WT_PAGE_STAT_EXISTS 0x40u  /* Page contains record count and user bytes information */
+    uint8_t flags;                 /* 25: flags */
 
     /* A byte of padding, positioned to be added to the flags. */
     uint8_t unused; /* 26: unused padding */
@@ -127,13 +126,34 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
     ((void *)((uint8_t *)(dsk) + WT_PAGE_HEADER_BYTE_SIZE(btree)))
 
 /*
+ * The address cookie will have the following layout: btree address cookie length, btree address
+ * cookie, block manager address cookie length, block manager address cookie. The maximum size for a
+ * block manager cookie is 255B and the page stat cookie consists of a pair of packed 8B values to
+ * encode aggregated record- and user byte- counts for the subtree at the location.
+ */
+#define WT_ADDR_COOKIE_MAX (1 + 255 + 1 + WT_INTPACK64_MAXSIZE * 2)
+
+/*
+ * These macros are used to traverse the combined address cookie.
+ *
+ *     WT_ADDR_COOKIE_BLOCK            block manager cookie start
+ *     WT_ADDR_COOKIE_BLOCK_LEN        block manager cookie length
+ *     WT_ADDR_COOKIE_BTREE            btree cookie start
+ *     WT_ADDR_COOKIE_BTREE_LEN        btree cookie len
+ */
+#define WT_ADDR_COOKIE_BTREE(addr) ((uint8_t *)(addr) + 1)
+#define WT_ADDR_COOKIE_BTREE_LEN(addr) (*(uint8_t *)(addr))
+#define WT_ADDR_COOKIE_BLOCK(addr) ((uint8_t *)(addr) + 1 + WT_ADDR_COOKIE_BTREE_LEN(addr) + 1)
+#define WT_ADDR_COOKIE_BLOCK_LEN(addr) (*((uint8_t *)(addr) + 1 + WT_ADDR_COOKIE_BTREE_LEN(addr)))
+
+/*
  * WT_PAGE_STAT --
  *	A structure to hold page information such as row and byte counts.
  */
 struct __wt_page_stat {
     /* These informational values can be negative to signify that they are invalid. */
-    int64_t byte_count;
-    int64_t row_count;
+    uint64_t user_bytes;
+    uint64_t records;
 };
 
 /*
@@ -160,7 +180,7 @@ struct __wt_addr {
      */
     uint8_t reuse;
 
-    WT_PAGE_STAT ps; /* Page information including row and byte counts */
+    WT_PAGE_STAT ps; /* Page information including record and byte counts */
 };
 
 /*

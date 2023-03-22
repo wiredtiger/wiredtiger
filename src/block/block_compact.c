@@ -233,8 +233,8 @@ __wt_block_compact_page_skip(
     offset = 0;
 
     /* Crack the cookie. */
-    WT_RET(__wt_block_addr_unpack(
-      session, block, addr, addr_size, &objectid, &offset, &size, &checksum));
+    WT_RET(__wt_block_cell_addr_unpack(
+      session, block, addr, addr_size, &objectid, &offset, &size, &checksum, false));
 
     __compact_page_skip(session, block, offset, size, skipp);
 
@@ -261,8 +261,8 @@ __wt_block_compact_page_rewrite(
 
     discard_block = false;
 
-    WT_ERR(__wt_block_addr_unpack(
-      session, block, addr, *addr_sizep, &objectid, &offset, &size, &checksum));
+    WT_ERR(__wt_block_cell_addr_unpack(
+      session, block, addr, *addr_sizep, &objectid, &offset, &size, &checksum, false));
 
     /* Check if the block is worth rewriting. */
     __compact_page_skip(session, block, offset, size, skipp);
@@ -293,7 +293,7 @@ __wt_block_compact_page_rewrite(
 
     /* Build the returned address cookie. */
     endp = addr;
-    WT_ERR(__wt_block_addr_pack(block, &endp, objectid, new_offset, size, checksum));
+    WT_ERR(__wt_block_cell_addr_pack(block, &endp, objectid, new_offset, size, checksum, false));
     *addr_sizep = WT_PTRDIFF(endp, addr);
 
     WT_STAT_CONN_INCR(session, block_write);

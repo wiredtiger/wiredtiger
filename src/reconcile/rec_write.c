@@ -566,6 +566,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     /* Remember the configuration. */
     r->ref = ref;
     r->page = page;
+    r->has_page_stats = F_ISSET(&r->chunk_A.image, WT_PAGE_STAT_EXISTS);
 
     /*
      * Save the transaction generations before reading the page. These are all ordered reads, but we
@@ -1008,7 +1009,6 @@ __rec_split_chunk_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *
     /* Don't touch the key item memory, that memory is reused. */
     chunk->key.size = 0;
     chunk->entries = 0;
-    WT_PAGE_STAT_INIT(&chunk->ps);
     WT_TIME_AGGREGATE_INIT_MERGE(&chunk->ta);
 
     chunk->min_recno = WT_RECNO_OOB;
@@ -1926,12 +1926,9 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
       __wt_process.fast_truncate_2022)
         F_SET(dsk, WT_PAGE_FT_UPDATE);
 
-    /* Set the page stat cell information flag. */
-    if (WT_PAGE_STAT_HAS_BYTE_COUNT(&chunk->ps))
-        F_SET(dsk, WT_PAGE_STAT_BYTE_COUNT);
-
-    if (WT_PAGE_STAT_HAS_ROW_COUNT(&chunk->ps))
-        F_SET(dsk, WT_PAGE_STAT_ROW_COUNT);
+    /* Set the page stat cell information flag if there are page stats to write to disk. */
+    if (__wt_process.page_stats_2022)
+        F_SET(dsk, WT_PAGE_STAT_EXISTS);
 
     dsk->unused = 0;
     dsk->version = WT_PAGE_VERSION_TS;
@@ -2102,7 +2099,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     WT_MULTI *multi;
     WT_PAGE *page;
     size_t addr_size, compressed_size;
-    uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
+    uint8_t addr[WT_ADDR_COOKIE_MAX];
 #ifdef HAVE_DIAGNOSTIC
     bool verify_image;
 #endif
@@ -2123,8 +2120,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     /* Make sure there's enough room for another write. */
     WT_RET(__wt_realloc_def(session, &r->multi_allocated, r->multi_next + 1, &r->multi));
     multi = &r->multi[r->multi_next++];
-
-    WT_PAGE_STAT_COPY(&multi->addr.ps, &chunk->ps);
 
     /* Initialize the address (set the addr type for the parent). */
     WT_TIME_AGGREGATE_COPY(&multi->addr.ta, &chunk->ta);
@@ -2757,7 +2752,7 @@ err:
  */
 int
 __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv, uint8_t type,
-  WT_TIME_WINDOW *tw, uint64_t rle)
+  WT_TIME_WINDOW *tw, size_t ovfl_size, uint64_t rle)
 {
     WT_BM *bm;
     WT_BTREE *btree;
@@ -2765,8 +2760,9 @@ __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *k
     WT_DECL_RET;
     WT_PAGE *page;
     WT_PAGE_HEADER *dsk;
+    WT_PAGE_STAT ovfl_ps;
     size_t size;
-    uint8_t *addr, buf[WT_BTREE_MAX_ADDR_COOKIE];
+    uint8_t *addr, buf[WT_ADDR_COOKIE_MAX];
 
     btree = S2BT(session);
     bm = btree->bm;
@@ -2774,6 +2770,8 @@ __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *k
 
     /* Track if page has overflow items. */
     r->ovfl_items = true;
+    ovfl_ps.records = WT_STAT_NONE;
+    ovfl_ps.user_bytes = (uint64_t)ovfl_size;
 
     /*
      * See if this overflow record has already been written and reuse it if possible, otherwise
@@ -2809,8 +2807,12 @@ __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *k
             WT_ERR(__wt_ovfl_reuse_add(session, page, addr, size, kv->buf.data, kv->buf.size));
     }
 
-    /* Set the callers K/V to reference the overflow record's address. */
-    WT_ERR(__wt_buf_set(session, &kv->buf, addr, size));
+    /*
+     * If the page stats feature flag is set, set the callers K/V to reference the combined address
+     * cookie which packs the page stats information with the overflow record's address. Otherwise,
+     * just set the callers K/V to reference the overflow record's address.
+     */
+    WT_ERR(__wt_addr_cookie_pack(session, &kv->buf, addr, (uint8_t)size, &ovfl_ps));
 
     /* Build the cell and return. */
     kv->cell_len = __wt_cell_pack_ovfl(session, &kv->cell, type, tw, rle, kv->buf.size);

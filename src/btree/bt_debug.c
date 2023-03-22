@@ -420,7 +420,7 @@ __wt_debug_offset(
     WT_BLOCK *block;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
-    uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE], *endp;
+    uint8_t addr[WT_ADDR_COOKIE_MAX], *endp;
 
     WT_ASSERT(session, S2BT_SAFE(session) != NULL);
 
@@ -434,7 +434,7 @@ __wt_debug_offset(
      */
     block = S2BT(session)->bm->block;
     endp = addr;
-    WT_RET(__wt_block_addr_pack(block, &endp, block->objectid, offset, size, checksum));
+    WT_RET(__wt_block_cell_addr_pack(block, &endp, block->objectid, offset, size, checksum, false));
 
     /*
      * Read the address through the btree I/O functions (so the block is decompressed and/or

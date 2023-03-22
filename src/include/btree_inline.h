@@ -7,6 +7,73 @@
  */
 
 /*
+ * __wt_addr_cookie_pack --
+ *     Pack the address cookie. Encode the page stats into the address cookie of the cell if the
+ *     feature flag is set. In this scenario, the address cookie will have the following layout:
+ *     btree address cookie length, btree address cookie, block manager address cookie length, block
+ *     manager address cookie.
+ */
+static inline int
+__wt_addr_cookie_pack(WT_SESSION_IMPL *session, WT_ITEM *addr, void *block_addr,
+  uint8_t block_addr_size, WT_PAGE_STAT *ps)
+{
+    if (__wt_process.page_stats_2022) {
+        /* Initialize the combined address cookie buffer. */
+        WT_RET(__wt_buf_init(session, addr, WT_ADDR_COOKIE_MAX));
+
+        /* Store the btree address cookie and its length. */
+        WT_RET(__wt_addr_cookie_btree_pack(addr->mem, ps));
+
+        /* Store the block manager address cookie and its length. */
+        WT_ADDR_COOKIE_BLOCK_LEN(addr->mem) = block_addr_size;
+        memcpy(WT_ADDR_COOKIE_BLOCK(addr->mem), block_addr, block_addr_size);
+
+        /* Update the size of the combined address cookie. */
+        addr->size = (uint8_t)(
+          1 + WT_ADDR_COOKIE_BTREE_LEN(addr->mem) + 1 + WT_ADDR_COOKIE_BLOCK_LEN(addr->mem));
+    } else {
+        /*
+         * Don't copy the data into the buffer in simple cases where there are no page stats
+         * information to be encoded, it's not necessary; just re-point the buffer's data/length
+         * fields.
+         */
+        WT_RET(__wt_buf_set(session, addr, block_addr, block_addr_size));
+    }
+    return (0);
+}
+
+/*
+ * __wt_addr_cookie_btree_pack --
+ *     Pack the btree part of the address cookie.
+ */
+static inline int
+__wt_addr_cookie_btree_pack(void *addr, WT_PAGE_STAT *ps)
+{
+    uint8_t *p;
+
+    p = WT_ADDR_COOKIE_BTREE(addr);
+    WT_RET(__wt_vpack_uint(&p, 0, ps->records));
+    WT_RET(__wt_vpack_uint(&p, 0, ps->user_bytes));
+    WT_ADDR_COOKIE_BTREE_LEN(addr) = (uint8_t)WT_PTRDIFF(p, WT_ADDR_COOKIE_BTREE(addr));
+    return (0);
+}
+
+/*
+ * __wt_addr_cookie_btree_unpack --
+ *     Unpack the btree part of the address cookie.
+ */
+static inline int
+__wt_addr_cookie_btree_unpack(const void *addr, WT_PAGE_STAT *ps)
+{
+    const uint8_t *p;
+
+    p = WT_ADDR_COOKIE_BTREE(addr);
+    WT_RET(__wt_vunpack_uint(&p, 0, &ps->records));
+    WT_RET(__wt_vunpack_uint(&p, 0, &ps->user_bytes));
+    return (0);
+}
+
+/*
  * __wt_ref_is_root --
  *     Return if the page reference is for the root page.
  */
@@ -1511,7 +1578,7 @@ __wt_row_leaf_value_cell(
 struct __wt_addr_copy {
     uint8_t type;
 
-    uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
+    uint8_t addr[WT_ADDR_COOKIE_MAX];
     uint8_t size;
 
     WT_TIME_AGGREGATE ta;
@@ -1519,7 +1586,7 @@ struct __wt_addr_copy {
     WT_PAGE_DELETED del; /* Fast-truncate page information */
     bool del_set;
 
-    WT_PAGE_STAT ps; /* Page information including row and byte counts */
+    WT_PAGE_STAT ps; /* Page information including record and user byte counts */
 };
 
 /*
