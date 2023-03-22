@@ -387,7 +387,6 @@ struct __wt_connection_stats {
     int64_t block_byte_map_read;
     int64_t block_remap_file_resize;
     int64_t block_remap_file_write;
-    int64_t cache_eviction_clear_page_from_non_urgent_queues;
     int64_t cache_read_app_count;
     int64_t cache_read_app_time;
     int64_t cache_write_app_count;
@@ -508,6 +507,7 @@ struct __wt_connection_stats {
     int64_t cache_read;
     int64_t cache_read_deleted;
     int64_t cache_read_deleted_prepared;
+    int64_t cache_eviction_clear_ordinary;
     int64_t cache_pages_requested;
     int64_t cache_eviction_pages_seen;
     int64_t cache_eviction_pages_already_queued;
