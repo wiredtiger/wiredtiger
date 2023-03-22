@@ -9,7 +9,7 @@
 #include "wt_internal.h"
 
 static int __evict_clear_all_walks(WT_SESSION_IMPL *);
-static void __evict_list_clear_ref(WT_SESSION_IMPL *, WT_REF *, bool);
+static void __evict_list_clear_page_locked(WT_SESSION_IMPL *, WT_REF *, bool);
 static int WT_CDECL __evict_lru_cmp(const void *, const void *);
 static int __evict_lru_pages(WT_SESSION_IMPL *, bool);
 static int __evict_lru_walk(WT_SESSION_IMPL *);
@@ -155,13 +155,13 @@ __evict_list_clear(WT_SESSION_IMPL *session, WT_EVICT_ENTRY *e)
 }
 
 /*
- * __evict_list_clear_ref --
+ * __evict_list_clear_page_locked --
  *     This function searches for the page on all the eviction queues (except the urgent queue if
- *     exclude_urgent is set) and clears it if found. It does not take the evict_queue_lock lock, so
- *     the caller should hold the appropriate lock before calling this function.
+ *     exclude_urgent is set) and clears it if found. It does not take the eviction queue lock, so
+ *     the caller should hold the appropriate locks before calling this function.
  */
 static void
-__evict_list_clear_ref(WT_SESSION_IMPL *session, WT_REF *ref, bool exclude_urgent)
+__evict_list_clear_page_locked(WT_SESSION_IMPL *session, WT_REF *ref, bool exclude_urgent)
 {
     WT_CACHE *cache;
     WT_EVICT_ENTRY *evict;
@@ -215,7 +215,7 @@ __wt_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref)
     __wt_spin_lock(session, &cache->evict_queue_lock);
 
     /* Remove the reference from the eviction queues. */
-    __evict_list_clear_ref(session, ref, false);
+    __evict_list_clear_page_locked(session, ref, false);
 
     __wt_spin_unlock(session, &cache->evict_queue_lock);
 }
@@ -2555,7 +2555,7 @@ __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU)) {
         if (!F_ISSET(cache, WT_CACHE_EVICT_ALL)) {
-            __evict_list_clear_ref(session, ref, true);
+            __evict_list_clear_page_locked(session, ref, true);
             WT_STAT_CONN_INCR(session, cache_eviction_clear_ordinary);
         } else
             goto done;
