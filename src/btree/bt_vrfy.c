@@ -282,7 +282,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              * this is the most recent checkpoint, verify the history store against it.
              */
             if (ret == 0 && (ckpt + 1)->name == NULL && !skip_hs) {
-                WT_TRET(__wt_hs_verify_one(session));
+                WT_TRET(__wt_hs_verify_one(session, btree->id));
                 /*
                  * We cannot error out here. If we got an error verifying the history store, we need
                  * to follow through with reacquiring the exclusive call below. We'll error out

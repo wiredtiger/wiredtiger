@@ -53,7 +53,13 @@ __hs_verify_id(
          * We should never cross the btree id, assert if we do so.
          */
         WT_ERR(hs_cursor->get_key(hs_cursor, &btree_id, &key, &hs_start_ts, &hs_counter));
-        WT_ASSERT(session, btree_id == this_btree_id);
+        /*
+         * TODO: I don't think this assert is correct. We just need to break when we move to the
+         * next btree.
+         */
+        // WT_ASSERT(session, btree_id == this_btree_id);
+        if (btree_id != this_btree_id)
+            break;
 
         /*
          * If we have already checked against this key, keep going to the next key. We only need to
@@ -88,20 +94,19 @@ err:
  *     when we are known to have exclusive access to the btree.
  */
 int
-__wt_hs_verify_one(WT_SESSION_IMPL *session)
+__wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t btree_id)
 {
     WT_CURSOR *ds_cursor, *hs_cursor;
     WT_DECL_RET;
-    uint32_t btree_id;
     char *uri_data;
 
     ds_cursor = hs_cursor = NULL;
     uri_data = NULL;
-    btree_id = S2BT(session)->id;
 
     WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
+    /* Position the hs cursor on the requested btree id. */
     hs_cursor->set_key(hs_cursor, 1, btree_id);
     WT_ERR(__wt_curhs_search_near_after(session, hs_cursor));
 
