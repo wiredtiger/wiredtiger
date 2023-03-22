@@ -165,16 +165,14 @@ __evict_list_clear_page_locked(WT_SESSION_IMPL *session, WT_REF *ref, bool exclu
 {
     WT_CACHE *cache;
     WT_EVICT_ENTRY *evict;
-    uint32_t elem, i, q, total_queues;
+    uint32_t elem, i, q, last_queue_idx;
     bool found;
 
-    /* If exclude_urgent is set, the urgent queue is excluded from the search. */
-    total_queues = WT_EVICT_QUEUE_MAX - (exclude_urgent ? 1 : 0);
-
+    last_queue_idx = exclude_urgent ? WT_EVICT_URGENT_QUEUE : WT_EVICT_QUEUE_MAX;
     cache = S2C(session)->cache;
     found = false;
 
-    for (q = 0; q < total_queues && !found; q++) {
+    for (q = 0; q < last_queue_idx && !found; q++) {
         if (exclude_urgent)
             /* Ensure that the page in the urgent queue is not accidentally cleared. */
             WT_ASSERT_ALWAYS(session, q != WT_EVICT_URGENT_QUEUE,
