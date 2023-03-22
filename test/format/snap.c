@@ -240,9 +240,8 @@ snap_verify_callback(WT_CURSOR *cursor, int ret, void *arg)
     callback = arg;
 
     /*
-     * It's possible that our cursor operation triggered another internal cursor
-     * operation (on the history store or metadata). Make sure it's the cursor
-     * we started with.
+     * It's possible that our cursor operation triggered another internal cursor operation (on the
+     * history store or metadata). Make sure it's the cursor we started with.
      */
     if (cursor != callback->cursor)
         return;
