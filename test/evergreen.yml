@@ -5613,3 +5613,5 @@ buildvariants:
     make_command: ninja
   tasks:
     - name: build-and-push-antithesis-containers
+      cron: 0 0 * * 5 # once a week (Friday)
+      patchable: false
