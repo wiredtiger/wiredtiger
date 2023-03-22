@@ -63,7 +63,7 @@ struct __wt_session_impl {
 
     void *lang_private; /* Language specific private storage */
 
-    void (*format_private)(int, void *); /* Format test program private callback. */
+    void (*format_private)(WT_CURSOR *, int, void *); /* Format test program private callback. */
     void *format_private_arg;
 
     u_int active; /* Non-zero if the session is in-use */
@@ -341,13 +341,3 @@ struct __wt_session_impl {
 #define WT_READING_CHECKPOINT(s)                                       \
     ((s)->dhandle != NULL && F_ISSET((s)->dhandle, WT_DHANDLE_OPEN) && \
       WT_DHANDLE_IS_CHECKPOINT((s)->dhandle))
-
-/* Temporarily turn off format's private callback function. */
-#define WT_WITHOUT_PRIVATE_CALLBACK(s, e)       \
-    do {                                        \
-        void (*__saved_callback)(int, void *);  \
-        __saved_callback = (s)->format_private; \
-        (s)->format_private = NULL;             \
-        e;                                      \
-        (s)->format_private = __saved_callback; \
-    } while (0)
