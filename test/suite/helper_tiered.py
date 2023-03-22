@@ -290,7 +290,7 @@ class TieredConfigMixin:
             blobs = storage_client.list_blobs(bucket_name, prefix=prefix)
 
             for blob in blobs:
-                file_path = object_files_path + '/' + blob.split('/')[-1]
+                file_path = object_files_path + '/' + blob.name.split('/')[-1]
                 blob.download_to_filename(file_path)
         elif (self.ss_name == 'azure_store'):
             from azure.storage.blob import BlobServiceClient
