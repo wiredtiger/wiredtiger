@@ -16,7 +16,7 @@
  */
 static int
 __hs_verify_id(
-  WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR *ds_cbt, uint32_t this_btree_id)
+  WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR *ds_cursor, uint32_t this_btree_id)
 {
     WT_DECL_ITEM(prev_key);
     WT_DECL_RET;
@@ -27,7 +27,6 @@ __hs_verify_id(
     int cmp;
 
     WT_CLEAR(key);
-
     WT_ERR(__wt_scr_alloc(session, 0, &prev_key));
 
     /*
@@ -35,7 +34,7 @@ __hs_verify_id(
      * table to verify the corresponding entries in the history store are too present in the data
      * store.
      */
-    F_SET(ds_cbt, WT_CURSTD_IGNORE_TOMBSTONE);
+    F_SET(ds_cursor, WT_CURSTD_IGNORE_TOMBSTONE);
 
     /*
      * The caller is responsible for positioning the history store cursor at the first record to
@@ -70,8 +69,8 @@ __hs_verify_id(
             continue;
 
         /* Check the key can be found in the data store. */
-        ds_cbt->set_key(ds_cbt, key.data);
-        WT_ERR(ds_cbt->search(ds_cbt));
+        ds_cursor->set_key(ds_cursor, key.data);
+        WT_ERR(ds_cursor->search(ds_cursor));
 
         /*
          * Copy the key memory into our scratch buffer. The key will get invalidated on our next
@@ -80,9 +79,9 @@ __hs_verify_id(
         WT_ERR(__wt_buf_set(session, prev_key, key.data, key.size));
     }
     WT_ERR_NOTFOUND_OK(ret, true);
-    WT_ERR(ds_cbt->reset(ds_cbt));
+    WT_ERR(ds_cursor->reset(ds_cursor));
 err:
-    F_CLR(ds_cbt, WT_CURSTD_IGNORE_TOMBSTONE);
+    F_CLR(ds_cursor, WT_CURSTD_IGNORE_TOMBSTONE);
     WT_ASSERT(session, key.mem == NULL && key.memsize == 0);
     __wt_scr_free(session, &prev_key);
     return (ret);
@@ -116,9 +115,12 @@ __wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t btree_id)
         WT_ERR_PANIC(
           session, ret, "Unable to find btree id %" PRIu32 " in the metadata file.", btree_id);
     }
+
     WT_ERR(__wt_open_cursor(session, uri_data, NULL, NULL, &ds_cursor));
     F_SET(ds_cursor, WT_CURSOR_RAW_OK);
+
     ret = __hs_verify_id(session, hs_cursor, ds_cursor, btree_id);
+
     WT_TRET(ds_cursor->close(ds_cursor));
 
 err:
@@ -176,11 +178,15 @@ __wt_hs_verify(WT_SESSION_IMPL *session)
               " in the metadata file for the associated key '%s'.",
               btree_id, __wt_buf_set_printable(session, key.data, key.size, false, buf));
         }
+
         WT_ERR(__wt_open_cursor(session, uri_data, NULL, NULL, &ds_cursor));
         F_SET(ds_cursor, WT_CURSOR_RAW_OK);
         ret = __hs_verify_id(session, hs_cursor, ds_cursor, btree_id);
+
+        /* Exit when the entire HS has been parsed. */
         if (ret == WT_NOTFOUND)
             stop = true;
+
         WT_TRET(ds_cursor->close(ds_cursor));
         WT_ERR_NOTFOUND_OK(ret, false);
     }
