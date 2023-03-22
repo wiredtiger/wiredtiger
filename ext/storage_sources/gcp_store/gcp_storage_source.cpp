@@ -40,18 +40,29 @@
 struct gcp_file_system;
 struct gcp_file_handle;
 
+// Statistics to be collected for the Google cloud storage.
+struct gcp_statistics {
+    uint64_t num_list_objects_requests;
+    uint64_t num_put_object_requests;
+    uint64_t num_read_object_requests;
+    uint64_t num_object_exists_requests;
+};
+
 /*
  * The first struct member must be the WiredTiger interface that is being implemented.
  */
 struct gcp_store {
     WT_STORAGE_SOURCE storage_source;
     WT_EXTENSION_API *wt_api;
+
+    std::vector<gcp_file_system *> fs_list;
+    std::mutex fs_list_mutex;
+    uint32_t reference_count;
+
+    WT_VERBOSE_LEVEL verbose;
     std::shared_ptr<gcp_log_system> log;
     google::cloud::LogSink::BackendId log_id;
-    std::mutex fs_list_mutex;
-    std::vector<gcp_file_system *> fs_list;
-    uint32_t reference_count;
-    WT_VERBOSE_LEVEL verbose;
+    gcp_statistics statistics;
 };
 
 struct gcp_file_system {
@@ -100,6 +111,8 @@ static int gcp_object_list_single(
   WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
 static int gcp_object_list_free(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t);
 static int gcp_terminate(WT_STORAGE_SOURCE *, WT_SESSION *);
+
+static void gcp_log_statistics(const gcp_store &);
 
 static gcp_file_system *
 get_gcp_file_system(WT_FILE_SYSTEM *file_system)
@@ -270,24 +283,25 @@ gcp_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYSTEM
     gcp_store *gcp = reinterpret_cast<gcp_store *>(storage_source);
     gcp_file_system *fs = get_gcp_file_system(file_system);
     WT_FILE_SYSTEM *wt_file_system = fs->wt_file_system;
+    std::string local_file_path = fs->home_dir + "/" + source;
 
+    gcp->statistics.num_put_object_requests++;
     // std::filesystem::canonical will throw an exception if object does not exist so
     // check if the object exists.
-    if (!std::filesystem::exists(source)) {
-        gcp->log->log_error_message(
-          "gcp_flush: Object: " + std::string(object) + " does not exist.");
+    if (!std::filesystem::exists(local_file_path)) {
+        gcp->log->log_error_message("gcp_flush: No such file" + std::string(object) + ".");
         return ENOENT;
     }
-
     // Confirm that the file exists on the native filesystem.
-    std::filesystem::path path = std::filesystem::canonical(source);
+    std::filesystem::path absolute_file_path = std::filesystem::canonical(local_file_path);
     bool exist_native = false;
-    int ret = wt_file_system->fs_exist(wt_file_system, session, path.c_str(), &exist_native);
+    int ret =
+      wt_file_system->fs_exist(wt_file_system, session, absolute_file_path.c_str(), &exist_native);
     if (ret != 0)
         return ret;
     if (!exist_native)
         return ENOENT;
-    return fs->gcp_conn->put_object(object, path);
+    return fs->gcp_conn->put_object(object, absolute_file_path);
 }
 
 // Check if a file has been flushed successfully by checking if it exists in the cloud.
@@ -319,6 +333,7 @@ gcp_file_system_exists(
     size_t size;
     int ret = 0;
 
+    gcp->statistics.num_object_exists_requests++;
     gcp->log->log_debug_message(
       "gcp_file_system_exists: Checking object: " + std::string(name) + " exists in GCP.");
     ret = fs->gcp_conn->object_exists(name, *existp, size);
@@ -430,7 +445,8 @@ gcp_remove(WT_FILE_SYSTEM *file_system, [[maybe_unused]] WT_SESSION *session,
     gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
     gcp_store *gcp = fs->storage_source;
 
-    gcp->log->log_error_message("gcp_remove: file removal is not supported.");
+    gcp->log->log_error_message(
+      "gcp_remove: Object: " + std::string(name) + ": remove of file not supported.");
     return ENOTSUP;
 }
 
@@ -442,7 +458,8 @@ gcp_rename(WT_FILE_SYSTEM *file_system, [[maybe_unused]] WT_SESSION *session,
     gcp_file_system *fs = reinterpret_cast<gcp_file_system *>(file_system);
     gcp_store *gcp = fs->storage_source;
 
-    gcp->log->log_error_message("gcp_rename: file renaming is not supported.");
+    gcp->log->log_error_message(
+      "gcp_rename: Object: " + std::string(from) + ": rename of file not supported.");
     return ENOTSUP;
 }
 
@@ -505,6 +522,7 @@ gcp_object_list_helper(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const c
     std::string complete_prefix;
 
     *count = 0;
+    gcp->statistics.num_list_objects_requests++;
 
     if (directory != nullptr) {
         complete_prefix += directory;
@@ -540,8 +558,8 @@ gcp_file_read(
     gcp_file_system *fs = gcp_fh->file_system;
     gcp_store *gcp = fs->storage_source;
 
+    gcp->statistics.num_read_object_requests++;
     int ret;
-
     if ((ret = fs->gcp_conn->read_object(gcp_fh->name, offset, len, buf)) != 0)
         gcp->log->log_error_message("gcp_file_read: read attempt failed.");
 
@@ -556,11 +574,12 @@ gcp_object_list(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *di
       file_system, session, directory, prefix, object_list, count, false);
 }
 
-// Allocate and initialize an array of C strings from vector of strings.
-//
-// Requires count <= objects.size().
-// count==0 is valid, and in this case object_list will be set to nullptr.
-// Caller is responsible for memory allocated for object_list.
+/*
+ * Allocate and initialize an array of C strings from vector of strings.
+ *
+ * Requires count <= objects.size(). count==0 is valid, and in this case object_list will be set to
+ * nullptr. Caller is responsible for memory allocated for object_list.
+ */
 static int
 make_object_list(gcp_store *gcp, char ***object_list, const std::vector<std::string> &objects,
   const uint32_t count)
@@ -638,10 +657,25 @@ gcp_terminate(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session)
         gcp_file_system_terminate(&fs->file_system, session);
     }
 
+    gcp_log_statistics(*gcp);
     gcp->log->log_debug_message("gcp_terminate: terminated GCP storage source.");
     delete (gcp);
 
     return 0;
+}
+
+// Log collected statistics.
+static void
+gcp_log_statistics(const gcp_store &gcp)
+{
+    gcp.log->log_debug_message(
+      "GCP list objects count: " + std::to_string(gcp.statistics.num_list_objects_requests));
+    gcp.log->log_debug_message(
+      "GCP put object count: " + std::to_string(gcp.statistics.num_put_object_requests));
+    gcp.log->log_debug_message(
+      "GCP get object count: " + std::to_string(gcp.statistics.num_read_object_requests));
+    gcp.log->log_debug_message(
+      "GCP object exists count: " + std::to_string(gcp.statistics.num_object_exists_requests));
 }
 
 int
@@ -668,12 +702,12 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
         return ret != 0 ? ret : EINVAL;
     }
 
+    gcp->statistics = {};
     // Initialize the GCP logging.
     gcp->log_id = google::cloud::LogSink::Instance().AddBackend(gcp->log);
 
-    // Allocate a gcp storage structure, with a WT_STORAGE structure as the first field.
-    // This allows us to treat references to either type of structure as a reference to the other
-    // type.
+    // Allocate a gcp storage structure, with a WT_STORAGE structure as the first field. This allows
+    // us to treat references to either type of structure as a reference to the other type.
     gcp->storage_source.ss_customize_file_system = gcp_customize_file_system;
     gcp->storage_source.ss_add_reference = gcp_add_reference;
     gcp->storage_source.terminate = gcp_terminate;

@@ -333,6 +333,8 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"stress.split_7", "stress splits (#7)", C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_SPLIT_7},
 
+  {"stress.split_8", "stress splits (#8)", C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_SPLIT_8},
+
   {"transaction.implicit", "implicit, without timestamps, transactions (percentage)", 0, 0, 100,
     100, V_GLOBAL_TRANSACTION_IMPLICIT},
 
