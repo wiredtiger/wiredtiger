@@ -40,14 +40,15 @@ namespace test_harness {
 struct test_args {
     const std::string test_config;
     const std::string test_name;
-    const std::string wt_open_config;
+    std::string wt_open_config;
+    const std::string home;
 };
 
 /*
  * The base class for a test, the standard usage pattern is to just call run().
  */
 class test : public database_operation {
-    public:
+public:
     explicit test(const test_args &args);
     virtual ~test();
 
@@ -63,13 +64,13 @@ class test : public database_operation {
      */
     virtual void run();
 
-    protected:
+protected:
     const test_args &_args;
     configuration *_config;
     timestamp_manager *_timestamp_manager = nullptr;
     operation_tracker *_operation_tracker = nullptr;
 
-    private:
+private:
     std::vector<component *> _components;
     metrics_monitor *_metrics_monitor = nullptr;
     thread_manager *_thread_manager = nullptr;

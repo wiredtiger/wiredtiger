@@ -162,9 +162,18 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
     WT_STAT_CONN_INCR(session, txn_query_ts);
     WT_RET(__wt_config_gets(session, cfg, "get", &cval));
     if (WT_STRING_MATCH("all_durable", cval.str, cval.len)) {
-        ts = txn_global->has_durable_timestamp ? txn_global->durable_timestamp : 0;
+        /*
+         * If there is durable timestamp set, there is nothing to return. No need to walk the
+         * concurrent transactions.
+         */
+        if (!txn_global->has_durable_timestamp) {
+            *tsp = WT_TS_NONE;
+            return (0);
+        }
 
         __wt_readlock(session, &txn_global->rwlock);
+
+        ts = txn_global->durable_timestamp;
 
         /* Walk the array of concurrent transactions. */
         WT_ORDERED_READ(session_cnt, conn->session_cnt);
@@ -443,40 +452,40 @@ set:
 static void
 __txn_assert_after_reads(WT_SESSION_IMPL *session, const char *op, wt_timestamp_t ts)
 {
-#ifdef HAVE_DIAGNOSTIC
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
     wt_timestamp_t tmp_timestamp;
     uint32_t i, session_cnt;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
-    txn_global = &S2C(session)->txn_global;
+    if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_TXN_VISIBILITY)) {
+        txn_global = &S2C(session)->txn_global;
+        WT_ORDERED_READ(session_cnt, S2C(session)->session_cnt);
+        WT_STAT_CONN_INCR(session, txn_walk_sessions);
+        WT_STAT_CONN_INCRV(session, txn_sessions_walked, session_cnt);
 
-    WT_ORDERED_READ(session_cnt, S2C(session)->session_cnt);
-    WT_STAT_CONN_INCR(session, txn_walk_sessions);
-    WT_STAT_CONN_INCRV(session, txn_sessions_walked, session_cnt);
+        __wt_readlock(session, &txn_global->rwlock);
 
-    __wt_readlock(session, &txn_global->rwlock);
+        /* Walk the array of concurrent transactions. */
+        for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
+            __txn_get_read_timestamp(s, &tmp_timestamp);
+            if (tmp_timestamp != WT_TS_NONE && tmp_timestamp >= ts) {
+                __wt_err(session, EINVAL,
+                  "%s timestamp %s must be after all active read timestamps %s", op,
+                  __wt_timestamp_to_string(ts, ts_string[0]),
+                  __wt_timestamp_to_string(tmp_timestamp, ts_string[1]));
 
-    /* Walk the array of concurrent transactions. */
-    for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
-        __txn_get_read_timestamp(s, &tmp_timestamp);
-        if (tmp_timestamp != WT_TS_NONE && tmp_timestamp >= ts) {
-            __wt_err(session, EINVAL, "%s timestamp %s must be after all active read timestamps %s",
-              op, __wt_timestamp_to_string(ts, ts_string[0]),
-              __wt_timestamp_to_string(tmp_timestamp, ts_string[1]));
-
-            __wt_abort(session);
-            /* NOTREACHED */
+                __wt_abort(session);
+                /* NOTREACHED */
+            }
         }
+        __wt_readunlock(session, &txn_global->rwlock);
+    } else {
+        WT_UNUSED(session);
+        WT_UNUSED(op);
+        WT_UNUSED(ts);
+        WT_UNUSED(txn_global);
     }
-
-    __wt_readunlock(session, &txn_global->rwlock);
-#else
-    WT_UNUSED(session);
-    WT_UNUSED(op);
-    WT_UNUSED(ts);
-#endif
 }
 
 /*
@@ -734,7 +743,7 @@ __wt_txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_
          * (There is a slight extra wrinkle at the moment, because it is possible for a transaction
          * to prepare and commit and be interacted with before it becomes durable. Currently such
          * transactions _must_ be replayed identically by the application to avoid inconsistency,
-         * or avoided. FIXME-WT-8747: remove this note when WT-8747 fixes this.)
+         * or avoided.
          *
          * Under other circumstances, that is, not during application-level recovery when ordinary
          * operations are excluded, use of "roundup=prepared" (for replaying transactions or
@@ -941,7 +950,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit)
         WT_RET(__wt_txn_set_prepare_timestamp(session, prepare_ts));
 
     /* Timestamps are only logged in debugging mode. */
-    if (set_ts && FLD_ISSET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE) &&
+    if (set_ts && FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING) &&
       FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) && !F_ISSET(conn, WT_CONN_RECOVERING))
         WT_RET(__wt_txn_ts_log(session));
 
@@ -999,7 +1008,7 @@ __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_t
     __wt_txn_publish_durable_timestamp(session);
 
     /* Timestamps are only logged in debugging mode. */
-    if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE) &&
+    if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING) &&
       FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) && !F_ISSET(conn, WT_CONN_RECOVERING))
         WT_RET(__wt_txn_ts_log(session));
 

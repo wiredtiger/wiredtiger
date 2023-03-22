@@ -38,6 +38,8 @@
  * result in a stored value of zero, in which case they will be stuck on zero forever. Take a local
  * copy of the values to avoid that, and read/write in atomic, 8B chunks.
  */
+#undef M_V
+#define M_V(r) r.v
 #undef M_W
 #define M_W(r) r.x.w
 #undef M_Z
@@ -58,6 +60,20 @@ __wt_random_init(WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_ATTRIBUTE((visib
 }
 
 /*
+ * __wt_random_init_custom_seed --
+ *     Initialize the state of a 32-bit pseudo-random number with custom seed.
+ */
+void
+__wt_random_init_custom_seed(WT_RAND_STATE volatile *rnd_state, uint64_t v)
+  WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+{
+    WT_RAND_STATE rnd;
+
+    M_V(rnd) = v;
+    *rnd_state = rnd;
+}
+
+/*
  * __wt_random_init_seed --
  *     Initialize the state of a 32-bit pseudo-random number.
  */
@@ -67,29 +83,25 @@ __wt_random_init_seed(WT_SESSION_IMPL *session, WT_RAND_STATE volatile *rnd_stat
 {
     struct timespec ts;
     WT_RAND_STATE rnd;
-    uint32_t v;
+    uintmax_t threadid;
 
     __wt_epoch(session, &ts);
+    __wt_thread_id(&threadid);
 
     /*
-     * Use this, instead of __wt_random_init if we need to vary the initial state of the RNG. This
-     * is (currently) only used by test programs, where, for example, an initial set of test data is
+     * Use this, instead of __wt_random_init, to vary the initial state of the RNG. This is
+     * (currently) only used by test programs, where, for example, an initial set of test data is
      * created by a single thread, and we want more variability in the initial state of the RNG.
      *
-     * Take the seconds and nanoseconds from the clock as seeds, and smear that value across the
-     * value space, using algorithm "xor" from Marsaglia, "Xorshift RNGs".
+     * Take the seconds and nanoseconds from the clock together with the thread ID to generate a
+     * 64-bit seed, then smear that value using algorithm "xor" from Marsaglia, "Xorshift RNGs".
      */
-    v = (uint32_t)ts.tv_sec;
-    v ^= v << 13;
-    v ^= v >> 17;
-    v ^= v << 5;
-    M_W(rnd) = v + 521288629;
-
-    v = (uint32_t)ts.tv_nsec;
-    v ^= v << 13;
-    v ^= v >> 17;
-    v ^= v << 5;
-    M_Z(rnd) = v + 362436069;
+    M_W(rnd) = (uint32_t)ts.tv_sec ^ 521288629;
+    M_Z(rnd) = (uint32_t)ts.tv_nsec ^ 362436069;
+    rnd.v ^= (uint64_t)threadid;
+    rnd.v ^= rnd.v << 13;
+    rnd.v ^= rnd.v >> 7;
+    rnd.v ^= rnd.v << 17;
 
     *rnd_state = rnd;
 }

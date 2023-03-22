@@ -66,7 +66,10 @@ class LLDBDumper:
 
         output = None
         if (output_file):
-            output = open(output_file, "w")
+            try:
+                output = open(output_file, "w")
+            except OSError as e :
+                raise e
         subprocess.run([self.dbg, "--batch"] + [exe_path, "-c", core_path] +
                        list(itertools.chain.from_iterable([['-o', b] for b in cmds])),
                        check=True, stdout=output)
@@ -100,7 +103,10 @@ class GDBDumper:
 
         output = None
         if (output_file):
-            output = open(output_file, "w")
+            try:
+                output = open(output_file, "w")
+            except OSError as e :
+                raise e
         subprocess.run([self.dbg, "--batch", "--quiet"] +
                        list(itertools.chain.from_iterable([['-ex', b] for b in cmds])) +
                        [exe_path, core_path],
@@ -141,15 +147,20 @@ def main():
 
         # The field of interest is execfn: '/usr/bin/python3' from the example above.
         start = output.find('execfn: ')
+        if start < 0:
+            print("The 'execfn' is missing, skipping core...")
+            continue
         # Fetch the value of execfn. This is the executable path!
         executable_path = re.search(r'\'.*?\'', output[start:]).group(0)
-        executable_path = executable_path.replace("'", "" )
+        executable_path = executable_path.replace("'", "")
 
         # If the core dump comes from a Python test, we don't need to construct the executable path.
         if "python" not in executable_path.lower():
-            # The executable is where the core dump is.
-            dirname = core_file_path.rsplit('/', 1)[0]
-            executable_path = dirname + '/' + executable_path
+            # We may have the executable path already. If not, we need to find it.
+            if not os.access(executable_path, os.X_OK):
+                # The executable is where the core dump is.
+                dirname = core_file_path.rsplit('/', 1)[0]
+                executable_path = dirname + '/' + executable_path
 
         if sys.platform.startswith('linux'):
             dbg = GDBDumper()

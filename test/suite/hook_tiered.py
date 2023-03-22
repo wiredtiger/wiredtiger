@@ -51,11 +51,11 @@
 #    can get away with returning success without performing the operation.
 #
 # To run, for example, the cursor tests with these hooks enabled:
-#     ../test/suite/run.py --hooks tiered cursor
+#     ../test/suite/run.py --hook tiered cursor
 #
 from __future__ import print_function
 
-import os, sys, unittest, wthooks
+import os, unittest, wthooks
 from wttest import WiredTigerTestCase
 
 # These are the hook functions that are run when particular APIs are called.
@@ -332,6 +332,7 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
                 "test_truncate18.test_truncate18",
                 "test_truncate15.test_truncate15",
                 "test_truncate19.test_truncate19",
+                "test_truncate20.test_truncate20",
                 "test_txn22.test_corrupt_meta",
                 "test_verbose01.test_verbose_single",
                 "test_verbose02.test_verbose_single",

@@ -95,6 +95,11 @@ build_branch()
         # Old releases didn't have these enabled, need to make it consistent.
         config+="-DENABLE_LZ4=0 -DENABLE_ZLIB=0 -DENABLE_ZSTD=0 "
         config+="-DWT_STANDALONE_BUILD=0 "
+        # Use the stable MongoDB toolchain for this build.
+        config+="-DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake "
+        # Disable cppsuite - not all versions build with the toolchain
+        config+="-DENABLE_CPPSUITE=0"
+
         (mkdir -p build && cd build &&
             $CMAKE $config ../. && make -j $(grep -c ^processor /proc/cpuinfo)) > /dev/null
     else
@@ -155,6 +160,9 @@ create_configs()
     echo "checkpoints=1"  >> $file_name             # Force periodic writes
     echo "compression=snappy"  >> $file_name        # We only built with snappy, force the choice
     echo "data_source=table" >> $file_name
+    echo "debug.cursor_reposition=0" >> $file_name  # WT-10594 - Not supported by older releases
+    echo "debug.log_retention=0" >> $file_name      # WT-10434 - Not supported by older releases
+    echo "debug.realloc_malloc=0" >> $file_name     # WT-10111 - Not supported by older releases
     echo "huffman_key=0" >> $file_name              # WT-6893 - Not supported by newer releases
     echo "in_memory=0" >> $file_name                # Interested in the on-disk format
     echo "leak_memory=1" >> $file_name              # Faster runs
@@ -162,6 +170,7 @@ create_configs()
     echo "logging_compression=snappy" >> $file_name # We only built with snappy, force the choice
     echo "rows=1000000" >> $file_name
     echo "salvage=0" >> $file_name                  # Faster runs
+    echo "stress.checkpoint=0" >> $file_name        # Faster runs
     echo "timer=4" >> $file_name
     echo "verify=1" >> $file_name                   # Faster runs
 

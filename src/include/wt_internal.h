@@ -199,6 +199,8 @@ struct __wt_evict_entry;
 typedef struct __wt_evict_entry WT_EVICT_ENTRY;
 struct __wt_evict_queue;
 typedef struct __wt_evict_queue WT_EVICT_QUEUE;
+struct __wt_evict_timeline;
+typedef struct __wt_evict_timeline WT_EVICT_TIMELINE;
 struct __wt_ext;
 typedef struct __wt_ext WT_EXT;
 struct __wt_extlist;
@@ -297,6 +299,8 @@ struct __wt_page_index;
 typedef struct __wt_page_index WT_PAGE_INDEX;
 struct __wt_page_modify;
 typedef struct __wt_page_modify WT_PAGE_MODIFY;
+struct __wt_page_stat;
+typedef struct __wt_page_stat WT_PAGE_STAT;
 struct __wt_process;
 typedef struct __wt_process WT_PROCESS;
 struct __wt_rec_chunk;
@@ -307,10 +311,14 @@ struct __wt_rec_kv;
 typedef struct __wt_rec_kv WT_REC_KV;
 struct __wt_reconcile;
 typedef struct __wt_reconcile WT_RECONCILE;
+struct __wt_reconcile_timeline;
+typedef struct __wt_reconcile_timeline WT_RECONCILE_TIMELINE;
 struct __wt_ref;
 typedef struct __wt_ref WT_REF;
 struct __wt_ref_hist;
 typedef struct __wt_ref_hist WT_REF_HIST;
+struct __wt_rollback_to_stable;
+typedef struct __wt_rollback_to_stable WT_ROLLBACK_TO_STABLE;
 struct __wt_row;
 typedef struct __wt_row WT_ROW;
 struct __wt_rwlock;
@@ -445,6 +453,7 @@ typedef uint64_t wt_timestamp_t;
 #include "optrack.h"
 #include "os.h"
 #include "reconcile.h"
+#include "rollback_to_stable.h"
 #include "schema.h"
 #include "thread_group.h"
 #include "tiered.h"
@@ -470,6 +479,7 @@ typedef uint64_t wt_timestamp_t;
 #include "misc_inline.h"    /* required by mutex_inline.h */
 
 #include "buf_inline.h"       /* required by cell_inline.h */
+#include "pagestat_inline.h"  /* required by btree_inline.h */
 #include "timestamp_inline.h" /* required by btree_inline.h */
 #include "cell_inline.h"      /* required by btree_inline.h */
 #include "mutex_inline.h"     /* required by btree_inline.h */
@@ -488,6 +498,7 @@ typedef uint64_t wt_timestamp_t;
 #include "packing_inline.h"
 #include "reconcile_inline.h"
 #include "serial_inline.h"
+#include "str_inline.h"
 #include "time_inline.h"
 
 #if defined(__cplusplus)

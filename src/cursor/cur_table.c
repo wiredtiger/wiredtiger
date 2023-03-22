@@ -87,6 +87,7 @@ __wt_apply_single_idx(WT_SESSION_IMPL *session, WT_INDEX *idx, WT_CURSOR *cur,
 {
     WT_CURSOR_STATIC_INIT(iface, __wt_cursor_get_key, /* get-key */
       __wt_cursor_get_value,                          /* get-value */
+      __wt_cursor_get_raw_key_value,                  /* get-raw-key-value */
       __wt_cursor_set_key,                            /* set-key */
       __wt_cursor_set_value,                          /* set-value */
       __wt_cursor_compare_notsup,                     /* compare */
@@ -363,11 +364,13 @@ __curtable_next(WT_CURSOR *cursor)
 
     ctable = (WT_CURSOR_TABLE *)cursor;
     JOINABLE_CURSOR_API_CALL(cursor, session, next, NULL);
+    API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
     APPLY_CG(ctable, next);
 
 err:
     CURSOR_REPOSITION_END(cursor, session);
+    API_RETRYABLE_END(session, ret);
     API_END_RET(session, ret);
 }
 
@@ -418,11 +421,13 @@ __curtable_prev(WT_CURSOR *cursor)
 
     ctable = (WT_CURSOR_TABLE *)cursor;
     JOINABLE_CURSOR_API_CALL(cursor, session, prev, NULL);
+    API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
     APPLY_CG(ctable, prev);
 
 err:
     CURSOR_REPOSITION_END(cursor, session);
+    API_RETRYABLE_END(session, ret);
     API_END_RET(session, ret);
 }
 
@@ -473,11 +478,13 @@ __curtable_search(WT_CURSOR *cursor)
 
     ctable = (WT_CURSOR_TABLE *)cursor;
     JOINABLE_CURSOR_API_CALL(cursor, session, search, NULL);
+    API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
     APPLY_CG(ctable, search);
 
 err:
     CURSOR_REPOSITION_END(cursor, session);
+    API_RETRYABLE_END(session, ret);
     API_END_RET(session, ret);
 }
 
@@ -496,6 +503,7 @@ __curtable_search_near(WT_CURSOR *cursor, int *exact)
 
     ctable = (WT_CURSOR_TABLE *)cursor;
     JOINABLE_CURSOR_API_CALL(cursor, session, search_near, NULL);
+    API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
 
     cp = ctable->cg_cursors;
@@ -512,6 +520,7 @@ __curtable_search_near(WT_CURSOR *cursor, int *exact)
 
 err:
     CURSOR_REPOSITION_END(cursor, session);
+    API_RETRYABLE_END(session, ret);
     API_END_RET(session, ret);
 }
 
@@ -1042,6 +1051,7 @@ __wt_curtable_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
 {
     WT_CURSOR_STATIC_INIT(iface, __wt_curtable_get_key, /* get-key */
       __wt_curtable_get_value,                          /* get-value */
+      __wt_cursor_get_raw_key_value_notsup,             /* get-raw-key-value */
       __wt_curtable_set_key,                            /* set-key */
       __wt_curtable_set_value,                          /* set-value */
       __curtable_compare,                               /* compare */

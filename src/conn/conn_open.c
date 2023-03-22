@@ -51,6 +51,7 @@ __wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
     /* Initialize transaction support. */
     WT_RET(__wt_txn_global_init(session, cfg));
 
+    __wt_rollback_to_stable_init(conn);
     WT_STAT_CONN_SET(session, dh_conn_handle_size, sizeof(WT_DATA_HANDLE));
     return (0);
 }
@@ -148,6 +149,10 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 
     /* Close operation tracking */
     WT_TRET(__wt_conn_optrack_teardown(session, false));
+
+#ifdef HAVE_CALL_LOG
+    WT_TRET(__wt_conn_call_log_teardown(session));
+#endif
 
     __wt_backup_destroy(session);
 

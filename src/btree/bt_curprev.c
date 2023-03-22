@@ -34,7 +34,7 @@
 static inline int
 __cursor_skip_prev(WT_CURSOR_BTREE *cbt)
 {
-    WT_INSERT *current, *ins;
+    WT_INSERT *current, *ins, *next_ins;
     WT_ITEM key;
     WT_SESSION_IMPL *session;
     uint64_t recno;
@@ -82,7 +82,14 @@ restart:
         for (; i >= 0; i--) {
             cbt->ins_stack[i] = NULL;
             cbt->next_stack[i] = NULL;
-            ins = cbt->ins_head->head[i];
+            /*
+             * Compiler may replace the usage of the variable with another read in the following
+             * code. Here we don't need to worry about CPU reordering as we are reading a thread
+             * local value.
+             *
+             * Place a read barrier to avoid this issue.
+             */
+            WT_ORDERED_READ_WEAK_MEMORDER(ins, cbt->ins_head->head[i]);
             if (ins != NULL && ins != current)
                 break;
         }
@@ -98,11 +105,22 @@ restart:
             cbt->next_stack[0] = NULL;
             goto restart;
         }
-        if (ins->next[i] != current) /* Stay at this level */
-            ins = ins->next[i];
+        /*
+         * CPUs with weak memory ordering may reorder the read and return a stale value. This can
+         * lead us to wrongly skip a value in the lower levels of the skip list.
+         *
+         * For example, if we have A -> C initially for both level 0 and level 1 and we concurrently
+         * insert B into both level 0 and level 1. If B is visible on level 1 to this thread, it
+         * must also be visible on level 0. Otherwise, we would record an inconsistent stack.
+         *
+         * Place a read barrier to avoid this issue.
+         */
+        WT_ORDERED_READ_WEAK_MEMORDER(next_ins, ins->next[i]);
+        if (next_ins != current) /* Stay at this level */
+            ins = next_ins;
         else { /* Drop down a level */
+            cbt->next_stack[i] = next_ins;
             cbt->ins_stack[i] = &ins->next[i];
-            cbt->next_stack[i] = ins->next[i];
             --i;
         }
     }
@@ -875,9 +893,9 @@ done:
 err:
     if (total_skipped != 0) {
         if (total_skipped < 100)
-            WT_STAT_CONN_DATA_INCR(session, cursor_next_skip_lt_100);
+            WT_STAT_CONN_DATA_INCR(session, cursor_prev_skip_lt_100);
         else
-            WT_STAT_CONN_DATA_INCR(session, cursor_next_skip_ge_100);
+            WT_STAT_CONN_DATA_INCR(session, cursor_prev_skip_ge_100);
     }
 
     WT_STAT_CONN_DATA_INCRV(session, cursor_prev_skip_total, total_skipped);

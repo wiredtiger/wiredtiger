@@ -95,7 +95,7 @@ __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
 
     read_gen += btree->evict_priority;
 
-#define WT_EVICT_INTL_SKEW 1000
+#define WT_EVICT_INTL_SKEW WT_THOUSAND
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
         read_gen += WT_EVICT_INTL_SKEW;
 
@@ -379,18 +379,12 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     uint64_t time_diff_ms;
-#ifdef HAVE_DIAGNOSTIC
-    bool verbose_timeout_flags;
-#endif
 
     /* Assume there has been no progress. */
     *did_work = false;
 
     conn = S2C(session);
     cache = conn->cache;
-#ifdef HAVE_DIAGNOSTIC
-    verbose_timeout_flags = false;
-#endif
 
     /* Evict pages from the cache as needed. */
     WT_RET(__evict_pass(session));
@@ -456,15 +450,15 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 
     __wt_epoch(session, &now);
 
-#define WT_CACHE_STUCK_TIMEOUT_MS 300000
+#define WT_CACHE_STUCK_TIMEOUT_MS (300 * WT_THOUSAND)
     time_diff_ms = WT_TIMEDIFF_MS(now, cache->stuck_time);
+
 #ifdef HAVE_DIAGNOSTIC
     /* Enable extra logs 20ms before timing out. */
-    if (!verbose_timeout_flags && time_diff_ms > WT_CACHE_STUCK_TIMEOUT_MS - 20) {
+    if (time_diff_ms > WT_CACHE_STUCK_TIMEOUT_MS - 20) {
         WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT, WT_VERBOSE_DEBUG_1);
         WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_1);
         WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT_STUCK, WT_VERBOSE_DEBUG_1);
-        verbose_timeout_flags = true;
     }
 #endif
 
@@ -971,7 +965,7 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
 /*
  * We will do a fresh re-tune every that many milliseconds to adjust to significant phase changes.
  */
-#define EVICT_FORCE_RETUNE 25000
+#define EVICT_FORCE_RETUNE (25 * WT_THOUSAND)
 
 /*
  * __evict_tune_workers --
@@ -1155,7 +1149,7 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
 
     /* If a worker thread found the queue empty, pause. */
     if (ret == WT_NOTFOUND && !is_server && F_ISSET(conn, WT_CONN_EVICTION_RUN))
-        __wt_cond_wait(session, conn->evict_threads.wait_cond, 10000, NULL);
+        __wt_cond_wait(session, conn->evict_threads.wait_cond, 10 * WT_THOUSAND, NULL);
 
     WT_TRACK_OP_END(session);
     return (ret == WT_NOTFOUND ? 0 : ret);
@@ -1169,6 +1163,7 @@ static int
 __evict_lru_walk(WT_SESSION_IMPL *session)
 {
     WT_CACHE *cache;
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_EVICT_QUEUE *queue, *other_queue;
     WT_TRACK_OP_DECL;
@@ -1176,7 +1171,8 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
     uint32_t candidates, entries;
 
     WT_TRACK_OP_INIT(session);
-    cache = S2C(session)->cache;
+    conn = S2C(session);
+    cache = conn->cache;
 
     /* Age out the score of how much the queue has been empty recently. */
     if (cache->evict_empty_score > 0)
@@ -1234,7 +1230,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
      * Style note: __wt_qsort is a macro that can leave a dangling else. Full curly braces are
      * needed here for the compiler.
      */
-    if (F_ISSET(cache, WT_CACHE_EVICT_DEBUG_MODE)) {
+    if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE)) {
         __wt_qsort(queue->evict_queue, entries, sizeof(WT_EVICT_ENTRY), __evict_lru_cmp_debug);
     } else {
         __wt_qsort(queue->evict_queue, entries, sizeof(WT_EVICT_ENTRY), __evict_lru_cmp);
@@ -1314,7 +1310,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
     /*
      * Signal any application or helper threads that may be waiting to help with eviction.
      */
-    __wt_cond_signal(session, S2C(session)->evict_threads.wait_cond);
+    __wt_cond_signal(session, conn->evict_threads.wait_cond);
 
 err:
     WT_TRACK_OP_END(session);
@@ -2016,7 +2012,8 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
          * being skipped for walks), or we are in eviction debug mode. The goal here is that if
          * trees become completely idle, we eventually push them out of cache completely.
          */
-        if (!F_ISSET(cache, WT_CACHE_EVICT_DEBUG_MODE) && F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+        if (!FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE) &&
+          F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
             if (page == last_parent)
                 continue;
             if (btree->evict_walk_period == 0 && !__wt_cache_aggressive(session))
@@ -2405,7 +2402,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
             ret = __wt_txn_is_blocking(session);
             if (ret == WT_ROLLBACK) {
                 --cache->evict_aggressive_score;
-                WT_STAT_CONN_INCR(session, txn_fail_cache);
+                WT_STAT_CONN_INCR(session, txn_rollback_oldest_pinned);
                 __wt_verbose_debug1(
                   session, WT_VERB_TRANSACTION, "%s", session->txn->rollback_reason);
             }
@@ -2450,7 +2447,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
             break;
         case WT_NOTFOUND:
             /* Allow the queue to re-populate before retrying. */
-            __wt_cond_wait(session, conn->evict_threads.wait_cond, 10000, NULL);
+            __wt_cond_wait(session, conn->evict_threads.wait_cond, 10 * WT_THOUSAND, NULL);
             cache->app_waits++;
             break;
         default:

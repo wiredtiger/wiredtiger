@@ -72,13 +72,15 @@ struct __wt_page_header {
 /*
  * No automatic generation: flag values cannot change, they're written to disk.
  */
-#define WT_PAGE_COMPRESSED 0x01u   /* Page is compressed on disk */
-#define WT_PAGE_EMPTY_V_ALL 0x02u  /* Page has all zero-length values */
-#define WT_PAGE_EMPTY_V_NONE 0x04u /* Page has no zero-length values */
-#define WT_PAGE_ENCRYPTED 0x08u    /* Page is encrypted on disk */
-#define WT_PAGE_UNUSED 0x10u       /* Historic lookaside store page updates, no longer used */
-#define WT_PAGE_FT_UPDATE 0x20u    /* Page contains updated fast-truncate information */
-    uint8_t flags;                 /* 25: flags */
+#define WT_PAGE_COMPRESSED 0x01u      /* Page is compressed on disk */
+#define WT_PAGE_EMPTY_V_ALL 0x02u     /* Page has all zero-length values */
+#define WT_PAGE_EMPTY_V_NONE 0x04u    /* Page has no zero-length values */
+#define WT_PAGE_ENCRYPTED 0x08u       /* Page is encrypted on disk */
+#define WT_PAGE_UNUSED 0x10u          /* Historic lookaside store page updates, no longer used */
+#define WT_PAGE_FT_UPDATE 0x20u       /* Page contains updated fast-truncate information */
+#define WT_PAGE_STAT_BYTE_COUNT 0x40u /* Page contains byte count information */
+#define WT_PAGE_STAT_ROW_COUNT 0x80u  /* Page contains row count information */
+    uint8_t flags;                    /* 25: flags */
 
     /* A byte of padding, positioned to be added to the flags. */
     uint8_t unused; /* 26: unused padding */
@@ -125,6 +127,16 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
     ((void *)((uint8_t *)(dsk) + WT_PAGE_HEADER_BYTE_SIZE(btree)))
 
 /*
+ * WT_PAGE_STAT --
+ *	A structure to hold page information such as row and byte counts.
+ */
+struct __wt_page_stat {
+    /* These informational values can be negative to signify that they are invalid. */
+    int64_t byte_count;
+    int64_t row_count;
+};
+
+/*
  * WT_ADDR --
  *	An in-memory structure to hold a block's location.
  */
@@ -147,6 +159,8 @@ struct __wt_addr {
      * correctly (not free'd on error, for example).
      */
     uint8_t reuse;
+
+    WT_PAGE_STAT ps; /* Page information including row and byte counts */
 };
 
 /*
@@ -484,6 +498,13 @@ struct __wt_page_modify {
 
 #define WT_PAGE_RS_RESTORED 0x1
     uint8_t restore_state; /* Created by restoring updates */
+
+/* Additional diagnostics fields to catch invalid updates to page_state, even in release builds. */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_PAGE_MODIFY_EXCLUSIVE 0x1u
+#define WT_PAGE_MODIFY_RECONCILING 0x2u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+    uint8_t flags;
 };
 
 /*
@@ -791,10 +812,9 @@ struct __wt_page {
  * 	Prepare state will not be updated during rollback and will continue to
  * 	have the state as INPROGRESS.
  */
-#define WT_PREPARE_INIT              \
-    0 /* Must be 0, as structures    \
-         will be default initialized \
-         with 0. */
+
+/* Must be 0, as structures will be default initialized with 0. */
+#define WT_PREPARE_INIT 0
 #define WT_PREPARE_INPROGRESS 1
 #define WT_PREPARE_LOCKED 2
 #define WT_PREPARE_RESOLVED 3
@@ -1586,22 +1606,32 @@ struct __wt_col_fix_auxiliary_header {
  * examining an index, we don't want the oldest split generation to move forward and potentially
  * free it.
  */
-#define WT_ENTER_PAGE_INDEX(session)                                         \
-    do {                                                                     \
-        uint64_t __prev_split_gen = __wt_session_gen(session, WT_GEN_SPLIT); \
-        if (__prev_split_gen == 0)                                           \
-            __wt_session_gen_enter(session, WT_GEN_SPLIT);
+#define WT_ENTER_PAGE_INDEX(session) WT_ENTER_GENERATION((session), WT_GEN_SPLIT);
 
-#define WT_LEAVE_PAGE_INDEX(session)                   \
-    if (__prev_split_gen == 0)                         \
-        __wt_session_gen_leave(session, WT_GEN_SPLIT); \
-    }                                                  \
-    while (0)
+#define WT_LEAVE_PAGE_INDEX(session) WT_LEAVE_GENERATION((session), WT_GEN_SPLIT);
 
 #define WT_WITH_PAGE_INDEX(session, e) \
     WT_ENTER_PAGE_INDEX(session);      \
     (e);                               \
     WT_LEAVE_PAGE_INDEX(session)
+
+/*
+ * Manage the given generation number with support for re-entry. Re-entry is allowed as the previous
+ * generation as it must be as low as the current generation.
+ */
+#define WT_ENTER_GENERATION(session, generation)              \
+    do {                                                      \
+        bool __entered_##generation = false;                  \
+        if (__wt_session_gen((session), (generation)) == 0) { \
+            __wt_session_gen_enter((session), (generation));  \
+            __entered_##generation = true;                    \
+        }
+
+#define WT_LEAVE_GENERATION(session, generation)         \
+    if (__entered_##generation)                          \
+        __wt_session_gen_leave((session), (generation)); \
+    }                                                    \
+    while (0)
 
 /*
  * WT_VERIFY_INFO -- A structure to hold all the information related to a verify operation.

@@ -29,6 +29,8 @@
 #ifndef THREAD_WORKER_H
 #define THREAD_WORKER_H
 
+#include <optional>
+#include <memory>
 #include <string>
 
 #include "database.h"
@@ -38,18 +40,23 @@
 #include "src/storage/scoped_cursor.h"
 #include "src/storage/scoped_session.h"
 #include "transaction.h"
+#include "src/util/barrier.h"
 
 namespace test_harness {
-enum thread_type { CHECKPOINT, CUSTOM, INSERT, READ, REMOVE, UPDATE };
+enum class thread_type { CHECKPOINT, CUSTOM, INSERT, READ, REMOVE, UPDATE };
 
 const std::string type_string(thread_type type);
 
 /* Container class for a thread and any data types it may need to interact with the database. */
 class thread_worker {
-    public:
+public:
     thread_worker(uint64_t id, thread_type type, configuration *config,
       scoped_session &&created_session, timestamp_manager *timestamp_manager,
       operation_tracker *op_tracker, database &dbase);
+
+    thread_worker(uint64_t id, thread_type type, configuration *config,
+      scoped_session &&created_session, timestamp_manager *timestamp_manager,
+      operation_tracker *op_tracker, database &dbase, std::shared_ptr<barrier> barrier_ptr);
 
     virtual ~thread_worker() = default;
 
@@ -83,10 +90,20 @@ class thread_worker {
      * needs to be rolled back.
      */
     bool remove(scoped_cursor &cursor, uint64_t collection_id, const std::string &key);
+
+    /*
+     * Generic truncate function.
+     *
+     * Return true if the operation was successful, a return value of false implies the transaction
+     * needs to be rolled back.
+     */
+    bool truncate(uint64_t collection_id, std::optional<std::string> start_key,
+      std::optional<std::string> stop_key, const std::string &config);
     void sleep();
     bool running() const;
+    void sync();
 
-    public:
+public:
     const int64_t collection_count;
     const int64_t key_count;
     const int64_t key_size;
@@ -102,7 +119,8 @@ class thread_worker {
     transaction txn;
     operation_tracker *op_tracker;
 
-    private:
+private:
+    std::shared_ptr<barrier> _barrier = nullptr;
     bool _running = true;
     uint64_t _sleep_time_ms = 1000;
 };

@@ -106,7 +106,7 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
         cursor->get_value(cursor, &value);
         /* For now just switch tiers which just does metadata manipulation. */
         if (WT_PREFIX_MATCH(key, "tiered:")) {
-            __wt_verbose_debug2(
+            __wt_verbose(
               session, WT_VERB_TIERED, "CKPT_FLUSH_TIER: %s %s force %d", key, value, force);
             if (!force) {
                 /*
@@ -1025,6 +1025,9 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Reset the statistics tracked per checkpoint. */
     cache->evict_max_page_size = 0;
+    cache->evict_max_seconds = 0;
+    conn->rec_maximum_hs_wrapup_seconds = 0;
+    conn->rec_maximum_image_build_seconds = 0;
     conn->rec_maximum_seconds = 0;
 
     /* Initialize the verbose tracking timer */
@@ -2315,6 +2318,7 @@ __checkpoint_presync(WT_SESSION_IMPL *session, const char *cfg[])
 static int
 __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    struct timespec tsp;
     WT_BTREE *btree;
     WT_DECL_RET;
     WT_TXN *txn;
@@ -2322,6 +2326,11 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
 
     btree = S2BT(session);
     txn = session->txn;
+
+    /* Add a two seconds wait to simulate checkpoint slowness for every handle. */
+    tsp.tv_sec = 2;
+    tsp.tv_nsec = 0;
+    __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_HANDLE, &tsp);
 
     /* Are we using a read timestamp for this checkpoint transaction? */
     with_timestamp = F_ISSET(txn, WT_TXN_SHARED_TS_READ);

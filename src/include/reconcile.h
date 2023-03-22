@@ -62,6 +62,8 @@ struct __wt_rec_chunk {
     /* For fixed-length column store, track where the time windows start and how many we have. */
     uint32_t aux_start_offset;
     uint32_t auxentries;
+
+    WT_PAGE_STAT ps;
 };
 
 /*
@@ -322,6 +324,8 @@ struct __wt_reconcile {
      */
     bool hs_clear_on_tombstone;
     WT_CURSOR *hs_cursor;
+
+    WT_PAGE_STAT ps;
 };
 
 typedef struct {
@@ -376,3 +380,12 @@ typedef struct {
 #define WT_COL_FIX_BYTES_TO_ENTRIES(btree, bytes) ((uint32_t)((((bytes)*8) / (btree)->bitcnt)))
 #define WT_COL_FIX_ENTRIES_TO_BYTES(btree, entries) \
     ((uint32_t)WT_ALIGN((entries) * (btree)->bitcnt, 8))
+
+#define WT_UPDATE_SELECT_INIT(upd_select)       \
+    do {                                        \
+        (upd_select)->upd = NULL;               \
+        (upd_select)->tombstone = NULL;         \
+        (upd_select)->upd_saved = false;        \
+        (upd_select)->no_ts_tombstone = false;  \
+        WT_TIME_WINDOW_INIT(&(upd_select)->tw); \
+    } while (0)

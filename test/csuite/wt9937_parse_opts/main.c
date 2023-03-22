@@ -104,12 +104,13 @@ typedef struct {
  *
  */
 static TEST_DRIVER driver[] = {
-  {{"parse_opts", "-b", "builddir", "-T", "21", NULL}, {"builddir", NULL, 0, 0, false, false, 21},
-    {NULL, 0, 0, 0}},
+  {{"parse_opts", "-b", "builddir", "-T", "21", NULL},
+    {"builddir", NULL, NONZERO, NONZERO, false, false, 21}, {NULL, 0, 0, 0}},
 
-  {{"parse_opts", "-bbuilddir", "-T21", NULL}, {"builddir", NULL, 0, 0, false, false, 21},
-    {NULL, 0, 0, 0}},
+  {{"parse_opts", "-bbuilddir", "-T21", NULL},
+    {"builddir", NULL, NONZERO, NONZERO, false, false, 21}, {NULL, 0, 0, 0}},
 
+  {{"parse_opts", "-T21", NULL}, {NULL, NULL, NONZERO, NONZERO, false, false, 21}, {NULL, 0, 0, 0}},
   /*
    * If -PT is used, the tiered_storage source is set to dir_store, even if -Po is not used. Also
    * when -PT is used, random seeds are initialized to some non-zero value.
@@ -117,11 +118,11 @@ static TEST_DRIVER driver[] = {
   {{"parse_opts", "-v", "-PT", NULL}, {NULL, "dir_store", NONZERO, NONZERO, true, true, 0},
     {NULL, 0, 0, 0}},
 
-  {{"parse_opts", "-v", "-Po", "my_store", "-PT", NULL},
-    {NULL, "my_store", NONZERO, NONZERO, true, true, 0}, {NULL, 0, 0, 0}},
+  {{"parse_opts", "-v", "-Po", "dir_store", "-PT", NULL},
+    {NULL, "dir_store", NONZERO, NONZERO, true, true, 0}, {NULL, 0, 0, 0}},
 
-  {{"parse_opts", "-vPomy_store", "-PT", NULL}, {NULL, "my_store", NONZERO, NONZERO, true, true, 0},
-    {NULL, 0, 0, 0}},
+  {{"parse_opts", "-vPodir_store", "-PT", NULL},
+    {NULL, "dir_store", NONZERO, NONZERO, true, true, 0}, {NULL, 0, 0, 0}},
 
   /* Setting random seeds can be done together or separately. */
   {{"parse_opts", "-PT", "-PSE2345,D1234", NULL}, {NULL, "dir_store", 1234, 2345, true, false, 0},
@@ -137,20 +138,20 @@ static TEST_DRIVER driver[] = {
    * From here on, we are using some "extended" options, see previous comment. We set the argv[0] to
    * "parse_single_opt" to indicate to use the extended parsing idiom.
    */
-  {{"parse_single_opt", "-vd", "-Pomy_store", "-c", "string_opt", "-PT", NULL},
-    {NULL, "my_store", NONZERO, NONZERO, true, true, 0}, {(char *)"string_opt", true, false, 0}},
+  {{"parse_single_opt", "-vd", "-Podir_store", "-c", "string_opt", "-PT", NULL},
+    {NULL, "dir_store", NONZERO, NONZERO, true, true, 0}, {(char *)"string_opt", true, false, 0}},
 
-  {{"parse_single_opt", "-dv", "-Pomy_store", "-cstring_opt", "-PT", NULL},
-    {NULL, "my_store", NONZERO, NONZERO, true, true, 0}, {(char *)"string_opt", true, false, 0}},
+  {{"parse_single_opt", "-dv", "-Podir_store", "-cstring_opt", "-PT", NULL},
+    {NULL, "dir_store", NONZERO, NONZERO, true, true, 0}, {(char *)"string_opt", true, false, 0}},
 
-  {{"parse_single_opt", "-ev", "-cstring_opt", "-Pomy_store", "-PT", "-f", "22", NULL},
-    {NULL, "my_store", NONZERO, NONZERO, true, true, 0}, {(char *)"string_opt", false, true, 22}},
+  {{"parse_single_opt", "-ev", "-cstring_opt", "-Podir_store", "-PT", "-f", "22", NULL},
+    {NULL, "dir_store", NONZERO, NONZERO, true, true, 0}, {(char *)"string_opt", false, true, 22}},
 
-  {{"parse_single_opt", "-evd", "-Pomy_store", "-PT", "-f22", NULL},
-    {NULL, "my_store", NONZERO, NONZERO, true, true, 0}, {NULL, true, true, 22}},
+  {{"parse_single_opt", "-evd", "-Podir_store", "-PT", "-f22", NULL},
+    {NULL, "dir_store", NONZERO, NONZERO, true, true, 0}, {NULL, true, true, 22}},
 
-  {{"parse_single_opt", "-v", "-Pomy_store", "-PT", NULL},
-    {NULL, "my_store", NONZERO, NONZERO, true, true, 0}, {NULL, false, false, 0}},
+  {{"parse_single_opt", "-v", "-Podir_store", "-PT", NULL},
+    {NULL, "dir_store", NONZERO, NONZERO, true, true, 0}, {NULL, false, false, 0}},
 };
 
 /*
@@ -302,9 +303,11 @@ verify_expect(
     } while (0)
 
     /*
-     * opts->home is always set, even without -h on the command line, so don't check it here.
+     * opts->home is always set, even without -h on the command line, so don't check it here. If
+     * tiered_storage is set then build_dir is deduced from the test program.
      */
-    VERIFY_STR(opts, expect, build_dir);
+    if (opts->tiered_storage != true)
+        VERIFY_STR(opts, expect, build_dir);
     VERIFY_STR(opts, expect, tiered_storage_source);
     VERIFY_INT(opts, expect, table_type);
     VERIFY_RANDOM_INT(opts, expect, data_seed);

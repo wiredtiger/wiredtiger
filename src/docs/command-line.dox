@@ -3,7 +3,7 @@
 WiredTiger includes a command line utility, \c wt.
 
 @section util_global_synopsis SYNOPSIS
-`wt [-BLRrVv] [-C config] [-E secretkey ] [-h directory] command [command-specific arguments]`
+`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] command [command-specific arguments]`
 
 @section util_global_description DESCRIPTION
 The \c wt tool is a command-line utility that provides access to
@@ -28,18 +28,23 @@ Verify the WiredTiger metadata as part of opening the database.
 Run recovery if the underlying database is configured to do so.
 @par \c -r
 Access the database via a readonly connection
+@par \c -S
+Run salvage recovery if the underlying database is configured to do so.
 @par \c -V
 Display WiredTiger version and exit.
 @par \c -v
 Set verbose output.
+@par \c -?
+Print the help message and exit.
 
 Unless otherwise described by a \c wt command, the \c wt tool exits zero
 on success and non-zero on error.
 
-The \c wt tool supports several commands.  If configured in the underlying
-database, some commands will run recovery when opening the database.  If
-the user wants to force recovery on any command, use the \c -R option.
-In general, commands that modify the database or tables will run recovery
+The \c wt tool supports several commands.  You can use the \c -? option
+with any of these commands to print the help message.  If configured in the
+underlying database, some commands will run recovery when opening the
+database. If the user wants to force recovery on any command, use the \c -R
+option. In general, commands that modify the database or tables will run recovery
 by default and commands that only read data will not run recovery. It is
 recommended when attempting to diagnose a corrupt database, that the -r
 flag be used. This flag will open the connection read-only and prevent
@@ -51,7 +56,7 @@ any of the existing database objects.
 Alter a table.
 
 @subsection util_alter_synopsis Synopsis
-`wt [-RVv] [-C config] [-E secretkey ] [-h directory] alter uri configuration ...`
+`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] alter uri configuration ...`
 
 The \c uri and \c configuration pairs may be specified to the
 \c alter command.  These configuration pairs can be used to modify the
@@ -89,7 +94,7 @@ opened as a WiredTiger database.  See @ref backup for more information,
 and @ref file_permissions for specifics on the copied file permissions.
 
 @subsection util_backup_synopsis Synopsis
-`wt [-RVv] [-C config] [-E secretkey ] [-h directory] backup [-t uri] directory`
+`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] backup [-t uri] directory`
 
 @subsection util_backup_options Options
 The following are command-specific options for the \c backup command:
@@ -107,10 +112,22 @@ The \c compact command attempts to rewrite the specified table to
 consume less disk space.
 
 @subsection util_compact_synopsis Synopsis
-`wt [-RVv] [-C config] [-E secretkey ] [-h directory] compact uri`
+`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] compact uri`
 
 @subsection util_compact_options Options
 The \c compact command has no command-specific options.
+
+<hr>
+@section util_copyright wt copyright
+Print the copyright information.
+
+The \c copyright command just prints the copyright information and exits.
+
+@subsection util_copyright_synopsis Synopsis
+`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] copyright`
+
+@subsection util_copyright_options Options
+The \c copyright command has no command-specific options.
 
 <hr>
 @section util_create wt create
@@ -121,7 +138,7 @@ configuration.  It is equivalent to a call to WT_SESSION::create with
 the specified string arguments.
 
 @subsection util_create_synopsis Synopsis
-`wt [-RVv] [-C config] [-E secretkey ] [-h directory] create [-c config] uri`
+`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] create [-c config] uri`
 
 @subsection util_create_options Options
 The following are command-specific options for the \c create command:
@@ -136,7 +153,7 @@ Downgrade a database.
 The \c downgrade command downgrades the database to the specified compatibility version.
 
 @subsection util_downgrade_synopsis Synopsis
-`wt [-RVv] [-C config] [-E secretkey ] [-h directory] downgrade -V version`
+`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] downgrade -V version`
 
 @subsection util_downgrade_options Options
 The following are command-specific options for the \c downgrade command:
@@ -152,7 +169,7 @@ The \c drop command drops the specified \c uri.  It is equivalent to a
 call to WT_SESSION::drop with the "force" configuration argument.
 
 @subsection util_drop_synopsis Synopsis
-`wt [-RVv] [-C config] [-E secretkey ] [-h directory] drop uri`
+`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] drop uri`
 
 @subsection util_drop_options Options
 The \c drop command has no command-specific options.
@@ -167,7 +184,7 @@ which can be re-loaded into a new table using the \c load command.
 See @subpage dump_formats for details of the dump file formats.
 
 @subsection util_dump_synopsis Synopsis
-`wt [-RrVv] [-C config] [-E secretkey ] [-h directory] dump [-jprx] [-c checkpoint] [-f output] [-t timestamp] uri`
+`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] dump [-ejnprx] [-c checkpoint] [-f output] [-l lower bound] [-t timestamp] [-u upper bound] [-w window] uri`
 
 @subsection util_dump_options Options
 The following are command-specific options for the \c dump command:
@@ -177,6 +194,9 @@ By default, the \c dump command opens the most recent version of the data
 source; the \c -c option changes the \c dump command to dump as of the named
 checkpoint.
 
+@par \c -e
+Start the explore mode to dump the file interactively.
+
 @par \c -f
 By default, the \c dump command output is written to the standard output;
 the \c -f option re-directs the output to the specified file.
@@ -184,6 +204,15 @@ the \c -f option re-directs the output to the specified file.
 @par \c -j
 Dump in JSON (<a href="http://www.json.org">JavaScript Object Notation</a>)
 format.
+
+@par \c -k
+The specific key to look for in the format of the data packed into key items.
+
+@par \c -l
+The lower bound of the key range to dump.
+
+@par \c -n
+If the requested key (see the \c -k option) cannot be found, return the key retrieved by \c search_near.
 
 @par \c -p
 Dump in human-readable format (pretty-print). The \c -p flag is incompatible
@@ -197,6 +226,12 @@ Dump in reverse order, from largest key to smallest.
 By default, the \c dump command opens the most recent version of the data
 source; the \c -t option changes the \c dump command to dump as of the specified
 timestamp.
+
+@par \c -u
+The upper bound of the key range to dump.
+
+@par \c -w
+Dump n records before and after the record sought.
 
 @par \c -x
 Dump all characters in a hexadecimal encoding (the default is to leave
@@ -214,7 +249,7 @@ database.  If a URI is specified as an argument, only information about
 that data source is printed.
 
 @subsection util_list_synopsis Synopsis
-`wt [-RrVv] [-C config] [-E secretkey ] [-h directory] list [-cv] [uri]`
+`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] list [-cv] [uri]`
 
 @subsection util_list_options Options
 The following are command-specific options for the \c list command:
@@ -242,7 +277,7 @@ to make an attempt to overwrite existing data return an error).  Existing
 keys will not be removed.
 
 @subsection util_load_synopsis Synopsis
-`wt [-RVv] [-C config] [-E secretkey ] [-h directory] load [-ajn] [-f input] [-r name] [uri configuration ...]`
+`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] load [-ajn] [-f input] [-r name] [uri configuration ...]`
 
 @subsection util_load_options Options
 The following are command-specific options for the \c load command:
@@ -317,7 +352,7 @@ with matching keys.  For either column-store or row-store tables, existing
 keys will not be removed.
 
 @subsection util_loadtext_synopsis Synopsis
-`wt [-RVv] [-C config] [-E secretkey ] [-h directory] loadtext [-f input] uri`
+`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] loadtext [-f input] uri`
 
 @subsection util_loadtext_options Options
 The following are command-specific options for the \c loadtext command:
@@ -334,7 +369,7 @@ data are redacted.
 The \c printlog command outputs the database log.
 
 @subsection util_printlog_synopsis Synopsis
-\c wt [-RrVv] [-C config] [-E secretkey ] [-h directory] printlog [-mux] [-f output]
+\c wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] printlog [-mux] [-f output] [-l start-file,start-offset]|[-l start-file,start-offset,end-file,end-offset]
 
 @subsection util_printlog_options Options
 The following are command-specific options for the \c printlog command:
@@ -342,6 +377,10 @@ The following are command-specific options for the \c printlog command:
 @par \c -f
 By default, the \c printlog command output is written to the standard
 output; the \c -f option re-directs the output to the specified file.
+
+@par \c -l
+Specify the start LSN from which the log will be printed, and optionally
+also the end LSN.
 
 @par \c -m
 Print only message-type log records.
@@ -364,7 +403,7 @@ with string or record number keys and string values.
 The \c read command exits non-zero if a specified record is not found.
 
 @subsection util_read_synopsis Synopsis
-`wt [-RrVv] [-C config] [-E secretkey ] [-h directory] read uri key ...`
+`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] read uri key ...`
 
 @subsection util_read_options Options
 The \c read command has no command-specific options.
@@ -376,7 +415,7 @@ Rename a table.
 The \c rename command renames the specified table.
 
 @subsection util_rename_synopsis Synopsis
-`wt [-RVv] [-C config] [-E secretkey ] [-h directory] rename uri name`
+`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] rename uri new-uri`
 
 @subsection util_rename_options Options
 The \c rename command has no command-specific options.
@@ -390,7 +429,7 @@ data that cannot be recovered.  Underlying files are re-written in place,
 overwriting the original file contents.
 
 @subsection util_salvage_synopsis Synopsis
-`wt [-RVv] [-C config] [-E secretkey ] [-h directory] salvage [-F] uri`
+`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] salvage [-F] uri`
 
 @subsection util_salvage_options Options
 The following are command-specific options for the \c salvage command:
@@ -408,7 +447,7 @@ The \c stat command outputs run-time statistics for the WiredTiger
 engine, or, if specified, for the URI on the command-line.
 
 @subsection util_stat_synopsis Synopsis
-`wt [-RVv] [-C config] [-E secretkey ] [-h directory] stat [-f] [uri]`
+`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] stat [-f] [uri]`
 
 @subsection util_stat_options Options
 The following are command-specific options for the \c stat command:
@@ -425,7 +464,7 @@ The \c truncate command truncates the specified \c uri.  It is equivalent to a
 call to WT_SESSION::truncate with no start or stop specified.
 
 @subsection util_truncate_synopsis Synopsis
-`wt [-RVv] [-C config] [-E secretkey ] [-h directory] truncate uri`
+`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] truncate uri`
 
 @subsection util_truncate_options Options
 The \c truncate command has no command-specific options.
@@ -439,7 +478,7 @@ the data source is up-to-date, and failure if the data source cannot be
 upgraded.
 
 @subsection util_upgrade_synopsis Synopsis
-`wt [-RVv] [-C config] [-E secretkey ] [-h directory] upgrade uri`
+`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] upgrade uri`
 
 @subsection util_upgrade_options Options
 The \c upgrade command has no command-specific options.
@@ -448,14 +487,25 @@ The \c upgrade command has no command-specific options.
 @section util_verify wt verify
 Check the structural integrity of a table.
 
-The \c verify command verifies the specified table, exiting success if
-the data source is correct, and failure if the data source is corrupted.
+The \c verify command verifies the specified table if a URI argument is provided,
+exiting success if the data source is correct, and failure if the data source is corrupted.
+If no URI argument is provided, it verifies each table in the database, reporting on any
+that are damaged. If the abort on error option \c -a is specified, terminate the verification
+process if one of the tables is damaged. Currently, the verify operation is not supported with
+tiered tables and the history store file.
 
 @subsection util_verify_synopsis Synopsis
-`wt [-RrVv] [-C config] [-E secretkey ] [-h directory] verify [-s] [-d dump_address | dump_blocks | dump_layout | dump_offsets=#,# | dump_pages ] [uri]`
+`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] verify [-acstu] [-d dump_address | dump_blocks | dump_layout | dump_offsets=#,# | dump_pages ] [uri]`
 
 @subsection util_verify_options Options
 The following are command-specific options for the \c verify command:
+
+\a -a
+Abort immediately if verify encounters a damaged table instead of continuing to
+verify the rest of the tables in the database.
+
+\c -c
+Continue to the next page after encountering error during verification.
 
 \c -d [config]
 This option allows you to specify values which you want to be displayed
@@ -465,6 +515,13 @@ when verification is run. See the WT_SESSION::verify configuration options.
 This option allows you to verify against the stable timestamp, valid only after a
 rollback-to-stable operation. See the WT_SESSION::verify configuration options.
 
+\c -t
+Do not clear transaction IDs during verification.
+
+\c -u
+Display the application data when dumping with configuration \c dump_blocks
+or \c dump_page.
+
 <hr>
 @section util_write wt write
 Write records to a table.
@@ -473,24 +530,30 @@ The \c write command stores records into the specified data source.
 The data source must be configured with string or record number keys and
 string values.
 
-If the \c write command is called with the \c -a option, each
-command-line argument is a single value to be appended to the specified
-column-store data source.  If the \c write command is not called with
-the \c -a option, the command-line arguments are key/value pairs.
+If the \c write command is called with the \c -a option, each command-line
+argument is a single value to be appended to the specified column-store
+data source. If the \c write command is called with the \c -r option,
+the command-line argument is a key. If the \c write command is called with
+neither the \c -a nor the \c -r option, the command-line arguments are
+key/value pairs.
 
 Attempting to overwrite an already existing record will fail.
 
 @subsection util_write_synopsis Synopsis
-\c
-wt [-RVv] [-C config] [-E secretkey ] [-h directory] write -a uri value ...
+`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] write -a uri value ...`
 <br>
-wt [-RVv] [-C config] [-E secretkey ] [-h directory] write [-o] uri key value ...
+`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] write -r uri key`
+<br>
+`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] write [-o] uri key value ...`
 
 @subsection util_write_options Options
 The following are command-specific options for the \c write command:
 
 @par \c -a
-Append each value as a new record in the data source.
+Append each value as a new record in the column-store data source.
+
+@par \c -r
+Remove an existing record from the data source.
 
 @par \c -o
 By default, attempting to overwrite an already existing record will

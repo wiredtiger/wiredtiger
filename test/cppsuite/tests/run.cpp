@@ -34,17 +34,15 @@
 #include "src/main/test.h"
 
 #include "bounded_cursor_perf.cpp"
+#include "bounded_cursor_prefix_indices.cpp"
+#include "bounded_cursor_prefix_search_near.cpp"
+#include "bounded_cursor_prefix_stat.cpp"
+#include "bounded_cursor_stress.cpp"
 #include "burst_inserts.cpp"
 #include "cache_resize.cpp"
-#include "bounded_cursor_stress.cpp"
-#include "bounded_cursor_prefix_stat.cpp"
-#include "bounded_cursor_prefix_search_near.cpp"
-#include "bounded_cursor_prefix_indices.cpp"
 #include "hs_cleanup.cpp"
 #include "operations_test.cpp"
-#include "search_near_01.cpp"
-#include "search_near_02.cpp"
-#include "search_near_03.cpp"
+#include "reverse_split.cpp"
 #include "test_template.cpp"
 
 extern "C" {
@@ -54,8 +52,8 @@ extern "C" {
 /* Declarations to avoid the error raised by -Werror=missing-prototypes. */
 const std::string parse_configuration_from_file(const std::string &filename);
 void print_help();
-int64_t run_test(
-  const std::string &test_name, const std::string &config, const std::string &wt_open_config);
+int64_t run_test(const std::string &test_name, const std::string &config,
+  const std::string &wt_open_config, const std::string &home);
 
 const std::string
 parse_configuration_from_file(const std::string &filename)
@@ -91,6 +89,7 @@ print_help()
     std::cout << "\trun -C [WIREDTIGER_OPEN_CONFIGURATION]" << std::endl;
     std::cout << "\trun -c [TEST_FRAMEWORK_CONFIGURATION]" << std::endl;
     std::cout << "\trun -f [FILE]" << std::endl;
+    std::cout << "\trun -H [HOME]" << std::endl;
     std::cout << "\trun -l [TRACE_LEVEL]" << std::endl;
     std::cout << "\trun --list" << std::endl;
     std::cout << "\trun -t [TEST_NAME]" << std::endl;
@@ -107,10 +106,11 @@ print_help()
       << std::endl;
     std::cout << std::endl;
     std::cout << "OPTIONS" << std::endl;
-    std::cout << "\t-h Output a usage message and exit." << std::endl;
     std::cout << "\t-C Additional WiredTiger open configuration." << std::endl;
     std::cout << "\t-c Test framework configuration. Cannot be used with -f." << std::endl;
     std::cout << "\t-f File that contains the configuration. Cannot be used with -C." << std::endl;
+    std::cout << "\t-H Specifies the database home directory." << std::endl;
+    std::cout << "\t-h Output a usage message and exit." << std::endl;
     std::cout << "\t-l Trace level from 0 to 3. "
                  "1 is the default level, all warnings and errors are logged."
               << std::endl;
@@ -124,20 +124,19 @@ print_help()
  * - config: defines the configuration used for the test.
  */
 int64_t
-run_test(const std::string &test_name, const std::string &config, const std::string &wt_open_config)
+run_test(const std::string &test_name, const std::string &config, const std::string &wt_open_config,
+  const std::string &home)
 {
     int error_code = 0;
 
     test_harness::logger::log_msg(LOG_TRACE, "Configuration\t:" + config);
-    test_harness::test_args args = {
-      .test_config = config, .test_name = test_name, .wt_open_config = wt_open_config};
+    test_harness::test_args args = {.test_config = config,
+      .test_name = test_name,
+      .wt_open_config = wt_open_config,
+      .home = home};
 
     if (test_name == "bounded_cursor_perf")
         bounded_cursor_perf(args).run();
-    else if (test_name == "burst_inserts")
-        burst_inserts(args).run();
-    else if (test_name == "cache_resize")
-        cache_resize(args).run();
     else if (test_name == "bounded_cursor_prefix_indices")
         bounded_cursor_prefix_indices(args).run();
     else if (test_name == "bounded_cursor_prefix_search_near")
@@ -146,16 +145,16 @@ run_test(const std::string &test_name, const std::string &config, const std::str
         bounded_cursor_prefix_stat(args).run();
     else if (test_name == "bounded_cursor_stress")
         bounded_cursor_stress(args).run();
+    else if (test_name == "burst_inserts")
+        burst_inserts(args).run();
+    else if (test_name == "cache_resize")
+        cache_resize(args).run();
     else if (test_name == "hs_cleanup")
         hs_cleanup(args).run();
     else if (test_name == "operations_test")
         operations_test(args).run();
-    else if (test_name == "search_near_01")
-        search_near_01(args).run();
-    else if (test_name == "search_near_02")
-        search_near_02(args).run();
-    else if (test_name == "search_near_03")
-        search_near_03(args).run();
+    else if (test_name == "reverse_split")
+        reverse_split(args).run();
     else if (test_name == "test_template")
         test_template(args).run();
     else {
@@ -178,13 +177,13 @@ get_default_config_path(const std::string &test_name)
 int
 main(int argc, char *argv[])
 {
-    std::string cfg, config_filename, current_cfg, current_test_name, test_name, wt_open_config;
+    std::string cfg, config_filename, current_cfg, current_test_name, home, test_name,
+      wt_open_config;
     int64_t error_code = 0;
-    const std::vector<std::string> all_tests = {"bounded_cursor_perf",
+    const std::vector<std::string> all_tests = {"reverse_split", "bounded_cursor_perf",
       "bounded_cursor_prefix_indices", "bounded_cursor_prefix_search_near",
       "bounded_cursor_prefix_stat", "bounded_cursor_stress", "burst_inserts", "cache_resize",
-      "hs_cleanup", "operations_test", "search_near_01", "search_near_02", "search_near_03",
-      "test_template"};
+      "hs_cleanup", "operations_test", "test_template"};
 
     /* Set the program name for error messages. */
     (void)testutil_set_progname(argv);
@@ -234,6 +233,11 @@ main(int argc, char *argv[])
             for (const auto &test_name : all_tests)
                 std::cout << "\t" << test_name << std::endl;
             return 0;
+        } else if (option == "-H") {
+            if ((i + 1) < argc)
+                home = argv[++i];
+            else
+                error_code = -1;
         } else
             error_code = -1;
     }
@@ -255,7 +259,7 @@ main(int argc, char *argv[])
                 else
                     current_cfg = cfg;
 
-                error_code = run_test(current_test_name, current_cfg, wt_open_config);
+                error_code = run_test(current_test_name, current_cfg, wt_open_config, home);
                 /*
                  * The connection is usually closed using the destructor of the connection manager.
                  * Because it is a singleton and we are executing all tests, we are not going
@@ -280,7 +284,7 @@ main(int argc, char *argv[])
                     cfg = parse_configuration_from_file(config_filename);
                 else if (cfg.empty())
                     cfg = parse_configuration_from_file(get_default_config_path(current_test_name));
-                error_code = run_test(current_test_name, cfg, wt_open_config);
+                error_code = run_test(current_test_name, cfg, wt_open_config, home);
             }
         }
 

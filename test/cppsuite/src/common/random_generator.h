@@ -43,10 +43,10 @@
 namespace test_harness {
 /* Helper class to generate random values using uniform distributions. */
 
-enum characters_type { PSEUDO_ALPHANUMERIC, ALPHABET };
+enum class characters_type { PSEUDO_ALPHANUMERIC, ALPHABET };
 
 class random_generator {
-    public:
+public:
     static random_generator &instance();
 
     /* No copies of the singleton allowed. */
@@ -55,14 +55,19 @@ class random_generator {
 
     /* Generate a random string of a given length. */
     std::string generate_random_string(
-      std::size_t length, characters_type type = PSEUDO_ALPHANUMERIC);
+      std::size_t length, characters_type type = characters_type::PSEUDO_ALPHANUMERIC);
 
     /*
      * Generate a pseudo random string which compresses better. It should not be used to generate
      * keys due to the limited randomness.
      */
     std::string generate_pseudo_random_string(
-      std::size_t length, characters_type type = PSEUDO_ALPHANUMERIC);
+      std::size_t length, characters_type type = characters_type::PSEUDO_ALPHANUMERIC);
+
+    /*
+     * Generate a boolean with 50/50 probability.
+     */
+    bool generate_bool();
 
     /* Generate a random integer between min and max. */
     template <typename T>
@@ -73,7 +78,7 @@ class random_generator {
         return dis(_generator);
     }
 
-    private:
+private:
     random_generator();
     std::uniform_int_distribution<> &get_distribution(characters_type type);
     const std::string &get_characters(characters_type type);

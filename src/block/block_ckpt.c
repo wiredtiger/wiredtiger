@@ -12,17 +12,12 @@ static int __ckpt_process(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *);
 static int __ckpt_update(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *, WT_CKPT *, WT_BLOCK_CKPT *);
 
 /*
- * __wt_block_ckpt_init --
- *     Initialize a checkpoint structure.
+ * __block_extlist_setup --
+ *     Initialize the extent lists in a checkpoint structure.
  */
-int
-__wt_block_ckpt_init(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci, const char *name)
+static int
+__block_extlist_setup(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci, const char *name)
 {
-    WT_CLEAR(*ci);
-
-    ci->version = WT_BM_CHECKPOINT_VERSION;
-    ci->root_offset = WT_BLOCK_INVALID_OFFSET;
-
     WT_RET(__wt_block_extlist_init(session, &ci->alloc, name, "alloc", false));
     WT_RET(__wt_block_extlist_init(session, &ci->avail, name, "avail", true));
     WT_RET(__wt_block_extlist_init(session, &ci->discard, name, "discard", false));
@@ -32,8 +27,38 @@ __wt_block_ckpt_init(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci, const char *na
 }
 
 /*
+ * __block_extlist_reset --
+ *     Discard and reinitialize the extent lists in a checkpoint structure
+ */
+static int
+__block_extlist_reset(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci, const char *name)
+{
+    __wt_block_ckpt_destroy(session, ci);
+    WT_RET(__block_extlist_setup(session, ci, name));
+
+    return (0);
+}
+
+/*
+ * __wt_block_ckpt_init --
+ *     Return the address cookie for the root page of a checkpoint. Also initialize extent lists if
+ *     we are loading the live checkpoint in a writable file.
+ */
+int
+__wt_block_ckpt_init(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci, const char *name)
+{
+    WT_CLEAR(*ci);
+
+    ci->version = WT_BM_CHECKPOINT_VERSION;
+    ci->root_offset = WT_BLOCK_INVALID_OFFSET;
+
+    return (__block_extlist_setup(session, ci, name));
+}
+
+/*
  * __wt_block_checkpoint_load --
- *     Load a checkpoint.
+ *     Return the address cookie for the root page of a checkpoint. Also initialize its extent lists
+ *     if loading the live checkpoint from a writeable file.
  */
 int
 __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr,
@@ -72,8 +97,8 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
         live_open = block->live_open;
         block->live_open = true;
         __wt_spin_unlock(session, &block->live_lock);
-        WT_ERR_ASSERT(
-          session, live_open == false, EBUSY, "%s: attempt to re-open live file", block->name);
+        WT_ERR_ASSERT(session, WT_DIAGNOSTIC_CHECKPOINT_VALIDATE, live_open == false, EBUSY,
+          "%s: attempt to re-open live file", block->name);
 
         ci = &block->live;
         WT_ERR(__wt_block_ckpt_init(session, ci, "live"));
@@ -90,23 +115,42 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
         WT_ERR(__wt_block_ckpt_unpack(session, block, addr, addr_size, ci));
 
         /* Verify sets up next. */
-        if (block->verify)
+        if (block->verify) {
+            /*
+             * FIXME: We may need to change how we setup for verify when it supports tiered tables.
+             * Until then, an attempt to verify a tiered table should return before getting here.
+             */
+            WT_ASSERT(session, block->objectid == 0 && ci->root_objectid == 0);
             WT_ERR(__wt_verify_ckpt_load(session, block, ci));
+        }
 
         /* Read any root page. */
         if (ci->root_offset != WT_BLOCK_INVALID_OFFSET) {
+            /* A checkpoint shouldn't point to an object created after this one. */
+            WT_ASSERT(session, block->objectid >= ci->root_objectid);
+
             endp = root_addr;
             WT_ERR(__wt_block_addr_pack(
               block, &endp, ci->root_objectid, ci->root_offset, ci->root_size, ci->root_checksum));
             *root_addr_sizep = WT_PTRDIFF(endp, root_addr);
         }
 
-        /*
-         * Rolling a checkpoint forward requires the avail list, the blocks from which we can
-         * allocate.
-         */
-        if (!checkpoint)
+        if (!checkpoint) {
+            /*
+             * The checkpoint address may point to an earlier object. If so, the object backing this
+             * block handle doesn't have valid data -- i.e., it must have been written after the
+             * checkpoint we are opening. So we discard the incorrect extent lists and reinitialize
+             * them to be empty.
+             */
+            if (block->objectid != ci->root_objectid)
+                __block_extlist_reset(session, ci, "live");
+
+            /*
+             * Rolling a checkpoint forward requires the avail list, the blocks from which we can
+             * allocate.
+             */
             WT_ERR(__wt_block_extlist_read_avail(session, block, &ci->avail, ci->file_size));
+        }
     }
 
     /*
@@ -168,7 +212,8 @@ __wt_block_checkpoint_unload(WT_SESSION_IMPL *session, WT_BLOCK *block, bool che
 
 /*
  * __wt_block_ckpt_destroy --
- *     Clear a checkpoint structure.
+ *     Clear a checkpoint structure. Free the extent lists, but leave the rest of the state intact
+ *     in case the caller is re-using it.
  */
 void
 __wt_block_ckpt_destroy(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
@@ -319,7 +364,6 @@ __ckpt_extlist_fblocks(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el
     return (__wt_block_insert_ext(session, block, &block->live.ckpt_avail, el->offset, el->size));
 }
 
-#ifdef HAVE_DIAGNOSTIC
 /*
  * __ckpt_verify --
  *     Diagnostic code, confirm we get what we expect in the checkpoint array.
@@ -350,7 +394,6 @@ __ckpt_verify(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
         }
     return (0);
 }
-#endif
 
 /*
  * __ckpt_add_blkmod_entry --
@@ -488,9 +531,8 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
     ci = &block->live;
     fatal = locked = false;
 
-#ifdef HAVE_DIAGNOSTIC
-    WT_RET(__ckpt_verify(session, ckptbase));
-#endif
+    if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_CHECKPOINT_VALIDATE))
+        WT_RET(__ckpt_verify(session, ckptbase));
 
     /*
      * Checkpoints are a two-step process: first, write a new checkpoint to disk (including all the
@@ -584,7 +626,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
          */
         if (next_ckpt->bpriv == NULL && !F_ISSET(next_ckpt, WT_CKPT_ADD)) {
             WT_ERR(__ckpt_extlist_read(session, block, next_ckpt, &local));
-            WT_ERR_ASSERT(session, local == true, WT_PANIC,
+            WT_ERR_ASSERT(session, WT_DIAGNOSTIC_CHECKPOINT_VALIDATE, local == true, WT_PANIC,
               "tiered storage checkpoint follows local checkpoint");
         }
     }

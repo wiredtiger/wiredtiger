@@ -26,7 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "src/component/execution_timer.cpp"
+#include "src/util/execution_timer.cpp"
 #include "src/main/test.h"
 
 using namespace test_harness;
@@ -37,7 +37,7 @@ using namespace test_harness;
  * taken is added to the perf file. The test traverses all keys in the collection.
  */
 class bounded_cursor_perf : public test {
-    public:
+public:
     bounded_cursor_perf(const test_args &args) : test(args)
     {
         init_operation_tracker();
