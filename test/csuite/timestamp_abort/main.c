@@ -101,7 +101,7 @@ static uint32_t backup_full_interval, backup_granularity_kb;
 
 static TEST_OPTS *opts, _opts;
 
-static int recover_and_verify(uint32_t backup_index);
+static int recover_and_verify(uint32_t backup_index, uint32_t workload_iteration);
 extern int __wt_optind;
 extern char *__wt_optarg;
 
@@ -155,6 +155,9 @@ extern char *__wt_optarg;
 
 /* Get back the sequence number from a backup index. */
 #define BACKUP_INDEX_TO_SEQUENCE(index) ((index) % WT_THOUSAND)
+
+/* Get back the workload iteration number from a backup index. */
+#define BACKUP_INDEX_TO_ITERATION(index) ((index) / WT_THOUSAND)
 
 typedef struct {
     uint64_t absent_key; /* Last absent key */
@@ -591,11 +594,12 @@ backup_delete_old_backups(int retain, int last_full)
     struct stat sb;
     DIR *d;
     size_t len;
-    int count, i, indexes[256];
+    int count, ndeleted, i, indexes[256];
     char buf[256];
     bool done;
 
     len = strlen(BACKUP_BASE);
+    ndeleted = 0;
     do {
         done = true;
         testutil_assert_errno((d = opendir(".")) != NULL);
@@ -609,8 +613,10 @@ backup_delete_old_backups(int retain, int last_full)
 
                 /* If the backup failed to finish, delete it right away. */
                 testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/done", dir->d_name));
-                if (stat(buf, &sb) != 0 && errno == ENOENT)
+                if (stat(buf, &sb) != 0 && errno == ENOENT) {
                     testutil_system("%s %s", RM_COMMAND, dir->d_name);
+                    ndeleted++;
+                }
 
                 /* If we have too many backups, finish next time. */
                 if (count >= (int)(sizeof(indexes) / sizeof(*indexes))) {
@@ -624,9 +630,13 @@ backup_delete_old_backups(int retain, int last_full)
             break;
 
         __wt_qsort(indexes, (size_t)count, sizeof(*indexes), __int_comparator);
-        for (i = 0; i < count - retain; i++)
+        for (i = 0; i < count - retain; i++) {
             testutil_system("%s " BACKUP_BASE "%d", RM_COMMAND, indexes[i]);
+            ndeleted++;
+        }
     } while (!done);
+
+    printf("Deleted %d old backup%s\n", ndeleted, ndeleted == 1 ? "" : "s");
 }
 
 /*
@@ -729,7 +739,7 @@ thread_backup_run(void *arg)
     /*
      * Find the last successful backup.
      */
-    if (td->workload_iteration > 0) {
+    if (td->workload_iteration > 1) {
         testutil_check(session->open_cursor(session, "backup:query_id", NULL, NULL, &cursor));
         while ((ret = cursor->next(cursor)) == 0) {
             testutil_check(cursor->get_key(cursor, &str));
@@ -740,7 +750,7 @@ thread_backup_run(void *arg)
             testutil_check(__wt_snprintf(buf, sizeof(buf), BACKUP_BASE "%" PRIu32 "/done", u));
             if (stat(buf, &sb) != 0) {
                 testutil_assert_errno(errno == ENOENT);
-                printf("Found backup %" PRIu32 ", but it is not complete\n", u);
+                printf("Found backup %" PRIu32 ", but it is incomplete\n", u);
                 continue;
             }
 
@@ -778,8 +788,8 @@ thread_backup_run(void *arg)
         last_backup = u;
 
         /* Periodically delete old backups. */
-        if (i % 5 == 0)
-            backup_delete_old_backups(3, (int)last_full);
+        if (i % 5 == 0 || (td->workload_iteration > 1 && i == 1))
+            backup_delete_old_backups(5, (int)last_full);
     }
 
     /* NOTREACHED */
@@ -1072,7 +1082,7 @@ run_workload(uint32_t workload_iteration)
     /*
      * Create all the tables on the first iteration.
      */
-    if (workload_iteration == 0) {
+    if (workload_iteration == 1) {
         if (columns) {
             table_config_nolog = "key_format=r,value_format=u,log=(enabled=false)";
             table_config = "key_format=r,value_format=u";
@@ -1221,10 +1231,10 @@ backup_exists(WT_CONNECTION *conn, uint32_t index)
 
 /*
  * backup_verify --
- *     Verify previous backups.
+ *     Verify previous backups created within the given workload iteration (use 0 to verify all).
  */
 static void
-backup_verify(WT_CONNECTION *conn)
+backup_verify(WT_CONNECTION *conn, uint32_t workload_iteration)
 {
     struct dirent *dir;
     struct stat sb;
@@ -1246,6 +1256,8 @@ backup_verify(WT_CONNECTION *conn)
             }
 
             index = (uint32_t)atoi(dir->d_name + len);
+            if (workload_iteration > 0 && BACKUP_INDEX_TO_ITERATION(index) != workload_iteration)
+                continue;
 
             if (backup_verify_quick) {
                 /* Just check that chunks that are supposed to be different are indeed different. */
@@ -1263,18 +1275,24 @@ backup_verify(WT_CONNECTION *conn)
                 }
             } else
                 /* Perform a full test. */
-                testutil_check(recover_and_verify(index));
+                testutil_check(recover_and_verify(index, workload_iteration));
         }
     }
     testutil_check(closedir(d));
+
+    /* Delete the "check" directory that we might have created for backup verification. */
+    if (stat("check", &sb) != 0)
+        testutil_system("%s check", RM_COMMAND);
 }
 
 /*
  * recover_and_verify --
  *     Run the recovery and verify the database or the given backup (use 0 for the main database).
+ *     The workload_iteration argument limits which backups to verify when the backup index is 0
+ *     (use 0 to verify all backups irrespective of the iteration in which they were created).
  */
 static int
-recover_and_verify(uint32_t backup_index)
+recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
 {
     FILE *fp;
     REPORT c_rep[MAX_TH], l_rep[MAX_TH], o_rep[MAX_TH];
@@ -1312,7 +1330,7 @@ recover_and_verify(uint32_t backup_index)
          * backup.
          */
         if (use_backups)
-            backup_verify(conn);
+            backup_verify(conn, workload_iteration);
     } else {
         testutil_check(__wt_snprintf(buf, sizeof(buf), BACKUP_BASE "%" PRIu32, backup_index));
         testutil_system("rm -rf check; cp -rf %s check", buf);
@@ -1742,10 +1760,10 @@ main(int argc, char *argv[])
          * don't only recover, but that we can also keep going, as sometimes bugs can occur during
          * database operation following an unclean shutdown.
          */
-        for (iteration = 0; iteration < num_iterations; iteration++) {
+        for (iteration = 1; iteration <= num_iterations; iteration++) {
 
             if (num_iterations > 1)
-                printf("\n=== Iteration %" PRIu32 "/%" PRIu32 "\n", iteration + 1, num_iterations);
+                printf("\n=== Iteration %" PRIu32 "/%" PRIu32 "\n", iteration, num_iterations);
 
             /*
              * Fork a child to insert as many items. We will then randomly kill the child, run
@@ -1804,7 +1822,7 @@ main(int argc, char *argv[])
              */
 
             /* Copy the data to a separate folder for debugging purpose. */
-            testutil_copy_data(home);
+            testutil_copy_data_opt(home, BACKUP_BASE);
 
             /*
              * Clear the cache, if we are using LazyFS. Do this after we save the data for debugging
@@ -1831,7 +1849,7 @@ main(int argc, char *argv[])
             /*
              * Recover and verify the database, and test all backups.
              */
-            ret = recover_and_verify(0);
+            ret = recover_and_verify(0, iteration);
             if (ret != EXIT_SUCCESS)
                 break;
         }
@@ -1843,10 +1861,10 @@ main(int argc, char *argv[])
             testutil_die(errno, "parent chdir: %s", home);
 
         /* Copy the data to a separate folder for debugging purpose. */
-        testutil_copy_data(home);
+        testutil_copy_data_opt(home, BACKUP_BASE);
 
         /* Now do the actual recovery and verification. */
-        ret = recover_and_verify(0);
+        ret = recover_and_verify(0, 0);
     }
 
     /*
