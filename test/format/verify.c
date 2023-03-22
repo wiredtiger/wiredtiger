@@ -172,9 +172,8 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
      */
     for (;;) {
         wt_wrap_open_cursor(session, base->uri, checkpoint == NULL ? NULL : buf, &base_cursor);
-        wt_wrap_open_cursor(session, table->uri, checkpoint == NULL ? NULL : buf, &table_cursor);
-
         base_id = base_cursor->checkpoint_id(base_cursor);
+        wt_wrap_open_cursor(session, table->uri, checkpoint == NULL ? NULL : buf, &table_cursor);
         table_id = table_cursor->checkpoint_id(table_cursor);
 
         testutil_assert((checkpoint == NULL && base_id == 0 && table_id == 0) ||
