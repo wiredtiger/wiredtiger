@@ -156,9 +156,9 @@ __evict_list_clear(WT_SESSION_IMPL *session, WT_EVICT_ENTRY *e)
 
 /*
  * __evict_list_clear_page_locked --
- *     This function searches for the page on all the eviction queues (except the urgent queue if
- *     exclude_urgent is set) and clears it if found. It does not take the eviction queue lock, so
- *     the caller should hold the appropriate locks before calling this function.
+ *     This function searches for the page on all the eviction queues (skipping the urgent queue if
+ *     requested) and clears it if found. It does not take the eviction queue lock, so the caller
+ *     should hold the appropriate locks before calling this function.
  */
 static void
 __evict_list_clear_page_locked(WT_SESSION_IMPL *session, WT_REF *ref, bool exclude_urgent)
