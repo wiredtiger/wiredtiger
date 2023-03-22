@@ -260,7 +260,7 @@ configure_tiered_storage(const char *home, char **p, size_t max, char *ext_cfg, 
     TEST_OPTS opts;
     char tiered_cfg[1024];
 
-    if (!g.tiered_storage) {
+    if (!g.tiered_storage_config) {
         testutil_assert(ext_cfg_size > 0);
         ext_cfg[0] = '\0';
         return;
@@ -740,7 +740,7 @@ wts_stats(void)
      * Data source statistics.
      *     FIXME-WT-9785: Statistics cursors on tiered storage objects are not yet supported.
      */
-    if (!g.tiered_storage) {
+    if (!g.tiered_storage_config) {
         args.fp = fp;
         args.session = session;
         tables_apply(stats_data_source, &args);

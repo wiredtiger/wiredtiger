@@ -80,7 +80,7 @@ checkpoint(void *arg)
 
     named_checkpoints = !g.lsm_config;
     /* FIXME-WT-10771 Named checkpoints are not yet allowed with tiered storage. */
-    if (g.tiered_storage)
+    if (g.tiered_storage_config)
         named_checkpoints = false;
 
     for (secs = mmrand(&g.extra_rnd, 1, 10); !g.workers_finished;) {

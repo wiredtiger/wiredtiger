@@ -1403,8 +1403,8 @@ config_tiered_storage(void)
      * If we ever allow tiered storage to be run only locally but with switching objects, then none
      * becomes a valid option with tiered storage enabled.
      */
-    g.tiered_storage = (strcmp(storage_source, "off") != 0 && strcmp(storage_source, "none") != 0);
-    if (g.tiered_storage) {
+    g.tiered_storage_config = (strcmp(storage_source, "off") != 0 && strcmp(storage_source, "none") != 0);
+    if (g.tiered_storage_config) {
         /* Tiered storage requires timestamps. */
         config_off(NULL, "transaction.implicit");
         config_single(NULL, "transaction.timestamps=on", true);

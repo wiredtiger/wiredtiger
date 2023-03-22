@@ -351,8 +351,3 @@ struct __wt_session_impl {
         e;                                      \
         (s)->format_private = __saved_callback; \
     } while (0)
-
-#define WT_WITH_BTREE(s, b, e) WT_WITH_DHANDLE(s, (b)->dhandle, e)
-
-/* Call a function without the caller's data handle, restore afterwards. */
-#define WT_WITHOUT_DHANDLE(s, e) WT_WITH_DHANDLE(s, NULL, e)
