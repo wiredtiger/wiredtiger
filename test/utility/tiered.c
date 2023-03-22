@@ -110,9 +110,9 @@ void
 testutil_tiered_storage_configuration(
   TEST_OPTS *opts, char *tiered_cfg, size_t tiered_cfg_size, char *ext_cfg, size_t ext_cfg_size)
 {
-    const char *s3_access_key, *s3_secret_key, *s3_bucket_name;
     char auth_token[256];
     char cwd[256], dir[256];
+    const char *s3_access_key, *s3_secret_key, *s3_bucket_name;
 
     s3_bucket_name = NULL;
     auth_token[0] = '\0';
