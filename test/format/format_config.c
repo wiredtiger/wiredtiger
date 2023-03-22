@@ -1400,10 +1400,11 @@ config_tiered_storage(void)
     storage_source = GVS(TIERED_STORAGE_STORAGE_SOURCE);
 
     /*
-     * If we ever allow tiered storage to be run only locally but with switching objects, then none
-     * becomes a valid option with tiered storage enabled.
+     * FIXME-WT-9934 If we ever allow tiered storage to be run only locally but with switching
+     * objects, then none becomes a valid option with tiered storage enabled.
      */
-    g.tiered_storage_config = (strcmp(storage_source, "off") != 0 && strcmp(storage_source, "none") != 0);
+    g.tiered_storage_config =
+      (strcmp(storage_source, "off") != 0 && strcmp(storage_source, "none") != 0);
     if (g.tiered_storage_config) {
         /* Tiered storage requires timestamps. */
         config_off(NULL, "transaction.implicit");
