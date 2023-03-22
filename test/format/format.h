@@ -299,8 +299,8 @@ typedef struct {
     bool column_store_config;           /* At least one column-store table configured */
     bool lsm_config;                    /* At least one LSM data source configured */
     bool multi_table_config;            /* If configuring multiple tables */
+    bool tiered_storage_config;         /* If tiered storage is configured */
     bool transaction_timestamps_config; /* If transaction timestamps configured on any table */
-    bool tiered_storage;                /* If tiered storage is configured */
 
 #define CHECKPOINT_OFF 1
 #define CHECKPOINT_ON 2

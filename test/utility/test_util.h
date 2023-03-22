@@ -111,15 +111,15 @@ typedef struct {
 
 #define TESTUTIL_SEED_FORMAT "-PSD%" PRIu64 ",E%" PRIu64
 
+    bool absolute_bucket_dir;  /* Use an absolute bucket path when it is a directory */
     bool compat;               /* Compatibility */
     bool do_data_ops;          /* Have schema ops use data */
     bool inmem;                /* In-memory */
+    bool make_bucket_dir;      /* Create bucket when it is a directory */
     bool preserve;             /* Don't remove files on exit */
+    bool tiered_begun;         /* Tiered storage ready */
     bool tiered_storage;       /* Configure tiered storage */
     bool verbose;              /* Run in verbose mode */
-    bool tiered_begun;         /* Tiered storage ready */
-    bool absolute_bucket_dir;  /* Use an absolute bucket path when it is a directory */
-    bool make_bucket_dir;      /* Create bucket when it is a directory */
     uint64_t nrecords;         /* Number of records */
     uint64_t nops;             /* Number of operations */
     uint64_t nthreads;         /* Number of threads */

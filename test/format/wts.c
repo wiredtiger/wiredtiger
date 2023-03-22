@@ -305,8 +305,7 @@ create_database(const char *home, WT_CONNECTION **connp)
 {
     WT_CONNECTION *conn;
     size_t max;
-    char config[8 * 1024], *p;
-    char tiered_ext_cfg[1024];
+    char config[8 * 1024], *p, tiered_ext_cfg[1024];
     const char *s, *sources;
 
     p = config;

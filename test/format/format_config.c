@@ -1399,6 +1399,10 @@ config_tiered_storage(void)
 
     storage_source = GVS(TIERED_STORAGE_STORAGE_SOURCE);
 
+    /*
+     * If we ever allow tiered storage to be run only locally but with switching objects, then none
+     * becomes a valid option with tiered storage enabled.
+     */
     g.tiered_storage = (strcmp(storage_source, "off") != 0 && strcmp(storage_source, "none") != 0);
     if (g.tiered_storage) {
         /* Tiered storage requires timestamps. */
@@ -1419,7 +1423,6 @@ config_tiered_storage(void)
 
         /* FIXME-PM-2538: Compact is not yet supported for tiered tables. */
         config_off(NULL, "ops.compaction");
-
     } else
         /* Never try flush to tiered storage unless running with tiered storage. */
         config_single(NULL, "tiered_storage.flush_frequency=0", true);
