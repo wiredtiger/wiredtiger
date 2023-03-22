@@ -168,11 +168,11 @@ __evict_list_clear_page_locked(WT_SESSION_IMPL *session, WT_REF *ref, bool exclu
     uint32_t elem, i, q, total_queues;
     bool found;
 
-    cache = S2C(session)->cache;
-    found = false;
-
     /* If exclude_urgent is set, the urgent queue is excluded from the search. */
     total_queues = WT_EVICT_QUEUE_MAX - (exclude_urgent ? 1 : 0);
+
+    cache = S2C(session)->cache;
+    found = false;
 
     for (q = 0; q < total_queues && !found; q++) {
         if (exclude_urgent)
