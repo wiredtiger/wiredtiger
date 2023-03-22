@@ -2538,10 +2538,7 @@ __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
 
     __wt_spin_lock(session, &cache->evict_queue_lock);
 
-    /*
-     * Check again if page eviction is disabled or the page is already in the urgent queue, as
-     * another thread may have modified these conditions since the initial check.
-     */
+    /* Check again, in case we raced with another thread. */
     if (S2BT(session)->evict_disabled > 0 || F_ISSET_ATOMIC_16(page, WT_PAGE_IN_URGENT_QUEUE))
         goto done;
 
