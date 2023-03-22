@@ -188,7 +188,6 @@ __evict_list_clear_page_locked(WT_SESSION_IMPL *session, WT_REF *ref, bool exclu
             }
         __wt_spin_unlock(session, &cache->evict_queues[q].evict_lock);
     }
-
     WT_ASSERT(session, !F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU));
 }
 
@@ -207,7 +206,6 @@ __wt_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref)
     /* Fast path: if the page isn't on the queue, don't bother searching. */
     if (!F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU))
         return;
-
     cache = S2C(session)->cache;
 
     __wt_spin_lock(session, &cache->evict_queue_lock);
