@@ -596,9 +596,9 @@ if __name__ == '__main__':
     # All global variables should be set before any test classes are loaded.
     # That way, verbose printing can be done at the class definition level.
     wttest.WiredTigerTestCase.globalSetup(preserve, removeAtStart, timestamp, gdbSub, lldbSub,
-                                          verbose, wt_builddir, dirarg, longtest, extralongtest, zstdtest,
-                                          ignoreStdout, seedw, seedz, hookmgr, ss_random_prefix,
-                                          timeout)
+                                          verbose, wt_builddir, dirarg, longtest, extralongtest, 
+                                          zstdtest, ignoreStdout, seedw, seedz, hookmgr, 
+                                          ss_random_prefix, timeout)
 
     # Without any tests listed as arguments, do discovery
     if len(testargs) == 0:

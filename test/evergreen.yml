@@ -2193,7 +2193,7 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test"
         vars:
-          unit_test_args: -v 2 --long
+          unit_test_args: -v 2 --extra-long
 
   - name: unit-test-long-nonstandalone
     tags: ["python", "python-nonstandalone"]
@@ -2205,7 +2205,7 @@ tasks:
           dependent_task: compile-nonstandalone
       - func: "unit test"
         vars:
-          unit_test_args: -v 2 --long --hook nonstandalone
+          unit_test_args: -v 2 --extra-long --hook nonstandalone
 
   - name: unit-linux-no-ftruncate-test
     tags: ["python"]

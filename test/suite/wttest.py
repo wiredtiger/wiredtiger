@@ -308,8 +308,8 @@ class WiredTigerTestCase(unittest.TestCase):
     @staticmethod
     def globalSetup(preserveFiles = False, removeAtStart = True, useTimestamp = False,
                     gdbSub = False, lldbSub = False, verbose = 1, builddir = None, dirarg = None,
-                    longtest = False, zstdtest = False, ignoreStdout = False, seedw = 0, seedz = 0, 
-                    hookmgr = None, ss_random_prefix = 0, timeout = 0):
+                    longtest = False, extralongtest = False ,zstdtest = False, ignoreStdout = False,
+                    seedw = 0, seedz = 0, hookmgr = None, ss_random_prefix = 0, timeout = 0):
         WiredTigerTestCase._preserveFiles = preserveFiles
         d = 'WT_TEST' if dirarg == None else dirarg
         if useTimestamp:
