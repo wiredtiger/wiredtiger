@@ -557,6 +557,31 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
               ckpt_snapshot, &snapshot_time, &stable_time, &oldest_time));
 
             /*
+             * If we have not raced with a checkpoint, we still may have an inconsistency in a
+             * specific scenario that involves bulk operations. When a bulk operation finishes, it
+             * generates a single file checkpoint which is different from a system wide checkpoint.
+             * The single file checkpoint only bumps the data store time which makes it ahead of the
+             * last system wide checkpoint time and leads to the inconsistency.
+             */
+            if (first_snapshot_time == snapshot_time && ds_time > snapshot_time &&
+              hs_time <= snapshot_time) {
+                /*
+                 * If a system wide checkpoint is running, the inconsistency should be resolved, it
+                 * is worth retrying.
+                 */
+                if (S2C(session)->txn_global.checkpoint_running)
+                    ret = __wt_set_return(session, EBUSY);
+                else {
+                    __wt_verbose_warning(session, WT_VERB_DEFAULT,
+                      "Session (@: 0x%p name: %s) could not open the checkpoint '%s' (config: %s) "
+                      "on the file '%s'.",
+                      (void *)session, session->name == NULL ? "EMPTY" : session->name, checkpoint,
+                      cval.str, uri);
+                    ret = __wt_set_return(session, WT_NOTFOUND);
+                    goto err;
+                }
+            }
+            /*
              * Check if we raced with a running checkpoint.
              *
              * If the two copies of the snapshot don't match, or if any of the other metadata items'
@@ -573,29 +598,10 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
              * snapshot its time will be 0 and the check will fail gratuitously and lead to retrying
              * forever.
              */
-
-            if (first_snapshot_time != snapshot_time || ds_time > snapshot_time ||
-              hs_time > snapshot_time || stable_time > snapshot_time ||
-              oldest_time > snapshot_time) {
-                /*
-                 * When a system wide checkpoint is not running, we can hang here. This situation
-                 * can occur when a checkpoint on a single file has been performed by a bulk
-                 * operation and no system wide checkpoint has been done since then. It is also
-                 * possible to end up here when opening the history store using a checkpoint cursor
-                 * internally, we want to wait for the inconsistency to get resolved in this case.
-                 */
-                if (session->hs_checkpoint == NULL &&
-                  !S2C(session)->txn_global.checkpoint_running) {
-                    __wt_verbose_warning(session, WT_VERB_DEFAULT,
-                      "Session (@: 0x%p name: %s) could not open the checkpoint '%s' (config: %s) "
-                      "on the file '%s'.",
-                      (void *)session, session->name == NULL ? "EMPTY" : session->name, checkpoint,
-                      cval.str, uri);
-                    ret = __wt_set_return(session, WT_NOTFOUND);
-                    goto err;
-                } else
-                    ret = __wt_set_return(session, EBUSY);
-            } else {
+            else if (first_snapshot_time != snapshot_time || ds_time > snapshot_time ||
+              hs_time > snapshot_time || stable_time > snapshot_time || oldest_time > snapshot_time)
+                ret = __wt_set_return(session, EBUSY);
+            else {
                 /* Crosscheck that we didn't somehow get an older timestamp. */
                 WT_ASSERT(session, stable_time == snapshot_time || stable_time == 0);
                 WT_ASSERT(session, oldest_time == snapshot_time || oldest_time == 0);
