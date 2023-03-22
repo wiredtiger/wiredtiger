@@ -121,8 +121,8 @@ Options:\n\
   -h      | --help               show this message\n\
           | --hook name[=arg]    set up hooks from hook_<name>.py, with optional arg\n\
   -j N    | --parallel N         run all tests in parallel using N processes\n\
-  -l      | --long               run the entire test suite\n\
-  -xl     | --extra-long               run the entire test suite\n\
+  -l      | --long               run nearly the entire test suite (excludes test_sweep05)\n\
+  -xl     | --extra-long         run the entire test suite\n\
           | --noremove           do not remove WT_TEST or -D target before run\n\
   -p      | --preserve           preserve output files in WT_TEST/<testname>\n\
   -r N    | --random-sample N    randomly sort scenarios to be run, then\n\
