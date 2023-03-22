@@ -93,21 +93,36 @@ err:
  *     when we are known to have exclusive access to the btree.
  */
 int
-__wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t btree_id)
+__wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t this_btree_id)
 {
     WT_CURSOR *ds_cursor, *hs_cursor;
     WT_DECL_RET;
+    WT_ITEM key;
+    wt_timestamp_t hs_start_ts;
+    uint64_t hs_counter;
+    uint32_t btree_id;
     char *uri_data;
 
     ds_cursor = hs_cursor = NULL;
+    WT_CLEAR(key);
+    hs_start_ts = 0;
+    hs_counter = 0;
+    btree_id = 0;
     uri_data = NULL;
 
     WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     /* Position the hs cursor on the requested btree id. */
-    hs_cursor->set_key(hs_cursor, 1, btree_id);
+    hs_cursor->set_key(hs_cursor, 1, this_btree_id);
     WT_ERR(__wt_curhs_search_near_after(session, hs_cursor));
+
+    /* Make sure the requested btree id exists in the history store. */
+    WT_ERR(hs_cursor->get_key(hs_cursor, &btree_id, &key, &hs_start_ts, &hs_counter));
+    if(this_btree_id != btree_id) {
+        ret = WT_NOTFOUND;
+        goto err;
+    }
 
     /* If we positioned the cursor there is something to verify. */
     if ((ret = __wt_metadata_btree_id_to_uri(session, btree_id, &uri_data)) != 0) {
