@@ -122,6 +122,7 @@ Options:\n\
           | --hook name[=arg]    set up hooks from hook_<name>.py, with optional arg\n\
   -j N    | --parallel N         run all tests in parallel using N processes\n\
   -l      | --long               run the entire test suite\n\
+  -xl     | --extra-long               run the entire test suite\n\
           | --noremove           do not remove WT_TEST or -D target before run\n\
   -p      | --preserve           preserve output files in WT_TEST/<testname>\n\
   -r N    | --random-sample N    randomly sort scenarios to be run, then\n\
@@ -347,7 +348,7 @@ def error(exitval, prefix, msg):
 
 if __name__ == '__main__':
     # Turn numbers and ranges into test module names
-    preserve = timestamp = debug = dryRun = gdbSub = lldbSub = longtest = zstdtest = ignoreStdout = False
+    preserve = timestamp = debug = dryRun = gdbSub = lldbSub = longtest = zstdtest = ignoreStdout = extralongtest = False
     removeAtStart = True
     asan = False
     parallel = 0
@@ -424,6 +425,10 @@ if __name__ == '__main__':
                 continue
             if option == '-long' or option == 'l':
                 longtest = True
+                continue
+            if option == '-extra-long' or option == 'xl':
+                longtest = True
+                extralongtest = True
                 continue
             if option == '-zstd' or option == 'z':
                 zstdtest = True
@@ -591,7 +596,7 @@ if __name__ == '__main__':
     # All global variables should be set before any test classes are loaded.
     # That way, verbose printing can be done at the class definition level.
     wttest.WiredTigerTestCase.globalSetup(preserve, removeAtStart, timestamp, gdbSub, lldbSub,
-                                          verbose, wt_builddir, dirarg, longtest, zstdtest,
+                                          verbose, wt_builddir, dirarg, longtest, extralongtest, zstdtest,
                                           ignoreStdout, seedw, seedz, hookmgr, ss_random_prefix,
                                           timeout)
 
