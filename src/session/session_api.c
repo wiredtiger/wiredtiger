@@ -1489,16 +1489,10 @@ __wt_session_range_truncate(
     /* Setup the truncate information structure */
     trunc_info = &_trunc_info;
     memset(trunc_info, 0, sizeof(*trunc_info));
-    trunc_info->session = session;
-    trunc_info->uri = uri;
-    trunc_info->start = start;
-    trunc_info->stop = stop;
     if (uri != NULL && start != NULL)
         F_SET(trunc_info, WT_TRUNC_EXPLICIT_START);
     if (uri != NULL && stop != NULL)
         F_SET(trunc_info, WT_TRUNC_EXPLICIT_STOP);
-    trunc_info->orig_start_key = orig_start_key;
-    trunc_info->orig_stop_key = orig_stop_key;
 
     if (uri != NULL) {
         WT_ASSERT(session, WT_BTREE_PREFIX(uri));
@@ -1606,6 +1600,17 @@ __wt_session_range_truncate(
         if (cmp > 0)
             goto done;
     }
+
+    /*
+     * Now that the truncate is setup and ready regardless of how the API was called, populate
+     * our truncate information cookie.
+     */
+    trunc_info->session = session;
+    trunc_info->uri = uri != NULL ? uri : start->internal_uri;
+    trunc_info->start = start;
+    trunc_info->stop = stop;
+    trunc_info->orig_start_key = orig_start_key;
+    trunc_info->orig_stop_key = orig_stop_key;
 
     WT_ERR(__wt_schema_range_truncate(trunc_info));
 
