@@ -188,7 +188,7 @@ __evict_list_clear_page_locked(WT_SESSION_IMPL *session, WT_REF *ref, bool exclu
 
 /*
  * __wt_evict_list_clear_page --
- *     Make sure a page is not in the LRU eviction list. This called from the page eviction code to
+ *     Make sure a page is not in the LRU eviction list. This is called from the page eviction code to
  *     make sure there is no attempt to evict a child page multiple times.
  */
 void
@@ -198,7 +198,7 @@ __wt_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref)
 
     WT_ASSERT(session, __wt_ref_is_root(ref) || ref->state == WT_REF_LOCKED);
 
-    /* Fast path: if the page isn't on the queue, don't bother searching. */
+    /* Fast path: if the page isn't in the queue, don't bother searching. */
     if (!F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU))
         return;
     cache = S2C(session)->cache;
