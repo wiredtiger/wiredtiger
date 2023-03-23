@@ -221,7 +221,7 @@ CONFIG configuration_list[] = {
 
 {"ops.hs_cursor", "configure history store cursor reads", C_BOOL, 50, 0, 0}
 
-{"ops.pareto", "configure crud operations to be pareto distribution", C_BOOL, 20, 0, 0}
+{"ops.pareto", "configure crud operations to be pareto distribution", C_BOOL | C_TABLE, 20, 0, 0}
 
 {"ops.pct.delete", "delete operations (percentage)", C_IGNORE | C_TABLE, 0, 0, 100}
 
