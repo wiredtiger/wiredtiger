@@ -173,11 +173,6 @@ __evict_list_clear_page_locked(WT_SESSION_IMPL *session, WT_REF *ref, bool exclu
     found = false;
 
     for (q = 0; q < last_queue_idx && !found; q++) {
-        if (exclude_urgent)
-            /* Ensure that the page in the urgent queue is not accidentally cleared. */
-            WT_ASSERT_ALWAYS(session, q != WT_EVICT_URGENT_QUEUE,
-              "Ensure the contents of the urgent queue aren't accidentally cleared");
-
         __wt_spin_lock(session, &cache->evict_queues[q].evict_lock);
         elem = cache->evict_queues[q].evict_max;
         for (i = 0, evict = cache->evict_queues[q].evict_queue; i < elem; i++, evict++)
