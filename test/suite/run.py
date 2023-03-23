@@ -656,10 +656,10 @@ if __name__ == '__main__':
                     hugetests.add(name)    # warn for too many scenarios
             return (s, test.simpleName())  # sort by scenario number first
         all_tests = sorted(tests, key = get_sort_keys)
-        if not longtest or extralongtest:
+        if not (longtest and extralongtest):
             for name in hugetests:
                 print("WARNING: huge test " + name + " has > 1000 scenarios.\n" +
-                      "That is only appropriate when using the --long option.\n" +
+                      "That is only appropriate when using the --long or --extra-long option.\n" +
                       "The number of scenarios for the test should be pruned")
 
         # At this point we have an ordered list of all the tests.
