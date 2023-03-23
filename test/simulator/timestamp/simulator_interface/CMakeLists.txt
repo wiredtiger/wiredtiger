@@ -14,8 +14,11 @@ target_include_directories(
 # Link the timestamp simulator library with the executable.
 target_link_libraries(simulator_interface PUBLIC timestamp_simulator)
 
+if(ENABLE_ANTITHESIS)
+    target_link_libraries(simulator_interface PRIVATE wt::voidstar)
+endif()
+
 target_compile_options(
     simulator_interface
-    PUBLIC -std=c++17
     PRIVATE ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
 )
