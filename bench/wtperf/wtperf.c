@@ -2888,7 +2888,6 @@ wtperf_rand(WTPERF_THREAD *thread)
      * Use WiredTiger's random number routine: it's lock-free and fairly good.
      */
     rval = __wt_random(&thread->rnd);
-    testutil_pareto(rval, start_range, end_range, opts->pareto);
     /* Use Pareto distribution to give 80/20 hot/cold values. */
     if (opts->pareto != 0)
         rval = testutil_pareto(rval, start_range, end_range, opts->pareto);
