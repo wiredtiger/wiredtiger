@@ -42,6 +42,11 @@ __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
         /*
          * Skip queuing pages that are already in cache or are internal. They aren't the pages we
          * are looking for.
+         * This pretty much assumes that all children of an internal page remain in cache during
+         * the scan. If a previous read-ahead of this internal page read a page in, then that page
+         * was evicted and now a future page wants to be read ahead, this algorithm needs a tweak.
+         * It would need to remember which child was last queued and start again from there, rather
+         * than this approximation which assumes recently read ahead pages are still in cache.
          */
         if (next_ref->state == WT_REF_DISK && F_ISSET(next_ref, WT_REF_FLAG_LEAF)) {
             WT_RET(__wt_calloc_one(session, &ra));
