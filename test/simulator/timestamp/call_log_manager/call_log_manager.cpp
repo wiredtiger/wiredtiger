@@ -33,10 +33,6 @@
 #include <iostream>
 #include <memory>
 
-#ifndef WT_UNUSED
-#define WT_UNUSED(var) (void)(var)
-#endif
-
 call_log_manager::call_log_manager(const std::string &call_log_file)
 {
     std::ifstream file(call_log_file);
@@ -108,7 +104,6 @@ call_log_manager::call_log_begin_transaction(const json &call_log_entry)
     int ret = session->begin_transaction(config);
 
     int ret_expected = call_log_entry["return"]["return_val"].get<int>();
-    WT_UNUSED(ret_expected);
     /* The ret value should be equal to the expected ret value. */
     assert(ret == ret_expected);
 
@@ -148,7 +143,6 @@ call_log_manager::call_log_commit_transaction(const json &call_log_entry)
     int ret = session->commit_transaction(config);
 
     int ret_expected = call_log_entry["return"]["return_val"].get<int>();
-    WT_UNUSED(ret_expected);
     /* The ret value should be equal to the expected ret value. */
     assert(ret == ret_expected);
 
@@ -194,7 +188,6 @@ call_log_manager::call_log_prepare_transaction(const json &call_log_entry)
     int ret = session->prepare_transaction(config);
 
     int ret_expected = call_log_entry["return"]["return_val"].get<int>();
-    WT_UNUSED(ret_expected);
     /* The ret value should be equal to the expected ret value. */
     assert(ret == ret_expected);
 
@@ -243,7 +236,6 @@ call_log_manager::call_log_query_timestamp(const json &call_log_entry)
           "'query_timestamp' failed as class name '" + class_name + "' does not exist!");
 
     int ret_expected = call_log_entry["return"]["return_val"].get<int>();
-    WT_UNUSED(ret_expected);
     /* The ret value should be equal to the expected ret value. */
     assert(ret == ret_expected);
 
@@ -274,7 +266,6 @@ call_log_manager::call_log_rollback_transaction(const json &call_log_entry)
     int ret = session->rollback_transaction(config);
 
     int ret_expected = call_log_entry["return"]["return_val"].get<int>();
-    WT_UNUSED(ret_expected);
     /* The ret value should be equal to the expected ret value. */
     assert(ret == ret_expected);
 
@@ -298,7 +289,6 @@ call_log_manager::call_log_set_timestamp(const json &call_log_entry)
 
     int ret = _conn->set_timestamp(config);
     int ret_expected = call_log_entry["return"]["return_val"].get<int>();
-    WT_UNUSED(ret_expected);
     /* The ret value should be equal to the expected ret value. */
     assert(ret == ret_expected);
 
@@ -320,7 +310,6 @@ call_log_manager::call_log_timestamp_transaction(const json &call_log_entry)
     int ret = session->timestamp_transaction(config);
 
     int ret_expected = call_log_entry["return"]["return_val"].get<int>();
-    WT_UNUSED(ret_expected);
     /* The ret value should be equal to the expected ret value. */
     assert(ret == ret_expected);
 
@@ -346,7 +335,6 @@ call_log_manager::call_log_timestamp_transaction_uint(const json &call_log_entry
 
     int ret = session->timestamp_transaction_uint(wt_ts_txn_type, ts);
     int ret_expected = call_log_entry["return"]["return_val"].get<int>();
-    WT_UNUSED(ret_expected);
     /* The ret value should be equal to the expected ret value. */
     assert(ret == ret_expected);
 
