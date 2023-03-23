@@ -43,14 +43,16 @@ __wt_session_read_ahead_check(WT_SESSION_IMPL *session, WT_REF *ref)
     }
 
     /*
-     * If the previous read ahead was using the same home ref, it's already been pre-loaded. Note
-     * that this heuristic probably needs to get more sophisticated - ideally it would preload a
-     * number of pages, not necessarily all children of the current internal page.
+     * If the previous read ahead was using the same home ref, skip read ahead for approximately
+     * the number of pages that were added to the queue.
      */
-    if (session->read_ahead_prev_ref->page == ref->home) {
+    if (session->read_ahead_prev_ref->page == ref->home &&
+      session->read_ahead_skipped_with_parent < WT_READ_AHEAD_QUEUE_PER_TRIGGER) {
+        ++session->read_ahead_skipped_with_parent;
         WT_STAT_CONN_INCR(session, block_read_ahead_skipped);
         return (false);
     }
+    session->read_ahead_skipped_with_parent = 0;
 
     WT_STAT_CONN_INCR(session, block_read_ahead_attempts);
     return (true);

@@ -35,7 +35,8 @@ __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
     /* Load and decompress a set of pages into the block cache. */
     WT_INTL_FOREACH_BEGIN (session, ref->home, next_ref) {
         /* Don't let the read ahead queue get overwhelmed. */
-        if (conn->read_ahead_queue_count > WT_MAX_READ_AHEAD_QUEUE)
+        if (conn->read_ahead_queue_count > WT_MAX_READ_AHEAD_QUEUE ||
+          block_preload > WT_READ_AHEAD_QUEUE_PER_TRIGGER)
             break;
 
         /*
