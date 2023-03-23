@@ -83,11 +83,8 @@ __rts_btree_walk_page_skip(
     }
 
     /* Otherwise, if the page state is other than on disk, we want to look at it. */
-    if (ref->state != WT_REF_DISK) {
-        // We don't need a verbose message here. If we avoid skipping this page and return, we will
-        // end up aborting updates on thies page that will have its own verbose message.
+    if (ref->state != WT_REF_DISK)
         return (0);
-    }
 
     /*
      * Check whether this on-disk page has any updates to be aborted. We are not holding a hazard
