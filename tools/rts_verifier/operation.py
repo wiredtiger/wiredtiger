@@ -37,6 +37,7 @@ class OpType(Enum):
     SKIP_DAMAGE = 28
     HS_TRUNCATED = 29
     SHUTDOWN_RTS = 30
+    END = 31
 
 class Operation:
     def __init__(self, line):
@@ -180,7 +181,7 @@ class Operation:
         matches = re.search('prepared_updates=(\w+)', line)
         self.has_prepared = matches.group(1).lower() == "true"
 
-        matches = re.search('needs_abort=(\w+)', line)
+        matches = re.search('has_updates_need_abort=(\w+)', line)
         self.needs_abort = matches.group(1).lower() == "true"
 
     def __init_key_clear_remove(self, line):
@@ -471,3 +472,7 @@ class Operation:
 
         matches = re.search('btree=(\d+)', line)
         self.btree_id = int(matches.group(1))
+
+
+    def __init_end(self, line):
+        self.type = OpType.END

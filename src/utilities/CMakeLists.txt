@@ -38,6 +38,10 @@ if(ENABLE_TCMALLOC)
     target_link_libraries(wt wt::wiredtiger wt::tcmalloc)
 endif()
 
+if(ENABLE_ANTITHESIS)
+    target_link_libraries(wt wt::voidstar)
+endif()
+
 # Our test suite expects `wt` to sit at the top level build directory.
 # Set the output binary location to the top level directory for backwards
 # compatibility.
