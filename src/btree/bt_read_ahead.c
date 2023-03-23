@@ -17,22 +17,13 @@
 int
 __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     WT_READ_AHEAD *ra;
     WT_REF *next_ref;
     uint64_t block_preload;
 
-    btree = S2BT(session);
     conn = S2C(session);
     block_preload = 0;
-
-    /*
-     * TODO: Support read-ahead for column stores. Hopefully this is free, but I don't want to think
-     * about it just yet.
-     */
-    if (btree->type != BTREE_ROW)
-        return (0);
 
     WT_ASSERT_ALWAYS(session, F_ISSET(ref, WT_REF_FLAG_LEAF),
       "Read ahead starts with a leaf page and reviews the parent");
@@ -42,27 +33,28 @@ __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
 
     session->read_ahead_prev_ref = ref;
     /* Load and decompress a set of pages into the block cache. */
-    WT_INTL_FOREACH_BEGIN (session, ref->home, next_ref)
+    WT_INTL_FOREACH_BEGIN (session, ref->home, next_ref) {
         /* Don't let the read ahead queue get overwhelmed. */
         if (conn->read_ahead_queue_count > WT_MAX_READ_AHEAD_QUEUE)
             break;
 
-    /*
-     * Skip queuing pages that are already in cache or are internal. They aren't the pages we are
-     * looking for.
-     */
-    if (next_ref->state == WT_REF_DISK && F_ISSET(next_ref, WT_REF_FLAG_LEAF)) {
-        WT_RET(__wt_calloc_one(session, &ra));
-        WT_ASSERT(session, next_ref->home == ref->home);
-        ++next_ref->home->refcount;
-        ra->ref = next_ref;
-        ra->first_home = next_ref->home;
-        ra->dhandle = session->dhandle;
-        __wt_spin_lock(session, &conn->read_ahead_lock);
-        TAILQ_INSERT_TAIL(&conn->raqh, ra, q);
-        ++conn->read_ahead_queue_count;
-        __wt_spin_unlock(session, &conn->read_ahead_lock);
-        ++block_preload;
+        /*
+         * Skip queuing pages that are already in cache or are internal. They aren't the pages we
+         * are looking for.
+         */
+        if (next_ref->state == WT_REF_DISK && F_ISSET(next_ref, WT_REF_FLAG_LEAF)) {
+            WT_RET(__wt_calloc_one(session, &ra));
+            WT_ASSERT(session, next_ref->home == ref->home);
+            ++next_ref->home->pg_intl_read_ahead_count;
+            ra->ref = next_ref;
+            ra->first_home = next_ref->home;
+            ra->dhandle = session->dhandle;
+            __wt_spin_lock(session, &conn->read_ahead_lock);
+            TAILQ_INSERT_TAIL(&conn->raqh, ra, q);
+            ++conn->read_ahead_queue_count;
+            __wt_spin_unlock(session, &conn->read_ahead_lock);
+            ++block_preload;
+        }
     }
     WT_INTL_FOREACH_END;
 

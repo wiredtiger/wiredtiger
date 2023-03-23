@@ -161,7 +161,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
         __wt_evict_list_clear_page(session, ref);
     }
 
-    if (F_ISSET_ATOMIC_16(page, WT_PAGE_READAHEAD))
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_READ_AHEAD))
         WT_STAT_CONN_INCR(session, cache_eviction_consider_read_ahead);
 
     /*
@@ -502,7 +502,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
     WT_REF *child;
     bool visible;
 
-    if (parent->page->refcount != 0)
+    if (parent->page->pg_intl_read_ahead_count != 0)
         return (__wt_set_return(session, EBUSY));
 
     /*

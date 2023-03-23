@@ -216,6 +216,7 @@ conn_stats = [
     BlockCacheStat('block_read_ahead_pages_queued', 'read ahead pages queued'),
     BlockCacheStat('block_read_ahead_pages_read', 'read ahead page read in background'),
     BlockCacheStat('block_read_ahead_skipped', 'read ahead not triggered by page read'),
+    BlockCacheStat('block_read_ahead_pages_fail', 'read ahead page not on disk when reading'),
 
     ##########################################
     # Block manager statistics

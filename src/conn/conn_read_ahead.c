@@ -53,8 +53,12 @@ __read_ahead_page_in(WT_SESSION_IMPL *session, WT_READ_AHEAD *ra)
     WT_ASSERT_ALWAYS(
       session, !F_ISSET(ra->ref, WT_REF_FLAG_INTERNAL), "Read ahead should only see leaf pages");
 
-    if (ra->ref->state == WT_REF_DISK)
-        WT_STAT_CONN_INCR(session, block_read_ahead_pages_read);
+    if (ra->ref->state != WT_REF_DISK) {
+        WT_STAT_CONN_INCR(session, block_read_ahead_pages_fail);
+        return (0);
+    }
+
+    WT_STAT_CONN_INCR(session, block_read_ahead_pages_read);
 
     if (__wt_ref_addr_copy(session, ra->ref, &addr)) {
         WT_RET(__wt_page_in(session, ra->ref, WT_READ_PREFETCH));
@@ -98,7 +102,12 @@ __wt_read_ahead_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         WT_WITH_DHANDLE(session, ra->dhandle, ret = __read_ahead_page_in(session, ra));
         WT_ERR(ret);
 
-        --ra->ref->home->refcount;
+        /*
+         * TODO: this reference count blocks page splits - we should not need to hold it across
+         * reading a child in, just until the ref state for that child is changed. Make that more
+         * optimal at some stage.
+         */
+        --ra->ref->home->pg_intl_read_ahead_count;
         __wt_free(session, ra);
     }
 

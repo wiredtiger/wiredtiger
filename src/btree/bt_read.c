@@ -195,7 +195,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     if (LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
         FLD_SET(page_flags, WT_PAGE_EVICT_NO_PROGRESS);
     if (LF_ISSET(WT_READ_PREFETCH))
-        FLD_SET(page_flags, WT_PAGE_READAHEAD);
+        FLD_SET(page_flags, WT_PAGE_READ_AHEAD);
     WT_ERR(__wt_page_inmem(session, ref, tmp.data, page_flags, &notused, &prepare));
     tmp.mem = NULL;
     if (prepare)
@@ -314,11 +314,6 @@ read:
             /* We just read a page, don't evict it before we have a chance to use it. */
             evict_skip = true;
             F_CLR(session->dhandle, WT_DHANDLE_EVICTED);
-
-#if 0
-            fprintf(stderr, "Read page (ref %p[%" PRIu32 "]), parent (%p) into cache. %s\n", ref,
-                    ref->pindex_hint, ref->home, LF_ISSET(WT_READ_PREFETCH) ? "read_ahead" : "app");
-#endif
 
             /*
              * If configured to not trash the cache, leave the page generation unset, we'll set it
@@ -439,7 +434,7 @@ skip_evict:
                  * If the page was read by this retrieval or was pulled into the cache via the read
                  * ahead mechanism, count that as a page read directly from disk.
                  */
-                if (F_ISSET_ATOMIC_16(page, WT_PAGE_READAHEAD) ||
+                if (F_ISSET_ATOMIC_16(page, WT_PAGE_READ_AHEAD) ||
                   page->read_gen == WT_READGEN_NOTSET)
                     ++session->read_ahead_disk_read_count;
                 else

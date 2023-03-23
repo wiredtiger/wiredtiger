@@ -601,8 +601,9 @@ struct __wt_page {
          * doesn't read it multiple times).
          */
         struct {
-            WT_REF *parent_ref; /* Parent reference */
-            uint64_t split_gen; /* Generation of last split */
+            WT_REF *parent_ref;        /* Parent reference */
+            uint64_t split_gen;        /* Generation of last split */
+            uint32_t read_ahead_count; /* Count of child pages that are queued for read ahead*/
 
             WT_PAGE_INDEX *volatile __index; /* Collated children */
         } intl;
@@ -610,6 +611,8 @@ struct __wt_page {
 #define pg_intl_parent_ref u.intl.parent_ref
 #undef pg_intl_split_gen
 #define pg_intl_split_gen u.intl.split_gen
+#undef pg_intl_read_ahead_count
+#define pg_intl_read_ahead_count u.intl.read_ahead_count
 
 /*
  * Macros to copy/set the index because the name is obscured to ensure the field isn't read multiple
@@ -721,11 +724,11 @@ struct __wt_page {
 #define WT_PAGE_EVICT_LRU 0x010u          /* Page is on the LRU queue */
 #define WT_PAGE_EVICT_NO_PROGRESS 0x020u  /* Eviction doesn't count as progress */
 #define WT_PAGE_INTL_OVERFLOW_KEYS 0x040u /* Internal page has overflow keys (historic only) */
-#define WT_PAGE_READAHEAD 0x080u
-#define WT_PAGE_SPLIT_INSERT 0x100u  /* A leaf page was split for append */
-#define WT_PAGE_UPDATE_IGNORE 0x200u /* Ignore updates on page discard */
-                                     /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
-    uint16_t flags_atomic;           /* Atomic flags, use F_*_ATOMIC_16 */
+#define WT_PAGE_READ_AHEAD 0x080u         /* The page is being pre fetched */
+#define WT_PAGE_SPLIT_INSERT 0x100u       /* A leaf page was split for append */
+#define WT_PAGE_UPDATE_IGNORE 0x200u      /* Ignore updates on page discard */
+                                          /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
+    uint16_t flags_atomic;                /* Atomic flags, use F_*_ATOMIC_16 */
 
     uint8_t unused; /* Unused padding */
 
@@ -773,8 +776,6 @@ struct __wt_page {
 
     uint64_t cache_create_gen; /* Page create timestamp */
     uint64_t evict_pass_gen;   /* Eviction pass generation */
-
-    uint32_t refcount;
 };
 
 /*
