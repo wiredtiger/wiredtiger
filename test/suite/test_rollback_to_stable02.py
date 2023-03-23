@@ -127,6 +127,10 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
         if not self.in_memory:
             self.session.checkpoint()
 
+        # FIXME WT-10017: We need this eviction cursor to work around column-store not having the
+        # same "roll back the history store anyway" workaround that row-store has.
+        self.evict_cursor(uri, nrows, valued)
+
         self.conn.rollback_to_stable('dryrun={}'.format('true' if self.dryrun else 'false'))
         # Check that the new updates are only seen after the update timestamp.
         self.session.breakpoint()
@@ -156,18 +160,9 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
         self.assertGreater(pages_visited, 0)
 
         if self.dryrun:
-            # print(f"dryrun: {nrows=}, {upd_aborted_dryrun=}")
             self.assertEqual(upd_aborted, 0)
-            if upd_aborted_dryrun < nrows * 2:
-                stat_cursor = self.session.open_cursor('statistics:', None, None)
-                print(f"{upd_aborted_dryrun=}, {nrows=}")
-                upd_aborted_dryrun_tmp = stat_cursor[stat.conn.txn_rts_upd_aborted_dryrun][2]
-                rts_hs_removed = stat_cursor[stat.conn.txn_rts_hs_removed_dryrun][2]
-                print(f"{upd_aborted_dryrun_tmp=}, {rts_hs_removed=}")
-                stat_cursor.close()
             self.assertGreaterEqual(upd_aborted_dryrun, nrows * 2)
         else:
-            # print(f"non-dryrun: {nrows=}, {upd_aborted=}")
             self.assertGreaterEqual(upd_aborted, nrows * 2)
             self.assertEqual(upd_aborted_dryrun, 0)
 
