@@ -69,6 +69,7 @@ static char home[1024]; /* Program working dir */
  */
 
 #define BACKUP_BASE "backup."
+#define CHECK_BASE "check."
 #define INVALID_KEY UINT64_MAX
 #define MAX_BACKUP_INVL 5 /* Maximum interval between backups */
 #define MAX_CKPT_INVL 5   /* Maximum interval between checkpoints */
@@ -1280,9 +1281,8 @@ backup_verify(WT_CONNECTION *conn, uint32_t workload_iteration)
     }
     testutil_check(closedir(d));
 
-    /* Delete the "check" directory that we might have created for backup verification. */
-    if (stat("check", &sb) != 0)
-        testutil_system("%s check", RM_COMMAND);
+    /* Delete any check directories that we might have created for backup verification. */
+    testutil_system("%s " CHECK_BASE "*", RM_COMMAND);
 }
 
 /*
@@ -1332,15 +1332,16 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
         if (use_backups)
             backup_verify(conn, workload_iteration);
     } else {
-        testutil_check(__wt_snprintf(buf, sizeof(buf), BACKUP_BASE "%" PRIu32, backup_index));
-        testutil_system("rm -rf check; cp -rf %s check", buf);
+        testutil_check(__wt_snprintf(buf, sizeof(buf), CHECK_BASE "%" PRIu32, backup_index));
+        testutil_system(
+          "rm -rf " CHECK_BASE "* ; cp -rf " BACKUP_BASE "%" PRIu32 " %s", backup_index, buf);
         /*
          * Open the database connection to the backup. But don't pass our event handlers, so that we
          * don't create another statistics thread. Not only we don't need it here, but trying to
          * create it would cause the test to abort as we currently allow only one statistics thread
          * at a time.
          */
-        testutil_wiredtiger_open(opts, "check", NULL, NULL, &conn, true, false);
+        testutil_wiredtiger_open(opts, buf, NULL, NULL, &conn, true, false);
     }
 
     /* Sleep to guarantee the statistics thread has enough time to run. */
