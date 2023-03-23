@@ -95,6 +95,7 @@ main(int argc, char *argv[])
     g.home = dmalloc(512);
     g.nkeys = 10 * WT_THOUSAND;
     g.nops = 100 * WT_THOUSAND;
+    g.ts_pred_stable = 0;
     g.ntables = 3;
     g.nworkers = 1;
     g.evict_reposition_timing_stress = false;
@@ -104,13 +105,14 @@ main(int argc, char *argv[])
     g.hs_checkpoint_timing_stress = false;
     g.checkpoint_slow_timing_stress = false;
     g.no_ts_deletes = false;
+    g.predictable_replay = false;
     runs = 1;
     verify_only = false;
 
     testutil_parse_begin_opt(argc, argv, SHARED_PARSE_OPTIONS, &g.opts);
 
     while ((ch = __wt_getopt(
-              progname, argc, argv, "C:c:Dk:l:mn:pr:Rs:T:t:vW:xX" SHARED_PARSE_OPTIONS)) != EOF)
+              progname, argc, argv, "C:c:Dk:l:mn:N:pr:Rs:T:t:vW:xX" SHARED_PARSE_OPTIONS)) != EOF)
         switch (ch) {
         case 'c':
             g.checkpoint_name = __wt_optarg;
@@ -135,6 +137,9 @@ main(int argc, char *argv[])
             break;
         case 'n': /* operations */
             g.nops = (u_int)atoi(__wt_optarg);
+            break;
+        case 'N': /* run until this stable timestamp */
+            g.ts_pred_stable = (uint64_t)atoi(__wt_optarg);
             break;
         case 'p': /* prepare */
             g.prepare = true;
@@ -214,6 +219,11 @@ main(int argc, char *argv[])
     argc -= __wt_optind;
     if (argc != 0)
         return (usage());
+
+    if (g.ts_pred_stable > 0 && (!g.predictable_replay || (!g.use_timestamps))) {
+        fprintf(stderr, "-N is only valid if specified along with -X and -R.\n");
+        return (EXIT_FAILURE);
+    }
 
     /*
      * Among other things, this initializes the random number generators in the option structure.
@@ -656,7 +666,8 @@ usage(void)
     fprintf(stderr,
       "usage: %s\n"
       "    [-DmpRvXx] [-C wiredtiger-config] [-c checkpoint] [-h home] [-k keys] [-l log]\n"
-      "    [-n ops] [-r runs] [-s 1|2|3|4|5] [-T table-config] [-t f|r|v] [-W workers]\n",
+      "    [-n|N ops|stable-timestamp] [-r runs] [-s 1|2|3|4|5] [-T table-config] [-t f|r|v]\n"
+      "    [-W workers]\n",
       progname);
     fprintf(stderr, "%s",
       "\t-C specify wiredtiger_open configuration arguments\n"
@@ -667,6 +678,7 @@ usage(void)
       "\t-l specify a log file\n"
       "\t-m perform delete operations without timestamps\n"
       "\t-n set number of operations each thread does\n"
+      "\t-N set stable timestamp a predictable replay should run to\n"
       "\t-p use prepare\n"
       "\t-r set number of runs (0 for continuous)\n"
       "\t-R configure predictable replay\n"

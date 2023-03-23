@@ -391,7 +391,11 @@ real_worker(THREAD_DATA *td)
             goto err;
         }
 
-    for (i = 0; i < g.nops && g.opts.running; ++i, __wt_yield()) {
+    for (i = 0; g.opts.running; ++i, __wt_yield()) {
+        /* If it is a predictable re-run until a stable timestamp, ignore number of ops. */
+        if (!g.ts_pred_stable && i >= g.nops)
+            break;
+
         if (i > 0 && i % (5 * WT_THOUSAND) == 0)
             printf("Worker %" PRIu64 " of %u ops\n", i, g.nops);
         if (start_txn) {
@@ -450,7 +454,8 @@ real_worker(THREAD_DATA *td)
                     if (g.predictable_replay ||
                       (__wt_try_readlock((WT_SESSION_IMPL *)session, &g.clock_lock) == 0)) {
                         if (g.predictable_replay)
-                            base_ts = RESERVED_TIMESTAMPS_FOR_ITERATION(g.nworkers, td, i);
+                            /* i + 1 because we don't want a thread to start with commit-ts of 1 */
+                            base_ts = RESERVED_TIMESTAMPS_FOR_ITERATION(g.nworkers, td, i + 1);
                         else
                             base_ts = g.ts_stable + 1;
                         next_rnd = __wt_random(&td->data_rnd);

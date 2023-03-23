@@ -124,6 +124,11 @@ clock_thread(void *arg)
     WT_SESSION_IMPL *session;
     THREAD_DATA *td;
     uint64_t delay, last_ts, oldest_ts;
+    char tid[128];
+
+    testutil_check(__wt_thread_str(tid, sizeof(tid)));
+    printf("clock thread starting: tid: %s\n", tid);
+    fflush(stdout);
 
     td = (THREAD_DATA *)arg;
     last_ts = 0;
@@ -135,10 +140,19 @@ clock_thread(void *arg)
         if (g.predictable_replay) {
             oldest_ts = get_all_committed_ts();
             if (oldest_ts != UINT64_MAX && oldest_ts - last_ts > PRED_REPLAY_STABLE_PERIOD) {
+                /* If we are doing a predictable rerun, don't go past the provided timestamp. */
+                if (g.ts_pred_stable > 0 && oldest_ts >= g.ts_pred_stable) {
+                    printf("Clock thread at %" PRIu64
+                           " is past the replay stable-timestamp of "
+                           "%" PRIu64 ", setting stable timestamp at %" PRIu64
+                           " and stopping the clock.\n",
+                      oldest_ts, g.ts_pred_stable, g.ts_pred_stable);
+                    set_stable(g.ts_pred_stable);
+                    break;
+                }
                 set_stable(oldest_ts);
                 last_ts = oldest_ts;
-            } else
-                __wt_sleep(0, WT_THOUSAND);
+            }
         } else {
             __wt_writelock(session, &g.clock_lock);
             if (g.prepare)
@@ -158,12 +172,12 @@ clock_thread(void *arg)
                 __wt_sleep(delay + 6, 0);
             }
             __wt_writeunlock(session, &g.clock_lock);
-            /*
-             * Random value between 5000 and 10000.
-             */
-            delay = __wt_random(&td->extra_rnd) % 5001;
-            __wt_sleep(0, delay + 5 * WT_THOUSAND);
         }
+        /*
+         * Random value between 5000 and 10000.
+         */
+        delay = __wt_random(&td->extra_rnd) % 5001;
+        __wt_sleep(0, delay + 5 * WT_THOUSAND);
     }
 
     testutil_check(wt_session->close(wt_session, NULL));
@@ -272,6 +286,15 @@ real_checkpointer(THREAD_DATA *td)
                 least_committed = get_all_committed_ts();
                 if (least_committed != UINT64_MAX)
                     g.ts_oldest = least_committed;
+
+                /* Don't go past the provided timestamp. */
+                if (g.ts_pred_stable > 0 && stable_ts >= g.ts_pred_stable) {
+                    printf(
+                      "The checkpoint thread has reached the rerun stable timestamp of "
+                      "%" PRIu64 ". Finish the test run.\n",
+                      g.ts_pred_stable);
+                    g.opts.running = false;
+                }
             } else {
                 __wt_writelock((WT_SESSION_IMPL *)session, &g.clock_lock);
                 g.ts_oldest = g.ts_stable;
@@ -333,6 +356,12 @@ real_checkpointer(THREAD_DATA *td)
     }
 
 done:
+    /* To be able to replay, print the stable timestamp the test stopped at. */
+    if (g.predictable_replay && g.use_timestamps) {
+        testutil_check(g.conn->query_timestamp(g.conn, timestamp_buf, "get=stable_timestamp"));
+        stable_ts = testutil_timestamp_parse(timestamp_buf);
+        printf("Test stopped at a stable timestamp of %" PRIu64 ".\n", stable_ts);
+    }
     if ((ret = session->close(session, NULL)) != 0)
         return (log_print_err("session.close", ret, 1));
 
