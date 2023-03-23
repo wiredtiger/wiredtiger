@@ -48,7 +48,7 @@ def get_auth_token(storage_source):
     if storage_source == 'azure_store': 
         auth_token = '"' + os.getenv('AZURE_STORAGE_CONNECTION_STRING') + '"'
     if storage_source == 'gcp_store':
-        auth_token = '"' + os.getenv('GOOGLE_APPLICATION_CREDENTIALS') + '"'
+        auth_token = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
     return auth_token
 
 # Buckets configured for the storage source.
