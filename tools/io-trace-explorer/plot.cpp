@@ -633,11 +633,10 @@ plot_widget::on_draw(const Cairo::RefPtr<Cairo::Context> &cr, int width, int hei
 
             char text[64];
             char str_k[32];
-            if ((long)m >= 1000) {
+            if ((long)m >= 1000)
                 snprintf(text, sizeof(text), "%ld,%03ldM", ((long)m) / 1000, ((long)m) % 1000);
-            } else {
+            else
                 snprintf(text, sizeof(text), "%.0lfM", m);
-            }
             if (unit_y < 0.999) {
                 snprintf(str_k, sizeof(str_k), " + %dK", (int)round(m * 1024) % 1024);
                 strcat(text, str_k);

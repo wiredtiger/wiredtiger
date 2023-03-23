@@ -43,4 +43,4 @@ endif ()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-add_executable(${PROJECT_NAME} ${GUI_OPTION} io_trace.cc main.cc main_window.cc plot.cc)
+add_executable(${PROJECT_NAME} ${GUI_OPTION} io_trace.cpp main.cpp main_window.cpp plot.cpp)

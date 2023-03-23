@@ -69,9 +69,8 @@ io_trace_collection::add_data_point(
         }
     }
 
-    if (kind == io_trace_kind::DEVICE) {
+    if (kind == io_trace_kind::DEVICE)
         name = "Raw Device: " + name;
-    }
 
     /* Find the correct trace. */
 
@@ -80,9 +79,8 @@ io_trace_collection::add_data_point(
     if (ti == _traces.end()) {
         t = new io_trace(*this, name.c_str());
         _traces[name] = t;
-    } else {
+    } else
         t = ti->second;
-    }
 
     /* Insert the item into the correct place to keep the list sorted. */
 
@@ -250,7 +248,7 @@ io_trace_collection::load_from_file_blkparse(FILE *f)
         item.offset *= 512;
         item.length *= 512;
 
-        /* Parse the other action-specfic data. */
+        /* Parse the other action-specific data. */
 
         int index = 10;
         p = parts[index];
@@ -280,9 +278,8 @@ io_trace_collection::load_from_file_blkparse(FILE *f)
 
         /* Right now we only care about reads and writes. */
 
-        if (!item.read && !item.write) {
+        if (!item.read && !item.write)
             continue;
-        }
 
         /* Postprocess and save the line. */
 

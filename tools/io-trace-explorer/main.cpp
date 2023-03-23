@@ -64,13 +64,11 @@ protected:
             ctx.parse(argc, argv);
 
             std::vector<std::string> input_files;
-            for (int i = optind; i < argc; i++) {
+            for (int i = optind; i < argc; i++)
                 input_files.push_back(std::string(argv[i]));
-            }
 
-            if (input_files.empty()) {
+            if (input_files.empty())
                 throw std::runtime_error("No input files.");
-            }
 
             /* Load the input files. */
             double start_time = current_time();

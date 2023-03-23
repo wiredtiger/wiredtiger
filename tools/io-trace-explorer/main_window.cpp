@@ -70,9 +70,7 @@ main_window::main_window(io_trace_collection &traces)
 
     for (plot_widget *p : _plots) {
         if (last_paned == NULL) {
-            if (last_plot == NULL) {
-                /* This is the first plot: There is nothing to do. */
-            } else {
+            if (last_plot != NULL) {
                 /* This is the second plot: Create a new pane. */
                 Gtk::Paned *paned = new Gtk::Paned(Gtk::Orientation::VERTICAL);
                 paned->set_wide_handle(true);
@@ -95,9 +93,8 @@ main_window::main_window(io_trace_collection &traces)
     }
 
     if (last_paned == NULL) {
-        if (last_plot != NULL) {
+        if (last_plot != NULL)
             _main_box.append(*last_plot);
-        }
     } else {
         last_paned->set_end_child(*last_plot);
         _main_box.append(*first_paned);
