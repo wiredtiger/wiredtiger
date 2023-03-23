@@ -99,6 +99,7 @@ __rts_btree_walk_page_skip(
         WT_STAT_CONN_INCR(session, txn_rts_tree_walk_skip_pages);
     }
 
+    // At this point, we know this is an on-disk page with updates that need to be aborted.
     __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
       WT_RTS_VERB_TAG_SKIP_DEL_NULL "ref=%p page not skipped.", (void *)ref);
     return (0);
