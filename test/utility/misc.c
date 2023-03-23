@@ -611,8 +611,8 @@ testutil_time_us(WT_SESSION *session)
 uint32_t
 testutil_pareto(uint32_t rand, uint64_t min_key, uint64_t max_key, u_int skew)
 {
-    uint64_t range;
     double S1, S2, U;
+    uint64_t range;
 #define PARETO_SHAPE 1.5
 
     range = max_key - min_key;
