@@ -74,9 +74,9 @@ __hs_verify_id(
         if (ds_cbt->compare != 0) {
             F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
             WT_ERR_PANIC(session, WT_PANIC,
-            "the associated history store key %s was not found in the data store %s",
-            __wt_buf_set_printable(session, key.data, key.size, false, prev_key),
-            session->dhandle->name);
+              "the associated history store key %s was not found in the data store %s",
+              __wt_buf_set_printable(session, key.data, key.size, false, prev_key),
+              session->dhandle->name);
         }
 
         WT_ERR(__cursor_reset(ds_cbt));
@@ -98,7 +98,7 @@ err:
 /*
  * __wt_hs_verify_one --
  *     Verify the history store for a given btree. This must be called when we are known to have
- * exclusive access to the btree.
+ *     exclusive access to the btree.
  */
 int
 __wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t this_btree_id)
@@ -121,7 +121,7 @@ __wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t this_btree_id)
     btree_id = WT_BTREE_ID_INVALID;
     uri_data = NULL;
 
-    WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
+    WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     /* Position the hs cursor on the requested btree id. */
@@ -158,7 +158,8 @@ __wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t this_btree_id)
 
 err:
     __wt_scr_free(session, &buf);
-    WT_TRET(hs_cursor->close(hs_cursor));
+    if (hs_cursor != NULL)
+        WT_TRET(hs_cursor->close(hs_cursor));
     return (ret == WT_NOTFOUND ? 0 : ret);
 }
 
@@ -191,7 +192,7 @@ __wt_hs_verify(WT_SESSION_IMPL *session)
     btree_id = WT_BTREE_ID_INVALID;
     uri_data = NULL;
 
-    WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
+    WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     /* Position the hs cursor on the first record. */
@@ -233,6 +234,7 @@ err:
     __wt_scr_free(session, &buf);
     WT_ASSERT(session, key.mem == NULL && key.memsize == 0);
     __wt_free(session, uri_data);
-    WT_TRET(hs_cursor->close(hs_cursor));
+    if (hs_cursor != NULL)
+        WT_TRET(hs_cursor->close(hs_cursor));
     return (ret);
 }
