@@ -22,8 +22,9 @@ __hs_verify_id(
     WT_DECL_RET;
     WT_ITEM key;
     wt_timestamp_t hs_start_ts;
-    uint64_t hs_counter;
+    uint64_t hs_counter, recno;
     uint32_t btree_id;
+    const uint8_t *up;
     int cmp;
 
     WT_CLEAR(key);
@@ -60,18 +61,22 @@ __hs_verify_id(
             continue;
 
         /* Check the key can be found in the data store.*/
-        /* TODO: col stores should be checked as well.*/
         if (CUR2BT(ds_cbt)->type == BTREE_ROW) {
-            WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(ds_cbt, &key, false, NULL, false, NULL));
-            WT_ERR(ret);
+            WT_WITH_PAGE_INDEX(
+              session, ret = __wt_row_search(ds_cbt, &key, false, NULL, false, NULL));
+        } else {
+            up = (const uint8_t *)key.data;
+            WT_ERR(__wt_vunpack_uint(&up, key.size, &recno));
+            WT_WITH_PAGE_INDEX(session, ret = __wt_col_search(ds_cbt, recno, NULL, false, NULL));
+        }
+        WT_ERR(ret);
 
-            if (ds_cbt->compare != 0) {
-                F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
-                WT_ERR_PANIC(session, WT_PANIC,
-                "the associated history store key %s was not found in the data store %s",
-                __wt_buf_set_printable(session, key.data, key.size, false, prev_key),
-                session->dhandle->name);
-            }
+        if (ds_cbt->compare != 0) {
+            F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
+            WT_ERR_PANIC(session, WT_PANIC,
+            "the associated history store key %s was not found in the data store %s",
+            __wt_buf_set_printable(session, key.data, key.size, false, prev_key),
+            session->dhandle->name);
         }
 
         WT_ERR(__cursor_reset(ds_cbt));
