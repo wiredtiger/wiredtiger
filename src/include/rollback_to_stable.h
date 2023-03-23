@@ -54,18 +54,18 @@
 #define WT_RTS_STAT_CONN_INCR(session, stat)           \
     do {                                               \
         if (!S2C(session)->rts->dryrun)                \
-            WT_STAT_CONN_INCR_ATOMIC(session, stat);          \
+            WT_STAT_CONN_INCR(session, stat);          \
         else                                           \
-            WT_STAT_CONN_INCR_ATOMIC(session, stat##_dryrun); \
+            WT_STAT_CONN_INCR(session, stat##_dryrun); \
     } while (0)
 
 /* Increment a connection and data handle stat, or the dry-run version if needed. */
 #define WT_RTS_STAT_CONN_DATA_INCR(session, stat)           \
     do {                                                    \
         if (!S2C(session)->rts->dryrun)                     \
-            WT_STAT_CONN_DATA_INCR_ATOMIC(session, stat);          \
+            WT_STAT_CONN_DATA_INCR(session, stat);          \
         else                                                \
-            WT_STAT_CONN_DATA_INCR_ATOMIC(session, stat##_dryrun); \
+            WT_STAT_CONN_DATA_INCR(session, stat##_dryrun); \
     } while (0)
 
 /*
