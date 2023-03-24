@@ -148,7 +148,7 @@ __evict_list_clear(WT_SESSION_IMPL *session, WT_EVICT_ENTRY *e)
 {
     if (e->ref != NULL) {
         WT_ASSERT(session, F_ISSET_ATOMIC_16(e->ref->page, WT_PAGE_EVICT_LRU));
-        F_CLR_ATOMIC_16(e->ref->page, WT_PAGE_EVICT_LRU | WT_PAGE_IN_URGENT_QUEUE);
+        F_CLR_ATOMIC_16(e->ref->page, WT_PAGE_EVICT_LRU | WT_PAGE_EVICT_LRU_URGENT);
     }
     e->ref = NULL;
     e->btree = WT_DEBUG_POINT;
@@ -2519,7 +2519,7 @@ __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ASSERT(session, !__wt_ref_is_root(ref));
 
     page = ref->page;
-    if (S2BT(session)->evict_disabled > 0 || F_ISSET_ATOMIC_16(page, WT_PAGE_IN_URGENT_QUEUE))
+    if (S2BT(session)->evict_disabled > 0 || F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU_URGENT))
         return (false);
 
     cache = S2C(session)->cache;
@@ -2533,7 +2533,7 @@ __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
     __wt_spin_lock(session, &cache->evict_queue_lock);
 
     /* Check again, in case we raced with another thread. */
-    if (S2BT(session)->evict_disabled > 0 || F_ISSET_ATOMIC_16(page, WT_PAGE_IN_URGENT_QUEUE))
+    if (S2BT(session)->evict_disabled > 0 || F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU_URGENT))
         goto done;
 
     /*
@@ -2558,7 +2558,7 @@ __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
       __evict_push_candidate(session, urgent_queue, evict, ref)) {
         ++urgent_queue->evict_candidates;
         queued = true;
-        FLD_SET(page->flags_atomic, WT_PAGE_IN_URGENT_QUEUE);
+        FLD_SET(page->flags_atomic, WT_PAGE_EVICT_LRU_URGENT);
     }
     __wt_spin_unlock(session, &urgent_queue->evict_lock);
 
