@@ -1133,7 +1133,7 @@ rollback_retry:
         if (TV(OPS_PARETO)) {
             tinfo->keyno = testutil_pareto((uint32_t)tinfo->keyno, (u_int)max_rows, 20);
             if (tinfo->keyno == 0)
-                tinfo->keyno ++;
+                tinfo->keyno++;
         }
         replay_adjust_key(tinfo, max_rows);
 
