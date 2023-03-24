@@ -1130,8 +1130,11 @@ rollback_retry:
         if (table->type != ROW && !table->mirror)
             WT_ORDERED_READ(max_rows, table->rows_current);
         tinfo->keyno = mmrand(&tinfo->data_rnd, 1, (u_int)max_rows);
-        if (TV(OPS_PARETO))
-            tinfo->keyno = testutil_pareto((uint32_t)tinfo->keyno, 1, (u_int)max_rows, 20);
+        if (TV(OPS_PARETO)) {
+            tinfo->keyno = testutil_pareto((uint32_t)tinfo->keyno, (u_int)max_rows, 20);
+            if (tinfo->keyno == 0)
+                tinfo->keyno ++;
+        }
         replay_adjust_key(tinfo, max_rows);
 
         /*

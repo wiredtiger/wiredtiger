@@ -2890,7 +2890,7 @@ wtperf_rand(WTPERF_THREAD *thread)
     rval = __wt_random(&thread->rnd);
     /* Use Pareto distribution to give 80/20 hot/cold values. */
     if (opts->pareto != 0)
-        rval = testutil_pareto((uint32_t)rval, start_range, end_range, opts->pareto);
+        rval = testutil_pareto((uint32_t)rval, end_range - start_range, opts->pareto);
 
     /*
      * A distribution that selects the record with a higher key with higher probability. This was
