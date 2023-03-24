@@ -1401,7 +1401,7 @@ pareto_calculation(uint32_t randint, uint64_t recno_max, ParetoOptions &pareto)
         r = (pareto.range_low * static_cast<double>(UINT32_MAX)) +
           r * (pareto.range_high - pareto.range_low);
     }
-    return (testutil_pareto((uint32_t)r, recno_max, pareto.param));
+    return testutil_pareto((uint64_t)r, recno_max, pareto.param);
 }
 
 uint64_t

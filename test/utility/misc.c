@@ -607,8 +607,8 @@ testutil_time_us(WT_SESSION *session)
  * testutil_pareto --
  *     Given a random value, a range and a skew percentage. Return a value between [0 and range).
  */
-uint32_t
-testutil_pareto(uint32_t rand, uint64_t range, u_int skew)
+uint64_t
+testutil_pareto(uint64_t rand, uint64_t range, u_int skew)
 {
     double S1, S2, U;
 #define PARETO_SHAPE 1.5
@@ -616,7 +616,7 @@ testutil_pareto(uint32_t rand, uint64_t range, u_int skew)
     S1 = (-1 / PARETO_SHAPE);
     S2 = range * (skew / 100.0) * (PARETO_SHAPE - 1);
     U = 1 - (double)rand / (double)UINT32_MAX;
-    rand = (pow(U, S1) - 1) * S2;
+    rand = (uint64_t)((pow(U, S1) - 1) * S2);
     /*
      * This Pareto calculation chooses out of range values about
      * 2% of the time, from my testing. That will lead to the
