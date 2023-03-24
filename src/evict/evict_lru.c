@@ -188,8 +188,9 @@ __evict_list_clear_page_locked(WT_SESSION_IMPL *session, WT_REF *ref, bool exclu
 
 /*
  * __wt_evict_list_clear_page --
- *     Make sure a page is not in the LRU eviction list. This is called from the page eviction code
- *     to make sure there is no attempt to evict a child page multiple times.
+ *     Check whether a page is present in the LRU eviction list. If the page is found in the list,
+ *     remove it. This is called from the page eviction code to make sure there is no attempt to
+ *     evict a child page multiple times.
  */
 void
 __wt_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref)
