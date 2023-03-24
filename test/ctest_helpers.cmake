@@ -120,7 +120,9 @@ function(create_test_executable target)
         )
     endif()
 
-    target_link_libraries(${target} m)
+    if (NOT WT_WIN)
+        target_link_libraries(${target} m)
+    endif()
 
     # If compiling for windows, additionally link in the shim library.
     if(WT_WIN)
