@@ -976,7 +976,7 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
     WT_SESSION *session;
     WT_SESSION_IMPL *session_impl;
     uint64_t bookmark_index, window;
-    int i, exact, num_args;
+    int i, num_args;
     char *args[MAX_ARGS], *bookmarks[MAX_BOOKMARKS];
     char *first_arg, user_input[ARG_BUF_SIZE], *current_arg;
     const char *key, *value;
@@ -985,7 +985,6 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
     session = cursor->session;
     session_impl = (WT_SESSION_IMPL *)session;
     once = search_near = false;
-    i = exact = num_args = 0;
     bookmark_index = window = 0;
     memset(args, 0, sizeof(args));
     memset(bookmarks, 0, sizeof(bookmarks));
