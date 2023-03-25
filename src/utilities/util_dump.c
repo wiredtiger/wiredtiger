@@ -888,6 +888,7 @@ dump_explore_bookmark_save(WT_CURSOR *cursor, char **bookmarks)
 {
     WT_DECL_RET;
     WT_SESSION *session;
+    size_t key_len;
     uint64_t i;
     const char *key;
 
@@ -904,9 +905,10 @@ dump_explore_bookmark_save(WT_CURSOR *cursor, char **bookmarks)
     for (i = 0; i < MAX_BOOKMARKS; ++i) {
         if (bookmarks[i] != NULL)
             continue;
-        if ((bookmarks[i] = malloc(strlen(key))) == NULL)
+        key_len = strlen(key);
+        if ((bookmarks[i] = malloc(key_len)) == NULL)
             return (util_err(session, errno, NULL));
-        strcpy(bookmarks[i], key);
+        (void)strncpy(bookmarks[i], key, key_len);
         printf("Added bookmark %" PRIu64 ": %s.\n", i, key);
         break;
     }
@@ -1014,7 +1016,7 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
         while (current_arg != NULL) {
             if ((args[i] = malloc(ARG_BUF_SIZE)) == NULL)
                 WT_ERR(util_err(session, errno, NULL));
-            strcpy(args[i++], current_arg);
+            (void)strncpy(args[i++], current_arg, strlen(current_arg));
             ++num_args;
             current_arg = strtok(NULL, " ");
         }
