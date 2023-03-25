@@ -105,21 +105,17 @@ __wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t this_btree_id)
 {
     WT_CURSOR *hs_cursor;
     WT_CURSOR_BTREE ds_cbt;
-    WT_DECL_ITEM(buf);
     WT_DECL_RET;
     WT_ITEM key;
     wt_timestamp_t hs_start_ts;
     uint64_t hs_counter;
     uint32_t btree_id;
-    char *uri_data;
 
     hs_cursor = NULL;
-    WT_ERR(__wt_scr_alloc(session, 0, &buf));
     WT_CLEAR(key);
     hs_start_ts = 0;
     hs_counter = 0;
     btree_id = WT_BTREE_ID_INVALID;
-    uri_data = NULL;
 
     WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
@@ -135,14 +131,6 @@ __wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t this_btree_id)
         goto err;
     }
 
-    /* If we positioned the cursor there is something to verify. */
-    if ((ret = __wt_metadata_btree_id_to_uri(session, btree_id, &uri_data)) != 0) {
-        F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
-        WT_ERR_PANIC(session, ret,
-          "Unable to find btree id %" PRIu32 " in the metadata file for the associated key '%s'.",
-          btree_id, __wt_buf_set_printable(session, key.data, key.size, false, buf));
-    }
-
     /*
      * We are in verify and we are not able to open a standard cursor because the btree is flagged
      * as WT_BTREE_VERIFY. However, we have exclusive access to the btree so we can directly open
@@ -156,7 +144,6 @@ __wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t this_btree_id)
     WT_TRET(__wt_btcur_close(&ds_cbt, false));
 
 err:
-    __wt_scr_free(session, &buf);
     if (hs_cursor != NULL)
         WT_TRET(hs_cursor->close(hs_cursor));
     return (ret == WT_NOTFOUND ? 0 : ret);
