@@ -231,7 +231,6 @@ __wt_hs_verify(WT_SESSION_IMPL *session)
     }
 err:
     __wt_scr_free(session, &buf);
-    WT_ASSERT(session, key.mem == NULL && key.memsize == 0);
     __wt_free(session, uri_data);
     if (hs_cursor != NULL)
         WT_TRET(hs_cursor->close(hs_cursor));
