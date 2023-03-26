@@ -2,45 +2,45 @@
 
 @section extension_storage_source Cloud Storage Source Implementation
 
-The WiredTiger extension allows the control of how files are stored via the storage source
+The WiredTiger extension API allows control of how files are stored via the storage source
 abstraction layer. More information can be found through @ref custom_storage_sources. There are
-three storage sources that extends the WiredTiger's capability to store the data files onto the
-cloud storage through Azure, Google and AWS providers. The cloud storage extensions provides a
+three storage sources that extend the WiredTiger's capability to store the data files into cloud
+storage through Azure, Google and AWS providers. The cloud storage extensions provide a
 means to construct, configure and control a custom file system linked to a cloud bucket. All three
-storage source implementations internally interacts with the cloud storage through their own C++
+storage source implementations internally interact with the cloud storage through their own C++
 SDKs.
 
-All storage sources implements the following key functionalities defined by the storage source 
+All storage sources implement the following key functionalities defined by the storage source
 interface:
-- Initialize the store, the AWS SDK and create a logging module for the store and the SDK.
+- Initialize the store, cloud provider's SDK and create a logging module for the store.
 
 - Provide an API to access and terminate the store. A reference count is incremented each time the
-storage source reference is taken and decremented with the termination. When the reference count
-goes zero, the storage source is de-registered with WiredTiger and any allocated resources are
+storage source reference is taken and decremented with it's termination. When the reference count
+drops to zero, the storage source is de-registered with WiredTiger and any allocated resources are
 freed.
 
-- Another essential functionality is that the storage source provides is to create a
+- Another essential piece of functionality that the storage source provides is to create a
 \c WT_FILE_SYSTEM implementation for a given bucket. The store requires a bucket and an access token
 to create the filesystem.
 
 @section extension_connection Connection class
 
-All extensions has a connection class which represents an active connection to a bucket. It
-encapsulates and implements all the operations the filesystem requires. The instantiation of the 
-class object authenticates with the the cloud provider and validates the existence of and access to
+All extensions have a connection class which represents an active connection to a bucket. It
+encapsulates and implements all the operations the filesystem requires. The instantiation of the
+class object authenticates with the cloud provider and validates the existence of and access to
 the configured bucket. The connection class exposes an API to list the bucket contents filtered by a
-directory and a prefix, check for an object's existence in the bucket, put an object to the cloud,
+directory and a prefix, check for an object's existence in the bucket, put an object in the cloud,
 and get the object from the cloud. Though not required for the file system's implementation, the
 class also provides the means to delete the objects to clean up artifacts from the internal unit
 testing.
 
-@section extension_file_system FILE_SYSTEM
+@section extension_cloud_file_system Cloud File System Interface
 
 WiredTiger supports a database over a custom file system by giving a \c WT_FILE_SYSTEM interface for
 the end-user to implement. The store itself provides a means to configure as many file systems as
-needed, each linked to a bucket. These file systems, called the \c GCP_FILE_SYSTEM, AZURE_FILE_SYSTEM 
-and S3_FILE_SYSTEM, are a custom implementation provided by the storage source. The filesystems 
-contains an instance to the connection class, hence providing an active connection to the bucket 
+needed, each linked to a bucket. These file systems, called the \c GCP_FILE_SYSTEM, \c AZURE_FILE_SYSTEM
+and \c S3_FILE_SYSTEM, are a custom implementation provided by the storage source. The filesystems
+contain an instance of the connection class, hence providing an active connection to the bucket
 embedded in the file system instance.
 
 The cloud file system uses the functionality provided by the connection class to simulate a
@@ -53,15 +53,16 @@ The storage source uses the filesystem's put-object functionality to flush the f
 The Tier Manager inside WiredTiger directs the flush of the files. Only S3 storage source files
 pushed to the cloud are also copied to the local cache for easy access.
 
-@section extension_file_handle FILE_HANDLE
+@section extension_cloud_file_handle Cloud File Handle Interface
 
 Each storage source also implements the \c WT_FILE_HANDLE interface, to access the files
-on the file system. Since the object store is archival, all the write access methods are disabled.
+on the file system. Since the object store is read-only, all the write access methods are disabled.
 
-@section extension_log_stat Logging and Statistics
+@section extension_log_stat Messaging and Statistics
 All of the cloud storage sources have their own logging system implemented. The storage sources
-provides a logger implemntation that redirects the generated logs to the WiredTiger logging system.
-The SDKs also provide their own logging levels and is translated into WiredTiger logging levels.
+provide a messaging implementation that redirects the generated logs to the WiredTiger logging
+system. The SDKs also provide their own logging levels and are translated into WiredTiger logging
+levels.
 
 @section s3_store S3 Storage source
 The S3 store implements the following key functionalities defined by the storage source interface:
@@ -76,7 +77,7 @@ argument of the access key followed by the secret key, separated by a ';'.
 cache for the object files. The cache is used to improve the read latency for the object files read
 after an initial download from the S3.
 
-- When A S3 file handle is created, the local cache gets a copy of the S3 object if
+- When a S3 file handle is created, the local cache gets a copy of the S3 object if
 it doesn't already have it. Since the local cache is a directory on the WiredTiger database's file
 system, the file is accessed using a \c WT_FILE_HANDLE implementation native to WiredTiger.
 Hence, a copy of native \c WT_FILE_HANDLE is kept encapsulated in the S3 file handle.
@@ -86,19 +87,19 @@ Hence, a copy of native \c WT_FILE_HANDLE is kept encapsulated in the S3 file ha
 @section azure_gcp_store Azure and GCP Storage Source
 The Azure and GCP store implements the following key functionalities differently from S3:
 
-- The GCP authentication requires setting a GOOGLE_APPLICATION_CREDENTIALS environment variable 
-which refers to the path of authentication file and the Azure authenication is requires setting an
+- GCP authentication requires setting a GOOGLE_APPLICATION_CREDENTIALS environment variable
+that contains the path of an authentication file. Azure authentication requires the
 AZURE_STORAGE_CONNECTION_STRING environment variable to be set.
 
-- A reference count is incremented each time the file handle reference is opened and decremented
-with the close. When the reference count goes zero, the file system is de-registered from the
-storage source and any allocated resources are freed.
+- Another reference count is incremented each time the file handle reference is opened and
+decremented with the close. When the reference count goes zero, the file system is de-registered
+from the storage source and any allocated resources are freed.
 
 - Whenever a GCP store and Azure file handle is created, the expectation is that the file does not
 exist in the local file system. All the required file handle functions will directly interface with
 the connection class accessing file operations via the SDKs.
 
 - The GCP store has created a logging class which extends the GCP SDK's logging backend and the
-Azure store has created a logging class using Azure SDK's callback function.
+Azure store has created a logging class using the Azure SDK's callback function.
 
 */
