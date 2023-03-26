@@ -120,16 +120,21 @@ __wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t this_btree_id)
     WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
-    /* Position the hs cursor on the requested btree id. */
+    /* Position the hs cursor on the requested btree id, there could be nothing in the HS yet. */
     hs_cursor->set_key(hs_cursor, 1, this_btree_id);
-    WT_ERR(__wt_curhs_search_near_after(session, hs_cursor));
-
-    /* Check the corresponding btree has history store content associated with it. */
-    WT_ERR(hs_cursor->get_key(hs_cursor, &btree_id, &key, &hs_start_ts, &hs_counter));
-    if (this_btree_id != btree_id) {
-        ret = WT_NOTFOUND;
+    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, hs_cursor), true);
+    if (ret == WT_NOTFOUND) {
+        ret = 0;
         goto err;
     }
+
+    /*
+     * Make sure the cursor is positioned on the given btree id, if not, there is nothing in the HS
+     * to be checked.
+     */
+    WT_ERR(hs_cursor->get_key(hs_cursor, &btree_id, &key, &hs_start_ts, &hs_counter));
+    if (this_btree_id != btree_id)
+        goto err;
 
     /*
      * We are in verify and we are not able to open a standard cursor because the btree is flagged
@@ -139,14 +144,15 @@ __wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t this_btree_id)
     __wt_btcur_init(session, &ds_cbt);
     __wt_btcur_open(&ds_cbt);
 
-    ret = __hs_verify_id(session, hs_cursor, &ds_cbt, btree_id);
+    WT_ERR_NOTFOUND_OK(__hs_verify_id(session, hs_cursor, &ds_cbt, btree_id), true);
+    ret = 0;
 
-    WT_TRET(__wt_btcur_close(&ds_cbt, false));
+    WT_ERR(__wt_btcur_close(&ds_cbt, false));
 
 err:
     if (hs_cursor != NULL)
         WT_TRET(hs_cursor->close(hs_cursor));
-    return (ret == WT_NOTFOUND ? 0 : ret);
+    return (ret);
 }
 
 /*
@@ -165,7 +171,6 @@ __wt_hs_verify(WT_SESSION_IMPL *session)
     uint64_t hs_counter;
     uint32_t btree_id;
     char *uri_data;
-    bool stop;
 
     /* We should never reach here if working in context of the default session. */
     WT_ASSERT(session, S2C(session)->default_session != session);
@@ -183,14 +188,13 @@ __wt_hs_verify(WT_SESSION_IMPL *session)
 
     /* Position the hs cursor on the first record. */
     WT_ERR_NOTFOUND_OK(hs_cursor->next(hs_cursor), true);
-    stop = ret == WT_NOTFOUND ? true : false;
-    ret = 0;
+    if (ret == WT_NOTFOUND) {
+        ret = 0;
+        goto err;
+    }
 
-    /*
-     * We have the history store cursor positioned at the first record that we want to verify. The
-     * internal function is expecting a btree cursor, so open and initialize that.
-     */
-    while (!stop) {
+    /* Go through the history store and validate each btree. */
+    while (ret == 0) {
         /*
          * The cursor is positioned either from above or left over from the internal call on the
          * first key of a new btree id.
@@ -207,18 +211,22 @@ __wt_hs_verify(WT_SESSION_IMPL *session)
         WT_ERR(__wt_open_cursor(session, uri_data, NULL, NULL, &ds_cursor));
         F_SET(ds_cursor, WT_CURSOR_RAW_OK);
 
-        ret = __hs_verify_id(session, hs_cursor, (WT_CURSOR_BTREE *)ds_cursor, btree_id);
+        WT_ERR_NOTFOUND_OK(
+          __hs_verify_id(session, hs_cursor, (WT_CURSOR_BTREE *)ds_cursor, btree_id), true);
 
-        /* Exit when the entire HS has been parsed. */
-        if (ret == WT_NOTFOUND)
-            stop = true;
+        /* We are either positioned on a different btree id or the entire HS has been parsed. */
+        if (ret == WT_NOTFOUND) {
+            ret = 0;
+            goto err;
+        }
 
-        WT_TRET(ds_cursor->close(ds_cursor));
-        WT_ERR_NOTFOUND_OK(ret, false);
+        WT_ERR(ds_cursor->close(ds_cursor));
     }
 err:
     __wt_scr_free(session, &buf);
     __wt_free(session, uri_data);
+    if (ds_cursor != NULL)
+        WT_TRET(ds_cursor->close(ds_cursor));
     if (hs_cursor != NULL)
         WT_TRET(hs_cursor->close(hs_cursor));
     return (ret);
