@@ -76,7 +76,7 @@ __rts_btree_walk_page_skip(
         }
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
         __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
-          WT_RTS_VERB_TAG_SKIP_DEL_NULL "deleted page with durable_ts=%s > rollback_ts=%s",
+          WT_RTS_VERB_PAGE_DELETE "deleted page with durable_ts=%s > rollback_ts=%s",
           __wt_timestamp_to_string(page_del->durable_timestamp, time_string),
           __wt_timestamp_to_string(rollback_timestamp, time_string));
         return (0);
@@ -99,9 +99,8 @@ __rts_btree_walk_page_skip(
         WT_STAT_CONN_INCR(session, txn_rts_tree_walk_skip_pages);
     }
 
-    // At this point, we know this is an on-disk page with updates that need to be aborted.
     __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
-      WT_RTS_VERB_TAG_SKIP_DEL_NULL "ref=%p page not skipped.", (void *)ref);
+      WT_RTS_VERB_TAG_PAGE_UNSKIPPED "ref=%p page not skipped.", (void *)ref);
     return (0);
 }
 
@@ -195,9 +194,9 @@ __wt_rts_btree_walk_btree_apply(
 
         if (ret == 0)
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-              WT_RTS_VERB_TAG_TREE
+              WT_RTS_VERB_TAG_TREE_OBJECT_LOG
               "btree object found with newest_start_durable_ts=%s , newest_stop_durable_ts=%s, "
-              "rollback_txnid=%" PRIu64 " write_gen=%" PRIu64,
+              "rollback_txnid=%" PRIu64 " , write_gen=%" PRIu64,
               __wt_timestamp_to_string(newest_start_durable_ts, ts_string[1]),
               __wt_timestamp_to_string(newest_stop_durable_ts, ts_string[1]), rollback_txnid,
               write_gen);
@@ -298,7 +297,7 @@ __wt_rts_btree_walk_btree_apply(
         WT_ERR(__wt_config_getones(session, config, "id", &cval));
         btree_id = (uint32_t)cval.val;
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-          WT_RTS_VERB_TAG_HS_TRUNCATED "Truncating history store entries for tree with id: %u",
+          WT_RTS_VERB_TAG_HS_TRUNCATING "truncating history store entries for tree with id: %u",
           btree_id);
         WT_ERR(__wt_rts_history_btree_hs_truncate(session, btree_id));
     }

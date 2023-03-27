@@ -65,8 +65,8 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
             /* Valid update is found. */
             stable_upd = upd;
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
-              WT_RTS_VERB_TAG_UPDATE_ABORT "stable update found with txnid=%" PRIu64
-                                           ", stable_timestamp=%s,  durable_timestamp=%s",
+              WT_RTS_VERB_TAG_STABLE_UPDATE_FOUND "stable update found with txnid=%" PRIu64
+                                                  ", stable_timestamp=%s,  durable_timestamp=%s",
               upd->txnid, __wt_timestamp_to_string(rollback_timestamp, ts_string[1]),
               __wt_timestamp_to_string(upd->durable_ts, ts_string[0]));
             break;
@@ -152,8 +152,8 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
                 key->size = WT_PTRDIFF(memp, key->data);
             }
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
-              WT_RTS_VERB_TAG_UPDATE_ABORT
-              "attempting to abort update on the insert list with durable_ts:%" PRIu64,
+              WT_RTS_VERB_TAG_INSERT_LIST_UPDATE_ABORT
+              "attempting to abort update on the insert list with durable_ts=%" PRIu64,
               ins->upd->durable_ts);
             WT_ERR(__rts_btree_abort_update(
               session, key, ins->upd, rollback_timestamp, &stable_update_found));
@@ -175,9 +175,9 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
                  * be reverted.
                  */
                 __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
-                  WT_RTS_VERB_TAG_UPDATE_ABORT
-                  "no stable updates found on insert list with durable_ts=%" PRIu64
-                  "check the history store anyway for unstable updates to remove",
+                  WT_RTS_VERB_TAG_HS_ABORT_CHECK "insert list with durable_ts=%" PRIu64
+                                                 " had no stable updates. Check the history store "
+                                                 "anyway for unstable updates to remove.",
                   ins->upd->durable_ts);
                 WT_ERR(__wt_rts_history_delete_hs(session, key, rollback_timestamp + 1));
             }
@@ -946,6 +946,7 @@ __rts_btree_abort_col_fix(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
     WT_INSERT_HEAD *inshead;
     WT_PAGE *page;
     uint32_t ins_recno_offset, recno_offset, numtws, tw;
+    char time_string[WT_TIME_STRING_SIZE];
 
     page = ref->page;
     WT_ASSERT(session, page != NULL);
@@ -982,9 +983,9 @@ __rts_btree_abort_col_fix(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
               (recno_offset = page->pg_fix_tws[tw].recno_offset) < ins_recno_offset) {
 
                 __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
-                  WT_RTS_VERB_TAG_UPDATE_ABORT
+                  WT_RTS_VERB_TAG_ONDISK_KV_FIX
                   "adjust on-disk key values according to the rollback timestamp:%s",
-                  "test");
+                  __wt_timestamp_to_string(rollback_timestamp, time_string));
                 WT_RET(__rts_btree_abort_col_fix_one(
                   session, ref, tw, recno_offset, rollback_timestamp));
                 tw++;
@@ -1044,7 +1045,7 @@ __rts_btree_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t
         stable_update_found = false;
         if ((upd = WT_ROW_UPDATE(page, rip)) != NULL) {
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
-              WT_RTS_VERB_TAG_UPDATE_ABORT
+              WT_RTS_VERB_TAG_UPDATE_CHAIN_ABORT
               "aborting any unstable updates on the update chain with rollback_ts: %" PRIu64,
               rollback_timestamp);
             WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
@@ -1056,7 +1057,7 @@ __rts_btree_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t
 
         if ((insert = WT_ROW_INSERT(page, rip)) != NULL) {
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
-              WT_RTS_VERB_TAG_UPDATE_ABORT
+              WT_RTS_VERB_TAG_INSERT_LIST_CHECK
               "aborting any unstable updates on the insert list with rollback_ts: %" PRIu64,
               rollback_timestamp);
             WT_ERR(__rts_btree_abort_insert_list(session, page, insert, rollback_timestamp, NULL));
@@ -1069,7 +1070,7 @@ __rts_btree_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t
             vpack = &_vpack;
             __wt_row_leaf_value_cell(session, page, rip, vpack);
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
-              WT_RTS_VERB_TAG_UPDATE_ABORT
+              WT_RTS_VERB_TAG_ONDISK_ABORT_CHECK
               "no stable update in update list found. abort any unstable on-disk value with "
               "rollback_ts: %" PRIu64,
               rollback_timestamp);
@@ -1105,15 +1106,15 @@ __wt_rts_btree_abort_updates(
     modified = __wt_page_is_modified(page);
     if (!modified && !__wt_rts_visibility_page_needs_abort(session, ref, rollback_timestamp)) {
         __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
-          WT_RTS_VERB_TAG_SKIP_UNMODIFIED "ref=%p: unmodified stable page of type=%d skipped",
-          (void *)ref, page->type);
+          WT_RTS_VERB_TAG_SKIP_UNMODIFIED "ref=%p: unmodified stable page of type=%s skipped",
+          (void *)ref, __wt_page_type_str(page->type));
         return (0);
     }
 
     WT_STAT_CONN_INCR(session, txn_rts_pages_visited);
     __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
-      WT_RTS_VERB_TAG_PAGE_ROLLBACK "roll back page of type= %d, addr=%p modified=%s", page->type,
-      (void *)ref, modified ? "true" : "false");
+      WT_RTS_VERB_TAG_PAGE_ROLLBACK "roll back page of type= %s, addr=%p modified=%s",
+      __wt_page_type_str(page->type), (void *)ref, modified ? "true" : "false");
 
     switch (page->type) {
     case WT_PAGE_COL_FIX:

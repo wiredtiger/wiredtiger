@@ -56,8 +56,9 @@ __wt_rts_history_delete_hs(WT_SESSION_IMPL *session, WT_ITEM *key, wt_timestamp_
 
         if (!dryrun) {
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
-              WT_RTS_VERB_TAG_HS_UPDATE_ABORT "deleting history store update with stop_ts=%" PRIu64,
-              hs_tw->stop_ts);
+              WT_RTS_VERB_TAG_HS_UPDATE_REMOVE "deleting history store update with stop_ts=%" PRIu64
+                                               "greater than stable timestamp=%" PRIu64,
+              hs_tw->stop_ts, ts);
             WT_ERR(hs_cursor->remove(hs_cursor));
         }
 
