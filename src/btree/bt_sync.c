@@ -424,7 +424,9 @@ __sync_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *ski
      * operation is performed using no timestamp.
      */
     if (addr.type == WT_ADDR_LEAF_NO ||
-      (!F_ISSET(S2BT(session), WT_BTREE_LOGGED) && addr.ta.newest_stop_durable_ts == WT_TS_NONE)) {
+      ((!FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED) ||
+         F_ISSET(S2BT(session), WT_BTREE_NO_LOGGING)) &&
+        addr.ta.newest_stop_durable_ts == WT_TS_NONE)) {
         __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP, "%p: page walk skipped", (void *)ref);
         WT_STAT_CONN_DATA_INCR(session, cc_pages_walk_skipped);
         *skipp = true;
