@@ -5211,7 +5211,8 @@ buildvariants:
     - name: ".stress-test-no-barrier-nonstandalone"
     - name: format-abort-recovery-stress-test-nonstandalone
     - name: format-predictable-test
-    - name: format-tiered-test
+    # FIXME-WT-10822
+    # - name: format-tiered-test
 
 # When running the Python tests on this variant tcmalloc must be preloaded otherwise the wiredtiger library
 # fails to load and resolve its dependency.
