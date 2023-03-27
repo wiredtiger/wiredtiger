@@ -75,7 +75,7 @@ protected:
             for (auto s : input_files) {
                 if (!quiet)
                     g_message("Loading %s", s.c_str());
-                _traces.load_from_file(s.c_str());
+                _traces.load_from_file(s);
             }
             double load_time = current_time() - start_time;
             if (!quiet)

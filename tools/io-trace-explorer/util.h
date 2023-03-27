@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sys/time.h>
+#include <string_view>
 
 /*
  * current_time --
@@ -21,4 +22,15 @@ current_time(void)
     gettimeofday(&tv, NULL);
 
     return tv.tv_sec + tv.tv_usec / 1.0e6;
+}
+
+/*
+ * ends_with --
+ *     Check whether the string ends with the given suffix.
+ */
+inline bool
+ends_with(std::string_view str, std::string_view suffix)
+{
+    return str.size() >= suffix.size() &&
+      str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
 }

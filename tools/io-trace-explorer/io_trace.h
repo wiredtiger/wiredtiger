@@ -28,19 +28,19 @@ enum class io_trace_kind {
  */
 struct io_trace_operation {
 
-    double timestamp; /* The timestamp in seconds, relative to the start of the trace. */
-    char action;      /* The action, as defined by blktrace, plus a few custom actions. */
+    double timestamp = 0; /* The timestamp in seconds, relative to the start of the trace. */
+    char action = '\0';   /* The action, as defined by blktrace, plus a few custom actions. */
 
-    bool read;        /* Was this a read? */
-    bool write;       /* Was this a write? */
-    bool synchronous; /* Whether this was a synchronous operation. */
-    bool barrier;     /* Whether this included a barrier operation. */
-    bool discard;     /* Whether this was a discard operation. */
+    bool read = false;        /* Was this a read? */
+    bool write = false;       /* Was this a write? */
+    bool synchronous = false; /* Whether this was a synchronous operation. */
+    bool barrier = false;     /* Whether this included a barrier operation. */
+    bool discard = false;     /* Whether this was a discard operation. */
 
-    unsigned long offset; /* Offset in bytes from the beginning of the file or the device. */
-    unsigned length;      /* Length in bytes. */
-    double duration;      /* Duration in seconds, if available (or 0 if not). */
-    char process[32];     /* The issuing process name, if available. */
+    unsigned long offset = 0; /* Offset in bytes from the beginning of the file or the device. */
+    unsigned int length = 0;  /* Length in bytes. */
+    double duration = 0;      /* Duration in seconds, if available (or 0 if not). */
+    char process[32] = {};    /* The issuing process name, if available. */
 
     /*
      * wrap_timestamp --
@@ -51,7 +51,6 @@ struct io_trace_operation {
     wrap_timestamp(double t)
     {
         io_trace_operation r;
-        bzero(&r, sizeof(r));
         r.timestamp = t;
         return r;
     }
@@ -127,7 +126,7 @@ public:
     io_trace_collection();
     virtual ~io_trace_collection();
 
-    void load_from_file(const char *file);
+    void load_from_file(const std::string &file);
 
     /*
      * traces --

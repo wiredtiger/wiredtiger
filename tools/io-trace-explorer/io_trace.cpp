@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "io_trace.h"
+#include "util.h"
 
 /*
  * io_trace::io_trace --
@@ -55,18 +56,17 @@ io_trace_collection::add_data_point(
     /* Postprocess the data point. */
 
     if (kind == io_trace_kind::WIRED_TIGER) {
-        const char *s = name.c_str();
-        if (strstr(s, "Log.00000") || strstr(s, "log.00000")) {
+        if (name.find("Log.00000") != std::string::npos ||
+          name.find("log.00000") != std::string::npos)
             name = "WiredTiger Logs (combined)";
-        } else if (strlen(s) > 13 && strcmp(s + (strlen(s) - 13), "WiredTiger.wt") == 0) {
-            name = std::string("WiredTiger Main File: ") + s;
-        } else if (strlen(s) > 15 && strcmp(s + (strlen(s) - 15), "WiredTigerHS.wt") == 0) {
-            name = std::string("WiredTiger Main File: ") + s;
-        } else if (strlen(s) > 3 && strcmp(s + (strlen(s) - 3), ".wt") == 0) {
-            name = std::string("WiredTiger File: ") + s;
-        } else {
+        else if (ends_with(name, "WiredTiger.wt"))
+            name = "WiredTiger Main File: " + name;
+        else if (ends_with(name, "WiredTigerHS.wt"))
+            name = "WiredTiger Main File: " + name;
+        else if (ends_with(name, ".wt"))
+            name = "WiredTiger File: " + name;
+        else
             name = "WiredTiger Other";
-        }
     }
 
     if (kind == io_trace_kind::DEVICE)
@@ -102,9 +102,9 @@ io_trace_collection::add_data_point(
  *     Load a collection from file.
  */
 void
-io_trace_collection::load_from_file(const char *file)
+io_trace_collection::load_from_file(const std::string &file)
 {
-    FILE *f = fopen(file, "r");
+    FILE *f = fopen(file.c_str(), "r");
     if (!f)
         throw std::runtime_error(
           std::string("Error opening file \"") + file + "\": " + strerror(errno));
@@ -131,11 +131,12 @@ io_trace_collection::load_from_file(const char *file)
           std::string("Error closing file \"") + file + "\": " + strerror(errno));
 }
 
+#define MAX_TOKENS_PER_LINE 16
+
 /*
  * io_trace_collection::load_from_file_blkparse --
  *     Load from the blkparse output, using default settings, optionally with the -t argument.
  */
-
 void
 io_trace_collection::load_from_file_blkparse(FILE *f)
 {
@@ -164,7 +165,7 @@ io_trace_collection::load_from_file_blkparse(FILE *f)
      */
 
     char buf[256];
-    unsigned lines = 0;
+    unsigned int lines = 0;
     while (fgets(buf, sizeof(buf), f)) {
         lines++;
         if (strncmp(buf, "CPU0", 4) == 0)
@@ -173,13 +174,13 @@ io_trace_collection::load_from_file_blkparse(FILE *f)
         /* Tokenize the line. */
 
         int count = 0;
-        char *parts[16];
+        char *parts[MAX_TOKENS_PER_LINE];
         char *next(buf), *p;
         while ((p = strsep(&next, " \t\n\r")) != NULL) {
             if (*p == '\0')
                 continue;
             parts[count++] = p;
-            if (count >= 16)
+            if (count >= MAX_TOKENS_PER_LINE)
                 break;
         }
 
@@ -199,7 +200,6 @@ io_trace_collection::load_from_file_blkparse(FILE *f)
 
         char *e;
         io_trace_operation item;
-        bzero(&item, sizeof(item));
 
         std::string device = parts[0];
 
@@ -287,6 +287,10 @@ io_trace_collection::load_from_file_blkparse(FILE *f)
     }
 }
 
+/*
+ * io_trace_collection::load_from_file_wt_logs --
+ *     Load a file-level I/O trace from the WiredTiger logs.
+ */
 void
 io_trace_collection::load_from_file_wt_logs(FILE *f)
 {
@@ -308,7 +312,7 @@ io_trace_collection::load_from_file_wt_logs(FILE *f)
 
     char buf[256];
     double first_timestamp = 0;
-    unsigned lines = 0;
+    unsigned int lines = 0;
     while (fgets(buf, sizeof(buf), f)) {
         lines++;
         if (buf[0] != '[')
@@ -317,7 +321,7 @@ io_trace_collection::load_from_file_wt_logs(FILE *f)
         /* Tokenize the line. */
 
         int count = 0;
-        char *parts[16];
+        char *parts[MAX_TOKENS_PER_LINE];
         char *next(buf), *p;
         while ((p = strsep(&next, " \t\n\r")) != NULL) {
             if (*p == '\0')
@@ -326,7 +330,7 @@ io_trace_collection::load_from_file_wt_logs(FILE *f)
             if (p[len - 1] == ':' || p[len - 1] == ',')
                 p[len - 1] = '\0';
             parts[count++] = p;
-            if (count >= 16)
+            if (count >= MAX_TOKENS_PER_LINE)
                 break;
         }
 
@@ -364,7 +368,6 @@ io_trace_collection::load_from_file_wt_logs(FILE *f)
 
         char *e;
         io_trace_operation item;
-        bzero(&item, sizeof(item));
 
         item.timestamp = strtol(parts[0] + 1, &e, 10);
         if (*e != ':')

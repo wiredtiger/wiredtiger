@@ -47,7 +47,6 @@ plot_widget::plot_widget(plot_group &group, const io_trace &trace)
 
     const std::vector<io_trace_operation> &ops = _trace.operations();
 
-    bzero(&_toplevel_view, sizeof(_toplevel_view));
     _toplevel_view.min_x = ops[0].timestamp;
     _toplevel_view.max_x = ops[ops.size() - 1].timestamp;
 

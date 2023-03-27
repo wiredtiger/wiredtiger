@@ -19,10 +19,10 @@
  *     A view definition for the plot; i.e., what is visible within the given viewport.
  */
 struct plot_view {
-    double min_x;
-    double max_x;
-    double min_y;
-    double max_y;
+    double min_x = 0;
+    double max_x = 0;
+    double min_y = 0;
+    double max_y = 0;
 
     /*
      * data_to_view_x --
