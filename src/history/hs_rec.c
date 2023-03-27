@@ -920,7 +920,7 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
      * specified timestamp must be mixed mode.
      */
     WT_ASSERT_ALWAYS(
-        session, ts == 1 || ts == WT_TS_NONE, "out-of-order timestamp update detected");
+      session, ts == 1 || ts == WT_TS_NONE, "out-of-order timestamp update detected");
     /*
      * Fail the eviction if we detect any timestamp ordering issue and the error flag is set. We
      * cannot modify the history store to fix the update's timestamps as it may make the history
