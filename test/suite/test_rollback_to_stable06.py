@@ -53,8 +53,8 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
     ]
 
     evict = [
-        ('evict', dict(evict='True')),
-        ('no_evict', dict(evict='False'))
+        ('no_evict', dict(evict=False)),
+        ('evict', dict(evict=True))
     ]
 
     scenarios = make_scenarios(format_values, in_memory_values, prepare_values, evict)
@@ -152,6 +152,6 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
         # Evict the pages to disk
         if self.evict:
             self.evict_cursor(uri, nrows, value_d)
-            
+
 if __name__ == '__main__':
     wttest.run()
