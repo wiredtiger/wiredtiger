@@ -996,7 +996,7 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
 
     while (ret == 0) {
         i = num_args = 0;
-        if (fgets(user_input, MAX_ARGS, stdin) == NULL) {
+        if (fgets(user_input, sizeof(user_input), stdin) == NULL) {
             if (!feof(stdin))
                 continue;
             goto err;
@@ -1015,7 +1015,7 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
         while (current_arg != NULL) {
             if ((args[i] = malloc(ARG_BUF_SIZE)) == NULL)
                 WT_ERR(util_err(session, errno, NULL));
-            (void)strncpy(args[i++], current_arg, strlen(current_arg));
+            (void)strncpy(args[i++], current_arg, ARG_BUF_SIZE - 1);
             ++num_args;
             current_arg = strtok(NULL, " ");
         }
