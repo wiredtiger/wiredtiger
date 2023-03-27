@@ -1599,6 +1599,7 @@ main(int argc, char *argv[])
     bool rand_th, rand_time, verify_only;
 
     (void)testutil_set_progname(argv);
+    __wt_stream_set_line_buffer(stdout);
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
