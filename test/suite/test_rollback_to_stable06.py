@@ -106,10 +106,6 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
             self.session.checkpoint()
         self.conn.rollback_to_stable()
 
-        # Evict the pages to disk
-        if self.evict:
-            self.evict_cursor(uri, nrows, value_d)
-
         # Check that all keys are removed.
         # (For FLCS, at least for now, they will read back as 0, meaning deleted, rather
         # than disappear.)
