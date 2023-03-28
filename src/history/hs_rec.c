@@ -560,6 +560,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             else
                 fix_ts_upd = oldest_upd;
 
+            WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate);
+
             if (!F_ISSET(fix_ts_upd, WT_UPDATE_FIXED_HS)) {
                 /* Delete and reinsert any update of the key with a higher timestamp. */
                 WT_ERR(__wt_hs_delete_key_from_ts(session, hs_cursor, btree->id, key,
