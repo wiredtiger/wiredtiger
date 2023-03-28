@@ -41,6 +41,7 @@ __wt_update_type_str(uint8_t val)
 
     return ("UPDATE_TYPE_INVALID");
 }
+
 /*
  * __wt_page_type_str --
  *     Convert a page type to its string representation.

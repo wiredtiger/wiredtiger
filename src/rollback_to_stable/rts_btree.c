@@ -135,6 +135,7 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
     WT_INSERT *ins;
     uint64_t recno;
     uint8_t *memp;
+    char ts_string[WT_TS_INT_STRING_SIZE];
     bool stable_update_found;
 
     WT_ERR(
@@ -153,8 +154,8 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
             }
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
               WT_RTS_VERB_TAG_INSERT_LIST_UPDATE_ABORT
-              "attempting to abort update on the insert list with durable_ts=%" PRIu64,
-              ins->upd->durable_ts);
+              "attempting to abort update on the insert list with durable_ts=%s",
+              __wt_timestamp_to_string(ins->upd->durable_ts, ts_string));
             WT_ERR(__rts_btree_abort_update(
               session, key, ins->upd, rollback_timestamp, &stable_update_found));
             if (stable_update_found && stable_updates_count != NULL)
@@ -175,10 +176,10 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
                  * be reverted.
                  */
                 __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
-                  WT_RTS_VERB_TAG_HS_ABORT_CHECK "insert list with durable_ts=%" PRIu64
-                                                 " had no stable updates. Check the history store "
-                                                 "anyway for unstable updates to remove.",
-                  ins->upd->durable_ts);
+                  WT_RTS_VERB_TAG_HS_ABORT_CHECK
+                  "insert list with durable_ts=%s had no stable updates. Check the history store "
+                  "anyway for unstable updates to remove.",
+                  __wt_timestamp_to_string(ins->upd->durable_ts, ts_string));
                 WT_ERR(__wt_rts_history_delete_hs(session, key, rollback_timestamp + 1));
             }
         }
@@ -946,7 +947,7 @@ __rts_btree_abort_col_fix(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
     WT_INSERT_HEAD *inshead;
     WT_PAGE *page;
     uint32_t ins_recno_offset, recno_offset, numtws, tw;
-    char time_string[WT_TIME_STRING_SIZE];
+    char ts_string[WT_TS_INT_STRING_SIZE];
 
     page = ref->page;
     WT_ASSERT(session, page != NULL);
@@ -984,8 +985,8 @@ __rts_btree_abort_col_fix(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
 
                 __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
                   WT_RTS_VERB_TAG_ONDISK_KV_FIX
-                  "adjust on-disk key values according to the rollback timestamp:%s",
-                  __wt_timestamp_to_string(rollback_timestamp, time_string));
+                  "adjust on-disk key values according to the rollback timestamp=%s",
+                  __wt_timestamp_to_string(rollback_timestamp, ts_string));
                 WT_RET(__rts_btree_abort_col_fix_one(
                   session, ref, tw, recno_offset, rollback_timestamp));
                 tw++;
@@ -1025,6 +1026,7 @@ __rts_btree_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t
     WT_ROW *rip;
     WT_UPDATE *upd;
     uint32_t i;
+    char ts_string[WT_TS_INT_STRING_SIZE];
     bool have_key, stable_update_found;
 
     page = ref->page;
@@ -1046,8 +1048,8 @@ __rts_btree_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t
         if ((upd = WT_ROW_UPDATE(page, rip)) != NULL) {
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
               WT_RTS_VERB_TAG_UPDATE_CHAIN_ABORT
-              "aborting any unstable updates on the update chain with rollback_ts: %" PRIu64,
-              rollback_timestamp);
+              "aborting any unstable updates on the update chain with rollback_ts=%s",
+              __wt_timestamp_to_string(rollback_timestamp, ts_string));
             WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
             WT_ERR(__rts_btree_abort_update(
               session, key, upd, rollback_timestamp, &stable_update_found));
@@ -1058,8 +1060,8 @@ __rts_btree_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t
         if ((insert = WT_ROW_INSERT(page, rip)) != NULL) {
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
               WT_RTS_VERB_TAG_INSERT_LIST_CHECK
-              "aborting any unstable updates on the insert list with rollback_ts: %" PRIu64,
-              rollback_timestamp);
+              "aborting any unstable updates on the insert list with rollback_ts=%s",
+              __wt_timestamp_to_string(rollback_timestamp, ts_string));
             WT_ERR(__rts_btree_abort_insert_list(session, page, insert, rollback_timestamp, NULL));
         }
 
@@ -1072,8 +1074,8 @@ __rts_btree_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
               WT_RTS_VERB_TAG_ONDISK_ABORT_CHECK
               "no stable update in update list found. abort any unstable on-disk value with "
-              "rollback_ts: %" PRIu64,
-              rollback_timestamp);
+              "rollback_ts=%s",
+              __wt_timestamp_to_string(rollback_timestamp, ts_string));
             WT_ERR(__rts_btree_abort_ondisk_kv(
               session, ref, rip, 0, have_key ? key : NULL, vpack, rollback_timestamp, NULL));
         }

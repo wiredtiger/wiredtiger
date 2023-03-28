@@ -108,6 +108,7 @@ __wt_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_times
     WT_CURSOR *cursor;
     WT_DECL_RET;
     uint64_t rollback_count, rollback_msg_count;
+    char ts_string[WT_TS_INT_STRING_SIZE];
     const char *config, *uri;
 
     /* Initialize the verbose tracking timer. */
@@ -146,9 +147,9 @@ __wt_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_times
     if (F_ISSET(S2C(session), WT_CONN_RECOVERING)) {
         __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
           WT_RTS_VERB_TAG_HS_TREE_FINAL_PASS
-          "performing final pass of the history store to remove unstable entries. "
-          "rollback_ts=%" PRIu64,
-          rollback_timestamp);
+          "performing final pass of the history store to remove unstable entries with "
+          "rollback_ts=%s",
+          __wt_timestamp_to_string(rollback_timestamp, ts_string));
         WT_ERR(__wt_rts_history_final_pass(session, rollback_timestamp));
     }
 err:
