@@ -750,6 +750,15 @@ functions:
       params:
         file: ./wiredtiger/cmake_build/${test_path}.json
 
+  "convert-to-atlas-evergreen-format":
+    - command: shell.exec
+      params:
+        script: |
+          set -o errexit
+          set -o verbose
+          cat ${input_file}
+          ${python_binary} wiredtiger/bench/perf_run_py/perf_json_converter_for_atlas_evergreen.py -i ${input_file} -n ${test_name} -o ${output_path}
+
   "upload-perf-test-stats":
     - command: shell.exec
       params:
@@ -4016,9 +4025,14 @@ tasks:
             pip3 install lorem pymongo==3.12.2 "pymongo[srv]==3.12.2"
             mongod_path=$(find ../../mongo/build -executable -type f -path \*/bin/mongod)
             ./run_many_coll.sh $mongod_path mongodb.log config/many-collection-testing many-collection clean-and-populate
+      - func: "convert-to-atlas-evergreen-format"
+        vars:
+          input_file: ./many-collection-artifacts/results/results.json
+          test_name: many-collection-test
+          output_path: ./many-collection-artifacts/results/
       - func: "upload-perf-test-stats"
         vars:
-          stats_dir: ./mongo-tests/largescale
+          stats_dir: ./many-collection-artifacts/results/
           perf-test-name: many-collection-test
 
   - name: cyclomatic-complexity
