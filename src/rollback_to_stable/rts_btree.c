@@ -107,18 +107,18 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
                     F_CLR(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS);
                 if (tombstone != NULL)
                     F_CLR(tombstone, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS);
-            } else if (WT_IS_HS(session->dhandle) && stable_upd->type != WT_UPDATE_TOMBSTONE) {
-                /*
-                 * History store will have a combination of both tombstone and update/modify types
-                 * in the update list to represent time window of an update. When we are aborting
-                 * the tombstone, make sure to remove all of the remaining updates also. In most of
-                 * the scenarios, there will be only one update present except when the data store
-                 * is a prepared commit where it is possible to have more than one update. The
-                 * existing on-disk versions are removed while processing the on-disk entries.
-                 */
-                for (; stable_upd != NULL; stable_upd = stable_upd->next)
-                    stable_upd->txnid = WT_TXN_ABORTED;
             }
+        } else if (WT_IS_HS(session->dhandle) && stable_upd->type != WT_UPDATE_TOMBSTONE) {
+            /*
+             * History store will have a combination of both tombstone and update/modify types in
+             * the update list to represent time window of an update. When we are aborting the
+             * tombstone, make sure to remove all of the remaining updates also. In most of the
+             * scenarios, there will be only one update present except when the data store is a
+             * prepared commit where it is possible to have more than one update. The existing
+             * on-disk versions are removed while processing the on-disk entries.
+             */
+            for (; stable_upd != NULL; stable_upd = stable_upd->next)
+                stable_upd->txnid = WT_TXN_ABORTED;
         }
         if (stable_update_found != NULL)
             *stable_update_found = true;
