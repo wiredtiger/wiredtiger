@@ -1475,14 +1475,16 @@ ThreadRunner::op_get_table(Operation *op) const
     return {std::string(), 0};
 }
 
-// Check if the specified operation has an assigned table. For static tables, this
-// information is saved in the Operation structure. For dynamic tables, the
-// operation maintains a table assignment for each thread running the operation.
+/*
+ * Check if the specified operation has an assigned table. For static tables, this information is
+ * saved in the Operation structure. For dynamic tables, the operation maintains a table assignment
+ * for each thread running the operation.
+ */
 bool
 ThreadRunner::op_has_table(Operation *op) const
 {
-    if (_random_table) {
-        return (op->_tables.find(_thread->options.name) != _tables.end());
+    if (op->_random_table) {
+        return (op->_tables.find(_thread->options.name) != op->_tables.end());
     } else {
         return (!op->_table._uri.empty());
     }
