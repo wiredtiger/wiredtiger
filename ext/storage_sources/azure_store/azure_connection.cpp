@@ -170,9 +170,10 @@ azure_connection::object_exists(
     exists = false;
     std::string obj = _bucket_prefix + object_key;
     object_size = 0;
+    Azure::Storage::Blobs::ListBlobsOptions blob_parameters;
 
-    auto list_blob_response = _azure_client.ListBlobs();
-
+    blob_parameters.Prefix = _bucket_prefix;
+    auto list_blob_response = _azure_client.ListBlobs(blob_parameters);
     for (const auto blob_item : list_blob_response.Blobs) {
         // Check if object exists.
         if (blob_item.Name.compare(obj) == 0) {
