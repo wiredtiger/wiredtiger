@@ -118,7 +118,8 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
              * on-disk versions are removed while processing the on-disk entries.
              */
             for (; stable_upd != NULL; stable_upd = stable_upd->next)
-                stable_upd->txnid = WT_TXN_ABORTED;
+                if (!dryrun)
+                    stable_upd->txnid = WT_TXN_ABORTED;
         }
         if (stable_update_found != NULL)
             *stable_update_found = true;
