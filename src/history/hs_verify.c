@@ -172,9 +172,6 @@ __wt_hs_verify(WT_SESSION_IMPL *session)
     uint32_t btree_id;
     char *uri_data;
 
-    /* We should never reach here if working in context of the default session. */
-    WT_ASSERT(session, S2C(session)->default_session != session);
-
     ds_cursor = hs_cursor = NULL;
     WT_ERR(__wt_scr_alloc(session, 0, &buf));
     WT_CLEAR(key);
