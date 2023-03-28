@@ -42,6 +42,7 @@
 #include <iostream>
 #include <filesystem>
 #include <fstream>
+#include <mutex>
 #include <sstream>
 #include "wiredtiger.h"
 #include "workgen.h"
@@ -1452,6 +1453,7 @@ void
 ThreadRunner::op_clear_table(Operation *op)
 {
     if (op->_random_table) {
+        const std::unique_lock lock(*_icontext->_op_table_mutex);
         op->_tables.erase(_thread->options.name);
     }
 }
@@ -1465,9 +1467,9 @@ ThreadRunner::op_get_table(Operation *op) const
         return {op->_table._uri, op->_table._internal->_tint};
     }
 
+    const std::shared_lock lock(*_icontext->_op_table_mutex);
     auto itr = op->_tables.find(_thread->options.name);
     if (itr != op->_tables.end()) {
-        const std::shared_lock lock(*_icontext->_dyn_mutex);
         std::string uri = itr->second;
         tint_t tint = _icontext->_dyn_tint[uri];
         return {uri, tint};
@@ -1484,6 +1486,7 @@ bool
 ThreadRunner::op_has_table(Operation *op) const
 {
     if (op->_random_table) {
+        const std::shared_lock lock(*_icontext->_op_table_mutex);
         return (op->_tables.find(_thread->options.name) != op->_tables.end());
     } else {
         return (!op->_table._uri.empty());
@@ -1495,6 +1498,7 @@ void
 ThreadRunner::op_set_table(Operation *op, const std::string &uri)
 {
     if (op->_random_table) {
+        const std::unique_lock lock(*_icontext->_op_table_mutex);
         auto [itr, success] = op->_tables.emplace(_thread->options.name, uri);
         ASSERT(success);
     }

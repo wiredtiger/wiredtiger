@@ -236,6 +236,8 @@ struct ContextInternal {
     tint_t _dyn_tint_last;
     // This mutex should be used to protect the access to the dynamic tables set.
     std::shared_mutex* _dyn_mutex;
+    // This mutex protects access to an operation's thread<->table map.
+    std::shared_mutex* _op_table_mutex;
     // unique id per context, to work with multiple contexts, starts at 1.
     uint32_t _context_count;
 
