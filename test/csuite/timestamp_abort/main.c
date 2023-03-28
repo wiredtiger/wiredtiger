@@ -96,7 +96,7 @@ static const char *const uri_shadow = "shadow";
 
 static const char *const ckpt_file = "checkpoint_done";
 
-static bool backup_verify_quick, backup_verify_throughout;
+static bool backup_verify_immediately, backup_verify_quick;
 static bool columns, stress, use_backups, use_lazyfs, use_ts;
 static uint32_t backup_full_interval, backup_granularity_kb;
 
@@ -105,6 +105,16 @@ static TEST_OPTS *opts, _opts;
 static int recover_and_verify(uint32_t backup_index, uint32_t workload_iteration);
 extern int __wt_optind;
 extern char *__wt_optarg;
+
+/*
+ * Print that we are doing backup verification.
+ */
+#define PRINT_BACKUP_VERIFY(index)                                     \
+    printf("--- %s: Verify backup ID%" PRIu32 "%s\n", __func__, index, \
+      backup_verify_quick ? " (quick)" : "");
+#define PRINT_BACKUP_VERIFY_DONE(index)                                      \
+    printf("--- DONE: %s: Verify backup ID%" PRIu32 "%s\n", __func__, index, \
+      backup_verify_quick ? " (quick)" : "");
 
 /*
  * The configuration sets the eviction update and dirty targets at 20% so that on average, each
@@ -154,11 +164,11 @@ extern char *__wt_optarg;
 #define BACKUP_INDEX(td, sequence_number) \
     ((td)->workload_iteration * WT_THOUSAND + (sequence_number))
 
-/* Get back the sequence number from a backup index. */
-#define BACKUP_INDEX_TO_SEQUENCE(index) ((index) % WT_THOUSAND)
-
 /* Get back the workload iteration number from a backup index. */
 #define BACKUP_INDEX_TO_ITERATION(index) ((index) / WT_THOUSAND)
+
+/* Get back the sequence number from a backup index. */
+#define BACKUP_INDEX_TO_SEQUENCE(index) ((index) % WT_THOUSAND)
 
 typedef struct {
     uint64_t absent_key; /* Last absent key */
@@ -473,12 +483,6 @@ backup_create_incremental(WT_CONNECTION *conn, uint32_t src_index, uint32_t inde
 
     printf("Create incremental backup %" PRIu32 " - start: source=%" PRIu32 "\n", index, src_index);
 
-    /* Verify the source backup in the case it might be already corrupted. */
-    if (backup_verify_throughout) {
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "ID%" PRIu32, src_index));
-        testutil_verify_src_backup(conn, src_backup_home, WT_HOME_DIR, buf);
-    }
-
     /* Prepare the directory. */
     testutil_check(__wt_snprintf(backup_home, sizeof(backup_home), BACKUP_BASE "%" PRIu32, index));
     testutil_system("rm -rf %s && mkdir %s", backup_home, backup_home);
@@ -577,9 +581,14 @@ backup_create_incremental(WT_CONNECTION *conn, uint32_t src_index, uint32_t inde
       index, nfiles, nranges, nunmodified);
 
     /* Immediately verify the backup. */
-    if (backup_verify_throughout) {
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "ID%" PRIu32, index));
-        testutil_verify_src_backup(conn, backup_home, WT_HOME_DIR, buf);
+    if (backup_verify_immediately) {
+        PRINT_BACKUP_VERIFY(index);
+        if (backup_verify_quick) {
+            testutil_check(__wt_snprintf(buf, sizeof(buf), "ID%" PRIu32, index));
+            testutil_verify_src_backup(conn, backup_home, WT_HOME_DIR, buf);
+        } else
+            testutil_check(recover_and_verify(index, 0));
+        PRINT_BACKUP_VERIFY_DONE(index);
     }
 }
 
@@ -595,7 +604,7 @@ backup_delete_old_backups(int retain, int last_full)
     struct stat sb;
     DIR *d;
     size_t len;
-    int count, ndeleted, i, indexes[256];
+    int count, i, indexes[256], ndeleted;
     char buf[256];
     bool done;
 
@@ -680,12 +689,12 @@ thread_ckpt_run(void *arg)
         /*
          * Since this is the default, send in this string even if running without timestamps.
          */
+        printf("Checkpoint %d start: Flush: %s.\n", i, flush_tier ? "YES" : "NO");
         testutil_check(session->checkpoint(session, flush_tier ? ckpt_flush_config : ckpt_config));
         testutil_check(td->conn->query_timestamp(td->conn, ts_string, "get=last_checkpoint"));
         testutil_assert(sscanf(ts_string, "%" SCNx64, &stable) == 1);
         printf("Checkpoint %d complete: Flush: %s, at stable %" PRIu64 ".\n", i,
           flush_tier ? "YES" : "NO", stable);
-        fflush(stdout);
 
         if (flush_tier) {
             /*
@@ -729,8 +738,8 @@ thread_backup_run(void *arg)
     WT_SESSION *session;
     uint32_t i, last_backup, last_full, sleep_time, u;
     int ret;
-    char buf[1024];
     char *str;
+    char buf[1024];
 
     td = (THREAD_DATA *)arg;
     last_backup = last_full = 0;
@@ -1266,17 +1275,18 @@ backup_verify(WT_CONNECTION *conn, uint32_t workload_iteration)
 
                 /* Continue the verification only if we have the backup ID. */
                 if (backup_exists(conn, index)) {
+                    PRINT_BACKUP_VERIFY(index);
                     testutil_check(
                       __wt_snprintf(backup_id, sizeof(backup_id), "ID%" PRIu32, index));
-                    printf("==== Verify ID %s dir %s against backup source ====\n", backup_id,
-                      dir->d_name);
                     testutil_verify_src_backup(conn, dir->d_name, WT_HOME_DIR, backup_id);
-                    printf("==== DONE Verify ID %s dir %s against backup source ====\n", backup_id,
-                      dir->d_name);
+                    PRINT_BACKUP_VERIFY_DONE(index);
                 }
-            } else
+            } else {
                 /* Perform a full test. */
+                PRINT_BACKUP_VERIFY(index);
                 testutil_check(recover_and_verify(index, workload_iteration));
+                PRINT_BACKUP_VERIFY_DONE(index);
+            }
         }
     }
     testutil_check(closedir(d));
@@ -1320,10 +1330,10 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
         printf("Connection open and recovery complete. Verify content\n");
         /* Compare against the copy of the home directory just before recovery. */
         if (use_backups) {
-            printf("==== Verify saved dir against backup source ====\n");
+            printf("--- Verify saved dir against the backup source\n");
             testutil_check(__wt_snprintf(buf, sizeof(buf), "%s.SAVE/%s", home, WT_HOME_DIR));
             testutil_verify_src_backup(conn, buf, WT_HOME_DIR, NULL);
-            printf("==== DONE Verify saved dir against backup source ====\n");
+            printf("--- DONE: Verify saved dir against the backup source\n");
         }
         /*
          * Only call this when index is 0 because it calls back into here to verify a specific
@@ -1599,15 +1609,18 @@ main(int argc, char *argv[])
     bool rand_th, rand_time, verify_only;
 
     (void)testutil_set_progname(argv);
+
+    /* Automatically flush after each newline, so that we don't miss any messages if we crash. */
+    __wt_stream_set_line_buffer(stderr);
     __wt_stream_set_line_buffer(stdout);
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
 
     backup_full_interval = 4;
-    backup_granularity_kb = 16;
+    backup_granularity_kb = 1024;
+    backup_verify_immediately = false;
     backup_verify_quick = false;
-    backup_verify_throughout = false;
     columns = stress = false;
     nth = MIN_TH;
     num_iterations = 1;
