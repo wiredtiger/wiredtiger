@@ -65,7 +65,7 @@ store is empty and the stable timestamp is 10:
 
 Update list: U3 (30) -> U2 (20) -> U1 (10)\n
 On-disk: U2 (20)\n
-History store: Empty\n
+History store: U1 (10)\n
 Stable timestamp: 10\n\n
 
 RTS will mark all the unstable updates from the update list as aborted and the on-disk value will be
