@@ -196,8 +196,8 @@ __wt_rts_btree_walk_btree_apply(
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
               WT_RTS_VERB_TAG_TREE_OBJECT_LOG
               "btree object found with newest_start_durable_ts=%s, newest_stop_durable_ts=%s, "
-              "rollback_txnid=%" PRIu64 " , write_gen=%" PRIu64,
-              __wt_timestamp_to_string(newest_start_durable_ts, ts_string[1]),
+              "rollback_txnid=%" PRIu64 ", write_gen=%" PRIu64,
+              __wt_timestamp_to_string(newest_start_durable_ts, ts_string[0]),
               __wt_timestamp_to_string(newest_stop_durable_ts, ts_string[1]), rollback_txnid,
               write_gen);
     }
