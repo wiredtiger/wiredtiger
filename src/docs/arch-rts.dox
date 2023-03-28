@@ -68,8 +68,8 @@ On-disk: U2 (20)\n
 History store: U1 (10)\n
 Stable timestamp: 10\n\n
 
-RTS will mark all the unstable updates from the update list as aborted and the on-disk value will be
-replaced the most recent stable update after reconciliation:
+RTS will mark all the unstable updates from the update list as aborted. The on-disk value will be
+replaced by the most recent stable update after reconciliation, in this case from the history store:
 
 Update list: U3 (30) Aborted -> U2 (20) Aborted -> U1(10)\n
 On-disk: U1 (10)\n
