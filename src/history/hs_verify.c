@@ -128,8 +128,8 @@ __wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t btree_id)
     __wt_btcur_init(session, &ds_cbt);
     __wt_btcur_open(&ds_cbt);
 
-    WT_ERR_NOTFOUND_OK(__hs_verify_id(session, hs_cursor, &ds_cbt, btree_id), true);
-    ret = 0;
+    /* Note that the following call moves the hs cursor internally. */
+    WT_ERR_NOTFOUND_OK(__hs_verify_id(session, hs_cursor, &ds_cbt, btree_id), false);
 
     WT_ERR(__wt_btcur_close(&ds_cbt, false));
 
@@ -192,6 +192,7 @@ __wt_hs_verify(WT_SESSION_IMPL *session)
         WT_ERR(__wt_open_cursor(session, uri_data, NULL, NULL, &ds_cursor));
         F_SET(ds_cursor, WT_CURSOR_RAW_OK);
 
+        /* Note that the following call moves the hs cursor internally. */
         WT_ERR_NOTFOUND_OK(
           __hs_verify_id(session, hs_cursor, (WT_CURSOR_BTREE *)ds_cursor, btree_id), true);
 
