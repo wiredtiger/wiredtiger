@@ -59,6 +59,8 @@ target_include_directories(
         ${CMAKE_SOURCE_DIR}/src/include
         ${CMAKE_SOURCE_DIR}/test/utility
 )
+target_link_libraries(workgen_cpp test_util)
+
 set_property(TARGET workgen_cpp PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 # Manually specify the interface name '_workgen' over a generated name.
