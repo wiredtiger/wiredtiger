@@ -213,7 +213,7 @@ struct __wt_bm {
 
     /* Tiered storage */
     bool is_tiered;                  /* This is a tiered btree */
-    WT_SPINLOCK handle_table_lock;   /* Lock for block handle table */
+    WT_RWLOCK handle_table_lock;     /* Lock for block handle table */
     WT_BLOCK **handle_table;         /* Table of block handles */
     size_t handle_table_allocated;   /* Size of handle table */
     u_int handle_table_next;         /* Next open slot */

@@ -115,14 +115,17 @@ __wt_blkcache_get_handle(
      * Check the block handle table for the object. We don't have to check the name because we can
      * only reference objects in our name space.
      */
+    __wt_readlock(session, &bm->handle_table_lock);
     for (i = 0; i < bm->handle_table_next; ++i)
         if (bm->handle_table[i]->objectid == objectid) {
             *blockp = bm->handle_table[i];
+            __wt_readunlock(session, &bm->handle_table_lock);
             return (0);
         }
 
-    /* Lock the block handle table.  */
-    __wt_spin_lock(session, &bm->handle_table_lock);
+    /* We need to add a new handle the block handle table. Upgrade to write lock. */
+    __wt_readunlock(session, &bm->handle_table_lock);
+    __wt_writelock(session, &bm->handle_table_lock);
 
     /* Check to make sure the object wasn't cached while we locked. */
     for (i = 0; i < bm->handle_table_next; ++i)
@@ -140,11 +143,11 @@ __wt_blkcache_get_handle(
         /* Open the object */
         WT_ERR(__wt_blkcache_tiered_open(session, NULL, objectid, blockp));
 
-        /* Add object th block handle table. */
+        /* Add object to block handle table. */
         bm->handle_table[bm->handle_table_next++] = *blockp;
     }
 
 err:
-    __wt_spin_unlock(session, &bm->handle_table_lock);
+    __wt_writeunlock(session, &bm->handle_table_lock);
     return (ret);
 }

@@ -17,7 +17,18 @@ static void __bm_method_set(WT_BM *, bool);
 static int
 __bm_close_block(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
     __wt_verbose(session, WT_VERB_BLKCACHE, "close: %s", block->name);
+
+    __wt_spin_lock(session, &conn->block_lock);
+    if (block->ref > 0 && --block->ref > 0) {
+        __wt_spin_unlock(session, &conn->block_lock);
+        return (0);
+    }
+    __wt_spin_unlock(session, &conn->block_lock);
 
     /* You can't close files during a checkpoint. */
     WT_ASSERT(
@@ -79,6 +90,7 @@ __bm_checkpoint(
     WT_BLOCK *block;
     WT_CONNECTION_IMPL *conn;
     u_int i;
+    bool found;
 
     conn = S2C(session);
     block = bm->block;
@@ -94,17 +106,24 @@ __bm_checkpoint(
      * pages of the tree have been written and eviction is disabled at this point, so no new data is
      * getting written.
      *
-     * There is currently no need to lock the table here because the only changes that might happen
-     * are reads opening new handles. Those will be added at the end of the table and even if we
-     * race it is safe because newly open handles will be read-only and won't need to be sync'ed.
+     * We don't hold the handle table lock across fsync calls since those could be slow and that
+     * would block a concurrent thread opening a new block handle.
      */
-    for (i = 0; i < bm->handle_table_next; ++i) {
-        block = bm->handle_table[i];
-        if (block->sync_on_checkpoint) {
-            WT_RET(__wt_fsync(session, block->fh, true));
-            block->sync_on_checkpoint = false;
+    do {
+        found = false;
+        __wt_readlock(session, &bm->handle_table_lock);
+        for (i = 0; i < bm->handle_table_next; ++i) {
+            block = bm->handle_table[i];
+            if (block->sync_on_checkpoint) {
+                found = true;
+                __wt_readunlock(session, &bm->handle_table_lock);
+                WT_RET(__wt_fsync(session, block->fh, true));
+                block->sync_on_checkpoint = false;
+                break;
+            }
         }
-    }
+    } while (found);
+    __wt_readunlock(session, &bm->handle_table_lock);
 
     return (0);
 }
@@ -248,7 +267,7 @@ __bm_close(WT_BM *bm, WT_SESSION_IMPL *session)
         for (i = 0; i < bm->handle_table_next; ++i) {
             WT_TRET(__bm_close_block(session, bm->handle_table[i]));
         }
-        __wt_spin_destroy(session, &bm->handle_table_lock);
+        __wt_rwlock_destroy(session, &bm->handle_table_lock);
         __wt_free(session, bm->handle_table);
     }
 
@@ -560,13 +579,8 @@ __bm_switch_object(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t objectid)
 
     current = bm->block;
 
-    /*
-     * Fast-path switching to the current object.
-     *
-     * XXX: Can this happen? Should we ASSERT it doesn't?
-     */
-    if (current->objectid == objectid)
-        return(0);
+    /* We shouldn't ask to switch objects unless we actually need to switch objects */
+    WT_ASSERT(session, current->objectid != objectid);
 
     WT_RET(__wt_blkcache_get_handle(session, bm, objectid, &block));
 
@@ -797,7 +811,7 @@ __wt_blkcache_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
           false, allocsize, &bm->block));
     } else {
         bm->is_tiered = true;
-        WT_ERR(__wt_spin_init(session, &bm->handle_table_lock, "block handle table"));
+        WT_ERR(__wt_rwlock_init(session, &bm->handle_table_lock));
 
         /* Allocate space to store the handle (do first for simpler cleanup). */
         WT_ERR(__wt_realloc_def(session, &bm->handle_table_allocated, bm->handle_table_next + 1, &bm->handle_table));
@@ -811,7 +825,7 @@ __wt_blkcache_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
     return (0);
 
 err:
-    __wt_spin_destroy(session, &bm->handle_table_lock);
+    __wt_rwlock_destroy(session, &bm->handle_table_lock);
     __wt_free(session, bm);
     return (ret);
 }
