@@ -15,7 +15,7 @@ interface:
 - Initialize the store, cloud provider's SDK and create a logging module for the store.
 
 - Provide an API to access and terminate the store. A reference count is incremented each time the
-storage source reference is taken and decremented with it's termination. When the reference count
+storage source reference is taken and decremented with its termination. When the reference count
 drops to zero, the storage source is de-registered with WiredTiger and any allocated resources are
 freed.
 
@@ -59,10 +59,16 @@ Each storage source also implements the \c WT_FILE_HANDLE interface, to access t
 on the file system. Since the object store is read-only, all the write access methods are disabled.
 
 @section extension_log_stat Messaging and Statistics
-All of the cloud storage sources have their own logging system implemented. The storage sources
-provide a messaging implementation that redirects the generated logs to the WiredTiger logging
-system. The SDKs also provide their own logging levels and are translated into WiredTiger logging
-levels.
+The cloud provider SDKs uses the term log systems and logging levels different to WiredTiger.
+The SDK's logging definiton refers to the the SDK messages are generated and the logging levels
+control the amount of information given to the user. The SDKs provide their own levels and
+are translated into WiredTiger messaging levels.
+
+All of the cloud storage sources have their own messaging system and statistics implemented as a
+method to monitor the state of the SDKs and the storage sources. The messaging system captures both
+SDK and the custom storage source error and informational messages, and redirect it into the
+WiredTiger messaging system. The statistics are also printed when the \c WT_VERBOSE level is set on the
+storage source via the custom messaging system.
 
 @section s3_store S3 Storage source
 The S3 store implements the following key functionalities defined by the storage source interface:
@@ -87,9 +93,9 @@ Hence, a copy of native \c WT_FILE_HANDLE is kept encapsulated in the S3 file ha
 @section azure_gcp_store Azure and GCP Storage Source
 The Azure and GCP store implements the following key functionalities differently from S3:
 
-- GCP authentication requires setting a GOOGLE_APPLICATION_CREDENTIALS environment variable
+- GCP authentication requires setting a \c GOOGLE_APPLICATION_CREDENTIALS environment variable
 that contains the path of an authentication file. Azure authentication requires the
-AZURE_STORAGE_CONNECTION_STRING environment variable to be set.
+\c AZURE_STORAGE_CONNECTION_STRING environment variable to be set.
 
 - Another reference count is incremented each time the file handle reference is opened and
 decremented with the close. When the reference count goes zero, the file system is de-registered
