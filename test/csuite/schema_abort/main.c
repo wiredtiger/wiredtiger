@@ -78,8 +78,8 @@ static const char *const ready_file = "child_ready";
 static bool use_columns, use_lazyfs, use_ts, use_txn;
 static volatile bool stable_set;
 
-static uint32_t nth;            /* Number of threads. */
-static uint64_t stop_timestamp; /* stop condition for threads. */
+static uint32_t nth;                       /* Number of threads. */
+static uint64_t stop_timestamp;            /* stop condition for threads. */
 static volatile uint64_t stable_timestamp; /* stable timestamp. */
 /*
  * We reserve timestamps for each thread for the entire run. The timestamp for the i-th key that a
@@ -746,8 +746,8 @@ thread_run(void *arg)
         if (opts->predictable && reserved_ts > stop_timestamp) {
             /*
              * At this point, we've run to the stop timestamp and have been asked to go no further.
-             * Set our timestamp to the stop timestamp to indicate we are done.
-             * Just stay in the loop, waiting to be killed.
+             * Set our timestamp to the stop timestamp to indicate we are done. Just stay in the
+             * loop, waiting to be killed.
              */
             WT_PUBLISH(th_ts[td->info].ts, stop_timestamp);
             __wt_sleep(1, 0);
@@ -1206,8 +1206,8 @@ main(int argc, char *argv[])
           opts->compat ? "true" : "false", opts->inmem ? "true" : "false",
           use_ts ? "true" : "false", opts->tiered_storage ? "true" : "false");
         printf("Parent: Create %" PRIu32 " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
-        printf("CONFIG: %s%s%s%s%s%s%s -h %s -s %" PRIu64 " -T %" PRIu32 " -t %" PRIu32 " " TESTUTIL_SEED_FORMAT
-               "\n",
+        printf("CONFIG: %s%s%s%s%s%s%s -h %s -s %" PRIu64 " -T %" PRIu32 " -t %" PRIu32
+               " " TESTUTIL_SEED_FORMAT "\n",
           progname, opts->compat ? " -C" : "", use_lazyfs ? " -l" : "", opts->inmem ? " -m" : "",
           opts->tiered_storage ? " -PT" : "", opts->predictable ? " -PR" : "", !use_ts ? " -z" : "",
           opts->home, stop_timestamp, nth, timeout, opts->data_seed, opts->extra_seed);
