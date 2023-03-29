@@ -182,7 +182,7 @@ class test_checkpoint_cursor(wttest.WiredTigerTestCase):
         # Check creating an identically named checkpoint fails. */
         # Check dropping the specific checkpoint fails.
         # Check dropping all checkpoints fails.
-        msg = '/checkpoints cannot be dropped/'
+        msg = '/checkpoint.*cannot be dropped/'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.checkpoint("force,name=checkpoint-2"), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
