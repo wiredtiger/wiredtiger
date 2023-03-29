@@ -60,7 +60,7 @@ on the file system. Since the object store is read-only, all the write access me
 
 @section extension_log_stat Messaging and Statistics
 The cloud provider SDKs uses the term log systems and logging levels different to WiredTiger.
-The SDK's logging definiton refers to the the SDK messages are generated and the logging levels
+The SDK's logging definition refers to the the SDK messages are generated and the logging levels
 control the amount of information given to the user. The SDKs provide their own levels and
 are translated into WiredTiger messaging levels.
 
