@@ -63,7 +63,7 @@ azure_connection::list_objects(
     try {
         auto list_blobs_response = _azure_client.ListBlobs(blob_parameters);
         do {
-            for (const auto blob_item : list_blobs_response.Blobs)
+            for (const auto& blob_item : list_blobs_response.Blobs)
                 objects.push_back(blob_item.Name.substr(_bucket_prefix.length()));
             list_blobs_response.MoveToNextPage();
         } while (list_blobs_response.HasPage());
@@ -172,10 +172,10 @@ azure_connection::object_exists(
     object_size = 0;
     Azure::Storage::Blobs::ListBlobsOptions blob_parameters;
 
-    blob_parameters.Prefix = _bucket_prefix;
+    blob_parameters.Prefix = _bucket_prefix + object_key;
     auto list_blob_response = _azure_client.ListBlobs(blob_parameters);
     do {
-        for (const auto blob_item : list_blob_response.Blobs) {
+        for (const auto& blob_item : list_blob_response.Blobs) {
             // Check if object exists.
             if (blob_item.Name.compare(obj) == 0) {
                 // Check if object is deleted and has not been cleared by garbage collection.
