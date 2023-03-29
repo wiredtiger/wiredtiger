@@ -73,13 +73,14 @@ static const char *const uri_local = "table:local";
 static const char *const uri_oplog = "table:oplog";
 static const char *const uri_collection = "table:collection";
 
-static const char *const ckpt_file = "checkpoint_done";
+static const char *const ready_file = "child_ready";
 
 static bool use_columns, use_lazyfs, use_ts, use_txn;
 static volatile bool stable_set;
 
-static uint32_t nth; /* Number of threads. */
-
+static uint32_t nth;            /* Number of threads. */
+static uint64_t stop_timestamp; /* stop condition for threads. */
+static volatile uint64_t stable_timestamp; /* stable timestamp. */
 /*
  * We reserve timestamps for each thread for the entire run. The timestamp for the i-th key that a
  * thread writes is given by the macro below.
@@ -152,7 +153,8 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
 usage(void)
 {
-    fprintf(stderr, "usage: %s [-h dir] [-T threads] [-t time] [-BClmvxz]\n", progname);
+    fprintf(stderr, "usage: %s [-h dir] [-s stop_timestamp] [-T threads] [-t time] [-BClmvxz]\n",
+      progname);
     exit(EXIT_FAILURE);
 }
 
@@ -531,7 +533,12 @@ thread_ts_run(void *arg)
     for (;;) {
         oldest_ts = get_all_committed_ts();
 
-        if (oldest_ts != UINT64_MAX && oldest_ts - last_ts > STABLE_PERIOD) {
+        /* Don't let the stable or oldest timestamp advance beyond the stop timestamp. */
+        if (oldest_ts != UINT64_MAX && stop_timestamp != 0 && oldest_ts > stop_timestamp)
+            oldest_ts = stop_timestamp;
+
+        if ((oldest_ts == stop_timestamp && oldest_ts != last_ts) ||
+          (oldest_ts != UINT64_MAX && oldest_ts - last_ts > STABLE_PERIOD)) {
             /*
              * Set both the oldest and stable timestamp so that we don't need to maintain read
              * availability at older timestamps.
@@ -540,6 +547,7 @@ thread_ts_run(void *arg)
               "oldest_timestamp=%" PRIx64 ",stable_timestamp=%" PRIx64, oldest_ts, oldest_ts));
             testutil_check(td->conn->set_timestamp(td->conn, tscfg));
             last_ts = oldest_ts;
+            stable_timestamp = oldest_ts;
             if (!stable_set) {
                 stable_set = true;
                 printf("SET STABLE: %" PRIx64 " %" PRIu64 "\n", oldest_ts, oldest_ts);
@@ -565,19 +573,18 @@ thread_ckpt_run(void *arg)
     uint64_t sleep_time;
     int i;
     char ckpt_flush_config[128], ckpt_config[128];
-    bool first_ckpt, flush_tier;
+    bool created_ready, flush_tier, ready_for_kill;
 
     td = (THREAD_DATA *)arg;
     /*
      * Keep a separate file with the records we wrote for checking.
      */
-    (void)unlink(ckpt_file);
+    (void)unlink(ready_file);
     memset(ckpt_flush_config, 0, sizeof(ckpt_flush_config));
     memset(ckpt_config, 0, sizeof(ckpt_config));
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-    first_ckpt = true;
     ts = 0;
-    flush_tier = false;
+    created_ready = ready_for_kill = false;
 
     testutil_check(__wt_snprintf(ckpt_config, sizeof(ckpt_config), "use_timestamp=true"));
 
@@ -592,6 +599,7 @@ thread_ckpt_run(void *arg)
     __wt_epoch(NULL, &start);
     for (i = 1;; ++i) {
         sleep_time = __wt_random(&td->extra_rnd) % MAX_CKPT_INVL;
+        flush_tier = false;
         testutil_tiered_sleep(opts, session, sleep_time, &flush_tier);
         if (use_ts) {
             ts = get_all_committed_ts();
@@ -612,17 +620,38 @@ thread_ckpt_run(void *arg)
             }
         }
 
-        /*
-         * Set the configurations. Set use_timestamps regardless of whether timestamps are in use.
-         * Set flush_tier even if tiered is not set in the program as it should be a no-op in that
-         * case. Only report that flush is in use in the program output if tiered is actually being
-         * used however.
+        /* Set the configurations. Set use_timestamps regardless of whether timestamps are in use.
          */
         testutil_check(session->checkpoint(session, flush_tier ? ckpt_flush_config : ckpt_config));
+
+        /*
+         * We're ready to be killed after the first checkpoint, or if tiered storage, after the
+         * first flush_tier has been initiated. However, if we have a stop timestamp, we are ready
+         * if the stable has reached the requested stop timestamp.
+         */
+        if (stop_timestamp == 0) {
+            if (!opts->tiered_storage)
+                ready_for_kill = true;
+            else if (flush_tier)
+                ready_for_kill = true;
+        } else if (stable_timestamp >= stop_timestamp)
+            ready_for_kill = true;
 
         printf("Checkpoint %d complete: Flush: %s. Minimum ts %" PRIu64 "\n", i,
           flush_tier ? "YES" : "NO", ts);
         fflush(stdout);
+
+        /*
+         * If we've met the kill condition and we haven't created the ready file, do so now. The
+         * ready file lets the parent process knows that it can start its timer. Start the timer for
+         * stable after the first checkpoint completes because a slow I/O lag during the checkpoint
+         * can cause a false positive for a timeout.
+         */
+        if (ready_for_kill && !created_ready) {
+            testutil_assert_errno((fp = fopen(ready_file, "w")) != NULL);
+            testutil_assert_errno(fclose(fp) == 0);
+            created_ready = true;
+        }
 
         if (flush_tier) {
             /*
@@ -631,21 +660,9 @@ thread_ckpt_run(void *arg)
              * flush_tier "cookie" to the test utility function.
              */
             testutil_tiered_flush_complete(opts, session, NULL);
-            flush_tier = false;
             printf("Finished a flush_tier\n");
 
             set_flush_tier_delay(&td->extra_rnd);
-        }
-        /*
-         * Create the checkpoint file so that the parent process knows at least one checkpoint has
-         * finished and can start its timer. Start the timer for stable after the first checkpoint
-         * completes because a slow I/O lag during the checkpoint can cause a false positive for a
-         * timeout.
-         */
-        if (first_ckpt) {
-            testutil_assert_errno((fp = fopen(ckpt_file, "w")) != NULL);
-            first_ckpt = false;
-            testutil_assert_errno(fclose(fp) == 0);
         }
     }
     /* NOTREACHED */
@@ -726,6 +743,17 @@ thread_run(void *arg)
          */
         reserved_ts = RESERVED_TIMESTAMP_FOR_ITERATION(td->info, iter);
 
+        if (opts->predictable && reserved_ts > stop_timestamp) {
+            /*
+             * At this point, we've run to the stop timestamp and have been asked to go no further.
+             * Set our timestamp to the stop timestamp to indicate we are done.
+             * Just stay in the loop, waiting to be killed.
+             */
+            WT_PUBLISH(th_ts[td->info].ts, stop_timestamp);
+            __wt_sleep(1, 0);
+            continue;
+        }
+
         /*
          * Allow some threads to skip schema operations so that they are generating sufficient dirty
          * data.
@@ -759,7 +787,7 @@ thread_run(void *arg)
                 break;
             case 5:
                 WT_PUBLISH(th_ts[td->info].op, DROP);
-                test_drop(td, __wt_random(&td->data_rnd) & 1);
+                test_drop(td, opts->predictable || __wt_random(&td->data_rnd) & 1);
                 break;
             case 6:
                 WT_PUBLISH(th_ts[td->info].op, UPGRADE);
@@ -1030,7 +1058,8 @@ main(int argc, char *argv[])
     uint64_t absent_coll, absent_local, absent_oplog, count, key, last_key;
     uint64_t stable_fp, stable_val;
     uint32_t i, rand_value, timeout;
-    int ch, status;
+    int base, ch, status;
+    char *end_number, *stop_arg;
     char buf[PATH_MAX], fname[64], kname[64], statname[1024];
     char cwd_start[PATH_MAX]; /* The working directory when we started */
     bool fatal, rand_th, rand_time, verify_only;
@@ -1049,12 +1078,13 @@ main(int argc, char *argv[])
     use_txn = false;
     nth = MIN_TH;
     rand_th = rand_time = true;
+    stop_timestamp = 0;
     timeout = MIN_TIME;
     verify_only = false;
 
-    testutil_parse_begin_opt(argc, argv, "b:CmPTh:pv", opts);
+    testutil_parse_begin_opt(argc, argv, "b:Ch:mP:pT:v", opts);
 
-    while ((ch = __wt_getopt(progname, argc, argv, "Cch:lmpP:T:t:vxz")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "Cch:lmpP:s:T:t:vxz")) != EOF)
         switch (ch) {
         case 'c':
             /* Variable-length columns only; fixed would require considerable changes */
@@ -1062,6 +1092,17 @@ main(int argc, char *argv[])
             break;
         case 'l':
             use_lazyfs = true;
+            break;
+        case 's':
+            stop_arg = __wt_optarg;
+            if (WT_PREFIX_MATCH(stop_arg, "0x")) {
+                base = 16;
+                stop_arg += 2;
+            } else
+                base = 10;
+            stop_timestamp = (uint64_t)strtoll(stop_arg, &end_number, base);
+            if (*end_number)
+                usage();
             break;
         case 'T':
             rand_th = false;
@@ -1089,6 +1130,14 @@ main(int argc, char *argv[])
     argc -= __wt_optind;
     if (argc != 0)
         usage();
+    if (stop_timestamp != 0 && !rand_time) {
+        fprintf(stderr, "%s: -s and -t cannot both be used.\n", progname);
+        usage();
+    }
+    if (opts->predictable && stop_timestamp == 0) {
+        fprintf(stderr, "%s: -PR requires -s to be used.\n", progname);
+        usage();
+    }
 
     /*
      * Among other things, this initializes the random number generators in the option structure.
@@ -1181,11 +1230,15 @@ main(int argc, char *argv[])
          * Sleep for the configured amount of time before killing the child. Start the timeout from
          * the time we notice that the file has been created. That allows the test to run correctly
          * on really slow machines.
+         *
+         * If we have a stop timestamp, the ready file is created when the child threads have all
+         * reached the stop point, so there's no reason to sleep.
          */
-        testutil_check(__wt_snprintf(statname, sizeof(statname), "%s/%s", home, ckpt_file));
+        testutil_check(__wt_snprintf(statname, sizeof(statname), "%s/%s", home, ready_file));
         while (stat(statname, &sb) != 0)
             testutil_sleep_wait(1, pid);
-        sleep(timeout);
+        if (stop_timestamp == 0)
+            sleep(timeout);
 
         sa.sa_handler = SIG_DFL;
         testutil_assert_errno(sigaction(SIGCHLD, &sa, NULL) == 0);

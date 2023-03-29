@@ -113,6 +113,7 @@ typedef struct {
     bool compat;               /* Compatibility */
     bool do_data_ops;          /* Have schema ops use data */
     bool inmem;                /* In-memory */
+    bool predictable;          /* If needed, restrict testing to get predictable results */
     bool preserve;             /* Don't remove files on exit */
     bool tiered_storage;       /* Configure tiered storage */
     bool verbose;              /* Run in verbose mode */
