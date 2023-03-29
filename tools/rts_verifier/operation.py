@@ -519,7 +519,7 @@ class Operation:
         matches = re.search('rollback_txnid=(\d+)', line)
         self.rollback_txnid= int(matches.group(1))
 
-        matches = re.search('newest_start_durable_timestampe_ts=(\w+), newest_stop_durable_timestamp=(\w+)', line)
+        matches = re.search('newest_start_durable_timestamp=(\w+), newest_stop_durable_timestamp=(\w+)', line)
         durable_start_start = int(matches.group(1))
         durable_start_stop = int(matches.group(2))
         self.durable = Timestamp(durable_start, durable_stop)
