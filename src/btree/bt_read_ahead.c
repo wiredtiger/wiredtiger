@@ -18,7 +18,6 @@ int
 __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_READ_AHEAD *ra;
     WT_REF *next_ref;
     uint64_t block_preload;
 
@@ -41,29 +40,51 @@ __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
 
         /*
          * Skip queuing pages that are already in cache or are internal. They aren't the pages we
-         * are looking for.
-         * This pretty much assumes that all children of an internal page remain in cache during
-         * the scan. If a previous read-ahead of this internal page read a page in, then that page
-         * was evicted and now a future page wants to be read ahead, this algorithm needs a tweak.
-         * It would need to remember which child was last queued and start again from there, rather
-         * than this approximation which assumes recently read ahead pages are still in cache.
+         * are looking for. This pretty much assumes that all children of an internal page remain in
+         * cache during the scan. If a previous read-ahead of this internal page read a page in,
+         * then that page was evicted and now a future page wants to be read ahead, this algorithm
+         * needs a tweak. It would need to remember which child was last queued and start again from
+         * there, rather than this approximation which assumes recently read ahead pages are still
+         * in cache.
          */
         if (next_ref->state == WT_REF_DISK && F_ISSET(next_ref, WT_REF_FLAG_LEAF)) {
-            WT_RET(__wt_calloc_one(session, &ra));
-            WT_ASSERT(session, next_ref->home == ref->home);
-            ++next_ref->home->pg_intl_read_ahead_count;
-            ra->ref = next_ref;
-            ra->first_home = next_ref->home;
-            ra->dhandle = session->dhandle;
-            __wt_spin_lock(session, &conn->read_ahead_lock);
-            TAILQ_INSERT_TAIL(&conn->raqh, ra, q);
-            ++conn->read_ahead_queue_count;
-            __wt_spin_unlock(session, &conn->read_ahead_lock);
+            WT_RET(__wt_conn_read_ahead_queue_push(session, next_ref));
             ++block_preload;
         }
     }
     WT_INTL_FOREACH_END;
 
     WT_STAT_CONN_INCRV(session, block_read_ahead_pages_queued, block_preload);
+    return (0);
+}
+
+/*
+ * __wt_read_ahead_page_in --
+ *     Does the heavy lifting of reading a page into the cache. Immediately releases the page since
+ *     reading it in is the useful side effect here. Must be called while holding a dhandle.
+ */
+int
+__wt_read_ahead_page_in(WT_SESSION_IMPL *session, WT_READ_AHEAD *ra)
+{
+    WT_ADDR_COPY addr;
+
+    WT_ASSERT_ALWAYS(
+      session, ra->ref->home == ra->first_home, "The home changed while queued for read ahead");
+    WT_ASSERT_ALWAYS(session, ra->dhandle != NULL, "Read ahead needs to save a valid dhandle");
+    WT_ASSERT_ALWAYS(
+      session, !F_ISSET(ra->ref, WT_REF_FLAG_INTERNAL), "Read ahead should only see leaf pages");
+
+    if (ra->ref->state != WT_REF_DISK) {
+        WT_STAT_CONN_INCR(session, block_read_ahead_pages_fail);
+        return (0);
+    }
+
+    WT_STAT_CONN_INCR(session, block_read_ahead_pages_read);
+
+    if (__wt_ref_addr_copy(session, ra->ref, &addr)) {
+        WT_RET(__wt_page_in(session, ra->ref, WT_READ_PREFETCH));
+        WT_RET(__wt_page_release(session, ra->ref, 0));
+    }
+
     return (0);
 }

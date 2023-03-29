@@ -601,9 +601,8 @@ struct __wt_page {
          * doesn't read it multiple times).
          */
         struct {
-            WT_REF *parent_ref;        /* Parent reference */
-            uint64_t split_gen;        /* Generation of last split */
-            uint32_t read_ahead_count; /* Count of child pages that are queued for read ahead*/
+            WT_REF *parent_ref; /* Parent reference */
+            uint64_t split_gen; /* Generation of last split */
 
             WT_PAGE_INDEX *volatile __index; /* Collated children */
         } intl;
@@ -611,8 +610,6 @@ struct __wt_page {
 #define pg_intl_parent_ref u.intl.parent_ref
 #undef pg_intl_split_gen
 #define pg_intl_split_gen u.intl.split_gen
-#undef pg_intl_read_ahead_count
-#define pg_intl_read_ahead_count u.intl.read_ahead_count
 
 /*
  * Macros to copy/set the index because the name is obscured to ensure the field isn't read multiple

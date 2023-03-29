@@ -43,8 +43,8 @@ __wt_session_read_ahead_check(WT_SESSION_IMPL *session, WT_REF *ref)
     }
 
     /*
-     * If the previous read ahead was using the same home ref, skip read ahead for approximately
-     * the number of pages that were added to the queue.
+     * If the previous read ahead was using the same home ref, skip read ahead for approximately the
+     * number of pages that were added to the queue.
      */
     if (session->read_ahead_prev_ref->page == ref->home &&
       session->read_ahead_skipped_with_parent < WT_READ_AHEAD_QUEUE_PER_TRIGGER) {

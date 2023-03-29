@@ -38,37 +38,6 @@ __wt_read_ahead_thread_chk(WT_SESSION_IMPL *session)
 }
 
 /*
- * __read_ahead_page_in --
- *     Does the heavy lifting of reading a page into the cache. Immediately releases the page since
- *     reading it in is the useful side effect here. Must be called while holding a dhandle.
- */
-static int
-__read_ahead_page_in(WT_SESSION_IMPL *session, WT_READ_AHEAD *ra)
-{
-    WT_ADDR_COPY addr;
-
-    WT_ASSERT_ALWAYS(
-      session, ra->ref->home == ra->first_home, "The home changed while queued for read ahead");
-    WT_ASSERT_ALWAYS(session, ra->dhandle != NULL, "Read ahead needs to save a valid dhandle");
-    WT_ASSERT_ALWAYS(
-      session, !F_ISSET(ra->ref, WT_REF_FLAG_INTERNAL), "Read ahead should only see leaf pages");
-
-    if (ra->ref->state != WT_REF_DISK) {
-        WT_STAT_CONN_INCR(session, block_read_ahead_pages_fail);
-        return (0);
-    }
-
-    WT_STAT_CONN_INCR(session, block_read_ahead_pages_read);
-
-    if (__wt_ref_addr_copy(session, ra->ref, &addr)) {
-        WT_RET(__wt_page_in(session, ra->ref, WT_READ_PREFETCH));
-        WT_RET(__wt_page_release(session, ra->ref, 0));
-    }
-
-    return (0);
-}
-
-/*
  * __wt_read_ahead_thread_run --
  *     Entry function for a read_ahead thread. This is called repeatedly from the thread group code
  *     so it does not need to loop itself.
@@ -80,40 +49,114 @@ __wt_read_ahead_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_READ_AHEAD *ra;
+    bool locked;
 
     WT_UNUSED(thread);
 
     WT_ASSERT(session, session->id != 0);
 
     conn = S2C(session);
+    locked = false;
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
     while (F_ISSET(conn, WT_CONN_READ_AHEAD_RUN)) {
         __wt_spin_lock(session, &conn->read_ahead_lock);
+        locked = true;
         ra = TAILQ_FIRST(&conn->raqh);
-        if (ra == NULL) {
-            __wt_spin_unlock(session, &conn->read_ahead_lock);
+
+        /* If there is no work for the thread to do - return back to the thread pool */
+        if (ra == NULL)
             break;
-        }
+
         TAILQ_REMOVE(&conn->raqh, ra, q);
         --conn->read_ahead_queue_count;
-        __wt_spin_unlock(session, &conn->read_ahead_lock);
-
-        WT_WITH_DHANDLE(session, ra->dhandle, ret = __read_ahead_page_in(session, ra));
-        WT_ERR(ret);
-
+#if 0 /*                                                                                    \
+       * We can get to the parent page, but not the parent ref, so it isn't simple to get a \
+       * hazard pointer on the parent as we'd like.                                         \
+       */
+        /* Copy the parent ref to ensure the same hazard pointer is set and cleared. */
+        WT_ORDERED_READ(parent_ref, ra->ref->home);
         /*
-         * TODO: this reference count blocks page splits - we should not need to hold it across
-         * reading a child in, just until the ref state for that child is changed. Make that more
-         * optimal at some stage.
+         * Acquire a hazard pointer on the parent of the leaf page we are about to read in. The
+         * hazard pointer stops that internal page being evicted while the child is being read.
          */
-        --ra->ref->home->pg_intl_read_ahead_count;
+        WT_ERR(__wt_hazard_set(session, parent_ref, &parent_hazard));
+        __wt_spin_unlock(session, &conn->read_ahead_lock);
+        locked = false;
+
+        if (parent_hazard) {
+            WT_WITH_DHANDLE(session, ra->dhandle, ret = __wt_read_ahead_page_in(session, ra));
+            WT_ASSERT_ALWAYS(session, ra->ref->home == parent_ref,
+                    "It isn't safe for the parent page to change while doing read ahead. If the "
+                    "parent change, the new parent could have been evicted before this child was "
+                    "read in.");
+            WT_ERR(__wt_hazard_clear(session, parent_ref));
+            WT_ERR(ret);
+        }
+#else
+        __wt_spin_unlock(session, &conn->read_ahead_lock);
+        locked = false;
+
+        WT_WITH_DHANDLE(session, ra->dhandle, ret = __wt_read_ahead_page_in(session, ra));
+        WT_ERR(ret);
+#endif
+
         __wt_free(session, ra);
     }
 
 err:
+    if (locked)
+        __wt_spin_unlock(session, &conn->read_ahead_lock);
     __wt_scr_free(session, &tmp);
     return (ret);
+}
+
+/*
+ * __wt_conn_read_ahead_queue_push --
+ *     Push a ref onto the read ahead queue.
+ */
+int
+__wt_conn_read_ahead_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_READ_AHEAD *ra;
+
+    conn = S2C(session);
+
+    WT_RET(__wt_calloc_one(session, &ra));
+    ra->ref = ref;
+    ra->first_home = ref->home;
+    ra->dhandle = session->dhandle;
+    __wt_spin_lock(session, &conn->read_ahead_lock);
+    TAILQ_INSERT_TAIL(&conn->raqh, ra, q);
+    ++conn->read_ahead_queue_count;
+    __wt_spin_unlock(session, &conn->read_ahead_lock);
+
+    return (0);
+}
+
+/*
+ * __wt_conn_read_ahead_queue_check --
+ *     Check to see if a ref is present in the read ahead queue.
+ */
+bool
+__wt_conn_read_ahead_queue_check(WT_SESSION_IMPL *session, WT_REF *check_ref)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_READ_AHEAD *ra;
+
+    conn = S2C(session);
+    ra = NULL;
+
+    __wt_spin_lock(session, &conn->read_ahead_lock);
+    TAILQ_FOREACH (ra, &conn->raqh, q) {
+        if (ra->ref == check_ref)
+            break;
+    }
+    __wt_spin_unlock(session, &conn->read_ahead_lock);
+    if (ra != NULL && ra->ref == check_ref)
+        return (true);
+    return (false);
 }
 
 /*

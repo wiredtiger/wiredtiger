@@ -502,9 +502,6 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
     WT_REF *child;
     bool visible;
 
-    if (parent->page->pg_intl_read_ahead_count != 0)
-        return (__wt_set_return(session, EBUSY));
-
     /*
      * There may be cursors in the tree walking the list of child pages. The parent is locked, so
      * all we care about is cursors already in the child pages, no thread can enter them. Any cursor
@@ -547,6 +544,16 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
      * WT_REF structures pages can be discarded.
      */
     WT_INTL_FOREACH_BEGIN (session, parent->page, child) {
+        /*
+         * It isn't safe to evict if there is a child on the read ahead queue. This is potentially
+         * an n squared operation - each ref is checked against each entry in the read ahead queue.
+         * There isn't another obvious mechanism. It could be replaced by a mechanism that tracks
+         * how many child refs are on the queue on the internal page, but such a mechanism would
+         * need to be kept accurate during page splits which is hard.
+         */
+        if (__wt_conn_read_ahead_queue_check(session, child))
+            return (__wt_set_return(session, EBUSY));
+
         switch (child->state) {
         case WT_REF_DISK: /* On-disk */
             break;
