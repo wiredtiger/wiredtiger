@@ -122,7 +122,7 @@ __wt_blkcache_get_handle(WT_SESSION_IMPL *session, WT_BM *bm, uint32_t objectid,
             return (0);
         }
 
-    /* We need to add a new handle the block handle table. Upgrade to write lock. */
+    /* We need to add a new handle the block handle table. Upgrade to a write lock. */
     __wt_readunlock(session, &bm->handle_table_lock);
     __wt_writelock(session, &bm->handle_table_lock);
 
@@ -130,7 +130,8 @@ __wt_blkcache_get_handle(WT_SESSION_IMPL *session, WT_BM *bm, uint32_t objectid,
     for (i = 0; i < bm->handle_table_next; ++i)
         if (bm->handle_table[i]->objectid == objectid) {
             *blockp = bm->handle_table[i];
-            break;
+            __wt_writeunlock(session, &bm->handle_table_lock);
+            return (0);
         }
 
     /* Open the object. */
