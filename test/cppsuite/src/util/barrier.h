@@ -34,21 +34,21 @@
 namespace test_harness {
 
 /*
- * A barrier is a sychronization class that allows thread_count threads to perform an action at the
+ * A barrier is a synchronization class that allows thread_count threads to perform an action at the
  * same time. They are introduced in C++20 so we need a basic implementation in the meantime.
  *
  * In order to synchronize across threads call wait() on each thread, once thread_count threads have
  * called wait() they will exit the wait() and continue.
  */
 class barrier {
-    public:
+public:
     /* Mutexes have a deleted copy constructor so we need to as well. */
     barrier(barrier const &) = delete;
     ~barrier() = default;
     explicit barrier(std::size_t thread_count);
     void wait();
 
-    private:
+private:
     std::mutex _mutex;
     std::condition_variable _cond;
     std::size_t _threshold;

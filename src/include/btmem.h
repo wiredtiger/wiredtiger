@@ -72,15 +72,13 @@ struct __wt_page_header {
 /*
  * No automatic generation: flag values cannot change, they're written to disk.
  */
-#define WT_PAGE_COMPRESSED 0x01u      /* Page is compressed on disk */
-#define WT_PAGE_EMPTY_V_ALL 0x02u     /* Page has all zero-length values */
-#define WT_PAGE_EMPTY_V_NONE 0x04u    /* Page has no zero-length values */
-#define WT_PAGE_ENCRYPTED 0x08u       /* Page is encrypted on disk */
-#define WT_PAGE_UNUSED 0x10u          /* Historic lookaside store page updates, no longer used */
-#define WT_PAGE_FT_UPDATE 0x20u       /* Page contains updated fast-truncate information */
-#define WT_PAGE_STAT_BYTE_COUNT 0x40u /* Page contains byte count information */
-#define WT_PAGE_STAT_ROW_COUNT 0x80u  /* Page contains row count information */
-    uint8_t flags;                    /* 25: flags */
+#define WT_PAGE_COMPRESSED 0x01u   /* Page is compressed on disk */
+#define WT_PAGE_EMPTY_V_ALL 0x02u  /* Page has all zero-length values */
+#define WT_PAGE_EMPTY_V_NONE 0x04u /* Page has no zero-length values */
+#define WT_PAGE_ENCRYPTED 0x08u    /* Page is encrypted on disk */
+#define WT_PAGE_UNUSED 0x10u       /* Historic lookaside store page updates, no longer used */
+#define WT_PAGE_FT_UPDATE 0x20u    /* Page contains updated fast-truncate information */
+    uint8_t flags;                 /* 25: flags */
 
     /* A byte of padding, positioned to be added to the flags. */
     uint8_t unused; /* 26: unused padding */
@@ -127,16 +125,6 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
     ((void *)((uint8_t *)(dsk) + WT_PAGE_HEADER_BYTE_SIZE(btree)))
 
 /*
- * WT_PAGE_STAT --
- *	A structure to hold page information such as row and byte counts.
- */
-struct __wt_page_stat {
-    /* These informational values can be negative to signify that they are invalid. */
-    int64_t byte_count;
-    int64_t row_count;
-};
-
-/*
  * WT_ADDR --
  *	An in-memory structure to hold a block's location.
  */
@@ -159,8 +147,6 @@ struct __wt_addr {
      * correctly (not free'd on error, for example).
      */
     uint8_t reuse;
-
-    WT_PAGE_STAT ps; /* Page information including row and byte counts */
 };
 
 /*
@@ -718,10 +704,11 @@ struct __wt_page {
 #define WT_PAGE_DISK_ALLOC 0x004u         /* Disk image in allocated memory */
 #define WT_PAGE_DISK_MAPPED 0x008u        /* Disk image in mapped memory */
 #define WT_PAGE_EVICT_LRU 0x010u          /* Page is on the LRU queue */
-#define WT_PAGE_EVICT_NO_PROGRESS 0x020u  /* Eviction doesn't count as progress */
-#define WT_PAGE_INTL_OVERFLOW_KEYS 0x040u /* Internal page has overflow keys (historic only) */
-#define WT_PAGE_SPLIT_INSERT 0x080u       /* A leaf page was split for append */
-#define WT_PAGE_UPDATE_IGNORE 0x100u      /* Ignore updates on page discard */
+#define WT_PAGE_EVICT_LRU_URGENT 0x020u   /* Page is in the urgent queue */
+#define WT_PAGE_EVICT_NO_PROGRESS 0x040u  /* Eviction doesn't count as progress */
+#define WT_PAGE_INTL_OVERFLOW_KEYS 0x080u /* Internal page has overflow keys (historic only) */
+#define WT_PAGE_SPLIT_INSERT 0x100u       /* A leaf page was split for append */
+#define WT_PAGE_UPDATE_IGNORE 0x200u      /* Ignore updates on page discard */
                                           /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     uint16_t flags_atomic;                /* Atomic flags, use F_*_ATOMIC_16 */
 

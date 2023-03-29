@@ -58,6 +58,11 @@ create_test_executable(csuite_style_example_test
     CXX
 )
 
+if(ENABLE_ANTITHESIS)
+    target_link_libraries(run wt::voidstar)
+    target_link_libraries(csuite_style_example_test wt::voidstar)
+endif()
+
 # Test definitions.
 add_test(NAME cppsuite COMMAND ${CMAKE_CURRENT_BINARY_DIR}/run)
 

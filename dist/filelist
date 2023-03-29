@@ -38,6 +38,7 @@ src/btree/bt_slvg.c
 src/btree/bt_split.c
 src/btree/bt_stat.c
 src/btree/bt_sync.c
+src/btree/bt_sync_obsolete.c
 src/btree/bt_upgrade.c
 src/btree/bt_vrfy.c
 src/btree/bt_vrfy_dsk.c
@@ -105,6 +106,7 @@ src/evict/evict_stat.c
 src/history/hs_conn.c
 src/history/hs_cursor.c
 src/history/hs_rec.c
+src/history/hs_verify.c
 src/log/log.c
 src/log/log_auto.c
 src/log/log_slot.c
