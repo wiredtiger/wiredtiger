@@ -4081,6 +4081,11 @@ tasks:
   - name: schema-abort-predictable-test
     # Set 20 minute timeout (60 * 20)
     exec_timeout_secs: 1200
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
       - func: "schema abort predictable"
         vars:
           times: 5
