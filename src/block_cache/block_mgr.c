@@ -91,11 +91,9 @@ __bm_checkpoint(
   WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckptbase, bool data_checksum)
 {
     WT_BLOCK *block;
-    WT_CONNECTION_IMPL *conn;
     u_int i;
     bool found;
 
-    conn = S2C(session);
     block = bm->block;
 
     WT_RET(__wt_block_checkpoint(session, block, buf, ckptbase, data_checksum));
