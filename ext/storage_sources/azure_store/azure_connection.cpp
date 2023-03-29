@@ -65,7 +65,7 @@ azure_connection::list_objects(
         do {
             for (const auto &blob_item : list_blobs_response.Blobs)
                 objects.push_back(blob_item.Name.substr(_bucket_prefix.length()));
-            
+
             // Do not traverse all the blob pages if we are only looking for one object.
             if (list_single)
                 break;
