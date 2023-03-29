@@ -253,6 +253,8 @@ functions:
           virtualenv -p python3 venv
           source venv/bin/activate
           pip3 install boto3
+          pip3 install azure-storage-blob
+          pip3 install google-cloud-storage
 
           # Run Python testing for all tiered tests.
           ${test_env_vars|} python3 ../test/suite/run.py -j $(nproc) ${tiered_storage_test_name}
@@ -553,6 +555,22 @@ functions:
         ${format_test_setting|}
         for i in $(seq ${times|1}); do
           ${test_env_vars|} ./format.sh ${smp_command|} ${format_test_script_args|} 2>&1
+        done
+  "format test tiered":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/cmake_build/test/format"
+      script: |
+        # To make sure we have plenty of flush_tier calls, we set the flush frequency high
+        # and the time between checkpoints low. We specify only using tables, as that's the
+        # only kind of URI that participates in tiered storage.
+        set -o errexit
+        set -o verbose
+        format_args="tiered_storage.storage_source=dir_store tiered_storage.flush_frequency=60 checkpoint.wait=15 runs.source=table runs.timer=10"
+        for i in $(seq ${times}); do
+          echo Iteration $i/${times}
+          rm -rf RUNDIR
+          ./t $format_args ${extra_args}
         done
   "many dbs test":
     command: shell.exec
@@ -2185,7 +2203,7 @@ tasks:
         vars:
           unit_test_args: -v 2 --zstd
 
-  - name: unit-test-long
+  - name: unit-test-extra-long
     tags: ["python"]
     depends_on:
     - name: compile
@@ -2193,9 +2211,9 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test"
         vars:
-          unit_test_args: -v 2 --long
+          unit_test_args: -v 2 --extra-long
 
-  - name: unit-test-long-nonstandalone
+  - name: unit-test-extra-long-nonstandalone
     tags: ["python", "python-nonstandalone"]
     depends_on:
     - name: compile-nonstandalone
@@ -2205,7 +2223,7 @@ tasks:
           dependent_task: compile-nonstandalone
       - func: "unit test"
         vars:
-          unit_test_args: -v 2 --long --hook nonstandalone
+          unit_test_args: -v 2 --extra-long --hook nonstandalone
 
   - name: unit-linux-no-ftruncate-test
     tags: ["python"]
@@ -2237,6 +2255,27 @@ tasks:
       - func: "unit test"
         vars:
           unit_test_args: -v 2 --hook tiered
+
+  - name: unit-test-hook-tiered-s3
+    tags: ["python"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_tiered_storage_s3
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build"
+          shell: bash
+          include_expansions_in_env:
+            - aws_sdk_s3_ext_access_key
+            - aws_sdk_s3_ext_secret_key
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} --hook tiered=tier_storage_source='s3_store' ${smp_command|} 2>&1
+
 
   - name: unit-test-hook-tiered-timestamp
     tags: ["python"]
@@ -3976,6 +4015,19 @@ tasks:
         vars:
           times: 5
 
+  - name: format-tiered-test
+    # Set 2.5 hour timeout (60 * 60 * 2.5)
+    exec_timeout_secs: 9000
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
+      - func: "format test tiered"
+        vars:
+          times: 10
+
   - name: many-collection-test
     commands:
       - command: timeout.update
@@ -4964,6 +5016,23 @@ tasks:
           test_path: bench/wt2853_perf/wt2853_perf
 
 #######################################
+#     Antithesis Integration          #
+#######################################
+
+  - name: build-and-push-antithesis-containers
+    tags: ["antithesis"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - command: subprocess.exec
+        params:
+          working_dir: wiredtiger/tools/antithesis
+          binary: bash
+          add_expansions_to_env: true
+          args:
+          - "./build_and_push_containers.sh"
+
+#######################################
 #            Buildvariants            #
 #######################################
 
@@ -5004,7 +5073,7 @@ buildvariants:
     - name: spinlock-pthread-adaptive-test
     - name: ftruncate-test
     - name: long-test
-    - name: unit-test-long
+    - name: unit-test-extra-long
       distros: ubuntu2004-large
     - name: static-wt-build-test
     - name: linux-directio
@@ -5020,13 +5089,14 @@ buildvariants:
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
     - name: unit-test-nonstandalone
-    - name: unit-test-long-nonstandalone
+    - name: unit-test-extra-long-nonstandalone
       distros: ubuntu2004-large
     - name: ".data-validation-stress-test-nonstandalone"
     - name: unittest-assertions
     - name: ".tiered_unittest"
     - name: bench-tiered-push-pull-s3
     - name: csuite-timestamp-abort-test-s3
+    - name: unit-test-hook-tiered-s3
 
 - name: ubuntu2004-asan
   display_name: "! Ubuntu 20.04 ASAN"
@@ -5182,6 +5252,8 @@ buildvariants:
     - name: ".stress-test-no-barrier-nonstandalone"
     - name: format-abort-recovery-stress-test-nonstandalone
     - name: format-predictable-test
+    # FIXME-WT-10822
+    # - name: format-tiered-test
 
 # When running the Python tests on this variant tcmalloc must be preloaded otherwise the wiredtiger library
 # fails to load and resolve its dependency.
@@ -5320,7 +5392,7 @@ buildvariants:
     - name: syscall-linux
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
-    - name: unit-test-long
+    - name: unit-test-extra-long
       distros: rhel80-large
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
@@ -5504,7 +5576,7 @@ buildvariants:
     - name: linux-directio
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
-    - name: unit-test-long
+    - name: unit-test-extra-long
       distros: ubuntu2004-arm64-large
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
@@ -5517,7 +5589,7 @@ buildvariants:
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
     - name: unit-test-nonstandalone
-    - name: unit-test-long-nonstandalone
+    - name: unit-test-extra-long-nonstandalone
       distros: ubuntu2004-arm64-large
     - name: memory-model-test
       batchtime: 40320 # 28 days
@@ -5550,7 +5622,7 @@ buildvariants:
     - name: linux-directio
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
-    - name: unit-test-long
+    - name: unit-test-extra-long
       distros: amazon2-arm64-large
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
@@ -5562,7 +5634,7 @@ buildvariants:
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
     - name: unit-test-nonstandalone
-    - name: unit-test-long-nonstandalone
+    - name: unit-test-extra-long-nonstandalone
       distros: amazon2-arm64-large
 
 - name: infrequent-checks
@@ -5587,3 +5659,17 @@ buildvariants:
       batchtime: 10080 # 7 days
     - name: s-string
       batchtime: 129600 # 90 days
+
+# Antithesis build and push
+- name: ubuntu2004-antithesis
+  display_name: "~ Ubuntu 20.04 Antithesis"
+  run_on:
+  - ubuntu2004-test
+  expansions:
+    posix_configure_flags: -DENABLE_ANTITHESIS=1 -DENABLE_STRICT=0
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
+    make_command: ninja
+  tasks:
+    - name: build-and-push-antithesis-containers
+      cron: 0 0 * * 4 # once a week (Thursday midnight UTC)
+      patchable: false
