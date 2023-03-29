@@ -303,7 +303,7 @@ struct Operation {
     // Indicates whether a table is selected randomly to be worked on.
     bool _random_table;
     // Maintain the random table being used by each thread running the operation.
-    std::map<std::string, std::string> _tables;
+    std::vector<std::string> _tables;
 
     Operation();
     Operation(OpType optype, Table table, Key key, Value value);

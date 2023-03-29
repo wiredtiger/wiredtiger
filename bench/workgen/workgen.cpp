@@ -1378,6 +1378,11 @@ ThreadRunner::op_create_all(Operation *op, size_t &keysize, size_t &valuesize)
             else
                 usage_flags |= ThreadRunner::USAGE_WRITE;
             _table_usage[op->_table._internal->_tint] = usage_flags;
+        } else {
+            // Set size of vector storing thread-to-table mappings for the operation.
+            if (op->_tables.size() != _wrunner->_trunners.size()) {
+                op->_tables.resize(_wrunner->_trunners.size());
+            }
         }
     }
     if (op->_group != nullptr)
@@ -1452,10 +1457,7 @@ ThreadRunner::op_get_key_recno(Operation *op, uint64_t range, tint_t tint)
 void
 ThreadRunner::op_clear_table(Operation *op)
 {
-    if (op->_random_table) {
-        const std::unique_lock lock(*_icontext->_op_table_mutex);
-        op->_tables.erase(_thread->options.name);
-    }
+    op->_tables[_number] = std::string();
 }
 
 // Get the uri and tint for the table assigned to the specified operation for this
@@ -1467,14 +1469,13 @@ ThreadRunner::op_get_table(Operation *op) const
         return {op->_table._uri, op->_table._internal->_tint};
     }
 
-    const std::shared_lock lock(*_icontext->_op_table_mutex);
-    auto itr = op->_tables.find(_thread->options.name);
-    if (itr != op->_tables.end()) {
-        std::string uri = itr->second;
-        tint_t tint = _icontext->_dyn_tint[uri];
-        return {uri, tint};
+    std::string uri = op->_tables[_number];
+    tint_t tint = 0;
+    if (uri != std::string()) {
+        const std::shared_lock lock(*_icontext->_dyn_mutex);
+        tint = _icontext->_dyn_tint[uri];
     }
-    return {std::string(), 0};
+    return {uri, tint};
 }
 
 /*
@@ -1486,8 +1487,7 @@ bool
 ThreadRunner::op_has_table(Operation *op) const
 {
     if (op->_random_table) {
-        const std::shared_lock lock(*_icontext->_op_table_mutex);
-        return (op->_tables.find(_thread->options.name) != op->_tables.end());
+        return (op->_tables[_number] != std::string());
     } else {
         return (!op->_table._uri.empty());
     }
@@ -1498,9 +1498,7 @@ void
 ThreadRunner::op_set_table(Operation *op, const std::string &uri)
 {
     if (op->_random_table) {
-        const std::unique_lock lock(*_icontext->_op_table_mutex);
-        auto [itr, success] = op->_tables.emplace(_thread->options.name, uri);
-        ASSERT(success);
+        op->_tables[_number] = uri;
     }
 }
 
@@ -2130,6 +2128,7 @@ Operation::operator=(const Operation &other)
     _repeatgroup = other._repeatgroup;
     _timed = other._timed;
     _random_table = other._random_table;
+    _tables = other._tables;
     delete _internal;
     _internal = nullptr;
     init_internal(other._internal);
