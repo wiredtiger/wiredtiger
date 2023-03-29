@@ -203,9 +203,6 @@ parse_tiered_opt(TEST_OPTS *opts)
 
         opts->tiered_storage_source = dstrdup(__wt_optarg);
         break;
-    case 'R':
-        opts->predictable = true;
-        break;
     case 'S':
         parse_tiered_random_seeds(opts, __wt_optarg);
         break;
@@ -252,7 +249,7 @@ testutil_parse_begin_opt(int argc, char *const *argv, const char *getopts_string
       USAGE_STR('m', " [-m]"), USAGE_STR('n', " [-n record count]"),
       USAGE_STR('o', " [-o op count]"),
       USAGE_STR('P',
-        " [-PR] [-PT] [-PSD<data_seed>,E<extra_seed>] [-Pd <force_delay>,<delay_ms>]"
+        " [-PT] [-PSD<data_seed>,E<extra_seed>] [-Pd <force_delay>,<delay_ms>]"
         " [-Pe <force_error>,<error_ms>] [-Po storage source]"),
       USAGE_STR('p', " [-p]"), USAGE_STR('R', " [-R read thread count]"),
       USAGE_STR('T', " [-T thread count]"), USAGE_STR('t', " [-t c|f|r table type]"),

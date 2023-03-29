@@ -627,11 +627,11 @@ functions:
           # Do two runs up to the stable timestamp, using the same data seed,
           # but with a different extra seed.  Compare it when done.
           echo "First run with stable value $ops"
-          first_run_args="-PSD$r,E$x1 -T $nthreads -PR -s $ops"
+          first_run_args="-PSD$r,E$x1 -T $nthreads -s $ops"
           ./test_schema_abort -p -h RUNDIR_1 $first_run_args  || exit 1
 
           echo "Second run with stable value $ops"
-          second_run_args="-PSD$r,E$x2 -T $nthreads -PR -s $ops"
+          second_run_args="-PSD$r,E$x2 -T $nthreads -s $ops"
           ./test_schema_abort -p -h RUNDIR_2 $second_run_args  || exit 1
 
           # We are ignoring the table:wt table. This table does not participate in

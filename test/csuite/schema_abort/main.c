@@ -743,7 +743,7 @@ thread_run(void *arg)
          */
         reserved_ts = RESERVED_TIMESTAMP_FOR_ITERATION(td->info, iter);
 
-        if (opts->predictable && reserved_ts > stop_timestamp) {
+        if (stop_timestamp != 0 && reserved_ts > stop_timestamp) {
             /*
              * At this point, we've run to the stop timestamp and have been asked to go no further.
              * Set our timestamp to the stop timestamp to indicate we are done. Just stay in the
@@ -787,7 +787,7 @@ thread_run(void *arg)
                 break;
             case 5:
                 WT_PUBLISH(th_ts[td->info].op, DROP);
-                test_drop(td, opts->predictable || __wt_random(&td->data_rnd) & 1);
+                test_drop(td, __wt_random(&td->data_rnd) & 1);
                 break;
             case 6:
                 WT_PUBLISH(th_ts[td->info].op, UPGRADE);
@@ -1134,10 +1134,6 @@ main(int argc, char *argv[])
         fprintf(stderr, "%s: -s and -t cannot both be used.\n", progname);
         usage();
     }
-    if (opts->predictable && stop_timestamp == 0) {
-        fprintf(stderr, "%s: -PR requires -s to be used.\n", progname);
-        usage();
-    }
 
     /*
      * Among other things, this initializes the random number generators in the option structure.
@@ -1206,11 +1202,11 @@ main(int argc, char *argv[])
           opts->compat ? "true" : "false", opts->inmem ? "true" : "false",
           use_ts ? "true" : "false", opts->tiered_storage ? "true" : "false");
         printf("Parent: Create %" PRIu32 " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
-        printf("CONFIG: %s%s%s%s%s%s%s -h %s -s %" PRIu64 " -T %" PRIu32 " -t %" PRIu32
+        printf("CONFIG: %s%s%s%s%s%s -h %s -s %" PRIu64 " -T %" PRIu32 " -t %" PRIu32
                " " TESTUTIL_SEED_FORMAT "\n",
           progname, opts->compat ? " -C" : "", use_lazyfs ? " -l" : "", opts->inmem ? " -m" : "",
-          opts->tiered_storage ? " -PT" : "", opts->predictable ? " -PR" : "", !use_ts ? " -z" : "",
-          opts->home, stop_timestamp, nth, timeout, opts->data_seed, opts->extra_seed);
+          opts->tiered_storage ? " -PT" : "", !use_ts ? " -z" : "", opts->home, stop_timestamp, nth,
+          timeout, opts->data_seed, opts->extra_seed);
         /*
          * Fork a child to insert as many items. We will then randomly kill the child, run recovery
          * and make sure all items we wrote exist after recovery runs.
