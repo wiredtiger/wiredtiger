@@ -1206,11 +1206,11 @@ main(int argc, char *argv[])
           opts->compat ? "true" : "false", opts->inmem ? "true" : "false",
           use_ts ? "true" : "false", opts->tiered_storage ? "true" : "false");
         printf("Parent: Create %" PRIu32 " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
-        printf("CONFIG: %s%s%s%s%s%s -h %s -T %" PRIu32 " -t %" PRIu32 " " TESTUTIL_SEED_FORMAT
+        printf("CONFIG: %s%s%s%s%s%s%s -h %s -s %" PRIu64 " -T %" PRIu32 " -t %" PRIu32 " " TESTUTIL_SEED_FORMAT
                "\n",
           progname, opts->compat ? " -C" : "", use_lazyfs ? " -l" : "", opts->inmem ? " -m" : "",
-          opts->tiered_storage ? " -PT" : "", !use_ts ? " -z" : "", opts->home, nth, timeout,
-          opts->data_seed, opts->extra_seed);
+          opts->tiered_storage ? " -PT" : "", opts->predictable ? " -PR" : "", !use_ts ? " -z" : "",
+          opts->home, stop_timestamp, nth, timeout, opts->data_seed, opts->extra_seed);
         /*
          * Fork a child to insert as many items. We will then randomly kill the child, run recovery
          * and make sure all items we wrote exist after recovery runs.
