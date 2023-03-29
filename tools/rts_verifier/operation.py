@@ -37,6 +37,19 @@ class OpType(Enum):
     SKIP_DAMAGE = 28
     HS_TRUNCATED = 29
     SHUTDOWN_RTS = 30
+    HS_ABORT_CHECK = 31
+    HS_TREE_FINAL_PASS = 32
+    HS_TRUNCATING = 33
+    HS_UPDATE_REMOVE = 34
+    INSERT_LIST_CHECK = 35
+    INSERT_LIST_UPDATE_ABORT = 36
+    ONDISK_ABORT_CHECK = 37
+    ONDISK_KV_FIX = 38
+    PAGE_DELETE = 39
+    PAGE_UNSKIPPED = 40
+    STABLE_UPDATE_FOUND = 41
+    TREE_OBJECT_LOG = 42
+    UPDATE_CHAIN_ABORT = 43
 
 class Operation:
     def __init__(self, line):
@@ -446,6 +459,74 @@ class Operation:
         self.commit_stop = Timestamp(commit_stop_start, commit_stop_stop)
 
         self.stable = self.__extract_simple_timestamp('stable_timestamp', line)
+
+    def __init_hs_abort_check(self, line):
+        self.type = OpType.HS_ABORT_CHECK
+        self.durable = self.__extract_simple_timestamp('durable_timestamp', line)
+
+    def __init_hs_tree_final_pass(self, line):
+        self.type = OpType.HS_TREE_FINAL_PASS
+        self.rollback = self.__extract_simple_timestamp('rollback_timestamp', line)
+
+    def __init_hs_truncating(self, line):
+        self.type = OpType.HS_TRUNCATING
+        matches = re.search('truncating history store entries for tree with id=(\d+)', line)
+        self.btree_id = int(matches.group(1))
+
+    def __init_hs_update_remove(self, line):
+        self.type = OpType.HS_UPDATE_REMOVE
+        self.stop = self.__extract_simple_timestamp('stop_timestamp', line)
+        self.stable = self.__extract_simple_timestamp('stable_timestamp', line)
+
+    def __init_insert_list_check(self, line):
+        self.type = OpType.INSERT_LIST_CHECK
+        self.rollback = self.__extract_simple_timestamp('rollback_timestamp', line)
+
+    def __init_insert_list_update_abort(self, line):
+        self.type = OpType.INSERT_LIST_UPDATE_ABORT
+        self.stop = self.__extract_simple_timestamp('stop_timestamp', line)
+        self.stable = self.__extract_simple_timestamp('stable_timestamp', line)
+
+    def __init_ondisk_abort_check(self, line):
+        self.type = OpType.ONDISK_ABORT_CHECK
+        self.rollback = self.__extract_simple_timestamp('rollback_timestamp', line)
+
+    def __init_ondisk_kv_fix(self, line):
+        self.type = OpType.ONDISK_KV_FIX
+        self.rollback = self.__extract_simple_timestamp('rollback_timestamp', line)
+
+    def __init_page_delete(self, line):
+        self.type = OpType.PAGE_DELETE
+        self.durable = self.__extract_simple_timestamp('durable_timestamp', line)
+        self.rollback = self.__extract_simple_timestamp('rollback_timestamp', line)
+
+    def __init_page_unskipped(self, line):
+        self.type = OpType.PAGE_UNSKIPPED
+        self.addr = self.__extract_pointer('ref', line)
+
+    def __init_stable_update_found(self, line):
+        self.type = OpType.STABLE_UPDATE_FOUND
+
+        matches = re.search('txnid=(\d+)', line)
+        self.txnid = int(matches.group(1))
+
+        self.start = self.__extract_simple_timestamp('stable_timestamp', line)
+        self.durable = self.__extract_simple_timestamp('durable_timestamp', line)
+
+    def __init_tree_object_log(self, line):
+        self.type = OpType.TREE_OBJECT_LOG
+
+        matches = re.search('rollback_txnid=(\d+)', line)
+        self.rollback_txnid= int(matches.group(1))
+
+        matches = re.search('newest_start_durable_timestampe_ts=(\w+), newest_stop_durable_timestamp=(\w+)', line)
+        durable_start_start = int(matches.group(1))
+        durable_start_stop = int(matches.group(2))
+        self.durable = Timestamp(durable_start, durable_stop)
+
+    def __init_update_chain_abort(self, line):
+        self.type = OpType.UPDATE_CHAIN_ABORT
+        self.rollback = self.__extract_simple_timestamp('rollback_timestamp', line)
 
     def __init_hs_restore_tombstone(self, line):
         self.type = OpType.HS_RESTORE_TOMBSTONE

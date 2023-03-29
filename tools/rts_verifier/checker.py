@@ -223,3 +223,51 @@ class Checker:
     def __apply_check_hs_truncated(self, operation):
         # TODO expand this out
         pass
+
+    def __apply_check_hs_abort_check(self, operation):
+        # TODO expand this out
+        pass   
+
+    def __apply_check_hs_tree_final_pass(self, operation):
+        # TODO expand this out
+        pass    
+
+    def __apply_check_hs_truncating(self, operation):
+        # TODO expand this out
+        pass   
+
+    def __apply_check_hs_update_remove(self, operation):
+        # TODO expand this out
+        pass  
+
+    def __apply_check_insert_list_check(self, operation):
+        # TODO expand this out
+        pass   
+
+    def __apply_check_insert_list_update_abort(self, operation):
+        # TODO expand this out
+        pass    
+
+    def __apply_check_ondisk_abort_check(self, operation):
+        # TODO expand this out
+        pass   
+
+    def __apply_check_ondisk_kv_fix(self, operation):
+        # TODO expand this out
+        pass     
+
+    def __apply_check_page_delete(self, operation):
+        # TODO expand this out
+        pass   
+
+    def __apply_check_stable_update_found(self, operation):
+        # TODO expand this out
+        pass    
+
+    def __apply_check_tree_object_log(self, operation):
+        # TODO expand this out
+        pass   
+
+    def __apply_check_update_chain_abort(self, operation):
+        # TODO expand this out
+        pass        
