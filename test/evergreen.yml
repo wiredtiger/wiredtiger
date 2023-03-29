@@ -4081,6 +4081,7 @@ tasks:
   - name: schema-abort-predictable-test
     # Set 20 minute timeout (60 * 20)
     exec_timeout_secs: 1200
+    commands:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
@@ -5316,6 +5317,7 @@ buildvariants:
     - name: format-predictable-test
     # FIXME-WT-10822
     # - name: format-tiered-test
+    - name: schema-abort-predictable-test
 
 # When running the Python tests on this variant tcmalloc must be preloaded otherwise the wiredtiger library
 # fails to load and resolve its dependency.
