@@ -37,7 +37,7 @@ __bm_close_block(WT_SESSION_IMPL *session, WT_BLOCK *block)
     if (block->sync_on_checkpoint)
         WT_RET(__wt_fsync(session, block->fh, true));
 
-    return(__wt_block_close(session, block));
+    return (__wt_block_close(session, block));
 }
 
 /*
@@ -101,13 +101,13 @@ __bm_checkpoint(
     WT_RET(__wt_block_checkpoint(session, block, buf, ckptbase, data_checksum));
 
     if (!bm->is_tiered)
-        return(0);
+        return (0);
     /*
      * For tiered tables, we need to fsync any previous active files to ensure the full checkpoint
-     * is persisted. We wait until now because there may have been in-progress writes to old 
-     * files. But now we now those writes must have completed. Checkpoint ensures that all dirty
-     * pages of the tree have been written and eviction is disabled at this point, so no new data is
-     * getting written.
+     * is persisted. We wait until now because there may have been in-progress writes to old files.
+     * But now we now those writes must have completed. Checkpoint ensures that all dirty pages of
+     * the tree have been written and eviction is disabled at this point, so no new data is getting
+     * written.
      *
      * We don't hold the handle table lock across fsync calls since those could be slow and that
      * would block a concurrent thread opening a new block handle.
@@ -263,10 +263,10 @@ __bm_close(WT_BM *bm, WT_SESSION_IMPL *session)
     if (bm == NULL) /* Safety check */
         return (0);
 
-    if (!bm->is_tiered) 
+    if (!bm->is_tiered)
         ret = __bm_close_block(session, bm->block);
     else {
-        /* We don't need to expicitly close the active handle; it is in the block handle table. */
+        /* We don't need to explicitly close the active handle; it is in the block handle table. */
         for (i = 0; i < bm->handle_table_next; ++i) {
             WT_TRET(__bm_close_block(session, bm->handle_table[i]));
         }
@@ -817,7 +817,8 @@ __wt_blkcache_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
         WT_ERR(__wt_rwlock_init(session, &bm->handle_table_lock));
 
         /* Allocate space to store the handle (do first for simpler cleanup). */
-        WT_ERR(__wt_realloc_def(session, &bm->handle_table_allocated, bm->handle_table_next + 1, &bm->handle_table));
+        WT_ERR(__wt_realloc_def(
+          session, &bm->handle_table_allocated, bm->handle_table_next + 1, &bm->handle_table));
 
         /* Open the active file, and save in table */
         WT_ERR(__wt_blkcache_tiered_open(session, uri, 0, &bm->block));

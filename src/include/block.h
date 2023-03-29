@@ -212,11 +212,11 @@ struct __wt_bm {
     void *mapped_cookie;
 
     /* Tiered storage */
-    bool is_tiered;                  /* This is a tiered btree */
-    WT_RWLOCK handle_table_lock;     /* Lock for block handle table */
-    WT_BLOCK **handle_table;         /* Table of block handles */
-    size_t handle_table_allocated;   /* Size of handle table */
-    u_int handle_table_next;         /* Next open slot */
+    bool is_tiered;                /* This is a tiered btree */
+    WT_RWLOCK handle_table_lock;   /* Lock for block handle table */
+    WT_BLOCK **handle_table;       /* Table of block handles */
+    size_t handle_table_allocated; /* Size of handle table */
+    u_int handle_table_next;       /* Next open slot */
 
     /*
      * There's only a single block manager handle that can be written, all others are checkpoints.

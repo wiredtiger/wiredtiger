@@ -32,7 +32,8 @@ __wt_bm_read(
      * live systems, the discard list. This only applies if the block is in this object.
      */
     if (objectid == block->objectid)
-        WT_RET(__wt_block_misplaced(session, block, "read", offset, size, bm->is_live, __PRETTY_FUNCTION__, __LINE__));
+        WT_RET(__wt_block_misplaced(
+          session, block, "read", offset, size, bm->is_live, __PRETTY_FUNCTION__, __LINE__));
 #endif
 
     /* Swap file handles if reading from a different object. */

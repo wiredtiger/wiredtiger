@@ -100,8 +100,7 @@ err:
  *     Get a cached block handle for an object, creating it if it doesn't exist.
  */
 int
-__wt_blkcache_get_handle(
-  WT_SESSION_IMPL *session, WT_BM *bm, uint32_t objectid, WT_BLOCK **blockp)
+__wt_blkcache_get_handle(WT_SESSION_IMPL *session, WT_BM *bm, uint32_t objectid, WT_BLOCK **blockp)
 {
     WT_DECL_RET;
     u_int i;
