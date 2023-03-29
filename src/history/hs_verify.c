@@ -101,40 +101,24 @@ err:
  *     exclusive access to the btree.
  */
 int
-__wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t this_btree_id)
+__wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t btree_id)
 {
     WT_CURSOR *hs_cursor;
     WT_CURSOR_BTREE ds_cbt;
     WT_DECL_RET;
-    WT_ITEM key;
-    wt_timestamp_t hs_start_ts;
-    uint64_t hs_counter;
-    uint32_t btree_id;
 
     hs_cursor = NULL;
-    WT_CLEAR(key);
-    hs_start_ts = 0;
-    hs_counter = 0;
-    btree_id = WT_BTREE_ID_INVALID;
 
     WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     /* Position the hs cursor on the requested btree id, there could be nothing in the HS yet. */
-    hs_cursor->set_key(hs_cursor, 1, this_btree_id);
+    hs_cursor->set_key(hs_cursor, 1, btree_id);
     WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, hs_cursor), true);
     if (ret == WT_NOTFOUND) {
         ret = 0;
         goto err;
     }
-
-    /*
-     * Make sure the cursor is positioned on the given btree id, if not, there is nothing in the HS
-     * to be checked.
-     */
-    WT_ERR(hs_cursor->get_key(hs_cursor, &btree_id, &key, &hs_start_ts, &hs_counter));
-    if (this_btree_id != btree_id)
-        goto err;
 
     /*
      * We are in verify and we are not able to open a standard cursor because the btree is flagged
