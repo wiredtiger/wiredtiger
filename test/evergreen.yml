@@ -659,7 +659,8 @@ functions:
           rm -rf RUNDIR_{1,2}
 
           # Run with up to a slightly different timestamp for each iteration.
-          ops=$(($op_count + $RANDOM % 100))
+          x=$RANDOM
+          ops=$(($op_count + $x % 100))
 
           # Do two runs up to the stable timestamp, using the same data seed,
           # but with a different extra seed.  Compare it when done.
