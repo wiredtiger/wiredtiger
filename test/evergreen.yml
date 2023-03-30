@@ -631,6 +631,11 @@ functions:
     params:
       working_dir: "wiredtiger/cmake_build/test/csuite/schema_abort"
       script: |
+        # Get a random value,/bin/sh version.
+        rando() {
+          tr -cd 0-9 </dev/urandom | head -c 5
+        }
+
         # Run schema_abort in a way that can test predictable replay.
         set -o errexit
         set -o verbose
@@ -640,8 +645,8 @@ functions:
         toolsdir=../../../../tools
         wtutil=../../../wt
 
-        r=$RANDOM$RANDOM
-        x0=$RANDOM$RANDOM
+        r=$(rando)$(rando)
+        x0=$(rando)$(rando)
 
         rm -rf RUNDIR_0
         # The first run is for calibration only.  We just want to run for the designated
@@ -654,13 +659,12 @@ functions:
 
         for i in $(seq ${times}); do
           echo Iteration $i/${times}
-          x1=$RANDOM$RANDOM
-          x2=$RANDOM$RANDOM
+          x1=$(rando)$(rando)
+          x2=$(rando)$(rando)
           rm -rf RUNDIR_{1,2}
 
           # Run with up to a slightly different timestamp for each iteration.
-          n=$(date +%N)
-          ops=$(($op_count + $n % 100))
+          ops=$(($op_count + $(rando) % 100))
 
           # Do two runs up to the stable timestamp, using the same data seed,
           # but with a different extra seed.  Compare it when done.
