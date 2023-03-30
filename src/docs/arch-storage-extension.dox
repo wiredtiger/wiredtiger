@@ -91,7 +91,7 @@ Hence, a \c WT_FILE_HANDLE is kept encapsulated in the S3 file handle.
 @section azure_gcp_store Azure and GCP Storage Source
 The Azure and Google Cloud Platform (GCP) stores implement the following functionality:
 
-- The Azure and GCP stores follows different authentication methods to connect to their respective
+- The Azure and GCP stores follow different authentication methods to connect to their respective
 SDKs. GCP requires setting a \c GOOGLE_APPLICATION_CREDENTIALS environment variable with the
 path to an authentication file and Azure requires the \c AZURE_STORAGE_CONNECTION_STRING environment
 variable to be set.
