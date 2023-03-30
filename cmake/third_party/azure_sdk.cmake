@@ -23,15 +23,7 @@ set(azure_sdk_include_location)
 if(IMPORT_AZURE_SDK_PACKAGE)
     find_package(azure-storage-blobs-cpp CONFIG REQUIRED)
     find_package(azure-core-cpp CONFIG REQUIRED)
-
-
-    get_property(importTargetsAfter DIRECTORY "${CMAKE_SOURCE_DIR}" PROPERTY IMPORTED_TARGETS)
-    list(REMOVE_ITEM importTargetsAfter ${importTargets})
-
-    message("${importTargetsAfter}")
-endif()
-
-if (IMPORT_AZURE_SDK_EXTERNAL)
+elseif (IMPORT_AZURE_SDK_EXTERNAL)
     ExternalProject_Add(
         azure-sdk
         PREFIX azure-sdk-cpp
@@ -80,4 +72,6 @@ if (IMPORT_AZURE_SDK_EXTERNAL)
         IMPORTED_LOCATION ${azure_storage_common_lib_location}
         INTERFACE_INCLUDE_DIRECTORIES ${azure_sdk_include_location}
     )
+    add_dependencies(Azure::azure-storage-blobs azure-sdk)
+    add_dependencies(Azure::azure-core azure-sdk)
 endif()

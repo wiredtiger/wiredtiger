@@ -55,19 +55,19 @@ if(IMPORT_GCP_SDK_EXTERNAL)
     # Set the path variables to be used for the GCP targets.
     set(gcp_storage_lib_location ${INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libgoogle_cloud_cpp_storage${CMAKE_SHARED_LIBRARY_SUFFIX})
     set(gcp_common_lib_location ${INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libgoogle_cloud_cpp_common${CMAKE_SHARED_LIBRARY_SUFFIX})
+
+    set(gcp_sdk_include_location ${INSTALL_DIR}/${CMAKE_INSTALL_INCLUDEDIR})
+
+    add_library(google-cloud-cpp::storage SHARED IMPORTED)
+    add_library(google-cloud-cpp::common SHARED IMPORTED)
+
+    # Declare the include directories under INTERFACE_INCLUDE_DIRECTORIES during the configuration phase.
+    set_target_properties(google-cloud-cpp::storage PROPERTIES
+        IMPORTED_LOCATION ${gcp_storage_lib_location}
+        INTERFACE_INCLUDE_DIRECTORIES ${gcp_sdk_include_location}
+    )
+    set_target_properties(google-cloud-cpp::common PROPERTIES
+        IMPORTED_LOCATION ${gcp_common_lib_location}
+        INTERFACE_INCLUDE_DIRECTORIES ${gcp_sdk_include_location}
+    )
 endif()
-
-set(gcp_sdk_include_location ${INSTALL_DIR}/${CMAKE_INSTALL_INCLUDEDIR})
-
-add_library(gcp_storage_lib SHARED IMPORTED)
-add_library(gcp_common_lib SHARED IMPORTED)
-
-# Declare the include directories under INTERFACE_INCLUDE_DIRECTORIES during the configuration phase.
-set_target_properties(gcp_storage_lib PROPERTIES
-    IMPORTED_LOCATION ${gcp_storage_lib_location}
-    INTERFACE_INCLUDE_DIRECTORIES ${gcp_sdk_include_location}
-)
-set_target_properties(gcp_common_lib PROPERTIES
-    IMPORTED_LOCATION ${gcp_common_lib_location}
-    INTERFACE_INCLUDE_DIRECTORIES ${gcp_sdk_include_location}
-)
