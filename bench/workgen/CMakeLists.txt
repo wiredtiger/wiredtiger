@@ -29,8 +29,10 @@ include(${CMAKE_SOURCE_DIR}/cmake/helpers.cmake)
 # build is available.
 set(wiredtiger_target)
 if(ENABLE_STATIC AND WITH_PIC)
+    set(share_state STATIC)
     set(wiredtiger_target wiredtiger_static)
 elseif(ENABLE_SHARED)
+    set(share_state SHARED)
     set(wiredtiger_target wiredtiger_shared)
 else()
     message(STATIC "Skipping workgen compiliation: Requires either a shared library (ENABLE_SHARED)"
@@ -79,7 +81,7 @@ set(CMAKE_SWIG_FLAGS ${swig_flags})
 # Indicate the swig file should be compiled in C++ mode.
 set_property(SOURCE ${CMAKE_CURRENT_LIST_DIR}/workgen.i PROPERTY CPLUSPLUS ON)
 swig_add_library(workgen
-  TYPE SHARED
+  TYPE ${share_state}
   LANGUAGE python
   SOURCES ${CMAKE_CURRENT_LIST_DIR}/workgen.i
 )
