@@ -4,11 +4,10 @@
 
 The WiredTiger extension API allows control of how files are stored via the storage source
 abstraction layer. More information can be found through @ref custom_storage_sources. There are
-three storage sources that extend the WiredTiger's capability to store the data files into cloud
-storage through Azure, Google and AWS providers. The cloud storage extensions provide a
-means to construct, configure and control a custom file system linked to a cloud bucket. All three
-storage source implementations internally interact with the cloud storage through their own C++
-SDKs.
+three storage sources that extend WiredTiger's capability to store data files into cloud storage
+through Azure, Google and AWS providers. The cloud storage extensions provide a means to construct,
+configure and control a custom file system linked to a cloud bucket. All three storage source
+implementations internally interact with the cloud storage through their own C++ SDKs.
 
 All storage sources implement the following key functionalities defined by the storage source
 interface:
@@ -71,7 +70,7 @@ WiredTiger messaging system. The statistics are also printed when the \c WT_VERB
 storage source via the custom messaging system.
 
 @section s3_store S3 Storage source
-The S3 store implements the following key functionalities defined by the storage source interface:
+The S3 store implement the following key functionalities defined by the storage source interface:
 
 - The bucket is expected to be a string argument, which is the bucket name and the
 corresponding region separated by a ';', e.g. "bucket1;ap-southeast-2". AWS requires an access token
@@ -91,7 +90,8 @@ Hence, a copy of native \c WT_FILE_HANDLE is kept encapsulated in the S3 file ha
 - The S3 store has created a logging class which extends the AWS SDK's logging system.
 
 @section azure_gcp_store Azure and GCP Storage Source
-The Azure and GCP store implements the following key functionalities differently from S3:
+The Azure and Google Cloud Platform (GCP) store implement the following key functionalities
+differently from S3:
 
 - GCP authentication requires setting a \c GOOGLE_APPLICATION_CREDENTIALS environment variable
 that contains the path of an authentication file. Azure authentication requires the
