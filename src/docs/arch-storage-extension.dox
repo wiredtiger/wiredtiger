@@ -46,7 +46,7 @@ The cloud file system uses the functionality provided by the connection class to
 write-once-read-many file system. The filesystem can list directory contents, check for a file's
 presence, and access the file by creating a file handle.
 
-The storage sources uses the file system's put-object functionality to flush files into the cloud.
+The storage sources use the file system's put-object functionality to flush files into the cloud.
 The Tier Manager inside WiredTiger directs this flush. Only S3 storage source files pushed to the
 cloud are also copied to the local cache.
 
@@ -62,7 +62,7 @@ The SDKs also provide their own log levels which are translated into WiredTiger 
 
 All of the cloud storage sources have their own messaging system and statistics to monitor the
 state of the SDKs and the storage sources. The messaging system captures error and informational
-messages from both the SDK and the custom storage source and are redirected into the WiredTiger
+messages from both the SDK and the custom storage source which are redirected into the WiredTiger
 messaging system. The statistics are printed when the WiredTiger verbosity is set to \c WT_VERBOSE
 or higher on the storage source.
 
@@ -91,8 +91,8 @@ Hence, a \c WT_FILE_HANDLE is kept encapsulated in the S3 file handle.
 @section azure_gcp_store Azure and GCP Storage Source
 The Azure and Google Cloud Platform (GCP) stores implement the following functionality:
 
-- The Azure and GCP store follows different authentication methods to connect to their respective
-SDKs. GCP requires setting a \c GOOGLE_APPLICATION_CREDENTIALS environment variable expecting the
+- The Azure and GCP stores follows different authentication methods to connect to their respective
+SDKs. GCP requires setting a \c GOOGLE_APPLICATION_CREDENTIALS environment variable with the
 path to an authentication file and Azure requires the \c AZURE_STORAGE_CONNECTION_STRING environment
 variable to be set.
 
@@ -101,8 +101,8 @@ decremented with the close. When the reference count goes zero, the file system 
 from the storage source and any allocated resources are freed.
 
 - Whenever a GCP or Azure file handle is created, it does not require the file to be present in the
-local file system. The file directly interactions with the connection class to handle all file
-handle operations.
+local file system. The file handle will directly interact with the connection class to handle all
+file handle operations.
 
 - The GCP store has created a logging class which extends the GCP SDK's logging backend and the
 Azure store has created a logging class using the Azure SDK's callback function.
