@@ -49,7 +49,7 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
           upd->prepare_state == WT_PREPARE_INPROGRESS) {
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
               WT_RTS_VERB_TAG_UPDATE_ABORT
-              "rollback to stable update aborted with txnid=%" PRIu64
+              "rollback to stable aborting update with txnid=%" PRIu64
               ", txnid_not_visible=%s"
               ", stable_timestamp=%s < durable_timestamp=%s: %s, prepare_state=%s",
               upd->txnid, !txn_id_visible ? "true" : "false",
@@ -113,6 +113,18 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
                 if (tombstone != NULL)
                     F_CLR(tombstone, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS);
             }
+        } else if (WT_IS_HS(session->dhandle) && stable_upd->type != WT_UPDATE_TOMBSTONE) {
+            /*
+             * History store will have a combination of both tombstone and update/modify types in
+             * the update list to represent time window of an update. When we are aborting the
+             * tombstone, make sure to remove all of the remaining updates also. In most of the
+             * scenarios, there will be only one update present except when the data store is a
+             * prepared commit where it is possible to have more than one update. The existing
+             * on-disk versions are removed while processing the on-disk entries.
+             */
+            for (; stable_upd != NULL; stable_upd = stable_upd->next)
+                if (!dryrun)
+                    stable_upd->txnid = WT_TXN_ABORTED;
         }
         if (stable_update_found != NULL)
             *stable_update_found = true;
@@ -160,28 +172,6 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
               session, key, ins->upd, rollback_timestamp, &stable_update_found));
             if (stable_update_found && stable_updates_count != NULL)
                 (*stable_updates_count)++;
-            if (!stable_update_found && page->type == WT_PAGE_ROW_LEAF &&
-              !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
-                /*
-                 * When a new key is added to a page and the page is then checkpointed, updates for
-                 * that key can be present in the History Store while the key isn't present in the
-                 * disk image. RTS will then only remove these updates when there is a stable update
-                 * on-chain. These updates still need removing when no stable updates are on-chain,
-                 * so do so here explicitly. Pass in rollback_timestamp + 1 as history store cleanup
-                 * removes updates inclusive of the provided timestamp, but we only want to remove
-                 * unstable updates.
-                 *
-                 * FIXME-WT-10017: WT-9846 is an interim fix only for row-store while we investigate
-                 * the impacts of a long term correction in WT-10017. Once completed this change can
-                 * be reverted.
-                 */
-                __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
-                  WT_RTS_VERB_TAG_HS_ABORT_CHECK
-                  "insert list with durable_timestamp=%s had no stable updates. Check the history "
-                  "store anyway for unstable updates to remove.",
-                  __wt_timestamp_to_string(ins->upd->durable_ts, ts_string));
-                WT_ERR(__wt_rts_history_delete_hs(session, key, rollback_timestamp + 1));
-            }
         }
 
 err:
@@ -419,10 +409,6 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
          * its own stop timestamp doesn't get removed leads to duplicate records in history store
          * after further operations on that same key. Rollback to stable should ignore such records
          * for timestamp ordering verification.
-         *
-         * If we have fixed the missing timestamps, then the newer update reinserted with an older
-         * timestamp may have a durable timestamp that is smaller than the current stop durable
-         * timestamp.
          *
          * It is possible that there can be an update in the history store with a max stop timestamp
          * in the middle of the same key updates. This occurs when the checkpoint writes the

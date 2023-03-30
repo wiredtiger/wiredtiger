@@ -37,7 +37,7 @@ class OpType(Enum):
     SKIP_DAMAGE = 28
     HS_TRUNCATED = 29
     SHUTDOWN_RTS = 30
-    HS_ABORT_CHECK = 31
+    END = 31
     HS_TREE_FINAL_PASS = 32
     HS_TRUNCATING = 33
     HS_UPDATE_REMOVE = 34
@@ -78,7 +78,7 @@ class Operation:
         return f"{self.__dict__}"
 
     def __extract_file(self, line):
-        matches = re.search('file:([\w_\.]+)', line)
+        matches = re.search('(?:(file|tiered)):([\w_\.]+)', line)
         if matches is None:
             raise Exception(f"failed to extract a filename from {line}")
         return matches.group(1)
@@ -193,7 +193,7 @@ class Operation:
         matches = re.search('prepared_updates=(\w+)', line)
         self.has_prepared = matches.group(1).lower() == "true"
 
-        matches = re.search('needs_abort=(\w+)', line)
+        matches = re.search('has_updates_need_abort=(\w+)', line)
         self.needs_abort = matches.group(1).lower() == "true"
 
     def __init_key_clear_remove(self, line):
@@ -460,10 +460,6 @@ class Operation:
 
         self.stable = self.__extract_simple_timestamp('stable_timestamp', line)
 
-    def __init_hs_abort_check(self, line):
-        self.type = OpType.HS_ABORT_CHECK
-        self.durable = self.__extract_simple_timestamp('durable_timestamp', line)
-
     def __init_hs_tree_final_pass(self, line):
         self.type = OpType.HS_TREE_FINAL_PASS
         self.rollback = self.__extract_simple_timestamp('rollback_timestamp', line)
@@ -548,3 +544,6 @@ class Operation:
 
         matches = re.search('btree=(\d+)', line)
         self.btree_id = int(matches.group(1))
+
+    def __init_end(self, line):
+        self.type = OpType.END

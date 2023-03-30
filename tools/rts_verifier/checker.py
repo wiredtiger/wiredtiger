@@ -222,11 +222,7 @@ class Checker:
 
     def __apply_check_hs_truncated(self, operation):
         # TODO expand this out
-        pass
-
-    def __apply_check_hs_abort_check(self, operation):
-        # TODO expand this out
-        pass   
+        pass 
 
     def __apply_check_hs_tree_final_pass(self, operation):
         # TODO expand this out
@@ -275,3 +271,6 @@ class Checker:
     def __apply_check_update_chain_abort(self, operation):
         # TODO expand this out
         pass        
+    def __apply_check_end(self, operation):
+        # TODO expand this out
+        pass
