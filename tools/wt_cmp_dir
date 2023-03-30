@@ -94,7 +94,7 @@ wtfiles() {
 
 timestamp_opt1=
 timestamp_opt2=
-ignore_filter=
+ignore_regexp=
 
 while [ "$#" -gt 2 ]; do
     if [ "$1" = '-t' ]; then
@@ -104,7 +104,11 @@ while [ "$#" -gt 2 ]; do
         timestamp_opt2="-t $2"
         shift; shift
     elif [ "$1" = '-i' ]; then
-        ignore_filter="$ignore_filter | egrep -v $2"
+        if [ "$ignore_regexp" != '' ]; then
+            echo "$0: -i cannot be specified twice"
+            usage_exit
+        fi
+        ignore_regexp="$2"
         shift; shift
     else
         break  # done with flags
@@ -118,8 +122,12 @@ init_wt_utility
 
 # The next argument is the first directory
 dir1="$1"
-files1=$(eval wtfiles "$dir1" $ignore_filter)
 shift
+if [ "$ignore_regexp" != '' ]; then
+    files1=$(wtfiles "$dir1" | egrep -v "$ignore_regexp")
+else
+    files1=$(wtfiles "$dir1")
+fi
 
 # We can still have another -t argument to apply to the
 # second directory.
@@ -135,7 +143,11 @@ fi
 
 # The next argument is the second directory
 dir2="$1"
-files2=$(eval wtfiles "$dir2" $ignore_filter)
+if [ "$ignore_regexp" != '' ]; then
+    files2=$(wtfiles "$dir2" | egrep -v "$ignore_regexp")
+else
+    files2=$(wtfiles "$dir2")
+fi
 
 # If the home directories have different files, give up.
 # In the future we might consider relaxing this, reporting missing files,
