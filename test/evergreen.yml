@@ -2745,13 +2745,12 @@ tasks:
           posix_configure_flags: --enable-diagnostic --with-builtins=lz4,snappy,zlib
       - func: "format test script"
         vars:
-          test_env_vars:
-            ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0"
-            ASAN_SYMBOLIZER_PATH=/usr/lib/llvm-6.0/bin/llvm-symbolizer
-          # Run for 2 hours ( 2 * 60 = 120 minutes), use default config
           # Always disable mmap for PPC due to issues on variant setup.
           # See https://bugzilla.redhat.com/show_bug.cgi?id=1686261#c10 for the potential cause.
-          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 120 -- -C "mmap=false,mmap_all=false"
+          format_test_script_args: -t 360 -- -C "mmap=false,mmap_all=false"
+          test_env_vars:
+            ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0:unmap_shadow_on_exit=1"
+            ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
 
   # Replace this test with format-stress-sanitizer-smoke-test after BUILD-10248 fix.
   - name: format-stress-sanitizer-smoke-ppc-test
