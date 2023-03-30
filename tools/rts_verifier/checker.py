@@ -254,11 +254,15 @@ class Checker:
 
     def __apply_check_ondisk_kv_fix(self, operation):
         # TODO expand this out
-        pass     
+        pass   
 
     def __apply_check_page_delete(self, operation):
         # TODO expand this out
         pass   
+
+    def __apply_check_page_unskipped(self, operation):
+        # TODO expand this out
+        pass  
 
     def __apply_check_stable_update_found(self, operation):
         # TODO expand this out
