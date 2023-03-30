@@ -284,7 +284,8 @@ real_checkpointer(THREAD_DATA *td)
                 verify_ts = __wt_random(&td->extra_rnd) % (stable_ts - oldest_ts + 1) + oldest_ts;
             if (g.predictable_replay) {
                 least_committed = get_all_committed_ts();
-                if (least_committed != UINT64_MAX)
+                if (least_committed != UINT64_MAX && (g.ts_pred_stable == 0 ||
+                  least_committed <= g.ts_pred_stable))
                     g.ts_oldest = least_committed;
 
                 /* Don't go past the provided timestamp. */

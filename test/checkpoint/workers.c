@@ -203,7 +203,7 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
     uint8_t val8;
     int cmp, ret;
     int nentries;
-    char valuebuf[64];
+    char valuebuf[64] = {0};
 
     cursor->set_key(cursor, keyno);
     /* Roughly half inserts, then balanced inserts / range removes. */
@@ -313,6 +313,7 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
 
         /* If key doesn't exist, turn modify into an insert. */
         testutil_check(__wt_snprintf(valuebuf, sizeof(valuebuf), "%052u", new_val));
+        printf("Val=%u\n", new_val);
         if (type == FIX)
             cursor->set_value(cursor, flcs_encode(valuebuf));
         else
@@ -357,8 +358,8 @@ real_worker(THREAD_DATA *td)
 {
     WT_CURSOR **cursors;
     WT_SESSION *session;
-    uint64_t base_ts, i;
-    u_int keyno, next_rnd;
+    uint64_t base_ts;
+    u_int i, keyno, next_rnd;
     int j, ret, t_ret;
     char buf[128];
     const char *begin_cfg;
@@ -397,7 +398,7 @@ real_worker(THREAD_DATA *td)
             break;
 
         if (i > 0 && i % (5 * WT_THOUSAND) == 0)
-            printf("Worker %" PRIu64 " of %u ops\n", i, g.nops);
+            printf("Worker %u of %u ops\n", i, g.nops);
         if (start_txn) {
             if ((ret = session->begin_transaction(session, begin_cfg)) != 0) {
                 (void)log_print_err("real_worker:begin_transaction", ret, 1);
@@ -407,6 +408,7 @@ real_worker(THREAD_DATA *td)
             start_txn = false;
         }
         keyno = __wt_random(&td->data_rnd) % td->key_range + td->start_key;
+        printf("Key no: %"PRIu32" \n", keyno);
         /* If we have specified to run with mix mode deletes we need to do it in it's own txn. */
         if (g.use_timestamps && g.no_ts_deletes && new_txn &&
           __wt_random(&td->data_rnd) % 72 == 0) {

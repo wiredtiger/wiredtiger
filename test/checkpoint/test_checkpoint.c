@@ -240,7 +240,7 @@ main(int argc, char *argv[])
 
     printf("%s: process %" PRIu64 "\n", progname, (uint64_t)getpid());
     if (g.predictable_replay)
-        printf("Config to seed for replay: %s -R " TESTUTIL_SEED_FORMAT "\n", progname,
+        printf("Config to seed for replay: " TESTUTIL_SEED_FORMAT "\n",
           g.opts.data_seed, g.opts.extra_seed);
 
     for (cnt = 1; (runs == 0 || cnt <= runs) && g.status == 0; ++cnt) {
