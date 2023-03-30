@@ -484,8 +484,7 @@ class Operation:
 
     def __init_insert_list_update_abort(self, line):
         self.type = OpType.INSERT_LIST_UPDATE_ABORT
-        self.stop = self.__extract_simple_timestamp('stop_timestamp', line)
-        self.stable = self.__extract_simple_timestamp('stable_timestamp', line)
+        self.durable = self.__extract_simple_timestamp('durable_timestamp', line)
 
     def __init_ondisk_abort_check(self, line):
         self.type = OpType.ONDISK_ABORT_CHECK

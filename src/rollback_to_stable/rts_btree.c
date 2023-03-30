@@ -154,7 +154,7 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
             }
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
               WT_RTS_VERB_TAG_INSERT_LIST_UPDATE_ABORT
-              "attempting to abort update on the insert list with durable_ts=%s",
+              "attempting to abort update on the insert list with durable_timestamp=%s",
               __wt_timestamp_to_string(ins->upd->durable_ts, ts_string));
             WT_ERR(__rts_btree_abort_update(
               session, key, ins->upd, rollback_timestamp, &stable_update_found));
