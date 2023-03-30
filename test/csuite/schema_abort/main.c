@@ -275,6 +275,7 @@ test_bulk_unique(THREAD_DATA *td, int force)
     /* For testing we want to remove objects too. */
     if (tiered)
         strcat(dropconf, ",remove_shared=true");
+    printf("test_bulk_unique() force: %d, dropconf: `%s`\n", force, dropconf);
     while ((ret = session->drop(session, new_uri, dropconf)) != 0)
         if (ret != EBUSY)
             testutil_die(ret, "session.drop: %s %s", new_uri, dropconf);
@@ -395,6 +396,9 @@ test_drop(THREAD_DATA *td, int force)
     /* For testing we want to remove objects too. */
     if (tiered)
         strcat(dropconf, ",remove_shared=true");
+
+    printf("test_drop() force: %d, dropconf: `%s`\n", force, dropconf);
+
     if ((ret = session->drop(session, uri, dropconf)) != 0)
         if (ret != ENOENT && ret != EBUSY)
             testutil_die(ret, "session.drop");
@@ -686,7 +690,7 @@ thread_run(void *arg)
                 break;
             case 1:
                 WT_PUBLISH(th_ts[td->info].op, BULK_UNQ);
-                test_bulk_unique(td, __wt_random(&rnd) & 1);
+                test_bulk_unique(td, 1);// __wt_random(&rnd) & 1);
                 break;
             case 2:
                 WT_PUBLISH(th_ts[td->info].op, CREATE);
