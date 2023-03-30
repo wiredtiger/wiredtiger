@@ -659,17 +659,17 @@ functions:
           rm -rf RUNDIR_{1,2}
 
           # Run with up to a slightly different timestamp for each iteration.
-          x=$RANDOM
-          ops=$(($op_count + $x % 100))
+          n=$(date +%N)
+          ops=$(($op_count + $n % 100))
 
           # Do two runs up to the stable timestamp, using the same data seed,
           # but with a different extra seed.  Compare it when done.
-          echo "First run with stable value $ops"
           first_run_args="-PSD$r,E$x1 -T $nthreads -s $ops"
+          echo "First run with args $first_run_args"
           ./test_schema_abort -p -h RUNDIR_1 $first_run_args  || exit 1
 
-          echo "Second run with stable value $ops"
           second_run_args="-PSD$r,E$x2 -T $nthreads -s $ops"
+          echo "Second run with args $second_run_args"
           ./test_schema_abort -p -h RUNDIR_2 $second_run_args  || exit 1
 
           # We are ignoring the table:wt table. This table does not participate in
