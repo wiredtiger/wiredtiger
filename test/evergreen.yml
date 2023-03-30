@@ -4967,21 +4967,6 @@ tasks:
         vars:
           perf-test-name: checkpoint-stress.wtperf
 
-    #############################
-    # Performance Tests for RTS #
-    #############################
-
-  - name: cppsuite-rts-perf-pin-stable
-    tags: ["rts-perf"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "cppsuite test"
-        vars:
-          test_config_filename: configs/rts_perf_pin_stable.txt
-          test_name: bounded_cursor_perf
-
   - name: many-dhandle-stress
     depends_on:
       - name: compile

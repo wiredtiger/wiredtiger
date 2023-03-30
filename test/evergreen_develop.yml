@@ -34,7 +34,6 @@ variables:
     - name: ".long-perf"
     - name: ".oplog-perf"
     - name: many-dhandle-stress
-    - name: ".rts-perf"
     - name: ".wt2853-perf"
     - name: cppsuite-bounded-cursor-perf-stress
   display_tasks:
@@ -66,9 +65,6 @@ variables:
     - name: WiredTiger-wt2853-perf
       execution_tasks:
       - ".wt2853-perf"
-    - name: Wiredtiger-perf-rts-jobs
-      execution_tasks:
-      - ".rts-perf"
 
 # Build variants that need to be run only on the develop branch.
 buildvariants:
