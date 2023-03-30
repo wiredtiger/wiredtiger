@@ -371,7 +371,6 @@ fuzzutil
 fvisibility
 fxray
 gcc
-gcp
 gcov
 gdbm
 ge
