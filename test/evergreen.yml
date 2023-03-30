@@ -631,9 +631,9 @@ functions:
     params:
       working_dir: "wiredtiger/cmake_build/test/csuite/schema_abort"
       script: |
-        # Get a random value,/bin/sh version.
+        # Get a random value with leading zeroes removed, /bin/sh version.
         rando() {
-          tr -cd 0-9 </dev/urandom | head -c 5
+          tr -cd 0-9 </dev/urandom | head -c 5 | sed -e 's/0*\(.\)/\1/'
         }
 
         # Run schema_abort in a way that can test predictable replay.
