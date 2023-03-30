@@ -59,8 +59,8 @@ Each storage source also implements the \c WT_FILE_HANDLE interface, to access t
 on the file system. Since the object store is read-only, all the write access methods are disabled.
 
 @section extension_log_stat Messaging and Statistics
-The cloud provider SDKs uses the term log systems and logging levels different to WiredTiger.
-The SDK's logging definition refers to the SDK messages are generated and the logging levels
+The cloud provider SDKs uses the terms log systems and logging levels differently to WiredTiger.
+The SDK's logging definition refers to the SDK messages that are generated and the logging levels
 control the amount of information given to the user. The SDKs provide their own levels and
 are translated into WiredTiger messaging levels.
 
