@@ -1380,7 +1380,7 @@ ThreadRunner::op_create_all(Operation *op, size_t &keysize, size_t &valuesize)
         } else {
             // Set size of vector storing thread-to-table mappings for the operation.
             if (op->_tables.size() != _wrunner->_trunners.size()) {
-                op->_tables.resize(_wrunner->_trunners.size());
+                op->_tables.assign(_wrunner->_trunners.size(), std::string());
             }
         }
     }
@@ -1486,7 +1486,7 @@ bool
 ThreadRunner::op_has_table(Operation *op) const
 {
     if (op->_random_table) {
-        return (op->_tables[_number] != std::string());
+        return (!op->_tables[_number].empty());
     } else {
         return (!op->_table._uri.empty());
     }
