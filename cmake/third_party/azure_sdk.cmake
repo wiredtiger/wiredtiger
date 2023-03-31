@@ -15,11 +15,6 @@ if(IMPORT_AZURE_SDK_NONE)
     message(FATAL_ERROR "Cannot enable the Azure extension without specifying an IMPORT_AZURE_SDK method (package, external).")
 endif()
 
-set(azure_storage_lib_location)
-set(azure_core_lib_location)
-set(azure_storage_common_lib_location)
-set(azure_sdk_include_location)
-
 if(IMPORT_AZURE_SDK_PACKAGE)
     find_package(azure-storage-blobs-cpp CONFIG REQUIRED)
     find_package(azure-core-cpp CONFIG REQUIRED)
