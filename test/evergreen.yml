@@ -762,7 +762,6 @@ functions:
   "upload-perf-test-stats":
     - command: shell.exec
       params:
-        working_dir: "wiredtiger"
         shell: bash
         silent: true
         script: |
@@ -775,7 +774,7 @@ functions:
           fi
           EVERGREEN_TASK_INFO='{ "evergreen_task_info": { "is_patch": "'${is_patch}'", "task_id": "'${task_id}'", "distro_id": "'${distro_id}'", "execution": "'${execution}'", "task_name": "'${task_name}'", "version_id": "'${version_id}'", "branch_name": "'${branch_name}'" } }'
           echo "EVERGREEN_TASK_INFO: $EVERGREEN_TASK_INFO"
-          ${python_binary} automation-scripts/evergreen/upload_stats_atlas.py -u ${atlas_perf_test_username} -p ${atlas_perf_test_password} -c ${collection|} -f ${stats_dir|cmake_build/bench/wtperf/test_stats}/atlas_out_${perf-test-name}.json -t ${created_at} -i "$EVERGREEN_TASK_INFO" -g "."
+          ${python_binary} automation-scripts/evergreen/upload_stats_atlas.py -u ${atlas_perf_test_username} -p ${atlas_perf_test_password} -c ${collection|} -f ${stats_dir|./wiredtiger/cmake_build/bench/wtperf/test_stats}/atlas_out_${perf-test-name}.json -t ${created_at} -i "$EVERGREEN_TASK_INFO" -g "./wiredtiger"
     - command: perf.send
       params:
         file: ${stats_dir|./wiredtiger/cmake_build/bench/wtperf/test_stats}/evergreen_out_${perf-test-name}.json
@@ -785,7 +784,7 @@ functions:
       params:
         aws_secret: ${aws_secret}
         aws_key: ${aws_key}
-        local_files_include_filter: ${stats_dir|wiredtiger/cmake_build/bench/wtperf/test_stats}/*_${perf-test-name}.json
+        local_files_include_filter: ${stats_dir|./wiredtiger/cmake_build/bench/wtperf/test_stats}/*_${perf-test-name}.json
         bucket: build_external
         permissions: public-read
         content_type: text/html
@@ -4027,12 +4026,12 @@ tasks:
             ./run_many_coll.sh $mongod_path mongodb.log config/many-collection-testing many-collection clean-and-populate
       - func: "convert-to-atlas-evergreen-format"
         vars:
-          input_file: ./many-collection-artifacts/results/results.json
+          input_file: ./mongo-tests/largescale/many-collection-artifacts/results/results.json
           test_name: many-collection-test
-          output_path: ./many-collection-artifacts/results/
+          output_path: ./mongo-tests/largescale/many-collection-artifacts/results/
       - func: "upload-perf-test-stats"
         vars:
-          stats_dir: ./many-collection-artifacts/results/
+          stats_dir: ./mongo-tests/largescale/many-collection-artifacts/results/
           perf-test-name: many-collection-test
 
   - name: cyclomatic-complexity
