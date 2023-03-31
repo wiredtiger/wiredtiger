@@ -79,8 +79,8 @@ static bool use_columns, use_lazyfs, use_ts, use_txn;
 static volatile bool stable_set;
 
 static uint32_t nth;                       /* Number of threads. */
-static uint64_t stop_timestamp;            /* stop condition for threads. */
 static volatile uint64_t stable_timestamp; /* stable timestamp. */
+static uint64_t stop_timestamp;            /* stop condition for threads. */
 /*
  * We reserve timestamps for each thread for the entire run. The timestamp for the i-th key that a
  * thread writes is given by the macro below.
@@ -625,16 +625,16 @@ thread_ckpt_run(void *arg)
         testutil_check(session->checkpoint(session, flush_tier ? ckpt_flush_config : ckpt_config));
 
         /*
-         * We're ready to be killed after the first checkpoint, or if tiered storage, after the
-         * first flush_tier has been initiated. However, if we have a stop timestamp, we are ready
-         * if the stable has reached the requested stop timestamp.
+         * If we have a stop timestamp, we are ready if the stable has reached the requested stop
+         * timestamp. If we don't have a stop timestamp, then we're ready to be killed after the
+         * first checkpoint, or if tiered storage, after the first flush_tier has been initiated.
          */
-        if (stop_timestamp == 0) {
-            if (!opts->tiered_storage)
+        if (stop_timestamp != 0) {
+            if (stable_timestamp >= stop_timestamp)
                 ready_for_kill = true;
-            else if (flush_tier)
-                ready_for_kill = true;
-        } else if (stable_timestamp >= stop_timestamp)
+        } else if (!opts->tiered_storage)
+            ready_for_kill = true;
+        else if (flush_tier)
             ready_for_kill = true;
 
         printf("Checkpoint %d complete: Flush: %s. Minimum ts %" PRIu64 "\n", i,
