@@ -15,7 +15,7 @@ There are two CMake flags associated with the S3 extension: `ENABLE_S3` and `IMP
     *   `package` tells the compiler to search for an existing system installation of the SDK.
     *    This flag should be set alongside the `ENABLE_S3` flag.
     *    If the `IMPORT_S3_SDK` flag is not specified, the compiler will assume a system installation of the SDK.
-    
+
 #### Instructions on installing AWS SDK for C++ locally
 
 Follow the [guide to install SDK locally](https://docs.aws.amazon.com/sdk-for-cpp/v1/developer-guide/setup-linux.html):
