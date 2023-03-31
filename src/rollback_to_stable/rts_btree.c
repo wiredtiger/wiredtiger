@@ -65,10 +65,11 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
             /* Valid update is found. */
             stable_upd = upd;
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
-              WT_RTS_VERB_TAG_STABLE_UPDATE_FOUND "stable update found with txnid=%" PRIu64
-                                                  ", stable_timestamp=%s,  durable_timestamp=%s",
+              WT_RTS_VERB_TAG_STABLE_UPDATE_FOUND
+              "stable update found with txnid=%" PRIu64
+              ", stable_timestamp=%s,  durable_timestamp=%s, flags 0x%" PRIx8,
               upd->txnid, __wt_timestamp_to_string(rollback_timestamp, ts_string[1]),
-              __wt_timestamp_to_string(upd->durable_ts, ts_string[0]));
+              __wt_timestamp_to_string(upd->durable_ts, ts_string[0]), upd->flags);
             break;
         }
     }
@@ -143,6 +144,7 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
   wt_timestamp_t rollback_timestamp, uint32_t *stable_updates_count)
 {
     WT_DECL_ITEM(key);
+    WT_DECL_ITEM(key_string);
     WT_DECL_RET;
     WT_INSERT *ins;
     uint64_t recno;
@@ -164,18 +166,25 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
                 WT_ERR(__wt_vpack_uint(&memp, 0, recno));
                 key->size = WT_PTRDIFF(memp, key->data);
             }
+            WT_ERR(__wt_scr_alloc(session, 0, &key_string));
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
               WT_RTS_VERB_TAG_INSERT_LIST_UPDATE_ABORT
-              "attempting to abort update on the insert list with durable_timestamp=%s",
-              __wt_timestamp_to_string(ins->upd->durable_ts, ts_string));
+              "attempting to abort update on the insert list with durable_timestamp=%s, key=%s",
+              __wt_timestamp_to_string(ins->upd->durable_ts, ts_string),
+              __wt_key_string(
+                session, key->data, key->size, S2BT(session)->key_format, key_string));
+
             WT_ERR(__rts_btree_abort_update(
               session, key, ins->upd, rollback_timestamp, &stable_update_found));
             if (stable_update_found && stable_updates_count != NULL)
                 (*stable_updates_count)++;
+
+            __wt_scr_free(session, &key_string);
         }
 
 err:
     __wt_scr_free(session, &key);
+    __wt_scr_free(session, &key_string);
     return (ret);
 }
 
@@ -1006,6 +1015,7 @@ __rts_btree_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t
 {
     WT_CELL_UNPACK_KV *vpack, _vpack;
     WT_DECL_ITEM(key);
+    WT_DECL_ITEM(key_string);
     WT_DECL_RET;
     WT_INSERT_HEAD *insert;
     WT_PAGE *page;
@@ -1033,7 +1043,7 @@ __rts_btree_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t
         stable_update_found = false;
         if ((upd = WT_ROW_UPDATE(page, rip)) != NULL) {
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
-              WT_RTS_VERB_TAG_UPDATE_CHAIN_ABORT
+              WT_RTS_VERB_TAG_UPDATE_CHAIN_VERIFY
               "aborting any unstable updates on the update chain with rollback_timestamp=%s",
               __wt_timestamp_to_string(rollback_timestamp, ts_string));
             WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
@@ -1057,18 +1067,25 @@ __rts_btree_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t
         if (!stable_update_found) {
             vpack = &_vpack;
             __wt_row_leaf_value_cell(session, page, rip, vpack);
+
+            WT_ERR(__wt_scr_alloc(session, 0, &key_string));
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
               WT_RTS_VERB_TAG_ONDISK_ABORT_CHECK
               "no stable update in update list found. abort any unstable on-disk value with "
-              "rollback_timestamp=%s",
-              __wt_timestamp_to_string(rollback_timestamp, ts_string));
+              "rollback_timestamp=%s, key=%s",
+              __wt_timestamp_to_string(rollback_timestamp, ts_string),
+              have_key ? __wt_key_string(
+                           session, key->data, key->size, S2BT(session)->key_format, key_string) :
+                         NULL);
             WT_ERR(__rts_btree_abort_ondisk_kv(
               session, ref, rip, 0, have_key ? key : NULL, vpack, rollback_timestamp, NULL));
         }
+        __wt_scr_free(session, &key_string);
     }
 
 err:
     __wt_scr_free(session, &key);
+    __wt_scr_free(session, &key_string);
     return (ret);
 }
 

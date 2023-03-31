@@ -49,7 +49,7 @@ class OpType(Enum):
     PAGE_UNSKIPPED = 40
     STABLE_UPDATE_FOUND = 41
     TREE_OBJECT_LOG = 42
-    UPDATE_CHAIN_ABORT = 43
+    UPDATE_CHAIN_VERIFY = 43
 
 class Operation:
     def __init__(self, line):
@@ -474,7 +474,7 @@ class Operation:
         self.stop = self.__extract_simple_timestamp('stop_timestamp', line)
         self.stable = self.__extract_simple_timestamp('stable_timestamp', line)
 
-    def __init_insert_list_check(self, line):
+    def __init_insert_list_update_check(self, line):
         self.type = OpType.INSERT_LIST_CHECK
         self.rollback = self.__extract_simple_timestamp('rollback_timestamp', line)
 
@@ -492,8 +492,12 @@ class Operation:
 
     def __init_page_delete(self, line):
         self.type = OpType.PAGE_DELETE
+        self.commit = self.__extract_simple_timestamp('commit_timestamp', line)
         self.durable = self.__extract_simple_timestamp('durable_timestamp', line)
         self.rollback = self.__extract_simple_timestamp('rollback_timestamp', line)
+
+        matches = re.search('txnid=(\d+)', line)
+        self.txnid = int(matches.group(1))
 
     def __init_page_unskipped(self, line):
         self.type = OpType.PAGE_UNSKIPPED
@@ -516,8 +520,8 @@ class Operation:
 
         self.durable = self.__extract_simple_timestamp('newest_start_durable_timestamp', line)
 
-    def __init_update_chain_abort(self, line):
-        self.type = OpType.UPDATE_CHAIN_ABORT
+    def __init_update_chain_verify(self, line):
+        self.type = OpType.UPDATE_CHAIN_VERIFY
         self.rollback = self.__extract_simple_timestamp('rollback_timestamp', line)
 
     def __init_hs_restore_tombstone(self, line):

@@ -268,7 +268,7 @@ class Checker:
         # TODO expand this out
         pass   
 
-    def __apply_check_update_chain_abort(self, operation):
+    def __apply_check_update_chain_verify(self, operation):
         # TODO expand this out
         pass        
     def __apply_check_end(self, operation):

@@ -50,7 +50,7 @@
 #define WT_RTS_VERB_TAG_TREE_OBJECT_LOG "[TREE_OBJECT_LOG] "
 #define WT_RTS_VERB_TAG_TREE_SKIP "[TREE_SKIP] "
 #define WT_RTS_VERB_TAG_UPDATE_ABORT "[UPDATE_ABORT] "
-#define WT_RTS_VERB_TAG_UPDATE_CHAIN_ABORT "[UPDATE_CHAIN_ABORT] "
+#define WT_RTS_VERB_TAG_UPDATE_CHAIN_VERIFY "[UPDATE_CHAIN_VERIFY] "
 
 #define WT_CHECK_RECOVERY_FLAG_TXNID(session, txnid)                                           \
     (F_ISSET(S2C(session), WT_CONN_RECOVERING) && S2C(session)->recovery_ckpt_snap_min != 0 && \

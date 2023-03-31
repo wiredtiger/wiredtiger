@@ -75,11 +75,15 @@ __rts_btree_walk_page_skip(
             *skipp = true;
         }
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
-        __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
-          WT_RTS_VERB_TAG_PAGE_DELETE
-          "deleted page with durable_timestamp=%s > rollback_timestamp=%s",
-          __wt_timestamp_to_string(page_del->durable_timestamp, time_string),
-          __wt_timestamp_to_string(rollback_timestamp, time_string));
+
+        if (page_del != NULL)
+            __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
+              WT_RTS_VERB_TAG_PAGE_DELETE
+              "deleted page with commit_timestamp=%s, durable_timestamp=%s > "
+              "rollback_timestamp=%s, txnid=%" PRIu64,
+              __wt_timestamp_to_string(page_del->timestamp, time_string),
+              __wt_timestamp_to_string(page_del->durable_timestamp, time_string),
+              __wt_timestamp_to_string(rollback_timestamp, time_string), page_del->txnid);
         return (0);
     }
 
