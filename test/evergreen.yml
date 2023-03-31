@@ -756,7 +756,6 @@ functions:
         script: |
           set -o errexit
           set -o verbose
-          cat ${input_file}
           ${python_binary} wiredtiger/bench/perf_run_py/perf_json_converter_for_atlas_evergreen.py -i ${input_file} -n ${test_name} -o ${output_path}
 
   "upload-perf-test-stats":
