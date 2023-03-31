@@ -37,6 +37,7 @@
 #endif
 
 #include <algorithm>
+#include <cassert>
 #include <csignal>
 #include <iomanip>
 #include <iostream>
@@ -998,6 +999,7 @@ Monitor::run()
         tm = localtime_r(&t.tv_sec, &_tm);
 
         Stats new_totals(true);
+        assert(1 == 0);
         for (std::vector<ThreadRunner>::iterator tr = _wrunner._trunners.begin();
              tr != _wrunner._trunners.end(); tr++)
             new_totals.add(tr->_stats, true);
@@ -1631,6 +1633,9 @@ ThreadRunner::op_run(Operation *op)
     case Operation::OP_REMOVE:
         track = &_stats.remove;
         break;
+    case Operation::OP_RTS:
+        track = &_stats.rts;
+        break;
     case Operation::OP_SEARCH:
         track = &_stats.read;
         break;
@@ -1707,6 +1712,8 @@ ThreadRunner::op_run(Operation *op)
             WT_ERR(_session->begin_transaction(_session, buf));
 
             _in_transaction = true;
+
+            assert(op->_optype != Operation::OP_RTS);
         }
         if (op->is_table_op()) {
             switch (op->_optype) {
@@ -1717,6 +1724,9 @@ ThreadRunner::op_run(Operation *op)
                 ret = cursor->remove(cursor);
                 if (ret == WT_NOTFOUND)
                     ret = 0;
+                break;
+            case Operation::OP_RTS:
+                ret = _session->connection->rollback_to_stable(_session->connection, NULL);
                 break;
             case Operation::OP_SEARCH:
                 ret = cursor->search(cursor);
@@ -2213,7 +2223,8 @@ bool
 Operation::is_table_op() const
 {
     return (
-      _optype == OP_INSERT || _optype == OP_REMOVE || _optype == OP_SEARCH || _optype == OP_UPDATE);
+      _optype == OP_INSERT || _optype == OP_REMOVE || _optype == OP_SEARCH || _optype == OP_UPDATE
+            || _optype == OP_RTS);
 }
 
 void
