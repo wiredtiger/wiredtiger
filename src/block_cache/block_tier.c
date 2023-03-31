@@ -134,18 +134,15 @@ __wt_blkcache_get_handle(WT_SESSION_IMPL *session, WT_BM *bm, uint32_t objectid,
             return (0);
         }
 
-    /* Open the object. */
-    if (*blockp == NULL) {
-        /* Allocate space to store a handle (do first for less complicated cleanup). */
-        WT_ERR(__wt_realloc_def(
-          session, &bm->handle_table_allocated, bm->handle_table_next + 1, &bm->handle_table));
+    /* Allocate space to store a new handle (do first for less complicated cleanup). */
+    WT_ERR(__wt_realloc_def(
+      session, &bm->handle_table_allocated, bm->handle_table_next + 1, &bm->handle_table));
 
-        /* Open the object */
-        WT_ERR(__wt_blkcache_tiered_open(session, NULL, objectid, blockp));
+    /* Open the object */
+    WT_ERR(__wt_blkcache_tiered_open(session, NULL, objectid, blockp));
 
-        /* Add object to block handle table. */
-        bm->handle_table[bm->handle_table_next++] = *blockp;
-    }
+    /* Add object to block handle table. */
+    bm->handle_table[bm->handle_table_next++] = *blockp;
 
 err:
     __wt_writeunlock(session, &bm->handle_table_lock);
