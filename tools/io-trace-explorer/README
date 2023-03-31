@@ -2,8 +2,7 @@
 ====================
 
 I/O Trace Explorer is a GUI tool for visualizing I/O traces from WiredTiger, at both the file level
-and at the device level. It is useful for helping us to better understand and optimize our I/O
-patterns.
+and at the device level. It helps us to better understand and optimize our I/O patterns.
 
 
  Prerequisites
@@ -21,14 +20,13 @@ To build and use the tool, you need to install the following packages:
  Capturing traces
 ------------------
 
-To capture traces at the file level: Enable DEBUG_2 level logging for WT_VERB_READ and
-WT_VERB_WRITE and capture logs to a file, e.g., by piping the stdout to a file. You can enable the
-read and write logging by running the following before the workload:
+To capture traces at the file level, enable DEBUG_2 level logging for WT_VERB_READ and
+WT_VERB_WRITE and capture the logs to a file, e.g., by piping the stdout to a file. You can enable
+the read and write logging by running the following before the workload:
 
     export WIREDTIGER_CONFIG="verbose=[read:2,write:2]"
 
-To capture traces at the device level: Use blktrace to capture the block trace at the device level,
-and then use "blkparse -t" to parse it.
+Use blktrace to capture the block trace at the device level, and then use "blkparse -t" to parse it.
 
 Note that if you combine traces from multiple devices and/or from the block device and from the
 files, you need to start their captures as close together as possible, so they are synchronized.

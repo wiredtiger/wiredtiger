@@ -27,7 +27,7 @@ WORKLOAD_DIR=
 WORKLOAD_FS=
 
 function usage() {
-    echo "Usage: run-wtperf.sh [OPTIONS] WORKLOAD"
+    echo "Usage: $0 [OPTIONS] WORKLOAD"
     echo "  WORKLOAD can be a file or one of the predefined workloads"
     echo
     echo "Options:"
@@ -71,7 +71,7 @@ done
 shift $((OPTIND-1))
 
 if [ -z $1 ] || [ ! -z $2 ]; then
-    echo "The workload is not specified." >&2
+    echo "$0: The workload is not specified." >&2
     echo
     usage
     exit 1
@@ -88,13 +88,13 @@ exists() {
 }
 
 if ! exists $WT_DIR/$WT_PERF; then
-    echo "Cannot find wtperf. Is it compiled?" >&2
+    echo "$0: Cannot find wtperf. Is it compiled?" >&2
     exit 1
 fi
 
 for T in blkparse blktrace iowatcher; do
     if ! exists $T; then
-        echo "The following tool is not installed: $T" >&2
+        echo "$0: The following tool is not installed: $T" >&2
         exit 1
     fi
 done
@@ -102,7 +102,7 @@ done
 if [ ! -z $WORKLOAD_FS ]; then
     for T in mkfs.${WORKLOAD_FS} wipefs; do
         if ! exists $T; then
-            echo "The following tool is not installed: $T" >&2
+            echo "$0: The following tool is not installed: $T" >&2
             exit 1
         fi
     done
@@ -120,7 +120,7 @@ if [ `echo $WORKLOAD_FILE | grep -c -E '^[a-z0-9_-]+$'` == 1 ]; then
     WORKLOAD_FILE=$WT_DIR/bench/wtperf/runners/${WORKLOAD_FILE}.wtperf
 fi
 if [ ! -f $WORKLOAD_FILE ]; then
-    echo "File not found: $WORKLOAD_FILE"
+    echo "$0: File not found: $WORKLOAD_FILE"
     exit 1
 fi
 
@@ -135,7 +135,7 @@ WORKLOAD=`basename "$WORKLOAD_FILE" | sed 's/\.wtperf$//'`
 
 if [ $FORMAT ]; then
     if [ -z $WORKLOAD_DIR ] && [ -z $WORKLOAD_DEVICE ]; then
-        echo "The workload device or a directory must be specified when the -F option is used" >&2
+        echo "$0: The workload device or directory must be specified when the -F option is used" >&2
         exit 1
     fi
 
@@ -143,7 +143,7 @@ if [ $FORMAT ]; then
     # mount point. In that case, we also require that the workload dir is the mount point.
     if [ -z $WORKLOAD_DEVICE ]; then
         if ! findmnt -n -o SOURCE -M "$WORKLOAD_DIR" > /dev/null; then
-            echo "The workload directory is not a mountpoint" >&2
+            echo "$0: The workload directory is not a mountpoint" >&2
             exit 1
         fi
         WORKLOAD_MOUNT="$WORKLOAD_DIR"
@@ -170,7 +170,7 @@ mkdir -p "$WORKLOAD_DIR" || exit 1
 
 if [ -z $FORMAT ] && [ ! -z $WORKLOAD_DEVICE ]; then
     if [ $WORKLOAD_DEVICE != `findmnt -n -o SOURCE -T "$WORKLOAD_DIR"` ]; then
-        echo "The workload device does not match the workload directory."
+        echo "$0: The workload device does not match the workload directory."
         exit 1
     fi
 fi
@@ -182,7 +182,7 @@ if [ -z $WORKLOAD_DEVICE ]; then
     WORKLOAD_DEVICE=`findmnt -n -o SOURCE -T "$WORKLOAD_DIR"`
 else
     if [ `stat $WORKLOAD_DEVICE | grep -c "block special file"` != 1 ]; then
-        echo "Not a block device: $WORKLOAD_DEVICE" >&2
+        echo "$0: Not a block device: $WORKLOAD_DEVICE" >&2
         exit 1
     fi
 fi
@@ -201,12 +201,12 @@ fi
 # Check that the output directory exists and that it does not have output files with our tag.
 
 if [ ! -d $OUTPUT_DIR ]; then
-    echo "The output directory does not exists: ${OUTPUT_DIR}" >&2
+    echo "$0: The output directory does not exists: ${OUTPUT_DIR}" >&2
     exit 1
 fi
 
 if [ `ls -1 $OUTPUT_DIR | T="$OUTPUT_TAG" awk 'index($0, ENVIRON["T"]) == 1' | wc -l` != 0 ]; then
-    echo "The output directory \"$OUTPUT_DIR\" contains files that start with \"$OUTPUT_TAG\""
+    echo "$0: The output directory \"$OUTPUT_DIR\" contains files that start with \"$OUTPUT_TAG\""
     exit 1
 fi
 
@@ -214,7 +214,7 @@ fi
 # Make sure the output directory is not on the same device as the workload.
 
 if [ $WORKLOAD_DEVICE = `findmnt -n -o SOURCE -T "$OUTPUT_DIR" | head -n 1` ]; then
-    echo "The output directory cannot be on the same device as the workload." >&2
+    echo "$0: The output directory cannot be on the same device as the workload." >&2
     exit 1
 fi
 
@@ -244,7 +244,7 @@ echo "Output tag          : $OUTPUT_TAG"
 echo
 
 if [ $FORMAT ]; then
-    echo "$WORKLOAD_DEVICE will be formatted."
+    echo "$0: $WORKLOAD_DEVICE will be formatted."
     echo
 fi
 
@@ -274,7 +274,7 @@ mkdir -p $WORKLOAD_DIR || exit $?
 # Run the workload and capture the traces.
 #
 
-echo "Running ${WORKLOAD}."
+echo "$0: Running ${WORKLOAD}."
 
 # We will be changing directories, so make sure we have full paths
 
@@ -293,7 +293,7 @@ WORKLOAD_FILE=`realpath $WORKLOAD_FILE`
         > ${OUTPUT_DIR}/${OUTPUT_TAG}---stdout.txt ; \
     sleep 10 ; sudo killall -INT blktrace) || true
 
-echo "The workload finished."
+echo "$0: The workload finished."
 
 
 # Wait and parse

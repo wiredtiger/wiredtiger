@@ -86,7 +86,6 @@ io_trace_collection::add_data_point(
 
     if (t->_operations.empty())
         t->_operations.push_back(item);
-
     else {
         const io_trace_operation &last = t->_operations.back();
         if (last.timestamp <= item.timestamp)
