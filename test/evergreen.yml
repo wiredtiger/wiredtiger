@@ -679,6 +679,7 @@ functions:
           # We are ignoring the table:wt table. This table does not participate in
           # predictable replay, as it may be concurrently created, opened (regular or bulk cursor),
           # verified, upgraded and dropped by multiple threads in test_schema_abort.
+          echo $toolsdir/wt_cmp_dir -i '^table:wt$' RUNDIR_{1,2}/WT_HOME
           $toolsdir/wt_cmp_dir -i '^table:wt$' RUNDIR_{1,2}/WT_HOME || exit 1
         done
   "upload artifact":
