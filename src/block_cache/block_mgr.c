@@ -265,7 +265,7 @@ __bm_close(WT_BM *bm, WT_SESSION_IMPL *session)
         ret = __bm_close_block(session, bm->block);
     else {
         /* We don't need to explicitly close the active handle; it is in the block handle table. */
-        for (i = 0; i < bm->handle_table_next; ++i) 
+        for (i = 0; i < bm->handle_table_next; ++i)
             WT_TRET(__bm_close_block(session, bm->handle_table[i]));
 
         __wt_rwlock_destroy(session, &bm->handle_table_lock);
