@@ -661,7 +661,7 @@ functions:
           echo Iteration $i/${times}
           x1=$(rando)$(rando)
           x2=$(rando)$(rando)
-          rm -rf RUNDIR_{1,2}
+          rm -rf RUNDIR_1 RUNDIR_2
 
           # Run with up to a slightly different timestamp for each iteration.
           ops=$(($op_count + $(rando) % 100))
@@ -679,8 +679,7 @@ functions:
           # We are ignoring the table:wt table. This table does not participate in
           # predictable replay, as it may be concurrently created, opened (regular or bulk cursor),
           # verified, upgraded and dropped by multiple threads in test_schema_abort.
-          echo $toolsdir/wt_cmp_dir -i '^table:wt$' RUNDIR_{1,2}/WT_HOME
-          $toolsdir/wt_cmp_dir -i '^table:wt$' RUNDIR_{1,2}/WT_HOME || exit 1
+          $toolsdir/wt_cmp_dir -i '^table:wt$' RUNDIR_1/WT_HOME RUNDIR_2/WT_HOME || exit 1
         done
   "upload artifact":
     - command: archive.targz_pack

@@ -96,8 +96,6 @@ timestamp_opt1=
 timestamp_opt2=
 ignore_regexp=
 
-set -x
-echo "wt_cmp_dir args: $@"
 while [ "$#" -gt 2 ]; do
     if [ "$1" = '-t' ]; then
         # By default, the first -t argument, if given
@@ -112,7 +110,6 @@ while [ "$#" -gt 2 ]; do
         fi
         ignore_regexp="$2"
         shift; shift
-        echo "wt_cmp_dir parsed regexp: $ignore_regexp"
     else
         break  # done with flags
     fi
