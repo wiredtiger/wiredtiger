@@ -103,7 +103,7 @@ __bm_checkpoint(
     /*
      * For tiered tables, we need to fsync any previous active files to ensure the full checkpoint
      * is persisted. We wait until now because there may have been in-progress writes to old files.
-     * But now we now those writes must have completed. Checkpoint ensures that all dirty pages of
+     * But now we know those writes must have completed. Checkpoint ensures that all dirty pages of
      * the tree have been written and eviction is disabled at this point, so no new data is getting
      * written.
      *
@@ -265,9 +265,9 @@ __bm_close(WT_BM *bm, WT_SESSION_IMPL *session)
         ret = __bm_close_block(session, bm->block);
     else {
         /* We don't need to explicitly close the active handle; it is in the block handle table. */
-        for (i = 0; i < bm->handle_table_next; ++i) {
+        for (i = 0; i < bm->handle_table_next; ++i) 
             WT_TRET(__bm_close_block(session, bm->handle_table[i]));
-        }
+
         __wt_rwlock_destroy(session, &bm->handle_table_lock);
         __wt_free(session, bm->handle_table);
     }

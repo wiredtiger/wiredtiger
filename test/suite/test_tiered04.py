@@ -154,7 +154,7 @@ class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.pr("Check removal of ")
         self.pr(self.obj1file)
         # FIXME-WT-10838: We can't remove files from open tables because we don't know whether 
-        # there are active read reqeusts to those files.
+        # there are active read requests to those files.
         # self.assertFalse(os.path.exists(self.obj1file))
         # remove2 = self.get_stat(stat.conn.local_objects_removed, None)
         # self.assertTrue(remove2 > remove1)
