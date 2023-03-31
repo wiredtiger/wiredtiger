@@ -231,7 +231,7 @@ real_checkpointer(THREAD_DATA *td)
 {
     WT_SESSION *session;
     wt_timestamp_t stable_ts, oldest_ts, verify_ts;
-    uint64_t delay, least_committed;
+    uint64_t delay, tmp_ts;
     int ret;
     char buf[128], flush_tier_config[128], timestamp_buf[64];
     const char *checkpoint_config, *ts_config;
@@ -283,10 +283,9 @@ real_checkpointer(THREAD_DATA *td)
                 /* Use the extra random generator as the data is not getting modified. */
                 verify_ts = __wt_random(&td->extra_rnd) % (stable_ts - oldest_ts + 1) + oldest_ts;
             if (g.predictable_replay) {
-                least_committed = get_all_committed_ts();
-                if (least_committed != UINT64_MAX && (g.ts_pred_stable == 0 ||
-                  least_committed <= g.ts_pred_stable))
-                    g.ts_oldest = least_committed;
+                tmp_ts = WT_MIN(get_all_committed_ts(), stable_ts);
+                if (tmp_ts != UINT64_MAX && (g.ts_pred_stable == 0 || tmp_ts <= g.ts_pred_stable))
+                    g.ts_oldest = tmp_ts;
 
                 /* Don't go past the provided timestamp. */
                 if (g.ts_pred_stable > 0 && stable_ts >= g.ts_pred_stable) {
