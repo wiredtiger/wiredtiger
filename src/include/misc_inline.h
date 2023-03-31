@@ -80,7 +80,7 @@ __wt_strcat(char *dest, size_t size, const char *src)
     if (dest_length + src_length + 1 > size) /* Account for the null-terminating byte. */
         return (ERANGE);
 
-    strncpy(dest + dest_length, src, src_length);
+    memcpy(dest + dest_length, src, src_length);
     dest[dest_length + src_length] = '\0';
     return (0);
 }
