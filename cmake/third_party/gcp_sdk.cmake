@@ -68,4 +68,5 @@ elseif(IMPORT_GCP_SDK_EXTERNAL)
         IMPORTED_LOCATION ${gcp_common_lib_location}
         INTERFACE_INCLUDE_DIRECTORIES ${gcp_sdk_include_location}
     )
+    add_dependencies(google-cloud-cpp::storage gcp-sdk)
 endif()
