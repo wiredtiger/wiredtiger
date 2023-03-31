@@ -9,10 +9,10 @@ icount=10000
 scan_icount=120000000
 report_interval=5
 populate_threads=1
-run_time=100
+run_time=35
 scan_table_count=1
 scan_type=forward
-scan_interval=99
+scan_interval=34
 scan_pct=20
 table_count=1
 # The benchmark needs some non-scan acticity

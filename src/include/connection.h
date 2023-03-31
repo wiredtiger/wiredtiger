@@ -442,8 +442,8 @@ struct __wt_connection_impl {
     uint32_t evict_threads_max; /* Max eviction threads */
     uint32_t evict_threads_min; /* Min eviction threads */
 
-#define WT_MAX_READ_AHEAD_QUEUE 50
-#define WT_READ_AHEAD_QUEUE_PER_TRIGGER 20
+#define WT_MAX_READ_AHEAD_QUEUE 120
+#define WT_READ_AHEAD_QUEUE_PER_TRIGGER 30
     WT_SPINLOCK read_ahead_lock;
     WT_THREAD_GROUP read_ahead_threads;
     uint64_t read_ahead_queue_count;

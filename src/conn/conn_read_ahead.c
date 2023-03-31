@@ -21,7 +21,7 @@ __wt_read_ahead_create(WT_SESSION_IMPL *session)
 
     F_SET(conn, WT_CONN_READ_AHEAD_RUN);
 
-    WT_RET(__wt_thread_group_create(session, &conn->read_ahead_threads, "read-ahead-server", 9, 9,
+    WT_RET(__wt_thread_group_create(session, &conn->read_ahead_threads, "read-ahead-server", 20, 20,
       0, __wt_read_ahead_thread_chk, __wt_read_ahead_thread_run, NULL));
 
     return (0);
@@ -70,36 +70,20 @@ __wt_read_ahead_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
         TAILQ_REMOVE(&conn->raqh, ra, q);
         --conn->read_ahead_queue_count;
-#if 0 /*                                                                                    \
-       * We can get to the parent page, but not the parent ref, so it isn't simple to get a \
-       * hazard pointer on the parent as we'd like.                                         \
-       */
-        /* Copy the parent ref to ensure the same hazard pointer is set and cleared. */
-        WT_ORDERED_READ(parent_ref, ra->ref->home);
-        /*
-         * Acquire a hazard pointer on the parent of the leaf page we are about to read in. The
-         * hazard pointer stops that internal page being evicted while the child is being read.
-         */
-        WT_ERR(__wt_hazard_set(session, parent_ref, &parent_hazard));
-        __wt_spin_unlock(session, &conn->read_ahead_lock);
-        locked = false;
-
-        if (parent_hazard) {
-            WT_WITH_DHANDLE(session, ra->dhandle, ret = __wt_read_ahead_page_in(session, ra));
-            WT_ASSERT_ALWAYS(session, ra->ref->home == parent_ref,
-                    "It isn't safe for the parent page to change while doing read ahead. If the "
-                    "parent change, the new parent could have been evicted before this child was "
-                    "read in.");
-            WT_ERR(__wt_hazard_clear(session, parent_ref));
-            WT_ERR(ret);
-        }
-#else
+        WT_ASSERT_ALWAYS(session, F_ISSET(ra->ref, WT_REF_FLAG_READ_AHEAD),
+          "Any ref on the read ahead queue needs to have the read ahead flag set");
         __wt_spin_unlock(session, &conn->read_ahead_lock);
         locked = false;
 
         WT_WITH_DHANDLE(session, ra->dhandle, ret = __wt_read_ahead_page_in(session, ra));
+        /*
+         * It probably isn't strictly necessary to re-acquire the lock to reset the flag, but other
+         * flag accesses do need to lock, so it's better to be consistent.
+         */
+        __wt_spin_lock(session, &conn->read_ahead_lock);
+        F_CLR(ra->ref, WT_REF_FLAG_READ_AHEAD);
+        __wt_spin_unlock(session, &conn->read_ahead_lock);
         WT_ERR(ret);
-#endif
 
         __wt_free(session, ra);
     }
@@ -119,6 +103,7 @@ int
 __wt_conn_read_ahead_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     WT_READ_AHEAD *ra;
 
     conn = S2C(session);
@@ -128,35 +113,18 @@ __wt_conn_read_ahead_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
     ra->first_home = ref->home;
     ra->dhandle = session->dhandle;
     __wt_spin_lock(session, &conn->read_ahead_lock);
-    TAILQ_INSERT_TAIL(&conn->raqh, ra, q);
-    ++conn->read_ahead_queue_count;
-    __wt_spin_unlock(session, &conn->read_ahead_lock);
-
-    return (0);
-}
-
-/*
- * __wt_conn_read_ahead_queue_check --
- *     Check to see if a ref is present in the read ahead queue.
- */
-bool
-__wt_conn_read_ahead_queue_check(WT_SESSION_IMPL *session, WT_REF *check_ref)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_READ_AHEAD *ra;
-
-    conn = S2C(session);
-    ra = NULL;
-
-    __wt_spin_lock(session, &conn->read_ahead_lock);
-    TAILQ_FOREACH (ra, &conn->raqh, q) {
-        if (ra->ref == check_ref)
-            break;
+    if (F_ISSET(ref, WT_REF_FLAG_READ_AHEAD))
+        ret = EBUSY;
+    else {
+        F_SET(ref, WT_REF_FLAG_READ_AHEAD);
+        TAILQ_INSERT_TAIL(&conn->raqh, ra, q);
+        ++conn->read_ahead_queue_count;
     }
     __wt_spin_unlock(session, &conn->read_ahead_lock);
-    if (ra != NULL && ra->ref == check_ref)
-        return (true);
-    return (false);
+
+    if (ret != 0)
+        __wt_free(session, ra);
+    return (ret);
 }
 
 /*

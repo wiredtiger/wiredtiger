@@ -500,7 +500,11 @@ static int
 __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
 {
     WT_REF *child;
-    bool visible;
+    bool busy, visible;
+
+    busy = false;
+    /* Read ahead queue flags on a ref need to be checked while holding the read ahead lock. */
+    __wt_spin_lock(session, &S2C(session)->read_ahead_lock);
 
     /*
      * There may be cursors in the tree walking the list of child pages. The parent is locked, so
@@ -511,15 +515,27 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
      * opposite direction from our check.
      */
     WT_INTL_FOREACH_BEGIN (session, parent->page, child) {
+        /* It isn't safe to evict if there is a child on the read ahead queue. */
+        if (F_ISSET(child, WT_REF_FLAG_READ_AHEAD)) {
+            busy = true;
+            break;
+        }
+
         switch (child->state) {
         case WT_REF_DISK:    /* On-disk */
         case WT_REF_DELETED: /* On-disk, deleted */
             break;
         default:
-            return (__wt_set_return(session, EBUSY));
+            busy = true;
         }
+        if (busy)
+            break;
     }
     WT_INTL_FOREACH_END;
+    __wt_spin_unlock(session, &S2C(session)->read_ahead_lock);
+    if (busy)
+        return (__wt_set_return(session, EBUSY));
+
     WT_INTL_FOREACH_REVERSE_BEGIN (session, parent->page, child) {
         switch (child->state) {
         case WT_REF_DISK:    /* On-disk */
@@ -544,15 +560,6 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
      * WT_REF structures pages can be discarded.
      */
     WT_INTL_FOREACH_BEGIN (session, parent->page, child) {
-        /*
-         * It isn't safe to evict if there is a child on the read ahead queue. This is potentially
-         * an n squared operation - each ref is checked against each entry in the read ahead queue.
-         * There isn't another obvious mechanism. It could be replaced by a mechanism that tracks
-         * how many child refs are on the queue on the internal page, but such a mechanism would
-         * need to be kept accurate during page splits which is hard.
-         */
-        if (__wt_conn_read_ahead_queue_check(session, child))
-            return (__wt_set_return(session, EBUSY));
 
         switch (child->state) {
         case WT_REF_DISK: /* On-disk */

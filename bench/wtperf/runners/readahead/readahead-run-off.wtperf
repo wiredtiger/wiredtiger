@@ -9,11 +9,11 @@ icount=10000
 scan_icount=120000000
 report_interval=5
 populate_threads=1
-run_time=250
+run_time=60
 scan_table_count=1
 scan_type=forward
-scan_interval=249
-scan_pct=20
+scan_interval=59
+scan_pct=50
 table_count=1
 # The benchmark needs some non-scan acticity
 threads=((count=1,reads=1,throttle=5))

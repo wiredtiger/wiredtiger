@@ -18,6 +18,7 @@ int
 __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     WT_REF *next_ref;
     uint64_t block_preload;
 
@@ -48,8 +49,11 @@ __wt_btree_read_ahead(WT_SESSION_IMPL *session, WT_REF *ref)
          * in cache.
          */
         if (next_ref->state == WT_REF_DISK && F_ISSET(next_ref, WT_REF_FLAG_LEAF)) {
-            WT_RET(__wt_conn_read_ahead_queue_push(session, next_ref));
-            ++block_preload;
+            ret = __wt_conn_read_ahead_queue_push(session, next_ref);
+            if (ret == 0)
+                ++block_preload;
+            else if (ret != EBUSY)
+                WT_RET(ret);
         }
     }
     WT_INTL_FOREACH_END;
