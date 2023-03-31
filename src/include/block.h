@@ -211,8 +211,8 @@ struct __wt_bm {
     size_t maplen;
     void *mapped_cookie;
 
-    /* Tiered storage */
-    bool is_multi_handle;          /* The btree uses multiple files or objects */
+    /* For trees (e.g., tiered tables) that are backed by multiple files or objects */
+    bool is_multi_handle;
     WT_RWLOCK handle_table_lock;   /* Lock for block handle table */
     WT_BLOCK **handle_table;       /* Table of block handles */
     size_t handle_table_allocated; /* Size of handle table */
