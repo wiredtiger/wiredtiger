@@ -212,7 +212,7 @@ struct __wt_bm {
     void *mapped_cookie;
 
     /* Tiered storage */
-    bool is_tiered;                /* This is a tiered btree */
+    bool is_multi_handle;          /* The btree uses multiple files or objects */
     WT_RWLOCK handle_table_lock;   /* Lock for block handle table */
     WT_BLOCK **handle_table;       /* Table of block handles */
     size_t handle_table_allocated; /* Size of handle table */

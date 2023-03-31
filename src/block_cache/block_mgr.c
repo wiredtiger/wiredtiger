@@ -98,7 +98,7 @@ __bm_checkpoint(
 
     WT_RET(__wt_block_checkpoint(session, block, buf, ckptbase, data_checksum));
 
-    if (!bm->is_tiered)
+    if (!bm->is_multi_handle)
         return (0);
     /*
      * For tiered tables, we need to fsync any previous active files to ensure the full checkpoint
@@ -261,7 +261,7 @@ __bm_close(WT_BM *bm, WT_SESSION_IMPL *session)
     if (bm == NULL) /* Safety check */
         return (0);
 
-    if (!bm->is_tiered)
+    if (!bm->is_multi_handle)
         ret = __bm_close_block(session, bm->block);
     else {
         /* We don't need to explicitly close the active handle; it is in the block handle table. */
@@ -804,14 +804,14 @@ __wt_blkcache_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
 
     WT_RET(__wt_calloc_one(session, &bm));
     __bm_method_set(bm, false);
-    bm->is_tiered = false;
+    bm->is_multi_handle = false;
 
     if (WT_PREFIX_MATCH(uri, "file:")) {
         uri += strlen("file:");
         WT_ERR(__wt_block_open(session, uri, WT_TIERED_OBJECTID_NONE, cfg, forced_salvage, readonly,
           false, allocsize, &bm->block));
     } else {
-        bm->is_tiered = true;
+        bm->is_multi_handle = true;
         WT_ERR(__wt_rwlock_init(session, &bm->handle_table_lock));
 
         /* Allocate space to store the handle (do first for simpler cleanup). */
