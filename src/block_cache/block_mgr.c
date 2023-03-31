@@ -264,7 +264,12 @@ __bm_close(WT_BM *bm, WT_SESSION_IMPL *session)
     if (!bm->is_multi_handle)
         ret = __bm_close_block(session, bm->block);
     else {
-        /* We don't need to explicitly close the active handle; it is in the block handle table. */
+        /*
+         * Higher-level code ensures that we can only have one call to close a block manager. So we
+         * don't need to lock the block handle table here.
+         *
+         * We don't need to explicitly close the active handle; it is also in the handle table.
+         */
         for (i = 0; i < bm->handle_table_next; ++i)
             WT_TRET(__bm_close_block(session, bm->handle_table[i]));
 

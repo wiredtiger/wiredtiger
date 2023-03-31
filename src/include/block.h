@@ -205,17 +205,22 @@ struct __wt_bm {
     int (*write)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, uint8_t *, size_t *, bool, bool);
     int (*write_size)(WT_BM *, WT_SESSION_IMPL *, size_t *);
 
-    WT_BLOCK *block; /* Underlying file */
+    WT_BLOCK *block; /* Underlying file. */
 
     void *map; /* Mapped region */
     size_t maplen;
     void *mapped_cookie;
 
-    /* For trees (e.g., tiered tables) that are backed by multiple files or objects */
+    /*
+     * For trees, such as tiered tables, that are allowed to have more than one backing file or
+     * object, we maintain a table of the block handles used by the tree. We use a reader-writer
+     * mutex to protect the table. We lock it for reading when looking for a handle in the table and
+     * lock it for writing when adding or removing handles in the table.
+     */
     bool is_multi_handle;
-    WT_RWLOCK handle_table_lock;   /* Lock for block handle table */
     WT_BLOCK **handle_table;       /* Table of block handles */
     size_t handle_table_allocated; /* Size of handle table */
+    WT_RWLOCK handle_table_lock;   /* Lock for block handle table */
     u_int handle_table_next;       /* Next open slot */
 
     /*
