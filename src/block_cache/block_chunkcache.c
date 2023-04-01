@@ -104,8 +104,7 @@ __chunkcache_alloc_chunk(WT_SESSION_IMPL *session, wt_off_t offset, WT_BLOCK *bl
 
     if ((chunk_size = __chunkcache_admit_size(session)) == 0)
         return (ENOSPC);
-    if ((ret = __wt_calloc(session, 1, sizeof(WT_CHUNKCACHE_CHUNK), newchunk)) != 0)
-        return (ret);
+    WT_RET(__wt_calloc(session, 1, sizeof(WT_CHUNKCACHE_CHUNK), newchunk));
 
     /* Convert the block offset to the offset of the enclosing chunk. */
     (*newchunk)->chunk_offset = WT_CHUNK_OFFSET(chunkcache, offset);
@@ -295,16 +294,19 @@ retry:
                 /* If the chunk is there, but invalid, there is I/O in progress. Retry. */
                 if (!chunk->valid) {
                     __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
-                    if (retries++ < WT_CHUNKCACHE_MAX_RETRIES) {
-                        WT_STAT_CONN_INCR(session, chunk_cache_retries);
-                        __wt_yield();
-                        goto retry;
-                    } else {
+                    if (retries++ > WT_CHUNKCACHE_MAX_RETRIES) {
                         __wt_verbose(session, WT_VERB_CHUNKCACHE,
                           "lookup timed out after %u retries", retries);
                         WT_STAT_CONN_INCR(session, chunk_cache_toomany_retries);
                         return (EAGAIN);
                     }
+
+                    if (retries < WT_THOUSAND)
+                        __wt_yield();
+                    else
+                        __wt_sleep(0, WT_THOUSAND);
+                    WT_STAT_CONN_INCR(session, chunk_cache_retries);
+                    goto retry;
                 }
                 /* Found the needed chunk. */
                 chunk_cached = true;
@@ -319,6 +321,13 @@ retry:
                 memcpy((void *)((uint64_t)dst + already_read),
                   chunk->chunk_memory + (offset + (wt_off_t)already_read - chunk->chunk_offset),
                   size_copied);
+
+                /* Place at the front of the LRU list */
+                __wt_spin_lock(session, &chunkcache->chunkcache_lru_lock);
+                TAILQ_REMOVE(&chunkcache->chunkcache_lru_list, chunk, next_lru_item);
+                TAILQ_INSERT_HEAD(&chunkcache->chunkcache_lru_list, chunk, next_lru_item);
+                __wt_spin_unlock(session, &chunkcache->chunkcache_lru_lock);
+
                 __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
 
                 if (already_read > 0)
