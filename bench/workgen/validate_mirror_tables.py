@@ -82,7 +82,7 @@ def get_mirror_file(db_dir, filename):
     metadata = c[filename]
     c.close()
 
-    result=re.findall('app_metadata="([^"]*)"', metadata)
+    result = re.findall('app_metadata="([^"]*)"', metadata)
     mirror = None
 
     if result:
