@@ -503,6 +503,8 @@ class Operation:
         
         if matches != None:
             self.key = int(matches.group(1))
+        else:
+            self.key = None
 
     def __init_ondisk_kv_fix(self, line):
         self.type = OpType.ONDISK_KV_FIX
