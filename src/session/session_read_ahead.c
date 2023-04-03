@@ -15,7 +15,11 @@
 bool
 __wt_session_read_ahead_check(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    if (!S2C(session)->read_ahead_auto_on)
+    /*
+     * TODO: Should internal threads do read ahead? Possibly if read ahead is configured
+     * to be aggressive? Or possibly more selectively?
+     */
+    if (!S2C(session)->read_ahead_auto_on || F_ISSET(session, WT_SESSION_INTERNAL))
         return (false);
 
     if (S2C(session)->read_ahead_queue_count > WT_MAX_READ_AHEAD_QUEUE)
