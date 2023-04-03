@@ -125,9 +125,7 @@ checkpoint(void *arg)
                     testutil_check(ret);
                 break;
             case 2:
-                /*
-                 * 5% drop all named snapshots.
-                 */
+                /* 5% drop all named snapshots. */
                 ret = lock_try_writelock(session, &g.backup_lock);
                 if (ret == 0) {
                     backup_locked = true;
@@ -142,7 +140,13 @@ checkpoint(void *arg)
         else
             trace_msg(session, "Checkpoint #%u start (%s)", ++counter, ckpt_config);
 
-        testutil_check(session->checkpoint(session, ckpt_config));
+        ret = session->checkpoint(session, ckpt_config);
+        /*
+         * It is possible to get EBUSY if we try to use a pre existing checkpoint name that is being
+         * used.
+         */
+        testutil_assert(
+          ret == 0 || (ret == EBUSY && !WT_PREFIX_MATCH(ckpt_vrfy_name, WT_CHECKPOINT)));
 
         if (ckpt_config == NULL)
             trace_msg(session, "Checkpoint #%u stop", counter);
