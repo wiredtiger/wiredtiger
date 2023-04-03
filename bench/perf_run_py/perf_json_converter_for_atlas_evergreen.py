@@ -53,7 +53,8 @@ def generate_output_atlas(test_name, input_data):
         "metrics": [
             {"name": key, "value": value}
             for key, value in input_data.items()
-        ]
+        ],
+        "config": {}
     }
     return output_data
 
