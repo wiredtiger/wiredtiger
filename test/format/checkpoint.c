@@ -125,9 +125,7 @@ checkpoint(void *arg)
                     testutil_check(ret);
                 break;
             case 2:
-                /*
-                 * 5% drop all named snapshots.
-                 */
+                /* 5% drop all named snapshots. */
                 ret = lock_try_writelock(session, &g.backup_lock);
                 if (ret == 0) {
                     backup_locked = true;
@@ -142,7 +140,18 @@ checkpoint(void *arg)
         else
             trace_msg(session, "Checkpoint #%u start (%s)", ++counter, ckpt_config);
 
-        testutil_check(session->checkpoint(session, ckpt_config));
+        ret = session->checkpoint(session, ckpt_config);
+        /*
+         * Because of the concurrent activity of the sweep server, it is possible to get EBUSY when
+         * we are trying to remove an existing checkpoint as the sweep server may be interacting
+         * with a dhandle associated with the checkpoint being removed. There is a specific scenario
+         * where we remove an existing checkpoint if we create one with the same name.
+         */
+        if (ret == EBUSY)
+            testutil_assert(!WT_PREFIX_MATCH(ckpt_vrfy_name, WT_CHECKPOINT) ||
+              strncmp(ckpt_vrfy_name, "drop=(all)", strlen(ckpt_vrfy_name)));
+        else
+            testutil_check(ret);
 
         if (ckpt_config == NULL)
             trace_msg(session, "Checkpoint #%u stop", counter);
