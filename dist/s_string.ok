@@ -114,6 +114,7 @@ ENOMEM
 ENOTSUP
 ENUM
 EOF
+ERANGE
 ETIME
 ETIMEDOUT
 EVICTSERVER
@@ -920,6 +921,7 @@ lu
 luc
 lwsync
 lz
+mP
 madvise
 majorp
 malloc
@@ -1032,6 +1034,7 @@ oversized
 ovfl
 ownp
 pR
+pT
 packv
 pageref
 pagesize
@@ -1181,6 +1184,7 @@ stdout
 stepp
 str
 strace
+strcat
 strcmp
 strdup
 strerror
