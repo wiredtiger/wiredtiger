@@ -148,7 +148,7 @@
         WT_IGNORE_RET(                                                                             \
           __wt_snprintf_len_set(buf, len, &_offset, "WiredTiger assertion failed: '%s'. ", #exp)); \
         /* If we would overflow, finish with what we have. */                                      \
-        if (_offset <= len)                                                                        \
+        if (_offset < len)                                                                        \
             WT_IGNORE_RET(__wt_snprintf(buf + _offset, len - _offset, __VA_ARGS__));               \
     } while (0)
 
