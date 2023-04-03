@@ -140,7 +140,7 @@
 /*
  * BUILD_ASSERTION_STRING --
  *  Append a common prefix to an assertion message and save into the provided buffer.
-  */
+ */
 #define BUILD_ASSERTION_STRING(session, buf, len, exp, ...)                                        \
     do {                                                                                           \
         size_t _offset;                                                                            \
