@@ -108,7 +108,7 @@ __bm_checkpoint(
      * written.
      *
      * We don't hold the handle table lock across fsync calls since those could be slow and that
-     * would block a concurrent thread opening a new block handle.
+     * would block a concurrent thread opening a new block handle
      */
     do {
         found = false;
@@ -117,14 +117,16 @@ __bm_checkpoint(
             block = bm->handle_table[i];
             if (block->sync_on_checkpoint) {
                 found = true;
-                __wt_readunlock(session, &bm->handle_table_lock);
-                WT_RET(__wt_fsync(session, block->fh, true));
-                block->sync_on_checkpoint = false;
                 break;
             }
         }
+        __wt_readunlock(session, &bm->handle_table_lock);
+
+        if (found) {
+            WT_RET(__wt_fsync(session, block->fh, true));
+            block->sync_on_checkpoint = false;
+        }
     } while (found);
-    __wt_readunlock(session, &bm->handle_table_lock);
 
     return (0);
 }
