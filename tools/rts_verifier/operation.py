@@ -2,7 +2,7 @@
 
 import os, re
 
-from basic_types import PrepareState, Timestamp, UpdateType
+from basic_types import PrepareState, Timestamp, UpdateType, PageType
 from enum import Enum
 
 class OpType(Enum):
@@ -155,6 +155,9 @@ class Operation:
 
         matches = re.search('modified=(\w+)', line)
         self.modified = matches.group(1).lower() == "true"
+
+        matches = re.search('page of type= (\w+)', line)
+        self.page_type = PageType[matches.group(1)]
 
     def __init_update_abort(self, line):
         self.type = OpType.UPDATE_ABORT
@@ -484,7 +487,7 @@ class Operation:
         self.durable_start = Timestamp(durable_start_start, durable_start_end)
         self.start_txn = int(matches.group(5))
 
-    def __init_insert_list_update_check(self, line):
+    def __init_insert_list_check(self, line):
         self.type = OpType.INSERT_LIST_CHECK
         self.rollback = self.__extract_simple_timestamp('rollback_timestamp', line)
 
