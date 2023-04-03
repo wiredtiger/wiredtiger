@@ -474,6 +474,16 @@ class Operation:
         self.stop = self.__extract_simple_timestamp('stop_timestamp', line)
         self.stable = self.__extract_simple_timestamp('stable_timestamp', line)
 
+        matches = re.search('time_window=start: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+) stop: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+)', line)
+
+        start_start = int(matches.group(1))
+        start_end = int(matches.group(2))
+        self.start = Timestamp(start_start, start_end)
+        durable_start_start = int(matches.group(3))
+        durable_start_end = int(matches.group(4))
+        self.durable_start = Timestamp(durable_start_start, durable_start_end)
+        self.start_txn = int(matches.group(5))
+
     def __init_insert_list_update_check(self, line):
         self.type = OpType.INSERT_LIST_CHECK
         self.rollback = self.__extract_simple_timestamp('rollback_timestamp', line)
@@ -482,9 +492,17 @@ class Operation:
         self.type = OpType.INSERT_LIST_UPDATE_ABORT
         self.durable = self.__extract_simple_timestamp('durable_timestamp', line)
 
+        matches = re.search('key=(\d+)', line)
+        self.key = int(matches.group(1))
+
     def __init_ondisk_abort_check(self, line):
         self.type = OpType.ONDISK_ABORT_CHECK
         self.rollback = self.__extract_simple_timestamp('rollback_timestamp', line)
+
+        matches = re.search('key=(\d+)', line)
+        
+        if matches != None:
+            self.key = int(matches.group(1))
 
     def __init_ondisk_kv_fix(self, line):
         self.type = OpType.ONDISK_KV_FIX
