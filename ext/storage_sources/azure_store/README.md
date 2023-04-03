@@ -25,7 +25,7 @@ There are two CMake flags associated with the Azure extension: `ENABLE_AZURE` an
     *   `external` tells the compiler to download and install the SDK as part of the build.
     *   `package` tells the compiler to search for an existing system installation of the SDK.
     *    This flag should be set alongside the `ENABLE_AZURE` flag.
-    *    If the `IMPORT_AZURE_SDK` flag is not specified,  the compiler will assume a system
+    *    If the `IMPORT_AZURE_SDK` flag is not specified, the compiler will assume a system
          installation of the SDK.
 
 ### Letting CMake manage the SDK dependency as an external project

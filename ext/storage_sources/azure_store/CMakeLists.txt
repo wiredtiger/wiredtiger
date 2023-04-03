@@ -32,7 +32,6 @@ target_link_libraries(
         Azure::azure-storage-common
 )
 
-#add_dependencies(azure_container_util azure-sdk)
 # Build the Azure extension as a library
 add_library(wiredtiger_azure_store MODULE azure_storage_source.cpp azure_log_system.cpp)
 target_include_directories(

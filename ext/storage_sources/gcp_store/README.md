@@ -19,7 +19,7 @@ This section describes how to build WiredTiger with the GCP extension enabled.
 There are two ways to build WiredTiger with the GCP extension:
 
 1. Using a system installation of the GCP SDK. Information about how to perform a system install 
-from the SDK can be found [here](https://github.com/googleapis/google-cloud-cpp/blob/main/doc/packaging.md.).
+to the SDK can be found [here](https://github.com/googleapis/google-cloud-cpp/blob/main/doc/packaging.md.).
 2. Letting CMake manage the GCP SDK as an external project, this method will download the SDK, 
 link to WiredTiger's build system, and build the extension.
 
