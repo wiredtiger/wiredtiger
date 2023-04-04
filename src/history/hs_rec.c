@@ -1101,7 +1101,7 @@ __hs_delete_record(
     WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, r->hs_cursor), true);
     /* It's possible the value in the history store becomes obsolete concurrently. */
     if (ret == WT_NOTFOUND) {
-        WT_ASSERT(session, tombstone != NULL && __wt_txn_upd_visible_all(session, tombstone));
+        WT_ASSERT(session, tombstone == NULL || __wt_txn_upd_visible_all(session, tombstone));
         ret = 0;
     } else {
         /*
