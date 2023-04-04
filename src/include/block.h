@@ -213,15 +213,15 @@ struct __wt_bm {
 
     /*
      * For trees, such as tiered tables, that are allowed to have more than one backing file or
-     * object, we maintain a table of the block handles used by the tree. We use a reader-writer
-     * mutex to protect the table. We lock it for reading when looking for a handle in the table and
-     * lock it for writing when adding or removing handles in the table.
+     * object, we maintain an array of the block handles used by the tree. We use a reader-writer
+     * mutex to protect the array. We lock it for reading when looking for a handle in the array and
+     * lock it for writing when adding or removing handles in the array.
      */
     bool is_multi_handle;
-    WT_BLOCK **handle_table;       /* Table of block handles */
-    size_t handle_table_allocated; /* Size of handle table */
-    WT_RWLOCK handle_table_lock;   /* Lock for block handle table */
-    u_int handle_table_next;       /* Next open slot */
+    WT_BLOCK **handle_array;       /* Array of block handles */
+    size_t handle_array_allocated; /* Size of handle array */
+    WT_RWLOCK handle_array_lock;   /* Lock for block handle array */
+    u_int handle_array_next;       /* Next open slot */
 
     /*
      * There's only a single block manager handle that can be written, all others are checkpoints.

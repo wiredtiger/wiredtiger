@@ -111,40 +111,40 @@ __wt_blkcache_get_handle(WT_SESSION_IMPL *session, WT_BM *bm, uint32_t objectid,
     WT_ASSERT(session, bm->block->objectid != objectid);
 
     /*
-     * Check the block handle table for the object. We don't have to check the name because we can
+     * Check the block handle array for the object. We don't have to check the name because we can
      * only reference objects in our name space.
      */
-    __wt_readlock(session, &bm->handle_table_lock);
-    for (i = 0; i < bm->handle_table_next; ++i)
-        if (bm->handle_table[i]->objectid == objectid) {
-            *blockp = bm->handle_table[i];
-            __wt_readunlock(session, &bm->handle_table_lock);
+    __wt_readlock(session, &bm->handle_array_lock);
+    for (i = 0; i < bm->handle_array_next; ++i)
+        if (bm->handle_array[i]->objectid == objectid) {
+            *blockp = bm->handle_array[i];
+            __wt_readunlock(session, &bm->handle_array_lock);
             return (0);
         }
 
-    /* We need to add a new handle the block handle table. Upgrade to a write lock. */
-    __wt_readunlock(session, &bm->handle_table_lock);
-    __wt_writelock(session, &bm->handle_table_lock);
+    /* We need to add a new handle the block handle array. Upgrade to a write lock. */
+    __wt_readunlock(session, &bm->handle_array_lock);
+    __wt_writelock(session, &bm->handle_array_lock);
 
     /* Check to make sure the object wasn't cached while we locked. */
-    for (i = 0; i < bm->handle_table_next; ++i)
-        if (bm->handle_table[i]->objectid == objectid) {
-            *blockp = bm->handle_table[i];
-            __wt_writeunlock(session, &bm->handle_table_lock);
+    for (i = 0; i < bm->handle_array_next; ++i)
+        if (bm->handle_array[i]->objectid == objectid) {
+            *blockp = bm->handle_array[i];
+            __wt_writeunlock(session, &bm->handle_array_lock);
             return (0);
         }
 
     /* Allocate space to store a new handle (do first for less complicated cleanup). */
     WT_ERR(__wt_realloc_def(
-      session, &bm->handle_table_allocated, bm->handle_table_next + 1, &bm->handle_table));
+      session, &bm->handle_array_allocated, bm->handle_array_next + 1, &bm->handle_array));
 
     /* Open the object */
     WT_ERR(__wt_blkcache_tiered_open(session, NULL, objectid, blockp));
 
-    /* Add object to block handle table. */
-    bm->handle_table[bm->handle_table_next++] = *blockp;
+    /* Add object to block handle array. */
+    bm->handle_array[bm->handle_array_next++] = *blockp;
 
 err:
-    __wt_writeunlock(session, &bm->handle_table_lock);
+    __wt_writeunlock(session, &bm->handle_array_lock);
     return (ret);
 }
