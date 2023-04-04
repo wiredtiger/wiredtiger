@@ -4030,7 +4030,7 @@ tasks:
           output_path: ./mongo-tests/largescale/many-collection-artifacts/results/
       - func: "upload-perf-test-stats"
         vars:
-          stats_dir: ./mongo-tests/largescale/many-collection-artifacts/results/
+          stats_dir: ./mongo-tests/largescale/many-collection-artifacts/results
           perf-test-name: many-collection-test
 
   - name: cyclomatic-complexity
