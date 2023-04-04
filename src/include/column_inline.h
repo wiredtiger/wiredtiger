@@ -19,9 +19,10 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
     /*
      * Compiler may replace the following usage of the variable with another read.
      *
-     * Place a read barrier to avoid this issue.
+     * Place a compiler barrier to avoid this issue.
      */
-    WT_ORDERED_READ_WEAK_MEMORDER(ins, WT_SKIP_LAST(ins_head));
+    ins = WT_SKIP_LAST(ins_head);
+    WT_C11_BARRIER();
 
     /* If there's no insert chain to search, we're done. */
     if (ins == NULL)
@@ -40,11 +41,8 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
         /*
          * CPUs with weak memory ordering may reorder the reads which may lead us to read a stale
          * and inconsistent value in the lower level. Place a read barrier to avoid this issue.
-         *
-         * This should use WT_ORDERED_READ_WEAK_MEMORDER. But to lower the risk of the change, we
-         * keep this as before for now.
          */
-        WT_ORDERED_READ(ins, *insp);
+        ins = WT_ATOMIC_LOAD_PTR(WT_INSERT, insp, WT_ATOMIC_ACQUIRE);
         if (ins != NULL && recno >= WT_INSERT_RECNO(ins)) {
             /* GTE: keep going at this level */
             insp = &ins->next[i];
@@ -76,7 +74,7 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
          *
          * Place a read barrier to avoid this issue.
          */
-        WT_ORDERED_READ_WEAK_MEMORDER(ins, WT_SKIP_NEXT(ins));
+        ins = WT_ATOMIC_LOAD_PTR(WT_INSERT, &WT_SKIP_NEXT(ins), WT_ATOMIC_ACQUIRE);
     return (ins);
 }
 
@@ -93,9 +91,10 @@ __col_insert_search_lt(WT_INSERT_HEAD *ins_head, uint64_t recno)
     /*
      * Compiler may replace the following usage of the variable with another read.
      *
-     * Place a read barrier to avoid this issue.
+     * Place a compiler barrier to avoid this issue.
      */
-    WT_ORDERED_READ_WEAK_MEMORDER(ins, WT_SKIP_FIRST(ins_head));
+    ins = WT_SKIP_FIRST(ins_head);
+    WT_C11_BARRIER();
 
     /* If there's no insert chain to search, we're done. */
     if (ins == NULL)
@@ -114,11 +113,8 @@ __col_insert_search_lt(WT_INSERT_HEAD *ins_head, uint64_t recno)
         /*
          * CPUs with weak memory ordering may reorder the reads which may lead us to read a stale
          * and inconsistent value in the lower level. Place a read barrier to avoid this issue.
-         *
-         * This should use WT_ORDERED_READ_WEAK_MEMORDER. But to lower the risk of the change, we
-         * keep this as before for now.
          */
-        WT_ORDERED_READ(ins, *insp);
+        ins = WT_ATOMIC_LOAD_PTR(WT_INSERT, insp, WT_ATOMIC_ACQUIRE);
         if (ins != NULL && recno > WT_INSERT_RECNO(ins)) {
             /* GT: keep going at this level */
             insp = &ins->next[i];
@@ -146,9 +142,10 @@ __col_insert_search_match(WT_INSERT_HEAD *ins_head, uint64_t recno)
     /*
      * Compiler may replace the following usage of the variable with another read.
      *
-     * Place a read barrier to avoid this issue.
+     * Place a compiler barrier to avoid this issue.
      */
-    WT_ORDERED_READ_WEAK_MEMORDER(ins, WT_SKIP_LAST(ins_head));
+    ins = WT_SKIP_LAST(ins_head);
+    WT_C11_BARRIER();
 
     /* If there's no insert chain to search, we're done. */
     if (ins == NULL)
@@ -168,11 +165,8 @@ __col_insert_search_match(WT_INSERT_HEAD *ins_head, uint64_t recno)
         /*
          * CPUs with weak memory ordering may reorder the reads which may lead us to read a stale
          * and inconsistent value in the lower level. Place a read barrier to avoid this issue.
-         *
-         * This should use WT_ORDERED_READ_WEAK_MEMORDER. But to lower the risk of the change, we
-         * keep this as before for now.
          */
-        WT_ORDERED_READ(ins, *insp);
+        ins = WT_ATOMIC_LOAD_PTR(WT_INSERT, insp, WT_ATOMIC_ACQUIRE);
         if (ins == NULL) {
             --i;
             --insp;
@@ -210,9 +204,10 @@ __col_insert_search(
     /*
      * Compiler may replace the following usage of the variable with another read.
      *
-     * Place a read barrier to avoid this issue.
+     * Place a compiler barrier to avoid this issue.
      */
-    WT_ORDERED_READ_WEAK_MEMORDER(ret_ins, WT_SKIP_LAST(ins_head));
+    ret_ins = WT_SKIP_LAST(ins_head);
+    WT_C11_BARRIER();
 
     /* If there's no insert chain to search, we're done. */
     if (ret_ins == NULL)
@@ -242,7 +237,7 @@ __col_insert_search(
          * here to ensure we see consistent values in the lower levels to prevent any unexpected
          * behavior.
          */
-        WT_ORDERED_READ_WEAK_MEMORDER(ret_ins, *insp);
+        ret_ins = WT_ATOMIC_LOAD_PTR(WT_INSERT, insp, WT_ATOMIC_ACQUIRE);
         if (ret_ins == NULL) {
             next_stack[i] = NULL;
             ins_stack[i--] = insp--;
@@ -269,7 +264,7 @@ __col_insert_search(
                  * levels of the skip list due to read reordering on CPUs with weak memory ordering.
                  * Add a read barrier to avoid this issue.
                  */
-                WT_ORDERED_READ_WEAK_MEMORDER(next_stack[i], ret_ins->next[i]);
+                next_stack[i] = WT_ATOMIC_LOAD_PTR(WT_INSERT, &ret_ins->next[i], WT_ATOMIC_ACQUIRE);
                 ins_stack[i] = &ret_ins->next[i];
             }
         else { /* Drop down a level */

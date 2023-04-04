@@ -87,9 +87,10 @@ restart:
              * code. Here we don't need to worry about CPU reordering as we are reading a thread
              * local value.
              *
-             * Place a read barrier to avoid this issue.
+             * Place a compiler barrier to avoid this issue.
              */
-            WT_ORDERED_READ_WEAK_MEMORDER(ins, cbt->ins_head->head[i]);
+            ins = cbt->ins_head->head[i];
+            WT_C11_BARRIER();
             if (ins != NULL && ins != current)
                 break;
         }
@@ -115,7 +116,7 @@ restart:
          *
          * Place a read barrier to avoid this issue.
          */
-        WT_ORDERED_READ_WEAK_MEMORDER(next_ins, ins->next[i]);
+        next_ins = WT_ATOMIC_LOAD_PTR(WT_INSERT, &ins->next[i], WT_ATOMIC_ACQUIRE);
         if (next_ins != current) /* Stay at this level */
             ins = next_ins;
         else { /* Drop down a level */

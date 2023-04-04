@@ -940,6 +940,7 @@ memcpy
 memdup
 memkind
 memmove
+memorder
 memsize
 mergeable
 metaconf
