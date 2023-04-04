@@ -530,9 +530,9 @@ functions:
         config=../../../test/format/CONFIG.replay
         for i in $(seq ${times}); do
           echo Iteration $i/${times}
-          x2=$(rando)$(rando)
-          x3=$(rando)$(rando)
-          rm -rf RUNDIR_{1,2,3}
+          x2=$(rando)
+          x3=$(rando)
+          rm -rf RUNDIR_1 RUNDIR_2 RUNDIR_3
 
           first_run_args="-c $config runs.timer=$runtime"
           ./t -h RUNDIR_1 $first_run_args ${extra_args} || fail RUNDIR_1/CONFIG 2>&1
