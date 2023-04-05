@@ -89,7 +89,8 @@ __wt_search_insert(
 {
     WT_BTREE *btree;
     WT_COLLATOR *collator;
-    WT_INSERT *ins, **insp, *last_ins;
+    WT_INSERT *ins, *last_ins;
+    _Atomic(WT_INSERT *) * insp;
     WT_ITEM key;
     size_t match, skiphigh, skiplow;
     int cmp, i;

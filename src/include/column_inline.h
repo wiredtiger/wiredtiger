@@ -13,7 +13,8 @@
 static inline WT_INSERT *
 __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
 {
-    WT_INSERT *ins, **insp, *ret_ins;
+    WT_INSERT *ins, *ret_ins;
+    _Atomic(WT_INSERT *) * insp;
     int i;
 
     /*
@@ -85,7 +86,8 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
 static inline WT_INSERT *
 __col_insert_search_lt(WT_INSERT_HEAD *ins_head, uint64_t recno)
 {
-    WT_INSERT *ins, **insp, *ret_ins;
+    WT_INSERT *ins, *ret_ins;
+    _Atomic(WT_INSERT *) * insp;
     int i;
 
     /*
@@ -135,7 +137,8 @@ __col_insert_search_lt(WT_INSERT_HEAD *ins_head, uint64_t recno)
 static inline WT_INSERT *
 __col_insert_search_match(WT_INSERT_HEAD *ins_head, uint64_t recno)
 {
-    WT_INSERT *ins, **insp;
+    WT_INSERT *ins;
+    _Atomic(WT_INSERT *) * insp;
     uint64_t ins_recno;
     int cmp, i;
 
@@ -194,10 +197,11 @@ __col_insert_search_match(WT_INSERT_HEAD *ins_head, uint64_t recno)
  *     Search a column-store insert list, creating a skiplist stack as we go.
  */
 static inline WT_INSERT *
-__col_insert_search(
-  WT_INSERT_HEAD *ins_head, WT_INSERT ***ins_stack, WT_INSERT **next_stack, uint64_t recno)
+__col_insert_search(WT_INSERT_HEAD *ins_head, _Atomic(WT_INSERT *) * *ins_stack,
+  WT_INSERT **next_stack, uint64_t recno)
 {
-    WT_INSERT **insp, *ret_ins;
+    WT_INSERT *ret_ins;
+    _Atomic(WT_INSERT *) * insp;
     uint64_t ins_recno;
     int cmp, i;
 
