@@ -84,13 +84,9 @@ restart:
             cbt->next_stack[i] = NULL;
             /*
              * Compiler may replace the usage of the variable with another read in the following
-             * code. Here we don't need to worry about CPU reordering as we are reading a thread
-             * local value.
-             *
-             * Place a compiler barrier to avoid this issue.
+             * code. Use a atomic read to ensure it is read only once.
              */
-            ins = cbt->ins_head->head[i];
-            WT_C11_BARRIER();
+            ins = WT_ATOMIC_LOAD_PTR(WT_INSERT, cbt->ins_head->head[i], WT_ATOMIC_RELAXED);
             if (ins != NULL && ins != current)
                 break;
         }
@@ -114,7 +110,7 @@ restart:
          * insert B into both level 0 and level 1. If B is visible on level 1 to this thread, it
          * must also be visible on level 0. Otherwise, we would record an inconsistent stack.
          *
-         * Place a read barrier to avoid this issue.
+         * Use an atomic acquire read to avoid this issue.
          */
         next_ins = WT_ATOMIC_LOAD_PTR(WT_INSERT, &ins->next[i], WT_ATOMIC_ACQUIRE);
         if (next_ins != current) /* Stay at this level */

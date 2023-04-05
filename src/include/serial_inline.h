@@ -36,12 +36,12 @@ __insert_simple_func(
          * against the next pointer might indicate that the skip list location is still valid, but
          * that may no longer be true when the atomic_cas operation executes.
          *
-         * Place a compiler barrier here to avoid this issue.
+         * Use an atomic relaxed read to avoid this issue.
          */
-        old_ins = *ins_stack[i];
-        WT_C11_BARRIER();
+        old_ins = WT_ATOMIC_LOAD_PTR(WT_INSERT, ins_stack[i], WT_ATOMIC_RELAXED);
         if (old_ins != new_ins->next[i] ||
-          !__wt_atomic_memorder_cas_ptr(ins_stack[i], old_ins, new_ins, WT_ATOMIC_SEQ_CST))
+          !__wt_atomic_memorder_cas_ptr(
+            ins_stack[i], old_ins, new_ins, WT_ATOMIC_ACQ_REL, WT_ATOMIC_RELAXED))
             return (i == 0 ? WT_RESTART : 0);
     }
 
@@ -81,12 +81,12 @@ __insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSE
          * against the next pointer might indicate that the skip list location is still valid, but
          * that may no longer be true when the atomic_cas operation executes.
          *
-         * Place a compiler barrier here to avoid this issue.
+         * Use an atomic relaxed load to avoid this issue.
          */
-        old_ins = *ins_stack[i];
-        WT_C11_BARRIER();
+        old_ins = WT_ATOMIC_LOAD_PTR(WT_INSERT, ins_stack[i], WT_ATOMIC_RELAXED);
         if (old_ins != new_ins->next[i] ||
-          !__wt_atomic_memorder_cas_ptr(ins_stack[i], old_ins, new_ins, WT_ATOMIC_SEQ_CST))
+          !__wt_atomic_memorder_cas_ptr(
+            ins_stack[i], old_ins, new_ins, WT_ATOMIC_ACQ_REL, WT_ATOMIC_RELAXED))
             return (i == 0 ? WT_RESTART : 0);
         if (ins_head->tail[i] == NULL || ins_stack[i] == &ins_head->tail[i]->next[i])
             ins_head->tail[i] = new_ins;

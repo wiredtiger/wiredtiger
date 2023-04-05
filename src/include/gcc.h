@@ -99,25 +99,23 @@
 #endif
 
 #define WT_ATOMIC_RELAXED __ATOMIC_RELAXED
-#define WT_ATOMIC_CONSUME __ATOMIC_CONSUME
 #define WT_ATOMIC_ACQUIRE __ATOMIC_ACQUIRE
 #define WT_ATOMIC_RELEASE __ATOMIC_RELEASE
 #define WT_ATOMIC_ACQ_REL __ATOMIC_ACQ_REL
 #define WT_ATOMIC_SEQ_CST __ATOMIC_SEQ_CST
 
-#define WT_C11_BARRIER() __atomic_signal_fence(WT_ATOMIC_ACQ_REL)
-
-#define WT_ATOMIC_CAS(ptr, oldp, newv, memorder) \
-    __atomic_compare_exchange_n(ptr, oldp, newv, false, memorder, memorder)
+#define WT_ATOMIC_CAS(ptr, oldp, newv, success_memorder, failure_memorder) \
+    __atomic_compare_exchange_n(ptr, oldp, newv, false, success_memorder, failure_memorder)
 #define WT_ATOMIC_LOAD(ptr, memorder) __atomic_load_n(ptr, memorder)
-#define WT_ATOMIC_CAS_FUNC(name, vp_arg, old_arg, newv_arg)                                    \
-    static inline bool __wt_atomic_cas##name(vp_arg, old_arg, newv_arg)                        \
-    {                                                                                          \
-        return (WT_ATOMIC_CAS(vp, &old, newv, WT_ATOMIC_SEQ_CST));                             \
-    }                                                                                          \
-    static inline bool __wt_atomic_memorder_cas##name(vp_arg, old_arg, newv_arg, int memorder) \
-    {                                                                                          \
-        return (WT_ATOMIC_CAS(vp, &old, newv, memorder));                                      \
+#define WT_ATOMIC_CAS_FUNC(name, vp_arg, old_arg, newv_arg)                           \
+    static inline bool __wt_atomic_cas##name(vp_arg, old_arg, newv_arg)               \
+    {                                                                                 \
+        return (WT_ATOMIC_CAS(vp, &old, newv, WT_ATOMIC_SEQ_CST, WT_ATOMIC_SEQ_CST)); \
+    }                                                                                 \
+    static inline bool __wt_atomic_memorder_cas##name(                                \
+      vp_arg, old_arg, newv_arg, int success_memorder, int failure_memorder)          \
+    {                                                                                 \
+        return (WT_ATOMIC_CAS(vp, &old, newv, success_memorder, failure_memorder));   \
     }
 WT_ATOMIC_CAS_FUNC(8, uint8_t *vp, uint8_t old, uint8_t newv)
 WT_ATOMIC_CAS_FUNC(v8, volatile uint8_t *vp, uint8_t old, volatile uint8_t newv)
@@ -139,7 +137,7 @@ WT_ATOMIC_CAS_FUNC(size, size_t *vp, size_t old, size_t newv)
 static inline bool
 __wt_atomic_cas_ptr(void *vp, void *old, void *newv)
 {
-    return (WT_ATOMIC_CAS((void **)vp, &old, newv, WT_ATOMIC_SEQ_CST));
+    return (WT_ATOMIC_CAS((void **)vp, &old, newv, WT_ATOMIC_SEQ_CST, WT_ATOMIC_SEQ_CST));
 }
 
 #define WT_ATOMIC_LOAD_PTR(type, vp, memorder) (type *)WT_ATOMIC_LOAD((void **)vp, memorder)
@@ -149,9 +147,10 @@ __wt_atomic_cas_ptr(void *vp, void *old, void *newv)
  *     Pointer compare and swap with memory ordering.
  */
 static inline bool
-__wt_atomic_memorder_cas_ptr(void *vp, void *old, void *newv, int memorder)
+__wt_atomic_memorder_cas_ptr(
+  void *vp, void *old, void *newv, int success_memorder, int failure_memorder)
 {
-    return (WT_ATOMIC_CAS((void **)vp, &old, newv, memorder));
+    return (WT_ATOMIC_CAS((void **)vp, &old, newv, success_memorder, failure_memorder));
 }
 
 #define WT_ATOMIC_FUNC(name, ret, vp_arg, v_arg)                   \

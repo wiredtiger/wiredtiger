@@ -113,7 +113,7 @@ __wt_search_insert(
          * In addition, a CPU with weak memory ordering, such as ARM, may reorder the reads and read
          * a stale value. It is not OK and the reason is explained in the following comment.
          *
-         * Place a read barrier here to avoid these issues.
+         * Use an atomic acquire read to avoid this issue.
          */
         ins = WT_ATOMIC_LOAD_PTR(WT_INSERT, insp, WT_ATOMIC_ACQUIRE);
         if (ins == NULL) {
@@ -185,7 +185,7 @@ __wt_search_insert(
             for (; i >= 0; i--) {
                 /*
                  * It is possible that we read an old value down the stack due to read reordering on
-                 * CPUs with weak memory ordering. Add a read barrier to avoid this issue.
+                 * CPUs with weak memory ordering. Use an atomic acquire read to avoid this issue.
                  */
                 cbt->next_stack[i] =
                   WT_ATOMIC_LOAD_PTR(WT_INSERT, &ins->next[i], WT_ATOMIC_ACQUIRE);
