@@ -8,6 +8,38 @@
 
 #include "wt_internal.h"
 
+#ifdef __linux__
+/*
+ * The linux pthread_setname_np() call restricts thread names to 16 characters, including the
+ * terminating null byte.
+ */
+#define MAX_NAME_LEN 16
+
+/*
+ * __thread_set_name --
+ *     Set the pthread-level thread name using the session name.
+ */
+static void
+__thread_set_name(WT_SESSION_IMPL *session, uint32_t thread_num, pthread_t thread_id)
+{
+    char short_name[MAX_NAME_LEN], thread_name[MAX_NAME_LEN];
+
+    if (session != NULL && session->name != NULL) {
+        if (thread_num == 0)
+            (void)__wt_snprintf(thread_name, MAX_NAME_LEN, "%s", session->name);
+        else {
+            (void)__wt_snprintf(short_name, MAX_NAME_LEN - 3, "%s", session->name);
+            if (thread_num < 99)
+                (void)__wt_snprintf(
+                  thread_name, MAX_NAME_LEN, "%s %" PRIu32, short_name, thread_num);
+            else
+                (void)__wt_snprintf(thread_name, MAX_NAME_LEN, "%s ++", short_name);
+        }
+        (void)pthread_setname_np(thread_id, thread_name);
+    }
+}
+#endif
+
 /*
  * __wt_thread_create --
  *     Create a new thread of control.
@@ -28,6 +60,11 @@ __wt_thread_create(WT_SESSION_IMPL *session, wt_thread_t *tidret,
     WT_SYSCALL_RETRY(pthread_create(&tidret->id, NULL, func, arg), ret);
     if (ret == 0) {
         tidret->created = true;
+#ifdef __linux__
+        __thread_set_name(session, tidret->name_index, tidret->id);
+#else
+        WT_NOTUSED(thread_num);
+#endif
         return (0);
     }
     WT_RET_MSG(session, ret, "pthread_create");
