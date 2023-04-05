@@ -783,7 +783,7 @@ functions:
       params:
         aws_secret: ${aws_secret}
         aws_key: ${aws_key}
-        local_files_include_filter: ${stats_dir|./wiredtiger/cmake_build/bench/wtperf/test_stats}/*_${perf-test-name}.json
+        local_files_include_filter: ${stats_dir|wiredtiger/cmake_build/bench/wtperf/test_stats}/*_${perf-test-name}.json
         bucket: build_external
         permissions: public-read
         content_type: text/html
@@ -4030,7 +4030,7 @@ tasks:
           output_path: ./mongo-tests/largescale/many-collection-artifacts/results/
       - func: "upload-perf-test-stats"
         vars:
-          stats_dir: ./mongo-tests/largescale/many-collection-artifacts/results
+          stats_dir: mongo-tests/largescale/many-collection-artifacts/results
           perf-test-name: many-collection-test
 
   - name: cyclomatic-complexity
