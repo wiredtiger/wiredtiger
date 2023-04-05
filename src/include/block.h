@@ -205,7 +205,7 @@ struct __wt_bm {
     int (*write)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, uint8_t *, size_t *, bool, bool);
     int (*write_size)(WT_BM *, WT_SESSION_IMPL *, size_t *);
 
-    WT_BLOCK *block; /* Underlying file. */
+    WT_BLOCK *block; /* Underlying file. For a multi-handle tree this will be the writable file. */
 
     void *map; /* Mapped region */
     size_t maplen;
