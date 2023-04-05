@@ -382,7 +382,7 @@ real_worker(THREAD_DATA *td)
     if (g.use_timestamps) {
         if (g.no_ts_deletes)
             begin_cfg = "no_timestamp=true,read_timestamp=1,roundup_timestamps=(read=true)";
-        else
+        else if (!g.predictable_replay)
             begin_cfg = "read_timestamp=1,roundup_timestamps=(read=true)";
     }
 
