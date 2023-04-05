@@ -662,7 +662,7 @@ thread_ckpt_run(void *arg)
     uint64_t stable;
     uint32_t sleep_time;
     int i;
-    char ckpt_flush_config[128], ckpt_config[128];
+    char ckpt_config[128], ckpt_flush_config[128];
     bool first_ckpt, flush_tier;
     char ts_string[WT_TS_HEX_STRING_SIZE];
 
@@ -986,6 +986,10 @@ thread_run(void *arg)
             testutil_check(prepared_session->commit_transaction(prepared_session, tscfg));
         }
         testutil_check(session->commit_transaction(session, NULL));
+
+        /* Make checkpoint and backup race more likely to happen. */
+        if (use_backups && iter == 0)
+            __wt_sleep(0, 1000);
         /*
          * Insert into the local table outside the timestamp txn. This must occur after the
          * timestamp transaction, not before, because of the possibility of rollback in the
@@ -1619,7 +1623,7 @@ main(int argc, char *argv[])
 
     backup_full_interval = 4;
     backup_granularity_kb = 1024;
-    backup_verify_immediately = false;
+    backup_verify_immediately = true;
     backup_verify_quick = false;
     columns = stress = false;
     nth = MIN_TH;
