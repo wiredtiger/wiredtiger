@@ -86,7 +86,7 @@ restart:
              * Compiler may replace the usage of the variable with another read in the following
              * code. Use a atomic read to ensure it is read only once.
              */
-            ins = WT_ATOMIC_LOAD_PTR(WT_INSERT, cbt->ins_head->head[i], WT_ATOMIC_RELAXED);
+            ins = WT_ATOMIC_LOAD_PTR(WT_INSERT, &cbt->ins_head->head[i], WT_ATOMIC_RELAXED);
             if (ins != NULL && ins != current)
                 break;
         }
