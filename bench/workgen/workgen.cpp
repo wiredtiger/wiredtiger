@@ -1727,6 +1727,7 @@ ThreadRunner::op_run(Operation *op)
                 break;
             case Operation::OP_RTS:
                 ret = _session->connection->rollback_to_stable(_session->connection, NULL);
+                track = &_stats.rts;
                 break;
             case Operation::OP_SEARCH:
                 ret = cursor->search(cursor);
@@ -2127,6 +2128,12 @@ Operation::init_internal(OperationInternal *other)
         else
             _internal = new SleepOperationInternal(*static_cast<SleepOperationInternal *>(other));
         break;
+    case OP_RTS:
+        if (other == nullptr)
+            _internal = new RTSOperationInternal();
+        else
+            _internal = new RTSOperationInternal(*static_cast<RTSOperationInternal *>(other));
+        break;
     default:
         ASSERT(false);
     }
@@ -2201,6 +2208,9 @@ Operation::get_static_counts(Stats &stats, int multiplier)
             break;
         case OP_UPDATE:
             stats.update.ops += multiplier;
+            break;
+        case OP_RTS:
+            stats.rts.ops += multiplier;
             break;
         default:
             ASSERT(false);
@@ -2777,6 +2787,7 @@ Stats::describe(std::ostream &os) const
     os << ", updates " << update.ops;
     os << ", truncates " << truncate.ops;
     os << ", removes " << remove.ops;
+    os << ", RTSes " << rts.ops;
     os << ", checkpoints " << checkpoint.ops;
 }
 
@@ -2791,6 +2802,7 @@ Stats::final_report(std::ostream &os, timespec &totalsecs) const
     ops += update.ops;
     ops += truncate.ops;
     ops += remove.ops;
+    ops += rts.ops;
 
 #define FINAL_OUTPUT(os, field, singular, ops, totalsecs)                                   \
     os << "Executed " << field << " " #singular " operations (" << PCT(field, ops) << "%) " \
@@ -2803,6 +2815,7 @@ Stats::final_report(std::ostream &os, timespec &totalsecs) const
     FINAL_OUTPUT(os, truncate.ops, truncate, ops, totalsecs);
     FINAL_OUTPUT(os, remove.ops, remove, ops, totalsecs);
     FINAL_OUTPUT(os, checkpoint.ops, checkpoint, ops, totalsecs);
+    FINAL_OUTPUT(os, rts.ops, checkpoint, ops, totalsecs);
 }
 
 void
@@ -2816,6 +2829,7 @@ Stats::report(std::ostream &os) const
     os << update.ops << " updates, ";
     os << truncate.ops << " truncates, ";
     os << remove.ops << " removes, ";
+    os << rts.ops << " RTSes, ";
     os << checkpoint.ops << " checkpoints";
 }
 
@@ -2829,6 +2843,7 @@ Stats::subtract(const Stats &other)
     remove.subtract(other.remove);
     update.subtract(other.update);
     truncate.subtract(other.truncate);
+    rts.subtract(other.truncate);
 }
 
 void
@@ -2841,6 +2856,7 @@ Stats::track_latency(bool latency)
     remove.track_latency(latency);
     update.track_latency(latency);
     truncate.track_latency(latency);
+    rts.track_latency(latency);
 }
 
 TableOptions::TableOptions()

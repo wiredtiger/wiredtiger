@@ -271,6 +271,11 @@ struct LogFlushOperationInternal : OperationInternal {
     virtual int run(ThreadRunner *runner, WT_SESSION *session);
 };
 
+struct RTSOperationInternal : OperationInternal {
+    RTSOperationInternal() : OperationInternal() {}
+    RTSOperationInternal(const RTSOperationInternal &other) : OperationInternal(other) {}
+};
+
 struct TableOperationInternal : OperationInternal {
     uint_t _keysize;    // derived from Key._size and Table.options.key_size
     uint_t _valuesize;

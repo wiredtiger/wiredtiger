@@ -119,4 +119,5 @@ def workload_latency(workload, outfilename = None):
     _latency_optype(fh, 'remove', 'X', workload.stats.remove)
     _latency_optype(fh, 'update', 'U', workload.stats.update)
     _latency_optype(fh, 'truncate', 'T', workload.stats.truncate)
+    _latency_optype(fh, 'rts', 'B', workload.stats.rts)
     _latency_optype(fh, 'not found', 'N', workload.stats.not_found)
