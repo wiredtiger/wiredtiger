@@ -92,12 +92,12 @@ __tiered_push_work_internal(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry
 }
 
 /*
- * __wt_tiered_push_work --
- *     Push a work unit to the queue. Assumes it was previously returned from one of the get
- *     functions, and it is being re-queued.
+ * __wt_tiered_requeue_work --
+ *     Push an existing work unit to the queue. Assumes it was previously returned from one of the
+ *     get functions, and it is being re-queued.
  */
 void
-__wt_tiered_push_work(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
+__wt_tiered_requeue_work(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
 {
     /* The dhandle was marked in use when the entry was first made, don't do that here. */
     __tiered_push_work_internal(session, entry);
