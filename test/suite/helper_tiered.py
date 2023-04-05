@@ -45,27 +45,25 @@ def get_auth_token(storage_source):
         secret_key = os.getenv('aws_sdk_s3_ext_secret_key')
         if access_key and secret_key:
             auth_token = access_key + ";" + secret_key
-    if storage_source == 'azure_store': 
-        auth_token = os.getenv('AZURE_STORAGE_CONNECTION_STRING')
+    if storage_source == 'azure_store':
+        if (os.getenv('AZURE_STORAGE_CONNECTION_STRING') != None):
+            auth_token = '\"' + os.getenv('AZURE_STORAGE_CONNECTION_STRING') + '\"'
     if storage_source == 'gcp_store':
         auth_token = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
     return auth_token
 
-# Get buckets configured for the storage source
-
-# S3 buckets with their regions
-s3_buckets = ['s3testext-us;us-east-2', 's3testext;ap-southeast-2']
-
-# Local buckets do not have a region
-local_buckets = ['bucket1', 'bucket2']
+# Buckets configured for the storage source.
+buckets = {
+    # S3 buckets requires a region.
+    "s3_store": ['s3testext-us;us-east-2', 's3testext;ap-southeast-2'],
+    "dir_store": ['bucket1', 'bucket2'],
+    "gcp_store": ["gcptestext-us-jie", "gcptestext-ap-jie"],
+    "azure_store": ["azuretestext-us", "azuretestext-ap"]
+}
 
 # Get name of the bucket at specified index in the list.
 def get_bucket_name(storage_source, i):
-    if storage_source == 's3_store':
-        return s3_buckets[i]
-    if storage_source == 'dir_store':
-        return local_buckets[i]
-    return None
+    return buckets[storage_source][i]
 
 # Set up configuration
 def get_conn_config(storage_source):
@@ -101,7 +99,7 @@ def get_check(storage_source, tc, base, n):
     storage_source.assertEquals(tc.search(), wiredtiger.WT_NOTFOUND)
 
 # Generate a unique object prefix for the S3 store. 
-def generate_s3_prefix(random_prefix = '', test_name = ''):
+def generate_prefix(random_prefix = '', test_name = ''):
     # Generates a unique prefix to be used with the object keys, eg:
     # "s3test/python/2022-31-01-16-34-10/623843294--".
     # Objects with the prefix pattern "s3test/*" are deleted after a certain period of time 
@@ -127,9 +125,10 @@ def generate_s3_prefix(random_prefix = '', test_name = ''):
 
 def gen_tiered_storage_sources(random_prefix='', test_name='', tiered_only=False, tiered_shared=False):
     tiered_storage_sources = [
-        ('dirstore', dict(is_tiered = True,
+        ('dir_store', dict(is_tiered = True,
             is_tiered_shared = tiered_shared,
             is_local_storage = True,
+            has_cache = True,
             auth_token = get_auth_token('dir_store'),
             bucket = get_bucket_name('dir_store', 0),
             bucket1 = get_bucket_name('dir_store', 1),
@@ -138,24 +137,50 @@ def gen_tiered_storage_sources(random_prefix='', test_name='', tiered_only=False
             bucket_prefix2 = 'pfx2_',
             num_ops=100,
             ss_name = 'dir_store')),
-        ('s3', dict(is_tiered = True,
+        ('s3_store', dict(is_tiered = True,
             is_tiered_shared = tiered_shared,
             is_local_storage = False,
+            has_cache = True,
             auth_token = get_auth_token('s3_store'),
             bucket = get_bucket_name('s3_store', 0),
             bucket1 = get_bucket_name('s3_store', 1),
-            bucket_prefix = generate_s3_prefix(random_prefix, test_name),
-            bucket_prefix1 = generate_s3_prefix(random_prefix, test_name),
-            bucket_prefix2 = generate_s3_prefix(random_prefix, test_name),
+            bucket_prefix = generate_prefix(random_prefix, test_name),
+            bucket_prefix1 = generate_prefix(random_prefix, test_name),
+            bucket_prefix2 = generate_prefix(random_prefix, test_name),
             num_ops=20,
             ss_name = 's3_store')),
+        ('gcp_store', dict(is_tiered = True,
+            is_tiered_shared = tiered_shared,
+            is_local_storage = False,
+            has_cache = False,
+            auth_token = get_auth_token('gcp_store'),
+            bucket = get_bucket_name('gcp_store', 0),
+            bucket1 = get_bucket_name('gcp_store', 1),
+            bucket_prefix = generate_prefix(random_prefix, test_name),
+            bucket_prefix1 = generate_prefix(random_prefix, test_name),
+            bucket_prefix2 = generate_prefix(random_prefix, test_name),
+            num_ops=100,
+            ss_name = 'gcp_store')),
+        ('azure_store', dict(is_tiered = True,
+            is_tiered_shared = tiered_shared,
+            is_local_storage = False,
+            has_cache = False,
+            auth_token = get_auth_token('azure_store'),
+            bucket = get_bucket_name('azure_store', 0),
+            bucket1 = get_bucket_name('azure_store', 1),
+            bucket_prefix = generate_prefix(random_prefix, test_name),
+            bucket_prefix1 = generate_prefix(random_prefix, test_name),
+            bucket_prefix2 = generate_prefix(random_prefix, test_name),
+            num_ops=100,
+            ss_name = 'azure_store')),
+        # This must be the last item as we seperate the non-tiered from the tiered items later on.
         ('non_tiered', dict(is_tiered = False)),
     ]
 
     # Return a sublist to use for the tiered test scenarios as last item on list is not a scenario
     # for the tiered tests.  
     if tiered_only:
-        return tiered_storage_sources[:2]
+        return tiered_storage_sources[:-1]
 
     return tiered_storage_sources
 
@@ -236,22 +261,49 @@ class TieredConfigMixin:
         extlist.extension('storage_sources', self.ss_name + config)
 
     def download_objects(self, bucket_name, prefix):
-        import boto3
-        # The bucket from the storage source is expected to be a name and a region, separated by a 
-        # semi-colon. eg: 'abcd;ap-southeast-2'.
-        bucket_name, region = bucket_name.split(';')
-        
-        # Get the bucket resource and list the objects within that bucket that match the prefix for a
-        # given test.
-        s3 = boto3.resource('s3')
-        bucket = s3.Bucket(bucket_name)
-        objects = list(bucket.objects.filter(Prefix=prefix))
+        if (not self.is_tiered or self.is_local_storage):
+            return
 
         # Create a directory within the test directory to download the objects to.
-        s3_object_files_path = 's3_objects/'
-        if not os.path.exists(s3_object_files_path):
-            os.makedirs(s3_object_files_path)
+        object_files_path = 'objects/'
+        if not os.path.exists(object_files_path):
+            os.makedirs(object_files_path)
 
-        for o in objects:
-            filename = s3_object_files_path + '/' + o.key.split('/')[-1]
-            bucket.download_file(o.key, filename)
+        if (self.ss_name == 's3_store'):
+            import boto3
+            # The bucket from the storage source is expected to be a name and a region, separated by a 
+            # semi-colon. eg: 'abcd;ap-southeast-2'.
+            bucket_name, region = bucket_name.split(';')
+            
+            # Get the bucket resource and list the objects within that bucket that match the prefix for a
+            # given test.
+            s3 = boto3.resource('s3')
+            bucket = s3.Bucket(bucket_name)
+            objects = list(bucket.objects.filter(Prefix=prefix))
+
+            for o in objects:
+                file_path = object_files_path + '/' + o.key.split('/')[-1]
+                bucket.download_file(o.key, file_path)
+        elif (self.ss_name == 'gcp_store'):
+            from google.cloud import storage
+            
+            storage_client = storage.Client()
+            blobs = storage_client.list_blobs(bucket_name, prefix=prefix)
+
+            for blob in blobs:
+                file_path = object_files_path + '/' + blob.name.split('/')[-1]
+                blob.download_to_filename(file_path)
+        elif (self.ss_name == 'azure_store'):
+            from azure.storage.blob import BlobServiceClient
+
+            blob_service_client = BlobServiceClient.from_connection_string(self.auth_token.strip('\"')) 
+            container_client = blob_service_client.get_container_client(container=bucket_name) 
+            blob_list = container_client.list_blobs(name_starts_with=prefix)
+
+            for blob in blob_list:
+                file_path = object_files_path + '/' + blob.name.split('/')[-1]
+                with open(file=file_path, mode="wb") as download_file:
+                    download_file.write(container_client.download_blob(blob.name).readall())
+        else:
+            raise Exception("Storage source does not exist within the download object function")
+

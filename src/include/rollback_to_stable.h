@@ -9,6 +9,7 @@
 /*
  * Helper macros for finer-grained RTS verbose messaging categories.
  */
+#define WT_RTS_VERB_TAG_END "[END] "
 #define WT_RTS_VERB_TAG_FILE_SKIP "[FILE_SKIP] "
 #define WT_RTS_VERB_TAG_HS_ABORT_STOP "[HS_ABORT_STOP] "
 #define WT_RTS_VERB_TAG_HS_GT_ONDISK "[HS_GT_ONDISK] "
@@ -29,6 +30,7 @@
 #define WT_RTS_VERB_TAG_PAGE_ABORT_CHECK "[PAGE_ABORT_CHECK] "
 #define WT_RTS_VERB_TAG_PAGE_ROLLBACK "[PAGE_ROLLBACK] "
 #define WT_RTS_VERB_TAG_RECOVER_CKPT "[RECOVER_CKPT] "
+#define WT_RTS_VERB_TAG_SHUTDOWN_RTS "[SHUTDOWN_RTS] "
 #define WT_RTS_VERB_TAG_SKIP_DAMAGE "[SKIP_DAMAGE] "
 #define WT_RTS_VERB_TAG_SKIP_DEL_NULL "[SKIP_DEL_NULL] "
 #define WT_RTS_VERB_TAG_SKIP_UNMODIFIED "[SKIP_UNMODIFIED] "
@@ -48,18 +50,22 @@
         WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RTS})) : \
         WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RTS})))
 
-/* Increment a connection stat if we're not doing a dry run. */
-#define WT_RTS_STAT_CONN_INCR(session, stat)  \
-    do {                                      \
-        if (!S2C(session)->rts->dryrun)       \
-            WT_STAT_CONN_INCR(session, stat); \
+/* Increment a connection stat, or the dry-run version if needed. */
+#define WT_RTS_STAT_CONN_INCR(session, stat)           \
+    do {                                               \
+        if (!S2C(session)->rts->dryrun)                \
+            WT_STAT_CONN_INCR(session, stat);          \
+        else                                           \
+            WT_STAT_CONN_INCR(session, stat##_dryrun); \
     } while (0)
 
-/* Increment a connection and data handle stat if we're not doing a dry run. */
-#define WT_RTS_STAT_CONN_DATA_INCR(session, stat)  \
-    do {                                           \
-        if (!S2C(session)->rts->dryrun)            \
-            WT_STAT_CONN_DATA_INCR(session, stat); \
+/* Increment a connection and data handle stat, or the dry-run version if needed. */
+#define WT_RTS_STAT_CONN_DATA_INCR(session, stat)           \
+    do {                                                    \
+        if (!S2C(session)->rts->dryrun)                     \
+            WT_STAT_CONN_DATA_INCR(session, stat);          \
+        else                                                \
+            WT_STAT_CONN_DATA_INCR(session, stat##_dryrun); \
     } while (0)
 
 /*
