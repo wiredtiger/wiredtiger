@@ -5884,26 +5884,26 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CHUNK_CACHE_SPANS_CHUNKS_READ	1208
 /*! chunk-cache: aggregate number of spanned chunks on remove */
 #define	WT_STAT_CONN_CHUNK_CACHE_SPANS_CHUNKS_REMOVE	1209
+/*! chunk-cache: chunks evicted */
+#define	WT_STAT_CONN_CHUNK_CACHE_CHUNKS_EVICTED		1210
+/*! chunk-cache: chunks removed on becoming invalid */
+#define	WT_STAT_CONN_CHUNK_CACHE_CHUNKS_INVALIDATED	1211
 /*! chunk-cache: could not allocate due to exceeding capacity */
-#define	WT_STAT_CONN_CHUNK_CACHE_EXCEEDED_CAPACITY	1210
-/*! chunk-cache: evicted chunks */
-#define	WT_STAT_CONN_CHUNK_CACHE_CHUNKS_EVICTED		1211
+#define	WT_STAT_CONN_CHUNK_CACHE_EXCEEDED_CAPACITY	1212
 /*! chunk-cache: lookups */
-#define	WT_STAT_CONN_CHUNK_CACHE_LOOKUPS		1212
-/*! chunk-cache: number of hits */
-#define	WT_STAT_CONN_CHUNK_CACHE_HITS			1213
+#define	WT_STAT_CONN_CHUNK_CACHE_LOOKUPS		1213
+/*! chunk-cache: number of misses */
+#define	WT_STAT_CONN_CHUNK_CACHE_MISSES			1214
 /*! chunk-cache: number of times a read from storage failed */
-#define	WT_STAT_CONN_CHUNK_CACHE_IO_FAILED		1214
-/*! chunk-cache: removed chunks on becoming invalid */
-#define	WT_STAT_CONN_CHUNK_CACHE_CHUNKS_INVALIDATED	1215
+#define	WT_STAT_CONN_CHUNK_CACHE_IO_FAILED		1215
 /*! chunk-cache: retried accessing a chunk while I/O was in progress */
 #define	WT_STAT_CONN_CHUNK_CACHE_RETRIES		1216
 /*! chunk-cache: timed out due to too many retries */
 #define	WT_STAT_CONN_CHUNK_CACHE_TOOMANY_RETRIES	1217
-/*! chunk-cache: total bytes */
-#define	WT_STAT_CONN_CHUNK_CACHE_BYTES			1218
-/*! chunk-cache: total chunks */
-#define	WT_STAT_CONN_CHUNK_CACHE_CHUNKS			1219
+/*! chunk-cache: total bytes used by the cache */
+#define	WT_STAT_CONN_CHUNK_CACHE_BYTES_INUSE		1218
+/*! chunk-cache: total chunks held by the chunk cache */
+#define	WT_STAT_CONN_CHUNK_CACHE_CHUNKS_INUSE		1219
 /*! connection: auto adjusting condition resets */
 #define	WT_STAT_CONN_COND_AUTO_WAIT_RESET		1220
 /*! connection: auto adjusting condition wait calls */

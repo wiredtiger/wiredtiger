@@ -16,7 +16,7 @@
 #define WT_CHUNKCACHE_IN_VOLATILE_MEMORY 0
 #define WT_CHUNKCACHE_MINHASHSIZE 64
 #define WT_CHUNKCACHE_MAXHASHSIZE 1024 * 1024
-#define WT_CHUNKCACHE_MAX_RETRIES 1024 * 1024 * 1024
+#define WT_CHUNKCACHE_MAX_RETRIES 32 * 1024
 #define WT_CHUNKCACHE_NAMEMAX 50
 #define WT_CHUNKCACHE_UNCONFIGURED 0
 
@@ -37,7 +37,7 @@ struct __wt_chunkcache_chunk {
     volatile bool being_evicted;
     char *chunk_memory;
     size_t chunk_size;
-    unsigned int bucket_id; /* save bucket ID for quick removal */
+    uint64_t bucket_id; /* save hash bucket ID for quick removal */
     volatile uint32_t valid;
     wt_off_t chunk_offset;
 };

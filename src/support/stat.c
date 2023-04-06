@@ -1447,16 +1447,16 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint-cleanup: pages visited",
   "chunk-cache: aggregate number of spanned chunks on read",
   "chunk-cache: aggregate number of spanned chunks on remove",
+  "chunk-cache: chunks evicted",
+  "chunk-cache: chunks removed on becoming invalid",
   "chunk-cache: could not allocate due to exceeding capacity",
-  "chunk-cache: evicted chunks",
   "chunk-cache: lookups",
-  "chunk-cache: number of hits",
+  "chunk-cache: number of misses",
   "chunk-cache: number of times a read from storage failed",
-  "chunk-cache: removed chunks on becoming invalid",
   "chunk-cache: retried accessing a chunk while I/O was in progress",
   "chunk-cache: timed out due to too many retries",
-  "chunk-cache: total bytes",
-  "chunk-cache: total chunks",
+  "chunk-cache: total bytes used by the cache",
+  "chunk-cache: total chunks held by the chunk cache",
   "connection: auto adjusting condition resets",
   "connection: auto adjusting condition wait calls",
   "connection: auto adjusting condition wait raced to update timeout and skipped updating",
@@ -2074,16 +2074,16 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cc_pages_visited = 0;
     stats->chunk_cache_spans_chunks_read = 0;
     stats->chunk_cache_spans_chunks_remove = 0;
-    stats->chunk_cache_exceeded_capacity = 0;
     stats->chunk_cache_chunks_evicted = 0;
-    stats->chunk_cache_lookups = 0;
-    stats->chunk_cache_hits = 0;
-    stats->chunk_cache_io_failed = 0;
     stats->chunk_cache_chunks_invalidated = 0;
+    stats->chunk_cache_exceeded_capacity = 0;
+    stats->chunk_cache_lookups = 0;
+    stats->chunk_cache_misses = 0;
+    stats->chunk_cache_io_failed = 0;
     stats->chunk_cache_retries = 0;
     stats->chunk_cache_toomany_retries = 0;
-    stats->chunk_cache_bytes = 0;
-    stats->chunk_cache_chunks = 0;
+    stats->chunk_cache_bytes_inuse = 0;
+    stats->chunk_cache_chunks_inuse = 0;
     stats->cond_auto_wait_reset = 0;
     stats->cond_auto_wait = 0;
     stats->cond_auto_wait_skipped = 0;
@@ -2706,16 +2706,16 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cc_pages_visited += WT_STAT_READ(from, cc_pages_visited);
     to->chunk_cache_spans_chunks_read += WT_STAT_READ(from, chunk_cache_spans_chunks_read);
     to->chunk_cache_spans_chunks_remove += WT_STAT_READ(from, chunk_cache_spans_chunks_remove);
-    to->chunk_cache_exceeded_capacity += WT_STAT_READ(from, chunk_cache_exceeded_capacity);
     to->chunk_cache_chunks_evicted += WT_STAT_READ(from, chunk_cache_chunks_evicted);
-    to->chunk_cache_lookups += WT_STAT_READ(from, chunk_cache_lookups);
-    to->chunk_cache_hits += WT_STAT_READ(from, chunk_cache_hits);
-    to->chunk_cache_io_failed += WT_STAT_READ(from, chunk_cache_io_failed);
     to->chunk_cache_chunks_invalidated += WT_STAT_READ(from, chunk_cache_chunks_invalidated);
+    to->chunk_cache_exceeded_capacity += WT_STAT_READ(from, chunk_cache_exceeded_capacity);
+    to->chunk_cache_lookups += WT_STAT_READ(from, chunk_cache_lookups);
+    to->chunk_cache_misses += WT_STAT_READ(from, chunk_cache_misses);
+    to->chunk_cache_io_failed += WT_STAT_READ(from, chunk_cache_io_failed);
     to->chunk_cache_retries += WT_STAT_READ(from, chunk_cache_retries);
     to->chunk_cache_toomany_retries += WT_STAT_READ(from, chunk_cache_toomany_retries);
-    to->chunk_cache_bytes += WT_STAT_READ(from, chunk_cache_bytes);
-    to->chunk_cache_chunks += WT_STAT_READ(from, chunk_cache_chunks);
+    to->chunk_cache_bytes_inuse += WT_STAT_READ(from, chunk_cache_bytes_inuse);
+    to->chunk_cache_chunks_inuse += WT_STAT_READ(from, chunk_cache_chunks_inuse);
     to->cond_auto_wait_reset += WT_STAT_READ(from, cond_auto_wait_reset);
     to->cond_auto_wait += WT_STAT_READ(from, cond_auto_wait);
     to->cond_auto_wait_skipped += WT_STAT_READ(from, cond_auto_wait_skipped);

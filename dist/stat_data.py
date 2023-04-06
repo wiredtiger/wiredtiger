@@ -335,14 +335,14 @@ conn_stats = [
     ##########################################
     # Chunk cache statistics
     ##########################################
-    ChunkCacheStat('chunk_cache_bytes', 'total bytes'),
-    ChunkCacheStat('chunk_cache_chunks', 'total chunks'),
-    ChunkCacheStat('chunk_cache_chunks_evicted', 'evicted chunks'),
-    ChunkCacheStat('chunk_cache_chunks_invalidated', 'removed chunks on becoming invalid'),
+    ChunkCacheStat('chunk_cache_bytes_inuse', 'total bytes used by the cache'),
+    ChunkCacheStat('chunk_cache_chunks_inuse', 'total chunks held by the chunk cache'),
+    ChunkCacheStat('chunk_cache_chunks_evicted', 'chunks evicted'),
+    ChunkCacheStat('chunk_cache_chunks_invalidated', 'chunks removed on becoming invalid'),
     ChunkCacheStat('chunk_cache_exceeded_capacity', 'could not allocate due to exceeding capacity'),
-    ChunkCacheStat('chunk_cache_hits', 'number of hits'),
     ChunkCacheStat('chunk_cache_io_failed', 'number of times a read from storage failed'),
     ChunkCacheStat('chunk_cache_lookups', 'lookups'),
+    ChunkCacheStat('chunk_cache_misses', 'number of misses'),
     ChunkCacheStat('chunk_cache_retries', 'retried accessing a chunk while I/O was in progress'),
     ChunkCacheStat('chunk_cache_spans_chunks_read', 'aggregate number of spanned chunks on read'),
     ChunkCacheStat('chunk_cache_spans_chunks_remove', 'aggregate number of spanned chunks on remove'),
