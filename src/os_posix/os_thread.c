@@ -31,7 +31,7 @@ __thread_set_name(WT_SESSION_IMPL *session, uint32_t thread_num, pthread_t threa
             WT_RET(__wt_snprintf(thread_name, MAX_NAME_LEN, "%s", session->name));
         else {
             WT_RET(__wt_snprintf(short_name, MAX_NAME_LEN - 3, "%s", session->name));
-            if (thread_num < 99)
+            if (thread_num < 100)
                 WT_RET(
                   __wt_snprintf(thread_name, MAX_NAME_LEN, "%s %" PRIu32, short_name, thread_num));
             else
@@ -65,8 +65,6 @@ __wt_thread_create(WT_SESSION_IMPL *session, wt_thread_t *tidret,
         tidret->created = true;
 #ifdef __linux__
         WT_IGNORE_RET(__thread_set_name(session, tidret->name_index, tidret->id));
-#else
-        WT_NOTUSED(thread_num);
 #endif
         return (0);
     }
