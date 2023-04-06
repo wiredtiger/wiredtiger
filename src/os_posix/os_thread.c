@@ -21,24 +21,25 @@
  *     the caller provides a non-zero thread number, append that to the session name to distinguish
  *     between multiple threads of the same type/name.
  */
-static void
+static int
 __thread_set_name(WT_SESSION_IMPL *session, uint32_t thread_num, pthread_t thread_id)
 {
     char short_name[MAX_NAME_LEN], thread_name[MAX_NAME_LEN];
 
     if (session != NULL && session->name != NULL) {
         if (thread_num == 0)
-            (void)__wt_snprintf(thread_name, MAX_NAME_LEN, "%s", session->name);
+            WT_RET(__wt_snprintf(thread_name, MAX_NAME_LEN, "%s", session->name));
         else {
-            (void)__wt_snprintf(short_name, MAX_NAME_LEN - 3, "%s", session->name);
+            WT_RET(__wt_snprintf(short_name, MAX_NAME_LEN - 3, "%s", session->name));
             if (thread_num < 99)
-                (void)__wt_snprintf(
-                  thread_name, MAX_NAME_LEN, "%s %" PRIu32, short_name, thread_num);
+                WT_RET(
+                  __wt_snprintf(thread_name, MAX_NAME_LEN, "%s %" PRIu32, short_name, thread_num));
             else
-                (void)__wt_snprintf(thread_name, MAX_NAME_LEN, "%s ++", short_name);
+                WT_RET(__wt_snprintf(thread_name, MAX_NAME_LEN, "%s ++", short_name));
         }
-        (void)pthread_setname_np(thread_id, thread_name);
+        WT_RET(pthread_setname_np(thread_id, thread_name));
     }
+    return (0);
 }
 #endif
 
@@ -63,7 +64,7 @@ __wt_thread_create(WT_SESSION_IMPL *session, wt_thread_t *tidret,
     if (ret == 0) {
         tidret->created = true;
 #ifdef __linux__
-        __thread_set_name(session, tidret->name_index, tidret->id);
+        WT_IGNORE_RET(__thread_set_name(session, tidret->name_index, tidret->id));
 #else
         WT_NOTUSED(thread_num);
 #endif
