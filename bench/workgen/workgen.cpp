@@ -1653,8 +1653,8 @@ ThreadRunner::op_run(Operation *op)
         cursor = _cursors[tint];
     }
 
-    measure_latency = track != nullptr && track->ops != 0 && track->track_latency() &&
-      (track->ops % _workload->options.sample_rate == 0);
+    measure_latency = track != nullptr && (track->ops != 0 && track->track_latency() &&
+      (track->ops % _workload->options.sample_rate == 0) || op->_optype == Operation::OP_RTS);
 
     uint64_t start;
     if (measure_latency)
@@ -2374,7 +2374,6 @@ int
 RTSOperationInternal::run(ThreadRunner *runner, WT_SESSION *session)
 {
     (void)runner; /* not used */
-    std::cout << "running RTS" << std::endl;
     auto conn = session->connection;
     return (conn->rollback_to_stable(conn, ""));
 }

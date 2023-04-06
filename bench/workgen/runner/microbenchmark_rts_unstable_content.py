@@ -46,6 +46,8 @@ def show(tname, s, args):
     print('<><><><><><>|<><><><><><>')
     c.close()
 
+exp_max = 8
+
 context = Context()
 
 conn = context.wiredtiger_open("create")
@@ -53,16 +55,22 @@ s = conn.open_session()
 tname = 'table:rts'
 s.create(tname, 'key_format=S, value_format=S')
 
-ops = (Operation(Operation.OP_INSERT, Table(tname), Key(Key.KEYGEN_APPEND, 10), Value(55)) * 10) + Operation(Operation.OP_RTS, "")
+ops = Operation(Operation.OP_INSERT, Table(tname), Key(Key.KEYGEN_APPEND, exp_max + 1), Value(55)) + Operation(Operation.OP_RTS, "")
+for i in range(1, exp_max):
+    inserts = 10 ** i
+
+    ops += (Operation(Operation.OP_INSERT, Table(tname), Key(Key.KEYGEN_APPEND, exp_max + 1), Value(55)) * inserts) + Operation(Operation.OP_RTS, "")
+
 thread = Thread(ops)
 
 workload = Workload(context, thread)
-# workload.options.report_interval = 5
-# workload.options.max_latency = 10
-# workload.options.sample_rate = 1
-# workload.options.sample_interval_ms = 10
+workload.options.report_interval = 5
+workload.options.max_latency = 10
+workload.options.sample_rate = 1
+workload.options.sample_interval_ms = 10
 
 ret = workload.run(conn)
 assert ret == 0, ret
-show(tname, s, context.args)
 latency.workload_latency(workload, 'beepboop.out')
+
+show(tname, s, context.args)
