@@ -1725,10 +1725,6 @@ ThreadRunner::op_run(Operation *op)
                 if (ret == WT_NOTFOUND)
                     ret = 0;
                 break;
-            case Operation::OP_RTS:
-                ret = _session->connection->rollback_to_stable(_session->connection, NULL);
-                track = &_stats.rts;
-                break;
             case Operation::OP_SEARCH:
                 ret = cursor->search(cursor);
                 if (ret == WT_NOTFOUND) {
@@ -2737,13 +2733,14 @@ Track::_get_sec(long *result)
 
 Stats::Stats(bool latency)
     : checkpoint(latency), insert(latency), not_found(latency), read(latency), remove(latency),
-      update(latency), truncate(latency)
+      rts(latency), update(latency), truncate(latency)
 {
 }
 
 Stats::Stats(const Stats &other)
     : checkpoint(other.checkpoint), insert(other.insert), not_found(other.not_found),
-      read(other.read), remove(other.remove), update(other.update), truncate(other.truncate)
+      read(other.read), remove(other.remove), rts(other.rts), update(other.update),
+      truncate(other.truncate)
 {
 }
 
@@ -2755,6 +2752,7 @@ Stats::add(Stats &other, bool reset)
     not_found.add(other.not_found, reset);
     read.add(other.read, reset);
     remove.add(other.remove, reset);
+    rts.add(other.rts, reset);
     update.add(other.update, reset);
     truncate.add(other.truncate, reset);
 }
@@ -2767,6 +2765,7 @@ Stats::assign(const Stats &other)
     not_found.assign(other.not_found);
     read.assign(other.read);
     remove.assign(other.remove);
+    rts.assign(other.rts);
     update.assign(other.update);
     truncate.assign(other.truncate);
 }
@@ -2779,6 +2778,7 @@ Stats::clear()
     not_found.clear();
     read.clear();
     remove.clear();
+    rts.clear();
     update.clear();
     truncate.clear();
 }
@@ -2848,9 +2848,9 @@ Stats::subtract(const Stats &other)
     not_found.subtract(other.not_found);
     read.subtract(other.read);
     remove.subtract(other.remove);
+    rts.subtract(other.truncate);
     update.subtract(other.update);
     truncate.subtract(other.truncate);
-    rts.subtract(other.truncate);
 }
 
 void
@@ -2861,9 +2861,9 @@ Stats::track_latency(bool latency)
     not_found.track_latency(latency);
     read.track_latency(latency);
     remove.track_latency(latency);
+    rts.track_latency(latency);
     update.track_latency(latency);
     truncate.track_latency(latency);
-    rts.track_latency(latency);
 }
 
 TableOptions::TableOptions()
