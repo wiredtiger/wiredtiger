@@ -274,6 +274,7 @@ struct LogFlushOperationInternal : OperationInternal {
 struct RTSOperationInternal : OperationInternal {
     RTSOperationInternal() : OperationInternal() {}
     RTSOperationInternal(const RTSOperationInternal &other) : OperationInternal(other) {}
+    virtual int run(ThreadRunner *runner, WT_SESSION *session);
 };
 
 struct TableOperationInternal : OperationInternal {

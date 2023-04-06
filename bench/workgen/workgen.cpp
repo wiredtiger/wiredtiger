@@ -2209,14 +2209,13 @@ Operation::get_static_counts(Stats &stats, int multiplier)
         case OP_UPDATE:
             stats.update.ops += multiplier;
             break;
-        case OP_RTS:
-            stats.rts.ops += multiplier;
-            break;
         default:
             ASSERT(false);
         }
     else if (_optype == OP_CHECKPOINT)
         stats.checkpoint.ops += multiplier;
+    else if ( _optype == OP_RTS)
+        stats.rts.ops += multiplier;
 
     if (_group != nullptr)
         for (std::vector<Operation>::iterator i = _group->begin(); i != _group->end(); i++)
@@ -2233,8 +2232,7 @@ bool
 Operation::is_table_op() const
 {
     return (
-      _optype == OP_INSERT || _optype == OP_REMOVE || _optype == OP_SEARCH || _optype == OP_UPDATE
-            || _optype == OP_RTS);
+      _optype == OP_INSERT || _optype == OP_REMOVE || _optype == OP_SEARCH || _optype == OP_UPDATE);
 }
 
 void
@@ -2374,6 +2372,15 @@ CheckpointOperationInternal::run(ThreadRunner *runner, WT_SESSION *session)
 {
     (void)runner; /* not used */
     return (session->checkpoint(session, ckpt_config.c_str()));
+}
+
+int
+RTSOperationInternal::run(ThreadRunner *runner, WT_SESSION *session)
+{
+    (void)runner; /* not used */
+    std::cout << "running RTS" << std::endl;
+    auto conn = session->connection;
+    return (conn->rollback_to_stable(conn, ""));
 }
 
 int

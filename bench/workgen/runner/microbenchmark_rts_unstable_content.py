@@ -53,14 +53,14 @@ s = conn.open_session()
 tname = 'table:rts'
 s.create(tname, 'key_format=S, value_format=S')
 
-ops = (Operation(Operation.OP_INSERT, Table(tname), Key(Key.KEYGEN_APPEND, 10), Value(55)) * 10)
+ops = (Operation(Operation.OP_INSERT, Table(tname), Key(Key.KEYGEN_APPEND, 10), Value(55)) * 10) + Operation(Operation.OP_RTS, "")
 thread = Thread(ops)
 
 workload = Workload(context, thread)
-workload.options.report_interval = 5
-workload.options.max_latency = 10
-workload.options.sample_rate = 1
-workload.options.sample_interval_ms = 10
+# workload.options.report_interval = 5
+# workload.options.max_latency = 10
+# workload.options.sample_rate = 1
+# workload.options.sample_interval_ms = 10
 
 ret = workload.run(conn)
 assert ret == 0, ret
