@@ -36,12 +36,12 @@ __insert_simple_func(
          * against the next pointer might indicate that the skip list location is still valid, but
          * that may no longer be true when the atomic_cas operation executes.
          *
-         * Use an atomic relaxed read to avoid this issue.
+         * Use an atomic read to avoid this issue.
          */
-        old_ins = WT_ATOMIC_LOAD_PTR(WT_INSERT, ins_stack[i], WT_ATOMIC_RELAXED);
+        old_ins = WT_ATOMIC_LOAD(ins_stack[i], WT_ATOMIC_ACQUIRE);
         if (old_ins != new_ins->next[i] ||
           !__wt_atomic_memorder_cas_ptr(
-            ins_stack[i], old_ins, new_ins, WT_ATOMIC_ACQ_REL, WT_ATOMIC_RELAXED))
+            ins_stack[i], old_ins, new_ins, WT_ATOMIC_RELEASE, WT_ATOMIC_RELAXED))
             return (i == 0 ? WT_RESTART : 0);
     }
 
@@ -56,7 +56,7 @@ static inline int
 __insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSERT ***ins_stack,
   WT_INSERT *new_ins, u_int skipdepth)
 {
-    WT_INSERT *old_ins;
+    WT_INSERT *old_ins, *tail;
     u_int i;
 
     /* The cursor should be positioned. */
@@ -81,15 +81,16 @@ __insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSE
          * against the next pointer might indicate that the skip list location is still valid, but
          * that may no longer be true when the atomic_cas operation executes.
          *
-         * Use an atomic relaxed load to avoid this issue.
+         * Use an atomic load to avoid this issue.
          */
-        old_ins = WT_ATOMIC_LOAD_PTR(WT_INSERT, ins_stack[i], WT_ATOMIC_RELAXED);
+        old_ins = WT_ATOMIC_LOAD(ins_stack[i], WT_ATOMIC_ACQUIRE);
         if (old_ins != new_ins->next[i] ||
           !__wt_atomic_memorder_cas_ptr(
-            ins_stack[i], old_ins, new_ins, WT_ATOMIC_ACQ_REL, WT_ATOMIC_RELAXED))
+            ins_stack[i], old_ins, new_ins, WT_ATOMIC_RELEASE, WT_ATOMIC_RELAXED))
             return (i == 0 ? WT_RESTART : 0);
-        if (ins_head->tail[i] == NULL || ins_stack[i] == &ins_head->tail[i]->next[i])
-            ins_head->tail[i] = new_ins;
+        tail = WT_ATOMIC_LOAD(&ins_head->tail[i], WT_ATOMIC_ACQUIRE);
+        if (tail == NULL || ins_stack[i] == &tail->next[i])
+            WT_ATOMIC_STORE(&ins_head->tail[i], new_ins, WT_ATOMIC_RELEASE);
     }
 
     return (0);
@@ -105,6 +106,7 @@ __col_append_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_
   WT_INSERT *new_ins, uint64_t *recnop, u_int skipdepth)
 {
     WT_BTREE *btree;
+    WT_INSERT *tail;
     uint64_t recno;
     u_int i;
 
@@ -117,10 +119,12 @@ __col_append_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_
     if ((recno = WT_INSERT_RECNO(new_ins)) == WT_RECNO_OOB) {
         recno = WT_INSERT_RECNO(new_ins) = btree->last_recno + 1;
         WT_ASSERT(session,
-          WT_SKIP_LAST(ins_head) == NULL || recno > WT_INSERT_RECNO(WT_SKIP_LAST(ins_head)));
-        for (i = 0; i < skipdepth; i++)
-            ins_stack[i] =
-              ins_head->tail[i] == NULL ? &ins_head->head[i] : &ins_head->tail[i]->next[i];
+          WT_SKIP_LAST_ATOMIC(ins_head) == NULL ||
+            recno > WT_INSERT_RECNO(WT_SKIP_LAST_ATOMIC(ins_head)));
+        for (i = 0; i < skipdepth; i++) {
+            tail = WT_ATOMIC_LOAD(&ins_head->tail[i], WT_ATOMIC_ACQUIRE);
+            ins_stack[i] = tail == NULL ? &ins_head->head[i] : &tail->next[i];
+        }
     }
 
     /* Confirm position and insert the new WT_INSERT item. */

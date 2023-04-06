@@ -42,7 +42,7 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
          * and inconsistent value in the lower level. Use an atomic acquire read to avoid this
          * issue.
          */
-        ins = WT_ATOMIC_LOAD_PTR(WT_INSERT, insp, WT_ATOMIC_ACQUIRE);
+        ins = WT_ATOMIC_LOAD(insp, WT_ATOMIC_ACQUIRE);
         if (ins != NULL && recno >= WT_INSERT_RECNO(ins)) {
             /* GTE: keep going at this level */
             insp = &ins->next[i];
@@ -64,7 +64,7 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
      * There isn't any safety testing because we confirmed such a record exists before searching.
      */
     if ((ins = ret_ins) == NULL)
-        ins = WT_SKIP_FIRST(ins_head);
+        ins = WT_SKIP_FIRST_ATOMIC(ins_head);
     while (recno >= WT_INSERT_RECNO(ins))
         /*
          * CPUs with weak memory ordering may reorder the read and we may read a stale next value
@@ -74,7 +74,7 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
          *
          * Use an atomic acquire read to avoid this issue.
          */
-        ins = WT_ATOMIC_LOAD_PTR(WT_INSERT, &WT_SKIP_NEXT(ins), WT_ATOMIC_ACQUIRE);
+        ins = WT_SKIP_NEXT_ATOMIC(ins);
     return (ins);
 }
 
@@ -114,7 +114,7 @@ __col_insert_search_lt(WT_INSERT_HEAD *ins_head, uint64_t recno)
          * and inconsistent value in the lower level. Use an atomic acquire read to avoid this
          * issue.
          */
-        ins = WT_ATOMIC_LOAD_PTR(WT_INSERT, insp, WT_ATOMIC_ACQUIRE);
+        ins = WT_ATOMIC_LOAD(insp, WT_ATOMIC_ACQUIRE);
         if (ins != NULL && recno > WT_INSERT_RECNO(ins)) {
             /* GT: keep going at this level */
             insp = &ins->next[i];
@@ -166,7 +166,7 @@ __col_insert_search_match(WT_INSERT_HEAD *ins_head, uint64_t recno)
          * and inconsistent value in the lower level. Use an atomic acquire read to avoid this
          * issue.
          */
-        ins = WT_ATOMIC_LOAD_PTR(WT_INSERT, insp, WT_ATOMIC_ACQUIRE);
+        ins = WT_ATOMIC_LOAD(insp, WT_ATOMIC_ACQUIRE);
         if (ins == NULL) {
             --i;
             --insp;
@@ -204,9 +204,9 @@ __col_insert_search(
     /*
      * Compiler may replace the following usage of the variable with another read.
      *
-     * Use an atomic relaxed read to avoid this issue.
+     * Use an atomic read to avoid this issue.
      */
-    ret_ins = WT_SKIP_LAST(ins_head);
+    ret_ins = WT_SKIP_LAST_ATOMIC(ins_head);
 
     /* If there's no insert chain to search, we're done. */
     if (ret_ins == NULL)
@@ -236,7 +236,7 @@ __col_insert_search(
          * here to ensure we see consistent values in the lower levels to prevent any unexpected
          * behavior.
          */
-        ret_ins = WT_ATOMIC_LOAD_PTR(WT_INSERT, insp, WT_ATOMIC_ACQUIRE);
+        ret_ins = WT_ATOMIC_LOAD(insp, WT_ATOMIC_ACQUIRE);
         if (ret_ins == NULL) {
             next_stack[i] = NULL;
             ins_stack[i--] = insp--;
@@ -263,7 +263,7 @@ __col_insert_search(
                  * levels of the skip list due to read reordering on CPUs with weak memory ordering.
                  * Use an atomic acquire read to avoid this issue.
                  */
-                next_stack[i] = WT_ATOMIC_LOAD_PTR(WT_INSERT, &ret_ins->next[i], WT_ATOMIC_ACQUIRE);
+                next_stack[i] = WT_ATOMIC_LOAD(&ret_ins->next[i], WT_ATOMIC_ACQUIRE);
                 ins_stack[i] = &ret_ins->next[i];
             }
         else { /* Drop down a level */
