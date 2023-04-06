@@ -77,7 +77,7 @@ __wt_rts_check(WT_SESSION_IMPL *session)
  */
 static void
 __rts_progress_msg(WT_SESSION_IMPL *session, struct timespec rollback_start,
-  uint64_t rollback_count, uint64_t *rollback_msg_count)
+  uint64_t rollback_count, uint64_t *rollback_msg_count, bool final)
 {
     struct timespec cur_time;
     uint64_t time_diff;
@@ -93,6 +93,13 @@ __rts_progress_msg(WT_SESSION_IMPL *session, struct timespec rollback_start,
           " files. For more detailed logging, enable WT_VERB_RTS",
           time_diff, rollback_count);
         ++(*rollback_msg_count);
+    }
+
+    if (final) {
+        __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+            "Rollback to stable has been running for %" PRIu64 " seconds and has inspected %" PRIu64
+            " files. For more detailed logging, enable WT_VERB_RTS",
+            time_diff, rollback_count);
     }
 }
 
@@ -118,7 +125,7 @@ __wt_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_times
     WT_RET(__wt_metadata_cursor(session, &cursor));
     while ((ret = cursor->next(cursor)) == 0) {
         /* Log a progress message. */
-        __rts_progress_msg(session, rollback_timer, rollback_count, &rollback_msg_count);
+        __rts_progress_msg(session, rollback_timer, rollback_count, &rollback_msg_count, false);
         ++rollback_count;
 
         WT_ERR(cursor->get_key(cursor, &uri));
@@ -142,6 +149,7 @@ __wt_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_times
         WT_ERR(ret);
     }
     WT_ERR_NOTFOUND_OK(ret, false);
+    __rts_progress_msg(session, rollback_timer, rollback_count, &rollback_msg_count, true);
 
     /*
      * Performing eviction in parallel to a checkpoint can lead to situation where the history store
