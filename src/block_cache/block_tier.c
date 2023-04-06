@@ -96,6 +96,24 @@ err:
 }
 
 /*
+ * __blockcache_find_open_handle --
+ *     If the block manager's handle array already has an entry for the given object, return it.
+ */
+static void
+__blkcache_find_open_handle(WT_BM *bm, uint32_t objectid, WT_BLOCK **blockp)
+{
+    u_int i;
+
+    *blockp = NULL;
+
+    for (i = 0; i < bm->handle_array_next; i++)
+        if (bm->handle_array[i]->objectid == objectid) {
+            *blockp = bm->handle_array[i];
+            break;
+        }
+}
+
+/*
  * __wt_blkcache_get_handle --
  *     Get a cached block handle for an object, creating it if it doesn't exist.
  */
@@ -104,8 +122,6 @@ __wt_blkcache_get_handle(WT_SESSION_IMPL *session, WT_BM *bm, uint32_t objectid,
 {
     WT_BLOCK *new_handle;
     WT_DECL_RET;
-    u_int i;
-    bool found;
 
     *blockp = NULL;
 
@@ -117,13 +133,11 @@ __wt_blkcache_get_handle(WT_SESSION_IMPL *session, WT_BM *bm, uint32_t objectid,
      * only reference objects in our name space.
      */
     __wt_readlock(session, &bm->handle_array_lock);
-    for (i = 0; i < bm->handle_array_next; ++i)
-        if (bm->handle_array[i]->objectid == objectid) {
-            *blockp = bm->handle_array[i];
-            __wt_readunlock(session, &bm->handle_array_lock);
-            return (0);
-        }
+    __blkcache_find_open_handle(bm, objectid, blockp);
     __wt_readunlock(session, &bm->handle_array_lock);
+
+    if (*blockp != NULL)
+        return (0);
 
     /* Open a handle for the object. */
     WT_RET(__wt_blkcache_tiered_open(session, NULL, objectid, &new_handle));
@@ -132,35 +146,23 @@ __wt_blkcache_get_handle(WT_SESSION_IMPL *session, WT_BM *bm, uint32_t objectid,
     __wt_writelock(session, &bm->handle_array_lock);
 
     /* Check to see if the object was added while we opened it. */
-    for (i = 0, found = false; i < bm->handle_array_next && !found; ++i)
-        if (bm->handle_array[i]->objectid == objectid) {
-            *blockp = bm->handle_array[i];
-            found = true;
-        }
+    __blkcache_find_open_handle(bm, objectid, blockp);
 
-    if (!found) {
+    if (*blockp == NULL) {
         /* Allocate space to store the new handle and insert it in the array. */
         WT_ERR(__wt_realloc_def(
           session, &bm->handle_array_allocated, bm->handle_array_next + 1, &bm->handle_array));
 
         bm->handle_array[bm->handle_array_next++] = new_handle;
         *blockp = new_handle;
+        new_handle = NULL;
     }
 
+err:
     __wt_writeunlock(session, &bm->handle_array_lock);
 
-    if (found)
-        /*
-         * We raced with another thread that inserted the handle. Close ours now that we no longer
-         * hold the lock.
-         */
-        ret = __wt_bm_close_block(session, new_handle);
-
-    if (0) {
-err:
-        __wt_writeunlock(session, &bm->handle_array_lock);
+    if (new_handle != NULL)
         WT_TRET(__wt_bm_close_block(session, new_handle));
-    }
 
     return (ret);
 }
