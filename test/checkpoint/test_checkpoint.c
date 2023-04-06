@@ -81,8 +81,9 @@ int
 main(int argc, char *argv[])
 {
     table_type ttype;
-    int ch, cnt, i, ret, runs;
+    int base, ch, cnt, i, ret, runs;
     const char *config_open;
+    char *end_number, *stop_arg;
     bool verify_only;
 
     (void)testutil_set_progname(argv);
@@ -172,7 +173,13 @@ main(int argc, char *argv[])
             }
             break;
         case 'S': /* run until this stable timestamp */
-            g.stop_ts = (uint64_t)atoi(__wt_optarg);
+            stop_arg = __wt_optarg;
+            if (WT_PREFIX_MATCH(stop_arg, "0x")) {
+                base = 16;
+                stop_arg += 2;
+            } else
+                base = 10;
+            g.stop_ts = (uint64_t)strtoll(stop_arg, &end_number, base);
             break;
         case 't':
             switch (__wt_optarg[0]) {
