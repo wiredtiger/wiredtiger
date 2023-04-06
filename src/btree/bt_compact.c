@@ -311,6 +311,7 @@ __wt_compact(WT_SESSION_IMPL *session)
     uint64_t stats_pages_skipped;   /* Pages skipped */
 
     bm = S2BT(session)->bm;
+    msg_count = 0;
     ref = NULL;
 
     WT_STAT_DATA_INCR(session, session_compact);

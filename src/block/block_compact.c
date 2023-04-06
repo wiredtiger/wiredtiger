@@ -24,7 +24,9 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
     /* Reset the compaction state information. */
     block->compact_pct_tenths = 0;
+    block->compact_bytes_rewritten = 0;
     block->compact_pages_rewritten = 0;
+    block->compact_pages_rewritten_expected = 0;
     block->compact_pages_reviewed = 0;
     block->compact_pages_skipped = 0;
 
@@ -68,6 +70,199 @@ __wt_block_compact_get_progress_stats(WT_SESSION_IMPL *session, WT_BM *bm,
 }
 
 /*
+ * __block_compact_skip_internal --
+ *     Return if compaction will shrink the file. This function takes a few extra parameters, so
+ *     that it can be useful for both making the actual compaction decisions as well as for
+ *     estimating work ahead of the compaction itself.
+ */
+static void
+__block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool estimate,
+  wt_off_t file_size, wt_off_t start_offset, wt_off_t avail_bytes_before_start_offset, bool *skipp,
+  int *compact_pct_tenths_p)
+{
+    WT_EXT *ext;
+    wt_off_t avail_eighty, avail_ninety, eighty, ninety;
+
+    /* IMPORTANT: We assume here that block->live_lock is locked. */
+
+    /* Sum the available bytes in the initial 80% and 90% of the file. */
+    avail_eighty = avail_ninety = avail_bytes_before_start_offset;
+    ninety = file_size - file_size / 10;
+    eighty = file_size - ((file_size / 10) * 2);
+
+    WT_EXT_FOREACH (ext, block->live.avail.off)
+        if (ext->off >= start_offset && ext->off < ninety) {
+            avail_ninety += ext->size;
+            if (ext->off < eighty)
+                avail_eighty += ext->size;
+        }
+
+    /*
+     * Skip files where we can't recover at least 1MB.
+     *
+     * If at least 20% of the total file is available and in the first 80% of the file, we'll try
+     * compaction on the last 20% of the file; else, if at least 10% of the total file is available
+     * and in the first 90% of the file, we'll try compaction on the last 10% of the file.
+     *
+     * We could push this further, but there's diminishing returns, a mostly empty file can be
+     * processed quickly, so more aggressive compaction is less useful.
+     */
+    if (avail_eighty > WT_MEGABYTE && avail_eighty >= ((file_size / 10) * 2)) {
+        *skipp = false;
+        *compact_pct_tenths_p = 2;
+    } else if (avail_ninety > WT_MEGABYTE && avail_ninety >= file_size / 10) {
+        *skipp = false;
+        *compact_pct_tenths_p = 1;
+    } else {
+        *skipp = true;
+        *compact_pct_tenths_p = 0;
+    }
+
+    __wt_verbose_level(session, WT_VERB_COMPACT, estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1,
+      "%s:%s total reviewed %" PRIu64 " pages, total rewritten %" PRIu64 " pages", block->name,
+      estimate ? " estimating --" : "", block->compact_pages_reviewed,
+      block->compact_pages_rewritten);
+    __wt_verbose_level(session, WT_VERB_COMPACT, estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1,
+      "%s:%s %" PRIuMAX "MB (%" PRIuMAX ") available space in the first 80%% of the file",
+      block->name, estimate ? " estimating --" : "", (uintmax_t)avail_eighty / WT_MEGABYTE,
+      (uintmax_t)avail_eighty);
+    __wt_verbose_level(session, WT_VERB_COMPACT, estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1,
+      "%s:%s %" PRIuMAX "MB (%" PRIuMAX ") available space in the first 90%% of the file",
+      block->name, estimate ? " estimating --" : "", (uintmax_t)avail_ninety / WT_MEGABYTE,
+      (uintmax_t)avail_ninety);
+    __wt_verbose_level(session, WT_VERB_COMPACT, estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1,
+      "%s:%s require 10%% or %" PRIuMAX "MB (%" PRIuMAX
+      ") in the first 90%% of the file to perform compaction, compaction %s",
+      block->name, estimate ? " estimating --" : "", (uintmax_t)(file_size / 10) / WT_MEGABYTE,
+      (uintmax_t)(file_size / 10), *skipp ? "skipped" : "proceeding");
+}
+
+/*
+ * __block_compact_estimate_remaining_work --
+ *     Estimate how much more work the compaction needs to do for the given file.
+ */
+static void
+__block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *block)
+{
+    WT_EXT *ext;
+    wt_off_t avg_block_size, compact_start_off, extra_space, file_size, last, write_off;
+    uint64_t n, pages_to_move, total_pages_to_move;
+    int compact_pct_tenths;
+    bool skip;
+
+    /*
+     * We must have relocated at least some interesting number of pages for any estimates below to
+     * be worthwhile.
+     */
+    if (block->compact_pages_rewritten < WT_THOUSAND)
+        return;
+
+    /* Assume that we have already checked whether this file can be skipped. */
+    WT_ASSERT(session, block->compact_pct_tenths > 0);
+
+    /*
+     * Get the average block size that we encountered so far during compaction. Note that we are not
+     * currently accounting for overflow pages, as compact does not currently account for them
+     * either.
+     */
+    avg_block_size = (wt_off_t)WT_ALIGN(
+      block->compact_bytes_rewritten / block->compact_pages_rewritten, block->allocsize);
+
+    __wt_verbose_debug2(session, WT_VERB_COMPACT,
+      "%s: the average block size is %" PRIu64 " bytes (based on %" PRIu64 " relocations)",
+      block->name, avg_block_size, block->compact_pages_rewritten);
+    __wt_verbose_debug2(session, WT_VERB_COMPACT,
+      "%s: will move blocks from the last %d%% of the file", block->name,
+      block->compact_pct_tenths * 10);
+
+    /*
+     * We would like to estimate how much data will be moved during compaction, so that we can
+     * inform users how far along we are in the process. We will estimate how many pages are in the
+     * last part of the file (typically the last 10%) and where they will be written using the
+     * first-fit allocation, and then repeat as long as we continue to make progress, to emulate the
+     * behavior of the actual compaction. This does not account for all complexities that we may
+     * encounter, but the hope is that the estimate would be still good enough.
+     */
+
+    __wt_spin_lock(session, &block->live_lock);
+
+    compact_pct_tenths = block->compact_pct_tenths;
+    extra_space = 0;
+    file_size = block->size;
+    pages_to_move = 0;
+    total_pages_to_move = 0;
+    write_off = 0;
+
+    for (;;) {
+        compact_start_off = (10 - compact_pct_tenths) * file_size / 10;
+        if (write_off >= compact_start_off)
+            break;
+
+        /* Estimate how many pages we would like to move, just making use the live checkpoint. */
+        last = compact_start_off;
+        WT_EXT_FOREACH (ext, block->live.avail.off) {
+            if (ext->off < compact_start_off)
+                continue;
+            if (ext->off > file_size)
+                break;
+            if (ext->off > last) {
+                pages_to_move += (uint64_t)((ext->off - last) / avg_block_size);
+                last = ext->off + ext->size;
+            }
+        }
+        pages_to_move += (uint64_t)((file_size - last) / avg_block_size);
+        WT_EXT_FOREACH (ext, block->live.discard.off) {
+            if (ext->off < compact_start_off)
+                continue;
+            if (ext->off > file_size)
+                break;
+            n = (uint64_t)(ext->size / avg_block_size);
+            pages_to_move -= WT_MIN(n, pages_to_move);
+        }
+        if (pages_to_move == 0)
+            break;
+
+        /* Estimate where in the file we would be when we finish moving those pages. */
+        WT_EXT_FOREACH (ext, block->live.avail.off) {
+            if (pages_to_move == 0 || ext->off >= compact_start_off)
+                break;
+            if (ext->off >= write_off || ext->off + ext->size >= write_off) {
+                if (ext->off >= write_off)
+                    n = (uint64_t)(ext->size / avg_block_size);
+                else
+                    n = (uint64_t)((ext->size - (write_off - ext->off)) / avg_block_size);
+                n = WT_MIN(n, pages_to_move);
+                pages_to_move -= n;
+                total_pages_to_move += n;
+                write_off = ext->off + (wt_off_t)n * avg_block_size;
+                if (pages_to_move > 0)
+                    extra_space += ext->size - (wt_off_t)n * avg_block_size;
+            }
+        }
+
+        /* See if we ran out of pages to move. */
+        if (pages_to_move > 0)
+            break;
+
+        /* If there is more work that could be done, repeat with the shorter file. */
+        file_size = compact_start_off;
+        __block_compact_skip_internal(
+          session, block, true, file_size, write_off, extra_space, &skip, &compact_pct_tenths);
+        if (skip)
+            break;
+    }
+
+    __wt_spin_unlock(session, &block->live_lock);
+
+    block->compact_pages_rewritten_expected = block->compact_pages_rewritten + total_pages_to_move;
+    __wt_verbose_debug1(session, WT_VERB_COMPACT,
+      "%s: expecting to move approx. %" PRIu64 " more pages (%" PRIu64 "MB), %" PRIu64 " total",
+      block->name, total_pages_to_move,
+      total_pages_to_move * (uint64_t)avg_block_size / WT_MEGABYTE,
+      block->compact_pages_rewritten_expected);
+}
+
+/*
  * __wt_block_compact_progress --
  *     Output compact progress message.
  */
@@ -76,6 +271,7 @@ __wt_block_compact_progress(WT_SESSION_IMPL *session, WT_BLOCK *block, u_int *ms
 {
     struct timespec cur_time;
     uint64_t time_diff;
+    int progress;
 
     if (!WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_COMPACT_PROGRESS, WT_VERBOSE_DEBUG_1))
         return;
@@ -86,12 +282,28 @@ __wt_block_compact_progress(WT_SESSION_IMPL *session, WT_BLOCK *block, u_int *ms
     time_diff = WT_TIMEDIFF_SEC(cur_time, session->compact->begin);
     if (time_diff / WT_PROGRESS_MSG_PERIOD > *msg_countp) {
         ++*msg_countp;
-        __wt_verbose_debug1(session, WT_VERB_COMPACT_PROGRESS,
-          " compacting %s for %" PRIu64 " seconds; reviewed %" PRIu64 " pages, rewritten %" PRIu64
-          " pages",
-          block->name, time_diff, block->compact_pages_reviewed, block->compact_pages_rewritten);
+
+        if (block->compact_pages_rewritten_expected == 0)
+            __block_compact_estimate_remaining_work(session, block);
+
+        /*
+         * If we don't have the estimate at this point, it means that there wasn't enough work done
+         * to justify having an estimate, which should be extremely rare at this point. So it should
+         * be okay for us to skip the message in that case.
+         */
+        if (block->compact_pages_rewritten_expected > 0) {
+            progress = WT_MIN(
+              (int)(100 * block->compact_pages_rewritten / block->compact_pages_rewritten_expected),
+              100);
+            __wt_verbose_debug1(session, WT_VERB_COMPACT_PROGRESS,
+              "compacting %s for %" PRIu64 " seconds; reviewed %" PRIu64
+              " pages, rewritten %" PRIu64 " pages (%" PRIu64 "MB), approx. %d%% done",
+              block->name, time_diff, block->compact_pages_reviewed, block->compact_pages_rewritten,
+              block->compact_bytes_rewritten / WT_MEGABYTE, progress);
+        }
     }
 }
+
 /*
  * __wt_block_compact_skip --
  *     Return if compaction will shrink the file.
@@ -99,10 +311,6 @@ __wt_block_compact_progress(WT_SESSION_IMPL *session, WT_BLOCK *block, u_int *ms
 int
 __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
 {
-    WT_EXT *ext;
-    WT_EXTLIST *el;
-    wt_off_t avail_eighty, avail_ninety, eighty, ninety;
-
     *skipp = true; /* Return a default skip. */
 
     /*
@@ -124,52 +332,8 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
     if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_2))
         __block_dump_file_stat(session, block, true);
 
-    /* Sum the available bytes in the initial 80% and 90% of the file. */
-    avail_eighty = avail_ninety = 0;
-    ninety = block->size - block->size / 10;
-    eighty = block->size - ((block->size / 10) * 2);
-
-    el = &block->live.avail;
-    WT_EXT_FOREACH (ext, el->off)
-        if (ext->off < ninety) {
-            avail_ninety += ext->size;
-            if (ext->off < eighty)
-                avail_eighty += ext->size;
-        }
-
-    /*
-     * Skip files where we can't recover at least 1MB.
-     *
-     * If at least 20% of the total file is available and in the first 80% of the file, we'll try
-     * compaction on the last 20% of the file; else, if at least 10% of the total file is available
-     * and in the first 90% of the file, we'll try compaction on the last 10% of the file.
-     *
-     * We could push this further, but there's diminishing returns, a mostly empty file can be
-     * processed quickly, so more aggressive compaction is less useful.
-     */
-    if (avail_eighty > WT_MEGABYTE && avail_eighty >= ((block->size / 10) * 2)) {
-        *skipp = false;
-        block->compact_pct_tenths = 2;
-    } else if (avail_ninety > WT_MEGABYTE && avail_ninety >= block->size / 10) {
-        *skipp = false;
-        block->compact_pct_tenths = 1;
-    }
-
-    __wt_verbose_debug1(session, WT_VERB_COMPACT,
-      "%s: total reviewed %" PRIu64 " pages, total rewritten %" PRIu64 " pages", block->name,
-      block->compact_pages_reviewed, block->compact_pages_rewritten);
-    __wt_verbose_debug1(session, WT_VERB_COMPACT,
-      "%s: %" PRIuMAX "MB (%" PRIuMAX ") available space in the first 80%% of the file",
-      block->name, (uintmax_t)avail_eighty / WT_MEGABYTE, (uintmax_t)avail_eighty);
-    __wt_verbose_debug1(session, WT_VERB_COMPACT,
-      "%s: %" PRIuMAX "MB (%" PRIuMAX ") available space in the first 90%% of the file",
-      block->name, (uintmax_t)avail_ninety / WT_MEGABYTE, (uintmax_t)avail_ninety);
-    __wt_verbose_debug1(session, WT_VERB_COMPACT,
-      "%s: require 10%% or %" PRIuMAX "MB (%" PRIuMAX
-      ") in the first 90%% of the file to perform compaction, compaction %s",
-      block->name, (uintmax_t)(block->size / 10) / WT_MEGABYTE, (uintmax_t)block->size / 10,
-      *skipp ? "skipped" : "proceeding");
-
+    __block_compact_skip_internal(
+      session, block, false, block->size, 0, 0, skipp, &block->compact_pct_tenths);
     __wt_spin_unlock(session, &block->live_lock);
 
     return (0);
@@ -295,6 +459,7 @@ __wt_block_compact_page_rewrite(
     endp = addr;
     WT_ERR(__wt_block_addr_pack(block, &endp, objectid, new_offset, size, checksum));
     *addr_sizep = WT_PTRDIFF(endp, addr);
+    block->compact_bytes_rewritten += size;
 
     WT_STAT_CONN_INCR(session, block_write);
     WT_STAT_CONN_INCRV(session, block_byte_write, size);
