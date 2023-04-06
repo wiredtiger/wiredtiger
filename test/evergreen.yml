@@ -806,6 +806,7 @@ functions:
         ${test_env_vars|} ./test_checkpoint -h RUNDIR_0 $base_args ${checkpoint_args} $calibration_run_args || exit 1
         echo "Finished calibration run"
         stable_hex=$($toolsdir/wt_timestamps RUNDIR_0 | sed -e '/stable=/!d' -e 's/.*=//')
+        stop_ts=$(echo $((0x$stable_hex)))
         for i in $(seq ${times}); do
           echo Iteration $i/${times}
           x1=$(rando)$(rando)
@@ -813,10 +814,10 @@ functions:
           rm -rf RUNDIR_1 RUNDIR_2
           # Do two runs up to the stable timestamp, using the same data seed,
           # but with a different extra seed.  Compare it when done.
-          first_run_args="-PSD$r,E$x1 -S $stable_hex"
+          first_run_args="-PSD$r,E$x1 -S $stop_ts"
           echo "First run with args $base_args ${checkpoint_args} $first_run_args"
           ${test_env_vars|} ./test_checkpoint -h RUNDIR_1 $base_args ${checkpoint_args} $first_run_args || exit 1
-          second_run_args="-PSD$r,E$x2 -S $stable_hex"
+          second_run_args="-PSD$r,E$x2 -S $stop_ts"
           echo "Second run with args $base_args ${checkpoint_args} $second_run_args"
           ${test_env_vars|} ./test_checkpoint -h RUNDIR_2 $base_args ${checkpoint_args} $second_run_args || exit 1
           # Compare the runs.
