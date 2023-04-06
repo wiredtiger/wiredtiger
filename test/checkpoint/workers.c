@@ -313,7 +313,6 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
 
         /* If key doesn't exist, turn modify into an insert. */
         testutil_check(__wt_snprintf(valuebuf, sizeof(valuebuf), "%052u", new_val));
-        printf("Val=%u\n", new_val);
         if (type == FIX)
             cursor->set_value(cursor, flcs_encode(valuebuf));
         else
@@ -394,7 +393,7 @@ real_worker(THREAD_DATA *td)
 
     for (i = 0; g.opts.running; ++i, __wt_yield()) {
         /* If it is a predictable re-run until a stable timestamp, ignore number of ops. */
-        if (!g.ts_pred_stable && i >= g.nops)
+        if (!g.stop_ts && i >= g.nops)
             break;
 
         if (i > 0 && i % (5 * WT_THOUSAND) == 0)
@@ -408,7 +407,6 @@ real_worker(THREAD_DATA *td)
             start_txn = false;
         }
         keyno = __wt_random(&td->data_rnd) % td->key_range + td->start_key;
-        printf("Key no: %"PRIu32" \n", keyno);
         /* If we have specified to run with mix mode deletes we need to do it in it's own txn. */
         if (g.use_timestamps && g.no_ts_deletes && new_txn &&
           __wt_random(&td->data_rnd) % 72 == 0) {

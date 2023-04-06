@@ -95,7 +95,7 @@ main(int argc, char *argv[])
     g.home = dmalloc(512);
     g.nkeys = 10 * WT_THOUSAND;
     g.nops = 100 * WT_THOUSAND;
-    g.ts_pred_stable = 0;
+    g.stop_ts = 0;
     g.ntables = 3;
     g.nworkers = 1;
     g.evict_reposition_timing_stress = false;
@@ -112,7 +112,7 @@ main(int argc, char *argv[])
     testutil_parse_begin_opt(argc, argv, SHARED_PARSE_OPTIONS, &g.opts);
 
     while ((ch = __wt_getopt(
-              progname, argc, argv, "C:c:Dk:l:mn:N:pr:Rs:T:t:vW:xX" SHARED_PARSE_OPTIONS)) != EOF)
+              progname, argc, argv, "C:c:Dk:l:mn:pr:Rs:S:T:t:vW:xX" SHARED_PARSE_OPTIONS)) != EOF)
         switch (ch) {
         case 'c':
             g.checkpoint_name = __wt_optarg;
@@ -137,9 +137,6 @@ main(int argc, char *argv[])
             break;
         case 'n': /* operations */
             g.nops = (u_int)atoi(__wt_optarg);
-            break;
-        case 'N': /* run until this stable timestamp */
-            g.ts_pred_stable = (uint64_t)atoi(__wt_optarg);
             break;
         case 'p': /* prepare */
             g.prepare = true;
@@ -173,6 +170,9 @@ main(int argc, char *argv[])
             default:
                 return (usage());
             }
+            break;
+        case 'S': /* run until this stable timestamp */
+            g.stop_ts = (uint64_t)atoi(__wt_optarg);
             break;
         case 't':
             switch (__wt_optarg[0]) {
@@ -220,8 +220,8 @@ main(int argc, char *argv[])
     if (argc != 0)
         return (usage());
 
-    if (g.ts_pred_stable > 0 && (!g.predictable_replay || (!g.use_timestamps))) {
-        fprintf(stderr, "-N is only valid if specified along with -X and -R.\n");
+    if (g.stop_ts > 0 && (!g.predictable_replay || (!g.use_timestamps))) {
+        fprintf(stderr, "-S is only valid if specified along with -X and -R.\n");
         return (EXIT_FAILURE);
     }
 
@@ -240,8 +240,8 @@ main(int argc, char *argv[])
 
     printf("%s: process %" PRIu64 "\n", progname, (uint64_t)getpid());
     if (g.predictable_replay)
-        printf("Config to seed for replay: " TESTUTIL_SEED_FORMAT "\n",
-          g.opts.data_seed, g.opts.extra_seed);
+        printf("Config to seed for replay: " TESTUTIL_SEED_FORMAT "\n", g.opts.data_seed,
+          g.opts.extra_seed);
 
     for (cnt = 1; (runs == 0 || cnt <= runs) && g.status == 0; ++cnt) {
         cleanup(cnt == 1 && !verify_only); /* Clean up previous runs */
@@ -678,11 +678,11 @@ usage(void)
       "\t-l specify a log file\n"
       "\t-m perform delete operations without timestamps\n"
       "\t-n set number of operations each thread does\n"
-      "\t-N set stable timestamp a predictable replay should run to\n"
       "\t-p use prepare\n"
       "\t-r set number of runs (0 for continuous)\n"
       "\t-R configure predictable replay\n"
       "\t-s specify which timing stress configuration to use ( 1 | 2 | 3 | 4 | 5 )\n"
+      "\t-S set a stable timestamp to stop the test run\n"
       "\t\t1: sweep_stress\n"
       "\t\t2: failpoint_hs_delete_key_from_ts\n"
       "\t\t3: hs_checkpoint_timing_stress\n"

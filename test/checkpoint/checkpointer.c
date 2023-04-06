@@ -141,13 +141,13 @@ clock_thread(void *arg)
             oldest_ts = get_all_committed_ts();
             if (oldest_ts != UINT64_MAX && oldest_ts - last_ts > PRED_REPLAY_STABLE_PERIOD) {
                 /* If we are doing a predictable rerun, don't go past the provided timestamp. */
-                if (g.ts_pred_stable > 0 && oldest_ts >= g.ts_pred_stable) {
+                if (g.stop_ts > 0 && oldest_ts >= g.stop_ts) {
                     printf("Clock thread at %" PRIu64
                            " is past the replay stable-timestamp of "
                            "%" PRIu64 ", setting stable timestamp at %" PRIu64
                            " and stopping the clock.\n",
-                      oldest_ts, g.ts_pred_stable, g.ts_pred_stable);
-                    set_stable(g.ts_pred_stable);
+                      oldest_ts, g.stop_ts, g.stop_ts);
+                    set_stable(g.stop_ts);
                     break;
                 }
                 set_stable(oldest_ts);
@@ -284,15 +284,15 @@ real_checkpointer(THREAD_DATA *td)
                 verify_ts = __wt_random(&td->extra_rnd) % (stable_ts - oldest_ts + 1) + oldest_ts;
             if (g.predictable_replay) {
                 tmp_ts = WT_MIN(get_all_committed_ts(), stable_ts);
-                if (tmp_ts != UINT64_MAX && (g.ts_pred_stable == 0 || tmp_ts <= g.ts_pred_stable))
+                if (tmp_ts != UINT64_MAX && (g.stop_ts == 0 || tmp_ts <= g.stop_ts))
                     g.ts_oldest = tmp_ts;
 
                 /* Don't go past the provided timestamp. */
-                if (g.ts_pred_stable > 0 && stable_ts >= g.ts_pred_stable) {
+                if (g.stop_ts > 0 && stable_ts >= g.stop_ts) {
                     printf(
                       "The checkpoint thread has reached the rerun stable timestamp of "
                       "%" PRIu64 ". Finish the test run.\n",
-                      g.ts_pred_stable);
+                      g.stop_ts);
                     g.opts.running = false;
                 }
             } else {
