@@ -1220,6 +1220,7 @@ static bool
 backup_exists(WT_CONNECTION *conn, uint32_t index)
 {
     WT_CURSOR *cursor;
+    WT_DECL_RET;
     WT_SESSION *session;
     char backup_id[64];
     const char *idstr;
@@ -1228,8 +1229,19 @@ backup_exists(WT_CONNECTION *conn, uint32_t index)
     testutil_check(__wt_snprintf(backup_id, sizeof(backup_id), "ID%" PRIu32, index));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    testutil_check(session->open_cursor(session, "backup:query_id", NULL, NULL, &cursor));
+    /*
+     * Check if we find the backup with the given ID. But depending on scheduling of backups,
+     * checkpoints and killing the process, the backup ID may or may not have been saved to disk
+     * after a restart. If opening the backup query cursor gets EINVAL then there is no backup.
+     */
     found = false;
+    ret = session->open_cursor(session, "backup:query_id", NULL, NULL, &cursor);
+    if (ret != 0) {
+        if (ret == EINVAL)
+            goto done;
+        else
+            testutil_check(ret);
+    }
     while (cursor->next(cursor) == 0) {
         testutil_check(cursor->get_key(cursor, &idstr));
         if (strcmp(idstr, backup_id) == 0) {
@@ -1239,6 +1251,7 @@ backup_exists(WT_CONNECTION *conn, uint32_t index)
     }
     testutil_check(cursor->close(cursor));
 
+done:
     testutil_check(session->close(session, NULL));
     return (found);
 }
