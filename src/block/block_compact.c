@@ -118,19 +118,23 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
         *compact_pct_tenths_p = 0;
     }
 
-    __wt_verbose_level(session, WT_VERB_COMPACT, estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1,
+    __wt_verbose_level(session, WT_VERB_COMPACT,
+      (estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1),
       "%s:%s total reviewed %" PRIu64 " pages, total rewritten %" PRIu64 " pages", block->name,
       estimate ? " estimating --" : "", block->compact_pages_reviewed,
       block->compact_pages_rewritten);
-    __wt_verbose_level(session, WT_VERB_COMPACT, estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1,
+    __wt_verbose_level(session, WT_VERB_COMPACT,
+      (estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1),
       "%s:%s %" PRIuMAX "MB (%" PRIuMAX ") available space in the first 80%% of the file",
       block->name, estimate ? " estimating --" : "", (uintmax_t)avail_eighty / WT_MEGABYTE,
       (uintmax_t)avail_eighty);
-    __wt_verbose_level(session, WT_VERB_COMPACT, estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1,
+    __wt_verbose_level(session, WT_VERB_COMPACT,
+      (estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1),
       "%s:%s %" PRIuMAX "MB (%" PRIuMAX ") available space in the first 90%% of the file",
       block->name, estimate ? " estimating --" : "", (uintmax_t)avail_ninety / WT_MEGABYTE,
       (uintmax_t)avail_ninety);
-    __wt_verbose_level(session, WT_VERB_COMPACT, estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1,
+    __wt_verbose_level(session, WT_VERB_COMPACT,
+      (estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1),
       "%s:%s require 10%% or %" PRIuMAX "MB (%" PRIuMAX
       ") in the first 90%% of the file to perform compaction, compaction %s",
       block->name, estimate ? " estimating --" : "", (uintmax_t)(file_size / 10) / WT_MEGABYTE,
