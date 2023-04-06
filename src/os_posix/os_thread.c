@@ -17,7 +17,9 @@
 
 /*
  * __thread_set_name --
- *     Set the pthread-level thread name using the session name.
+ *     Set the pthread-level thread name. If the session name is set, use that, truncated to fit. If
+ *     the caller provides a non-zero thread number, append that to the session name to distinguish
+ *     between multiple threads of the same type/name.
  */
 static void
 __thread_set_name(WT_SESSION_IMPL *session, uint32_t thread_num, pthread_t thread_id)
