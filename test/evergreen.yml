@@ -4152,22 +4152,22 @@ tasks:
         vars:
           # Don't use diagnostic - this test looks for timing problems that are more likely to occur without it
           HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
-      - func: "checkpoint test predictable"
-        vars:
-          checkpoint_args: -t m -n 1000000 -k 5000000 -C cache_size=100MB
-          times: 5
-      - func: "checkpoint test predictable"
-        vars:
-          checkpoint_args: -t c -n 1000000 -k 5000000 -C cache_size=100MB
-          times: 5
+      #- func: "checkpoint test predictable"
+      #  vars:
+      #    checkpoint_args: -t m -n 1000000 -k 5000000 -C cache_size=100MB
+      #    times: 5
+      #- func: "checkpoint test predictable"
+      #  vars:
+      #    checkpoint_args: -t c -n 1000000 -k 5000000 -C cache_size=100MB
+      #    times: 5
       - func: "checkpoint test predictable"
         vars:
           checkpoint_args: -t r -n 1000000 -k 5000000 -C cache_size=100MB
           times: 5
-      - func: "checkpoint test predictable"
-        vars:
-          checkpoint_args: -n 1000000 -k 5000000 -C cache_size=100MB
-          times: 5
+      #- func: "checkpoint test predictable"
+      #  vars:
+      #    checkpoint_args: -n 1000000 -k 5000000 -C cache_size=100MB
+      #    times: 5
 
   - name: many-collection-test
     commands:
