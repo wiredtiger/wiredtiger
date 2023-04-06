@@ -796,11 +796,14 @@ functions:
         r=$(rando)$(rando)
         x0=$(rando)$(rando)
 
+        # Always run with timestamps and in the predictable mode
+        base_args="-x -R"
+
         rm -rf RUNDIR_0
         # The first run is for calibration only.  We just want to run for the designated
         # time and get an approriate stop timestamp that can be used in later runs.
         calibration_run_args="-PSD$r,E$x0"
-        ${test_env_vars|} ./test_checkpoint -h RUNDIR_0 ${checkpoint_args} $calibration_run_args || exit 1
+        ${test_env_vars|} ./test_checkpoint -h RUNDIR_0 $base_args ${checkpoint_args} $calibration_run_args || exit 1
         echo "Finished calibration run"
         stable_hex=$($toolsdir/wt_timestamps RUNDIR_0 | sed -e '/stable=/!d' -e 's/.*=//')
         for i in $(seq ${times}); do
@@ -811,11 +814,11 @@ functions:
           # Do two runs up to the stable timestamp, using the same data seed,
           # but with a different extra seed.  Compare it when done.
           first_run_args="-PSD$r,E$x1 -S $stable_hex"
-          echo "First run with args ${checkpoint_args} $first_run_args"
-          ${test_env_vars|} ./test_checkpoint -h RUNDIR_1 ${checkpoint_args} $first_run_args || exit 1
+          echo "First run with args $base_args ${checkpoint_args} $first_run_args"
+          ${test_env_vars|} ./test_checkpoint -h RUNDIR_1 $base_args ${checkpoint_args} $first_run_args || exit 1
           second_run_args="-PSD$r,E$x2 -S $stable_hex"
-          echo "Second run with args ${checkpoint_args} $second_run_args"
-          ${test_env_vars|} ./test_checkpoint -h RUNDIR_2 ${checkpoint_args} $second_run_args || exit 1
+          echo "Second run with args $base_args ${checkpoint_args} $second_run_args"
+          ${test_env_vars|} ./test_checkpoint -h RUNDIR_2 $base_args ${checkpoint_args} $second_run_args || exit 1
           # Compare the runs.
           $toolsdir/wt_cmp_dir RUNDIR_1 RUNDIR_2 || exit 1
         done
