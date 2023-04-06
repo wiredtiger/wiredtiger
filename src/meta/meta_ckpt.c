@@ -15,7 +15,7 @@ static int __ckpt_named(WT_SESSION_IMPL *, const char *, const char *, WT_CKPT *
 static int __ckpt_parse_time(WT_SESSION_IMPL *, WT_CONFIG_ITEM *, uint64_t *);
 static int __ckpt_set(WT_SESSION_IMPL *, const char *, const char *, bool);
 static int __ckpt_version_chk(WT_SESSION_IMPL *, const char *, const char *);
-static int __meta_blk_mods_load(WT_SESSION_IMPL *, const char *, WT_CKPT *, WT_CKPT *, bool, bool);
+static int __meta_blk_mods_load(WT_SESSION_IMPL *, const char *, WT_CKPT *, WT_CKPT *, bool);
 
 /*
  * __ckpt_load_blk_mods --
@@ -613,14 +613,9 @@ __ckpt_copy_blk_mods(WT_SESSION_IMPL *session, WT_CKPT *src_ckpt, WT_CKPT *dst_c
  *     either the metadata or from a base checkpoint.
  */
 static int
-__meta_blk_mods_load(WT_SESSION_IMPL *session, const char *config, WT_CKPT *base_ckpt,
-  WT_CKPT *ckpt, bool rename, bool is_base)
+__meta_blk_mods_load(
+  WT_SESSION_IMPL *session, const char *config, WT_CKPT *base_ckpt, WT_CKPT *ckpt, bool rename)
 {
-    /*
-     * If we're loading the base checkpoint then we must do it from a config string and not have a
-     * base ckpt.
-     */
-    WT_ASSERT(session, !is_base || (config != NULL && base_ckpt == NULL));
     /*
      * Load most recent checkpoint backup blocks to this checkpoint, either from metadata or from a
      * previous checkpoint.
@@ -636,12 +631,6 @@ __meta_blk_mods_load(WT_SESSION_IMPL *session, const char *config, WT_CKPT *base
         WT_RET(__wt_strndup(session, base_ckpt->block_metadata, strlen(base_ckpt->block_metadata),
           &ckpt->block_metadata));
     }
-    /*
-     * If we're loading block mod information into the base checkpoint initially then we don't want
-     * to validate or set the checkpoint flags below. We're done.
-     */
-    if (is_base)
-        return (0);
 
     /*
      * Set the add-a-checkpoint flag, and if we're doing incremental backups, request a list of the
@@ -719,8 +708,8 @@ __meta_ckptlist_allocate_new_ckpt(
      */
 
     /* Either load block mods from the config, or from the previous checkpoint. */
-    WT_RET(__meta_blk_mods_load(
-      session, config, (slot == 0 ? NULL : &ckptbase[slot - 1]), ckpt, false, false));
+    WT_RET(
+      __meta_blk_mods_load(session, config, (slot == 0 ? NULL : &ckptbase[slot - 1]), ckpt, false));
     WT_ASSERT(session, ckpt->block_metadata != NULL);
 
     return (0);
@@ -1866,7 +1855,7 @@ __wt_reset_blkmod(WT_SESSION_IMPL *session, const char *orig_config, WT_ITEM *bu
      * backup information to indicate copying the entire file in its bitmap.
      */
     /* First load any existing backup information into a temp checkpoint structure. */
-    WT_RET(__meta_blk_mods_load(session, orig_config, NULL, &ckpt, true, false));
+    WT_RET(__meta_blk_mods_load(session, orig_config, NULL, &ckpt, true));
 
     /* Take the checkpoint structure and generate the metadata string. */
     ret = __wt_ckpt_blkmod_to_meta(session, buf, &ckpt);
