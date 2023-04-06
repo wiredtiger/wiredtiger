@@ -790,8 +790,8 @@ functions:
         set -o errexit
         set -o verbose
 
-        toolsdir=../../../../tools
-        wtutil=../../../wt
+        toolsdir=../../../tools
+        wtutil=../../wt
 
         r=$(rando)$(rando)
         x0=$(rando)$(rando)
