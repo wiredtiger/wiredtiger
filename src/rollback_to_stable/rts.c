@@ -97,9 +97,9 @@ __rts_progress_msg(WT_SESSION_IMPL *session, struct timespec rollback_start,
 
     if (final) {
         __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
-            "Rollback to stable has been running for %" PRIu64 " seconds and has inspected %" PRIu64
-            " files. For more detailed logging, enable WT_VERB_RTS",
-            time_diff, rollback_count);
+          "Rollback to stable has been running for %" PRIu64 " seconds and has inspected %" PRIu64
+          " files. For more detailed logging, enable WT_VERB_RTS",
+          time_diff, rollback_count);
     }
 }
 
