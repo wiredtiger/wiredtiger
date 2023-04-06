@@ -16,8 +16,8 @@ bool
 __wt_session_read_ahead_check(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     /*
-     * TODO: Should internal threads do read ahead? Possibly if read ahead is configured
-     * to be aggressive? Or possibly more selectively?
+     * TODO: Should internal threads do read ahead? Possibly if read ahead is configured to be
+     * aggressive? Or possibly more selectively?
      */
     if (!S2C(session)->read_ahead_auto_on || F_ISSET(session, WT_SESSION_INTERNAL))
         return (false);
