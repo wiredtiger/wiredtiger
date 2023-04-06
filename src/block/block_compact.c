@@ -173,7 +173,7 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
       block->compact_bytes_rewritten / block->compact_pages_rewritten, block->allocsize);
 
     __wt_verbose_debug2(session, WT_VERB_COMPACT,
-      "%s: the average block size is %" PRIu64 " bytes (based on %" PRIu64 " relocations)",
+      "%s: the average block size is %" PRId64 " bytes (based on %" PRIu64 " relocations)",
       block->name, avg_block_size, block->compact_pages_rewritten);
     __wt_verbose_debug2(session, WT_VERB_COMPACT,
       "%s: will move blocks from the last %d%% of the file", block->name,
