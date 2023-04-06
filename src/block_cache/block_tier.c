@@ -96,7 +96,7 @@ err:
 }
 
 /*
- * __blockcache_find_open_handle --
+ * __blkcache_find_open_handle --
  *     If the block manager's handle array already has an entry for the given object, return it.
  */
 static void
