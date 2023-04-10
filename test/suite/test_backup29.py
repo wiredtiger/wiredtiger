@@ -110,12 +110,11 @@ class test_backup29(backup_base):
 
         # Change one table and checkpoint. Keep the other table clean.
         self.pr("Update only table 1: " + str(last_i))
-        far_key = self.nentries * 2
-        val = str(far_key) + self.value_base
-        c[far_key] = val
-        self.session.checkpoint()
-        # Now change the other table and checkpoint again.
         val = str(last_i) + self.value_base
+        c[last_i] = val
+        self.session.checkpoint()
+
+        # Now change the other table and checkpoint again.
         self.pr("Update second table: " + str(last_i))
         c2[last_i] = val
         self.session.checkpoint()
