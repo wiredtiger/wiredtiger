@@ -107,5 +107,4 @@ class test_prepare27(wttest.WiredTigerTestCase):
         self.session.begin_transaction('read_timestamp=1')
         cur = self.session.open_cursor(uri, None, None)
         cur.set_key(key)
-        self.session.breakpoint()
         cur.search()
