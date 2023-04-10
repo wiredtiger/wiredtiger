@@ -31,7 +31,9 @@ from wtscenario import make_scenarios
 from wtbackup import backup_base
 
 # test_backup29.py
-#    Test interaction between restart, checkpoint and incremental backup.
+#    Test interaction between restart, checkpoint and incremental backup. There was a bug in
+# maintaining the incremental backup bitmaps correctly across restarts in specific conditions
+# that this test can reproduce.
 #
 class test_backup29(backup_base):
     create_config = 'allocation_size=512,key_format=i,value_format=S'
@@ -95,7 +97,7 @@ class test_backup29(backup_base):
         c2.close()
         self.session.checkpoint()
         # Get the block mod bitmap from the file URI.
-        orig_id1blocks = self.parse_blkmods(file2_uri)
+        orig_bitmap = self.parse_blkmods(file2_uri)
         self.pr("CLOSE and REOPEN conn")
         self.reopen_conn()
         self.pr("Reopened conn")
@@ -117,7 +119,7 @@ class test_backup29(backup_base):
         self.pr("Update second table: " + str(last_i))
         c2[last_i] = val
         self.session.checkpoint()
-        new_id1blocks = self.parse_blkmods(file2_uri)
+        new_bitmap = self.parse_blkmods(file2_uri)
 
         c.close()
         c2.close()
@@ -125,7 +127,14 @@ class test_backup29(backup_base):
         # Compare the bitmaps from the metadata. Once a bit is set, it should never
         # be cleared. But new bits could be set. So the check is only: if the original
         # bitmap has a bit set then the current bitmap must be set for that bit also. 
-        for orig, new in zip(orig_id1blocks, new_id1blocks):
+        #
+        # First convert both bitmaps to a binary string, accounting for any possible leading
+        # zeroes (that would be truncated off). Then compare bit by bit.
+        orig_bits = bin(int('1'+orig_bitmap, 16))[3:]
+        new_bits = bin(int('1'+new_bitmap, 16))[3:]
+        self.pr("Original bitmap in binary: " + orig_bits)
+        self.pr("Reopened bitmap in binary: " + new_bits)
+        for orig, new in zip(orig_bits, new_bits):
             if orig != '0':
                 self.assertTrue(new != '0')
 
