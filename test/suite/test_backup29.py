@@ -62,7 +62,7 @@ class test_backup29(backup_base):
                 break
 
         blocks_bitmap = blocks[i:]
-        self.pr(uri + " BITMAP: " + blocks_bitmap);
+        self.pr(uri + " BITMAP: " + blocks_bitmap)
         return blocks_bitmap
 
 
