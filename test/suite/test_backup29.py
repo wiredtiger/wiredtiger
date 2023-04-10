@@ -120,10 +120,9 @@ class test_backup29(backup_base):
         val = str(far_key) + self.value_base
         c[far_key] = val
         self.session.checkpoint()
-        # Now change both tables and checkpoint again.
+        # Now change the other table and checkpoint again.
         val = str(last_i) + self.value_base
-        self.pr("Update both tables: " + str(last_i))
-        c[last_i] = val
+        self.pr("Update second table: " + str(last_i))
         c2[last_i] = val
         self.session.checkpoint()
         new_id1blocks = self.parse_blkmods(file2_uri)
