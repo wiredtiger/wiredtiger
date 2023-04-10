@@ -78,9 +78,6 @@ class test_prepare27(wttest.WiredTigerTestCase):
         # At this point we have 5 updates associated with a key in the update chain:
         # 1 -> 2 -> 3 -> 4 -> 5
 
-        # By evicting, the latest update is moved to the DS and the rest to the HS.
-        self.evict_cursor(uri, None, 1)
-
         # Perform a new update through a prepared transaction and evict the page.
         num_updates = num_updates + 1
         ts = num_updates
