@@ -101,12 +101,12 @@ class test_backup29(backup_base):
         self.pr("Reopened conn")
 
         # After reopening we want to open both tables, but only modify one of them for
-        # the first checkpoint. Then modify both tables, checkpoint, and then check the
-        # that the block mod bitmap remains correct.
+        # the first checkpoint. Then modify the other table, checkpoint, and then check the
+        # that the block mod bitmap remains correct for the other table.
         c = self.session.open_cursor(table_uri)
         c2 = self.session.open_cursor(table2_uri)
 
-        # Change one table and checkpoint.
+        # Change one table and checkpoint. Keep the other table clean.
         self.pr("Update only table 1: " + str(last_i))
         far_key = self.nentries * 2
         val = str(far_key) + self.value_base
