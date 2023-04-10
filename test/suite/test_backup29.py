@@ -49,11 +49,12 @@ class test_backup29(backup_base):
         config = meta_cursor[uri]
         meta_cursor.close()
         # The search string will look like: 'blocks=hexstring)'
-        # We want just the value after the =.
         b = re.search(',blocks=\w+', config)
         self.assertTrue(b is not None)
         blocks = b.group(0)
         i = 0
+        # blocks looks like: ,blocks=feffff1f000000000000000000000000
+        # Walk forward looking for the '=' to obtain just the hex string.
         for c in blocks:
             i += 1
             if c == '=':
