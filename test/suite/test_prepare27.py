@@ -98,8 +98,9 @@ class test_prepare27(wttest.WiredTigerTestCase):
         # bring back the previous update to the update chain.
         self.session.rollback_transaction()
 
-        # By calling RTS, this should bring the latest stable update to the update chain and leave
-        # the other stables ones in the HS.
+        # By calling RTS, this should bring the latest stable update (2) to the update chain and
+        # leave the stable one (1) in the HS. We should have the following update chain:
+        # 2 -> 6 -> 5, with 6 and 5 aborted.
         self.conn.rollback_to_stable()
     
         # Now search for the first record at the time it was committed.
