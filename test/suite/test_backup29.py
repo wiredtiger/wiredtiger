@@ -34,7 +34,6 @@ from wtbackup import backup_base
 #    Test interaction between restart, checkpoint and incremental backup.
 #
 class test_backup29(backup_base):
-    #conn_config = 'create,verbose=(backup)'
     create_config = 'allocation_size=512,key_format=i,value_format=S'
     # Backup directory name
     dir='backup.dir'
@@ -49,7 +48,7 @@ class test_backup29(backup_base):
         meta_cursor = self.session.open_cursor('metadata:')
         config = meta_cursor[uri]
         meta_cursor.close()
-        # The search string will look like: 'blocks=hex)'
+        # The search string will look like: 'blocks=hexstring)'
         # We want just the value after the =.
         b = re.search(',blocks=\w+', config)
         self.assertTrue(b is not None)
@@ -102,19 +101,19 @@ class test_backup29(backup_base):
         c.close()
         c2.close()
         self.session.checkpoint()
+        # Get the block mod bitmap from the file URI.
         orig_id1blocks = self.parse_blkmods(file2_uri)
         self.pr("CLOSE and REOPEN conn")
         self.reopen_conn()
         self.pr("Reopened conn")
 
-
         # After reopening we want to open both tables, but only modify one of them for
-        # the first checkpoint. Then modify both tables, checkpoint, take an incremental
-        # backup and then test the backup of the table that was not initially modified.
+        # the first checkpoint. Then modify both tables, checkpoint, and then check the
+        # that the block mod bitmap remains correct.
         c = self.session.open_cursor(table_uri)
         c2 = self.session.open_cursor(table2_uri)
 
-        # Do a no-op read from the table we're not changing.
+        # Do a no-op read from the table we're not changing to make it an active but clean table.
         val = c2[1]
         # Change one table and checkpoint.
         self.pr("Update only table 1: " + str(last_i))
@@ -135,7 +134,7 @@ class test_backup29(backup_base):
 
         # Compare the bitmaps from the metadata. Once a bit is set, it should never
         # be cleared. But new bits could be set. So the check is only: if the original
-        # bitmap has a bit set then the current bitmap must be set. 
+        # bitmap has a bit set then the current bitmap must be set for that bit also. 
         for orig, new in zip(orig_id1blocks, new_id1blocks):
             if orig != '0':
                 self.assertTrue(new != '0')
