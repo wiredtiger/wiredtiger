@@ -38,7 +38,6 @@ class test_backup29(backup_base):
     create_config = 'allocation_size=512,key_format=i,value_format=S'
     # Backup directory name
     dir='backup.dir'
-    incr_dir = 'incr_backup.dir'
     uri = 'test_backup29'
     uri2 = 'test_other'
     value_base = '-abcdefghijkl'
@@ -68,7 +67,6 @@ class test_backup29(backup_base):
 
     def test_backup29(self):
         os.mkdir(self.dir)
-        os.mkdir(self.incr_dir)
 
         # Create and populate the table.
         file_uri = 'file:' + self.uri + '.wt'
