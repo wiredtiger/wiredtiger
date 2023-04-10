@@ -886,7 +886,7 @@ __wt_meta_ckptlist_get_from_config(WT_SESSION_IMPL *session, bool update, WT_CKP
              * checkpoints.
              */
             WT_ERR(__ckpt_load_blk_mods(session, config, ckpt));
-            WT_ERR(__wt_meta_block_metadata(session, config, ckpt));
+           // WT_ERR(__wt_meta_block_metadata(session, config, ckpt));
         }
     }
     WT_ERR_NOTFOUND_OK(ret, false);

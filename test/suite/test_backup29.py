@@ -114,8 +114,6 @@ class test_backup29(backup_base):
         c = self.session.open_cursor(table_uri)
         c2 = self.session.open_cursor(table2_uri)
 
-        # Do a no-op read from the table we're not changing to make it an active but clean table.
-        val = c2[1]
         # Change one table and checkpoint.
         self.pr("Update only table 1: " + str(last_i))
         far_key = self.nentries * 2
