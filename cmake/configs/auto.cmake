@@ -249,7 +249,7 @@ config_lib(
 )
 
 config_lib(
-    HAVE_LIBACCEL-CONFIG
+    HAVE_LIBACCEL_CONFIG
     "accel-config library exists."
     LIB "accel-config"
 )

@@ -19,4 +19,5 @@ void doDecompressData(WT_COMPRESSOR *compressor, WT_SESSION *session, uint8_t *s
 #ifdef __cplusplus
 }
 #endif
+
 #endif

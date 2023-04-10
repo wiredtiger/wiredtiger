@@ -11,7 +11,7 @@ typedef struct {
 } iaa_COMPRESSOR;
 
 static void
-iaa_message(WT_COMPRESSOR *compressor, WT_SESSION *session, const char *call, const char *info,  int msg)
+iaa_message(WT_COMPRESSOR *compressor, WT_SESSION *session, const char *call, const char *info, int msg)
 {
     if(compressor == nullptr || session == nullptr) {
         return;
@@ -61,7 +61,7 @@ HardwareCodecDeflate::HardwareCodecDeflate(WT_COMPRESSOR *compressor, WT_SESSION
 
 HardwareCodecDeflate::~HardwareCodecDeflate()
 {
-    //nothing to do
+    //Nothing to do.
 }
 
 uint32_t HardwareCodecDeflate::doCompressData(uint8_t * source, uint32_t source_size, uint8_t * dest, uint32_t dest_size) const

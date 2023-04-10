@@ -60,13 +60,13 @@ typedef struct {
  *     Output an error message, and return a standard error code.
  */
 static int
-iaa_error(WT_COMPRESSOR *compressor, WT_SESSION *session, const char *call, int error)
+iaa_error(WT_COMPRESSOR *compressor, WT_SESSION *session, const char *call)
 {
     WT_EXTENSION_API *wt_api;
 
     wt_api = ((iaa_COMPRESSOR *)compressor)->wt_api;
 
-    (void)wt_api->err_printf(wt_api, session, "iaa error: %s: %u", call, error);
+    (void)wt_api->err_printf(wt_api, session, "iaa error: %s", call);
     return (WT_ERROR);
 }
 
@@ -85,7 +85,7 @@ iaa_compress(WT_COMPRESSOR *compressor, WT_SESSION *session, uint8_t *src, size_
         return (0);
     }
     *compression_failed = 1;
-    return (iaa_error(compressor, session, "iaa_compress", -1));
+    return (iaa_error(compressor, session, "iaa_compress"));
 }
 
 /*
@@ -96,7 +96,7 @@ static int
 iaa_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session, uint8_t *src, size_t src_len,
   uint8_t *dst, size_t dst_len, size_t *result_lenp)
 {
-    uint32_t result_len = 0;
+    uint32_t result_len;
     int ret;
     doDecompressData(compressor, session, src, (uint32_t)src_len, dst, (uint32_t)dst_len, &result_len);
     if(result_len > 0) {
@@ -105,7 +105,7 @@ iaa_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session, uint8_t *src, siz
     } else {
         ret = -1;
     }
-    return (ret == 0 ? 0 : iaa_error(compressor, session, "iaa_decompress", ret));
+    return (ret == 0 ? 0 : iaa_error(compressor, session, "iaa_decompress"));
 }
 
 /*
@@ -134,9 +134,7 @@ iaa_pre_size(
     (void)src;
 
     /*
-     * iaa requires the dest buffer be somewhat larger than the source. Fortunately, this is fast
-     * to compute, and will give us a dest buffer in iaa_compress that we can compress to
-     * directly.
+     * Get the upper-bound of the buffer size needed by the compression.
      */
     *result_lenp = getMaxCompressedDataSize((uint32_t)src_len);;
     return (0);
@@ -185,10 +183,8 @@ iaa_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     int ret;
     (void)config;
 
-    if ((ret = iaa_add_compressor(connection, "iaa")) != 0)
-        return (ret);
-
-    return (0);
+    ret = iaa_add_compressor(connection, "iaa");
+    return (ret);
 }
 
 /*

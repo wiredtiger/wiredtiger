@@ -55,21 +55,19 @@ public:
             return jobPool[index];
         }
         else
-        {
             return nullptr;
-        }
     }
     inline qpl_job * releaseJob(uint32_t job_id)
     {
-        if(jobPoolEnabled)
+	if(!jobPoolEnabled)
+	    return nullptr;
+	else if(job_id > jobPoolSize || job_id == 0)
+	    return nullptr;
+	else
         {
             uint32_t index = jobPoolSize - job_id;
             ReleaseJobObjectGuard _(index);
             return jobPool[index];
-        }
-        else
-        {
-            return nullptr;
         }
     }
     inline qpl_job * getJobPtr(uint32_t job_id)
@@ -170,7 +168,7 @@ private:
     public:
         inline ReleaseJobObjectGuard(const uint32_t i) : index(i)
         {
-            //nothing to do
+            //Nothing to do.
         }
         inline ~ReleaseJobObjectGuard()
         {
@@ -186,7 +184,7 @@ public:
     uint32_t doCompressData(uint8_t * source, uint32_t source_size, uint8_t * dest, uint32_t dest_size) ;
     uint32_t doDecompressData(uint8_t * source, uint32_t source_size, uint8_t * dest, uint32_t uncompressed_size) ;
 private:
-    /*Software Job Codec Ptr*/
+    /*Software Job Codec Ptr.*/
     qpl_job * jobSWPtr;
     std::unique_ptr<uint8_t[]> jobSWbuffer;
     qpl_job * getJobCodecPtr();
