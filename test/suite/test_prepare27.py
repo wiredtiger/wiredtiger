@@ -57,7 +57,7 @@ class test_prepare27(wttest.WiredTigerTestCase):
         s.rollback_transaction()
         evict_cursor.close()
 
-    def test_prepare33(self):
+    def test_prepare27(self):
         uri = 'table:test_prepare27'
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)
