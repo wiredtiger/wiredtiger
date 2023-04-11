@@ -303,7 +303,7 @@ __wt_compact(WT_SESSION_IMPL *session)
     WT_BM *bm;
     WT_DECL_RET;
     WT_REF *ref;
-    u_int i, msg_count;
+    u_int count, i, msg_count;
     bool skip;
 
     uint64_t stats_pages_rewritten; /* Pages rewritten */
@@ -323,11 +323,13 @@ __wt_compact(WT_SESSION_IMPL *session)
     if (skip) {
         WT_STAT_CONN_INCR(session, session_table_compact_skipped);
         WT_STAT_DATA_INCR(session, btree_compact_skipped);
+        __wt_verbose_info(session, WT_VERB_COMPACT,
+          "%s: there is no useful work to do - skipping compaction", bm->block->name);
         return (0);
     }
 
     /* Walk the tree reviewing pages to see if they should be re-written. */
-    for (i = 0;;) {
+    for (count = 0, i = 0;; count++) {
 
         /* Track progress. */
         __wt_block_compact_get_progress_stats(
@@ -340,8 +342,9 @@ __wt_compact(WT_SESSION_IMPL *session)
          * Periodically check if we've timed out or eviction is stuck. Quit if eviction is stuck,
          * we're making the problem worse.
          */
-        if (++i > 100) {
-            bm->compact_progress(bm, session, &msg_count);
+        if (count == 0 || ++i > 100) {
+            if (count > 0)
+                bm->compact_progress(bm, session, &msg_count);
             WT_ERR(__wt_session_compact_check_timeout(session));
             if (session->event_handler->handle_general != NULL) {
                 ret = session->event_handler->handle_general(session->event_handler,
