@@ -51,12 +51,12 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
               WT_RTS_VERB_TAG_UPDATE_ABORT
               "rollback to stable aborting update with txnid=%" PRIu64
               ", txnid_not_visible=%s"
-              ", stable_timestamp=%s < durable_timestamp=%s: %s, prepare_state=%s",
+              ", stable_timestamp=%s < durable_timestamp=%s: %s, prepare_state=%s, flags 0x%" PRIx8,
               upd->txnid, !txn_id_visible ? "true" : "false",
               __wt_timestamp_to_string(rollback_timestamp, ts_string[1]),
               __wt_timestamp_to_string(upd->durable_ts, ts_string[0]),
               rollback_timestamp < upd->durable_ts ? "true" : "false",
-              __wt_prepare_state_str(upd->prepare_state));
+              __wt_prepare_state_str(upd->prepare_state), upd->flags);
 
             if (!dryrun)
                 upd->txnid = WT_TXN_ABORTED;
@@ -143,6 +143,7 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
     WT_ERR(
       __wt_scr_alloc(session, page->type == WT_PAGE_ROW_LEAF ? 0 : WT_INTPACK64_MAXSIZE, &key));
 
+    WT_ERR(__wt_scr_alloc(session, 0, &key_string));
     WT_SKIP_FOREACH (ins, head)
         if (ins->upd != NULL) {
             if (page->type == WT_PAGE_ROW_LEAF) {
@@ -154,7 +155,6 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
                 WT_ERR(__wt_vpack_uint(&memp, 0, recno));
                 key->size = WT_PTRDIFF(memp, key->data);
             }
-            WT_ERR(__wt_scr_alloc(session, 0, &key_string));
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
               WT_RTS_VERB_TAG_INSERT_LIST_UPDATE_ABORT
               "attempting to abort update on the insert list with durable_timestamp=%s, key=%s",
@@ -183,6 +183,7 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
                  */
                 WT_ERR(__wt_rts_history_delete_hs(session, key, rollback_timestamp + 1));
         }
+    __wt_scr_free(session, &key_string);
 
 err:
     __wt_scr_free(session, &key);
@@ -1041,6 +1042,7 @@ __rts_btree_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t
      * Review updates that belong to keys that are on the disk image, as well as for keys inserted
      * since the page was read from disk.
      */
+    WT_ERR(__wt_scr_alloc(session, 0, &key_string));
     WT_ROW_FOREACH (page, rip, i) {
         stable_update_found = false;
         if ((upd = WT_ROW_UPDATE(page, rip)) != NULL) {
@@ -1070,7 +1072,6 @@ __rts_btree_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t
             vpack = &_vpack;
             __wt_row_leaf_value_cell(session, page, rip, vpack);
 
-            WT_ERR(__wt_scr_alloc(session, 0, &key_string));
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
               WT_RTS_VERB_TAG_ONDISK_ABORT_CHECK
               "no stable update in update list found. abort any unstable on-disk value with "
@@ -1082,8 +1083,8 @@ __rts_btree_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t
             WT_ERR(__rts_btree_abort_ondisk_kv(
               session, ref, rip, 0, have_key ? key : NULL, vpack, rollback_timestamp, NULL));
         }
-        __wt_scr_free(session, &key_string);
     }
+    __wt_scr_free(session, &key_string);
 
 err:
     __wt_scr_free(session, &key);

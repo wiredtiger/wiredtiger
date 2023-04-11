@@ -33,6 +33,7 @@ __rts_btree_walk_page_skip(
     WT_PAGE_DELETED *page_del;
     wt_timestamp_t rollback_timestamp;
     char time_string[WT_TIME_STRING_SIZE];
+    bool reconciled;
 
     rollback_timestamp = *(wt_timestamp_t *)context;
     WT_UNUSED(visible_all);
@@ -104,8 +105,11 @@ __rts_btree_walk_page_skip(
         WT_STAT_CONN_INCR(session, txn_rts_tree_walk_skip_pages);
     }
 
+    reconciled = ref->page && ref->page->modify ? true : false;
+
     __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
-      WT_RTS_VERB_TAG_PAGE_UNSKIPPED "ref=%p page not skipped.", (void *)ref);
+      WT_RTS_VERB_TAG_PAGE_UNSKIPPED "ref=%p page not skipped, reconciled info=%d", (void *)ref,
+      reconciled ? ref->page->modify->rec_result : 0);
     return (0);
 }
 
