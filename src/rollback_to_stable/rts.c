@@ -100,7 +100,7 @@ __rts_progress_msg(WT_SESSION_IMPL *session, struct timespec rollback_start,
           "Rollback to stable has been running for %" PRIu64 " seconds and has inspected %" PRIu64
           " files. Overall the rollback to stable on each table took %" PRIu64
           " seconds. For more detailed logging, enable WT_VERB_RTS",
-          time_diff, rollback_count, rts_time_diff / WT_BILLION);
+          time_diff, rollback_count, rts_time_diff / WT_MILLION);
     }
 }
 
