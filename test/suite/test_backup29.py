@@ -83,7 +83,7 @@ class test_backup29(backup_base):
         # the library keep track of the bitmaps.
         config = 'incremental=(enabled,granularity=4k,this_id="ID1")'
         bkup_c = self.session.open_cursor('backup:', None, config)
-        # Uncomment this line if actually taking the full backup is helpful for debugging.
+        # Uncomment these lines if actually taking the full backup is helpful for debugging.
         # os.mkdir(self.dir)
         # self.take_full_backup(self.dir, bkup_c)
         bkup_c.close()
