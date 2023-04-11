@@ -303,8 +303,8 @@ __wt_compact(WT_SESSION_IMPL *session)
     WT_BM *bm;
     WT_DECL_RET;
     WT_REF *ref;
-    u_int count, i, msg_count;
-    bool skip;
+    u_int i, msg_count;
+    bool first, skip;
 
     uint64_t stats_pages_rewritten; /* Pages rewritten */
     uint64_t stats_pages_reviewed;  /* Pages reviewed */
@@ -329,7 +329,8 @@ __wt_compact(WT_SESSION_IMPL *session)
     }
 
     /* Walk the tree reviewing pages to see if they should be re-written. */
-    for (count = 0, i = 0;; count++) {
+    first = true;
+    for (i = 0;;) {
 
         /* Track progress. */
         __wt_block_compact_get_progress_stats(
@@ -342,8 +343,8 @@ __wt_compact(WT_SESSION_IMPL *session)
          * Periodically check if we've timed out or eviction is stuck. Quit if eviction is stuck,
          * we're making the problem worse.
          */
-        if (count == 0 || ++i > 100) {
-            if (count > 0)
+        if (first || ++i > 100) {
+            if (!first)
                 bm->compact_progress(bm, session, &msg_count);
             WT_ERR(__wt_session_compact_check_timeout(session));
             if (session->event_handler->handle_general != NULL) {
@@ -357,6 +358,7 @@ __wt_compact(WT_SESSION_IMPL *session)
             if (__wt_cache_stuck(session))
                 WT_ERR(EBUSY);
 
+            first = false;
             i = 0;
         }
 
