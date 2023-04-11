@@ -170,8 +170,8 @@ main(int argc, char *argv[])
     WT_CONNECTION *conn;
     WT_SESSION *session;
     time_t end, start;
-    char home[1024];
     int ret;
+    char home[1024];
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
