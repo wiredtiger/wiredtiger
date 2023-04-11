@@ -174,9 +174,11 @@ __wt_rts_history_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t rollback_ti
     size_t i;
     char *config;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
+    uint64_t time_diff;
 
     config = NULL;
     conn = S2C(session);
+    time_diff = 0;
 
     WT_RET(__wt_metadata_search(session, WT_HS_URI, &config));
 
@@ -217,7 +219,7 @@ __wt_rts_history_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t rollback_ti
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_HS_TREE_ROLLBACK "tree rolled back with durable_timestamp=%s",
           __wt_timestamp_to_string(max_durable_ts, ts_string[0]));
-        WT_TRET(__wt_rts_btree_walk_btree(session, rollback_timestamp));
+        WT_TRET(__wt_rts_btree_walk_btree(session, rollback_timestamp, &time_diff));
     } else
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_HS_TREE_SKIP

@@ -77,7 +77,7 @@ __wt_rts_check(WT_SESSION_IMPL *session)
  */
 static void
 __rts_progress_msg(WT_SESSION_IMPL *session, struct timespec rollback_start,
-  uint64_t rollback_count, uint64_t *rollback_msg_count, bool final)
+  uint64_t rollback_count, uint64_t *rollback_msg_count, uint64_t rts_time_diff, bool final)
 {
     struct timespec cur_time;
     uint64_t time_diff;
@@ -98,8 +98,9 @@ __rts_progress_msg(WT_SESSION_IMPL *session, struct timespec rollback_start,
     if (final) {
         __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
           "Rollback to stable has been running for %" PRIu64 " seconds and has inspected %" PRIu64
-          " files. For more detailed logging, enable WT_VERB_RTS",
-          time_diff, rollback_count);
+          " files. Overall the rollback to stable on each table took %" PRIu64
+          " seconds. For more detailed logging, enable WT_VERB_RTS",
+          time_diff, rollback_count, rts_time_diff / WT_BILLION);
     }
 }
 
@@ -115,24 +116,26 @@ __wt_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_times
     WT_CURSOR *cursor;
     WT_DECL_RET;
     uint64_t rollback_count, rollback_msg_count;
+    uint64_t time_diff;
     const char *config, *uri;
 
     /* Initialize the verbose tracking timer. */
     __wt_epoch(session, &rollback_timer);
     rollback_count = 0;
+    time_diff = 0;
     rollback_msg_count = 0;
 
     WT_RET(__wt_metadata_cursor(session, &cursor));
     while ((ret = cursor->next(cursor)) == 0) {
         /* Log a progress message. */
-        __rts_progress_msg(session, rollback_timer, rollback_count, &rollback_msg_count, false);
+        __rts_progress_msg(session, rollback_timer, rollback_count, &rollback_msg_count, 0, false);
         ++rollback_count;
 
         WT_ERR(cursor->get_key(cursor, &uri));
         WT_ERR(cursor->get_value(cursor, &config));
 
         F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
-        ret = __wt_rts_btree_walk_btree_apply(session, uri, config, rollback_timestamp);
+        ret = __wt_rts_btree_walk_btree_apply(session, uri, config, rollback_timestamp, &time_diff);
         F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
 
         /*
@@ -149,7 +152,8 @@ __wt_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_times
         WT_ERR(ret);
     }
     WT_ERR_NOTFOUND_OK(ret, false);
-    __rts_progress_msg(session, rollback_timer, rollback_count, &rollback_msg_count, true);
+    __rts_progress_msg(
+      session, rollback_timer, rollback_count, &rollback_msg_count, time_diff, true);
 
     /*
      * Performing eviction in parallel to a checkpoint can lead to situation where the history store

@@ -119,8 +119,10 @@ __rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
     WT_DECL_RET;
     wt_timestamp_t pinned_timestamp, rollback_timestamp;
     char *config;
+    uint64_t time_diff;
 
     conn = S2C(session);
+    time_diff = 0;
 
     /*
      * This is confusing: the caller's boolean argument "skip" stops the schema-worker loop from
@@ -140,7 +142,7 @@ __rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
     WT_ORDERED_READ(pinned_timestamp, conn->txn_global.pinned_timestamp);
 
     F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
-    ret = __wt_rts_btree_walk_btree_apply(session, uri, config, rollback_timestamp);
+    ret = __wt_rts_btree_walk_btree_apply(session, uri, config, rollback_timestamp, &time_diff);
     F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
 
     __rts_assert_timestamps_unchanged(session, pinned_timestamp, rollback_timestamp);

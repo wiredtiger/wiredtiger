@@ -103,11 +103,14 @@ __rts_btree_walk_page_skip(
  *     Called for each open handle - choose to either skip or wipe the commits
  */
 static int
-__rts_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
+__rts_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp, uint64_t *time_diff)
 {
+    struct timespec start_time, cur_time;
     WT_DECL_RET;
     WT_REF *ref;
 
+    /* Initialize the verbose tracking timer. */
+    __wt_epoch(session, &start_time);
     /* Walk the tree, marking commits aborted where appropriate. */
     ref = NULL;
     while (
@@ -116,6 +119,9 @@ __rts_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
       ref != NULL)
         if (F_ISSET(ref, WT_REF_FLAG_LEAF))
             WT_RET(__wt_rts_btree_abort_updates(session, ref, rollback_timestamp));
+    __wt_epoch(session, &cur_time);
+    /* Time since the rollback started. */
+    *time_diff = *time_diff + WT_TIMEDIFF_NS(cur_time, start_time);
 
     return (ret);
 }
@@ -125,8 +131,8 @@ __rts_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
  *     Perform rollback to stable on a single file.
  */
 int
-__wt_rts_btree_walk_btree_apply(
-  WT_SESSION_IMPL *session, const char *uri, const char *config, wt_timestamp_t rollback_timestamp)
+__wt_rts_btree_walk_btree_apply(WT_SESSION_IMPL *session, const char *uri, const char *config,
+  wt_timestamp_t rollback_timestamp, uint64_t *time_diff)
 {
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM cval, value, key;
@@ -255,7 +261,7 @@ __wt_rts_btree_walk_btree_apply(
           S2C(session)->recovery_ckpt_snap_min,
           has_txn_updates_gt_than_ckpt_snap ? "true" : "false");
 
-        WT_ERR(__wt_rts_btree_walk_btree(session, rollback_timestamp));
+        WT_ERR(__wt_rts_btree_walk_btree(session, rollback_timestamp, time_diff));
     } else
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_TREE_SKIP
@@ -290,7 +296,8 @@ err:
  *     Called for each object handle - choose to either skip or wipe the commits
  */
 int
-__wt_rts_btree_walk_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
+__wt_rts_btree_walk_btree(
+  WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp, u_int64_t *time_diff)
 {
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
@@ -316,5 +323,5 @@ __wt_rts_btree_walk_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
     if (btree->root.page == NULL)
         return (0);
 
-    return (__rts_btree_walk(session, rollback_timestamp));
+    return (__rts_btree_walk(session, rollback_timestamp, time_diff));
 }
