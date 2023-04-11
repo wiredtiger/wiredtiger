@@ -2,7 +2,7 @@
 #include <cstdio>
 #include "IAACompressionCodecDeflate.h"
 
-namespace DB
+namespace DB::IAA
 {
 /* Local compressor structure. */
 typedef struct {

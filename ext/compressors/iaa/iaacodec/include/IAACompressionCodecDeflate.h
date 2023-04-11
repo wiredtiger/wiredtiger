@@ -16,7 +16,7 @@
 #include <thread>
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
-namespace DB
+namespace DB::IAA
 {
 
 class DeflateJobHWPool
@@ -59,16 +59,11 @@ public:
     }
     inline qpl_job * releaseJob(uint32_t job_id)
     {
-	if(!jobPoolEnabled)
+	if(!jobPoolEnabled || job_id == 0 || job_id > jobPoolSize)
 	    return nullptr;
-	else if(job_id > jobPoolSize || job_id == 0)
-	    return nullptr;
-	else
-        {
-            uint32_t index = jobPoolSize - job_id;
-            ReleaseJobObjectGuard _(index);
-            return jobPool[index];
-        }
+         uint32_t index = jobPoolSize - job_id;
+         ReleaseJobObjectGuard _(index);
+         return jobPool[index];
     }
     inline qpl_job * getJobPtr(uint32_t job_id)
     {

@@ -97,15 +97,12 @@ iaa_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session, uint8_t *src, siz
   uint8_t *dst, size_t dst_len, size_t *result_lenp)
 {
     uint32_t result_len;
-    int ret;
     doDecompressData(compressor, session, src, (uint32_t)src_len, dst, (uint32_t)dst_len, &result_len);
     if(result_len > 0) {
         *result_lenp = (size_t)result_len;
-        ret = 0;
-    } else {
-        ret = -1;
+	return (0);
     }
-    return (ret == 0 ? 0 : iaa_error(compressor, session, "iaa_decompress"));
+    return (iaa_error(compressor, session, "iaa_decompress"));
 }
 
 /*
@@ -180,11 +177,9 @@ int iaa_extension_init(WT_CONNECTION *, WT_CONFIG_ARG *);
 int
 iaa_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 {
-    int ret;
     (void)config;
 
-    ret = iaa_add_compressor(connection, "iaa");
-    return (ret);
+    return (iaa_add_compressor(connection, "iaa"));
 }
 
 /*
