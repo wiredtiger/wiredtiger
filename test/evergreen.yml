@@ -486,7 +486,7 @@ functions:
         if [ ${check_coverage|false} = true ]; then
             ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1 || echo "Ignoring failed test as we are checking test coverage"
         else
-            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python3} -m trace --trace ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
         fi
   "format test":
     command: shell.exec
@@ -2248,8 +2248,6 @@ tasks:
     commands:
       - func: "fetch artifacts"
       - func: "unit test"
-        vars:
-           smp_command: -j $(echo $(sysctl -n hw.logicalcpu) / 2 | bc)
 
   - name: unit-test-nonstandalone
     tags: ["python"]
