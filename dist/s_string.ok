@@ -371,6 +371,7 @@ UINT
 ULINE
 UNC
 UNCOND
+UNSKIPPED
 UPD
 URI
 URIs
@@ -1118,6 +1119,7 @@ relocked
 repl
 repositioned
 repositions
+requeue
 resizable
 ret
 retp
