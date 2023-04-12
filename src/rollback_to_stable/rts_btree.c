@@ -48,14 +48,15 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
         if (!txn_id_visible || rollback_timestamp < upd->durable_ts ||
           upd->prepare_state == WT_PREPARE_INPROGRESS) {
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-              "rollback to stable update aborted with txnid: %" PRIu64
-              ", txnid not visible: %s, or stable timestamp (%s) < durable timestamp (%s): %s, or "
-              "prepare state (%d) is in progress: %s",
+              WT_RTS_VERB_TAG_UPDATE_ABORT
+              "rollback to stable aborting update with txnid=%" PRIu64
+              ", txnid_not_visible=%s"
+              ", stable_timestamp=%s < durable_timestamp=%s: %s, prepare_state=%s, flags 0x%" PRIx8,
               upd->txnid, !txn_id_visible ? "true" : "false",
               __wt_timestamp_to_string(rollback_timestamp, ts_string[1]),
               __wt_timestamp_to_string(upd->durable_ts, ts_string[0]),
-              rollback_timestamp < upd->durable_ts ? "true" : "false", upd->prepare_state,
-              upd->prepare_state == WT_PREPARE_INPROGRESS ? "true" : "false");
+              rollback_timestamp < upd->durable_ts ? "true" : "false",
+              __wt_prepare_state_str(upd->prepare_state), upd->flags);
 
             if (!dryrun)
                 upd->txnid = WT_TXN_ABORTED;
@@ -63,6 +64,12 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
         } else {
             /* Valid update is found. */
             stable_upd = upd;
+            __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
+              WT_RTS_VERB_TAG_STABLE_UPDATE_FOUND
+              "stable update found with txnid=%" PRIu64
+              ", stable_timestamp=%s,  durable_timestamp=%s, flags 0x%" PRIx8,
+              upd->txnid, __wt_timestamp_to_string(rollback_timestamp, ts_string[1]),
+              __wt_timestamp_to_string(upd->durable_ts, ts_string[0]), upd->flags);
             break;
         }
     }
@@ -125,15 +132,18 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
   wt_timestamp_t rollback_timestamp, uint32_t *stable_updates_count)
 {
     WT_DECL_ITEM(key);
+    WT_DECL_ITEM(key_string);
     WT_DECL_RET;
     WT_INSERT *ins;
     uint64_t recno;
     uint8_t *memp;
+    char ts_string[WT_TS_INT_STRING_SIZE];
     bool stable_update_found;
 
     WT_ERR(
       __wt_scr_alloc(session, page->type == WT_PAGE_ROW_LEAF ? 0 : WT_INTPACK64_MAXSIZE, &key));
 
+    WT_ERR(__wt_scr_alloc(session, 0, &key_string));
     WT_SKIP_FOREACH (ins, head)
         if (ins->upd != NULL) {
             if (page->type == WT_PAGE_ROW_LEAF) {
@@ -145,6 +155,13 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
                 WT_ERR(__wt_vpack_uint(&memp, 0, recno));
                 key->size = WT_PTRDIFF(memp, key->data);
             }
+            __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
+              WT_RTS_VERB_TAG_INSERT_LIST_UPDATE_ABORT
+              "attempting to abort update on the insert list with durable_timestamp=%s, key=%s",
+              __wt_timestamp_to_string(ins->upd->durable_ts, ts_string),
+              __wt_key_string(
+                session, key->data, key->size, S2BT(session)->key_format, key_string));
+
             WT_ERR(__rts_btree_abort_update(
               session, key, ins->upd, rollback_timestamp, &stable_update_found));
             if (stable_update_found && stable_updates_count != NULL)
@@ -169,6 +186,7 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
 
 err:
     __wt_scr_free(session, &key);
+    __wt_scr_free(session, &key_string);
     return (ret);
 }
 
@@ -295,7 +313,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
 
     WT_ERR(__wt_scr_alloc(session, 0, &key_string));
     __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
-      "rolling back the on-disk key: %s",
+      WT_RTS_VERB_TAG_ONDISK_KEY_ROLLBACK "rolling back the on-disk key=%s",
       __wt_key_string(session, key->data, key->size, S2BT(session)->key_format, key_string));
 
     WT_ERR(__wt_scr_alloc(session, 0, &full_value));
@@ -354,7 +372,8 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
         if (__wt_rts_visibility_txn_visible_id(session, hs_tw->stop_txn) &&
           hs_tw->durable_stop_ts <= pinned_ts) {
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-              "history store stop is obsolete with time window: %s and pinned timestamp: %s",
+              WT_RTS_VERB_TAG_HS_STOP_OBSOLETE
+              "history store stop is obsolete with time_window=%s and pinned_timestamp=%s",
               __wt_time_window_to_string(hs_tw, tw_string),
               __wt_timestamp_to_string(pinned_ts, ts_string[0]));
             if (!dryrun)
@@ -386,9 +405,10 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
             }
         } else
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
-              "history store update more recent than on-disk update with time window: %s and type: "
-              "%" PRIu8,
-              __wt_time_window_to_string(hs_tw, tw_string), type);
+              WT_RTS_VERB_TAG_HS_GT_ONDISK
+              "history store update more recent than on-disk update with time_window=%s and "
+              "type=%s",
+              __wt_time_window_to_string(hs_tw, tw_string), __wt_update_type_str(type));
 
         /*
          * Verify the history store timestamps are in order. The start timestamp may be equal to the
@@ -400,10 +420,6 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
          * its own stop timestamp doesn't get removed leads to duplicate records in history store
          * after further operations on that same key. Rollback to stable should ignore such records
          * for timestamp ordering verification.
-         *
-         * If we have fixed the missing timestamps, then the newer update reinserted with an older
-         * timestamp may have a durable timestamp that is smaller than the current stop durable
-         * timestamp.
          *
          * It is possible that there can be an update in the history store with a max stop timestamp
          * in the middle of the same key updates. This occurs when the checkpoint writes the
@@ -439,9 +455,9 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
         if (__wt_rts_visibility_txn_visible_id(session, hs_tw->start_txn) &&
           hs_tw->durable_start_ts <= rollback_timestamp) {
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
-              "history store update valid with time window: %s, type: %" PRIu8
-              " and stable timestamp: %s",
-              __wt_time_window_to_string(hs_tw, tw_string), type,
+              WT_RTS_VERB_TAG_HS_UPDATE_VALID
+              "history store update valid with time_window=%s, type=%s and stable_timestamp=%s",
+              __wt_time_window_to_string(hs_tw, tw_string), __wt_update_type_str(type),
               __wt_timestamp_to_string(rollback_timestamp, ts_string[0]));
             WT_ASSERT(session, unpack->tw.prepare || hs_tw->start_ts <= unpack->tw.start_ts);
             valid_update_found = true;
@@ -449,9 +465,9 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
         }
 
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-          "history store update aborted with time window: %s,  type: %" PRIu8
-          " and stable timestamp: %s",
-          __wt_time_window_to_string(hs_tw, tw_string), type,
+          WT_RTS_VERB_TAG_HS_UPDATE_ABORT
+          "history store update aborted with time_window=%s, type=%s and stable_timestamp=%s",
+          __wt_time_window_to_string(hs_tw, tw_string), __wt_update_type_str(type),
           __wt_timestamp_to_string(rollback_timestamp, ts_string[3]));
 
         /*
@@ -492,7 +508,8 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
         upd->durable_ts = hs_tw->durable_start_ts;
         upd->start_ts = hs_tw->start_ts;
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-          "history store update restored txnid: %" PRIu64 ", start_ts: %s and durable_ts: %s",
+          WT_RTS_VERB_TAG_HS_UPDATE_RESTORED "history store update restored txnid=%" PRIu64
+                                             ", start_ts=%s and durable_ts=%s",
           upd->txnid, __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
           __wt_timestamp_to_string(upd->durable_ts, ts_string[1]));
 
@@ -531,8 +548,8 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
             tombstone->durable_ts = hs_tw->durable_stop_ts;
             tombstone->start_ts = hs_tw->stop_ts;
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-              "history store tombstone restored txnid: %" PRIu64
-              ", start_ts: %s and durable_ts: %s",
+              WT_RTS_VERB_TAG_HS_RESTORE_TOMBSTONE
+              "history store tombstone restored, txnid=%" PRIu64 ", start_ts=%s and durable_ts=%s",
               tombstone->txnid, __wt_timestamp_to_string(tombstone->start_ts, ts_string[0]),
               __wt_timestamp_to_string(tombstone->durable_ts, ts_string[1]));
 
@@ -549,8 +566,8 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
     } else {
         WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
         WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
-        __wt_verbose_level_multi(
-          session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3, "%s", "key removed");
+        __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
+          WT_RTS_VERB_TAG_KEY_REMOVED "%s", "key removed");
     }
 
     if (rip != NULL)
@@ -625,8 +642,9 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
          */
         if (vpack->tw.durable_stop_ts > rollback_timestamp || vpack->tw.stop_ts == WT_TS_MAX) {
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-              "history store update aborted with start durable/commit timestamp: %s, %s, stop "
-              "durable/commit timestamp: %s, %s and stable timestamp: %s",
+              WT_RTS_VERB_TAG_HS_ABORT_STOP
+              "history store update aborted with start_durable/commit_timestamp=%s, %s, "
+              "stop_durable/commit_timestamp=%s, %s and stable_timestamp=%s",
               __wt_timestamp_to_string(vpack->tw.durable_start_ts, ts_string[0]),
               __wt_timestamp_to_string(vpack->tw.start_ts, ts_string[1]),
               __wt_timestamp_to_string(vpack->tw.durable_stop_ts, ts_string[2]),
@@ -640,8 +658,10 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
       !__wt_rts_visibility_txn_visible_id(session, vpack->tw.start_txn) ||
       (!WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prepared)) {
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-          "on-disk update aborted with time window %s. Start durable timestamp > stable timestamp: "
-          "%s, or txnid is not visible: %s, or tw has not stop and is prepared: %s",
+          WT_RTS_VERB_TAG_ONDISK_ABORT_TW
+          "on-disk update aborted with time_window=%s. "
+          "Start durable_timestamp > stable_timestamp: %s, or txnid_not_visible=%s, "
+          "or tw_has_no_stop_and_is_prepared=%s",
           __wt_time_point_to_string(
             vpack->tw.start_ts, vpack->tw.durable_start_ts, vpack->tw.start_txn, time_string),
           vpack->tw.durable_start_ts > rollback_timestamp ? "true" : "false",
@@ -709,11 +729,11 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
             F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
             WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_keys_restored);
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-              "key restored with commit timestamp: %s, durable timestamp: %s, stable timestamp: "
-              "%s, "
-              "txnid: %" PRIu64
-              " and removed commit timestamp: %s, durable timestamp: %s, txnid: %" PRIu64
-              ", prepared: %s",
+              WT_RTS_VERB_TAG_KEY_CLEAR_REMOVE
+              "key restored with commit_timestamp=%s, durable_timestamp=%s, stable_timestamp=%s, "
+              "txnid=%" PRIu64
+              " and removed commit_timestamp=%s, durable_timestamp=%s, txnid=%" PRIu64
+              ", prepared=%s",
               __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
               __wt_timestamp_to_string(upd->durable_ts, ts_string[1]),
               __wt_timestamp_to_string(rollback_timestamp, ts_string[2]), upd->txnid,
@@ -746,7 +766,8 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
 
     WT_ERR(__wt_scr_alloc(session, 0, &key_string));
     __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
-      "removing the key%s: %s", upd->type == WT_UPDATE_TOMBSTONE ? "" : " tombstone",
+      WT_RTS_VERB_TAG_ONDISK_KV_REMOVE "removing the key, tombstone=%s, key=%s",
+      upd->type == WT_UPDATE_TOMBSTONE ? "true" : "false",
       __wt_key_string(session, key->data, key->size, S2BT(session)->key_format, key_string));
 
     if (rip != NULL)
@@ -923,6 +944,7 @@ __rts_btree_abort_col_fix(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
     WT_INSERT_HEAD *inshead;
     WT_PAGE *page;
     uint32_t ins_recno_offset, recno_offset, numtws, tw;
+    char ts_string[WT_TS_INT_STRING_SIZE];
 
     page = ref->page;
     WT_ASSERT(session, page != NULL);
@@ -958,6 +980,10 @@ __rts_btree_abort_col_fix(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
             while (tw < numtws &&
               (recno_offset = page->pg_fix_tws[tw].recno_offset) < ins_recno_offset) {
 
+                __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
+                  WT_RTS_VERB_TAG_ONDISK_KV_FIX
+                  "adjust on-disk key values according to the rollback_timestamp=%s",
+                  __wt_timestamp_to_string(rollback_timestamp, ts_string));
                 WT_RET(__rts_btree_abort_col_fix_one(
                   session, ref, tw, recno_offset, rollback_timestamp));
                 tw++;
@@ -991,12 +1017,14 @@ __rts_btree_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t
 {
     WT_CELL_UNPACK_KV *vpack, _vpack;
     WT_DECL_ITEM(key);
+    WT_DECL_ITEM(key_string);
     WT_DECL_RET;
     WT_INSERT_HEAD *insert;
     WT_PAGE *page;
     WT_ROW *rip;
     WT_UPDATE *upd;
     uint32_t i;
+    char ts_string[WT_TS_INT_STRING_SIZE];
     bool have_key, stable_update_found;
 
     page = ref->page;
@@ -1013,9 +1041,14 @@ __rts_btree_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t
      * Review updates that belong to keys that are on the disk image, as well as for keys inserted
      * since the page was read from disk.
      */
+    WT_ERR(__wt_scr_alloc(session, 0, &key_string));
     WT_ROW_FOREACH (page, rip, i) {
         stable_update_found = false;
         if ((upd = WT_ROW_UPDATE(page, rip)) != NULL) {
+            __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
+              WT_RTS_VERB_TAG_UPDATE_CHAIN_VERIFY
+              "aborting any unstable updates on the update chain with rollback_timestamp=%s",
+              __wt_timestamp_to_string(rollback_timestamp, ts_string));
             WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
             WT_ERR(__rts_btree_abort_update(
               session, key, upd, rollback_timestamp, &stable_update_found));
@@ -1023,8 +1056,13 @@ __rts_btree_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t
         } else
             have_key = false;
 
-        if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
+        if ((insert = WT_ROW_INSERT(page, rip)) != NULL) {
+            __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
+              WT_RTS_VERB_TAG_INSERT_LIST_CHECK
+              "aborting any unstable updates on the insert list with rollback_timestamp=%s",
+              __wt_timestamp_to_string(rollback_timestamp, ts_string));
             WT_ERR(__rts_btree_abort_insert_list(session, page, insert, rollback_timestamp, NULL));
+        }
 
         /*
          * If there is no stable update found in the update list, abort any on-disk value.
@@ -1032,6 +1070,15 @@ __rts_btree_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t
         if (!stable_update_found) {
             vpack = &_vpack;
             __wt_row_leaf_value_cell(session, page, rip, vpack);
+
+            __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
+              WT_RTS_VERB_TAG_ONDISK_ABORT_CHECK
+              "no stable update in update list found. abort any unstable on-disk value with "
+              "rollback_timestamp=%s, key=%s",
+              __wt_timestamp_to_string(rollback_timestamp, ts_string),
+              have_key ? __wt_key_string(
+                           session, key->data, key->size, S2BT(session)->key_format, key_string) :
+                         NULL);
             WT_ERR(__rts_btree_abort_ondisk_kv(
               session, ref, rip, 0, have_key ? key : NULL, vpack, rollback_timestamp, NULL));
         }
@@ -1039,6 +1086,7 @@ __rts_btree_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t
 
 err:
     __wt_scr_free(session, &key);
+    __wt_scr_free(session, &key_string);
     return (ret);
 }
 
@@ -1064,13 +1112,15 @@ __wt_rts_btree_abort_updates(
     modified = __wt_page_is_modified(page);
     if (!modified && !__wt_rts_visibility_page_needs_abort(session, ref, rollback_timestamp)) {
         __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
-          "%p: unmodified stable page skipped", (void *)ref);
+          WT_RTS_VERB_TAG_SKIP_UNMODIFIED "ref=%p: unmodified stable page of type=%s skipped",
+          (void *)ref, __wt_page_type_str(page->type));
         return (0);
     }
 
     WT_STAT_CONN_INCR(session, txn_rts_pages_visited);
     __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
-      "%p: roll back %s page", (void *)ref, modified ? "modified" : "clean");
+      WT_RTS_VERB_TAG_PAGE_ROLLBACK "roll back page of type= %s, addr=%p modified=%s",
+      __wt_page_type_str(page->type), (void *)ref, modified ? "true" : "false");
 
     switch (page->type) {
     case WT_PAGE_COL_FIX:

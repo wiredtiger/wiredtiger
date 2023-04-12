@@ -859,9 +859,7 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
 #ifdef HAVE_DIAGNOSTIC
         __wt_abort(session);
 #endif
-#ifdef WT_STANDALONE_BUILD
         return (EINVAL);
-#endif
     }
 
     prev_op_durable_ts = upd->prev_durable_ts;
@@ -880,9 +878,7 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
 #ifdef HAVE_DIAGNOSTIC
         __wt_abort(session);
 #endif
-#ifdef WT_STANDALONE_BUILD
         return (EINVAL);
-#endif
     }
 
     /* Ordered consistency requires all updates be in timestamp order. */
@@ -895,9 +891,7 @@ __txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *
 #ifdef HAVE_DIAGNOSTIC
         __wt_abort(session);
 #endif
-#ifdef WT_STANDALONE_BUILD
         return (EINVAL);
-#endif
     }
 
     return (0);
@@ -2425,9 +2419,15 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
          */
         if (use_timestamp) {
             __wt_verbose(session, WT_VERB_RTS,
-              "performing shutdown rollback to stable with stable timestamp: %s",
+              "[SHUTDOWN_INIT] performing shutdown rollback to stable, stable_timestamp=%s",
               __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string));
             WT_TRET(conn->rts->rollback_to_stable(session, cfg, true));
+
+            if (ret != 0)
+                __wt_verbose_notice(session, WT_VERB_RTS,
+                  WT_RTS_VERB_TAG_SHUTDOWN_RTS
+                  "performing shutdown rollback to stable failed with code %s",
+                  __wt_strerror(session, ret, NULL, 0));
         }
 
         s = NULL;
@@ -2479,6 +2479,15 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
      * to confirm our caller is prepared for rollback).
      */
     if (txn->mod_count == 0 && !__wt_op_timer_fired(session))
+        return (0);
+#else
+    /*
+     * Most applications that are not using transactions to read/walk with a cursor cannot handle
+     * having rollback returned nor should the API reset and retry the operation, losing the
+     * cursor's position. Skip the check if there are no updates, the thread operation did not time
+     * out and the operation is not running in a transaction.
+     */
+    if (txn->mod_count == 0 && !__wt_op_timer_fired(session) && !F_ISSET(txn, WT_TXN_RUNNING))
         return (0);
 #endif
 

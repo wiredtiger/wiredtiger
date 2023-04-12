@@ -15,6 +15,8 @@ ARGS
 ASAN
 ASM
 AUS
+AWS
+AWS's
 Addr
 Alakuijala
 Alexandrescu's
@@ -30,6 +32,7 @@ BBBBBBBBBB
 BBBBBBBBBBBBB
 BBBBBBBBBBBBBBBB
 BBBBBBBBBBBBBBBBBB
+BCcLlsvz
 BClmvxz
 BLKCACHE
 BLmRrSVv
@@ -67,7 +70,6 @@ CURSORs
 CURSTD
 CallsCustDate
 Castagnoli
-CcLlsvz
 Cclmpv
 CentOS
 Checkpointing
@@ -115,10 +117,12 @@ ENOMEM
 ENOTSUP
 ENUM
 EOF
+ERANGE
 ETIME
 ETIMEDOUT
 EVICTSERVER
 EXTLIST
+EXTSUBPATH
 Encryptor
 Encryptors
 Enqueue
@@ -151,6 +155,7 @@ Fsync
 Fuerst
 GBR
 GCP
+GCP's
 GF
 GIDs
 GLIBC
@@ -161,6 +166,7 @@ GetFileSizeEx
 GetLastError
 GetModuleHandleExW
 GetProcAddress
+Getters
 HANDLEOPS
 HFS
 HOTBACKUP
@@ -210,6 +216,8 @@ LeafGreen
 LibFuzzer
 LoadLoad
 LockFile
+LogBackend
+LogSink
 LogSystemInterface
 MADV
 MALLOC
@@ -217,6 +225,7 @@ MEM
 MEMALIGN
 MEMORDER
 MERCHANTABILITY
+MONGODB
 MOVEFILE
 MRXB
 MRXBOPC
@@ -229,10 +238,12 @@ Marsaglia's
 Mellor
 Mewhort
 Mitzenmacher
+MongoDB
 MoveFileExW
 MultiByteToWideChar
 Multithreaded
 Mutex
+Mutexes
 MySecret
 NNN
 NOLINT
@@ -252,6 +263,7 @@ NetBSD
 NoAddr
 Noll
 Nul
+ONDISK
 OOB
 OPLOG
 OPTRACK
@@ -276,6 +288,7 @@ Phong
 PlatformSDK
 Podir
 Posix
+PostgreSQL
 Pre
 Preload
 Prepend
@@ -341,6 +354,7 @@ Subdirectory
 TAILQ
 TCMalloc
 TESTUTIL
+TID
 TMP
 TODO
 TORTIOUS
@@ -360,6 +374,7 @@ UINT
 ULINE
 UNC
 UNCOND
+UNSKIPPED
 UPD
 URI
 URIs
@@ -367,6 +382,7 @@ UTF
 UltraSparc
 Unbuffered
 Unencrypted
+Unhandled
 UnixLib
 UnlockFile
 Unmap
@@ -396,6 +412,7 @@ Wduplicated
 WeakHashLen
 Werror
 Wformat
+Whitespaces
 WideCharToMultiByte
 WinNT
 WiredTiger
@@ -435,7 +452,8 @@ allocator
 allocators
 allocfile
 allocsize
-ao
+aor
+ap
 api
 arg
 argc
@@ -447,16 +465,21 @@ atomicity
 atou
 auth
 autocommit
+autoconf
 auxheader
 auximage
 auxincr
+aws
 bInheritHandle
 backoff
 bal
 basecfg
+bb
+bba
 bbb
 bbuilddir
 bcr
+bd
 beginthreadex
 bigram
 binutils
@@ -478,6 +501,7 @@ booleans
 boption
 br
 breakpoint
+bs
 bstorage
 bswap
 btcur
@@ -489,6 +513,7 @@ buf
 bufsz
 builddir
 builtins
+bursty
 bytestring
 byteswap
 byvalue
@@ -555,6 +580,8 @@ copydoc
 countp
 cp
 cplusplus
+cpp
+cppsuite
 cpuid
 crc
 crypto
@@ -619,6 +646,7 @@ desc
 designator
 dest
 destSize
+destructor
 dev
 dh
 dhandle
@@ -653,6 +681,7 @@ dup
 dv
 eee
 eg
+ejnprx
 el
 emp
 encodings
@@ -737,6 +766,7 @@ fvisibility
 fwrite
 gb
 gcc
+gcp
 gdb
 ge
 getenv
@@ -746,6 +776,7 @@ getone
 getones
 getopt
 getraw
+getters
 gettime
 gettimeofday
 getv
@@ -831,7 +862,6 @@ iteratively
 iters
 jemalloc
 jjj
-jprx
 js
 json
 kB
@@ -868,6 +898,7 @@ linux
 llll
 llu
 llvm
+ln
 loadtext
 loc
 localTime
@@ -895,8 +926,10 @@ lsn
 lt
 lte
 lu
+luc
 lwsync
 lz
+mP
 madvise
 majorp
 malloc
@@ -928,6 +961,7 @@ mmap
 mmrand
 mn
 mnt
+mongod
 mrs
 msecs
 msg
@@ -986,7 +1020,6 @@ numSymbols
 numbare
 nvram
 offpage
-ofh
 ok
 oldv
 ondisk
@@ -1009,6 +1042,7 @@ oversized
 ovfl
 ownp
 pR
+pT
 packv
 pageref
 pagesize
@@ -1048,6 +1082,7 @@ printlog
 priv
 proc
 progname
+programmatically
 ps
 psp
 pthread
@@ -1068,6 +1103,7 @@ rN
 rS
 rbrace
 rbracket
+rc
 rdlock
 rdtsc
 rduppo
@@ -1090,12 +1126,14 @@ relocked
 repl
 repositioned
 repositions
+requeue
 resizable
 ret
 retp
 revint
 rf
 risc
+rl
 rle
 rmw
 rng
@@ -1111,8 +1149,12 @@ rw
 rwlock
 sH
 sHQ
+sanitizer
+sanitizers
+scalable
 scr
 sd
+sdk
 secretkey
 sessionp
 setkv
@@ -1131,6 +1173,7 @@ skiplist
 skiplists
 skipp
 slvg
+sn
 snaplen
 snapsort
 snprintf
@@ -1150,6 +1193,7 @@ stdout
 stepp
 str
 strace
+strcat
 strcmp
 strdup
 strerror
@@ -1186,11 +1230,13 @@ syscrypto
 sysinfo
 sz
 t's
+tIf
 tV
 tablename
 td
 teardown
 tempdir
+testext
 testutil
 th
 tid
@@ -1212,6 +1258,7 @@ transactionally
 trecno
 trk
 trk's
+trun
 trunc
 truncations
 trylock
@@ -1275,6 +1322,7 @@ vN
 vPodir
 vW
 va
+validator
 valuep
 valuev
 vanishingly
@@ -1336,4 +1384,5 @@ zstd
 zstd's
 zu
 zyxwvutsrqponmlkjihgfedcba
+zz
 zzz

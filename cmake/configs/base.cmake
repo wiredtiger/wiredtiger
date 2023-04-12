@@ -79,6 +79,12 @@ config_choice(
 )
 
 config_bool(
+    ENABLE_ANTITHESIS
+    "Enable the Antithesis random library"
+    DEFAULT OFF
+)
+
+config_bool(
     WT_POSIX
     "Is a posix platform"
     DEFAULT ON
@@ -375,8 +381,17 @@ if(ENABLE_DEBUG_INFO)
         # Ensure a PDB file can be generated for debugging symbols.
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /DEBUG")
     else()
-        add_compile_options(-g)
-        add_compile_options(-ggdb)
+        # Higher debug levels `-g3`/`-ggdb3` emit additional debug information, including 
+        # macro definitions that allow us to evaluate macros such as `p S2C(session)` inside of gdb.
+        # This needs to be in DWARF version 2 format or later - and should be by default - but 
+        # we'll specify version 4 here to be safe.
+        add_compile_options(-g3)
+        add_compile_options(-ggdb3)
+        add_compile_options(-gdwarf-4)
+        if("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
+            # Clang requires one additional flag to output macro debug information.
+            add_compile_options(-fdebug-macro)
+        endif()
     endif()
 endif()
 
@@ -403,4 +418,8 @@ if(WT_WIN)
         # Use the multithread, static version of the run-time library.
         add_compile_options(/MT)
     endif()
+endif()
+
+if(ENABLE_ANTITHESIS)
+    add_compile_options(-fsanitize-coverage=trace-pc-guard)
 endif()

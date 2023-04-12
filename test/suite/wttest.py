@@ -92,6 +92,10 @@ class CapturedFd(object):
         self.desc = desc
         self.expectpos = 0
         self.file = None
+        self.ignore_regex = None
+
+    def setIgnorePattern(self, regex):
+        self.ignore_regex = regex
 
     def readFileFrom(self, filename, pos, maxchars):
         """
@@ -128,7 +132,15 @@ class CapturedFd(object):
             return
         if self.file != None:
             self.file.flush()
-        return self.expectpos < os.path.getsize(self.filename)
+        new_size = os.path.getsize(self.filename)
+        if self.ignore_regex is None:
+            return self.expectpos < new_size
+
+        gotstr = self.readFileFrom(self.filename, self.expectpos, new_size - self.expectpos)
+        for line in list(filter(None, gotstr.split('\n'))):
+            if self.ignore_regex.search(line) is None:
+                return True
+        return False
 
     def check(self, testcase):
         """
@@ -181,6 +193,27 @@ class CapturedFd(object):
                           ', expected pattern "' + pat + '", but got "' +
                           gotstr + '"')
         self.expectpos = os.path.getsize(self.filename)
+
+    def checkCustomValidator(self, testcase, f):
+        """
+        Check to see that an additional string has been added to the
+        output file.  If it has not, raise it as a test failure.
+        In any case, reset the expected pos to account for the new output.
+        """
+        if self.file != None:
+            self.file.flush()
+
+        # Custom validators probably don't want to see truncated output.
+        # Give them the whole string.
+        new_expectpos = os.path.getsize(self.filename)
+        diff = new_expectpos - self.expectpos
+        gotstr = self.readFileFrom(self.filename, self.expectpos, diff)
+        try:
+            f(gotstr)
+        except Exception as e:
+            testcase.fail('in ' + self.desc +
+                          ', custom validator failed: ' + str(e))
+        self.expectpos = new_expectpos
 
 class TestSuiteConnection(object):
     def __init__(self, conn, connlist):
@@ -275,8 +308,8 @@ class WiredTigerTestCase(unittest.TestCase):
     @staticmethod
     def globalSetup(preserveFiles = False, removeAtStart = True, useTimestamp = False,
                     gdbSub = False, lldbSub = False, verbose = 1, builddir = None, dirarg = None,
-                    longtest = False, zstdtest = False, ignoreStdout = False, seedw = 0, seedz = 0, 
-                    hookmgr = None, ss_random_prefix = 0, timeout = 0):
+                    longtest = False, extralongtest = False, zstdtest = False, ignoreStdout = False,
+                    seedw = 0, seedz = 0, hookmgr = None, ss_random_prefix = 0, timeout = 0):
         WiredTigerTestCase._preserveFiles = preserveFiles
         d = 'WT_TEST' if dirarg == None else dirarg
         if useTimestamp:
@@ -294,6 +327,7 @@ class WiredTigerTestCase(unittest.TestCase):
         WiredTigerTestCase._gdbSubprocess = gdbSub
         WiredTigerTestCase._lldbSubprocess = lldbSub
         WiredTigerTestCase._longtest = longtest
+        WiredTigerTestCase._extralongtest = extralongtest
         WiredTigerTestCase._zstdtest = zstdtest
         WiredTigerTestCase._verbose = verbose
         WiredTigerTestCase._ignoreStdout = ignoreStdout
@@ -339,6 +373,8 @@ class WiredTigerTestCase(unittest.TestCase):
         self.captureerr = CapturedFd('stderr.txt', 'error output')
         sys.stdout = self.captureout.capture()
         sys.stderr = self.captureerr.capture()
+        if self.ignore_regex is not None:
+            self.captureout.setIgnorePattern(self.ignore_regex)
 
     def fdTearDown(self):
         # restore stderr/stdout
@@ -352,6 +388,8 @@ class WiredTigerTestCase(unittest.TestCase):
             assert(len(self.scenarios) == len(dict(self.scenarios)))
         unittest.TestCase.__init__(self, *args, **kwargs)
         self.skipped = False
+        self.ignore_regex = None
+        self.teardown_actions = []
         if not self._globalSetup:
             WiredTigerTestCase.globalSetup()
         self.platform_api = WiredTigerTestCase._hookmgr.get_platform_api()
@@ -380,6 +418,10 @@ class WiredTigerTestCase(unittest.TestCase):
     # Return the tier cache percent for this testcase, or 0 if there is none.
     def getTierCachePercent(self):
         return self.platform_api.getTierCachePercent()
+
+    # Return the tier storage source for this testcase, or 'dir_store' if there is none.
+    def getTierStorageSource(self):
+        return self.platform_api.getTierStorageSource()
 
     def __str__(self):
         # when running with scenarios, if the number_scenarios() method
@@ -636,6 +678,7 @@ class WiredTigerTestCase(unittest.TestCase):
             namefile.write(str(self) + '\n')
         self.fdSetUp()
         self._threadLocal.currentTestCase = self
+        self.ignoreTearDownLogs = False
         # tearDown needs a conn field, set it here in case the open fails.
         self.conn = None
         try:
@@ -663,6 +706,9 @@ class WiredTigerTestCase(unittest.TestCase):
     def checkStdout(self):
         self.captureout.check(self)
 
+    def ignoreStdoutPattern(self, pattern, re_flags = 0):
+        self.ignore_regex = re.compile(pattern, re_flags)
+
     def readyDirectoryForRemoval(self, directory):
         # Make sure any read-only files or directories left behind
         # are made writeable in preparation for removal.
@@ -673,15 +719,31 @@ class WiredTigerTestCase(unittest.TestCase):
             for f in files:
                 os.chmod(os.path.join(root, f), 0o666)
 
+    # Return value of each action should be a tuple with the first value an integer (non-zero to indicate
+    # failure), and the second value a string suitable for printing when the test fails.
+    def addTearDownAction(self, action):
+        self.teardown_actions.append(action)
+
     def tearDown(self, dueToRetry=False):
+        teardown_failed = False
+        if not dueToRetry:
+            for action in self.teardown_actions:
+                tmp = action()
+                if tmp[0] != 0:
+                    self.pr('ERROR: teardown action failed, message=' + tmp[1])
+                    teardown_failed = True
+
         # This approach works for all our support Python versions and
         # is suggested by one of the answers in:
         # https://stackoverflow.com/questions/4414234/getting-pythons-unittest-results-in-a-teardown-method
         # In addition, check to make sure exc_info is "clean", because
         # the ConcurrencyTestSuite in Python2 indicates failures using that.
         if hasattr(self, '_outcome'):  # Python 3.4+
-            result = self.defaultTestResult()  # these 2 methods have no side effects
-            self._feedErrorsToResult(result, self._outcome.errors)
+            if hasattr(self._outcome, 'errors'):  # Python 3.4 - 3.10
+                result = self.defaultTestResult()  # these 2 methods have no side effects
+                self._feedErrorsToResult(result, self._outcome.errors)
+            else:  # Python 3.11+
+                result = self._outcome.result
         else:  # Python 3.2 - 3.3 or 3.0 - 3.1 and 2.7
             result = getattr(self, '_outcomeForDoCleanups', self._resultForDoCleanups)
         error = self.list2reason(result, 'errors')
@@ -689,16 +751,16 @@ class WiredTigerTestCase(unittest.TestCase):
         exc_failure = (sys.exc_info() != (None, None, None))
 
         self._failed = error or failure or exc_failure
-        passed = not self._failed
+        passed = not (self._failed or teardown_failed)
 
         self.platform_api.tearDown()
 
-        # Download the files from the S3 bucket for tiered tests if the test fails or preserve is
+        # Download the files from the bucket for tiered tests if the test fails or preserve is
         # turned on.
-        if hasattr(self, 'ss_name') and self.ss_name == 's3_store' and not self.skipped and \
+        if hasattr(self, 'ss_name') and not self.skipped and \
             (not passed or WiredTigerTestCase._preserveFiles):
+                self.pr('downloading object files')
                 self.download_objects(self.bucket, self.bucket_prefix)
-                self.pr('downloading s3 files')
 
         self.pr('finishing')
 
@@ -716,7 +778,7 @@ class WiredTigerTestCase(unittest.TestCase):
         self._connections = []
         try:
             self.fdTearDown()
-            if not dueToRetry:
+            if not (dueToRetry or self.ignoreTearDownLogs):
                 self.captureout.check(self)
                 self.captureerr.check(self)
         finally:
@@ -787,6 +849,12 @@ class WiredTigerTestCase(unittest.TestCase):
         self.captureerr.check(self)
         yield
         self.captureerr.checkAdditionalPattern(self, pat, re_flags)
+
+    @contextmanager
+    def customStdoutPattern(self, f):
+        self.captureout.check(self)
+        yield
+        self.captureout.checkCustomValidator(self, f)
 
     def readStdout(self, maxchars=10000):
         return self.captureout.readFileFrom(self.captureout.filename, self.captureout.expectpos, maxchars)
@@ -1082,6 +1150,19 @@ def longtest(description):
         return func
     if not WiredTigerTestCase._longtest:
         return unittest.skip(description + ' (enable with --long)')
+    else:
+        return runit_decorator
+
+def extralongtest(description):
+    """
+    Used as a function decorator, for example, @wttest.extralongtest("description").
+    The decorator indicates that this test function should only be included
+    when running the test suite with the --extra-long option.
+    """
+    def runit_decorator(func):
+        return func
+    if not WiredTigerTestCase._extralongtest:
+        return unittest.skip(description + ' (enable with --extra-long)')
     else:
         return runit_decorator
 

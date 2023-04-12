@@ -20,6 +20,8 @@ __wt_rts_history_delete_hs(WT_SESSION_IMPL *session, WT_ITEM *key, wt_timestamp_
     WT_DECL_ITEM(hs_key);
     WT_DECL_RET;
     WT_TIME_WINDOW *hs_tw;
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
+    char tw_string[WT_TIME_STRING_SIZE];
     bool dryrun;
 
     dryrun = S2C(session)->rts->dryrun;
@@ -54,8 +56,17 @@ __wt_rts_history_delete_hs(WT_SESSION_IMPL *session, WT_ITEM *key, wt_timestamp_
         if (hs_tw->stop_ts <= ts)
             break;
 
-        if (!dryrun)
+        if (!dryrun) {
+            __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
+              WT_RTS_VERB_TAG_HS_UPDATE_REMOVE
+              "deleting history store update with stop_timestamp=%s greater than "
+              "stable_timestamp=%s, time_window=%s",
+              __wt_timestamp_to_string(hs_tw->stop_ts, ts_string[0]),
+              __wt_timestamp_to_string(ts, ts_string[1]),
+              __wt_time_window_to_string(hs_tw, tw_string));
             WT_ERR(hs_cursor->remove(hs_cursor));
+        }
+
         WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
 
         /*
@@ -142,8 +153,10 @@ __wt_rts_history_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_id)
 
     WT_RTS_STAT_CONN_DATA_INCR(session, cache_hs_btree_truncate);
 
-    __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
-      "Rollback to stable has truncated records for btree %u from the history store", btree_id);
+    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+      WT_RTS_VERB_TAG_HS_TRUNCATED
+      "Rollback to stable has truncated records for btree=%u from the history store",
+      btree_id);
 
 done:
 err:
@@ -213,12 +226,13 @@ __wt_rts_history_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t rollback_ti
      */
     if (max_durable_ts > rollback_timestamp && rollback_timestamp != WT_TS_NONE) {
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-          "tree rolled back with durable timestamp: %s",
+          WT_RTS_VERB_TAG_HS_TREE_ROLLBACK "tree rolled back with durable_timestamp=%s",
           __wt_timestamp_to_string(max_durable_ts, ts_string[0]));
         WT_TRET(__wt_rts_btree_walk_btree(session, rollback_timestamp));
     } else
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-          "tree skipped with durable timestamp: %s and stable timestamp: %s",
+          WT_RTS_VERB_TAG_HS_TREE_SKIP
+          "tree skipped with durable_timestamp=%s and stable_timestamp=%s",
           __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
           __wt_timestamp_to_string(rollback_timestamp, ts_string[1]));
 

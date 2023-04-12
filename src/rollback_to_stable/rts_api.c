@@ -74,22 +74,25 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
     WT_ORDERED_READ(rollback_timestamp, txn_global->stable_timestamp);
     WT_ORDERED_READ(pinned_timestamp, txn_global->pinned_timestamp);
     __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-      "performing rollback to stable with stable timestamp: %s and oldest timestamp: %s",
+      WT_RTS_VERB_TAG_INIT
+      "start rollback to stable with stable_timestamp=%s and oldest_timestamp=%s",
       __wt_timestamp_to_string(rollback_timestamp, ts_string[0]),
       __wt_timestamp_to_string(txn_global->oldest_timestamp, ts_string[1]));
 
     if (F_ISSET(conn, WT_CONN_RECOVERING))
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-          "recovered checkpoint snapshot min:  %" PRIu64 ", snapshot max: %" PRIu64
-          ", snapshot count: %" PRIu32,
+          WT_RTS_VERB_TAG_RECOVER_CKPT "recovered checkpoint snapshot_min=%" PRIu64
+                                       ", snapshot_max=%" PRIu64 ", snapshot_count=%" PRIu32,
           conn->recovery_ckpt_snap_min, conn->recovery_ckpt_snap_max,
           conn->recovery_ckpt_snapshot_count);
 
     WT_ERR(__wt_rts_btree_apply_all(session, rollback_timestamp));
 
     /* Rollback the global durable timestamp to the stable timestamp. */
-    txn_global->has_durable_timestamp = txn_global->has_stable_timestamp;
-    txn_global->durable_timestamp = txn_global->stable_timestamp;
+    if (!dryrun) {
+        txn_global->has_durable_timestamp = txn_global->has_stable_timestamp;
+        txn_global->durable_timestamp = txn_global->stable_timestamp;
+    }
     __rts_assert_timestamps_unchanged(session, pinned_timestamp, rollback_timestamp);
 
     /*
@@ -194,6 +197,9 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
     WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 1);
     WT_WITH_CHECKPOINT_LOCK(
       session, WT_WITH_SCHEMA_LOCK(session, ret = __rollback_to_stable_int(session, no_ckpt)));
+
+    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+      WT_RTS_VERB_TAG_END "finished rollback to stable%s", dryrun ? " dryrun" : "");
     WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 0);
 
     __rollback_to_stable_finalize(S2C(session)->rts);

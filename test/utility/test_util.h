@@ -59,14 +59,21 @@
 #include "windows_shim.h"
 #endif
 
-#define TESTUTIL_ENV_CONFIG_TIERED \
-    ",tiered_storage=(bucket=./"   \
-    "bucket,bucket_prefix=pfx-,local_retention=%d,name=%s)"
+#define DIR_STORE_BUCKET_NAME "bucket"
+#define S3_DEFAULT_BUCKET_NAME "s3testext;ap-southeast-2"
+
+#define DIR_STORE "dir_store"
+#define S3_STORE "s3_store"
+
+#define TESTUTIL_ENV_CONFIG_TIERED                 \
+    ",tiered_storage=(bucket=%s"                   \
+    ",bucket_prefix=pfx-,local_retention=%" PRIu32 \
+    ",name=%s"                                     \
+    ",auth_token=%s)"
 #define TESTUTIL_ENV_CONFIG_TIERED_EXT                                         \
-    ",extensions=(%s/ext/storage_sources/%s/"                                  \
-    "libwiredtiger_%s.so=(early_load=true,"                                    \
+    "\"%s/ext/storage_sources/%s/libwiredtiger_%s.so\"=("                      \
     "config=\"(delay_ms=%" PRIu64 ",error_ms=%" PRIu64 ",force_delay=%" PRIu64 \
-    ",force_error=%" PRIu64 ",verbose=1)\"))"
+    ",force_error=%" PRIu64 ",verbose=0)\")"
 #define TESTUTIL_ENV_CONFIG_REC \
     ",log=(recover=on,remove=false),statistics=(all),statistics_log=(json,on_close,wait=1)"
 #define TESTUTIL_ENV_CONFIG_COMPAT ",compatibility=(release=\"2.9\")"
@@ -96,20 +103,23 @@ typedef struct {
     uint64_t data_seed;      /* Random seed for data ops */
     uint64_t extra_seed;     /* Random seed for extra ops */
 
-    uint64_t delay_ms;    /* Average length of delay when simulated */
-    uint64_t error_ms;    /* Average length of delay when simulated */
-    uint64_t force_delay; /* Force a simulated network delay every N operations */
-    uint64_t force_error; /* Force a simulated network error every N operations */
+    uint64_t delay_ms;        /* Average length of delay when simulated */
+    uint64_t error_ms;        /* Average length of delay when simulated */
+    uint64_t force_delay;     /* Force a simulated network delay every N operations */
+    uint64_t force_error;     /* Force a simulated network error every N operations */
+    uint32_t local_retention; /* Local retention for tiered storage */
 
 #define TESTUTIL_SEED_FORMAT "-PSD%" PRIu64 ",E%" PRIu64
 
+    bool absolute_bucket_dir;  /* Use an absolute bucket path when it is a directory */
     bool compat;               /* Compatibility */
     bool do_data_ops;          /* Have schema ops use data */
     bool inmem;                /* In-memory */
+    bool make_bucket_dir;      /* Create bucket when it is a directory */
     bool preserve;             /* Don't remove files on exit */
+    bool tiered_begun;         /* Tiered storage ready */
     bool tiered_storage;       /* Configure tiered storage */
     bool verbose;              /* Run in verbose mode */
-    bool tiered_begun;         /* Tiered storage ready */
     uint64_t nrecords;         /* Number of records */
     uint64_t nops;             /* Number of operations */
     uint64_t nthreads;         /* Number of threads */
@@ -427,11 +437,13 @@ void op_create_unique(void *);
 void op_cursor(void *);
 void op_drop(void *);
 bool testutil_is_flag_set(const char *);
+bool testutil_is_dir_store(TEST_OPTS *);
 void testutil_build_dir(TEST_OPTS *, char *, int);
 void testutil_clean_test_artifacts(const char *);
 void testutil_clean_work_dir(const char *);
 void testutil_cleanup(TEST_OPTS *);
 void testutil_copy_data(const char *);
+void testutil_copy_data_opt(const char *, const char *);
 void testutil_copy_file(WT_SESSION *, const char *);
 void testutil_copy_if_exists(WT_SESSION *, const char *);
 void testutil_create_backup_directory(const char *);
@@ -443,6 +455,7 @@ void testutil_lazyfs_clear_cache(WT_LAZY_FS *);
 void testutil_lazyfs_setup(WT_LAZY_FS *, const char *);
 void testutil_make_work_dir(const char *);
 void testutil_modify_apply(WT_ITEM *, WT_ITEM *, WT_MODIFY *, int, uint8_t);
+uint64_t testutil_pareto(uint64_t, uint64_t, u_int);
 void testutil_parse_begin_opt(int, char *const *, const char *, TEST_OPTS *);
 void testutil_parse_end_opt(TEST_OPTS *);
 int testutil_parse_single_opt(TEST_OPTS *, int);
@@ -455,12 +468,15 @@ void testutil_random_from_seed(WT_RAND_STATE *, uint64_t);
 #ifndef _WIN32
 void testutil_sleep_wait(uint32_t, pid_t);
 #endif
+void testutil_system(const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((format(printf, 1, 2)));
 void testutil_wiredtiger_open(
   TEST_OPTS *, const char *, const char *, WT_EVENT_HANDLER *, WT_CONNECTION **, bool, bool);
 void testutil_tiered_begin(TEST_OPTS *);
 void testutil_tiered_flush_complete(TEST_OPTS *, WT_SESSION *, void *);
 void testutil_tiered_sleep(TEST_OPTS *, WT_SESSION *, uint64_t, bool *);
+void testutil_tiered_storage_configuration(TEST_OPTS *, char *, size_t, char *, size_t);
 uint64_t testutil_time_us(WT_SESSION *);
+void testutil_verify_src_backup(WT_CONNECTION *, const char *, const char *, char *);
 void testutil_work_dir_from_path(char *, size_t, const char *);
 WT_THREAD_RET thread_append(void *);
 

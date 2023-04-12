@@ -178,6 +178,8 @@ __reconcile_post_wrapup(
 
     btree = S2BT(session);
 
+    page->modify->flags = 0;
+
     /* Release the reconciliation lock. */
     *page_lockedp = false;
     WT_PAGE_UNLOCK(session, page);
@@ -571,6 +573,14 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      */
     r->orig_btree_checkpoint_gen = btree->checkpoint_gen;
     r->orig_txn_checkpoint_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
+
+    WT_ASSERT_ALWAYS(
+      session, page->modify->flags == 0, "Illegal page state when initializing reconcile");
+
+    /* Track that the page is being reconciled and if it is exclusive (e.g. eviction). */
+    F_SET(page->modify, WT_PAGE_MODIFY_RECONCILING);
+    if (LF_ISSET(WT_REC_EVICT))
+        F_SET(page->modify, WT_PAGE_MODIFY_EXCLUSIVE);
 
     /*
      * Update the page state to indicate that all currently installed updates will be included in
@@ -998,7 +1008,6 @@ __rec_split_chunk_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *
     /* Don't touch the key item memory, that memory is reused. */
     chunk->key.size = 0;
     chunk->entries = 0;
-    WT_PAGE_STAT_INIT(&chunk->ps);
     WT_TIME_AGGREGATE_INIT_MERGE(&chunk->ta);
 
     chunk->min_recno = WT_RECNO_OOB;
@@ -1916,13 +1925,6 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
       __wt_process.fast_truncate_2022)
         F_SET(dsk, WT_PAGE_FT_UPDATE);
 
-    /* Set the page stat cell information flag. */
-    if (WT_PAGE_STAT_HAS_BYTE_COUNT(&chunk->ps))
-        F_SET(dsk, WT_PAGE_STAT_BYTE_COUNT);
-
-    if (WT_PAGE_STAT_HAS_ROW_COUNT(&chunk->ps))
-        F_SET(dsk, WT_PAGE_STAT_ROW_COUNT);
-
     dsk->unused = 0;
     dsk->version = WT_PAGE_VERSION_TS;
 
@@ -2113,8 +2115,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     /* Make sure there's enough room for another write. */
     WT_RET(__wt_realloc_def(session, &r->multi_allocated, r->multi_next + 1, &r->multi));
     multi = &r->multi[r->multi_next++];
-
-    WT_PAGE_STAT_COPY(&multi->addr.ps, &chunk->ps);
 
     /* Initialize the address (set the addr type for the parent). */
     WT_TIME_AGGREGATE_COPY(&multi->addr.ta, &chunk->ta);
@@ -2335,6 +2335,7 @@ __wt_bulk_wrapup(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     __wt_page_modify_set(session, parent);
 
 err:
+    r->ref->page->modify->flags = 0;
     WT_TRET(__rec_cleanup(session, r));
     WT_TRET(__rec_destroy(session, &cbulk->reconcile));
 

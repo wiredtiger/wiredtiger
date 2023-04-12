@@ -27,11 +27,14 @@
  */
 #include "test_util.h"
 
+#include <math.h>
+
 #ifndef _WIN32
 #include <sys/wait.h>
 #endif
 
-#ifdef __linux__
+#if defined(__APPLE__) || defined(__linux__)
+#include <dirent.h>
 #include <libgen.h>
 #endif
 
@@ -42,7 +45,7 @@ const char *progname = "program name not set";
  * Backup directory initialize command, remove and re-create the primary backup directory, plus a
  * copy we maintain for recovery testing.
  */
-#define HOME_BACKUP_INIT_CMD "rm -rf %s/BACKUP %s/BACKUP.copy && mkdir %s/BACKUP %s/BACKUP.copy"
+#define HOME_BACKUP_INIT_CMD "rm -rf %s/BACKUP %s/BACKUP.copy && mkdir %s/BACKUP %s/BACKUP.copy "
 
 /*
  * testutil_die --
@@ -293,6 +296,59 @@ testutil_copy_data(const char *dir)
 }
 
 /*
+ * testutil_copy_data_opt --
+ *     Copy the data to a backup folder. Directories and files with the specified "readonly prefix"
+ *     will be hard-linked instead of copied for efficiency on supported platforms.
+ */
+void
+testutil_copy_data_opt(const char *dir, const char *readonly_prefix)
+{
+#if defined(__APPLE__) || defined(__linux__)
+    struct dirent *e;
+    char to_copy[2048];
+    char to_link[2048];
+    DIR *d;
+
+    to_copy[0] = '\0';
+    to_link[0] = '\0';
+
+    testutil_system("rm -rf ../%s.SAVE && mkdir ../%s.SAVE", dir, dir);
+
+    testutil_assert_errno((d = opendir(".")) != NULL);
+    while ((e = readdir(d)) != NULL) {
+        if (e->d_name[0] == '.')
+            continue;
+
+        if (readonly_prefix != NULL &&
+          strncmp(e->d_name, readonly_prefix, strlen(readonly_prefix)) == 0) {
+            if (strlen(to_link) + strlen(e->d_name) + 2 >= sizeof(to_link)) {
+                testutil_system("cp -rp -l %s ../%s.SAVE", to_link, dir);
+                to_link[0] = '\0';
+            }
+            testutil_check(__wt_strcat(to_link, sizeof(to_link), " "));
+            testutil_check(__wt_strcat(to_link, sizeof(to_link), e->d_name));
+        } else {
+            if (strlen(to_copy) + strlen(e->d_name) + 2 >= sizeof(to_copy)) {
+                testutil_system("cp -rp %s ../%s.SAVE", to_copy, dir);
+                to_copy[0] = '\0';
+            }
+            testutil_check(__wt_strcat(to_copy, sizeof(to_copy), " "));
+            testutil_check(__wt_strcat(to_copy, sizeof(to_copy), e->d_name));
+        }
+    }
+    testutil_check(closedir(d));
+
+    if (to_copy[0] != '\0')
+        testutil_system("cp -rp %s ../%s.SAVE", to_copy, dir);
+    if (to_link[0] != '\0')
+        testutil_system("cp -rp -l %s ../%s.SAVE", to_link, dir);
+#else
+    WT_UNUSED(readonly_prefix);
+    testutil_copy_data(dir);
+#endif
+}
+
+/*
  * testutil_clean_test_artifacts --
  *     Clean any temporary files and folders created during test execution
  */
@@ -328,6 +384,107 @@ testutil_create_backup_directory(const char *home)
     testutil_check(__wt_snprintf(cmd, len, HOME_BACKUP_INIT_CMD, home, home, home, home));
     testutil_checkfmt(system(cmd), "%s", "backup directory creation failed");
     free(cmd);
+}
+
+/*
+ * testutil_verify_src_backup --
+ *     Verify a backup source home directory against a backup directory for changes to blocks that
+ *     are not marked as changed. If an ID is given, then the backup directory is only compared
+ *     against that ID, otherwise walk and compare against all IDs.
+ */
+void
+testutil_verify_src_backup(WT_CONNECTION *conn, const char *backup, const char *home, char *srcid)
+{
+    struct stat sb;
+    WT_CURSOR *cursor, *file_cursor;
+    WT_DECL_RET;
+    WT_SESSION *session;
+    uint64_t cmp_size, offset, prev_offset, size, type;
+    int i, j, status;
+    char buf[1024], *filename, *id[WT_BLKINCR_MAX];
+    const char *idstr;
+
+    WT_CLEAR(buf);
+    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    /*
+     * If we are given a source ID, use it. Otherwise query the backup and check against all IDs
+     * that exist in the system.
+     */
+    if (srcid == NULL) {
+        /*
+         * Even if expected, we may not find any backup IDs depending on scheduling of backups,
+         * checkpoints and killing of a process. So backup IDs may not have been saved to disk. If
+         * opening the backup query cursor gets EINVAL there is nothing to do.
+         */
+        ret = session->open_cursor(session, "backup:query_id", NULL, buf, &cursor);
+        if (ret != 0) {
+            if (ret == EINVAL)
+                goto done;
+            else
+                testutil_check(ret);
+        }
+        i = 0;
+        while ((ret = cursor->next(cursor)) == 0) {
+            testutil_check(cursor->get_key(cursor, &idstr));
+            id[i++] = dstrdup(idstr);
+        }
+        testutil_check(cursor->close(cursor));
+    } else {
+        id[0] = srcid;
+        id[1] = NULL;
+        i = 1;
+    }
+    testutil_assert(i <= WT_BLKINCR_MAX);
+
+    /* Go through each id and open a backup cursor on it to test incremental values. */
+    for (j = 0; j < i; ++j) {
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "incremental=(src_id=%s)", id[j]));
+        testutil_check(session->open_cursor(session, "backup:", NULL, buf, &cursor));
+        while ((ret = cursor->next(cursor)) == 0) {
+            testutil_check(cursor->get_key(cursor, &filename));
+            testutil_check(__wt_snprintf(buf, sizeof(buf), "incremental=(file=%s)", filename));
+            testutil_check(session->open_cursor(session, NULL, cursor, buf, &file_cursor));
+            prev_offset = 0;
+            while ((ret = file_cursor->next(file_cursor)) == 0) {
+                testutil_check(file_cursor->get_key(file_cursor, &offset, &size, &type));
+                /* We only want to check ranges for files. So if it is a full file copy, ignore. */
+                if (type != WT_BACKUP_RANGE)
+                    break;
+                testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", backup, filename));
+                ret = stat(buf, &sb);
+                /*
+                 * The file may not exist in the backup directory. If the stat call doesn't succeed
+                 * skip this file. If we're skipping changed blocks go to the next one.
+                 */
+                if (ret != 0)
+                    break;
+                /*
+                 * If the block is changed we cannot check it (for differences, for example). The
+                 * source id may be older and we've already copied the block, or not, so we don't
+                 * know if it should be different or not. But if a block is indicated as unchanged
+                 * then it better be identical.
+                 */
+                if (offset > prev_offset) {
+                    /* Compare the unchanged chunk. */
+                    cmp_size = offset - prev_offset;
+                    testutil_check(__wt_snprintf(buf, sizeof(buf),
+                      "cmp -n %" PRIu64 " %s/%s %s/%s %" PRIu64 " %" PRIu64, cmp_size, home,
+                      filename, backup, filename, prev_offset, prev_offset));
+                    status = system(buf);
+                    if (status != 0)
+                        fprintf(stderr, "FAIL: status %d ID %s from cmd: %s\n", status, id[j], buf);
+                    testutil_assert(status == 0);
+                }
+                prev_offset = offset + size;
+            }
+            testutil_check(file_cursor->close(file_cursor));
+        }
+        testutil_check(cursor->close(cursor));
+        if (srcid == NULL)
+            free(id[j]);
+    }
+done:
+    testutil_check(session->close(session, NULL));
 }
 
 /*
@@ -411,6 +568,19 @@ testutil_print_command_line(int argc, char *const *argv)
 }
 
 /*
+ * testutil_is_dir_store --
+ *     Check if the external storage is dir_store.
+ */
+bool
+testutil_is_dir_store(TEST_OPTS *opts)
+{
+    bool dir_store;
+
+    dir_store = strcmp(opts->tiered_storage_source, DIR_STORE) == 0 ? true : false;
+    return (dir_store);
+}
+
+/*
  * testutil_wiredtiger_open --
  *     Call wiredtiger_open with the tiered storage configuration if enabled.
  */
@@ -418,17 +588,16 @@ void
 testutil_wiredtiger_open(TEST_OPTS *opts, const char *home, const char *config,
   WT_EVENT_HANDLER *event_handler, WT_CONNECTION **connectionp, bool rerun, bool benchmarkrun)
 {
-    char buf[1024], tiered_ext_cfg[512];
+    char buf[1024], tiered_cfg[512], tiered_ext_cfg[512];
 
-    if (opts->tiered_storage)
-        testutil_check(__wt_snprintf(tiered_ext_cfg, sizeof(tiered_ext_cfg),
-          TESTUTIL_ENV_CONFIG_TIERED_EXT TESTUTIL_ENV_CONFIG_TIERED, opts->build_dir,
-          opts->tiered_storage_source, opts->tiered_storage_source, opts->delay_ms, opts->error_ms,
-          opts->force_delay, opts->force_error, benchmarkrun ? 0 : 2, opts->tiered_storage_source));
+    opts->local_retention = benchmarkrun ? 0 : 2;
+    testutil_tiered_storage_configuration(
+      opts, tiered_cfg, sizeof(tiered_cfg), tiered_ext_cfg, sizeof(tiered_ext_cfg));
 
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "%s%s%s%s", config == NULL ? "" : config,
-      (rerun ? TESTUTIL_ENV_CONFIG_REC : ""), (opts->compat ? TESTUTIL_ENV_CONFIG_COMPAT : ""),
-      (opts->tiered_storage ? tiered_ext_cfg : "")));
+    testutil_check(__wt_snprintf(buf, sizeof(buf), "%s%s%s%s,extensions=[%s]",
+      config == NULL ? "" : config, (rerun ? TESTUTIL_ENV_CONFIG_REC : ""),
+      (opts->compat ? TESTUTIL_ENV_CONFIG_COMPAT : ""), tiered_cfg, tiered_ext_cfg));
+
     if (opts->verbose)
         printf("wiredtiger_open configuration: %s\n", buf);
     testutil_check(wiredtiger_open(home, event_handler, buf, connectionp));
@@ -473,6 +642,30 @@ testutil_time_us(WT_SESSION *session)
 
     __wt_epoch((WT_SESSION_IMPL *)session, &ts);
     return ((uint64_t)ts.tv_sec * WT_MILLION + (uint64_t)ts.tv_nsec / WT_THOUSAND);
+}
+
+/*
+ * testutil_pareto --
+ *     Given a random value, a range and a skew percentage. Return a value between [0 and range).
+ */
+uint64_t
+testutil_pareto(uint64_t rand, uint64_t range, u_int skew)
+{
+    double S1, S2, U;
+#define PARETO_SHAPE 1.5
+
+    S1 = (-1 / PARETO_SHAPE);
+    S2 = range * (skew / 100.0) * (PARETO_SHAPE - 1);
+    U = 1 - (double)rand / (double)UINT32_MAX;
+    rand = (uint64_t)((pow(U, S1) - 1) * S2);
+    /*
+     * This Pareto calculation chooses out of range values about
+     * 2% of the time, from my testing. That will lead to the
+     * first item in the table being "hot".
+     */
+    if (rand > range)
+        rand = 0;
+    return (rand);
 }
 
 /*
@@ -589,4 +782,28 @@ is_mounted(const char *mount_dir)
 
     return sb.st_dev != parent_sb.st_dev;
 #endif
+}
+
+/*
+ * testutil_system --
+ *     A convenience function that combines snprintf, system, and testutil_check.
+ */
+void
+testutil_system(const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((format(printf, 1, 2)))
+{
+    WT_DECL_RET;
+    size_t len;
+    char buf[4096];
+    va_list ap;
+
+    len = 0;
+
+    va_start(ap, fmt);
+    ret = __wt_vsnprintf_len_incr(buf, sizeof(buf), &len, fmt, ap);
+    va_end(ap);
+    testutil_check(ret);
+    if (len >= sizeof(buf))
+        testutil_die(ERANGE, "The command is too long.");
+
+    testutil_check(system(buf));
 }

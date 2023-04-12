@@ -302,6 +302,8 @@ struct Operation {
     double _timed;
     // Indicates whether a table is selected randomly to be worked on.
     bool _random_table;
+    // Maintain the random table being used by each thread running the operation.
+    std::vector<std::string> _tables;
 
     Operation();
     Operation(OpType optype, Table table, Key key, Value value);
@@ -457,6 +459,9 @@ struct WorkloadOptions {
     int drop_interval;
     int drop_target;
     int drop_trigger;
+    bool random_table_values;
+    bool mirror_tables;
+    std::string mirror_suffix;
 
     WorkloadOptions();
     WorkloadOptions(const WorkloadOptions &other);

@@ -372,12 +372,13 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
     uint64_t ds_time, first_snapshot_time, hs_time, oldest_time, snapshot_time, stable_time;
     int64_t ds_order, hs_order;
     const char *checkpoint, *hs_checkpoint;
-    bool is_unnamed_ckpt, must_resolve;
+    bool is_hs, is_unnamed_ckpt, is_reserved_name, must_resolve;
 
     ds_time = first_snapshot_time = hs_time = oldest_time = snapshot_time = stable_time = 0;
     ds_order = hs_order = 0;
     checkpoint = NULL;
     hs_checkpoint = NULL;
+    is_hs = is_unnamed_ckpt = is_reserved_name = must_resolve = false;
 
     /* These should only be set together. Asking for only one doesn't make sense. */
     WT_ASSERT(session, (hs_dhandlep == NULL) == (ckpt_snapshot == NULL));
@@ -473,9 +474,7 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
      * confusion caused by older versions that don't include these values.
      *
      * Also note that only the exact name "WiredTigerCheckpoint" needs to be resolved. Requests to
-     * open specific versions, such as "WiredTigerCheckpoint.6", must be looked up like named
-     * checkpoints but are otherwise still treated as unnamed. This is necessary so that the
-     * matching history store checkpoint we find can be itself opened later.
+     * open specific versions, such as "WiredTigerCheckpoint.6", is forbidden.
      *
      * It is also at least theoretically possible for there to be no matching history store
      * checkpoint. If looking up the checkpoint names finds no history store checkpoint, its name
@@ -483,9 +482,21 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
      * life of the checkpoint cursor.
      */
 
-    if (strcmp(uri, WT_HS_URI) == 0)
+    is_hs = strcmp(uri, WT_HS_URI) == 0;
+    if (is_hs)
         /* We're opening the history store directly, so don't open it twice. */
         hs_dhandlep = NULL;
+
+    /*
+     * Applications can use the internal reserved name "WiredTigerCheckpoint" to open the latest
+     * checkpoint, but they are not allowed to directly open specific checkpoint versions, such as
+     * "WiredTigerCheckpoint.6". However, internally it is allowed to open the history store with a
+     * specific version.
+     */
+    is_reserved_name = cval.len > strlen(WT_CHECKPOINT) && WT_PREFIX_MATCH(cval.str, WT_CHECKPOINT);
+    if (is_reserved_name && (!is_hs || session->hs_checkpoint == NULL))
+        WT_RET_MSG(
+          session, EINVAL, "the prefix \"%s\" for checkpoint cursors is reserved", WT_CHECKPOINT);
 
     /*
      * Test for the internal checkpoint name (WiredTigerCheckpoint). Note: must_resolve is true in a
@@ -546,6 +557,31 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
               ckpt_snapshot, &snapshot_time, &stable_time, &oldest_time));
 
             /*
+             * If we have not raced with a checkpoint, we still may have an inconsistency in a
+             * specific scenario that involves bulk operations. When a bulk operation finishes, it
+             * generates a single file checkpoint which is different from a system wide checkpoint.
+             * The single file checkpoint only bumps the data store time which makes it ahead of the
+             * last system wide checkpoint time and leads to the inconsistency.
+             */
+            if (first_snapshot_time == snapshot_time && ds_time > snapshot_time &&
+              hs_time <= snapshot_time) {
+                /*
+                 * If a system wide checkpoint is running, the inconsistency should be resolved, it
+                 * is worth retrying.
+                 */
+                if (S2C(session)->txn_global.checkpoint_running)
+                    ret = __wt_set_return(session, EBUSY);
+                else {
+                    __wt_verbose_warning(session, WT_VERB_DEFAULT,
+                      "Session (@: 0x%p name: %s) could not open the checkpoint '%s' (config: %s) "
+                      "on the file '%s'.",
+                      (void *)session, session->name == NULL ? "EMPTY" : session->name, checkpoint,
+                      cval.str, uri);
+                    ret = __wt_set_return(session, WT_NOTFOUND);
+                    goto err;
+                }
+            }
+            /*
              * Check if we raced with a running checkpoint.
              *
              * If the two copies of the snapshot don't match, or if any of the other metadata items'
@@ -562,8 +598,7 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
              * snapshot its time will be 0 and the check will fail gratuitously and lead to retrying
              * forever.
              */
-
-            if (first_snapshot_time != snapshot_time || ds_time > snapshot_time ||
+            else if (first_snapshot_time != snapshot_time || ds_time > snapshot_time ||
               hs_time > snapshot_time || stable_time > snapshot_time || oldest_time > snapshot_time)
                 ret = __wt_set_return(session, EBUSY);
             else {
@@ -629,6 +664,9 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
 
     } while (is_unnamed_ckpt && (ret == WT_NOTFOUND || ret == EBUSY));
 
+err:
+    __wt_free(session, checkpoint);
+    __wt_free(session, hs_checkpoint);
     return (ret);
 }
 

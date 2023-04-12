@@ -1001,8 +1001,8 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
          * Save the restored update to use it as base value update in case if we need to reach
          * history store instead of on-disk value.
          */
-        if (restored_updp != NULL && F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS) &&
-          type == WT_UPDATE_STANDARD) {
+        if (upd->txnid != WT_TXN_ABORTED && restored_updp != NULL &&
+          F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS) && type == WT_UPDATE_STANDARD) {
             WT_ASSERT(session, *restored_updp == NULL);
             *restored_updp = upd;
         }
@@ -1395,9 +1395,7 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
 #ifdef HAVE_DIAGNOSTIC
         __wt_abort(session);
 #endif
-#ifdef WT_STANDALONE_BUILD
         return (EINVAL);
-#endif
     }
 
     if (LF_ISSET(WT_DHANDLE_TS_ASSERT_READ_NEVER) && F_ISSET(txn, WT_TXN_SHARED_TS_READ)) {
@@ -1406,9 +1404,7 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
 #ifdef HAVE_DIAGNOSTIC
         __wt_abort(session);
 #endif
-#ifdef WT_STANDALONE_BUILD
         return (EINVAL);
-#endif
     }
     return (0);
 }
