@@ -36,12 +36,13 @@
 #define NUM_RECORDS1 (10)
 #define NUM_RECORDS2 (100 * WT_THOUSAND)
 
+/* The table URI. */
+#define TABLE_URI "table:compact"
+
 /* Constants and variables declaration. */
-static const char conn_config[] =
-  "create,cache_size=2GB,statistics=(all),statistics_log=(json,on_close,wait=1),verbose=[compact]";
+static const char conn_config[] = "create,cache_size=2GB,statistics=(all),verbose=[compact]";
 static const char table_config[] =
   "allocation_size=4KB,leaf_page_max=4KB,key_format=Q,value_format=" WT_UNCHECKED_STRING(QS);
-static const char uri[] = "table:compact";
 
 static char data_str[1024] = "";
 static bool skipped_compaction = false;
@@ -127,7 +128,7 @@ populate(WT_SESSION *session, uint64_t start, uint64_t end)
         data_str[i] = 'a' + (uint32_t)__wt_random(&rnd) % 26;
     data_str[str_len - 1] = '\0';
 
-    testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
+    testutil_check(session->open_cursor(session, TABLE_URI, NULL, NULL, &cursor));
 
     for (i = start; i < end; i++) {
         val = (uint64_t)__wt_random(&rnd);
@@ -149,7 +150,7 @@ remove_records(WT_SESSION *session, uint64_t start, uint64_t end)
     WT_CURSOR *cursor;
     uint64_t i;
 
-    testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
+    testutil_check(session->open_cursor(session, TABLE_URI, NULL, NULL, &cursor));
 
     for (i = start; i < end; i++) {
         cursor->set_key(cursor, i + 1);
@@ -168,10 +169,12 @@ main(int argc, char *argv[])
 {
     TEST_OPTS *opts, _opts;
     WT_CONNECTION *conn;
+    WT_CURSOR *stat;
     WT_SESSION *session;
-    time_t end, start;
+    int64_t pages_reviewed;
     int ret;
     char home[1024];
+    const char *desc, *pvalue;
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
@@ -185,7 +188,7 @@ main(int argc, char *argv[])
 
     testutil_check(wiredtiger_open(home, &event_handler, conn_config, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    testutil_check(session->create(session, uri, table_config));
+    testutil_check(session->create(session, TABLE_URI, table_config));
 
     populate(session, 0, NUM_RECORDS1);
     testutil_check(session->checkpoint(session, NULL));
@@ -194,29 +197,34 @@ main(int argc, char *argv[])
      * At this point, check that compact does not have any meaningful work to do.
      */
     skipped_compaction = false;
-    testutil_check(session->compact(session, uri, NULL));
+    testutil_check(session->compact(session, TABLE_URI, NULL));
     testutil_assert(skipped_compaction);
 
     /*
      * Now populate the table a lot more, make some space, and then see if we can interrupt the
-     * compaction quickly.
+     * compaction quickly - even before the compaction can get any work done.
      */
     populate(session, NUM_RECORDS1, NUM_RECORDS1 + NUM_RECORDS2);
     testutil_check(session->checkpoint(session, NULL));
     remove_records(session, 0, NUM_RECORDS1 + NUM_RECORDS2 / 2);
 
-    (void)time(&start);
     interrupted_compaction = false;
     skipped_compaction = false;
-    ret = session->compact(session, uri, NULL);
-    (void)time(&end);
+    ret = session->compact(session, TABLE_URI, NULL);
 
     testutil_assert(ret == WT_ERROR);
     testutil_assert(interrupted_compaction);
     testutil_assert(!skipped_compaction);
 
-    /* This should be more than enough time. */
-    testutil_assert(difftime(end, start) < 3 /* seconds */);
+    /*
+     * Check that we didn't get any work done.
+     */
+    testutil_check(session->open_cursor(session, "statistics:" TABLE_URI, NULL, NULL, &stat));
+    stat->set_key(stat, WT_STAT_DSRC_BTREE_COMPACT_PAGES_REVIEWED);
+    testutil_check(stat->search(stat));
+    testutil_check(stat->get_value(stat, &desc, &pvalue, &pages_reviewed));
+    testutil_check(stat->close(stat));
+    testutil_assert(pages_reviewed == 0);
 
     /*
      * Finish the test and clean up.
