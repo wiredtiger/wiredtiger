@@ -183,7 +183,6 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
                  */
                 WT_ERR(__wt_rts_history_delete_hs(session, key, rollback_timestamp + 1));
         }
-    __wt_scr_free(session, &key_string);
 
 err:
     __wt_scr_free(session, &key);
@@ -1084,7 +1083,6 @@ __rts_btree_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t
               session, ref, rip, 0, have_key ? key : NULL, vpack, rollback_timestamp, NULL));
         }
     }
-    __wt_scr_free(session, &key_string);
 
 err:
     __wt_scr_free(session, &key);
