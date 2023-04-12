@@ -70,9 +70,9 @@ class test_backup29(backup_base):
         new_bits = bin(int('1'+new, 16))[3:]
         self.pr("Original bitmap in binary: " + orig_bits)
         self.pr("Reopened bitmap in binary: " + new_bits)
-        for o, n in zip(orig_bits, new_bits):
-            if o != '0':
-                self.assertTrue(n != '0')
+        for o_bit, n_bit in zip(orig_bits, new_bits):
+            if o_bit != '0':
+                self.assertTrue(n_bit != '0')
 
     def test_backup29(self):
 
