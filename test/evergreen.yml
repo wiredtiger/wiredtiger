@@ -5515,7 +5515,8 @@ buildvariants:
     # Remove that configuration here and let MacOS use the default Xcode toolchain instead.
     # We must use the same python that CMake used.
     CMAKE_TOOLCHAIN_FILE:
-    python_binary: $(grep Python3_EXECUTABLE: $(pwd | sed -e 's:\(/cmake_build\).*:\1:')/CMakeCache.txt | sed -e 's/.*=//')
+    #python_binary: $(grep Python3_EXECUTABLE: $(pwd | sed -e 's:\(/cmake_build\).*:\1:')/CMakeCache.txt | sed -e 's/.*=//')
+    python_binary: '/usr/local/bin/python3.9'
     smp_command: -j $(sysctl -n hw.logicalcpu)
     cmake_generator: "Unix Makefiles"
     make_command: make
