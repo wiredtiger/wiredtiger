@@ -306,9 +306,10 @@ __wt_compact(WT_SESSION_IMPL *session)
     u_int i, msg_count;
     bool skip;
 
-    uint64_t stats_pages_rewritten; /* Pages rewritten */
-    uint64_t stats_pages_reviewed;  /* Pages reviewed */
-    uint64_t stats_pages_skipped;   /* Pages skipped */
+    uint64_t stats_pages_reviewed;           /* Pages reviewed */
+    uint64_t stats_pages_rewritten;          /* Pages rewritten */
+    uint64_t stats_pages_rewritten_expected; /* How much pages we expect to rewrite */
+    uint64_t stats_pages_skipped;            /* Pages skipped */
 
     bm = S2BT(session)->bm;
     msg_count = 0;
@@ -331,11 +332,13 @@ __wt_compact(WT_SESSION_IMPL *session)
     for (i = 0;;) {
 
         /* Track progress. */
-        __wt_block_compact_get_progress_stats(
-          session, bm, &stats_pages_reviewed, &stats_pages_skipped, &stats_pages_rewritten);
+        __wt_block_compact_get_progress_stats(session, bm, &stats_pages_reviewed,
+          &stats_pages_skipped, &stats_pages_rewritten, &stats_pages_rewritten_expected);
         WT_STAT_DATA_SET(session, btree_compact_pages_reviewed, stats_pages_reviewed);
         WT_STAT_DATA_SET(session, btree_compact_pages_skipped, stats_pages_skipped);
         WT_STAT_DATA_SET(session, btree_compact_pages_rewritten, stats_pages_rewritten);
+        WT_STAT_DATA_SET(
+          session, btree_compact_pages_rewritten_expected, stats_pages_rewritten_expected);
 
         /*
          * Periodically check if we've timed out or eviction is stuck. Quit if eviction is stuck,

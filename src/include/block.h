@@ -115,6 +115,15 @@ struct __wt_size {
     for ((skip) = (head)[0]; (skip) != NULL; (skip) = (skip)->next[(skip)->depth])
 
 /*
+ * WT_EXT_FOREACH_FROM_OFFSET --
+ *	Walk a by-offset skiplist from the given offset, starting with the extent that contains the
+ * given offset if available.
+ */
+#define WT_EXT_FOREACH_FROM_OFFSET(skip, el, start)                             \
+    for ((skip) = __wt_block_off_srch_inclusive((el), (start)); (skip) != NULL; \
+         (skip) = (skip)->next[0])
+
+/*
  * Checkpoint cookie: carries a version number as I don't want to rev the schema
  * file version should the default block manager checkpoint format change.
  *
