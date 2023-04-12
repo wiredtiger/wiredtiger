@@ -761,7 +761,6 @@ thread_backup_run(void *arg)
             else
                 testutil_check(ret);
         }
-        testutil_check(session->open_cursor(session, "backup:query_id", NULL, NULL, &cursor));
         while ((ret = cursor->next(cursor)) == 0) {
             testutil_check(cursor->get_key(cursor, &str));
             testutil_assert(strncmp(str, "ID", 2) == 0);
