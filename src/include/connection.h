@@ -28,7 +28,6 @@ struct __wt_process {
     bool use_epochtime;    /* use expensive time */
 
     bool fast_truncate_2022; /* fast-truncate fix run-time configuration */
-    bool page_stats_2022;    /* Page stats run-time configuration */
     bool tiered_shared_2023; /* tiered shared run-time configuration */
 
     WT_CACHE_POOL *cache_pool; /* shared cache information */
@@ -639,7 +638,8 @@ struct __wt_connection_impl {
 #define WT_TIMING_STRESS_SPLIT_5 0x080000u
 #define WT_TIMING_STRESS_SPLIT_6 0x100000u
 #define WT_TIMING_STRESS_SPLIT_7 0x200000u
-#define WT_TIMING_STRESS_TIERED_FLUSH_FINISH 0x400000u
+#define WT_TIMING_STRESS_SPLIT_8 0x400000u
+#define WT_TIMING_STRESS_TIERED_FLUSH_FINISH 0x800000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t timing_stress_flags;
 

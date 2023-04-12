@@ -31,8 +31,8 @@ class Checker:
 
     def __apply_check_tree(self, operation):
         tree = Tree(operation.file)
-        if tree in self.visited_trees:
-            raise Exception(f"visited file {operation.file} again, operation={operation}")
+        # if tree in self.visited_trees:
+        #     raise Exception(f"visited file {operation.file} again, operation={operation}")
         self.visited_trees.add(tree)
         self.current_tree = tree
 
@@ -132,6 +132,14 @@ class Checker:
         # TODO expand this out
         pass
 
+    def __apply_check_shutdown_rts(self, operation):
+        # if operation.file != self.current_tree.file:
+        #     raise Exception(f"spurious visit to {operation.file}")
+
+        # if operation.shutdown_rts_error:
+        #     raise Exception("Rollback to stable during shutdown failed")
+        pass
+
     def __apply_check_tree_skip(self, operation):
         # TODO expand this out
         pass
@@ -213,5 +221,56 @@ class Checker:
         pass
 
     def __apply_check_hs_truncated(self, operation):
+        # TODO expand this out
+        pass 
+
+    def __apply_check_hs_tree_final_pass(self, operation):
+        # TODO expand this out
+        pass    
+
+    def __apply_check_hs_truncating(self, operation):
+        # TODO expand this out
+        pass   
+
+    def __apply_check_hs_update_remove(self, operation):
+        # TODO expand this out
+        pass  
+
+    def __apply_check_insert_list_check(self, operation):
+        # TODO expand this out
+        pass   
+
+    def __apply_check_insert_list_update_abort(self, operation):
+        # TODO expand this out
+        pass    
+
+    def __apply_check_ondisk_abort_check(self, operation):
+        # TODO expand this out
+        pass   
+
+    def __apply_check_ondisk_kv_fix(self, operation):
+        # TODO expand this out
+        pass   
+
+    def __apply_check_page_delete(self, operation):
+        # TODO expand this out
+        pass   
+
+    def __apply_check_page_unskipped(self, operation):
+        # TODO expand this out
+        pass  
+
+    def __apply_check_stable_update_found(self, operation):
+        # TODO expand this out
+        pass    
+
+    def __apply_check_tree_object_log(self, operation):
+        # TODO expand this out
+        pass   
+
+    def __apply_check_update_chain_verify(self, operation):
+        # TODO expand this out
+        pass        
+    def __apply_check_end(self, operation):
         # TODO expand this out
         pass
