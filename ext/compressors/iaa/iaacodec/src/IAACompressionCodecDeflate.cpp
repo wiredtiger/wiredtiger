@@ -73,7 +73,7 @@ uint32_t HardwareCodecDeflate::doCompressData(uint8_t * source, uint32_t source_
         return 0;
     }
     qpl_status status;
-    uint32_t compressed_size = 0;
+    uint32_t compressed_size;
 
     job_ptr->op = qpl_op_compress;
     job_ptr->next_in_ptr = source;
@@ -85,14 +85,10 @@ uint32_t HardwareCodecDeflate::doCompressData(uint8_t * source, uint32_t source_
 
     // Compression
     status = qpl_execute_job(job_ptr);
+    compressed_size = 0;
     if (QPL_STS_OK == status)
     {
         compressed_size = job_ptr->total_out;
-    }
-    else
-    {
-        DeflateJobHWPool::instance().releaseJob(job_id);
-        return 0;
     }
 
     DeflateJobHWPool::instance().releaseJob(job_id);
@@ -108,8 +104,9 @@ uint32_t HardwareCodecDeflate::doDecompressData(uint8_t * source, uint32_t sourc
         return 0;
     }
     qpl_status status;
+    uint32_t decompressed_size;
 
-    // Performing a decompression operation
+    // Performing a decompression operation.
     job_ptr->op = qpl_op_decompress;
     job_ptr->next_in_ptr = source;
     job_ptr->next_out_ptr = dest;
@@ -119,17 +116,15 @@ uint32_t HardwareCodecDeflate::doDecompressData(uint8_t * source, uint32_t sourc
 
     // Decompression
     status = qpl_execute_job(job_ptr);
-
+    decompressed_size = 0;
     if (status == QPL_STS_OK)
     {
-        DeflateJobHWPool::instance().releaseJob(job_id);
-        return job_ptr->total_out;
+	decompressed_size = job_ptr->total_out;
     }
-    else
-    {
-        DeflateJobHWPool::instance().releaseJob(job_id);
-        return 0;
-    }
+
+    DeflateJobHWPool::instance().releaseJob(job_id);
+    return decompressed_size;
+
 }
 
 SoftwareCodecDeflate::SoftwareCodecDeflate()

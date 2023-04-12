@@ -1,4 +1,4 @@
 project(simulator CXX)
 
 # Build timestamp simulator.
-add_subdirectory(timestamp)
+#add_subdirectory(timestamp)
