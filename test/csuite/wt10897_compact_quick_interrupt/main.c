@@ -180,9 +180,7 @@ main(int argc, char *argv[])
     memset(opts, 0, sizeof(*opts));
     testutil_check(testutil_parse_opts(argc, argv, opts));
 
-    /*
-     * Initialize the database with just a few records
-     */
+    /* Initialize the database with just a few records. */
     testutil_work_dir_from_path(home, sizeof(home), "WT_TEST.compact-quick-interrupt");
     testutil_make_work_dir(home);
 
@@ -193,9 +191,7 @@ main(int argc, char *argv[])
     populate(session, 0, NUM_RECORDS1);
     testutil_check(session->checkpoint(session, NULL));
 
-    /*
-     * At this point, check that compact does not have any meaningful work to do.
-     */
+    /* At this point, check that compact does not have any meaningful work to do. */
     skipped_compaction = false;
     testutil_check(session->compact(session, TABLE_URI, NULL));
     testutil_assert(skipped_compaction);
@@ -216,9 +212,7 @@ main(int argc, char *argv[])
     testutil_assert(interrupted_compaction);
     testutil_assert(!skipped_compaction);
 
-    /*
-     * Check that we didn't get any work done.
-     */
+    /* Check that we didn't get any work done. */
     testutil_check(session->open_cursor(session, "statistics:" TABLE_URI, NULL, NULL, &stat));
     stat->set_key(stat, WT_STAT_DSRC_BTREE_COMPACT_PAGES_REVIEWED);
     testutil_check(stat->search(stat));
@@ -226,9 +220,7 @@ main(int argc, char *argv[])
     testutil_check(stat->close(stat));
     testutil_assert(pages_reviewed == 0);
 
-    /*
-     * Finish the test and clean up.
-     */
+    /* Finish the test and clean up. */
     testutil_check(session->close(session, NULL));
     testutil_check(conn->close(conn, NULL));
 
