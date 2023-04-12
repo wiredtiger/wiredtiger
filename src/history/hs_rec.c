@@ -1101,10 +1101,9 @@ __hs_delete_record(
     WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, r->hs_cursor), true);
     /* It's possible the value in the history store becomes obsolete concurrently. */
     if (ret == WT_NOTFOUND) {
-        /* As part of rollback to stable we are adding a globally visible tombstone to unstable
-         * entries, even if we do not find an update here, we cannot guarantee there is a tombstone
-         * because it is possible for the key to be completely removed from history store after
-         * eviction.
+        /*
+         * The history store update may not exist even if there is no tombstone associated with it
+         * as this update may have already been removed by rollback to stable.
          */
         WT_ASSERT(session, tombstone == NULL || __wt_txn_upd_visible_all(session, tombstone));
         ret = 0;
