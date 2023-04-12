@@ -136,7 +136,7 @@ functions:
           DEFINED_EVERGREEN_CONFIG_FLAGS=${DEFINED_EVERGREEN_CONFIG_FLAGS/\-DHAVE_BUILTIN_EXTENSION_ZSTD=1/}
         fi
 
-        if [ "${build_variant|} = "macos-1100" ]; then
+        if [ "${build_variant|}" = "macos-1100" ]; then
           # For mac builds, forcibly set the python executable.
           DEFINED_EVERGREEN_CONFIG_FLAGS="$DEFINED_EVERGREEN_CONFIG_FLAGS -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/python3"
         fi
