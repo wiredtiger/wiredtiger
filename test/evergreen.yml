@@ -136,6 +136,11 @@ functions:
           DEFINED_EVERGREEN_CONFIG_FLAGS=${DEFINED_EVERGREEN_CONFIG_FLAGS/\-DHAVE_BUILTIN_EXTENSION_ZSTD=1/}
         fi
 
+        if [ "${build_variant|} = "macos-1100" ]; then
+          # For mac builds, forcibly set the python executable.
+          DEFINED_EVERGREEN_CONFIG_FLAGS="$DEFINED_EVERGREEN_CONFIG_FLAGS -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/python3"
+        fi
+
         if [ "$OS" = "Windows_NT" ]; then
           # Use the Windows powershell script to configure the CMake build.
           # We execute it in a powershell environment as its easier to detect and source the Visual Studio
@@ -160,6 +165,24 @@ functions:
           cd cmake_build
 
           ${configure_env_vars|} $CMAKE $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|} -G "${cmake_generator|Ninja}" ./..
+        fi
+  "python config check":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/cmake_build"
+      shell: bash
+      script: |
+        set -o errexit
+        set -o verbose
+        python_configured=$(grep Python3_EXECUTABLE: ./CMakeCache.txt | sed -e 's/.*=//')
+        if [ "$(${python_command} -V -V)" != "$($python_configured -V -V)" ]; then
+           echo "Python versions do not match.  Cmake version:"
+           echo "$python_configured"
+           $python_configured -V -V
+           echo "Variable used by evergreen:"
+           echo "$python_command"
+           $python_command -V -V
+           exit 1
         fi
   "make wiredtiger": &make_wiredtiger
     command: shell.exec
@@ -1067,6 +1090,10 @@ variables:
 #######################################
 
 tasks:
+  # Check the python configuration
+  - name: python-config-check
+    commands:
+      - func: "python config check"
 
   # Base compile task on posix flavours
   - name: compile
@@ -5513,10 +5540,9 @@ buildvariants:
   expansions:
     # The cmake toolchain file is set to the mongodb toolchain gcc by default.
     # Remove that configuration here and let MacOS use the default Xcode toolchain instead.
-    # We must use the same python that CMake used.
+    # We'll explicitly use the python3 in /usr/bin, it's fast.
     CMAKE_TOOLCHAIN_FILE:
-    #python_binary: $(grep Python3_EXECUTABLE: $(pwd | sed -e 's:\(/cmake_build\).*:\1:')/CMakeCache.txt | sed -e 's/.*=//')
-    python_binary: '/usr/local/bin/python3.9'
+    python_binary: '/usr/bin/python3'
     smp_command: -j $(sysctl -n hw.logicalcpu)
     cmake_generator: "Unix Makefiles"
     make_command: make
@@ -5528,6 +5554,7 @@ buildvariants:
   tasks:
     - name: compile
     - name: make-check-test
+    - name: python-config-check
     # FIXME: WT-9575
     # Using a special version of unit test for macOS to reduce the concurrency level.
     - name: unit-test-macos
