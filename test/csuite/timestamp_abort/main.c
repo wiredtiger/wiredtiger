@@ -735,9 +735,9 @@ thread_backup_run(void *arg)
     struct stat sb;
     THREAD_DATA *td;
     WT_CURSOR *cursor;
+    WT_DECL_RET;
     WT_SESSION *session;
     uint32_t i, last_backup, last_full, sleep_time, u;
-    int ret;
     char *str;
     char buf[1024];
 
@@ -750,6 +750,17 @@ thread_backup_run(void *arg)
      * Find the last successful backup.
      */
     if (td->workload_iteration > 1) {
+        ret = session->open_cursor(session, "backup:query_id", NULL, NULL, &cursor);
+        /*
+         * If there is no previous backup that exists, then go straight to creating a full backup
+         * this iteration.
+         */
+        if (ret != 0) {
+            if (ret == EINVAL)
+                goto create;
+            else
+                testutil_check(ret);
+        }
         testutil_check(session->open_cursor(session, "backup:query_id", NULL, NULL, &cursor));
         while ((ret = cursor->next(cursor)) == 0) {
             testutil_check(cursor->get_key(cursor, &str));
@@ -780,6 +791,7 @@ thread_backup_run(void *arg)
         testutil_check(cursor->close(cursor));
     }
 
+create:
     /*
      * Create backups until we get killed.
      */
