@@ -752,8 +752,8 @@ thread_backup_run(void *arg)
     if (td->workload_iteration > 1) {
         ret = session->open_cursor(session, "backup:query_id", NULL, NULL, &cursor);
         /*
-         * If there is no previous backup that exists, then go straight to creating a full backup
-         * this iteration.
+         * If the query indicates no previous backup exists, then we only want to create a full
+         * backup this iteration.
          */
         if (ret != 0) {
             if (ret == EINVAL)
