@@ -32,7 +32,7 @@ from helper import simulate_crash_restart
 # test_rollback_to_stable30.py
 # Test RTS fails with active transactions and the subsequent transaction resolution succeeds.
 class test_table99(wttest.WiredTigerTestCase):
-    conn_config = "verbose=[recovery_progress],cache_size=30GB"
+    conn_config = "verbose=[recovery_progress],cache_size=30GB,statistics=(all),statistics_log=(json,on_close,wait=1)"
     uri = "table:many_table"
 
     def test_many_tables(self):

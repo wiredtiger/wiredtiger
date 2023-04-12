@@ -85,7 +85,7 @@ __rts_progress_msg(WT_SESSION_IMPL *session, struct timespec rollback_start,
     __wt_epoch(session, &cur_time);
 
     /* Time since the rollback started. */
-    time_diff = WT_TIMEDIFF_SEC(cur_time, rollback_start);
+    time_diff = WT_TIMEDIFF_MS(cur_time, rollback_start);
 
     if ((time_diff / WT_PROGRESS_MSG_PERIOD) > *rollback_msg_count) {
         __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
