@@ -486,7 +486,7 @@ functions:
         if [ ${check_coverage|false} = true ]; then
             ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1 || echo "Ignoring failed test as we are checking test coverage"
         else
-            ${test_env_vars|} ${python_binary|python3} -m trace --trace ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
         fi
   "format test":
     command: shell.exec
@@ -2248,6 +2248,8 @@ tasks:
     commands:
       - func: "fetch artifacts"
       - func: "unit test"
+        vars:
+           smp_command: -j $(echo $(sysctl -n hw.logicalcpu) / 2 | bc)
 
   - name: unit-test-nonstandalone
     tags: ["python"]
@@ -5509,10 +5511,11 @@ buildvariants:
   - macos-1100
   batchtime: 120 # 2 hours
   expansions:
-    # The cmake toolchain file is set to the mongodb toolchain gcc by defualt.
+    # The cmake toolchain file is set to the mongodb toolchain gcc by default.
     # Remove that configuration here and let MacOS use the default Xcode toolchain instead.
+    # We must use the same python that CMake used.
     CMAKE_TOOLCHAIN_FILE:
-    python_binary: 'python3'
+    python_binary: $(grep Python3_EXECUTABLE: $(pwd | sed -e 's:\(/cmake_build\).*:\1:')/CMakeCache.txt | sed -e 's/.*=//')
     smp_command: -j $(sysctl -n hw.logicalcpu)
     cmake_generator: "Unix Makefiles"
     make_command: make
