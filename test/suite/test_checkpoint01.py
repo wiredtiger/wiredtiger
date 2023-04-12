@@ -179,14 +179,14 @@ class test_checkpoint_cursor(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(
             self.uri, None, "checkpoint=checkpoint-2")
 
+        msg = '/checkpoint.*cannot be dropped/'
         # Check creating an identically named checkpoint fails. */
-        # Check dropping the specific checkpoint fails.
-        # Check dropping all checkpoints fails.
-        msg = '/checkpoints cannot be dropped/'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.checkpoint("force,name=checkpoint-2"), msg)
+        # Check dropping the specific checkpoint fails.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.checkpoint("drop=(checkpoint-2)"), msg)
+        # Check dropping all checkpoints fails.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.checkpoint("drop=(from=all)"), msg)
 
@@ -218,9 +218,8 @@ class test_checkpoint_target(wttest.WiredTigerTestCase):
         self.assertEquals(cursor[ds.key(10)], value)
         cursor.close()
 
-    # FIXME-WT-9902
+    # FIXME-WT-10836
     @wttest.skip_for_hook("tiered", "strange interaction with tiered and named checkpoints using target")
-    @wttest.skip_for_hook("timestamp", "strange interaction with timestamps and named checkpoints using target")
     def test_checkpoint_target(self):
         # Create 3 objects, change one record to an easily recognizable string.
         uri = self.uri + '1'

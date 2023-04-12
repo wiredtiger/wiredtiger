@@ -221,6 +221,10 @@ CONFIG configuration_list[] = {
 
 {"ops.hs_cursor", "configure history store cursor reads", C_BOOL, 50, 0, 0}
 
+{"ops.pareto", "configure crud operations to be pareto distributed", C_BOOL | C_TABLE, 20, 0, 0}
+
+{"ops.pareto.skew", "adjusts the amount of skew used by the pareto distribution", C_TABLE, 1, 100, 100}
+
 {"ops.pct.delete", "delete operations (percentage)", C_IGNORE | C_TABLE, 0, 0, 100}
 
 {"ops.pct.insert", "insert operations (percentage)", C_IGNORE | C_TABLE, 0, 0, 100}
@@ -312,6 +316,10 @@ CONFIG configuration_list[] = {
 {"stress.split_7", "stress splits (#7)", C_BOOL, 2, 0, 0}
 
 {"stress.split_8", "stress splits (#8)", C_BOOL, 2, 0, 0}
+
+{"tiered_storage.flush_frequency", "calls to checkpoint that are flush_tier, if tiered storage enabled (percentage)", 0x0, 0, 50, 100 }
+
+{"tiered_storage.storage_source", "storage source used (azure_store | dir_store | gcp_store | none | off | s3_store)", C_IGNORE | C_STRING, 0, 0, 0}
 
 {"transaction.implicit", "implicit, without timestamps, transactions (percentage)", 0, 0, 100, 100}
 

@@ -27,11 +27,14 @@
  */
 #include "test_util.h"
 
+#include <math.h>
+
 #ifndef _WIN32
 #include <sys/wait.h>
 #endif
 
-#ifdef __linux__
+#if defined(__APPLE__) || defined(__linux__)
+#include <dirent.h>
 #include <libgen.h>
 #endif
 
@@ -293,6 +296,59 @@ testutil_copy_data(const char *dir)
 }
 
 /*
+ * testutil_copy_data_opt --
+ *     Copy the data to a backup folder. Directories and files with the specified "readonly prefix"
+ *     will be hard-linked instead of copied for efficiency on supported platforms.
+ */
+void
+testutil_copy_data_opt(const char *dir, const char *readonly_prefix)
+{
+#if defined(__APPLE__) || defined(__linux__)
+    struct dirent *e;
+    char to_copy[2048];
+    char to_link[2048];
+    DIR *d;
+
+    to_copy[0] = '\0';
+    to_link[0] = '\0';
+
+    testutil_system("rm -rf ../%s.SAVE && mkdir ../%s.SAVE", dir, dir);
+
+    testutil_assert_errno((d = opendir(".")) != NULL);
+    while ((e = readdir(d)) != NULL) {
+        if (e->d_name[0] == '.')
+            continue;
+
+        if (readonly_prefix != NULL &&
+          strncmp(e->d_name, readonly_prefix, strlen(readonly_prefix)) == 0) {
+            if (strlen(to_link) + strlen(e->d_name) + 2 >= sizeof(to_link)) {
+                testutil_system("cp -rp -l %s ../%s.SAVE", to_link, dir);
+                to_link[0] = '\0';
+            }
+            testutil_check(__wt_strcat(to_link, sizeof(to_link), " "));
+            testutil_check(__wt_strcat(to_link, sizeof(to_link), e->d_name));
+        } else {
+            if (strlen(to_copy) + strlen(e->d_name) + 2 >= sizeof(to_copy)) {
+                testutil_system("cp -rp %s ../%s.SAVE", to_copy, dir);
+                to_copy[0] = '\0';
+            }
+            testutil_check(__wt_strcat(to_copy, sizeof(to_copy), " "));
+            testutil_check(__wt_strcat(to_copy, sizeof(to_copy), e->d_name));
+        }
+    }
+    testutil_check(closedir(d));
+
+    if (to_copy[0] != '\0')
+        testutil_system("cp -rp %s ../%s.SAVE", to_copy, dir);
+    if (to_link[0] != '\0')
+        testutil_system("cp -rp -l %s ../%s.SAVE", to_link, dir);
+#else
+    WT_UNUSED(readonly_prefix);
+    testutil_copy_data(dir);
+#endif
+}
+
+/*
  * testutil_clean_test_artifacts --
  *     Clean any temporary files and folders created during test execution
  */
@@ -355,7 +411,18 @@ testutil_verify_src_backup(WT_CONNECTION *conn, const char *backup, const char *
      * that exist in the system.
      */
     if (srcid == NULL) {
-        testutil_check(session->open_cursor(session, "backup:query_id", NULL, buf, &cursor));
+        /*
+         * Even if expected, we may not find any backup IDs depending on scheduling of backups,
+         * checkpoints and killing of a process. So backup IDs may not have been saved to disk. If
+         * opening the backup query cursor gets EINVAL there is nothing to do.
+         */
+        ret = session->open_cursor(session, "backup:query_id", NULL, buf, &cursor);
+        if (ret != 0) {
+            if (ret == EINVAL)
+                goto done;
+            else
+                testutil_check(ret);
+        }
         i = 0;
         while ((ret = cursor->next(cursor)) == 0) {
             testutil_check(cursor->get_key(cursor, &idstr));
@@ -416,6 +483,7 @@ testutil_verify_src_backup(WT_CONNECTION *conn, const char *backup, const char *
         if (srcid == NULL)
             free(id[j]);
     }
+done:
     testutil_check(session->close(session, NULL));
 }
 
@@ -520,41 +588,16 @@ void
 testutil_wiredtiger_open(TEST_OPTS *opts, const char *home, const char *config,
   WT_EVENT_HANDLER *event_handler, WT_CONNECTION **connectionp, bool rerun, bool benchmarkrun)
 {
-    char auth_token[256], buf[1024], tiered_ext_cfg[512];
-    const char *s3_access_key, *s3_secret_key, *s3_bucket_name;
+    char buf[1024], tiered_cfg[512], tiered_ext_cfg[512];
 
-    s3_bucket_name = NULL;
-    auth_token[0] = '\0';
-    if (opts->tiered_storage) {
-        if (!testutil_is_dir_store(opts)) {
-            s3_access_key = getenv("aws_sdk_s3_ext_access_key");
-            s3_secret_key = getenv("aws_sdk_s3_ext_secret_key");
-            s3_bucket_name = getenv("WT_S3_EXT_BUCKET");
+    opts->local_retention = benchmarkrun ? 0 : 2;
+    testutil_tiered_storage_configuration(
+      opts, tiered_cfg, sizeof(tiered_cfg), tiered_ext_cfg, sizeof(tiered_ext_cfg));
 
-            if (s3_access_key == NULL || s3_secret_key == NULL)
-                testutil_die(EINVAL, "AWS S3 access key or secret key is not set");
+    testutil_check(__wt_snprintf(buf, sizeof(buf), "%s%s%s%s,extensions=[%s]",
+      config == NULL ? "" : config, (rerun ? TESTUTIL_ENV_CONFIG_REC : ""),
+      (opts->compat ? TESTUTIL_ENV_CONFIG_COMPAT : ""), tiered_cfg, tiered_ext_cfg));
 
-            /*
-             * By default the S3 bucket name is S3_DEFAULT_BUCKET_NAME, but it can be overridden
-             * with environment variables.
-             */
-            if (s3_bucket_name == NULL)
-                s3_bucket_name = S3_DEFAULT_BUCKET_NAME;
-
-            testutil_check(
-              __wt_snprintf(auth_token, sizeof(auth_token), "%s;%s", s3_access_key, s3_secret_key));
-        }
-        testutil_check(__wt_snprintf(tiered_ext_cfg, sizeof(tiered_ext_cfg),
-          TESTUTIL_ENV_CONFIG_TIERED_EXT TESTUTIL_ENV_CONFIG_TIERED, opts->build_dir,
-          opts->tiered_storage_source, opts->tiered_storage_source, opts->delay_ms, opts->error_ms,
-          opts->force_delay, opts->force_error,
-          testutil_is_dir_store(opts) ? DIR_STORE_BUCKET_NAME : s3_bucket_name,
-          benchmarkrun ? 0 : 2, opts->tiered_storage_source, auth_token));
-    }
-
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "%s%s%s%s", config == NULL ? "" : config,
-      (rerun ? TESTUTIL_ENV_CONFIG_REC : ""), (opts->compat ? TESTUTIL_ENV_CONFIG_COMPAT : ""),
-      (opts->tiered_storage ? tiered_ext_cfg : "")));
     if (opts->verbose)
         printf("wiredtiger_open configuration: %s\n", buf);
     testutil_check(wiredtiger_open(home, event_handler, buf, connectionp));
@@ -599,6 +642,30 @@ testutil_time_us(WT_SESSION *session)
 
     __wt_epoch((WT_SESSION_IMPL *)session, &ts);
     return ((uint64_t)ts.tv_sec * WT_MILLION + (uint64_t)ts.tv_nsec / WT_THOUSAND);
+}
+
+/*
+ * testutil_pareto --
+ *     Given a random value, a range and a skew percentage. Return a value between [0 and range).
+ */
+uint64_t
+testutil_pareto(uint64_t rand, uint64_t range, u_int skew)
+{
+    double S1, S2, U;
+#define PARETO_SHAPE 1.5
+
+    S1 = (-1 / PARETO_SHAPE);
+    S2 = range * (skew / 100.0) * (PARETO_SHAPE - 1);
+    U = 1 - (double)rand / (double)UINT32_MAX;
+    rand = (uint64_t)((pow(U, S1) - 1) * S2);
+    /*
+     * This Pareto calculation chooses out of range values about
+     * 2% of the time, from my testing. That will lead to the
+     * first item in the table being "hot".
+     */
+    if (rand > range)
+        rand = 0;
+    return (rand);
 }
 
 /*
