@@ -1004,6 +1004,7 @@ notfound
 notsup
 novalue
 nowait
+np
 nrecs
 nsec
 nset
@@ -1151,6 +1152,7 @@ sdk
 secretkey
 sessionp
 setkv
+setname
 setstr
 setv
 setvbuf
