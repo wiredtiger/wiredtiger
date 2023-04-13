@@ -342,7 +342,7 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
 
         /* If there is more work that could be done, repeat with the shorter file. */
         ext = __wt_block_off_srch_inclusive(&block->live.avail, compact_start_off);
-        file_size = WT_MIN(ext->off, compact_start_off);
+        file_size = ext == NULL ? compact_start_off : WT_MIN(ext->off, compact_start_off);
         __block_compact_skip_internal(
           session, block, true, file_size, write_off, extra_space, &skip, &compact_pct_tenths);
         if (skip)
