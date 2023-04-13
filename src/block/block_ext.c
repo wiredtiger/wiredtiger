@@ -252,9 +252,9 @@ __wt_block_off_srch_inclusive(WT_EXTLIST *el, wt_off_t off)
 
     if (before == NULL) /* The search key is before the first element. */
         return (after);
-    if (before->off + before->size >= off) /* The entire before extent is before the search key. */
+    if (before->off + before->size <= off) /* The entire before extent is before the search key. */
         return (after);
-    if (before->off >= off) /* The search key is in the before extent. */
+    if (before->off <= off) /* The search key is in the before extent. */
         return (before);
     return (after);
 }

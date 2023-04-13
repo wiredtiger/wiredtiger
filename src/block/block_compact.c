@@ -25,10 +25,12 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
     /* Reset the compaction state information. */
     block->compact_pct_tenths = 0;
     block->compact_bytes_rewritten = 0;
+    block->compact_bytes_reviewed = 0;
     block->compact_pages_rewritten = 0;
     block->compact_pages_rewritten_expected = 0;
     block->compact_pages_reviewed = 0;
     block->compact_pages_skipped = 0;
+    block->compact_internal_pages_reviewed = 0;
 
     return (0);
 }
@@ -72,6 +74,40 @@ __wt_block_compact_get_progress_stats(WT_SESSION_IMPL *session, WT_BM *bm,
 }
 
 /*
+ * __block_compact_trim_extent --
+ *     Trim the extent to the given range mask, specified via start and end offsets.
+ */
+static inline void
+__block_compact_trim_extent(WT_SESSION_IMPL *session, wt_off_t mask_start, wt_off_t mask_end,
+  wt_off_t *ext_startp, wt_off_t *ext_sizep)
+{
+    WT_UNUSED(session);
+
+    if (mask_end >= 0 && mask_end < mask_start) {
+        *ext_sizep = 0;
+        return;
+    }
+
+    /* Trim from the beginning. */
+    if (*ext_startp < mask_start) {
+        if (*ext_startp + *ext_sizep <= mask_start) {
+            *ext_sizep = 0;
+            return;
+        }
+        *ext_sizep -= mask_start - *ext_startp;
+        *ext_startp = mask_start;
+    }
+
+    /* Trim from the end. */
+    if (mask_end >= 0 && *ext_startp + *ext_sizep > mask_end) {
+        *ext_sizep = mask_end - *ext_startp;
+        if (*ext_sizep <= 0) {
+            *ext_sizep = 0;
+        }
+    }
+}
+
+/*
  * __block_compact_skip_internal --
  *     Return if compaction will shrink the file. This function takes a few extra parameters, so
  *     that it can be useful for both making the actual compaction decisions as well as for
@@ -83,7 +119,7 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
   int *compact_pct_tenths_p)
 {
     WT_EXT *ext;
-    wt_off_t avail_eighty, avail_ninety, eighty, ninety;
+    wt_off_t avail_eighty, avail_ninety, off, size, eighty, ninety;
 
     /* IMPORTANT: We assume here that block->live_lock is locked. */
 
@@ -92,12 +128,17 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
     ninety = file_size - file_size / 10;
     eighty = file_size - ((file_size / 10) * 2);
 
-    WT_EXT_FOREACH (ext, block->live.avail.off)
-        if (ext->off >= start_offset && ext->off < ninety) {
-            avail_ninety += ext->size;
-            if (ext->off < eighty)
-                avail_eighty += ext->size;
+    WT_EXT_FOREACH_FROM_OFFSET_INCL(ext, &block->live.avail, start_offset)
+    {
+        off = ext->off;
+        size = ext->size;
+        __block_compact_trim_extent(session, start_offset, file_size, &off, &size);
+        if (off < ninety) {
+            avail_ninety += size;
+            if (off < eighty)
+                avail_eighty += size;
         }
+    }
 
     /*
      * Skip files where we can't recover at least 1MB.
@@ -120,11 +161,10 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
         *compact_pct_tenths_p = 0;
     }
 
-    __wt_verbose_level(session, WT_VERB_COMPACT,
-      (estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1),
-      "%s:%s total reviewed %" PRIu64 " pages, total rewritten %" PRIu64 " pages", block->name,
-      estimate ? " estimating --" : "", block->compact_pages_reviewed,
-      block->compact_pages_rewritten);
+    if (!estimate)
+        __wt_verbose_level(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1,
+          "%s: total reviewed %" PRIu64 " pages, total rewritten %" PRIu64 " pages", block->name,
+          block->compact_pages_reviewed, block->compact_pages_rewritten);
     __wt_verbose_level(session, WT_VERB_COMPACT,
       (estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1),
       "%s:%s %" PRIuMAX "MB (%" PRIuMAX ") available space in the first 80%% of the file",
@@ -144,40 +184,6 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
 }
 
 /*
- * __block_compact_trim_extent --
- *     Trim the extent to the given range mask, specified via start and end offsets.
- */
-static inline void
-__block_compact_trim_extent(WT_SESSION_IMPL *session, wt_off_t mask_start, wt_off_t mask_end,
-  wt_off_t *ext_startp, wt_off_t *ext_sizep)
-{
-    WT_UNUSED(session);
-
-    if (mask_end < mask_start) {
-        *ext_sizep = 0;
-        return;
-    }
-
-    /* Trim from the beginning. */
-    if (*ext_startp < mask_start) {
-        if (*ext_startp + *ext_sizep <= mask_start) {
-            *ext_sizep = 0;
-            return;
-        }
-        *ext_sizep -= mask_start - *ext_startp;
-        *ext_startp = mask_start;
-    }
-
-    /* Trim from the end. */
-    if (*ext_startp + *ext_sizep > mask_end) {
-        *ext_sizep = mask_end - *ext_startp;
-        if (*ext_sizep <= 0) {
-            *ext_sizep = 0;
-        }
-    }
-}
-
-/*
  * __block_compact_estimate_remaining_work --
  *     Estimate how much more work the compaction needs to do for the given file.
  */
@@ -185,16 +191,17 @@ static void
 __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
     WT_EXT *ext;
-    wt_off_t avg_block_size, compact_start_off, extra_space, file_size, last, off, size, write_off;
-    uint64_t n, pages_to_move, total_pages_to_move;
-    int compact_pct_tenths;
+    wt_off_t avg_block_size, avg_internal_block_size, depth1_size, leaves_per_internal_page;
+    wt_off_t compact_start_off, extra_space, file_size, last, off, rewrite_size, size, write_off;
+    uint64_t n, pages_to_move, pages_to_move_orig, total_pages_to_move;
+    int compact_pct_tenths, iteration;
     bool skip;
 
     /*
-     * We must have relocated at least some interesting number of pages for any estimates below to
+     * We must have reviewed at least some interesting number of pages for any estimates below to
      * be worthwhile.
      */
-    if (block->compact_pages_rewritten < WT_THOUSAND)
+    if (block->compact_pages_reviewed < WT_THOUSAND)
         return;
 
     /* Assume that we have already checked whether this file can be skipped. */
@@ -206,14 +213,19 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
      * either.
      */
     avg_block_size = (wt_off_t)WT_ALIGN(
-      block->compact_bytes_rewritten / block->compact_pages_rewritten, block->allocsize);
+      block->compact_bytes_reviewed / block->compact_pages_reviewed, block->allocsize);
+
+    /* We don't currently have a way to track the internal page size, but this should be okay. */
+    avg_internal_block_size = 4096;
+    leaves_per_internal_page =
+      (wt_off_t)(block->compact_pages_reviewed / block->compact_internal_pages_reviewed);
+    depth1_size = avg_block_size * leaves_per_internal_page + avg_internal_block_size;
 
     __wt_verbose_debug2(session, WT_VERB_COMPACT,
-      "%s: the average block size is %" PRId64 " bytes (based on %" PRIu64 " rewrites)",
-      block->name, avg_block_size, block->compact_pages_rewritten);
-    __wt_verbose_debug2(session, WT_VERB_COMPACT,
-      "%s: will move blocks from the last %d%% of the file", block->name,
-      block->compact_pct_tenths * 10);
+      "%s: the average block size is %" PRId64 " bytes (based on %" PRIu64 " blocks)", block->name,
+      avg_block_size, block->compact_pages_reviewed);
+    __wt_verbose_debug2(session, WT_VERB_COMPACT, "%s: reviewed %" PRIu64 " internal pages so far",
+      block->name, block->compact_internal_pages_reviewed);
 
     /*
      * We would like to estimate how much data will be moved during compaction, so that we can
@@ -233,14 +245,22 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
     total_pages_to_move = 0;
     write_off = 0;
 
-    for (;;) {
-        compact_start_off = (10 - compact_pct_tenths) * file_size / 10;
+#define WT_EXT_SIZE_TO_LEAF_PAGES(ext_size)                          \
+    (uint64_t)((ext_size) / depth1_size * leaves_per_internal_page + \
+      ((ext_size) % depth1_size) / avg_block_size)
+
+    for (iteration = 0;; iteration++) {
+        compact_start_off = file_size - compact_pct_tenths * file_size / 10;
         if (write_off >= compact_start_off)
             break;
+        __wt_verbose_debug2(session, WT_VERB_COMPACT,
+          "%s: estimating -- pass %d: file size: %" PRId64 ", compact offset: %" PRId64
+          ", will move blocks from the last %d%% of the file",
+          block->name, iteration, file_size, compact_start_off, compact_pct_tenths * 10);
 
         /* Estimate how many pages we would like to move, just using the live checkpoint. */
         last = compact_start_off;
-        WT_EXT_FOREACH_FROM_OFFSET(ext, &block->live.avail, compact_start_off)
+        WT_EXT_FOREACH_FROM_OFFSET_INCL(ext, &block->live.avail, compact_start_off)
         {
             off = ext->off;
             size = ext->size;
@@ -251,12 +271,21 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
                 break;
 
             if (off > last) {
-                pages_to_move += (uint64_t)((off - last) / avg_block_size); /* round down */
-                last = off + size;
+                n = WT_EXT_SIZE_TO_LEAF_PAGES(off - last);
+                pages_to_move += n;
+                __wt_verbose_debug3(session, WT_VERB_COMPACT,
+                  "%s: estimating -- %" PRIu64 " pages to move between %" PRId64 " and %" PRId64,
+                  block->name, n, last, off);
             }
+            last = off + size;
         }
-        pages_to_move += (uint64_t)((file_size - last) / avg_block_size);
-        WT_EXT_FOREACH_FROM_OFFSET(ext, &block->live.discard, compact_start_off)
+        n = WT_EXT_SIZE_TO_LEAF_PAGES(file_size - last);
+        pages_to_move += n;
+        __wt_verbose_debug3(session, WT_VERB_COMPACT,
+          "%s: estimating -- %" PRIu64 " pages to move between %" PRId64 " and %" PRId64,
+          block->name, n, last, file_size);
+
+        WT_EXT_FOREACH_FROM_OFFSET_INCL(ext, &block->live.discard, compact_start_off)
         {
             off = ext->off;
             size = ext->size;
@@ -266,14 +295,19 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
             if (off >= compact_start_off && size <= 0)
                 break;
 
-            n = (uint64_t)(size / avg_block_size);
+            n = WT_EXT_SIZE_TO_LEAF_PAGES(size);
             pages_to_move -= WT_MIN(n, pages_to_move);
+            __wt_verbose_debug3(session, WT_VERB_COMPACT,
+              "%s: estimating -- %" PRIu64 " pages on discard list between %" PRId64
+              " and %" PRId64,
+              block->name, n, off, off + size);
         }
         if (pages_to_move == 0)
             break;
 
         /* Estimate where in the file we would be when we finish moving those pages. */
-        WT_EXT_FOREACH_FROM_OFFSET(ext, &block->live.avail, write_off)
+        pages_to_move_orig = pages_to_move;
+        WT_EXT_FOREACH_FROM_OFFSET_INCL(ext, &block->live.avail, write_off)
         {
             off = ext->off;
             size = ext->size;
@@ -286,26 +320,36 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
             if (off >= write_off && size <= 0)
                 break;
 
-            n = (uint64_t)(size / avg_block_size);
+            n = WT_EXT_SIZE_TO_LEAF_PAGES(size);
             n = WT_MIN(n, pages_to_move);
             pages_to_move -= n;
             total_pages_to_move += n;
-            write_off = ext->off + (wt_off_t)n * avg_block_size;
+
+            rewrite_size = (wt_off_t)n * avg_block_size +
+              (wt_off_t)n * avg_internal_block_size / leaves_per_internal_page;
+            write_off = off + rewrite_size;
             if (pages_to_move > 0)
-                extra_space += ext->size - (wt_off_t)n * avg_block_size;
+                extra_space += size - rewrite_size;
         }
+        __wt_verbose_debug2(session, WT_VERB_COMPACT,
+          "%s: estimating -- pass %d: will rewrite %" PRIu64 " pages, next write offset: %" PRId64
+          ", extra space: %" PRId64,
+          block->name, iteration, pages_to_move_orig, write_off, extra_space);
 
         /* See if we ran out of pages to move. */
         if (pages_to_move > 0)
             break;
 
         /* If there is more work that could be done, repeat with the shorter file. */
-        file_size = compact_start_off;
+        ext = __wt_block_off_srch_inclusive(&block->live.avail, compact_start_off);
+        file_size = WT_MIN(ext->off, compact_start_off);
         __block_compact_skip_internal(
           session, block, true, file_size, write_off, extra_space, &skip, &compact_pct_tenths);
         if (skip)
             break;
     }
+
+#undef WT_EXT_SIZE_TO_LEAF_PAGES
 
     __wt_spin_unlock(session, &block->live_lock);
 
@@ -354,9 +398,10 @@ __wt_block_compact_progress(WT_SESSION_IMPL *session, WT_BLOCK *block, u_int *ms
               (int)(100 * block->compact_pages_rewritten / block->compact_pages_rewritten_expected),
               100);
             __wt_verbose_debug1(session, WT_VERB_COMPACT_PROGRESS,
-              "compacting %s for %" PRIu64 " seconds; reviewed %" PRIu64
-              " pages, rewritten %" PRIu64 " pages (%" PRIu64 "MB), approx. %d%% done",
-              block->name, time_diff, block->compact_pages_reviewed, block->compact_pages_rewritten,
+              "compacting %s for %" PRIu64 " seconds; reviewed %" PRIu64 " pages (%" PRIu64
+              "MB), rewritten %" PRIu64 " pages (%" PRIu64 "MB), approx. %d%% done",
+              block->name, time_diff, block->compact_pages_reviewed,
+              block->compact_bytes_reviewed / WT_MEGABYTE, block->compact_pages_rewritten,
               block->compact_bytes_rewritten / WT_MEGABYTE, progress);
         }
     }
@@ -433,10 +478,15 @@ __compact_page_skip(
     __wt_spin_unlock(session, &block->live_lock);
 
     ++block->compact_pages_reviewed;
+    block->compact_bytes_reviewed += size;
     if (*skipp)
         ++block->compact_pages_skipped;
     else
         ++block->compact_pages_rewritten;
+
+    /* Estimate how much work is left. */
+    if (block->compact_pages_rewritten_expected == 0)
+        __block_compact_estimate_remaining_work(session, block);
 }
 
 /*
@@ -523,6 +573,9 @@ __wt_block_compact_page_rewrite(
     WT_STAT_CONN_INCRV(session, block_byte_write, size);
 
     discard_block = false;
+    __wt_verbose_level(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_4,
+      "%s: rewrite %" PRId64 " --> %" PRId64 " (%" PRIu32 "B)", block->name, offset, new_offset,
+      size);
 
 err:
     if (discard_block) {

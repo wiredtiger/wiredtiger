@@ -115,11 +115,11 @@ struct __wt_size {
     for ((skip) = (head)[0]; (skip) != NULL; (skip) = (skip)->next[(skip)->depth])
 
 /*
- * WT_EXT_FOREACH_FROM_OFFSET --
+ * WT_EXT_FOREACH_FROM_OFFSET_INCL --
  *	Walk a by-offset skiplist from the given offset, starting with the extent that contains the
  * given offset if available.
  */
-#define WT_EXT_FOREACH_FROM_OFFSET(skip, el, start)                             \
+#define WT_EXT_FOREACH_FROM_OFFSET_INCL(skip, el, start)                             \
     for ((skip) = __wt_block_off_srch_inclusive((el), (start)); (skip) != NULL; \
          (skip) = (skip)->next[0])
 
@@ -287,10 +287,12 @@ struct __wt_block {
     /* Compaction support */
     int compact_pct_tenths;                    /* Percent to compact */
     uint64_t compact_bytes_rewritten;          /* Bytes rewritten */
+    uint64_t compact_bytes_reviewed;           /* Bytes reviewed */
     uint64_t compact_pages_rewritten;          /* Pages rewritten */
     uint64_t compact_pages_rewritten_expected; /* The expected number of pages to rewrite */
     uint64_t compact_pages_reviewed;           /* Pages reviewed */
     uint64_t compact_pages_skipped;            /* Pages skipped */
+    uint64_t compact_internal_pages_reviewed;  /* Internal pages reviewed */
 
     /* Salvage support */
     wt_off_t slvg_off; /* Salvage file offset */
