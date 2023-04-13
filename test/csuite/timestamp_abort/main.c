@@ -755,12 +755,9 @@ thread_backup_run(void *arg)
          * If the query indicates no previous backup exists, then we only want to create a full
          * backup this iteration.
          */
-        if (ret != 0) {
-            if (ret == EINVAL)
-                goto create;
-            else
-                testutil_check(ret);
-        }
+        if (ret == EINVAL)
+            goto create;
+        testutil_check(ret);
         while ((ret = cursor->next(cursor)) == 0) {
             testutil_check(cursor->get_key(cursor, &str));
             testutil_assert(strncmp(str, "ID", 2) == 0);
@@ -1247,12 +1244,9 @@ backup_exists(WT_CONNECTION *conn, uint32_t index)
      */
     found = false;
     ret = session->open_cursor(session, "backup:query_id", NULL, NULL, &cursor);
-    if (ret != 0) {
-        if (ret == EINVAL)
-            goto done;
-        else
-            testutil_check(ret);
-    }
+    if (ret == EINVAL)
+        goto done;
+    testutil_check(ret);
     while (cursor->next(cursor) == 0) {
         testutil_check(cursor->get_key(cursor, &idstr));
         if (strcmp(idstr, backup_id) == 0) {
