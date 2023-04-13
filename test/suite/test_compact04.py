@@ -67,10 +67,6 @@ class test_compact04(wttest.WiredTigerTestCase):
                 c.set_key(start + i)
                 c.remove()
         c.close()
-        self.session.checkpoint()
-        self.session.checkpoint()
-        self.session.checkpoint()
-        self.session.checkpoint()
 
         # Compact!
         self.session.compact(self.table_uri, None)
