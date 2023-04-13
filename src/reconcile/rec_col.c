@@ -690,7 +690,8 @@ __wt_rec_col_fix(
             tw++;
     }
 
-    WT_SKIP_FOREACH_ATOMIC (ins, WT_COL_UPDATE_SINGLE(page)) {
+    WT_SKIP_FOREACH_ATOMIC(ins, WT_COL_UPDATE_SINGLE(page))
+    {
         recno = WT_INSERT_RECNO(ins);
 
         if (salvage != NULL && (recno < curstartrecno || recno >= curstartrecno + entry))

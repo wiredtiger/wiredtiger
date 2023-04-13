@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#include <stdatomic.h>
+
 #define WT_PTRDIFFT_FMT "td" /* ptrdiff_t format string */
 #define WT_SIZET_FMT "zu"    /* size_t format string */
 
@@ -98,16 +100,16 @@
 #error "Clang versions 3.5 and earlier are unsupported by WiredTiger"
 #endif
 
-#define WT_ATOMIC_RELAXED __ATOMIC_RELAXED
-#define WT_ATOMIC_ACQUIRE __ATOMIC_ACQUIRE
-#define WT_ATOMIC_RELEASE __ATOMIC_RELEASE
-#define WT_ATOMIC_ACQ_REL __ATOMIC_ACQ_REL
-#define WT_ATOMIC_SEQ_CST __ATOMIC_SEQ_CST
+#define WT_ATOMIC_RELAXED memory_order_relaxed
+#define WT_ATOMIC_ACQUIRE memory_order_acquire
+#define WT_ATOMIC_RELEASE memory_order_release
+#define WT_ATOMIC_ACQ_REL memory_order_acq_rel
+#define WT_ATOMIC_SEQ_CST memory_order_seq_cst
 
 #define WT_ATOMIC_CAS(ptr, oldp, newv, success_memorder, failure_memorder) \
-    __atomic_compare_exchange_n(ptr, oldp, newv, false, success_memorder, failure_memorder)
-#define WT_ATOMIC_LOAD(ptr, memorder) __atomic_load_n(ptr, memorder)
-#define WT_ATOMIC_STORE(ptr, value, memorder) __atomic_store_n(ptr, value, memorder)
+    atomic_compare_exchange_strong_explicit(ptr, oldp, newv, success_memorder, failure_memorder)
+#define WT_ATOMIC_LOAD(ptr, memorder) atomic_load_explicit(ptr, memorder)
+#define WT_ATOMIC_STORE(ptr, value, memorder) atomic_store_explicit(ptr, value, memorder)
 #define WT_ATOMIC_CAS_FUNC(name, vp_arg, old_arg, newv_arg)                           \
     static inline bool __wt_atomic_cas##name(vp_arg, old_arg, newv_arg)               \
     {                                                                                 \
@@ -155,15 +157,15 @@ __wt_atomic_memorder_cas_ptr(
 #define WT_ATOMIC_FUNC(name, ret, vp_arg, v_arg)                 \
     static inline ret __wt_atomic_add##name(vp_arg, v_arg)       \
     {                                                            \
-        return (__atomic_add_fetch(vp, v, WT_ATOMIC_SEQ_CST));   \
+        return (atomic_fetch_add(vp, v) + v);                    \
     }                                                            \
     static inline ret __wt_atomic_fetch_add##name(vp_arg, v_arg) \
     {                                                            \
-        return (__atomic_fetch_add(vp, v, WT_ATOMIC_SEQ_CST));   \
+        return (atomic_fetch_add(vp, v));                        \
     }                                                            \
     static inline ret __wt_atomic_sub##name(vp_arg, v_arg)       \
     {                                                            \
-        return (__atomic_sub_fetch(vp, v, WT_ATOMIC_SEQ_CST));   \
+        return (atomic_fetch_sub(vp, v) - v);                    \
     }
 WT_ATOMIC_FUNC(8, uint8_t, uint8_t *vp, uint8_t v)
 WT_ATOMIC_FUNC(v8, uint8_t, volatile uint8_t *vp, volatile uint8_t v)

@@ -5,6 +5,7 @@
  *
  * See the file LICENSE for redistribution information.
  */
+#include <stdatomic.h>
 
 /*
  * Spin locks:
@@ -68,7 +69,7 @@ __wt_spin_trylock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 {
     WT_UNUSED(session);
 
-    return (!__atomic_test_and_set(&t->lock, __ATOMIC_ACQUIRE) ? 0 : EBUSY);
+    return (!atomic_flag_test_and_set_explict(&t->lock, memory_order_acquire) ? 0 : EBUSY);
 }
 
 /*
@@ -82,7 +83,7 @@ __wt_spin_lock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 
     WT_UNUSED(session);
 
-    while (__atomic_test_and_set(&t->lock, __ATOMIC_ACQUIRE)) {
+    while (atomic_flag_test_and_set_explict(&t->lock, memory_order_acquire)) {
         for (i = 0; t->lock && i < WT_SPIN_COUNT; i++)
             WT_PAUSE();
         if (t->lock)
@@ -99,7 +100,7 @@ __wt_spin_unlock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 {
     WT_UNUSED(session);
 
-    __atomic_clear(&t->lock, __ATOMIC_RELEASE);
+    atomic_flag_clear_explicit(&t->lock, memory_order_release);
 }
 
 #elif SPINLOCK_TYPE == SPINLOCK_PTHREAD_MUTEX || SPINLOCK_TYPE == SPINLOCK_PTHREAD_MUTEX_ADAPTIVE
