@@ -198,8 +198,8 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
     bool skip;
 
     /*
-     * We must have reviewed at least some interesting number of pages for any estimates below to
-     * be worthwhile.
+     * We must have reviewed at least some interesting number of pages for any estimates below to be
+     * worthwhile.
      */
     if (block->compact_pages_reviewed < WT_THOUSAND)
         return;
