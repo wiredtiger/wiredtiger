@@ -115,6 +115,7 @@ def workload_latency(workload, outfilename = None):
     else:
         fh = sys.stdout
     _latency_optype(fh, 'insert', '🧯', workload.stats.insert)
+    _latency_optype(fh, 'checkpoint', '🦑', workload.stats.checkpoint)
     _latency_optype(fh, 'read', 'R', workload.stats.read)
     _latency_optype(fh, 'remove', 'X', workload.stats.remove)
     _latency_optype(fh, 'update', 'U', workload.stats.update)

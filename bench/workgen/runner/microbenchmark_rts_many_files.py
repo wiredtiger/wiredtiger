@@ -83,9 +83,7 @@ for i in range(0, ntables):
     session.rollback_transaction()
     evict_cursor.close()
 
-session.checkpoint()
-
-ops = Operation(Operation.OP_RTS, "")
+ops = Operation(Operation.OP_CHECKPOINT, "") + Operation(Operation.OP_RTS, "")
 thread = Thread(ops)
 workload = Workload(context, thread)
 workload.options.report_interval = 5

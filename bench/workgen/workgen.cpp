@@ -1654,7 +1654,8 @@ ThreadRunner::op_run(Operation *op)
     }
 
     measure_latency = track != nullptr && (track->ops != 0 && track->track_latency() &&
-      (track->ops % _workload->options.sample_rate == 0) || op->_optype == Operation::OP_RTS);
+      (track->ops % _workload->options.sample_rate == 0) || op->_optype == Operation::OP_RTS ||
+        op->_optype == Operation::OP_CHECKPOINT);
 
     uint64_t start;
     if (measure_latency)
