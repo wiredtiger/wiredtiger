@@ -33,6 +33,7 @@
 
 from runner import *
 from workgen import *
+from wiredtiger import stat
 
 def show(tname, s, args):
     if not args.verbose:
@@ -47,11 +48,17 @@ def show(tname, s, args):
     c.close()
 
 
+def get_stat(session, stat):
+    stat_cursor = session.open_cursor('statistics:')
+    val = stat_cursor[stat][2]
+    stat_cursor.close()
+    return val
+
 nrows = 10
 ntables = 1000
 uri = "table:rts_many_files"
 context = Context()
-conn = context.wiredtiger_open("create")
+conn = context.wiredtiger_open("create,statistics=(all),statistics_log=(json),verbose=(rts:5)")
 session = conn.open_session()
 
 for i in range(0, ntables):
@@ -93,5 +100,8 @@ workload.options.sample_interval_ms = 10
 
 ret = workload.run(conn)
 assert ret == 0, ret
+
+print("rolled back={}".format(get_stat(session, stat.conn.txn_rts_upd_aborted)))
+
 latency.workload_latency(workload, 'rts_many_files.out')
 show(uri, session, context.args)

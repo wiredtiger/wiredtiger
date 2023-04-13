@@ -33,6 +33,7 @@
 
 from runner import *
 from workgen import *
+from wiredtiger import stat
 
 def show(tname, s, args):
     if not args.verbose:
@@ -46,20 +47,37 @@ def show(tname, s, args):
     print('<><><><><><>|<><><><><><>')
     c.close()
 
-exp_max = 8
+def timestamp_str(t):
+    return '%s' % t
+
+def get_stat(session, stat):
+    stat_cursor = session.open_cursor('statistics:')
+    val = stat_cursor[stat][2]
+    stat_cursor.close()
+    return val
 
 context = Context()
 
-conn = context.wiredtiger_open("create")
-s = conn.open_session()
+conn = context.wiredtiger_open("create,verbose=(rts:5),statistics=(all),statistics_log=(json)")
+conn.set_timestamp('stable_timestamp=' + timestamp_str(5))
+session = conn.open_session()
 tname = 'table:rts'
-s.create(tname, 'key_format=S, value_format=S')
+session.create(tname, 'key_format=S, value_format=S')
 
-ops = Operation(Operation.OP_INSERT, Table(tname), Key(Key.KEYGEN_APPEND, exp_max + 1), Value(55)) + Operation(Operation.OP_RTS, "")
-for i in range(1, exp_max):
-    inserts = 10 ** i
+ops = Operation(Operation.OP_CHECKPOINT, "")
+cursor = session.open_cursor(tname)
+inserts = 100000
+session.begin_transaction()
+for i in range(1, inserts + 1):
+    cursor[str(i)] = str(55)
+    # don't let txns get too big
+    if i % 61 == 0:
+        session.commit_transaction('commit_timestamp=' + timestamp_str(10))
+        session.begin_transaction()
+session.commit_transaction('commit_timestamp=' + timestamp_str(10))
+cursor.close()
 
-    ops += (Operation(Operation.OP_INSERT, Table(tname), Key(Key.KEYGEN_APPEND, exp_max + 1), Value(55)) * inserts) + Operation(Operation.OP_RTS, "")
+ops = Operation(Operation.OP_CHECKPOINT, "") + Operation(Operation.OP_RTS, "")
 
 thread = Thread(ops)
 
@@ -71,6 +89,8 @@ workload.options.sample_interval_ms = 10
 
 ret = workload.run(conn)
 assert ret == 0, ret
-latency.workload_latency(workload, 'beepboop.out')
 
-show(tname, s, context.args)
+print("rolled back={}".format(get_stat(session, stat.conn.txn_rts_keys_removed)))
+
+latency.workload_latency(workload, 'rts_unstable_content.out')
+show(tname, session, context.args)

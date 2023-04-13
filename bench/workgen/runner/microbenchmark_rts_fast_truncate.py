@@ -33,6 +33,7 @@
 
 from runner import *
 from workgen import *
+from wiredtiger import stat
 
 def show(tname, s, args):
     if not args.verbose:
@@ -46,24 +47,33 @@ def show(tname, s, args):
     print('<><><><><><>|<><><><><><>')
     c.close()
 
+def timestamp_str(t):
+    return '%s' % t
+
+def get_stat(session, stat):
+    stat_cursor = session.open_cursor('statistics:')
+    val = stat_cursor[stat][2]
+    stat_cursor.close()
+    return val
 
 nrows = 100000
 uri = "table:rts_fast_truncate"
 context = Context()
-conn = context.wiredtiger_open("create")
+conn = context.wiredtiger_open("create,verbose=(rts:5),statistics=(all),statistics_log=(json)")
 session = conn.open_session()
 session.create(uri, "key_format=S,value_format=S")
 
 # write out some data
 cursor = session.open_cursor(uri)
+conn.set_timestamp('stable_timestamp=' + timestamp_str(5))
 session.begin_transaction()
 for i in range(1, nrows + 1):
     cursor[str(i)] = "aaaa" + str(i)
     # don't let txns get too big
     if i % 42 == 0:
-        session.commit_transaction()
+        session.commit_transaction('commit_timestamp=' + timestamp_str(10))
         session.begin_transaction()
-session.commit_transaction()
+session.commit_transaction('commit_timestamp=' + timestamp_str(10))
 cursor.close()
 
 # evict our data
@@ -87,7 +97,7 @@ lo_cursor.set_key(str(1))
 hi_cursor = session2.open_cursor(uri)
 hi_cursor.set_key(str(nrows))
 session2.truncate(None, lo_cursor, hi_cursor, None)
-session2.commit_transaction()
+session2.commit_transaction('commit_timestamp=' + timestamp_str(15))
 hi_cursor.close()
 lo_cursor.close()
 
@@ -103,68 +113,8 @@ workload.options.sample_interval_ms = 10
 
 ret = workload.run(conn)
 assert ret == 0, ret
+
+print("rolled back={}".format(get_stat(session, stat.conn.txn_rts_keys_removed)))
+
 latency.workload_latency(workload, 'rts_fast_truncate.out')
 show(uri, session, context.args)
-
-# conn.rollback_to_stable()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
-
-# exp_max = 8
-
-# context = Context()
-
-# conn = context.wiredtiger_open("create")
-# s = conn.open_session()
-# tname = 'table:rts_fast_truncate'
-# s.create(tname, 'key_format=S,value_format=S')
-
-# ops = Operation(Operation.OP_INSERT, Table(tname), Key(Key.KEYGEN_APPEND, exp_max + 1), Value(55)) + Operation(Operation.OP_RTS, "")
-# for i in range(1, exp_max):
-#     inserts = 10 ** i
-
-#     ops += (Operation(Operation.OP_INSERT, Table(tname), Key(Key.KEYGEN_APPEND, exp_max + 1), Value(55)) * inserts) + Operation(Operation.OP_RTS, "")
-
-# thread = Thread(ops)
-
-# workload = Workload(context, thread)
-# workload.options.report_interval = 5
-# workload.options.max_latency = 10
-# workload.options.sample_rate = 1
-# workload.options.sample_interval_ms = 10
-
-# ret = workload.run(conn)
-# assert ret == 0, ret
-# latency.workload_latency(workload, 'beepboop.out')
-
-# show(tname, s, context.args)

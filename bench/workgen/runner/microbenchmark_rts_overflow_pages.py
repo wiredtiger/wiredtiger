@@ -33,6 +33,7 @@
 
 from runner import *
 from workgen import *
+from wiredtiger import stat
 
 def show(tname, s, args):
     if not args.verbose:
@@ -46,10 +47,21 @@ def show(tname, s, args):
     print('<><><><><><>|<><><><><><>')
     c.close()
 
-nrows = 10000000
+def timestamp_str(t):
+    return '%s' % t
+
+def get_stat(session, stat):
+    stat_cursor = session.open_cursor('statistics:')
+    val = stat_cursor[stat][2]
+    stat_cursor.close()
+    return val
+
+
+nrows = 550000
 uri = "table:rts_overflow_pages"
 context = Context()
-conn = context.wiredtiger_open("create")
+conn = context.wiredtiger_open("create,statistics=(all),statistics_log=(json),verbose=(rts:5)")
+conn.set_timestamp('stable_timestamp=' + timestamp_str(5))
 session = conn.open_session()
 session.create(uri, "key_format=S,value_format=S,allocation_size=512,leaf_page_max=512")
 
@@ -60,9 +72,9 @@ for i in range(1, nrows + 1):
     cursor[str(i)] = ("aaaa" + str(i)) * 100
     # don't let txns get too big
     if i % 42 == 0:
-        session.commit_transaction()
+        session.commit_transaction('commit_timestamp=' + timestamp_str(10))
         session.begin_transaction()
-session.commit_transaction()
+session.commit_transaction('commit_timestamp=' + timestamp_str(10))
 cursor.close()
 
 # evict our data
@@ -89,5 +101,8 @@ workload.options.sample_interval_ms = 10
 
 ret = workload.run(conn)
 assert ret == 0, ret
+
+print("rolled back={}".format(get_stat(session, stat.conn.txn_rts_keys_removed)))
+
 latency.workload_latency(workload, 'rts_overflow_pages.out')
 show(uri, session, context.args)
