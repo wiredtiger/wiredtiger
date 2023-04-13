@@ -33,36 +33,7 @@
 
 from runner import *
 from workgen import *
-from wiredtiger import stat
-
-def show(tname, s, args):
-    if not args.verbose:
-        return
-    print('')
-    print('<><>|<><> ' + tname + ' <><>|<><>')
-    c = s.open_cursor(tname, None)
-    for k,v in c:
-        print('key: ' + k)
-        print('value: ' + v)
-    print('<><><><><><>|<><><><><><>')
-    c.close()
-
-nrows = 100000
-stable = nrows // 10
-uri = "table:rts_large_hs"
-context = Context()
-conn = context.wiredtiger_open("create, statistics=(all), statistics_log=(json)")
-session = conn.open_session()
-session.create(uri, "key_format=S,value_format=S")
-
-def timestamp_str(t):
-    return '%s' % t
-
-def get_stat(session, stat):
-    stat_cursor = session.open_cursor('statistics:')
-    val = stat_cursor[stat][2]
-    stat_cursor.close()
-    return val
+from microbenchmark_rts_unstable_content import timestamp_str, show
 
 def large_updates(session, uri, value, start, end, timestamp):
     cursor = session.open_cursor(uri)
@@ -72,18 +43,26 @@ def large_updates(session, uri, value, start, end, timestamp):
         session.commit_transaction('commit_timestamp=' + timestamp_str(timestamp))
     cursor.close()
 
-# Insert data
+nrows = 100000
+stable = nrows // 10
+uri = "table:rts_large_hs"
 value = "aaaa"
-# Write majority of the data out with stable timestamp
+
+context = Context()
+conn = context.wiredtiger_open("create")
+session = conn.open_session()
+session.create(uri, "key_format=S,value_format=S")
+
+# Write a large amount of data out with a stable timestamp.
 large_updates(session, uri, value, stable, nrows, 5)
 
-# Write 10% of the data out with unstable timestamp
+# Write a small amount of data out with an unstable timestamp.
 large_updates(session, uri, value, 0, stable, 10)
 session.checkpoint()
 session.close()
 
 session2 = conn.open_session()
-# Write out all data to HS
+# Write out data to history store.
 for i in range(0, nrows + 1):
     session2.begin_transaction()
     cursor = session2.open_cursor(uri)
@@ -92,17 +71,8 @@ for i in range(0, nrows + 1):
 cursor.close()
 session2.checkpoint()
 
-hs_writes = get_stat(session2, stat.conn.cache_hs_insert)
-print("Writes!~", str(hs_writes))
-
-hs_removes = get_stat(session2, stat.conn.txn_rts_hs_removed)
-print("RTS removes! ~ ", str(hs_removes))
-
 conn.set_timestamp('stable_timestamp=5')
 conn.rollback_to_stable()
-
-hs_removes = get_stat(session2, stat.conn.txn_rts_hs_removed)
-print("RTS removes 2! ~ ", str(hs_removes))
 
 ops = Operation(Operation.OP_RTS, "")
 thread = Thread(ops)

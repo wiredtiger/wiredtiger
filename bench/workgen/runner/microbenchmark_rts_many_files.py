@@ -33,51 +33,32 @@
 
 from runner import *
 from workgen import *
-from wiredtiger import stat
-
-def show(tname, s, args):
-    if not args.verbose:
-        return
-    print('')
-    print('<><>|<><> ' + tname + ' <><>|<><>')
-    c = s.open_cursor(tname, None)
-    for k,v in c:
-        print('key: ' + k)
-        print('value: ' + v)
-    print('<><><><><><>|<><><><><><>')
-    c.close()
-
-
-def get_stat(session, stat):
-    stat_cursor = session.open_cursor('statistics:')
-    val = stat_cursor[stat][2]
-    stat_cursor.close()
-    return val
+from microbenchmark_rts_unstable_content import timestamp_str, show
 
 nrows = 10
 ntables = 1000
 uri = "table:rts_many_files"
 context = Context()
-conn = context.wiredtiger_open("create,statistics=(all),statistics_log=(json),verbose=(rts:5)")
+conn = context.wiredtiger_open("create")
 session = conn.open_session()
 
 for i in range(0, ntables):
     session.create(uri + str(i), "key_format=S,value_format=S")
 
-# write out some data
+# Write out some data.
 for i in range(0, ntables):
     cursor = session.open_cursor(uri + str(i))
     session.begin_transaction()
     for j in range(1, nrows + 1):
         cursor[str(j)] = "aaaa" + str(j)
-        # don't let txns get too big
+        # Don't let transactions get too big.
         if i % 56 == 0:
             session.commit_transaction()
             session.begin_transaction()
     session.commit_transaction()
     cursor.close()
 
-# evict our data out of paranoia
+# Evict our data out of paranoia.
 for i in range(0, ntables):
     evict_cursor = session.open_cursor(uri + str(i), None, "debug=(release_evict)")
     session.begin_transaction()
@@ -85,7 +66,7 @@ for i in range(0, ntables):
         evict_cursor.set_key(str(j))
         res = evict_cursor.search()
         if res != 0:
-            raise Exception("uh oh, something went wrong evicting data")
+            raise Exception("Uh Oh! Something went wrong evicting data!")
         evict_cursor.reset()
     session.rollback_transaction()
     evict_cursor.close()
@@ -100,8 +81,6 @@ workload.options.sample_interval_ms = 10
 
 ret = workload.run(conn)
 assert ret == 0, ret
-
-print("rolled back={}".format(get_stat(session, stat.conn.txn_rts_upd_aborted)))
 
 latency.workload_latency(workload, 'rts_many_files.out')
 show(uri, session, context.args)

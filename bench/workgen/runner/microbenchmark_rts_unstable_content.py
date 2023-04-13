@@ -33,14 +33,13 @@
 
 from runner import *
 from workgen import *
-from wiredtiger import stat
 
-def show(tname, s, args):
+def show(uri, s, args):
     if not args.verbose:
         return
     print('')
-    print('<><>|<><> ' + tname + ' <><>|<><>')
-    c = s.open_cursor(tname, None)
+    print('<><>|<><> ' + uri + ' <><>|<><>')
+    c = s.open_cursor(uri, None)
     for k,v in c:
         print('key: ' + k)
         print('value: ' + v)
@@ -50,47 +49,40 @@ def show(tname, s, args):
 def timestamp_str(t):
     return '%s' % t
 
-def get_stat(session, stat):
-    stat_cursor = session.open_cursor('statistics:')
-    val = stat_cursor[stat][2]
-    stat_cursor.close()
-    return val
+if __name__ == '__main__':
+    context = Context()
 
-context = Context()
+    conn = context.wiredtiger_open("create")
+    conn.set_timestamp('stable_timestamp=' + timestamp_str(5))
+    session = conn.open_session()
+    uri = 'table:rts_unstable_content'
+    session.create(uri, 'key_format=S, value_format=S')
 
-conn = context.wiredtiger_open("create,verbose=(rts:5),statistics=(all),statistics_log=(json)")
-conn.set_timestamp('stable_timestamp=' + timestamp_str(5))
-session = conn.open_session()
-tname = 'table:rts'
-session.create(tname, 'key_format=S, value_format=S')
+    inserts = 100000
+    ops = Operation(Operation.OP_CHECKPOINT, "")
+    cursor = session.open_cursor(uri)
+    session.begin_transaction()
+    for i in range(1, inserts + 1):
+        cursor[str(i)] = str(55)
+        # Don't let transactions get too big.
+        if i % 61 == 0:
+            session.commit_transaction('commit_timestamp=' + timestamp_str(10))
+            session.begin_transaction()
+    session.commit_transaction('commit_timestamp=' + timestamp_str(10))
+    cursor.close()
 
-ops = Operation(Operation.OP_CHECKPOINT, "")
-cursor = session.open_cursor(tname)
-inserts = 100000
-session.begin_transaction()
-for i in range(1, inserts + 1):
-    cursor[str(i)] = str(55)
-    # don't let txns get too big
-    if i % 61 == 0:
-        session.commit_transaction('commit_timestamp=' + timestamp_str(10))
-        session.begin_transaction()
-session.commit_transaction('commit_timestamp=' + timestamp_str(10))
-cursor.close()
+    ops = Operation(Operation.OP_CHECKPOINT, "") + Operation(Operation.OP_RTS, "")
 
-ops = Operation(Operation.OP_CHECKPOINT, "") + Operation(Operation.OP_RTS, "")
+    thread = Thread(ops)
 
-thread = Thread(ops)
+    workload = Workload(context, thread)
+    workload.options.report_interval = 5
+    workload.options.max_latency = 10
+    workload.options.sample_rate = 1
+    workload.options.sample_interval_ms = 10
 
-workload = Workload(context, thread)
-workload.options.report_interval = 5
-workload.options.max_latency = 10
-workload.options.sample_rate = 1
-workload.options.sample_interval_ms = 10
+    ret = workload.run(conn)
+    assert ret == 0, ret
 
-ret = workload.run(conn)
-assert ret == 0, ret
-
-print("rolled back={}".format(get_stat(session, stat.conn.txn_rts_keys_removed)))
-
-latency.workload_latency(workload, 'rts_unstable_content.out')
-show(tname, session, context.args)
+    latency.workload_latency(workload, 'rts_unstable_content.out')
+    show(uri, session, context.args)

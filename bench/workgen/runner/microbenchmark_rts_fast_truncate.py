@@ -33,63 +33,42 @@
 
 from runner import *
 from workgen import *
-from wiredtiger import stat
-
-def show(tname, s, args):
-    if not args.verbose:
-        return
-    print('')
-    print('<><>|<><> ' + tname + ' <><>|<><>')
-    c = s.open_cursor(tname, None)
-    for k,v in c:
-        print('key: ' + k)
-        print('value: ' + v)
-    print('<><><><><><>|<><><><><><>')
-    c.close()
-
-def timestamp_str(t):
-    return '%s' % t
-
-def get_stat(session, stat):
-    stat_cursor = session.open_cursor('statistics:')
-    val = stat_cursor[stat][2]
-    stat_cursor.close()
-    return val
+from microbenchmark_rts_unstable_content import timestamp_str, show
 
 nrows = 100000
 uri = "table:rts_fast_truncate"
 context = Context()
-conn = context.wiredtiger_open("create,verbose=(rts:5),statistics=(all),statistics_log=(json)")
+conn = context.wiredtiger_open("create")
 session = conn.open_session()
 session.create(uri, "key_format=S,value_format=S")
 
-# write out some data
 cursor = session.open_cursor(uri)
 conn.set_timestamp('stable_timestamp=' + timestamp_str(5))
 session.begin_transaction()
 for i in range(1, nrows + 1):
     cursor[str(i)] = "aaaa" + str(i)
-    # don't let txns get too big
+    # Don't let transactions get too big.
     if i % 42 == 0:
         session.commit_transaction('commit_timestamp=' + timestamp_str(10))
         session.begin_transaction()
 session.commit_transaction('commit_timestamp=' + timestamp_str(10))
 cursor.close()
 
-# evict our data
+# Evict our data.
 evict_cursor = session.open_cursor(uri, None, "debug=(release_evict)")
 session.begin_transaction()
 for i in range(1, nrows + 1):
     evict_cursor.set_key(str(i))
     res = evict_cursor.search()
     if res != 0:
-        raise Exception("uh oh, something went wrong evicting data")
+        raise Exception("Uh Oh! Something went wrong evicting data!")
     evict_cursor.reset()
 session.rollback_transaction()
 evict_cursor.close()
 
 session.checkpoint()
 
+# Truncate our data.
 session2 = conn.open_session()
 session2.begin_transaction()
 lo_cursor = session2.open_cursor(uri)
@@ -113,8 +92,6 @@ workload.options.sample_interval_ms = 10
 
 ret = workload.run(conn)
 assert ret == 0, ret
-
-print("rolled back={}".format(get_stat(session, stat.conn.txn_rts_keys_removed)))
 
 latency.workload_latency(workload, 'rts_fast_truncate.out')
 show(uri, session, context.args)
