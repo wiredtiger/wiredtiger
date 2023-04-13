@@ -140,13 +140,14 @@ clock_thread(void *arg)
         if (g.predictable_replay) {
             oldest_ts = get_all_committed_ts();
             if (oldest_ts != UINT64_MAX && oldest_ts - last_ts > PRED_REPLAY_STABLE_PERIOD) {
-                /* If we are doing a predictable rerun, don't go past the provided timestamp. */
+                /*
+                 * If we are doing a predictable rerun, don't go past the provided stop timestamp.
+                 */
                 if (g.stop_ts > 0 && oldest_ts >= g.stop_ts) {
                     printf("Clock thread at %" PRIu64
-                           " is past the replay stable-timestamp of "
-                           "%" PRIu64 ", setting stable timestamp at %" PRIu64
-                           " and stopping the clock.\n",
-                      oldest_ts, g.stop_ts, g.stop_ts);
+                           " has reached the provided stop timestamp. "
+                           "Stopping the clock.\n",
+                      g.stop_ts);
                     set_stable(g.stop_ts);
                     break;
                 }
@@ -284,13 +285,12 @@ real_checkpointer(THREAD_DATA *td)
                 verify_ts = __wt_random(&td->extra_rnd) % (stable_ts - oldest_ts + 1) + oldest_ts;
             if (g.predictable_replay) {
                 tmp_ts = WT_MIN(get_all_committed_ts(), stable_ts);
+                /* Update the oldest timestamp, but do not go past the provided stop timestamp. */
                 if (tmp_ts != UINT64_MAX && (g.stop_ts == 0 || tmp_ts <= g.stop_ts))
                     g.ts_oldest = tmp_ts;
-
-                /* Don't go past the provided timestamp. */
                 if (g.stop_ts > 0 && stable_ts >= g.stop_ts) {
                     printf(
-                      "The checkpoint thread has reached the rerun stable timestamp of "
+                      "The checkpoint thread has reached the stop timestamp of "
                       "%" PRIu64 ". Finish the test run.\n",
                       g.stop_ts);
                     g.opts.running = false;

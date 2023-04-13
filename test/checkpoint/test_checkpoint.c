@@ -53,7 +53,7 @@ init_thread_data(THREAD_DATA *td, int info)
     td->info = info;
     /*
      * For a predictable replay have a non-overlapping key space for each thread. Also divide the
-     * key range between the threads.
+     * key range between the threads. Otherwise, share the key space among all the threads.
      */
     if (g.predictable_replay) {
         td->start_key = (u_int)info * WT_MILLION + 1;
@@ -260,6 +260,7 @@ main(int argc, char *argv[])
             (void)log_print_err("No memory", ENOMEM, 1);
             break;
         }
+
         for (i = 0; i < g.ntables; ++i) {
             g.cookies[i].id = i;
             if (ttype == MIX) {

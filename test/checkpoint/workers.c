@@ -203,7 +203,7 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
     uint8_t val8;
     int cmp, ret;
     int nentries;
-    char valuebuf[64] = {0};
+    char valuebuf[64];
 
     cursor->set_key(cursor, keyno);
     /* Roughly half inserts, then balanced inserts / range removes. */
@@ -392,8 +392,12 @@ real_worker(THREAD_DATA *td)
         }
 
     for (i = 0; g.opts.running; ++i, __wt_yield()) {
-        /* If it is a predictable re-run until a stable timestamp, ignore number of ops. */
-        if (!g.stop_ts && i >= g.nops)
+        /*
+         * If a stop timestamp has been provided, the workers will continue to run until the clock
+         * thread reaches a stable equal to the stop timestamp. Ignore the provided operation count
+         * in such a case.
+         */
+        if (g.stop_ts == 0 && i >= g.nops)
             break;
 
         if (i > 0 && i % (5 * WT_THOUSAND) == 0)
