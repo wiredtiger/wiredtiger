@@ -275,18 +275,18 @@ main(int argc, char *argv[])
 
         /*
          * Setup thread data. There are N worker threads, a checkpoint thread and possibly a clock
-         * thread. The workers are ID 0 to N-1, checkpoint thread as N, and the clock thread as N +
-         * 1.
+         * thread. The workers have ID 0 to N-1, checkpoint thread has N, and the clock thread has N
+         * + 1.
          */
         if ((g.td = calloc((size_t)(g.nworkers + 2), sizeof(THREAD_DATA))) == NULL) {
             (void)log_print_err("No memory", ENOMEM, 1);
             break;
         }
-        for (i = 0; i < g.nworkers; ++i) {
+        for (i = 0; i < g.nworkers; ++i)
             init_thread_data(&g.td[i], i);
-        }
-        init_thread_data(&g.td[g.nworkers], g.nworkers);         /* Checkpoint thread. */
-        init_thread_data(&g.td[g.nworkers + 1], g.nworkers + 1); /* Clock thread. */
+        init_thread_data(&g.td[g.nworkers], g.nworkers); /* Checkpoint thread. */
+        if (g.use_timestamps)
+            init_thread_data(&g.td[g.nworkers + 1], g.nworkers + 1); /* Clock thread. */
 
         g.opts.running = true;
 

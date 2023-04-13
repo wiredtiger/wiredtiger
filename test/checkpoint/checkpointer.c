@@ -36,7 +36,7 @@ static int real_checkpointer(THREAD_DATA *);
 
 /*
  * set_stable --
- *     Set the stable timestamp from g.ts_stable.
+ *     Set the given timestamp as the stable timestamp.
  */
 static void
 set_stable(uint64_t stable_ts)
