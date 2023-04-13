@@ -146,6 +146,15 @@ functions:
           pip install find_libpython
           SYSPYLIB=`find_libpython`
 
+          # We're still not done.  The shared library may be named simply 'Python3', and cmake
+          # wonn't recognize that as a library.  Use the dylib file found in an expected location,
+          # it is linked to the actual shared library.
+          if [ $(basename $SYSPYLIB) = 'Python3' ]; then
+             NSYSPYLIB=$(ls $(dirname $SYSPYLIB)/lib/libpython*.dylib 2>/dev/null | head -1)
+             if [ -f $NSYSPYLIB ]; then
+                 SYSPYLIB=$NSYSPYLIB
+             fi
+          fi
           DEFINED_EVERGREEN_CONFIG_FLAGS="$DEFINED_EVERGREEN_CONFIG_FLAGS -DPYTHON_EXECUTABLE:FILEPATH=$SYSPY -DPYTHON_LIBRARIES=$SYSPYLIB"
         fi
 
