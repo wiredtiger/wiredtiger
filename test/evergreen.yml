@@ -137,8 +137,15 @@ functions:
         fi
 
         if [ "${build_variant|}" = "macos-1100" ]; then
-          # For mac builds, forcibly set the python executable.
-          DEFINED_EVERGREEN_CONFIG_FLAGS="$DEFINED_EVERGREEN_CONFIG_FLAGS -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/python3"
+          # For mac builds, we want cmake to use the system Python executable.
+          # To get its matching library directory, we use the find_libpython module.
+          # Once we have this info, we'll set up the variables to tell it to cmake.
+          ${python_command} -mvenv venv
+          source venv/bin/activate
+          pip install find_libpython
+          python_libraries=`find_libpython`
+
+          DEFINED_EVERGREEN_CONFIG_FLAGS="$DEFINED_EVERGREEN_CONFIG_FLAGS -DPYTHON_EXECUTABLE:FILEPATH=${python_command} -DPYTHON_LIBRARIES=$python_libraries"
         fi
 
         if [ "$OS" = "Windows_NT" ]; then
