@@ -1653,9 +1653,10 @@ ThreadRunner::op_run(Operation *op)
         cursor = _cursors[tint];
     }
 
-    measure_latency = track != nullptr && (track->ops != 0 && track->track_latency() &&
-      (track->ops % _workload->options.sample_rate == 0) || op->_optype == Operation::OP_RTS ||
-        op->_optype == Operation::OP_CHECKPOINT);
+    measure_latency = track != nullptr &&
+      (track->ops != 0 && track->track_latency() &&
+          (track->ops % _workload->options.sample_rate == 0) ||
+        op->_optype == Operation::OP_RTS || op->_optype == Operation::OP_CHECKPOINT);
 
     uint64_t start;
     if (measure_latency)
@@ -2211,7 +2212,7 @@ Operation::get_static_counts(Stats &stats, int multiplier)
         }
     else if (_optype == OP_CHECKPOINT)
         stats.checkpoint.ops += multiplier;
-    else if ( _optype == OP_RTS)
+    else if (_optype == OP_RTS)
         stats.rts.ops += multiplier;
 
     if (_group != nullptr)
