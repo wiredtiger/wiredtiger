@@ -400,7 +400,7 @@ read:
                     evict_skip = true;
                 else if (ret == EBUSY) {
                     WT_NOT_READ(ret, 0);
-                    /* Do not retry to evict the pages. */
+                    /* Do not retry to evict the pages during reconciliation. */
                     if (F_ISSET(session, WT_SESSION_NO_RECONCILE)) {
                         WT_STAT_CONN_INCR(session, cache_eviction_force_no_retry);
                         evict_skip = true;
