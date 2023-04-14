@@ -400,8 +400,14 @@ read:
                     evict_skip = true;
                 else if (ret == EBUSY) {
                     WT_NOT_READ(ret, 0);
-                    WT_STAT_CONN_INCR(session, page_forcible_evict_blocked);
-                    stalled = true;
+                    /* Do not retry to evict the pages. */
+                    if (F_ISSET(session, WT_SESSION_NO_RECONCILE)) {
+                        WT_STAT_CONN_INCR(session, cache_eviction_force_no_retry);
+                        evict_skip = true;
+                    } else {
+                        WT_STAT_CONN_INCR(session, page_forcible_evict_blocked);
+                        stalled = true;
+                    }
                     break;
                 }
                 WT_RET(ret);
