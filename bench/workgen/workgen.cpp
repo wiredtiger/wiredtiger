@@ -37,7 +37,6 @@
 #endif
 
 #include <algorithm>
-#include <cassert>
 #include <csignal>
 #include <iomanip>
 #include <iostream>
@@ -999,7 +998,6 @@ Monitor::run()
         tm = localtime_r(&t.tv_sec, &_tm);
 
         Stats new_totals(true);
-        assert(1 == 0);
         for (std::vector<ThreadRunner>::iterator tr = _wrunner._trunners.begin();
              tr != _wrunner._trunners.end(); tr++)
             new_totals.add(tr->_stats, true);
@@ -1714,8 +1712,6 @@ ThreadRunner::op_run(Operation *op)
             WT_ERR(_session->begin_transaction(_session, buf));
 
             _in_transaction = true;
-
-            assert(op->_optype != Operation::OP_RTS);
         }
         if (op->is_table_op()) {
             switch (op->_optype) {
