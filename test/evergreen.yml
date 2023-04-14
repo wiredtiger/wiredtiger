@@ -137,19 +137,18 @@ functions:
         fi
 
         if [ "${build_variant|}" = "macos-1100" ]; then
-          # For mac builds, we want cmake to use the system Python executable.
+          # For mac builds, we want cmake to use the system Python executable by default.
           # To get its matching library directory, we use the find_libpython module.
-          # Once we have this info, we'll set up the variables to tell it to cmake.
-          SYSPY=/usr/bin/python3
+          SYSPY=${python_command|/usr/bin/python3}
           $SYSPY -mvenv venv
           source venv/bin/activate
           pip install find_libpython
           SYSPYLIB=`find_libpython`
           SYSPYINCDEF=
 
-          # We're still not done.  The shared library may be named simply 'Python3', and cmake
-          # might not recognize that as a library.  Use the dylib file found in an expected location,
-          # it is linked to the actual shared library.
+          # We have the shared library to link to, it may be named simply 'Python3'.
+          # If that's the case, use the associated dylib symlink found in an expected relative
+          # location. Also get the location of the header files. We'll give this all to cmake.
           if [ $(basename $SYSPYLIB) = 'Python3' ]; then
              SYSPYDIR=$(dirname $SYSPYLIB)
              NSYSPYLIB=$(ls $SYSPYDIR/lib/libpython*.dylib 2>/dev/null | head -1)
@@ -197,13 +196,13 @@ functions:
         set -o errexit
         set -o verbose
         python_configured=$(grep Python3_EXECUTABLE: ./CMakeCache.txt | sed -e 's/.*=//')
-        if [ "$(${python_command} -V -V)" != "$($python_configured -V -V)" ]; then
+        if [ "${python_command}" = '' -o "$(${python_command} -V -V)" != "$($python_configured -V -V)" ]; then
            echo "Python versions do not match.  Cmake version:"
            echo "$python_configured"
            $python_configured -V -V
            echo "Variable used by evergreen:"
-           echo "$python_command"
-           $python_command -V -V
+           echo "${python_command}"
+           ${python_command} -V -V
            exit 1
         fi
   "make wiredtiger": &make_wiredtiger
@@ -1113,10 +1112,6 @@ variables:
 
 tasks:
   # Check the python configuration
-  - name: python-config-check
-    commands:
-      - func: "python config check"
-
   # Base compile task on posix flavours
   - name: compile
     tags: ["pull_request"]
@@ -2296,6 +2291,7 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
+      - func: "python config check"
       - func: "unit test"
         vars:
            smp_command: -j $(echo $(sysctl -n hw.logicalcpu) / 2 | bc)
@@ -5562,7 +5558,7 @@ buildvariants:
   expansions:
     # The cmake toolchain file is set to the mongodb toolchain gcc by default.
     # Remove that configuration here and let MacOS use the default Xcode toolchain instead.
-    # We'll explicitly use the python3 in /usr/bin, it's fast.
+    # We'll explicitly use the python3 in /usr/bin, we use the same in configuring cmake.
     CMAKE_TOOLCHAIN_FILE:
     python_binary: '/usr/bin/python3'
     smp_command: -j $(sysctl -n hw.logicalcpu)
@@ -5576,7 +5572,6 @@ buildvariants:
   tasks:
     - name: compile
     - name: make-check-test
-    - name: python-config-check
     # FIXME: WT-9575
     # Using a special version of unit test for macOS to reduce the concurrency level.
     - name: unit-test-macos
