@@ -196,7 +196,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        python_configured=$(grep Python3_EXECUTABLE: ./CMakeCache.txt | sed -e 's/.*=//')
+        python_configured=$(grep PYTHON_EXECUTABLE: ./CMakeCache.txt | sed -e 's/.*=//')
         if [ "${python_binary}" = '' -o "$(${python_binary} -V -V)" != "$($python_configured -V -V)" ]; then
            echo "Python versions do not match.  Cmake version:"
            echo "$python_configured"
