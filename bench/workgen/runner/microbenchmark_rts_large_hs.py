@@ -43,8 +43,8 @@ def large_updates(session, uri, value, start, end, timestamp):
         session.commit_transaction('commit_timestamp=' + timestamp_str(timestamp))
     cursor.close()
 
-nrows = 100000
-stable = nrows // 10
+nrows = 10000000
+unstable = nrows // 10
 uri = "table:rts_large_hs"
 value = "aaaa"
 
@@ -54,10 +54,10 @@ session = conn.open_session()
 session.create(uri, "key_format=S,value_format=S")
 
 # Write a large amount of data out with a stable timestamp.
-large_updates(session, uri, value, stable, nrows, 5)
+large_updates(session, uri, value, nrows - unstable, nrows, 5)
 
 # Write a small amount of data out with an unstable timestamp.
-large_updates(session, uri, value, 0, stable, 10)
+large_updates(session, uri, value, 0, unstable, 10)
 session.checkpoint()
 session.close()
 

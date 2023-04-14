@@ -58,7 +58,7 @@ if __name__ == '__main__':
     uri = 'table:rts_unstable_content'
     session.create(uri, 'key_format=S, value_format=S')
 
-    inserts = 100000
+    inserts = 10
     ops = Operation(Operation.OP_CHECKPOINT, "")
     cursor = session.open_cursor(uri)
     session.begin_transaction()

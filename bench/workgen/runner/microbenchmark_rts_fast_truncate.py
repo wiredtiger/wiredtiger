@@ -35,7 +35,7 @@ from runner import *
 from workgen import *
 from microbenchmark_rts_unstable_content import timestamp_str, show
 
-nrows = 100000
+nrows = 1000000
 uri = "table:rts_fast_truncate"
 context = Context()
 conn = context.wiredtiger_open("create")
@@ -80,9 +80,7 @@ session2.commit_transaction('commit_timestamp=' + timestamp_str(15))
 hi_cursor.close()
 lo_cursor.close()
 
-session.checkpoint()
-
-ops = Operation(Operation.OP_RTS, "")
+ops = Operation(Operation.OP_CHECKPOINT, "") + Operation(Operation.OP_RTS, "")
 thread = Thread(ops)
 workload = Workload(context, thread)
 workload.options.report_interval = 5

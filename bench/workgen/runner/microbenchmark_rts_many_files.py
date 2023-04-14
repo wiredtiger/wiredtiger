@@ -35,8 +35,8 @@ from runner import *
 from workgen import *
 from microbenchmark_rts_unstable_content import timestamp_str, show
 
-nrows = 10
-ntables = 1000
+nrows = 1
+ntables = 100000
 uri = "table:rts_many_files"
 context = Context()
 conn = context.wiredtiger_open("create")
