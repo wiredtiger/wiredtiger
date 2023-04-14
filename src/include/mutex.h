@@ -108,7 +108,8 @@ struct __wt_spinlock {
 #error Unknown spinlock type
 #endif
 
-    const char *name; /* Mutex name */
+    const char *name;    /* Mutex name */
+    uint64_t session_id; /* The session ID (64-bit for a more optimized access) */
 
     /*
      * We track acquisitions and time spent waiting for some locks. For performance reasons and to

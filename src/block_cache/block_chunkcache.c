@@ -409,6 +409,8 @@ __wt_chunkcache_remove(
     uint64_t bucket_id;
     bool done;
 
+    WT_ASSERT_SPINLOCK(session, &block->live_lock);
+
     chunkcache = &S2C(session)->chunkcache;
     already_removed = 0;
     remains_to_remove = size;

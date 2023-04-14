@@ -353,6 +353,8 @@ __block_dump_file_stat(WT_SESSION_IMPL *session, WT_BLOCK *block, bool start)
     uintmax_t bucket_size;
     u_int i;
 
+    WT_ASSERT_SPINLOCK(session, &block->live_lock);
+
     el = &block->live.avail;
     size = block->size;
 

@@ -526,10 +526,10 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
     WT_CKPT *ckpt, *next_ckpt;
     WT_DECL_RET;
     uint64_t ckpt_size;
-    bool deleting, fatal, local, locked;
+    bool deleting, fatal, local;
 
     ci = &block->live;
-    fatal = locked = false;
+    fatal = false;
 
     if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_CHECKPOINT_VALIDATE))
         WT_RET(__ckpt_verify(session, ckptbase));
@@ -647,7 +647,6 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
      * ranges into the live tree.
      */
     __wt_spin_lock(session, &block->live_lock);
-    locked = true;
 
     /*
      * We've allocated our last page, update the checkpoint size. We need to calculate the live
@@ -828,8 +827,7 @@ err:
         __wt_blkcache_set_readonly(session);
     }
 
-    if (locked)
-        __wt_spin_unlock(session, &block->live_lock);
+    __wt_spin_unlock_if_owns(session, &block->live_lock);
 
     /* Discard any checkpoint information we loaded. */
     WT_CKPT_FOREACH (ckptbase, ckpt)
@@ -853,6 +851,7 @@ __ckpt_update(
     bool is_live;
 
     is_live = F_ISSET(ckpt, WT_CKPT_ADD);
+    WT_ASSERT_SPINLOCK_COND(session, &block->live_lock, is_live);
 
 #ifdef HAVE_DIAGNOSTIC
     /* Check the extent list combinations for overlaps. */

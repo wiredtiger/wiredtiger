@@ -53,6 +53,12 @@ typedef TAILQ_HEAD(__wt_cursor_list, __wt_cursor) WT_CURSOR_LIST;
 /* Maximum number of buckets to visit during a regular cursor sweep. */
 #define WT_SESSION_CURSOR_SWEEP_MAX 64
 
+/* Invalid session ID. */
+#define WT_SESSION_ID_INVALID 0xffffffff
+
+/* A fake session ID for when we need to refer to a session that is actually NULL. */
+#define WT_SESSION_ID_NULL 0xfffffffe
+
 /*
  * WT_SESSION_IMPL --
  *	Implementation of WT_SESSION.
@@ -140,7 +146,7 @@ struct __wt_session_impl {
     struct __wt_scratch_track {
         const char *func; /* Allocating function, line */
         int line;
-    } * scratch_track;
+    } *scratch_track;
 #endif
 
     /* Record the important timestamps of each stage in an reconciliation. */
@@ -301,7 +307,7 @@ struct __wt_session_impl {
             void *p; /* Memory, length */
             size_t len;
             uint64_t gen; /* Generation */
-        } * list;
+        } *list;
         size_t cnt;   /* Array entries */
         size_t alloc; /* Allocated bytes */
     } stash[WT_GENERATIONS];
