@@ -78,9 +78,9 @@ __wt_spin_trylock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 
     if (!__atomic_test_and_set(&t->lock, __ATOMIC_ACQUIRE)) {
         t->session_id = WT_SPIN_SESSION_ID_SAFE(session);
-        return 0;
+        return (0);
     } else
-        return EBUSY;
+        return (EBUSY);
 }
 
 /*
@@ -169,7 +169,7 @@ __wt_spin_destroy(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 static inline int
 __wt_spin_trylock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 {
-    int ret;
+    WT_DECL_RET;
     WT_UNUSED(session);
 
     ret = pthread_mutex_trylock(&t->lock);
