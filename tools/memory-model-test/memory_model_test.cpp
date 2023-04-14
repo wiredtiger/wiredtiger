@@ -10,7 +10,7 @@
  * This test was inspired by the work at
  *https://preshing.com/20120515/memory-reordering-caught-in-the-act/
  */
-
+#include <atomic>
 #include <iostream>
 #include <list>
 #include <thread>
@@ -207,11 +207,11 @@ thread_pair(int loop_count, std::ostream &ostream)
     };
 
     auto thread_1_atomic_increment_and_read = [&]() {
-        __atomic_add_fetch(&x, 1, __ATOMIC_SEQ_CST);
+        std::atomic_fetch_add(&x, 1);
         r1 = y;
     };
     auto thread_2_atomic_increment_and_read = [&]() {
-        __atomic_add_fetch(&y, 1, __ATOMIC_SEQ_CST);
+        std::atomic_fetch_add(&y, 1);
         r2 = x;
     };
 
@@ -235,8 +235,8 @@ thread_pair(int loop_count, std::ostream &ostream)
         COMPILER_BARRIER;
     };
     auto thread_1_code_two_atomic_increments = [&]() {
-        __atomic_exchange_n(&x, 2, __ATOMIC_SEQ_CST);
-        __atomic_exchange_n(&y, 3, __ATOMIC_SEQ_CST);
+        std::atomic_exchange(&x, 2);
+        std::atomic_exchange(&y, 3);
     };
     auto thread_1_code_write_then_barrier_then_write = [&]() {
         x = 2;

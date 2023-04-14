@@ -256,7 +256,6 @@ include(cmake/install/install.cmake)
 
 if(ENABLE_PYTHON)
     add_subdirectory(lang/python)
-    add_subdirectory(bench/workgen)
 endif()
 
 # Build the wiredtiger test suites.

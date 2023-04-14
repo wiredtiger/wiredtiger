@@ -86,7 +86,7 @@ restart:
              * Compiler may replace the usage of the variable with another read in the following
              * code. Use a atomic read to ensure it is read only once.
              */
-            ins = WT_ATOMIC_LOAD_PTR(WT_INSERT, &cbt->ins_head->head[i], WT_ATOMIC_RELAXED);
+            ins = WT_ATOMIC_LOAD(&cbt->ins_head->head[i], WT_ATOMIC_ACQUIRE);
             if (ins != NULL && ins != current)
                 break;
         }
@@ -112,7 +112,7 @@ restart:
          *
          * Use an atomic acquire read to avoid this issue.
          */
-        next_ins = WT_ATOMIC_LOAD_PTR(WT_INSERT, &ins->next[i], WT_ATOMIC_ACQUIRE);
+        next_ins = WT_ATOMIC_LOAD(&ins->next[i], WT_ATOMIC_ACQUIRE);
         if (next_ins != current) /* Stay at this level */
             ins = next_ins;
         else { /* Drop down a level */
@@ -146,7 +146,7 @@ __cursor_fix_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
         goto restart_read;
 
     if (newpage) {
-        if ((cbt->ins = WT_SKIP_LAST(cbt->ins_head)) == NULL)
+        if ((cbt->ins = WT_SKIP_LAST_ATOMIC(cbt->ins_head)) == NULL)
             return (WT_NOTFOUND);
     } else {
         /* Move to the previous record in the append list, if any. */
@@ -325,7 +325,7 @@ __cursor_var_append_prev(
         goto restart_read;
 
     if (newpage) {
-        cbt->ins = WT_SKIP_LAST(cbt->ins_head);
+        cbt->ins = WT_SKIP_LAST_ATOMIC(cbt->ins_head);
         goto new_page;
     }
 
@@ -605,7 +605,7 @@ __cursor_row_prev(
             cbt->ins_head = WT_ROW_INSERT_SMALLEST(page);
         else
             cbt->ins_head = WT_ROW_INSERT_SLOT(page, page->entries - 1);
-        cbt->ins = WT_SKIP_LAST(cbt->ins_head);
+        cbt->ins = WT_SKIP_LAST_ATOMIC(cbt->ins_head);
         cbt->row_iteration_slot = page->entries * 2 + 1;
         cbt->rip_saved = NULL;
         goto new_insert;
@@ -668,7 +668,7 @@ restart_read_insert:
             cbt->ins_head = cbt->row_iteration_slot == 1 ?
               WT_ROW_INSERT_SMALLEST(page) :
               WT_ROW_INSERT_SLOT(page, cbt->row_iteration_slot / 2 - 1);
-            cbt->ins = WT_SKIP_LAST(cbt->ins_head);
+            cbt->ins = WT_SKIP_LAST_ATOMIC(cbt->ins_head);
             goto new_insert;
         }
         cbt->ins_head = NULL;

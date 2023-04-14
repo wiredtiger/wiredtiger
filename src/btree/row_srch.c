@@ -21,7 +21,7 @@ __search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT
 {
     WT_BTREE *btree;
     WT_COLLATOR *collator;
-    WT_INSERT *ins;
+    WT_INSERT *ins, *tail;
     WT_ITEM key;
     int cmp, i;
 
@@ -56,9 +56,15 @@ __search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT
          * serialized insert function.
          */
         for (i = WT_SKIP_MAXDEPTH - 1; i >= 0; i--) {
-            cbt->ins_stack[i] = (i == 0) ?
-              &ins->next[0] :
-              (ins_head->tail[i] != NULL) ? &ins_head->tail[i]->next[i] : &ins_head->head[i];
+            if (i == 0)
+                cbt->ins_stack[i] = &ins->next[0];
+            else {
+                tail = WT_ATOMIC_LOAD(&ins_head->tail[i], WT_ATOMIC_ACQUIRE);
+                if (tail != NULL)
+                    cbt->ins_stack[i] = &tail->next[i];
+                else
+                    cbt->ins_stack[i] = &ins_head->head[i];
+            }
             cbt->next_stack[i] = NULL;
         }
         cbt->compare = -cmp;
@@ -116,7 +122,7 @@ __wt_search_insert(
          *
          * Use an atomic acquire read to avoid this issue.
          */
-        ins = WT_ATOMIC_LOAD_PTR(WT_INSERT, insp, WT_ATOMIC_ACQUIRE);
+        ins = WT_ATOMIC_LOAD(insp, WT_ATOMIC_ACQUIRE);
         if (ins == NULL) {
             cbt->next_stack[i] = NULL;
             cbt->ins_stack[i--] = insp--;
@@ -188,8 +194,7 @@ __wt_search_insert(
                  * It is possible that we read an old value down the stack due to read reordering on
                  * CPUs with weak memory ordering. Use an atomic acquire read to avoid this issue.
                  */
-                cbt->next_stack[i] =
-                  WT_ATOMIC_LOAD_PTR(WT_INSERT, &ins->next[i], WT_ATOMIC_ACQUIRE);
+                cbt->next_stack[i] = WT_ATOMIC_LOAD(&ins->next[i], WT_ATOMIC_ACQUIRE);
                 cbt->ins_stack[i] = &ins->next[i];
             }
     }
@@ -729,7 +734,7 @@ leaf_match:
     }
 
     /* If there's no insert list, we're done. */
-    if (WT_SKIP_FIRST(ins_head) == NULL)
+    if (WT_SKIP_FIRST_ATOMIC(ins_head) == NULL)
         return (0);
 
     /*

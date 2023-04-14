@@ -1445,21 +1445,24 @@ struct __wt_insert {
 /*
  * Skiplist helper macros.
  */
-#define WT_SKIP_FIRST(ins_head)                            \
-    (((ins_head) == NULL) ? NULL :                         \
-                            (WT_ATOMIC_LOAD_PTR(WT_INSERT, \
-                              &((WT_INSERT_HEAD *)(ins_head))->head[0], WT_ATOMIC_RELAXED)))
-#define WT_SKIP_FIRST_ATOMIC(ins_head) \
+#define WT_SKIP_FIRST(ins_head) \
     (((ins_head) == NULL) ? NULL : ((WT_INSERT_HEAD *)(ins_head))->head[0])
+#define WT_SKIP_FIRST_ATOMIC(ins_head) \
+    (((ins_head) == NULL) ?            \
+        NULL :                         \
+        (WT_ATOMIC_LOAD(&((WT_INSERT_HEAD *)(ins_head))->head[0], WT_ATOMIC_ACQUIRE)))
 #define WT_SKIP_LAST(ins_head) \
     (((ins_head) == NULL) ? NULL : ((WT_INSERT_HEAD *)(ins_head))->tail[0])
-#define WT_SKIP_LAST_ATOMIC(ins_head)                      \
-    (((ins_head) == NULL) ? NULL :                         \
-                            (WT_ATOMIC_LOAD_PTR(WT_INSERT, \
-                              &((WT_INSERT_HEAD *)(ins_head))->tail[0], WT_ATOMIC_RELAXED)))
+#define WT_SKIP_LAST_ATOMIC(ins_head) \
+    (((ins_head) == NULL) ?           \
+        NULL :                        \
+        (WT_ATOMIC_LOAD(&((WT_INSERT_HEAD *)(ins_head))->tail[0], WT_ATOMIC_ACQUIRE)))
 #define WT_SKIP_NEXT(ins) ((ins)->next[0])
+#define WT_SKIP_NEXT_ATOMIC(ins) (WT_ATOMIC_LOAD(&(ins)->next[0], WT_ATOMIC_ACQUIRE))
 #define WT_SKIP_FOREACH(ins, ins_head) \
     for ((ins) = WT_SKIP_FIRST(ins_head); (ins) != NULL; (ins) = WT_SKIP_NEXT(ins))
+#define WT_SKIP_FOREACH_ATOMIC(ins, ins_head) \
+    for ((ins) = WT_SKIP_FIRST_ATOMIC(ins_head); (ins) != NULL; (ins) = WT_SKIP_NEXT_ATOMIC(ins))
 
 /*
  * Atomically allocate and swap a structure or array into place.

@@ -122,7 +122,7 @@ __random_leaf_skip(WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head, uint32_t entr
          */
         saved_ins = NULL;
         i = __wt_random(&session->rnd) % entries;
-        for (ins = WT_SKIP_FIRST(ins_head); ins != NULL; ins = WT_SKIP_NEXT(ins)) {
+        for (ins = WT_SKIP_FIRST_ATOMIC(ins_head); ins != NULL; ins = WT_SKIP_NEXT_ATOMIC(ins)) {
             if (--i == 0)
                 break;
             if (i == WT_RANDOM_SKIP_LOCAL * 2)
