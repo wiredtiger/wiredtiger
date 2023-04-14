@@ -116,12 +116,8 @@
     static inline bool __wt_atomic_cas##name(vp_arg, old_arg, newv_arg)                   \
     {                                                                                     \
         return (WT_ATOMIC_CAS_OLD(vp, &old, newv, WT_ATOMIC_SEQ_CST, WT_ATOMIC_SEQ_CST)); \
-    }                                                                                     \
-    static inline bool __wt_atomic_memorder_cas##name(                                    \
-      vp_arg, old_arg, newv_arg, int success_memorder, int failure_memorder)              \
-    {                                                                                     \
-        return (WT_ATOMIC_CAS(vp, &old, newv, success_memorder, failure_memorder));       \
     }
+
 WT_ATOMIC_CAS_FUNC(8, uint8_t *vp, uint8_t old, uint8_t newv)
 WT_ATOMIC_CAS_FUNC(v8, volatile uint8_t *vp, uint8_t old, volatile uint8_t newv)
 WT_ATOMIC_CAS_FUNC(16, uint16_t *vp, uint16_t old, uint16_t newv)
