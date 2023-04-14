@@ -137,9 +137,10 @@ functions:
         fi
 
         if [ "${build_variant|}" = "macos-1100" ]; then
-          # For mac builds, we want cmake to use the system Python executable by default.
-          # To get its matching library directory, we use the find_libpython module.
-          SYSPY=${python_command|/usr/bin/python3}
+          # For mac builds, we want explicitly tell cmake which python to use, as
+          # well as the matching library directory and header files. The find_libpython
+          # module gives us the library.
+          SYSPY=${python_binary}
           $SYSPY -mvenv venv
           source venv/bin/activate
           pip install find_libpython
@@ -196,13 +197,13 @@ functions:
         set -o errexit
         set -o verbose
         python_configured=$(grep Python3_EXECUTABLE: ./CMakeCache.txt | sed -e 's/.*=//')
-        if [ "${python_command}" = '' -o "$(${python_command} -V -V)" != "$($python_configured -V -V)" ]; then
+        if [ "${python_binary}" = '' -o "$(${python_binary} -V -V)" != "$($python_configured -V -V)" ]; then
            echo "Python versions do not match.  Cmake version:"
            echo "$python_configured"
            $python_configured -V -V
            echo "Variable used by evergreen:"
-           echo "${python_command}"
-           ${python_command} -V -V
+           echo "${python_binary}"
+           ${python_binary} -V -V
            exit 1
         fi
   "make wiredtiger": &make_wiredtiger
