@@ -143,14 +143,15 @@ functions:
           SYSPY=${python_binary}
           $SYSPY -mvenv venv
           source venv/bin/activate
-          pip install find_libpython
+          pip3 install find_libpython
           SYSPYLIB=`find_libpython`
           SYSPYINCDEF=
 
-          # We have the shared library to link to, it may be named simply 'Python3'.
+          # We have the shared library to link to, it may be named simply 'Python3' or 'Python'.
           # If that's the case, use the associated dylib symlink found in an expected relative
           # location. Also get the location of the header files. We'll give this all to cmake.
-          if [ $(basename $SYSPYLIB) = 'Python3' ]; then
+          base=$(basename $SYSPYLIB)
+          if [ "$base" = 'Python3' -o "$base" = 'Python' ]; then
              SYSPYDIR=$(dirname $SYSPYLIB)
              NSYSPYLIB=$(ls $SYSPYDIR/lib/libpython*.dylib 2>/dev/null | head -1)
              if [ -f "$NSYSPYLIB" ]; then
@@ -196,14 +197,22 @@ functions:
       script: |
         set -o errexit
         set -o verbose
+        # Note: ${var} is used for expansions of evergreen variables, whereas $var are /bin/sh variables.
         python_configured=$(grep PYTHON_EXECUTABLE: ./CMakeCache.txt | sed -e 's/.*=//')
-        if [ "${python_binary}" = '' -o "$(${python_binary} -V -V)" != "$($python_configured -V -V)" ]; then
-           echo "Python versions do not match.  Cmake version:"
-           echo "$python_configured"
-           $python_configured -V -V
-           echo "Variable used by evergreen:"
-           echo "${python_binary}"
-           ${python_binary} -V -V
+        if [ "${python_binary}" = '' -o "$python_configured" = '' -o "$(${python_binary} -V -V)" != "$($python_configured -V -V)" ]; then
+           echo "Python versions do not match."
+           echo "Python version used by cmake builds ($python_configured):"
+           if [ "$python_configured" = '' ]; then
+               echo "No python configured"
+           else
+               $python_configured -V -V
+           fi
+           echo "Python version used in shell commands (${python_binary}):"
+           if [ "${python_binary}" = '' ]; then
+               echo "No python set in Expansions"
+           else
+               ${python_binary} -V -V
+           fi
            exit 1
         fi
   "make wiredtiger": &make_wiredtiger
