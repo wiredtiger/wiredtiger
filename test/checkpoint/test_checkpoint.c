@@ -180,6 +180,8 @@ main(int argc, char *argv[])
             } else
                 base = 10;
             g.stop_ts = (uint64_t)strtoll(stop_arg, &end_number, base);
+            if (*end_number)
+                return (usage());
             break;
         case 't':
             switch (__wt_optarg[0]) {
@@ -227,7 +229,7 @@ main(int argc, char *argv[])
     if (argc != 0)
         return (usage());
 
-    if (g.stop_ts > 0 && (!g.predictable_replay || (!g.use_timestamps))) {
+    if (g.stop_ts > 0 && (!g.predictable_replay || !g.use_timestamps)) {
         fprintf(stderr, "-S is only valid if specified along with -X and -R.\n");
         return (EXIT_FAILURE);
     }
@@ -674,7 +676,7 @@ usage(void)
     fprintf(stderr,
       "usage: %s\n"
       "    [-DmpRvXx] [-C wiredtiger-config] [-c checkpoint] [-h home] [-k keys] [-l log]\n"
-      "    [-n|N ops|stable-timestamp] [-r runs] [-s 1|2|3|4|5] [-T table-config] [-t f|r|v]\n"
+      "    [-n ops] [-r runs] [-s 1|2|3|4|5] [-T table-config] [-t f|r|v]\n"
       "    [-W workers]\n",
       progname);
     fprintf(stderr, "%s",

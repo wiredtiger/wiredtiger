@@ -383,6 +383,12 @@ real_worker(THREAD_DATA *td)
             begin_cfg = "no_timestamp=true,read_timestamp=1,roundup_timestamps=(read=true)";
         else if (!g.predictable_replay)
             begin_cfg = "read_timestamp=1,roundup_timestamps=(read=true)";
+        /*
+         * Note: For predictable replays we do not specify a read timestamp, hence reading the
+         * latest committed values. This is important for a predictable outcome as reading at the
+         * oldest timestamp depends on where the clock and the checkpoint threads have placed the
+         * oldest at this moment.
+         */
     }
 
     for (j = 0; j < g.ntables; j++)
