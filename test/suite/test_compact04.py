@@ -59,7 +59,7 @@ class test_compact04(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Now let's delete a lot of data ranges. Create enough space so that compact runs in more
-        # one iteration.
+        # than one iteration.
         c = self.session.open_cursor(self.table_uri, None)
         for r in range(self.delete_ranges_count):
             start = r * self.table_numkv // self.delete_ranges_count

@@ -250,13 +250,11 @@ __wt_block_off_srch_inclusive(WT_EXTLIST *el, wt_off_t off)
     WT_EXT *after, *before;
     __block_off_srch_pair(el, off, &before, &after);
 
-    if (before == NULL) /* The search key is before the first element. */
-        return (after);
-    if (before->off + before->size <= off) /* The entire before extent is before the search key. */
-        return (after);
-    if (before->off <= off) /* The search key is in the before extent. */
+    /* Check if the search key is in the before extent. Otherwise return the after extent. */
+    if (before != NULL && before->off <= off && before->off + before->size > off)
         return (before);
-    return (after);
+    else
+        return (after);
 }
 
 #ifdef HAVE_DIAGNOSTIC

@@ -24,13 +24,13 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
     /* Reset the compaction state information. */
     block->compact_pct_tenths = 0;
-    block->compact_bytes_rewritten = 0;
     block->compact_bytes_reviewed = 0;
+    block->compact_bytes_rewritten = 0;
+    block->compact_internal_pages_reviewed = 0;
+    block->compact_pages_reviewed = 0;
     block->compact_pages_rewritten = 0;
     block->compact_pages_rewritten_expected = 0;
-    block->compact_pages_reviewed = 0;
     block->compact_pages_skipped = 0;
-    block->compact_internal_pages_reviewed = 0;
 
     return (0);
 }
@@ -111,7 +111,9 @@ __block_compact_trim_extent(WT_SESSION_IMPL *session, wt_off_t mask_start, wt_of
  * __block_compact_skip_internal --
  *     Return if compaction will shrink the file. This function takes a few extra parameters, so
  *     that it can be useful for both making the actual compaction decisions as well as for
- *     estimating work ahead of the compaction itself.
+ *     estimating the work ahead of the compaction itself: the file size, the smallest offset that
+ *     the first-fit allocation is likely to consider, and the number of available (unallocated)
+ *     bytes before that offset.
  */
 static void
 __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool estimate,
@@ -143,9 +145,11 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
     /*
      * Skip files where we can't recover at least 1MB.
      *
-     * If at least 20% of the total file is available and in the first 80% of the file, we'll try
-     * compaction on the last 20% of the file; else, if at least 10% of the total file is available
-     * and in the first 90% of the file, we'll try compaction on the last 10% of the file.
+     * WiredTiger uses first-fit compaction: It finds space in the beginning of the file and moves
+     * data from the end of the file into that space. If at least 20% of the total file is available
+     * and in the first 80% of the file, we'll try compaction on the last 20% of the file; else, if
+     * at least 10% of the total file is available and in the first 90% of the file, we'll try
+     * compaction on the last 10% of the file.
      *
      * We could push this further, but there's diminishing returns, a mostly empty file can be
      * processed quickly, so more aggressive compaction is less useful.
@@ -191,7 +195,7 @@ static void
 __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
     WT_EXT *ext;
-    wt_off_t avg_block_size, avg_internal_block_size, depth1_size, leaves_per_internal_page;
+    wt_off_t avg_block_size, avg_internal_block_size, depth1_subtree_size, leaves_per_internal_page;
     wt_off_t compact_start_off, extra_space, file_size, last, off, rewrite_size, size, write_off;
     uint64_t n, pages_to_move, pages_to_move_orig, total_pages_to_move;
     int compact_pct_tenths, iteration;
@@ -217,9 +221,21 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
 
     /* We don't currently have a way to track the internal page size, but this should be okay. */
     avg_internal_block_size = 4096;
+
+    /*
+     * Estimate the average number of leaf pages per one internal page. This way of doing the
+     * estimate is sufficient, because we expect each internal node to have a large number of
+     * children, so that the number of higher-level internal nodes is small relative to the internal
+     * nodes at the bottom.
+     */
     leaves_per_internal_page =
       (wt_off_t)(block->compact_pages_reviewed / block->compact_internal_pages_reviewed);
-    depth1_size = avg_block_size * leaves_per_internal_page + avg_internal_block_size;
+
+    /*
+     * Estimate the size of a "depth 1" subtree consisting of one internal page and the
+     * corresponding leaves.
+     */
+    depth1_subtree_size = avg_block_size * leaves_per_internal_page + avg_internal_block_size;
 
     __wt_verbose_debug2(session, WT_VERB_COMPACT,
       "%s: the average block size is %" PRId64 " bytes (based on %" PRIu64 " blocks)", block->name,
@@ -245,10 +261,12 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
     total_pages_to_move = 0;
     write_off = 0;
 
-#define WT_EXT_SIZE_TO_LEAF_PAGES(ext_size)                          \
-    (uint64_t)((ext_size) / depth1_size * leaves_per_internal_page + \
-      ((ext_size) % depth1_size) / avg_block_size)
+    /* Macro for estimating the number of leaf pages that can be stored within an extent. */
+#define WT_EXT_SIZE_TO_LEAF_PAGES(ext_size)                                  \
+    (uint64_t)((ext_size) / depth1_subtree_size * leaves_per_internal_page + \
+      ((ext_size) % depth1_subtree_size) / avg_block_size)
 
+    /* Now do the actual estimation, simulating one compact pass at a time. */
     for (iteration = 0;; iteration++) {
         compact_start_off = file_size - compact_pct_tenths * file_size / 10;
         if (write_off >= compact_start_off)
@@ -258,7 +276,14 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
           ", will move blocks from the last %d%% of the file",
           block->name, iteration, file_size, compact_start_off, compact_pct_tenths * 10);
 
-        /* Estimate how many pages we would like to move, just using the live checkpoint. */
+        /*
+         * Estimate how many pages we would like to move, just using the live checkpoint. The
+         * checkpoint doesn't have a complete list of allocated extents, so we estimate it in two
+         * phases: We first take an inverse of the "available" list, which gives us all extents that
+         * are either currently allocated or are to be discarded at the next checkpoint. We do this
+         * by first estimating the number of pages that can fit in the inverse of the "available"
+         * list, and then we subtract the number of pages determined from the "discard" list.
+         */
         last = compact_start_off;
         WT_EXT_FOREACH_FROM_OFFSET_INCL(ext, &block->live.avail, compact_start_off)
         {
