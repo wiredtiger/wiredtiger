@@ -59,7 +59,6 @@ if __name__ == '__main__':
     session.create(uri, 'key_format=S, value_format=S')
 
     inserts = 10
-    ops = Operation(Operation.OP_CHECKPOINT, "")
     cursor = session.open_cursor(uri)
     session.begin_transaction()
     for i in range(1, inserts + 1):
