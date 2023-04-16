@@ -6,6 +6,12 @@
  * See the file LICENSE for redistribution information.
  */
 
+/*
+ * Helper macros for finer-grained RTS verbose messaging categories.
+ */
+#define WT_RTS_VERB_TAG_END "[END] "
+#define WT_RTS_VERB_TAG_INIT "[INIT] "
+
 #define WT_CHECK_RECOVERY_FLAG_TXNID(session, txnid)                                           \
     (F_ISSET(S2C(session), WT_CONN_RECOVERING) && S2C(session)->recovery_ckpt_snap_min != 0 && \
       (txnid) >= S2C(session)->recovery_ckpt_snap_min)
