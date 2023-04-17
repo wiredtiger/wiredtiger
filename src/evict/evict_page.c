@@ -268,7 +268,7 @@ err:
     }
 
 done:
-    eviction_time_seconds = eviction_time / WT_MILLION;
+    eviction_time_seconds = eviction_time / WT_THOUSAND;
     if (eviction_time_seconds > conn->cache->evict_max_seconds)
         conn->cache->evict_max_seconds = eviction_time_seconds;
     if (eviction_time_seconds > 60)

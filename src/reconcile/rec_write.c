@@ -112,15 +112,15 @@ err:
      * (it's just a statistic).
      */
     session->reconcile_timeline.reconcile_finish = __wt_clock(session);
-    if (WT_CLOCKDIFF_SEC(session->reconcile_timeline.hs_wrapup_finish,
+    if (WT_CLOCKDIFF_MS(session->reconcile_timeline.hs_wrapup_finish,
           session->reconcile_timeline.hs_wrapup_start) > conn->rec_maximum_hs_wrapup_seconds)
         conn->rec_maximum_hs_wrapup_seconds =
-          WT_CLOCKDIFF_SEC(session->reconcile_timeline.hs_wrapup_finish,
+          WT_CLOCKDIFF_MS(session->reconcile_timeline.hs_wrapup_finish,
             session->reconcile_timeline.hs_wrapup_start);
-    if (WT_CLOCKDIFF_SEC(session->reconcile_timeline.image_build_finish,
+    if (WT_CLOCKDIFF_MS(session->reconcile_timeline.image_build_finish,
           session->reconcile_timeline.image_build_start) > conn->rec_maximum_image_build_seconds)
         conn->rec_maximum_image_build_seconds =
-          WT_CLOCKDIFF_SEC(session->reconcile_timeline.image_build_finish,
+          WT_CLOCKDIFF_MS(session->reconcile_timeline.image_build_finish,
             session->reconcile_timeline.image_build_start);
     if (WT_CLOCKDIFF_SEC(session->reconcile_timeline.reconcile_finish,
           session->reconcile_timeline.reconcile_start) > conn->rec_maximum_seconds)
