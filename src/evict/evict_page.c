@@ -104,14 +104,14 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
-    uint64_t eviction_time, eviction_time_seconds;
+    uint64_t eviction_time, eviction_time_milliseconds;
     bool clean_page, closing, force_evict_hs, inmem_split, tree_dead;
 
     conn = S2C(session);
     page = ref->page;
     closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
     force_evict_hs = false;
-    eviction_time = eviction_time_seconds = 0;
+    eviction_time = eviction_time_milliseconds = 0;
 
     __wt_verbose(
       session, WT_VERB_EVICT, "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
@@ -268,10 +268,10 @@ err:
     }
 
 done:
-    eviction_time_seconds = eviction_time / WT_THOUSAND;
-    if (eviction_time_seconds > conn->cache->evict_max_seconds)
-        conn->cache->evict_max_seconds = eviction_time_seconds;
-    if (eviction_time_seconds > 60)
+    eviction_time_milliseconds = eviction_time / WT_THOUSAND;
+    if (eviction_time_milliseconds > conn->cache->evict_max_seconds)
+        conn->cache->evict_max_seconds = eviction_time_milliseconds;
+    if (eviction_time_milliseconds > 60000)
         __wt_verbose_warning(session, WT_VERB_EVICT,
           "Eviction took more than 1 minute (%" PRIu64 "). Building disk image took %" PRIu64
           "us. History store wrapup took %" PRIu64 "us.",
