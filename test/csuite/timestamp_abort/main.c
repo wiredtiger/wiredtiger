@@ -662,7 +662,7 @@ thread_ckpt_run(void *arg)
     uint64_t stable;
     uint32_t sleep_time;
     int i;
-    char ckpt_flush_config[128], ckpt_config[128];
+    char ckpt_config[128], ckpt_flush_config[128];
     bool first_ckpt, flush_tier;
     char ts_string[WT_TS_HEX_STRING_SIZE];
 
@@ -735,9 +735,9 @@ thread_backup_run(void *arg)
     struct stat sb;
     THREAD_DATA *td;
     WT_CURSOR *cursor;
+    WT_DECL_RET;
     WT_SESSION *session;
     uint32_t i, last_backup, last_full, sleep_time, u;
-    int ret;
     char *str;
     char buf[1024];
 
@@ -750,7 +750,14 @@ thread_backup_run(void *arg)
      * Find the last successful backup.
      */
     if (td->workload_iteration > 1) {
-        testutil_check(session->open_cursor(session, "backup:query_id", NULL, NULL, &cursor));
+        ret = session->open_cursor(session, "backup:query_id", NULL, NULL, &cursor);
+        /*
+         * If the query indicates no previous backup exists, then we only want to create a full
+         * backup this iteration.
+         */
+        if (ret == EINVAL)
+            goto create;
+        testutil_check(ret);
         while ((ret = cursor->next(cursor)) == 0) {
             testutil_check(cursor->get_key(cursor, &str));
             testutil_assert(strncmp(str, "ID", 2) == 0);
@@ -780,6 +787,7 @@ thread_backup_run(void *arg)
         testutil_check(cursor->close(cursor));
     }
 
+create:
     /*
      * Create backups until we get killed.
      */
@@ -986,6 +994,10 @@ thread_run(void *arg)
             testutil_check(prepared_session->commit_transaction(prepared_session, tscfg));
         }
         testutil_check(session->commit_transaction(session, NULL));
+
+        /* Make checkpoint and backup race more likely to happen. */
+        if (use_backups && iter == 0)
+            __wt_sleep(0, 1000);
         /*
          * Insert into the local table outside the timestamp txn. This must occur after the
          * timestamp transaction, not before, because of the possibility of rollback in the
@@ -1216,6 +1228,7 @@ static bool
 backup_exists(WT_CONNECTION *conn, uint32_t index)
 {
     WT_CURSOR *cursor;
+    WT_DECL_RET;
     WT_SESSION *session;
     char backup_id[64];
     const char *idstr;
@@ -1224,8 +1237,16 @@ backup_exists(WT_CONNECTION *conn, uint32_t index)
     testutil_check(__wt_snprintf(backup_id, sizeof(backup_id), "ID%" PRIu32, index));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    testutil_check(session->open_cursor(session, "backup:query_id", NULL, NULL, &cursor));
+    /*
+     * Check if we find the backup with the given ID. But depending on scheduling of backups,
+     * checkpoints and killing the process, the backup ID may or may not have been saved to disk
+     * after a restart. If opening the backup query cursor gets EINVAL then there is no backup.
+     */
     found = false;
+    ret = session->open_cursor(session, "backup:query_id", NULL, NULL, &cursor);
+    if (ret == EINVAL)
+        goto done;
+    testutil_check(ret);
     while (cursor->next(cursor) == 0) {
         testutil_check(cursor->get_key(cursor, &idstr));
         if (strcmp(idstr, backup_id) == 0) {
@@ -1235,6 +1256,7 @@ backup_exists(WT_CONNECTION *conn, uint32_t index)
     }
     testutil_check(cursor->close(cursor));
 
+done:
     testutil_check(session->close(session, NULL));
     return (found);
 }
@@ -1619,7 +1641,7 @@ main(int argc, char *argv[])
 
     backup_full_interval = 4;
     backup_granularity_kb = 1024;
-    backup_verify_immediately = false;
+    backup_verify_immediately = true;
     backup_verify_quick = false;
     columns = stress = false;
     nth = MIN_TH;
