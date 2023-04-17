@@ -1025,7 +1025,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Reset the statistics tracked per checkpoint. */
     cache->evict_max_page_size = 0;
-    cache->evict_max_seconds = 0;
+    cache->evict_max_ms = 0;
     conn->rec_maximum_hs_wrapup_seconds = 0;
     conn->rec_maximum_image_build_seconds = 0;
     conn->rec_maximum_seconds = 0;

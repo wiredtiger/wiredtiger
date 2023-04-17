@@ -269,8 +269,8 @@ err:
 
 done:
     eviction_time_milliseconds = eviction_time / WT_THOUSAND;
-    if (eviction_time_milliseconds > conn->cache->evict_max_seconds)
-        conn->cache->evict_max_seconds = eviction_time_milliseconds;
+    if (eviction_time_milliseconds > conn->cache->evict_max_ms)
+        conn->cache->evict_max_ms = eviction_time_milliseconds;
     if (eviction_time_milliseconds > 60000)
         __wt_verbose_warning(session, WT_VERB_EVICT,
           "Eviction took more than 1 minute (%" PRIu64 "). Building disk image took %" PRIu64

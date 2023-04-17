@@ -5718,10 +5718,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_EVICTION_SPLIT_LEAF		1149
 /*! cache: maximum bytes configured */
 #define	WT_STAT_CONN_CACHE_BYTES_MAX			1150
+/*! cache: maximum milliseconds spent at a single eviction */
+#define	WT_STAT_CONN_CACHE_EVICTION_MAXIMUM_MILLISECONDS	1151
 /*! cache: maximum page size seen at eviction */
-#define	WT_STAT_CONN_CACHE_EVICTION_MAXIMUM_PAGE_SIZE	1151
-/*! cache: maximum seconds spent at a single eviction */
-#define	WT_STAT_CONN_CACHE_EVICTION_MAXIMUM_SECONDS	1152
+#define	WT_STAT_CONN_CACHE_EVICTION_MAXIMUM_PAGE_SIZE	1152
 /*! cache: modified pages evicted */
 #define	WT_STAT_CONN_CACHE_EVICTION_DIRTY		1153
 /*! cache: modified pages evicted by application threads */
