@@ -2462,10 +2462,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     if (F_ISSET(r, WT_REC_HS)) {
         session->reconcile_timeline.hs_wrapup_start = __wt_clock(session);
         ret = __rec_hs_wrapup(session, r);
-        /* Reset the timer if we fail here. */
-        if (ret != 0) {
-            session->reconcile_timeline.hs_wrapup_start = __wt_clock(session);
-        }
         session->reconcile_timeline.hs_wrapup_finish = __wt_clock(session);
         WT_RET(ret);
     }
@@ -2743,6 +2739,8 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         }
 
 err:
+    /* Reset the timer if we fail here before returning. */
+    session->reconcile_timeline.hs_wrapup_start = __wt_clock(session);
     return (ret);
 }
 
