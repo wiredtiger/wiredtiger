@@ -16,13 +16,15 @@ int
 __wt_read_ahead_create(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
+    uint32_t session_flags;
 
     conn = S2C(session);
 
     F_SET(conn, WT_CONN_READ_AHEAD_RUN);
 
-    WT_RET(__wt_thread_group_create(session, &conn->read_ahead_threads, "read-ahead-server", 20, 20,
-      0, __wt_read_ahead_thread_chk, __wt_read_ahead_thread_run, NULL));
+    session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;
+    WT_RET(__wt_thread_group_create(session, &conn->read_ahead_threads, "read-ahead-server", 8, 8,
+      session_flags, __wt_read_ahead_thread_chk, __wt_read_ahead_thread_run, NULL));
 
     return (0);
 }
@@ -134,11 +136,18 @@ __wt_conn_read_ahead_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
 int
 __wt_read_ahead_destroy(WT_SESSION_IMPL *session)
 {
-    F_CLR(S2C(session), WT_CONN_READ_AHEAD_RUN);
+    WT_CONNECTION_IMPL *conn;
 
-    __wt_writelock(session, &S2C(session)->read_ahead_threads.lock);
+    conn = S2C(session);
 
-    WT_RET(__wt_thread_group_destroy(session, &S2C(session)->read_ahead_threads));
+    if (!F_ISSET(conn, WT_CONN_READ_AHEAD_RUN))
+        return (0);
+
+    F_CLR(conn, WT_CONN_READ_AHEAD_RUN);
+
+    __wt_writelock(session, &conn->read_ahead_threads.lock);
+
+    WT_RET(__wt_thread_group_destroy(session, &conn->read_ahead_threads));
 
     return (0);
 }
