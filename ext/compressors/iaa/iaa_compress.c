@@ -43,7 +43,6 @@
 #include <time.h>
 #include "iaaInterface-c.h"
 
-
 #ifdef _MSC_VER
 #define inline __inline
 #endif
@@ -78,8 +77,9 @@ static int
 iaa_compress(WT_COMPRESSOR *compressor, WT_SESSION *session, uint8_t *src, size_t src_len,
   uint8_t *dst, size_t dst_len, size_t *result_lenp, int *compression_failed)
 {
-    uint32_t result_len = doCompressData(compressor, session, src, (uint32_t)src_len, dst, (uint32_t)dst_len);
-    if(result_len > 0) {
+    uint32_t result_len =
+      doCompressData(compressor, session, src, (uint32_t)src_len, dst, (uint32_t)dst_len);
+    if (result_len > 0) {
         *compression_failed = 0;
         *result_lenp = (size_t)result_len;
         return (0);
@@ -97,10 +97,11 @@ iaa_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session, uint8_t *src, siz
   uint8_t *dst, size_t dst_len, size_t *result_lenp)
 {
     uint32_t result_len;
-    doDecompressData(compressor, session, src, (uint32_t)src_len, dst, (uint32_t)dst_len, &result_len);
-    if(result_len > 0) {
+    doDecompressData(
+      compressor, session, src, (uint32_t)src_len, dst, (uint32_t)dst_len, &result_len);
+    if (result_len > 0) {
         *result_lenp = (size_t)result_len;
-	return (0);
+        return (0);
     }
     return (iaa_error(compressor, session, "iaa_decompress"));
 }
@@ -133,7 +134,7 @@ iaa_pre_size(
     /*
      * Get the upper-bound of the buffer size needed by the compression.
      */
-    *result_lenp = getMaxCompressedDataSize((uint32_t)src_len);;
+    *result_lenp = getMaxCompressedDataSize((uint32_t)src_len);
     return (0);
 }
 
@@ -159,13 +160,12 @@ iaa_add_compressor(WT_CONNECTION *connection, const char *name)
     /* Load the compressor. */
     if ((ret = connection->add_compressor(
            connection, name, (WT_COMPRESSOR *)iaa_compressor, NULL)) == 0) {
-	return (0);
+        return (0);
     }
 
     free(iaa_compressor);
     return (ret);
 }
-
 
 int iaa_extension_init(WT_CONNECTION *, WT_CONFIG_ARG *);
 
