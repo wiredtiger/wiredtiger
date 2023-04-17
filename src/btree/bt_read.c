@@ -407,8 +407,8 @@ read:
                     } else {
                         WT_STAT_CONN_INCR(session, page_forcible_evict_blocked);
                         stalled = true;
+                        break;
                     }
-                    break;
                 }
                 WT_RET(ret);
 
