@@ -6321,13 +6321,13 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * a reconciliation
  */
 #define	WT_STAT_CONN_REC_MAXIMUM_IMAGE_BUILD_MILLISECONDS	1414
-/*! reconciliation: maximum seconds spent in a reconciliation call */
-#define	WT_STAT_CONN_REC_MAXIMUM_SECONDS		1415
 /*!
- * reconciliation: maximum seconds spent in moving updates to the history
- * store in a reconciliation
+ * reconciliation: maximum milliseconds spent in moving updates to the
+ * history store in a reconciliation
  */
-#define	WT_STAT_CONN_REC_MAXIMUM_HS_WRAPUP_SECONDS	1416
+#define	WT_STAT_CONN_REC_MAXIMUM_HS_WRAPUP_MILLISECONDS	1415
+/*! reconciliation: maximum seconds spent in a reconciliation call */
+#define	WT_STAT_CONN_REC_MAXIMUM_SECONDS		1416
 /*! reconciliation: page reconciliation calls */
 #define	WT_STAT_CONN_REC_PAGES				1417
 /*! reconciliation: page reconciliation calls for eviction */

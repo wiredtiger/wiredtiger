@@ -503,7 +503,7 @@ conn_stats = [
     ##########################################
     # Reconciliation statistics
     ##########################################
-    RecStat('rec_maximum_hs_wrapup_seconds', 'maximum seconds spent in moving updates to the history store in a reconciliation', 'no_clear,no_scale,size'),
+    RecStat('rec_maximum_hs_wrapup_milliseconds', 'maximum milliseconds spent in moving updates to the history store in a reconciliation', 'no_clear,no_scale,size'),
     RecStat('rec_maximum_image_build_milliseconds', 'maximum milliseconds spent in building a disk image in a reconciliation', 'no_clear,no_scale,size'),
     RecStat('rec_maximum_seconds', 'maximum seconds spent in a reconciliation call', 'no_clear,no_scale,size'),
     RecStat('rec_overflow_key_leaf', 'leaf-page overflow keys'),
