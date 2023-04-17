@@ -98,6 +98,11 @@ static const char *const __stats_dsrc_desc[] = {
   "timestamp on data page",
   "cache: history store table truncation to remove range of updates due to key being removed from "
   "the data page during reconciliation",
+  "cache: history store table truncations that would have happened in non-dryrun mode",
+  "cache: history store table truncations to remove an unstable update that would have happened in "
+  "non-dryrun mode",
+  "cache: history store table truncations to remove an update that would have happened in "
+  "non-dryrun mode",
   "cache: history store table updates without timestamps fixed up by reinserting with the fixed "
   "timestamp",
   "cache: history store table writes requiring squashed modifies",
@@ -275,17 +280,27 @@ static const char *const __stats_dsrc_desc[] = {
   "session: object compaction",
   "transaction: number of times overflow removed value is read",
   "transaction: race to read prepared update retry",
+  "transaction: rollback to stable history store keys that would have been swept in non-dryrun "
+  "mode",
   "transaction: rollback to stable history store records with stop timestamps older than newer "
   "records",
   "transaction: rollback to stable inconsistent checkpoint",
   "transaction: rollback to stable keys removed",
   "transaction: rollback to stable keys restored",
+  "transaction: rollback to stable keys that would have been removed in non-dryrun mode",
+  "transaction: rollback to stable keys that would have been restored in non-dryrun mode",
   "transaction: rollback to stable restored tombstones from history store",
   "transaction: rollback to stable restored updates from history store",
   "transaction: rollback to stable skipping delete rle",
   "transaction: rollback to stable skipping stable rle",
   "transaction: rollback to stable sweeping history store keys",
+  "transaction: rollback to stable tombstones from history store that would have been restored in "
+  "non-dryrun mode",
+  "transaction: rollback to stable updates from history store that would have been restored in "
+  "non-dryrun mode",
   "transaction: rollback to stable updates removed from history store",
+  "transaction: rollback to stable updates that would have been removed from history store in "
+  "non-dryrun mode",
   "transaction: transaction checkpoints due to obsolete pages",
   "transaction: update conflicts",
 };
@@ -415,6 +430,9 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_hs_key_truncate = 0;
     stats->cache_hs_order_remove = 0;
     stats->cache_hs_key_truncate_onpage_removal = 0;
+    stats->cache_hs_btree_truncate_dryrun = 0;
+    stats->cache_hs_key_truncate_rts_unstable_dryrun = 0;
+    stats->cache_hs_key_truncate_rts_dryrun = 0;
     stats->cache_hs_order_reinsert = 0;
     stats->cache_hs_write_squash = 0;
     stats->cache_inmem_splittable = 0;
@@ -587,16 +605,22 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->session_compact = 0;
     stats->txn_read_overflow_remove = 0;
     stats->txn_read_race_prepare_update = 0;
+    stats->txn_rts_sweep_hs_keys_dryrun = 0;
     stats->txn_rts_hs_stop_older_than_newer_start = 0;
     stats->txn_rts_inconsistent_ckpt = 0;
     stats->txn_rts_keys_removed = 0;
     stats->txn_rts_keys_restored = 0;
+    stats->txn_rts_keys_removed_dryrun = 0;
+    stats->txn_rts_keys_restored_dryrun = 0;
     stats->txn_rts_hs_restore_tombstones = 0;
     stats->txn_rts_hs_restore_updates = 0;
     stats->txn_rts_delete_rle_skipped = 0;
     stats->txn_rts_stable_rle_skipped = 0;
     stats->txn_rts_sweep_hs_keys = 0;
+    stats->txn_rts_hs_restore_tombstones_dryrun = 0;
+    stats->txn_rts_hs_restore_updates_dryrun = 0;
     stats->txn_rts_hs_removed = 0;
+    stats->txn_rts_hs_removed_dryrun = 0;
     stats->txn_checkpoint_obsolete_applied = 0;
     stats->txn_update_conflict = 0;
 }
@@ -716,6 +740,10 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_hs_key_truncate += from->cache_hs_key_truncate;
     to->cache_hs_order_remove += from->cache_hs_order_remove;
     to->cache_hs_key_truncate_onpage_removal += from->cache_hs_key_truncate_onpage_removal;
+    to->cache_hs_btree_truncate_dryrun += from->cache_hs_btree_truncate_dryrun;
+    to->cache_hs_key_truncate_rts_unstable_dryrun +=
+      from->cache_hs_key_truncate_rts_unstable_dryrun;
+    to->cache_hs_key_truncate_rts_dryrun += from->cache_hs_key_truncate_rts_dryrun;
     to->cache_hs_order_reinsert += from->cache_hs_order_reinsert;
     to->cache_hs_write_squash += from->cache_hs_write_squash;
     to->cache_inmem_splittable += from->cache_inmem_splittable;
@@ -892,16 +920,22 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->session_compact += from->session_compact;
     to->txn_read_overflow_remove += from->txn_read_overflow_remove;
     to->txn_read_race_prepare_update += from->txn_read_race_prepare_update;
+    to->txn_rts_sweep_hs_keys_dryrun += from->txn_rts_sweep_hs_keys_dryrun;
     to->txn_rts_hs_stop_older_than_newer_start += from->txn_rts_hs_stop_older_than_newer_start;
     to->txn_rts_inconsistent_ckpt += from->txn_rts_inconsistent_ckpt;
     to->txn_rts_keys_removed += from->txn_rts_keys_removed;
     to->txn_rts_keys_restored += from->txn_rts_keys_restored;
+    to->txn_rts_keys_removed_dryrun += from->txn_rts_keys_removed_dryrun;
+    to->txn_rts_keys_restored_dryrun += from->txn_rts_keys_restored_dryrun;
     to->txn_rts_hs_restore_tombstones += from->txn_rts_hs_restore_tombstones;
     to->txn_rts_hs_restore_updates += from->txn_rts_hs_restore_updates;
     to->txn_rts_delete_rle_skipped += from->txn_rts_delete_rle_skipped;
     to->txn_rts_stable_rle_skipped += from->txn_rts_stable_rle_skipped;
     to->txn_rts_sweep_hs_keys += from->txn_rts_sweep_hs_keys;
+    to->txn_rts_hs_restore_tombstones_dryrun += from->txn_rts_hs_restore_tombstones_dryrun;
+    to->txn_rts_hs_restore_updates_dryrun += from->txn_rts_hs_restore_updates_dryrun;
     to->txn_rts_hs_removed += from->txn_rts_hs_removed;
+    to->txn_rts_hs_removed_dryrun += from->txn_rts_hs_removed_dryrun;
     to->txn_checkpoint_obsolete_applied += from->txn_checkpoint_obsolete_applied;
     to->txn_update_conflict += from->txn_update_conflict;
 }
@@ -1021,6 +1055,10 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_hs_order_remove += WT_STAT_READ(from, cache_hs_order_remove);
     to->cache_hs_key_truncate_onpage_removal +=
       WT_STAT_READ(from, cache_hs_key_truncate_onpage_removal);
+    to->cache_hs_btree_truncate_dryrun += WT_STAT_READ(from, cache_hs_btree_truncate_dryrun);
+    to->cache_hs_key_truncate_rts_unstable_dryrun +=
+      WT_STAT_READ(from, cache_hs_key_truncate_rts_unstable_dryrun);
+    to->cache_hs_key_truncate_rts_dryrun += WT_STAT_READ(from, cache_hs_key_truncate_rts_dryrun);
     to->cache_hs_order_reinsert += WT_STAT_READ(from, cache_hs_order_reinsert);
     to->cache_hs_write_squash += WT_STAT_READ(from, cache_hs_write_squash);
     to->cache_inmem_splittable += WT_STAT_READ(from, cache_inmem_splittable);
@@ -1206,17 +1244,24 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->session_compact += WT_STAT_READ(from, session_compact);
     to->txn_read_overflow_remove += WT_STAT_READ(from, txn_read_overflow_remove);
     to->txn_read_race_prepare_update += WT_STAT_READ(from, txn_read_race_prepare_update);
+    to->txn_rts_sweep_hs_keys_dryrun += WT_STAT_READ(from, txn_rts_sweep_hs_keys_dryrun);
     to->txn_rts_hs_stop_older_than_newer_start +=
       WT_STAT_READ(from, txn_rts_hs_stop_older_than_newer_start);
     to->txn_rts_inconsistent_ckpt += WT_STAT_READ(from, txn_rts_inconsistent_ckpt);
     to->txn_rts_keys_removed += WT_STAT_READ(from, txn_rts_keys_removed);
     to->txn_rts_keys_restored += WT_STAT_READ(from, txn_rts_keys_restored);
+    to->txn_rts_keys_removed_dryrun += WT_STAT_READ(from, txn_rts_keys_removed_dryrun);
+    to->txn_rts_keys_restored_dryrun += WT_STAT_READ(from, txn_rts_keys_restored_dryrun);
     to->txn_rts_hs_restore_tombstones += WT_STAT_READ(from, txn_rts_hs_restore_tombstones);
     to->txn_rts_hs_restore_updates += WT_STAT_READ(from, txn_rts_hs_restore_updates);
     to->txn_rts_delete_rle_skipped += WT_STAT_READ(from, txn_rts_delete_rle_skipped);
     to->txn_rts_stable_rle_skipped += WT_STAT_READ(from, txn_rts_stable_rle_skipped);
     to->txn_rts_sweep_hs_keys += WT_STAT_READ(from, txn_rts_sweep_hs_keys);
+    to->txn_rts_hs_restore_tombstones_dryrun +=
+      WT_STAT_READ(from, txn_rts_hs_restore_tombstones_dryrun);
+    to->txn_rts_hs_restore_updates_dryrun += WT_STAT_READ(from, txn_rts_hs_restore_updates_dryrun);
     to->txn_rts_hs_removed += WT_STAT_READ(from, txn_rts_hs_removed);
+    to->txn_rts_hs_removed_dryrun += WT_STAT_READ(from, txn_rts_hs_removed_dryrun);
     to->txn_checkpoint_obsolete_applied += WT_STAT_READ(from, txn_checkpoint_obsolete_applied);
     to->txn_update_conflict += WT_STAT_READ(from, txn_update_conflict);
 }
@@ -1370,6 +1415,11 @@ static const char *const __stats_connection_desc[] = {
   "timestamp on data page",
   "cache: history store table truncation to remove range of updates due to key being removed from "
   "the data page during reconciliation",
+  "cache: history store table truncations that would have happened in non-dryrun mode",
+  "cache: history store table truncations to remove an unstable update that would have happened in "
+  "non-dryrun mode",
+  "cache: history store table truncations to remove an update that would have happened in "
+  "non-dryrun mode",
   "cache: history store table updates without timestamps fixed up by reinserting with the fixed "
   "timestamp",
   "cache: history store table writes requiring squashed modifies",
@@ -1403,6 +1453,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: pages read into cache",
   "cache: pages read into cache after truncate",
   "cache: pages read into cache after truncate in prepare state",
+  "cache: pages removed from the ordinary queue to be queued for urgent eviction",
   "cache: pages requested from the cache",
   "cache: pages seen by eviction walk",
   "cache: pages seen by eviction walk that are already queued",
@@ -1445,6 +1496,18 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint-cleanup: pages removed",
   "checkpoint-cleanup: pages skipped during tree walk",
   "checkpoint-cleanup: pages visited",
+  "chunk-cache: aggregate number of spanned chunks on read",
+  "chunk-cache: aggregate number of spanned chunks on remove",
+  "chunk-cache: chunks evicted",
+  "chunk-cache: chunks removed on becoming invalid",
+  "chunk-cache: could not allocate due to exceeding capacity",
+  "chunk-cache: lookups",
+  "chunk-cache: number of misses",
+  "chunk-cache: number of times a read from storage failed",
+  "chunk-cache: retried accessing a chunk while I/O was in progress",
+  "chunk-cache: timed out due to too many retries",
+  "chunk-cache: total bytes used by the cache",
+  "chunk-cache: total chunks held by the chunk cache",
   "connection: auto adjusting condition resets",
   "connection: auto adjusting condition wait calls",
   "connection: auto adjusting condition wait raced to update timeout and skipped updating",
@@ -1749,20 +1812,31 @@ static const char *const __stats_connection_desc[] = {
   "transaction: query timestamp calls",
   "transaction: race to read prepared update retry",
   "transaction: rollback to stable calls",
+  "transaction: rollback to stable history store keys that would have been swept in non-dryrun "
+  "mode",
   "transaction: rollback to stable history store records with stop timestamps older than newer "
   "records",
   "transaction: rollback to stable inconsistent checkpoint",
   "transaction: rollback to stable keys removed",
   "transaction: rollback to stable keys restored",
+  "transaction: rollback to stable keys that would have been removed in non-dryrun mode",
+  "transaction: rollback to stable keys that would have been restored in non-dryrun mode",
   "transaction: rollback to stable pages visited",
   "transaction: rollback to stable restored tombstones from history store",
   "transaction: rollback to stable restored updates from history store",
   "transaction: rollback to stable skipping delete rle",
   "transaction: rollback to stable skipping stable rle",
   "transaction: rollback to stable sweeping history store keys",
+  "transaction: rollback to stable tombstones from history store that would have been restored in "
+  "non-dryrun mode",
   "transaction: rollback to stable tree walk skipping pages",
   "transaction: rollback to stable updates aborted",
+  "transaction: rollback to stable updates from history store that would have been restored in "
+  "non-dryrun mode",
   "transaction: rollback to stable updates removed from history store",
+  "transaction: rollback to stable updates that would have been aborted in non-dryrun mode",
+  "transaction: rollback to stable updates that would have been removed from history store in "
+  "non-dryrun mode",
   "transaction: sessions scanned in each walk of concurrent sessions",
   "transaction: set timestamp calls",
   "transaction: set timestamp durable calls",
@@ -1988,6 +2062,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_hs_key_truncate = 0;
     stats->cache_hs_order_remove = 0;
     stats->cache_hs_key_truncate_onpage_removal = 0;
+    stats->cache_hs_btree_truncate_dryrun = 0;
+    stats->cache_hs_key_truncate_rts_unstable_dryrun = 0;
+    stats->cache_hs_key_truncate_rts_dryrun = 0;
     stats->cache_hs_order_reinsert = 0;
     stats->cache_hs_write_squash = 0;
     stats->cache_inmem_splittable = 0;
@@ -2020,6 +2097,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_read = 0;
     stats->cache_read_deleted = 0;
     stats->cache_read_deleted_prepared = 0;
+    stats->cache_eviction_clear_ordinary = 0;
     stats->cache_pages_requested = 0;
     stats->cache_eviction_pages_seen = 0;
     stats->cache_eviction_pages_already_queued = 0;
@@ -2060,6 +2138,18 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cc_pages_removed = 0;
     stats->cc_pages_walk_skipped = 0;
     stats->cc_pages_visited = 0;
+    stats->chunk_cache_spans_chunks_read = 0;
+    stats->chunk_cache_spans_chunks_remove = 0;
+    stats->chunk_cache_chunks_evicted = 0;
+    stats->chunk_cache_chunks_invalidated = 0;
+    stats->chunk_cache_exceeded_capacity = 0;
+    stats->chunk_cache_lookups = 0;
+    stats->chunk_cache_misses = 0;
+    stats->chunk_cache_io_failed = 0;
+    stats->chunk_cache_retries = 0;
+    stats->chunk_cache_toomany_retries = 0;
+    stats->chunk_cache_bytes_inuse = 0;
+    stats->chunk_cache_chunks_inuse = 0;
     stats->cond_auto_wait_reset = 0;
     stats->cond_auto_wait = 0;
     stats->cond_auto_wait_skipped = 0;
@@ -2360,19 +2450,26 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_query_ts = 0;
     stats->txn_read_race_prepare_update = 0;
     stats->txn_rts = 0;
+    stats->txn_rts_sweep_hs_keys_dryrun = 0;
     stats->txn_rts_hs_stop_older_than_newer_start = 0;
     stats->txn_rts_inconsistent_ckpt = 0;
     stats->txn_rts_keys_removed = 0;
     stats->txn_rts_keys_restored = 0;
+    stats->txn_rts_keys_removed_dryrun = 0;
+    stats->txn_rts_keys_restored_dryrun = 0;
     stats->txn_rts_pages_visited = 0;
     stats->txn_rts_hs_restore_tombstones = 0;
     stats->txn_rts_hs_restore_updates = 0;
     stats->txn_rts_delete_rle_skipped = 0;
     stats->txn_rts_stable_rle_skipped = 0;
     stats->txn_rts_sweep_hs_keys = 0;
+    stats->txn_rts_hs_restore_tombstones_dryrun = 0;
     stats->txn_rts_tree_walk_skip_pages = 0;
     stats->txn_rts_upd_aborted = 0;
+    stats->txn_rts_hs_restore_updates_dryrun = 0;
     stats->txn_rts_hs_removed = 0;
+    stats->txn_rts_upd_aborted_dryrun = 0;
+    stats->txn_rts_hs_removed_dryrun = 0;
     stats->txn_sessions_walked = 0;
     stats->txn_set_ts = 0;
     stats->txn_set_ts_durable = 0;
@@ -2592,6 +2689,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_hs_order_remove += WT_STAT_READ(from, cache_hs_order_remove);
     to->cache_hs_key_truncate_onpage_removal +=
       WT_STAT_READ(from, cache_hs_key_truncate_onpage_removal);
+    to->cache_hs_btree_truncate_dryrun += WT_STAT_READ(from, cache_hs_btree_truncate_dryrun);
+    to->cache_hs_key_truncate_rts_unstable_dryrun +=
+      WT_STAT_READ(from, cache_hs_key_truncate_rts_unstable_dryrun);
+    to->cache_hs_key_truncate_rts_dryrun += WT_STAT_READ(from, cache_hs_key_truncate_rts_dryrun);
     to->cache_hs_order_reinsert += WT_STAT_READ(from, cache_hs_order_reinsert);
     to->cache_hs_write_squash += WT_STAT_READ(from, cache_hs_write_squash);
     to->cache_inmem_splittable += WT_STAT_READ(from, cache_inmem_splittable);
@@ -2634,6 +2735,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_read += WT_STAT_READ(from, cache_read);
     to->cache_read_deleted += WT_STAT_READ(from, cache_read_deleted);
     to->cache_read_deleted_prepared += WT_STAT_READ(from, cache_read_deleted_prepared);
+    to->cache_eviction_clear_ordinary += WT_STAT_READ(from, cache_eviction_clear_ordinary);
     to->cache_pages_requested += WT_STAT_READ(from, cache_pages_requested);
     to->cache_eviction_pages_seen += WT_STAT_READ(from, cache_eviction_pages_seen);
     to->cache_eviction_pages_already_queued +=
@@ -2680,6 +2782,18 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cc_pages_removed += WT_STAT_READ(from, cc_pages_removed);
     to->cc_pages_walk_skipped += WT_STAT_READ(from, cc_pages_walk_skipped);
     to->cc_pages_visited += WT_STAT_READ(from, cc_pages_visited);
+    to->chunk_cache_spans_chunks_read += WT_STAT_READ(from, chunk_cache_spans_chunks_read);
+    to->chunk_cache_spans_chunks_remove += WT_STAT_READ(from, chunk_cache_spans_chunks_remove);
+    to->chunk_cache_chunks_evicted += WT_STAT_READ(from, chunk_cache_chunks_evicted);
+    to->chunk_cache_chunks_invalidated += WT_STAT_READ(from, chunk_cache_chunks_invalidated);
+    to->chunk_cache_exceeded_capacity += WT_STAT_READ(from, chunk_cache_exceeded_capacity);
+    to->chunk_cache_lookups += WT_STAT_READ(from, chunk_cache_lookups);
+    to->chunk_cache_misses += WT_STAT_READ(from, chunk_cache_misses);
+    to->chunk_cache_io_failed += WT_STAT_READ(from, chunk_cache_io_failed);
+    to->chunk_cache_retries += WT_STAT_READ(from, chunk_cache_retries);
+    to->chunk_cache_toomany_retries += WT_STAT_READ(from, chunk_cache_toomany_retries);
+    to->chunk_cache_bytes_inuse += WT_STAT_READ(from, chunk_cache_bytes_inuse);
+    to->chunk_cache_chunks_inuse += WT_STAT_READ(from, chunk_cache_chunks_inuse);
     to->cond_auto_wait_reset += WT_STAT_READ(from, cond_auto_wait_reset);
     to->cond_auto_wait += WT_STAT_READ(from, cond_auto_wait);
     to->cond_auto_wait_skipped += WT_STAT_READ(from, cond_auto_wait_skipped);
@@ -2993,20 +3107,28 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_query_ts += WT_STAT_READ(from, txn_query_ts);
     to->txn_read_race_prepare_update += WT_STAT_READ(from, txn_read_race_prepare_update);
     to->txn_rts += WT_STAT_READ(from, txn_rts);
+    to->txn_rts_sweep_hs_keys_dryrun += WT_STAT_READ(from, txn_rts_sweep_hs_keys_dryrun);
     to->txn_rts_hs_stop_older_than_newer_start +=
       WT_STAT_READ(from, txn_rts_hs_stop_older_than_newer_start);
     to->txn_rts_inconsistent_ckpt += WT_STAT_READ(from, txn_rts_inconsistent_ckpt);
     to->txn_rts_keys_removed += WT_STAT_READ(from, txn_rts_keys_removed);
     to->txn_rts_keys_restored += WT_STAT_READ(from, txn_rts_keys_restored);
+    to->txn_rts_keys_removed_dryrun += WT_STAT_READ(from, txn_rts_keys_removed_dryrun);
+    to->txn_rts_keys_restored_dryrun += WT_STAT_READ(from, txn_rts_keys_restored_dryrun);
     to->txn_rts_pages_visited += WT_STAT_READ(from, txn_rts_pages_visited);
     to->txn_rts_hs_restore_tombstones += WT_STAT_READ(from, txn_rts_hs_restore_tombstones);
     to->txn_rts_hs_restore_updates += WT_STAT_READ(from, txn_rts_hs_restore_updates);
     to->txn_rts_delete_rle_skipped += WT_STAT_READ(from, txn_rts_delete_rle_skipped);
     to->txn_rts_stable_rle_skipped += WT_STAT_READ(from, txn_rts_stable_rle_skipped);
     to->txn_rts_sweep_hs_keys += WT_STAT_READ(from, txn_rts_sweep_hs_keys);
+    to->txn_rts_hs_restore_tombstones_dryrun +=
+      WT_STAT_READ(from, txn_rts_hs_restore_tombstones_dryrun);
     to->txn_rts_tree_walk_skip_pages += WT_STAT_READ(from, txn_rts_tree_walk_skip_pages);
     to->txn_rts_upd_aborted += WT_STAT_READ(from, txn_rts_upd_aborted);
+    to->txn_rts_hs_restore_updates_dryrun += WT_STAT_READ(from, txn_rts_hs_restore_updates_dryrun);
     to->txn_rts_hs_removed += WT_STAT_READ(from, txn_rts_hs_removed);
+    to->txn_rts_upd_aborted_dryrun += WT_STAT_READ(from, txn_rts_upd_aborted_dryrun);
+    to->txn_rts_hs_removed_dryrun += WT_STAT_READ(from, txn_rts_hs_removed_dryrun);
     to->txn_sessions_walked += WT_STAT_READ(from, txn_sessions_walked);
     to->txn_set_ts += WT_STAT_READ(from, txn_set_ts);
     to->txn_set_ts_durable += WT_STAT_READ(from, txn_set_ts_durable);

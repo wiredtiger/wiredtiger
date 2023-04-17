@@ -55,6 +55,9 @@ CBT
 CCCCCCCCCCCCCCCCCC
 CELLs
 CET
+CFLAGS
+CHECKKEY
+CHUNKCACHE
 CKPT
 CLOEXEC
 CMP
@@ -97,7 +100,7 @@ Decrypt
 DeleteFileW
 Deterministically
 Dk
-DmpvXx
+DmpRvXx
 Dxxx
 EACCES
 EB
@@ -114,10 +117,12 @@ ENOMEM
 ENOTSUP
 ENUM
 EOF
+ERANGE
 ETIME
 ETIMEDOUT
 EVICTSERVER
 EXTLIST
+EXTSUBPATH
 Encryptor
 Encryptors
 Enqueue
@@ -161,6 +166,7 @@ GetFileSizeEx
 GetLastError
 GetModuleHandleExW
 GetProcAddress
+Getters
 HANDLEOPS
 HFS
 HOTBACKUP
@@ -237,6 +243,7 @@ MoveFileExW
 MultiByteToWideChar
 Multithreaded
 Mutex
+Mutexes
 MySecret
 NNN
 NOLINT
@@ -347,6 +354,7 @@ Subdirectory
 TAILQ
 TCMalloc
 TESTUTIL
+TID
 TMP
 TODO
 TORTIOUS
@@ -366,6 +374,7 @@ UINT
 ULINE
 UNC
 UNCOND
+UNSKIPPED
 UPD
 URI
 URIs
@@ -373,6 +382,7 @@ UTF
 UltraSparc
 Unbuffered
 Unencrypted
+Unhandled
 UnixLib
 UnlockFile
 Unmap
@@ -402,6 +412,7 @@ Wduplicated
 WeakHashLen
 Werror
 Wformat
+Whitespaces
 WideCharToMultiByte
 WinNT
 WiredTiger
@@ -454,6 +465,7 @@ atomicity
 atou
 auth
 autocommit
+autoconf
 auxheader
 auximage
 auxincr
@@ -462,6 +474,8 @@ bInheritHandle
 backoff
 bal
 basecfg
+bb
+bba
 bbb
 bbuilddir
 bcr
@@ -499,6 +513,7 @@ buf
 bufsz
 builddir
 builtins
+bursty
 bytestring
 byteswap
 byvalue
@@ -531,6 +546,7 @@ checkvalue
 chk
 chmod
 chongo
+chunkcache
 cip
 ciphertext
 ckpt
@@ -564,6 +580,8 @@ copydoc
 countp
 cp
 cplusplus
+cpp
+cppsuite
 cpuid
 crc
 crypto
@@ -628,6 +646,7 @@ desc
 designator
 dest
 destSize
+destructor
 dev
 dh
 dhandle
@@ -747,6 +766,7 @@ fvisibility
 fwrite
 gb
 gcc
+gcp
 gdb
 ge
 getenv
@@ -756,6 +776,7 @@ getone
 getones
 getopt
 getraw
+getters
 gettime
 gettimeofday
 getv
@@ -837,6 +858,9 @@ isprint
 isrc
 isspace
 iter
+iteratively
+iters
+jemalloc
 jjj
 js
 json
@@ -905,6 +929,7 @@ lu
 luc
 lwsync
 lz
+mP
 madvise
 majorp
 malloc
@@ -936,6 +961,7 @@ mmap
 mmrand
 mn
 mnt
+mongod
 mrs
 msecs
 msg
@@ -985,6 +1011,7 @@ notfound
 notsup
 novalue
 nowait
+np
 nrecs
 nsec
 nset
@@ -1016,6 +1043,7 @@ oversized
 ovfl
 ownp
 pR
+pT
 packv
 pageref
 pagesize
@@ -1055,6 +1083,7 @@ printlog
 priv
 proc
 progname
+programmatically
 ps
 psp
 pthread
@@ -1098,6 +1127,7 @@ relocked
 repl
 repositioned
 repositions
+requeue
 resizable
 ret
 retp
@@ -1122,12 +1152,14 @@ sH
 sHQ
 sanitizer
 sanitizers
+scalable
 scr
 sd
 sdk
 secretkey
 sessionp
 setkv
+setname
 setstr
 setv
 setvbuf
@@ -1163,6 +1195,7 @@ stdout
 stepp
 str
 strace
+strcat
 strcmp
 strdup
 strerror
@@ -1199,6 +1232,7 @@ syscrypto
 sysinfo
 sz
 t's
+tIf
 tV
 tablename
 td
@@ -1226,6 +1260,7 @@ transactionally
 trecno
 trk
 trk's
+trun
 trunc
 truncations
 trylock
@@ -1289,6 +1324,7 @@ vN
 vPodir
 vW
 va
+validator
 valuep
 valuev
 vanishingly
@@ -1350,4 +1386,5 @@ zstd
 zstd's
 zu
 zyxwvutsrqponmlkjihgfedcba
+zz
 zzz

@@ -54,8 +54,7 @@ extern "C" {
 #include <stdint.h>
 #include <stdlib.h>
 #include <errno.h>
-#include "error.h"
-#include "misc.h"
+#include "test_util.h"
 }
 #define BUF_SIZE 100
 
@@ -212,8 +211,6 @@ volatile std::sig_atomic_t signal_raised = 0;
 void
 signal_handler(int signum)
 {
-    std::cerr << "Workgen received signal " << signum << ": " << strsignal(signum) << "."
-              << std::endl;
     signal_raised = signum;
 }
 
@@ -1377,6 +1374,11 @@ ThreadRunner::op_create_all(Operation *op, size_t &keysize, size_t &valuesize)
             else
                 usage_flags |= ThreadRunner::USAGE_WRITE;
             _table_usage[op->_table._internal->_tint] = usage_flags;
+        } else {
+            // Set size of vector storing thread-to-table mappings for the operation.
+            if (op->_tables.size() != _wrunner->_trunners.size()) {
+                op->_tables.assign(_wrunner->_trunners.size(), std::string());
+            }
         }
     }
     if (op->_group != nullptr)
@@ -1402,24 +1404,7 @@ pareto_calculation(uint32_t randint, uint64_t recno_max, ParetoOptions &pareto)
         r = (pareto.range_low * static_cast<double>(UINT32_MAX)) +
           r * (pareto.range_high - pareto.range_low);
     }
-    double S1 = (-1 / PARETO_SHAPE);
-    double S2 = recno_max * (pareto.param / 100.0) * (PARETO_SHAPE - 1);
-    double U = 1 - r / static_cast<double>(UINT32_MAX); // interval [0, 1)
-    uint32_t result = (uint64_t)((pow(U, S1) - 1) * S2);
-
-    /*
-     * This Pareto calculation chooses out of range values less than 20% of the time, depending on
-     * pareto_param. For param of 0, it is never out of range, for param of 100, 19.2%. For the
-     * default pareto_param of 20, it will be out of range 2.7% of the time. Out of range values are
-     * channeled into the first key, making it "hot". Unfortunately, that means that using a higher
-     * param can get a lot lumped into the first bucket.
-     *
-     * XXX This matches the behavior of wtperf, we may consider instead retrying (modifying the
-     * random number) until we get a good value.
-     */
-    if (result > recno_max)
-        result = 0;
-    return (result);
+    return testutil_pareto((uint64_t)r, recno_max, pareto.param);
 }
 
 uint64_t
@@ -1446,23 +1431,53 @@ ThreadRunner::op_get_key_recno(Operation *op, uint64_t range, tint_t tint)
     return (rval % recno_count + 1); // recnos are one-based.
 }
 
-// Clear the table uri and tint value for a dynamic table operation.
+// This runner's thread completed the operation and is no longer using the assigned
+// dynamic table. Remove the (thread,table) map entry for the operation.
 void
 ThreadRunner::op_clear_table(Operation *op)
 {
-    if (op->_random_table && op->is_table_op()) {
-        op->_table._uri = std::string();
-        op->_table._internal->_tint = 0;
+    op->_tables[_number] = std::string();
+}
+
+// Get the uri and tint for the table assigned to the specified operation for this
+// runner's thread.
+std::tuple<std::string, tint_t>
+ThreadRunner::op_get_table(Operation *op) const
+{
+    if (!op->_random_table) {
+        return {op->_table._uri, op->_table._internal->_tint};
+    }
+
+    std::string uri = op->_tables[_number];
+    tint_t tint = 0;
+    if (uri != std::string()) {
+        const std::shared_lock lock(*_icontext->_dyn_mutex);
+        tint = _icontext->_dyn_tint[uri];
+    }
+    return {uri, tint};
+}
+
+/*
+ * Check if the specified operation has an assigned table. For static tables, this information is
+ * saved in the Operation structure. For dynamic tables, the operation maintains a table assignment
+ * for each thread running the operation.
+ */
+bool
+ThreadRunner::op_has_table(Operation *op) const
+{
+    if (op->_random_table) {
+        return (!op->_tables[_number].empty());
+    } else {
+        return (!op->_table._uri.empty());
     }
 }
 
-// Set the table uri and tint value for a dynamic table operation.
+// Set the table uri for the thread running this operation. Used for dynamic table operations.
 void
-ThreadRunner::op_set_table(Operation *op, const std::string &uri, const tint_t tint)
+ThreadRunner::op_set_table(Operation *op, const std::string &uri)
 {
-    if (op->_random_table && op->is_table_op()) {
-        op->_table._uri = uri;
-        op->_table._internal->_tint = tint;
+    if (op->_random_table) {
+        op->_tables[_number] = uri;
     }
 }
 
@@ -1541,9 +1556,9 @@ ThreadRunner::op_run_setup(Operation *op)
         return op_run(op);
     }
 
-    // If this is not a dynamic table operation, we still need to generate keys and values.
-    if (op->has_table()) {
-        // Mirrored tables don't need key nor value here.
+    // If the operation already has a table, it's ready to run.
+    if (op_has_table(op)) {
+        // If this is not a dynamic table operation, we need to generate keys and values.
         if (!op->_random_table) {
             tint_t tint = op->_table._internal->_tint;
             op_kv_gen(op, tint);
@@ -1561,7 +1576,7 @@ ThreadRunner::op_run_setup(Operation *op)
         // Select a random base table that is not flagged for deletion.
         std::map<std::string, tint_t>::iterator itr;
         uint32_t retries = 0;
-        size_t num_tables;
+        size_t num_tables = 0;
 
         while (
           (num_tables = _icontext->_dyn_table_names.size()) > 0 && ++retries < TABLE_MAX_RETRIES) {
@@ -1586,18 +1601,18 @@ ThreadRunner::op_run_setup(Operation *op)
 
         // Do we need to mirror operations? If not, we are done here.
         if (!_icontext->_dyn_table_runtime[op_tint].has_mirror()) {
-            op_set_table(op, op_uri, op_tint);
+            op_set_table(op, op_uri);
             return op_run(op);
         }
 
         // Copy this operation to two new operations on the base table and the mirror.
         base_op = *op;
-        op_set_table(&base_op, op_uri, op_tint);
+        op_set_table(&base_op, op_uri);
 
         mirror_op = *op;
         std::string mirror_op_uri = _icontext->_dyn_table_runtime[op_tint]._mirror;
         tint_t mirror_op_tint = _icontext->_dyn_tint[mirror_op_uri];
-        op_set_table(&mirror_op, mirror_op_uri, mirror_op_tint);
+        op_set_table(&mirror_op, mirror_op_uri);
         (void)workgen_atomic_add32(&_icontext->_dyn_table_runtime[mirror_op_tint]._in_use, 1);
         ASSERT(!_icontext->_dyn_table_runtime[mirror_op_tint]._pending_delete);
     }
@@ -1628,8 +1643,7 @@ ThreadRunner::op_run(Operation *op)
     timespec start_time;
     uint64_t time_us;
     char buf[BUF_SIZE];
-    std::string table_uri = op->_table._uri;
-    tint_t tint = op->_table._internal->_tint;
+    auto [table_uri, tint] = op_get_table(op);
 
     WT_CLEAR(item);
     track = nullptr;
@@ -2061,7 +2075,7 @@ Operation::Operation(const Operation &other)
     : _optype(other._optype), _internal(nullptr), _table(other._table), _key(other._key),
       _value(other._value), _config(other._config), transaction(other.transaction),
       _group(other._group), _repeatgroup(other._repeatgroup), _timed(other._timed),
-      _random_table(other._random_table)
+      _random_table(other._random_table), _tables(other._tables)
 {
     // Creation and destruction of _group and transaction is managed
     // by Python.
@@ -2093,6 +2107,7 @@ Operation::operator=(const Operation &other)
     _repeatgroup = other._repeatgroup;
     _timed = other._timed;
     _random_table = other._random_table;
+    _tables = other._tables;
     delete _internal;
     _internal = nullptr;
     init_internal(other._internal);
@@ -2221,12 +2236,6 @@ Operation::get_static_counts(Stats &stats, int multiplier)
     if (_group != nullptr)
         for (std::vector<Operation>::iterator i = _group->begin(); i != _group->end(); i++)
             i->get_static_counts(stats, multiplier * _repeatgroup);
-}
-
-bool
-Operation::has_table() const
-{
-    return (!_table._uri.empty());
 }
 
 bool

@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ * 	All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -111,6 +111,14 @@ struct __wt_cell_unpack_common;
 typedef struct __wt_cell_unpack_common WT_CELL_UNPACK_COMMON;
 struct __wt_cell_unpack_kv;
 typedef struct __wt_cell_unpack_kv WT_CELL_UNPACK_KV;
+struct __wt_chunkcache;
+typedef struct __wt_chunkcache WT_CHUNKCACHE;
+struct __wt_chunkcache_bucket;
+typedef struct __wt_chunkcache_bucket WT_CHUNKCACHE_BUCKET;
+struct __wt_chunkcache_chunk;
+typedef struct __wt_chunkcache_chunk WT_CHUNKCACHE_CHUNK;
+struct __wt_chunkcache_hashid;
+typedef struct __wt_chunkcache_hashid WT_CHUNKCACHE_HASHID;
 struct __wt_ckpt;
 typedef struct __wt_ckpt WT_CKPT;
 struct __wt_ckpt_snapshot;
@@ -299,8 +307,6 @@ struct __wt_page_index;
 typedef struct __wt_page_index WT_PAGE_INDEX;
 struct __wt_page_modify;
 typedef struct __wt_page_modify WT_PAGE_MODIFY;
-struct __wt_page_stat;
-typedef struct __wt_page_stat WT_PAGE_STAT;
 struct __wt_process;
 typedef struct __wt_process WT_PROCESS;
 struct __wt_rec_chunk;
@@ -436,6 +442,7 @@ typedef uint64_t wt_timestamp_t;
 #include "api.h"
 #include "block.h"
 #include "block_cache.h"
+#include "block_chunkcache.h"
 #include "bloom.h"
 #include "btmem.h"
 #include "btree.h"
@@ -479,7 +486,6 @@ typedef uint64_t wt_timestamp_t;
 #include "misc_inline.h"    /* required by mutex_inline.h */
 
 #include "buf_inline.h"       /* required by cell_inline.h */
-#include "pagestat_inline.h"  /* required by btree_inline.h */
 #include "timestamp_inline.h" /* required by btree_inline.h */
 #include "cell_inline.h"      /* required by btree_inline.h */
 #include "mutex_inline.h"     /* required by btree_inline.h */

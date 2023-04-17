@@ -28,7 +28,6 @@ struct __wt_process {
     bool use_epochtime;    /* use expensive time */
 
     bool fast_truncate_2022; /* fast-truncate fix run-time configuration */
-    bool page_stats_2022;    /* Page stats run-time configuration */
     bool tiered_shared_2023; /* tiered shared run-time configuration */
 
     WT_CACHE_POOL *cache_pool; /* shared cache information */
@@ -326,7 +325,8 @@ struct __wt_connection_impl {
     TAILQ_HEAD(__wt_blockhash, __wt_block) * blockhash;
     TAILQ_HEAD(__wt_block_qh, __wt_block) blockqh;
 
-    WT_BLKCACHE blkcache; /* Block cache */
+    WT_BLKCACHE blkcache;     /* Block cache */
+    WT_CHUNKCACHE chunkcache; /* Chunk cache */
 
     /* Locked: handles in each bucket */
     uint64_t *dh_bucket_count;

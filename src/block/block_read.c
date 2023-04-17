@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -35,6 +35,10 @@ __wt_bm_read(
         WT_RET(__wt_block_misplaced(
           session, block, "read", offset, size, bm->is_live, __PRETTY_FUNCTION__, __LINE__));
 #endif
+
+    /* Swap file handles if reading from a different object. */
+    if (block->objectid != objectid)
+        WT_RET(__wt_blkcache_get_handle(session, bm, objectid, &block));
 
     /* Read the block. */
     __wt_capacity_throttle(session, size, WT_THROTTLE_READ);
@@ -162,10 +166,6 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
     WT_STAT_CONN_INCR(session, block_read);
     WT_STAT_CONN_INCRV(session, block_byte_read, size);
 
-    /* Swap file handles if reading from a different object. */
-    if (block->objectid != objectid)
-        WT_RET(__wt_blkcache_get_handle(session, block, objectid, &block));
-
     /*
      * Grow the buffer as necessary and read the block. Buffers should be aligned for reading, but
      * there are lots of buffers (for example, file cursors have two buffers each, key and value),
@@ -192,7 +192,14 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
     WT_RET(__wt_buf_init(session, buf, bufsize));
     buf->size = size;
 
-    WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
+    /*
+     * Check if the chunk cache has the needed data. If it does not, the chunk cache may read it
+     * from the file.
+     */
+    if (S2C(session)->chunkcache.configured)
+        WT_RET(__wt_chunkcache_get(session, block, objectid, offset, size, buf->mem));
+    else
+        WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
 
     /*
      * We incrementally read through the structure before doing a checksum, do little- to big-endian

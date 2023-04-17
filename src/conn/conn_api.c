@@ -2159,12 +2159,13 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     static const WT_NAME_FLAG verbtypes[] = {{"api", WT_VERB_API}, {"backup", WT_VERB_BACKUP},
       {"block", WT_VERB_BLOCK}, {"block_cache", WT_VERB_BLKCACHE},
       {"checkpoint", WT_VERB_CHECKPOINT}, {"checkpoint_cleanup", WT_VERB_CHECKPOINT_CLEANUP},
-      {"checkpoint_progress", WT_VERB_CHECKPOINT_PROGRESS}, {"compact", WT_VERB_COMPACT},
-      {"compact_progress", WT_VERB_COMPACT_PROGRESS}, {"error_returns", WT_VERB_ERROR_RETURNS},
-      {"evict", WT_VERB_EVICT}, {"evict_stuck", WT_VERB_EVICT_STUCK},
-      {"evictserver", WT_VERB_EVICTSERVER}, {"fileops", WT_VERB_FILEOPS},
-      {"generation", WT_VERB_GENERATION}, {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG},
-      {"hs", WT_VERB_HS}, {"history_store_activity", WT_VERB_HS_ACTIVITY}, {"lsm", WT_VERB_LSM},
+      {"checkpoint_progress", WT_VERB_CHECKPOINT_PROGRESS}, {"chunkcache", WT_VERB_CHUNKCACHE},
+      {"compact", WT_VERB_COMPACT}, {"compact_progress", WT_VERB_COMPACT_PROGRESS},
+      {"error_returns", WT_VERB_ERROR_RETURNS}, {"evict", WT_VERB_EVICT},
+      {"evict_stuck", WT_VERB_EVICT_STUCK}, {"evictserver", WT_VERB_EVICTSERVER},
+      {"fileops", WT_VERB_FILEOPS}, {"generation", WT_VERB_GENERATION},
+      {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG}, {"hs", WT_VERB_HS},
+      {"history_store_activity", WT_VERB_HS_ACTIVITY}, {"lsm", WT_VERB_LSM},
       {"lsm_manager", WT_VERB_LSM_MANAGER}, {"metadata", WT_VERB_METADATA},
       {"mutex", WT_VERB_MUTEX}, {"out_of_order", WT_VERB_OUT_OF_ORDER},
       {"overflow", WT_VERB_OVERFLOW}, {"read", WT_VERB_READ}, {"reconcile", WT_VERB_RECONCILE},
@@ -2689,7 +2690,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_DECL_RET;
     const WT_NAME_FLAG *ft;
     WT_SESSION *wt_session;
-    WT_SESSION_IMPL *session;
+    WT_SESSION_IMPL *session, *verify_session;
     bool config_base_set, try_salvage, verify_meta;
     const char *enc_cfg[] = {NULL, NULL}, *merge_cfg;
     char version[64];
@@ -2700,9 +2701,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     *connectionp = NULL;
 
     conn = NULL;
-    session = NULL;
+    session = verify_session = NULL;
     merge_cfg = NULL;
-    try_salvage = false;
+    config_base_set = try_salvage = verify_meta = false;
 
     WT_RET(__wt_library_init());
 
@@ -2717,9 +2718,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     TAILQ_INSERT_TAIL(&__wt_process.connqh, conn, q);
     __wt_spin_unlock(NULL, &__wt_process.spinlock);
 
-    /*
-     * Initialize the fake session used until we can create real sessions.
-     */
+    /* Initialize the fake session used until we can create real sessions. */
     wiredtiger_dummy_session_init(conn, event_handler);
     session = conn->default_session = &conn->dummy_session;
 
@@ -2895,6 +2894,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_verbose_config(session, cfg, false));
     WT_ERR(__wt_timing_stress_config(session, cfg));
     WT_ERR(__wt_blkcache_setup(session, cfg, false));
+    WT_ERR(__wt_chunkcache_setup(session, cfg, false));
     WT_ERR(__wt_extra_diagnostics_config(session, cfg));
     WT_ERR(__wt_conn_optrack_setup(session, cfg, false));
     WT_ERR(__conn_session_size(session, cfg, &conn->session_size));
@@ -3119,6 +3119,17 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     /* Start the worker threads and run recovery. */
     WT_ERR(__wt_connection_workers(session, cfg));
+
+    /*
+     * If the user wants to verify WiredTiger metadata, verify the history store now that the
+     * metadata table may have been salvaged and eviction has been started and recovery run.
+     */
+    if (verify_meta) {
+        WT_ERR(__wt_open_internal_session(conn, "verify hs", false, 0, 0, &verify_session));
+        ret = __wt_hs_verify(verify_session);
+        WT_TRET(__wt_session_close_internal(verify_session));
+        WT_ERR(ret);
+    }
 
     /*
      * The hash array sizes needed to be set up very early. Set them in the statistics here. Setting

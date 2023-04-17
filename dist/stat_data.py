@@ -64,6 +64,10 @@ class CheckpointCleanupStat(Stat):
     prefix = 'checkpoint-cleanup'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, CheckpointCleanupStat.prefix, desc, flags)
+class ChunkCacheStat(Stat):
+    prefix = 'chunk-cache'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, ChunkCacheStat.prefix, desc, flags)
 class CompressStat(Stat):
     prefix = 'compression'
     def __init__(self, name, desc, flags=''):
@@ -141,6 +145,7 @@ groups['evict'] = [
     BlockStat.prefix,
     CacheStat.prefix,
     CacheWalkStat.prefix,
+    ChunkCacheStat.prefix,
     ConnStat.prefix,
     ThreadStat.prefix
 ]
@@ -186,7 +191,7 @@ conn_stats = [
     ConnStat('write_io', 'total write I/Os'),
 
     ##########################################
-    # Block manager statistics
+    # Block cache statistics
     ##########################################
     BlockCacheStat('block_cache_blocks', 'total blocks'),
     BlockCacheStat('block_cache_blocks_evicted', 'evicted blocks'),
@@ -243,6 +248,7 @@ conn_stats = [
     CacheStat('cache_eviction_aggressive_set', 'eviction currently operating in aggressive mode', 'no_clear,no_scale'),
     CacheStat('cache_eviction_app', 'pages evicted by application threads'),
     CacheStat('cache_eviction_app_dirty', 'modified pages evicted by application threads'),
+    CacheStat('cache_eviction_clear_ordinary', 'pages removed from the ordinary queue to be queued for urgent eviction'),
     CacheStat('cache_eviction_empty_score', 'eviction empty score', 'no_clear,no_scale'),
     CacheStat('cache_eviction_fail', 'pages selected for eviction unable to be evicted'),
     CacheStat('cache_eviction_fail_active_children_on_an_internal_page', 'pages selected for eviction unable to be evicted because of active children on an internal page'),
@@ -326,6 +332,22 @@ conn_stats = [
     CapacityStat('fsync_all_fh', 'background fsync file handles synced'),
     CapacityStat('fsync_all_fh_total', 'background fsync file handles considered'),
     CapacityStat('fsync_all_time', 'background fsync time (msecs)', 'no_clear,no_scale'),
+
+    ##########################################
+    # Chunk cache statistics
+    ##########################################
+    ChunkCacheStat('chunk_cache_bytes_inuse', 'total bytes used by the cache'),
+    ChunkCacheStat('chunk_cache_chunks_inuse', 'total chunks held by the chunk cache'),
+    ChunkCacheStat('chunk_cache_chunks_evicted', 'chunks evicted'),
+    ChunkCacheStat('chunk_cache_chunks_invalidated', 'chunks removed on becoming invalid'),
+    ChunkCacheStat('chunk_cache_exceeded_capacity', 'could not allocate due to exceeding capacity'),
+    ChunkCacheStat('chunk_cache_io_failed', 'number of times a read from storage failed'),
+    ChunkCacheStat('chunk_cache_lookups', 'lookups'),
+    ChunkCacheStat('chunk_cache_misses', 'number of misses'),
+    ChunkCacheStat('chunk_cache_retries', 'retried accessing a chunk while I/O was in progress'),
+    ChunkCacheStat('chunk_cache_spans_chunks_read', 'aggregate number of spanned chunks on read'),
+    ChunkCacheStat('chunk_cache_spans_chunks_remove', 'aggregate number of spanned chunks on remove'),
+    ChunkCacheStat('chunk_cache_toomany_retries', 'timed out due to too many retries'),
 
     ##########################################
     # Cursor operations
@@ -619,6 +641,7 @@ conn_stats = [
     TxnStat('txn_rts_pages_visited', 'rollback to stable pages visited'),
     TxnStat('txn_rts_tree_walk_skip_pages', 'rollback to stable tree walk skipping pages'),
     TxnStat('txn_rts_upd_aborted', 'rollback to stable updates aborted'),
+    TxnStat('txn_rts_upd_aborted_dryrun', 'rollback to stable updates that would have been aborted in non-dryrun mode'),
     TxnStat('txn_sessions_walked', 'sessions scanned in each walk of concurrent sessions'),
     TxnStat('txn_set_ts', 'set timestamp calls'),
     TxnStat('txn_set_ts_durable', 'set timestamp durable calls'),
@@ -861,6 +884,7 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_walks_gave_up_ratio', 'eviction walks gave up because they saw too many pages and found too few candidates'),
     CacheStat('cache_eviction_walks_stopped', 'eviction walks gave up because they restarted their walk twice'),
     CacheStat('cache_hs_btree_truncate', 'history store table truncation to remove all the keys of a btree'),
+    CacheStat('cache_hs_btree_truncate_dryrun', 'history store table truncations that would have happened in non-dryrun mode'),
     CacheStat('cache_hs_insert', 'history store table insert calls'),
     CacheStat('cache_hs_insert_full_update', 'the number of times full update inserted to history store'),
     CacheStat('cache_hs_insert_restart', 'history store table insert calls that returned restart'),
@@ -868,7 +892,9 @@ conn_dsrc_stats = [
     CacheStat('cache_hs_key_truncate', 'history store table truncation to remove an update'),
     CacheStat('cache_hs_key_truncate_onpage_removal', 'history store table truncation to remove range of updates due to key being removed from the data page during reconciliation'),
     CacheStat('cache_hs_key_truncate_rts', 'history store table truncation by rollback to stable to remove an update'),
+    CacheStat('cache_hs_key_truncate_rts_dryrun', 'history store table truncations to remove an update that would have happened in non-dryrun mode'),
     CacheStat('cache_hs_key_truncate_rts_unstable', 'history store table truncation by rollback to stable to remove an unstable update'),
+    CacheStat('cache_hs_key_truncate_rts_unstable_dryrun', 'history store table truncations to remove an unstable update that would have happened in non-dryrun mode'),
     CacheStat('cache_hs_order_lose_durable_timestamp', 'history store table resolved updates without timestamps that lose their durable timestamp'),
     CacheStat('cache_hs_order_reinsert', 'history store table updates without timestamps fixed up by reinserting with the fixed timestamp'),
     CacheStat('cache_hs_order_remove', 'history store table truncation to remove range of updates due to an update without a timestamp on data page'),
@@ -991,14 +1017,20 @@ conn_dsrc_stats = [
     TxnStat('txn_read_race_prepare_update', 'race to read prepared update retry'),
     TxnStat('txn_rts_delete_rle_skipped', 'rollback to stable skipping delete rle'),
     TxnStat('txn_rts_hs_removed', 'rollback to stable updates removed from history store'),
+    TxnStat('txn_rts_hs_removed_dryrun', 'rollback to stable updates that would have been removed from history store in non-dryrun mode'),
     TxnStat('txn_rts_hs_restore_tombstones', 'rollback to stable restored tombstones from history store'),
+    TxnStat('txn_rts_hs_restore_tombstones_dryrun', 'rollback to stable tombstones from history store that would have been restored in non-dryrun mode'),
     TxnStat('txn_rts_hs_restore_updates', 'rollback to stable restored updates from history store'),
+    TxnStat('txn_rts_hs_restore_updates_dryrun', 'rollback to stable updates from history store that would have been restored in non-dryrun mode'),
     TxnStat('txn_rts_hs_stop_older_than_newer_start', 'rollback to stable history store records with stop timestamps older than newer records'),
     TxnStat('txn_rts_inconsistent_ckpt', 'rollback to stable inconsistent checkpoint'),
     TxnStat('txn_rts_keys_removed', 'rollback to stable keys removed'),
+    TxnStat('txn_rts_keys_removed_dryrun', 'rollback to stable keys that would have been removed in non-dryrun mode'),
     TxnStat('txn_rts_keys_restored', 'rollback to stable keys restored'),
+    TxnStat('txn_rts_keys_restored_dryrun', 'rollback to stable keys that would have been restored in non-dryrun mode'),
     TxnStat('txn_rts_stable_rle_skipped', 'rollback to stable skipping stable rle'),
     TxnStat('txn_rts_sweep_hs_keys', 'rollback to stable sweeping history store keys'),
+    TxnStat('txn_rts_sweep_hs_keys_dryrun', 'rollback to stable history store keys that would have been swept in non-dryrun mode'),
     TxnStat('txn_update_conflict', 'update conflicts'),
 ]
 
