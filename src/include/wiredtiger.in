@@ -6316,13 +6316,13 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_REC_PAGE_DELETE_FAST		1412
 /*! reconciliation: leaf-page overflow keys */
 #define	WT_STAT_CONN_REC_OVERFLOW_KEY_LEAF		1413
-/*! reconciliation: maximum seconds spent in a reconciliation call */
-#define	WT_STAT_CONN_REC_MAXIMUM_SECONDS		1414
 /*!
- * reconciliation: maximum seconds spent in building a disk image in a
- * reconciliation
+ * reconciliation: maximum milliseconds spent in building a disk image in
+ * a reconciliation
  */
-#define	WT_STAT_CONN_REC_MAXIMUM_IMAGE_BUILD_SECONDS	1415
+#define	WT_STAT_CONN_REC_MAXIMUM_IMAGE_BUILD_MILLISECONDS	1414
+/*! reconciliation: maximum seconds spent in a reconciliation call */
+#define	WT_STAT_CONN_REC_MAXIMUM_SECONDS		1415
 /*!
  * reconciliation: maximum seconds spent in moving updates to the history
  * store in a reconciliation

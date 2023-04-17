@@ -417,8 +417,8 @@ struct __wt_connection_impl {
     /* Connection statistics */
     uint64_t
       rec_maximum_hs_wrapup_seconds; /* Maximum seconds moving updates to history store took. */
-    uint64_t rec_maximum_image_build_seconds; /* Maximum seconds building disk image took. */
-    uint64_t rec_maximum_seconds;             /* Maximum seconds reconciliation took. */
+    uint64_t rec_maximum_image_build_milliseconds; /* Maximum seconds building disk image took. */
+    uint64_t rec_maximum_seconds;                  /* Maximum seconds reconciliation took. */
     WT_CONNECTION_STATS *stats[WT_COUNTER_SLOTS];
     WT_CONNECTION_STATS *stat_array;
 

@@ -118,8 +118,9 @@ err:
           WT_CLOCKDIFF_MS(session->reconcile_timeline.hs_wrapup_finish,
             session->reconcile_timeline.hs_wrapup_start);
     if (WT_CLOCKDIFF_MS(session->reconcile_timeline.image_build_finish,
-          session->reconcile_timeline.image_build_start) > conn->rec_maximum_image_build_seconds)
-        conn->rec_maximum_image_build_seconds =
+          session->reconcile_timeline.image_build_start) >
+      conn->rec_maximum_image_build_milliseconds)
+        conn->rec_maximum_image_build_milliseconds =
           WT_CLOCKDIFF_MS(session->reconcile_timeline.image_build_finish,
             session->reconcile_timeline.image_build_start);
     if (WT_CLOCKDIFF_SEC(session->reconcile_timeline.reconcile_finish,
