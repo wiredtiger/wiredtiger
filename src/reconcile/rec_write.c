@@ -2740,7 +2740,8 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 
 err:
     /* Reset the timer if we fail here before returning. */
-    session->reconcile_timeline.hs_wrapup_start = __wt_clock(session);
+    if (ret != 0)
+        session->reconcile_timeline.hs_wrapup_start = __wt_clock(session);
     return (ret);
 }
 
