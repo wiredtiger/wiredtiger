@@ -1288,7 +1288,7 @@ extern int __wt_raw_to_esc_hex(WT_SESSION_IMPL *session, const uint8_t *from, si
   WT_ITEM *to) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_raw_to_hex(WT_SESSION_IMPL *session, const uint8_t *from, size_t size, WT_ITEM *to)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_read_ahead_create(WT_SESSION_IMPL *session)
+extern int __wt_read_ahead_create(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_read_ahead_destroy(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

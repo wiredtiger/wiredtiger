@@ -254,8 +254,8 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     /* Start the optional checkpoint thread. */
     WT_RET(__wt_checkpoint_server_create(session, cfg));
 
-    /* Start the read_ahead thread. */
-    WT_RET(__wt_read_ahead_create(session));
+    /* Start read ahead utilities. */
+    WT_RET(__wt_read_ahead_create(session, cfg));
 
     return (0);
 }

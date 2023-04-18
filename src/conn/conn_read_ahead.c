@@ -13,12 +13,27 @@
  *     Start the read_ahead server.
  */
 int
-__wt_read_ahead_create(WT_SESSION_IMPL *session)
+__wt_read_ahead_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     uint32_t session_flags;
 
     conn = S2C(session);
+
+    /*
+     * This might have already been parsed and set during connection configuration, but do it here
+     * as well, in preparation for the functionality being runtime configurable.
+     */
+    WT_RET(__wt_config_gets(session, cfg, "read_ahead", &cval));
+    conn->read_ahead_auto_on = cval.val != 0;
+
+    /*
+     * Read ahead functionality isn't runtime configurable, so don't bother starting utility threads
+     * if it isn't enabled.
+     */
+    if (!conn->read_ahead_auto_on)
+        return (0);
 
     F_SET(conn, WT_CONN_READ_AHEAD_RUN);
 
@@ -62,6 +77,14 @@ __wt_read_ahead_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
     while (F_ISSET(conn, WT_CONN_READ_AHEAD_RUN)) {
+        /*
+         * Wait and cycle if there aren't any pages on the queue. It would be nice if this was
+         * interrupt driven, but for now just backoff and re-check.
+         */
+        if (conn->read_ahead_queue_count == 0) {
+            __wt_sleep(0, 5000);
+            break;
+        }
         __wt_spin_lock(session, &conn->read_ahead_lock);
         locked = true;
         ra = TAILQ_FIRST(&conn->raqh);
