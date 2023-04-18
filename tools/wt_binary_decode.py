@@ -607,7 +607,10 @@ def wtdecode_file_object(b, opts, nbytes):
         except:
             p.rint(f'ERROR decoding block at {d_and_h(startblock)}')
         p.rint('')
-        startblock = (b.tell() + 0x1ff) & ~(0x1FF)
+        pos = b.tell()
+        startblock = (pos + 0x1ff) & ~(0x1FF)
+        if startblock == pos:
+            startblock += 0x200
         pagecount += 1
     p.rint('')
     
