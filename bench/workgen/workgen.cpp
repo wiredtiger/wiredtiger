@@ -944,7 +944,6 @@ ContextInternal::create_all(WT_CONNECTION *conn)
     /* Delete the leftover. */
     for (const auto &id : to_delete) {
         const std::string uri(_dyn_table_names[id]);
-        VERBOSE(*this, "Deleting table " << uri << " as its mirror is missing.");
         _dyn_tint.erase(uri);
         _dyn_table_names.erase(id);
         _dyn_table_runtime.erase(id);
