@@ -289,24 +289,28 @@ def raw_bytes(b):
     # we'll presume a string.  But if the byte is 0x7f, that's ASCII DEL,
     # very unlikely to be the beginning of a string, but it decodes as -1,
     # so seems more likely to be an int.  If the UTF-8 decoding of the
-    # string fails, we are probably just have binary data.
+    # string fails, we probably just have binary data.
 
     # Try decoding as one or more packed ints
     result = ''
     s = b
     while len(s) > 0 and s[0] >= 0x7f:
         val, s = unpack_int(s)
+        if result != '':
+            result += ' '
         result += f'<packed {d_and_h(val)}>'
     if len(s) == 0:
         return result
     
-    # Try as a string
+    # See if the rest of the bytes can be decoded as a string
     try:
-        return f'"{b.decode()}"'
+        if result != '':
+            result += ' '
+        return f'"{result + s.decode()}"'
     except:
         pass
     
-    # It must be binary data
+    # The earlier steps failed, so it must be binary data
     return binary_to_pretty_string(b, start_with_line_prefix=False)
 
 # Return a length as used in a cell that isn't a "short" cell.  Lengths that are
