@@ -4128,7 +4128,7 @@ buildvariants:
   modules:
   - enterprise
   run_on:
-  - ubuntu1804-zseries-build
+  - rhel80-zseries-build
   batchtime: 4320 # 3 days
   expansions:
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
