@@ -757,9 +757,10 @@ dirty_eviction_config:
           g.lsm_config ? "LSM" : "micro cache");
         config_single(NULL, "cache.eviction_dirty_trigger=95", false);
     } else if (GV(CACHE) / workers <= 2 && !config_explicit(NULL, "cache.eviction_dirty_trigger")) {
-        WARN(
-          "Cache is minimally configured, setting cache.eviction_dirty_trigger=40 and "
-          "cache.eviction_dirty_target=10");
+        WARN("Cache is minimally configured (%" PRIu32
+             "mb), setting cache.eviction_dirty_trigger=40 and "
+             "cache.eviction_dirty_target=10",
+          GV(CACHE));
         config_single(NULL, "cache.eviction_dirty_trigger=40", false);
         config_single(NULL, "cache.eviction_dirty_target=10", false);
     }
