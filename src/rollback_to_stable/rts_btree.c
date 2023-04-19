@@ -599,13 +599,12 @@ err:
     __wt_scr_free(session, &key_string);
     if (hs_cursor != NULL)
         WT_TRET(hs_cursor->close(hs_cursor));
-    if (dryrun) {
+    if (dryrun)
         /*
          * Dry runs don't modify the database so any upd structure allocated by this function is not
          * in use and must be cleaned up.
          */
         __wt_free_update_list(session, &upd);
-    }
     return (ret);
 }
 
