@@ -784,6 +784,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
           session, txn_global->checkpoint_timestamp, "Checkpoint requested at stable timestamp");
 
     WT_STAT_CONN_SET(session, txn_checkpoint_snapshot_acquired, 1);
+
     /*
      * If we are doing a flush_tier, do the metadata naming switch now while holding the schema lock
      * in this function.
