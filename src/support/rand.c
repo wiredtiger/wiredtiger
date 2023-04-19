@@ -48,6 +48,10 @@
 #ifdef ENABLE_ANTITHESIS
 #include "instrumentation.h"
 #endif
+
+#define RANDOM_INIT_W 521288629
+#define RANDOM_INIT_Z 362436069
+
 /*
  * __wt_random_init --
  *     Initialize return of a 32-bit pseudo-random number.
@@ -57,8 +61,9 @@ __wt_random_init(WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_ATTRIBUTE((visib
 {
     WT_RAND_STATE rnd;
 
-    M_W(rnd) = 521288629;
-    M_Z(rnd) = 362436069;
+    M_W(rnd) = RANDOM_INIT_W;
+    M_Z(rnd) = RANDOM_INIT_Z;
+
     *rnd_state = rnd;
 }
 
@@ -73,6 +78,20 @@ __wt_random_init_custom_seed(WT_RAND_STATE volatile *rnd_state, uint64_t v)
     WT_RAND_STATE rnd;
 
     M_V(rnd) = v;
+
+    /*
+     * Mix the provided seed with the default seed, which solves the problem of the caller providing
+     * a seed that is too small.
+     */
+    M_W(rnd) ^= RANDOM_INIT_W;
+    M_Z(rnd) ^= RANDOM_INIT_Z;
+
+    /* Ensure that none of the components are 0, which would result in a degenerate case. */
+    if (M_W(rnd) == 0)
+        M_W(rnd) = RANDOM_INIT_W;
+    if (M_Z(rnd) == 0)
+        M_Z(rnd) = RANDOM_INIT_Z;
+
     *rnd_state = rnd;
 }
 
@@ -132,15 +151,22 @@ __wt_random(WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_ATTRIBUTE((visibility
     z = M_Z(rnd);
 
     /*
-     * Check if the value goes to 0 (from which we won't recover), and reset to the initial state.
+     * Check if either of the two value goes to 0 (from which we won't recover), and reset it to the
+     * default initial state.
+     *
+     * We do this one component at a time, so that if the random number generator was initialized
+     * from an explicitly provided seed, it would not reset the entire state and then effectively
+     * result in random number generators from different seeds always converging. They would
+     * eventually converge if both W and Z become 0 at the same time, but the probability of this
+     * happening is most likely too low for it to matter.
+     *
      * This has additional benefits if a caller fails to initialize the state, or initializes with a
      * seed that results in a short period.
      */
-    if (z == 0 || w == 0) {
-        __wt_random_init(&rnd);
-        w = M_W(rnd);
-        z = M_Z(rnd);
-    }
+    if (w == 0)
+        M_W(rnd) = w = RANDOM_INIT_W;
+    if (z == 0)
+        M_Z(rnd) = z = RANDOM_INIT_Z;
 
     M_Z(rnd) = z = 36969 * (z & 65535) + (z >> 16);
     M_W(rnd) = w = 18000 * (w & 65535) + (w >> 16);
