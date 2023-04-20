@@ -227,13 +227,13 @@ class test_truncate_timestamp(wttest.WiredTigerTestCase):
         ('table', dict(type='table:'))
     ])
 
-    # Truncate with no timestamps is not allowed only in standalone builds.
-    if wiredtiger.standalone_build():
-        self.skipTest('requires a standalone build')
-
     # Test truncation without a timestamp, expect errors.
     @wttest.prevent(["timestamp"])  # prevent the use of hooks that manage timestamps
     def test_truncate_no_ts(self):
+        # Truncate with no timestamps is not allowed only in standalone builds.
+        if wiredtiger.standalone_build():
+            self.skipTest('requires a standalone build')
+
         uri = self.type + self.name
         msg = '/truncate operations may not yet be included/'
 
