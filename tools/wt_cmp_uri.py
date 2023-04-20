@@ -28,7 +28,7 @@
 
 # Compare WT data files in two different home directories.
 
-import os, sys
+import sys
 from wt_tools_common import wiredtiger_open
 from wiredtiger import WT_NOTFOUND, wiredtiger_strerror
 
