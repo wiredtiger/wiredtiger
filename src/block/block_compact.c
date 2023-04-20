@@ -220,7 +220,7 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
       block->compact_bytes_reviewed / block->compact_pages_reviewed, block->allocsize);
 
     /* We don't currently have a way to track the internal page size, but this should be okay. */
-    avg_internal_block_size = 4096;
+    avg_internal_block_size = block->allocsize;
 
     /*
      * Estimate the average number of leaf pages per one internal page. This way of doing the
