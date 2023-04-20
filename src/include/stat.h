@@ -527,6 +527,7 @@ struct __wt_connection_stats {
     int64_t cache_reverse_splits_skipped_vlcs;
     int64_t cache_hs_insert_full_update;
     int64_t cache_hs_insert_reverse_modify;
+    int64_t cache_nested_eviction_milliseconds;
     int64_t cache_bytes_internal;
     int64_t cache_bytes_leaf;
     int64_t cache_bytes_dirty;

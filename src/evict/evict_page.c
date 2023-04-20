@@ -120,6 +120,16 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     if (tree_dead)
         LF_SET(WT_EVICT_CALL_NO_SPLIT);
 
+    /* As re-entry into eviction is possible, only clear the statistics on the first entry. */
+    if (__wt_session_gen((session), (WT_GEN_EVICT)) == 0) {
+        WT_CLEAR(session->reconcile_timeline);
+        WT_CLEAR(session->evict_timeline);
+        session->evict_timeline.evict_start = __wt_clock(session);
+    } else {
+        session->evict_timeline.nested_eviction = true;
+        session->evict_timeline.nested_evict_start = __wt_clock(session);
+    }
+
     /*
      * Enter the eviction and split generation. If we re-enter eviction, leave the previous
      * generation (eviction or split) generation (which must be as low as the current generation),
@@ -128,9 +138,6 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     WT_ENTER_GENERATION(session, WT_GEN_EVICT);
     WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
 
-    WT_CLEAR(session->reconcile_timeline);
-    WT_CLEAR(session->evict_timeline);
-    session->evict_timeline.evict_start = __wt_clock(session);
     /*
      * Immediately increment the forcible eviction counter, we might do an in-memory split and not
      * an eviction, which skips the other statistics.
@@ -227,9 +234,15 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
      * We have loaded the new disk image and updated the tree structure. We can no longer fail after
      * this point.
      */
-    session->evict_timeline.evict_finish = __wt_clock(session);
-    eviction_time =
-      WT_CLOCKDIFF_US(session->evict_timeline.evict_finish, session->evict_timeline.evict_start);
+    if (session->evict_timeline.nested_eviction) {
+        session->evict_timeline.nested_evict_finish = __wt_clock(session);
+        eviction_time = WT_CLOCKDIFF_US(
+          session->evict_timeline.nested_evict_finish, session->evict_timeline.nested_evict_start);
+    } else {
+        session->evict_timeline.evict_finish = __wt_clock(session);
+        eviction_time = WT_CLOCKDIFF_US(
+          session->evict_timeline.evict_finish, session->evict_timeline.evict_start);
+    }
     if (LF_ISSET(WT_EVICT_CALL_URGENT)) {
         if (force_evict_hs)
             WT_STAT_CONN_INCR(session, cache_eviction_force_hs_success);
@@ -254,9 +267,15 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
 err:
         if (!closing)
             __evict_exclusive_clear(session, ref, previous_state);
-        session->evict_timeline.evict_finish = __wt_clock(session);
-        eviction_time = WT_CLOCKDIFF_US(
-          session->evict_timeline.evict_finish, session->evict_timeline.evict_start);
+        if (session->evict_timeline.nested_eviction) {
+            session->evict_timeline.nested_evict_finish = __wt_clock(session);
+            eviction_time = WT_CLOCKDIFF_US(session->evict_timeline.nested_evict_finish,
+              session->evict_timeline.nested_evict_start);
+        } else {
+            session->evict_timeline.evict_finish = __wt_clock(session);
+            eviction_time = WT_CLOCKDIFF_US(
+              session->evict_timeline.evict_finish, session->evict_timeline.evict_start);
+        }
         if (LF_ISSET(WT_EVICT_CALL_URGENT)) {
             if (force_evict_hs)
                 WT_STAT_CONN_INCR(session, cache_eviction_force_hs_fail);
@@ -268,18 +287,25 @@ err:
     }
 
 done:
-    eviction_time_milliseconds = eviction_time / WT_THOUSAND;
-    if (eviction_time_milliseconds > conn->cache->evict_max_ms)
-        conn->cache->evict_max_ms = eviction_time_milliseconds;
-    if (eviction_time_milliseconds > 60000)
-        __wt_verbose_warning(session, WT_VERB_EVICT,
-          "Eviction took more than 1 minute (%" PRIu64 "). Building disk image took %" PRIu64
-          "us. History store wrapup took %" PRIu64 "us.",
-          eviction_time,
-          WT_CLOCKDIFF_US(session->reconcile_timeline.image_build_finish,
-            session->reconcile_timeline.image_build_start),
-          WT_CLOCKDIFF_US(session->reconcile_timeline.hs_wrapup_finish,
-            session->reconcile_timeline.hs_wrapup_start));
+    if (!session->evict_timeline.nested_eviction) {
+        eviction_time_milliseconds = eviction_time / WT_THOUSAND;
+        if (eviction_time_milliseconds > conn->cache->evict_max_ms)
+            conn->cache->evict_max_ms = eviction_time_milliseconds;
+        if (eviction_time_milliseconds > 60000)
+            __wt_verbose_warning(session, WT_VERB_EVICT,
+              "Eviction took more than 1 minute (%" PRIu64 "). Building disk image took %" PRIu64
+              "us. History store wrapup took %" PRIu64 "us.",
+              eviction_time,
+              WT_CLOCKDIFF_US(session->reconcile_timeline.image_build_finish,
+                session->reconcile_timeline.image_build_start),
+              WT_CLOCKDIFF_US(session->reconcile_timeline.hs_wrapup_finish,
+                session->reconcile_timeline.hs_wrapup_start));
+    } else {
+        session->reconcile_timeline.total_nested_eviction_time += WT_CLOCKDIFF_MS(
+          session->evict_timeline.nested_evict_finish, session->evict_timeline.nested_evict_start);
+        session->evict_timeline.nested_eviction = false;
+    }
+
     /* Leave any local eviction generation. */
     WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
     WT_LEAVE_GENERATION(session, WT_GEN_EVICT);

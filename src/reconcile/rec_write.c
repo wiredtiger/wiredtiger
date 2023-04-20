@@ -127,7 +127,8 @@ err:
           session->reconcile_timeline.reconcile_start) > conn->rec_maximum_seconds)
         conn->rec_maximum_seconds = WT_CLOCKDIFF_SEC(session->reconcile_timeline.reconcile_finish,
           session->reconcile_timeline.reconcile_start);
-
+    if (session->reconcile_timeline.total_nested_eviction_time > conn->cache->nested_eviction_ms)
+        conn->cache->nested_eviction_ms = session->reconcile_timeline.total_nested_eviction_time;
     return (ret);
 }
 
@@ -254,7 +255,9 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     WT_RET(__rec_init(session, ref, flags, salvage, &session->reconcile));
     r = session->reconcile;
 
-    session->reconcile_timeline.image_build_start = __wt_clock(session);
+    /* Only update if we are in the first entry into eviction. */
+    if (!session->evict_timeline.nested_eviction)
+        session->reconcile_timeline.image_build_start = __wt_clock(session);
 
     /* Reconcile the page. */
     switch (page->type) {
@@ -283,7 +286,8 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         break;
     }
 
-    session->reconcile_timeline.image_build_finish = __wt_clock(session);
+    if (!session->evict_timeline.nested_eviction)
+        session->reconcile_timeline.image_build_finish = __wt_clock(session);
 
     /*
      * If we failed, don't bail out yet; we still need to update stats and tidy up.
@@ -2739,9 +2743,6 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         }
 
 err:
-    /* Reset the timer if we fail here before returning. */
-    if (ret != 0)
-        session->reconcile_timeline.hs_wrapup_start = __wt_clock(session);
     return (ret);
 }
 

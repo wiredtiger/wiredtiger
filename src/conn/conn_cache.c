@@ -321,6 +321,7 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
 
     WT_STAT_SET(session, stats, cache_eviction_maximum_page_size, cache->evict_max_page_size);
     WT_STAT_SET(session, stats, cache_eviction_maximum_milliseconds, cache->evict_max_ms);
+    WT_STAT_SET(session, stats, cache_nested_eviction_milliseconds, cache->nested_eviction_ms);
     WT_STAT_SET(
       session, stats, cache_pages_dirty, cache->pages_dirty_intl + cache->pages_dirty_leaf);
 
