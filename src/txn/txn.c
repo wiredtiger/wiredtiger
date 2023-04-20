@@ -2464,8 +2464,8 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
 
     txn = session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(session);
-    global_oldest = S2C(session)->txn_global.oldest_id;
     checkpoint_id = S2C(session)->txn_global.checkpoint_id;
+    global_oldest = S2C(session)->txn_global.oldest_id;
 
     /* We can't roll back prepared transactions. */
     if (F_ISSET(txn, WT_TXN_PREPARE))
