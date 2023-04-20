@@ -1163,6 +1163,16 @@ rollback_retry:
                     tinfo->last += range;
                     if (tinfo->last > max_rows)
                         tinfo->last = 0;
+                    /*
+                     * Edge case: If we are truncating to the end of the table and we're doing
+                     * mirroring with both a VLCS and FLCS table, then we can get a false mismatch
+                     * failure if the truncate happens before the first append-only insert to the
+                     * VLCS table. So if we have VLCS and FLCS mirrors, set last to the second last
+                     * key.
+                     */
+                    if (g.base_mirror != NULL && g.mirror_fix_var &&
+                      (tinfo->last == 0 || tinfo->last == max_rows))
+                        tinfo->last = max_rows - 1;
                 }
             } else {
                 if (TV(BTREE_REVERSE)) {
