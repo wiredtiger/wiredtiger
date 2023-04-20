@@ -1164,11 +1164,23 @@ rollback_retry:
                     if (tinfo->last > max_rows)
                         tinfo->last = 0;
                     /*
-                     * Edge case: If we are truncating to the end of the table and we're doing
-                     * mirroring with both a VLCS and FLCS table, then we can get a false mismatch
-                     * failure if the truncate happens before the first append-only insert to the
-                     * VLCS table. So if we have VLCS and FLCS mirrors, set last to the second last
-                     * key.
+                     * Edge case: There is a case where we cannot detect a proper mirror mismatch.
+                     * Say we truncated the tail end key range of all the mirrors from N-max_rows.
+                     * This truncate happened before any thread added another non-mirrored
+                     * append/insert to a VLCS table and the data in that truncated key range was
+                     * sufficient to delete the pages at the end of the VLCS table. Then when a VLCS
+                     * non-mirrored insert happened, it appended the new item at key N instead of at
+                     * max_rows + 1.
+                     *
+                     * Then the next mirror check hit will mismatch if there is an FLCS table
+                     * because the appended value does not match the FLCS truncated value. The
+                     * mismatch does not trigger with row-store tables because the row-store code to
+                     * get the next mirror key in format returns WT_NOTFOUND because all those
+                     * mirror keys are gone. But FLCS maintains all record numbers.
+                     *
+                     * We want to test truncate at the end of the range as much as possible, so
+                     * adjust the end range to max_rows - 1 only in the case where we are mirroring
+                     * and have both a VLCS and FLCS table.
                      */
                     if (g.base_mirror != NULL && g.mirror_fix_var &&
                       (tinfo->last == 0 || tinfo->last == max_rows))
