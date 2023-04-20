@@ -214,7 +214,7 @@ def compare_cursors(cc1, cc2, version):
             ver_ecode = compare_version_cursors(vcc1, vcc2)
             vcur1.close()
             vcur2.close()
-            if ver_code != 0:
+            if ver_ecode != 0:
                 ecode = 1
         verbose('{}: next'.format(cc1.name))
 
