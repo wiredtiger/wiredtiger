@@ -2460,11 +2460,12 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
 {
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
-    uint64_t global_oldest;
+    uint64_t checkpoint_id, global_oldest;
 
     txn = session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(session);
     global_oldest = S2C(session)->txn_global.oldest_id;
+    checkpoint_id = S2C(session)->txn_global.checkpoint_id;
 
     /* We can't roll back prepared transactions. */
     if (F_ISSET(txn, WT_TXN_PREPARE))
@@ -2490,6 +2491,14 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
     if (txn->mod_count == 0 && !__wt_op_timer_fired(session) && !F_ISSET(txn, WT_TXN_RUNNING))
         return (0);
 #endif
+
+    /*
+     * If checkpoint is the oldest id, don't block the transaction as checkpoint may take a long
+     * time to finish. The long checkpoint might also block eviction and cause all the following
+     * transactions to rollback until it finishes.
+     */
+    if (checkpoint_id != WT_TXN_NONE && checkpoint_id == global_oldest)
+        return (0);
 
     /*
      * Check if either the transaction's ID or its pinned ID is equal to the oldest transaction ID.
