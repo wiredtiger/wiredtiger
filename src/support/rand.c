@@ -37,6 +37,10 @@
  * reading/writing the shared state races and uses two different values for m_w or m_z. That can
  * result in a stored value of zero, in which case they will be stuck on zero forever. Take a local
  * copy of the values to avoid that, and read/write in atomic, 8B chunks.
+ *
+ * Please do not modify the behavior of __wt_random when it is used with the default seed. We have
+ * verified that it produces good-quality randomness for our uses within the WiredTiger library, so
+ * we would like to preserve its current behavior.
  */
 #undef M_V
 #define M_V(r) r.v
@@ -49,8 +53,8 @@
 #include "instrumentation.h"
 #endif
 
-#define RANDOM_INIT_W 521288629
-#define RANDOM_INIT_Z 362436069
+#define DEFAULT_SEED_W 521288629
+#define DEFAULT_SEED_Z 362436069
 
 /*
  * __wt_random_init --
@@ -61,8 +65,8 @@ __wt_random_init(WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_ATTRIBUTE((visib
 {
     WT_RAND_STATE rnd;
 
-    M_W(rnd) = RANDOM_INIT_W;
-    M_Z(rnd) = RANDOM_INIT_Z;
+    M_W(rnd) = DEFAULT_SEED_W;
+    M_Z(rnd) = DEFAULT_SEED_Z;
 
     *rnd_state = rnd;
 }
@@ -77,20 +81,15 @@ __wt_random_init_custom_seed(WT_RAND_STATE volatile *rnd_state, uint64_t v)
 {
     WT_RAND_STATE rnd;
 
-    M_V(rnd) = v;
-
     /*
-     * Mix the provided seed with the default seed, which solves the problem of the caller providing
-     * a seed that is too small.
+     * XOR the provided seed with the initial seed. With high probability, this would provide a
+     * random-looking seed for the algorithm, which has about 50% of bits turned on. We don't need
+     * to check whether W or Z becomes 0, because we would handle it the first time we use this
+     * state to generate a random number.
      */
-    M_W(rnd) ^= RANDOM_INIT_W;
-    M_Z(rnd) ^= RANDOM_INIT_Z;
-
-    /* Ensure that none of the components are 0, which would result in a degenerate case. */
-    if (M_W(rnd) == 0)
-        M_W(rnd) = RANDOM_INIT_W;
-    if (M_Z(rnd) == 0)
-        M_Z(rnd) = RANDOM_INIT_Z;
+    M_V(rnd) = v;
+    M_W(rnd) ^= DEFAULT_SEED_W;
+    M_Z(rnd) ^= DEFAULT_SEED_Z;
 
     *rnd_state = rnd;
 }
@@ -118,8 +117,8 @@ __wt_random_init_seed(WT_SESSION_IMPL *session, WT_RAND_STATE volatile *rnd_stat
      * Take the seconds and nanoseconds from the clock together with the thread ID to generate a
      * 64-bit seed, then smear that value using algorithm "xor" from Marsaglia, "Xorshift RNGs".
      */
-    M_W(rnd) = (uint32_t)ts.tv_sec ^ 521288629;
-    M_Z(rnd) = (uint32_t)ts.tv_nsec ^ 362436069;
+    M_W(rnd) = (uint32_t)ts.tv_sec ^ DEFAULT_SEED_W;
+    M_Z(rnd) = (uint32_t)ts.tv_nsec ^ DEFAULT_SEED_Z;
     rnd.v ^= (uint64_t)threadid;
     rnd.v ^= rnd.v << 13;
     rnd.v ^= rnd.v >> 7;
@@ -152,21 +151,21 @@ __wt_random(WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_ATTRIBUTE((visibility
 
     /*
      * Check if either of the two value goes to 0 (from which we won't recover), and reset it to the
-     * default initial state.
+     * default initial state. This will never happen with the default seed, but we need this for the
+     * other case.
      *
      * We do this one component at a time, so that if the random number generator was initialized
      * from an explicitly provided seed, it would not reset the entire state and then effectively
-     * result in random number generators from different seeds always converging. They would
-     * eventually converge if both W and Z become 0 at the same time, but the probability of this
-     * happening is most likely too low for it to matter.
+     * result in random number generators from different seeds converging. They would eventually
+     * converge if both W and Z become 0 at the same time, but this is very unlikely.
      *
      * This has additional benefits if a caller fails to initialize the state, or initializes with a
      * seed that results in a short period.
      */
     if (w == 0)
-        M_W(rnd) = w = RANDOM_INIT_W;
+        M_W(rnd) = w = DEFAULT_SEED_W;
     if (z == 0)
-        M_Z(rnd) = z = RANDOM_INIT_Z;
+        M_Z(rnd) = z = DEFAULT_SEED_Z;
 
     M_Z(rnd) = z = 36969 * (z & 65535) + (z >> 16);
     M_W(rnd) = w = 18000 * (w & 65535) + (w >> 16);
