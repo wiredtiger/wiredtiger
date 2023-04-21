@@ -129,7 +129,7 @@ class test_checkpoint04(wttest.WiredTigerTestCase):
                 break
             else:
                 multiplier += 1
-                # Reopen the checkpoint to reset statistics. 
+                # Reopen the connection to reset statistics. 
                 # We don't want stats from earlier runs to interfere with later runs.
                 self.reopen_conn()
 
