@@ -27,67 +27,62 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 import wttest
 from helper import simulate_crash_restart
-from rollback_to_stable_util import test_rollback_to_stable_base
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_rollback_to_stable43.py
-# Test the rollback to stable should retain/restore the tombstone from
-# the update list or from the history store for on-disk database.
-class test_rollback_to_stable43(test_rollback_to_stable_base):
-
+# test_bug030.py
+# This tests for the scenario in WT-10522 where we could return early when
+# appending a key's original value to its update list due to checking some
+# flags that must be ignored when looking at an aborted tombstone.
+class test_bug_030(wttest.WiredTigerTestCase):
     format_values = [
-        # ('column', dict(key_format='r', value_format='S')),
-        # ('column_fix', dict(key_format='r', value_format='8t')),
+        ('column', dict(key_format='r', value_format='S')),
+        ('column_fix', dict(key_format='r', value_format='8t')),
         ('row_integer', dict(key_format='i', value_format='S')),
     ]
 
-    prepare_values = [
-        ('no_prepare', dict(prepare=False)),
-        # ('prepare', dict(prepare=True))
-    ]
-
-    dryrun_values = [
-        ('no_dryrun', dict(dryrun=False)),
-        # ('dryrun', dict(dryrun=True)),
-    ]
-
-    scenarios = make_scenarios(format_values, prepare_values, dryrun_values)
+    scenarios = make_scenarios(format_values)
 
     def conn_config(self):
-        config = 'cache_size=50MB,statistics=(all),verbose=(rts:5),debug_mode=(update_restore_evict=true)'
+        config = 'debug_mode=(update_restore_evict=true)'
         return config
 
     def test_tmp(self):
-        nrows = 1
-        uri = "table:rollback_to_stable43"
-        self.session.create(uri, 'key_format=i,value_format=S')
-        value = "abcdef" * 3
-        value1a = "defghi" * 3
-        value2 = "ghijkl" * 3
-        value3 = "mnopqr" * 3
+        nrows = 10
+        uri = "table:test_bug030"
 
-        # insert, make this stable
+        if self.value_format == '8t':
+            valuea = 97
+            valueb = 98
+        else:
+            valuea = "abcdef" * 3
+            valueb = "ghijkl" * 3
+
+        self.session.create(uri, 'key_format={},value_format={}'.format(
+            self.key_format, self.value_format))
+
+        # Stable insert
         self.session.begin_transaction()
         cursor = self.session.open_cursor(uri)
         for i in range(1, nrows + 1):
-            cursor[i] = value
+            cursor[i] = valuea
         cursor.close()
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
 
-        self.conn.set_timestamp('oldest_timestamp={},stable_timestamp={}'.format(self.timestamp_str(10), self.timestamp_str(20)))
+        self.conn.set_timestamp('oldest_timestamp={},stable_timestamp={}'.format(
+            self.timestamp_str(10), self.timestamp_str(20)))
 
-        # delete, unstable
+        # Unstable delete
         self.session.begin_transaction()
         cursor = self.session.open_cursor(uri)
         for i in range(1, nrows + 1):
             cursor.set_key(i)
             cursor.remove()
         cursor.close()
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(22))
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
 
-        # eviction
+        # Evict everything
         self.session.begin_transaction()
         evict_cursor = self.session.open_cursor(uri, None, 'debug=(release_evict)')
         for i in range(1, nrows + 1):
@@ -97,20 +92,18 @@ class test_rollback_to_stable43(test_rollback_to_stable_base):
         evict_cursor.close()
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(40))
 
-        # normal update, unstable, uncommitted
+        # Unstable, uncommitted update
         self.session.begin_transaction()
         cursor = self.session.open_cursor(uri)
         for i in range(1, nrows + 1):
-            cursor[i] = value3
+            cursor[i] = valueb
         cursor.close()
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(50))
 
         self.session.checkpoint()
-
-        # RTS
         self.conn.rollback_to_stable()
 
-        # another delete, committed
+        # Another delete, committed this time
         self.session.begin_transaction()
         cursor = self.session.open_cursor(uri)
         for i in range(1, nrows + 1):
@@ -119,7 +112,9 @@ class test_rollback_to_stable43(test_rollback_to_stable_base):
         cursor.close()
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(60))
 
-        # eviction
+        # Finally, evict everything. At this point, our key(s) have an
+        # update chain with a single entry that's both aborted and restored
+        # from the data store, that we attempt to reconcile.
         self.session.begin_transaction()
         evict_cursor = self.session.open_cursor(uri, None, 'debug=(release_evict)')
         for i in range(1, nrows + 1):
