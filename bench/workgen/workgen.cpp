@@ -1871,18 +1871,6 @@ err:
         const std::shared_lock lock(*_icontext->_dyn_mutex);
         // For operations on random tables, if a table has been selected, decrement the
         // reference counter.
-        if(_icontext->_dyn_table_runtime[tint]._in_use == 0) {
-            std::cout << "_in_use should be greater than 0 but is not." << std::endl;
-            std::cout << "The id is " << tint << " which corresponds to the uri " << _icontext->_dyn_table_names[tint] << std::endl;
-            if(_icontext->_dyn_table_runtime[tint].has_mirror()) {
-                std::cout << "The mirror is " << _icontext->_dyn_table_runtime[tint]._mirror << std::endl;
-                std::cout << "The mirror id is " << _icontext->_dyn_tint[_icontext->_dyn_table_runtime[tint]._mirror] << std::endl;
-            } else {
-                std::cout << "No mirror!" << std::endl;
-            }
-            std::cout << "The operation type is " << op->_optype << std::endl;
-            op->describe(std::cout);
-        }
         ASSERT(_icontext->_dyn_table_runtime[tint]._in_use > 0);
         // Use atomic here as we can race with another thread that acquires the shared lock.
         (void)workgen_atomic_sub32(&_icontext->_dyn_table_runtime[tint]._in_use, 1);
