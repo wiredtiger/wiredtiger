@@ -48,7 +48,7 @@ class test_bug_030(wttest.WiredTigerTestCase):
         config = 'debug_mode=(update_restore_evict=true)'
         return config
 
-    def test_tmp(self):
+    def test_bug030(self):
         nrows = 10
         uri = "table:test_bug030"
 
