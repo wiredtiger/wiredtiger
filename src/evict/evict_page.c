@@ -126,7 +126,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
         WT_CLEAR(session->evict_timeline);
         session->evict_timeline.evict_start = __wt_clock(session);
     } else {
-        session->evict_timeline.nested_eviction = true;
+        session->evict_timeline.reentry_hs_eviction = true;
         session->evict_timeline.nested_evict_start = __wt_clock(session);
     }
 
@@ -234,7 +234,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
      * We have loaded the new disk image and updated the tree structure. We can no longer fail after
      * this point.
      */
-    if (session->evict_timeline.nested_eviction) {
+    if (session->evict_timeline.reentry_hs_eviction) {
         session->evict_timeline.nested_evict_finish = __wt_clock(session);
         eviction_time = WT_CLOCKDIFF_US(
           session->evict_timeline.nested_evict_finish, session->evict_timeline.nested_evict_start);
@@ -267,7 +267,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
 err:
         if (!closing)
             __evict_exclusive_clear(session, ref, previous_state);
-        if (session->evict_timeline.nested_eviction) {
+        if (session->evict_timeline.reentry_hs_eviction) {
             session->evict_timeline.nested_evict_finish = __wt_clock(session);
             eviction_time = WT_CLOCKDIFF_US(session->evict_timeline.nested_evict_finish,
               session->evict_timeline.nested_evict_start);
@@ -287,7 +287,7 @@ err:
     }
 
 done:
-    if (!session->evict_timeline.nested_eviction) {
+    if (!session->evict_timeline.reentry_hs_eviction) {
         eviction_time_milliseconds = eviction_time / WT_THOUSAND;
         if (eviction_time_milliseconds > conn->cache->evict_max_ms)
             conn->cache->evict_max_ms = eviction_time_milliseconds;
@@ -303,7 +303,7 @@ done:
     } else {
         session->reconcile_timeline.total_nested_eviction_time += WT_CLOCKDIFF_MS(
           session->evict_timeline.nested_evict_finish, session->evict_timeline.nested_evict_start);
-        session->evict_timeline.nested_eviction = false;
+        session->evict_timeline.reentry_hs_eviction = false;
     }
 
     /* Leave any local eviction generation. */

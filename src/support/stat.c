@@ -1701,10 +1701,10 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: approximate byte size of transaction IDs in pages written",
   "reconciliation: fast-path pages deleted",
   "reconciliation: leaf-page overflow keys",
+  "reconciliation: maximum milliseconds spent in a reconciliation call",
   "reconciliation: maximum milliseconds spent in building a disk image in a reconciliation",
   "reconciliation: maximum milliseconds spent in moving updates to the history store in a "
   "reconciliation",
-  "reconciliation: maximum seconds spent in a reconciliation call",
   "reconciliation: page reconciliation calls",
   "reconciliation: page reconciliation calls for eviction",
   "reconciliation: page reconciliation calls that resulted in values with prepared transaction "
@@ -2330,9 +2330,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_time_window_bytes_txn = 0;
     stats->rec_page_delete_fast = 0;
     stats->rec_overflow_key_leaf = 0;
+    /* not clearing rec_maximum_milliseconds */
     /* not clearing rec_maximum_image_build_milliseconds */
     /* not clearing rec_maximum_hs_wrapup_milliseconds */
-    /* not clearing rec_maximum_seconds */
     stats->rec_pages = 0;
     stats->rec_pages_eviction = 0;
     stats->rec_pages_with_prepare = 0;
@@ -2971,11 +2971,11 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_time_window_bytes_txn += WT_STAT_READ(from, rec_time_window_bytes_txn);
     to->rec_page_delete_fast += WT_STAT_READ(from, rec_page_delete_fast);
     to->rec_overflow_key_leaf += WT_STAT_READ(from, rec_overflow_key_leaf);
+    to->rec_maximum_milliseconds += WT_STAT_READ(from, rec_maximum_milliseconds);
     to->rec_maximum_image_build_milliseconds +=
       WT_STAT_READ(from, rec_maximum_image_build_milliseconds);
     to->rec_maximum_hs_wrapup_milliseconds +=
       WT_STAT_READ(from, rec_maximum_hs_wrapup_milliseconds);
-    to->rec_maximum_seconds += WT_STAT_READ(from, rec_maximum_seconds);
     to->rec_pages += WT_STAT_READ(from, rec_pages);
     to->rec_pages_eviction += WT_STAT_READ(from, rec_pages_eviction);
     to->rec_pages_with_prepare += WT_STAT_READ(from, rec_pages_with_prepare);

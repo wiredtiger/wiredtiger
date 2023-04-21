@@ -344,7 +344,7 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
       session, stats, rec_maximum_hs_wrapup_milliseconds, conn->rec_maximum_hs_wrapup_milliseconds);
     WT_STAT_SET(session, stats, rec_maximum_image_build_milliseconds,
       conn->rec_maximum_image_build_milliseconds);
-    WT_STAT_SET(session, stats, rec_maximum_seconds, conn->rec_maximum_seconds);
+    WT_STAT_SET(session, stats, rec_maximum_milliseconds, conn->rec_maximum_milliseconds);
 }
 
 /*

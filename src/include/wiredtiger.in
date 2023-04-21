@@ -6318,18 +6318,18 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_REC_PAGE_DELETE_FAST		1413
 /*! reconciliation: leaf-page overflow keys */
 #define	WT_STAT_CONN_REC_OVERFLOW_KEY_LEAF		1414
+/*! reconciliation: maximum milliseconds spent in a reconciliation call */
+#define	WT_STAT_CONN_REC_MAXIMUM_MILLISECONDS		1415
 /*!
  * reconciliation: maximum milliseconds spent in building a disk image in
  * a reconciliation
  */
-#define	WT_STAT_CONN_REC_MAXIMUM_IMAGE_BUILD_MILLISECONDS	1415
+#define	WT_STAT_CONN_REC_MAXIMUM_IMAGE_BUILD_MILLISECONDS	1416
 /*!
  * reconciliation: maximum milliseconds spent in moving updates to the
  * history store in a reconciliation
  */
-#define	WT_STAT_CONN_REC_MAXIMUM_HS_WRAPUP_MILLISECONDS	1416
-/*! reconciliation: maximum seconds spent in a reconciliation call */
-#define	WT_STAT_CONN_REC_MAXIMUM_SECONDS		1417
+#define	WT_STAT_CONN_REC_MAXIMUM_HS_WRAPUP_MILLISECONDS	1417
 /*! reconciliation: page reconciliation calls */
 #define	WT_STAT_CONN_REC_PAGES				1418
 /*! reconciliation: page reconciliation calls for eviction */

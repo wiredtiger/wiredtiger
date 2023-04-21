@@ -124,9 +124,10 @@ err:
           WT_CLOCKDIFF_MS(session->reconcile_timeline.image_build_finish,
             session->reconcile_timeline.image_build_start);
     if (WT_CLOCKDIFF_SEC(session->reconcile_timeline.reconcile_finish,
-          session->reconcile_timeline.reconcile_start) > conn->rec_maximum_seconds)
-        conn->rec_maximum_seconds = WT_CLOCKDIFF_SEC(session->reconcile_timeline.reconcile_finish,
-          session->reconcile_timeline.reconcile_start);
+          session->reconcile_timeline.reconcile_start) > conn->rec_maximum_milliseconds)
+        conn->rec_maximum_milliseconds =
+          WT_CLOCKDIFF_MS(session->reconcile_timeline.reconcile_finish,
+            session->reconcile_timeline.reconcile_start);
     if (session->reconcile_timeline.total_nested_eviction_time > conn->cache->nested_eviction_ms)
         conn->cache->nested_eviction_ms = session->reconcile_timeline.total_nested_eviction_time;
     return (ret);
@@ -256,7 +257,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     r = session->reconcile;
 
     /* Only update if we are in the first entry into eviction. */
-    if (!session->evict_timeline.nested_eviction)
+    if (!session->evict_timeline.reentry_hs_eviction)
         session->reconcile_timeline.image_build_start = __wt_clock(session);
 
     /* Reconcile the page. */
@@ -286,7 +287,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         break;
     }
 
-    if (!session->evict_timeline.nested_eviction)
+    if (!session->evict_timeline.reentry_hs_eviction)
         session->reconcile_timeline.image_build_finish = __wt_clock(session);
 
     /*

@@ -1029,7 +1029,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     cache->nested_eviction_ms = 0;
     conn->rec_maximum_hs_wrapup_milliseconds = 0;
     conn->rec_maximum_image_build_milliseconds = 0;
-    conn->rec_maximum_seconds = 0;
+    conn->rec_maximum_milliseconds = 0;
 
     /* Initialize the verbose tracking timer */
     __wt_epoch(session, &conn->ckpt_timer_start);

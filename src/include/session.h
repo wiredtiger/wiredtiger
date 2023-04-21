@@ -163,7 +163,7 @@ struct __wt_session_impl {
         uint64_t nested_evict_start;
         uint64_t nested_evict_finish;
         uint64_t evict_finish;
-        bool nested_eviction;
+        bool reentry_hs_eviction;
     } evict_timeline;
 
     WT_ITEM err; /* Error buffer */
