@@ -178,5 +178,3 @@ buildvariants:
       batchtime: 40320 # 28 days
     - name: s-outdated-fixmes
       batchtime: 10080 # 7 days
-    - name: s-string
-      batchtime: 129600 # 90 days

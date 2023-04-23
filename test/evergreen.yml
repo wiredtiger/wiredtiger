@@ -2788,8 +2788,9 @@ tasks:
 
   - name: s-string
     # Run the script with "-r" option to remove no-longer-needed words in s_string.ok
-    # This task only needs to be scheduled every a few months. A failure can remind us
-    # to keep the s_string.ok word list up-to-date.
+    # Run this task on every PR so we can update s_string.ok alongside the code changes 
+    # that make the word redundant.
+    tags: ["pull_request"]
     commands:
       - func: "get project"
       - command: shell.exec
