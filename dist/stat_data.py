@@ -64,6 +64,10 @@ class CheckpointCleanupStat(Stat):
     prefix = 'checkpoint-cleanup'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, CheckpointCleanupStat.prefix, desc, flags)
+class ChunkCacheStat(Stat):
+    prefix = 'chunk-cache'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, ChunkCacheStat.prefix, desc, flags)
 class CompressStat(Stat):
     prefix = 'compression'
     def __init__(self, name, desc, flags=''):
@@ -141,6 +145,7 @@ groups['evict'] = [
     BlockStat.prefix,
     CacheStat.prefix,
     CacheWalkStat.prefix,
+    ChunkCacheStat.prefix,
     ConnStat.prefix,
     ThreadStat.prefix
 ]
@@ -186,7 +191,7 @@ conn_stats = [
     ConnStat('write_io', 'total write I/Os'),
 
     ##########################################
-    # Block manager statistics
+    # Block cache statistics
     ##########################################
     BlockCacheStat('block_cache_blocks', 'total blocks'),
     BlockCacheStat('block_cache_blocks_evicted', 'evicted blocks'),
@@ -257,6 +262,7 @@ conn_stats = [
     CacheStat('cache_eviction_force_dirty_time', 'forced eviction - pages evicted that were dirty time (usecs)'),
     CacheStat('cache_eviction_force_fail', 'forced eviction - pages selected unable to be evicted count'),
     CacheStat('cache_eviction_force_fail_time', 'forced eviction - pages selected unable to be evicted time'),
+    CacheStat('cache_eviction_force_no_retry', 'forced eviction - do not retry count to evict pages selected to evict during reconciliation'),
     CacheStat('cache_eviction_force_hs', 'forced eviction - history store pages selected while session has history store cursor open'),
     CacheStat('cache_eviction_force_hs_fail', 'forced eviction - history store pages failed to evict while session has history store cursor open'),
     CacheStat('cache_eviction_force_hs_success', 'forced eviction - history store pages successfully evicted while session has history store cursor open'),
@@ -327,6 +333,22 @@ conn_stats = [
     CapacityStat('fsync_all_fh', 'background fsync file handles synced'),
     CapacityStat('fsync_all_fh_total', 'background fsync file handles considered'),
     CapacityStat('fsync_all_time', 'background fsync time (msecs)', 'no_clear,no_scale'),
+
+    ##########################################
+    # Chunk cache statistics
+    ##########################################
+    ChunkCacheStat('chunk_cache_bytes_inuse', 'total bytes used by the cache'),
+    ChunkCacheStat('chunk_cache_chunks_inuse', 'total chunks held by the chunk cache'),
+    ChunkCacheStat('chunk_cache_chunks_evicted', 'chunks evicted'),
+    ChunkCacheStat('chunk_cache_chunks_invalidated', 'chunks removed on becoming invalid'),
+    ChunkCacheStat('chunk_cache_exceeded_capacity', 'could not allocate due to exceeding capacity'),
+    ChunkCacheStat('chunk_cache_io_failed', 'number of times a read from storage failed'),
+    ChunkCacheStat('chunk_cache_lookups', 'lookups'),
+    ChunkCacheStat('chunk_cache_misses', 'number of misses'),
+    ChunkCacheStat('chunk_cache_retries', 'retried accessing a chunk while I/O was in progress'),
+    ChunkCacheStat('chunk_cache_spans_chunks_read', 'aggregate number of spanned chunks on read'),
+    ChunkCacheStat('chunk_cache_spans_chunks_remove', 'aggregate number of spanned chunks on remove'),
+    ChunkCacheStat('chunk_cache_toomany_retries', 'timed out due to too many retries'),
 
     ##########################################
     # Cursor operations
@@ -684,6 +706,7 @@ dsrc_stats = [
     BtreeStat('btree_column_variable', 'column-store variable-size leaf pages', 'no_scale,tree_walk'),
     BtreeStat('btree_compact_pages_reviewed', 'btree compact pages reviewed', 'no_clear,no_scale'),
     BtreeStat('btree_compact_pages_rewritten', 'btree compact pages rewritten', 'no_clear,no_scale'),
+    BtreeStat('btree_compact_pages_rewritten_expected', 'btree expected number of compact pages rewritten', 'no_clear,no_scale'),
     BtreeStat('btree_compact_pages_skipped', 'btree compact pages skipped', 'no_clear,no_scale'),
     BtreeStat('btree_compact_skipped', 'btree skipped by compaction as process would not reduce size', 'no_clear,no_scale'),
     BtreeStat('btree_entries', 'number of key/value pairs', 'no_scale,tree_walk'),
@@ -992,6 +1015,7 @@ conn_dsrc_stats = [
     # Transaction statistics
     ##########################################
     TxnStat('txn_checkpoint_obsolete_applied', 'transaction checkpoints due to obsolete pages'),
+    TxnStat('txn_checkpoint_snapshot_acquired', 'checkpoint has acquired a snapshot for its transaction'),
     TxnStat('txn_read_overflow_remove', 'number of times overflow removed value is read'),
     TxnStat('txn_read_race_prepare_update', 'race to read prepared update retry'),
     TxnStat('txn_rts_delete_rle_skipped', 'rollback to stable skipping delete rle'),

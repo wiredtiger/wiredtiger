@@ -239,6 +239,24 @@ __block_off_insert(WT_SESSION_IMPL *session, WT_EXTLIST *el, wt_off_t off, wt_of
     return (__block_ext_insert(session, el, ext));
 }
 
+/*
+ * __wt_block_off_srch_inclusive --
+ *     Search a by-offset skiplist for the extent that contains the given offset, or if there is no
+ *     such extent, then get the next extent.
+ */
+WT_EXT *
+__wt_block_off_srch_inclusive(WT_EXTLIST *el, wt_off_t off)
+{
+    WT_EXT *after, *before;
+    __block_off_srch_pair(el, off, &before, &after);
+
+    /* Check if the search key is in the before extent. Otherwise return the after extent. */
+    if (before != NULL && before->off <= off && before->off + before->size > off)
+        return (before);
+    else
+        return (after);
+}
+
 #ifdef HAVE_DIAGNOSTIC
 /*
  * __block_off_match --
@@ -594,6 +612,7 @@ __wt_block_free(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr, 
     WT_RET(__wt_block_ext_prealloc(session, 5));
     __wt_spin_lock(session, &block->live_lock);
     ret = __wt_block_off_free(session, block, objectid, offset, (wt_off_t)size);
+    __wt_chunkcache_remove(session, block, objectid, offset, size);
     __wt_spin_unlock(session, &block->live_lock);
 
     return (ret);
