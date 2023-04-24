@@ -98,8 +98,7 @@ checkpoint(void *arg)
          */
         ckpt_config = NULL;
         ckpt_vrfy_name = "WiredTigerCheckpoint";
-        backup_locked = false;
-        ebusy_ok = false;
+        backup_locked = ebusy_ok = false;
 
         /*
          * Use checkpoint with flush_tier as often as configured. Don't mix with named checkpoints,
