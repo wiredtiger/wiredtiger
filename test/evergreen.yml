@@ -4208,8 +4208,7 @@ buildvariants:
       -DENABLE_ZLIB=1
       -DENABLE_STRICT=1 
       -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
-    # We'll explicitly use the python3 in /usr/bin, we use the same in configuring cmake.
-    python_binary: '/usr/bin/python3'
+    python_binary: 'python3'
     smp_command: -j $(sysctl -n hw.logicalcpu)
     cmake_generator: "Unix Makefiles"
     make_command: make
