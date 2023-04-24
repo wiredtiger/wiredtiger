@@ -144,8 +144,7 @@ checkpoint(void *arg)
         /*
          * Because of the concurrent activity of the sweep server, it is possible to get EBUSY when
          * we are trying to remove an existing checkpoint as the sweep server may be interacting
-         * with a dhandle associated with the checkpoint being removed. There is a specific scenario
-         * where we remove an existing checkpoint if we create one with the same name.
+         * with a dhandle associated with the checkpoint being removed.
          */
         if (ret == EBUSY)
             testutil_assert(!WT_PREFIX_MATCH(ckpt_vrfy_name, WT_CHECKPOINT) ||
