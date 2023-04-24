@@ -68,7 +68,7 @@ checkpoint(void *arg)
     u_int counter, secs;
     char config_buf[64];
     const char *ckpt_config, *ckpt_vrfy_name;
-    bool backup_locked, flush_tier, named_checkpoints;
+    bool backup_locked, ebusy_ok, flush_tier, named_checkpoints;
 
     (void)arg;
 
@@ -99,6 +99,7 @@ checkpoint(void *arg)
         ckpt_config = NULL;
         ckpt_vrfy_name = "WiredTigerCheckpoint";
         backup_locked = false;
+        ebusy_ok = false;
 
         /*
          * Use checkpoint with flush_tier as often as configured. Don't mix with named checkpoints,
@@ -121,6 +122,7 @@ checkpoint(void *arg)
                       "name=mine.%" PRIu32, mmrand(&g.extra_rnd, 1, 4)));
                     ckpt_config = config_buf;
                     ckpt_vrfy_name = config_buf + strlen("name=");
+                    ebusy_ok = true;
                 } else if (ret != EBUSY)
                     testutil_check(ret);
                 break;
@@ -130,6 +132,7 @@ checkpoint(void *arg)
                 if (ret == 0) {
                     backup_locked = true;
                     ckpt_config = "drop=(all)";
+                    ebusy_ok = true;
                 } else if (ret != EBUSY)
                     testutil_check(ret);
                 break;
@@ -146,11 +149,7 @@ checkpoint(void *arg)
          * we are trying to remove an existing checkpoint as the sweep server may be interacting
          * with a dhandle associated with the checkpoint being removed.
          */
-        if (ret == EBUSY)
-            testutil_assert(!WT_PREFIX_MATCH(ckpt_vrfy_name, WT_CHECKPOINT) ||
-              strncmp(ckpt_vrfy_name, "drop=(all)", strlen(ckpt_vrfy_name)));
-        else
-            testutil_check(ret);
+        testutil_assert(ret == 0 || (ret == EBUSY && ebusy_ok));
 
         if (ckpt_config == NULL)
             trace_msg(session, "Checkpoint #%u stop", counter);
