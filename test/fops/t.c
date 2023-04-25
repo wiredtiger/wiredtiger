@@ -27,13 +27,14 @@
  */
 
 #include "thread.h"
+#include "wt_internal.h"
 
-bool use_txn;            /* Operations with user txn */
-WT_CONNECTION *conn;     /* WiredTiger connection */
-pthread_rwlock_t single; /* Single thread */
-u_int nops;              /* Operations */
-const char *uri;         /* Object */
-const char *config;      /* Object config */
+bool use_txn;              /* Operations with user txn */
+WT_CONNECTION *connection; /* WiredTiger connection */
+pthread_rwlock_t single;   /* Single thread */
+u_int nops;                /* Operations */
+const char *uri;           /* Object */
+const char *config;        /* Object config */
 
 static FILE *logfp; /* Log file */
 
@@ -156,7 +157,7 @@ wt_startup(char *config_open)
       "create,error_prefix=\"%s\",cache_size=5MB%s%s,operation_tracking=(enabled=false),statistics="
       "(all),statistics_log=(json,on_close,wait=1)",
       progname, config_open == NULL ? "" : ",", config_open == NULL ? "" : config_open));
-    testutil_check(wiredtiger_open(home, &event_handler, config_buf, &conn));
+    testutil_check(wiredtiger_open(home, &event_handler, config_buf, &connection));
 }
 
 /*
@@ -166,7 +167,7 @@ wt_startup(char *config_open)
 static void
 wt_shutdown(void)
 {
-    testutil_check(conn->close(conn, NULL));
+    testutil_check(connection->close(connection, NULL));
 }
 
 /*

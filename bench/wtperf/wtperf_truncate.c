@@ -27,6 +27,7 @@
  */
 
 #include "wtperf.h"
+#include "wt_internal.h"
 
 static inline uint64_t
 decode_key(char *key_buf)

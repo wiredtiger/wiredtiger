@@ -26,6 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 #include "test_util.h"
+#include "wt_internal.h"
 
 /*
  * JIRA ticket reference: WT-3120 Test case description: A simple file system extension built into a

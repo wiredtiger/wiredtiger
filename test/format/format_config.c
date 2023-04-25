@@ -62,7 +62,7 @@ static bool config_var(TABLE *);
  */
 static void
 config_random_generator(
-  const char *config_name, uint64_t seed, uint32_t rand_count, WT_RAND_STATE *rnd)
+  const char *config_name, uint64_t seed, uint32_t rand_count, RAND_STATE *rnd)
 {
     char buf[128];
     bool seed_set;
@@ -1856,7 +1856,7 @@ config_table_extend(u_int ntable)
 void
 config_single(TABLE *table, const char *s, bool explicit)
 {
-    WT_RAND_STATE *rnd;
+    RAND_STATE *rnd;
     enum { RANGE_FIXED, RANGE_NONE, RANGE_WEIGHTED } range;
     CONFIG *cp;
     CONFIGV *v;

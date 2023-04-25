@@ -28,7 +28,8 @@
  * ex_log.c
  * 	demonstrates how to use logging and log cursors.
  */
-#include <test_util.h>
+#include "test_util.h"
+#include "wt_internal.h"
 
 static const char *home1 = "WT_HOME_LOG_1";
 static const char *home2 = "WT_HOME_LOG_2";

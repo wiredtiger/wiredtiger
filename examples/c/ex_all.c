@@ -32,7 +32,8 @@
  *	method.  This file is used to populate the API reference with code
  *	fragments.
  */
-#include <test_util.h>
+#include "test_util.h"
+#include "wt_internal.h"
 
 static const char *home;
 

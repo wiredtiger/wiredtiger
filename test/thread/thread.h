@@ -33,7 +33,7 @@
 #define FNAME "file:wt.%03d" /* File name */
 #define FNAME_STAT "__stats" /* File name for statistics */
 
-extern WT_CONNECTION *conn; /* WiredTiger connection */
+extern WT_CONNECTION *connection; /* WiredTiger connection */
 
 typedef enum { FIX, ROW, VAR } __ftype; /* File type */
 extern __ftype ftype;

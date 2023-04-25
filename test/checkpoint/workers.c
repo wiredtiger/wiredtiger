@@ -416,10 +416,10 @@ real_worker(THREAD_DATA *td)
             new_txn = true;
             start_txn = false;
         }
-        keyno = __wt_random(&td->data_rnd) % td->key_range + td->start_key;
+        keyno = testutil_random(&td->data_rnd) % td->key_range + td->start_key;
         /* If we have specified to run with mix mode deletes we need to do it in it's own txn. */
         if (g.use_timestamps && g.no_ts_deletes && new_txn &&
-          __wt_random(&td->data_rnd) % 72 == 0) {
+          testutil_random(&td->data_rnd) % 72 == 0) {
             new_txn = false;
             for (j = 0; j < g.ntables; j++) {
                 ret = worker_no_ts_delete(cursors[j], keyno);
@@ -451,7 +451,7 @@ real_worker(THREAD_DATA *td)
             (void)log_print_err("worker op failed", ret, 1);
             goto err;
         } else if (ret == 0) {
-            next_rnd = __wt_random(&td->data_rnd);
+            next_rnd = testutil_random(&td->data_rnd);
             if (next_rnd % 7 == 0) {
                 if (g.use_timestamps) {
                     /*
@@ -468,7 +468,7 @@ real_worker(THREAD_DATA *td)
                             base_ts = RESERVED_TIMESTAMPS_FOR_ITERATION(g.nworkers, td, i + 1);
                         else
                             base_ts = g.ts_stable + 1;
-                        next_rnd = __wt_random(&td->data_rnd);
+                        next_rnd = testutil_random(&td->data_rnd);
                         if (g.prepare && next_rnd % 2 == 0) {
                             testutil_check(__wt_snprintf(
                               buf, sizeof(buf), "prepare_timestamp=%" PRIx64, base_ts));

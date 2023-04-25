@@ -26,6 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 #include "test_util.h"
+#include "wt_internal.h"
 
 /*
  * JIRA ticket reference: WT-4117 Test case description: Smoke-test the CRC32C external API.

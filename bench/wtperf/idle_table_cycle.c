@@ -27,6 +27,7 @@
  */
 
 #include "wtperf.h"
+#include "wt_internal.h"
 
 static int
 check_timing(WTPERF *wtperf, const char *name, uint64_t start, uint64_t *stop)

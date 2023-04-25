@@ -71,13 +71,13 @@ timestamp_manager::do_work()
 {
     std::string config, log_msg;
     /* latest_ts_s represents the time component of the latest timestamp provided. */
-    wt_timestamp_t latest_ts_s = get_time_now_s();
+    uint64_t latest_ts_s = get_time_now_s();
 
     /*
      * Keep a time window between the latest and stable ts less than the max defined in the
      * configuration.
      */
-    wt_timestamp_t new_stable_ts = _stable_ts;
+    uint64_t new_stable_ts = _stable_ts;
     testutil_assert(latest_ts_s >= _stable_ts);
     if ((latest_ts_s - _stable_ts) > _stable_lag) {
         log_msg = "Timestamp_manager: Stable timestamp expired.";
@@ -89,7 +89,7 @@ timestamp_manager::do_work()
      * Keep a time window between the stable and oldest ts less than the max defined in the
      * configuration.
      */
-    wt_timestamp_t new_oldest_ts = _oldest_ts;
+    uint64_t new_oldest_ts = _oldest_ts;
     testutil_assert(_stable_ts >= _oldest_ts);
     if ((new_stable_ts - _oldest_ts) > _oldest_lag) {
         if (log_msg.empty())
@@ -117,7 +117,7 @@ timestamp_manager::do_work()
     }
 }
 
-wt_timestamp_t
+uint64_t
 timestamp_manager::get_next_ts()
 {
     uint64_t current_time = get_time_now_s();
@@ -126,18 +126,18 @@ timestamp_manager::get_next_ts()
     return (current_time);
 }
 
-wt_timestamp_t
+uint64_t
 timestamp_manager::get_oldest_ts() const
 {
     return (_oldest_ts);
 }
 
-wt_timestamp_t
+uint64_t
 timestamp_manager::get_valid_read_ts() const
 {
     /* Use get_oldest_ts here to convert from atomic to wt_timestamp_t. */
-    wt_timestamp_t current_oldest = get_oldest_ts();
-    wt_timestamp_t current_stable = _stable_ts;
+    uint64_t current_oldest = get_oldest_ts();
+    uint64_t current_stable = _stable_ts;
     if (current_stable > current_oldest) {
         --current_stable;
     }
@@ -151,8 +151,7 @@ timestamp_manager::get_valid_read_ts() const
      * Its okay to return a timestamp less than a concurrently updated oldest timestamp as all
      * readers should be reading with timestamp rounding.
      */
-    return random_generator::instance().generate_integer<wt_timestamp_t>(
-      current_oldest, current_stable);
+    return random_generator::instance().generate_integer<uint64_t>(current_oldest, current_stable);
 }
 
 uint64_t

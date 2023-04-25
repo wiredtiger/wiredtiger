@@ -27,6 +27,7 @@
  */
 
 #include "test_util.h"
+#include "wt_internal.h"
 
 #include <signal.h>
 
@@ -71,8 +72,8 @@ typedef struct {
     u_int start_key;
     u_int key_range;
     uint64_t ts; /* Only used for runs with predictable replay. */
-    WT_RAND_STATE data_rnd;
-    WT_RAND_STATE extra_rnd;
+    RAND_STATE data_rnd;
+    RAND_STATE extra_rnd;
 } THREAD_DATA;
 
 typedef struct {
@@ -122,7 +123,7 @@ void end_threads(void);
 uint8_t flcs_encode(const char *);
 uint8_t flcs_modify(WT_MODIFY *, int, uint8_t);
 int log_print_err_worker(const char *, int, const char *, int, int);
-void set_flush_tier_delay(WT_RAND_STATE *);
+void set_flush_tier_delay(RAND_STATE *);
 void start_threads(void);
 int start_workers(void);
 const char *type_to_string(table_type);

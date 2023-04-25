@@ -87,10 +87,9 @@ transaction::try_begin(const std::string &config)
 bool
 transaction::commit(const std::string &config)
 {
-    WT_DECL_RET;
     testutil_assert(_in_txn && !_needs_rollback);
 
-    ret = _session->commit_transaction(_session, config.empty() ? nullptr : config.c_str());
+    int ret = _session->commit_transaction(_session, config.empty() ? nullptr : config.c_str());
     /*
      * FIXME-WT-9198 Now we are accepting the error code EINVAL because of possible invalid
      * timestamps as we know it can happen due to the nature of the framework. The framework may set
@@ -138,7 +137,7 @@ transaction::get_target_op_count() const
  * timestamp being earlier than the stable timestamp.
  */
 int
-transaction::set_commit_timestamp(wt_timestamp_t ts)
+transaction::set_commit_timestamp(uint64_t ts)
 {
     /* We don't want to set zero timestamps on transactions if we're not using timestamps. */
     if (!_timestamp_manager->enabled())

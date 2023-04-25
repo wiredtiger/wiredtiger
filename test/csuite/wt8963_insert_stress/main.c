@@ -26,6 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 #include "test_util.h"
+#include "wt_internal.h"
 
 /*
  * The motivation for this test is to try and reproduce BF-24385 by stressing insert functionality.

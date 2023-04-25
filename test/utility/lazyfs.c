@@ -27,6 +27,7 @@
  */
 
 #include "test_util.h"
+#include "wt_internal.h"
 
 #ifdef __linux__
 #include <sys/prctl.h>

@@ -28,7 +28,8 @@
  * ex_extractor.c
  *	Example of how to use a WiredTiger custom index extractor extension.
  */
-#include <test_util.h>
+#include "test_util.h"
+#include "wt_internal.h"
 
 static const char *home;
 

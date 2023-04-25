@@ -27,6 +27,7 @@
  */
 
 #include "wtperf.h"
+#include "wt_internal.h"
 
 #define WT_BACKUP_COPY_SIZE (128 * 1024)
 

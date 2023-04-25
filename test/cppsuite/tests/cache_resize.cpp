@@ -46,10 +46,10 @@ public:
 
     void
     set_tracking_cursor(WT_SESSION *session, const tracking_operation &operation, const uint64_t &,
-      const std::string &, const std::string &value, wt_timestamp_t ts,
+      const std::string &, const std::string &value, uint64_t ts,
       scoped_cursor &op_track_cursor) override final
     {
-        uint64_t txn_id = ((WT_SESSION_IMPL *)session)->txn->id;
+        // uint64_t txn_id = ((WT_SESSION_IMPL *)session)->txn->id;
         /*
          * The cache_size may have been changed between the time we make an insert to the DB and
          * when we write the details to the tracking table, as such we can't take cache_size from
@@ -58,7 +58,7 @@ public:
          */
         uint64_t cache_size = std::stoull(value);
 
-        op_track_cursor->set_key(op_track_cursor.get(), ts, txn_id);
+        op_track_cursor->set_key(op_track_cursor.get(), ts, 0);
         op_track_cursor->set_value(op_track_cursor.get(), operation, cache_size);
     }
 };
@@ -82,7 +82,7 @@ public:
     custom_operation(thread_worker *tc) override final
     {
         WT_CONNECTION *conn = connection_manager::instance().get_connection();
-        WT_CONNECTION_IMPL *conn_impl = (WT_CONNECTION_IMPL *)conn;
+        // WT_CONNECTION_IMPL *conn_impl = (WT_CONNECTION_IMPL *)conn;
         bool increase_cache = false;
         const std::string small_cache_size = "cache_size=1MB";
         const std::string big_cache_size = "cache_size=500MB";
@@ -91,18 +91,18 @@ public:
             tc->sleep();
 
             /* Get the current cache size. */
-            uint64_t prev_cache_size = conn_impl->cache_size;
+            // uint64_t prev_cache_size = conn_impl->cache_size;
 
             /* Reconfigure with the new cache size. */
             testutil_check(conn->reconfigure(
               conn, increase_cache ? big_cache_size.c_str() : small_cache_size.c_str()));
 
             /* Get the new cache size. */
-            uint64_t new_cache_size = conn_impl->cache_size;
+            uint64_t new_cache_size = increase_cache ? 1048576 : 500 * 1048576;
 
-            logger::log_msg(LOG_TRACE,
-              "The cache size was updated from " + std::to_string(prev_cache_size) + " to " +
-                std::to_string(new_cache_size));
+            // logger::log_msg(LOG_TRACE,
+            //   "The cache size was updated from " + std::to_string(prev_cache_size) + " to " +
+            //     std::to_string(new_cache_size));
 
             /*
              * The collection id and the key are dummy fields which are required by the
@@ -145,9 +145,10 @@ public:
             /* Insert the current cache size value using a random key. */
             const std::string key =
               random_generator::instance().generate_pseudo_random_string(tc->key_size);
-            const uint64_t cache_size =
-              ((WT_CONNECTION_IMPL *)connection_manager::instance().get_connection())->cache_size;
-            const std::string value = std::to_string(cache_size);
+            // const uint64_t cache_size =
+            //   ((WT_CONNECTION_IMPL
+            //   *)connection_manager::instance().get_connection())->cache_size;
+            const std::string value = std::to_string(0);
 
             tc->txn.try_begin();
             if (!tc->insert(cursor, coll.id, key, value)) {

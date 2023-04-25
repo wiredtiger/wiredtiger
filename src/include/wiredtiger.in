@@ -3757,6 +3757,13 @@ int wiredtiger_config_validate(WT_SESSION *session,
     WT_ATTRIBUTE_LIBRARY_VISIBLE;
 
 /*
+ * wiredtiger_test_config_default --
+ *     Return the default configuration for a test.
+ */
+const char *
+wiredtiger_test_config_default(const char *test_name) WT_ATTRIBUTE_LIBRARY_VISIBLE;
+
+/*
  * Validate a configuration string for a WiredTiger test program.
  */
 int wiredtiger_test_config_validate(WT_SESSION *session,

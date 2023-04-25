@@ -27,6 +27,7 @@
  */
 
 #include "cursor_order.h"
+#include "wt_internal.h"
 
 /*
  * file_create --

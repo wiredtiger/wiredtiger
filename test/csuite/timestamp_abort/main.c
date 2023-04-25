@@ -27,6 +27,7 @@
  */
 
 #include "test_util.h"
+#include "wt_internal.h"
 
 #include <sys/wait.h>
 #include <dirent.h>
@@ -183,8 +184,8 @@ typedef struct {
     uint64_t start;
     uint32_t threadnum;
     uint32_t workload_iteration;
-    WT_RAND_STATE data_rnd;
-    WT_RAND_STATE extra_rnd;
+    RAND_STATE data_rnd;
+    RAND_STATE extra_rnd;
 } THREAD_DATA;
 
 static uint32_t nth;                      /* Number of threads. */
@@ -350,7 +351,7 @@ thread_ts_run(void *arg)
         last_ts = ts;
 
         /* Let the oldest timestamp lag 25% of the time. */
-        rand_op = __wt_random(&td->extra_rnd) % 4;
+        rand_op = testutil_random(&td->extra_rnd) % 4;
         if (rand_op == 1)
             testutil_check(__wt_snprintf(tscfg, sizeof(tscfg), "stable_timestamp=%" PRIx64, ts));
         else
@@ -369,7 +370,7 @@ thread_ts_run(void *arg)
              * Set and reset the checkpoint retention setting on a regular basis. We want to test
              * racing with the internal log removal thread while we're here.
              */
-            dbg = __wt_random(&td->extra_rnd) % 2;
+            dbg = testutil_random(&td->extra_rnd) % 2;
             if (dbg == 0)
                 testutil_check(
                   __wt_snprintf(tscfg, sizeof(tscfg), "debug_mode=(checkpoint_retention=0)"));
@@ -388,13 +389,13 @@ thread_ts_run(void *arg)
  *     Set up a random delay for the next flush_tier.
  */
 static void
-set_flush_tier_delay(WT_RAND_STATE *rnd)
+set_flush_tier_delay(RAND_STATE *rnd)
 {
     /*
      * We are checkpointing with a random interval up to MAX_CKPT_INVL seconds, and we'll do a flush
      * tier randomly every 0-10 seconds.
      */
-    opts->tiered_flush_interval_us = __wt_random(rnd) % (10 * WT_MILLION + 1);
+    opts->tiered_flush_interval_us = testutil_random(rnd) % (10 * WT_MILLION + 1);
 }
 
 /*
@@ -684,7 +685,7 @@ thread_ckpt_run(void *arg)
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
     first_ckpt = true;
     for (i = 1;; ++i) {
-        sleep_time = __wt_random(&td->extra_rnd) % MAX_CKPT_INVL;
+        sleep_time = testutil_random(&td->extra_rnd) % MAX_CKPT_INVL;
         testutil_tiered_sleep(opts, session, sleep_time, &flush_tier);
         /*
          * Since this is the default, send in this string even if running without timestamps.
@@ -792,13 +793,13 @@ create:
      * Create backups until we get killed.
      */
     for (i = 1;; ++i) {
-        sleep_time = __wt_random(&td->extra_rnd) % MAX_BACKUP_INVL;
+        sleep_time = testutil_random(&td->extra_rnd) % MAX_BACKUP_INVL;
         __wt_sleep(sleep_time, 0);
 
         /* Create a backup. */
         u = BACKUP_INDEX(td, i);
         if (last_backup == 0 || (backup_full_interval > 0 && i % backup_full_interval == 0)) {
-            backup_create_full(td->conn, __wt_random(&td->extra_rnd) % 2, u);
+            backup_create_full(td->conn, testutil_random(&td->extra_rnd) % 2, u);
             last_full = u;
         } else
             backup_create_incremental(td->conn, last_backup, u);
@@ -942,7 +943,7 @@ thread_run(void *arg)
           "LOCAL: thread:%" PRIu32 " ts:%" PRIu64 " key: %" PRIu64, td->threadnum, active_ts, i));
         testutil_check(__wt_snprintf(obuf, sizeof(obuf),
           "OPLOG: thread:%" PRIu32 " ts:%" PRIu64 " key: %" PRIu64, td->threadnum, active_ts, i));
-        data.size = __wt_random(&td->data_rnd) % MAX_VAL;
+        data.size = testutil_random(&td->data_rnd) % MAX_VAL;
         data.data = cbuf;
         cur_coll->set_value(cur_coll, &data);
         if ((ret = cur_coll->insert(cur_coll)) == WT_ROLLBACK)
@@ -962,7 +963,7 @@ thread_run(void *arg)
         if ((ret = cur_shadow->insert(cur_shadow)) == WT_ROLLBACK)
             goto rollback;
         testutil_check(ret);
-        data.size = __wt_random(&td->data_rnd) % MAX_VAL;
+        data.size = testutil_random(&td->data_rnd) % MAX_VAL;
         data.data = obuf;
         cur_oplog->set_value(cur_oplog, &data);
         if ((ret = cur_oplog->insert(cur_oplog)) == WT_ROLLBACK)
@@ -1003,7 +1004,7 @@ thread_run(void *arg)
          * timestamp transaction, not before, because of the possibility of rollback in the
          * transaction. The local table must stay in sync with the other tables.
          */
-        data.size = __wt_random(&td->data_rnd) % MAX_VAL;
+        data.size = testutil_random(&td->data_rnd) % MAX_VAL;
         data.data = lbuf;
         cur_local->set_value(cur_local, &data);
         testutil_check(cur_local->insert(cur_local));
@@ -1751,7 +1752,7 @@ main(int argc, char *argv[])
         }
 
         if (rand_time) {
-            timeout = __wt_random(&opts->extra_rnd) % MAX_TIME;
+            timeout = testutil_random(&opts->extra_rnd) % MAX_TIME;
             if (timeout < MIN_TIME)
                 timeout = MIN_TIME;
         }
@@ -1765,7 +1766,7 @@ main(int argc, char *argv[])
          * We use the data random generator because the number of threads affects the data for this
          * test.
          */
-        rand_value = __wt_random(&opts->data_rnd);
+        rand_value = testutil_random(&opts->data_rnd);
         if (rand_th) {
             nth = rand_value % MAX_TH;
             if (nth < MIN_TH)

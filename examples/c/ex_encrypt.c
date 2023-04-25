@@ -29,6 +29,7 @@
  * 	demonstrates how to use the encryption API.
  */
 #include <test_util.h>
+#include "wt_internal.h"
 
 #ifdef _WIN32
 /*

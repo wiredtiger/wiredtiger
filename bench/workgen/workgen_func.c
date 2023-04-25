@@ -28,6 +28,7 @@
 #include "wiredtiger.h"
 #include "test_util.h"
 #include "workgen_func.h"
+#include "wt_internal.h"
 
 /*
  * This data symbol is also declared in the WiredTiger library. Since it is not initialized in

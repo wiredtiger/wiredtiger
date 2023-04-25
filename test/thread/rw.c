@@ -27,6 +27,7 @@
  */
 
 #include "thread.h"
+#include "wt_internal.h"
 
 static void print_stats(u_int);
 static WT_THREAD_RET reader(void *);
@@ -197,13 +198,13 @@ reader(void *arg)
 
     if (session_per_op) {
         for (i = 0; i < s->nops; ++i, ++s->reads, __wt_yield()) {
-            testutil_check(conn->open_session(conn, NULL, NULL, &session));
+            testutil_check(connection->open_session(connection, NULL, NULL, &session));
             testutil_check(session->open_cursor(session, s->name, NULL, NULL, &cursor));
             reader_op(session, cursor, s);
             testutil_check(session->close(session, NULL));
         }
     } else {
-        testutil_check(conn->open_session(conn, NULL, NULL, &session));
+        testutil_check(connection->open_session(connection, NULL, NULL, &session));
         testutil_check(session->open_cursor(session, s->name, NULL, NULL, &cursor));
         for (i = 0; i < s->nops; ++i, ++s->reads, __wt_yield())
             reader_op(session, cursor, s);
@@ -286,13 +287,13 @@ writer(void *arg)
 
     if (session_per_op) {
         for (i = 0; i < s->nops; ++i, __wt_yield()) {
-            testutil_check(conn->open_session(conn, NULL, NULL, &session));
+            testutil_check(connection->open_session(connection, NULL, NULL, &session));
             testutil_check(session->open_cursor(session, s->name, NULL, NULL, &cursor));
             writer_op(session, cursor, s);
             testutil_check(session->close(session, NULL));
         }
     } else {
-        testutil_check(conn->open_session(conn, NULL, NULL, &session));
+        testutil_check(connection->open_session(connection, NULL, NULL, &session));
         testutil_check(session->open_cursor(session, s->name, NULL, NULL, &cursor));
         for (i = 0; i < s->nops; ++i, __wt_yield())
             writer_op(session, cursor, s);

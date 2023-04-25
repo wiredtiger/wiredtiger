@@ -30,6 +30,7 @@
 #endif
 #include <math.h>
 #include "test_util.h"
+#include "wt_internal.h"
 
 /*
  * This test is to calculate benchmarks for tiered storage:

@@ -28,7 +28,10 @@
 #ifndef TEST_UTIL_H
 #define TEST_UTIL_H
 
-#include "wt_internal.h"
+#include <limits.h>
+#include <stdlib.h>
+#include <errno.h>
+#include "wiredtiger.h"
 
 #ifdef _WIN32
 #define DIR_DELIM '\\'
@@ -57,6 +60,9 @@
 
 #ifdef _WIN32
 #include "windows_shim.h"
+#define THREAD_RET unsigned __stdcall
+#else
+#define THREAD_RET void *
 #endif
 
 #define DIR_STORE_BUCKET_NAME "bucket"
@@ -78,6 +84,21 @@
     ",log=(recover=on,remove=false),statistics=(all),statistics_log=(json,on_close,wait=1)"
 #define TESTUTIL_ENV_CONFIG_COMPAT ",compatibility=(release=\"2.9\")"
 
+#define WT_GCC_FUNC_ATTRIBUTE(x)
+#define WT_GCC_FUNC_DECL_ATTRIBUTE(x) __attribute__(x)
+
+#define TS_HEX_STRING_SIZE (2 * sizeof(uint64_t) + 1)
+
+#define TS_NONE 0         /* Beginning of time */
+#define TS_MAX UINT64_MAX /* End of time */
+
+typedef union {
+    uint64_t v;
+    struct {
+        uint32_t w, z;
+    } x;
+} RAND_STATE;
+
 /* Generic option parsing structure shared by all test cases. */
 typedef struct {
     char *home;
@@ -98,10 +119,10 @@ typedef struct {
     FILE *progress_fp; /* Progress tracking file */
     char *progress_file_name;
 
-    WT_RAND_STATE data_rnd;  /* PRNG state for data ops */
-    WT_RAND_STATE extra_rnd; /* PRNG state for extra ops */
-    uint64_t data_seed;      /* Random seed for data ops */
-    uint64_t extra_seed;     /* Random seed for extra ops */
+    RAND_STATE data_rnd;  /* PRNG state for data ops */
+    RAND_STATE extra_rnd; /* PRNG state for extra ops */
+    uint64_t data_seed;   /* Random seed for data ops */
+    uint64_t extra_seed;  /* Random seed for extra ops */
 
     uint64_t delay_ms;        /* Average length of delay when simulated */
     uint64_t error_ms;        /* Average length of delay when simulated */
@@ -369,6 +390,20 @@ u64_to_string_zf(uint64_t n, char *buf, size_t len)
 }
 
 /*
+ * __testutil_strtouq --
+ *     Convert a string to an unsigned quad integer.
+ */
+static inline uint64_t
+__testutil_strtouq(const char *nptr, char **endptr, int base)
+{
+#if defined(HAVE_STRTOUQ)
+    return (strtouq(nptr, endptr, base));
+#else
+    return (strtoull(nptr, endptr, base));
+#endif
+}
+
+/*
  * testutil_timestamp_parse --
  *     Parse a timestamp to an integral value.
  */
@@ -378,8 +413,8 @@ testutil_timestamp_parse(const char *str)
     uint64_t ts;
     char *p;
 
-    ts = __wt_strtouq(str, &p, 16);
-    testutil_assert((size_t)(p - str) <= WT_TS_HEX_STRING_SIZE);
+    ts = __testutil_strtouq(str, &p, 16);
+    testutil_assert((size_t)(p - str) <= TS_HEX_STRING_SIZE);
     return (ts);
 }
 
@@ -387,22 +422,22 @@ testutil_timestamp_parse(const char *str)
  * maximum_stable_ts --
  *     Return the largest usable stable timestamp from a list of n committed timestamps.
  */
-static inline wt_timestamp_t
-maximum_stable_ts(wt_timestamp_t *commit_timestamps, uint32_t n)
+static inline uint64_t
+maximum_stable_ts(uint64_t *commit_timestamps, uint32_t n)
 {
-    wt_timestamp_t commit_ts, ts;
+    uint64_t commit_ts, ts;
     uint32_t i;
 
-    for (ts = WT_TS_MAX, i = 0; i < n; i++) {
+    for (ts = TS_MAX, i = 0; i < n; i++) {
         commit_ts = commit_timestamps[i];
-        if (commit_ts == WT_TS_NONE)
-            return (WT_TS_NONE);
+        if (commit_ts == TS_NONE)
+            return (TS_NONE);
         if (commit_ts < ts)
             ts = commit_ts;
     }
 
     /* Return one less than the earliest in-use timestamp. */
-    return (ts == WT_TS_MAX ? WT_TS_NONE : ts - 1);
+    return (ts == TS_MAX ? TS_NONE : ts - 1);
 }
 
 /* Allow tests to add their own death handling. */
@@ -462,9 +497,11 @@ int testutil_parse_single_opt(TEST_OPTS *, int);
 int testutil_parse_opts(int, char *const *, TEST_OPTS *);
 void testutil_print_command_line(int argc, char *const *argv);
 void testutil_progress(TEST_OPTS *, const char *);
-void testutil_random_init(WT_RAND_STATE *, uint64_t *, uint32_t);
-void testutil_random_from_random(WT_RAND_STATE *, WT_RAND_STATE *);
-void testutil_random_from_seed(WT_RAND_STATE *, uint64_t);
+uint32_t testutil_random(RAND_STATE volatile *rnd_state);
+void testutil_random_init(RAND_STATE *, uint64_t *, uint32_t);
+void testutil_random_init_seed(RAND_STATE volatile *rnd_state);
+void testutil_random_from_random(RAND_STATE *, RAND_STATE *);
+void testutil_random_from_seed(RAND_STATE *, uint64_t);
 #ifndef _WIN32
 void testutil_sleep_wait(uint32_t, pid_t);
 #endif
@@ -478,7 +515,7 @@ void testutil_tiered_storage_configuration(TEST_OPTS *, char *, size_t, char *, 
 uint64_t testutil_time_us(WT_SESSION *);
 void testutil_verify_src_backup(WT_CONNECTION *, const char *, const char *, char *);
 void testutil_work_dir_from_path(char *, size_t, const char *);
-WT_THREAD_RET thread_append(void *);
+THREAD_RET thread_append(void *);
 
 extern const char *progname;
 const char *testutil_set_progname(char *const *);

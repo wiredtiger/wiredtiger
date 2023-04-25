@@ -28,7 +28,7 @@
 
 #include "format.h"
 
-static void apply_bounds(WT_CURSOR *, TABLE *, WT_RAND_STATE *);
+static void apply_bounds(WT_CURSOR *, TABLE *, RAND_STATE *);
 static void clear_bounds(WT_CURSOR *, TABLE *);
 static int col_insert(TINFO *);
 static void col_insert_resolve(TABLE *, void *);
@@ -1472,7 +1472,7 @@ read_row_worker(TINFO *tinfo, TABLE *table, WT_CURSOR *cursor, uint64_t keyno, W
  *     Apply lower and upper bounds on the cursor. The lower and upper bound is randomly generated.
  */
 static void
-apply_bounds(WT_CURSOR *cursor, TABLE *table, WT_RAND_STATE *rnd)
+apply_bounds(WT_CURSOR *cursor, TABLE *table, RAND_STATE *rnd)
 {
     WT_ITEM key;
     uint32_t lower_keyno, max_rows, upper_keyno;
@@ -1553,11 +1553,11 @@ void
 wts_read_scan(TABLE *table, void *args)
 {
     SAP sap;
+    RAND_STATE *rnd;
     WT_CONNECTION *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_ITEM key, value;
-    WT_RAND_STATE *rnd;
     WT_SESSION *session;
     uint64_t keyno;
     uint32_t max_rows;

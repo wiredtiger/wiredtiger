@@ -27,6 +27,7 @@
  */
 
 #include "cursor_order.h"
+#include "wt_internal.h"
 
 static char home[512]; /* Program working dir */
 static FILE *logfp;    /* Log file */

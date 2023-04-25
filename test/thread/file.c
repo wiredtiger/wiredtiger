@@ -27,6 +27,7 @@
  */
 
 #include "thread.h"
+#include "wt_internal.h"
 
 /*
  * file_create --
@@ -39,7 +40,7 @@ file_create(const char *name)
     int ret;
     char config[128];
 
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    testutil_check(connection->open_session(connection, NULL, NULL, &session));
 
     testutil_check(__wt_snprintf(config, sizeof(config),
       "key_format=%s,internal_page_max=%d,leaf_page_max=%d,%s", ftype == ROW ? "u" : "r", 16 * 1024,
@@ -68,7 +69,7 @@ load(const char *name)
 
     file_create(name);
 
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    testutil_check(connection->open_session(connection, NULL, NULL, &session));
 
     testutil_check(session->open_cursor(session, name, NULL, "bulk", &cursor));
 
@@ -108,7 +109,7 @@ verify(const char *name)
     WT_DECL_RET;
     WT_SESSION *session;
 
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    testutil_check(connection->open_session(connection, NULL, NULL, &session));
 
     while ((ret = session->verify(session, name, NULL)) == EBUSY)
         testutil_check(session->checkpoint(session, NULL));

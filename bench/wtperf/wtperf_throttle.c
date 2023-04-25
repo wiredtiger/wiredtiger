@@ -27,6 +27,7 @@
  */
 
 #include "wtperf.h"
+#include "wt_internal.h"
 
 /*
  * Put the initial config together for running a throttled workload.

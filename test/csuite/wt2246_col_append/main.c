@@ -26,6 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 #include "test_util.h"
+#include "wt_internal.h"
 
 /*
  * JIRA ticket reference: WT-2246 Test case description: The column-store search routine used to

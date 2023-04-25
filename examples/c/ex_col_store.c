@@ -29,8 +29,9 @@
  *	This is an example application that demonstrates column-store operations.
  */
 
-#include <test_util.h>
 #include <assert.h>
+#include "test_util.h"
+#include "wt_internal.h"
 
 #define NUM_ENTRIES 100
 #define TABLE_NAME "table:weather"

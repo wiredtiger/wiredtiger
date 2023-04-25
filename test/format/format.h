@@ -27,6 +27,7 @@
  */
 
 #include "test_util.h"
+#include "wt_internal.h"
 
 #ifdef HAVE_SETRLIMIT
 #include <sys/resource.h>
@@ -117,7 +118,7 @@ typedef struct {
 /* Arguments to the read scanner. */
 typedef struct {
     WT_CONNECTION *conn;
-    WT_RAND_STATE *rnd;
+    RAND_STATE *rnd;
 } READ_SCAN_ARGS;
 
 /*
@@ -251,8 +252,8 @@ typedef struct {
 #define INCREMENTAL_OFF 3
     u_int backup_incr_flag; /* Incremental backup configuration */
 
-    WT_RAND_STATE data_rnd;  /* Global RNG state for data operations */
-    WT_RAND_STATE extra_rnd; /* Global RNG state for extra operations */
+    RAND_STATE data_rnd;  /* Global RNG state for data operations */
+    RAND_STATE extra_rnd; /* Global RNG state for extra operations */
 
     uint64_t timestamp;        /* Counter for timestamps */
     uint64_t oldest_timestamp; /* Last timestamp used for oldest */
@@ -352,8 +353,8 @@ typedef struct {
 
     SAP sap; /* Thread's session event handler information */
 
-    WT_RAND_STATE data_rnd;  /* thread RNG state for data operations */
-    WT_RAND_STATE extra_rnd; /* thread RNG state for extra operations */
+    RAND_STATE data_rnd;  /* thread RNG state for data operations */
+    RAND_STATE extra_rnd; /* thread RNG state for extra operations */
 
     uint32_t lane;     /* Current lane for replay */
     thread_op op;      /* Operation */
@@ -484,7 +485,7 @@ void trace_ops_init(TINFO *);
 void trace_teardown(void);
 void track(const char *, uint64_t);
 void track_ops(TINFO *);
-void val_gen(TABLE *, WT_RAND_STATE *, WT_ITEM *, uint8_t *, uint64_t);
+void val_gen(TABLE *, RAND_STATE *, WT_ITEM *, uint8_t *, uint64_t);
 void val_gen_init(WT_ITEM *);
 void val_gen_teardown(WT_ITEM *);
 void val_init(TABLE *, void *);

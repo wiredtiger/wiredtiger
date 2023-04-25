@@ -110,10 +110,10 @@ read_op(WT_CURSOR *cursor, read_operation op, int *exactp)
  *     Return a random number.
  */
 static inline uint32_t
-rng(WT_RAND_STATE *rnd)
+rng(RAND_STATE *rnd)
 {
     testutil_assert(rnd != NULL);
-    return (__wt_random(rnd));
+    return (testutil_random(rnd));
 }
 
 /*
@@ -121,7 +121,7 @@ rng(WT_RAND_STATE *rnd)
  *     Return a random value between a min/max pair, inclusive.
  */
 static inline uint32_t
-mmrand(WT_RAND_STATE *rnd, u_int min, u_int max)
+mmrand(RAND_STATE *rnd, u_int min, u_int max)
 {
     uint32_t v;
     u_int range;
@@ -146,7 +146,7 @@ mmrand(WT_RAND_STATE *rnd, u_int min, u_int max)
  *     sleep times.
  */
 static inline void
-random_sleep(WT_RAND_STATE *rnd, u_int max_seconds)
+random_sleep(RAND_STATE *rnd, u_int max_seconds)
 {
     uint64_t i, micro_seconds;
 
@@ -227,7 +227,7 @@ table_sumv(u_int off)
 static inline TABLE *
 table_select(TINFO *tinfo, bool modifies_data)
 {
-    WT_RAND_STATE *rnd;
+    RAND_STATE *rnd;
 
     if (ntables == 0)
         return (tables[0]);
@@ -253,7 +253,7 @@ table_select(TINFO *tinfo, bool modifies_data)
 static inline TABLE *
 table_select_type(table_type type, bool modifies_data)
 {
-    WT_RAND_STATE *rnd;
+    RAND_STATE *rnd;
     u_int i;
 
     if (ntables == 0)
@@ -345,7 +345,7 @@ key_gen(TABLE *table, WT_ITEM *key, uint64_t keyno)
  *     Generate a key for insertion.
  */
 static inline void
-key_gen_insert(TABLE *table, WT_RAND_STATE *rnd, WT_ITEM *key, uint64_t keyno)
+key_gen_insert(TABLE *table, RAND_STATE *rnd, WT_ITEM *key, uint64_t keyno)
 {
     static const char *const suffix[15] = {
       "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15"};

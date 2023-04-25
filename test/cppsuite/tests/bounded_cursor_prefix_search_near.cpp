@@ -172,7 +172,7 @@ public:
 
             auto &cursor_prefix = cursors[coll.id];
 
-            wt_timestamp_t ts = tc->tsm->get_valid_read_ts();
+            uint64_t ts = tc->tsm->get_valid_read_ts();
             /*
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.
              * To tackle this issue, we round the timestamp to the oldest timestamp value.

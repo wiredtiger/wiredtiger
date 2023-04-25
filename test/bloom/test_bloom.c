@@ -27,6 +27,7 @@
  */
 
 #include "test_util.h"
+#include "wt_internal.h"
 
 #define HOME_SIZE 512
 

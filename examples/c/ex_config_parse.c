@@ -29,7 +29,8 @@
  *	This is an example demonstrating how to parse WiredTiger compatible
  *	configuration strings.
  */
-#include <test_util.h>
+#include "test_util.h"
+#include "wt_internal.h"
 
 int
 main(int argc, char *argv[])

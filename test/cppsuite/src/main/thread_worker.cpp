@@ -102,13 +102,11 @@ bool
 thread_worker::update(
   scoped_cursor &cursor, uint64_t collection_id, const std::string &key, const std::string &value)
 {
-    WT_DECL_RET;
-
     testutil_assert(op_tracker != nullptr);
     testutil_assert(cursor.get() != nullptr);
 
-    wt_timestamp_t ts = tsm->get_next_ts();
-    ret = txn.set_commit_timestamp(ts);
+    uint64_t ts = tsm->get_next_ts();
+    int ret = txn.set_commit_timestamp(ts);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {
         txn.set_needs_rollback(true);
@@ -143,13 +141,11 @@ bool
 thread_worker::insert(
   scoped_cursor &cursor, uint64_t collection_id, const std::string &key, const std::string &value)
 {
-    WT_DECL_RET;
-
     testutil_assert(op_tracker != nullptr);
     testutil_assert(cursor.get() != nullptr);
 
-    wt_timestamp_t ts = tsm->get_next_ts();
-    ret = txn.set_commit_timestamp(ts);
+    uint64_t ts = tsm->get_next_ts();
+    int ret = txn.set_commit_timestamp(ts);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {
         txn.set_needs_rollback(true);
@@ -183,12 +179,11 @@ thread_worker::insert(
 bool
 thread_worker::remove(scoped_cursor &cursor, uint64_t collection_id, const std::string &key)
 {
-    WT_DECL_RET;
     testutil_assert(op_tracker != nullptr);
     testutil_assert(cursor.get() != nullptr);
 
-    wt_timestamp_t ts = tsm->get_next_ts();
-    ret = txn.set_commit_timestamp(ts);
+    uint64_t ts = tsm->get_next_ts();
+    int ret = txn.set_commit_timestamp(ts);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {
         txn.set_needs_rollback(true);
@@ -227,10 +222,8 @@ bool
 thread_worker::truncate(uint64_t collection_id, std::optional<std::string> start_key,
   std::optional<std::string> stop_key, const std::string &config)
 {
-    WT_DECL_RET;
-
-    wt_timestamp_t ts = tsm->get_next_ts();
-    ret = txn.set_commit_timestamp(ts);
+    uint64_t ts = tsm->get_next_ts();
+    int ret = txn.set_commit_timestamp(ts);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {
         txn.set_needs_rollback(true);

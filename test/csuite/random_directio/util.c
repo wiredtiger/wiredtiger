@@ -28,6 +28,7 @@
 
 #include "test_util.h"
 #include "util.h"
+#include "wt_internal.h"
 #include <dirent.h>
 
 #define ALIGN_UP(p, n) ((p) % (n) == 0 ? (p) : ((p) + (n) - ((p) % (n))))

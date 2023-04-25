@@ -27,6 +27,7 @@
  */
 
 #include "thread.h"
+#include "wt_internal.h"
 
 /*
  * stats --
@@ -43,7 +44,7 @@ stats(void)
     char name[64];
     const char *desc, *pval;
 
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    testutil_check(connection->open_session(connection, NULL, NULL, &session));
 
     if ((fp = fopen(FNAME_STAT, "w")) == NULL)
         testutil_die(errno, "fopen " FNAME_STAT);

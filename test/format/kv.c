@@ -219,7 +219,7 @@ key_gen_common(TABLE *table, WT_ITEM *key, uint64_t keyno, const char *const suf
  *     Select and return the length for a value.
  */
 static inline uint32_t
-val_len(WT_RAND_STATE *rnd, uint64_t keyno, uint32_t min, uint32_t max)
+val_len(RAND_STATE *rnd, uint64_t keyno, uint32_t min, uint32_t max)
 {
     /*
      * Focus on relatively small items, admitting the possibility of larger items. Pick a size close
@@ -241,7 +241,7 @@ val_len(WT_RAND_STATE *rnd, uint64_t keyno, uint32_t min, uint32_t max)
 void
 val_init(TABLE *table, void *arg)
 {
-    WT_RAND_STATE *rnd;
+    RAND_STATE *rnd;
     size_t i;
     uint32_t len;
 
@@ -349,7 +349,7 @@ val_to_flcs(TABLE *table, WT_ITEM *value, uint8_t *bitvp)
  *     Generate a new value.
  */
 void
-val_gen(TABLE *table, WT_RAND_STATE *rnd, WT_ITEM *value, uint8_t *bitvp, uint64_t keyno)
+val_gen(TABLE *table, RAND_STATE *rnd, WT_ITEM *value, uint8_t *bitvp, uint64_t keyno)
 {
     char *p;
 

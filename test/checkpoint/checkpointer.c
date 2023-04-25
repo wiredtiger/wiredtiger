@@ -169,7 +169,7 @@ clock_thread(void *arg)
                 /*
                  * Random value between 6 and 10 seconds.
                  */
-                delay = __wt_random(&td->extra_rnd) % 5;
+                delay = testutil_random(&td->extra_rnd) % 5;
                 __wt_sleep(delay + 6, 0);
             }
             __wt_writeunlock(session, &g.clock_lock);
@@ -177,7 +177,7 @@ clock_thread(void *arg)
         /*
          * Random value between 5000 and 10000.
          */
-        delay = __wt_random(&td->extra_rnd) % 5001;
+        delay = testutil_random(&td->extra_rnd) % 5001;
         __wt_sleep(0, delay + 5 * WT_THOUSAND);
     }
 
@@ -208,7 +208,7 @@ checkpointer(void *arg)
  *     Set up a random delay for the next flush_tier.
  */
 void
-set_flush_tier_delay(WT_RAND_STATE *rnd)
+set_flush_tier_delay(RAND_STATE *rnd)
 {
     /*
      * When we are in sweep stress mode, we checkpoint between 4 and 8 seconds, so we'll flush
@@ -217,9 +217,9 @@ set_flush_tier_delay(WT_RAND_STATE *rnd)
      * delay between 0 - 10000 microseconds.
      */
     if (g.sweep_stress)
-        g.opts.tiered_flush_interval_us = 5 * WT_MILLION + __wt_random(rnd) % (10 * WT_MILLION);
+        g.opts.tiered_flush_interval_us = 5 * WT_MILLION + testutil_random(rnd) % (10 * WT_MILLION);
     else
-        g.opts.tiered_flush_interval_us = __wt_random(rnd) % 10001;
+        g.opts.tiered_flush_interval_us = testutil_random(rnd) % 10001;
 }
 
 /*
@@ -282,7 +282,8 @@ real_checkpointer(THREAD_DATA *td)
                 verify_ts = stable_ts;
             else
                 /* Use the extra random generator as the data is not getting modified. */
-                verify_ts = __wt_random(&td->extra_rnd) % (stable_ts - oldest_ts + 1) + oldest_ts;
+                verify_ts =
+                  testutil_random(&td->extra_rnd) % (stable_ts - oldest_ts + 1) + oldest_ts;
             if (g.predictable_replay) {
                 tmp_ts = WT_MIN(get_all_committed_ts(), stable_ts);
                 /* Update the oldest timestamp, but do not go past the provided stop timestamp. */
@@ -348,7 +349,7 @@ real_checkpointer(THREAD_DATA *td)
              * Random value between 4 and 8 seconds. Use the extra random generator as the tier
              * sleep delay doesn't affect the actual data content.
              */
-            delay = __wt_random(&td->extra_rnd) % 5 + 4;
+            delay = testutil_random(&td->extra_rnd) % 5 + 4;
         else
             /* Just find out if we should flush_tier. */
             delay = 0;

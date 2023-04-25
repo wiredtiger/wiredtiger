@@ -30,6 +30,7 @@
 #define HAVE_WTPERF_H
 
 #include "test_util.h"
+#include "wt_internal.h"
 
 #include <math.h>
 

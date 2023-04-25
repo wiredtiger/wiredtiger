@@ -57,10 +57,10 @@ public:
     void do_work() override final;
 
     /* Get a unique timestamp. */
-    wt_timestamp_t get_next_ts();
+    uint64_t get_next_ts();
 
     /* Get oldest timestamp. */
-    wt_timestamp_t get_oldest_ts() const;
+    uint64_t get_oldest_ts() const;
 
     /*
      * Generate a timestamp between the oldest timestamp and the stable timestamp.
@@ -72,17 +72,17 @@ public:
      * This timestamp isn't guaranteed to provide a repeatable read as the oldest could move
      * concurrently removing the previously seen data.
      */
-    wt_timestamp_t get_valid_read_ts() const;
+    uint64_t get_valid_read_ts() const;
 
 private:
     /* Get the current time in seconds, bit shifted to the expected location. */
     uint64_t get_time_now_s() const;
 
 private:
-    std::atomic<wt_timestamp_t> _increment_ts{0};
+    std::atomic<uint64_t> _increment_ts{0};
     /* The tracking table sweep needs to read the oldest timestamp. */
-    std::atomic<wt_timestamp_t> _oldest_ts{0U};
-    wt_timestamp_t _stable_ts = 0U;
+    std::atomic<uint64_t> _oldest_ts{0U};
+    uint64_t _stable_ts = 0U;
     /*
      * _oldest_lag is the time window between the stable and oldest timestamps.
      * _stable_lag is the time window between the latest and stable timestamps.

@@ -27,6 +27,7 @@
  */
 
 #include "test_util.h"
+#include "wt_internal.h"
 
 #define HOME "WT_TEST"
 #define DUMP "WT_TEST/__slvg.dump"   /* Dump file */

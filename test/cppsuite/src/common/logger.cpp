@@ -36,6 +36,8 @@ extern "C" {
 #include "test_util.h"
 }
 
+#define BILLION (1000000000UL)
+
 /* Define helpful functions related to debugging. */
 namespace test_harness {
 /* Order of elements in this array corresponds to the definitions above. */
@@ -60,7 +62,7 @@ get_time(char *time_buf, size_t buf_size)
     uint64_t epoch_nanosec = std::chrono::high_resolution_clock::now().time_since_epoch().count();
 
     /* Calculate time since epoch in seconds. */
-    time_t time_epoch_sec = epoch_nanosec / WT_BILLION;
+    time_t time_epoch_sec = epoch_nanosec / BILLION;
 
     tm = localtime_r(&time_epoch_sec, &_tm);
     testutil_assert(tm != nullptr);
@@ -69,8 +71,8 @@ get_time(char *time_buf, size_t buf_size)
       strftime(time_buf, buf_size, logger::include_date ? "[%Y-%m-%dT%H:%M:%S" : "[%H:%M:%S", tm);
 
     testutil_assert(alloc_size <= buf_size);
-    WT_IGNORE_RET(__wt_snprintf(&time_buf[alloc_size], buf_size - alloc_size, ".%" PRIu64 "Z]",
-      (uint64_t)epoch_nanosec % WT_BILLION));
+    testutil_assert(snprintf(&time_buf[alloc_size], buf_size - alloc_size, ".%" PRIu64 "Z]",
+      (uint64_t)epoch_nanosec % BILLION));
 }
 
 /* Used to print out traces for debugging purpose. */

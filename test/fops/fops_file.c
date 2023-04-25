@@ -27,6 +27,7 @@
  */
 
 #include "thread.h"
+#include "wt_internal.h"
 
 static u_int uid = 1;
 
@@ -42,7 +43,7 @@ obj_bulk(void)
     int ret;
     bool create;
 
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    testutil_check(connection->open_session(connection, NULL, NULL, &session));
 
     if (use_txn)
         testutil_check(session->begin_transaction(session, NULL));
@@ -85,7 +86,7 @@ obj_bulk_unique(int force)
     int ret;
     char new_uri[64];
 
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    testutil_check(connection->open_session(connection, NULL, NULL, &session));
 
     /* Generate a unique object name. */
     testutil_check(pthread_rwlock_wrlock(&single));
@@ -126,7 +127,7 @@ obj_cursor(void)
     WT_SESSION *session;
     int ret;
 
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    testutil_check(connection->open_session(connection, NULL, NULL, &session));
 
     if (use_txn)
         testutil_check(session->begin_transaction(session, NULL));
@@ -151,7 +152,7 @@ obj_create(void)
     WT_SESSION *session;
     int ret;
 
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    testutil_check(connection->open_session(connection, NULL, NULL, &session));
 
     if (use_txn)
         testutil_check(session->begin_transaction(session, NULL));
@@ -175,7 +176,7 @@ obj_create_unique(int force)
     int ret;
     char new_uri[64];
 
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    testutil_check(connection->open_session(connection, NULL, NULL, &session));
 
     /* Generate a unique object name. */
     testutil_check(pthread_rwlock_wrlock(&single));
@@ -210,7 +211,7 @@ obj_drop(int force)
     WT_SESSION *session;
     int ret;
 
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    testutil_check(connection->open_session(connection, NULL, NULL, &session));
 
     if (use_txn)
         testutil_check(session->begin_transaction(session, NULL));
@@ -244,7 +245,7 @@ obj_checkpoint(void)
     WT_SESSION *session;
     int ret;
 
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    testutil_check(connection->open_session(connection, NULL, NULL, &session));
 
     /*
      * Force the checkpoint so it has to be taken. Forced checkpoints can race with other metadata
@@ -268,7 +269,7 @@ obj_upgrade(void)
     WT_SESSION *session;
     int ret;
 
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    testutil_check(connection->open_session(connection, NULL, NULL, &session));
 
     if ((ret = session->upgrade(session, uri, NULL)) != 0)
         if (ret != ENOENT && ret != EBUSY)
@@ -287,7 +288,7 @@ obj_verify(void)
     WT_SESSION *session;
     int ret;
 
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    testutil_check(connection->open_session(connection, NULL, NULL, &session));
 
     if ((ret = session->verify(session, uri, NULL)) != 0)
         if (ret != ENOENT && ret != EBUSY)

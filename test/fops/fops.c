@@ -27,6 +27,7 @@
  */
 
 #include "thread.h"
+#include "wt_internal.h"
 
 static WT_THREAD_RET fop(void *);
 static void print_stats(u_int);

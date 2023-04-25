@@ -26,6 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 #include "test_util.h"
+#include "wt_internal.h"
 
 /*
  * JIRA ticket reference: WT-2592 Test case description: This is an adaptation of the join parts of

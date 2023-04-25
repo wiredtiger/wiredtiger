@@ -27,6 +27,7 @@
  */
 
 #include "test_util.h"
+#include "wt_internal.h"
 
 static char home[512]; /* Program working dir */
 static uint8_t *big;   /* Big key/value buffer */

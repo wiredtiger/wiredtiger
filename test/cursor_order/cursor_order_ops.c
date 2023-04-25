@@ -27,6 +27,7 @@
  */
 
 #include "cursor_order.h"
+#include "wt_internal.h"
 
 static WT_THREAD_RET append_insert(void *);
 static void print_stats(SHARED_CONFIG *);

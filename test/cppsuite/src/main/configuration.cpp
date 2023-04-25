@@ -73,10 +73,7 @@ config_item_to_list(const WT_CONFIG_ITEM item)
 
 configuration::configuration(const std::string &test_config_name, const std::string &config)
 {
-    const auto *config_entry = __wt_test_config_match(test_config_name.c_str());
-    if (config_entry == nullptr)
-        testutil_die(EINVAL, "failed to match test config name");
-    std::string default_config = std::string(config_entry->base);
+    std::string default_config = wiredtiger_test_config_default(test_config_name.c_str());
     /* Merge in the default configuration. */
     _config = merge_default_config(default_config, config);
     logger::log_msg(LOG_INFO, "Full config: " + _config);
@@ -168,10 +165,9 @@ T
 configuration::get(
   const std::string &key, bool optional, types type, T def, T (*func)(WT_CONFIG_ITEM item))
 {
-    WT_DECL_RET;
     WT_CONFIG_ITEM value = {"", 0, 1, WT_CONFIG_ITEM::WT_CONFIG_ITEM_BOOL};
 
-    ret = _config_parser->get(_config_parser, key.c_str(), &value);
+    int ret = _config_parser->get(_config_parser, key.c_str(), &value);
     if (ret == WT_NOTFOUND && optional)
         return (def);
     else if (ret != 0)

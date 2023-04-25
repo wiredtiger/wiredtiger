@@ -27,14 +27,15 @@
  */
 
 #include "thread.h"
+#include "wt_internal.h"
 
-WT_CONNECTION *conn;   /* WiredTiger connection */
-__ftype ftype;         /* File type */
-u_int nkeys, max_nops; /* Keys, Operations */
-int vary_nops;         /* Vary operations by thread */
-int log_print;         /* Log print per operation */
-int multiple_files;    /* File per thread */
-int session_per_op;    /* New session per operation */
+WT_CONNECTION *connection; /* WiredTiger connection */
+__ftype ftype;             /* File type */
+u_int nkeys, max_nops;     /* Keys, Operations */
+int vary_nops;             /* Vary operations by thread */
+int log_print;             /* Log print per operation */
+int multiple_files;        /* File per thread */
+int session_per_op;        /* New session per operation */
 
 static char home[512]; /* Program working dir */
 static FILE *logfp;    /* Log file */
@@ -184,7 +185,7 @@ wt_connect(char *config_open)
       "create,statistics=(all),statistics_log=(json,on_close,wait=1),error_prefix=\"%s\",%s%s",
       progname, config_open == NULL ? "" : ",", config_open == NULL ? "" : config_open));
 
-    testutil_check(wiredtiger_open(home, &event_handler, config, &conn));
+    testutil_check(wiredtiger_open(home, &event_handler, config, &connection));
 }
 
 /*
@@ -196,11 +197,11 @@ wt_shutdown(void)
 {
     WT_SESSION *session;
 
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    testutil_check(connection->open_session(connection, NULL, NULL, &session));
 
     testutil_check(session->checkpoint(session, NULL));
 
-    testutil_check(conn->close(conn, NULL));
+    testutil_check(connection->close(connection, NULL));
 }
 
 /*

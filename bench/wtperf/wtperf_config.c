@@ -27,6 +27,7 @@
  */
 
 #include "wtperf.h"
+#include "wt_internal.h"
 
 static CONFIG_OPT config_opts_desc[] = {
 /* Option descriptions */

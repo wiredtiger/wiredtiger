@@ -69,6 +69,7 @@
 
 #include "test_util.h"
 #include "util.h"
+#include "wt_internal.h"
 
 #include <signal.h>
 #include <sys/wait.h>

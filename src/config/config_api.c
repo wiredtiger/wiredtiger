@@ -160,6 +160,19 @@ wiredtiger_config_validate(
 }
 
 /*
+ * wiredtiger_test_config_default --
+ *     Return the default configuration for a test.
+ */
+const char *
+wiredtiger_test_config_default(const char *test_name)
+{
+    const WT_CONFIG_ENTRY *ep;
+
+    ep = __wt_test_config_match(test_name);
+    return (ep == NULL ? NULL : ep->base);
+}
+
+/*
  * wiredtiger_test_config_validate --
  *     Validate a test configuration string.
  */

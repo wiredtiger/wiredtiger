@@ -28,7 +28,8 @@
  * ex_file_system.c
  * 	demonstrates how to use the custom file system interface
  */
-#include <test_util.h>
+#include "test_util.h"
+#include "wt_internal.h"
 
 /*
  * This example code uses pthread functions for portable locking, we ignore errors for simplicity.

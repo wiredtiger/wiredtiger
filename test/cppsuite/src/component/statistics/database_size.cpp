@@ -31,6 +31,7 @@
 #include "src/common/logger.h"
 
 extern "C" {
+#include <sys/stat.h>
 #include "test_util.h"
 }
 
@@ -106,8 +107,8 @@ database_size::get_file_names() const
         file_names.push_back(collection_name_to_file_name(name));
 
     /* Add WiredTiger internal tables. */
-    file_names.push_back(std::string(DEFAULT_DIR) + "/" + WT_HS_FILE);
-    file_names.push_back(std::string(DEFAULT_DIR) + "/" + WT_METAFILE);
+    file_names.push_back(std::string(DEFAULT_DIR) + "/WiredTigerHS.wt");
+    file_names.push_back(std::string(DEFAULT_DIR) + "/WiredTiger.wt");
 
     return (file_names);
 }

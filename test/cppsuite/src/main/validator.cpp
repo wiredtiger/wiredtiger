@@ -38,13 +38,15 @@ void
 validator::validate(
   const std::string &operation_table_name, const std::string &schema_table_name, database &db)
 {
-    WT_DECL_RET;
-    wt_timestamp_t tracked_timestamp;
+    int ret;
+    uint64_t tracked_timestamp;
     std::vector<uint64_t> created_collections, deleted_collections;
     uint64_t tracked_collection_id;
     const char *tracked_key, *tracked_value;
     int tracked_op_type;
     uint64_t current_collection_id = 0;
+
+    ret = 0;
 
     logger::log_msg(LOG_INFO, "Beginning validation.");
 
@@ -169,7 +171,7 @@ validator::parse_schema_tracking_table(scoped_session &session,
   const std::string &tracking_table_name, std::vector<uint64_t> &created_collections,
   std::vector<uint64_t> &deleted_collections)
 {
-    wt_timestamp_t key_timestamp;
+    uint64_t key_timestamp;
     uint64_t key_collection_id;
     int value_operation_type;
 
@@ -260,13 +262,12 @@ void
 validator::verify_key_value(scoped_session &session, const uint64_t collection_id,
   const std::string &key, const key_state &key_state)
 {
-    WT_DECL_RET;
     const char *retrieved_value;
 
     scoped_cursor cursor =
       session.open_scoped_cursor(database::build_collection_name(collection_id));
     cursor->set_key(cursor.get(), key.c_str());
-    ret = cursor->search(cursor.get());
+    int ret = cursor->search(cursor.get());
     testutil_assertfmt(ret == 0 || ret == WT_NOTFOUND,
       "Validation failed: Unexpected error returned %d while searching for a key. Key: %s, "
       "Collection_id: %lu",

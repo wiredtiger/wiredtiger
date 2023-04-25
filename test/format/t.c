@@ -258,8 +258,8 @@ main(int argc, char *argv[])
      * reading configuration. There may be random seeds in the configuration, however, so we will
      * reinitialize the RNGs later.
      */
-    __wt_random_init_seed(NULL, &g.data_rnd);
-    __wt_random_init_seed(NULL, &g.extra_rnd);
+    testutil_random_init_seed(&g.data_rnd);
+    testutil_random_init_seed(&g.extra_rnd);
 
     /* Initialize lock to ensure single threading during failure handling. */
     testutil_check(pthread_rwlock_init(&g.death_lock, NULL));

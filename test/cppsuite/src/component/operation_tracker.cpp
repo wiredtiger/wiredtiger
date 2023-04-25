@@ -25,7 +25,7 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
-
+#include <string.h>
 #include "operation_tracker.h"
 
 #include "src/common/constants.h"
@@ -87,8 +87,8 @@ operation_tracker::load()
 void
 operation_tracker::do_work()
 {
-    WT_DECL_RET;
-    wt_timestamp_t ts, oldest_ts;
+    int ret;
+    uint64_t ts, oldest_ts;
     uint64_t collection_id;
     uint64_t sweep_collection_id = 0;
     int op_type;
@@ -174,7 +174,7 @@ operation_tracker::do_work()
 
 void
 operation_tracker::save_schema_operation(
-  const tracking_operation &operation, const uint64_t &collection_id, wt_timestamp_t ts)
+  const tracking_operation &operation, const uint64_t &collection_id, uint64_t ts)
 {
     std::string error_message;
 
@@ -195,10 +195,12 @@ operation_tracker::save_schema_operation(
 
 int
 operation_tracker::save_operation(WT_SESSION *session, const tracking_operation &operation,
-  const uint64_t &collection_id, const std::string &key, const std::string &value,
-  wt_timestamp_t ts, scoped_cursor &op_track_cursor)
+  const uint64_t &collection_id, const std::string &key, const std::string &value, uint64_t ts,
+  scoped_cursor &op_track_cursor)
 {
-    WT_DECL_RET;
+    int ret;
+
+    ret = 0;
 
     if (!_enabled)
         return (0);
@@ -220,8 +222,8 @@ operation_tracker::save_operation(WT_SESSION *session, const tracking_operation 
 /* Note that session is not used in the default implementation of the tracking table. */
 void
 operation_tracker::set_tracking_cursor(WT_SESSION *session, const tracking_operation &operation,
-  const uint64_t &collection_id, const std::string &key, const std::string &value,
-  wt_timestamp_t ts, scoped_cursor &op_track_cursor)
+  const uint64_t &collection_id, const std::string &key, const std::string &value, uint64_t ts,
+  scoped_cursor &op_track_cursor)
 {
     op_track_cursor->set_key(op_track_cursor.get(), collection_id, key.c_str(), ts);
     op_track_cursor->set_value(op_track_cursor.get(), static_cast<int>(operation), value.c_str());

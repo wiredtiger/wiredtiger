@@ -34,19 +34,20 @@
 #include "src/storage/scoped_session.h"
 #include "timestamp_manager.h"
 
+#define UNCHECKED_STRING(str) #str
 /*
  * Default schema for tracking operations on collections (key_format: Collection id / Key /
  * Timestamp, value_format: Operation type / Value)
  */
-#define OPERATION_TRACKING_KEY_FORMAT WT_UNCHECKED_STRING(QSQ)
-#define OPERATION_TRACKING_VALUE_FORMAT WT_UNCHECKED_STRING(iS)
+#define OPERATION_TRACKING_KEY_FORMAT UNCHECKED_STRING(QSQ)
+#define OPERATION_TRACKING_VALUE_FORMAT UNCHECKED_STRING(iS)
 
 /*
  * Default schema for tracking schema operations on collections (key_format: Collection id /
  * Timestamp, value_format: Operation type)
  */
-#define SCHEMA_TRACKING_KEY_FORMAT WT_UNCHECKED_STRING(QQ)
-#define SCHEMA_TRACKING_VALUE_FORMAT WT_UNCHECKED_STRING(i)
+#define SCHEMA_TRACKING_KEY_FORMAT UNCHECKED_STRING(QQ)
+#define SCHEMA_TRACKING_VALUE_FORMAT UNCHECKED_STRING(i)
 #define SCHEMA_TRACKING_TABLE_CONFIG                                                       \
     "key_format=" SCHEMA_TRACKING_KEY_FORMAT ",value_format=" SCHEMA_TRACKING_VALUE_FORMAT \
     ",log=(enabled=true)"
@@ -73,15 +74,15 @@ public:
     void do_work() override final;
 
     void save_schema_operation(
-      const tracking_operation &operation, const uint64_t &collection_id, wt_timestamp_t ts);
+      const tracking_operation &operation, const uint64_t &collection_id, uint64_t ts);
 
     virtual void set_tracking_cursor(WT_SESSION *session, const tracking_operation &operation,
-      const uint64_t &collection_id, const std::string &key, const std::string &value,
-      wt_timestamp_t ts, scoped_cursor &op_track_cursor);
+      const uint64_t &collection_id, const std::string &key, const std::string &value, uint64_t ts,
+      scoped_cursor &op_track_cursor);
 
     int save_operation(WT_SESSION *session, const tracking_operation &operation,
-      const uint64_t &collection_id, const std::string &key, const std::string &value,
-      wt_timestamp_t ts, scoped_cursor &op_track_cursor);
+      const uint64_t &collection_id, const std::string &key, const std::string &value, uint64_t ts,
+      scoped_cursor &op_track_cursor);
 
 private:
     scoped_session _session;

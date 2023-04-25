@@ -27,6 +27,7 @@
  */
 
 #include "test_util.h"
+#include "wt_internal.h"
 
 #include <sys/wait.h>
 #include <signal.h>
@@ -129,8 +130,8 @@ typedef struct {
     uint64_t start;
     uint32_t info;
     const char *op;
-    WT_RAND_STATE data_rnd;
-    WT_RAND_STATE extra_rnd;
+    RAND_STATE data_rnd;
+    RAND_STATE extra_rnd;
 } THREAD_DATA;
 
 #define NOOP "noop"
@@ -332,13 +333,13 @@ test_cursor(THREAD_DATA *td)
  *     Set up a random delay for the next flush_tier.
  */
 static void
-set_flush_tier_delay(WT_RAND_STATE *rnd)
+set_flush_tier_delay(RAND_STATE *rnd)
 {
     /*
      * We are checkpointing with a random interval up to MAX_CKPT_INVL seconds, and we'll do a flush
      * tier randomly every 0-10 seconds.
      */
-    opts->tiered_flush_interval_us = __wt_random(rnd) % (10 * WT_MILLION + 1);
+    opts->tiered_flush_interval_us = testutil_random(rnd) % (10 * WT_MILLION + 1);
 }
 
 /*
@@ -598,7 +599,7 @@ thread_ckpt_run(void *arg)
      */
     __wt_epoch(NULL, &start);
     for (i = 1;; ++i) {
-        sleep_time = __wt_random(&td->extra_rnd) % MAX_CKPT_INVL;
+        sleep_time = testutil_random(&td->extra_rnd) % MAX_CKPT_INVL;
         flush_tier = false;
         testutil_tiered_sleep(opts, session, sleep_time, &flush_tier);
         if (use_ts) {
@@ -764,14 +765,14 @@ thread_run(void *arg)
              * Do a schema operation about 50% of the time by having a case for only about half the
              * possible mod values.
              */
-            switch (__wt_random(&td->data_rnd) % 20) {
+            switch (testutil_random(&td->data_rnd) % 20) {
             case 0:
                 WT_PUBLISH(th_ts[td->info].op, BULK);
                 test_bulk(td);
                 break;
             case 1:
                 WT_PUBLISH(th_ts[td->info].op, BULK_UNQ);
-                test_bulk_unique(td, reserved_ts, __wt_random(&td->data_rnd) & 1);
+                test_bulk_unique(td, reserved_ts, testutil_random(&td->data_rnd) & 1);
                 break;
             case 2:
                 WT_PUBLISH(th_ts[td->info].op, CREATE);
@@ -779,7 +780,7 @@ thread_run(void *arg)
                 break;
             case 3:
                 WT_PUBLISH(th_ts[td->info].op, CREATE_UNQ);
-                test_create_unique(td, reserved_ts, __wt_random(&td->data_rnd) & 1);
+                test_create_unique(td, reserved_ts, testutil_random(&td->data_rnd) & 1);
                 break;
             case 4:
                 WT_PUBLISH(th_ts[td->info].op, CURSOR);
@@ -787,7 +788,7 @@ thread_run(void *arg)
                 break;
             case 5:
                 WT_PUBLISH(th_ts[td->info].op, DROP);
-                test_drop(td, __wt_random(&td->data_rnd) & 1);
+                test_drop(td, testutil_random(&td->data_rnd) & 1);
                 break;
             case 6:
                 WT_PUBLISH(th_ts[td->info].op, UPGRADE);
@@ -823,11 +824,11 @@ thread_run(void *arg)
           "LOCAL: thread:%" PRIu32 " ts:%" PRIu64 " key: %" PRIu64, td->info, stable_ts, i));
         testutil_check(__wt_snprintf(obuf, sizeof(obuf),
           "OPLOG: thread:%" PRIu32 " ts:%" PRIu64 " key: %" PRIu64, td->info, stable_ts, i));
-        data.size = __wt_random(&td->data_rnd) % MAX_VAL;
+        data.size = testutil_random(&td->data_rnd) % MAX_VAL;
         data.data = cbuf;
         cur_coll->set_value(cur_coll, &data);
         testutil_check(cur_coll->insert(cur_coll));
-        data.size = __wt_random(&td->data_rnd) % MAX_VAL;
+        data.size = testutil_random(&td->data_rnd) % MAX_VAL;
         data.data = obuf;
         cur_oplog->set_value(cur_oplog, &data);
         testutil_check(cur_oplog->insert(cur_oplog));
@@ -873,7 +874,7 @@ thread_run(void *arg)
         /*
          * Insert into the local table outside the timestamp txn.
          */
-        data.size = __wt_random(&td->data_rnd) % MAX_VAL;
+        data.size = testutil_random(&td->data_rnd) % MAX_VAL;
         data.data = lbuf;
         cur_local->set_value(cur_local, &data);
         testutil_check(cur_local->insert(cur_local));
@@ -1175,7 +1176,7 @@ main(int argc, char *argv[])
         }
 
         if (rand_time) {
-            timeout = __wt_random(&opts->extra_rnd) % MAX_TIME;
+            timeout = testutil_random(&opts->extra_rnd) % MAX_TIME;
             if (timeout < MIN_TIME)
                 timeout = MIN_TIME;
         }
@@ -1189,7 +1190,7 @@ main(int argc, char *argv[])
          * We use the data random generator because the number of threads affects the data for this
          * test.
          */
-        rand_value = __wt_random(&opts->data_rnd);
+        rand_value = testutil_random(&opts->data_rnd);
         if (rand_th) {
             nth = rand_value % MAX_TH;
             if (nth < MIN_TH)

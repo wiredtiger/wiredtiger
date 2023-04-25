@@ -26,6 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 #include <test_util.h>
+#include "wt_internal.h"
 
 #define MAX_KEYS (100 * WT_THOUSAND)
 

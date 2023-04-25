@@ -26,6 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 #include "test_util.h"
+#include "wt_internal.h"
 
 /*
  * This is a unit test for the testutil_parse_opts and testutil_parse_single_opt functions.

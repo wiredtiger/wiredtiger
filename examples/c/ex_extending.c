@@ -29,7 +29,8 @@
  *	This is an example demonstrating ways to extend WiredTiger with
  *	extractors, collators and loadable modules.
  */
-#include <test_util.h>
+#include "test_util.h"
+#include "wt_internal.h"
 
 static const char *home;
 

@@ -27,6 +27,7 @@
  */
 
 #include "test_checkpoint.h"
+#include "wt_internal.h"
 
 #define SHARED_PARSE_OPTIONS "b:P:h:"
 
@@ -355,7 +356,7 @@ wt_connect(const char *config_open)
     /*
      * Randomly decide on the eviction rate (fast or default).
      */
-    if ((__wt_random(&g.opts.extra_rnd) % 15) % 2 == 0)
+    if ((testutil_random(&g.opts.extra_rnd) % 15) % 2 == 0)
         fast_eviction = true;
 
     /* Set up the basic configuration string first. */

@@ -27,6 +27,7 @@
  */
 
 #include "test_util.h"
+#include "wt_internal.h"
 
 void test_value(int64_t);
 void test_spread(int64_t, int64_t, int64_t);

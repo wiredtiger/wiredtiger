@@ -171,7 +171,7 @@ cursor_remove(WT_CURSOR *cursor)
 int
 version_cursor_dump(WT_CURSOR *cursor)
 {
-    wt_timestamp_t start_ts, start_durable_ts, stop_ts, stop_durable_ts;
+    uint64_t start_ts, start_durable_ts, stop_ts, stop_durable_ts;
     uint64_t start_txnid, stop_txnid;
     uint8_t flags, location, prepare, type;
     const char *value;

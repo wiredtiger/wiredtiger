@@ -32,6 +32,7 @@
  */
 
 #include "test_util.h"
+#include "wt_internal.h"
 
 #include <sys/wait.h>
 #include <signal.h>

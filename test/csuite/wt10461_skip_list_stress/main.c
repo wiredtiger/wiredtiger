@@ -60,6 +60,7 @@
 
 #include <time.h>
 #include "test_util.h"
+#include "wt_internal.h"
 
 extern int __wt_optind;
 extern char *__wt_optarg;

@@ -27,6 +27,7 @@
  */
 
 #include "test_util.h"
+#include "wt_internal.h"
 
 static const char name[] = "lsm:test";
 #define NUM_DOCS (100 * WT_THOUSAND)

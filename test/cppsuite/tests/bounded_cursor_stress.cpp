@@ -443,7 +443,7 @@ public:
                      * If we cannot find any record, finish the current transaction as we might be
                      * able to see new records after starting a new one.
                      */
-                    WT_IGNORE_RET_BOOL(tc->txn.commit());
+                    testutil_check(tc->txn.commit());
                     continue;
                 } else if (ret == WT_ROLLBACK)
                     break;
@@ -506,7 +506,7 @@ public:
             auto bound_pair = set_random_bounds(tc, bounded_cursor);
 
             scoped_cursor normal_cursor = tc->session.open_scoped_cursor(coll.name);
-            wt_timestamp_t ts = tc->tsm->get_valid_read_ts();
+            uint64_t ts = tc->tsm->get_valid_read_ts();
             /*
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.
              * To tackle this issue, we round the timestamp to the oldest timestamp value.
@@ -736,7 +736,7 @@ public:
 
             auto &normal_cursor = normal_cursors[coll.id];
 
-            wt_timestamp_t ts = tc->tsm->get_valid_read_ts();
+            uint64_t ts = tc->tsm->get_valid_read_ts();
             /*
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.
              * To tackle this issue, we round the timestamp to the oldest timestamp value.

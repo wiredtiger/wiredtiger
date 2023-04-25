@@ -47,8 +47,6 @@
 #include "workgen.h"
 #include "workgen_int.h"
 extern "C" {
-// Include some specific WT files, as some files included by wt_internal.h
-// have some C-ism's that don't work in C++.
 #include <pthread.h>
 #include <string.h>
 #include <stdint.h>
@@ -105,6 +103,35 @@ extern "C" {
 
 #define OP_HAS_VALUE(op) \
     ((op)->_optype == Operation::OP_INSERT || (op)->_optype == Operation::OP_UPDATE)
+
+#define DECL_RET int ret = 0;
+
+#define ERR(a)                \
+    do {                      \
+        if ((ret = (a)) != 0) \
+            goto err;         \
+    } while (0)
+
+#define RET(a)                  \
+    do {                        \
+        int __ret;              \
+        if ((__ret = (a)) != 0) \
+            return (__ret);     \
+    } while (0)
+
+#define TRET(a)                                                                              \
+    do {                                                                                     \
+        int __ret;                                                                           \
+        if ((__ret = (a)) != 0 &&                                                            \
+          (__ret == WT_PANIC || ret == 0 || ret == WT_DUPLICATE_KEY || ret == WT_NOTFOUND || \
+            ret == WT_RESTART))                                                              \
+            ret = __ret;                                                                     \
+    } while (0)
+
+#define MEGABYTE (1048576)
+
+#define CLEAR(s) memset(&(s), 0, sizeof(s))
+#define PREFIX_MATCH(str, pfx) (strncmp(str, pfx, strlen(pfx)) == 0)
 
 const std::string DYN_TABLE_APP_METADATA = "workgen_dynamic_table=true";
 const std::string MIRROR_TABLE_APP_METADATA = "workgen_table_mirror=";
@@ -320,7 +347,7 @@ get_dir_size_mb(const std::string &dir)
             continue;
         }
     }
-    return result / WT_MEGABYTE;
+    return result / MEGABYTE;
 }
 
 // 5 random characters + Null terminator
@@ -363,7 +390,7 @@ WorkloadRunner::create_table(WT_SESSION *session, const std::string &config, con
     }
 
     // Create the table.
-    WT_DECL_RET;
+    DECL_RET;
     if ((ret = session->create(session, uri.c_str(), config.c_str())) != 0) {
         if (ret != EBUSY)
             THROW("Failed to create table '" << uri << "'.");
@@ -650,7 +677,7 @@ WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
          * removed from the shared data structures, and we know no thread is operating on them.
          */
         for (auto uri : drop_files) {
-            WT_DECL_RET;
+            DECL_RET;
             // Spin on EBUSY. We do not expect to get stuck.
             while ((ret = session->drop(session, uri.c_str(), "checkpoint_wait=false")) == EBUSY) {
                 VERBOSE(*_workload, "Drop returned EBUSY for table: " << uri);
@@ -868,7 +895,7 @@ ContextInternal::create_all(WT_CONNECTION *conn)
         THROW("Error opening a session.");
     }
 
-    WT_DECL_RET;
+    DECL_RET;
     WT_CURSOR *cursor;
     if ((ret = session->open_cursor(session, "metadata:", NULL, NULL, &cursor)) != 0) {
         /* If there is no metadata (yet), this will return ENOENT. */
@@ -892,7 +919,7 @@ ContextInternal::create_all(WT_CONNECTION *conn)
 
         std::string value = std::string(v);
         size_t pos = value.find(DYN_TABLE_APP_METADATA);
-        if (pos != std::string::npos && WT_PREFIX_MATCH(key, "table:")) {
+        if (pos != std::string::npos && PREFIX_MATCH(key, "table:")) {
             // Add the table into the list of dynamic set. We are single threaded here and hence
             // do not yet need to protect the dynamic table structures with a lock.
             _dyn_tint[key] = _dyn_tint_last;
@@ -1188,14 +1215,14 @@ ThreadRunner::~ThreadRunner()
 int
 ThreadRunner::create_all(WT_CONNECTION *conn)
 {
-    WT_RET(close_all());
+    RET(close_all());
     ASSERT(_session == nullptr);
     if (_thread->options.synchronized)
         _thread->_op.synchronized_check();
-    WT_RET(conn->open_session(conn, nullptr, _thread->options.session_config.c_str(), &_session));
+    RET(conn->open_session(conn, nullptr, _thread->options.session_config.c_str(), &_session));
     _table_usage.clear();
     _stats.track_latency(_workload->options.sample_interval_ms > 0);
-    WT_RET(workgen_random_alloc(_session, &_rand_state));
+    RET(workgen_random_alloc(_session, &_rand_state));
     _throttle_ops = 0;
     _throttle_limit = 0;
     _in_transaction = 0;
@@ -1222,7 +1249,7 @@ ThreadRunner::open_all()
          i++) {
         uint32_t tindex = i->first;
         const std::string uri(_icontext->_table_names[tindex]);
-        WT_RET(_session->open_cursor(_session, uri.c_str(), nullptr, nullptr, &_cursors[tindex]));
+        RET(_session->open_cursor(_session, uri.c_str(), nullptr, nullptr, &_cursors[tindex]));
     }
     return (0);
 }
@@ -1235,7 +1262,7 @@ ThreadRunner::close_all()
         _throttle = nullptr;
     }
     if (_session != nullptr) {
-        WT_RET(_session->close(_session, nullptr));
+        RET(_session->close(_session, nullptr));
         _session = nullptr;
     }
     free_all();
@@ -1293,7 +1320,7 @@ ThreadRunner::cross_check(std::vector<ThreadRunner> &runners)
 int
 ThreadRunner::run()
 {
-    WT_DECL_RET;
+    DECL_RET;
     ThreadOptions *options = &_thread->options;
     std::string name = options->name;
 
@@ -1307,7 +1334,7 @@ ThreadRunner::run()
         _throttle = new Throttle(*this, options->throttle, options->throttle_burst);
     }
     for (int cnt = 0; !_stop && (_repeat || cnt < 1) && ret == 0; cnt++) {
-        WT_ERR(op_run_setup(&_thread->_op));
+        ERR(op_run_setup(&_thread->_op));
     }
 
 err :
@@ -1532,7 +1559,7 @@ ThreadRunner::op_kv_gen(Operation *op, const tint_t tint)
 int
 ThreadRunner::op_run_setup(Operation *op)
 {
-    WT_DECL_RET;
+    DECL_RET;
 
     if (_throttle != nullptr) {
         while (_throttle_ops >= _throttle_limit && !_in_transaction && !_stop) {
@@ -1638,14 +1665,14 @@ ThreadRunner::op_run(Operation *op)
     Track *track;
     WT_CURSOR *cursor;
     WT_ITEM item;
-    WT_DECL_RET;
+    DECL_RET;
     bool measure_latency, own_cursor, retry_op;
     timespec start_time;
     uint64_t time_us;
     char buf[BUF_SIZE];
     auto [table_uri, tint] = op_get_table(op);
 
-    WT_CLEAR(item);
+    CLEAR(item);
     track = nullptr;
     cursor = nullptr;
     own_cursor = false;
@@ -1679,7 +1706,7 @@ ThreadRunner::op_run(Operation *op)
     }
 
     if (op->_random_table || ((op->_internal->_flags & WORKGEN_OP_REOPEN) != 0)) {
-        WT_ERR(_session->open_cursor(_session, table_uri.c_str(), nullptr, nullptr, &cursor));
+        ERR(_session->open_cursor(_session, table_uri.c_str(), nullptr, nullptr, &cursor));
         own_cursor = true;
     } else {
         cursor = _cursors[tint];
@@ -1744,7 +1771,7 @@ ThreadRunner::op_run(Operation *op)
             } else {
                 snprintf(buf, BUF_SIZE, "%s", op->transaction->_begin_config.c_str());
             }
-            WT_ERR(_session->begin_transaction(_session, buf));
+            ERR(_session->begin_transaction(_session, buf));
 
             _in_transaction = true;
         }
@@ -1777,20 +1804,20 @@ ThreadRunner::op_run(Operation *op)
             // Assume success and no retry unless ROLLBACK.
             retry_op = false;
             if (ret != 0 && ret != WT_ROLLBACK)
-                WT_ERR(ret);
+                ERR(ret);
             if (ret == 0)
                 cursor->reset(cursor);
             else {
                 retry_op = true;
                 track->rollbacks++;
-                WT_ERR(_session->rollback_transaction(_session, nullptr));
+                ERR(_session->rollback_transaction(_session, nullptr));
                 _in_transaction = false;
                 ret = 0;
             }
         } else {
             // Never retry on an internal op.
             retry_op = false;
-            WT_ERR(op->_internal->run(this, _session));
+            ERR(op->_internal->run(this, _session));
             _op_time_us += op->_internal->sync_time_us();
         }
     }
@@ -1817,7 +1844,7 @@ ThreadRunner::op_run(Operation *op)
             for (int count = 0; (!_stop || _in_transaction) && count < op->_repeatgroup; count++) {
                 for (std::vector<Operation>::iterator i = op->_group->begin();
                      i != op->_group->end(); i++) {
-                    WT_ERR(op_run_setup(&*i));
+                    ERR(op_run_setup(&*i));
                 }
             }
             workgen_clock(&now);
@@ -1828,10 +1855,10 @@ ThreadRunner::op_run(Operation *op)
     }
 err:
     if (own_cursor)
-        WT_TRET(cursor->close(cursor));
+        TRET(cursor->close(cursor));
     if (op->transaction != nullptr) {
         if (ret != 0 || op->transaction->_rollback) {
-            WT_TRET(_session->rollback_transaction(_session, nullptr));
+            TRET(_session->rollback_transaction(_session, nullptr));
         } else if (_in_transaction) {
             // Set prepare, commit and durable timestamp if prepare is set.
             if (op->transaction->use_prepare_timestamp) {
@@ -2446,7 +2473,7 @@ SleepOperationInternal::run(ThreadRunner *runner, WT_SESSION *session)
     // we should stop.
     while (!runner->_stop && now_us < endtime) {
         uint64_t sleep_us = endtime - now_us;
-        if (sleep_us >= WT_MILLION) // one second
+        if (sleep_us >= MILLION) // one second
             sleep(1);
         else
             usleep(sleep_us);
@@ -3078,7 +3105,7 @@ WorkloadRunner::~WorkloadRunner()
 int
 WorkloadRunner::run(WT_CONNECTION *conn)
 {
-    WT_DECL_RET;
+    DECL_RET;
     WorkloadOptions *options = &_workload->options;
 
     _wt_home = conn->get_home(conn);
@@ -3101,14 +3128,14 @@ WorkloadRunner::run(WT_CONNECTION *conn)
 
     /* Create a randomizer for the workload before we do anything else. */
     WT_SESSION *session;
-    WT_ERR(conn->open_session(conn, nullptr, nullptr, &session));
-    WT_ERR(workgen_random_alloc(session, &_rand_state));
+    ERR(conn->open_session(conn, nullptr, nullptr, &session));
+    ERR(workgen_random_alloc(session, &_rand_state));
 
     /* Initiate everything else, and start the workload. */
-    WT_ERR(create_all(conn, _workload->_context));
-    WT_ERR(open_all());
-    WT_ERR(ThreadRunner::cross_check(_trunners));
-    WT_ERR(run_all(conn));
+    ERR(create_all(conn, _workload->_context));
+    ERR(open_all());
+    ERR(ThreadRunner::cross_check(_trunners));
+    ERR(run_all(conn));
 err:
     // TODO: (void)close_all();
     _report_out = &std::cout;
@@ -3119,7 +3146,7 @@ int
 WorkloadRunner::open_all()
 {
     for (size_t i = 0; i < _trunners.size(); i++) {
-        WT_RET(_trunners[i].open_all());
+        RET(_trunners[i].open_all());
     }
     return (0);
 }
@@ -3156,9 +3183,9 @@ WorkloadRunner::create_all(WT_CONNECTION *conn, Context *context)
         runner->_wrunner = this;
         runner->_number = (uint32_t)i;
         // TODO: recover from partial failure here
-        WT_RET(runner->create_all(conn));
+        RET(runner->create_all(conn));
     }
-    WT_RET(context->_internal->create_all(conn));
+    RET(context->_internal->create_all(conn));
     return (0);
 }
 
@@ -3209,7 +3236,7 @@ WorkloadRunner::final_report(timespec &totalsecs)
 int
 WorkloadRunner::run_all(WT_CONNECTION *conn)
 {
-    WT_DECL_RET;
+    DECL_RET;
 
     // Register signal handlers for SIGINT (Ctrl-C) and SIGTERM.
     std::signal(SIGINT, signal_handler);
@@ -3420,10 +3447,10 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
     // wait for all threads
     WorkgenException *exception = nullptr;
     for (size_t i = 0; i < _trunners.size(); i++) {
-        WT_TRET(pthread_join(thread_handles[i], &status));
+        TRET(pthread_join(thread_handles[i], &status));
         if (_trunners[i]._errno != 0)
             VERBOSE(_trunners[i], "Thread " << i << " has errno " << _trunners[i]._errno);
-        WT_TRET(_trunners[i]._errno);
+        TRET(_trunners[i]._errno);
         _trunners[i].close_all();
         if (exception == nullptr && !_trunners[i]._exception._str.empty())
             exception = &_trunners[i]._exception;
@@ -3431,31 +3458,31 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
 
     // Wait for the time increment thread
     if (runnerConnection != nullptr) {
-        WT_TRET(pthread_join(time_thandle, &status));
+        TRET(pthread_join(time_thandle, &status));
         delete runnerConnection;
     }
 
     // Wait for the idle table cycle thread.
     if (createDropTableCycle != nullptr) {
-        WT_TRET(pthread_join(idle_table_thandle, &status));
+        TRET(pthread_join(idle_table_thandle, &status));
         delete createDropTableCycle;
     }
 
     // Wait for the table create table thread.
     if (tableCreate != nullptr) {
-        WT_TRET(pthread_join(tables_create_thandle, &status));
+        TRET(pthread_join(tables_create_thandle, &status));
         delete tableCreate;
     }
 
     // Wait for the table drop table thread.
     if (tableDrop != nullptr) {
-        WT_TRET(pthread_join(tables_drop_thandle, &status));
+        TRET(pthread_join(tables_drop_thandle, &status));
         delete tableDrop;
     }
 
     workgen_epoch(&now);
     if (options->sample_interval_ms > 0) {
-        WT_TRET(pthread_join(monitor._handle, &status));
+        TRET(pthread_join(monitor._handle, &status));
         if (monitor._errno != 0)
             std::cerr << "Monitor thread has errno " << monitor._errno << std::endl;
         if (exception == nullptr && !monitor._exception._str.empty())

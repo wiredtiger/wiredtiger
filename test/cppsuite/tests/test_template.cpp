@@ -43,8 +43,8 @@ public:
 
     void
     set_tracking_cursor(WT_SESSION *session, const tracking_operation &operation,
-      const uint64_t &collection_id, const std::string &key, const std::string &value,
-      wt_timestamp_t ts, scoped_cursor &op_track_cursor) override final
+      const uint64_t &collection_id, const std::string &key, const std::string &value, uint64_t ts,
+      scoped_cursor &op_track_cursor) override final
     {
         /* You can replace this call to define your own tracking table contents. */
         operation_tracker::set_tracking_cursor(

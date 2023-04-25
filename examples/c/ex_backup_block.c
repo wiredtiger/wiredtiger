@@ -28,7 +28,8 @@
  * ex_backup_block.c
  * 	demonstrates how to use block-based incremental backup.
  */
-#include <test_util.h>
+#include "test_util.h"
+#include "wt_internal.h"
 
 static const char *const home = "WT_BLOCK";
 static const char *const home_full = "WT_BLOCK_LOG_FULL";
