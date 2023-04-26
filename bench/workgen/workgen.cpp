@@ -104,28 +104,10 @@ extern "C" {
 #define OP_HAS_VALUE(op) \
     ((op)->_optype == Operation::OP_INSERT || (op)->_optype == Operation::OP_UPDATE)
 
-#define DECL_RET int ret = 0;
-
 #define ERR(a)                \
     do {                      \
         if ((ret = (a)) != 0) \
             goto err;         \
-    } while (0)
-
-#define RET(a)                  \
-    do {                        \
-        int __ret;              \
-        if ((__ret = (a)) != 0) \
-            return (__ret);     \
-    } while (0)
-
-#define TRET(a)                                                                              \
-    do {                                                                                     \
-        int __ret;                                                                           \
-        if ((__ret = (a)) != 0 &&                                                            \
-          (__ret == WT_PANIC || ret == 0 || ret == WT_DUPLICATE_KEY || ret == WT_NOTFOUND || \
-            ret == WT_RESTART))                                                              \
-            ret = __ret;                                                                     \
     } while (0)
 
 #define MEGABYTE (1048576)
@@ -390,7 +372,7 @@ WorkloadRunner::create_table(WT_SESSION *session, const std::string &config, con
     }
 
     // Create the table.
-    DECL_RET;
+    int ret;
     if ((ret = session->create(session, uri.c_str(), config.c_str())) != 0) {
         if (ret != EBUSY)
             THROW("Failed to create table '" << uri << "'.");
@@ -677,7 +659,7 @@ WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
          * removed from the shared data structures, and we know no thread is operating on them.
          */
         for (auto uri : drop_files) {
-            DECL_RET;
+            int ret;
             // Spin on EBUSY. We do not expect to get stuck.
             while ((ret = session->drop(session, uri.c_str(), "checkpoint_wait=false")) == EBUSY) {
                 VERBOSE(*_workload, "Drop returned EBUSY for table: " << uri);
@@ -895,8 +877,8 @@ ContextInternal::create_all(WT_CONNECTION *conn)
         THROW("Error opening a session.");
     }
 
-    DECL_RET;
     WT_CURSOR *cursor;
+    int ret;
     if ((ret = session->open_cursor(session, "metadata:", NULL, NULL, &cursor)) != 0) {
         /* If there is no metadata (yet), this will return ENOENT. */
         if (ret == ENOENT) {
@@ -1235,14 +1217,14 @@ ThreadRunner::~ThreadRunner()
 int
 ThreadRunner::create_all(WT_CONNECTION *conn)
 {
-    RET(close_all());
+    testutil_check(close_all());
     ASSERT(_session == nullptr);
     if (_thread->options.synchronized)
         _thread->_op.synchronized_check();
-    RET(conn->open_session(conn, nullptr, _thread->options.session_config.c_str(), &_session));
+    testutil_check(conn->open_session(conn, nullptr, _thread->options.session_config.c_str(), &_session));
     _table_usage.clear();
     _stats.track_latency(_workload->options.sample_interval_ms > 0);
-    RET(workgen_random_alloc(_session, &_rand_state));
+    testutil_check(workgen_random_alloc(_session, &_rand_state));
     _throttle_ops = 0;
     _throttle_limit = 0;
     _in_transaction = 0;
@@ -1269,7 +1251,7 @@ ThreadRunner::open_all()
          i++) {
         uint32_t tindex = i->first;
         const std::string uri(_icontext->_table_names[tindex]);
-        RET(_session->open_cursor(_session, uri.c_str(), nullptr, nullptr, &_cursors[tindex]));
+        testutil_check(_session->open_cursor(_session, uri.c_str(), nullptr, nullptr, &_cursors[tindex]));
     }
     return (0);
 }
@@ -1282,7 +1264,7 @@ ThreadRunner::close_all()
         _throttle = nullptr;
     }
     if (_session != nullptr) {
-        RET(_session->close(_session, nullptr));
+        testutil_check(_session->close(_session, nullptr));
         _session = nullptr;
     }
     free_all();
@@ -1340,7 +1322,7 @@ ThreadRunner::cross_check(std::vector<ThreadRunner> &runners)
 int
 ThreadRunner::run()
 {
-    DECL_RET;
+    int ret = 0;
     ThreadOptions *options = &_thread->options;
     std::string name = options->name;
 
@@ -1579,7 +1561,7 @@ ThreadRunner::op_kv_gen(Operation *op, const tint_t tint)
 int
 ThreadRunner::op_run_setup(Operation *op)
 {
-    DECL_RET;
+    int ret = 0;
 
     if (_throttle != nullptr) {
         while (_throttle_ops >= _throttle_limit && !_in_transaction && !_stop) {
@@ -1685,7 +1667,6 @@ ThreadRunner::op_run(Operation *op)
     Track *track;
     WT_CURSOR *cursor;
     WT_ITEM item;
-    DECL_RET;
     bool measure_latency, own_cursor, retry_op;
     timespec start_time;
     uint64_t time_us;
@@ -1697,6 +1678,7 @@ ThreadRunner::op_run(Operation *op)
     cursor = nullptr;
     own_cursor = false;
     retry_op = true;
+    int ret = 0;
 
     switch (op->_optype) {
     case Operation::OP_CHECKPOINT:
@@ -1875,10 +1857,10 @@ ThreadRunner::op_run(Operation *op)
     }
 err:
     if (own_cursor)
-        TRET(cursor->close(cursor));
+        testutil_check(cursor->close(cursor));
     if (op->transaction != nullptr) {
         if (ret != 0 || op->transaction->_rollback) {
-            TRET(_session->rollback_transaction(_session, nullptr));
+            testutil_check(_session->rollback_transaction(_session, nullptr));
         } else if (_in_transaction) {
             // Set prepare, commit and durable timestamp if prepare is set.
             if (op->transaction->use_prepare_timestamp) {
@@ -3125,7 +3107,7 @@ WorkloadRunner::~WorkloadRunner()
 int
 WorkloadRunner::run(WT_CONNECTION *conn)
 {
-    DECL_RET;
+    int ret = 0;
     WorkloadOptions *options = &_workload->options;
 
     _wt_home = conn->get_home(conn);
@@ -3166,7 +3148,7 @@ int
 WorkloadRunner::open_all()
 {
     for (size_t i = 0; i < _trunners.size(); i++) {
-        RET(_trunners[i].open_all());
+        testutil_check(_trunners[i].open_all());
     }
     return (0);
 }
@@ -3203,9 +3185,9 @@ WorkloadRunner::create_all(WT_CONNECTION *conn, Context *context)
         runner->_wrunner = this;
         runner->_number = (uint32_t)i;
         // TODO: recover from partial failure here
-        RET(runner->create_all(conn));
+        testutil_check(runner->create_all(conn));
     }
-    RET(context->_internal->create_all(conn));
+    testutil_check(context->_internal->create_all(conn));
     return (0);
 }
 
@@ -3256,7 +3238,7 @@ WorkloadRunner::final_report(timespec &totalsecs)
 int
 WorkloadRunner::run_all(WT_CONNECTION *conn)
 {
-    DECL_RET;
+    int ret = 0;
 
     // Register signal handlers for SIGINT (Ctrl-C) and SIGTERM.
     std::signal(SIGINT, signal_handler);
@@ -3467,10 +3449,10 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
     // wait for all threads
     WorkgenException *exception = nullptr;
     for (size_t i = 0; i < _trunners.size(); i++) {
-        TRET(pthread_join(thread_handles[i], &status));
+        testutil_check(pthread_join(thread_handles[i], &status));
         if (_trunners[i]._errno != 0)
             VERBOSE(_trunners[i], "Thread " << i << " has errno " << _trunners[i]._errno);
-        TRET(_trunners[i]._errno);
+        testutil_check(_trunners[i]._errno);
         _trunners[i].close_all();
         if (exception == nullptr && !_trunners[i]._exception._str.empty())
             exception = &_trunners[i]._exception;
@@ -3478,31 +3460,31 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
 
     // Wait for the time increment thread
     if (runnerConnection != nullptr) {
-        TRET(pthread_join(time_thandle, &status));
+        testutil_check(pthread_join(time_thandle, &status));
         delete runnerConnection;
     }
 
     // Wait for the idle table cycle thread.
     if (createDropTableCycle != nullptr) {
-        TRET(pthread_join(idle_table_thandle, &status));
+        testutil_check(pthread_join(idle_table_thandle, &status));
         delete createDropTableCycle;
     }
 
     // Wait for the table create table thread.
     if (tableCreate != nullptr) {
-        TRET(pthread_join(tables_create_thandle, &status));
+        testutil_check(pthread_join(tables_create_thandle, &status));
         delete tableCreate;
     }
 
     // Wait for the table drop table thread.
     if (tableDrop != nullptr) {
-        TRET(pthread_join(tables_drop_thandle, &status));
+        testutil_check(pthread_join(tables_drop_thandle, &status));
         delete tableDrop;
     }
 
     workgen_epoch(&now);
     if (options->sample_interval_ms > 0) {
-        TRET(pthread_join(monitor._handle, &status));
+        testutil_check(pthread_join(monitor._handle, &status));
         if (monitor._errno != 0)
             std::cerr << "Monitor thread has errno " << monitor._errno << std::endl;
         if (exception == nullptr && !monitor._exception._str.empty())
