@@ -30,7 +30,7 @@
 /*
  * testutil_random --
  *     Return a random number, without the need to specify a randomness state (i.e., it can be
- * NULL). If the randomness state is not provided, generate a completely random number.
+ *     NULL). If the randomness state is not provided, generate a completely random number.
  */
 uint32_t
 testutil_random(WT_RAND_STATE *rnd)

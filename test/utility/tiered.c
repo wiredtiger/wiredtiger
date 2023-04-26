@@ -111,10 +111,10 @@ testutil_tiered_flush_complete(TEST_OPTS *opts, WT_SESSION *session, void *arg)
 static bool
 tiered_storage_read_config(const char *home, char *s3_prefix, size_t s3_prefix_size)
 {
-    char config_path[512];
-    char *s, *str, *value;
     FILE *f;
     size_t str_size;
+    char config_path[512];
+    char *s, *str, *value;
 
     str = NULL;
     str_size = 0;
@@ -131,8 +131,8 @@ tiered_storage_read_config(const char *home, char *s3_prefix, size_t s3_prefix_s
     }
 
     /*
-     * For now, we only support specifying prefixes in the file, but this can be easily expanded
-     * to include more information, such as the bucket name.
+     * For now, we only support specifying prefixes in the file, but this can be easily expanded to
+     * include more information, such as the bucket name.
      */
     while (getline(&str, &str_size, f) >= 0) {
         if (str[0] == '\0' || str[0] == '#')
@@ -171,16 +171,15 @@ tiered_storage_read_config(const char *home, char *s3_prefix, size_t s3_prefix_s
 static void
 tiered_storage_write_config(const char *home, const char *s3_prefix)
 {
-    char config_path[512];
     FILE *f;
+    char config_path[512];
 
     testutil_check(__wt_snprintf(config_path, sizeof(config_path), "%s/%s",
       home == NULL ? "." : home, TIERED_STORAGE_CONFIG_FILE));
     f = fopen(config_path, "w");
     testutil_assert_errno(f != NULL);
 
-    testutil_assert_errno(
-      fprintf(f, "# Tiered storage configuration written by testutil\n") >= 0);
+    testutil_assert_errno(fprintf(f, "# Tiered storage configuration written by testutil\n") >= 0);
     testutil_assert_errno(fprintf(f, "prefix=%s\n", s3_prefix) >= 0);
 
     testutil_assert_errno(fclose(f) == 0);
@@ -189,15 +188,15 @@ tiered_storage_write_config(const char *home, const char *s3_prefix)
 /*
  * tiered_storage_generate_prefix --
  *     Generate a unique prefix for objects when creating a new database; reuse the prefix when
- * opening an existing database.
+ *     opening an existing database.
  */
 static void
 tiered_storage_generate_prefix(const char *home, char *out, size_t size)
 {
     struct tm time_parsed;
-    char time_str[100];
     size_t n;
     time_t time_now;
+    char time_str[100];
 
     /*
      * Generates a unique prefix to be used with the object keys, e.g.:
@@ -222,10 +221,10 @@ void
 testutil_tiered_storage_configuration(TEST_OPTS *opts, const char *home, char *tiered_cfg,
   size_t tiered_cfg_size, char *ext_cfg, size_t ext_cfg_size)
 {
-    bool is_dir_store;
     char auth_token[256];
     char cwd[256], dir[256], s3_prefix[128];
     const char *s3_access_key, *s3_secret_key, *s3_bucket_name;
+    bool is_dir_store;
 
     s3_bucket_name = NULL;
     auth_token[0] = '\0';
@@ -294,5 +293,4 @@ testutil_tiered_storage_configuration(TEST_OPTS *opts, const char *home, char *t
         testutil_assert(tiered_cfg_size > 0);
         tiered_cfg[0] = '\0';
     }
-    fprintf(stderr, "******%s\n", tiered_cfg);
 }
