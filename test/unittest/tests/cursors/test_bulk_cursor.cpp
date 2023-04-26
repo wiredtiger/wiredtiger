@@ -14,16 +14,6 @@
 #include "../wrappers/connection_wrapper.h"
 #include "../wrappers/item_wrapper.h"
 
-static void
-init_wt_item(WT_ITEM &item)
-{
-    item.data = nullptr;
-    item.size = 0;
-    item.mem = nullptr;
-    item.memsize = 0;
-    item.flags = 0;
-}
-
 static int
 insert_key_value(WT_CURSOR *cursor, const char *key, const char *value)
 {
@@ -34,18 +24,6 @@ insert_key_value(WT_CURSOR *cursor, const char *key, const char *value)
     return cursor->insert(cursor);
 }
 
-static bool
-check_item(WT_ITEM *item, const char *expected)
-{
-    bool match = true;
-    if (expected != nullptr) {
-        const char *key = static_cast<const char *>(item->data);
-        REQUIRE(key != nullptr);
-        match = strcmp(key, expected) == 0;
-    }
-    REQUIRE(match);
-    return match;
-}
 
 static void insert_sample_values(WT_CURSOR *cursor)
 {
