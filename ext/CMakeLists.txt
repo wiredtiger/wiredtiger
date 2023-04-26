@@ -5,6 +5,7 @@ add_subdirectory(compressors/lz4)
 add_subdirectory(compressors/snappy)
 add_subdirectory(compressors/zlib)
 add_subdirectory(compressors/zstd)
+add_subdirectory(compressors/iaa)
 add_subdirectory(compressors/nop)
 
 # Build the collator extensions.
