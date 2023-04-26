@@ -24,8 +24,8 @@ insert_key_value(WT_CURSOR *cursor, const char *key, const char *value)
     return cursor->insert(cursor);
 }
 
-
-static void insert_sample_values(WT_CURSOR *cursor)
+static void
+insert_sample_values(WT_CURSOR *cursor)
 {
     REQUIRE(insert_key_value(cursor, "key1", "value1") == 0);
     REQUIRE(insert_key_value(cursor, "key2", "value2") == 0);
@@ -34,20 +34,21 @@ static void insert_sample_values(WT_CURSOR *cursor)
     REQUIRE(insert_key_value(cursor, "key5", "value5") == 0);
 }
 
-
-void thread_function_checkpoint(WT_SESSION *session)
+void
+thread_function_checkpoint(WT_SESSION *session)
 {
     session->checkpoint(session, NULL);
 }
 
-
-void thread_function_drop(WT_SESSION *session, std::string const& uri)
+void
+thread_function_drop(WT_SESSION *session, std::string const &uri)
 {
     session->drop(session, uri.c_str(), "force=true");
 }
 
-
-void cursor_test(std::string const &config, bool close, int expected_commit_result) {
+void
+cursor_test(std::string const &config, bool close, int expected_commit_result)
+{
     ConnectionWrapper conn(DB_HOME);
     WT_SESSION_IMPL *session_impl = conn.createSession();
     WT_SESSION *session = &session_impl->iface;
@@ -63,7 +64,8 @@ void cursor_test(std::string const &config, bool close, int expected_commit_resu
 
     std::string close_as_string = close ? "true" : "false";
 
-    SECTION("Checkpoint during transaction then commit: config = " + config + ", close = " + close_as_string)
+    SECTION("Checkpoint during transaction then commit: config = " + config +
+      ", close = " + close_as_string)
     {
         int result = session->checkpoint(session, NULL);
         REQUIRE(result == EINVAL);
@@ -75,9 +77,10 @@ void cursor_test(std::string const &config, bool close, int expected_commit_resu
         REQUIRE(session->commit_transaction(session, "") == expected_commit_result);
     }
 
-    SECTION("Checkpoint in 2nd thread during transaction then commit: config = " + config + ", close = " + close_as_string)
+    SECTION("Checkpoint in 2nd thread during transaction then commit: config = " + config +
+      ", close = " + close_as_string)
     {
-        std::thread thread([&]() { thread_function_checkpoint(session); } );
+        std::thread thread([&]() { thread_function_checkpoint(session); });
         thread.join();
 
         if (close) {
@@ -87,9 +90,10 @@ void cursor_test(std::string const &config, bool close, int expected_commit_resu
         REQUIRE(session->commit_transaction(session, "") == expected_commit_result);
     }
 
-    SECTION("Drop in 2nd thread during transaction then commit: config = " + config + ", close = " + close_as_string)
+    SECTION("Drop in 2nd thread during transaction then commit: config = " + config +
+      ", close = " + close_as_string)
     {
-        std::thread thread([&]() { thread_function_drop(session, uri); } );
+        std::thread thread([&]() { thread_function_drop(session, uri); });
         thread.join();
 
         if (close) {
@@ -99,9 +103,10 @@ void cursor_test(std::string const &config, bool close, int expected_commit_resu
         REQUIRE(session->commit_transaction(session, "") == expected_commit_result);
     }
 
-    SECTION("Checkpoint in 2nd thread during transaction then rollback: config = " + config + ", close = " + close_as_string)
+    SECTION("Checkpoint in 2nd thread during transaction then rollback: config = " + config +
+      ", close = " + close_as_string)
     {
-        std::thread thread([&]() { thread_function_checkpoint(session); } );
+        std::thread thread([&]() { thread_function_checkpoint(session); });
         thread.join();
 
         if (close) {
@@ -111,7 +116,6 @@ void cursor_test(std::string const &config, bool close, int expected_commit_resu
         REQUIRE(session->rollback_transaction(session, "") == 0);
     }
 }
-
 
 TEST_CASE("Cursor: checkpoint during transaction()", "[cursor]")
 {

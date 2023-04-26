@@ -81,8 +81,8 @@ require_get_raw_key_value(WT_CURSOR *cursor, const char *expected_key, const cha
     return keys_match && values_match;
 }
 
-
-void insert_sample_values(WT_CURSOR *cursor)
+void
+insert_sample_values(WT_CURSOR *cursor)
 {
     REQUIRE(insert_key_value(cursor, "key1", "value1") == 0);
     REQUIRE(insert_key_value(cursor, "key2", "value2") == 0);
@@ -90,7 +90,6 @@ void insert_sample_values(WT_CURSOR *cursor)
     REQUIRE(insert_key_value(cursor, "key4", "value4") == 0);
     REQUIRE(insert_key_value(cursor, "key5", "value5") == 0);
 }
-
 
 TEST_CASE("Cursor: get key and value()", "[cursor]")
 {

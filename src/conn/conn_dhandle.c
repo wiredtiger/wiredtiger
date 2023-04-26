@@ -381,7 +381,8 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead)
             else {
                 if (F_ISSET(session->txn, WT_TXN_ERROR)) {
                     /* This _wt_errx() call is temporary and will be removed before merging */
-                    __wt_errx(session, "(for debugging) WT_TXN_ERROR is set on the session txn, "
+                    __wt_errx(session,
+                      "(for debugging) WT_TXN_ERROR is set on the session txn, "
                       "so don't call __wt_checkpoint_close()");
                 } else {
                     WT_TRET(__wt_checkpoint_close(session, final));
