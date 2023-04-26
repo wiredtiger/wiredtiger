@@ -96,6 +96,7 @@ operation_tracker::do_work()
     char *sweep_key;
     bool globally_visible_update_found;
 
+    ret = 0;
     /*
      * This function prunes old data from the tracking table as the default validation logic doesn't
      * use it. User-defined validation may need this data, so don't allow it to be removed.
