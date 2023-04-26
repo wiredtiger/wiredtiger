@@ -1851,6 +1851,16 @@ tasks:
         vars:
           test_name: incr_backup
 
+  - name: csuite-random-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "csuite test"
+        vars:
+          test_name: random
+
   - name: csuite-random-abort-test
     tags: ["pull_request"]
     depends_on:
@@ -2785,19 +2795,9 @@ tasks:
             set -o errexit
             set -o verbose
             sh -x s_all -A -E 2>&1
-
-  - name: s-string
-    # Run the script with "-r" option to remove no-longer-needed words in s_string.ok
-    # This task only needs to be scheduled every a few months. A failure can remind us
-    # to keep the s_string.ok word list up-to-date.
-    commands:
-      - func: "get project"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/dist"
-          script: |
-            set -o errexit
-            set -o verbose
+            # Run s_string with the "-r" option to remove no-longer-needed words from s_string.ok
+            # This is run separately from s_all as it can be too proactive when run as part of 
+            # developers local workflow, but needs to be run in PR builds before the code is merged.
             sh s_string -r 2>&1
 
   - name: s-outdated-fixmes
@@ -5850,29 +5850,6 @@ buildvariants:
     - name: unit-test-nonstandalone
     - name: unit-test-extra-long-nonstandalone
       distros: amazon2-arm64-large
-
-- name: infrequent-checks
-  display_name: "~ Infrequent checks"
-  run_on:
-  - ubuntu2004-test
-  expansions:
-    test_env_vars:
-      WT_TOPDIR=$(git rev-parse --show-toplevel)
-      WT_BUILDDIR=$WT_TOPDIR/cmake_build
-      LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
-      LD_PRELOAD=$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
-    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
-    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
-    smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
-    cmake_generator: Ninja
-    make_command: ninja
-  tasks:
-    - name: memory-model-test
-      batchtime: 40320 # 28 days
-    - name: s-outdated-fixmes
-      batchtime: 10080 # 7 days
-    - name: s-string
-      batchtime: 129600 # 90 days
 
 # Antithesis build and push
 - name: ubuntu2004-antithesis
