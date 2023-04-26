@@ -112,6 +112,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
     force_evict_hs = false;
     eviction_time = eviction_time_milliseconds = 0;
+    clean_page = false;
 
     __wt_verbose(
       session, WT_VERB_EVICT, "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
