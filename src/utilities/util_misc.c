@@ -191,7 +191,7 @@ util_usage(const char *usage, const char *tag, const char *list[])
 
 /*
  * util_malloc --
- *     Convenience wrapper for memory allocations. Pairs with util_free.
+ *     Convenience and correctness wrapper for memory allocations. Pairs with util_free.
  */
 void *
 util_malloc(size_t len)
@@ -205,7 +205,7 @@ util_malloc(size_t len)
 
 /*
  * util_calloc --
- *     Convenience wrapper for array allocations. Pairs with util_free.
+ *     Convenience and correctness wrapper for array allocations. Pairs with util_free.
  */
 void *
 util_calloc(size_t members, size_t sz)
@@ -219,7 +219,7 @@ util_calloc(size_t members, size_t sz)
 
 /*
  * util_realloc --
- *     Convenience wrapper for memory reallocations. Pairs with util_free.
+ *     Convenience and correctness wrapper for memory reallocations. Pairs with util_free.
  */
 void *
 util_realloc(void *p, size_t len)
@@ -234,7 +234,7 @@ util_realloc(void *p, size_t len)
 /*
  * util_free --
  *     Convenience and correctness wrapper for freeing memory. Pairs with
- *     util_alloc/util_realloc/util_calloc.
+ *     util_malloc/util_realloc/util_calloc.
  */
 void
 util_free(void *p)
