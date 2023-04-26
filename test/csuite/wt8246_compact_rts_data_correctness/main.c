@@ -341,6 +341,7 @@ large_updates(WT_SESSION *session, const char *uri, char *value, int commit_ts)
         cursor->set_value(cursor, val, val, val, value);
         while (((ret = cursor->insert(cursor)) == WT_ROLLBACK) && retry_attempts < MAX_RETRIES) {
             testutil_check(session->rollback_transaction(session, NULL));
+            testutil_check(session->begin_transaction(session, NULL));
             ++retry_attempts;
         }
 
