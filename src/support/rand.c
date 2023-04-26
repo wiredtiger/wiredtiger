@@ -83,9 +83,9 @@ __wt_random_init_custom_seed(WT_RAND_STATE volatile *rnd_state, uint64_t v)
 
     /*
      * XOR the provided seed with the initial seed. With high probability, this would provide a
-     * random-looking seed for the algorithm, which has about 50% of bits turned on. We don't need
-     * to check whether W or Z becomes 0, because we would handle it the first time we use this
-     * state to generate a random number.
+     * random-looking seed which has about 50% of the bits turned on. We don't need to check whether
+     * W or Z becomes 0, because we would handle it the first time we use this state to generate a
+     * random number.
      */
     M_V(rnd) = v;
     M_W(rnd) ^= DEFAULT_SEED_W;
@@ -150,9 +150,9 @@ __wt_random(WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_ATTRIBUTE((visibility
     z = M_Z(rnd);
 
     /*
-     * Check if either of the two value goes to 0 (from which we won't recover), and reset it to the
-     * default initial state. This will never happen with the default seed, but we need this for the
-     * other case.
+     * Check if either of the two values goes to 0 (from which we won't recover), and reset it to
+     * the default initial state. This would never happen with the default seed, but we need this
+     * for the other cases.
      *
      * We do this one component at a time, so that if the random number generator was initialized
      * from an explicitly provided seed, it would not reset the entire state and then effectively
@@ -163,12 +163,12 @@ __wt_random(WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_ATTRIBUTE((visibility
      * seed that results in a short period.
      */
     if (w == 0)
-        M_W(rnd) = w = DEFAULT_SEED_W;
+        w = DEFAULT_SEED_W;
     if (z == 0)
-        M_Z(rnd) = z = DEFAULT_SEED_Z;
+        z = DEFAULT_SEED_Z;
 
-    M_Z(rnd) = z = 36969 * (z & 65535) + (z >> 16);
     M_W(rnd) = w = 18000 * (w & 65535) + (w >> 16);
+    M_Z(rnd) = z = 36969 * (z & 65535) + (z >> 16);
     *rnd_state = rnd;
 
     return ((z << 16) + (w & 65535));
