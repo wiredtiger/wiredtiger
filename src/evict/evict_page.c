@@ -234,6 +234,14 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
      * We have loaded the new disk image and updated the tree structure. We can no longer fail after
      * this point.
      */
+
+    if (0) {
+err:
+        if (!closing)
+            __evict_exclusive_clear(session, ref, previous_state);
+    }
+
+done:
     if (session->evict_timeline.reentry_hs_eviction) {
         session->evict_timeline.nested_evict_finish = __wt_clock(session);
         eviction_time = WT_CLOCKDIFF_US(
@@ -243,39 +251,28 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
         eviction_time = WT_CLOCKDIFF_US(
           session->evict_timeline.evict_finish, session->evict_timeline.evict_start);
     }
-    if (LF_ISSET(WT_EVICT_CALL_URGENT)) {
-        if (force_evict_hs)
-            WT_STAT_CONN_INCR(session, cache_eviction_force_hs_success);
-        if (clean_page) {
-            WT_STAT_CONN_INCR(session, cache_eviction_force_clean);
-            WT_STAT_CONN_INCRV(session, cache_eviction_force_clean_time, eviction_time);
-        } else {
-            WT_STAT_CONN_INCR(session, cache_eviction_force_dirty);
-            WT_STAT_CONN_INCRV(session, cache_eviction_force_dirty_time, eviction_time);
+    if (ret == 0) {
+        if (LF_ISSET(WT_EVICT_CALL_URGENT)) {
+            if (force_evict_hs)
+                WT_STAT_CONN_INCR(session, cache_eviction_force_hs_success);
+            if (clean_page) {
+                WT_STAT_CONN_INCR(session, cache_eviction_force_clean);
+                WT_STAT_CONN_INCRV(session, cache_eviction_force_clean_time, eviction_time);
+            } else {
+                WT_STAT_CONN_INCR(session, cache_eviction_force_dirty);
+                WT_STAT_CONN_INCRV(session, cache_eviction_force_dirty_time, eviction_time);
+            }
         }
-    }
-    if (clean_page)
-        WT_STAT_CONN_DATA_INCR(session, cache_eviction_clean);
-    else
-        WT_STAT_CONN_DATA_INCR(session, cache_eviction_dirty);
 
-    /* Count page evictions in parallel with checkpoint. */
-    if (conn->txn_global.checkpoint_running)
-        WT_STAT_CONN_INCR(session, cache_eviction_pages_in_parallel_with_checkpoint);
+        if (clean_page)
+            WT_STAT_CONN_DATA_INCR(session, cache_eviction_clean);
+        else
+            WT_STAT_CONN_DATA_INCR(session, cache_eviction_dirty);
 
-    if (0) {
-err:
-        if (!closing)
-            __evict_exclusive_clear(session, ref, previous_state);
-        if (session->evict_timeline.reentry_hs_eviction) {
-            session->evict_timeline.nested_evict_finish = __wt_clock(session);
-            eviction_time = WT_CLOCKDIFF_US(session->evict_timeline.nested_evict_finish,
-              session->evict_timeline.nested_evict_start);
-        } else {
-            session->evict_timeline.evict_finish = __wt_clock(session);
-            eviction_time = WT_CLOCKDIFF_US(
-              session->evict_timeline.evict_finish, session->evict_timeline.evict_start);
-        }
+        /* Count page evictions in parallel with checkpoint. */
+        if (conn->txn_global.checkpoint_running)
+            WT_STAT_CONN_INCR(session, cache_eviction_pages_in_parallel_with_checkpoint);
+    } else {
         if (LF_ISSET(WT_EVICT_CALL_URGENT)) {
             if (force_evict_hs)
                 WT_STAT_CONN_INCR(session, cache_eviction_force_hs_fail);
@@ -285,8 +282,6 @@ err:
 
         WT_STAT_CONN_DATA_INCR(session, cache_eviction_fail);
     }
-
-done:
     if (!session->evict_timeline.reentry_hs_eviction) {
         eviction_time_milliseconds = eviction_time / WT_THOUSAND;
         if (eviction_time_milliseconds > conn->cache->evict_max_ms)
