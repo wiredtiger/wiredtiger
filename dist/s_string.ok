@@ -55,6 +55,7 @@ CBT
 CCCCCCCCCCCCCCCCCC
 CELLs
 CET
+CHUNKCACHE
 CKPT
 CLOEXEC
 CMP
@@ -74,7 +75,6 @@ Checksums
 CityHash
 CloseHandle
 CmP
-CmPTh
 Comparator
 Config
 Coverity
@@ -97,7 +97,7 @@ Decrypt
 DeleteFileW
 Deterministically
 Dk
-DmpvXx
+DmpRvXx
 Dxxx
 EACCES
 EB
@@ -543,6 +543,7 @@ checkvalue
 chk
 chmod
 chongo
+chunkcache
 cip
 ciphertext
 ckpt
@@ -854,6 +855,7 @@ isprint
 isrc
 isspace
 iter
+jemalloc
 jjj
 js
 json
@@ -1004,6 +1006,7 @@ notfound
 notsup
 novalue
 nowait
+np
 nrecs
 nsec
 nset
@@ -1039,7 +1042,6 @@ pT
 packv
 pageref
 pagesize
-pagestat
 param
 pareto
 parserp
@@ -1151,6 +1153,7 @@ sdk
 secretkey
 sessionp
 setkv
+setname
 setstr
 setv
 setvbuf
@@ -1269,6 +1272,7 @@ uS
 ui
 uint
 umount
+unallocated
 unbare
 unbuffered
 uncompressing

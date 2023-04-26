@@ -445,6 +445,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_walks_active;
     int64_t cache_eviction_walks_started;
     int64_t cache_eviction_force_retune;
+    int64_t cache_eviction_force_no_retry;
     int64_t cache_eviction_force_hs_fail;
     int64_t cache_eviction_force_hs;
     int64_t cache_eviction_force_hs_success;
@@ -552,6 +553,18 @@ struct __wt_connection_stats {
     int64_t cc_pages_removed;
     int64_t cc_pages_walk_skipped;
     int64_t cc_pages_visited;
+    int64_t chunk_cache_spans_chunks_read;
+    int64_t chunk_cache_spans_chunks_remove;
+    int64_t chunk_cache_chunks_evicted;
+    int64_t chunk_cache_chunks_invalidated;
+    int64_t chunk_cache_exceeded_capacity;
+    int64_t chunk_cache_lookups;
+    int64_t chunk_cache_misses;
+    int64_t chunk_cache_io_failed;
+    int64_t chunk_cache_retries;
+    int64_t chunk_cache_toomany_retries;
+    int64_t chunk_cache_bytes_inuse;
+    int64_t chunk_cache_chunks_inuse;
     int64_t cond_auto_wait_reset;
     int64_t cond_auto_wait;
     int64_t cond_auto_wait_skipped;
@@ -843,6 +856,7 @@ struct __wt_connection_stats {
     int64_t txn_prepared_updates_committed;
     int64_t txn_prepared_updates_key_repeated;
     int64_t txn_prepared_updates_rolledback;
+    int64_t txn_checkpoint_snapshot_acquired;
     int64_t txn_read_overflow_remove;
     int64_t txn_rollback_oldest_pinned;
     int64_t txn_prepare;
@@ -956,6 +970,7 @@ struct __wt_dsrc_stats {
     int64_t btree_compact_pages_reviewed;
     int64_t btree_compact_pages_rewritten;
     int64_t btree_compact_pages_skipped;
+    int64_t btree_compact_pages_rewritten_expected;
     int64_t btree_compact_skipped;
     int64_t btree_column_fix;
     int64_t btree_column_tws;
@@ -1187,6 +1202,7 @@ struct __wt_dsrc_stats {
     int64_t rec_time_window_stop_ts;
     int64_t rec_time_window_stop_txn;
     int64_t session_compact;
+    int64_t txn_checkpoint_snapshot_acquired;
     int64_t txn_read_overflow_remove;
     int64_t txn_read_race_prepare_update;
     int64_t txn_rts_sweep_hs_keys_dryrun;
