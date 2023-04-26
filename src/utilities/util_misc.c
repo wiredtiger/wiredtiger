@@ -8,6 +8,20 @@
 
 #include "util.h"
 
+#ifdef HAVE_LIBTCMALLOC
+/*
+ * Include the TCMalloc header with the "-Wundef" diagnostic flag disabled. Compiling with strict
+ * (where the 'Wundef' diagnostic flag is enabled), generates compilation errors where the
+ * '__cplusplus' CPP macro is not defined. This being employed by the TCMalloc header to
+ * differentiate C & C++ compilation environments. We don't want to define '__cplusplus' when
+ * compiling C sources.
+ */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wundef"
+#include <gperftools/tcmalloc.h>
+#pragma GCC diagnostic pop
+#endif
+
 /*
  * util_cerr --
  *     Report an error for a cursor operation.
@@ -173,4 +187,61 @@ util_usage(const char *usage, const char *tag, const char *list[])
     if (list != NULL)
         for (p = list; *p != NULL; p += 2)
             fprintf(stderr, "    %s%s%s\n", p[0], strlen(p[0]) > 2 ? "\n        " : "  ", p[1]);
+}
+
+/*
+ * util_malloc --
+ *     Convenience wrapper for memory allocations. Pairs with util_free.
+ */
+void *
+util_malloc(size_t len)
+{
+#ifdef HAVE_LIBTCMALLOC
+    return (tc_malloc(len));
+#else
+    return (malloc(len));
+#endif
+}
+
+/*
+ * util_calloc --
+ *     Convenience wrapper for array allocations. Pairs with util_free.
+ */
+void *
+util_calloc(size_t members, size_t sz)
+{
+#ifdef HAVE_LIBTCMALLOC
+    return (tc_calloc(members, sz));
+#else
+    return (calloc(members, sz));
+#endif
+}
+
+/*
+ * util_realloc --
+ *     Convenience wrapper for memory reallocations. Pairs with util_free.
+ */
+void *
+util_realloc(void *p, size_t len)
+{
+#ifdef HAVE_LIBTCMALLOC
+    return (tc_realloc(p, len));
+#else
+    return (realloc(p, len));
+#endif
+}
+
+/*
+ * util_free --
+ *     Convenience and correctness wrapper for freeing memory. Pairs with
+ *     util_alloc/util_realloc/util_calloc.
+ */
+void
+util_free(void *p)
+{
+#ifdef HAVE_LIBTCMALLOC
+    tc_free(p);
+#else
+    free(p);
+#endif
 }
