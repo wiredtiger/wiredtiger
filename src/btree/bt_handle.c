@@ -420,6 +420,12 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
         F_CLR(btree, WT_BTREE_LOGGED);
     }
 
+    WT_RET(__wt_config_gets(session, cfg, "insert_only", &cval));
+    if (cval.val)
+        F_SET(btree, WT_BTREE_INSERT_ONLY);
+    else
+        F_CLR(btree, WT_BTREE_INSERT_ONLY);
+
     WT_RET(__wt_config_gets(session, cfg, "tiered_object", &cval));
     if (cval.val)
         F_SET(btree, WT_BTREE_NO_CHECKPOINT);

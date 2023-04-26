@@ -82,6 +82,13 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
 
     counter = hs_counter = 0;
 
+    /*
+     * Ensure that there are no history store inserts performed for the table configured for
+     * insert only.
+     */
+    WT_ASSERT_ALWAYS(session, !F_ISSET(btree, WT_BTREE_INSERT_ONLY),
+      "History store insert is performed on a table configured with insert only.");
+
     /* Verify that the timestamps are in increasing order. */
     WT_ASSERT(session, tw->stop_ts >= tw->start_ts && tw->durable_stop_ts >= tw->durable_start_ts);
 

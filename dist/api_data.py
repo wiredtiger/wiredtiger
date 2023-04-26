@@ -233,6 +233,10 @@ file_runtime_config = common_runtime_config + [
         do not ever evict the object's pages from cache. Not compatible with LSM tables; see
         @ref tuning_cache_resident for more information''',
         type='boolean'),
+    Config('insert_only', 'false', r'''
+        configure to allow insert-only operations when the table is created. An error is returned
+        when an update operation is performed''',
+        type='boolean'),
     Config('log', '', r'''
         the transaction log configuration for this object. Only valid if \c log is enabled in
         ::wiredtiger_open''',

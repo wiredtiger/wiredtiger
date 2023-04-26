@@ -1111,6 +1111,8 @@ struct __wt_session {
      * @config{cache_resident, do not ever evict the object's pages from cache.  Not compatible with
      * LSM tables; see @ref tuning_cache_resident for more information., a boolean flag; default \c
      * false.}
+     * @config{insert_only, configure to allow insert-only operations when the table is created.  An
+     * error is returned when an update operation is performed., a boolean flag; default \c false.}
      * @config{log = (, the transaction log configuration for this object.  Only valid if \c log is
      * enabled in ::wiredtiger_open., a set of related configuration options defined as follows.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, if false\, this object has checkpoint-level
@@ -1253,6 +1255,8 @@ struct __wt_session {
      * whether to reconstruct the metadata from the raw file content., a boolean flag; default \c
      * false.}
      * @config{ ),,}
+     * @config{insert_only, configure to allow insert-only operations when the table is created.  An
+     * error is returned when an update operation is performed., a boolean flag; default \c false.}
      * @config{internal_key_max, This option is no longer supported\, retained for backward
      * compatibility., an integer greater than or equal to \c 0; default \c 0.}
      * @config{internal_key_truncate, configure internal key truncation\, discarding unnecessary

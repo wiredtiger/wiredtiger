@@ -258,15 +258,16 @@ struct __wt_btree {
 #define WT_BTREE_BULK 0x0002000u           /* Bulk-load handle */
 #define WT_BTREE_CLOSED 0x0004000u         /* Handle closed */
 #define WT_BTREE_IGNORE_CACHE 0x0008000u   /* Cache-resident object */
-#define WT_BTREE_IN_MEMORY 0x0010000u      /* Cache-resident object */
-#define WT_BTREE_LOGGED 0x0020000u         /* Commit-level durability without timestamps */
-#define WT_BTREE_NO_CHECKPOINT 0x0040000u  /* Disable checkpoints */
-#define WT_BTREE_OBSOLETE_PAGES 0x0080000u /* Handle has obsolete pages */
-#define WT_BTREE_READONLY 0x0100000u       /* Handle is readonly */
-#define WT_BTREE_SALVAGE 0x0200000u        /* Handle is for salvage */
-#define WT_BTREE_SKIP_CKPT 0x0400000u      /* Handle skipped checkpoint */
-#define WT_BTREE_UPGRADE 0x0800000u        /* Handle is for upgrade */
-#define WT_BTREE_VERIFY 0x1000000u         /* Handle is for verify */
+#define WT_BTREE_INSERT_ONLY 0x0010000u    /* Handle is insert-only */
+#define WT_BTREE_IN_MEMORY 0x0020000u      /* Cache-resident object */
+#define WT_BTREE_LOGGED 0x0040000u         /* Commit-level durability without timestamps */
+#define WT_BTREE_NO_CHECKPOINT 0x0080000u  /* Disable checkpoints */
+#define WT_BTREE_OBSOLETE_PAGES 0x0100000u /* Handle has obsolete pages */
+#define WT_BTREE_READONLY 0x0200000u       /* Handle is readonly */
+#define WT_BTREE_SALVAGE 0x0400000u        /* Handle is for salvage */
+#define WT_BTREE_SKIP_CKPT 0x0800000u      /* Handle skipped checkpoint */
+#define WT_BTREE_UPGRADE 0x1000000u        /* Handle is for upgrade */
+#define WT_BTREE_VERIFY 0x2000000u         /* Handle is for verify */
                                            /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };

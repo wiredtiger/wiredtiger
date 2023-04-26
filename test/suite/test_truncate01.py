@@ -222,27 +222,37 @@ class test_truncate_timestamp(wttest.WiredTigerTestCase):
     name = 'test_truncate'
     conn_config = 'log=(enabled=true)'
 
-    scenarios = make_scenarios([
+    types = [
         ('file', dict(type='file:')),
         ('table', dict(type='table:'))
-    ])
+    ]
+    insert_only = [
+        ('insert_only', dict(insert_only=True)),
+        ('update', dict(insert_only=False)),
+    ]
+    scenarios = make_scenarios(types, insert_only)
 
     # Test truncation without a timestamp, expect errors.
     @wttest.prevent(["timestamp"])  # prevent the use of hooks that manage timestamps
     def test_truncate_no_ts(self):
-        # Truncate with no timestamps is not allowed only in standalone builds.
-        if not wiredtiger.standalone_build():
-            self.skipTest('requires a standalone build')
-
         uri = self.type + self.name
         msg = '/truncate operations may not yet be included/'
 
-        ds = SimpleDataSet(self, uri, 100, config='log=(enabled=false)')
+        if self.insert_only:
+            table_config='log=(enabled=false),insert_only=true'
+        else:
+            table_config='log=(enabled=false)'
+
+        ds = SimpleDataSet(self, uri, 100, config=table_config)
         ds.populate()
 
         self.session.begin_transaction("no_timestamp=true")
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: ds.truncate(uri, None, None, None), msg)
+        if self.insert_only:
+            ds.truncate(uri, None, None, None)
+        else:
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: ds.truncate(uri, None, None, None), msg)
+
 
     # Test truncation of a logged object without a timestamp, expect success.
     @wttest.prevent(["timestamp"])  # prevent the use of hooks that manage timestamps
