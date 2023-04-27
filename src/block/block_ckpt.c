@@ -218,6 +218,8 @@ __wt_block_checkpoint_unload(WT_SESSION_IMPL *session, WT_BLOCK *block, bool che
 void
 __wt_block_ckpt_destroy(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
 {
+    /* Make sure to own the live lock when running this on the live checkpoint. */
+
     /* Discard the extent lists. */
     __wt_block_extlist_free(session, &ci->alloc);
     __wt_block_extlist_free(session, &ci->avail);
@@ -457,6 +459,9 @@ __ckpt_add_blk_mods_alloc(
     WT_CKPT *ckpt;
     WT_EXT *ext;
     u_int i;
+
+    if (&block->live == ci)
+        WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
     WT_CKPT_FOREACH (ckptbase, ckpt) {
         if (F_ISSET(ckpt, WT_CKPT_ADD))
@@ -827,7 +832,7 @@ err:
         __wt_blkcache_set_readonly(session);
     }
 
-    __wt_spin_unlock_if_owns(session, &block->live_lock);
+    __wt_spin_unlock_if_owned(session, &block->live_lock);
 
     /* Discard any checkpoint information we loaded. */
     WT_CKPT_FOREACH (ckptbase, ckpt)
@@ -851,7 +856,8 @@ __ckpt_update(
     bool is_live;
 
     is_live = F_ISSET(ckpt, WT_CKPT_ADD);
-    WT_ASSERT_SPINLOCK_COND(session, &block->live_lock, is_live);
+    if (is_live)
+        WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
 #ifdef HAVE_DIAGNOSTIC
     /* Check the extent list combinations for overlaps. */

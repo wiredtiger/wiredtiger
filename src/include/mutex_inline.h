@@ -293,38 +293,31 @@ __wt_spin_unlock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 #endif
 
 /*
- * __wt_spin_owns --
+ * __wt_spin_owned --
  *     Check whether the session owns the spinlock.
  */
 static inline bool
-__wt_spin_owns(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
+__wt_spin_owned(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 {
     return (t->session_id == WT_SPIN_SESSION_ID_SAFE(session));
 }
 
 /*
- * __wt_spin_unlock_if_owns --
+ * __wt_spin_unlock_if_owned --
  *     Unlock the spinlock only if it is acquired by the specified session.
  */
 static inline void
-__wt_spin_unlock_if_owns(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
+__wt_spin_unlock_if_owned(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 {
-    if (__wt_spin_owns(session, t))
+    if (__wt_spin_owned(session, t))
         __wt_spin_unlock(session, t);
 }
 
 /*
- * WT_ASSERT_SPINLOCK --
+ * WT_ASSERT_SPINLOCK_OWNED --
  *      Assert that the session owns the spinlock.
  */
-#define WT_ASSERT_SPINLOCK(session, t) WT_ASSERT((session), __wt_spin_owns((session), (t)));
-
-/*
- * WT_ASSERT_SPINLOCK_COND --
- *      Assert that the session owns the spinlock, but only if the given condition is satisfied.
- */
-#define WT_ASSERT_SPINLOCK_COND(session, t, condition) \
-    WT_ASSERT((session), !(condition) || __wt_spin_owns((session), (t)));
+#define WT_ASSERT_SPINLOCK_OWNED(session, t) WT_ASSERT((session), __wt_spin_owned((session), (t)));
 
 /*
  * WT_SPIN_INIT_TRACKED --

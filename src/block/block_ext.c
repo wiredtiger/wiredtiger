@@ -486,7 +486,7 @@ __wt_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_o
     WT_SIZE *szp, **sstack[WT_SKIP_MAXDEPTH];
 
     /* The live lock must be locked. */
-    WT_ASSERT_SPINLOCK(session, &block->live_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
     /* If a sync is running, no other sessions can allocate blocks. */
     WT_ASSERT(session, WT_SESSION_BTREE_SYNC_SAFE(session, S2BT(session)));
@@ -614,7 +614,8 @@ __wt_block_off_free(
     WT_DECL_RET;
 
     /* The live lock must be locked, except for when we are running salvage. */
-    WT_ASSERT_SPINLOCK_COND(session, &block->live_lock, !F_ISSET(S2BT(session), WT_BTREE_SALVAGE));
+    if (!F_ISSET(S2BT(session), WT_BTREE_SALVAGE))
+        WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
     /* If a sync is running, no other sessions can free blocks. */
     WT_ASSERT(session, WT_SESSION_BTREE_SYNC_SAFE(session, S2BT(session)));
@@ -683,7 +684,7 @@ __wt_block_extlist_overlap(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_BLOCK_C
 {
     WT_EXT *alloc, *discard;
 
-    WT_ASSERT_SPINLOCK(session, &block->live_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
     alloc = ci->alloc.off[0];
     discard = ci->discard.off[0];
@@ -720,7 +721,7 @@ __block_ext_overlap(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *ael, 
     WT_EXTLIST *avail, *el;
     wt_off_t off, size;
 
-    WT_ASSERT_SPINLOCK(session, &block->live_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
     avail = &block->live.ckpt_avail;
 
@@ -895,6 +896,8 @@ __wt_block_extlist_merge(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *
     WT_EXT *ext;
     WT_EXTLIST tmp;
     u_int i;
+
+    /* Make sure to own the live lock spinlock if operating on the live snapshot. */
 
     __wt_verbose_debug2(session, WT_VERB_BLOCK, "merging %s into %s", a->name, b->name);
 
