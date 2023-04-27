@@ -94,14 +94,18 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     return (ret);
 }
 
+#define WT_EVICT_STATS_CLEAN 0x01
+#define WT_EVICT_STATS_FORCE_HS 0x02
+#define WT_EVICT_STATS_SUCCESS 0x04
+#define WT_EVICT_STATS_URGENT 0x08
+
 /*
  * __evict_stats_update --
  *     Update the stats of eviction.
  *
  */
 static inline void
-__evict_stats_update(
-  WT_SESSION_IMPL *session, bool success, bool clean_page, bool force_evict_hs, uint32_t flags)
+__evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
 {
     WT_CONNECTION_IMPL *conn;
     uint64_t eviction_time, eviction_time_milliseconds;
@@ -117,11 +121,11 @@ __evict_stats_update(
         eviction_time = WT_CLOCKDIFF_US(
           session->evict_timeline.evict_finish, session->evict_timeline.evict_start);
     }
-    if (success) {
-        if (LF_ISSET(WT_EVICT_CALL_URGENT)) {
-            if (force_evict_hs)
+    if (WT_EVICT_STATS_SUCCESS) {
+        if (LF_ISSET(WT_EVICT_STATS_URGENT)) {
+            if (LF_ISSET(WT_EVICT_STATS_FORCE_HS))
                 WT_STAT_CONN_INCR(session, cache_eviction_force_hs_success);
-            if (clean_page) {
+            if (LF_ISSET(WT_EVICT_STATS_CLEAN)) {
                 WT_STAT_CONN_INCR(session, cache_eviction_force_clean);
                 WT_STAT_CONN_INCRV(session, cache_eviction_force_clean_time, eviction_time);
             } else {
@@ -130,7 +134,7 @@ __evict_stats_update(
             }
         }
 
-        if (clean_page)
+        if (LF_ISSET(WT_EVICT_STATS_CLEAN))
             WT_STAT_CONN_DATA_INCR(session, cache_eviction_clean);
         else
             WT_STAT_CONN_DATA_INCR(session, cache_eviction_dirty);
@@ -140,7 +144,7 @@ __evict_stats_update(
             WT_STAT_CONN_INCR(session, cache_eviction_pages_in_parallel_with_checkpoint);
     } else {
         if (LF_ISSET(WT_EVICT_CALL_URGENT)) {
-            if (force_evict_hs)
+            if (LF_ISSET(WT_EVICT_STATS_FORCE_HS))
                 WT_STAT_CONN_INCR(session, cache_eviction_force_hs_fail);
             WT_STAT_CONN_INCR(session, cache_eviction_force_fail);
             WT_STAT_CONN_INCRV(session, cache_eviction_force_fail_time, eviction_time);
@@ -183,12 +187,13 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
-    bool clean_page, closing, force_evict_hs, inmem_split, tree_dead;
+    uint8_t stats_flags;
+    bool clean_page, closing, inmem_split, tree_dead;
 
     conn = S2C(session);
     page = ref->page;
     closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
-    force_evict_hs = false;
+    stats_flags = 0;
     clean_page = false;
 
     __wt_verbose(
@@ -221,13 +226,14 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
      * an eviction, which skips the other statistics.
      */
     if (LF_ISSET(WT_EVICT_CALL_URGENT)) {
+        FLD_SET(stats_flags, WT_EVICT_STATS_URGENT);
         WT_STAT_CONN_INCR(session, cache_eviction_force);
 
         /*
          * Track history store pages being force evicted while holding a history store cursor open.
          */
         if (session->hs_cursor_counter > 0 && WT_IS_HS(session->dhandle)) {
-            force_evict_hs = true;
+            FLD_SET(stats_flags, WT_EVICT_STATS_FORCE_HS);
             WT_STAT_CONN_INCR(session, cache_eviction_force_hs);
         }
     }
@@ -295,7 +301,10 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
         conn->cache->evict_max_page_size = page->memory_footprint;
 
     /* Figure out whether reconciliation was done on the page */
-    clean_page = __wt_page_evict_clean(page);
+    if (__wt_page_evict_clean(page)) {
+        clean_page = true;
+        FLD_SET(stats_flags, WT_EVICT_STATS_CLEAN);
+    }
 
     /* Update the reference and discard the page. */
     if (__wt_ref_is_root(ref))
@@ -320,7 +329,9 @@ err:
     }
 
 done:
-    __evict_stats_update(session, ret == 0, clean_page, force_evict_hs, flags);
+    if (ret == 0)
+        FLD_SET(stats_flags, WT_EVICT_STATS_SUCCESS);
+    __evict_stats_update(session, stats_flags);
 
     /* Leave any local eviction generation. */
     WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
