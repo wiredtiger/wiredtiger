@@ -128,7 +128,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
         session->evict_timeline.evict_start = __wt_clock(session);
     } else {
         session->evict_timeline.reentry_hs_eviction = true;
-        session->evict_timeline.nested_evict_start = __wt_clock(session);
+        session->evict_timeline.reentry_hs_evict_start = __wt_clock(session);
     }
 
     /*
@@ -243,10 +243,11 @@ err:
     }
 
 done:
+    /* Update the time taken to do the eviction and propate the stats. */
     if (session->evict_timeline.reentry_hs_eviction) {
-        session->evict_timeline.nested_evict_finish = __wt_clock(session);
-        eviction_time = WT_CLOCKDIFF_US(
-          session->evict_timeline.nested_evict_finish, session->evict_timeline.nested_evict_start);
+        session->evict_timeline.reentry_hs_evict_finish = __wt_clock(session);
+        eviction_time = WT_CLOCKDIFF_US(session->evict_timeline.reentry_hs_evict_finish,
+          session->evict_timeline.reentry_hs_evict_start);
     } else {
         session->evict_timeline.evict_finish = __wt_clock(session);
         eviction_time = WT_CLOCKDIFF_US(
@@ -287,7 +288,7 @@ done:
         eviction_time_milliseconds = eviction_time / WT_THOUSAND;
         if (eviction_time_milliseconds > conn->cache->evict_max_ms)
             conn->cache->evict_max_ms = eviction_time_milliseconds;
-        if (eviction_time_milliseconds > 60000)
+        if (eviction_time_milliseconds > WT_MINUTE * WT_THOUSAND)
             __wt_verbose_warning(session, WT_VERB_EVICT,
               "Eviction took more than 1 minute (%" PRIu64 "). Building disk image took %" PRIu64
               "us. History store wrapup took %" PRIu64 "us.",
@@ -297,8 +298,13 @@ done:
               WT_CLOCKDIFF_US(session->reconcile_timeline.hs_wrapup_finish,
                 session->reconcile_timeline.hs_wrapup_start));
     } else {
-        session->reconcile_timeline.total_nested_eviction_time += WT_CLOCKDIFF_MS(
-          session->evict_timeline.nested_evict_finish, session->evict_timeline.nested_evict_start);
+        /*
+         * We are in the reentrant history store eviction inside a data store reconciliation. Add to
+         * the total time taken to do the reentrant history store eviction.
+         */
+        session->reconcile_timeline.total_reentry_hs_eviction_time +=
+          WT_CLOCKDIFF_MS(session->evict_timeline.reentry_hs_evict_finish,
+            session->evict_timeline.reentry_hs_evict_start);
         session->evict_timeline.reentry_hs_eviction = false;
     }
 

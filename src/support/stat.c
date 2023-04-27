@@ -1483,7 +1483,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: reverse splits skipped because of VLCS namespace gap restrictions",
   "cache: the number of times full update inserted to history store",
   "cache: the number of times reverse modify inserted to history store",
-  "cache: total milliseconds spent inside a nested eviction",
+  "cache: total milliseconds spent inside reentrant history store evictions in a reconciliation",
   "cache: tracked bytes belonging to internal pages in the cache",
   "cache: tracked bytes belonging to leaf pages in the cache",
   "cache: tracked dirty bytes in the cache",
@@ -2128,7 +2128,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_reverse_splits_skipped_vlcs = 0;
     stats->cache_hs_insert_full_update = 0;
     stats->cache_hs_insert_reverse_modify = 0;
-    /* not clearing cache_nested_eviction_milliseconds */
+    /* not clearing cache_reentry_hs_eviction_milliseconds */
     /* not clearing cache_bytes_internal */
     /* not clearing cache_bytes_leaf */
     /* not clearing cache_bytes_dirty */
@@ -2775,8 +2775,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_reverse_splits_skipped_vlcs += WT_STAT_READ(from, cache_reverse_splits_skipped_vlcs);
     to->cache_hs_insert_full_update += WT_STAT_READ(from, cache_hs_insert_full_update);
     to->cache_hs_insert_reverse_modify += WT_STAT_READ(from, cache_hs_insert_reverse_modify);
-    to->cache_nested_eviction_milliseconds +=
-      WT_STAT_READ(from, cache_nested_eviction_milliseconds);
+    to->cache_reentry_hs_eviction_milliseconds +=
+      WT_STAT_READ(from, cache_reentry_hs_eviction_milliseconds);
     to->cache_bytes_internal += WT_STAT_READ(from, cache_bytes_internal);
     to->cache_bytes_leaf += WT_STAT_READ(from, cache_bytes_leaf);
     to->cache_bytes_dirty += WT_STAT_READ(from, cache_bytes_dirty);

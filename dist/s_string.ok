@@ -1115,6 +1115,7 @@ reconfiguring
 recsize
 rectype
 recurse
+reentrant
 refp
 regionp
 relocked

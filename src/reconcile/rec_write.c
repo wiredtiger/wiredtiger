@@ -128,8 +128,10 @@ err:
         conn->rec_maximum_milliseconds =
           WT_CLOCKDIFF_MS(session->reconcile_timeline.reconcile_finish,
             session->reconcile_timeline.reconcile_start);
-    if (session->reconcile_timeline.total_nested_eviction_time > conn->cache->nested_eviction_ms)
-        conn->cache->nested_eviction_ms = session->reconcile_timeline.total_nested_eviction_time;
+    if (session->reconcile_timeline.total_reentry_hs_eviction_time >
+      conn->cache->reentry_hs_eviction_ms)
+        conn->cache->reentry_hs_eviction_ms =
+          session->reconcile_timeline.total_reentry_hs_eviction_time;
     return (ret);
 }
 

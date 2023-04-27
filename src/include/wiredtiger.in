@@ -5817,8 +5817,11 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_HS_INSERT_FULL_UPDATE	1187
 /*! cache: the number of times reverse modify inserted to history store */
 #define	WT_STAT_CONN_CACHE_HS_INSERT_REVERSE_MODIFY	1188
-/*! cache: total milliseconds spent inside a nested eviction */
-#define	WT_STAT_CONN_CACHE_NESTED_EVICTION_MILLISECONDS	1189
+/*!
+ * cache: total milliseconds spent inside reentrant history store
+ * evictions in a reconciliation
+ */
+#define	WT_STAT_CONN_CACHE_REENTRY_HS_EVICTION_MILLISECONDS	1189
 /*! cache: tracked bytes belonging to internal pages in the cache */
 #define	WT_STAT_CONN_CACHE_BYTES_INTERNAL		1190
 /*! cache: tracked bytes belonging to leaf pages in the cache */
