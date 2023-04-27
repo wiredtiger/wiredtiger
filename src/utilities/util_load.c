@@ -302,7 +302,7 @@ config_read(WT_SESSION *session, char ***listp, bool *hexp)
             }
             list = tlist;
         }
-        if ((list[entry] = strdup(l.mem)) == NULL) {
+        if ((list[entry] = util_strdup(l.mem)) == NULL) {
             ret = util_err(session, errno, NULL);
             goto err;
         }

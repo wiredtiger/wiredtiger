@@ -59,3 +59,4 @@ void *util_malloc(size_t);
 void *util_realloc(void *, size_t);
 void *util_calloc(size_t, size_t);
 void util_free(void *);
+char *util_strdup(const char *);

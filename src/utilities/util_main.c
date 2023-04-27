@@ -125,7 +125,7 @@ main(int argc, char *argv[])
             if (secretkey != NULL)
                 wt_explicit_zero(secretkey, strlen(secretkey));
             util_free(secretkey); /* lint: set more than once */
-            if ((secretkey = strdup(__wt_optarg)) == NULL) {
+            if ((secretkey = util_strdup(__wt_optarg)) == NULL) {
                 (void)util_err(NULL, errno, NULL);
                 goto err;
             }

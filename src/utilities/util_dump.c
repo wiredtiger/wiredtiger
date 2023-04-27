@@ -240,7 +240,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
             goto err;
         }
 
-        if ((simpleuri = strdup(uri)) == NULL) {
+        if ((simpleuri = util_strdup(uri)) == NULL) {
             (void)util_err(session, errno, NULL);
             goto err;
         }
