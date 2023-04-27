@@ -23,6 +23,13 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_random
+    SOURCES random/main.c
+    DIR_NAME random
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
     TARGET test_random_abort
     SOURCES random_abort/main.c
     DIR_NAME random_abort
