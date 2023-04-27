@@ -191,7 +191,7 @@ tiered_storage_write_config(const char *home, const char *s3_prefix)
  *     opening an existing database.
  */
 static void
-tiered_storage_generate_prefix(const char *home, char *out, size_t size)
+tiered_storage_generate_prefix(char *out, size_t size)
 {
     struct tm time_parsed;
     size_t n;
@@ -202,7 +202,7 @@ tiered_storage_generate_prefix(const char *home, char *out, size_t size)
      * Generates a unique prefix to be used with the object keys, e.g.:
      * "s3test/test/2022-31-01-16-34-10/623843294--".
      *
-     * Objects with the prefix pattern "s3test/*" are deleted after a certain period of time
+     * Objects with the prefix pattern "s3test/" are deleted after a certain period of time
      * according to the lifecycle rule on the S3 bucket. Should you wish to make any changes to the
      * prefix pattern or lifecycle of the object, please speak to the release manager.
      */
@@ -255,7 +255,7 @@ testutil_tiered_storage_configuration(TEST_OPTS *opts, const char *home, char *t
              */
             if (!tiered_storage_read_config(home, s3_prefix, sizeof(s3_prefix))) {
                 /* Generate a random prefix for the new database. */
-                tiered_storage_generate_prefix(home, s3_prefix, sizeof(s3_prefix));
+                tiered_storage_generate_prefix(s3_prefix, sizeof(s3_prefix));
 
                 /* Remember it for the next time. */
                 tiered_storage_write_config(home, s3_prefix);
