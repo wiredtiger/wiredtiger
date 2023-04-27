@@ -121,7 +121,7 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
         eviction_time = WT_CLOCKDIFF_US(
           session->evict_timeline.evict_finish, session->evict_timeline.evict_start);
     }
-    if (WT_EVICT_STATS_SUCCESS) {
+    if (LF_ISSET(WT_EVICT_STATS_SUCCESS)) {
         if (LF_ISSET(WT_EVICT_STATS_URGENT)) {
             if (LF_ISSET(WT_EVICT_STATS_FORCE_HS))
                 WT_STAT_CONN_INCR(session, cache_eviction_force_hs_success);
