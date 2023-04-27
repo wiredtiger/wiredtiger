@@ -84,8 +84,13 @@
     ",log=(recover=on,remove=false),statistics=(all),statistics_log=(json,on_close,wait=1)"
 #define TESTUTIL_ENV_CONFIG_COMPAT ",compatibility=(release=\"2.9\")"
 
-#define WT_GCC_FUNC_ATTRIBUTE(x)
-#define WT_GCC_FUNC_DECL_ATTRIBUTE(x) __attribute__(x)
+#if defined(__GNUC__)
+#define GCC_FUNC_ATTRIBUTE(x)
+#define GCC_FUNC_DECL_ATTRIBUTE(x) __attribute__(x)
+#elif defined(_MSC_VER)
+#define GCC_FUNC_ATTRIBUTE(x)
+#define GCC_FUNC_DECL_ATTRIBUTE(x)
+#endif
 
 #define TS_HEX_STRING_SIZE (2 * sizeof(uint64_t) + 1)
 
@@ -331,8 +336,8 @@ typedef struct {
 #ifdef _WIN32
 __declspec(noreturn)
 #endif
-  void testutil_die(int, const char *, ...) WT_GCC_FUNC_ATTRIBUTE((cold))
-    WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+  void testutil_die(int, const char *, ...) GCC_FUNC_ATTRIBUTE((cold))
+    GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 /*
  * u64_to_string --
@@ -505,7 +510,7 @@ void testutil_random_from_seed(RAND_STATE *, uint64_t);
 #ifndef _WIN32
 void testutil_sleep_wait(uint32_t, pid_t);
 #endif
-void testutil_system(const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((format(printf, 1, 2)));
+void testutil_system(const char *fmt, ...) GCC_FUNC_ATTRIBUTE((format(printf, 1, 2)));
 void testutil_wiredtiger_open(
   TEST_OPTS *, const char *, const char *, WT_EVENT_HANDLER *, WT_CONNECTION **, bool, bool);
 void testutil_tiered_begin(TEST_OPTS *);
