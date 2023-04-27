@@ -39,7 +39,7 @@
  */
 
 #define HOME_BUF_SIZE 512
-#define MAX_RUN 5
+#define MAX_RUN 2
 #define MAX_TIERED_FILES 10
 #define NUM_RECORDS 500
 #define MAX_VALUE_SIZE 200
@@ -86,10 +86,10 @@ main(int argc, char *argv[])
     memset(opts, 0, sizeof(*opts));
     testutil_check(testutil_parse_opts(argc, argv, opts));
 
-    flush = false;
+    flush = true;
     printf("The below benchmarks are average of %d runs\n", MAX_RUN);
 
-    for (i = 0; i < 2; ++i) {
+    for (i = 1; i < 2; ++i) {
 
         printf(
           "########################################################################################"
@@ -101,30 +101,9 @@ main(int argc, char *argv[])
           "\n");
 
         /*
-         * Run test with 100K file size.
-         */
-        run_test_clean("100KB", NUM_RECORDS);
-
-        /*
-         * Run test with 1Mb file size.
-         */
-        run_test_clean("1MB", NUM_RECORDS * 10);
-
-        /*
-         * Run test with 10 Mb file size.
-         */
-        run_test_clean("10MB", NUM_RECORDS * 100);
-
-        /*
          * Run test with 50 Mb file size.
          */
         run_test_clean("50MB", NUM_RECORDS * 500);
-
-        /*
-         * Run test with 100 Mb file size.
-         */
-        run_test_clean("100MB", NUM_RECORDS * WT_THOUSAND);
-        flush = true;
     }
 
     testutil_cleanup(opts);

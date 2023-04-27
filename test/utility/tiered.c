@@ -211,7 +211,7 @@ tiered_storage_generate_prefix(char *out, size_t size)
     time_now = time(NULL);
     (void)localtime_r(&time_now, &time_parsed);
 #endif
-      n = strftime(time_str, sizeof(time_str), "%F-%H-%M-%S", &time_parsed);
+    n = strftime(time_str, sizeof(time_str), "%F-%H-%M-%S", &time_parsed);
     testutil_assert(n > 0);
     testutil_check(
       __wt_snprintf(out, size, "s3test/test/%s/%" PRIu32 "--", time_str, testutil_random(NULL)));
