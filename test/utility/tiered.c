@@ -112,12 +112,8 @@ static bool
 tiered_storage_read_config(const char *home, char *s3_prefix, size_t s3_prefix_size)
 {
     FILE *f;
-    size_t str_size;
-    char config_path[512];
-    char *s, *str, *value;
-
-    str = NULL;
-    str_size = 0;
+    char config_path[512], str[512];
+    char *s, *value;
 
     testutil_assert(s3_prefix_size > 0);
     s3_prefix[0] = '\0';
@@ -134,7 +130,7 @@ tiered_storage_read_config(const char *home, char *s3_prefix, size_t s3_prefix_s
      * For now, we only support specifying prefixes in the file, but this can be easily expanded to
      * include more information, such as the bucket name.
      */
-    while (getline(&str, &str_size, f) >= 0) {
+    while (fgets(str, sizeof(str), f) != NULL) {
         if (str[0] == '\0' || str[0] == '#')
             continue;
         s = str + strlen(str) - 1;
@@ -158,8 +154,6 @@ tiered_storage_read_config(const char *home, char *s3_prefix, size_t s3_prefix_s
     /* Check that everything is specified. */
     testutil_assert(s3_prefix[0] != '\0');
 
-    if (str != NULL)
-        free(str);
     testutil_assert_errno(fclose(f) == 0);
     return (true);
 }
@@ -195,7 +189,11 @@ tiered_storage_generate_prefix(char *out, size_t size)
 {
     struct tm time_parsed;
     size_t n;
+#ifdef _WIN32
+    __time64_t time_now;
+#else
     time_t time_now;
+#endif
     char time_str[100];
 
     /*
@@ -206,8 +204,14 @@ tiered_storage_generate_prefix(char *out, size_t size)
      * according to the lifecycle rule on the S3 bucket. Should you wish to make any changes to the
      * prefix pattern or lifecycle of the object, please speak to the release manager.
      */
+#ifdef _WIN32
+    time_now = _time64(NULL);
+    testutil_check(_localtime64_s(&time_parsed, &time_now));
+#else
     time_now = time(NULL);
-    n = strftime(time_str, sizeof(time_str), "%F-%H-%M-%S", localtime_r(&time_now, &time_parsed));
+    (void)localtime_r(&time_now, &time_parsed);
+#endif
+      n = strftime(time_str, sizeof(time_str), "%F-%H-%M-%S", &time_parsed);
     testutil_assert(n > 0);
     testutil_check(
       __wt_snprintf(out, size, "s3test/test/%s/%" PRIu32 "--", time_str, testutil_random(NULL)));
