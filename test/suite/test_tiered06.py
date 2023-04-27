@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import inspect, os, wiredtiger, wttest
+import errno, inspect, os, wiredtiger, wttest
 from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
 from wtscenario import make_scenarios
 
@@ -373,8 +373,12 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_flush(session, fs1, 'bad.wt', 'bad.wtobj'), errmsg)
 
-        # It's okay to flush again, nothing changes.
-        ss.ss_flush(session, fs1, 'beagle.wt', 'beagle.wtobj')
+        # It's not okay to flush again, as we don't allow overwrites.
+        # Expect both an error return and error output.
+        expected_errno = os.strerror(errno.EEXIST)
+        with self.expectedStderrPattern(expected_errno):
+            self.assertRaisesException(wiredtiger.WiredTigerError,
+                lambda: ss.ss_flush(session, fs1, 'beagle.wt', 'beagle.wtobj'))
         self.check_home(['beagle', 'bird', 'bison', 'bat', 'cat', 'cougar', 'coyote', 'cub'])
         self.check_dirlist(fs1, '', ['beagle'])
         self.check_dirlist(fs2, '', [])
