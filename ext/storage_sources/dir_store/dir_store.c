@@ -696,13 +696,13 @@ dir_store_file_copy(DIR_STORE *dir_store, WT_SESSION *session, const char *src_p
      * not have an rename operation that is exclusive (although Linux has one that works only on
      * certain file systems). In any case, we are covered, because 1) all users of dir_store use the
      * function we're in to create an object 2) we used an exclusive open for the temporary file
-     * above and 3) we make a check for the existance of the target file at this point. That should
-     * eliminate any races. Once the existance check is passed, we know no other thread can sneak
+     * above and 3) we make a check for the existence of the target file at this point. That should
+     * eliminate any races. Once the existence check is passed, we know no other thread can sneak
      * in, they'd need to successfully open that temporary file, and we are holding exclusive access
      * to it.
      */
     if ((ret = wt_fs->fs_exist(wt_fs, session, dest_path, &dest_exists)) != 0) {
-        ret = dir_store_err(dir_store, session, ret, "%s: cannot check existance", dest_path);
+        ret = dir_store_err(dir_store, session, ret, "%s: cannot check existence", dest_path);
         goto err;
     }
 
