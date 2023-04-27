@@ -29,8 +29,6 @@ __tiered_server_run_chk(WT_SESSION_IMPL *session)
     return (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_TIERED));
 }
 
-extern void tty(const char *, const char *, uint64_t);
-
 /*
  * __tier_storage_remove_local --
  *     Perform one iteration of tiered storage local object removal.
@@ -50,7 +48,6 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
             break;
 
         __wt_seconds(session, &now);
-        tty("remove_local looking for", NULL, now);
         __wt_tiered_get_remove_local(session, now, &entry);
         if (entry == NULL)
             break;
@@ -65,7 +62,6 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
         if (__wt_handle_is_open(session, object)) {
             __wt_verbose_debug2(
               session, WT_VERB_TIERED, "REMOVE_LOCAL: %s in USE, queue again", object);
-            tty("remove_local requeue", object, now);
             WT_STAT_CONN_INCR(session, local_objects_inuse);
             /*
              * Update the time on the entry before pushing it back on the queue so that we don't get
@@ -78,9 +74,7 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
             __wt_verbose_debug2(
               session, WT_VERB_TIERED, "REMOVE_LOCAL: actually remove %s", object);
             WT_STAT_CONN_INCR(session, local_objects_removed);
-            tty("removing....", object, now);
             WT_ERR(__wt_fs_remove(session, object, false));
-            tty("removed", object, now);
             /*
              * We are responsible for freeing the work unit when we're done with it.
              */

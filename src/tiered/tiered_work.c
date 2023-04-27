@@ -256,16 +256,6 @@ __wt_tiered_put_flush_finish(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32
     return (0);
 }
 
-extern void tty(const char *, const char *, uint64_t);
-void tty(const char *msg, const char *sarg, uint64_t iarg)
-{
-    char buf[2048];
-    int fd = open("/dev/tty", 1, 0);
-    snprintf(buf, sizeof(buf), "%s: %s %" PRIu64 "\n", msg, sarg ? sarg : "", iarg);
-    write(fd, buf, strlen(buf));
-    close(fd);
-}
-
 /*
  * __wt_tiered_put_remove_local --
  *     Add a remove local work unit for the given ID to the queue.
@@ -284,9 +274,6 @@ __wt_tiered_put_remove_local(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32
     /* Put a work unit in the queue with the time this object expires. */
     entry->op_val = now + tiered->bstorage->retain_secs;
     entry->tiered = tiered;
-    tty("putting on remove queue: now", NULL, now);
-    tty("putting on remove queue: retain", NULL, tiered->bstorage->retain_secs);
-    tty("putting on remove queue: id", NULL, id);
     __tiered_push_new_work(session, entry);
     return (0);
 }
