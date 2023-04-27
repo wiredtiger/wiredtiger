@@ -34,19 +34,19 @@ insert_sample_values(WT_CURSOR *cursor)
     REQUIRE(insert_key_value(cursor, "key5", "value5") == 0);
 }
 
-void
+static void
 thread_function_checkpoint(WT_SESSION *session)
 {
     session->checkpoint(session, NULL);
 }
 
-void
+static void
 thread_function_drop(WT_SESSION *session, std::string const &uri)
 {
     session->drop(session, uri.c_str(), "force=true");
 }
 
-void
+static void
 cursor_test(std::string const &config, bool close, int expected_commit_result)
 {
     ConnectionWrapper conn(DB_HOME);

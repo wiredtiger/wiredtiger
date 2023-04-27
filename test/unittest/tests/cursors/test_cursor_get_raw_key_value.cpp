@@ -33,7 +33,7 @@ insert_key_value(WT_CURSOR *cursor, const char *key, const char *value)
     return cursor->insert(cursor);
 }
 
-bool
+static bool
 require_get_key_value(WT_CURSOR *cursor, const char *expected_key, const char *expected_value)
 {
     const char *key = nullptr;
@@ -49,7 +49,7 @@ require_get_key_value(WT_CURSOR *cursor, const char *expected_key, const char *e
     return keys_match && values_match;
 }
 
-bool
+static bool
 check_item(WT_ITEM *item, const char *expected)
 {
     bool match = true;
@@ -62,7 +62,7 @@ check_item(WT_ITEM *item, const char *expected)
     return match;
 }
 
-bool
+static bool
 require_get_raw_key_value(WT_CURSOR *cursor, const char *expected_key, const char *expected_value)
 {
     WT_ITEM item_key;
@@ -81,7 +81,7 @@ require_get_raw_key_value(WT_CURSOR *cursor, const char *expected_key, const cha
     return keys_match && values_match;
 }
 
-void
+static void
 insert_sample_values(WT_CURSOR *cursor)
 {
     REQUIRE(insert_key_value(cursor, "key1", "value1") == 0);
