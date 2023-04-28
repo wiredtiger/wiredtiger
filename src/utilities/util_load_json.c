@@ -420,7 +420,7 @@ json_top_level(WT_SESSION *session, JSON_INPUT_STATE *ins, uint32_t flags)
                 if ((ret = json_data(session, ins, &cl, flags)) != 0)
                     goto err;
                 config_list_free(&cl);
-                free(ins->kvraw);
+                util_free(ins->kvraw);
                 ins->kvraw = NULL;
                 config_list_free(&cl);
                 break;
