@@ -1501,10 +1501,8 @@ __wt_session_range_truncate(
         F_SET(trunc_info, WT_TRUNC_EXPLICIT_START);
     if (uri == NULL && stop != NULL)
         F_SET(trunc_info, WT_TRUNC_EXPLICIT_STOP);
-
     if (uri != NULL) {
         WT_ASSERT(session, WT_BTREE_PREFIX(uri));
-
         /*
          * A URI file truncate becomes a range truncate where we set a start cursor at the
          * beginning. We already know the NULL stop goes to the end of the range.

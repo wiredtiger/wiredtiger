@@ -597,7 +597,7 @@ __wt_txn_truncate_log(WT_TRUNCATE_INFO *trunc_info)
          */
         if (F_ISSET(trunc_info, WT_TRUNC_EXPLICIT_START)) {
             WT_ASSERT_ALWAYS(session, trunc_info->orig_start_key != NULL,
-              "Logging truncate operation with explicit start to range and empty key");
+              "Truncate log operation with explicit range start has empty original key.");
             op->u.truncate_row.mode = WT_TXN_TRUNC_START;
             item = &op->u.truncate_row.start;
             WT_RET(__wt_buf_set(
@@ -605,7 +605,7 @@ __wt_txn_truncate_log(WT_TRUNCATE_INFO *trunc_info)
         }
         if (F_ISSET(trunc_info, WT_TRUNC_EXPLICIT_STOP)) {
             WT_ASSERT_ALWAYS(session, trunc_info->orig_stop_key != NULL,
-              "Logging truncate operation with explicit stop to range and empty key");
+              "Truncate log operation with explicit range stop has empty original key.");
             op->u.truncate_row.mode =
               (op->u.truncate_row.mode == WT_TXN_TRUNC_ALL) ? WT_TXN_TRUNC_STOP : WT_TXN_TRUNC_BOTH;
             item = &op->u.truncate_row.stop;
@@ -619,13 +619,13 @@ __wt_txn_truncate_log(WT_TRUNCATE_INFO *trunc_info)
          */
         if (F_ISSET(trunc_info, WT_TRUNC_EXPLICIT_START)) {
             WT_ASSERT_ALWAYS(session, trunc_info->orig_start_key != NULL,
-              "Logging truncate operation with explicit start to range and empty key");
+              "Truncate log operation with explicit range start has empty original key.");
             WT_RET(__wt_struct_unpack(session, trunc_info->orig_start_key->data,
               trunc_info->orig_start_key->size, "q", &start_recno));
         }
         if (F_ISSET(trunc_info, WT_TRUNC_EXPLICIT_STOP)) {
             WT_ASSERT_ALWAYS(session, trunc_info->orig_stop_key != NULL,
-              "Logging truncate operation with explicit stop to range and empty key");
+              "Truncate log operation with explicit range stop has empty original key.");
             WT_RET(__wt_struct_unpack(session, trunc_info->orig_stop_key->data,
               trunc_info->orig_stop_key->size, "q", &stop_recno));
         }

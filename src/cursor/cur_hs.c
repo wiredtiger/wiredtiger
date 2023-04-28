@@ -1187,9 +1187,8 @@ __curhs_range_truncate(WT_TRUNCATE_INFO *trunc_info)
     WT_SESSION_IMPL *session;
 
     session = trunc_info->session;
-    stop_file_cursor = NULL;
-
     start_file_cursor = ((WT_CURSOR_HS *)trunc_info->start)->file_cursor;
+    stop_file_cursor = NULL;
 
     WT_STAT_DATA_INCR(session, cursor_truncate);
 

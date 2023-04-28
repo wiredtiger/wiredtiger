@@ -751,8 +751,7 @@ int
 __wt_table_range_truncate(WT_TRUNCATE_INFO *trunc_info)
 {
     WT_CURSOR *wt_start, *wt_stop;
-    WT_CURSOR_TABLE *ctable;
-    WT_CURSOR_TABLE *start, *stop;
+    WT_CURSOR_TABLE *ctable, *start, *stop;
     WT_DECL_ITEM(key);
     WT_DECL_RET;
     WT_ITEM raw;
@@ -813,10 +812,9 @@ __wt_table_range_truncate(WT_TRUNCATE_INFO *trunc_info)
     }
 
     /* Truncate the column groups. */
-    for (i = 0; i < WT_COLGROUPS(ctable->table); i++) {
+    for (i = 0; i < WT_COLGROUPS(ctable->table); i++)
         WT_ERR(__wt_range_truncate((start == NULL) ? NULL : start->cg_cursors[i],
           (stop == NULL) ? NULL : stop->cg_cursors[i]));
-    }
 
 err:
     __wt_scr_free(session, &key);
