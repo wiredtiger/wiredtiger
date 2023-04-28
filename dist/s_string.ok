@@ -55,8 +55,6 @@ CBT
 CCCCCCCCCCCCCCCCCC
 CELLs
 CET
-CFLAGS
-CHECKKEY
 CHUNKCACHE
 CKPT
 CLOEXEC
@@ -77,7 +75,7 @@ Checksums
 CityHash
 CloseHandle
 CmP
-CmPTh
+Codec
 Comparator
 Config
 Coverity
@@ -171,6 +169,7 @@ HANDLEOPS
 HFS
 HOTBACKUP
 Hendrik
+IAA
 IC
 IEC
 IKEY
@@ -294,6 +293,7 @@ Preload
 Prepend
 Prepending
 Prev
+Ptr
 Px
 QQQS
 QSQ
@@ -807,6 +807,8 @@ hval
 hw
 iS
 iSh
+iaa
+iaaInterface
 ibackup
 icount
 idlems
@@ -858,8 +860,6 @@ isprint
 isrc
 isspace
 iter
-iteratively
-iters
 jemalloc
 jjj
 js
@@ -894,6 +894,7 @@ libmemkind
 libs
 libsodium
 libwiredtiger
+lifecycle
 linux
 llll
 llu
@@ -1047,7 +1048,6 @@ pT
 packv
 pageref
 pagesize
-pagestat
 param
 pareto
 parserp
@@ -1112,6 +1112,7 @@ readlock
 readonly
 readunlock
 realloc
+reallocations
 recency
 recno
 recnos
@@ -1278,6 +1279,7 @@ uS
 ui
 uint
 umount
+unallocated
 unbare
 unbuffered
 uncompressing

@@ -2155,6 +2155,13 @@ __wt_btcur_range_truncate(WT_TRUNCATE_INFO *trunc_info)
     WT_STAT_DATA_INCR(session, cursor_truncate);
 
     /*
+     * FIXME WT-10887: Allow performing truncate operation without a timestamp on non logged tables
+     * for non standalone builds (MongoDB). MongoDB do perform truncate operation only on a table
+     * that do not have historical versions to avoid the problem. Remove this standalone build
+     * specific code when a proper solution is implemented.
+     */
+#ifdef WT_STANDALONE_BUILD
+    /*
      * All historical versions must be removed when a key is updated with no timestamp, but that
      * isn't possible in fast truncate operations. Disallow fast truncate in transactions configured
      * to commit without a timestamp (excluding logged tables as timestamps cannot be relevant to
@@ -2165,6 +2172,7 @@ __wt_btcur_range_truncate(WT_TRUNCATE_INFO *trunc_info)
           "truncate operations may not yet be included in transactions that can commit without a "
           "timestamp. If your use case encounters this error, please reach out to the WiredTiger "
           "team");
+#endif
 
     WT_RET(__wt_txn_autocommit_check(session));
 

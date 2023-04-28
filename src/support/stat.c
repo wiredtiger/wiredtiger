@@ -32,6 +32,7 @@ static const char *const __stats_dsrc_desc[] = {
   "btree: btree compact pages reviewed",
   "btree: btree compact pages rewritten",
   "btree: btree compact pages skipped",
+  "btree: btree expected number of compact pages rewritten",
   "btree: btree skipped by compaction as process would not reduce size",
   "btree: column-store fixed-size leaf pages",
   "btree: column-store fixed-size time windows",
@@ -278,6 +279,7 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: records written including a stop timestamp",
   "reconciliation: records written including a stop transaction ID",
   "session: object compaction",
+  "transaction: checkpoint has acquired a snapshot for its transaction",
   "transaction: number of times overflow removed value is read",
   "transaction: race to read prepared update retry",
   "transaction: rollback to stable history store keys that would have been swept in non-dryrun "
@@ -372,6 +374,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     /* not clearing btree_compact_pages_reviewed */
     /* not clearing btree_compact_pages_rewritten */
     /* not clearing btree_compact_pages_skipped */
+    /* not clearing btree_compact_pages_rewritten_expected */
     /* not clearing btree_compact_skipped */
     stats->btree_column_fix = 0;
     stats->btree_column_tws = 0;
@@ -603,6 +606,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_time_window_stop_ts = 0;
     stats->rec_time_window_stop_txn = 0;
     stats->session_compact = 0;
+    stats->txn_checkpoint_snapshot_acquired = 0;
     stats->txn_read_overflow_remove = 0;
     stats->txn_read_race_prepare_update = 0;
     stats->txn_rts_sweep_hs_keys_dryrun = 0;
@@ -671,6 +675,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->btree_compact_pages_reviewed += from->btree_compact_pages_reviewed;
     to->btree_compact_pages_rewritten += from->btree_compact_pages_rewritten;
     to->btree_compact_pages_skipped += from->btree_compact_pages_skipped;
+    to->btree_compact_pages_rewritten_expected += from->btree_compact_pages_rewritten_expected;
     to->btree_compact_skipped += from->btree_compact_skipped;
     to->btree_column_fix += from->btree_column_fix;
     to->btree_column_tws += from->btree_column_tws;
@@ -918,6 +923,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_time_window_stop_ts += from->rec_time_window_stop_ts;
     to->rec_time_window_stop_txn += from->rec_time_window_stop_txn;
     to->session_compact += from->session_compact;
+    to->txn_checkpoint_snapshot_acquired += from->txn_checkpoint_snapshot_acquired;
     to->txn_read_overflow_remove += from->txn_read_overflow_remove;
     to->txn_read_race_prepare_update += from->txn_read_race_prepare_update;
     to->txn_rts_sweep_hs_keys_dryrun += from->txn_rts_sweep_hs_keys_dryrun;
@@ -979,6 +985,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->btree_compact_pages_reviewed += WT_STAT_READ(from, btree_compact_pages_reviewed);
     to->btree_compact_pages_rewritten += WT_STAT_READ(from, btree_compact_pages_rewritten);
     to->btree_compact_pages_skipped += WT_STAT_READ(from, btree_compact_pages_skipped);
+    to->btree_compact_pages_rewritten_expected +=
+      WT_STAT_READ(from, btree_compact_pages_rewritten_expected);
     to->btree_compact_skipped += WT_STAT_READ(from, btree_compact_skipped);
     to->btree_column_fix += WT_STAT_READ(from, btree_column_fix);
     to->btree_column_tws += WT_STAT_READ(from, btree_column_tws);
@@ -1242,6 +1250,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_time_window_stop_ts += WT_STAT_READ(from, rec_time_window_stop_ts);
     to->rec_time_window_stop_txn += WT_STAT_READ(from, rec_time_window_stop_txn);
     to->session_compact += WT_STAT_READ(from, session_compact);
+    to->txn_checkpoint_snapshot_acquired += WT_STAT_READ(from, txn_checkpoint_snapshot_acquired);
     to->txn_read_overflow_remove += WT_STAT_READ(from, txn_read_overflow_remove);
     to->txn_read_race_prepare_update += WT_STAT_READ(from, txn_read_race_prepare_update);
     to->txn_rts_sweep_hs_keys_dryrun += WT_STAT_READ(from, txn_rts_sweep_hs_keys_dryrun);
@@ -1379,6 +1388,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: files with active eviction walks",
   "cache: files with new eviction walks started",
   "cache: force re-tuning of eviction workers once in a while",
+  "cache: forced eviction - do not retry count to evict pages selected to evict during "
+  "reconciliation",
   "cache: forced eviction - history store pages failed to evict while session has history store "
   "cursor open",
   "cache: forced eviction - history store pages selected while session has history store cursor "
@@ -1803,6 +1814,7 @@ static const char *const __stats_connection_desc[] = {
   "transaction: Number of prepared updates committed",
   "transaction: Number of prepared updates repeated on the same key",
   "transaction: Number of prepared updates rolled back",
+  "transaction: checkpoint has acquired a snapshot for its transaction",
   "transaction: number of times overflow removed value is read",
   "transaction: oldest pinned transaction ID rolled back for eviction",
   "transaction: prepared transactions",
@@ -2032,6 +2044,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cache_eviction_walks_active */
     stats->cache_eviction_walks_started = 0;
     stats->cache_eviction_force_retune = 0;
+    stats->cache_eviction_force_no_retry = 0;
     stats->cache_eviction_force_hs_fail = 0;
     stats->cache_eviction_force_hs = 0;
     stats->cache_eviction_force_hs_success = 0;
@@ -2441,6 +2454,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_prepared_updates_committed = 0;
     stats->txn_prepared_updates_key_repeated = 0;
     stats->txn_prepared_updates_rolledback = 0;
+    stats->txn_checkpoint_snapshot_acquired = 0;
     stats->txn_read_overflow_remove = 0;
     stats->txn_rollback_oldest_pinned = 0;
     stats->txn_prepare = 0;
@@ -2654,6 +2668,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_walks_active += WT_STAT_READ(from, cache_eviction_walks_active);
     to->cache_eviction_walks_started += WT_STAT_READ(from, cache_eviction_walks_started);
     to->cache_eviction_force_retune += WT_STAT_READ(from, cache_eviction_force_retune);
+    to->cache_eviction_force_no_retry += WT_STAT_READ(from, cache_eviction_force_no_retry);
     to->cache_eviction_force_hs_fail += WT_STAT_READ(from, cache_eviction_force_hs_fail);
     to->cache_eviction_force_hs += WT_STAT_READ(from, cache_eviction_force_hs);
     to->cache_eviction_force_hs_success += WT_STAT_READ(from, cache_eviction_force_hs_success);
@@ -3098,6 +3113,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_prepared_updates_committed += WT_STAT_READ(from, txn_prepared_updates_committed);
     to->txn_prepared_updates_key_repeated += WT_STAT_READ(from, txn_prepared_updates_key_repeated);
     to->txn_prepared_updates_rolledback += WT_STAT_READ(from, txn_prepared_updates_rolledback);
+    to->txn_checkpoint_snapshot_acquired += WT_STAT_READ(from, txn_checkpoint_snapshot_acquired);
     to->txn_read_overflow_remove += WT_STAT_READ(from, txn_read_overflow_remove);
     to->txn_rollback_oldest_pinned += WT_STAT_READ(from, txn_rollback_oldest_pinned);
     to->txn_prepare += WT_STAT_READ(from, txn_prepare);
