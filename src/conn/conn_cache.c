@@ -156,8 +156,8 @@ __cache_config_local(WT_SESSION_IMPL *session, bool shared, const char *cfg[])
     cache->cache_max_wait_us = (uint64_t)(cval.val * WT_THOUSAND);
 
     /* Retrieve the timeout value and convert from seconds */
-    WT_RET(__wt_config_gets(session, cfg, "cache_stuck_timeout_s", &cval));
-    cache->cache_stuck_timeout_ms = (uint64_t)(cval.val * WT_THOUSAND);
+    WT_RET(__wt_config_gets(session, cfg, "cache_stuck_timeout_ms", &cval));
+    cache->cache_stuck_timeout_ms = (uint64_t)cval.val;
 
     return (0);
 }

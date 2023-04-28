@@ -130,7 +130,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
   {"cache_max_wait_ms", "int", NULL, "min=0", NULL, 0},
   {"cache_overhead", "int", NULL, "min=0,max=30", NULL, 0},
   {"cache_size", "int", NULL, "min=1MB,max=10TB", NULL, 0},
-  {"cache_stuck_timeout_s", "int", NULL, "min=0", NULL, 0},
+  {"cache_stuck_timeout_ms", "int", NULL, "min=0", NULL, 0},
   {"checkpoint", "category", NULL, NULL, confchk_wiredtiger_open_checkpoint_subconfigs, 2},
   {"chunk_cache", "category", NULL, NULL, confchk_wiredtiger_open_chunk_cache_subconfigs, 7},
   {"compatibility", "category", NULL, NULL,
@@ -883,7 +883,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
   {"cache_max_wait_ms", "int", NULL, "min=0", NULL, 0},
   {"cache_overhead", "int", NULL, "min=0,max=30", NULL, 0},
   {"cache_size", "int", NULL, "min=1MB,max=10TB", NULL, 0},
-  {"cache_stuck_timeout_s", "int", NULL, "min=0", NULL, 0},
+  {"cache_stuck_timeout_ms", "int", NULL, "min=0", NULL, 0},
   {"checkpoint", "category", NULL, NULL, confchk_wiredtiger_open_checkpoint_subconfigs, 2},
   {"checkpoint_sync", "boolean", NULL, NULL, NULL, 0},
   {"chunk_cache", "category", NULL, NULL, confchk_wiredtiger_open_chunk_cache_subconfigs, 7},
@@ -977,7 +977,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
   {"cache_max_wait_ms", "int", NULL, "min=0", NULL, 0},
   {"cache_overhead", "int", NULL, "min=0,max=30", NULL, 0},
   {"cache_size", "int", NULL, "min=1MB,max=10TB", NULL, 0},
-  {"cache_stuck_timeout_s", "int", NULL, "min=0", NULL, 0},
+  {"cache_stuck_timeout_ms", "int", NULL, "min=0", NULL, 0},
   {"checkpoint", "category", NULL, NULL, confchk_wiredtiger_open_checkpoint_subconfigs, 2},
   {"checkpoint_sync", "boolean", NULL, NULL, NULL, 0},
   {"chunk_cache", "category", NULL, NULL, confchk_wiredtiger_open_chunk_cache_subconfigs, 7},
@@ -1071,7 +1071,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
   {"cache_max_wait_ms", "int", NULL, "min=0", NULL, 0},
   {"cache_overhead", "int", NULL, "min=0,max=30", NULL, 0},
   {"cache_size", "int", NULL, "min=1MB,max=10TB", NULL, 0},
-  {"cache_stuck_timeout_s", "int", NULL, "min=0", NULL, 0},
+  {"cache_stuck_timeout_ms", "int", NULL, "min=0", NULL, 0},
   {"checkpoint", "category", NULL, NULL, confchk_wiredtiger_open_checkpoint_subconfigs, 2},
   {"checkpoint_sync", "boolean", NULL, NULL, NULL, 0},
   {"chunk_cache", "category", NULL, NULL, confchk_wiredtiger_open_chunk_cache_subconfigs, 7},
@@ -1161,7 +1161,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
   {"cache_max_wait_ms", "int", NULL, "min=0", NULL, 0},
   {"cache_overhead", "int", NULL, "min=0,max=30", NULL, 0},
   {"cache_size", "int", NULL, "min=1MB,max=10TB", NULL, 0},
-  {"cache_stuck_timeout_s", "int", NULL, "min=0", NULL, 0},
+  {"cache_stuck_timeout_ms", "int", NULL, "min=0", NULL, 0},
   {"checkpoint", "category", NULL, NULL, confchk_wiredtiger_open_checkpoint_subconfigs, 2},
   {"checkpoint_sync", "boolean", NULL, NULL, NULL, 0},
   {"chunk_cache", "category", NULL, NULL, confchk_wiredtiger_open_chunk_cache_subconfigs, 7},
@@ -1268,7 +1268,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "full_target=95,hashsize=32768,max_percent_overhead=10,"
     "nvram_path=,percent_file_in_dram=50,size=0,system_ram=0,type=),"
     "cache_max_wait_ms=0,cache_overhead=8,cache_size=100MB,"
-    "cache_stuck_timeout_s=300,checkpoint=(log_size=0,wait=0),"
+    "cache_stuck_timeout_ms=300000,checkpoint=(log_size=0,wait=0),"
     "chunk_cache=(capacity=10GB,chunk_cache_evict_trigger=90,"
     "chunk_size=1MB,device_path=,enabled=false,hashsize=1024,type=),"
     "compatibility=(release=),debug_mode=(checkpoint_retention=0,"
@@ -1555,7 +1555,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "nvram_path=,percent_file_in_dram=50,size=0,system_ram=0,type=),"
     "buffer_alignment=-1,builtin_extension_config=,cache_cursors=true"
     ",cache_max_wait_ms=0,cache_overhead=8,cache_size=100MB,"
-    "cache_stuck_timeout_s=300,checkpoint=(log_size=0,wait=0),"
+    "cache_stuck_timeout_ms=300000,checkpoint=(log_size=0,wait=0),"
     "checkpoint_sync=true,chunk_cache=(capacity=10GB,"
     "chunk_cache_evict_trigger=90,chunk_size=1MB,device_path=,"
     "enabled=false,hashsize=1024,type=),compatibility=(release=,"
@@ -1600,7 +1600,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "nvram_path=,percent_file_in_dram=50,size=0,system_ram=0,type=),"
     "buffer_alignment=-1,builtin_extension_config=,cache_cursors=true"
     ",cache_max_wait_ms=0,cache_overhead=8,cache_size=100MB,"
-    "cache_stuck_timeout_s=300,checkpoint=(log_size=0,wait=0),"
+    "cache_stuck_timeout_ms=300000,checkpoint=(log_size=0,wait=0),"
     "checkpoint_sync=true,chunk_cache=(capacity=10GB,"
     "chunk_cache_evict_trigger=90,chunk_size=1MB,device_path=,"
     "enabled=false,hashsize=1024,type=),compatibility=(release=,"
@@ -1645,7 +1645,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "nvram_path=,percent_file_in_dram=50,size=0,system_ram=0,type=),"
     "buffer_alignment=-1,builtin_extension_config=,cache_cursors=true"
     ",cache_max_wait_ms=0,cache_overhead=8,cache_size=100MB,"
-    "cache_stuck_timeout_s=300,checkpoint=(log_size=0,wait=0),"
+    "cache_stuck_timeout_ms=300000,checkpoint=(log_size=0,wait=0),"
     "checkpoint_sync=true,chunk_cache=(capacity=10GB,"
     "chunk_cache_evict_trigger=90,chunk_size=1MB,device_path=,"
     "enabled=false,hashsize=1024,type=),compatibility=(release=,"
@@ -1687,7 +1687,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "nvram_path=,percent_file_in_dram=50,size=0,system_ram=0,type=),"
     "buffer_alignment=-1,builtin_extension_config=,cache_cursors=true"
     ",cache_max_wait_ms=0,cache_overhead=8,cache_size=100MB,"
-    "cache_stuck_timeout_s=300,checkpoint=(log_size=0,wait=0),"
+    "cache_stuck_timeout_ms=300000,checkpoint=(log_size=0,wait=0),"
     "checkpoint_sync=true,chunk_cache=(capacity=10GB,"
     "chunk_cache_evict_trigger=90,chunk_size=1MB,device_path=,"
     "enabled=false,hashsize=1024,type=),compatibility=(release=,"
