@@ -830,6 +830,20 @@ class WiredTigerTestCase(unittest.TestCase):
         self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
         bkp_cursor.close()
 
+    # Set a Python breakpoint.
+    def breakpoint(self):
+        import pdb, sys
+        # Restore I/O to the controlling tty so we can
+        # run the debugger.
+        if os.name == "nt":
+            # No solution has been tested here.
+            pass
+        else:
+            sys.stdin = open('/dev/tty', 'r')
+            sys.stdout = open('/dev/tty', 'w')
+            sys.stderr = open('/dev/tty', 'w')
+        pdb.set_trace()
+
     @contextmanager
     def expectedStdout(self, expect):
         self.captureout.check(self)
