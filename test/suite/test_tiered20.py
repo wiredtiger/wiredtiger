@@ -140,12 +140,15 @@ class test_tiered20(TieredConfigMixin, wttest.WiredTigerTestCase):
                 self.assertTrue(os.path.exists(uri_d_shared_file1))
                 self.assertTrue(filecmp.cmp(uri_d_local_file1, uri_d_shared_file1))
 
-            # The second flush from the other "system" should detect the conflict.
-            # Normally such a failure would crash Python, but we've changed our
-            # configuration such that we continue after the fail to write.
-            # We'll check for the error message we expect in the error output.
-            with self.expectedStderrPattern(expected_errno):
-                session2.checkpoint('flush_tier=(enabled,force=true)')
+            # We should be able to do this part of the test for any tiered scenario,
+            # not just dir_store.  Remove this 'if' and comment when FIXME-WT-11004 is finished.
+            if self.is_local_storage:
+                # The second flush from the other "system" should detect the conflict.
+                # Normally such a failure would crash Python, but we've changed our
+                # configuration such that we continue after the fail to write.
+                # We'll check for the error message we expect in the error output.
+                with self.expectedStderrPattern(expected_errno):
+                    session2.checkpoint('flush_tier=(enabled,force=true)')
 
             # At this point, in dir_store, we can verify that the original copy
             # is still in place, and that the version from the second directory

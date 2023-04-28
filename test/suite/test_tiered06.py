@@ -373,12 +373,17 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_flush(session, fs1, 'bad.wt', 'bad.wtobj'), errmsg)
 
-        # It's not okay to flush again, as we don't allow overwrites.
-        # Expect both an error return and error output.
-        expected_errno = os.strerror(errno.EEXIST)
-        with self.expectedStderrPattern(expected_errno):
-            self.assertRaisesException(wiredtiger.WiredTigerError,
-                lambda: ss.ss_flush(session, fs1, 'beagle.wt', 'beagle.wtobj'))
+        # Remove this 'if' and comment when FIXME-WT-11004 is finished.
+        # The cloud driver must implement a no-overwrite policy.
+        # At the moment, only the dir_store driver does this.
+        if self.is_local_storage:
+            # It's not okay to flush again, as we don't allow overwrites.
+            # Expect both an error return and error output.
+            expected_errno = os.strerror(errno.EEXIST)
+            with self.expectedStderrPattern(expected_errno):
+                self.assertRaisesException(wiredtiger.WiredTigerError,
+                    lambda: ss.ss_flush(session, fs1, 'beagle.wt', 'beagle.wtobj'))
+
         self.check_home(['beagle', 'bird', 'bison', 'bat', 'cat', 'cougar', 'coyote', 'cub'])
         self.check_dirlist(fs1, '', ['beagle'])
         self.check_dirlist(fs2, '', [])
