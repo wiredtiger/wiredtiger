@@ -93,6 +93,8 @@ class test_tiered12(wttest.WiredTigerTestCase, TieredConfigMixin):
         time.sleep(2)
         # After sleeping, the internal thread should have created the cached object.
         if self.has_cache:
+            if self.ss_name == 's3_store':
+                self.obj1file = self.obj1file.replace('/', '-')
             cache_obj = os.path.join(cache, self.bucket_prefix + self.obj1file)
             self.assertTrue(os.path.exists(cache_obj))
 
