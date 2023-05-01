@@ -975,6 +975,16 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
     WT_ERR(ret);
 
     /*
+     * If we find a history store update with a timestamp larger than or equal to that of
+     * the update we're inserting, we've hit one of two cases:
+     *   1. We're inserting a mixed-mode timestamp and this is expected behavior
+     *   2. We're not inserting a mixed-mode timestamp and the history store is out of order.
+     * If we reach here we've found a more recent history store update, so assert the update we're
+     * inserting is mixed-mode.
+     */
+    WT_ASSERT(session, ts == 1 || ts == WT_TS_NONE);
+
+    /*
      * Fail the eviction if we detect out of order timestamps when we've passed the error return
      * flag. We cannot modify the history store to fix the out of order timestamp updates as it may
      * make the history store checkpoint inconsistent.
