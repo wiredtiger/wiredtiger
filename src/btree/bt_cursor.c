@@ -646,7 +646,9 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
      * The following assertion relies on the fact that for every prepared update there must be an
      * associated key. However this is only true if we pin the page to prevent eviction. By calling
      * into the standard search function we avoid releasing our hazard pointer between update chain
-     * resolutions.
+     * resolutions. It also depends on sorting the transaction modifications by key, if we didn't do
+     * that we would unpin the page between searches and later come back to the same key. We rely on
+     * resolving all updates for a single key in sequence.
      *
      * This is a complex scenario, suppose we have two updates to the same key by our transaction,
      * and are resolving the prepared updates. The first pass resolves the update chain, now if we
