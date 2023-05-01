@@ -96,7 +96,7 @@ class Operation:
             matches = re.search(f'{prefix}=(0x[A-Za-z0-9]+)', line)
 
         if matches is None:
-            raise Exception("failed to parse address string")
+            raise Exception(f"failed to parse address string with prefix '{prefix}' in '{line}'")
 
         return int(matches.group(1), 16)
 
