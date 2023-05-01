@@ -629,23 +629,19 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
     WT_BTREE *btree;
     WT_CURSOR_BTREE *cbt;
     WT_UPDATE *upd;
-
-    *updp = NULL;
-
-    cbt = (WT_CURSOR_BTREE *)cursor;
-    btree = CUR2BT(cbt);
-    upd = NULL; /* -Wuninitialized */
+    bool leaf_found;
 
     /*
-     * Not calling the cursor initialization functions, we don't want to be tapped for eviction nor
-     * do we want other standard cursor semantics like snapshots, just discard the hazard pointer
-     * from the last operation. This also depends on the fact we're not setting the cursor's active
-     * flag, this is really a special chunk of code and not to be modified without careful thought.
+     * We don't need to know if we found the key on the ref we provide but the search function
+     * depends on this variable.
      */
-    WT_RET(__cursor_reset(cbt));
+    leaf_found = false;
+    *updp = upd = NULL; /* -Wuninitialized */
+    cbt = (WT_CURSOR_BTREE *)cursor;
+    btree = CUR2BT(cbt);
 
-    WT_RET(btree->type == BTREE_ROW ? __cursor_row_search(cbt, false, NULL, NULL) :
-                                      __cursor_col_search(cbt, NULL, NULL));
+    WT_RET(btree->type == BTREE_ROW ? __cursor_row_search(cbt, false, cbt->ref,  &leaf_found) :
+                                      __cursor_col_search(cbt, cbt->ref,  &leaf_found));
 
     /*
      * Ideally an exact match will be found, as this transaction is searching for updates done by
