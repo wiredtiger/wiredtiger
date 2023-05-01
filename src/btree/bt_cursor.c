@@ -637,8 +637,8 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
 
     F_SET(&cbt->iface, WT_CURSTD_KEY_ONLY);
     ret = __wt_btcur_search(cbt);
-    WT_ASSERT(CUR2S(cursor), ret != WT_NOTFOUND);
-
+    if (ret != 0)
+        WT_ASSERT(CUR2S(cursor), false);
     /* Get any uncommitted update from the in-memory page. */
     switch (btree->type) {
     case BTREE_ROW:
