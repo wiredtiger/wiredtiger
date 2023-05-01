@@ -1566,14 +1566,14 @@ __wt_session_range_truncate(
         if ((ret = start->search_near(start, &cmp)) != 0 ||
           (cmp < 0 && (ret = start->next(start)) != 0)) {
             WT_ERR_NOTFOUND_OK(ret, false);
-	    log_trunc = true;
+            log_trunc = true;
             goto done;
         }
     if (stop != NULL && !F_ISSET(stop, WT_CURSTD_KEY_INT))
         if ((ret = stop->search_near(stop, &cmp)) != 0 ||
           (cmp > 0 && (ret = stop->prev(stop)) != 0)) {
             WT_ERR_NOTFOUND_OK(ret, false);
-	    log_trunc = true;
+            log_trunc = true;
             goto done;
         }
 
@@ -1606,8 +1606,8 @@ __wt_session_range_truncate(
 done:
     /*
      * In the cases where truncate doesn't have work to do, we still need to generate a log record
-     * for the operation. That way we can be consistent with other competing inserts or truncates
-     * on other tables in this transaction.
+     * for the operation. That way we can be consistent with other competing inserts or truncates on
+     * other tables in this transaction.
      */
     if (log_trunc && __wt_log_op(session))
         WT_ERR(__wt_txn_truncate_log(session, orig_start_key, orig_stop_key, local_start));
