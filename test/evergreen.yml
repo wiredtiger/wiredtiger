@@ -1280,14 +1280,6 @@ tasks:
       - func: "compile wiredtiger"
       - func: "make check all"
 
-  - name: make-check-test-debug
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
-      - func: "make check all"
-
   - name: make-check-linux-no-ftruncate-test
     commands:
       - func: "get project"
@@ -5655,6 +5647,7 @@ buildvariants:
     # Remove that configuration here and let MacOS use the default Xcode toolchain instead.
     # We'll explicitly use the python3 in /usr/bin, we use the same in configuring cmake.
     CMAKE_TOOLCHAIN_FILE:
+    CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
     python_binary: '/usr/bin/python3'
     smp_command: -j $(sysctl -n hw.logicalcpu)
     cmake_generator: "Unix Makefiles"
@@ -5666,7 +5659,7 @@ buildvariants:
     posix_configure_flags: -DENABLE_TCMALLOC=0
   tasks:
     - name: compile
-    - name: make-check-test-debug
+    - name: make-check-test
     # FIXME: WT-9575
     # Using a special version of unit test for macOS to reduce the concurrency level.
     - name: unit-test-macos
