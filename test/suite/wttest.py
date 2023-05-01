@@ -830,7 +830,11 @@ class WiredTigerTestCase(unittest.TestCase):
         self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
         bkp_cursor.close()
 
-    # Set a Python breakpoint.
+    # Set a Python breakpoint.  When this function is called,
+    # the python debugger will be called as described here:
+    #   https://docs.python.org/3/library/pdb.html
+    # This can be used instead of the Python built-in "breakpoint",
+    # so that the terminal has proper I/O and a prompt appears, etc.
     def breakpoint(self):
         import pdb, sys
         # Restore I/O to the controlling tty so we can
