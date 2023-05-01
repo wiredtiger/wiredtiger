@@ -523,6 +523,10 @@ connection_runtime_config = [
         the maximum number of milliseconds an application thread will wait for space to be
         available in cache before giving up. Default will wait forever''',
         min=0),
+    Config('cache_stuck_timeout_ms', '300000', r'''
+        the number of milliseconds to wait before a stuck cache times out in diagnostic mode.
+        Default will wait for 5 minutes, 0 will wait forever''',
+        min=0),
     Config('cache_overhead', '8', r'''
         assume the heap allocator overhead is the specified percentage, and adjust the cache
         usage by that amount (for example, if there is 10GB of data in cache, a percentage of
@@ -1796,8 +1800,8 @@ methods = {
         configure flushing objects to tiered storage after checkpoint''',
         type='category', subconfig= [
             Config('enabled', 'false', r'''
-                if true, perform one iteration of object switching and flushing objects to
-                tiered storage''',
+                if true and tiered storage is in use, perform one iteration of object switching
+                and flushing objects to tiered storage''',
                 type='boolean'),
             Config('force', 'false', r'''
                 if false (the default), flush_tier of any individual object may be skipped if the

@@ -75,6 +75,7 @@ Checksums
 CityHash
 CloseHandle
 CmP
+Codec
 Comparator
 Config
 Coverity
@@ -168,6 +169,7 @@ HANDLEOPS
 HFS
 HOTBACKUP
 Hendrik
+IAA
 IC
 IEC
 IKEY
@@ -291,6 +293,7 @@ Preload
 Prepend
 Prepending
 Prev
+Ptr
 Px
 QQQS
 QSQ
@@ -804,6 +807,8 @@ hval
 hw
 iS
 iSh
+iaa
+iaaInterface
 ibackup
 icount
 idlems
@@ -889,6 +894,7 @@ libmemkind
 libs
 libsodium
 libwiredtiger
+lifecycle
 linux
 llll
 llu
@@ -1106,6 +1112,7 @@ readlock
 readonly
 readunlock
 realloc
+reallocations
 recency
 recno
 recnos
