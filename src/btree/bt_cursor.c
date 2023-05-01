@@ -640,6 +640,10 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
      * just want to position on a key. This short circuits validity checking.
      */
     F_SET(&cbt->iface, WT_CURSTD_KEY_ONLY);
+    /*
+     * The search logic searches the pinned page first, which would be the previously resolved
+     * update chain's page. If that doesn't find the key we want it searches from the root.
+     */
     ret = __wt_btcur_search(cbt);
     F_CLR(&cbt->iface, WT_CURSTD_KEY_ONLY);
     /*
