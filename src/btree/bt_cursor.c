@@ -637,6 +637,7 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
 
     F_SET(&cbt->iface, WT_CURSTD_KEY_ONLY);
     ret = __wt_btcur_search(cbt);
+    F_CLR(&cbt->iface, WT_CURSTD_KEY_ONLY);
     if (ret != 0)
         WT_ASSERT(CUR2S(cursor), false);
     /* Get any uncommitted update from the in-memory page. */
