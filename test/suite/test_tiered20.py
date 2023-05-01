@@ -70,13 +70,13 @@ class test_tiered20(TieredConfigMixin, wttest.WiredTigerTestCase):
             self.session.drop(uri, "force=true")
 
     def test_remove_shared(self):
-        uri_c = "table:tieredc"
-        uri_d = "table:tieredd"
-        uri_d_local_file1 = 'tieredd-0000000001.wtobj'
+        uri_a = "table:tiereda"
+        uri_b = "table:tieredb"
+        uri_b_local_file1 = 'tieredb-0000000001.wtobj'
 
         # For any scenario, we should be able to fully drop and then recreate a table.
         for i in range(0, 3):
-            self.create_flush_drop(uri_c, True)
+            self.create_flush_drop(uri_a, True)
 
         # For tiered scenarios only, we have specific tests that deal with files that
         # have been shared to the bucket.
@@ -89,14 +89,14 @@ class test_tiered20(TieredConfigMixin, wttest.WiredTigerTestCase):
         # or run.
 
         # For this test, we don't clean up what's in the cloud, only clean up locally.
-        self.create_flush_drop(uri_c, False)
+        self.create_flush_drop(uri_a, False)
 
         # Now, we're creating the same URI.  Even though there should be no local
         # files or metadata, it should detect existing items in the cloud.
         # We expect the tiered create will return an EEXIST, with no output message.
         expected_errno = os.strerror(errno.EEXIST)
         self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: self.create_flush_drop(uri_c, False), expected_errno)
+            lambda: self.create_flush_drop(uri_a, False), expected_errno)
 
         # Now, create another WT home directory and link the buckets together.
         # This emulates multiple systems sharing the same AWS bucket.
@@ -118,28 +118,28 @@ class test_tiered20(TieredConfigMixin, wttest.WiredTigerTestCase):
 
         # Create URIs on each connection (as if on two systems).
         # This should not conflict, as nothing has been pushed to the shared storage.
-        session1.create(uri_d, "key_format=S,value_format=S")
-        session2.create(uri_d, "key_format=S,value_format=S")
-        c1 = session1.open_cursor(uri_d)
+        session1.create(uri_b, "key_format=S,value_format=S")
+        session2.create(uri_b, "key_format=S,value_format=S")
+        c1 = session1.open_cursor(uri_b)
         c1["a"] = "a"
         c1.close()
-        c2 = session2.open_cursor(uri_d)
+        c2 = session2.open_cursor(uri_b)
         c2["a"] = "SOMETHING_VERY_DIFFERENT!" * 1000
         c2.close()
         session1.checkpoint()
         session2.checkpoint()
 
         # Make sure the file systems in the first connection.
-        self.assertTrue(os.path.exists(uri_d_local_file1))
+        self.assertTrue(os.path.exists(uri_b_local_file1))
 
         # The first flush from the first "system" should succeed
         session1.checkpoint('flush_tier=(enabled,force=true)')
         if self.is_local_storage:   # dir_store
-            uri_d_shared_file1 = os.path.join('bucket1', 'pfx_' + uri_d_local_file1)
-            uri_d_second_file1 = os.path.join('SECOND', uri_d_local_file1)
+            uri_b_shared_file1 = os.path.join(self.bucket, self.bucket_prefix + uri_b_local_file1)
+            uri_b_second_file1 = os.path.join('SECOND', uri_b_local_file1)
 
-            self.assertTrue(os.path.exists(uri_d_shared_file1))
-            self.assertTrue(filecmp.cmp(uri_d_local_file1, uri_d_shared_file1))
+            self.assertTrue(os.path.exists(uri_b_shared_file1))
+            self.assertTrue(filecmp.cmp(uri_b_local_file1, uri_b_shared_file1))
 
         # We should be able to do this part of the test for any tiered scenario,
         # not just dir_store.  Remove this 'if' and comment when FIXME-WT-11004 is finished.
@@ -155,9 +155,9 @@ class test_tiered20(TieredConfigMixin, wttest.WiredTigerTestCase):
         # is still in place, and that the version from the second directory
         # did not overwrite it.
         if self.is_local_storage:   # dir_store
-            self.assertTrue(os.path.exists(uri_d_shared_file1))
-            self.assertFalse(filecmp.cmp(uri_d_second_file1, uri_d_shared_file1))
-            self.assertTrue(filecmp.cmp(uri_d_local_file1, uri_d_shared_file1))
+            self.assertTrue(os.path.exists(uri_b_shared_file1))
+            self.assertFalse(filecmp.cmp(uri_b_second_file1, uri_b_shared_file1))
+            self.assertTrue(filecmp.cmp(uri_b_local_file1, uri_b_shared_file1))
 
         # We're done with the second connection.
         session2.close()
@@ -171,15 +171,15 @@ class test_tiered20(TieredConfigMixin, wttest.WiredTigerTestCase):
         #
         #    # Make sure the local file is removed, so we actually will go to the
         #    # cloud the next time this URI is accessed.
-        #    while os.path.exists(uri_d_local_file1):
+        #    while os.path.exists(uri_b_local_file1):
         #        self.pr('sleeping...')
         #        time.sleep(1)
-        #    self.pr('{}: file is removed, continuing'.format(uri_d_local_file1))
+        #    self.pr('{}: file is removed, continuing'.format(uri_b_local_file1))
 
         # Meanwhile, the first system should not have any trouble accessing
         # the data via the cloud.
         self.reopen_conn()
-        c1 = self.session.open_cursor(uri_d)
+        c1 = self.session.open_cursor(uri_b)
         self.assertEqual(c1["a"], "a")
         c1.close()
 
