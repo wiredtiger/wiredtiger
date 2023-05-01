@@ -1280,6 +1280,14 @@ tasks:
       - func: "compile wiredtiger"
       - func: "make check all"
 
+  - name: make-check-test-debug
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
+      - func: "make check all"
+
   - name: make-check-linux-no-ftruncate-test
     commands:
       - func: "get project"
@@ -5658,7 +5666,7 @@ buildvariants:
     posix_configure_flags: -DENABLE_TCMALLOC=0
   tasks:
     - name: compile
-    - name: make-check-test
+    - name: make-check-test-debug
     # FIXME: WT-9575
     # Using a special version of unit test for macOS to reduce the concurrency level.
     - name: unit-test-macos
