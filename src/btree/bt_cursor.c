@@ -635,11 +635,28 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
     cbt = (WT_CURSOR_BTREE *)cursor;
     btree = CUR2BT(cbt);
 
+    /*
+     * Set the key only flag to indicate to the search that we don't want to check visibility we
+     * just want to position on a key. This short circuits validity checking.
+     */
     F_SET(&cbt->iface, WT_CURSTD_KEY_ONLY);
     ret = __wt_btcur_search(cbt);
     F_CLR(&cbt->iface, WT_CURSTD_KEY_ONLY);
-    if (ret != 0)
-        WT_ASSERT(CUR2S(cursor), false);
+    /*
+     * The following assertion relies on the fact that for every prepared update there must be an
+     * associated key. However this is only true if we pin the page to prevent eviction. By calling
+     * into the standard search function we avoid releasing our hazard pointer between update chain
+     * resolutions.
+     *
+     * This is a complex scenario, suppose we have two updates to the same key by our transaction,
+     * and are resolving the prepared updates. The first pass resolves the update chain, now if we
+     * let eviction run it could evict the page and it will treat the update chain as a regular non
+     * prepared update chain. If we were rolling back the transaction the key may not exist after
+     * eviction, similarly if we wrote a globally visible tombstone. Thus our second attempt at
+     * resolution would fail as it wouldn't find a key.
+     */
+    WT_ASSERT_ALWAYS(
+      CUR2S(cursor), ret == 0, "A valid key must exist when resolving prepared updates.");
     /* Get any uncommitted update from the in-memory page. */
     switch (btree->type) {
     case BTREE_ROW:
