@@ -684,12 +684,19 @@ config_cache(void)
 {
     uint64_t cache, workers;
 
+    /* Sum the number of workers. */
+    workers = GV(RUNS_THREADS);
+    if (GV(OPS_HS_CURSOR))
+        ++workers;
+    if (GV(OPS_RANDOM_CURSOR))
+        ++workers;
+
     /* Check if both min and max cache sizes have been specified and if they're consistent. */
     if (config_explicit(NULL, "cache")) {
         if (config_explicit(NULL, "cache.minimum") && GV(CACHE) < GV(CACHE_MINIMUM))
             testutil_die(EINVAL, "minimum cache set larger than cache (%" PRIu32 " > %" PRIu32 ")",
               GV(CACHE_MINIMUM), GV(CACHE));
-        return;
+        goto dirty_eviction_config;
     }
 
     GV(CACHE) = GV(CACHE_MINIMUM);
@@ -706,13 +713,6 @@ config_cache(void)
         if (GV(CACHE) < cache)
             GV(CACHE) = (uint32_t)cache;
     }
-
-    /* Sum the number of workers. */
-    workers = GV(RUNS_THREADS);
-    if (GV(OPS_HS_CURSOR))
-        ++workers;
-    if (GV(OPS_RANDOM_CURSOR))
-        ++workers;
 
     /*
      * Maximum internal/leaf page size sanity.
@@ -749,6 +749,21 @@ config_cache(void)
     /* Give any block cache 20% of the total cache size, over and above the cache. */
     if (GV(BLOCK_CACHE) != 0)
         GV(BLOCK_CACHE_SIZE) = (GV(CACHE) + 4) / 5;
+
+dirty_eviction_config:
+    /* Adjust the dirty eviction settings to reduce test driven cache stuck failures. */
+    if (g.lsm_config || GV(CACHE) < 20) {
+        WARN("Setting cache.eviction_dirty_trigger=95 due to %s",
+          g.lsm_config ? "LSM" : "micro cache");
+        config_single(NULL, "cache.eviction_dirty_trigger=95", false);
+    } else if (GV(CACHE) / workers <= 2 && !config_explicit(NULL, "cache.eviction_dirty_trigger")) {
+        WARN("Cache is minimally configured (%" PRIu32
+             "mb), setting cache.eviction_dirty_trigger=40 and "
+             "cache.eviction_dirty_target=10",
+          GV(CACHE));
+        config_single(NULL, "cache.eviction_dirty_trigger=40", false);
+        config_single(NULL, "cache.eviction_dirty_target=10", false);
+    }
 }
 
 /*
@@ -1143,12 +1158,18 @@ config_mirrors(void)
 {
     u_int available_tables, i, mirrors;
     char buf[100];
-    bool already_set, explicit_mirror;
+    bool already_set, explicit_mirror, fix, var;
 
+    fix = var = false;
+    g.mirror_fix_var = false;
     /* Check for a CONFIG file that's already set up for mirroring. */
     for (already_set = false, i = 1; i <= ntables; ++i)
         if (NTV(tables[i], RUNS_MIRROR)) {
             already_set = tables[i]->mirror = true;
+            if (tables[i]->type == FIX)
+                fix = true;
+            if (tables[i]->type == VAR)
+                var = true;
             if (g.base_mirror == NULL && tables[i]->type != FIX)
                 g.base_mirror = tables[i];
         }
@@ -1162,6 +1183,8 @@ config_mirrors(void)
          * it lets us avoid a bunch of extra logic around figuring out whether we have an acceptable
          * minimum number of tables.
          */
+        if (fix && var)
+            g.mirror_fix_var = true;
         return;
     }
 
@@ -1238,7 +1261,8 @@ config_mirrors(void)
     tables[i]->mirror = true;
     config_single(tables[i], "runs.mirror=1", false);
     g.base_mirror = tables[i];
-
+    if (tables[i]->type == VAR)
+        var = true;
     /*
      * Pick some number of tables to mirror, then turn on mirroring the next (n-1) tables, where
      * allowed.
@@ -1249,11 +1273,21 @@ config_mirrors(void)
         if (tables[i] != g.base_mirror) {
             tables[i]->mirror = true;
             config_single(tables[i], "runs.mirror=1", false);
+            if (tables[i]->type == FIX)
+                fix = true;
+            if (tables[i]->type == VAR)
+                var = true;
             if (--mirrors == 0)
                 break;
         }
     }
 
+    /*
+     * There is an edge case that is possible only when we are mirroring both VLCS and FLCS tables.
+     * Note if that is true now.
+     */
+    if (fix && var)
+        g.mirror_fix_var = true;
     /*
      * Give each mirror the same number of rows (it's not necessary, we could treat end-of-table on
      * a mirror as OK, but this lets us assert matching rows).

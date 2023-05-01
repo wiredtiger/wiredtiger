@@ -136,6 +136,34 @@ functions:
           DEFINED_EVERGREEN_CONFIG_FLAGS=${DEFINED_EVERGREEN_CONFIG_FLAGS/\-DHAVE_BUILTIN_EXTENSION_ZSTD=1/}
         fi
 
+        if [ "${build_variant|}" = "macos-1100" ]; then
+          # For mac builds, we want explicitly tell cmake which python to use, as
+          # well as the matching library directory and header files. The find_libpython
+          # module gives us the library.
+          SYSPY=${python_binary}
+          $SYSPY -mvenv venv
+          source venv/bin/activate
+          pip3 install find_libpython
+          SYSPYLIB=`find_libpython`
+          SYSPYINCDEF=
+
+          # We have the shared library to link to, it may be named simply 'Python3' or 'Python'.
+          # If that's the case, use the associated dylib symlink found in an expected relative
+          # location. Also get the location of the header files. We'll give this all to cmake.
+          base=$(basename $SYSPYLIB)
+          if [ "$base" = 'Python3' -o "$base" = 'Python' ]; then
+             SYSPYDIR=$(dirname $SYSPYLIB)
+             NSYSPYLIB=$(ls $SYSPYDIR/lib/libpython*.dylib 2>/dev/null | head -1)
+             if [ -f "$NSYSPYLIB" ]; then
+                 SYSPYLIB=$NSYSPYLIB
+             fi
+             if [ -d "$SYSPYDIR/Headers" ]; then
+                 SYSPYINCDEF="-DPYTHON_INCLUDE_DIR=$SYSPYDIR/Headers"
+             fi
+          fi
+          DEFINED_EVERGREEN_CONFIG_FLAGS="$DEFINED_EVERGREEN_CONFIG_FLAGS -DPYTHON_EXECUTABLE:FILEPATH=$SYSPY -DPYTHON_LIBRARY=$SYSPYLIB $SYSPYINCDEF"
+        fi
+
         if [ "$OS" = "Windows_NT" ]; then
           # Use the Windows powershell script to configure the CMake build.
           # We execute it in a powershell environment as its easier to detect and source the Visual Studio
@@ -160,6 +188,32 @@ functions:
           cd cmake_build
 
           ${configure_env_vars|} $CMAKE $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|} -G "${cmake_generator|Ninja}" ./..
+        fi
+  "python config check":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/cmake_build"
+      shell: bash
+      script: |
+        set -o errexit
+        set -o verbose
+        # Note: ${var} is used for expansions of evergreen variables, whereas $var are /bin/sh variables.
+        python_configured=$(grep PYTHON_EXECUTABLE: ./CMakeCache.txt | sed -e 's/.*=//')
+        if [ "${python_binary}" = '' -o "$python_configured" = '' -o "$(${python_binary} -V -V)" != "$($python_configured -V -V)" ]; then
+           echo "Python versions do not match."
+           echo "Python version used by cmake builds ($python_configured):"
+           if [ "$python_configured" = '' ]; then
+               echo "No python configured"
+           else
+               $python_configured -V -V
+           fi
+           echo "Python version used in shell commands (${python_binary}):"
+           if [ "${python_binary}" = '' ]; then
+               echo "No python set in Expansions"
+           else
+               ${python_binary} -V -V
+           fi
+           exit 1
         fi
   "make wiredtiger": &make_wiredtiger
     command: shell.exec
@@ -776,6 +830,54 @@ functions:
         set -o verbose
         ${test_env_vars|} ./test_checkpoint ${checkpoint_args} 2>&1
 
+  "checkpoint test predictable":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/cmake_build/test/checkpoint"
+      script: |
+        # Get a random value with leading zeroes removed, /bin/sh version.
+        rando() {
+          tr -cd 0-9 </dev/urandom | head -c 5 | sed -e 's/0*\(.\)/\1/'
+        }
+
+        # Run test/checkpoint in a way that can test predictable replay.
+        set -o errexit
+        set -o verbose
+
+        toolsdir=../../../tools
+        wtutil=../../wt
+
+        r=$(rando)$(rando)
+        x0=$(rando)$(rando)
+
+        # Always run with timestamps and in the predictable mode
+        base_args="-x -R"
+
+        rm -rf RUNDIR_0
+        # The first run is for calibration only.  We just want to run for the designated
+        # time and get an approriate stop timestamp that can be used in later runs.
+        calibration_run_args="-PSD$r,E$x0"
+        ${test_env_vars|} ./test_checkpoint -h RUNDIR_0 $base_args ${checkpoint_args} $calibration_run_args || exit 1
+        echo "Finished calibration run"
+        stable_hex=$($toolsdir/wt_timestamps RUNDIR_0 | sed -e '/stable=/!d' -e 's/.*=//')
+        stop_ts=$(echo $((0x$stable_hex)))
+        for i in $(seq ${times}); do
+          echo Iteration $i/${times}
+          x1=$(rando)$(rando)
+          x2=$(rando)$(rando)
+          rm -rf RUNDIR_1 RUNDIR_2
+          # Do two runs up to the stable timestamp, using the same data seed,
+          # but with a different extra seed.  Compare it when done.
+          first_run_args="-PSD$r,E$x1 -S $stop_ts"
+          echo "First run with args $base_args ${checkpoint_args} $first_run_args"
+          ${test_env_vars|} ./test_checkpoint -h RUNDIR_1 $base_args ${checkpoint_args} $first_run_args || exit 1
+          second_run_args="-PSD$r,E$x2 -S $stop_ts"
+          echo "Second run with args $base_args ${checkpoint_args} $second_run_args"
+          ${test_env_vars|} ./test_checkpoint -h RUNDIR_2 $base_args ${checkpoint_args} $second_run_args || exit 1
+          # Compare the runs.
+          $toolsdir/wt_cmp_dir RUNDIR_1 RUNDIR_2 || exit 1
+        done
+
   "checkpoint stress test":
     command: shell.exec
     params:
@@ -1074,7 +1176,7 @@ variables:
 #######################################
 
 tasks:
-
+  # Check the python configuration
   # Base compile task on posix flavours
   - name: compile
     tags: ["pull_request"]
@@ -1749,6 +1851,16 @@ tasks:
         vars:
           test_name: incr_backup
 
+  - name: csuite-random-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "csuite test"
+        vars:
+          test_name: random
+
   - name: csuite-random-abort-test
     tags: ["pull_request"]
     depends_on:
@@ -2226,6 +2338,16 @@ tasks:
         vars:
           test_name: wt10461_skip_list_stress
 
+  - name: csuite-wt10897-compact-quick-interrupt-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "csuite test"
+        vars:
+          test_name: wt10897_compact_quick_interrupt
+
   # End of csuite test tasks
 
   # Start of Python unit test tasks
@@ -2244,6 +2366,7 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
+      - func: "python config check"
       - func: "unit test"
         vars:
            smp_command: -j $(echo $(sysctl -n hw.logicalcpu) / 2 | bc)
@@ -2672,19 +2795,9 @@ tasks:
             set -o errexit
             set -o verbose
             sh -x s_all -A -E 2>&1
-
-  - name: s-string
-    # Run the script with "-r" option to remove no-longer-needed words in s_string.ok
-    # This task only needs to be scheduled every a few months. A failure can remind us
-    # to keep the s_string.ok word list up-to-date.
-    commands:
-      - func: "get project"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/dist"
-          script: |
-            set -o errexit
-            set -o verbose
+            # Run s_string with the "-r" option to remove no-longer-needed words from s_string.ok
+            # This is run separately from s_all as it can be too proactive when run as part of 
+            # developers local workflow, but needs to be run in PR builds before the code is merged.
             sh s_string -r 2>&1
 
   - name: s-outdated-fixmes
@@ -4105,6 +4218,31 @@ tasks:
         vars:
           times: 5
 
+  - name: checkpoint-filetypes-predictable-test
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          # Don't use diagnostic - this test looks for timing problems that are more likely to occur without it
+          HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
+      # FIXME-WT-10936: Enable once predictable replay supports column store
+      #- func: "checkpoint test predictable"
+      #  vars:
+      #    checkpoint_args: -t m -n 1000000 -k 5000000 -C cache_size=100MB
+      #    times: 5
+      #- func: "checkpoint test predictable"
+      #  vars:
+      #    checkpoint_args: -t c -n 1000000 -k 5000000 -C cache_size=100MB
+      #    times: 5
+      #- func: "checkpoint test predictable"
+      #  vars:
+      #    checkpoint_args: -n 1000000 -k 5000000 -C cache_size=100MB
+      #    times: 5
+      - func: "checkpoint test predictable"
+        vars:
+          checkpoint_args: -t r -n 1000000 -k 5000000 -C cache_size=100MB
+          times: 5
+
   - name: many-collection-test
     commands:
       - command: timeout.update
@@ -5137,7 +5275,7 @@ buildvariants:
   tasks:
     - name: ".pull_request !.pull_request_compilers"
     - name: ".unit_test_long"
-      distros: ubuntu2004-medium
+      distros: ubuntu2004-large
     - name: compile
     - name: doc-compile
     - name: make-check-test
@@ -5336,6 +5474,8 @@ buildvariants:
     # FIXME-WT-10822
     # - name: format-tiered-test
     - name: schema-abort-predictable-test
+    - name: checkpoint-filetypes-predictable-test
+
 
 # When running the Python tests on this variant tcmalloc must be preloaded otherwise the wiredtiger library
 # fails to load and resolve its dependency.
@@ -5503,10 +5643,11 @@ buildvariants:
   - macos-1100
   batchtime: 120 # 2 hours
   expansions:
-    # The cmake toolchain file is set to the mongodb toolchain gcc by defualt.
+    # The cmake toolchain file is set to the mongodb toolchain gcc by default.
     # Remove that configuration here and let MacOS use the default Xcode toolchain instead.
+    # We'll explicitly use the python3 in /usr/bin, we use the same in configuring cmake.
     CMAKE_TOOLCHAIN_FILE:
-    python_binary: 'python3'
+    python_binary: '/usr/bin/python3'
     smp_command: -j $(sysctl -n hw.logicalcpu)
     cmake_generator: "Unix Makefiles"
     make_command: make
@@ -5709,29 +5850,6 @@ buildvariants:
     - name: unit-test-nonstandalone
     - name: unit-test-extra-long-nonstandalone
       distros: amazon2-arm64-large
-
-- name: infrequent-checks
-  display_name: "~ Infrequent checks"
-  run_on:
-  - ubuntu2004-test
-  expansions:
-    test_env_vars:
-      WT_TOPDIR=$(git rev-parse --show-toplevel)
-      WT_BUILDDIR=$WT_TOPDIR/cmake_build
-      LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
-      LD_PRELOAD=$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
-    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
-    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
-    smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
-    cmake_generator: Ninja
-    make_command: ninja
-  tasks:
-    - name: memory-model-test
-      batchtime: 40320 # 28 days
-    - name: s-outdated-fixmes
-      batchtime: 10080 # 7 days
-    - name: s-string
-      batchtime: 129600 # 90 days
 
 # Antithesis build and push
 - name: ubuntu2004-antithesis
