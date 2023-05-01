@@ -688,7 +688,7 @@ dir_store_file_copy(DIR_STORE *dir_store, WT_SESSION *session, const char *src_p
             goto err;
         }
     }
-    if (ret == 0 && (ret = chmod(tmp_path, 0444)) < 0)
+    if (ret == 0 && chmod(tmp_path, 0444) < 0)
         ret = dir_store_err(dir_store, session, errno, "%s: file_copy chmod failed", tmp_path);
 
     /*
@@ -1068,8 +1068,7 @@ dir_store_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
              * If the file actually exists now, it could be a racing thread that created it.
              */
             if ((ret = dir_store_file_copy(dir_store, session, bucket_path, cache_path,
-                   WT_FS_OPEN_FILE_TYPE_DATA, false)) != 0 ||
-              ret == EEXIST)
+                   WT_FS_OPEN_FILE_TYPE_DATA, false)) != 0)
                 goto err;
         }
         if ((ret = wt_fs->fs_open_file(wt_fs, session, cache_path, file_type, flags, &wt_fh)) !=
