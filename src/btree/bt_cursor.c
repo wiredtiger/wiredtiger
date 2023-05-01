@@ -628,28 +628,16 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
 {
     WT_BTREE *btree;
     WT_CURSOR_BTREE *cbt;
+    WT_DECL_RET;
     WT_UPDATE *upd;
-    bool leaf_found;
 
-    /*
-     * We don't need to know if we found the key on the ref we provide but the search function
-     * depends on this variable.
-     */
-    leaf_found = false;
     *updp = upd = NULL; /* -Wuninitialized */
     cbt = (WT_CURSOR_BTREE *)cursor;
     btree = CUR2BT(cbt);
 
-    WT_RET(btree->type == BTREE_ROW ? __cursor_row_search(cbt, false, cbt->ref,  &leaf_found) :
-                                      __cursor_col_search(cbt, cbt->ref,  &leaf_found));
-
-    /*
-     * Ideally an exact match will be found, as this transaction is searching for updates done by
-     * itself. But, we cannot be sure of finding one, as pre-processing of the updates could have
-     * happened as part of resolving earlier transaction operations.
-     */
-    if (cbt->compare != 0)
-        return (0);
+    F_SET(&cbt->iface, WT_CURSTD_KEY_ONLY);
+    ret = __wt_btcur_search(cbt);
+    WT_ASSERT(CUR2S(cursor), ret != WT_NOTFOUND);
 
     /* Get any uncommitted update from the in-memory page. */
     switch (btree->type) {
