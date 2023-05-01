@@ -1488,10 +1488,10 @@ __wt_session_range_truncate(
     WT_DECL_RET;
     WT_ITEM start_key, stop_key;
     int cmp;
-    bool local_start;
+    bool local_start, log_trunc;
 
     orig_start_key = orig_stop_key = NULL;
-    local_start = false;
+    local_start = log_trunc = false;
     if (uri != NULL) {
         WT_ASSERT(session, WT_BTREE_PREFIX(uri));
         /*
@@ -1566,12 +1566,14 @@ __wt_session_range_truncate(
         if ((ret = start->search_near(start, &cmp)) != 0 ||
           (cmp < 0 && (ret = start->next(start)) != 0)) {
             WT_ERR_NOTFOUND_OK(ret, false);
+	    log_trunc = true;
             goto done;
         }
     if (stop != NULL && !F_ISSET(stop, WT_CURSTD_KEY_INT))
         if ((ret = stop->search_near(stop, &cmp)) != 0 ||
           (cmp > 0 && (ret = stop->prev(stop)) != 0)) {
             WT_ERR_NOTFOUND_OK(ret, false);
+	    log_trunc = true;
             goto done;
         }
 
@@ -1602,6 +1604,13 @@ __wt_session_range_truncate(
       __wt_schema_range_truncate(session, start, stop, orig_start_key, orig_stop_key, local_start));
 
 done:
+    /*
+     * In the cases where truncate doesn't have work to do, we still need to generate a log record
+     * for the operation. That way we can be consistent with other competing inserts or truncates
+     * on other tables in this transaction.
+     */
+    if (log_trunc && __wt_log_op(session))
+        WT_ERR(__wt_txn_truncate_log(session, orig_start_key, orig_stop_key, local_start));
 err:
     /*
      * Close any locally-opened start cursor.
