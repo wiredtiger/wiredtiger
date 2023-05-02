@@ -1483,12 +1483,14 @@ int
 __wt_session_range_truncate(
   WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *start, WT_CURSOR *stop)
 {
+    WT_CURSOR_BTREE *cbt;
+    WT_DATA_HANDLE *dhandle;
     WT_DECL_ITEM(orig_start_key);
     WT_DECL_ITEM(orig_stop_key);
     WT_DECL_RET;
     WT_ITEM start_key, stop_key;
     int cmp;
-    bool local_start, log_trunc;
+    bool local_start, log_op, log_trunc;
 
     orig_start_key = orig_stop_key = NULL;
     local_start = log_trunc = false;
@@ -1596,8 +1598,10 @@ __wt_session_range_truncate(
      */
     if (stop != NULL) {
         WT_ERR(start->compare(start, stop, &cmp));
-        if (cmp > 0)
+        if (cmp > 0) {
+            log_trunc = true;
             goto done;
+        }
     }
 
     WT_ERR(
@@ -1609,8 +1613,28 @@ done:
      * for the operation. That way we can be consistent with other competing inserts or truncates on
      * other tables in this transaction.
      */
-    if (log_trunc && __wt_log_op(session))
-        WT_ERR(__wt_txn_truncate_log(session, orig_start_key, orig_stop_key, local_start));
+    if (log_trunc) {
+        /*
+         * If we have cursors and know there is no work to do, there may not be a dhandle. Grab it
+         * from the start or stop cursor as needed.
+         */
+        dhandle = session->dhandle;
+        if (dhandle == NULL && start != NULL) {
+            cbt = (WT_CURSOR_BTREE *)start;
+            dhandle = cbt->dhandle;
+        } else if (dhandle == NULL && stop != NULL) {
+            cbt = (WT_CURSOR_BTREE *)stop;
+            dhandle = cbt->dhandle;
+        }
+        /* We have to have a dhandle from somewhere. */
+        WT_ASSERT(session, dhandle != NULL);
+        WT_WITH_DHANDLE(session, dhandle, log_op = __wt_log_op(session));
+        if (log_op) {
+            WT_WITH_DHANDLE(session, dhandle,
+              ret = __wt_txn_truncate_log(session, orig_start_key, orig_stop_key, local_start));
+            WT_ERR(ret);
+        }
+    }
 err:
     /*
      * Close any locally-opened start cursor.
