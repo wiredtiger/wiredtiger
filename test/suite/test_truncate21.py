@@ -97,12 +97,12 @@ class test_truncate21(wttest.WiredTigerTestCase):
             self.session.commit_transaction()
         cfix.close()
         crow.close()
+        self.session.checkpoint()
         #cvar.close()
 
         # In a transaction, truncate the same range from all three tables.
         # Then truncate the same range again, also inserting one key into the range for
         # the row-store table. Delete a range from the middle of the table.
-        self.pr('first trunc')
         self.session.begin_transaction()
         self.trunc_range()
         self.session.commit_transaction()
@@ -110,14 +110,11 @@ class test_truncate21(wttest.WiredTigerTestCase):
         # Open a second session and transaction. In one we truncate the same range again.
         # In the other we insert into the FLCS and row-store tables. (The VLCS table will be
         # used in a later test.)
-        self.pr('open session 2')
         session2 = self.conn.open_session()
 
-        self.pr('begin both transactions')
         self.session.begin_transaction()
         session2.begin_transaction()
         # In the other session, truncate the same range again.
-        self.pr('second trunc')
         self.trunc_range()
         # Commit the insert.
         # With overlapping transactions, insert into the key range for FLCS and row.
@@ -126,53 +123,40 @@ class test_truncate21(wttest.WiredTigerTestCase):
         cfix[self.insert_key] = 98
         crow[self.insert_key] = 'newval'
 
-        self.pr('commit insert')
         session2.commit_transaction()
         # Commit the truncate.
-        self.pr('commit trunc')
         self.session.commit_transaction()
 
-        self.pr('close session 2')
         cfix.close()
         crow.close()
         session2.close()
 
         # Flush all log records.
-        self.pr('log flush')
         self.session.log_flush('sync=on')
 
         # Make a copy of the database and open it. That forces recovery to be run, which should
-        # replay both truncate calls and then 
+        # replay both truncate calls and then find the keys.
         os.mkdir(self.dir)
         copy_wiredtiger_home(self, '.', self.dir)
 
-        self.pr('open new conn')
-        new_conn = self.wiredtiger_open(self.dir)
-        new_sess = new_conn.open_session()
-        self.pr('check keys')
+        new_conn = self.wiredtiger_open(self.dir, self.conn_config)
+        new_sess = self.setUpSessionOpen(new_conn)
         cfix = new_sess.open_cursor(self.uri_fix)
         crow = new_sess.open_cursor(self.uri_row)
         cfix.set_key(self.insert_key)
         crow.set_key(self.insert_key)
         ret_fix = cfix.search()
         ret_row = crow.search()
-        # The key should exist in both or neither. In FLCS the record number always exists.
-        # So check the value based on the row return.
+        # The key should not exist in both. In FLCS the record number always exists but the value
+        # should be zero.
         val_fix = cfix.get_value()
-        if ret_row == wiredtiger.WT_NOTFOUND:
-            self.assertEqual(val_fix, 0)
-        else:
-            val_row = crow.get_value()
-            self.assertEqual(val_row, 'newval')
-            self.assertEqual(val_fix, 98)
+        self.pr('ret_row ' + str(ret_row))
+        self.pr('val_fix ' + str(val_fix))
+        self.assertEqual(ret_row, wiredtiger.WT_NOTFOUND)
+        self.assertEqual(val_fix, 0)
         cfix.close()
         crow.close()
-        self.pr('close new conn')
         new_conn.close()
-
-        # Reopen the connection to force all content to disk.
-        #self.reopen_conn()
-        self.pr('end test, close orig conn')
 
 if __name__ == '__main__':
     wttest.run()
