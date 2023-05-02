@@ -1221,7 +1221,8 @@ ThreadRunner::create_all(WT_CONNECTION *conn)
     ASSERT(_session == nullptr);
     if (_thread->options.synchronized)
         _thread->_op.synchronized_check();
-    testutil_check(conn->open_session(conn, nullptr, _thread->options.session_config.c_str(), &_session));
+    testutil_check(
+      conn->open_session(conn, nullptr, _thread->options.session_config.c_str(), &_session));
     _table_usage.clear();
     _stats.track_latency(_workload->options.sample_interval_ms > 0);
     testutil_check(workgen_random_alloc(_session, &_rand_state));
@@ -1251,7 +1252,8 @@ ThreadRunner::open_all()
          i++) {
         uint32_t tindex = i->first;
         const std::string uri(_icontext->_table_names[tindex]);
-        testutil_check(_session->open_cursor(_session, uri.c_str(), nullptr, nullptr, &_cursors[tindex]));
+        testutil_check(
+          _session->open_cursor(_session, uri.c_str(), nullptr, nullptr, &_cursors[tindex]));
     }
     return (0);
 }
