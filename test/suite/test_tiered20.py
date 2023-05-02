@@ -74,6 +74,11 @@ class test_tiered20(TieredConfigMixin, wttest.WiredTigerTestCase):
         uri_b = "table:tieredb"
         uri_b_local_file1 = 'tieredb-0000000001.wtobj'
 
+        # We should be able to do this test for any tiered scenario, not just dir_store.
+        # Remove this 'if' and comment when FIXME-WT-11004 is finished.
+        if not self.is_local_storage:
+            self.skipTest('Some storage sources do not yet guard against overwrite.')
+
         # For any scenario, we should be able to fully drop and then recreate a table.
         for i in range(0, 3):
             self.create_flush_drop(uri_a, True)
@@ -82,11 +87,6 @@ class test_tiered20(TieredConfigMixin, wttest.WiredTigerTestCase):
         # have been shared to the bucket.
         if not self.is_tiered_scenario():
             self.skipTest('Tiered storage is required for this test.')
-
-        # We should be able to do this test for any tiered scenario, not just dir_store.
-        # Remove this 'if' and comment when FIXME-WT-11004 is finished.
-        if not self.is_local_storage:
-            self.skipTest('Some storage sources do not yet guard against overwrite.')
 
         # We should be able to drop locally (not removing shared), and then
         # we should get an error if we create again.  Having an error protects us
