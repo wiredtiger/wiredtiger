@@ -50,6 +50,7 @@ class OpType(Enum):
     STABLE_UPDATE_FOUND = 41
     TREE_OBJECT_LOG = 42
     UPDATE_CHAIN_VERIFY = 43
+    SKIP_DEL = 44
 
 class Operation:
     def __init__(self, line):
@@ -249,6 +250,11 @@ class Operation:
 
         matches = re.search('txnid=(\d+)', line)
         self.txnid = int(matches.group(1))
+
+    def __init_skip_del(self, line):
+        self.type = OpType.SKIP_DEL
+        self.file = self.__extract_file(line)
+        self.ref = self.__extract_pointer('ref', line)
 
     def __init_skip_del_null(self, line):
         self.type = OpType.SKIP_DEL_NULL
