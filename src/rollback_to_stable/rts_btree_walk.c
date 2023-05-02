@@ -68,8 +68,7 @@ __rts_btree_walk_page_skip(
                   WT_RTS_VERB_TAG_SKIP_DEL_NULL "ref=%p: deleted page walk skipped", (void *)ref);
             else {
                 __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-                  WT_RTS_VERB_TAG_STABLE_PG_WALK_SKIP
-                  "ref=%p: deleted page walk skipped page_del %s",
+                  WT_RTS_VERB_TAG_SKIP_DEL "ref=%p: deleted page walk skipped page_del %s",
                   (void *)ref,
                   __wt_time_point_to_string(page_del->timestamp, page_del->durable_timestamp,
                     page_del->txnid, time_string));
