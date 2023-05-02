@@ -76,7 +76,7 @@ class test_tiered20(TieredConfigMixin, wttest.WiredTigerTestCase):
 
         # We should be able to do this test for any tiered scenario, not just dir_store.
         # Remove this 'if' and comment when FIXME-WT-11004 is finished.
-        if not self.is_local_storage:
+        if self.is_tiered_scenario() and not self.is_local_storage:
             self.skipTest('Some storage sources do not yet guard against overwrite.')
 
         # For any scenario, we should be able to fully drop and then recreate a table.
