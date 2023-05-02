@@ -34,6 +34,31 @@
 #define WT_GCC_FUNC_ATTRIBUTE(x)
 #define WT_GCC_FUNC_DECL_ATTRIBUTE(x)
 
+#define WT_UNUSED_MSVC(var) (void)(var)
+
+#define WT_ATOMIC_RELAXED 0
+#define WT_ATOMIC_ACQUIRE 1
+#define WT_ATOMIC_RELEASE 2
+#define WT_ATOMIC_ACQ_REL 3
+#define WT_ATOMIC_SEQ_CST 4
+
+#define WT_C_MEMMODEL_ATOMIC_LOAD(ptr, memorder) (WT_BARRIER(), *(ptr))
+#define WT_C_MEMMODEL_ATOMIC_STORE(ptr, value, memorder)                     \
+    do {                                                                     \
+        switch (memorder) {                                                  \
+        case WT_ATOMIC_ACQUIRE:                                              \
+        case WT_ATOMIC_ACQ_REL:                                              \
+            WT_WRITE_BARRIER();                                              \
+        case WT_ATOMIC_RELAXED:                                              \
+        case WT_ATOMIC_RELEASE:                                              \
+            *(ptr) = (value);                                                \
+            break;                                                           \
+        case WT_ATOMIC_SEQ_CST:                                              \
+            _InterlockedExchange64((volatile __int64 *)ptr, (int64_t)value); \
+            break;                                                           \
+        }                                                                    \
+    } while (0)
+
 #define WT_ATOMIC_FUNC(name, ret, type, s, t)                                                     \
     static inline ret __wt_atomic_add##name(type *vp, type v)                                     \
     {                                                                                             \
@@ -49,6 +74,14 @@
     }                                                                                             \
     static inline bool __wt_atomic_cas##name(type *vp, type old_val, type new_val)                \
     {                                                                                             \
+        return (                                                                                  \
+          _InterlockedCompareExchange##s((t *)(vp), (t)(new_val), (t)(old_val)) == (t)(old_val)); \
+    }                                                                                             \
+    static inline bool __wt_c_memmodel_atomic_cas##name(                                          \
+      type *vp, type old_val, type new_val, int success_memorder, int failure_memorder)           \
+    {                                                                                             \
+        WT_UNUSED_MSVC(success_memorder);                                                         \
+        WT_UNUSED_MSVC(failure_memorder);                                                         \
         return (                                                                                  \
           _InterlockedCompareExchange##s((t *)(vp), (t)(new_val), (t)(old_val)) == (t)(old_val)); \
     }
@@ -73,6 +106,20 @@ WT_ATOMIC_FUNC(size, size_t, size_t, 64, __int64)
 static inline bool
 __wt_atomic_cas_ptr(void *vp, void *old_val, void *new_val)
 {
+    return (_InterlockedCompareExchange64(
+              (volatile __int64 *)vp, (int64_t)new_val, (int64_t)old_val) == ((int64_t)old_val));
+}
+
+/*
+ * __wt_c_memmodel_atomic_cas_ptr --
+ *     Pointer compare and swap with memory ordering.
+ */
+static inline bool
+__wt_c_memmodel_atomic_cas_ptr(
+  void *vp, void *old_val, void *new_val, int success_memorder, int failure_memorder)
+{
+    WT_UNUSED_MSVC(success_memorder);
+    WT_UNUSED_MSVC(failure_memorder);
     return (_InterlockedCompareExchange64(
               (volatile __int64 *)vp, (int64_t)new_val, (int64_t)old_val) == ((int64_t)old_val));
 }
