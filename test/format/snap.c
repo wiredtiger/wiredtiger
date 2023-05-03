@@ -29,6 +29,8 @@
 #include "format.h"
 
 #define SNAP_LIST_SIZE 512
+#define TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION \
+    "oldest pinned transaction ID rolled back for eviction"
 
 /*
  * snap_init --
@@ -666,10 +668,9 @@ snap_repeat(TINFO *tinfo, SNAP_OPS *snap)
      * this case.
      */
     if (max_retry >= MAX_RETRY_ON_ROLLBACK &&
-      strcmp(session->get_rollback_reason(session), WT_TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION) ==
-        0)
-        WARN("%s: %s", "snap repeat exceeds maximum retry",
-          WT_TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION);
+      strcmp(session->get_rollback_reason(session), TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION) == 0)
+        WARN(
+          "%s: %s", "snap repeat exceeds maximum retry", TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION);
     else
         testutil_assert(max_retry < MAX_RETRY_ON_ROLLBACK);
 
