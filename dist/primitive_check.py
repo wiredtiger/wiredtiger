@@ -47,5 +47,5 @@ for primitive in primitives:
 if (found):
     print("Code changes made since this branch diverged from develop include the following"
         " concurrency control primitives: " + str(found_primitives))
-    print("If you have introduced or removed a primite it will impact the in progress shared"
+    print("If you have introduced or removed a primitive it will impact the in progress shared"
           " variable review project. Please reach out accordingly.")
