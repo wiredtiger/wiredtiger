@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
+import subprocess, re
+
 # This is a temporary script to detect code changes to WiredTiger primitives.
 # FIXME-WT-10861 That ticket will introduce a script to replace this one, delete this script when
 # complete.
-import subprocess, re
 primitives = [
     "WT_BARRIER",
     "WT_WRITE_BARRIER",
@@ -33,7 +34,7 @@ primitives = [
 command = "git rev-parse --show-toplevel"
 root = subprocess.run(command, capture_output=True, text=True, shell=True).stdout
 
-command="git diff $(git merge-base --fork-point develop) -- src/"
+command = "git diff $(git merge-base --fork-point develop) -- src/"
 diff = subprocess.run(command, capture_output=True, shell=True, text=True, cwd=root.strip()).stdout
 found = False
 found_primitives = []
