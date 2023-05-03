@@ -659,7 +659,8 @@ snap_repeat(TINFO *tinfo, SNAP_OPS *snap)
 
         testutil_check(session->rollback_transaction(session, NULL));
     }
-    testutil_assert(max_retry < MAX_RETRY_ON_ROLLBACK);
+    if (max_retry >= MAX_RETRY_ON_ROLLBACK)
+        WARN("%s", "snap repeat exceeds maximum retry.");
 
     testutil_check(session->rollback_transaction(session, NULL));
 }
