@@ -35,7 +35,7 @@ command = "git rev-parse --show-toplevel"
 root = subprocess.run(command, capture_output=True, text=True, shell=True).stdout
 
 command = "git diff $(git merge-base --fork-point develop) -- src/"
-diff = subprocess.run(command, capture_output=True, shell=True, text=True, cwd=root.strip()).stdout
+diff = subprocess.run(command, capture_output=True, cwd=root.strip(), text=True, shell=True).stdout
 found = False
 found_primitives = []
 start_regex = "^(\+|-).*"
