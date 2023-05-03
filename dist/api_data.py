@@ -632,6 +632,9 @@ connection_runtime_config = [
             is intended for debugging and is informational only, that is, it is ignored during
             recovery''',
             type='boolean'),
+        Config('tiered_flush_error_continue', 'false', r'''
+            on a write to tiered storage, continue when an error occurs.''',
+            type='boolean'),
         Config('update_restore_evict', 'false', r'''
             if true, control all dirty page evictions through forcing update restore eviction.''',
             type='boolean'),
@@ -831,8 +834,8 @@ connection_runtime_config = [
         'failpoint_eviction_fail_after_reconciliation',
         'failpoint_history_store_delete_key_from_ts', 'history_store_checkpoint_delay',
         'history_store_search', 'history_store_sweep_race', 'prepare_checkpoint_delay',
-        'sleep_before_read_overflow_onpage', 'split_1', 'split_2', 'split_3', 'split_4', 'split_5',
-        'split_6', 'split_7', 'split_8', 'tiered_flush_finish']),
+        'prepare_resolution','sleep_before_read_overflow_onpage', 'split_1', 'split_2', 'split_3',
+        'split_4', 'split_5','split_6', 'split_7', 'split_8', 'tiered_flush_finish']),
     Config('verbose', '[]', r'''
         enable messages for various subsystems and operations. Options are given as a list,
         where each message type can optionally define an associated verbosity level, such as
