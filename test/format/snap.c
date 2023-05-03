@@ -659,8 +659,19 @@ snap_repeat(TINFO *tinfo, SNAP_OPS *snap)
 
         testutil_check(session->rollback_transaction(session, NULL));
     }
-    if (max_retry >= MAX_RETRY_ON_ROLLBACK)
-        WARN("%s", "snap repeat exceeds maximum retry.");
+
+    /*
+     * If we have a long running checkpoint, it may block eviction for an excessive amount of time.
+     * This would cause the snapshot read to rollback even we retry many times. Give up and ignore
+     * this case.
+     */
+    if (max_retry >= MAX_RETRY_ON_ROLLBACK &&
+      strcmp(session->get_rollback_reason(session), WT_TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION) ==
+        0)
+        WARN("%s: %s", "snap repeat exceeds maximum retry",
+          WT_TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION);
+    else
+        testutil_assert(max_retry < MAX_RETRY_ON_ROLLBACK);
 
     testutil_check(session->rollback_transaction(session, NULL));
 }
