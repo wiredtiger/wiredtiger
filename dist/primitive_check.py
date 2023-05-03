@@ -5,30 +5,30 @@ import subprocess, re
 # FIXME-WT-10861 That ticket will introduce a script to replace this one, delete this script when
 # complete.
 primitives = [
-    "WT_BARRIER",
-    "WT_WRITE_BARRIER",
-    "WT_PUBLISH",
-    "WT_READ_BARRIER",
-    "WT_ORDERED_READ",
-    "WT_FULL_BARRIER",
     "__wt_atomic_.*",
-    "FLD_SET_ATOMIC",
-    "FLD_CLR_ATOMIC",
-    "F_SET_ATOMIC",
     "F_CLR_ATOMIC",
-    "WT_PAGE_ALLOC_AND_SWAP",
-    "WT_REF_UNLOCK",
-    "WT_REF_LOCK",
-    "WT_REF_CAS_STATE",
+    "F_SET_ATOMIC",
+    "FLD_CLR_ATOMIC"
+    "FLD_CLR_ATOMIC",
+    "FLD_SET_ATOMIC",
+    "FLD_SET_ATOMIC",
     "REF_SET_STATE",
-    "WT_INTL_INDEX_SET",
     "volatile",
-    "WT_STAT_INCRV_ATOMIC",
-    "WT_STAT_DECRV_ATOMIC",
+    "WT_BARRIER",
     "WT_DHANDLE_ACQUIRE",
     "WT_DHANDLE_RELEASE",
-    "FLD_SET_ATOMIC",
-    "FLD_CLR_ATOMIC"
+    "WT_FULL_BARRIER",
+    "WT_INTL_INDEX_SET",
+    "WT_ORDERED_READ",
+    "WT_PAGE_ALLOC_AND_SWAP",
+    "WT_PUBLISH",
+    "WT_READ_BARRIER",
+    "WT_REF_CAS_STATE",
+    "WT_REF_LOCK",
+    "WT_REF_UNLOCK",
+    "WT_STAT_DECRV_ATOMIC",
+    "WT_STAT_INCRV_ATOMIC",
+    "WT_WRITE_BARRIER",
 ]
 
 command = "git rev-parse --show-toplevel"
