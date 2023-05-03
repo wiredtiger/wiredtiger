@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # This is a temporary script to detect code changes to WiredTiger primitives.
-
+# FIXME-WT-10861 Delete this once completed.
 import subprocess, re
 primitives = [
     "WT_BARRIER",
@@ -29,7 +29,11 @@ primitives = [
     "FLD_CLR_ATOMIC"
 ]
 
-diff = subprocess.run(['git', 'diff'], capture_output=True, text=True).stdout
+root = subprocess.run(['git', 'rev-parse', '--show-toplevel'],
+        capture_output=True, text=True).stdout
+
+diff_command="git diff $(git merge-base --fork-point develop) -- src/"
+diff = subprocess.run(diff_command, capture_output=True, shell=True, text=True, cwd=root.strip()).stdout
 found = False
 found_primitives = []
 start_regex = "(\+|-).*"
@@ -39,7 +43,7 @@ for primitive in primitives:
         found = True
 
 if (found):
-    print("Git diff indicates that the following WiredTiger primitives are being added or removed: "
-        + str(found_primitives))
-    print("If this is correct, please reach out via slack to Luke" +
-          " or Andrew and inform them of the change")
+    print("Code changes made since this branch diverged from develop include the following"
+        " concurrency control primitives: " + str(found_primitives))
+    print("If this is correct, this will impact the in progress shared variable review project."
+          " Please reach out accordingly.")
