@@ -1109,13 +1109,20 @@ __hs_delete_record(
         ret = 0;
     } else {
         /*
+         * We have found a record that is not obsolete. However, we only want to delete a record if
+         * it has a stop timestamp greater than the start timestamp of the update.
+         */
+        __wt_hs_upd_time_window(r->hs_cursor, &hs_tw);
+        if (hs_tw->stop_ts <= upd->start_ts)
+            goto done;
+
+        /*
          * If we're deleting a record that is already in the history store this implies we're
          * rolling back a prepared transaction and need to pull the history store update back into
          * the update chain, then delete it from the history store. These checks ensure we've
          * retrieved the correct update from the history store.
          */
         if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_HS_VALIDATE)) {
-            __wt_hs_upd_time_window(r->hs_cursor, &hs_tw);
             WT_ASSERT_ALWAYS(session,
               hs_tw->start_txn == WT_TXN_NONE || hs_tw->start_txn == upd->txnid,
               "Retrieved wrong update from history store: start txn id mismatch");
