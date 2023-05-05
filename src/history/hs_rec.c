@@ -1076,7 +1076,7 @@ err:
 
 /*
  * __hs_delete_record --
- *     Delete an update from the history store if it is not obsolete
+ *     Delete an update from the history store if it is not obsolete.
  */
 static int
 __hs_delete_record(
@@ -1151,7 +1151,7 @@ err:
 
 /*
  * __wt_hs_delete_updates --
- *     Delete the updates from the history store
+ *     Delete the updates from the history store.
  */
 int
 __wt_hs_delete_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r)
