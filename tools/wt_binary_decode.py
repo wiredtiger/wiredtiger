@@ -213,10 +213,9 @@ class file_as_array(object):
 # An encapsulation around a file object that saves bytes read
 # in increments so raw bytes can be shown.
 class BinFile(object):
-    def __init__(self, fileobj, start_offset=0):
+    def __init__(self, fileobj):
         self.fileobj = fileobj
         self.saved = bytearray()
-        self.start_offset = start_offset
 
     def read(self, n):
         if n < 0:
@@ -228,10 +227,10 @@ class BinFile(object):
     def seek(self, n):
         # Throw away previous saved when we seek
         self.saved = bytearray()
-        return self.fileobj.seek(n - self.start_offset)
+        return self.fileobj.seek(n)
 
     def tell(self):
-        return self.fileobj.tell() + self.start_offset
+        return self.fileobj.tell()
 
     # Return bytes read since last call to this function
     def saved_bytes(self):
