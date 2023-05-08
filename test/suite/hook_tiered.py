@@ -184,7 +184,6 @@ def connection_close_replace(orig_connection_close, connection_self, config):
 def session_checkpoint_replace(orig_session_checkpoint, session_self, config):
     # FIXME-WT-10771 We cannot do named checkpoints with tiered storage objects.
     # We can't really continue the test without the name, as the name will certainly be used.
-    testcase = WiredTigerTestCase.currentTestCase()
     if config == None:
         config = ''
     if 'name=' in config:
@@ -256,16 +255,6 @@ def session_salvage_replace(orig_session_salvage, session_self, uri, config):
     if not uri.startswith("table:") or testcase_is_readonly():
         ret = orig_session_salvage(session_self, uri, config)
     return ret
-
-# FIXME-WT-????
-# Called to replace Session.upgrade. This is needed to skip tests that
-# do statistics on (tiered) table data sources, as that is not yet supported.
-def session_open_cursor_replace(orig_session_open_cursor, session_self, uri, dupcursor, config):
-    if uri != None and (uri.startswith("statistics:table:") or uri.startswith("statistics:file:")):
-        skipTest("statistics on tiered tables not yet implemented")
-    if uri != None and uri.startswith("backup:"):
-        skipTest("backup on tiered tables not yet implemented")
-    return orig_session_open_cursor(session_self, uri, dupcursor, config)
 
 # Called to replace Session.verify
 def session_verify_replace(orig_session_verify, session_self, uri, config):
@@ -390,9 +379,13 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
         self.Connection['close'] = (wthooks.HOOK_REPLACE, lambda s, config=None:
           connection_close_replace(orig_connection_close, s, config))
 
-        orig_session_checkpoint = self.Session['checkpoint']
-        self.Session['checkpoint'] =  (wthooks.HOOK_REPLACE, lambda s, config=None:
-          session_checkpoint_replace(orig_session_checkpoint, s, config))
+        # FIXME-WT-11047 enable flush_tier on checkpoint.
+        # There is some fallout when this is enabled, several tests fail,
+        # and those must be resolved first.
+        if False:
+            orig_session_checkpoint = self.Session['checkpoint']
+            self.Session['checkpoint'] =  (wthooks.HOOK_REPLACE, lambda s, config=None:
+                session_checkpoint_replace(orig_session_checkpoint, s, config))
 
         orig_session_compact = self.Session['compact']
         self.Session['compact'] =  (wthooks.HOOK_REPLACE, lambda s, uri, config=None:
