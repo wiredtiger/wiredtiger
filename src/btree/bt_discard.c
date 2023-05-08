@@ -501,6 +501,7 @@ __wt_free_update_list(WT_SESSION_IMPL *session, WT_UPDATE **updp)
 
     for (upd = *updp; upd != NULL; upd = next) {
         next = upd->next;
+        memset(upd, 0, WT_UPDATE_SIZE);
         __wt_free(session, upd);
     }
     *updp = NULL;

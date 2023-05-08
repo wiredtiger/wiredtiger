@@ -8,6 +8,7 @@
 
 #include <thread>
 #include <catch2/catch.hpp>
+#include <iostream>
 #include "wiredtiger.h"
 #include "wt_internal.h"
 #include "../utils.h"
@@ -44,6 +45,37 @@ static void
 thread_function_drop(WT_SESSION *session, std::string const &uri)
 {
     session->drop(session, uri.c_str(), "force=true");
+}
+
+
+static bool
+check_txn_updates(std::string const &label, WT_SESSION_IMPL *session_impl)
+{
+    bool ok = true;
+    WT_TXN *txn = session_impl->txn;
+
+    printf("check_txn_updates() - %s\n", label.c_str());
+    printf("  txn = 0x%p, txn->mod = 0x%p, txn->mod_count = %u\n", txn, txn->mod, txn->mod_count);
+
+    WT_TXN_OP *op = txn->mod;
+    for (int i = 0; i < txn->mod_count; i++, op++) {
+        switch (op->type) {
+        case WT_TXN_OP_NONE:
+        case WT_TXN_OP_REF_DELETE:
+        case WT_TXN_OP_TRUNCATE_COL:
+        case WT_TXN_OP_TRUNCATE_ROW:
+            break;
+        case WT_TXN_OP_BASIC_COL:
+        case WT_TXN_OP_BASIC_ROW:
+        case WT_TXN_OP_INMEM_COL:
+        case WT_TXN_OP_INMEM_ROW:
+            WT_UPDATE *upd = op->u.op_upd;
+            printf("    mod %i, op->type = %i, upd->txnid = 0x%llx\n", i, op->type, upd->txnid);
+            break;
+        }
+    }
+
+    return ok;
 }
 
 static void
@@ -114,6 +146,29 @@ cursor_test(std::string const &config, bool close, int expected_commit_result)
         }
 
         REQUIRE(session->rollback_transaction(session, "") == 0);
+    }
+
+    SECTION("Drop then checkpoint in one thread: config = " + config +
+      ", close = " + close_as_string)
+    {
+        check_txn_updates("before close", session_impl);
+        if (close) {
+            REQUIRE(cursor->close(cursor) == 0);
+            check_txn_updates("before drop", session_impl);
+            sleep(1);
+            REQUIRE(session->drop(session, uri.c_str(), "force=true") == 0);
+        } else {
+            REQUIRE(session->drop(session, uri.c_str(), "force=true") == EBUSY);
+        }
+
+        sleep(1);
+        check_txn_updates("before checkpoint", session_impl);
+        //REQUIRE(session->checkpoint(session, nullptr) == EINVAL);
+        sleep(1);
+        check_txn_updates("before commit", session_impl);
+
+        //REQUIRE(session->commit_transaction(session, "") == expected_commit_result);
+        check_txn_updates("after commit", session_impl);
     }
 }
 
