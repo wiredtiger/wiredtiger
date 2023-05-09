@@ -807,8 +807,8 @@ class WiredTigerTestCase(unittest.TestCase):
         if elapsed > 0.001 and WiredTigerTestCase._verbose >= 2:
             print("[pid:{}]: {}: {:.2f} seconds".format(os.getpid(), str(self), elapsed))
         if teardown_failed:
-            self.fail(f'Teardown failed with message: {teardown_msg}')
-        if (not passed) and (not self.skipped):
+            self.fail(f'Teardown of {self} failed with message: {teardown_msg}')
+        if (not passed or teardown_failed) and (not self.skipped):
             print("[pid:{}]: ERROR in {}".format(os.getpid(), str(self)))
             self.pr('FAIL')
             self.pr('preserving directory ' + self.testdir)

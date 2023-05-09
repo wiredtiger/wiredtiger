@@ -159,6 +159,10 @@ def testcase_has_failed():
     testcase = WiredTigerTestCase.currentTestCase()
     return testcase.failed()
 
+def testcase_has_skipped():
+    testcase = WiredTigerTestCase.currentTestCase()
+    return testcase.skipped
+
 def skipTest(comment):
     testcase = WiredTigerTestCase.currentTestCase()
     testcase.skipTest(comment)
@@ -170,7 +174,8 @@ def connection_close_replace(orig_connection_close, connection_self, config):
     # Likewise we should not call flush_tier if the test case has failed,
     # and the connection is being closed at the end of the run after the failure.
     # Otherwise, diagnosing the original failure may be troublesome.
-    if not testcase_is_readonly() and not testcase_has_failed():
+    if not testcase_is_readonly() and not testcase_has_failed() and \
+      not testcase_has_skipped():
         s = connection_self.open_session(None)
         s.checkpoint('flush_tier=(enabled,force=true)')
         s.close()
