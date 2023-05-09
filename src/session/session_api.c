@@ -1615,8 +1615,8 @@ done:
      */
     if (log_trunc) {
         /*
-         * If we have cursors and know there is no work to do, there may not be a dhandle. Grab it
-         * from the start or stop cursor as needed.
+         * If we have cursors and know there is no work to do, there may not be a dhandle in the
+         * session. Grab it from the start or stop cursor as needed.
          */
         dhandle = session->dhandle;
         if (dhandle == NULL && start != NULL) {

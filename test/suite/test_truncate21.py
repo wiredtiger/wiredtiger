@@ -33,7 +33,7 @@ from wtscenario import make_scenarios
 from wiredtiger import WT_NOTFOUND
 
 # test_truncate21.py
-# Test truncate logging and recovery when it has no work to do. 
+# Test truncate, logging and recovery when truncate has no work to do. 
 class test_truncate21(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=2MB,log=(enabled)'
     dir = "newdir"
@@ -48,7 +48,7 @@ class test_truncate21(wttest.WiredTigerTestCase):
 
     start_key = nentries // 4
     end_key = nentries // 2
-    # Pick a key in the range we just truncated to re-insert.
+    # Pick a key in the range we will truncate to re-insert.
     insert_key = (start_key + end_key) // 2
 
     def trunc_range(self):
