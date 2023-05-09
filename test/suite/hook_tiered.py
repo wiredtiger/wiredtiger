@@ -190,7 +190,11 @@ def session_checkpoint_replace(orig_session_checkpoint, session_self, config):
         skipTest('named checkpoints do not work in tiered storage')
     # We cannot call flush_tier on a readonly connection.
     if not testcase_is_readonly():
-        config += ',flush_tier=(enabled,force=true)'
+        # FIXME-WT-11047 enable flush_tier on checkpoint.
+        # There is some fallout when this is enabled, several tests fail,
+        # and those must be resolved first.
+        if False:
+            config += ',flush_tier=(enabled,force=true)'
     return orig_session_checkpoint(session_self, config)
 
 # Called to replace Session.compact
@@ -379,13 +383,9 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
         self.Connection['close'] = (wthooks.HOOK_REPLACE, lambda s, config=None:
           connection_close_replace(orig_connection_close, s, config))
 
-        # FIXME-WT-11047 enable flush_tier on checkpoint.
-        # There is some fallout when this is enabled, several tests fail,
-        # and those must be resolved first.
-        if False:
-            orig_session_checkpoint = self.Session['checkpoint']
-            self.Session['checkpoint'] =  (wthooks.HOOK_REPLACE, lambda s, config=None:
-                session_checkpoint_replace(orig_session_checkpoint, s, config))
+        orig_session_checkpoint = self.Session['checkpoint']
+        self.Session['checkpoint'] =  (wthooks.HOOK_REPLACE, lambda s, config=None:
+            session_checkpoint_replace(orig_session_checkpoint, s, config))
 
         orig_session_compact = self.Session['compact']
         self.Session['compact'] =  (wthooks.HOOK_REPLACE, lambda s, uri, config=None:
