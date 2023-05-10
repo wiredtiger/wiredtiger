@@ -446,7 +446,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
          * transaction may be visible to the checkpoint, but still, we mark the tree as dirty if
          * there is a long-running transaction in the database.
          */
-        if (!F_ISSET(conn, WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT) &&
+        if (!btree->modified && !F_ISSET(conn, WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT) &&
           btree->rec_max_txn >= txn->snap_min)
             __wt_tree_modify_set(session);
         break;
