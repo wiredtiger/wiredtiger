@@ -552,7 +552,7 @@ connection_runtime_config = [
         ]),
     Config('checkpoint_cleanup_skip_internal', 'true', r'''
         do not read internal pages when aggregated durable stop timestamp is zero.
-        (Warning: changing this value will likely increase startup time.)
+        (Warning: changing this value will likely increase checkpoint time.)
     ''', type='boolean'),
     Config('chunk_cache', '', r'''
         chunk cache configuration options''',
