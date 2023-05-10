@@ -272,7 +272,8 @@ __wt_time_aggregate_validate(
     /*
      * In the case of missing timestamps, we assign the start point to the stop point and newest
      * start durable timestamp may be larger than newest stop timestamp. Check whether start and
-     * stop are equal first.
+     * stop are equal first and then check the newest start durable timestamp against newest stop
+     * durable timestamp if all the data on the page are deleted.
      */
     if (ta->newest_start_durable_ts != ta->newest_stop_durable_ts &&
       ta->newest_stop_ts != WT_TS_MAX && ta->newest_start_durable_ts > ta->newest_stop_durable_ts)
