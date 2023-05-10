@@ -1563,6 +1563,24 @@ __wt_session_range_truncate(
     }
 
     /*
+     * Now that the truncate is setup and ready regardless of how the API was called, populate our
+     * truncate information cookie.
+     */
+    trunc_info->session = session;
+    trunc_info->start = start;
+    trunc_info->stop = stop;
+    trunc_info->orig_start_key = orig_start_key;
+    trunc_info->orig_stop_key = orig_stop_key;
+    if (uri != NULL)
+        trunc_info->uri = uri;
+    else if (start != NULL)
+        trunc_info->uri = start->internal_uri;
+    else {
+        WT_ASSERT(session, stop != NULL);
+        trunc_info->uri = stop->internal_uri;
+    }
+
+    /*
      * Truncate does not require keys actually exist so that applications can discard parts of the
      * object's name space without knowing exactly what records currently appear in the object. For
      * this reason, do a search-near, rather than a search. Additionally, we have to correct after
@@ -1613,17 +1631,6 @@ __wt_session_range_truncate(
         }
     }
 
-    /*
-     * Now that the truncate is setup and ready regardless of how the API was called, populate our
-     * truncate information cookie.
-     */
-    trunc_info->session = session;
-    trunc_info->uri = uri != NULL ? uri : start->internal_uri;
-    trunc_info->start = start;
-    trunc_info->stop = stop;
-    trunc_info->orig_start_key = orig_start_key;
-    trunc_info->orig_stop_key = orig_stop_key;
-
     WT_ERR(__wt_schema_range_truncate(trunc_info));
 
 done:
@@ -1647,14 +1654,14 @@ done:
         }
         /* We have to have a dhandle from somewhere. */
         WT_ASSERT(session, dhandle != NULL);
-	if (WT_DHANDLE_BTREE(dhandle)) {
+        if (WT_DHANDLE_BTREE(dhandle)) {
             WT_WITH_DHANDLE(session, dhandle, log_op = __wt_log_op(session));
             if (log_op) {
                 WT_WITH_DHANDLE(session, dhandle, ret = __wt_txn_truncate_log(trunc_info));
                 WT_ERR(ret);
                 __wt_txn_truncate_end(session);
             }
-	}
+        }
     }
 err:
     /*
