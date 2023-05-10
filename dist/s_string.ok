@@ -896,6 +896,7 @@ libmemkind
 libs
 libsodium
 libwiredtiger
+lifecycle
 linux
 llll
 llu
@@ -1113,6 +1114,7 @@ readlock
 readonly
 readunlock
 realloc
+reallocations
 recency
 recno
 recnos
@@ -1122,6 +1124,7 @@ reconfiguring
 recsize
 rectype
 recurse
+reentrant
 refp
 regionp
 relocked
