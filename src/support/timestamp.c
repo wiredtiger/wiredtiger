@@ -275,9 +275,10 @@ __wt_time_aggregate_validate(
      * stop are equal first.
      */
     if (ta->newest_start_durable_ts != ta->newest_stop_durable_ts &&
-      ta->newest_start_durable_ts > ta->newest_stop_ts)
+      ta->newest_stop_ts != WT_TS_MAX && ta->newest_start_durable_ts > ta->newest_stop_durable_ts)
         WT_TIME_VALIDATE_RET(session,
-          "aggregate time window has a newest stop durable time after its newest stop time; time "
+          "aggregate time window has a newest start durable time after its newest stop durable "
+          "time; time "
           "aggregate %s",
           __wt_time_aggregate_to_string(ta, time_string[0]));
 
