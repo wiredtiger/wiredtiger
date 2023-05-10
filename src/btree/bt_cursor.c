@@ -2250,6 +2250,8 @@ __wt_btcur_open(WT_CURSOR_BTREE *cbt)
     WT_TIME_WINDOW_INIT(&cbt->upd_value->tw);
 
 #ifdef HAVE_DIAGNOSTIC
+    cbt->lastkey3 = &cbt->_lastkey3;
+    cbt->lastkey2 = &cbt->_lastkey2;
     cbt->lastkey = &cbt->_lastkey;
     cbt->lastrecno = WT_RECNO_OOB;
     cbt->lastref = NULL;
@@ -2302,6 +2304,8 @@ __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
     __wt_buf_free(session, &cbt->_upd_value.buf);
 #ifdef HAVE_DIAGNOSTIC
     __wt_buf_free(session, &cbt->_lastkey);
+    __wt_buf_free(session, &cbt->_lastkey2);
+    __wt_buf_free(session, &cbt->_lastkey3);
 #endif
 
     return (ret);

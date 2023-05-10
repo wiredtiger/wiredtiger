@@ -422,6 +422,11 @@ __cursor_row_next(
      * Initialize for each new page.
      */
     if (newpage) {
+        __wt_yield();
+        __wt_yield();
+        __wt_yield();
+        __wt_yield();
+        __wt_yield();
         /*
          * Be paranoid and set the slot out of bounds when moving to a new page.
          */
@@ -585,6 +590,8 @@ __cursor_key_order_check_row(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
     WT_BTREE *btree;
     WT_DECL_ITEM(a);
     WT_DECL_ITEM(b);
+    WT_DECL_ITEM(c);
+    WT_DECL_ITEM(d);
     WT_DECL_RET;
     WT_ITEM *key;
     int cmp;
@@ -600,18 +607,29 @@ __cursor_key_order_check_row(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
         cbt->lastref = cbt->ref;
         cbt->lastslot = cbt->slot;
         cbt->lastins = cbt->ins;
+        if(cbt->lastkey2 != NULL)
+            WT_IGNORE_RET(__wt_buf_set(session, cbt->lastkey3, cbt->lastkey2->data, cbt->lastkey2->size));
+        if(cbt->lastkey != NULL)
+            WT_IGNORE_RET(__wt_buf_set(session, cbt->lastkey2, cbt->lastkey->data, cbt->lastkey->size));
         return (__wt_buf_set(session, cbt->lastkey, cbt->iface.key.data, cbt->iface.key.size));
     }
 
     WT_ERR(__wt_scr_alloc(session, 512, &a));
     WT_ERR(__wt_scr_alloc(session, 512, &b));
+    WT_ERR(__wt_scr_alloc(session, 512, &c));
+    WT_ERR(__wt_scr_alloc(session, 512, &d));
 
     __wt_verbose_error(session, WT_VERB_OUT_OF_ORDER,
-      "WT_CURSOR.%s out-of-order returns: returned key %.1024s then key %.1024s",
+      "WT_CURSOR.%s out-of-order returns: returned key %.1024s then key %.1024s\n(prevkey2 = %.1024s, prevkey3 = %.1024s)",
       next ? "next" : "prev",
       __wt_buf_set_printable_format(
         session, cbt->lastkey->data, cbt->lastkey->size, btree->key_format, false, a),
-      __wt_buf_set_printable_format(session, key->data, key->size, btree->key_format, false, b));
+      __wt_buf_set_printable_format(session, key->data, key->size, btree->key_format, false, b),
+      __wt_buf_set_printable_format(
+        session, cbt->lastkey2->data, cbt->lastkey2->size, btree->key_format, false, c),
+        __wt_buf_set_printable_format(
+        session, cbt->lastkey3->data, cbt->lastkey3->size, btree->key_format, false, d)
+    );
     WT_ERR(__wt_msg(session, "dumping the tree"));
     WT_WITH_BTREE(session, btree, ret = __wt_debug_tree_all(session, NULL, NULL, NULL));
     WT_ERR_PANIC(session, EINVAL, "found key out-of-order returns");
@@ -667,6 +685,10 @@ __wt_cursor_key_order_init(WT_CURSOR_BTREE *cbt)
         cbt->lastrecno = cbt->recno;
         return (0);
     case WT_PAGE_ROW_LEAF:
+        if(cbt->lastkey2 != NULL)
+            WT_IGNORE_RET(__wt_buf_set(session, cbt->lastkey3, cbt->lastkey2->data, cbt->lastkey2->size));
+        if(cbt->lastkey != NULL)
+            WT_IGNORE_RET(__wt_buf_set(session, cbt->lastkey2, cbt->lastkey->data, cbt->lastkey->size));
         return (__wt_buf_set(session, cbt->lastkey, cbt->iface.key.data, cbt->iface.key.size));
     default:
         return (__wt_illegal_value(session, cbt->ref->page->type));
@@ -686,6 +708,10 @@ __wt_cursor_key_order_reset(WT_CURSOR_BTREE *cbt)
      */
     if (cbt->lastkey != NULL)
         cbt->lastkey->size = 0;
+    if (cbt->lastkey2 != NULL)
+        cbt->lastkey2->size = 0;
+    if (cbt->lastkey3 != NULL)
+        cbt->lastkey3->size = 0;
     cbt->lastrecno = WT_RECNO_OOB;
 
     cbt->lastref = NULL;

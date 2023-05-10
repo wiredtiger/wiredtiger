@@ -239,6 +239,8 @@ struct __wt_cursor_btree {
 #ifdef HAVE_DIAGNOSTIC
     /* Check that cursor next/prev never returns keys out-of-order. */
     WT_ITEM *lastkey, _lastkey;
+    WT_ITEM *lastkey2, _lastkey2;
+    WT_ITEM *lastkey3, _lastkey3;
     uint64_t lastrecno;
 
     /* Record where the last key is when we see it to help debugging out of order issues. */

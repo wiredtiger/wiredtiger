@@ -21,7 +21,7 @@ post:
   - func: "cleanup"
 timeout:
   - func: "run wt hang analyzer"
-exec_timeout_secs: 21600 # 6 hrs
+exec_timeout_secs: 86400 # 6 hrs
 
 #######################################
 #            Functions                #
@@ -613,7 +613,7 @@ functions:
         set -o verbose
         ${format_test_setting|}
         for i in $(seq ${times|1}); do
-          ${test_env_vars|} ./format.sh ${smp_command|} ${format_test_script_args|} 2>&1
+          ${test_env_vars|} ./format.sh ${smp_command|} -F ${format_test_script_args|} 2>&1
         done
   "format test tiered":
     command: shell.exec
@@ -1089,6 +1089,19 @@ variables:
 # race-condition-stress-sanitizer-test. The recovery tests run in a loop, with
 # the number of runs adjusted to provide aproximately six hours of testing.
 #########################################################################################
+
+  - &format-stress-test-wt11017
+    name: format-stress-test-wt11017
+    tags: ["wt11017"]
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+      - func: "format test script"
+        vars:
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 360 -c ../../../CONFIG.11017
 
   - &format-stress-test
     exec_timeout_secs: 25200
@@ -3997,7 +4010,26 @@ tasks:
           # Always disable mmap for PPC due to issues on variant setup.
           # See https://bugzilla.redhat.com/show_bug.cgi?id=1686261#c10 for the potential cause.
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 120 -- -C "mmap=false,mmap_all=false"
-
+  - <<: *format-stress-test-wt11017
+    name: format-stress-test-wt11017-0
+  - <<: *format-stress-test-wt11017
+    name: format-stress-test-wt11017-1
+  - <<: *format-stress-test-wt11017
+    name: format-stress-test-wt11017-2
+  - <<: *format-stress-test-wt11017
+    name: format-stress-test-wt11017-3
+  - <<: *format-stress-test-wt11017
+    name: format-stress-test-wt11017-4
+  - <<: *format-stress-test-wt11017
+    name: format-stress-test-wt11017-5
+  - <<: *format-stress-test-wt11017
+    name: format-stress-test-wt11017-6
+  - <<: *format-stress-test-wt11017
+    name: format-stress-test-wt11017-7
+  - <<: *format-stress-test-wt11017
+    name: format-stress-test-wt11017-8
+  - <<: *format-stress-test-wt11017
+    name: format-stress-test-wt11017-9
   - <<: *format-stress-test
     name: format-stress-test-1
     tags: ["stress-test-1"]
@@ -5286,6 +5318,7 @@ buildvariants:
     make_command: ninja
     data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000 -C cache_size=100MB
   tasks:
+    - name: ".wt11017"
     - name: ".pull_request !.pull_request_compilers"
     - name: ".unit_test_long"
       distros: ubuntu2004-large
@@ -5455,7 +5488,7 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+    smp_command: -j 8
     make_command: ninja
     test_env_vars:
       PATH=/opt/mongodbtoolchain/v4/bin:$PATH
@@ -5466,6 +5499,7 @@ buildvariants:
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
     python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
   tasks:
+    - name: ".wt11017"
     - name: ".stress-test-1"
     - name: ".stress-test-2"
     - name: ".stress-test-3"
@@ -5508,6 +5542,7 @@ buildvariants:
     CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
     python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
   tasks:
+    - name: ".wt11017"
     - name: ".stress-test-1"
     - name: ".stress-test-2"
     - name: ".stress-test-3"

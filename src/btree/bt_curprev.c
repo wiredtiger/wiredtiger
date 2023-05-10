@@ -597,6 +597,11 @@ __cursor_row_prev(
      * Initialize for each new page.
      */
     if (newpage) {
+        __wt_yield();
+        __wt_yield();
+        __wt_yield();
+        __wt_yield();
+        __wt_yield();
         /* Check if keys need to be instantiated before we walk the page. */
         WT_RET(__wt_row_leaf_key_instantiate(session, page));
 
