@@ -161,6 +161,8 @@ __compact_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 
     *skipp = true; /* Default skip. */
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2BT(session)->flush_lock);
+
     /* Lock the WT_REF. */
     WT_REF_LOCK(session, ref, &previous_state);
 
