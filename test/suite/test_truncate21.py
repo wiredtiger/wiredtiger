@@ -41,10 +41,8 @@ class test_truncate21(wttest.WiredTigerTestCase):
 
     uri_fix = 'table:trunc_fix'
     uri_row = 'table:trunc_row'
-    uri_var = 'table:trunc_var'
     create_fix = 'key_format=r,value_format=8t'
     create_row = 'key_format=i,value_format=S'
-    create_var = 'key_format=r,value_format=S'
 
     start_key = nentries // 4
     end_key = nentries // 2
@@ -57,26 +55,19 @@ class test_truncate21(wttest.WiredTigerTestCase):
         # the row-store table. Delete a range from the middle of the table.
         cfix_start = self.session.open_cursor(self.uri_fix)
         crow_start = self.session.open_cursor(self.uri_row)
-        #cvar_start = self.session.open_cursor(self.uri_var)
         cfix_end = self.session.open_cursor(self.uri_fix)
         crow_end = self.session.open_cursor(self.uri_row)
-        #cvar_end = self.session.open_cursor(self.uri_var)
         cfix_start.set_key(self.start_key)
         crow_start.set_key(self.start_key)
-        #cvar_start.set_key(self.start_key)
         cfix_end.set_key(self.end_key)
         crow_end.set_key(self.end_key)
-        #cvar_end.set_key(self.end_key)
         # Do the truncate on teach table.
         self.session.truncate(None, cfix_start, cfix_end, None)
         self.session.truncate(None, crow_start, crow_end, None)
-        #self.session.truncate(None, cvar_start, cvar_end, None)
         cfix_start.close()
         crow_start.close()
-        #cvar_start.close()
         cfix_end.close()
         crow_end.close()
-        #cvar_end.close()
 
     def test_truncate21(self):
 
@@ -84,21 +75,17 @@ class test_truncate21(wttest.WiredTigerTestCase):
         # Put the same data into each (per allowed by type). 
         self.session.create(self.uri_fix, self.create_fix)
         self.session.create(self.uri_row, self.create_row)
-        #self.session.create(self.uri_var, self.create_var)
 
         cfix = self.session.open_cursor(self.uri_fix)
         crow = self.session.open_cursor(self.uri_row)
-        #cvar = self.session.open_cursor(self.uri_var)
         for i in range(1, self.nentries):
             self.session.begin_transaction()
             cfix[i] = 97
             crow[i] = 'rowval'
-            #cvar[i] = 'varval'
             self.session.commit_transaction()
         cfix.close()
         crow.close()
         self.session.checkpoint()
-        #cvar.close()
 
         # In a transaction, truncate the same range from all three tables.
         # Then truncate the same range again, also inserting one key into the range for
