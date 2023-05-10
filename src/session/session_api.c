@@ -1633,6 +1633,7 @@ done:
             WT_WITH_DHANDLE(session, dhandle,
               ret = __wt_txn_truncate_log(session, orig_start_key, orig_stop_key, local_start));
             WT_ERR(ret);
+	    __wt_txn_truncate_end(session);
         }
     }
 err:
