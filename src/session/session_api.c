@@ -1618,6 +1618,8 @@ __wt_session_range_truncate(
         WT_ERR(__session_open_cursor((WT_SESSION *)session, stop->uri, NULL, NULL, &start));
         local_start = true;
         WT_ERR(start->next(start));
+        /* Record new start cursor. */
+        trunc_info->start = start;
     }
 
     /*
