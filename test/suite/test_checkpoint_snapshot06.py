@@ -47,8 +47,8 @@ class test_checkpoint_snapshot06(wttest.WiredTigerTestCase):
     backup_dir = "BACKUP"
 
     format_values = [
-        ('column_fix', dict(key_format='r', value_format='8t')),
         ('column', dict(key_format='r', value_format='S')),
+        ('column_fix', dict(key_format='r', value_format='8t')),
         ('row_integer', dict(key_format='i', value_format='S')),
     ]
 
@@ -182,7 +182,9 @@ class test_checkpoint_snapshot06(wttest.WiredTigerTestCase):
         self.assertEqual(cursor1.remove(), 0)
         self.assertEqual(cursor2.remove(), 0)
 
-        # Truncate the range from 1 - 100 where the key 50 doesn't exist.
+        # Truncate the range from 1-100 in both tables where key 50 doesn't exist.
+        # We only set a stop cursor for both tables and send in an empty start
+        # cursor to truncate from the beginning of the table.
         session1 = self.conn.open_session()
         session1.begin_transaction()
         cursor11 = session1.open_cursor(self.uri_1)
@@ -232,7 +234,7 @@ class test_checkpoint_snapshot06(wttest.WiredTigerTestCase):
             done.set()
             ckpt.join()
 
-        # Perform additional checkpoint to ensure that the table2 has also have the latest data.
+        # Perform an additional checkpoint to ensure table2 also has the latest data.
         self.session.checkpoint()
         self.perform_backup_or_crash_restart(".", self.backup_dir)
 
@@ -242,9 +244,11 @@ class test_checkpoint_snapshot06(wttest.WiredTigerTestCase):
 
         cursor11.set_key(ds_1.key(50))
         self.assertEqual(cursor11.search(), 0)
+        self.assertEqual(cursor11.get_value(), self.valueb)
 
         cursor12.set_key(ds_2.key(50))
         self.assertEqual(cursor12.search(), 0)
+        self.assertEqual(cursor12.get_value(), self.valueb)
 
 if __name__ == '__main__':
     wttest.run()
