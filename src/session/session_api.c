@@ -1647,13 +1647,14 @@ done:
         }
         /* We have to have a dhandle from somewhere. */
         WT_ASSERT(session, dhandle != NULL);
-        WT_WITH_DHANDLE(session, dhandle, log_op = __wt_log_op(session));
-        if (log_op) {
-            WT_WITH_DHANDLE(session, dhandle,
-              ret = __wt_txn_truncate_log(session, orig_start_key, orig_stop_key, local_start));
-            WT_ERR(ret);
-	    __wt_txn_truncate_end(session);
-        }
+	if (WT_DHANDLE_BTREE(dhandle)) {
+            WT_WITH_DHANDLE(session, dhandle, log_op = __wt_log_op(session));
+            if (log_op) {
+                WT_WITH_DHANDLE(session, dhandle, ret = __wt_txn_truncate_log(trunc_info));
+                WT_ERR(ret);
+                __wt_txn_truncate_end(session);
+            }
+	}
     }
 err:
     /*
