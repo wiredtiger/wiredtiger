@@ -2205,8 +2205,8 @@ struct __wt_connection {
      * checkpoints., an integer between \c 0 and \c 100000; default \c 0.}
      * @config{ ),,}
      * @config{checkpoint_cleanup_skip_internal, do not read internal pages when aggregated durable
-     * stop timestamp is zero.  (Warning: changing this value will likely increase startup time.).,
-     * a boolean flag; default \c true.}
+     * stop timestamp is zero.  (Warning: changing this value will likely increase checkpoint
+     * time.)., a boolean flag; default \c true.}
      * @config{chunk_cache = (, chunk cache configuration options., a set of related configuration
      * options defined as follows.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;capacity, maximum memory or
@@ -2958,8 +2958,8 @@ struct __wt_connection {
  * between \c 0 and \c 100000; default \c 0.}
  * @config{ ),,}
  * @config{checkpoint_cleanup_skip_internal, do not read internal pages when aggregated durable stop
- * timestamp is zero.  (Warning: changing this value will likely increase startup time.)., a boolean
- * flag; default \c true.}
+ * timestamp is zero.  (Warning: changing this value will likely increase checkpoint time.)., a
+ * boolean flag; default \c true.}
  * @config{checkpoint_sync, flush files to stable storage when closing or writing checkpoints., a
  * boolean flag; default \c true.}
  * @config{chunk_cache = (, chunk cache configuration options., a set of related configuration
