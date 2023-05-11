@@ -174,7 +174,7 @@ __split_prev_race(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pindexp
      * child's page index.
      */
     WT_INTL_INDEX_GET(session, ref->page, pindex);
-    if (__wt_split_descent_race(session, ref, *pindexp))
+    if (__wt_split_descent_race(ref, *pindexp))
         return (true);
 
     /*

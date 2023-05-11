@@ -376,6 +376,7 @@ __wt_row_search(WT_CURSOR_BTREE *cbt, WT_ITEM *srch_key, bool insert, WT_REF *le
     collator = btree->collator;
     item = cbt->tmp;
     current = NULL;
+    pindex = NULL;
 
     /*
      * Assert the session and cursor have the right relationship (not search specific, but search is
@@ -389,9 +390,9 @@ __wt_row_search(WT_CURSOR_BTREE *cbt, WT_ITEM *srch_key, bool insert, WT_REF *le
      * In some cases we expect we're comparing more than a few keys with matching prefixes, so it's
      * faster to avoid the memory fetches by skipping over those prefixes. That's done by tracking
      * the length of the prefix match for the lowest and highest keys we compare as we descend the
-     * tree. The high boundary is reset on each new page, the lower boundary is maintained.
+     * tree.
      */
-    skiplow = 0;
+    skiplow = skiphigh = 0;
 
     /*
      * If a cursor repeatedly appends to the tree, compare the search key against the last key on
@@ -428,7 +429,7 @@ restart:
          * Discard the currently held page and restart the search from the root.
          */
         WT_RET(__wt_page_release(session, current, 0));
-        skiplow = 0;
+        skiplow = skiphigh = 0;
     }
 
     /* Search the internal pages of the tree. */
@@ -495,13 +496,15 @@ restart:
              * Reset the skipped prefix counts; we'd normally expect the parent's skipped prefix
              * values to be larger than the child's values and so we'd only increase them as we walk
              * down the tree (in other words, if we can skip N bytes on the parent, we can skip at
-             * least N bytes on the child). However, if a child internal page was split up into the
-             * parent, the child page's key space will have been truncated, and the values from the
-             * parent's search may be wrong for the child. We only need to reset the high count
-             * because the split-page algorithm truncates the end of the internal page's key space,
-             * the low count is still correct.
+             * least N bytes on the child). However, if a child internal page was split up or
+             * reverse split into the parent, the child page's key space will have been changed, and
+             * the values from the parent's search may be wrong for the child.
+             *
+             * It is not easy to detect which case we are exactly in with the available information.
+             * Simply reset both the low and high boundary if we detect a change of tree structure.
              */
-            skiphigh = 0;
+            if (__wt_split_descent_race(current, pindex))
+                skiplow = skiphigh = 0;
 
             for (; limit != 0; limit >>= 1) {
                 indx = base + (limit >> 1);
@@ -552,7 +555,7 @@ restart:
          */
         if (pindex->entries == base) {
 append:
-            if (__wt_split_descent_race(session, current, parent_pindex))
+            if (__wt_split_descent_race(current, parent_pindex))
                 goto restart;
         }
 
@@ -651,11 +654,15 @@ leaf_only:
          * Reset the skipped prefix counts; we'd normally expect the parent's skipped prefix values
          * to be larger than the child's values and so we'd only increase them as we walk down the
          * tree (in other words, if we can skip N bytes on the parent, we can skip at least N bytes
-         * on the child). However, leaf pages at the end of the tree can be extended, causing the
-         * parent's search to be wrong for the child. We only need to reset the high count, the page
-         * can only be extended so the low count is still correct.
+         * on the child). However, we can insert smaller (larger) keys to leaf pages at the start
+         * (end) of the tree, causing the parent's search to be wrong for the child. In this case,
+         * we need to reset the boundary.
+         *
+         * It is not easy to detect which case we are exactly in with the available information.
+         * Simply reset both the low and high boundary if we detect a change of tree structure.
          */
-        skiphigh = 0;
+        if (__wt_split_descent_race(cbt->ref, pindex))
+            skiplow = skiphigh = 0;
 
         for (; limit != 0; limit >>= 1) {
             indx = base + (limit >> 1);
