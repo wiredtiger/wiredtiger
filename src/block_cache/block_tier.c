@@ -98,7 +98,7 @@ err:
 /*
  * __blkcache_find_open_handle --
  *     If the block manager's handle array already has an entry for the given object, return it. If
- *     caller is going to read from the handle, increment the read_count while we have the handle
+ *     caller is going to read from the handle, increment the read count while we have the handle
  *     table locked.
  */
 static void

@@ -108,7 +108,7 @@ __bm_checkpoint(
      * written.
      *
      * We don't hold the handle array lock across fsync calls since those could be slow and that
-     * would block a concurrent thread opening a new block handle
+     * would block a concurrent thread opening a new block handle.
      */
     do {
         found = false;
