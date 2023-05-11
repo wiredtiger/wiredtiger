@@ -58,7 +58,13 @@ __im_handle_remove(
     uint64_t bucket;
 
     im_fs = (WT_FILE_SYSTEM_INMEM *)file_system;
-    WT_ASSERT_SPINLOCK_OWNED(session, &im_fs->lock);
+
+    /*
+     * We should hold the file system lock unless we are destroying the file system, in which case
+     * would call this with the force argument set to true.
+     */
+    if (!force)
+        WT_ASSERT_SPINLOCK_OWNED(session, &im_fs->lock);
 
     if (im_fh->ref != 0) {
         __wt_err(session, EBUSY, "%s: file-remove", im_fh->iface.name);

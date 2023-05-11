@@ -293,6 +293,17 @@ __wt_spin_unlock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 #endif
 
 /*
+ * __wt_spin_locked --
+ *     Check whether the spinlock is locked, irrespective of which session locked it.
+ */
+static inline bool
+__wt_spin_locked(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
+{
+    WT_UNUSED(session);
+    return (t->session_id != WT_SESSION_ID_INVALID);
+}
+
+/*
  * __wt_spin_owned --
  *     Check whether the session owns the spinlock.
  */

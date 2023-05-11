@@ -1476,6 +1476,12 @@ __wt_schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config
     WT_DECL_RET;
     WT_SESSION_IMPL *int_session;
 
+    /*
+     * This function seems to not always expect the schema lock to be acquired. For example, the
+     * lock is not acquired if we get here through __wt_tiered_open, but we still have to verify
+     * that.
+     */
+
     WT_RET(__wt_schema_internal_session(session, &int_session));
     ret = __schema_create(int_session, uri, config);
     WT_TRET(__wt_schema_session_release(session, int_session));

@@ -207,6 +207,11 @@ __wt_cache_pool_config(WT_SESSION_IMPL *session, const char **cfg)
     F_SET(conn, WT_CONN_CACHE_POOL);
 err:
     __wt_spin_unlock(session, &__wt_process.spinlock);
+
+    /*
+     * Cannot use __wt_spin_unlock_if_owned because we can reach this without the lock being
+     * initialized.
+     */
     if (cp_locked)
         __wt_spin_unlock(session, &cp->cache_pool_lock);
     __wt_free(session, pool_name);
@@ -339,8 +344,7 @@ __wt_conn_cache_pool_destroy(WT_SESSION_IMPL *session)
      * nothing further to do.
      */
     if (cp->refs < 1) {
-        if (cp_locked)
-            __wt_spin_unlock(session, &cp->cache_pool_lock);
+        __wt_spin_unlock_if_owned(session, &cp->cache_pool_lock);
         return (0);
     }
 
@@ -369,6 +373,7 @@ __wt_conn_cache_pool_destroy(WT_SESSION_IMPL *session)
         __wt_free(session, cp);
     }
 
+    /* We cannot use __wt_spin_owned here because the lock may be destroyed by now. */
     if (cp_locked) {
         __wt_spin_unlock(session, &cp->cache_pool_lock);
 
@@ -545,6 +550,9 @@ __cache_pool_adjust(WT_SESSION_IMPL *session, uint64_t highest, uint64_t bump_th
     pct_full = 0.0;
     /* Highest as a percentage, avoid 0 */
     highest_percentile = (highest / 100) + 1;
+
+    /* The cache pool lock is locked using the NULL session. */
+    WT_ASSERT_SPINLOCK_OWNED(NULL, &cp->cache_pool_lock);
 
     if (WT_VERBOSE_ISSET(session, WT_VERB_SHARED_CACHE)) {
         __wt_verbose(session, WT_VERB_SHARED_CACHE, "%s", "Cache pool distribution: ");

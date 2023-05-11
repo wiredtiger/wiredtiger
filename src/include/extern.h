@@ -2085,6 +2085,8 @@ static inline bool __wt_row_leaf_value_is_encoded(WT_ROW *rip)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_session_can_wait(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline bool __wt_spin_locked(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_spin_owned(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_split_descent_race(WT_SESSION_IMPL *session, WT_REF *ref,
