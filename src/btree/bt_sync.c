@@ -447,7 +447,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
          * there is a long-running transaction in the database.
          */
         if (!btree->modified && !F_ISSET(conn, WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT) &&
-          btree->rec_max_txn >= txn->snap_min)
+          (btree->rec_max_txn >= txn->snap_min ||
+            btree->rec_max_timestamp > conn->txn_global.checkpoint_timestamp))
             __wt_tree_modify_set(session);
         break;
     case WT_SYNC_CLOSE:
