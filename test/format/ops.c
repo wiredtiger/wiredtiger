@@ -1186,8 +1186,8 @@ rollback_retry:
                       (tinfo->last == 0 || tinfo->last == max_rows)) {
                         tinfo->last = max_rows - 1;
                         /*
-                         * It is possible that keyno was set to max rows so make sure we don't send
-                         * in poorly set truncate cursor keys.
+                         * It is possible that the key number was set to max rows so make sure we
+                         * don't send in poorly set truncate cursor keys.
                          */
                         if (tinfo->keyno > tinfo->last)
                             tinfo->keyno = tinfo->last;
