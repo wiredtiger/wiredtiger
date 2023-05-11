@@ -503,7 +503,7 @@ restart:
              * It is not easy to detect which case we are exactly in with the available information.
              * Simply reset both the low and high boundary if we detect a change of tree structure.
              */
-            if (__wt_split_descent_race(current, parent_pindex))
+            if (parent_pindex != NULL && __wt_split_descent_race(current, parent_pindex))
                 skiplow = skiphigh = 0;
 
             for (; limit != 0; limit >>= 1) {
