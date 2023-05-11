@@ -445,10 +445,14 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
          * btree's maximum transaction id with the checkpoint snap_min and it is possible that this
          * transaction may be visible to the checkpoint, but still, we mark the tree as dirty if
          * there is a long-running transaction in the database.
+         *
+         * Do not mark the tree dirty if there is no change to stable timestamp compared to the last
+         * checkpoint.
          */
         if (!btree->modified && !F_ISSET(conn, WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT) &&
           (btree->rec_max_txn >= txn->snap_min ||
-            btree->rec_max_timestamp > conn->txn_global.checkpoint_timestamp))
+            (conn->txn_global.checkpoint_timestamp != conn->txn_global.last_ckpt_timestamp &&
+              btree->rec_max_timestamp > conn->txn_global.checkpoint_timestamp)))
             __wt_tree_modify_set(session);
         break;
     case WT_SYNC_CLOSE:
