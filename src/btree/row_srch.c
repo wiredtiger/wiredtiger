@@ -390,7 +390,7 @@ __wt_row_search(WT_CURSOR_BTREE *cbt, WT_ITEM *srch_key, bool insert, WT_REF *le
      * In some cases we expect we're comparing more than a few keys with matching prefixes, so it's
      * faster to avoid the memory fetches by skipping over those prefixes. That's done by tracking
      * the length of the prefix match for the lowest and highest keys we compare as we descend the
-     * tree.
+     * tree. The boundaries are reset if the parent's page index changes concurrently.
      */
     skiplow = skiphigh = 0;
 
