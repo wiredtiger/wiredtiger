@@ -109,7 +109,7 @@ struct __wt_spinlock {
 #endif
 
     const char *name;    /* Mutex name */
-    uint64_t session_id; /* The session ID (64-bit for a more optimized access) */
+    uint32_t session_id; /* The session ID */
 
     /*
      * We track acquisitions and time spent waiting for some locks. For performance reasons and to

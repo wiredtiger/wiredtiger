@@ -915,7 +915,10 @@ __wt_block_extlist_merge(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *
     WT_EXTLIST tmp;
     u_int i;
 
-    /* Make sure to own the live lock spinlock if operating on the live snapshot. */
+    /*
+     * We should hold the live lock here when running on the live checkpoint. But there is no easy
+     * way to determine if the checkpoint is live so we cannot assert the locking here.
+     */
 
     __wt_verbose_debug2(session, WT_VERB_BLOCK, "merging %s into %s", a->name, b->name);
 

@@ -218,7 +218,10 @@ __wt_block_checkpoint_unload(WT_SESSION_IMPL *session, WT_BLOCK *block, bool che
 void
 __wt_block_ckpt_destroy(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
 {
-    /* Make sure to own the live lock when running this on the live checkpoint. */
+    /*
+     * We should hold the live lock here when running on the live checkpoint. But there is no easy
+     * way to determine if the checkpoint is live so we cannot assert the locking here.
+     */
 
     /* Discard the extent lists. */
     __wt_block_extlist_free(session, &ci->alloc);

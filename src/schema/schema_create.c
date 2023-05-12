@@ -1477,10 +1477,13 @@ __wt_schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config
     WT_SESSION_IMPL *int_session;
 
     /*
-     * This function seems to not always expect the schema lock to be acquired. For example, the
-     * lock is not acquired if we get here through __wt_tiered_open, but we still have to verify
-     * that.
+     * We should be calling this function with the schema lock, but we cannot verify it here because
+     * we can re-enter this function with the internal session. If we get here using the internal
+     * session, we cannot check whether we own the lock, as it would be locked by the outer session.
+     * We can thus only check whether the lock is acquired, as opposed to, whether the lock is
+     * acquired by us.
      */
+    WT_ASSERT(session, __wt_spin_locked(session, &S2C(session)->schema_lock));
 
     WT_RET(__wt_schema_internal_session(session, &int_session));
     ret = __schema_create(int_session, uri, config);
