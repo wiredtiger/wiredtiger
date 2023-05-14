@@ -15,4 +15,6 @@ sudo docker image ls | grep wt-test-format > /dev/null 2>&1
 SRC=$1
 [[ $SRC = /* ]] || SRC=`pwd`/$1
 
-sudo docker run --rm --mount type=bind,src=$SRC,dst=/opt/bin/test/format/core -it wt-test-format:latest /bin/bash -c "cd bin/test/format;gdb t core"
+T_DIR=/opt/bin/test/format
+
+sudo docker run --rm --mount type=bind,src=$SRC,dst=$T_DIR/core -it wt-test-format:latest /bin/bash -c "cd $T_DIR;gdb t core"
