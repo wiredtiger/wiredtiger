@@ -41,7 +41,6 @@ import=0
 logging=0
 logging.compression=none
 logging.file_max=226874
-"wt-10961.config" 123L, 2905C                                                                                                                                                                                                      1,1           Top
 ############################################
 #  RUN PARAMETERS: V3
 ############################################
