@@ -254,11 +254,11 @@ __wt_time_aggregate_validate(
      *    oldest_start_ts - The default value is WT_TS_NONE. It tracks the minimum commit timestamp
      of any inserts performed on a page.
      *    newest_txn - The default value is WT_TXN_NONE. It tracks the maximum transaction id of any
-     modification (insert/remove) performed on a page.
+     modification (insert/delete) performed on a page.
      *    newest_stop_ts - The default value is WT_TS_MAX. It tracks the maximum commit timestamp of
-     a remove operation on a page. If there is no removal for a key, this value will be WT_TS_MAX.
+     a delete operation on a page. If there is no removal for a key, this value will be WT_TS_MAX.
      *    newest_stop_txn - The default value is WT_TXN_MAX. It tracks the maximum commit
-     transaction id of a remove operation on a page. If there is no removal for a key, this value
+     transaction id of a delete operation on a page. If there is no removal for a key, this value
      will be WT_TXN_MAX.
      *
      *
@@ -268,7 +268,7 @@ __wt_time_aggregate_validate(
      *    oldest_start_ts will be the minimum commit timestamp of any inserts performed on a page.
      *    newest_stop_durable_ts will be WT_TS_NONE
      *    newest_stop_ts will be WT_TS_MAX since there is no removal of any key.
-     *    newest_txn will be the maximum transaction id of any modification (insert/remove)
+     *    newest_txn will be the maximum transaction id of any modification (insert/delete)
      performed on a page.
      *    newest_stop_txn will be WT_TXN_MAX.
 
@@ -276,22 +276,22 @@ __wt_time_aggregate_validate(
      *    newest_start_durable_ts will be some valid value (not WT_TS_MAX or WT_TS_NONE)
      *    oldest_start_ts will be the minimum commit timestamp of any inserts performed on a page.
      *    newest_stop_durable_ts will be some valid value (not WT_TS_MAX or WT_TS_NONE)
-     *    newest_stop_ts will be maximum commit timestamp of any remove operation on a page but not
+     *    newest_stop_ts will be maximum commit timestamp of any delete operation on a page but not
      WT_TS_MAX.
-     *    newest_txn will be the maximum transaction id of any modification (insert/remove)
+     *    newest_txn will be the maximum transaction id of any modification (insert/delete)
      performed on a page.
-     *    newest_stop_txn will be the maximum commit transaction id of any remove operation on a
+     *    newest_stop_txn will be the maximum commit transaction id of any delete operation on a
      page but cannot be WT_TXN_MAX
 
      * Scenario 3 - Some entries are deleted, but not all.
      *    newest_start_durable_ts will be some valid value (not WT_TS_MAX or WT_TS_NONE)
      *    oldest_start_ts will be the minimum commit timestamp of any inserts performed on a page.
-     *    newest_stop_durable_ts will be the maximum durable timestamp of all the removes performed
+     *    newest_stop_durable_ts will be the maximum durable timestamp of all the deletes performed
      on a page.
      *    newest_stop_ts can be WT_TS_MAX or any valid value
-     *    newest_txn will be the maximum transaction id of any modification (insert/remove)
+     *    newest_txn will be the maximum transaction id of any modification (insert/delete)
      performed on a page.
-     *    newest_stop_txn will be the maximum commit transaction id of any remove operation on a
+     *    newest_stop_txn will be the maximum commit transaction id of any delete operation on a
      page but cannot be WT_TXN_MAX
      *
      */
