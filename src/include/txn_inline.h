@@ -922,7 +922,7 @@ __wt_upd_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, u_int modify_type
      * added by the compiler.
      */
     WT_RET(__wt_calloc(session, 1,
-      (value == NULL) ? sizeof(*upd) : WT_UPDATE_SIZE + value->size), &upd));
+      (value == NULL) ? sizeof(*upd) : (WT_UPDATE_SIZE + value->size), &upd));
     if (value != NULL && value->size != 0) {
         upd->size = WT_STORE_SIZE(value->size);
         memcpy(upd->data, value->data, value->size);
