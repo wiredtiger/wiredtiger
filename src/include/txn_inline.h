@@ -921,7 +921,8 @@ __wt_upd_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, u_int modify_type
      * When there is no value data, use sizeof() which will include any (trailing) padding bytes
      * added by the compiler.
      */
-    WT_RET(__wt_calloc(session, 1, (value == NULL) ? sizeof(*upd) : WT_UPDATE_SIZE + value->size), &upd));
+    WT_RET(__wt_calloc(session, 1,
+      (value == NULL) ? sizeof(*upd) : WT_UPDATE_SIZE + value->size), &upd));
     if (value != NULL && value->size != 0) {
         upd->size = WT_STORE_SIZE(value->size);
         memcpy(upd->data, value->data, value->size);
