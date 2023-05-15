@@ -268,7 +268,8 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     WT_CONNECTION *conn;
     WT_SESSION *session;
     wt_thread_t alter_tid, backup_tid, checkpoint_tid, compact_tid, hs_tid, import_tid, random_tid;
-    wt_thread_t hs_tid_0, hs_tid_1, hs_tid_2, hs_tid_3, hs_tid_4, hs_tid_5, hs_tid_6, hs_tid_7, hs_tid_8, hs_tid_9;
+    wt_thread_t hs_tid_0, hs_tid_1, hs_tid_2, hs_tid_3, hs_tid_4, hs_tid_5, hs_tid_6, hs_tid_7,
+      hs_tid_8, hs_tid_9;
     wt_thread_t timestamp_tid;
     int64_t fourths, quit_fourths, thread_ops;
     uint32_t i;
@@ -361,7 +362,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
         testutil_check(__wt_thread_create(NULL, &backup_tid, backup, NULL));
     if (GV(OPS_COMPACTION))
         testutil_check(__wt_thread_create(NULL, &compact_tid, compact, NULL));
-    if (GV(OPS_HS_CURSOR)){
+    if (GV(OPS_HS_CURSOR)) {
         testutil_check(__wt_thread_create(NULL, &hs_tid, hs_cursor, NULL));
         testutil_check(__wt_thread_create(NULL, &hs_tid_0, hs_cursor, NULL));
         testutil_check(__wt_thread_create(NULL, &hs_tid_1, hs_cursor, NULL));
@@ -471,7 +472,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
         testutil_check(__wt_thread_join(NULL, &checkpoint_tid));
     if (GV(OPS_COMPACTION))
         testutil_check(__wt_thread_join(NULL, &compact_tid));
-    if (GV(OPS_HS_CURSOR)){
+    if (GV(OPS_HS_CURSOR)) {
         testutil_check(__wt_thread_join(NULL, &hs_tid));
         testutil_check(__wt_thread_join(NULL, &hs_tid_0));
         testutil_check(__wt_thread_join(NULL, &hs_tid_1));

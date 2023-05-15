@@ -160,7 +160,7 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
     last_match = 0;
 
     // Skip mirror validation as it's interfering with our WT-11017 results
-    if(true)
+    if (true)
         return;
 
     memset(&sap, 0, sizeof(sap));

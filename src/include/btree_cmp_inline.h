@@ -95,6 +95,116 @@ __wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item)
     return ((usz == tsz) ? 0 : (usz < tsz) ? -1 : 1);
 }
 
+static inline int
+__wt_lex_compare_copy(const WT_ITEM *user_item, const WT_ITEM *tree_item)
+{
+    size_t len, usz, tsz, i, j;
+    size_t usz_new, tsz_new;
+    const uint8_t *userp, *treep;
+    const uint8_t *userp_temp, *treep_temp;
+    int commas_found;
+
+    usz = user_item->size;
+    tsz = tree_item->size;
+    len = WT_MIN(usz, tsz);
+
+    userp = (const uint8_t *)user_item->data;
+    treep = (const uint8_t *)tree_item->data;
+
+    userp_temp = (const uint8_t *)user_item->data;
+    treep_temp = (const uint8_t *)tree_item->data;
+
+    commas_found = 0;
+    for (i = 0; i < len; i++) {
+        if (strncmp((char *)userp_temp, ",", 1) == 0) {
+            commas_found++;
+        }
+
+        if (commas_found == 2) {
+            break;
+        }
+
+        userp_temp++;
+    }
+
+    commas_found = 0;
+    for (j = 0; j < len; j++) {
+        if (strncmp((char *)treep_temp, ",", 1) == 0) {
+            commas_found++;
+        }
+
+        if (commas_found == 2) {
+            break;
+        }
+
+        treep_temp++;
+    }
+
+    if (i < len && j < len) {
+        usz_new = user_item->size - sizeof(uint8_t) * i;
+        tsz_new = tree_item->size - sizeof(uint8_t) * j;
+        len = WT_MIN(usz_new, tsz_new);
+
+        userp = userp_temp;
+        treep = treep_temp;
+    }
+
+#ifdef HAVE_X86INTRIN_H
+    /* Use vector instructions if we'll execute at least 2 of them. */
+    if (len >= WT_VECTOR_SIZE * 2) {
+        size_t remain;
+        __m128i res_eq, u, t;
+
+        remain = len % WT_VECTOR_SIZE;
+        len -= remain;
+        if (WT_ALIGNED_16(userp) && WT_ALIGNED_16(treep))
+            for (; len > 0;
+                 len -= WT_VECTOR_SIZE, userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE) {
+                u = _mm_load_si128((const __m128i *)userp);
+                t = _mm_load_si128((const __m128i *)treep);
+                res_eq = _mm_cmpeq_epi8(u, t);
+                if (_mm_movemask_epi8(res_eq) != 65535)
+                    break;
+            }
+        else
+            for (; len > 0;
+                 len -= WT_VECTOR_SIZE, userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE) {
+                u = _mm_loadu_si128((const __m128i *)userp);
+                t = _mm_loadu_si128((const __m128i *)treep);
+                res_eq = _mm_cmpeq_epi8(u, t);
+                if (_mm_movemask_epi8(res_eq) != 65535)
+                    break;
+            }
+        len += remain;
+    }
+#elif defined(HAVE_ARM_NEON_INTRIN_H)
+    /* Use vector instructions if we'll execute at least 1 of them. */
+    if (len >= WT_VECTOR_SIZE) {
+        size_t remain;
+        uint8x16_t res_eq, u, t;
+        remain = len % WT_VECTOR_SIZE;
+        len -= remain;
+        for (; len > 0; len -= WT_VECTOR_SIZE, userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE) {
+            u = vld1q_u8(userp);
+            t = vld1q_u8(treep);
+            res_eq = vceqq_u8(u, t);
+            if (vminvq_u8(res_eq) != 255)
+                break;
+        }
+        len += remain;
+    }
+#endif
+    /*
+     * Use the non-vectorized version for the remaining bytes and for the small key sizes.
+     */
+    for (; len > 0; --len, ++userp, ++treep)
+        if (*userp != *treep)
+            return (*userp < *treep ? -1 : 1);
+
+    /* Contents are equal up to the smallest length. */
+    return ((usz == tsz) ? 0 : (usz < tsz) ? -1 : 1);
+}
+
 /*
  * __wt_compare --
  *     The same as __wt_lex_compare, but using the application's collator function when configured.
@@ -105,6 +215,17 @@ __wt_compare(WT_SESSION_IMPL *session, WT_COLLATOR *collator, const WT_ITEM *use
 {
     if (collator == NULL) {
         *cmpp = __wt_lex_compare(user_item, tree_item);
+        return (0);
+    }
+    return (collator->compare(collator, &session->iface, user_item, tree_item, cmpp));
+}
+
+static inline int
+__wt_compare_copy(WT_SESSION_IMPL *session, WT_COLLATOR *collator, const WT_ITEM *user_item,
+  const WT_ITEM *tree_item, int *cmpp)
+{
+    if (collator == NULL) {
+        *cmpp = __wt_lex_compare_copy(user_item, tree_item);
         return (0);
     }
     return (collator->compare(collator, &session->iface, user_item, tree_item, cmpp));
