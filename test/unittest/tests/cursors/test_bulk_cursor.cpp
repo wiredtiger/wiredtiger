@@ -70,7 +70,7 @@ check_txn_updates(std::string const &label, WT_SESSION_IMPL *session_impl)
         case WT_TXN_OP_INMEM_COL:
         case WT_TXN_OP_INMEM_ROW:
             WT_UPDATE *upd = op->u.op_upd;
-            printf("    mod %i, op->type = %i, upd->txnid = 0x%llx\n", i, op->type, upd->txnid);
+            printf("    mod %i, op->type = %i, upd->txnid = 0x%lx\n", i, op->type, upd->txnid);
             break;
         }
     }
