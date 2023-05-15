@@ -392,7 +392,7 @@ __wt_row_search(WT_CURSOR_BTREE *cbt, WT_ITEM *srch_key, bool insert, WT_REF *le
      * the length of the prefix match for the lowest and highest keys we compare as we descend the
      * tree. The boundaries are reset if the parent's page index changes concurrently.
      */
-    skiplow = skiphigh = 0;
+    skiphigh = skiplow = 0;
 
     /*
      * If a cursor repeatedly appends to the tree, compare the search key against the last key on
@@ -429,7 +429,7 @@ restart:
          * Discard the currently held page and restart the search from the root.
          */
         WT_RET(__wt_page_release(session, current, 0));
-        skiplow = skiphigh = 0;
+        skiphigh = skiplow = 0;
     }
 
     /* Search the internal pages of the tree. */
@@ -504,7 +504,7 @@ restart:
              * Simply reset both the low and high boundary if we detect a change of tree structure.
              */
             if (parent_pindex != NULL && __wt_split_descent_race(current, parent_pindex))
-                skiplow = skiphigh = 0;
+                skiphigh = skiplow = 0;
 
             for (; limit != 0; limit >>= 1) {
                 indx = base + (limit >> 1);
@@ -662,7 +662,7 @@ leaf_only:
          * Simply reset both the low and high boundary if we detect a change of tree structure.
          */
         if (__wt_split_descent_race(cbt->ref, pindex))
-            skiplow = skiphigh = 0;
+            skiphigh = skiplow = 0;
 
         for (; limit != 0; limit >>= 1) {
             indx = base + (limit >> 1);
