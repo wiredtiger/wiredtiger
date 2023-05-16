@@ -155,9 +155,9 @@ __wt_blkcache_get_handle(
     /* We need a write lock to add a new entry to the handle array. */
     __wt_writelock(session, &bm->handle_array_lock);
 
-    /* 
-     * Check to see if the object was added while we opened it. If the object was added, we 
-     * should get back the same handle we already have.
+    /*
+     * Check to see if the object was added while we opened it. If the object was added, we should
+     * get back the same handle we already have.
      */
     __blkcache_find_open_handle(bm, objectid, reading, blockp);
     WT_ASSERT(session, *blockp == NULL || *blockp == new_handle);
@@ -185,11 +185,11 @@ err:
 }
 
 /*
- * __wt_blkcache_handle_read_done --
+ * __wt_blkcache_release_handle --
  *     Update block handle when a read operation completes.
  */
 void
-__wt_blkcache_handle_read_done(WT_SESSION_IMPL *session, WT_BLOCK *block)
+__wt_blkcache_release_handle(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
     WT_ASSERT(session, block->read_count > 0);
     __wt_atomic_sub32(&block->read_count, 1);

@@ -49,7 +49,7 @@ __wt_bm_read(
 
 err:
     if (bm->is_multi_handle)
-        __wt_blkcache_handle_read_done(session, block);
+        __wt_blkcache_release_handle(session, block);
 
     return (ret);
 }
