@@ -108,7 +108,8 @@ class test_bug_031(wttest.WiredTigerTestCase):
         self.session.begin_transaction()
         cursor[key] = value
 
-        # Evict everything.
+        # Evict everything. Since there is an uncommitted update on the key, this performs update
+        # restore for that key.
         evict_cursor = self.session.open_cursor(uri, None, 'debug=(release_evict)')
         evict_cursor.set_key(key)
         evict_cursor.search()
