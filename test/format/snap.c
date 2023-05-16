@@ -637,8 +637,8 @@ snap_repeat(TINFO *tinfo, SNAP_OPS *snap)
 #define MAX_RETRY_ON_ROLLBACK WT_THOUSAND
     u_int max_retry;
 
-    session = tinfo->session;
     rollback_reason = NULL;
+    session = tinfo->session;
 
     /* Start a transaction with a read-timestamp and verify the record. */
     for (max_retry = 0; max_retry < MAX_RETRY_ON_ROLLBACK; ++max_retry, __wt_yield()) {
