@@ -126,21 +126,21 @@ class test_bug_031(wttest.WiredTigerTestCase):
         # aborted updates: U4 -> U3 (aborted) -> U2 (aborted)
 
         # Evict everything.
+        # This eviction is supposed to move U4 to the DS and U1 in the HS.
+        # However, without the fix in WT-10522, U1 is not moved to the HS because of the early exit
+        # in __rec_append_orig_value when processing U2 as it has the flag
+        # WT_UPDATE_RESTORED_FROM_DS.
+        # With the fix from WT-10522, since U2 is aborted, we skip it, avoid the early exit and
+        # restore the on disk update which is U1.
         evict_cursor = self.session.open_cursor(uri, None, 'debug=(release_evict)')
         evict_cursor.set_key(key)
         evict_cursor.search()
         evict_cursor.reset()
         evict_cursor.close()
 
-        # This moves the insertion @ 40 (U4) to the DS and the insertion @ 10 (U1) in the HS.
-    
         # Read update at timestamp 10.
-        # The update chain is U4 -> U3 (aborted) -> U2 (aborted).
-        # Without the fix in WT-10522, the search call returns early and leads to WT_NOTFOUND
-        # because of the early exit in __rec_append_orig_value when processing the update U2 as it
-        # has the flag WT_UPDATE_RESTORED_FROM_DS.
-        # With WT-10522, since the update U2 is aborted, we skip it, avoid the early exit and look
-        # into the DS and HS where it is found.
+        # Without the fix from WT-10522, this returns WT_NOTFOUND as the update was lost during the
+        # previous eviction.
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(10))
         cursor.set_key(key)
         self.assertEquals(cursor.search(), 0)
