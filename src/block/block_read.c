@@ -36,7 +36,7 @@ __wt_bm_read(
      * In diagnostic mode, verify the block we're about to read isn't on the available list, or for
      * the writable objects, the discard list.
      */
-    WT_RET(__wt_block_misplaced(session, block, "read", offset, size,
+    WT_ERR(__wt_block_misplaced(session, block, "read", offset, size,
       bm->is_live && block == bm->block, __PRETTY_FUNCTION__, __LINE__));
 #endif
 

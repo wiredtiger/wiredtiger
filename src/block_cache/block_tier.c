@@ -106,7 +106,7 @@ __blkcache_find_open_handle(WT_BM *bm, uint32_t objectid, bool reading, WT_BLOCK
 {
     u_int i;
 
-    /* Must be called with bm->handle_array_lock locked */
+    /* Must be called with minimum of a read lock on bm->handle_array_lock. */
 
     *blockp = NULL;
 
@@ -155,8 +155,12 @@ __wt_blkcache_get_handle(
     /* We need a write lock to add a new entry to the handle array. */
     __wt_writelock(session, &bm->handle_array_lock);
 
-    /* Check to see if the object was added while we opened it. */
+    /* 
+     * Check to see if the object was added while we opened it. If the object was added, we 
+     * should get back the same handle we already have.
+     */
     __blkcache_find_open_handle(bm, objectid, reading, blockp);
+    WT_ASSERT(session, *blockp == NULL || *blockp == new_handle);
 
     if (*blockp == NULL) {
         /* Allocate space to store the new handle and insert it in the array. */

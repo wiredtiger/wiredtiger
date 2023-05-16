@@ -588,7 +588,7 @@ __bm_switch_object(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t objectid)
     size_t root_addr_size;
 
     /* The checkpoint lock protects against concurrent switches */
-    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_CHECKPOINT));
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock) 
     WT_ASSERT(session, bm->is_multi_handle);
 
     current = bm->block;
