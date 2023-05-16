@@ -171,8 +171,13 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
                       "%s generation drain waited %" PRIu64 " minutes", __gen_name(which), minutes);
                     ++minutes;
                 }
-                /* Enable extra logs 20ms before timing out. */
-                else if (!verbose_timeout_flags && conn->gen_drain_timeout_ms > 0 &&
+
+                /* If no timeout is configured, there is nothing else to do. */
+                if (conn->gen_drain_timeout_ms == 0)
+                    continue;
+
+                /* Enable extra logs 20ms before reaching the timeout. */
+                if (!verbose_timeout_flags &&
                   (conn->gen_drain_timeout_ms < 20 ||
                     time_diff_ms > (conn->gen_drain_timeout_ms - 20))) {
                     if (which == WT_GEN_EVICT) {
@@ -187,14 +192,11 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
                           session, WT_VERB_CHECKPOINT_PROGRESS, WT_VERBOSE_DEBUG_1);
                     }
                     verbose_timeout_flags = true;
-                }
-#ifdef HAVE_DIAGNOSTIC
-                if(conn->gen_drain_timeout_ms > 0 && time_diff_ms >= conn->gen_drain_timeout_ms) {
+                } else if (time_diff_ms >= conn->gen_drain_timeout_ms) {
                     __wt_verbose_error(session, WT_VERB_GENERATION, "%s generation drain timed out",
                       __gen_name(which));
                     WT_ASSERT(session, false);
                 }
-#endif
             }
         }
     }
