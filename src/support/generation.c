@@ -188,8 +188,13 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
                     }
                     verbose_timeout_flags = true;
                 }
-                WT_ASSERT(session,
-                  conn->gen_drain_timeout_ms == 0 || time_diff_ms < conn->gen_drain_timeout_ms);
+#ifdef HAVE_DIAGNOSTIC
+                if(conn->gen_drain_timeout_ms > 0 && time_diff_ms >= conn->gen_drain_timeout_ms) {
+                    __wt_verbose_error(session, WT_VERB_GENERATION, "%s generation drain timed out",
+                      __gen_name(which));
+                    WT_ASSERT(session, false);
+                }
+#endif
             }
         }
     }
