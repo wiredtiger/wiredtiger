@@ -550,10 +550,10 @@ connection_runtime_config = [
             periodic checkpoints''',
             min='0', max='100000'),
         ]),
-    Config('checkpoint_cleanup_skip_internal', 'true', r'''
-        do not read internal pages when aggregated durable stop timestamp is zero.
-        (Warning: changing this value will likely increase checkpoint time.)
-    ''', type='boolean'),
+    Config('checkpoint_cleanup', 'relaxed', r'''
+        control how aggressively obsolete content is removed when creating checkpoints.
+        Default to relaxed, which means no additional work is done to find obsolete content.
+        ''', choices=['relaxed', 'aggressive']),
     Config('chunk_cache', '', r'''
         chunk cache configuration options''',
         type='category', subconfig=[
