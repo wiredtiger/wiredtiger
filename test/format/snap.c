@@ -674,10 +674,10 @@ snap_repeat(TINFO *tinfo, SNAP_OPS *snap)
       strcmp(rollback_reason, TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION) == 0)
         WARN(
           "%s: %s", "snap repeat exceeds maximum retry", TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION);
-    else
+    else {
         testutil_assert(max_retry < MAX_RETRY_ON_ROLLBACK);
-
-    testutil_check(session->rollback_transaction(session, NULL));
+        testutil_check(session->rollback_transaction(session, NULL));
+    }
 }
 
 /*
