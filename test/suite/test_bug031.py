@@ -144,3 +144,6 @@ class test_bug_031(wttest.WiredTigerTestCase):
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(10))
         cursor.set_key(key)
         self.assertEquals(cursor.search(), 0)
+
+if __name__ == '__main__':
+    wttest.run()
