@@ -41,10 +41,6 @@ class test_bug_031(wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios(format_values)
 
-    def conn_config(self):
-        config = 'debug_mode=(update_restore_evict=true)'
-        return config
-
     def test_bug031(self):
         uri = "table:test_bug031"
 
