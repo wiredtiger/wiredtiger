@@ -138,9 +138,12 @@ class test_bug_031(wttest.WiredTigerTestCase):
         # This moves the insertion @ 40 (U4) to the DS and the insertion @ 10 (U1) in the HS.
     
         # Read update at timestamp 10.
-        # The update chain is U4 -> U3 (aborted) -> U2 (aborted). Without the fix in WT-10522, we
-        # would exit early because of the flag WT_UPDATE_RESTORED_FROM_DS set on U2 and miss on
-        # appending U1.
+        # The update chain is U4 -> U3 (aborted) -> U2 (aborted).
+        # Without the fix in WT-10522, the search call returns early and leads to WT_NOTFOUND
+        # because of the early exit in __rec_append_orig_value when processing the update U2 as it
+        # has the flag WT_UPDATE_RESTORED_FROM_DS.
+        # With WT-10522, since the update U2 is aborted, we skip it, avoid the early exit and look
+        # into the DS and HS where it is found.
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(10))
         cursor.set_key(key)
         self.assertEquals(cursor.search(), 0)
