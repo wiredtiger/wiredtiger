@@ -2958,10 +2958,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_config_gets(session, cfg, "checkpoint_cleanup", &cval));
     if (WT_STRING_MATCH("aggressive", cval.str, cval.len))
         F_SET(conn, WT_CONN_CKPT_CLEANUP_SKIP_INT);
-    else if (WT_STRING_MATCH("none", cval.str, cval.len))
-        F_CLR(conn, WT_CONN_CKPT_CLEANUP_SKIP_INT);
-    else
-        WT_ERR_MSG(session, EINVAL, "checkpoint_cleanup invalid option");
 
     WT_ERR(__wt_config_gets(session, cfg, "checkpoint_sync", &cval));
     if (cval.val)
