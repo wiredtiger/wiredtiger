@@ -922,7 +922,7 @@ err:
          * we call next key 2 will be returned which will be same as earlier returned key.
          */
         if (!F_ISSET(cbt, WT_CBT_ITERATE_RETRY_NEXT))
-            ret = __wt_cursor_key_order_check(session, cbt, false);
+            ret = __wt_cursor_key_order_check_copy(session, cbt, false);
 
         if (need_walk) {
             /*

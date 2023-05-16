@@ -102,7 +102,7 @@ __wt_lex_compare_copy(const WT_ITEM *user_item, const WT_ITEM *tree_item)
     size_t usz_new, tsz_new;
     const uint8_t *userp, *treep;
     const uint8_t *userp_temp, *treep_temp;
-    int commas_found;
+    int commas_found_user, commas_found_tree;
 
     usz = user_item->size;
     tsz = tree_item->size;
@@ -114,33 +114,33 @@ __wt_lex_compare_copy(const WT_ITEM *user_item, const WT_ITEM *tree_item)
     userp_temp = (const uint8_t *)user_item->data;
     treep_temp = (const uint8_t *)tree_item->data;
 
-    commas_found = 0;
+    commas_found_user = 0;
     for (i = 0; i < len; i++) {
-        if (strncmp((char *)userp_temp, ",", 1) == 0) {
-            commas_found++;
+        if ((char)userp_temp[0] == ',') {    
+            commas_found_user++;
         }
 
-        if (commas_found == 2) {
+        if (commas_found_user == 2) {
             break;
         }
 
         userp_temp++;
     }
 
-    commas_found = 0;
+    commas_found_tree = 0;
     for (j = 0; j < len; j++) {
-        if (strncmp((char *)treep_temp, ",", 1) == 0) {
-            commas_found++;
+        if ((char)treep_temp[0] == ',') {
+            commas_found_tree++;
         }
 
-        if (commas_found == 2) {
+        if (commas_found_tree == 2) {
             break;
         }
 
         treep_temp++;
     }
 
-    if (i < len && j < len) {
+    if (i < len && j < len && commas_found_user == 2 && commas_found_tree == 2 && i == j && strncmp((char *)userp, (char *)treep, WT_MIN(i, j)) == 0) {
         usz_new = user_item->size - sizeof(uint8_t) * i;
         tsz_new = tree_item->size - sizeof(uint8_t) * j;
         len = WT_MIN(usz_new, tsz_new);
