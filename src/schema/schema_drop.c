@@ -319,6 +319,8 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
     WT_DECL_RET;
     bool force;
 
+    printf("Starting __schema_drop\n");
+
     WT_RET(__wt_config_gets_def(session, cfg, "force", 0, &cval));
     force = cval.val != 0;
 
@@ -356,6 +358,9 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
         WT_TRET(__wt_meta_track_off(session, false, ret != 0));
     else
         WT_TRET(__wt_meta_track_off(session, true, ret != 0));
+
+
+    printf("Ending __schema_drop() ret = %d\n", ret);
 
     return (ret);
 }

@@ -428,8 +428,10 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead)
      * Check discard too, code we call to clear the cache expects the data handle dead flag to be
      * set when discarding modified pages.
      */
-    if (marked_dead || discard)
+    if (marked_dead || discard) {
+//        WT_ASSERT(session, !F_ISSET(dhandle, WT_DHANDLE_OPEN));
         F_SET(dhandle, WT_DHANDLE_DEAD);
+    }
 
     /*
      * Discard from cache any trees not marked dead in this call (that is, including trees
@@ -758,6 +760,8 @@ __conn_dhandle_close_one(
 {
     WT_DECL_RET;
 
+    printf("Starting __conn_dhandle_close_one()\n");
+
     /*
      * Lock the handle exclusively. If this is part of schema-changing operation (indicated by
      * metadata tracking being enabled), hold the lock for the duration of the operation.
@@ -787,6 +791,8 @@ __conn_dhandle_close_one(
 
     if (!WT_META_TRACKING(session))
         WT_TRET(__wt_session_release_dhandle(session));
+
+    printf("Ending __conn_dhandle_close_one() - ret = %d\n", ret);
 
     return (ret);
 }

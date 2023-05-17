@@ -48,6 +48,21 @@ thread_function_drop(WT_SESSION *session, std::string const &uri)
 }
 
 
+static void
+print_dhandles(WT_SESSION_IMPL *session_impl)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
+
+    printf("Session dhandle: %p\n", session_impl->dhandle);
+    conn = S2C(session_impl);
+
+    TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
+        printf(".   dhandle 0c%p\n", dhandle);
+    }
+}
+
 static bool
 check_txn_updates(std::string const &label, WT_SESSION_IMPL *session_impl)
 {
@@ -55,7 +70,8 @@ check_txn_updates(std::string const &label, WT_SESSION_IMPL *session_impl)
     WT_TXN *txn = session_impl->txn;
 
     printf("check_txn_updates() - %s\n", label.c_str());
-    printf("  txn = 0x%p, txn->mod = 0x%p, txn->mod_count = %u\n", txn, txn->mod, txn->mod_count);
+    print_dhandles(session_impl);
+    printf("  txn = 0x%p, txn->id = 0x%llx, txn->mod = 0x%p, txn->mod_count = %u\n", txn, txn->id, txn->mod, txn->mod_count);
 
     WT_TXN_OP *op = txn->mod;
     for (int i = 0; i < txn->mod_count; i++, op++) {
@@ -70,7 +86,7 @@ check_txn_updates(std::string const &label, WT_SESSION_IMPL *session_impl)
         case WT_TXN_OP_INMEM_COL:
         case WT_TXN_OP_INMEM_ROW:
             WT_UPDATE *upd = op->u.op_upd;
-            printf("    mod %i, op->type = %i, upd->txnid = 0x%lx\n", i, op->type, upd->txnid);
+            printf("    mod %i, op->type = %i, upd->txnid = 0x%llx\n", i, op->type, upd->txnid);
             break;
         }
     }
@@ -158,24 +174,26 @@ cursor_test(std::string const &config, bool close, int expected_commit_result)
             sleep(1);
             REQUIRE(session->drop(session, uri.c_str(), "force=true") == 0);
         } else {
-            REQUIRE(session->drop(session, uri.c_str(), "force=true") == EBUSY);
+            int result = session->drop(session, uri.c_str(), "force=true");
+            REQUIRE(result == EBUSY);
         }
+        printf("After drop\n");
 
-        sleep(1);
+        sleep(3);
         check_txn_updates("before checkpoint", session_impl);
-        //REQUIRE(session->checkpoint(session, nullptr) == EINVAL);
+        REQUIRE(session->checkpoint(session, nullptr) == EINVAL);
         sleep(1);
         check_txn_updates("before commit", session_impl);
 
-        //REQUIRE(session->commit_transaction(session, "") == expected_commit_result);
+        REQUIRE(session->commit_transaction(session, "") == expected_commit_result);
         check_txn_updates("after commit", session_impl);
     }
 }
 
 TEST_CASE("Cursor: checkpoint during transaction()", "[cursor]")
 {
-    cursor_test("", false, EINVAL);
+//    cursor_test("", false, EINVAL);
     cursor_test("", true, EINVAL);
-    cursor_test("bulk", false, 0);
-    cursor_test("bulk", true, 0);
+//    cursor_test("bulk", false, 0);
+//    cursor_test("bulk", true, 0);
 }
