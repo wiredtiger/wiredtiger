@@ -2223,6 +2223,11 @@ struct __wt_connection {
 	 * @config{checkpoint = (, periodically checkpoint the database.  Enabling the checkpoint
 	 * server uses a session from the configured \c session_max., a set of related configuration
 	 * options defined as follows.}
+	 * @config{checkpoint_cleanup, control how aggressively obsolete content is removed when
+	 * creating checkpoints.  Default to none\, which means no additional work is done to find
+	 * obsolete content., a string\, chosen from the following options: \c "none"\, \c
+	 * "reclaim_space"; default \c none.}
+
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;log_size, wait for this
 	 * amount of log record bytes to be written to the log between each checkpoint.  If
 	 * non-zero\, this value will use a minimum of the log file size.  A database can configure
@@ -2966,6 +2971,9 @@ struct __wt_connection {
  * between each checkpoint; setting this value above 0 configures periodic checkpoints., an integer
  * between \c 0 and \c 100000; default \c 0.}
  * @config{ ),,}
+ * @config{checkpoint_cleanup, control how aggressively obsolete content is removed when creating
+ * checkpoints.  Default to none\, which means no additional work is done to find obsolete content.,
+ * a string\, chosen from the following options: \c "none"\, \c "reclaim_space"; default \c none.}
  * @config{checkpoint_sync, flush files to stable storage when closing or writing checkpoints., a
  * boolean flag; default \c true.}
  * @config{compatibility = (, set compatibility version of database.  Changing the compatibility
