@@ -2086,7 +2086,7 @@ __wt_btree_lsm_over_size(WT_SESSION_IMPL *session, uint64_t maxsize)
  *     Return if we raced with an internal page split when descending the tree.
  */
 static inline bool
-__wt_split_descent_race(WT_REF *ref, WT_PAGE_INDEX *saved_pindex)
+__wt_split_descent_race(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX *saved_pindex)
 {
     WT_PAGE_INDEX *pindex;
 
@@ -2158,7 +2158,7 @@ __wt_split_descent_race(WT_REF *ref, WT_PAGE_INDEX *saved_pindex)
      * this code, don't re-order that acquisition with this check.
      */
     WT_BARRIER();
-    pindex = WT_INTL_INDEX_GET_SAFE(ref->home);
+    WT_INTL_INDEX_GET(session, ref->home, pindex);
     return (pindex != saved_pindex);
 }
 

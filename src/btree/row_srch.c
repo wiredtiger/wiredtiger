@@ -386,13 +386,6 @@ __wt_row_search(WT_CURSOR_BTREE *cbt, WT_ITEM *srch_key, bool insert, WT_REF *le
     __cursor_pos_clear(cbt);
 
     /*
-     * In some cases we expect we're comparing more than a few keys with matching prefixes, so it's
-     * faster to avoid the memory fetches by skipping over those prefixes. That's done by tracking
-     * the length of the prefix match for the lowest and highest keys.
-     */
-    skiphigh = skiplow = 0;
-
-    /*
      * If a cursor repeatedly appends to the tree, compare the search key against the last key on
      * each internal page during insert before doing the full binary search.
      *
@@ -427,7 +420,6 @@ restart:
          * Discard the currently held page and restart the search from the root.
          */
         WT_RET(__wt_page_release(session, current, 0));
-        skiphigh = skiplow = 0;
     }
 
     /* Search the internal pages of the tree. */
@@ -552,7 +544,7 @@ restart:
          */
         if (pindex->entries == base) {
 append:
-            if (__wt_split_descent_race(current, parent_pindex))
+            if (__wt_split_descent_race(session, current, parent_pindex))
                 goto restart;
         }
 

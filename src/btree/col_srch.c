@@ -140,7 +140,7 @@ restart:
              * If on the last slot (the key is larger than any key on the page), check for an
              * internal page split race.
              */
-            if (__wt_split_descent_race(current, parent_pindex))
+            if (__wt_split_descent_race(session, current, parent_pindex))
                 goto restart;
 
             goto descend;
