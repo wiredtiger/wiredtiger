@@ -172,7 +172,7 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
                     ++minutes;
                 }
 
-                /* If no timeout is configured, there is nothing else to do. */
+                /* If there is no timeout, there is nothing else to do. */
                 if (conn->gen_drain_timeout_ms == 0)
                     continue;
 
