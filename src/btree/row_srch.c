@@ -376,7 +376,6 @@ __wt_row_search(WT_CURSOR_BTREE *cbt, WT_ITEM *srch_key, bool insert, WT_REF *le
     collator = btree->collator;
     item = cbt->tmp;
     current = NULL;
-    pindex = NULL;
 
     /*
      * Assert the session and cursor have the right relationship (not search specific, but search is
@@ -389,8 +388,7 @@ __wt_row_search(WT_CURSOR_BTREE *cbt, WT_ITEM *srch_key, bool insert, WT_REF *le
     /*
      * In some cases we expect we're comparing more than a few keys with matching prefixes, so it's
      * faster to avoid the memory fetches by skipping over those prefixes. That's done by tracking
-     * the length of the prefix match for the lowest and highest keys we compare as we descend the
-     * tree. The boundaries are reset if the parent's page index changes concurrently.
+     * the length of the prefix match for the lowest and highest keys.
      */
     skiphigh = skiplow = 0;
 
@@ -501,10 +499,9 @@ restart:
              * the values from the parent's search may be wrong for the child.
              *
              * It is not easy to detect which case we are exactly in with the available information.
-             * Simply reset both the low and high boundary if we detect a change of tree structure.
+             * Simply reset both the low and high boundary.
              */
-            if (parent_pindex != NULL && __wt_split_descent_race(current, parent_pindex))
-                skiphigh = skiplow = 0;
+            skiphigh = skiplow = 0;
 
             for (; limit != 0; limit >>= 1) {
                 indx = base + (limit >> 1);
@@ -659,10 +656,9 @@ leaf_only:
          * we need to reset the boundary.
          *
          * It is not easy to detect which case we are exactly in with the available information.
-         * Simply reset both the low and high boundary if we detect a change of tree structure.
+         * Simply reset both the low and high boundary.
          */
-        if (__wt_split_descent_race(cbt->ref, pindex))
-            skiphigh = skiplow = 0;
+        skiphigh = skiplow = 0;
 
         for (; limit != 0; limit >>= 1) {
             indx = base + (limit >> 1);
