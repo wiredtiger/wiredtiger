@@ -192,8 +192,8 @@ cursor_test(std::string const &config, bool close, int expected_commit_result)
 
 TEST_CASE("Cursor: checkpoint during transaction()", "[cursor]")
 {
-//    cursor_test("", false, EINVAL);
+    cursor_test("", false, EINVAL);
     cursor_test("", true, EINVAL);
-//    cursor_test("bulk", false, 0);
-//    cursor_test("bulk", true, 0);
+    cursor_test("bulk", false, 0);
+    cursor_test("bulk", true, 0);
 }

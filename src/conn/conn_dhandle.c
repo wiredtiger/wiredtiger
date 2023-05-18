@@ -760,7 +760,8 @@ __conn_dhandle_close_one(
 {
     WT_DECL_RET;
 
-    printf("Starting __conn_dhandle_close_one()\n");
+    printf("Starting __conn_dhandle_close_one(), uri = %s, removed = %d, mark_dead = %d\n",
+      uri, removed, mark_dead);
 
     /*
      * Lock the handle exclusively. If this is part of schema-changing operation (indicated by
@@ -786,8 +787,10 @@ __conn_dhandle_close_one(
         if (ret == 0)
             ret = __wt_meta_track_sub_off(session);
     }
-    if (removed)
+    if (removed) {
+        printf("In __conn_dhandle_close_one(), setting WT_DHANDLE_DROPPED\n");
         F_SET(session->dhandle, WT_DHANDLE_DROPPED);
+    }
 
     if (!WT_META_TRACKING(session))
         WT_TRET(__wt_session_release_dhandle(session));
