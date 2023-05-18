@@ -142,12 +142,11 @@ class test_wt10533(compatibility_test.CompatibilityTestCase):
             v = 'i' + str(i)
             if c[i] != v:
                 sys.stderr.write(f'Data mismatch on key {i}: expected {v}, got {c[i]}\n')
-                sys.exit(1)
+                self.assertEqual(c[i], v)
         c.close()
 
         session.close()
         conn.close()
-
 
 if __name__ == '__main__':
     compatibility_test.run()

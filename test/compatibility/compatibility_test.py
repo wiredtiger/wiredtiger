@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import inspect, os, shutil, sys
+import inspect, os, re, shutil, sys
 
 # If unittest2 is available, use it in preference to (the old) unittest
 try:
@@ -83,7 +83,7 @@ class CompatibilityTestCase(unittest.TestCase):
         build_path = os.path.join(path, 'build')
         if not os.path.exists(os.path.join(build_path, 'build.ninja')):
             os.mkdir(build_path)
-            # Disable WT_STANDALONE_BUILD, because it is not compatible with banches 6.0 and
+            # Disable WT_STANDALONE_BUILD, because it is not compatible with branches 6.0 and
             # earlier.
             cmake_args = '-DWT_STANDALONE_BUILD=0 -DENABLE_PYTHON=1'
             r = os.system(f'cd "{build_path}" && cmake {cmake_args} -G Ninja ../.')
@@ -122,13 +122,29 @@ class CompatibilityTestCase(unittest.TestCase):
         r = os.system(f'cd \'{module_dir}\' && python3 -c \'{commands}\'')
         self.assertEqual(r, 0)
     
+    def short_id(self):
+        return self.id().replace('__main__.', '')
+
+    def sanitized_short_id(self):
+        '''
+        Return a name that is suitable for creating file system names. In particular, names with
+        scenarios look like 'test_file.test_file.test_funcname(scen1.scen2.scen3)'. So transform
+        '(', but remove final ')'.
+        '''
+        name = self.short_id().translate(str.maketrans('($[]/ ','______', ')'))
+
+        # On OS/X, we can get name conflicts if names differ by case. Upper
+        # case letters are uncommon in our python class and method names, so
+        # we lowercase them and prefix with '@', e.g. "AbC" -> "@ab@c".
+        return re.sub(r'[A-Z]', lambda x: '@' + x.group(0).lower(), name)
+
     def setUp(self):
         '''
         Setup the test.
         '''
         self._start_dir = os.getcwd()
 
-        self._test_dir = os.path.join('compatibility-test', self.module_name())
+        self._test_dir = os.path.join('compatibility-test', self.sanitized_short_id())
         shutil.rmtree(self._test_dir, ignore_errors=True)
 
         if os.path.exists(self._test_dir):
@@ -141,7 +157,6 @@ class CompatibilityTestCase(unittest.TestCase):
         Tear down the test.
         '''
         os.chdir(self._start_dir)
-
 
 def run_suite(suite):
     '''
