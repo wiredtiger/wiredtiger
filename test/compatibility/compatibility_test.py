@@ -100,14 +100,10 @@ class CompatibilityTestCase(unittest.TestCase):
         cwd = os.getcwd()
         branch_path = self.branch_path(branch)
         build_python_path = os.path.join(branch_path, 'build', 'lang', 'python')
+        this_script_dir = os.path.abspath(os.path.dirname(__file__))
 
         class_name = self.__class__.__name__
-        module_dir = os.path.join(branch_path, 'test', 'compatibility')
         module_name = self.module_name()
-        
-        os.makedirs(module_dir, exist_ok=True)
-        shutil.copy(__file__, os.path.join(module_dir, os.path.basename(__file__)))
-        shutil.copy(inspect.getfile(self.__class__), os.path.join(module_dir, self.module_file()))
 
         if not method.endswith(')'):
             method += '()'
@@ -119,7 +115,7 @@ class CompatibilityTestCase(unittest.TestCase):
         commands += f'os.chdir("{cwd}");'
         commands += f'sys.exit({module_name}.{class_name}().{method})'
 
-        r = os.system(f'cd \'{module_dir}\' && python3 -c \'{commands}\'')
+        r = os.system(f'cd \'{this_script_dir}\' && python3 -c \'{commands}\'')
         self.assertEqual(r, 0)
     
     def short_id(self):
