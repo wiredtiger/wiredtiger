@@ -190,10 +190,73 @@ cursor_test(std::string const &config, bool close, int expected_commit_result)
     }
 }
 
+
+static void
+multiple_drop_test(std::string const &config, int expected_commit_result, bool do_sleep)
+{
+    ConnectionWrapper conn(DB_HOME);
+    WT_SESSION_IMPL *session_impl = conn.createSession();
+    WT_SESSION *session = &session_impl->iface;
+    std::string uri = "table:cursor_test";
+
+    std::string sleep_as_string = do_sleep ? "true" : "false";
+
+    SECTION("Multiple drop test: config = " + config + ", sleep = " + sleep_as_string)
+    {
+        int count = 0;
+        const int limit = 5;
+
+        while (count < limit) {
+            count++;
+
+            REQUIRE(session->create(session, uri.c_str(), "key_format=S,value_format=S") == 0);
+            REQUIRE(session->begin_transaction(session, "") == 0);
+
+            WT_CURSOR *cursor = nullptr;
+            REQUIRE(
+              session->open_cursor(session, uri.c_str(), nullptr, config.c_str(), &cursor) == 0);
+
+            insert_sample_values(cursor);
+
+            check_txn_updates("before close", session_impl);
+            REQUIRE(cursor->close(cursor) == 0);
+            printf("After close\n");
+
+            if (do_sleep)
+                sleep(1);
+
+            check_txn_updates("before drop", session_impl);
+            REQUIRE(session->drop(session, uri.c_str(), "force=true") == 0);
+            printf("After drop\n");
+
+            if (do_sleep)
+                sleep(3);
+
+            check_txn_updates("before checkpoint", session_impl);
+            REQUIRE(session->checkpoint(session, nullptr) == EINVAL);
+
+            if (do_sleep)
+                sleep(1);
+
+            check_txn_updates("before commit", session_impl);
+            REQUIRE(session->commit_transaction(session, "") == expected_commit_result);
+            check_txn_updates("after commit", session_impl);
+        }
+
+        // Confirm the correct number of loops were executed
+        REQUIRE(count == limit);
+    }
+}
+
 TEST_CASE("Cursor: checkpoint during transaction()", "[cursor]")
 {
     cursor_test("", false, EINVAL);
     cursor_test("", true, EINVAL);
     cursor_test("bulk", false, 0);
     cursor_test("bulk", true, 0);
+
+    multiple_drop_test("", EINVAL, false);
+    multiple_drop_test("", EINVAL, true);
+    multiple_drop_test("bulk", 0, false);
+    multiple_drop_test("bulk", 0, true);
 }
