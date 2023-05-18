@@ -486,6 +486,13 @@ restart:
              * In some cases we expect we're comparing more than a few keys with matching prefixes,
              * so it's faster to avoid the memory fetches by skipping over those prefixes. That's
              * done by tracking the length of the prefix match for the lowest and highest keys.
+             *
+             * Reset the skipped prefix counts; we'd normally expect the parent's skipped prefix
+             * values to be larger than the child's values and so we'd only increase them as we walk
+             * down the tree (in other words, if we can skip N bytes on the parent, we can skip at
+             * least N bytes on the child). However, if a child internal page was split up into the
+             * parent, the child page's key space will have been truncated, and the values from the
+             * parent's search may be wrong for the child.
              */
             skiphigh = skiplow = 0;
 
@@ -637,6 +644,13 @@ leaf_only:
          * In some cases we expect we're comparing more than a few keys with matching prefixes, so
          * it's faster to avoid the memory fetches by skipping over those prefixes. That's done by
          * tracking the length of the prefix match for the lowest and highest keys.
+         *
+         * Reset the skipped prefix counts; we'd normally expect the parent's skipped prefix values
+         * to be larger than the child's values and so we'd only increase them as we walk down the
+         * tree (in other words, if we can skip N bytes on the parent, we can skip at least N bytes
+         * on the child). However, if a child internal page was split up into the parent, the child
+         * page's key space will have been truncated, and the values from the parent's search may be
+         * wrong for the child.
          */
         skiphigh = skiplow = 0;
 
