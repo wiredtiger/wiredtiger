@@ -26,13 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import inspect, os, re, shutil, sys
-
-# If unittest2 is available, use it in preference to (the old) unittest
-try:
-    import unittest2 as unittest
-except ImportError:
-    import unittest
+import inspect, os, re, shutil, sys, unittest
 
 class CompatibilityTestCase(unittest.TestCase):
     '''
@@ -63,6 +57,12 @@ class CompatibilityTestCase(unittest.TestCase):
         '''
         return self.module_file().replace('.py', '')
 
+    def system(self, command):
+        '''
+        Run a command, fail the test if the command execution failed.
+        '''
+        self.assertEqual(os.system(command), 0)
+
     def prepare_wt_branch(self, branch):
         '''
         Check out and build another WT branch.
@@ -72,12 +72,11 @@ class CompatibilityTestCase(unittest.TestCase):
         path = self.branch_path(branch)
         if os.path.exists(path):
             self.pr(f'Branch {branch} is already cloned')
-            r = os.system(f'git -C "{path}" pull')
-            self.assertEqual(r, 0)
+            self.system(f'git -C "{path}" pull')
         else:
+            source = 'git@github.com:wiredtiger/wiredtiger.git'
             self.pr(f'Cloning branch {branch}')
-            r = os.system(f'git clone git@github.com:wiredtiger/wiredtiger.git "{path}" -b {branch}')
-            self.assertEqual(r, 0)
+            self.system(f'git clone "{source}" "{path}" -b {branch}')
 
         # Build
         build_path = os.path.join(path, 'build')
@@ -86,12 +85,10 @@ class CompatibilityTestCase(unittest.TestCase):
             # Disable WT_STANDALONE_BUILD, because it is not compatible with branches 6.0 and
             # earlier.
             cmake_args = '-DWT_STANDALONE_BUILD=0 -DENABLE_PYTHON=1'
-            r = os.system(f'cd "{build_path}" && cmake {cmake_args} -G Ninja ../.')
-            self.assertEqual(r, 0)
+            self.system(f'cd "{build_path}" && cmake {cmake_args} -G Ninja ../.')
 
         self.pr(f'Building {path}')
-        r = os.system(f'cd "{build_path}" && ninja')
-        self.assertEqual(r, 0)
+        self.system(f'cd "{build_path}" && ninja')
 
     def run_method_on_branch(self, branch, method):
         '''
@@ -115,8 +112,7 @@ class CompatibilityTestCase(unittest.TestCase):
         commands += f'os.chdir("{cwd}");'
         commands += f'sys.exit({module_name}.{class_name}().{method})'
 
-        r = os.system(f'cd \'{this_script_dir}\' && python3 -c \'{commands}\'')
-        self.assertEqual(r, 0)
+        self.system(f'cd \'{this_script_dir}\' && python3 -c \'{commands}\'')
     
     def short_id(self):
         return self.id().replace('__main__.', '')
@@ -124,8 +120,8 @@ class CompatibilityTestCase(unittest.TestCase):
     def sanitized_short_id(self):
         '''
         Return a name that is suitable for creating file system names. In particular, names with
-        scenarios look like 'test_file.test_file.test_funcname(scen1.scen2.scen3)'. So transform
-        '(', but remove final ')'.
+        scenarios that look like 'test_file.test_file.test_funcname(scen1.scen2.scen3)'. So
+        transform '(', but remove final ')'.
         '''
         name = self.short_id().translate(str.maketrans('($[]/ ','______', ')'))
 

@@ -65,7 +65,7 @@ class test_wt10533(compatibility_test.CompatibilityTestCase):
 
     def on_develop_test_checkpoint_downgrade(self):
         '''
-        The second part of the test, which runs on a different branch.
+        The first part of the test, which runs on the latest branch.
         '''
 
         import wiredtiger
