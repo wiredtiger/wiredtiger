@@ -483,15 +483,9 @@ restart:
             }
         else if (collator == NULL) {
             /*
-             * Reset the skipped prefix counts; we'd normally expect the parent's skipped prefix
-             * values to be larger than the child's values and so we'd only increase them as we walk
-             * down the tree (in other words, if we can skip N bytes on the parent, we can skip at
-             * least N bytes on the child). However, if a child internal page was split up or
-             * reverse split into the parent, the child page's key space will have been changed, and
-             * the values from the parent's search may be wrong for the child.
-             *
-             * It is not easy to detect which case we are exactly in with the available information.
-             * Simply reset both the low and high boundary.
+             * In some cases we expect we're comparing more than a few keys with matching prefixes,
+             * so it's faster to avoid the memory fetches by skipping over those prefixes. That's
+             * done by tracking the length of the prefix match for the lowest and highest keys.
              */
             skiphigh = skiplow = 0;
 
@@ -640,15 +634,9 @@ leaf_only:
         }
     else if (collator == NULL) {
         /*
-         * Reset the skipped prefix counts; we'd normally expect the parent's skipped prefix values
-         * to be larger than the child's values and so we'd only increase them as we walk down the
-         * tree (in other words, if we can skip N bytes on the parent, we can skip at least N bytes
-         * on the child). However, we can insert smaller (larger) keys to leaf pages at the start
-         * (end) of the tree, causing the parent's search to be wrong for the child. In this case,
-         * we need to reset the boundary.
-         *
-         * It is not easy to detect which case we are exactly in with the available information.
-         * Simply reset both the low and high boundary.
+         * In some cases we expect we're comparing more than a few keys with matching prefixes, so
+         * it's faster to avoid the memory fetches by skipping over those prefixes. That's done by
+         * tracking the length of the prefix match for the lowest and highest keys.
          */
         skiphigh = skiplow = 0;
 
