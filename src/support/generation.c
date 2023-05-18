@@ -113,7 +113,11 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
     bool verbose_timeout_flags;
 
     conn = S2C(session);
+#ifdef HAVE_DIAGNOSTIC
     verbose_timeout_flags = false;
+#else
+    WT_UNUSED(verbose_timeout_flags);
+#endif
     __wt_epoch(NULL, &start);
 
     /*
@@ -176,7 +180,8 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
                 if (conn->gen_drain_timeout_ms == 0)
                     continue;
 
-                /* Enable extra logs 20ms before reaching the timeout. */
+#ifdef HAVE_DIAGNOSTIC
+                /* In diagnostic mode, enable extra logs 20ms before reaching the timeout. */
                 if (!verbose_timeout_flags &&
                   (conn->gen_drain_timeout_ms < 20 ||
                     time_diff_ms > (conn->gen_drain_timeout_ms - 20))) {
@@ -192,7 +197,11 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
                           session, WT_VERB_CHECKPOINT_PROGRESS, WT_VERBOSE_DEBUG_1);
                     }
                     verbose_timeout_flags = true;
-                } else if (time_diff_ms >= conn->gen_drain_timeout_ms) {
+                    /* Now we have enabled more logs, spin another time to get some information. */
+                    continue;
+                }
+#endif
+                if (time_diff_ms >= conn->gen_drain_timeout_ms) {
                     __wt_verbose_error(session, WT_VERB_GENERATION, "%s generation drain timed out",
                       __gen_name(which));
                     WT_ASSERT(session, false);
