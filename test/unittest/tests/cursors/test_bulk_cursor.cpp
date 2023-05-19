@@ -52,7 +52,6 @@ print_dhandles(WT_SESSION_IMPL *session_impl)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
-    WT_DECL_RET;
 
     printf("Session dhandle: %p\n", session_impl->dhandle);
     conn = S2C(session_impl);
