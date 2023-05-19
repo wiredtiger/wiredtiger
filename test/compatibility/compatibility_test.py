@@ -80,6 +80,8 @@ class CompatibilityTestCase(unittest.TestCase):
 
         # Build
         build_path = os.path.join(path, 'build')
+        # Note: This build code works only on branches 6.0 and newer. We will need to update it to
+        # support older branches, which use autoconf.
         if not os.path.exists(os.path.join(build_path, 'build.ninja')):
             os.mkdir(build_path)
             # Disable WT_STANDALONE_BUILD, because it is not compatible with branches 6.0 and
