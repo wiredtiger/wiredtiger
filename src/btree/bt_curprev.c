@@ -921,10 +921,9 @@ err:
          * and cross a page boundary. It's possible to see out-of-order keys when the earlier
          * returned key is removed and new keys are inserted at the end of the page.
          */
-        if (!F_ISSET(cbt, WT_CBT_ITERATE_RETRY_PREV)) {
-            if (session->txn->isolation == WT_ISO_READ_UNCOMMITTED && newpage) {
+        if (!F_ISSET(cbt, WT_CBT_ITERATE_RETRY_NEXT)) {
+            if (session->txn->isolation == WT_ISO_READ_UNCOMMITTED && newpage)
                 __wt_cursor_key_order_reset(cbt);
-            }
             ret = __wt_cursor_key_order_check(session, cbt, false);
         }
 
