@@ -143,7 +143,6 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
         /* If the handle is dead, give up. */
         if (F_ISSET(dhandle, WT_DHANDLE_DEAD)) {
             *is_deadp = true;
-            printf("Ending __wt_session_lock_dhandle() at A, returning 0\n");
             return (0);
         }
 
@@ -208,7 +207,6 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
         }
         if (ret != EBUSY || (is_open && want_exclusive) || LF_ISSET(WT_DHANDLE_LOCK_ONLY))
             return (ret);
-
         lock_busy = true;
 
         /* Give other threads a chance to make progress. */
@@ -837,13 +835,9 @@ __wt_session_dhandle_try_writelock(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
 
-    printf("Starting __wt_session_dhandle_try_writelock()\n");
-
     WT_ASSERT(session, session->dhandle != NULL);
     if ((ret = __wt_try_writelock(session, &session->dhandle->rwlock)) == 0)
         FLD_SET(session->dhandle->lock_flags, WT_DHANDLE_LOCK_WRITE);
-
-    printf("Ending __wt_session_dhandle_try_writelock(), ret = %d\n", ret);
 
     return (ret);
 }
@@ -865,12 +859,10 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
 
     for (;;) {
         WT_RET(__session_get_dhandle(session, uri, checkpoint));
-
         dhandle = session->dhandle;
 
         /* Try to lock the handle. */
         WT_RET(__wt_session_lock_dhandle(session, flags, &is_dead));
-
         if (is_dead)
             continue;
 
