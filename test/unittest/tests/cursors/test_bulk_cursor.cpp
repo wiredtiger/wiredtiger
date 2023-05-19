@@ -73,7 +73,7 @@ check_txn_updates(std::string const &label, WT_SESSION_IMPL *session_impl)
       txn->id, txn->mod, txn->mod_count);
 
     WT_TXN_OP *op = txn->mod;
-    for (int i = 0; i < txn->mod_count; i++, op++) {
+    for (u_int i = 0; i < txn->mod_count; i++, op++) {
         switch (op->type) {
         case WT_TXN_OP_NONE:
         case WT_TXN_OP_REF_DELETE:
