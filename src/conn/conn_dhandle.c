@@ -428,10 +428,8 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead)
      * Check discard too, code we call to clear the cache expects the data handle dead flag to be
      * set when discarding modified pages.
      */
-    if (marked_dead || discard) {
-        //        WT_ASSERT(session, !F_ISSET(dhandle, WT_DHANDLE_OPEN));
+    if (marked_dead || discard)
         F_SET(dhandle, WT_DHANDLE_DEAD);
-    }
 
     /*
      * Discard from cache any trees not marked dead in this call (that is, including trees

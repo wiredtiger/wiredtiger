@@ -161,8 +161,6 @@ __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
 
     conn = S2C(session);
 
-    //    sleep(3);
-
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
         printf(". WT_DHANDLE_CAN_DISCARD(dhandle)   = %d\n", WT_DHANDLE_CAN_DISCARD(dhandle));
         printf(". F_ISSET(dhandle, WT_DHANDLE_OPEN) = %d\n", F_ISSET(dhandle, WT_DHANDLE_OPEN));
@@ -417,7 +415,6 @@ __sweep_server(void *arg)
         if (conn->sweep_idle_time != 0 && conn->open_btree_count >= conn->sweep_handles_min)
             WT_ERR(__sweep_expire(session, now));
 
-        sleep(2);
         WT_ERR(__sweep_discard_trees(session, &dead_handles));
 
         if (dead_handles > 0)
