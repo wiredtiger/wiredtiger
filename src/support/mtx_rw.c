@@ -305,11 +305,8 @@ __wt_readunlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 int
 __wt_try_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 {
-    WT_DECL_RET;
     WT_RWLOCK new, old;
     int64_t **stats;
-
-    printf("Starting __wt_try_writelock()\n");
 
     WT_STAT_CONN_INCR(session, rwlock_write);
     if (l->stat_write_count_off != -1 && WT_STAT_ENABLED(session)) {
@@ -323,13 +320,8 @@ __wt_try_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
      * (and confirm the lock is in the correct state to grant this write lock).
      */
     old.u.v = l->u.v;
-    if (old.u.s.current != old.u.s.next || old.u.s.readers_active != 0) {
-        //        return (__wt_set_return(session, EBUSY));
-        ret = __wt_set_return(session, EBUSY);
-        printf("Ending __wt_try_writelock() at A, old.u.s.readers_active = %d, ret = %d\n",
-          old.u.s.readers_active, ret);
-        return ret;
-    }
+    if (old.u.s.current != old.u.s.next || old.u.s.readers_active != 0)
+        return (__wt_set_return(session, EBUSY));
 
     /*
      * We've checked above that there is no writer active (since
@@ -344,9 +336,7 @@ __wt_try_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
      */
     new.u.v = old.u.v;
     new.u.s.next++;
-    ret = __wt_atomic_casv64(&l->u.v, old.u.v, new.u.v) ? 0 : EBUSY;
-    printf("Ending __wt_try_writelock() at B, ret = %d\n", ret);
-    return ret;
+    return (__wt_atomic_casv64(&l->u.v, old.u.v, new.u.v) ? 0 : EBUSY);
 }
 
 /*
