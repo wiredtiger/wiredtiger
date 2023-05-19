@@ -2028,7 +2028,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
                 if (S2C(session)->cache->hs_fileid != 0 &&
                   op->btree->id == S2C(session)->cache->hs_fileid)
                     break;
-                printf("upd->txnid = 0x%llx, txn->id = 0x%llx\n", upd->txnid, txn->id);
+                /* printf("upd->txnid = 0x%" PRIx64 ", txn->id = 0x%llx\n", upd->txnid, txn->id); */
                 WT_ASSERT(session, upd->txnid == txn->id || upd->txnid == WT_TXN_ABORTED);
                 upd->txnid = WT_TXN_ABORTED;
             } else {
