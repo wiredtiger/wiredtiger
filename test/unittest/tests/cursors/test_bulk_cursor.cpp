@@ -47,7 +47,6 @@ thread_function_drop(WT_SESSION *session, std::string const &uri)
     session->drop(session, uri.c_str(), "force=true");
 }
 
-
 static void
 print_dhandles(WT_SESSION_IMPL *session_impl)
 {
@@ -71,8 +70,8 @@ check_txn_updates(std::string const &label, WT_SESSION_IMPL *session_impl)
 
     printf("check_txn_updates() - %s\n", label.c_str());
     print_dhandles(session_impl);
-    printf("  txn = 0x%p, txn->id = 0x%" PRIx64 ", txn->mod = 0x%p, txn->mod_count = %u\n",
-      txn, txn->id, txn->mod, txn->mod_count);
+    printf("  txn = 0x%p, txn->id = 0x%" PRIx64 ", txn->mod = 0x%p, txn->mod_count = %u\n", txn,
+      txn->id, txn->mod, txn->mod_count);
 
     WT_TXN_OP *op = txn->mod;
     for (int i = 0; i < txn->mod_count; i++, op++) {
@@ -87,8 +86,8 @@ check_txn_updates(std::string const &label, WT_SESSION_IMPL *session_impl)
         case WT_TXN_OP_INMEM_COL:
         case WT_TXN_OP_INMEM_ROW:
             WT_UPDATE *upd = op->u.op_upd;
-            printf("    mod %i, op->type = %i, upd->txnid = 0x%" PRIx64 "\n",
-              i, op->type, upd->txnid);
+            printf(
+              "    mod %i, op->type = %i, upd->txnid = 0x%" PRIx64 "\n", i, op->type, upd->txnid);
             break;
         }
     }
@@ -166,8 +165,8 @@ cursor_test(std::string const &config, bool close, int expected_commit_result)
         REQUIRE(session->rollback_transaction(session, "") == 0);
     }
 
-    SECTION("Drop then checkpoint in one thread: config = " + config +
-      ", close = " + close_as_string)
+    SECTION(
+      "Drop then checkpoint in one thread: config = " + config + ", close = " + close_as_string)
     {
         check_txn_updates("before close", session_impl);
         if (close) {
@@ -191,7 +190,6 @@ cursor_test(std::string const &config, bool close, int expected_commit_result)
         check_txn_updates("after commit", session_impl);
     }
 }
-
 
 static void
 multiple_drop_test(std::string const &config, int expected_commit_result, bool do_sleep)

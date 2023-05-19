@@ -161,13 +161,14 @@ __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
 
     conn = S2C(session);
 
-//    sleep(3);
+    //    sleep(3);
 
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
         printf(". WT_DHANDLE_CAN_DISCARD(dhandle)   = %d\n", WT_DHANDLE_CAN_DISCARD(dhandle));
         printf(". F_ISSET(dhandle, WT_DHANDLE_OPEN) = %d\n", F_ISSET(dhandle, WT_DHANDLE_OPEN));
         printf(". F_ISSET(dhandle, WT_DHANDLE_DEAD) = %d\n", F_ISSET(dhandle, WT_DHANDLE_DEAD));
-        printf(". F_ISSET(dhandle, WT_DHANDLE_DROPPED) = %d\n", F_ISSET(dhandle, WT_DHANDLE_DROPPED));
+        printf(
+          ". F_ISSET(dhandle, WT_DHANDLE_DROPPED) = %d\n", F_ISSET(dhandle, WT_DHANDLE_DROPPED));
 
         if (WT_DHANDLE_CAN_DISCARD(dhandle))
             ++*dead_handlesp;
@@ -181,7 +182,7 @@ __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
         }
 
         /* If the handle is marked dead, flush it from cache. */
-        printf(". Flushing dhandle 0x%p\n", (void*)dhandle);
+        printf(". Flushing dhandle 0x%p\n", (void *)dhandle);
         WT_WITH_DHANDLE(session, dhandle, ret = __wt_conn_dhandle_close(session, false, false));
 
         /* We closed the btree handle. */

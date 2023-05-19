@@ -359,7 +359,6 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
     else
         WT_TRET(__wt_meta_track_off(session, true, ret != 0));
 
-
     printf("Ending __schema_drop() ret = %d\n", ret);
 
     return (ret);

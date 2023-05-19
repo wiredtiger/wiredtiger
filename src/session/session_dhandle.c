@@ -128,10 +128,9 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
         if (!LF_ISSET(WT_DHANDLE_LOCK_ONLY) &&
           (!F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
             (btree != NULL && F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS)))) {
-//            return (__wt_set_return(session, EBUSY));
+            //            return (__wt_set_return(session, EBUSY));
             printf("Ending __wt_session_lock_dhandle() at I, returning %d\n", ret);
             ret = __wt_set_return(session, EBUSY);
-
         }
         ++dhandle->excl_ref;
         printf("Ending __wt_session_lock_dhandle() at G, returning 0\n");
@@ -158,7 +157,7 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
          * If the handle is already open for a special operation, give up.
          */
         if (btree != NULL && F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS)) {
-            //return (__wt_set_return(session, EBUSY));
+            // return (__wt_set_return(session, EBUSY));
             ret = __wt_set_return(session, EBUSY);
             printf("Ending __wt_session_lock_dhandle() at H, returning %d\n", ret);
             return ret;
@@ -223,7 +222,8 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
             return (0);
         }
         if (ret != EBUSY || (is_open && want_exclusive) || LF_ISSET(WT_DHANDLE_LOCK_ONLY)) {
-            printf("Ending __wt_session_lock_dhandle() at F, is_open = %d, want_exclusive = %d, "
+            printf(
+              "Ending __wt_session_lock_dhandle() at F, is_open = %d, want_exclusive = %d, "
               "LF_ISSET(WT_DHANDLE_LOCK_ONLY) = %d, returning %d\n",
               is_open, want_exclusive, LF_ISSET(WT_DHANDLE_LOCK_ONLY), ret);
             return (ret);
@@ -803,7 +803,7 @@ __session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *che
      * We didn't find a match in the session cache, search the shared handle list and cache the
      * handle we find.
      */
-//    WT_RET(__session_find_shared_dhandle(session, uri, checkpoint));
+    //    WT_RET(__session_find_shared_dhandle(session, uri, checkpoint));
 
     ret2 = __session_find_shared_dhandle(session, uri, checkpoint);
     if (ret2 != 0) {
@@ -900,7 +900,7 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
     WT_ASSERT(session, !F_ISSET(session, WT_SESSION_NO_DATA_HANDLES));
 
     for (;;) {
-//        WT_RET(__session_get_dhandle(session, uri, checkpoint));
+        //        WT_RET(__session_get_dhandle(session, uri, checkpoint));
 
         ret2 = __session_get_dhandle(session, uri, checkpoint);
         if (ret2 != 0) {
@@ -911,7 +911,7 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
         dhandle = session->dhandle;
 
         /* Try to lock the handle. */
-//        WT_RET(__wt_session_lock_dhandle(session, flags, &is_dead));
+        //        WT_RET(__wt_session_lock_dhandle(session, flags, &is_dead));
 
         ret2 = __wt_session_lock_dhandle(session, flags, &is_dead);
         if (ret2 != 0) {

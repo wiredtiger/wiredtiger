@@ -429,7 +429,7 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead)
      * set when discarding modified pages.
      */
     if (marked_dead || discard) {
-//        WT_ASSERT(session, !F_ISSET(dhandle, WT_DHANDLE_OPEN));
+        //        WT_ASSERT(session, !F_ISSET(dhandle, WT_DHANDLE_OPEN));
         F_SET(dhandle, WT_DHANDLE_DEAD);
     }
 
@@ -760,8 +760,8 @@ __conn_dhandle_close_one(
 {
     WT_DECL_RET;
 
-    printf("Starting __conn_dhandle_close_one(), uri = %s, removed = %d, mark_dead = %d\n",
-      uri, removed, mark_dead);
+    printf("Starting __conn_dhandle_close_one(), uri = %s, removed = %d, mark_dead = %d\n", uri,
+      removed, mark_dead);
 
     /*
      * Lock the handle exclusively. If this is part of schema-changing operation (indicated by

@@ -305,9 +305,9 @@ __wt_readunlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 int
 __wt_try_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 {
+    WT_DECL_RET;
     WT_RWLOCK new, old;
     int64_t **stats;
-    WT_DECL_RET;
 
     printf("Starting __wt_try_writelock()\n");
 
@@ -324,7 +324,7 @@ __wt_try_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
      */
     old.u.v = l->u.v;
     if (old.u.s.current != old.u.s.next || old.u.s.readers_active != 0) {
-//        return (__wt_set_return(session, EBUSY));
+        //        return (__wt_set_return(session, EBUSY));
         ret = __wt_set_return(session, EBUSY);
         printf("Ending __wt_try_writelock() at A, old.u.s.readers_active = %d, ret = %d\n",
           old.u.s.readers_active, ret);
