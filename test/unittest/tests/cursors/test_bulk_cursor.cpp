@@ -230,7 +230,7 @@ multiple_drop_test(std::string const &config, int expected_commit_result, bool d
             printf("After drop\n");
 
             if (do_sleep)
-                sleep(3);
+                sleep(1);
 
             check_txn_updates("before checkpoint", session_impl);
             REQUIRE(session->checkpoint(session, nullptr) == EINVAL);
@@ -243,7 +243,7 @@ multiple_drop_test(std::string const &config, int expected_commit_result, bool d
             check_txn_updates("after commit", session_impl);
         }
 
-        // Confirm the correct number of loops were executed
+        // Confirm the correct number of loops were executed & we didn't exit early for any reason
         REQUIRE(count == limit);
     }
 }
