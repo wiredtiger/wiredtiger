@@ -442,6 +442,7 @@ void testutil_build_dir(TEST_OPTS *, char *, int);
 void testutil_clean_test_artifacts(const char *);
 void testutil_clean_work_dir(const char *);
 void testutil_cleanup(TEST_OPTS *);
+void testutil_copy(const char *, const char *);
 void testutil_copy_data(const char *);
 void testutil_copy_data_opt(const char *, const char *);
 void testutil_copy_file(WT_SESSION *, const char *);
@@ -467,6 +468,7 @@ void testutil_random_init(WT_RAND_STATE *, uint64_t *, uint32_t);
 void testutil_random_from_random(WT_RAND_STATE *, WT_RAND_STATE *);
 void testutil_random_from_seed(WT_RAND_STATE *, uint64_t);
 #ifndef _WIN32
+void testutil_remove(const char *);
 void testutil_sleep_wait(uint32_t, pid_t);
 #endif
 void testutil_system(const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((format(printf, 1, 2)));

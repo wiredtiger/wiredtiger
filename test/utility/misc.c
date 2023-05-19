@@ -286,13 +286,11 @@ testutil_cleanup(TEST_OPTS *opts)
 void
 testutil_copy_data(const char *dir)
 {
-    int status;
-    char buf[512];
+    char save_dir[512];
 
-    testutil_check(__wt_snprintf(buf, sizeof(buf),
-      "rm -rf ../%s.SAVE && mkdir ../%s.SAVE && cp -rp * ../%s.SAVE", dir, dir, dir));
-    if ((status = system(buf)) < 0)
-        testutil_die(status, "system: %s", buf);
+    testutil_check(__wt_snprintf(save_dir, sizeof(save_dir), "../%s.SAVE", dir));
+    testutil_remove(save_dir);
+    testutil_copy(".", save_dir);
 }
 
 /*
