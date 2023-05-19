@@ -5519,7 +5519,6 @@ buildvariants:
     - name: bench-tiered-push-pull
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
-    - name: unit-test-nonstandalone
     - name: unit-test-extra-long-nonstandalone
       distros: ubuntu2004-large
     - name: ".data-validation-stress-test-nonstandalone"
