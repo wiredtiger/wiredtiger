@@ -185,7 +185,6 @@ INTRINSICS
 INUSE
 INVL
 ISA
-ISSET
 ITEMs
 InitializeCriticalSectionAndSpinCount
 Instantiation
