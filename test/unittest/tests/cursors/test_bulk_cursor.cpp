@@ -196,8 +196,8 @@ cursor_test(std::string const &config, bool close, int expected_commit_result, b
 }
 
 static void
-multiple_drop_test(std::string const &config, int expected_commit_result,
-  bool do_sleep, bool diagnostics)
+multiple_drop_test(
+  std::string const &config, int expected_commit_result, bool do_sleep, bool diagnostics)
 {
     ConnectionWrapper conn(DB_HOME);
     WT_SESSION_IMPL *session_impl = conn.createSession();
