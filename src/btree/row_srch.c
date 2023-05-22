@@ -485,15 +485,18 @@ restart:
             /*
              * In some cases we expect we're comparing more than a few keys with matching prefixes,
              * so it's faster to avoid the memory fetches by skipping over those prefixes. That's
-             * done by tracking the length of the prefix match for the lowest and highest keys.
+             * done by tracking the length of the prefix match for the lowest and highest keys we've
+             * seen previously.
              *
-             * Reset the skipped prefix counts; we'd normally expect the ancestor page's skipped
-             * prefix values to be larger than the child's values and so we'd only increase them as
-             * we walk down the tree (in other words, if we can skip N bytes on the parent, we can
-             * skip at least N bytes on the child). However, if a child internal page was split up
-             * into the parent, the child page's key space will have been truncated, and the values
-             * from the parent's search may be wrong for the child. Hence, we reset these values as
-             * we walk down the tree.
+             * Normally we'd expect every parent page's skippable prefixes to be shorter than the
+             * prefixes we can skip in the child page, and so we'd skip increasingly longer prefixes
+             * as we walk down the tree (in other words, if we can skip N bytes on the parent, we
+             * can skip at least N bytes on the child). However, if the search threads cache this
+             * skippable prefix size as they move down the tree, and if the tree structure changes
+             * in parallel - for example page splits reducing the child pages key space or a keys
+             * destined for a now-deleted sibling page being inserted into the current page - the
+             * skippable prefix can be incorrect for the page. To protect against this we reset the
+             * skippable prefix length each time we move to a new page.
              */
             skiphigh = skiplow = 0;
 
@@ -644,14 +647,18 @@ leaf_only:
         /*
          * In some cases we expect we're comparing more than a few keys with matching prefixes, so
          * it's faster to avoid the memory fetches by skipping over those prefixes. That's done by
-         * tracking the length of the prefix match for the lowest and highest keys.
+         * tracking the length of the prefix match for the lowest and highest keys we've seen
+         * previously.
          *
-         * Reset the skipped prefix counts; we'd normally expect the ancestor page's skipped prefix
-         * values to be larger than the child's values and so we'd only increase them as we walk
-         * down the tree (in other words, if we can skip N bytes on the parent, we can skip at least
-         * N bytes on the child). However, if a child internal page was split up into the parent,
-         * the child page's key space will have been truncated, and the values from the parent's
-         * search may be wrong for the child. Hence, we reset these values as we walk down the tree.
+         * Normally we'd expect every parent page's skippable prefixes to be shorter than the
+         * prefixes we can skip in the child page, and so we'd skip increasingly longer prefixes as
+         * we walk down the tree (in other words, if we can skip N bytes on the parent, we can skip
+         * at least N bytes on the child). However, if the search threads cache this skippable
+         * prefix size as they move down the tree, and if the tree structure changes in parallel -
+         * for example page splits reducing the child pages key space or a keys destined for a
+         * now-deleted sibling page being inserted into the current page - the skippable prefix can
+         * be incorrect for the page. To protect against this we reset the skippable prefix length
+         * each time we move to a new page.
          */
         skiphigh = skiplow = 0;
 
