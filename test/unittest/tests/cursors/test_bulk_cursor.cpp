@@ -97,7 +97,6 @@ check_txn_updates(std::string const &label, WT_SESSION_IMPL *session_impl, bool 
     return ok;
 }
 
-
 static void
 report_cache_status(WT_CACHE *cache, std::string const &label)
 {
@@ -111,7 +110,6 @@ report_cache_status(WT_CACHE *cache, std::string const &label)
     printf(". bytes_dirty_intl: %" PRIu64 "\n", cache->bytes_dirty_intl);
     printf(". bytes_dirty_leaf: %" PRIu64 "\n", cache->bytes_dirty_leaf);
 };
-
 
 static void
 cache_destroy_memory_check(std::string const &config)
@@ -145,7 +143,6 @@ cache_destroy_memory_check(std::string const &config)
         report_cache_status(conn.getWtConnectionImpl()->cache, config + ", committed transaction");
     }
 }
-
 
 static void
 cursor_test(std::string const &config, bool close, int expected_commit_result, bool diagnostics)
