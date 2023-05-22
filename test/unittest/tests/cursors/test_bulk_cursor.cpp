@@ -62,32 +62,35 @@ print_dhandles(WT_SESSION_IMPL *session_impl)
 }
 
 static bool
-check_txn_updates(std::string const &label, WT_SESSION_IMPL *session_impl)
+check_txn_updates(std::string const &label, WT_SESSION_IMPL *session_impl, bool diagnostics)
 {
     bool ok = true;
-    WT_TXN *txn = session_impl->txn;
 
-    printf("check_txn_updates() - %s\n", label.c_str());
-    print_dhandles(session_impl);
-    printf("  txn = 0x%p, txn->id = 0x%" PRIx64 ", txn->mod = 0x%p, txn->mod_count = %u\n", txn,
-      txn->id, txn->mod, txn->mod_count);
+    if (diagnostics) {
+        WT_TXN *txn = session_impl->txn;
 
-    WT_TXN_OP *op = txn->mod;
-    for (u_int i = 0; i < txn->mod_count; i++, op++) {
-        switch (op->type) {
-        case WT_TXN_OP_NONE:
-        case WT_TXN_OP_REF_DELETE:
-        case WT_TXN_OP_TRUNCATE_COL:
-        case WT_TXN_OP_TRUNCATE_ROW:
-            break;
-        case WT_TXN_OP_BASIC_COL:
-        case WT_TXN_OP_BASIC_ROW:
-        case WT_TXN_OP_INMEM_COL:
-        case WT_TXN_OP_INMEM_ROW:
-            WT_UPDATE *upd = op->u.op_upd;
-            printf(
-              "    mod %i, op->type = %i, upd->txnid = 0x%" PRIx64 "\n", i, op->type, upd->txnid);
-            break;
+        printf("check_txn_updates() - %s\n", label.c_str());
+        print_dhandles(session_impl);
+        printf("  txn = 0x%p, txn->id = 0x%" PRIu64 ", txn->mod = 0x%p, txn->mod_count = %u\n", txn,
+          txn->id, txn->mod, txn->mod_count);
+
+        WT_TXN_OP *op = txn->mod;
+        for (u_int i = 0; i < txn->mod_count; i++, op++) {
+            switch (op->type) {
+            case WT_TXN_OP_NONE:
+            case WT_TXN_OP_REF_DELETE:
+            case WT_TXN_OP_TRUNCATE_COL:
+            case WT_TXN_OP_TRUNCATE_ROW:
+                break;
+            case WT_TXN_OP_BASIC_COL:
+            case WT_TXN_OP_BASIC_ROW:
+            case WT_TXN_OP_INMEM_COL:
+            case WT_TXN_OP_INMEM_ROW:
+                WT_UPDATE *upd = op->u.op_upd;
+                printf("    mod %i, op->type = %u, upd->txnid = 0x%" PRIx64 "\n", i, op->type,
+                  upd->txnid);
+                break;
+            }
         }
     }
 
@@ -95,7 +98,7 @@ check_txn_updates(std::string const &label, WT_SESSION_IMPL *session_impl)
 }
 
 static void
-cursor_test(std::string const &config, bool close, int expected_commit_result)
+cursor_test(std::string const &config, bool close, int expected_commit_result, bool diagnostics)
 {
     ConnectionWrapper conn(DB_HOME);
     WT_SESSION_IMPL *session_impl = conn.createSession();
@@ -167,31 +170,34 @@ cursor_test(std::string const &config, bool close, int expected_commit_result)
     SECTION(
       "Drop then checkpoint in one thread: config = " + config + ", close = " + close_as_string)
     {
-        check_txn_updates("before close", session_impl);
+        check_txn_updates("before close", session_impl, diagnostics);
         if (close) {
             REQUIRE(cursor->close(cursor) == 0);
-            check_txn_updates("before drop", session_impl);
-            sleep(1);
+            check_txn_updates("before drop", session_impl, diagnostics);
+            __wt_sleep(1, 0);
             REQUIRE(session->drop(session, uri.c_str(), "force=true") == 0);
         } else {
             int result = session->drop(session, uri.c_str(), "force=true");
             REQUIRE(result == EBUSY);
         }
-        printf("After drop\n");
 
-        sleep(3);
-        check_txn_updates("before checkpoint", session_impl);
+        if (diagnostics)
+            printf("After drop\n");
+
+        __wt_sleep(1, 0);
+        check_txn_updates("before checkpoint", session_impl, diagnostics);
         REQUIRE(session->checkpoint(session, nullptr) == EINVAL);
-        sleep(1);
-        check_txn_updates("before commit", session_impl);
+        __wt_sleep(1, 0);
+        check_txn_updates("before commit", session_impl, diagnostics);
 
         REQUIRE(session->commit_transaction(session, "") == expected_commit_result);
-        check_txn_updates("after commit", session_impl);
+        check_txn_updates("after commit", session_impl, diagnostics);
     }
 }
 
 static void
-multiple_drop_test(std::string const &config, int expected_commit_result, bool do_sleep)
+multiple_drop_test(std::string const &config, int expected_commit_result,
+  bool do_sleep, bool diagnostics)
 {
     ConnectionWrapper conn(DB_HOME);
     WT_SESSION_IMPL *session_impl = conn.createSession();
@@ -217,29 +223,33 @@ multiple_drop_test(std::string const &config, int expected_commit_result, bool d
 
             insert_sample_values(cursor);
 
-            check_txn_updates("before close", session_impl);
+            check_txn_updates("before close", session_impl, diagnostics);
             REQUIRE(cursor->close(cursor) == 0);
-            printf("After close\n");
+
+            if (diagnostics)
+                printf("After close\n");
 
             if (do_sleep)
-                sleep(1);
+                __wt_sleep(1, 0);
 
-            check_txn_updates("before drop", session_impl);
+            check_txn_updates("before drop", session_impl, diagnostics);
             REQUIRE(session->drop(session, uri.c_str(), "force=true") == 0);
-            printf("After drop\n");
+
+            if (diagnostics)
+                printf("After drop\n");
 
             if (do_sleep)
-                sleep(1);
+                __wt_sleep(1, 0);
 
-            check_txn_updates("before checkpoint", session_impl);
+            check_txn_updates("before checkpoint", session_impl, diagnostics);
             REQUIRE(session->checkpoint(session, nullptr) == EINVAL);
 
             if (do_sleep)
-                sleep(1);
+                __wt_sleep(1, 0);
 
-            check_txn_updates("before commit", session_impl);
+            check_txn_updates("before commit", session_impl, diagnostics);
             REQUIRE(session->commit_transaction(session, "") == expected_commit_result);
-            check_txn_updates("after commit", session_impl);
+            check_txn_updates("after commit", session_impl, diagnostics);
         }
 
         // Confirm the correct number of loops were executed & we didn't exit early for any reason
@@ -249,13 +259,15 @@ multiple_drop_test(std::string const &config, int expected_commit_result, bool d
 
 TEST_CASE("Cursor: checkpoint during transaction()", "[cursor]")
 {
-    cursor_test("", false, EINVAL);
-    cursor_test("", true, EINVAL);
-    cursor_test("bulk", false, 0);
-    cursor_test("bulk", true, 0);
+    const bool diagnostics = false;
 
-    multiple_drop_test("", EINVAL, false);
-    multiple_drop_test("", EINVAL, true);
-    multiple_drop_test("bulk", 0, false);
-    multiple_drop_test("bulk", 0, true);
+    cursor_test("", false, EINVAL, diagnostics);
+    cursor_test("", true, EINVAL, diagnostics);
+    cursor_test("bulk", false, 0, diagnostics);
+    cursor_test("bulk", true, 0, diagnostics);
+
+    multiple_drop_test("", EINVAL, false, diagnostics);
+    multiple_drop_test("", EINVAL, true, diagnostics);
+    multiple_drop_test("bulk", 0, false, diagnostics);
+    multiple_drop_test("bulk", 0, true, diagnostics);
 }
