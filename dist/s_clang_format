@@ -18,10 +18,11 @@ download_clang_format() {
     # (https://github.com/llvm/llvm-project/releases) or compile clang-format yourself.
     # Place the binary in dist/ and confirm that s_clang_format runs correctly, then
     # tar a folder containing just the clang-format binary with the format:
-    # clang-format-llvm-10.0.0-aarch64-linux-gnu/
+    # clang-format-llvm-${version}-${arch_and_os}/
     #     clang-format
-    # This tarball should extract using the tar command below.
-    # The tarball can then be uploaded via a Jira request. See BUILD-17387 for an example.
+    # into a tarball named clang-format-llvm-${version}-${arch_and_os}.tar.gz
+    # The tarball should extract using the tar command below.
+    # This tarball can then be uploaded via a Jira request to the BUILD team.
     case $arch_and_os in
     "aarch64-Linux")
         curl https://s3.amazonaws.com/boxes.10gen.com/build/clang-format-llvm-"$version"-aarch64-linux-gnu.tar.gz -o $archive
