@@ -895,6 +895,7 @@ __wt_upd_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, u_int modify_type
   size_t *sizep)
 {
     WT_UPDATE *upd;
+    size_t allocsz; /* Allocation size in bytes. */
 
     *updp = NULL;
 
@@ -910,6 +911,16 @@ __wt_upd_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, u_int modify_type
           !(modify_type == WT_UPDATE_RESERVE || modify_type == WT_UPDATE_TOMBSTONE)));
 
     /*
+     * Ensure that the memory allocated is never less than the size reported by sizeof. Otherwise
+     * bit-exact tools like Google MSan may infer the structure is not completely initialized.
+     */
+    if (value != NULL) {
+        allocsz = WT_MAX(WT_UPDATE_SIZE + value->size, sizeof(*upd));
+    } else {
+        allocsz = sizeof(*upd);
+    }
+
+    /*
      * Allocate the WT_UPDATE structure and room for the value, then copy any value into place.
      * Memory is cleared, which is the equivalent of setting:
      *    WT_UPDATE.txnid = WT_TXN_NONE;
@@ -917,12 +928,8 @@ __wt_upd_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, u_int modify_type
      *    WT_UPDATE.start_ts = WT_TS_NONE;
      *    WT_UPDATE.prepare_state = WT_PREPARE_INIT;
      *    WT_UPDATE.flags = 0;
-     *
-     * When there is no value data, use sizeof() which will include any (trailing) padding bytes
-     * added by the compiler.
      */
-    WT_RET(__wt_calloc(
-      session, 1, (value == NULL) ? sizeof(*upd) : (WT_UPDATE_SIZE + value->size), &upd));
+    WT_RET(__wt_calloc(session, 1, allocsz, &upd));
     if (value != NULL && value->size != 0) {
         upd->size = WT_STORE_SIZE(value->size);
         memcpy(upd->data, value->data, value->size);
