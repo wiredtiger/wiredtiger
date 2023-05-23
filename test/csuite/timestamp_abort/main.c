@@ -624,7 +624,7 @@ backup_delete_old_backups(int retain, int last_full)
                 /* If the backup failed to finish, delete it right away. */
                 testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/done", dir->d_name));
                 if (stat(buf, &sb) != 0 && errno == ENOENT) {
-                    testutil_system("%s %s", RM_COMMAND, dir->d_name);
+                    testutil_remove(dir->d_name);
                     ndeleted++;
                 }
 
@@ -641,7 +641,9 @@ backup_delete_old_backups(int retain, int last_full)
 
         __wt_qsort(indexes, (size_t)count, sizeof(*indexes), __int_comparator);
         for (i = 0; i < count - retain; i++) {
-            testutil_system("%s " BACKUP_BASE "%d", RM_COMMAND, indexes[i]);
+            testutil_check(
+              __wt_snprintf(buf, sizeof(buf), "%s " BACKUP_BASE "%d", RM_COMMAND, indexes[i]));
+            testutil_remove(buf);
             ndeleted++;
         }
     } while (!done);

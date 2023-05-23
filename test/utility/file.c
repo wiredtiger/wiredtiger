@@ -30,16 +30,22 @@
 #ifdef _WIN32
 /* TODO */
 #else
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <dirent.h>
 #include <libgen.h>
 #include <unistd.h>
+#include <utime.h>
 #endif
 
 typedef struct {
-    const char *base_path; /* The starting point of the traversal. */
-    const char *rel_path;  /* The path relative to the base path. */
+    const char *base_name;  /* The base name (the file name, without the path). */
+    const char *start_path; /* The starting point of the traversal. */
+    const char *rel_path;   /* The path relative to the start path. */
 
-    bool directory; /* This is a directory. */
+    bool directory;         /* This is a directory. */
+    int depth;              /* The depth we are at (0 = the source). */
+
     /* TODO: Stat is Linux only. */
     struct stat stat;
 } file_info_t;
@@ -50,7 +56,7 @@ typedef void (*file_callback_t)(const char *, const file_info_t *, void *);
  *     Process a directory tree recursively. Fail the test on error.
  */
 static void
-process_directory_tree(const char *base_path, const char *rel_path, bool must_exist,
+process_directory_tree(const char *start_path, const char *rel_path, int depth, bool must_exist,
   file_callback_t on_file, file_callback_t on_directory_enter, file_callback_t on_directory_leave,
   void *user_data)
 {
@@ -60,23 +66,28 @@ process_directory_tree(const char *base_path, const char *rel_path, bool must_ex
     struct dirent *dp;
     DIR *dirp;
     WT_DECL_RET;
-    char path[PATH_MAX], s[PATH_MAX];
+    char buf[PATH_MAX], path[PATH_MAX], s[PATH_MAX];
     file_info_t info;
 
     /* Sanitize the base path. */
-    if (base_path == NULL || base_path[0] == '\0')
-        base_path = ".";
+    if (start_path == NULL || start_path[0] == '\0')
+        start_path = ".";
 
     memset(&info, 0, sizeof(info));
-    info.base_path = base_path;
+    info.depth = depth;
     info.rel_path = rel_path;
+    info.start_path = start_path;
 
     /* Get the full path to the provided file or a directory. */
     if (rel_path == NULL || rel_path[0] == '\0')
-        testutil_check(__wt_snprintf(path, sizeof(path), "%s", base_path));
+        testutil_check(__wt_snprintf(path, sizeof(path), "%s", start_path));
     else
         testutil_check(
-          __wt_snprintf(path, sizeof(path), "%s" DIR_DELIM_STR "%s", base_path, info.rel_path));
+          __wt_snprintf(path, sizeof(path), "%s" DIR_DELIM_STR "%s", start_path, info.rel_path));
+
+    /* Get just the base name. */
+    testutil_check(__wt_snprintf(buf, sizeof(buf), "%s", path));
+    info.base_name = basename(buf);
 
     /* Check if the provided path points to a file. */
     ret = stat(path, &info.stat);
@@ -110,8 +121,8 @@ process_directory_tree(const char *base_path, const char *rel_path, bool must_ex
         else
             testutil_check(
               __wt_snprintf(s, sizeof(s), "%s" DIR_DELIM_STR "%s", rel_path, dp->d_name));
-        process_directory_tree(
-          base_path, s, must_exist, on_file, on_directory_enter, on_directory_leave, user_data);
+        process_directory_tree(start_path, s, depth + 1, must_exist, on_file, on_directory_enter,
+          on_directory_leave, user_data);
     }
 
     testutil_check(closedir(dirp));
@@ -125,8 +136,10 @@ process_directory_tree(const char *base_path, const char *rel_path, bool must_ex
 #define COPY_BUF_SIZE ((size_t)(256 * WT_KILOBYTE))
 
 struct copy_data {
+    const WT_FILE_COPY_OPTS *opts;
     const char *dest;
     bool dest_is_dir;
+    int link_depth;
 };
 
 /*
@@ -137,41 +150,67 @@ static void
 copy_on_file(const char *path, const file_info_t *info, void *user_data)
 {
     struct copy_data *d;
-    ssize_t n;
-    int rfd, wfd;
-    char *buf, *source_base_name;
-    char dest_path[PATH_MAX], s[PATH_MAX];
+    struct timeval times[2];
+    size_t n;
+    FILE *rf, *wf;
+    char *buf;
+    char dest_path[PATH_MAX];
 
     d = (struct copy_data *)user_data;
 
     /* Get path to the new file. If the relative path is NULL, it means we are copying a file. */
     if (info->rel_path == NULL) {
         if (d->dest_is_dir) {
-            testutil_check(__wt_snprintf(s, sizeof(s), "%s", path));
-            source_base_name = basename(s);
             testutil_check(__wt_snprintf(
-              dest_path, sizeof(dest_path), "%s" DIR_DELIM_STR "%s", d->dest, source_base_name));
+              dest_path, sizeof(dest_path), "%s" DIR_DELIM_STR "%s", d->dest, info->base_name));
         } else
             testutil_check(__wt_snprintf(dest_path, sizeof(dest_path), "%s", d->dest));
     } else
         testutil_check(__wt_snprintf(
           dest_path, sizeof(dest_path), "%s" DIR_DELIM_STR "%s", d->dest, info->rel_path));
 
+    /* Check if we need to switch to using links. */
+    if (d->opts->link && d->link_depth < 0)
+        if (strncmp(d->opts->link_if_prefix, info->base_name, strlen(d->opts->link_if_prefix)) == 0)
+            d->link_depth = info->depth;
+
+#ifndef _WIN32
+    /* Check if we are actually creating a hard link instead. */
+    if (d->link_depth >= 0 && info->depth >= d->link_depth) {
+        testutil_assert_errno(link(path, dest_path) == 0);
+        return;
+    }
+#endif
+
     /* Copy the file. */
-    testutil_assert_errno((rfd = open(path, O_RDONLY)) > 0);
-    testutil_assert_errno((wfd = open(dest_path, O_WRONLY | O_CREAT, info->stat.st_mode)) > 0);
+    testutil_assert_errno((rf = fopen(path, "rb")) != NULL);
+    testutil_assert_errno((wf = fopen(dest_path, "wb")) != NULL);
+
+#ifndef _WIN32
+    testutil_assert_errno(fchmod(fileno(wf), info->stat.st_mode) == 0);
+#endif
 
     buf = dmalloc(COPY_BUF_SIZE);
     for (;;) {
-        testutil_assert_errno((n = read(rfd, buf, COPY_BUF_SIZE)) >= 0);
+        n = fread(buf, 1, COPY_BUF_SIZE, rf);
+        testutil_assert_errno(ferror(rf) == 0);
         if (n == 0)
             break;
-        testutil_assert_errno(write(wfd, buf, (size_t)n) == n);
+        testutil_assert_errno(fwrite(buf, 1, n, wf) == n);
     }
 
-    testutil_check(close(rfd));
-    testutil_check(close(wfd));
+    testutil_check(fclose(rf));
+    testutil_check(fclose(wf));
     free(buf);
+
+    /* Change the timestamps. */
+    if (d->opts->preserve) {
+        times[0].tv_sec = info->stat.st_atim.tv_sec;
+        times[0].tv_usec = info->stat.st_atim.tv_nsec / 1000;
+        times[1].tv_sec = info->stat.st_mtim.tv_sec;
+        times[1].tv_usec = info->stat.st_mtim.tv_nsec / 1000;
+        testutil_assert_errno(utimes(dest_path, times) == 0);
+    }
 }
 
 /*
@@ -191,11 +230,45 @@ copy_on_directory_enter(const char *path, const file_info_t *info, void *user_da
     if (info->rel_path == NULL || strcmp(info->rel_path, ".") == 0)
         return;
 
+    /* Check if we need to switch to using links. */
+    if (d->opts->link && d->link_depth < 0)
+        if (strncmp(d->opts->link_if_prefix, info->base_name, strlen(d->opts->link_if_prefix)) == 0)
+            d->link_depth = info->depth;
+
     /* Otherwise we create a new directory. */
     testutil_check(__wt_snprintf(
       dest_path, sizeof(dest_path), "%s" DIR_DELIM_STR "%s", d->dest, info->rel_path));
 
     testutil_assert_errno(mkdir(dest_path, info->stat.st_mode) == 0);
+}
+
+/*
+ * copy_on_directory_leave --
+ *     Worker for copying a directory.
+ */
+static void
+copy_on_directory_leave(const char *path, const file_info_t *info, void *user_data)
+{
+    struct copy_data *d;
+    struct timeval times[2];
+    char dest_path[PATH_MAX];
+
+    WT_UNUSED(path);
+    d = (struct copy_data *)user_data;
+
+    if (info->depth <= d->link_depth)
+        d->link_depth = -1;
+
+    /* Change the timestamps. */
+    if (d->opts->preserve) {
+        testutil_check(__wt_snprintf(dest_path, sizeof(dest_path), "%s" DIR_DELIM_STR "%s", d->dest,
+          info->rel_path == NULL ? "" : info->rel_path));
+        times[0].tv_sec = info->stat.st_atim.tv_sec;
+        times[0].tv_usec = info->stat.st_atim.tv_nsec / 1000;
+        times[1].tv_sec = info->stat.st_mtim.tv_sec;
+        times[1].tv_usec = info->stat.st_mtim.tv_nsec / 1000;
+        testutil_assert_errno(utimes(dest_path, times) == 0);
+    }
 }
 
 /*
@@ -205,15 +278,33 @@ copy_on_directory_enter(const char *path, const file_info_t *info, void *user_da
 void
 testutil_copy(const char *source, const char *dest)
 {
+    testutil_copy_ext(source, dest, NULL);
+}
+
+/*
+ * testutil_copy_ext --
+ *     Recursively copy a file or a directory tree. Fail the test on error. With extra options.
+ */
+void
+testutil_copy_ext(const char *source, const char *dest, const WT_FILE_COPY_OPTS *opts)
+{
     struct copy_data data;
     struct stat source_stat, dest_stat;
+    WT_FILE_COPY_OPTS default_opts;
     WT_DECL_RET;
     bool dest_exists;
     bool is_dest_dir;
     bool is_source_dir;
 
+    if (opts == NULL) {
+        memset(&default_opts, 0, sizeof(default_opts));
+        opts = &default_opts;
+    }
+
     memset(&data, 0, sizeof(data));
     data.dest = dest;
+    data.link_depth = opts->link && opts->link_if_prefix == NULL ? 0 : -1;
+    data.opts = opts;
 
     /* Check the source. */
     testutil_assertfmt((ret = stat(source, &source_stat)) == 0, "Failed to stat \"%s\": %s", source,
@@ -234,7 +325,21 @@ testutil_copy(const char *source, const char *dest)
     if (is_source_dir && !dest_exists)
         testutil_assert_errno(mkdir(dest, source_stat.st_mode) == 0);
 
-    process_directory_tree(source, NULL, true, copy_on_file, copy_on_directory_enter, NULL, &data);
+    process_directory_tree(
+      source, NULL, 0, true, copy_on_file, copy_on_directory_enter, copy_on_directory_leave, &data);
+}
+
+/*
+ * testutil_mkdir --
+ *     Create a directory if it does not exist. Fail the test on error.
+ */
+void
+testutil_mkdir(const char *path)
+{
+    WT_DECL_RET;
+
+    ret = mkdir(path, 0755);
+    testutil_assert_errno(ret == 0 || errno == ENOENT);
 }
 
 /*
@@ -276,5 +381,6 @@ remove_on_directory_leave(const char *path, const file_info_t *info, void *user_
 void
 testutil_remove(const char *path)
 {
-    process_directory_tree(path, NULL, true, remove_on_file, NULL, remove_on_directory_leave, NULL);
+    process_directory_tree(
+      path, NULL, 0, true, remove_on_file, NULL, remove_on_directory_leave, NULL);
 }
