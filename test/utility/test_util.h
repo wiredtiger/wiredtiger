@@ -33,12 +33,9 @@
 #ifdef _WIN32
 #define DIR_DELIM '\\'
 #define DIR_DELIM_STR "\\"
-#define DIR_EXISTS_COMMAND "IF EXIST "
-#define RM_COMMAND "rd /s /q "
 #else
 #define DIR_DELIM '/'
 #define DIR_DELIM_STR "/"
-#define RM_COMMAND "rm -rf "
 #endif
 
 #define DEFAULT_DIR "WT_TEST"
@@ -242,6 +239,12 @@ typedef struct {
             testutil_die(                                                                 \
               __r, "%s/%d: %s: " fmt, __PRETTY_FUNCTION__, __LINE__, #call, __VA_ARGS__); \
     } while (0)
+
+/*
+ * testutil_snprintf --
+ *     Do snprintf; fail on error.
+ */
+#define testutil_snprintf(out, size, ...) testutil_check(__wt_snprintf(out, size, __VA_ARGS__))
 
 /*
  * WT_OP_CHECKPOINT_WAIT --

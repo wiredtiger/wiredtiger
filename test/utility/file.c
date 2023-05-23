@@ -33,6 +33,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include <glob.h>
 #include <libgen.h>
 #include <unistd.h>
 #include <utime.h>
@@ -80,13 +81,12 @@ process_directory_tree(const char *start_path, const char *rel_path, int depth, 
 
     /* Get the full path to the provided file or a directory. */
     if (rel_path == NULL || rel_path[0] == '\0')
-        testutil_check(__wt_snprintf(path, sizeof(path), "%s", start_path));
+        testutil_snprintf(path, sizeof(path), "%s", start_path);
     else
-        testutil_check(
-          __wt_snprintf(path, sizeof(path), "%s" DIR_DELIM_STR "%s", start_path, info.rel_path));
+        testutil_snprintf(path, sizeof(path), "%s" DIR_DELIM_STR "%s", start_path, info.rel_path);
 
     /* Get just the base name. */
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "%s", path));
+    testutil_snprintf(buf, sizeof(buf), "%s", path);
     info.base_name = basename(buf);
 
     /* Check if the provided path points to a file. */
@@ -117,15 +117,14 @@ process_directory_tree(const char *start_path, const char *rel_path, int depth, 
             continue;
 
         if (rel_path == NULL || rel_path[0] == '\0')
-            testutil_check(__wt_snprintf(s, sizeof(s), "%s", dp->d_name));
+            testutil_snprintf(s, sizeof(s), "%s", dp->d_name);
         else
-            testutil_check(
-              __wt_snprintf(s, sizeof(s), "%s" DIR_DELIM_STR "%s", rel_path, dp->d_name));
+            testutil_snprintf(s, sizeof(s), "%s" DIR_DELIM_STR "%s", rel_path, dp->d_name);
         process_directory_tree(start_path, s, depth + 1, must_exist, on_file, on_directory_enter,
           on_directory_leave, user_data);
     }
 
-    testutil_check(closedir(dirp));
+    testutil_assert_errno(closedir(dirp) == 0);
 
     /* Invoke the directory leave callback. */
     if (on_directory_leave != NULL)
@@ -161,13 +160,13 @@ copy_on_file(const char *path, const file_info_t *info, void *user_data)
     /* Get path to the new file. If the relative path is NULL, it means we are copying a file. */
     if (info->rel_path == NULL) {
         if (d->dest_is_dir) {
-            testutil_check(__wt_snprintf(
-              dest_path, sizeof(dest_path), "%s" DIR_DELIM_STR "%s", d->dest, info->base_name));
+            testutil_snprintf(
+              dest_path, sizeof(dest_path), "%s" DIR_DELIM_STR "%s", d->dest, info->base_name);
         } else
-            testutil_check(__wt_snprintf(dest_path, sizeof(dest_path), "%s", d->dest));
+            testutil_snprintf(dest_path, sizeof(dest_path), "%s", d->dest);
     } else
-        testutil_check(__wt_snprintf(
-          dest_path, sizeof(dest_path), "%s" DIR_DELIM_STR "%s", d->dest, info->rel_path));
+        testutil_snprintf(
+          dest_path, sizeof(dest_path), "%s" DIR_DELIM_STR "%s", d->dest, info->rel_path);
 
     /* Check if we need to switch to using links. */
     if (d->opts->link && d->link_depth < 0)
@@ -199,8 +198,8 @@ copy_on_file(const char *path, const file_info_t *info, void *user_data)
         testutil_assert_errno(fwrite(buf, 1, n, wf) == n);
     }
 
-    testutil_check(fclose(rf));
-    testutil_check(fclose(wf));
+    testutil_assert_errno(fclose(rf) == 0);
+    testutil_assert_errno(fclose(wf) == 0);
     free(buf);
 
     /* Change the timestamps. */
@@ -236,9 +235,8 @@ copy_on_directory_enter(const char *path, const file_info_t *info, void *user_da
             d->link_depth = info->depth;
 
     /* Otherwise we create a new directory. */
-    testutil_check(__wt_snprintf(
-      dest_path, sizeof(dest_path), "%s" DIR_DELIM_STR "%s", d->dest, info->rel_path));
-
+    testutil_snprintf(
+      dest_path, sizeof(dest_path), "%s" DIR_DELIM_STR "%s", d->dest, info->rel_path);
     testutil_assert_errno(mkdir(dest_path, info->stat.st_mode) == 0);
 }
 
@@ -261,8 +259,8 @@ copy_on_directory_leave(const char *path, const file_info_t *info, void *user_da
 
     /* Change the timestamps. */
     if (d->opts->preserve) {
-        testutil_check(__wt_snprintf(dest_path, sizeof(dest_path), "%s" DIR_DELIM_STR "%s", d->dest,
-          info->rel_path == NULL ? "" : info->rel_path));
+        testutil_snprintf(dest_path, sizeof(dest_path), "%s" DIR_DELIM_STR "%s", d->dest,
+          info->rel_path == NULL ? "" : info->rel_path);
         times[0].tv_sec = info->stat.st_atim.tv_sec;
         times[0].tv_usec = info->stat.st_atim.tv_nsec / 1000;
         times[1].tv_sec = info->stat.st_mtim.tv_sec;
@@ -292,9 +290,12 @@ testutil_copy_ext(const char *source, const char *dest, const WT_FILE_COPY_OPTS 
     struct stat source_stat, dest_stat;
     WT_FILE_COPY_OPTS default_opts;
     WT_DECL_RET;
+    const char *path;
     bool dest_exists;
     bool is_dest_dir;
     bool is_source_dir;
+    glob_t g;
+    size_t i;
 
     if (opts == NULL) {
         memset(&default_opts, 0, sizeof(default_opts));
@@ -306,27 +307,36 @@ testutil_copy_ext(const char *source, const char *dest, const WT_FILE_COPY_OPTS 
     data.link_depth = opts->link && opts->link_if_prefix == NULL ? 0 : -1;
     data.opts = opts;
 
-    /* Check the source. */
-    testutil_assertfmt((ret = stat(source, &source_stat)) == 0, "Failed to stat \"%s\": %s", source,
-      strerror(errno));
-    is_source_dir = S_ISDIR(source_stat.st_mode);
+    memset(&g, 0, sizeof(g));
+    testutil_check_error_ok(glob(source, 0, NULL, &g), GLOB_NOMATCH);
 
-    /* Check the destination. */
-    ret = stat(dest, &dest_stat);
-    testutil_assert_errno(ret == 0 || errno == ENOENT);
-    dest_exists = ret == 0;
-    is_dest_dir = dest_exists ? S_ISDIR(dest_stat.st_mode) : false;
-    data.dest_is_dir = is_dest_dir;
+    for (i = 0; i != g.gl_pathc; i++) {
+        path = g.gl_pathv[i];
 
-    /* If we are copying a directory, make sure that we are not copying over a file. */
-    testutil_assert(!(is_source_dir && dest_exists && !is_dest_dir));
+        /* Check the source. */
+        testutil_assertfmt((ret = stat(path, &source_stat)) == 0, "Failed to stat \"%s\": %s", path,
+          strerror(errno));
+        is_source_dir = S_ISDIR(source_stat.st_mode);
 
-    /* If we are copying a directory to another directory that doesn't exist, create it. */
-    if (is_source_dir && !dest_exists)
-        testutil_assert_errno(mkdir(dest, source_stat.st_mode) == 0);
+        /* Check the destination. */
+        ret = stat(dest, &dest_stat);
+        testutil_assert_errno(ret == 0 || errno == ENOENT);
+        dest_exists = ret == 0;
+        is_dest_dir = dest_exists ? S_ISDIR(dest_stat.st_mode) : false;
+        data.dest_is_dir = is_dest_dir;
 
-    process_directory_tree(
-      source, NULL, 0, true, copy_on_file, copy_on_directory_enter, copy_on_directory_leave, &data);
+        /* If we are copying a directory, make sure that we are not copying over a file. */
+        testutil_assert(!(is_source_dir && dest_exists && !is_dest_dir));
+
+        /* If we are copying a directory to another directory that doesn't exist, create it. */
+        if (is_source_dir && !dest_exists)
+            testutil_assert_errno(mkdir(dest, source_stat.st_mode) == 0);
+
+        process_directory_tree(path, NULL, 0, true, copy_on_file, copy_on_directory_enter,
+          copy_on_directory_leave, &data);
+    }
+
+    globfree(&g);
 }
 
 /*
@@ -381,6 +391,15 @@ remove_on_directory_leave(const char *path, const file_info_t *info, void *user_
 void
 testutil_remove(const char *path)
 {
-    process_directory_tree(
-      path, NULL, 0, true, remove_on_file, NULL, remove_on_directory_leave, NULL);
+    glob_t g;
+    size_t i;
+
+    memset(&g, 0, sizeof(g));
+    testutil_check_error_ok(glob(path, 0, NULL, &g), GLOB_NOMATCH);
+
+    for (i = 0; i != g.gl_pathc; i++)
+        process_directory_tree(
+          g.gl_pathv[i], NULL, 0, true, remove_on_file, NULL, remove_on_directory_leave, NULL);
+
+    globfree(&g);
 }
