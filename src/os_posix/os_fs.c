@@ -406,6 +406,7 @@ static int
 __posix_file_read(
   WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset, size_t len, void *buf)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
@@ -414,6 +415,7 @@ __posix_file_read(
     uint8_t *addr;
 
     session = (WT_SESSION_IMPL *)wt_session;
+    conn = S2C(session);
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
     __wt_verbose_debug2(session, WT_VERB_READ,
@@ -422,9 +424,9 @@ __posix_file_read(
 
     /* Assert direct I/O is aligned and a multiple of the alignment. */
     WT_ASSERT(session,
-      !pfh->direct_io || S2C(session)->buffer_alignment == 0 ||
-        (!((uintptr_t)buf & (uintptr_t)(S2C(session)->buffer_alignment - 1)) &&
-          len >= S2C(session)->buffer_alignment && len % S2C(session)->buffer_alignment == 0));
+      !pfh->direct_io || conn->buffer_alignment == 0 ||
+        (!((uintptr_t)buf & (uintptr_t)(conn->buffer_alignment - 1)) &&
+          len >= conn->buffer_alignment && len % conn->buffer_alignment == 0));
 
     /* Break reads larger than 1GB into 1GB chunks. */
     nr = 0;
@@ -599,6 +601,7 @@ static int
 __posix_file_write(
   WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset, size_t len, const void *buf)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
     size_t chunk;
@@ -606,6 +609,7 @@ __posix_file_write(
     const uint8_t *addr;
 
     session = (WT_SESSION_IMPL *)wt_session;
+    conn = S2C(session);
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
     __wt_verbose_debug2(session, WT_VERB_WRITE,
@@ -614,9 +618,9 @@ __posix_file_write(
 
     /* Assert direct I/O is aligned and a multiple of the alignment. */
     WT_ASSERT(session,
-      !pfh->direct_io || S2C(session)->buffer_alignment == 0 ||
-        (!((uintptr_t)buf & (uintptr_t)(S2C(session)->buffer_alignment - 1)) &&
-          len >= S2C(session)->buffer_alignment && len % S2C(session)->buffer_alignment == 0));
+      !pfh->direct_io || conn->buffer_alignment == 0 ||
+        (!((uintptr_t)buf & (uintptr_t)(conn->buffer_alignment - 1)) &&
+          len >= conn->buffer_alignment && len % conn->buffer_alignment == 0));
 
     /* Break writes larger than 1GB into 1GB chunks. */
     for (addr = buf; len > 0; addr += nw, len -= (size_t)nw, offset += nw) {
