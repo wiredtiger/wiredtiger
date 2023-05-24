@@ -1665,7 +1665,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                     WT_ERR(__txn_resolve_prepared_op(session, op, true, &cursor));
 
                 /* Sleep between resolving prepared operations when configured. */
-                __wt_timing_stress(session, WT_TIMING_STRESS_PREPARE_RESOLUTION, NULL);
+                if (i < 100)
+                    __wt_timing_stress(session, WT_TIMING_STRESS_PREPARE_RESOLUTION, NULL);
 #ifdef HAVE_DIAGNOSTIC
                 ++prepare_count;
 #endif
