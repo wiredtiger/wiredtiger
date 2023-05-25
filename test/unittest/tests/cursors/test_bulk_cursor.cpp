@@ -130,7 +130,8 @@ cache_destroy_memory_check(std::string const &config, int expected_open_cursor_r
         report_cache_status(conn.getWtConnectionImpl()->cache, config + ", begun transaction");
 
         WT_CURSOR *cursor = nullptr;
-        int open_cursor_result = session->open_cursor(session, uri.c_str(), nullptr, config.c_str(), &cursor);
+        int open_cursor_result =
+          session->open_cursor(session, uri.c_str(), nullptr, config.c_str(), &cursor);
         REQUIRE(open_cursor_result == expected_open_cursor_result);
 
         if (open_cursor_result == 0) {
@@ -150,7 +151,8 @@ cache_destroy_memory_check(std::string const &config, int expected_open_cursor_r
 }
 
 static void
-cursor_test(std::string const &config, bool close, int expected_open_cursor_result, int expected_commit_result, bool diagnostics)
+cursor_test(std::string const &config, bool close, int expected_open_cursor_result,
+  int expected_commit_result, bool diagnostics)
 {
     ConnectionWrapper conn(DB_HOME);
     WT_SESSION_IMPL *session_impl = conn.createSession();
@@ -161,7 +163,8 @@ cursor_test(std::string const &config, bool close, int expected_open_cursor_resu
     REQUIRE(session->begin_transaction(session, "") == 0);
 
     WT_CURSOR *cursor = nullptr;
-    int open_cursor_result = session->open_cursor(session, uri.c_str(), nullptr, config.c_str(), &cursor);
+    int open_cursor_result =
+      session->open_cursor(session, uri.c_str(), nullptr, config.c_str(), &cursor);
     REQUIRE(open_cursor_result == expected_open_cursor_result);
 
     if (open_cursor_result == 0) {
@@ -252,8 +255,8 @@ cursor_test(std::string const &config, bool close, int expected_open_cursor_resu
 }
 
 static void
-multiple_drop_test(
-  std::string const &config, int expected_open_cursor_result, int expected_commit_result, bool do_sleep, bool diagnostics)
+multiple_drop_test(std::string const &config, int expected_open_cursor_result,
+  int expected_commit_result, bool do_sleep, bool diagnostics)
 {
     ConnectionWrapper conn(DB_HOME);
     std::string uri = "table:cursor_test";
@@ -274,7 +277,8 @@ multiple_drop_test(
             REQUIRE(session->begin_transaction(session, "") == 0);
 
             WT_CURSOR *cursor = nullptr;
-            int open_cursor_result = session->open_cursor(session, uri.c_str(), nullptr, config.c_str(), &cursor);
+            int open_cursor_result =
+              session->open_cursor(session, uri.c_str(), nullptr, config.c_str(), &cursor);
             REQUIRE(open_cursor_result == expected_open_cursor_result);
 
             if (open_cursor_result == 0) {
