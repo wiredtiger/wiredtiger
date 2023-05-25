@@ -184,7 +184,7 @@ cache_destroy_memory_check(
 
 /*
  * cursor_test --
- *     Perform a series of combinations of operations involving cursors to confirm correct behaviour
+ *     Perform a series of combinations of operations involving cursors to confirm correct behavior
  *     in each case.
  */
 static void
