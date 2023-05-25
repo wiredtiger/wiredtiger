@@ -24,7 +24,7 @@ __rts_btree_walk_check_btree_modified(WT_SESSION_IMPL *session, const char *uri,
 
 /*
  * __rts_walk_progress_msg --
- *     Log a verbose message about the progress of the current rollback to stable.
+ *     Log a verbose message about the progress of rollback to stable on a btree walk.
  */
 static void
 __rts_walk_progress_msg(

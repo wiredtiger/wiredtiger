@@ -87,7 +87,7 @@ __rts_progress_msg(WT_SESSION_IMPL *session, struct timespec rollback_start,
     /* Time since the rollback started. */
     time_diff = WT_TIMEDIFF_SEC(cur_time, rollback_start);
 
-    if ((time_diff / WT_PROGRESS_MSG_PERIOD) > *rollback_msg_count) {
+    if ((time_diff / WT_MINUTE) > *rollback_msg_count) {
         __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
           "Rollback to stable has been running for %" PRIu64 " seconds and has inspected %" PRIu64
           " files. For more detailed logging, enable WT_VERB_RTS",
@@ -161,6 +161,10 @@ __wt_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_times
           __wt_timestamp_to_string(rollback_timestamp, ts_string));
         WT_ERR(__wt_rts_history_final_pass(session, rollback_timestamp));
     }
+
+    /* Log a progress message for the history store. */
+    ++rollback_count;
+    __rts_progress_msg(session, rollback_timer, rollback_count, &rollback_msg_count);
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
     return (ret);
