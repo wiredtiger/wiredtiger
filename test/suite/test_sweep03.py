@@ -115,7 +115,6 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
 
         # We just filled the table, now check what the stats are
         stat_cursor = self.session.open_cursor('statistics:', None, None)
-        cache1 = stat_cursor[stat.conn.cache_bytes_inuse][2]
         close1 = stat_cursor[stat.conn.dh_sweep_close][2]
         sweep_baseline = stat_cursor[stat.conn.dh_sweeps][2]
         stat_cursor.close()
@@ -127,14 +126,11 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Grab the stats post table drop to see things have decremented
         stat_cursor = self.session.open_cursor('statistics:', None, None)
-        cache2 = stat_cursor[stat.conn.cache_bytes_inuse][2]
         close2 = stat_cursor[stat.conn.dh_sweep_close][2]
         stat_cursor.close()
 
-        # Ensure that the handle has been closed after the drop.
-        self.assertEqual(close2, 1)
-        # Ensure that any space was reclaimed from cache.
-        self.assertLess(cache2, cache1)
+        # Handles aren't closed immediately on a force drop, neither is memory immediately freed.
+        self.assertEqual(close2, close1)
 
     def test_disable_idle_timeout_drop(self):
         # Create a table to drop. A drop should close its associated handles

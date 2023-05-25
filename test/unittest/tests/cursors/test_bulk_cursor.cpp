@@ -98,21 +98,23 @@ check_txn_updates(std::string const &label, WT_SESSION_IMPL *session_impl, bool 
 }
 
 static void
-report_cache_status(WT_CACHE *cache, std::string const &label)
+report_cache_status(WT_CACHE *cache, std::string const &label, bool diagnostics)
 {
-    printf("Cache (label is '%s'):\n", label.c_str());
-    printf(". pages_inmem:      %" PRIu64 "\n", cache->pages_inmem);
-    printf(". pages_evicted:    %" PRIu64 "\n", cache->pages_evicted);
-    printf(". bytes_image_intl: %" PRIu64 "\n", cache->bytes_image_intl);
-    printf(". bytes_image_leaf: %" PRIu64 "\n", cache->bytes_image_leaf);
-    printf(". pages_dirty_intl: %" PRIu64 "\n", cache->pages_dirty_intl);
-    printf(". pages_dirty_leaf: %" PRIu64 "\n", cache->pages_dirty_leaf);
-    printf(". bytes_dirty_intl: %" PRIu64 "\n", cache->bytes_dirty_intl);
-    printf(". bytes_dirty_leaf: %" PRIu64 "\n", cache->bytes_dirty_leaf);
+    if (diagnostics) {
+        printf("Cache (label is '%s'):\n", label.c_str());
+        printf(". pages_inmem:      %" PRIu64 "\n", cache->pages_inmem);
+        printf(". pages_evicted:    %" PRIu64 "\n", cache->pages_evicted);
+        printf(". bytes_image_intl: %" PRIu64 "\n", cache->bytes_image_intl);
+        printf(". bytes_image_leaf: %" PRIu64 "\n", cache->bytes_image_leaf);
+        printf(". pages_dirty_intl: %" PRIu64 "\n", cache->pages_dirty_intl);
+        printf(". pages_dirty_leaf: %" PRIu64 "\n", cache->pages_dirty_leaf);
+        printf(". bytes_dirty_intl: %" PRIu64 "\n", cache->bytes_dirty_intl);
+        printf(". bytes_dirty_leaf: %" PRIu64 "\n", cache->bytes_dirty_leaf);
+    }
 };
 
 static void
-cache_destroy_memory_check(std::string const &config, int expected_open_cursor_result)
+cache_destroy_memory_check(std::string const &config, int expected_open_cursor_result, bool diagnostics)
 {
     SECTION("Check memory freed when using a cursor: config = " + config)
     {
@@ -121,13 +123,13 @@ cache_destroy_memory_check(std::string const &config, int expected_open_cursor_r
         WT_SESSION *session = &session_impl->iface;
         std::string uri = "table:cursor_test";
 
-        report_cache_status(conn.getWtConnectionImpl()->cache, ", created connection");
+        report_cache_status(conn.getWtConnectionImpl()->cache, ", created connection", diagnostics);
 
         REQUIRE(session->create(session, uri.c_str(), "key_format=S,value_format=S") == 0);
-        report_cache_status(conn.getWtConnectionImpl()->cache, config + ", created session");
+        report_cache_status(conn.getWtConnectionImpl()->cache, config + ", created session", diagnostics);
 
         REQUIRE(session->begin_transaction(session, "") == 0);
-        report_cache_status(conn.getWtConnectionImpl()->cache, config + ", begun transaction");
+        report_cache_status(conn.getWtConnectionImpl()->cache, config + ", begun transaction", diagnostics);
 
         WT_CURSOR *cursor = nullptr;
         int open_cursor_result =
@@ -135,17 +137,17 @@ cache_destroy_memory_check(std::string const &config, int expected_open_cursor_r
         REQUIRE(open_cursor_result == expected_open_cursor_result);
 
         if (open_cursor_result == 0) {
-            report_cache_status(conn.getWtConnectionImpl()->cache, config + ", opened cursor");
+            report_cache_status(conn.getWtConnectionImpl()->cache, config + ", opened cursor", diagnostics);
 
             insert_sample_values(cursor);
-            report_cache_status(conn.getWtConnectionImpl()->cache, config + ", inserted values");
+            report_cache_status(conn.getWtConnectionImpl()->cache, config + ", inserted values", diagnostics);
 
             REQUIRE(cursor->close(cursor) == 0);
-            report_cache_status(conn.getWtConnectionImpl()->cache, config + ", closed cursor");
+            report_cache_status(conn.getWtConnectionImpl()->cache, config + ", closed cursor", diagnostics);
 
             REQUIRE(session->commit_transaction(session, "") == 0);
             report_cache_status(
-              conn.getWtConnectionImpl()->cache, config + ", committed transaction");
+              conn.getWtConnectionImpl()->cache, config + ", committed transaction", diagnostics);
         }
     }
 }
@@ -324,8 +326,8 @@ TEST_CASE("Cursor: checkpoint during transaction()", "[cursor]")
 {
     const bool diagnostics = false;
 
-    cache_destroy_memory_check("", 0);
-    cache_destroy_memory_check("bulk", EINVAL);
+    cache_destroy_memory_check("", 0, diagnostics);
+    cache_destroy_memory_check("bulk", EINVAL, diagnostics);
 
     cursor_test("", false, 0, EINVAL, diagnostics);
     cursor_test("", true, 0, EINVAL, diagnostics);
