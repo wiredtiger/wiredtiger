@@ -131,7 +131,7 @@ report_cache_status(WT_CACHE *cache, std::string const &label, bool diagnostics)
         printf(". bytes_dirty_intl: %" PRIu64 "\n", cache->bytes_dirty_intl);
         printf(". bytes_dirty_leaf: %" PRIu64 "\n", cache->bytes_dirty_leaf);
     }
-};
+}
 
 /*
  * cache_destroy_memory_check --
