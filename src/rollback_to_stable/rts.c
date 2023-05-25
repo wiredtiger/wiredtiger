@@ -165,6 +165,7 @@ __wt_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_times
     /* Log a progress message for the history store. */
     ++rollback_count;
     __rts_progress_msg(session, rollback_timer, rollback_count, &rollback_msg_count);
+
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
     return (ret);

@@ -23,38 +23,12 @@ __rts_btree_walk_check_btree_modified(WT_SESSION_IMPL *session, const char *uri,
 }
 
 /*
- * __rts_walk_progress_msg --
- *     Log a verbose message about the progress of rollback to stable on a btree walk.
- */
-static void
-__rts_walk_progress_msg(
-  WT_SESSION_IMPL *session, struct timespec rollback_start, uint64_t *rollback_msg_count)
-{
-    struct timespec cur_time;
-    uint64_t time_diff;
-
-    __wt_epoch(session, &cur_time);
-
-    /* Time since the rollback started. */
-    time_diff = WT_TIMEDIFF_SEC(cur_time, rollback_start);
-
-    if ((time_diff / WT_PROGRESS_MSG_PERIOD) > *rollback_msg_count) {
-        __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
-          "Rollback to stable has been performing on %s for %" PRIu64 " seconds. For more detailed
-          logging,
-          enable WT_VERB_RTS ",
-          session->dhandle->name, time_diff);
-        ++(*rollback_msg_count);
-    }
-}
-
-/*
  * __rts_btree_walk_page_skip --
  *     Skip if rollback to stable doesn't require reading this page.
  */
 static int
-__rts_btree_walk_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool visible_all,
-  struct timespec rollback_timer, uint64_t *rollback_msg_count, bool *skipp)
+__rts_btree_walk_page_skip(
+  WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool visible_all, bool *skipp)
 {
     WT_PAGE_DELETED *page_del;
     wt_timestamp_t rollback_timestamp;
@@ -65,9 +39,6 @@ __rts_btree_walk_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context,
     WT_UNUSED(visible_all);
 
     *skipp = false; /* Default to reading */
-
-    /* Log a rts walk progress message. */
-    __rts_walk_progress_msg(session, rollback_timer, &rollback_msg_count);
 
     /*
      * Skip pages truncated at or before the RTS timestamp. (We could read the page, but that would
@@ -144,6 +115,31 @@ __rts_btree_walk_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context,
 }
 
 /*
+ * __rts_btree_walk_progress_msg --
+ *     Log a verbose message about the progress of rollback to stable on a btree walk.
+ */
+static void
+__rts_btree_walk_progress_msg(
+  WT_SESSION_IMPL *session, struct timespec rollback_start, uint64_t *rollback_msg_count)
+{
+    struct timespec cur_time;
+    uint64_t time_diff;
+
+    __wt_epoch(session, &cur_time);
+
+    /* Time since the rollback started. */
+    time_diff = WT_TIMEDIFF_SEC(cur_time, rollback_start);
+
+    if ((time_diff / WT_PROGRESS_MSG_PERIOD) > *rollback_msg_count) {
+        __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+          "Rollback to stable has been performing on %s for %" PRIu64
+          "seconds. For more detailed logging, enable WT_VERB_RTS ",
+          session->dhandle->name, time_diff);
+        ++(*rollback_msg_count);
+    }
+}
+
+/*
  * __rts_btree_walk --
  *     Called for each open handle - choose to either skip or wipe the commits
  */
@@ -164,10 +160,13 @@ __rts_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
     while (
       (ret = __wt_tree_walk_custom_skip(session, &ref, __rts_btree_walk_page_skip,
          &rollback_timestamp, WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED)) == 0 &&
-      ref != NULL)
+      ref != NULL) {
+        /* Log a rts walk progress message. */
+        __rts_btree_walk_progress_msg(session, rollback_timer, &rollback_msg_count);
+
         if (F_ISSET(ref, WT_REF_FLAG_LEAF))
             WT_RET(__wt_rts_btree_abort_updates(session, ref, rollback_timestamp));
-
+    }
     return (ret);
 }
 
