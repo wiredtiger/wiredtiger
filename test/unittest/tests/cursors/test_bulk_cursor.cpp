@@ -112,9 +112,9 @@ report_cache_status(WT_CACHE *cache, std::string const &label)
 };
 
 static void
-cache_destroy_memory_check(std::string const &config)
+cache_destroy_memory_check(std::string const &config, int expected_open_cursor_result)
 {
-    SECTION("Check memory freed when using bulk cursor: config = " + config)
+    SECTION("Check memory freed when using a cursor: config = " + config)
     {
         ConnectionWrapper conn(DB_HOME);
         WT_SESSION_IMPL *session_impl = conn.createSession();
@@ -130,22 +130,27 @@ cache_destroy_memory_check(std::string const &config)
         report_cache_status(conn.getWtConnectionImpl()->cache, config + ", begun transaction");
 
         WT_CURSOR *cursor = nullptr;
-        REQUIRE(session->open_cursor(session, uri.c_str(), nullptr, config.c_str(), &cursor) == 0);
-        report_cache_status(conn.getWtConnectionImpl()->cache, config + ", opened cursor");
+        int open_cursor_result = session->open_cursor(session, uri.c_str(), nullptr, config.c_str(), &cursor);
+        REQUIRE(open_cursor_result == expected_open_cursor_result);
 
-        insert_sample_values(cursor);
-        report_cache_status(conn.getWtConnectionImpl()->cache, config + ", inserted values");
+        if (open_cursor_result == 0) {
+            report_cache_status(conn.getWtConnectionImpl()->cache, config + ", opened cursor");
 
-        REQUIRE(cursor->close(cursor) == 0);
-        report_cache_status(conn.getWtConnectionImpl()->cache, config + ", closed cursor");
+            insert_sample_values(cursor);
+            report_cache_status(conn.getWtConnectionImpl()->cache, config + ", inserted values");
 
-        REQUIRE(session->commit_transaction(session, "") == 0);
-        report_cache_status(conn.getWtConnectionImpl()->cache, config + ", committed transaction");
+            REQUIRE(cursor->close(cursor) == 0);
+            report_cache_status(conn.getWtConnectionImpl()->cache, config + ", closed cursor");
+
+            REQUIRE(session->commit_transaction(session, "") == 0);
+            report_cache_status(
+              conn.getWtConnectionImpl()->cache, config + ", committed transaction");
+        }
     }
 }
 
 static void
-cursor_test(std::string const &config, bool close, int expected_commit_result, bool diagnostics)
+cursor_test(std::string const &config, bool close, int expected_open_cursor_result, int expected_commit_result, bool diagnostics)
 {
     ConnectionWrapper conn(DB_HOME);
     WT_SESSION_IMPL *session_impl = conn.createSession();
@@ -156,101 +161,102 @@ cursor_test(std::string const &config, bool close, int expected_commit_result, b
     REQUIRE(session->begin_transaction(session, "") == 0);
 
     WT_CURSOR *cursor = nullptr;
-    REQUIRE(session->open_cursor(session, uri.c_str(), nullptr, config.c_str(), &cursor) == 0);
+    int open_cursor_result = session->open_cursor(session, uri.c_str(), nullptr, config.c_str(), &cursor);
+    REQUIRE(open_cursor_result == expected_open_cursor_result);
 
-    insert_sample_values(cursor);
+    if (open_cursor_result == 0) {
 
-    std::string close_as_string = close ? "true" : "false";
+        insert_sample_values(cursor);
 
-    SECTION("Checkpoint during transaction then commit: config = " + config +
-      ", close = " + close_as_string)
-    {
-        int result = session->checkpoint(session, NULL);
-        REQUIRE(result == EINVAL);
+        std::string close_as_string = close ? "true" : "false";
 
-        if (close) {
-            REQUIRE(cursor->close(cursor) == 0);
+        SECTION("Checkpoint during transaction then commit: config = " + config +
+          ", close = " + close_as_string)
+        {
+            int result = session->checkpoint(session, NULL);
+            REQUIRE(result == EINVAL);
+
+            if (close) {
+                REQUIRE(cursor->close(cursor) == 0);
+            }
+
+            REQUIRE(session->commit_transaction(session, "") == expected_commit_result);
         }
 
-        REQUIRE(session->commit_transaction(session, "") == expected_commit_result);
-    }
+        SECTION("Checkpoint in 2nd thread during transaction then commit: config = " + config +
+          ", close = " + close_as_string)
+        {
+            std::thread thread([&]() { thread_function_checkpoint(session); });
+            thread.join();
 
-    SECTION("Checkpoint in 2nd thread during transaction then commit: config = " + config +
-      ", close = " + close_as_string)
-    {
-        std::thread thread([&]() { thread_function_checkpoint(session); });
-        thread.join();
+            if (close) {
+                REQUIRE(cursor->close(cursor) == 0);
+            }
 
-        if (close) {
-            REQUIRE(cursor->close(cursor) == 0);
+            REQUIRE(session->commit_transaction(session, "") == expected_commit_result);
         }
 
-        REQUIRE(session->commit_transaction(session, "") == expected_commit_result);
-    }
+        SECTION("Drop in 2nd thread during transaction then commit: config = " + config +
+          ", close = " + close_as_string)
+        {
+            std::thread thread([&]() { thread_function_drop(session, uri); });
+            thread.join();
 
-    SECTION("Drop in 2nd thread during transaction then commit: config = " + config +
-      ", close = " + close_as_string)
-    {
-        std::thread thread([&]() { thread_function_drop(session, uri); });
-        thread.join();
+            if (close) {
+                REQUIRE(cursor->close(cursor) == 0);
+            }
 
-        if (close) {
-            REQUIRE(cursor->close(cursor) == 0);
+            REQUIRE(session->commit_transaction(session, "") == expected_commit_result);
         }
 
-        REQUIRE(session->commit_transaction(session, "") == expected_commit_result);
-    }
+        SECTION("Checkpoint in 2nd thread during transaction then rollback: config = " + config +
+          ", close = " + close_as_string)
+        {
+            std::thread thread([&]() { thread_function_checkpoint(session); });
+            thread.join();
 
-    SECTION("Checkpoint in 2nd thread during transaction then rollback: config = " + config +
-      ", close = " + close_as_string)
-    {
-        std::thread thread([&]() { thread_function_checkpoint(session); });
-        thread.join();
+            if (close) {
+                REQUIRE(cursor->close(cursor) == 0);
+            }
 
-        if (close) {
-            REQUIRE(cursor->close(cursor) == 0);
+            REQUIRE(session->rollback_transaction(session, "") == 0);
         }
 
-        REQUIRE(session->rollback_transaction(session, "") == 0);
-    }
+        SECTION(
+          "Drop then checkpoint in one thread: config = " + config + ", close = " + close_as_string)
+        {
+            check_txn_updates("before close", session_impl, diagnostics);
+            if (close) {
+                REQUIRE(cursor->close(cursor) == 0);
+                check_txn_updates("before drop", session_impl, diagnostics);
+                __wt_sleep(1, 0);
+                REQUIRE(session->drop(session, uri.c_str(), "force=true") == 0);
+            } else {
+                int result = session->drop(session, uri.c_str(), "force=true");
+                REQUIRE(result == EBUSY);
+            }
 
-    SECTION(
-      "Drop then checkpoint in one thread: config = " + config + ", close = " + close_as_string)
-    {
-        check_txn_updates("before close", session_impl, diagnostics);
-        if (close) {
-            REQUIRE(cursor->close(cursor) == 0);
-            check_txn_updates("before drop", session_impl, diagnostics);
+            if (diagnostics)
+                printf("After drop\n");
+
             __wt_sleep(1, 0);
-            REQUIRE(session->drop(session, uri.c_str(), "force=true") == 0);
-        } else {
-            int result = session->drop(session, uri.c_str(), "force=true");
-            REQUIRE(result == EBUSY);
+            check_txn_updates("before checkpoint", session_impl, diagnostics);
+            REQUIRE(session->checkpoint(session, nullptr) == EINVAL);
+            __wt_sleep(1, 0);
+            check_txn_updates("before commit", session_impl, diagnostics);
+
+            REQUIRE(session->commit_transaction(session, "") == expected_commit_result);
+            check_txn_updates("after commit", session_impl, diagnostics);
         }
-
-        if (diagnostics)
-            printf("After drop\n");
-
-        __wt_sleep(1, 0);
-        check_txn_updates("before checkpoint", session_impl, diagnostics);
-        REQUIRE(session->checkpoint(session, nullptr) == EINVAL);
-        __wt_sleep(1, 0);
-        check_txn_updates("before commit", session_impl, diagnostics);
-
-        REQUIRE(session->commit_transaction(session, "") == expected_commit_result);
-        check_txn_updates("after commit", session_impl, diagnostics);
     }
 }
 
 static void
 multiple_drop_test(
-  std::string const &config, int expected_commit_result, bool do_sleep, bool diagnostics)
+  std::string const &config, int expected_open_cursor_result, int expected_commit_result, bool do_sleep, bool diagnostics)
 {
     ConnectionWrapper conn(DB_HOME);
-    WT_SESSION_IMPL *session_impl = conn.createSession();
-    WT_SESSION *session = &session_impl->iface;
     std::string uri = "table:cursor_test";
-
     std::string sleep_as_string = do_sleep ? "true" : "false";
 
     SECTION("Multiple drop test: config = " + config + ", sleep = " + sleep_as_string)
@@ -261,23 +267,28 @@ multiple_drop_test(
         while (count < limit) {
             count++;
 
+            WT_SESSION_IMPL *session_impl = conn.createSession();
+            WT_SESSION *session = &session_impl->iface;
+
             REQUIRE(session->create(session, uri.c_str(), "key_format=S,value_format=S") == 0);
             REQUIRE(session->begin_transaction(session, "") == 0);
 
             WT_CURSOR *cursor = nullptr;
-            REQUIRE(
-              session->open_cursor(session, uri.c_str(), nullptr, config.c_str(), &cursor) == 0);
+            int open_cursor_result = session->open_cursor(session, uri.c_str(), nullptr, config.c_str(), &cursor);
+            REQUIRE(open_cursor_result == expected_open_cursor_result);
 
-            insert_sample_values(cursor);
+            if (open_cursor_result == 0) {
+                insert_sample_values(cursor);
 
-            check_txn_updates("before close", session_impl, diagnostics);
-            REQUIRE(cursor->close(cursor) == 0);
+                check_txn_updates("before close", session_impl, diagnostics);
+                REQUIRE(cursor->close(cursor) == 0);
 
-            if (diagnostics)
-                printf("After close\n");
+                if (diagnostics)
+                    printf("After close\n");
 
-            if (do_sleep)
-                __wt_sleep(1, 0);
+                if (do_sleep)
+                    __wt_sleep(1, 0);
+            }
 
             check_txn_updates("before drop", session_impl, diagnostics);
             REQUIRE(session->drop(session, uri.c_str(), "force=true") == 0);
@@ -297,6 +308,7 @@ multiple_drop_test(
             check_txn_updates("before commit", session_impl, diagnostics);
             REQUIRE(session->commit_transaction(session, "") == expected_commit_result);
             check_txn_updates("after commit", session_impl, diagnostics);
+            REQUIRE(session->close(session, nullptr) == 0);
         }
 
         // Confirm the correct number of loops were executed & we didn't exit early for any reason
@@ -308,16 +320,16 @@ TEST_CASE("Cursor: checkpoint during transaction()", "[cursor]")
 {
     const bool diagnostics = false;
 
-    cache_destroy_memory_check("");
-    cache_destroy_memory_check("bulk");
+    cache_destroy_memory_check("", 0);
+    cache_destroy_memory_check("bulk", EINVAL);
 
-    cursor_test("", false, EINVAL, diagnostics);
-    cursor_test("", true, EINVAL, diagnostics);
-    cursor_test("bulk", false, 0, diagnostics);
-    cursor_test("bulk", true, 0, diagnostics);
+    cursor_test("", false, 0, EINVAL, diagnostics);
+    cursor_test("", true, 0, EINVAL, diagnostics);
+    cursor_test("bulk", false, EINVAL, 0, diagnostics);
+    cursor_test("bulk", true, EINVAL, 0, diagnostics);
 
-    multiple_drop_test("", EINVAL, false, diagnostics);
-    multiple_drop_test("", EINVAL, true, diagnostics);
-    multiple_drop_test("bulk", 0, false, diagnostics);
-    multiple_drop_test("bulk", 0, true, diagnostics);
+    multiple_drop_test("", 0, EINVAL, false, diagnostics);
+    multiple_drop_test("", 0, EINVAL, true, diagnostics);
+    multiple_drop_test("bulk", EINVAL, 0, false, diagnostics);
+    multiple_drop_test("bulk", EINVAL, 0, true, diagnostics);
 }

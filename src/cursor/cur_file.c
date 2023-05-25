@@ -1121,6 +1121,15 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
             WT_RET_MSG(session, EINVAL, "Value for 'bulk' must be a boolean or 'bitmap'");
 
         if (bulk) {
+            if (F_ISSET(session->txn, WT_TXN_RUNNING)) {
+                printf("In __wt_curfile_open(), the cursor is bulk, and WT_TXN_RUNNING is set on the session txn\n");
+                /* This _wt_errx() call is temporary and will be removed before merging */
+                __wt_errx(session,
+                  "In __wt_curfile_open(), the cursor is bulk, and WT_TXN_RUNNING is "
+                  "set on the session txn");
+                WT_RET(EINVAL);
+            }
+
             WT_RET(__wt_config_gets(session, cfg, "checkpoint_wait", &cval));
             checkpoint_wait = cval.val != 0;
         }
