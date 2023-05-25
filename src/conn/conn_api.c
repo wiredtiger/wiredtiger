@@ -2955,6 +2955,10 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     if (cval.val)
         F_SET(conn, WT_CONN_CACHE_CURSORS);
 
+    WT_ERR(__wt_config_gets(session, cfg, "checkpoint_cleanup", &cval));
+    if (WT_STRING_MATCH("reclaim_space", cval.str, cval.len))
+        F_SET(conn, WT_CONN_CKPT_CLEANUP_SKIP_INT);
+
     WT_ERR(__wt_config_gets(session, cfg, "checkpoint_sync", &cval));
     if (cval.val)
         F_SET(conn, WT_CONN_CKPT_SYNC);
@@ -2989,6 +2993,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         } else
             WT_ERR_NOTFOUND_OK(ret, false);
     }
+
+    WT_ERR(__wt_config_gets(session, cfg, "generation_drain_timeout_ms", &cval));
+    conn->gen_drain_timeout_ms = (uint64_t)cval.val;
 
     WT_ERR(__wt_config_gets(session, cfg, "mmap", &cval));
     conn->mmap = cval.val != 0;

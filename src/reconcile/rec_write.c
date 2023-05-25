@@ -183,6 +183,9 @@ __reconcile_post_wrapup(
 
     btree = S2BT(session);
 
+    /* Ensure that we own the lock before unlocking the page, as we unlock it unconditionally. */
+    WT_ASSERT_SPINLOCK_OWNED(session, &page->modify->page_lock);
+
     page->modify->flags = 0;
 
     /* Release the reconciliation lock. */
@@ -250,6 +253,9 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
 
     btree = S2BT(session);
     page = ref->page;
+
+    if (*page_lockedp)
+        WT_ASSERT_SPINLOCK_OWNED(session, &page->modify->page_lock);
 
     /* Save the eviction state. */
     __reconcile_save_evict_state(session, ref, flags);
@@ -375,6 +381,22 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     mod = page->modify;
 
     /*
+     * Track the page's maximum transaction ID (used to decide if we can evict a clean page and
+     * discard its history).
+     */
+    mod->rec_max_txn = r->max_txn;
+    mod->rec_max_timestamp = r->max_ts;
+
+    /*
+     * Track the tree's maximum transaction ID (used to decide if it's safe to discard the tree) and
+     * maximum timestamp.
+     */
+    if (WT_TXNID_LT(btree->rec_max_txn, r->max_txn))
+        btree->rec_max_txn = r->max_txn;
+    if (btree->rec_max_timestamp < r->max_ts)
+        btree->rec_max_timestamp = r->max_ts;
+
+    /*
      * Set the page's status based on whether or not we cleaned the page.
      */
     if (r->leave_dirty) {
@@ -400,27 +422,6 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
           !F_ISSET(r, WT_REC_EVICT) ||
             (F_ISSET(r, WT_REC_HS | WT_REC_IN_MEMORY) || WT_IS_METADATA(btree->dhandle)));
     } else {
-        /*
-         * Track the page's maximum transaction ID (used to decide if we can evict a clean page and
-         * discard its history).
-         */
-        mod->rec_max_txn = r->max_txn;
-        mod->rec_max_timestamp = r->max_ts;
-
-        /*
-         * Track the tree's maximum transaction ID (used to decide if it's safe to discard the
-         * tree). Reconciliation for eviction is multi-threaded, only update the tree's maximum
-         * transaction ID when doing a checkpoint. That's sufficient, we only care about the maximum
-         * transaction ID of current updates in the tree, and checkpoint visits every dirty page in
-         * the tree.
-         */
-        if (!F_ISSET(r, WT_REC_EVICT)) {
-            if (WT_TXNID_LT(btree->rec_max_txn, r->max_txn))
-                btree->rec_max_txn = r->max_txn;
-            if (btree->rec_max_timestamp < r->max_ts)
-                btree->rec_max_timestamp = r->max_ts;
-        }
-
         /*
          * We set the page state to mark it as having been dirtied for the first time prior to
          * reconciliation. A failed atomic cas indicates that an update has taken place during

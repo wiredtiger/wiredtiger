@@ -329,6 +329,7 @@ SDK
 SIMD
 SLVG
 SMT
+SPINLOCK
 SSHH
 SSq
 STR
@@ -1176,6 +1177,7 @@ sizev
 skiplist
 skiplists
 skipp
+skippable
 slvg
 sn
 snaplen

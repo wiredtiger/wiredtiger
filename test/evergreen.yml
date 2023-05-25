@@ -52,6 +52,7 @@ functions:
   "fetch mongo-tests repo" :
     command: shell.exec
     params:
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -74,6 +75,7 @@ functions:
   "import wiredtiger into mongo" :
     command: shell.exec
     params:
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -249,6 +251,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger/cmake_build"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -427,6 +430,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -437,6 +441,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -474,6 +479,7 @@ functions:
     # Delete unnecessary data from the upload.
     - command: shell.exec
       params:
+        shell: bash
         script: |
           rm -rf wiredtiger/cmake_build/examples
           rm -rf wiredtiger/cmake_build/bench
@@ -515,6 +521,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger/cmake_build/bench/wt2853_perf"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -524,6 +531,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger/cmake_build"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -533,6 +541,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -546,16 +555,25 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger/cmake_build/test/format"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
+        # Fail, show the configuration file.
+        fail() {
+          echo "======= FAILURE =========="
+          [ -f RUNDIR/CONFIG ] && cat RUNDIR/CONFIG
+          exit 1
+        }
+
         for i in $(seq ${times|1}); do
-          ./t -c ${config|../../../test/format/CONFIG.stress} ${trace_args|-T bulk,txn,retain=50} ${extra_args|} || ( [ -f RUNDIR/CONFIG ] && cat RUNDIR/CONFIG ) 2>&1
+          ./t -c ${config|../../../test/format/CONFIG.stress} ${trace_args|-T bulk,txn,retain=50} ${extra_args|} || fail
         done
   "format test predictable":
     command: shell.exec
     params:
       working_dir: "wiredtiger/cmake_build/test/format"
+      shell: bash
       script: |
         # To test predictable replay, we run test/format three times with the same data seed
         # each time, and compare the keys and values found in the WT home directories.
@@ -608,6 +626,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger/cmake_build/test/format"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -619,6 +638,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger/cmake_build/test/format"
+      shell: bash
       script: |
         # To make sure we have plenty of flush_tier calls, we set the flush frequency high
         # and the time between checkpoints low. We specify only using tables, as that's the
@@ -635,6 +655,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger/cmake_build/test/manydbs"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -643,6 +664,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger/cmake_build/test/thread"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -651,6 +673,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger/cmake_build/test/csuite"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -689,6 +712,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger/cmake_build/test/csuite/schema_abort"
+      shell: bash
       script: |
         # Get a random value with leading zeroes removed, /bin/sh version.
         rando() {
@@ -771,6 +795,7 @@ functions:
   "cleanup":
     command: shell.exec
     params:
+      shell: bash
       script: |
         rm -rf "wiredtiger"
         rm -rf "wiredtiger.tgz"
@@ -779,6 +804,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger/cmake_build"
+      shell: bash
       script: |
         set -o verbose
 
@@ -812,6 +838,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger/cmake_build"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -825,6 +852,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger/cmake_build/test/checkpoint"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -834,6 +862,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger/cmake_build/test/checkpoint"
+      shell: bash
       script: |
         # Get a random value with leading zeroes removed, /bin/sh version.
         rando() {
@@ -939,6 +968,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -952,6 +982,7 @@ functions:
   "convert-to-atlas-evergreen-format":
     - command: shell.exec
       params:
+        shell: bash
         script: |
           set -o errexit
           set -o verbose
@@ -1003,6 +1034,7 @@ functions:
     - command: shell.exec
       params:
         working_dir: "wiredtiger"
+        shell: bash
         script: |
           set -o errexit
           set -o verbose
@@ -1022,6 +1054,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger/bench/workgen/runner"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -1275,6 +1308,7 @@ tasks:
 
   # Base compile for nonstandalone build
   - name: compile-nonstandalone
+    tags: ["pull_request"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1465,6 +1499,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -1479,6 +1514,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -2475,7 +2511,6 @@ tasks:
 
             ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} --hook tiered=tier_storage_source='s3_store' ${smp_command|} 2>&1
 
-
   - name: unit-test-hook-tiered-timestamp
     tags: ["python"]
     depends_on:
@@ -2655,7 +2690,152 @@ tasks:
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -b 11/12
+  
+  - name: unit-test-nonstandalone-bucket00
+    tags: ["python", "pull_request"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook nonstandalone -v 2 -b 0/12
+    
+  - name: unit-test-nonstandalone-bucket01
+    tags: ["python", "pull_request"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook nonstandalone -v 2 -b 1/12
+    
+  - name: unit-test-nonstandalone-bucket02
+    tags: ["python", "pull_request"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook nonstandalone -v 2 -b 2/12
+            
+  - name: unit-test-nonstandalone-bucket03
+    tags: ["python", "pull_request"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook nonstandalone -v 2 -b 3/12
 
+            
+  - name: unit-test-nonstandalone-bucket04
+    tags: ["python", "pull_request"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook nonstandalone -v 2 -b 4/12
+            
+  - name: unit-test-nonstandalone-bucket05
+    tags: ["python", "pull_request"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook nonstandalone -v 2 -b 5/12
+            
+  - name: unit-test-nonstandalone-bucket06
+    tags: ["python", "pull_request"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook nonstandalone -v 2 -b 6/12
+            
+  - name: unit-test-nonstandalone-bucket07
+    tags: ["python", "pull_request"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook nonstandalone -v 2 -b 7/12
+            
+  - name: unit-test-nonstandalone-bucket08
+    tags: ["python", "pull_request"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook nonstandalone -v 2 -b 8/12
+            
+  - name: unit-test-nonstandalone-bucket09
+    tags: ["python", "pull_request"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook nonstandalone -v 2 -b 9/12
+            
+  - name: unit-test-nonstandalone-bucket10
+    tags: ["python", "pull_request"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook nonstandalone -v 2 -b 10/12
+
+  - name: unit-test-nonstandalone-bucket11
+    tags: ["python", "pull_request"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook nonstandalone -v 2 -b 11/12
+                      
   - name: unit-test-long-bucket00
     tags: ["python", "unit_test_long"]
     patch_only: true
@@ -2800,6 +2980,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/dist"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -2818,6 +2999,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/dist"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -2832,6 +3014,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build/bench/wtperf"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -2847,6 +3030,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build/test/fops"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -2883,6 +3067,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build/bench/tiered"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -2917,6 +3102,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -2935,6 +3121,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -3051,6 +3238,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -3062,6 +3250,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -3101,6 +3290,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/dist"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -3128,6 +3318,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/test/syscall"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -3169,14 +3360,15 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
             ${test_env_vars|} test/unittest/unittests
       - command: shell.exec
         params:
-          shell: bash
           working_dir: "wiredtiger/cmake_build"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -3359,6 +3551,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -3491,6 +3684,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/test/csuite"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -3557,6 +3751,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build/bench/wtperf"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -3585,6 +3780,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/tools/memory-model-test"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -3826,6 +4022,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/test/evergreen"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -3922,6 +4119,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/bench/workgen/runner"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -3941,6 +4139,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/bench/workgen/runner"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -5320,7 +5519,6 @@ buildvariants:
     - name: bench-tiered-push-pull
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
-    - name: unit-test-nonstandalone
     - name: unit-test-extra-long-nonstandalone
       distros: ubuntu2004-large
     - name: ".data-validation-stress-test-nonstandalone"
