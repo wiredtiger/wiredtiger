@@ -262,36 +262,37 @@ __chunkcache_eviction_thread(void *arg)
  *     If the cache has the data at the given size and offset, copy it into the supplied buffer.
  *     Otherwise, read and cache the chunks containing the requested data.
  *
- *     The locks protect two data structures: (1) the buckets of the hash table that keeps track
- *     of the allocated chunks and the (2) LRU list of chunks, used by eviction. Each bucket in the hash table
- *     is protected by a single spinlock. The LRU list is also protected by a single lock.
+ * The locks protect two data structures: (1) the buckets of the hash table that keeps track of the
+ *     allocated chunks and the (2) LRU list of chunks, used by eviction. Each bucket in the hash
+ *     table is protected by a single spinlock. The LRU list is also protected by a single lock.
  *
- *     Lock ordering:
- *     * If we ever need to hold a bucket lock and the LRU list lock simultaneously, we always acquire
- *       the bucket lock first and the LRU lock second.
- *     * In the current implementation, there is never a need to hold two bucket locks at the same time.
+ * Lock ordering: * If we ever need to hold a bucket lock and the LRU list lock simultaneously, we
+ *     always acquire the bucket lock first and the LRU lock second. * In the current
+ *     implementation, there is never a need to hold two bucket locks at the same time.
  *
- *     The LRU list lock protects the list of chunks ordered by access recency. We acquire it when we insert
- *     a newly allocated chunk, remove the evicted chunk, or when we move the accessed chunk from the end of
- *     the list to the front.
+ * The LRU list lock protects the list of chunks ordered by access recency. We acquire it when we
+ *     insert a newly allocated chunk, remove the evicted chunk, or when we move the accessed chunk
+ *     from the end of the list to the front.
  *
- *     Bucket locks:
- *     A bucket lock protects the chunks that hashed to the same bucket. These chunks are held in a linked list,
- *     also referred to as the chunk chain in the source code. On a more abstract level, the bucket locks protect
- *     the information of whether a chunk representing a part of the object is present in the cache. Therefore,
- *     we must hold the bucket lock whenever we are looking for and inserting a new chunk.
- *     We must hold the lock throughout the entire operation: realizing that the chunk is not present, deciding to cache it,
- *     allocating the chunk’s metadata and inserting it into the chain. If we release the lock during this process, another
- *     thread might cache the same chunk – and we don’t want that. We insert the new chunk into the cache in the invalid state.
- *     Once we insert the chunk, we can release the lock. As long as the chunk is marked invalid, no other thread will try to
- *     re-cache it or to read from it. As a result, we can read data from the remote storage into this chunk without holding
- *     the lock – and this is what the current code does. We can even allocate the space for that chunk outside the critical
- *     section, although the current code does not do that. Once we read the data into the chunk, we atomically set the valid
- *     flag, so other threads can use it.
+ * Bucket locks: A bucket lock protects the chunks that hashed to the same bucket. These chunks are
+ *     held in a linked list, also referred to as the chunk chain in the source code. On a more
+ *     abstract level, the bucket locks protect the information of whether a chunk representing a
+ *     part of the object is present in the cache. Therefore, we must hold the bucket lock whenever
+ *     we are looking for and inserting a new chunk. We must hold the lock throughout the entire
+ *     operation: realizing that the chunk is not present, deciding to cache it, allocating the
+ *     chunks metadata and inserting it into the chain. If we release the lock during this process,
+ *     another thread might cache the same chunk --
+ *     bad idea. We insert the new chunk into the cache in the invalid state. Once we insert the
+ *     chunk, we can release the lock. As long as the chunk is marked invalid, no other thread will
+ *     try to re-cache it or to read from it. As a result, we can read data from the remote storage
+ *     into this chunk without holding the lock and this is what the current code does. We can even
+ *     allocate the space for that chunk outside the critical section, although the current code
+ *     does not do that. Once we read the data into the chunk, we atomically set the valid flag, so
+ *     other threads can use it.
  *
- *     The locking protocol for removing the chunk is quite similar: we must hold the lock when we are asked to remove
- *     the chunk from the cache and as we remove the chunk’s metadata. We can free the storage associated with the chunk
- *     outside the critical section.
+ * The locking protocol for removing the chunk is quite similar: we must hold the lock when we are
+ *     asked to remove the chunk from the cache and as we remove the chunks metadata. We can free
+ *     the storage associated with the chunk outside the critical section.
  */
 int
 __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid, wt_off_t offset,
