@@ -184,8 +184,8 @@ cache_destroy_memory_check(
 
 /*
  * cursor_test --
- *     Perform a series of combinations of operations involving cursors to confirm correct
- *     behaviour in each case.
+ *     Perform a series of combinations of operations involving cursors to confirm correct behaviour
+ *     in each case.
  */
 static void
 cursor_test(std::string const &config, bool close, int expected_open_cursor_result,
