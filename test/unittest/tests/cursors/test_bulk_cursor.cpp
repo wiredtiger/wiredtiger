@@ -35,18 +35,30 @@ insert_sample_values(WT_CURSOR *cursor)
     REQUIRE(insert_key_value(cursor, "key5", "value5") == 0);
 }
 
+/*
+ * thread_function_checkpoint --
+ *     This function is designed to be used as a thread function, and creates a checkpoint.
+ */
 static void
 thread_function_checkpoint(WT_SESSION *session)
 {
-    session->checkpoint(session, NULL);
+    session->checkpoint(session, nullptr);
 }
 
+/*
+ * thread_function_drop --
+ *     This function is designed to be used as a thread function, and force drops a table.
+ */
 static void
 thread_function_drop(WT_SESSION *session, std::string const &uri)
 {
     session->drop(session, uri.c_str(), "force=true");
 }
 
+/*
+ * print_dhandles
+ *     For diagnostics of any failing tests, prints the dhandles on a session.
+ */
 static void
 print_dhandles(WT_SESSION_IMPL *session_impl)
 {
@@ -61,6 +73,10 @@ print_dhandles(WT_SESSION_IMPL *session_impl)
     }
 }
 
+/*
+ * check_txn_updates
+ *     For diagnostics of any failing tests, prints information about mod values in a txn.
+ */
 static bool
 check_txn_updates(std::string const &label, WT_SESSION_IMPL *session_impl, bool diagnostics)
 {
@@ -97,6 +113,10 @@ check_txn_updates(std::string const &label, WT_SESSION_IMPL *session_impl, bool 
     return ok;
 }
 
+/*
+ * report_cache_status
+ *     For diagnostics of any failing tests, prints cache information.
+ */
 static void
 report_cache_status(WT_CACHE *cache, std::string const &label, bool diagnostics)
 {
@@ -113,6 +133,10 @@ report_cache_status(WT_CACHE *cache, std::string const &label, bool diagnostics)
     }
 };
 
+/*
+ * cache_destroy_memory_check --
+ *     A simple test displays cache usage info as it runs.
+ */
 static void
 cache_destroy_memory_check(
   std::string const &config, int expected_open_cursor_result, bool diagnostics)
@@ -158,6 +182,11 @@ cache_destroy_memory_check(
     }
 }
 
+/*
+ * cursor_test --
+ *     Perform a series of combinations of operations involving cursors to confirm correct
+ *     behaviour in each case.
+ */
 static void
 cursor_test(std::string const &config, bool close, int expected_open_cursor_result,
   int expected_commit_result, bool diagnostics)
@@ -176,7 +205,6 @@ cursor_test(std::string const &config, bool close, int expected_open_cursor_resu
     REQUIRE(open_cursor_result == expected_open_cursor_result);
 
     if (open_cursor_result == 0) {
-
         insert_sample_values(cursor);
 
         std::string close_as_string = close ? "true" : "false";
@@ -262,6 +290,10 @@ cursor_test(std::string const &config, bool close, int expected_open_cursor_resu
     }
 }
 
+/*
+ * multiple_drop_test --
+ *     Ensure that a series of create/force drop operations on a table work as expected.
+ */
 static void
 multiple_drop_test(std::string const &config, int expected_open_cursor_result,
   int expected_commit_result, bool do_sleep, bool diagnostics)
@@ -328,7 +360,7 @@ multiple_drop_test(std::string const &config, int expected_open_cursor_result,
     }
 }
 
-TEST_CASE("Cursor: checkpoint during transaction()", "[cursor]")
+TEST_CASE("Cursor: bulk, non-bulk, checkpoint and drop combinations", "[cursor]")
 {
     const bool diagnostics = false;
 

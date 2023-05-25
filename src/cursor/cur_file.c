@@ -1121,6 +1121,7 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
             WT_RET_MSG(session, EINVAL, "Value for 'bulk' must be a boolean or 'bitmap'");
 
         if (bulk) {
+            /* Bulk cursors can't be opened inside transactions. */
             if (F_ISSET(session->txn, WT_TXN_RUNNING))
                 WT_RET(EINVAL);
 

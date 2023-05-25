@@ -166,6 +166,10 @@ __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
         if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) || !F_ISSET(dhandle, WT_DHANDLE_DEAD))
             continue;
 
+        /*
+         * The sweep server should not close dropped dhandles, they will be freed up
+         * elsewhere.
+         */
         if (F_ISSET(dhandle, WT_DHANDLE_DROPPED))
             continue;
 
