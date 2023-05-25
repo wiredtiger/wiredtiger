@@ -379,16 +379,16 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead)
             if (F_ISSET(conn, WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_NO_CHECKPOINT))
                 discard = true;
             else {
-                if (F_ISSET(session->txn, WT_TXN_RUNNING)) {
-                    /* This _wt_errx() call is temporary and will be removed before merging */
-                    /* __wt_errx(session,
-                      "(for debugging) WT_TXN_RUNNING is set on the session txn, "
-                      "so don't call __wt_checkpoint_close()"); */
-                } else {
+//                if (F_ISSET(session->txn, WT_TXN_RUNNING)) {
+//                    /* This _wt_errx() call is temporary and will be removed before merging */
+//                    /* __wt_errx(session,
+//                      "(for debugging) WT_TXN_RUNNING is set on the session txn, "
+//                      "so don't call __wt_checkpoint_close()"); */
+//                } else {
                     WT_TRET(__wt_checkpoint_close(session, final));
                     if (!final && ret == EBUSY)
                         WT_ERR(ret);
-                }
+//                }
             }
         }
     }
