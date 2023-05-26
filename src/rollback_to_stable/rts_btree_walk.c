@@ -133,9 +133,9 @@ __rts_btree_walk_progress_msg(
     if ((time_diff / WT_PROGRESS_MSG_PERIOD) > *rollback_msg_count) {
         __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
           "Rollback to stable has been performing on %s for %" PRIu64
-          "seconds. For more detailed logging, enable WT_VERB_RTS ",
+          " seconds. For more detailed logging, enable WT_VERB_RTS ",
           session->dhandle->name, time_diff);
-        ++(*rollback_msg_count);
+        (*rollback_msg_count) = time_diff / WT_PROGRESS_MSG_PERIOD;
     }
 }
 
