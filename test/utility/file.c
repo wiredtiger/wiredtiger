@@ -161,12 +161,10 @@ process_directory_tree(const char *start_path, const char *rel_path, int depth, 
     /* Get the full path to the provided file or a directory. */
     if (rel_path == NULL || rel_path[0] == '\0')
         testutil_snprintf(path, sizeof(path), "%s", start_path);
-    testutil_snprintf(path, sizeof(path), "%s", start_path);
-    else testutil_snprintf(path, sizeof(path), "%s" DIR_DELIM_STR "%s", start_path, info.rel_path);
-    testutil_snprintf(path, sizeof(path), "%s" DIR_DELIM_STR "%s", start_path, info.rel_path);
+    else
+        testutil_snprintf(path, sizeof(path), "%s" DIR_DELIM_STR "%s", start_path, info.rel_path);
 
     /* Get just the base name. */
-    testutil_snprintf(buf, sizeof(buf), "%s", path);
     testutil_snprintf(buf, sizeof(buf), "%s", path);
     info.base_name = basename(buf);
 
