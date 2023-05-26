@@ -2011,6 +2011,12 @@ static inline WT_FILE_SYSTEM *__wt_fs_file_system(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline WT_IKEY *__wt_ref_key_instantiated(WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline WT_INSERT *__wt_skip_first(WT_INSERT_HEAD *ins_head, int memorder)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline WT_INSERT *__wt_skip_last(WT_INSERT_HEAD *ins_head, int memorder)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline WT_INSERT *__wt_skip_next(WT_INSERT *ins, int memorder)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline WT_VISIBLE_TYPE __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_btree_dominating_cache(WT_SESSION_IMPL *session, WT_BTREE *btree)

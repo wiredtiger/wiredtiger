@@ -113,7 +113,8 @@ __col_append_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_
     if ((recno = WT_INSERT_RECNO(new_ins)) == WT_RECNO_OOB) {
         recno = WT_INSERT_RECNO(new_ins) = btree->last_recno + 1;
         WT_ASSERT(session,
-          WT_SKIP_LAST(ins_head) == NULL || recno > WT_INSERT_RECNO(WT_SKIP_LAST(ins_head)));
+          __wt_skip_last(ins_head, WT_ATOMIC_ACQUIRE) == NULL ||
+            recno > WT_INSERT_RECNO(__wt_skip_last(ins_head, WT_ATOMIC_ACQUIRE)));
         for (i = 0; i < skipdepth; i++)
             ins_stack[i] =
               ins_head->tail[i] == NULL ? &ins_head->head[i] : &ins_head->tail[i]->next[i];

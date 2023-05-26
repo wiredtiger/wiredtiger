@@ -1788,7 +1788,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
                                         WT_ROW_INSERT_SLOT(page, page->entries - 1);
     else
         ins_head = WT_COL_APPEND(page);
-    moved_ins = WT_SKIP_LAST(ins_head);
+    moved_ins = __wt_skip_last(ins_head, WT_ATOMIC_ACQUIRE);
 
     /*
      * The first page in the split is almost identical to the current page, but we have to create a

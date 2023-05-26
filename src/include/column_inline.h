@@ -21,7 +21,7 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
      *
      * Place a read barrier to avoid this issue.
      */
-    WT_ORDERED_READ_WEAK_MEMORDER(ins, WT_SKIP_LAST(ins_head));
+    ins = __wt_skip_last(ins_head, WT_ATOMIC_ACQUIRE);
 
     /* If there's no insert chain to search, we're done. */
     if (ins == NULL)
@@ -66,7 +66,7 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
      * There isn't any safety testing because we confirmed such a record exists before searching.
      */
     if ((ins = ret_ins) == NULL)
-        ins = WT_SKIP_FIRST(ins_head);
+        ins = __wt_skip_first(ins_head, WT_ATOMIC_ACQUIRE);
     while (recno >= WT_INSERT_RECNO(ins))
         /*
          * CPUs with weak memory ordering may reorder the read and we may read a stale next value
@@ -76,7 +76,7 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
          *
          * Place a read barrier to avoid this issue.
          */
-        WT_ORDERED_READ_WEAK_MEMORDER(ins, WT_SKIP_NEXT(ins));
+        ins = __wt_skip_next(ins, WT_ATOMIC_ACQUIRE);
     return (ins);
 }
 
@@ -95,7 +95,7 @@ __col_insert_search_lt(WT_INSERT_HEAD *ins_head, uint64_t recno)
      *
      * Place a read barrier to avoid this issue.
      */
-    WT_ORDERED_READ_WEAK_MEMORDER(ins, WT_SKIP_FIRST(ins_head));
+    ins = __wt_skip_first(ins_head, WT_ATOMIC_ACQUIRE);
 
     /* If there's no insert chain to search, we're done. */
     if (ins == NULL)
@@ -148,7 +148,7 @@ __col_insert_search_match(WT_INSERT_HEAD *ins_head, uint64_t recno)
      *
      * Place a read barrier to avoid this issue.
      */
-    WT_ORDERED_READ_WEAK_MEMORDER(ins, WT_SKIP_LAST(ins_head));
+    ins = __wt_skip_last(ins_head, WT_ATOMIC_ACQUIRE);
 
     /* If there's no insert chain to search, we're done. */
     if (ins == NULL)
@@ -212,7 +212,7 @@ __col_insert_search(
      *
      * Place a read barrier to avoid this issue.
      */
-    WT_ORDERED_READ_WEAK_MEMORDER(ret_ins, WT_SKIP_LAST(ins_head));
+    ret_ins = __wt_skip_last(ins_head, WT_ATOMIC_ACQUIRE);
 
     /* If there's no insert chain to search, we're done. */
     if (ret_ins == NULL)

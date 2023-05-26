@@ -350,9 +350,9 @@ __wt_col_fix_estimate_auxiliary_space(WT_PAGE *page)
      * the middle of reconciliation.
      *
      */
-    WT_SKIP_FOREACH (ins, WT_COL_UPDATE_SINGLE(page))
+    WT_SKIP_FOREACH (ins, WT_COL_UPDATE_SINGLE(page), WT_ATOMIC_RELAXED)
         count++;
-    WT_SKIP_FOREACH (ins, WT_COL_APPEND(page))
+    WT_SKIP_FOREACH (ins, WT_COL_APPEND(page), WT_ATOMIC_RELAXED)
         count++;
 
     /* Add in the existing time windows. */
@@ -690,7 +690,7 @@ __wt_rec_col_fix(
             tw++;
     }
 
-    WT_SKIP_FOREACH (ins, WT_COL_UPDATE_SINGLE(page)) {
+    WT_SKIP_FOREACH (ins, WT_COL_UPDATE_SINGLE(page), WT_ATOMIC_RELAXED) {
         recno = WT_INSERT_RECNO(ins);
 
         if (salvage != NULL && (recno < curstartrecno || recno >= curstartrecno + entry))
@@ -834,7 +834,8 @@ __wt_rec_col_fix(
     r->recno += entry;
 
     /* Walk any append list. */
-    for (ins = WT_SKIP_FIRST(WT_COL_APPEND(page));; ins = WT_SKIP_NEXT(ins)) {
+    for (ins = __wt_skip_first(WT_COL_APPEND(page), WT_ATOMIC_RELAXED);;
+         ins = __wt_skip_next(ins, WT_ATOMIC_RELAXED)) {
         if (ins == NULL) {
             /*
              * If the page split, instantiate any missing records in
@@ -1279,7 +1280,7 @@ __wt_rec_col_var(
         cell = WT_COL_PTR(page, cip);
         __wt_cell_unpack_kv(session, page->dsk, cell, vpack);
         nrepeat = __wt_cell_rle(vpack);
-        ins = WT_SKIP_FIRST(WT_COL_UPDATE(page, cip));
+        ins = __wt_skip_first(WT_COL_UPDATE(page, cip), WT_ATOMIC_RELAXED);
 
         /*
          * If the original value is "deleted", there's no value to compare, we're done.
@@ -1327,7 +1328,7 @@ record_loop:
             if (ins != NULL && WT_INSERT_RECNO(ins) == src_recno) {
                 WT_ERR(__wt_rec_upd_select(session, r, ins, NULL, vpack, &upd_select));
                 upd = upd_select.upd;
-                ins = WT_SKIP_NEXT(ins);
+                ins = __wt_skip_next(ins, WT_ATOMIC_RELAXED);
             }
 
             update_no_copy = true; /* No data copy */
@@ -1511,7 +1512,8 @@ compare:
     }
 
     /* Walk any append list. */
-    for (ins = WT_SKIP_FIRST(WT_COL_APPEND(page));; ins = WT_SKIP_NEXT(ins)) {
+    for (ins = __wt_skip_first(WT_COL_APPEND(page), WT_ATOMIC_RELAXED);;
+         ins = __wt_skip_next(ins, WT_ATOMIC_RELAXED)) {
         if (ins == NULL)
             /*
              * Stop when we reach the end of the append list. There might be a gap between that and

@@ -169,7 +169,7 @@ __stat_page_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **sta
 
     /* Visit the append list to count the full number of entries on the page. */
     stat_entries = page->entries;
-    WT_SKIP_FOREACH (ins, WT_COL_APPEND(page))
+    WT_SKIP_FOREACH (ins, WT_COL_APPEND(page), WT_ATOMIC_RELAXED)
         stat_entries++;
 
     WT_STAT_INCRV(session, stats, btree_column_tws, stat_tws);
@@ -220,7 +220,7 @@ __stat_page_col_var(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **sta
          * Walk the insert list, checking for changes. For each insert we find, correct the original
          * count based on its state.
          */
-        WT_SKIP_FOREACH (ins, WT_COL_UPDATE(page, cip)) {
+        WT_SKIP_FOREACH (ins, WT_COL_UPDATE(page, cip), WT_ATOMIC_RELAXED) {
             switch (ins->upd->type) {
             case WT_UPDATE_MODIFY:
             case WT_UPDATE_STANDARD:
@@ -242,7 +242,7 @@ __stat_page_col_var(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **sta
     }
 
     /* Walk any append list. */
-    WT_SKIP_FOREACH (ins, WT_COL_APPEND(page))
+    WT_SKIP_FOREACH (ins, WT_COL_APPEND(page), WT_ATOMIC_RELAXED)
         switch (ins->upd->type) {
         case WT_UPDATE_MODIFY:
         case WT_UPDATE_STANDARD:
@@ -311,7 +311,7 @@ __stat_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **st
     /*
      * Walk any K/V pairs inserted into the page before the first from-disk key on the page.
      */
-    WT_SKIP_FOREACH (ins, WT_ROW_INSERT_SMALLEST(page))
+    WT_SKIP_FOREACH (ins, WT_ROW_INSERT_SMALLEST(page), WT_ATOMIC_RELAXED)
         if (ins->upd->type != WT_UPDATE_RESERVE && ins->upd->type != WT_UPDATE_TOMBSTONE)
             ++entry_cnt;
 
@@ -330,7 +330,7 @@ __stat_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **st
         }
 
         /* Walk K/V pairs inserted after the on-page K/V pair. */
-        WT_SKIP_FOREACH (ins, WT_ROW_INSERT(page, rip))
+        WT_SKIP_FOREACH (ins, WT_ROW_INSERT(page, rip), WT_ATOMIC_RELAXED)
             if (ins->upd->type != WT_UPDATE_RESERVE && ins->upd->type != WT_UPDATE_TOMBSTONE)
                 ++entry_cnt;
     }

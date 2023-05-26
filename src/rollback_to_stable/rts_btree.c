@@ -156,7 +156,7 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
       __wt_scr_alloc(session, page->type == WT_PAGE_ROW_LEAF ? 0 : WT_INTPACK64_MAXSIZE, &key));
 
     WT_ERR(__wt_scr_alloc(session, 0, &key_string));
-    WT_SKIP_FOREACH (ins, head)
+    WT_SKIP_FOREACH (ins, head, WT_ATOMIC_RELAXED)
         if (ins->upd != NULL) {
             if (page->type == WT_PAGE_ROW_LEAF) {
                 key->data = WT_INSERT_KEY(ins);
@@ -853,7 +853,7 @@ __rts_btree_abort_col_var(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
             else {
                 j = 0;
                 if (inshead != NULL) {
-                    WT_SKIP_FOREACH (ins, inshead) {
+                    WT_SKIP_FOREACH (ins, inshead, WT_ATOMIC_RELAXED) {
                         /* If the update list goes past the end of the cell, something's wrong. */
                         WT_ASSERT(session, j < rle);
                         ins_recno = WT_INSERT_RECNO(ins);
@@ -972,7 +972,7 @@ __rts_btree_abort_col_fix(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
     WT_ASSERT(session, numtws == 0 || page->dsk != NULL);
     tw = 0;
     if (inshead != NULL) {
-        WT_SKIP_FOREACH (ins, inshead) {
+        WT_SKIP_FOREACH (ins, inshead, WT_ATOMIC_RELAXED) {
             /* Process all the keys before this update entry. */
             ins_recno_offset = (uint32_t)(WT_INSERT_RECNO(ins) - ref->ref_recno);
             while (tw < numtws &&

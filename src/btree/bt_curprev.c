@@ -149,7 +149,7 @@ __cursor_fix_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
         goto restart_read;
 
     if (newpage) {
-        if ((cbt->ins = WT_SKIP_LAST(cbt->ins_head)) == NULL)
+        if ((cbt->ins = __wt_skip_last(cbt->ins_head, WT_ATOMIC_ACQUIRE)) == NULL)
             return (WT_NOTFOUND);
     } else {
         /* Move to the previous record in the append list, if any. */
@@ -328,7 +328,7 @@ __cursor_var_append_prev(
         goto restart_read;
 
     if (newpage) {
-        cbt->ins = WT_SKIP_LAST(cbt->ins_head);
+        cbt->ins = __wt_skip_last(cbt->ins_head, WT_ATOMIC_ACQUIRE);
         goto new_page;
     }
 
@@ -608,7 +608,7 @@ __cursor_row_prev(
             cbt->ins_head = WT_ROW_INSERT_SMALLEST(page);
         else
             cbt->ins_head = WT_ROW_INSERT_SLOT(page, page->entries - 1);
-        cbt->ins = WT_SKIP_LAST(cbt->ins_head);
+        cbt->ins = __wt_skip_last(cbt->ins_head, WT_ATOMIC_ACQUIRE);
         cbt->row_iteration_slot = page->entries * 2 + 1;
         cbt->rip_saved = NULL;
         goto new_insert;
@@ -671,7 +671,7 @@ restart_read_insert:
             cbt->ins_head = cbt->row_iteration_slot == 1 ?
               WT_ROW_INSERT_SMALLEST(page) :
               WT_ROW_INSERT_SLOT(page, cbt->row_iteration_slot / 2 - 1);
-            cbt->ins = WT_SKIP_LAST(cbt->ins_head);
+            cbt->ins = __wt_skip_last(cbt->ins_head, WT_ATOMIC_ACQUIRE);
             goto new_insert;
         }
         cbt->ins_head = NULL;

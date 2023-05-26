@@ -30,7 +30,7 @@ __search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT
     btree = S2BT(session);
     collator = btree->collator;
 
-    if ((ins = WT_SKIP_LAST(ins_head)) == NULL)
+    if ((ins = __wt_skip_last(ins_head, WT_ATOMIC_ACQUIRE)) == NULL)
         return (0);
     /*
      * Since the head of the skip list doesn't get mutated within this function, the compiler may
@@ -732,7 +732,7 @@ leaf_match:
     }
 
     /* If there's no insert list, we're done. */
-    if (WT_SKIP_FIRST(ins_head) == NULL)
+    if ((__wt_skip_first(ins_head, WT_ATOMIC_ACQUIRE)) == NULL)
         return (0);
 
     /*
