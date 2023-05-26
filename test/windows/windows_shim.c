@@ -79,6 +79,96 @@ gettimeofday(struct timeval *tp, void *tzp)
 }
 
 /*
+ * glob --
+ *     Expand a pattern.
+ */
+int
+glob(const char *pattern, int flags, int (*error_func)(const char *, int), glob_t *buffer)
+{
+    DWORD r;
+    HANDLE h;
+    WIN32_FIND_DATAA d;
+    WT_DECL_RET;
+    char *s;
+    char **b;
+    size_t capacity;
+
+    WT_UNUSED(flags);
+
+    h = FindFirstFileA(pattern, &d);
+    if (h == INVALID_HANDLE_VALUE) {
+        r = __wt_getlasterror();
+        return (r == ERROR_FILE_NOT_FOUND ? GLOB_NOMATCH : GLOB_ABORTED);
+    }
+
+    capacity = 16;
+    buffer->gl_pathc = 0;
+    buffer->gl_pathv = (char **)calloc(capacity, sizeof(char *));
+
+    for (;;) {
+        if (buffer->gl_pathc >= capacity) {
+            b = (char **)calloc(capacity * 2, sizeof(char *));
+            if (b == NULL)
+                WT_ERR(GLOB_NOSPACE);
+            memcpy(b, buffer->gl_pathv, sizeof(char *) * capacity);
+            free(buffer->gl_pathv);
+            buffer->gl_pathv = b;
+            capacity = capacity * 2;
+        }
+        s = strdup(d.cFileName);
+        if (s == NULL)
+            WT_ERR(GLOB_ABORTED);
+        buffer->gl_pathv[buffer->gl_pathc++] = s;
+
+        if (FindNextFileA(h, &d) == 0) {
+            r = __wt_getlasterror();
+            if (r == ERROR_NO_MORE_FILES)
+                break;
+
+            if (error_func != NULL) {
+                /* TODO: Check that we are implementing this correctly. */
+                ret = error_func(pattern, __wt_map_windows_error(r));
+                if (ret == 0)
+                    continue;
+            }
+
+            WT_ERR(GLOB_ABORTED);
+        }
+    }
+
+    if (FindClose(h) == 0)
+        WT_ERR(GLOB_ABORTED);
+
+    if (0) {
+err:
+        WT_UNUSED(globfree(buffer));
+    }
+
+    return (ret);
+}
+
+/*
+ * glob --
+ *     Free the buffer.
+ */
+int
+globfree(glob_t *buffer)
+{
+    size_t i;
+
+    if (buffer->gl_pathv == NULL)
+        return (0);
+
+    for (i = 0; i < buffer->gl_pathc; i++)
+        free(buffer->gl_pathv[i]);
+    free(buffer->gl_pathv);
+
+    buffer->gl_pathc = 0;
+    buffer->gl_pathv = NULL;
+    return (0);
+}
+
+/*
  * pthread_rwlock_destroy --
  *     TODO: Add a comment describing this function.
  */

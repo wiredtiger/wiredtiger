@@ -27,6 +27,7 @@
  */
 #include "wt_internal.h"
 
+#include <sys/utime.h>
 #include <direct.h> /* _mkdir */
 
 /* Windows does not define constants for access() */
@@ -66,8 +67,22 @@ int gettimeofday(struct timeval *tp, void *tzp);
 /*
  * Emulate <sys/types.h>
  */
-
 typedef int pid_t;
+
+/*
+ * Emulate <glob.h>
+ */
+#define GLOB_NOSPACE 1 /* Ran out of memory. */
+#define GLOB_ABORTED 2 /* Read error. */
+#define GLOB_NOMATCH 3 /* No matches found. */
+
+typedef struct {
+    size_t gl_pathc;
+    char **gl_pathv;
+} glob_t;
+
+int glob(const char *pattern, int flags, int (*error_func)(const char *, int), glob_t *buffer);
+int globfree(glob_t *buffer);
 
 /*
  * Emulate <unistd.h>

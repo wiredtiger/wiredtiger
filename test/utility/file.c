@@ -27,9 +27,7 @@
  */
 #include "test_util.h"
 
-#ifdef _WIN32
-/* TODO */
-#else
+#ifndef _WIN32
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <dirent.h>
@@ -47,8 +45,7 @@ typedef struct {
     bool directory;         /* This is a directory. */
     int depth;              /* The depth we are at (0 = the source). */
 
-    /* TODO: Stat is Linux only. */
-    struct stat stat;
+    struct stat stat;       /* File metadata. */
 } file_info_t;
 typedef void (*file_callback_t)(const char *, const file_info_t *, void *);
 
@@ -62,7 +59,89 @@ process_directory_tree(const char *start_path, const char *rel_path, int depth, 
   void *user_data)
 {
 #ifdef _WIN32
-    /* TODO */
+    DWORD r;
+    HANDLE h;
+    WIN32_FIND_DATAA d;
+    WT_DECL_RET;
+    char file_ext[_MAX_EXT], file_name[_MAX_FNAME];
+    char base_name[PATH_MAX], path[PATH_MAX], s[PATH_MAX], search[PATH_MAX];
+    file_info_t info;
+
+    /* Sanitize the base path. */
+    if (start_path == NULL || start_path[0] == '\0')
+        start_path = ".";
+
+    memset(&info, 0, sizeof(info));
+    info.depth = depth;
+    info.rel_path = rel_path;
+    info.start_path = start_path;
+
+    /* Get the full path to the provided file or a directory. */
+    if (rel_path == NULL || rel_path[0] == '\0')
+        testutil_snprintf(path, sizeof(path), "%s", start_path);
+    else
+        testutil_snprintf(path, sizeof(path), "%s" DIR_DELIM_STR "%s", start_path, info.rel_path);
+
+    /* Get just the base name. */
+    testutil_check(
+      _splitpath_s(start_path, NULL, 0, NULL, 0, file_name, _MAX_FNAME, file_ext, _MAX_EXT));
+    testutil_snprintf(base_name, sizeof(base_name), "%s%s%s", file_name,
+      file_ext[0] == '\0' ? "" : DIR_DELIM_STR, file_ext);
+    info.base_name = base_name;
+
+    /* Check if the provided path points to a file. */
+    ret = stat(path, &info.stat);
+    if (ret != 0 && (must_exist || errno != ENOENT))
+        testutil_assert_errno(ret);
+
+    if (!S_ISDIR(info.stat.st_mode)) {
+        if (ret == 0 && on_file != NULL)
+            on_file(path, &info, user_data);
+        return;
+    }
+
+    /* It is a directory, so process it recursively. */
+    testutil_snprintf(search, sizeof(search), "%s" DIR_DELIM_STR "*", path);
+    h = FindFirstFileA(search, &d);
+    if (h == INVALID_HANDLE_VALUE) {
+        ret = __wt_map_windows_error(__wt_getlasterror());
+        testutil_die(ret, "Cannot list directory: %s", path);
+    }
+    info.directory = true;
+
+    /* Invoke the directory enter callback. */
+    if (on_directory_enter != NULL)
+        on_directory_enter(path, &info, user_data);
+
+    for (;;) {
+
+        /* Skip . and .. */
+        if (strcmp(d.cFileName, ".") != 0 && strcmp(d.cFileName, "..") != 0) {
+            if (rel_path == NULL || rel_path[0] == '\0')
+                testutil_snprintf(s, sizeof(s), "%s", d.cFileName);
+            else
+                testutil_snprintf(s, sizeof(s), "%s" DIR_DELIM_STR "%s", rel_path, d.cFileName);
+            process_directory_tree(start_path, s, depth + 1, must_exist, on_file,
+              on_directory_enter, on_directory_leave, user_data);
+        }
+
+        if (FindNextFileA(h, &d) == 0) {
+            r = __wt_getlasterror();
+            if (r == ERROR_NO_MORE_FILES)
+                break;
+            ret = __wt_map_windows_error(__wt_getlasterror());
+            testutil_die(ret, "Cannot list directory: %s", path);
+        }
+    }
+
+    if (FindClose(h) == 0) {
+        ret = __wt_map_windows_error(__wt_getlasterror());
+        testutil_die(ret, "Cannot close the directory list handle: %s", path);
+    }
+
+    /* Invoke the directory leave callback. */
+    if (on_directory_leave != NULL)
+        on_directory_leave(path, &info, user_data);
 #else
     struct dirent *dp;
     DIR *dirp;
@@ -82,10 +161,12 @@ process_directory_tree(const char *start_path, const char *rel_path, int depth, 
     /* Get the full path to the provided file or a directory. */
     if (rel_path == NULL || rel_path[0] == '\0')
         testutil_snprintf(path, sizeof(path), "%s", start_path);
-    else
-        testutil_snprintf(path, sizeof(path), "%s" DIR_DELIM_STR "%s", start_path, info.rel_path);
+    testutil_snprintf(path, sizeof(path), "%s", start_path);
+    else testutil_snprintf(path, sizeof(path), "%s" DIR_DELIM_STR "%s", start_path, info.rel_path);
+    testutil_snprintf(path, sizeof(path), "%s" DIR_DELIM_STR "%s", start_path, info.rel_path);
 
     /* Get just the base name. */
+    testutil_snprintf(buf, sizeof(buf), "%s", path);
     testutil_snprintf(buf, sizeof(buf), "%s", path);
     info.base_name = basename(buf);
 
@@ -149,7 +230,11 @@ static void
 copy_on_file(const char *path, const file_info_t *info, void *user_data)
 {
     struct copy_data *d;
+#ifdef _WIN32
+    struct _utimbuf t;
+#else
     struct timeval times[2];
+#endif
     size_t n;
     FILE *rf, *wf;
     char *buf;
@@ -157,7 +242,8 @@ copy_on_file(const char *path, const file_info_t *info, void *user_data)
 
     d = (struct copy_data *)user_data;
 
-    /* Get path to the new file. If the relative path is NULL, it means we are copying a file. */
+    /* Get path to the new file. If the relative path is NULL, it means we are copying a file.
+     */
     if (info->rel_path == NULL) {
         if (d->dest_is_dir) {
             testutil_snprintf(
@@ -204,11 +290,17 @@ copy_on_file(const char *path, const file_info_t *info, void *user_data)
 
     /* Change the timestamps. */
     if (d->opts->preserve) {
+#ifdef _WIN32
+        t.actime = info->stat.st_atime;
+        t.modtime = info->stat.st_mtime;
+        testutil_assert_errno(_utime(dest_path, &t) == 0);
+#else
         times[0].tv_sec = info->stat.st_atim.tv_sec;
         times[0].tv_usec = info->stat.st_atim.tv_nsec / 1000;
         times[1].tv_sec = info->stat.st_mtim.tv_sec;
         times[1].tv_usec = info->stat.st_mtim.tv_nsec / 1000;
         testutil_assert_errno(utimes(dest_path, times) == 0);
+#endif
     }
 }
 
@@ -248,7 +340,11 @@ static void
 copy_on_directory_leave(const char *path, const file_info_t *info, void *user_data)
 {
     struct copy_data *d;
+#ifdef _WIN32
+    struct _utimbuf t;
+#else
     struct timeval times[2];
+#endif
     char dest_path[PATH_MAX];
 
     WT_UNUSED(path);
@@ -261,11 +357,17 @@ copy_on_directory_leave(const char *path, const file_info_t *info, void *user_da
     if (d->opts->preserve) {
         testutil_snprintf(dest_path, sizeof(dest_path), "%s" DIR_DELIM_STR "%s", d->dest,
           info->rel_path == NULL ? "" : info->rel_path);
+#ifdef _WIN32
+        t.actime = info->stat.st_atime;
+        t.modtime = info->stat.st_mtime;
+        testutil_assert_errno(_utime(dest_path, &t) == 0);
+#else
         times[0].tv_sec = info->stat.st_atim.tv_sec;
         times[0].tv_usec = info->stat.st_atim.tv_nsec / 1000;
         times[1].tv_sec = info->stat.st_mtim.tv_sec;
         times[1].tv_usec = info->stat.st_mtim.tv_nsec / 1000;
         testutil_assert_errno(utimes(dest_path, times) == 0);
+#endif
     }
 }
 

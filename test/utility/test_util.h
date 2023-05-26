@@ -480,8 +480,8 @@ uint32_t testutil_random(WT_RAND_STATE *);
 void testutil_random_init(WT_RAND_STATE *, uint64_t *, uint32_t);
 void testutil_random_from_random(WT_RAND_STATE *, WT_RAND_STATE *);
 void testutil_random_from_seed(WT_RAND_STATE *, uint64_t);
-#ifndef _WIN32
 void testutil_remove(const char *);
+#ifndef _WIN32
 void testutil_sleep_wait(uint32_t, pid_t);
 #endif
 void testutil_system(const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((format(printf, 1, 2)));
