@@ -141,6 +141,14 @@ struct __wt_compact_state;
 typedef struct __wt_compact_state WT_COMPACT_STATE;
 struct __wt_condvar;
 typedef struct __wt_condvar WT_CONDVAR;
+struct __wt_conf_bind_desc;
+typedef struct __wt_conf_bind_desc WT_CONF_BIND_DESC;
+struct __wt_conf_bindings;
+typedef struct __wt_conf_bindings WT_CONF_BINDINGS;
+struct __wt_conf_compiled;
+typedef struct __wt_conf_compiled WT_CONF_COMPILED;
+struct __wt_conf_set_item;
+typedef struct __wt_conf_set_item WT_CONF_SET_ITEM;
 struct __wt_config;
 typedef struct __wt_config WT_CONFIG;
 struct __wt_config_check;
@@ -451,6 +459,7 @@ typedef uint64_t wt_timestamp_t;
 #include "cell.h"
 #include "compact.h"
 #include "config.h"
+#include "conf.h"
 #include "cursor.h"
 #include "dlh.h"
 #include "error.h"
@@ -496,6 +505,7 @@ typedef uint64_t wt_timestamp_t;
 #include "btree_inline.h" /* required by cursor_inline.h */
 #include "btree_cmp_inline.h"
 #include "column_inline.h"
+#include "conf_inline.h"
 #include "cursor_inline.h"
 #include "log_inline.h"
 #include "os_fhandle_inline.h"

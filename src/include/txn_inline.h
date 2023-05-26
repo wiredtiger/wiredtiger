@@ -1192,7 +1192,7 @@ retry:
  *     Begin a transaction.
  */
 static inline int
-__wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF_LIST *cf)
 {
     WT_TXN *txn;
 
@@ -1204,7 +1204,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
 
-    WT_RET(__wt_txn_config(session, cfg));
+    WT_RET(__wt_txn_config(session, cf));
 
     /*
      * Allocate a snapshot if required or update the existing snapshot. Do not update the existing

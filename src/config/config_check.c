@@ -22,7 +22,8 @@ __wt_config_check(
     /*
      * Callers don't check, it's a fast call without a configuration or check array.
      */
-    return (config == NULL || entry->checks == NULL ?
+    return (config == NULL || entry->checks == NULL ||
+          (entry->compilable && __wt_conf_is_compiled(S2C(session), config)) ?
         0 :
         config_check(session, entry->checks, entry->checks_entries, config, config_len));
 }
@@ -75,6 +76,7 @@ config_check(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_int chec
   const char *config, size_t config_len)
 {
     WT_CONFIG parser, cparser, sparser;
+    const WT_CONFIG_CHECK *check;
     WT_CONFIG_ITEM k, v, ck, cv, dummy;
     WT_DECL_RET;
     int i;
@@ -96,40 +98,51 @@ config_check(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_int chec
         /* Search for a matching entry. */
         WT_RET(config_check_search(session, checks, checks_entries, k.str, k.len, &i));
 
-        if (strcmp(checks[i].type, "boolean") == 0) {
+        check = &checks[i];
+        badtype = false;
+        switch (check->compiled_type) {
+        case WT_CONFIG_COMPILED_TYPE_BOOLEAN:
             badtype = v.type != WT_CONFIG_ITEM_BOOL &&
               (v.type != WT_CONFIG_ITEM_NUM || (v.val != 0 && v.val != 1));
-        } else if (strcmp(checks[i].type, "category") == 0) {
+            break;
+        case WT_CONFIG_COMPILED_TYPE_CATEGORY:
             /* Deal with categories of the form: XXX=(XXX=blah). */
-            ret = config_check(session, checks[i].subconfigs, checks[i].subconfigs_entries,
-              k.str + strlen(checks[i].name) + 1, v.len);
-            if (ret != EINVAL)
-                badtype = false;
-            else
-                badtype = true;
-        } else if (strcmp(checks[i].type, "format") == 0) {
-            badtype = false;
-        } else if (strcmp(checks[i].type, "int") == 0) {
+            ret = config_check(session, check->subconfigs, check->subconfigs_entries,
+              k.str + strlen(check->name) + 1, v.len);
+            badtype = ret == EINVAL;
+            break;
+        case WT_CONFIG_COMPILED_TYPE_FORMAT:
+            break;
+        case WT_CONFIG_COMPILED_TYPE_INT:
             badtype = v.type != WT_CONFIG_ITEM_NUM;
-        } else if (strcmp(checks[i].type, "list") == 0) {
+            break;
+        case WT_CONFIG_COMPILED_TYPE_LIST:
             badtype = v.len > 0 && v.type != WT_CONFIG_ITEM_STRUCT;
-        } else if (strcmp(checks[i].type, "string") == 0) {
-            badtype = false;
-        } else
-            WT_RET_MSG(session, EINVAL, "unknown configuration type: '%s'", checks[i].type);
-
+            break;
+        case WT_CONFIG_COMPILED_TYPE_STRING:
+        case 's':
+            break;
+        default:
+            WT_RET_MSG(session, EINVAL, "unknown configuration type: '%s'", check->type);
+        }
         if (badtype)
             WT_RET_MSG(session, EINVAL, "Invalid value for key '%.*s': expected a %s", (int)k.len,
-              k.str, checks[i].type);
+              k.str, check->type);
 
-        if (checks[i].checkf != NULL)
-            WT_RET(checks[i].checkf(session, &v));
+        if (check->checkf != NULL)
+            WT_RET(check->checkf(session, &v));
 
-        if (checks[i].checks == NULL)
+        if (check->checks == NULL)
             continue;
 
+#if 0
+        /* This always skips the sub parsing for choices. */
+        if (check->subconfigs != check) /* TODO!!! */
+            continue;
+#endif
+
         /* Setup an iterator for the check string. */
-        __wt_config_init(session, &cparser, checks[i].checks);
+        __wt_config_init(session, &cparser, check->checks);
         while ((ret = __wt_config_next(&cparser, &ck, &cv)) == 0) {
             if (WT_STRING_MATCH("min", ck.str, ck.len)) {
                 if (v.val < cv.val)

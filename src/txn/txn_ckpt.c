@@ -658,6 +658,7 @@ static int
 __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[])
 {
     struct timespec tsp;
+    WT_CONF_COMPILED *txn_cf;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -673,8 +674,13 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     txn = session->txn;
     txn_global = &conn->txn_global;
     txn_shared = WT_SESSION_TXN_SHARED(session);
+    txn_cf = NULL;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+
+#define WT_API_CONFIG_REF(s, h, n) WT_CONFIG_REF(s, h##_##n)
+    WT_RET(__wt_conf_compile_config_strings(
+      session, WT_API_CONFIG_REF(session, WT_SESSION, begin_transaction), txn_cfg, &txn_cf));
 
     WT_RET(__wt_config_gets(session, cfg, "use_timestamp", &cval));
     use_timestamp = (cval.val != 0);
@@ -692,7 +698,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_STAT_CONN_SET(session, txn_checkpoint_prep_running, 1);
     __wt_epoch(session, &conn->ckpt_prep_start);
 
-    WT_RET(__wt_txn_begin(session, txn_cfg));
+    WT_RET(__wt_txn_begin(session, txn_cf));
     /* Wait 1000 microseconds to simulate slowdown in checkpoint prepare. */
     tsp.tv_sec = 0;
     tsp.tv_nsec = WT_MILLION;

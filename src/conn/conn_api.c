@@ -1096,6 +1096,30 @@ __conn_is_new(WT_CONNECTION *wt_conn)
 }
 
 /*
+ * __conn_compile_configuration --
+ *     WT_CONNECTION->compile_configuration method.
+ */
+static int
+__conn_compile_configuration(
+  WT_CONNECTION *wt_conn, const char *method, const char *str, const char **compiled)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    WT_UNUSED(method);
+    WT_UNUSED(str);
+    WT_UNUSED(compiled);
+
+    conn = (WT_CONNECTION_IMPL *)wt_conn;
+    CONNECTION_API_CALL_NOCONF(conn, session, compile_configuration);
+
+    ret = __wt_conf_compile(session, method, str, compiled);
+err:
+    API_END_RET(session, ret);
+}
+
+/*
  * __conn_close --
  *     WT_CONNECTION->close method.
  */
@@ -2687,8 +2711,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
   WT_CONNECTION **connectionp)
 {
     static const WT_CONNECTION stdc = {__conn_close, __conn_debug_info, __conn_reconfigure,
-      __conn_get_home, __conn_configure_method, __conn_is_new, __conn_open_session,
-      __conn_query_timestamp, __conn_set_timestamp, __conn_rollback_to_stable,
+      __conn_get_home, __conn_compile_configuration, __conn_configure_method, __conn_is_new,
+      __conn_open_session, __conn_query_timestamp, __conn_set_timestamp, __conn_rollback_to_stable,
       __conn_load_extension, __conn_add_data_source, __conn_add_collator, __conn_add_compressor,
       __conn_add_encryptor, __conn_add_extractor, __conn_set_file_system, __conn_add_storage_source,
       __conn_get_storage_source, __conn_get_extension_api};
@@ -3016,6 +3040,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         F_SET(conn, WT_CONN_SALVAGE);
     }
 
+    WT_ERR(__wt_conf_compile_init(session, cfg));
     WT_ERR(__wt_conn_statistics_config(session, cfg));
     WT_ERR(__wt_lsm_manager_config(session, cfg));
     WT_ERR(__wt_sweep_config(session, cfg));

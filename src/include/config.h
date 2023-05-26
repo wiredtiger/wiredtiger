@@ -16,6 +16,13 @@ struct __wt_config {
     const int8_t *go;
 };
 
+#define WT_CONFIG_COMPILED_TYPE_INT 0
+#define WT_CONFIG_COMPILED_TYPE_BOOLEAN 1
+#define WT_CONFIG_COMPILED_TYPE_FORMAT 2
+#define WT_CONFIG_COMPILED_TYPE_STRING 3
+#define WT_CONFIG_COMPILED_TYPE_CATEGORY 4
+#define WT_CONFIG_COMPILED_TYPE_LIST 5
+
 struct __wt_config_check {
     const char *name;
     const char *type;
@@ -23,6 +30,8 @@ struct __wt_config_check {
     const char *checks;
     const WT_CONFIG_CHECK *subconfigs;
     u_int subconfigs_entries;
+    u_int compiled_type;
+    u_int key_id;
 };
 
 #define WT_CONFIG_REF(session, n) (S2C(session)->config_entries[WT_CONFIG_ENTRY_##n])
@@ -34,6 +43,8 @@ struct __wt_config_entry {
 
     const WT_CONFIG_CHECK *checks; /* check array */
     u_int checks_entries;
+    u_int method_id;
+    bool compilable;
 };
 
 struct __wt_config_parser_impl {

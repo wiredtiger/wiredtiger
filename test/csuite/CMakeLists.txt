@@ -415,3 +415,11 @@ define_c_test(
     ARGUMENTS
     DEPENDS "WT_POSIX"
 )
+
+define_c_test(
+  TARGET test_wt11126_compile_config
+  SOURCES wt11126_compile_config/main.c
+  DIR_NAME wt11126_compile_config
+  ARGUMENTS
+  DEPENDS "WT_POSIX"
+  )

@@ -432,6 +432,24 @@ extern int __wt_compressor_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval
   WT_COMPRESSOR **compressorp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cond_auto_alloc(WT_SESSION_IMPL *session, const char *name, uint64_t min,
   uint64_t max, WT_CONDVAR **condp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_conf_bind(WT_SESSION_IMPL *session, const char *compiled_str, va_list ap)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_conf_compile(WT_SESSION_IMPL *session, const char *api, const char *format,
+  const char **resultp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_conf_compile_config_strings(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *centry,
+  const char **cfg, WT_CONF_COMPILED **cfp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_conf_compile_init(WT_SESSION_IMPL *session, const char **cfg)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_conf_getone(WT_SESSION_IMPL *session, const char *config, uint64_t key,
+  WT_CONFIG_ITEM *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_conf_getones(WT_SESSION_IMPL *session, const char *config, uint64_t key,
+  WT_CONFIG_ITEM *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_conf_getones_none(WT_SESSION_IMPL *session, const char *config, uint64_t key,
+  WT_CONFIG_ITEM *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_conf_gets_fcn(WT_SESSION_IMPL *session, const WT_CONF_LIST *cfg, uint64_t keys,
+  int def, bool use_def, WT_CONFIG_ITEM *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_conf_gets_none_fcn(WT_SESSION_IMPL *session, WT_CONF_LIST *cfg, uint64_t key,
+  WT_CONFIG_ITEM *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_config_check(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *entry,
   const char *config, size_t config_len) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_config_collapse(WT_SESSION_IMPL *session, const char **cfg, char **config_ret)
@@ -1640,7 +1658,7 @@ extern int __wt_txn_checkpoint_logread(WT_SESSION_IMPL *session, const uint8_t *
   const uint8_t *end, WT_LSN *ckpt_lsn) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
+extern int __wt_txn_config(WT_SESSION_IMPL *session, WT_CONF_LIST *cf)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1811,6 +1829,9 @@ extern void __wt_cond_auto_wait(
   WT_SESSION_IMPL *session, WT_CONDVAR *cond, bool progress, bool (*run_func)(WT_SESSION_IMPL *));
 extern void __wt_cond_auto_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond, bool progress,
   bool (*run_func)(WT_SESSION_IMPL *), bool *signalled);
+extern void __wt_conf_compile_discard(WT_SESSION_IMPL *session);
+extern void __wt_conf_compile_free_compiled(
+  WT_SESSION_IMPL *session, WT_CONF_COMPILED *compiled, bool final);
 extern void __wt_config_init(WT_SESSION_IMPL *session, WT_CONFIG *conf, const char *str);
 extern void __wt_config_initn(
   WT_SESSION_IMPL *session, WT_CONFIG *conf, const char *str, size_t len);
@@ -2028,6 +2049,10 @@ static inline bool __wt_cache_hs_dirty(WT_SESSION_IMPL *session)
 static inline bool __wt_cache_stuck(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_checksum_match(const void *chunk, size_t len, uint32_t v)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline bool __wt_conf_get_compiled(WT_CONNECTION_IMPL *conn, const char *config,
+  WT_CONF_COMPILED **compiledp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline bool __wt_conf_is_compiled(WT_CONNECTION_IMPL *conn, const char *config)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_eviction_clean_needed(WT_SESSION_IMPL *session, double *pct_fullp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -2284,7 +2309,7 @@ static inline int __wt_txn_activity_check(WT_SESSION_IMPL *session, bool *txn_ac
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_autocommit_check(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
+static inline int __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF_LIST *cf)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_context_check(WT_SESSION_IMPL *session, bool requires_txn)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
