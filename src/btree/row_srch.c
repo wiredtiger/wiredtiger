@@ -21,7 +21,7 @@ __search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT
 {
     WT_BTREE *btree;
     WT_COLLATOR *collator;
-    WT_INSERT *ins;
+    WT_INSERT *ins, *tail;
     WT_ITEM key;
     int cmp, i;
 
@@ -30,8 +30,6 @@ __search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT
     btree = S2BT(session);
     collator = btree->collator;
 
-    if ((ins = __wt_skip_last(ins_head, WT_ATOMIC_ACQUIRE)) == NULL)
-        return (0);
     /*
      * Since the head of the skip list doesn't get mutated within this function, the compiler may
      * move this assignment above within the loop below if it needs to (and may read a different
@@ -39,7 +37,9 @@ __search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT
      *
      * Place a read barrier here to avoid this issue.
      */
-    WT_READ_BARRIER();
+    if ((ins = __wt_skip_last(ins_head, WT_ATOMIC_ACQUIRE)) == NULL)
+        return (0);
+
     key.data = WT_INSERT_KEY(ins);
     key.size = WT_INSERT_KEY_SIZE(ins);
 
@@ -56,10 +56,15 @@ __search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT
          * serialized insert function.
          */
         for (i = WT_SKIP_MAXDEPTH - 1; i >= 0; i--) {
-            cbt->ins_stack[i] = (i == 0) ?
-              &ins->next[0] :
-              (ins_head->tail[i] != NULL) ? &ins_head->tail[i]->next[i] : &ins_head->head[i];
-            cbt->next_stack[i] = NULL;
+            if (i == 0)
+                cbt->ins_stack[i] = &ins->next[0];
+            else {
+                WT_C_MEMMODEL_ATOMIC_LOAD(tail, &ins_head->tail[i], WT_ATOMIC_ACQUIRE);
+                if (tail != NULL)
+                    cbt->ins_stack[i] = &tail->next[i];
+                else
+                    cbt->ins_stack[i] = &ins_head->head[i];
+            }
         }
         cbt->compare = -cmp;
         cbt->ins = ins;
@@ -115,7 +120,7 @@ __wt_search_insert(
          *
          * Place a read barrier here to avoid these issues.
          */
-        WT_ORDERED_READ_WEAK_MEMORDER(ins, *insp);
+        WT_C_MEMMODEL_ATOMIC_LOAD(ins, insp, WT_ATOMIC_ACQUIRE);
         if (ins == NULL) {
             cbt->next_stack[i] = NULL;
             cbt->ins_stack[i--] = insp--;
@@ -187,7 +192,7 @@ __wt_search_insert(
                  * It is possible that we read an old value down the stack due to read reordering on
                  * CPUs with weak memory ordering. Add a read barrier to avoid this issue.
                  */
-                WT_ORDERED_READ_WEAK_MEMORDER(cbt->next_stack[i], ins->next[i]);
+                WT_C_MEMMODEL_ATOMIC_LOAD(cbt->next_stack[i], &ins->next[i], WT_ATOMIC_ACQUIRE);
                 cbt->ins_stack[i] = &ins->next[i];
             }
     }

@@ -38,8 +38,10 @@ __insert_simple_func(
          *
          * Place a read barrier here to avoid this issue.
          */
-        WT_ORDERED_READ(old_ins, *ins_stack[i]);
-        if (old_ins != new_ins->next[i] || !__wt_atomic_cas_ptr(ins_stack[i], old_ins, new_ins))
+        WT_C_MEMMODEL_ATOMIC_LOAD(old_ins, ins_stack[i], WT_ATOMIC_ACQUIRE);
+        if (old_ins != new_ins->next[i] ||
+          !__wt_c_memmodel_atomic_cas_ptr(
+            ins_stack[i], old_ins, new_ins, WT_ATOMIC_RELEASE, WT_ATOMIC_RELAXED))
             return (i == 0 ? WT_RESTART : 0);
     }
 
@@ -81,11 +83,13 @@ __insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSE
          *
          * Place a read barrier here to avoid this issue.
          */
-        WT_ORDERED_READ(old_ins, *ins_stack[i]);
-        if (old_ins != new_ins->next[i] || !__wt_atomic_cas_ptr(ins_stack[i], old_ins, new_ins))
+        WT_C_MEMMODEL_ATOMIC_LOAD(old_ins, ins_stack[i], WT_ATOMIC_ACQUIRE);
+        if (old_ins != new_ins->next[i] ||
+          !__wt_c_memmodel_atomic_cas_ptr(
+            ins_stack[i], old_ins, new_ins, WT_ATOMIC_RELEASE, WT_ATOMIC_RELAXED))
             return (i == 0 ? WT_RESTART : 0);
         if (ins_head->tail[i] == NULL || ins_stack[i] == &ins_head->tail[i]->next[i])
-            ins_head->tail[i] = new_ins;
+            WT_C_MEMMODEL_ATOMIC_STORE(&ins_head->tail[i], new_ins, WT_ATOMIC_RELEASE);
     }
 
     return (0);
@@ -101,6 +105,7 @@ __col_append_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_
   WT_INSERT *new_ins, uint64_t *recnop, u_int skipdepth)
 {
     WT_BTREE *btree;
+    WT_INSERT *tail;
     uint64_t recno;
     u_int i;
 
@@ -115,9 +120,10 @@ __col_append_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_
         WT_ASSERT(session,
           __wt_skip_last(ins_head, WT_ATOMIC_ACQUIRE) == NULL ||
             recno > WT_INSERT_RECNO(__wt_skip_last(ins_head, WT_ATOMIC_ACQUIRE)));
-        for (i = 0; i < skipdepth; i++)
-            ins_stack[i] =
-              ins_head->tail[i] == NULL ? &ins_head->head[i] : &ins_head->tail[i]->next[i];
+        for (i = 0; i < skipdepth; i++) {
+            WT_C_MEMMODEL_ATOMIC_LOAD(tail, &ins_head->tail[i], WT_ATOMIC_ACQUIRE);
+            ins_stack[i] = tail == NULL ? &ins_head->head[i] : &tail->next[i];
+        }
     }
 
     /* Confirm position and insert the new WT_INSERT item. */

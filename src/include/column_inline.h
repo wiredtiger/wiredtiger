@@ -44,7 +44,7 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
          * This should use WT_ORDERED_READ_WEAK_MEMORDER. But to lower the risk of the change, we
          * keep this as before for now.
          */
-        WT_ORDERED_READ(ins, *insp);
+        WT_C_MEMMODEL_ATOMIC_LOAD(ins, insp, WT_ATOMIC_ACQUIRE);
         if (ins != NULL && recno >= WT_INSERT_RECNO(ins)) {
             /* GTE: keep going at this level */
             insp = &ins->next[i];
@@ -118,7 +118,7 @@ __col_insert_search_lt(WT_INSERT_HEAD *ins_head, uint64_t recno)
          * This should use WT_ORDERED_READ_WEAK_MEMORDER. But to lower the risk of the change, we
          * keep this as before for now.
          */
-        WT_ORDERED_READ(ins, *insp);
+        WT_C_MEMMODEL_ATOMIC_LOAD(ins, insp, WT_ATOMIC_ACQUIRE);
         if (ins != NULL && recno > WT_INSERT_RECNO(ins)) {
             /* GT: keep going at this level */
             insp = &ins->next[i];
@@ -172,7 +172,7 @@ __col_insert_search_match(WT_INSERT_HEAD *ins_head, uint64_t recno)
          * This should use WT_ORDERED_READ_WEAK_MEMORDER. But to lower the risk of the change, we
          * keep this as before for now.
          */
-        WT_ORDERED_READ(ins, *insp);
+        WT_C_MEMMODEL_ATOMIC_LOAD(ins, insp, WT_ATOMIC_ACQUIRE);
         if (ins == NULL) {
             --i;
             --insp;
@@ -242,7 +242,7 @@ __col_insert_search(
          * here to ensure we see consistent values in the lower levels to prevent any unexpected
          * behavior.
          */
-        WT_ORDERED_READ_WEAK_MEMORDER(ret_ins, *insp);
+        WT_C_MEMMODEL_ATOMIC_LOAD(ret_ins, insp, WT_ATOMIC_ACQUIRE);
         if (ret_ins == NULL) {
             next_stack[i] = NULL;
             ins_stack[i--] = insp--;
@@ -269,7 +269,7 @@ __col_insert_search(
                  * levels of the skip list due to read reordering on CPUs with weak memory ordering.
                  * Add a read barrier to avoid this issue.
                  */
-                WT_ORDERED_READ_WEAK_MEMORDER(next_stack[i], ret_ins->next[i]);
+                WT_C_MEMMODEL_ATOMIC_LOAD(next_stack[i], &ret_ins->next[i], WT_ATOMIC_ACQUIRE);
                 ins_stack[i] = &ret_ins->next[i];
             }
         else { /* Drop down a level */
