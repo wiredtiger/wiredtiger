@@ -225,11 +225,15 @@ testutil_cleanup(TEST_OPTS *opts)
     if (opts->conn != NULL)
         testutil_check(opts->conn->close(opts->conn, NULL));
 
-    if (!opts->preserve)
-        testutil_clean_work_dir(opts->home);
-
+    /*
+     * Make sure to close the progress file before we attempt to delete it; otherwise we will get an
+     * error on Windows.
+     */
     if (opts->progress_fp != NULL)
         testutil_assert(fclose(opts->progress_fp) == 0);
+
+    if (!opts->preserve)
+        testutil_clean_work_dir(opts->home);
 
     free(opts->uri);
     free(opts->progress_file_name);
@@ -252,7 +256,7 @@ testutil_copy_data(const char *dir)
     memset(&opts, 0, sizeof(opts));
     opts.preserve = true;
 
-    testutil_snprintf(save_dir, sizeof(save_dir), "../%s.SAVE", dir);
+    testutil_snprintf(save_dir, sizeof(save_dir), ".." DIR_DELIM_STR "%s.SAVE", dir);
     testutil_remove(save_dir);
     testutil_copy_ext(".", save_dir, &opts);
 }
@@ -273,7 +277,7 @@ testutil_copy_data_opt(const char *dir, const char *readonly_prefix)
     opts.link_if_prefix = readonly_prefix;
     opts.preserve = true;
 
-    testutil_snprintf(save_dir, sizeof(save_dir), "../%s.SAVE", dir);
+    testutil_snprintf(save_dir, sizeof(save_dir), ".." DIR_DELIM_STR "%s.SAVE", dir);
     testutil_remove(save_dir);
     testutil_copy_ext(".", save_dir, &opts);
 }
@@ -287,16 +291,16 @@ testutil_clean_test_artifacts(const char *dir)
 {
     char buf[512];
 
-    testutil_snprintf(buf, sizeof(buf), "../%s.SAVE", dir);
+    testutil_snprintf(buf, sizeof(buf), ".." DIR_DELIM_STR "%s.SAVE", dir);
     testutil_remove(buf);
 
-    testutil_snprintf(buf, sizeof(buf), "../%s.CHECK", dir);
+    testutil_snprintf(buf, sizeof(buf), ".." DIR_DELIM_STR "%s.CHECK", dir);
     testutil_remove(buf);
 
-    testutil_snprintf(buf, sizeof(buf), "../%s.DEBUG", dir);
+    testutil_snprintf(buf, sizeof(buf), ".." DIR_DELIM_STR "%s.DEBUG", dir);
     testutil_remove(buf);
 
-    testutil_snprintf(buf, sizeof(buf), "../%s.BACKUP", dir);
+    testutil_snprintf(buf, sizeof(buf), ".." DIR_DELIM_STR "%s.BACKUP", dir);
     testutil_remove(buf);
 }
 
@@ -309,11 +313,11 @@ testutil_create_backup_directory(const char *home)
 {
     char buf[512];
 
-    testutil_snprintf(buf, sizeof(buf), "%s/BACKUP", home);
+    testutil_snprintf(buf, sizeof(buf), "%s" DIR_DELIM_STR "BACKUP", home);
     testutil_remove(buf);
     testutil_mkdir(buf);
 
-    testutil_snprintf(buf, sizeof(buf), "%s/BACKUP.copy", home);
+    testutil_snprintf(buf, sizeof(buf), "%s" DIR_DELIM_STR "BACKUP.copy", home);
     testutil_remove(buf);
     testutil_mkdir(buf);
 }

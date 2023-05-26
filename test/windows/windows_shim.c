@@ -95,6 +95,17 @@ glob(const char *pattern, int flags, int (*error_func)(const char *, int), glob_
 
     WT_UNUSED(flags);
 
+    if (strcmp(pattern, ".") == 0) {
+        buffer->gl_pathc = 1;
+        buffer->gl_pathv = (char **)calloc(1, sizeof(char *));
+        if (buffer->gl_pathv == NULL)
+            WT_ERR(GLOB_NOSPACE);
+        buffer->gl_pathv[0] = strdup(pattern);
+        if (buffer->gl_pathv[0] == NULL)
+            WT_ERR(GLOB_NOSPACE);
+        return (0);
+    }
+
     h = FindFirstFileA(pattern, &d);
     if (h == INVALID_HANDLE_VALUE) {
         r = __wt_getlasterror();
@@ -107,13 +118,13 @@ glob(const char *pattern, int flags, int (*error_func)(const char *, int), glob_
 
     for (;;) {
         if (buffer->gl_pathc >= capacity) {
-            b = (char **)calloc(capacity * 2, sizeof(char *));
+            capacity *= 2;
+            b = (char **)calloc(capacity, sizeof(char *));
             if (b == NULL)
                 WT_ERR(GLOB_NOSPACE);
-            memcpy(b, buffer->gl_pathv, sizeof(char *) * capacity);
+            memcpy(b, buffer->gl_pathv, sizeof(char *) * buffer->gl_pathc);
             free(buffer->gl_pathv);
             buffer->gl_pathv = b;
-            capacity = capacity * 2;
         }
         s = strdup(d.cFileName);
         if (s == NULL)
@@ -148,7 +159,7 @@ err:
 }
 
 /*
- * glob --
+ * globfree --
  *     Free the buffer.
  */
 int
@@ -257,4 +268,25 @@ pthread_rwlock_wrlock(pthread_rwlock_t *rwlock)
     rwlock->exclusive_locked = GetCurrentThreadId();
 
     return (0);
+}
+
+static __declspec(thread) char __windows_last_error_message[256];
+
+/*
+ * last_windows_error_message --
+ *     Get the last error message from Windows.
+ */
+const char *
+last_windows_error_message(void)
+{
+    DWORD r;
+
+    r = GetLastError();
+    if (FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, r,
+          MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), __windows_last_error_message,
+          sizeof(__windows_last_error_message), NULL) == 0)
+        WT_UNUSED(__wt_snprintf(
+          __windows_last_error_message, sizeof(__windows_last_error_message), "Error %lu", r));
+
+    return (__windows_last_error_message);
 }

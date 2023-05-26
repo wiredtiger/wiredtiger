@@ -77,8 +77,8 @@
 /* Generic option parsing structure shared by all test cases. */
 typedef struct {
     char *home;
-    const char *argv0;           /* Exec name */
-    char usage[512];             /* Usage string for this parser */
+    const char *argv0; /* Exec name */
+    char usage[512];   /* Usage string for this parser */
 
     const char *progname;        /* Truncated program name */
     char *build_dir;             /* Build directory path */
@@ -94,10 +94,10 @@ typedef struct {
     FILE *progress_fp; /* Progress tracking file */
     char *progress_file_name;
 
-    WT_RAND_STATE data_rnd;   /* PRNG state for data ops */
-    WT_RAND_STATE extra_rnd;  /* PRNG state for extra ops */
-    uint64_t data_seed;       /* Random seed for data ops */
-    uint64_t extra_seed;      /* Random seed for extra ops */
+    WT_RAND_STATE data_rnd;  /* PRNG state for data ops */
+    WT_RAND_STATE extra_rnd; /* PRNG state for extra ops */
+    uint64_t data_seed;      /* Random seed for data ops */
+    uint64_t extra_seed;     /* Random seed for extra ops */
 
     uint64_t delay_ms;        /* Average length of delay when simulated */
     uint64_t error_ms;        /* Average length of delay when simulated */
@@ -107,21 +107,21 @@ typedef struct {
 
 #define TESTUTIL_SEED_FORMAT "-PSD%" PRIu64 ",E%" PRIu64
 
-    bool absolute_bucket_dir;          /* Use an absolute bucket path when it is a directory */
-    bool compat;                       /* Compatibility */
-    bool do_data_ops;                  /* Have schema ops use data */
-    bool inmem;                        /* In-memory */
-    bool make_bucket_dir;              /* Create bucket when it is a directory */
-    bool preserve;                     /* Don't remove files on exit */
-    bool tiered_begun;                 /* Tiered storage ready */
-    bool tiered_storage;               /* Configure tiered storage */
-    bool verbose;                      /* Run in verbose mode */
-    uint64_t nrecords;                 /* Number of records */
-    uint64_t nops;                     /* Number of operations */
-    uint64_t nthreads;                 /* Number of threads */
-    uint64_t n_append_threads;         /* Number of append threads */
-    uint64_t n_read_threads;           /* Number of read threads */
-    uint64_t n_write_threads;          /* Number of write threads */
+    bool absolute_bucket_dir;  /* Use an absolute bucket path when it is a directory */
+    bool compat;               /* Compatibility */
+    bool do_data_ops;          /* Have schema ops use data */
+    bool inmem;                /* In-memory */
+    bool make_bucket_dir;      /* Create bucket when it is a directory */
+    bool preserve;             /* Don't remove files on exit */
+    bool tiered_begun;         /* Tiered storage ready */
+    bool tiered_storage;       /* Configure tiered storage */
+    bool verbose;              /* Run in verbose mode */
+    uint64_t nrecords;         /* Number of records */
+    uint64_t nops;             /* Number of operations */
+    uint64_t nthreads;         /* Number of threads */
+    uint64_t n_append_threads; /* Number of append threads */
+    uint64_t n_read_threads;   /* Number of read threads */
+    uint64_t n_write_threads;  /* Number of write threads */
 
     uint64_t tiered_flush_interval_us; /* Microseconds between flush_tier calls */
     uint64_t tiered_flush_next_us;     /* Next tiered flush in epoch microseconds */

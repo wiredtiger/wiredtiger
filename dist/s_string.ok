@@ -783,6 +783,7 @@ gettimeofday
 getv
 ggg
 github
+globfree
 gobare
 goesc
 gostring
