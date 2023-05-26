@@ -174,7 +174,7 @@ __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
             continue;
 
         /*
-         * The sweep server should not close dropped dhandles, they will be freed up elsewhere.
+         * The sweep server should not close dropped dhandles, they will be closed elsewhere.
          */
         if (F_ISSET(dhandle, WT_DHANDLE_DROPPED))
             continue;
