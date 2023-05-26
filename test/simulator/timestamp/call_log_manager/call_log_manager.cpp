@@ -288,7 +288,6 @@ call_log_manager::call_log_set_timestamp(const json &call_log_entry)
         return;
 
     int ret = _conn->set_timestamp(config);
-
     int ret_expected [[maybe_unused]] = call_log_entry["return"]["return_val"].get<int>();
     /* The ret value should be equal to the expected ret value. */
     assert(ret == ret_expected);
@@ -335,7 +334,6 @@ call_log_manager::call_log_timestamp_transaction_uint(const json &call_log_entry
     session_simulator *session = get_session(session_id);
 
     int ret = session->timestamp_transaction_uint(wt_ts_txn_type, ts);
-
     int ret_expected [[maybe_unused]] = call_log_entry["return"]["return_val"].get<int>();
     /* The ret value should be equal to the expected ret value. */
     assert(ret == ret_expected);

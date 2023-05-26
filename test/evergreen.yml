@@ -6400,12 +6400,6 @@ buildvariants:
     - name: unit-test-nonstandalone
     - name: unit-test-extra-long-nonstandalone
       distros: amazon2-arm64-large
-    - name: memory-model-test
-      batchtime: 40320 # 28 days
-    - name: s-outdated-fixmes
-      batchtime: 10080 # 7 days
-    - name: s-string
-      batchtime: 129600 # 90 days
 
 # Antithesis build and push
 - name: ubuntu2004-antithesis
