@@ -369,16 +369,18 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
 {
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
-    uint64_t ds_time, first_snapshot_time, hs_time, oldest_time, snapshot_time, stable_time;
+    uint64_t ckpt_gen, ds_time, first_snapshot_time, hs_time, oldest_time, snapshot_time,
+      stable_time;
     int64_t ds_order, hs_order;
     const char *checkpoint, *hs_checkpoint;
-    bool is_hs, is_unnamed_ckpt, is_reserved_name, must_resolve;
+    bool ckpt_running, is_hs, is_unnamed_ckpt, is_reserved_name, must_resolve;
 
-    ds_time = first_snapshot_time = hs_time = oldest_time = snapshot_time = stable_time = 0;
+    ckpt_gen = ds_time = first_snapshot_time = hs_time = oldest_time = snapshot_time = stable_time =
+      0;
     ds_order = hs_order = 0;
     checkpoint = NULL;
     hs_checkpoint = NULL;
-    is_hs = is_unnamed_ckpt = is_reserved_name = must_resolve = false;
+    ckpt_running = is_hs = is_unnamed_ckpt = is_reserved_name = must_resolve = false;
 
     /* These should only be set together. Asking for only one doesn't make sense. */
     WT_ASSERT(session, (hs_dhandlep == NULL) == (ckpt_snapshot == NULL));
@@ -509,6 +511,22 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
     do {
         ret = 0;
 
+        /*
+         * Save the checkpoint generation number and the checkpoint's state to detect races.
+         * Note that we need to save the generation number before the checkpoint's state. Indeed, if
+         * we save the generation number after, we could have the following scenario:
+         *
+         * 1) The checkpoint's state is evaluated to false.
+         * 2) -- Race, checkpoint starts and finishes.
+         * 3) The checkpoint generation number is saved and is equal to the latest one, we cannot
+         * detect any inconsistency.
+         *
+         * By saving the generation number before, if there is a race, the saved generation number
+         * will not be equal to the latest one.
+         */
+        ckpt_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
+        ckpt_running = S2C(session)->txn_global.checkpoint_running;
+
         if (!must_resolve)
             /* Copy the checkpoint name first because we may need it to get the first wall time. */
             WT_RET(__wt_strndup(session, cval.str, cval.len, &checkpoint));
@@ -534,6 +552,7 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
 
         /* Look up the history store checkpoint. */
         if (hs_dhandlep != NULL) {
+
             if (must_resolve)
                 WT_RET_NOTFOUND_OK(__wt_meta_checkpoint_last_name(
                   session, WT_HS_URI, &hs_checkpoint, &hs_order, &hs_time));
@@ -559,17 +578,20 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
             /*
              * If we have not raced with a checkpoint, we still may have an inconsistency in a
              * specific scenario that involves bulk operations. When a bulk operation finishes, it
-             * generates a single file checkpoint which is different from a system wide checkpoint.
+             * generates a single file checkpoint which is different from a system-wide checkpoint.
              * The single file checkpoint only bumps the data store time which makes it ahead of the
-             * last system wide checkpoint time and leads to the inconsistency.
+             * last system-wide checkpoint time and leads to the inconsistency.
              */
             if (first_snapshot_time == snapshot_time && ds_time > snapshot_time &&
               hs_time <= snapshot_time) {
+
                 /*
-                 * If a system wide checkpoint is running, the inconsistency should be resolved, it
-                 * is worth retrying.
+                 * If a system-wide checkpoint was running a the start of the loop, it is worth
+                 * retrying and wait for it to finish to resolve the inconsistency. It is also
+                 * possible for a checkpoint to start and finish while this code is executed. We can
+                 * use the checkpoint generation number to detect the race.
                  */
-                if (S2C(session)->txn_global.checkpoint_running)
+                if (ckpt_running || ckpt_gen != __wt_gen(session, WT_GEN_CHECKPOINT))
                     ret = __wt_set_return(session, EBUSY);
                 else {
                     __wt_verbose_warning(session, WT_VERB_DEFAULT,
