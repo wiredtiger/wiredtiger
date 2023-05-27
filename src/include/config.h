@@ -32,6 +32,15 @@ struct __wt_config_check {
     u_int subconfigs_entries;
     u_int compiled_type;
     u_int key_id;
+    int64_t min;
+    int64_t max;
+    const char **choices;
+
+    /* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_CONFIG_MIN_LIMIT 0x1u
+#define WT_CONFIG_MAX_LIMIT 0x2u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+    uint32_t flags;
 };
 
 #define WT_CONFIG_REF(session, n) (S2C(session)->config_entries[WT_CONFIG_ENTRY_##n])

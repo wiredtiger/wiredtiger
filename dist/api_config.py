@@ -130,13 +130,63 @@ def parseconfig(c, method_name, name_indent=''):
         output += '@config{' + name_indent + ' ),,}\n'
     return output
 
+# Convert a string to a number string that can be parsed by the C compiler.
+# All numbers are decimal, but with the possibility of 'K', 'Mb', 'GB', etc. appended
+def getcompnum(s):
+    # Already converted?
+    if type(s) == int:
+        return str(s)
+    result = re.search(r'(\d+)([bBkKmMgGtTpP]*)', s)
+    num = int(result.group(1))
+    mult = ''
+    for ch in result.group(2):
+        ch = ch.lower()
+        if ch == 'b':
+            pass    # No change.  Useful for example '10GB'
+        elif ch == 'k':
+            mult += ' * WT_KILOBYTE'
+        elif ch == 'm':
+            mult += ' * WT_MEGABYTE'
+        elif ch == 'g':
+            mult += ' * WT_GIGABYTE'
+        elif ch == 't':
+            mult += ' * WT_TERABYTE'
+        elif ch == 'p':
+            mult += ' * WT_PETABYTE'
+
+    # If numbers are large or have a multiplier, make it a long long literal
+    # so it won't overflow.
+    if num > 1000000 or len(mult) > 0:
+        num = str(num) + 'LL'
+    else:
+        num = str(num)
+    return num + mult
+
+# Get fields that assist the configuration compiler.
 def getcompstr(c, keynumber):
     comptype = -1
     t = gettype(c)
     # E.g. "WT_CONFIG_COMPILED_TYPE_INT"
     comptype = 'WT_CONFIG_COMPILED_TYPE_' + t.upper()
     offset = keynumber.get(c.name)
-    return ', {}, {}'.format(comptype, offset)
+    checks = c.flags
+    minval = '0'
+    maxval = '0'
+    minsuffix = ''
+    maxsuffix = ''
+    choices_ref = 'NULL'
+    flags = 0
+    if 'min' in checks:
+        minval = getcompnum(checks['min'])
+        flags = 'WT_CONFIG_MIN_LIMIT'
+    if 'max' in checks:
+        maxval = getcompnum(checks['max'])
+        if flags == 0:
+            flags = 'WT_CONFIG_MAX_LIMIT'
+        else:
+            flags += ' | WT_CONFIG_MAX_LIMIT'
+
+    return ', {}, {}, {}, {}, {}, {}'.format(comptype, offset, minval, maxval, choices_ref, flags)
 
 def getconfcheck(c, keynumber):
     check = '{ "' + c.name + '", "' + gettype(c) + '",'
@@ -331,7 +381,7 @@ def add_subconfig(c, cname, keynumber):
     tfile.write('''
 %(name)s[] = {
 \t%(check)s
-\t{ NULL, NULL, NULL, NULL, NULL, 0, 0, 0 }
+\t{ NULL, NULL, NULL, NULL, NULL, 0, 0, 0, 0, 0, NULL, 0 }
 };
 ''' % {
     'name' : '\n    '.join(ws.wrap(\
@@ -363,7 +413,7 @@ for name in sorted(api_data_def.methods.keys()):
         tfile.write('''
 static const WT_CONFIG_CHECK confchk_%(name)s[] = {
 \t%(check)s
-\t{ NULL, NULL, NULL, NULL, NULL, 0, 0, false }
+\t{ NULL, NULL, NULL, NULL, NULL, 0, 0, 0, 0, 0, NULL, 0}
 };
 ''' % {
     'name' : name.replace('.', '_'),
