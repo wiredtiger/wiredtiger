@@ -162,6 +162,7 @@ def getcompnum(s):
         num = str(num)
     return num + mult
 
+choices_names = set()
 # Get fields that assist the configuration compiler.
 def getcompstr(c, keynumber):
     comptype = -1
@@ -170,23 +171,34 @@ def getcompstr(c, keynumber):
     comptype = 'WT_CONFIG_COMPILED_TYPE_' + t.upper()
     offset = keynumber.get(c.name)
     checks = c.flags
-    minval = '0'
-    maxval = '0'
-    minsuffix = ''
-    maxsuffix = ''
-    choices_ref = 'NULL'
-    flags = 0
+    minval = 'INT64_MIN'
+    maxval = 'INT64_MAX'
     if 'min' in checks:
         minval = getcompnum(checks['min'])
-        flags = 'WT_CONFIG_MIN_LIMIT'
     if 'max' in checks:
         maxval = getcompnum(checks['max'])
-        if flags == 0:
-            flags = 'WT_CONFIG_MAX_LIMIT'
-        else:
-            flags += ' | WT_CONFIG_MAX_LIMIT'
+    choices = checks.get('choices', [])
+    if len(choices) == 0:
+        choices_ref = 'NULL'
+    else:
+        name = c.name
+        suffix = 1
+        while name in choices_names:
+            suffix += 1
+            name = c.name + str(suffix)
+        choices_names.add(name)
+        choices_ref = 'confchk_' + name + '_choices'
+        tfile.write('''
+        %(name)s[] = {
+        \t%(values)s
+        \tNULL
+        };
+        ''' % {
+            'name' : '\n'.join(ws.wrap('static const char *' + choices_ref)),
+            'values' : '\n\t'.join('"' + choice + '",' for choice in choices),
+        })
 
-    return ', {}, {}, {}, {}, {}, {}'.format(comptype, offset, minval, maxval, choices_ref, flags)
+    return ', {}, {}, {}, {}, {}'.format(comptype, offset, minval, maxval, choices_ref)
 
 def getconfcheck(c, keynumber):
     check = '{ "' + c.name + '", "' + gettype(c) + '",'
@@ -381,7 +393,7 @@ def add_subconfig(c, cname, keynumber):
     tfile.write('''
 %(name)s[] = {
 \t%(check)s
-\t{ NULL, NULL, NULL, NULL, NULL, 0, 0, 0, 0, 0, NULL, 0 }
+\t{ NULL, NULL, NULL, NULL, NULL, 0, 0, 0, 0, 0, NULL }
 };
 ''' % {
     'name' : '\n    '.join(ws.wrap(\
@@ -413,7 +425,7 @@ for name in sorted(api_data_def.methods.keys()):
         tfile.write('''
 static const WT_CONFIG_CHECK confchk_%(name)s[] = {
 \t%(check)s
-\t{ NULL, NULL, NULL, NULL, NULL, 0, 0, 0, 0, 0, NULL, 0}
+\t{ NULL, NULL, NULL, NULL, NULL, 0, 0, 0, 0, 0, NULL }
 };
 ''' % {
     'name' : name.replace('.', '_'),
