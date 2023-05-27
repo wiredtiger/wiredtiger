@@ -75,11 +75,12 @@ static int
 config_check(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_int checks_entries,
   const char *config, size_t config_len)
 {
-    WT_CONFIG parser, cparser, sparser;
+    WT_CONFIG parser, sparser;
     const WT_CONFIG_CHECK *check;
-    WT_CONFIG_ITEM k, v, ck, cv, dummy;
+    WT_CONFIG_ITEM dummy, k, v;
     WT_DECL_RET;
     int i;
+    const char **choice;
     bool badtype, found;
 
     /*
@@ -132,55 +133,62 @@ config_check(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_int chec
         if (check->checkf != NULL)
             WT_RET(check->checkf(session, &v));
 
+        /* If the checks string is empty, there are no additional checks we need to make. */
         if (check->checks == NULL)
             continue;
 
-#if 0
-        /* This always skips the sub parsing for choices. */
-        if (check->subconfigs != check) /* TODO!!! */
-            continue;
-#endif
+        /* The checks string has already been compiled into values. */
+        if (v.val < check->min_value)
+            WT_RET_MSG(session, EINVAL,
+              "Value too small for key '%.*s' the minimum is %" PRIi64, (int)k.len, k.str, check->min_value);
 
-        /* Setup an iterator for the check string. */
-        __wt_config_init(session, &cparser, check->checks);
-        while ((ret = __wt_config_next(&cparser, &ck, &cv)) == 0) {
-            if (WT_STRING_MATCH("min", ck.str, ck.len)) {
-                if (v.val < cv.val)
-                    WT_RET_MSG(session, EINVAL,
-                      "Value too small for key '%.*s' the minimum is %.*s", (int)k.len, k.str,
-                      (int)cv.len, cv.str);
-            } else if (WT_STRING_MATCH("max", ck.str, ck.len)) {
-                if (v.val > cv.val)
-                    WT_RET_MSG(session, EINVAL,
-                      "Value too large for key '%.*s' the maximum is %.*s", (int)k.len, k.str,
-                      (int)cv.len, cv.str);
-            } else if (WT_STRING_MATCH("choices", ck.str, ck.len)) {
-                if (v.len == 0)
-                    WT_RET_MSG(session, EINVAL, "Key '%.*s' requires a value", (int)k.len, k.str);
-                if (v.type == WT_CONFIG_ITEM_STRUCT) {
-                    /*
-                     * Handle the 'verbose' case of a list containing restricted choices.
-                     */
-                    __wt_config_subinit(session, &sparser, &v);
-                    found = true;
-                    while (found && (ret = __wt_config_next(&sparser, &v, &dummy)) == 0) {
-                        ret = __wt_config_subgetraw(session, &cv, &v, &dummy);
-                        found = ret == 0;
-                    }
-                } else {
-                    ret = __wt_config_subgetraw(session, &cv, &v, &dummy);
-                    found = ret == 0;
+        if (v.val > check->max_value)
+            WT_RET_MSG(session, EINVAL,
+              "Value too large for key '%.*s' the maximum is %" PRIi64, (int)k.len, k.str, check->max_value);
+
+        /*
+         * TODO: from the original code, we have this comment for WT_CONFIG_ITEM_STRUCT.
+         *   Handle the 'verbose' case of a list containing restricted choices.
+         *  That is choices=["foo", "bar"] i believe.  Otherwise it is:
+         *  "foo,bar", which the precompiler doesn't currently handle.
+         *   We should handle it there or ban it.
+         */
+        if (check->choices != NULL) {
+            found = false;
+
+            if (v.len == 0)
+                WT_RET_MSG(session, EINVAL, "Key '%.*s' requires a value", (int)k.len, k.str);
+            if (v.type == WT_CONFIG_ITEM_STRUCT) {
+                /*
+                 * Handle the 'verbose' case of a list containing restricted choices.
+                 */
+                __wt_config_subinit(session, &sparser, &v);
+                found = true;
+                while (found && (ret = __wt_config_next(&sparser, &v, &dummy)) == 0) {
+                    /* TODO: Make into a little function */
+                    for (choice = check->choices; *choice != NULL; ++choice)
+                        if (WT_STRING_MATCH(*choice, v.str, v.len)) {
+                            found = true;
+                            break;
+                        }
                 }
+            } else {
+                for (choice = check->choices; *choice != NULL; ++choice)
+                    if (WT_STRING_MATCH(*choice, v.str, v.len)) {
+                        found = true;
+                        break;
+                    }
+            }
 
-                if (ret != 0 && ret != WT_NOTFOUND)
-                    return (ret);
-                if (!found)
+            if (!found)
                     WT_RET_MSG(session, EINVAL,
                       "Value '%.*s' not a permitted choice for key '%.*s'", (int)v.len, v.str,
                       (int)k.len, k.str);
-            } else
+
+            /* TODO: handle this in compiler
                 WT_RET_MSG(session, EINVAL, "unexpected configuration description keyword %.*s",
                   (int)ck.len, ck.str);
+            */
         }
     }
 

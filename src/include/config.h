@@ -32,8 +32,8 @@ struct __wt_config_check {
     u_int subconfigs_entries;
     u_int compiled_type;
     u_int key_id;
-    int64_t min;
-    int64_t max;
+    int64_t min_value;
+    int64_t max_value;
     const char **choices;
 };
 
