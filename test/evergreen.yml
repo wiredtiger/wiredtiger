@@ -4196,14 +4196,12 @@ buildvariants:
   - macos-1014
   batchtime: 120 # 2 hours
   expansions:
-    posix_configure_flags:
-      -DCMAKE_C_FLAGS="-ggdb"
-      -DHAVE_DIAGNOSTIC=1
-      -DENABLE_PYTHON=1
-      -DENABLE_ZLIB=1
-      -DENABLE_STRICT=1 
-      -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
-    python_binary: 'python3'
+    # The cmake toolchain file is set to the mongodb toolchain gcc by default.
+    # Remove that configuration here and let MacOS use the default Xcode toolchain instead.
+    # We'll explicitly use the python3 in /usr/bin, we use the same in configuring cmake.
+    CMAKE_TOOLCHAIN_FILE:
+    CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
+    python_binary: '/usr/bin/python3'
     smp_command: -j $(sysctl -n hw.logicalcpu)
     cmake_generator: "Unix Makefiles"
     make_command: make
