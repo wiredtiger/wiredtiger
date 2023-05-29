@@ -622,6 +622,7 @@ struct __wt_connection_impl {
  * Variable with flags for which subsystems the diagnostic stress timing delays have been requested.
  */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_TIMING_STRESS_AGGRESSIVE_STASH_FREE 0x0000001u
 #define WT_TIMING_STRESS_AGGRESSIVE_SWEEP 0x0000001u
 #define WT_TIMING_STRESS_BACKUP_RENAME 0x0000002u
 #define WT_TIMING_STRESS_CHECKPOINT_EVICT_PAGE 0x0000004u
