@@ -40,8 +40,8 @@ __insert_simple_func(
          */
         WT_C_MEMMODEL_ATOMIC_LOAD(old_ins, ins_stack[i], WT_ATOMIC_ACQUIRE);
         if (old_ins != new_ins->next[i] ||
-          !__wt_c_memmodel_atomic_cas_ptr(
-            ins_stack[i], old_ins, new_ins, WT_ATOMIC_RELEASE, WT_ATOMIC_RELAXED))
+          !WT_C_MEMMODEL_ATOMIC_CAS(
+            ins_stack[i], &old_ins, new_ins, WT_ATOMIC_RELEASE, WT_ATOMIC_RELAXED))
             return (i == 0 ? WT_RESTART : 0);
     }
 
@@ -85,8 +85,8 @@ __insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head,
          */
         WT_C_MEMMODEL_ATOMIC_LOAD(old_ins, ins_stack[i], WT_ATOMIC_ACQUIRE);
         if (old_ins != new_ins->next[i] ||
-          !__wt_c_memmodel_atomic_cas_ptr(
-            ins_stack[i], old_ins, new_ins, WT_ATOMIC_RELEASE, WT_ATOMIC_RELAXED))
+          !WT_C_MEMMODEL_ATOMIC_CAS(
+            ins_stack[i], &old_ins, new_ins, WT_ATOMIC_RELEASE, WT_ATOMIC_RELAXED))
             return (i == 0 ? WT_RESTART : 0);
         if (ins_head->tail[i] == NULL || ins_stack[i] == &ins_head->tail[i]->next[i])
             WT_C_MEMMODEL_ATOMIC_STORE(&ins_head->tail[i], new_ins, WT_ATOMIC_RELEASE);
