@@ -1507,7 +1507,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     WT_UPDATE *upd;
     wt_timestamp_t candidate_durable_timestamp, prev_durable_timestamp;
 #ifdef HAVE_DIAGNOSTIC
-    uint32_t prepare_count, sleep_count;
+    uint32_t prepare_count;
 #endif
     uint8_t previous_state;
     u_int i;
@@ -1518,7 +1518,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     txn = session->txn;
     txn_global = &conn->txn_global;
 #ifdef HAVE_DIAGNOSTIC
-    sleep_count = prepare_count = 0;
+    prepare_count = 0;
 #endif
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
     readonly = txn->mod_count == 0;
@@ -1666,14 +1666,12 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 #ifdef HAVE_DIAGNOSTIC
                 /*
-                 * Sleep randomly between resolving prepared operations when configured. Avoid
-                 * causing too much stress when there are a large number of updates.
+                 * Sleep randomly between resolving prepared operations when configured, however,
+                 * avoid causing too much stress when there are a large number of updates.
                  */
-                if (FLD_ISSET(
-                      S2C(session)->timing_stress_flags, WT_TIMING_STRESS_PREPARE_RESOLUTION) &&
-                  sleep_count < 10 && __wt_random(&session->rnd) % 4 == 0) {
+                if (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_PREPARE_RESOLUTION) &&
+                  (i * 36) % txn->mod_count == 0) {
                     __wt_timing_stress(session, WT_TIMING_STRESS_PREPARE_RESOLUTION, NULL);
-                    ++sleep_count;
                 }
                 ++prepare_count;
 #endif
