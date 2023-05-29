@@ -1167,6 +1167,7 @@ __wt_cell_unpack_addr(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
 
     ret = __wt_cell_unpack_safe(session, dsk, cell, unpack_addr, NULL, NULL);
     WT_ASSERT(session, ret == 0);
+    WT_UNUSED(ret); /* Avoid "unused variable" warnings in non-debug builds. */
 
     __cell_unpack_window_cleanup(session, dsk, unpack_addr, NULL);
 }
@@ -1205,6 +1206,7 @@ __wt_cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL
 
     ret = __wt_cell_unpack_safe(session, dsk, cell, NULL, unpack_value, NULL);
     WT_ASSERT(session, ret == 0);
+    WT_UNUSED(ret); /* Avoid "unused variable" warnings in non-debug builds. */
 
     __cell_unpack_window_cleanup(session, dsk, NULL, unpack_value);
 }
