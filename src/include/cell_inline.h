@@ -1163,7 +1163,11 @@ static inline void
 __wt_cell_unpack_addr(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL *cell,
   WT_CELL_UNPACK_ADDR *unpack_addr)
 {
-    WT_IGNORE_RET(__wt_cell_unpack_safe(session, dsk, cell, unpack_addr, NULL, NULL));
+    WT_DECL_RET;
+
+    ret = __wt_cell_unpack_safe(session, dsk, cell, unpack_addr, NULL, NULL);
+    WT_ASSERT(session, ret == 0);
+
     __cell_unpack_window_cleanup(session, dsk, unpack_addr, NULL);
 }
 
@@ -1175,6 +1179,8 @@ static inline void
 __wt_cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL *cell,
   WT_CELL_UNPACK_KV *unpack_value)
 {
+    WT_DECL_RET;
+
     /*
      * Row-store doesn't store zero-length values on pages, but this allows us to pretend.
      */
@@ -1197,7 +1203,9 @@ __wt_cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL
         return;
     }
 
-    WT_IGNORE_RET(__wt_cell_unpack_safe(session, dsk, cell, NULL, unpack_value, NULL));
+    ret = __wt_cell_unpack_safe(session, dsk, cell, NULL, unpack_value, NULL);
+    WT_ASSERT(session, ret == 0);
+
     __cell_unpack_window_cleanup(session, dsk, NULL, unpack_value);
 }
 
