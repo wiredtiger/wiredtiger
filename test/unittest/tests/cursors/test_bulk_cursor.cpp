@@ -269,7 +269,7 @@ cursor_test(std::string const &config, bool close, int expected_open_cursor_resu
                 REQUIRE(cursor->close(cursor) == 0);
                 check_txn_updates("before drop", session_impl, diagnostics);
                 __wt_sleep(1, 0);
-                REQUIRE(session->drop(session, uri.c_str(), "force=true") == 0);
+                REQUIRE(session->drop(session, uri.c_str(), "force=true") == EBUSY);
             } else {
                 int result = session->drop(session, uri.c_str(), "force=true");
                 REQUIRE(result == EBUSY);
@@ -335,7 +335,7 @@ multiple_drop_test(std::string const &config, int expected_open_cursor_result,
             }
 
             check_txn_updates("before drop", session_impl, diagnostics);
-            REQUIRE(session->drop(session, uri.c_str(), "force=true") == 0);
+            REQUIRE(session->drop(session, uri.c_str(), "force=true") == EBUSY);
 
             if (diagnostics)
                 printf("After drop\n");
