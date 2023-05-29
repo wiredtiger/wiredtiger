@@ -116,15 +116,10 @@
 
 #define WT_ATOMIC_CAS(ptr, oldp, newv) \
     __atomic_compare_exchange_n(ptr, oldp, newv, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
-#define WT_ATOMIC_CAS_FUNC(name, vp_arg, old_arg, newv_arg)                                    \
-    static inline bool __wt_atomic_cas##name(vp_arg, old_arg, newv_arg)                        \
-    {                                                                                          \
-        return (WT_ATOMIC_CAS(vp, &old, newv));                                                \
-    }                                                                                          \
-    static inline bool __wt_c_memmodel_atomic_cas##name(                                       \
-      vp_arg, old_arg, newv_arg, int success_memorder, int failure_memorder)                   \
-    {                                                                                          \
-        return (WT_C_MEMMODEL_ATOMIC_CAS(vp, &old, newv, success_memorder, failure_memorder)); \
+#define WT_ATOMIC_CAS_FUNC(name, vp_arg, old_arg, newv_arg)             \
+    static inline bool __wt_atomic_cas##name(vp_arg, old_arg, newv_arg) \
+    {                                                                   \
+        return (WT_ATOMIC_CAS(vp, &old, newv));                         \
     }
 WT_ATOMIC_CAS_FUNC(8, uint8_t *vp, uint8_t old, uint8_t newv)
 WT_ATOMIC_CAS_FUNC(v8, volatile uint8_t *vp, uint8_t old, volatile uint8_t newv)
@@ -147,17 +142,6 @@ static inline bool
 __wt_atomic_cas_ptr(void *vp, void *old, void *newv)
 {
     return (WT_ATOMIC_CAS((void **)vp, &old, newv));
-}
-
-/*
- * __wt_c_memmodel_atmomic_cas_ptr --
- *     Pointer compare and swap with memory ordering.
- */
-static inline bool
-__wt_c_memmodel_atomic_cas_ptr(
-  void *vp, void *old, void *newv, int success_memorder, int failure_memorder)
-{
-    return (WT_C_MEMMODEL_ATOMIC_CAS((void **)vp, &old, newv, success_memorder, failure_memorder));
 }
 
 #define WT_ATOMIC_FUNC(name, ret, vp_arg, v_arg)                 \

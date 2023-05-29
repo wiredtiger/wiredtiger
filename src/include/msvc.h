@@ -90,14 +90,6 @@
     {                                                                                             \
         return (                                                                                  \
           _InterlockedCompareExchange##s((t *)(vp), (t)(new_val), (t)(old_val)) == (t)(old_val)); \
-    }                                                                                             \
-    static inline bool __wt_c_memmodel_atomic_cas##name(                                          \
-      type *vp, type old_val, type new_val, int success_memorder, int failure_memorder)           \
-    {                                                                                             \
-        WT_UNUSED_MSVC(success_memorder);                                                         \
-        WT_UNUSED_MSVC(failure_memorder);                                                         \
-        return (                                                                                  \
-          _InterlockedCompareExchange##s((t *)(vp), (t)(new_val), (t)(old_val)) == (t)(old_val)); \
     }
 
 WT_ATOMIC_FUNC(8, uint8_t, uint8_t, 8, char)
@@ -120,20 +112,6 @@ WT_ATOMIC_FUNC(size, size_t, size_t, 64, __int64)
 static inline bool
 __wt_atomic_cas_ptr(void *vp, void *old_val, void *new_val)
 {
-    return (_InterlockedCompareExchange64(
-              (volatile __int64 *)vp, (int64_t)new_val, (int64_t)old_val) == ((int64_t)old_val));
-}
-
-/*
- * __wt_c_memmodel_atomic_cas_ptr --
- *     Pointer compare and swap with memory ordering.
- */
-static inline bool
-__wt_c_memmodel_atomic_cas_ptr(
-  void *vp, void *old_val, void *new_val, int success_memorder, int failure_memorder)
-{
-    WT_UNUSED_MSVC(success_memorder);
-    WT_UNUSED_MSVC(failure_memorder);
     return (_InterlockedCompareExchange64(
               (volatile __int64 *)vp, (int64_t)new_val, (int64_t)old_val) == ((int64_t)old_val));
 }
