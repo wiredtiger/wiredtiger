@@ -136,7 +136,6 @@ __rts_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
       (ret = __wt_tree_walk_custom_skip(session, &ref, __rts_btree_walk_page_skip,
          &rollback_timestamp, WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED)) == 0 &&
       ref != NULL) {
-        /* Log a rts walk progress message. */
         __wt_rts_progress_msg(session, rollback_timer, 0, &rollback_msg_count, true);
 
         if (F_ISSET(ref, WT_REF_FLAG_LEAF))
