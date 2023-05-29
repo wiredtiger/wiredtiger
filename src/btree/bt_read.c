@@ -282,6 +282,9 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     if (!LF_ISSET(WT_READ_CACHE))
         WT_STAT_CONN_DATA_INCR(session, cache_pages_requested);
 
+    /* Encourage a race */
+    __wt_timing_stress(session, WT_TIMING_STRESS_AGGRESSIVE_STASH_FREE, NULL);
+
     for (evict_skip = stalled = wont_need = false, force_attempts = 0, sleep_usecs = yield_cnt = 0;
          ;) {
         switch (current_state = ref->state) {
