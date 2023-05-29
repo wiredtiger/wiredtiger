@@ -517,7 +517,7 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
          * we save the generation number after, we could have the following scenario:
          *
          * 1) The checkpoint's state is evaluated to false.
-         * 2) -- Race, checkpoint starts and finishes.
+         * 2) -- Race, checkpoint starts.
          * 3) The checkpoint generation number is saved and is equal to the latest one, we cannot
          * detect any inconsistency.
          *
@@ -586,8 +586,8 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
               hs_time <= snapshot_time) {
 
                 /*
-                 * If a system-wide checkpoint was running a the start of the loop, it is worth
-                 * retrying and wait for it to finish to resolve the inconsistency. It is also
+                 * If a system-wide checkpoint was running at the start of the loop, it is worth
+                 * retrying and waiting for it to finish to resolve the inconsistency. It is also
                  * possible for a checkpoint to start and finish while this code is executed. We can
                  * use the checkpoint generation number to detect the race.
                  */
