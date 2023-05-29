@@ -92,7 +92,7 @@ __drop_index(WT_SESSION_IMPL *session, const char *uri, bool force, const char *
  *     WT_SESSION::drop for a table.
  */
 static int
-__drop_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
+__drop_table(WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[])
 {
     WT_COLGROUP *colgroup;
     WT_DECL_RET;
@@ -109,6 +109,9 @@ __drop_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 
     table = NULL;
     tracked = false;
+
+    WT_WITH_HANDLE_LIST_WRITE_LOCK(
+      session, ret = __wt_conn_dhandle_close_all(session, uri, true, force));
 
     /*
      * Open the table so we can drop its column groups and indexes.
@@ -333,7 +336,7 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
     else if (WT_PREFIX_MATCH(uri, "lsm:"))
         ret = __wt_lsm_tree_drop(session, uri, cfg);
     else if (WT_PREFIX_MATCH(uri, "table:"))
-        ret = __drop_table(session, uri, cfg);
+        ret = __drop_table(session, uri, force, cfg);
     else if (WT_PREFIX_MATCH(uri, "tiered:"))
         ret = __drop_tiered(session, uri, force, cfg);
     else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL)
