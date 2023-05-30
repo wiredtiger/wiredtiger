@@ -1670,9 +1670,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                  * of updates. Multiplying by 36 provides a reasonable chance of calling the stress
                  * without exceeding a total of 36 calls over the total mod_count.
                  */
-                if ((i * 36) % txn->mod_count == 0) {
+                if ((i * 36) % txn->mod_count == 0)
                     __wt_timing_stress(session, WT_TIMING_STRESS_PREPARE_RESOLUTION, NULL);
-                }
+
 #ifdef HAVE_DIAGNOSTIC
                 ++prepare_count;
 #endif
