@@ -1668,7 +1668,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                  * Sleep for some number of updates between resolving prepared operations when
                  * configured, however, avoid causing too much stress when there are a large number
                  * of updates. Multiplying by 36 provides a reasonable chance of calling the stress
-                 * without exceeding a total of 36 calls over the total mod_count.
+                 * (as it's a highly composite number) without exceeding a total of 36 calls over
+                 * the total mod_count.
                  */
                 if ((i * 36) % txn->mod_count == 0)
                     __wt_timing_stress(session, WT_TIMING_STRESS_PREPARE_RESOLUTION, NULL);
