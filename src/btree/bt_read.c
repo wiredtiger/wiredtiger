@@ -282,8 +282,12 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     if (!LF_ISSET(WT_READ_CACHE))
         WT_STAT_CONN_DATA_INCR(session, cache_pages_requested);
 
-    /* Encourage a race */
-    __wt_timing_stress(session, WT_TIMING_STRESS_AGGRESSIVE_STASH_FREE, NULL);
+    /*
+     * If configured, free stashed memory more aggressively to encourage finding bugs in generation
+     * tracking code.
+     */
+    if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_AGGRESSIVE_STASH_FREE))
+        __wt_stash_discard(session);
 
     for (evict_skip = stalled = wont_need = false, force_attempts = 0, sleep_usecs = yield_cnt = 0;
          ;) {
