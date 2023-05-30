@@ -167,6 +167,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         params = 'key_format=S,value_format=S'
         self.session.create('table:' + self.tablename, params)
         self.populate(self.tablename)
+        # Open the file and corrupt the first page. 
         with self.open_and_position(self.tablename, 0.1) as f:
             for i in range(0, 100):
                 f.write(b'\x01\xff\x80')
