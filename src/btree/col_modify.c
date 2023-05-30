@@ -238,11 +238,12 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
         if (cbt->ins_stack[0] == NULL || recno == WT_RECNO_OOB)
             for (i = 0; i < skipdepth; i++) {
                 cbt->ins_stack[i] = &ins_head->head[i];
-                ins->next[i] = cbt->next_stack[i] = NULL;
+                WT_C_MEMMODEL_ATOMIC_STORE(&ins->next[i], NULL, WT_ATOMIC_RELAXED);
+                cbt->next_stack[i] = NULL;
             }
         else
             for (i = 0; i < skipdepth; i++)
-                ins->next[i] = cbt->next_stack[i];
+                WT_C_MEMMODEL_ATOMIC_STORE(&ins->next[i], cbt->next_stack[i], WT_ATOMIC_RELAXED);
 
         /* Append or insert the WT_INSERT structure. */
         if (append)

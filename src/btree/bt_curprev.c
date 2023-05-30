@@ -34,7 +34,7 @@
 static inline int
 __cursor_skip_prev(WT_CURSOR_BTREE *cbt)
 {
-    WT_INSERT *current, *ins, *next_ins;
+    WT_INSERT *current, *ins, *next_ins, *temp;
     WT_ITEM key;
     WT_SESSION_IMPL *session;
     uint64_t recno;
@@ -89,7 +89,7 @@ restart:
              *
              * Place a read barrier to avoid this issue.
              */
-            WT_ORDERED_READ_WEAK_MEMORDER(ins, cbt->ins_head->head[i]);
+            WT_C_MEMMODEL_ATOMIC_LOAD(ins, &cbt->ins_head->head[i], WT_ATOMIC_ACQUIRE);
             if (ins != NULL && ins != current)
                 break;
         }
@@ -115,7 +115,7 @@ restart:
          *
          * Place a read barrier to avoid this issue.
          */
-        WT_ORDERED_READ_WEAK_MEMORDER(next_ins, ins->next[i]);
+        WT_C_MEMMODEL_ATOMIC_LOAD(next_ins, &ins->next[i], WT_ATOMIC_ACQUIRE);
         if (next_ins != current) /* Stay at this level */
             ins = next_ins;
         else { /* Drop down a level */
@@ -126,8 +126,11 @@ restart:
     }
 
     /* If we found a previous node, the next one must be current. */
-    if (cbt->ins_stack[0] != NULL && *cbt->ins_stack[0] != current)
-        goto restart;
+    if (cbt->ins_stack[0] != NULL) {
+        WT_C_MEMMODEL_ATOMIC_LOAD(temp, cbt->ins_stack[0], WT_ATOMIC_ACQUIRE);
+        if (temp != current)
+            goto restart;
+    }
 
     cbt->ins = PREV_INS(cbt, 0);
     return (0);

@@ -206,7 +206,7 @@ static inline WT_INSERT *
 __col_insert_search(WT_INSERT_HEAD *ins_head, _Atomic(WT_INSERT *) * *ins_stack,
   WT_INSERT **next_stack, uint64_t recno)
 {
-    WT_INSERT *ret_ins;
+    WT_INSERT *ret_ins, *tail;
     _Atomic(WT_INSERT *) * insp;
     uint64_t ins_recno;
     int cmp, i;
@@ -225,9 +225,15 @@ __col_insert_search(WT_INSERT_HEAD *ins_head, _Atomic(WT_INSERT *) * *ins_stack,
     /* Fast path appends. */
     if (recno >= WT_INSERT_RECNO(ret_ins)) {
         for (i = 0; i < WT_SKIP_MAXDEPTH; i++) {
-            ins_stack[i] = (i == 0) ?
-              &ret_ins->next[0] :
-              (ins_head->tail[i] != NULL) ? &ins_head->tail[i]->next[i] : &ins_head->head[i];
+            if (i == 0)
+                ins_stack[i] = &ret_ins->next[0];
+            else {
+                WT_C_MEMMODEL_ATOMIC_LOAD(tail, &ins_head->tail[i], WT_ATOMIC_ACQUIRE);
+                if (tail != NULL)
+                    ins_stack[i] = &tail->next[i];
+                else
+                    ins_stack[i] = &ins_head->head[i];
+            }
             next_stack[i] = NULL;
         }
         return (ret_ins);

@@ -14,7 +14,7 @@ static inline int
 __insert_simple_func(
   WT_SESSION_IMPL *session, _Atomic(WT_INSERT *) * *ins_stack, WT_INSERT *new_ins, u_int skipdepth)
 {
-    WT_INSERT *old_ins;
+    WT_INSERT *old_ins, *next;
     u_int i;
 
     WT_UNUSED(session);
@@ -39,7 +39,8 @@ __insert_simple_func(
          * Place a read barrier here to avoid this issue.
          */
         WT_C_MEMMODEL_ATOMIC_LOAD(old_ins, ins_stack[i], WT_ATOMIC_ACQUIRE);
-        if (old_ins != new_ins->next[i] ||
+        WT_C_MEMMODEL_ATOMIC_LOAD(next, &new_ins->next[i], WT_ATOMIC_RELAXED);
+        if (old_ins != next ||
           !WT_C_MEMMODEL_ATOMIC_CAS(
             ins_stack[i], &old_ins, new_ins, WT_ATOMIC_RELEASE, WT_ATOMIC_RELAXED))
             return (i == 0 ? WT_RESTART : 0);
@@ -56,7 +57,7 @@ static inline int
 __insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head,
   _Atomic(WT_INSERT *) * *ins_stack, WT_INSERT *new_ins, u_int skipdepth)
 {
-    WT_INSERT *old_ins;
+    WT_INSERT *old_ins, *next, *tail;
     u_int i;
 
     /* The cursor should be positioned. */
@@ -84,11 +85,13 @@ __insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head,
          * Place a read barrier here to avoid this issue.
          */
         WT_C_MEMMODEL_ATOMIC_LOAD(old_ins, ins_stack[i], WT_ATOMIC_ACQUIRE);
-        if (old_ins != new_ins->next[i] ||
+        WT_C_MEMMODEL_ATOMIC_LOAD(next, &new_ins->next[i], WT_ATOMIC_RELAXED);
+        if (old_ins != next ||
           !WT_C_MEMMODEL_ATOMIC_CAS(
             ins_stack[i], &old_ins, new_ins, WT_ATOMIC_RELEASE, WT_ATOMIC_RELAXED))
             return (i == 0 ? WT_RESTART : 0);
-        if (ins_head->tail[i] == NULL || ins_stack[i] == &ins_head->tail[i]->next[i])
+        WT_C_MEMMODEL_ATOMIC_LOAD(tail, &ins_head->tail[i], WT_ATOMIC_ACQUIRE);
+        if (tail == NULL || ins_stack[i] == &tail->next[i])
             WT_C_MEMMODEL_ATOMIC_STORE(&ins_head->tail[i], new_ins, WT_ATOMIC_RELEASE);
     }
 
@@ -195,7 +198,7 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_
   bool exclusive)
 {
     WT_DECL_RET;
-    WT_INSERT *new_ins;
+    WT_INSERT *new_ins, *temp;
     u_int i;
     bool simple;
 
@@ -204,9 +207,11 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_
     *new_insp = NULL;
 
     simple = true;
-    for (i = 0; i < skipdepth; i++)
-        if (new_ins->next[i] == NULL)
+    for (i = 0; i < skipdepth; i++) {
+        WT_C_MEMMODEL_ATOMIC_LOAD(temp, &new_ins->next[i], WT_ATOMIC_RELAXED);
+        if (temp == NULL)
             simple = false;
+    }
 
     if (simple)
         ret = __insert_simple_func(session, ins_stack, new_ins, skipdepth);

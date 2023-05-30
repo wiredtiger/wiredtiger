@@ -1439,7 +1439,11 @@ struct __wt_insert {
 #define WT_INSERT_KEY(ins) ((void *)((uint8_t *)(ins) + ((WT_INSERT *)(ins))->u.key.offset))
 #define WT_INSERT_RECNO(ins) (((WT_INSERT *)(ins))->u.recno)
 
+#if defined(__GNUC__)
     _Atomic(WT_INSERT *) next[0]; /* forward-linked skip list */
+#elif defined(_MSC_VER)
+    WT_INSERT *next[0]; /* forward-linked skip list */
+#endif
 };
 
 /*
@@ -1461,8 +1465,13 @@ struct __wt_insert {
  * 	The head of a skiplist of WT_INSERT items.
  */
 struct __wt_insert_head {
+#if defined(__GNUC__)
     _Atomic(WT_INSERT *) head[WT_SKIP_MAXDEPTH]; /* first item on skiplists */
     _Atomic(WT_INSERT *) tail[WT_SKIP_MAXDEPTH]; /* last item on skiplists */
+#elif defined(_MSC_VER)
+    WT_INSERT *head[WT_SKIP_MAXDEPTH]; /* first item on skiplists */
+    WT_INSERT *tail[WT_SKIP_MAXDEPTH]; /* last item on skiplists */
+#endif
 };
 
 /*
