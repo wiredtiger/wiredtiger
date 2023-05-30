@@ -93,7 +93,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         filename = self.file_name(tablename)
 
         filesize = os.path.getsize(filename)
-        position = (filesize * pct) // 100
+        position = int((filesize * pct) // 100)
 
         self.pr('damaging file at: ' + str(position))
         fp = open(filename, "r+b")
@@ -167,6 +167,9 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         params = 'key_format=S,value_format=S'
         self.session.create('table:' + self.tablename, params)
         self.populate(self.tablename)
+        with self.open_and_position(self.tablename, 0.1) as f:
+            for i in range(0, 100):
+                f.write(b'\x01\xff\x80')
         with self.open_and_position(self.tablename, 25) as f:
             for i in range(0, 100):
                 f.write(b'\x01\xff\x80')
