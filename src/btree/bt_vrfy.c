@@ -713,7 +713,7 @@ __verify_row_int_key_order(
      * The maximum key is usually set from the leaf page first. If the first leaf page is corrupted,
      * it is possible that the key is not set. In that case skip this check.
      */
-    if (!vs->read_corrupt)
+    if (!vs->verify_err)
         WT_ASSERT(session, vs->max_addr->size != 0);
 
     /* Get the parent page's internal key. */
