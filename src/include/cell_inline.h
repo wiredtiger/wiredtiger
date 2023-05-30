@@ -240,9 +240,9 @@ static inline size_t
 __wt_cell_pack_value(
   WT_SESSION_IMPL *session, WT_CELL *cell, WT_TIME_WINDOW *tw, uint64_t rle, size_t size)
 {
+    WT_DECL_RET;
     uint8_t byte, *p;
     bool validity;
-    WT_DECL_RET;
 
     /* Start building a cell: the descriptor byte starts zero. */
     p = cell->__chunk;
@@ -375,8 +375,8 @@ static inline size_t
 __wt_cell_pack_copy(
   WT_SESSION_IMPL *session, WT_CELL *cell, WT_TIME_WINDOW *tw, uint64_t rle, uint64_t v)
 {
-    uint8_t *p;
     WT_DECL_RET;
+    uint8_t *p;
 
     /* Start building a cell: the descriptor byte starts zero. */
     p = cell->__chunk;
@@ -406,8 +406,8 @@ __wt_cell_pack_copy(
 static inline size_t
 __wt_cell_pack_del(WT_SESSION_IMPL *session, WT_CELL *cell, WT_TIME_WINDOW *tw, uint64_t rle)
 {
-    uint8_t *p;
     WT_DECL_RET;
+    uint8_t *p;
 
     /* Start building a cell: the descriptor byte starts zero. */
     p = cell->__chunk;
@@ -504,8 +504,8 @@ static inline size_t
 __wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t type, WT_TIME_WINDOW *tw,
   uint64_t rle, size_t size)
 {
-    uint8_t *p;
     WT_DECL_RET;
+    uint8_t *p;
 
     /* Start building a cell: the descriptor byte starts zero. */
     p = cell->__chunk;
