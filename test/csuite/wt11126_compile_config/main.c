@@ -43,8 +43,8 @@ static const char *begin_transaction_config_printf_format =
 
 /*
  * begin_transaction_slow --
- *     This is considered a typical implementation that a caller for begin_transaction will use.
- * We incur the cost of formatting the configuration string on every call.
+ *     This is considered a typical implementation that a caller for begin_transaction will use. We
+ *     incur the cost of formatting the configuration string on every call.
  */
 static void
 begin_transaction_slow(WT_SESSION *session, int ignore_prepare, bool roundup_prepared,
@@ -102,8 +102,8 @@ begin_transaction_medium(WT_SESSION *session, int ignore_prepare, bool roundup_p
 /*
  * A still faster implementation will require WiredTiger to be involved in the precompilation. It
  * requires an initialization step that needs to be run after wiredtiger_open and creates a
- * precompiled string that is valid for the life of the connection.  To be used, the parameters
- * need to be bound with a separate call.
+ * precompiled string that is valid for the life of the connection. To be used, the parameters need
+ * to be bound with a separate call.
  */
 
 /*
@@ -120,7 +120,7 @@ begin_transaction_fast_init(WT_CONNECTION *conn, const char **compiled_ptr)
 /*
  * begin_transaction_fast --
  *     A fast implementation of a begin_transaction caller, using compiled config strings.
- * Parameters must be bound before the API call.
+ *     Parameters must be bound before the API call.
  */
 static void
 begin_transaction_fast(WT_SESSION *session, const char *compiled, int ignore_prepare,
@@ -132,8 +132,8 @@ begin_transaction_fast(WT_SESSION *session, const char *compiled, int ignore_pre
 }
 
 /*
- * Another fast implementation takes advantage of the finite number of configuration strings,
- * and calls the WiredTiger configuration compiler to get a precompiled string for each one.
+ * Another fast implementation takes advantage of the finite number of configuration strings, and
+ * calls the WiredTiger configuration compiler to get a precompiled string for each one.
  */
 
 /*
@@ -167,8 +167,8 @@ begin_transaction_fast_alternate_init(WT_CONNECTION *conn, const char ***compile
 
 /*
  * begin_transaction_fast_alternate --
- *     A fast implementation of a begin_transaction caller, with compiled config strings
- * that have fixed parameters.  This skips any need to bind parameters.
+ *     A fast implementation of a begin_transaction caller, with compiled config strings that have
+ *     fixed parameters. This skips any need to bind parameters.
  */
 static void
 begin_transaction_fast_alternate(WT_SESSION *session, const char **compiled_array,

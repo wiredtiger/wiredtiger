@@ -440,12 +440,6 @@ extern int __wt_conf_compile_config_strings(WT_SESSION_IMPL *session, const WT_C
   const char **cfg, WT_CONF_COMPILED **cfp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conf_compile_init(WT_SESSION_IMPL *session, const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_conf_getone(WT_SESSION_IMPL *session, const char *config, uint64_t key,
-  WT_CONFIG_ITEM *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_conf_getones(WT_SESSION_IMPL *session, const char *config, uint64_t key,
-  WT_CONFIG_ITEM *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_conf_getones_none(WT_SESSION_IMPL *session, const char *config, uint64_t key,
-  WT_CONFIG_ITEM *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF_LIST *cfg, uint64_t keys,
   int def, bool use_def, WT_CONFIG_ITEM *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conf_gets_none_func(WT_SESSION_IMPL *session, WT_CONF_LIST *cfg, uint64_t key,

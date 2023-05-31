@@ -633,12 +633,12 @@ __wt_txn_config(WT_SESSION_IMPL *session, WT_CONF_LIST *cf)
      * Check if the prepare timestamp and the commit timestamp of a prepared transaction need to be
      * rounded up.
      */
-    WT_ERR(__wt_conf_gets_def(session, cf, roundup_timestamps.prepared, 0, &cval));
+    WT_ERR(__wt_conf_gets_def(session, cf, Roundup_timestamps.prepared, 0, &cval));
     if (cval.val)
         F_SET(txn, WT_TXN_TS_ROUND_PREPARED);
 
     /* Check if read timestamp needs to be rounded up. */
-    WT_ERR(__wt_conf_gets_def(session, cf, roundup_timestamps.read, 0, &cval));
+    WT_ERR(__wt_conf_gets_def(session, cf, Roundup_timestamps.read, 0, &cval));
     if (cval.val)
         F_SET(txn, WT_TXN_TS_ROUND_READ);
 

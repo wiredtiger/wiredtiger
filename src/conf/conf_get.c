@@ -90,18 +90,3 @@ __wt_conf_gets_none_func(
         value->len = 0;
     return (0);
 }
-
-/*
- * __wt_conf_getones_none --
- *     Given a compiled structure of configuration strings, find the final value for a given key,
- *     represented as (up to 4) 16-bit key ids packed into a 64-bit key. Treat "none" as empty.
- */
-int
-__wt_conf_getones_none(
-  WT_SESSION_IMPL *session, const char *config, uint64_t key, WT_CONFIG_ITEM *value)
-{
-    WT_RET(__wt_conf_getones(session, config, key, value));
-    if (WT_STRING_MATCH("none", value->str, value->len))
-        value->len = 0;
-    return (0);
-}

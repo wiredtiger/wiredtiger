@@ -30,6 +30,17 @@ tfile = open(tmp_file, 'w')
 whitespace_re = re.compile(r'\s+')
 cbegin_re = re.compile(r'(\s*\*\s*)@config(?:empty|start)\{(.*?),.*\}')
 
+def gen_id_name(name, ty):
+    id_name = name
+    if ty == 'category':
+        # Generate a different name for the category.  Our API has several instances
+        # where we have a category name, like 'checkpoint' in one API call, that is also a key
+        # name in a different API call.  We don't care that they appear multiple times,
+        # but we must be able to distinguish between IDs that we'll generate for category
+        # names vs regular key names.
+        id_name = id_name[0].upper() + id_name[1:]
+    return id_name
+
 # Remember a set of key names, assigning a unique number to each one.
 class KeyNumber:
     def __init__(self):
@@ -166,10 +177,10 @@ choices_names = set()
 # Get fields that assist the configuration compiler.
 def getcompstr(c, keynumber):
     comptype = -1
-    t = gettype(c)
+    ty = gettype(c)
     # E.g. "WT_CONFIG_COMPILED_TYPE_INT"
-    comptype = 'WT_CONFIG_COMPILED_TYPE_' + t.upper()
-    offset = keynumber.get(c.name)
+    comptype = 'WT_CONFIG_COMPILED_TYPE_' + ty.upper()
+    offset = keynumber.get(gen_id_name(c.name, ty))
     checks = c.flags
     minval = 'INT64_MIN'
     maxval = 'INT64_MAX'
@@ -219,17 +230,19 @@ def getconfcheck(c, keynumber):
 
 def add_conf_keys_one(c, conf_keys):
     ctype = gettype(c)
-    if c.name in conf_keys:
-        print('warning: {} already here'.format(c.name))
-    elif ctype == 'category':
-        cname = getcname(c)
+    idname = gen_id_name(c.name, ctype)
+    if ctype == 'category':
         subconf_keys = dict()
         add_conf_keys(c.subconfig, subconf_keys, False)
-        conf_keys[c.name] = subconf_keys
-    elif c.name in conf_keys:
-        conf_keys[c.name] += 1
+        conf_keys[idname] = subconf_keys
     else:
-        conf_keys[c.name] = 1
+        if idname in conf_keys:
+            curval = conf_keys[idname]
+            assert type(curval) == int, 'type conflict for name={}'.format(c.name)
+        else:
+            curval = 0
+        curval += 1
+        conf_keys[idname] = curval
 
 def add_conf_keys(container, conf_keys, is_top):
     if is_top:
@@ -257,11 +270,12 @@ keynumber = KeyNumber()
 def add_keys(keynumber, configs, prefix):
     global config_num, config_key
     for c in configs:
-        keynumber.add(c.name)
+        ty = gettype(c)
+        idname = gen_id_name(c.name, ty)
+        keynumber.add(idname)
         if not c.name in config_key:
             config_names[c.name] = c.name
         config_long_names[prefix + c.name] = -1
-        ty = c.flags.get('type', None)
         if ty == 'category':
             add_keys(keynumber, c.subconfig, prefix + c.name + '.')
 
@@ -565,7 +579,8 @@ if not test_config:
     add_conf_keys(api_data_def.methods, conf_keys, True)
 
     # From names = ['verbose'], produce 'WT_CONF_KEY_verbose'
-    # From names = ['assert', 'commit_timestamp'], produce 'WT_CONF_KEY_assert | (WT_CONF_KEY_archive << 16)'
+    # From names = ['assert', 'commit_timestamp'],
+    #    produce 'WT_CONF_KEY_assert_CAT | (WT_CONF_KEY_archive << 16)'
     def build_key_initializer(names):
         result = ''
         shift = 0
