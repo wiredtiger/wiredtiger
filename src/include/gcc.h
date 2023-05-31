@@ -99,6 +99,8 @@
 #error "Clang versions 3.5 and earlier are unsupported by WiredTiger"
 #endif
 
+#define WT_ATOMIC_TYPE(type) _Atomic(type)
+
 #define WT_ATOMIC_RELAXED memory_order_relaxed
 #define WT_ATOMIC_ACQUIRE memory_order_acquire
 #define WT_ATOMIC_RELEASE memory_order_release

@@ -36,6 +36,8 @@
 
 #define WT_UNUSED_MSVC(var) (void)(var)
 
+#define WT_ATOMIC_TYPE(type) type
+
 #define WT_ATOMIC_RELAXED 0
 #define WT_ATOMIC_ACQUIRE 1
 #define WT_ATOMIC_RELEASE 2
