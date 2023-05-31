@@ -122,7 +122,7 @@ __conf_compile_value(WT_SESSION_IMPL *session, WT_CONF_COMPILED *top_compiled,
 
 /*
  * __conf_compile --
- *     Compile a configuration substring into the compiled struct.
+ *     Compile a configuration string into the compiled struct.
  */
 static int
 __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF_COMPILED *top_compiled,

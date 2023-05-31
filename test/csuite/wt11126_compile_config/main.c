@@ -42,7 +42,8 @@ static const char *begin_transaction_config_printf_format =
   "ignore_prepare=%s,roundup_timestamps=(prepared=%s,read=%s),no_timestamp=%s";
 
 /*
- * A typical implementation will incur the sprintf cost on every call.
+ * A typical implementation will incur the cost of formatting the configuration
+ * string on every call.
  */
 static void
 begin_transaction_slow(WT_SESSION *session, int ignore_prepare, bool roundup_prepared,
@@ -92,7 +93,8 @@ begin_transaction_medium(WT_SESSION *session, int ignore_prepare, bool roundup_p
 /*
  * A still faster implementation will require WiredTiger to be involved in the precompilation. It
  * requires an initialization step that needs to be run after wiredtiger_open and creates a
- * precompiled string that is valid for the life of the connection.
+ * precompiled string that is valid for the life of the connection.  To be used, the parameters
+ * need to be bound with a separate call.
  */
 static void
 begin_transaction_fast_init(WT_CONNECTION *conn, const char **compiled_ptr)
@@ -111,9 +113,8 @@ begin_transaction_fast(WT_SESSION *session, const char *compiled, int ignore_pre
 }
 
 /*
- * A still faster implementation will require WiredTiger to be involved in the precompilation. It
- * requires an initialization step that needs to be run after wiredtiger_open and creates a
- * precompiled string that is valid for the life of the connection.
+ * Another fast implementation takes advantage of the finite number of configuration strings,
+ * and calls the WiredTiger configuration compiler to get a precompiled string for each one.
  */
 static void
 begin_transaction_fast_alternate_init(WT_CONNECTION *conn, const char ***compiled_array_ptr)

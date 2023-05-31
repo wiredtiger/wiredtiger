@@ -879,7 +879,7 @@ err:
 }
 
 /*
- * __session_bind_configuraion --
+ * __session_bind_configuration --
  *     Bind values to a compiled configuration string.
  */
 static int

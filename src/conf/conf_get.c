@@ -9,13 +9,13 @@
 #include "wt_internal.h"
 
 /*
- * __wt_conf_gets_def_fcn --
+ * __wt_conf_gets_def_func --
  *     Given a compiled structure of configuration strings, find the final value for a given key,
  *     represented as (up to 4) 16-bit key ids packed into a 64-bit key. If a default is given, it
  *     overrides any default found in the compiled structure.
  */
 int
-__wt_conf_gets_fcn(WT_SESSION_IMPL *session, const WT_CONF_LIST *cfg, uint64_t keys, int def,
+__wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF_LIST *cfg, uint64_t keys, int def,
   bool use_def, WT_CONFIG_ITEM *value)
 {
     WT_CONFIG_ITEM_STATIC_INIT(false_value);
@@ -77,15 +77,15 @@ __wt_conf_gets_fcn(WT_SESSION_IMPL *session, const WT_CONF_LIST *cfg, uint64_t k
 }
 
 /*
- * __wt_conf_gets_none_fcn --
+ * __wt_conf_gets_none_func --
  *     Given a NULL-terminated list of configuration strings, find the final value for a given
  *     string key. Treat "none" as empty.
  */
 int
-__wt_conf_gets_none_fcn(
+__wt_conf_gets_none_func(
   WT_SESSION_IMPL *session, WT_CONF_LIST *cfg, uint64_t key, WT_CONFIG_ITEM *value)
 {
-    WT_RET(__wt_conf_gets_fcn(session, cfg, key, 0, false, value));
+    WT_RET(__wt_conf_gets_func(session, cfg, key, 0, false, value));
     if (WT_STRING_MATCH("none", value->str, value->len))
         value->len = 0;
     return (0);

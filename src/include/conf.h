@@ -13,10 +13,10 @@
  * __wt_conf_gets(session, cfg, operation_tracking.enabled, &cval);
  */
 #define __wt_conf_gets(s, cfg, key, cval) \
-    __wt_conf_gets_fcn(s, cfg, WT_CONF_KEY_STRUCTURE.key, 0, false, cval)
+    __wt_conf_gets_func(s, cfg, WT_CONF_KEY_STRUCTURE.key, 0, false, cval)
 
 #define __wt_conf_gets_def(s, cfg, key, def, cval) \
-    __wt_conf_gets_fcn(s, cfg, WT_CONF_KEY_STRUCTURE.key, def, true, cval)
+    __wt_conf_gets_func(s, cfg, WT_CONF_KEY_STRUCTURE.key, def, true, cval)
 
 /*******************************************
  * API configuration keys.
