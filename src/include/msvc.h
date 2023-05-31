@@ -118,6 +118,9 @@ __wt_atomic_cas_ptr(void *vp, void *old_val, void *new_val)
               (volatile __int64 *)vp, (int64_t)new_val, (int64_t)old_val) == ((int64_t)old_val));
 }
 
+#define WT_C_MEMMODEL_ATOMIC_CAS(ptr, oldp, newv, success_memorder, failure_memorder) \
+    __wt_atomic_cas_ptr(ptr, oldp, newv)
+
 /*
  * WT_BARRIER --
  *	MSVC implementation of WT_BARRIER.
