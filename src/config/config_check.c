@@ -139,12 +139,12 @@ config_check(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_int chec
 
         /* The checks string has already been compiled into values. */
         if (v.val < check->min_value)
-            WT_RET_MSG(session, EINVAL,
-              "Value too small for key '%.*s' the minimum is %" PRIi64, (int)k.len, k.str, check->min_value);
+            WT_RET_MSG(session, EINVAL, "Value too small for key '%.*s' the minimum is %" PRIi64,
+              (int)k.len, k.str, check->min_value);
 
         if (v.val > check->max_value)
-            WT_RET_MSG(session, EINVAL,
-              "Value too large for key '%.*s' the maximum is %" PRIi64, (int)k.len, k.str, check->max_value);
+            WT_RET_MSG(session, EINVAL, "Value too large for key '%.*s' the maximum is %" PRIi64,
+              (int)k.len, k.str, check->max_value);
 
         /*
          * TODO: from the original code, we have this comment for WT_CONFIG_ITEM_STRUCT.
@@ -181,9 +181,8 @@ config_check(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_int chec
             }
 
             if (!found)
-                    WT_RET_MSG(session, EINVAL,
-                      "Value '%.*s' not a permitted choice for key '%.*s'", (int)v.len, v.str,
-                      (int)k.len, k.str);
+                WT_RET_MSG(session, EINVAL, "Value '%.*s' not a permitted choice for key '%.*s'",
+                  (int)v.len, v.str, (int)k.len, k.str);
 
             /* TODO: handle this in compiler
                 WT_RET_MSG(session, EINVAL, "unexpected configuration description keyword %.*s",
