@@ -56,8 +56,8 @@ __random_slot_valid(WT_CURSOR_BTREE *cbt, uint32_t slot, bool *validp)
 static uint32_t
 __random_skip_entries(WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head)
 {
+    WT_ATOMIC_TYPE(WT_INSERT *) * t;
     WT_INSERT *temp;
-    _Atomic(WT_INSERT *) * t;
     WT_SESSION_IMPL *session;
     uint32_t entries;
     int level;

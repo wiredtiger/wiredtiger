@@ -1754,9 +1754,9 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
 static int
 __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+    WT_ATOMIC_TYPE(WT_INSERT *) * insp;
     WT_DECL_RET;
     WT_INSERT *head, *ins, *moved_ins, *prev_ins, *tail;
-    _Atomic(WT_INSERT *) * insp;
     WT_INSERT_HEAD *ins_head, *tmp_ins_head;
     WT_PAGE *page, *right;
     WT_REF *child, *split_ref[2] = {NULL, NULL};

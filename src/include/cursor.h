@@ -112,11 +112,7 @@ struct __wt_cursor_btree {
     WT_INSERT_HEAD *ins_head; /* Insert chain head */
     WT_INSERT *ins;           /* Current insert node */
     /* Search stack */
-#if defined(__GNUC__)
-    _Atomic(WT_INSERT *) * ins_stack[WT_SKIP_MAXDEPTH];
-#elif defined(_MSC_VER)
-    WT_INSERT **ins_stack[WT_SKIP_MAXDEPTH];
-#endif
+    WT_ATOMIC_TYPE(WT_INSERT *) * ins_stack[WT_SKIP_MAXDEPTH];
 
     /* Next item(s) found during search */
     WT_INSERT *next_stack[WT_SKIP_MAXDEPTH];

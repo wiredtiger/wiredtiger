@@ -92,10 +92,10 @@ int
 __wt_search_insert(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head, WT_ITEM *srch_key)
 {
+    WT_ATOMIC_TYPE(WT_INSERT *) * insp;
     WT_BTREE *btree;
     WT_COLLATOR *collator;
     WT_INSERT *ins, *last_ins;
-    _Atomic(WT_INSERT *) * insp;
     WT_ITEM key;
     size_t match, skiphigh, skiplow;
     int cmp, i;

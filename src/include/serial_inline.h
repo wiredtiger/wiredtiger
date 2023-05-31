@@ -11,8 +11,8 @@
  *     Worker function to add a WT_INSERT entry to the middle of a skiplist.
  */
 static inline int
-__insert_simple_func(
-  WT_SESSION_IMPL *session, _Atomic(WT_INSERT *) * *ins_stack, WT_INSERT *new_ins, u_int skipdepth)
+__insert_simple_func(WT_SESSION_IMPL *session, WT_ATOMIC_TYPE(WT_INSERT *) * *ins_stack,
+  WT_INSERT *new_ins, u_int skipdepth)
 {
     WT_INSERT *old_ins, *next;
     u_int i;
@@ -55,7 +55,7 @@ __insert_simple_func(
  */
 static inline int
 __insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head,
-  _Atomic(WT_INSERT *) * *ins_stack, WT_INSERT *new_ins, u_int skipdepth)
+  WT_ATOMIC_TYPE(WT_INSERT *) * *ins_stack, WT_INSERT *new_ins, u_int skipdepth)
 {
     WT_INSERT *old_ins, *next, *tail;
     u_int i;
@@ -105,7 +105,7 @@ __insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head,
  */
 static inline int
 __col_append_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head,
-  _Atomic(WT_INSERT *) * *ins_stack, WT_INSERT *new_ins, uint64_t *recnop, u_int skipdepth)
+  WT_ATOMIC_TYPE(WT_INSERT *) * *ins_stack, WT_INSERT *new_ins, uint64_t *recnop, u_int skipdepth)
 {
     WT_BTREE *btree;
     WT_INSERT *tail;
@@ -149,8 +149,8 @@ __col_append_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head,
  */
 static inline int
 __wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_head,
-  _Atomic(WT_INSERT *) * *ins_stack, WT_INSERT **new_insp, size_t new_ins_size, uint64_t *recnop,
-  u_int skipdepth, bool exclusive)
+  WT_ATOMIC_TYPE(WT_INSERT *) * *ins_stack, WT_INSERT **new_insp, size_t new_ins_size,
+  uint64_t *recnop, u_int skipdepth, bool exclusive)
 {
     WT_DECL_RET;
     WT_INSERT *new_ins;
@@ -194,8 +194,8 @@ __wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *
  */
 static inline int
 __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_head,
-  _Atomic(WT_INSERT *) * *ins_stack, WT_INSERT **new_insp, size_t new_ins_size, u_int skipdepth,
-  bool exclusive)
+  WT_ATOMIC_TYPE(WT_INSERT *) * *ins_stack, WT_INSERT **new_insp, size_t new_ins_size,
+  u_int skipdepth, bool exclusive)
 {
     WT_DECL_RET;
     WT_INSERT *new_ins, *temp;
