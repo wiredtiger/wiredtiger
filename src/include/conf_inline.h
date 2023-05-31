@@ -6,6 +6,11 @@
  * See the file LICENSE for redistribution information.
  */
 
+/*
+ * __wt_conf_get_compiled --
+ *     Return true iff the given string is a dummy compiled string, and if so,
+ *     return the compiled structure.
+ */
 static inline bool
 __wt_conf_get_compiled(WT_CONNECTION_IMPL *conn, const char *config, WT_CONF_COMPILED **compiledp)
 {
@@ -19,6 +24,10 @@ __wt_conf_get_compiled(WT_CONNECTION_IMPL *conn, const char *config, WT_CONF_COM
     return (true);
 }
 
+/*
+ * __wt_conf_is_compiled --
+ *     Return true iff the given string is a dummy compiled string.
+ */
 static inline bool
 __wt_conf_is_compiled(WT_CONNECTION_IMPL *conn, const char *config)
 {

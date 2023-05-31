@@ -9,7 +9,7 @@
 #include "wt_internal.h"
 
 /*
- * __wt_conf_gets_def_func --
+ * __wt_conf_gets_func --
  *     Given a compiled structure of configuration strings, find the final value for a given key,
  *     represented as (up to 4) 16-bit key ids packed into a 64-bit key. If a default is given, it
  *     overrides any default found in the compiled structure.

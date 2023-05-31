@@ -9,7 +9,8 @@
 #include "wt_internal.h"
 
 /*
- *
+ * __conf_string_to_type --
+ *     Convert a type name string into an enum representing the type.
  */
 static int
 __conf_string_to_type(WT_SESSION_IMPL *session, const char *typename, WT_CONFIG_ITEM_TYPE *result)
@@ -281,6 +282,10 @@ err:
     return (ret);
 }
 
+/*
+ * __wt_conf_compile_config_strings --
+ *     Given an array of config strings, parse them, returning the compiled structure.
+ */
 int
 __wt_conf_compile_config_strings(
   WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *centry, const char **cfg, WT_CONF_COMPILED **cfp)
@@ -384,7 +389,7 @@ __wt_conf_compile_free_compiled(WT_SESSION_IMPL *session, WT_CONF_COMPILED *comp
 }
 
 /*
- * __wt_compiled_config_discard --
+ * __wt_conf_compile_discard --
  *     Discard compiled configuration info.
  */
 void
