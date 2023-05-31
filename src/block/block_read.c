@@ -162,8 +162,10 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
   wt_off_t offset, uint32_t size, uint32_t checksum)
 {
     WT_BLOCK_HEADER *blk, swap;
+    bool chunkcache_hit;
     size_t bufsize, check_size;
 
+    chunkcache_hit = false;
     __wt_verbose_debug2(session, WT_VERB_READ,
       "off %" PRIuMAX ", size %" PRIu32 ", checksum %#" PRIx32, (uintmax_t)offset, size, checksum);
 
@@ -197,12 +199,11 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
     buf->size = size;
 
     /*
-     * Check if the chunk cache has the needed data. If it does not, the chunk cache may read it
-     * from the file.
+     * Check if the chunk cache has the needed data. If it does not, read it.
      */
     if (S2C(session)->chunkcache.configured)
-        WT_RET(__wt_chunkcache_get(session, block, objectid, offset, size, buf->mem));
-    else
+        WT_RET_ERROR_OK(__wt_chunkcache_get(session, block, objectid, offset, size, buf->mem, &chunkcache_hit), ENOSPC);
+    if (!chunkcache_hit)
         WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
 
     /*

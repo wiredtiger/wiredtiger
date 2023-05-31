@@ -205,13 +205,17 @@ __chunkcache_evict_one(WT_SESSION_IMPL *session)
      * 3. Free the chunk.
      */
     __wt_spin_lock(session, &chunkcache->chunkcache_lru_lock);
-    TAILQ_FOREACH_REVERSE(
-      chunk_to_evict, &chunkcache->chunkcache_lru_list, __wt_chunkcache_lru, next_lru_item)
+    TAILQ_FOREACH_REVERSE(chunk_to_evict, &chunkcache->chunkcache_lru_list, __wt_chunkcache_lru, next_lru_item)
     {
         if (chunk_to_evict->valid) {
             TAILQ_REMOVE(&chunkcache->chunkcache_lru_list, chunk_to_evict, next_lru_item);
+            //memset(&chunk_to_evict->next_lru_item, 0, sizeof(chunk_to_evict->next_lru_item));
             chunk_to_evict->being_evicted = true;
             found_eviction_candidate = true;
+
+             __wt_verbose(session, WT_VERB_CHUNKCACHE, "evict: %s(%u), offset=%" PRIu64 ", size=%" PRIu64,
+                (char *)&chunk_to_evict->hash_id.objectname, chunk_to_evict->hash_id.objectid,
+                (uint64_t)chunk_to_evict->chunk_offset, (uint64_t)chunk_to_evict->chunk_size);
             break;
         }
     }
@@ -220,15 +224,13 @@ __chunkcache_evict_one(WT_SESSION_IMPL *session)
     if (!found_eviction_candidate)
         return;
 
-    __wt_verbose(session, WT_VERB_CHUNKCACHE, "evict: %s(%u), offset=%" PRIu64 ", size=%" PRIu64,
-      (char *)&chunk_to_evict->hash_id.objectname, chunk_to_evict->hash_id.objectid,
-      (uint64_t)chunk_to_evict->chunk_offset, (uint64_t)chunk_to_evict->chunk_size);
-
     __wt_spin_lock(session, WT_BUCKET_LOCK(chunkcache, chunk_to_evict->bucket_id));
-    TAILQ_REMOVE(
-      WT_BUCKET_CHUNKS(chunkcache, chunk_to_evict->bucket_id), chunk_to_evict, next_chunk);
+    if (chunk_to_evict->being_evicted) {
+        TAILQ_REMOVE(
+            WT_BUCKET_CHUNKS(chunkcache, chunk_to_evict->bucket_id), chunk_to_evict, next_chunk);
+            __chunkcache_free_chunk(session, chunk_to_evict);
+    }
     __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, chunk_to_evict->bucket_id));
-    __chunkcache_free_chunk(session, chunk_to_evict);
 
     WT_STAT_CONN_INCR(session, chunk_cache_chunks_evicted);
 }
@@ -264,7 +266,7 @@ __chunkcache_eviction_thread(void *arg)
  */
 int
 __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid, wt_off_t offset,
-  uint32_t size, void *dst)
+  uint32_t size, void *dst, bool *cache_hit)
 {
     WT_CHUNKCACHE *chunkcache;
     WT_CHUNKCACHE_CHUNK *chunk;
@@ -284,6 +286,9 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
 
     __wt_verbose(session, WT_VERB_CHUNKCACHE, "get: %s(%u), offset=%" PRId64 ", size=%u",
       (char *)block->name, objectid, offset, size);
+
+    if (strncmp((char *)block->name, "WiredTiger.wt", WT_MIN(strlen((char *)block->name), strlen("WiredTiger.wt"))) == 0)
+        return (ENOSPC);
 
     WT_STAT_CONN_INCR(session, chunk_cache_lookups);
 
@@ -328,10 +333,25 @@ retry:
                   chunk->chunk_memory + (offset + (wt_off_t)already_read - chunk->chunk_offset),
                   size_copied);
 
-                /* Place at the front of the LRU list */
+                /* Place at the front of the LRU list. Must be here. */
                 __wt_spin_lock(session, &chunkcache->chunkcache_lru_lock);
-                TAILQ_REMOVE(&chunkcache->chunkcache_lru_list, chunk, next_lru_item);
+                __wt_verbose(session, WT_VERB_CHUNKCACHE, "access-check: %s(%u), offset=%" PRIu64 ", size=%" PRIu64,
+                   (char *)&chunk->hash_id.objectname, chunk->hash_id.objectid,
+                   (uint64_t)chunk->chunk_offset, (uint64_t)chunk->chunk_size);
+                if (!chunk->being_evicted) {
+                    __wt_verbose(session, WT_VERB_CHUNKCACHE, "About to remove offset=%" PRIu64, (uint64_t)chunk->chunk_offset);
+                    TAILQ_REMOVE(&chunkcache->chunkcache_lru_list, chunk, next_lru_item);
+                    __wt_verbose(session, WT_VERB_CHUNKCACHE, "lru-remove: %s(%u), offset=%" PRIu64 ", size=%" PRIu64 ", next_item=%p, prev_item=%p",
+                      (char *)&chunk->hash_id.objectname, chunk->hash_id.objectid,
+                                 (uint64_t)chunk->chunk_offset, (uint64_t)chunk->chunk_size, (void*)chunk->next_lru_item.tqe_next, (void*)chunk->next_lru_item.tqe_prev);
+                }
+                else
+                    chunk->being_evicted = false;
+                //memset(&chunk->next_lru_item, 0, sizeof(chunk->next_lru_item));
                 TAILQ_INSERT_HEAD(&chunkcache->chunkcache_lru_list, chunk, next_lru_item);
+                __wt_verbose(session, WT_VERB_CHUNKCACHE, "lru-insert-head: %s(%u), offset=%" PRIu64 ", size=%" PRIu64,
+      (char *)&chunk->hash_id.objectname, chunk->hash_id.objectid,
+      (uint64_t)chunk->chunk_offset, (uint64_t)chunk->chunk_size);
                 __wt_spin_unlock(session, &chunkcache->chunkcache_lru_lock);
 
                 __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
@@ -370,6 +390,11 @@ retry:
                 return (ret);
             }
 
+            /* Insert the new chunk into the LRU list. We must do so before making the chunk valid. */
+            __wt_spin_lock(session, &chunkcache->chunkcache_lru_lock);
+            TAILQ_INSERT_HEAD(&chunkcache->chunkcache_lru_list, chunk, next_lru_item);
+            __wt_spin_unlock(session, &chunkcache->chunkcache_lru_lock);
+
             /*
              * Mark chunk as valid. The only thread that could be executing this code is the thread
              * that won the race and inserted this (invalid) chunk into the hash table. This thread
@@ -379,17 +404,13 @@ retry:
              */
             (void)__wt_atomic_addv32(&chunk->valid, 1);
 
-            /* Insert the new chunk into the LRU list */
-            __wt_spin_lock(session, &chunkcache->chunkcache_lru_lock);
-            TAILQ_INSERT_HEAD(&chunkcache->chunkcache_lru_list, chunk, next_lru_item);
-            __wt_spin_unlock(session, &chunkcache->chunkcache_lru_lock);
-
             __wt_verbose(session, WT_VERB_CHUNKCACHE,
               "insert: %s(%u), offset=%" PRId64 ", size=%lu", (char *)block->name, objectid,
               chunk->chunk_offset, chunk->chunk_size);
             goto retry;
         }
     }
+    *cache_hit = true;
     return (0);
 }
 
