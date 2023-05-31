@@ -283,6 +283,8 @@ CONFIG configuration_list[] = {
 
 {"statistics_log.sources", "statistics_log sources (file: | off)", C_IGNORE | C_STRING, 0, 0, 0}
 
+{"stress.aggressive_stash_free", "stress freeing stashed memory aggressively", C_BOOL, 2, 0, 0}
+
 {"stress.aggressive_sweep", "stress aggressive sweep", C_BOOL, 2, 0, 0}
 
 {"stress.checkpoint", "stress checkpoints", C_BOOL, 2, 0, 0}
@@ -322,8 +324,6 @@ CONFIG configuration_list[] = {
 {"stress.split_7", "stress splits (#7)", C_BOOL, 2, 0, 0}
 
 {"stress.split_8", "stress splits (#8)", C_BOOL, 2, 0, 0}
-
-{"stress.txn_read", "stress txn read", C_BOOL, 2, 0, 0}
 
 {"tiered_storage.flush_frequency", "calls to checkpoint that are flush_tier, if tiered storage enabled (percentage)", 0x0, 0, 50, 100 }
 

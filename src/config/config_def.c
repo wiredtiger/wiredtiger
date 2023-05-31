@@ -252,13 +252,14 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure_tiered_storage_su
     10000, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, 0, 0, 0, 0, NULL}};
 
-static const char *confchk_timing_stress_for_test_choices[] = {"aggressive_sweep", "backup_rename",
-  "checkpoint_evict_page", "checkpoint_handle", "checkpoint_slow", "checkpoint_stop",
-  "compact_slow", "evict_reposition", "failpoint_eviction_fail_after_reconciliation",
-  "failpoint_history_store_delete_key_from_ts", "history_store_checkpoint_delay",
-  "history_store_search", "history_store_sweep_race", "prepare_checkpoint_delay",
-  "prepare_resolution", "sleep_before_read_overflow_onpage", "split_1", "split_2", "split_3",
-  "split_4", "split_5", "split_6", "split_7", "split_8", "tiered_flush_finish", "txn_read", NULL};
+static const char *confchk_timing_stress_for_test_choices[] = {"aggressive_stash_free",
+  "aggressive_sweep", "backup_rename", "checkpoint_evict_page", "checkpoint_handle",
+  "checkpoint_slow", "checkpoint_stop", "compact_slow", "evict_reposition",
+  "failpoint_eviction_fail_after_reconciliation", "failpoint_history_store_delete_key_from_ts",
+  "history_store_checkpoint_delay", "history_store_search", "history_store_sweep_race",
+  "prepare_checkpoint_delay", "prepare_resolution", "sleep_before_read_overflow_onpage", "split_1",
+  "split_2", "split_3", "split_4", "split_5", "split_6", "split_7", "split_8",
+  "tiered_flush_finish", NULL};
 
 static const char *confchk_verbose_choices[] = {"api", "backup", "block", "block_cache",
   "checkpoint", "checkpoint_cleanup", "checkpoint_progress", "chunkcache", "compact",
@@ -347,18 +348,17 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
     confchk_WT_CONNECTION_reconfigure_tiered_storage_subconfigs, 1,
     WT_CONFIG_COMPILED_TYPE_CATEGORY, 47, INT64_MIN, INT64_MAX, NULL},
   {"timing_stress_for_test", "list", NULL,
-    "choices=[\"aggressive_sweep\",\"backup_rename\","
-    "\"checkpoint_evict_page\",\"checkpoint_handle\","
-    "\"checkpoint_slow\",\"checkpoint_stop\",\"compact_slow\","
-    "\"evict_reposition\","
+    "choices=[\"aggressive_stash_free\",\"aggressive_sweep\","
+    "\"backup_rename\",\"checkpoint_evict_page\","
+    "\"checkpoint_handle\",\"checkpoint_slow\",\"checkpoint_stop\","
+    "\"compact_slow\",\"evict_reposition\","
     "\"failpoint_eviction_fail_after_reconciliation\","
     "\"failpoint_history_store_delete_key_from_ts\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
     "\"prepare_resolution\",\"sleep_before_read_overflow_onpage\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\",\"split_8\",\"tiered_flush_finish\","
-    "\"txn_read\"]",
+    "\"split_6\",\"split_7\",\"split_8\",\"tiered_flush_finish\"]",
     NULL, 0, WT_CONFIG_COMPILED_TYPE_LIST, 248, INT64_MIN, INT64_MAX,
     confchk_timing_stress_for_test_choices},
   {"verbose", "list", NULL,
@@ -1842,13 +1842,14 @@ static const WT_CONFIG_CHECK confchk_tiered_storage_subconfigs[] = {
     INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, 0, 0, 0, 0, NULL}};
 
-static const char *confchk_timing_stress_for_test2_choices[] = {"aggressive_sweep", "backup_rename",
-  "checkpoint_evict_page", "checkpoint_handle", "checkpoint_slow", "checkpoint_stop",
-  "compact_slow", "evict_reposition", "failpoint_eviction_fail_after_reconciliation",
-  "failpoint_history_store_delete_key_from_ts", "history_store_checkpoint_delay",
-  "history_store_search", "history_store_sweep_race", "prepare_checkpoint_delay",
-  "prepare_resolution", "sleep_before_read_overflow_onpage", "split_1", "split_2", "split_3",
-  "split_4", "split_5", "split_6", "split_7", "split_8", "tiered_flush_finish", "txn_read", NULL};
+static const char *confchk_timing_stress_for_test2_choices[] = {"aggressive_stash_free",
+  "aggressive_sweep", "backup_rename", "checkpoint_evict_page", "checkpoint_handle",
+  "checkpoint_slow", "checkpoint_stop", "compact_slow", "evict_reposition",
+  "failpoint_eviction_fail_after_reconciliation", "failpoint_history_store_delete_key_from_ts",
+  "history_store_checkpoint_delay", "history_store_search", "history_store_sweep_race",
+  "prepare_checkpoint_delay", "prepare_resolution", "sleep_before_read_overflow_onpage", "split_1",
+  "split_2", "split_3", "split_4", "split_5", "split_6", "split_7", "split_8",
+  "tiered_flush_finish", NULL};
 
 static const char *confchk_method_choices[] = {"dsync", "fsync", "none", NULL};
 
@@ -1993,18 +1994,17 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
   {"tiered_storage", "category", NULL, NULL, confchk_tiered_storage_subconfigs, 8,
     WT_CONFIG_COMPILED_TYPE_CATEGORY, 47, INT64_MIN, INT64_MAX, NULL},
   {"timing_stress_for_test", "list", NULL,
-    "choices=[\"aggressive_sweep\",\"backup_rename\","
-    "\"checkpoint_evict_page\",\"checkpoint_handle\","
-    "\"checkpoint_slow\",\"checkpoint_stop\",\"compact_slow\","
-    "\"evict_reposition\","
+    "choices=[\"aggressive_stash_free\",\"aggressive_sweep\","
+    "\"backup_rename\",\"checkpoint_evict_page\","
+    "\"checkpoint_handle\",\"checkpoint_slow\",\"checkpoint_stop\","
+    "\"compact_slow\",\"evict_reposition\","
     "\"failpoint_eviction_fail_after_reconciliation\","
     "\"failpoint_history_store_delete_key_from_ts\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
     "\"prepare_resolution\",\"sleep_before_read_overflow_onpage\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\",\"split_8\",\"tiered_flush_finish\","
-    "\"txn_read\"]",
+    "\"split_6\",\"split_7\",\"split_8\",\"tiered_flush_finish\"]",
     NULL, 0, WT_CONFIG_COMPILED_TYPE_LIST, 248, INT64_MIN, INT64_MAX,
     confchk_timing_stress_for_test2_choices},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
@@ -2047,13 +2047,14 @@ static const char *confchk_json_output3_choices[] = {"error", "message", NULL};
 static const char *confchk_statistics4_choices[] = {
   "all", "cache_walk", "fast", "none", "clear", "tree_walk", NULL};
 
-static const char *confchk_timing_stress_for_test3_choices[] = {"aggressive_sweep", "backup_rename",
-  "checkpoint_evict_page", "checkpoint_handle", "checkpoint_slow", "checkpoint_stop",
-  "compact_slow", "evict_reposition", "failpoint_eviction_fail_after_reconciliation",
-  "failpoint_history_store_delete_key_from_ts", "history_store_checkpoint_delay",
-  "history_store_search", "history_store_sweep_race", "prepare_checkpoint_delay",
-  "prepare_resolution", "sleep_before_read_overflow_onpage", "split_1", "split_2", "split_3",
-  "split_4", "split_5", "split_6", "split_7", "split_8", "tiered_flush_finish", "txn_read", NULL};
+static const char *confchk_timing_stress_for_test3_choices[] = {"aggressive_stash_free",
+  "aggressive_sweep", "backup_rename", "checkpoint_evict_page", "checkpoint_handle",
+  "checkpoint_slow", "checkpoint_stop", "compact_slow", "evict_reposition",
+  "failpoint_eviction_fail_after_reconciliation", "failpoint_history_store_delete_key_from_ts",
+  "history_store_checkpoint_delay", "history_store_search", "history_store_sweep_race",
+  "prepare_checkpoint_delay", "prepare_resolution", "sleep_before_read_overflow_onpage", "split_1",
+  "split_2", "split_3", "split_4", "split_5", "split_6", "split_7", "split_8",
+  "tiered_flush_finish", NULL};
 
 static const char *confchk_verbose14_choices[] = {"api", "backup", "block", "block_cache",
   "checkpoint", "checkpoint_cleanup", "checkpoint_progress", "chunkcache", "compact",
@@ -2189,18 +2190,17 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
   {"tiered_storage", "category", NULL, NULL, confchk_tiered_storage_subconfigs, 8,
     WT_CONFIG_COMPILED_TYPE_CATEGORY, 47, INT64_MIN, INT64_MAX, NULL},
   {"timing_stress_for_test", "list", NULL,
-    "choices=[\"aggressive_sweep\",\"backup_rename\","
-    "\"checkpoint_evict_page\",\"checkpoint_handle\","
-    "\"checkpoint_slow\",\"checkpoint_stop\",\"compact_slow\","
-    "\"evict_reposition\","
+    "choices=[\"aggressive_stash_free\",\"aggressive_sweep\","
+    "\"backup_rename\",\"checkpoint_evict_page\","
+    "\"checkpoint_handle\",\"checkpoint_slow\",\"checkpoint_stop\","
+    "\"compact_slow\",\"evict_reposition\","
     "\"failpoint_eviction_fail_after_reconciliation\","
     "\"failpoint_history_store_delete_key_from_ts\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
     "\"prepare_resolution\",\"sleep_before_read_overflow_onpage\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\",\"split_8\",\"tiered_flush_finish\","
-    "\"txn_read\"]",
+    "\"split_6\",\"split_7\",\"split_8\",\"tiered_flush_finish\"]",
     NULL, 0, WT_CONFIG_COMPILED_TYPE_LIST, 248, INT64_MIN, INT64_MAX,
     confchk_timing_stress_for_test3_choices},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
@@ -2245,13 +2245,14 @@ static const char *confchk_json_output4_choices[] = {"error", "message", NULL};
 static const char *confchk_statistics5_choices[] = {
   "all", "cache_walk", "fast", "none", "clear", "tree_walk", NULL};
 
-static const char *confchk_timing_stress_for_test4_choices[] = {"aggressive_sweep", "backup_rename",
-  "checkpoint_evict_page", "checkpoint_handle", "checkpoint_slow", "checkpoint_stop",
-  "compact_slow", "evict_reposition", "failpoint_eviction_fail_after_reconciliation",
-  "failpoint_history_store_delete_key_from_ts", "history_store_checkpoint_delay",
-  "history_store_search", "history_store_sweep_race", "prepare_checkpoint_delay",
-  "prepare_resolution", "sleep_before_read_overflow_onpage", "split_1", "split_2", "split_3",
-  "split_4", "split_5", "split_6", "split_7", "split_8", "tiered_flush_finish", "txn_read", NULL};
+static const char *confchk_timing_stress_for_test4_choices[] = {"aggressive_stash_free",
+  "aggressive_sweep", "backup_rename", "checkpoint_evict_page", "checkpoint_handle",
+  "checkpoint_slow", "checkpoint_stop", "compact_slow", "evict_reposition",
+  "failpoint_eviction_fail_after_reconciliation", "failpoint_history_store_delete_key_from_ts",
+  "history_store_checkpoint_delay", "history_store_search", "history_store_sweep_race",
+  "prepare_checkpoint_delay", "prepare_resolution", "sleep_before_read_overflow_onpage", "split_1",
+  "split_2", "split_3", "split_4", "split_5", "split_6", "split_7", "split_8",
+  "tiered_flush_finish", NULL};
 
 static const char *confchk_verbose15_choices[] = {"api", "backup", "block", "block_cache",
   "checkpoint", "checkpoint_cleanup", "checkpoint_progress", "chunkcache", "compact",
@@ -2379,18 +2380,17 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
   {"tiered_storage", "category", NULL, NULL, confchk_tiered_storage_subconfigs, 8,
     WT_CONFIG_COMPILED_TYPE_CATEGORY, 47, INT64_MIN, INT64_MAX, NULL},
   {"timing_stress_for_test", "list", NULL,
-    "choices=[\"aggressive_sweep\",\"backup_rename\","
-    "\"checkpoint_evict_page\",\"checkpoint_handle\","
-    "\"checkpoint_slow\",\"checkpoint_stop\",\"compact_slow\","
-    "\"evict_reposition\","
+    "choices=[\"aggressive_stash_free\",\"aggressive_sweep\","
+    "\"backup_rename\",\"checkpoint_evict_page\","
+    "\"checkpoint_handle\",\"checkpoint_slow\",\"checkpoint_stop\","
+    "\"compact_slow\",\"evict_reposition\","
     "\"failpoint_eviction_fail_after_reconciliation\","
     "\"failpoint_history_store_delete_key_from_ts\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
     "\"prepare_resolution\",\"sleep_before_read_overflow_onpage\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\",\"split_8\",\"tiered_flush_finish\","
-    "\"txn_read\"]",
+    "\"split_6\",\"split_7\",\"split_8\",\"tiered_flush_finish\"]",
     NULL, 0, WT_CONFIG_COMPILED_TYPE_LIST, 248, INT64_MIN, INT64_MAX,
     confchk_timing_stress_for_test4_choices},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
@@ -2431,13 +2431,14 @@ static const char *confchk_json_output5_choices[] = {"error", "message", NULL};
 static const char *confchk_statistics6_choices[] = {
   "all", "cache_walk", "fast", "none", "clear", "tree_walk", NULL};
 
-static const char *confchk_timing_stress_for_test5_choices[] = {"aggressive_sweep", "backup_rename",
-  "checkpoint_evict_page", "checkpoint_handle", "checkpoint_slow", "checkpoint_stop",
-  "compact_slow", "evict_reposition", "failpoint_eviction_fail_after_reconciliation",
-  "failpoint_history_store_delete_key_from_ts", "history_store_checkpoint_delay",
-  "history_store_search", "history_store_sweep_race", "prepare_checkpoint_delay",
-  "prepare_resolution", "sleep_before_read_overflow_onpage", "split_1", "split_2", "split_3",
-  "split_4", "split_5", "split_6", "split_7", "split_8", "tiered_flush_finish", "txn_read", NULL};
+static const char *confchk_timing_stress_for_test5_choices[] = {"aggressive_stash_free",
+  "aggressive_sweep", "backup_rename", "checkpoint_evict_page", "checkpoint_handle",
+  "checkpoint_slow", "checkpoint_stop", "compact_slow", "evict_reposition",
+  "failpoint_eviction_fail_after_reconciliation", "failpoint_history_store_delete_key_from_ts",
+  "history_store_checkpoint_delay", "history_store_search", "history_store_sweep_race",
+  "prepare_checkpoint_delay", "prepare_resolution", "sleep_before_read_overflow_onpage", "split_1",
+  "split_2", "split_3", "split_4", "split_5", "split_6", "split_7", "split_8",
+  "tiered_flush_finish", NULL};
 
 static const char *confchk_verbose16_choices[] = {"api", "backup", "block", "block_cache",
   "checkpoint", "checkpoint_cleanup", "checkpoint_progress", "chunkcache", "compact",
@@ -2565,18 +2566,17 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
   {"tiered_storage", "category", NULL, NULL, confchk_tiered_storage_subconfigs, 8,
     WT_CONFIG_COMPILED_TYPE_CATEGORY, 47, INT64_MIN, INT64_MAX, NULL},
   {"timing_stress_for_test", "list", NULL,
-    "choices=[\"aggressive_sweep\",\"backup_rename\","
-    "\"checkpoint_evict_page\",\"checkpoint_handle\","
-    "\"checkpoint_slow\",\"checkpoint_stop\",\"compact_slow\","
-    "\"evict_reposition\","
+    "choices=[\"aggressive_stash_free\",\"aggressive_sweep\","
+    "\"backup_rename\",\"checkpoint_evict_page\","
+    "\"checkpoint_handle\",\"checkpoint_slow\",\"checkpoint_stop\","
+    "\"compact_slow\",\"evict_reposition\","
     "\"failpoint_eviction_fail_after_reconciliation\","
     "\"failpoint_history_store_delete_key_from_ts\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
     "\"prepare_resolution\",\"sleep_before_read_overflow_onpage\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\",\"split_8\",\"tiered_flush_finish\","
-    "\"txn_read\"]",
+    "\"split_6\",\"split_7\",\"split_8\",\"tiered_flush_finish\"]",
     NULL, 0, WT_CONFIG_COMPILED_TYPE_LIST, 248, INT64_MIN, INT64_MAX,
     confchk_timing_stress_for_test5_choices},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
