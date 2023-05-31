@@ -37,8 +37,10 @@ __wt_skip_last(WT_INSERT_HEAD *ins_head, int memorder)
 static inline WT_INSERT *
 __wt_skip_next(WT_INSERT *ins, int memorder)
 {
-    WT_C_MEMMODEL_ATOMIC_LOAD(ins, &ins->next[0], memorder);
-    return (ins);
+    WT_INSERT *temp;
+
+    WT_C_MEMMODEL_ATOMIC_LOAD(temp, &ins->next[0], memorder);
+    return (temp);
 }
 
 #define WT_SKIP_FOREACH(ins, ins_head, memorder)                     \

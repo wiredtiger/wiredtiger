@@ -1869,9 +1869,8 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     for (i = 0; i < WT_SKIP_MAXDEPTH; ++i) {
         WT_C_MEMMODEL_ATOMIC_LOAD(tail, &ins_head->tail[i], WT_ATOMIC_RELAXED);
-        if (tail != moved_ins) {
+        if (tail != moved_ins)
             break;
-        }
     }
 
     WT_MEM_TRANSFER(page_decr, right_incr, sizeof(WT_INSERT) + (size_t)i * sizeof(WT_INSERT *));
