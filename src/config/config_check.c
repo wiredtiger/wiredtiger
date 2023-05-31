@@ -67,6 +67,25 @@ config_check_search(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_i
 }
 
 /*
+ * config_get_choice --
+ *     Walk through list of legal choices looking for an item.
+ */
+static inline bool
+config_get_choice(const char **choices, WT_CONFIG_ITEM *item)
+{
+    const char **choice;
+    bool found;
+
+    found = false;
+    for (choice = choices; *choice != NULL; ++choice)
+        if (WT_STRING_MATCH(*choice, item->str, item->len)) {
+            found = true;
+            break;
+        }
+    return (found);
+}
+
+/*
  * config_check --
  *     Check the keys in an application-supplied config string match what is specified in an array
  *     of check strings.
@@ -80,7 +99,6 @@ config_check(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_int chec
     WT_CONFIG_ITEM dummy, k, v;
     WT_DECL_RET;
     int i;
-    const char **choice;
     bool badtype, found;
 
     /*
@@ -154,8 +172,6 @@ config_check(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_int chec
          *   We should handle it there or ban it.
          */
         if (check->choices != NULL) {
-            found = false;
-
             if (v.len == 0)
                 WT_RET_MSG(session, EINVAL, "Key '%.*s' requires a value", (int)k.len, k.str);
             if (v.type == WT_CONFIG_ITEM_STRUCT) {
@@ -164,21 +180,10 @@ config_check(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_int chec
                  */
                 __wt_config_subinit(session, &sparser, &v);
                 found = true;
-                while (found && (ret = __wt_config_next(&sparser, &v, &dummy)) == 0) {
-                    /* TODO: Make into a little function */
-                    for (choice = check->choices; *choice != NULL; ++choice)
-                        if (WT_STRING_MATCH(*choice, v.str, v.len)) {
-                            found = true;
-                            break;
-                        }
-                }
-            } else {
-                for (choice = check->choices; *choice != NULL; ++choice)
-                    if (WT_STRING_MATCH(*choice, v.str, v.len)) {
-                        found = true;
-                        break;
-                    }
-            }
+                while (found && (ret = __wt_config_next(&sparser, &v, &dummy)) == 0)
+                    found = config_get_choice(check->choices, &v);
+            } else
+                found = config_get_choice(check->choices, &v);
 
             if (!found)
                 WT_RET_MSG(session, EINVAL, "Value '%.*s' not a permitted choice for key '%.*s'",

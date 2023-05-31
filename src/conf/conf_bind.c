@@ -37,9 +37,13 @@ __wt_conf_bind(WT_SESSION_IMPL *session, const char *compiled_str, va_list ap)
 
         /* Fill in the bound value. */
         value = &bound->values[i].item;
-        value->type = (WT_CONFIG_ITEM_TYPE)bind_desc->type; /* TODO: cast? */
+        value->type = bind_desc->type;
 
-        switch (bind_desc->type) {
+        /*
+         * We add a cast because we really want the default case, and some compilers would otherwise
+         * not permit it.
+         */
+        switch ((u_int)bind_desc->type) {
         case WT_CONFIG_ITEM_NUM:
         case WT_CONFIG_ITEM_BOOL:
             /* The str/len fields will continue to be set to "%d" in our copy of the config string.
@@ -65,6 +69,7 @@ __wt_conf_bind(WT_SESSION_IMPL *session, const char *compiled_str, va_list ap)
                 value->val = 1;
             }
             break;
+        case WT_CONFIG_ITEM_STRUCT:
         default:
             return (__wt_illegal_value(session, bind_desc->type));
         }

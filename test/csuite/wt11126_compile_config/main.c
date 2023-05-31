@@ -262,7 +262,7 @@ do_config_run(TEST_OPTS *opts, int kind, const char *compiled, const char **comp
 
 /*
  * main --
- *     TODO: Add a comment describing this function.
+ *     The main entry point for a simple test/benchmark for compiling configuration strings.
  */
 int
 main(int argc, char *argv[])
