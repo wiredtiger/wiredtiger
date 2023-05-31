@@ -80,7 +80,7 @@ gettimeofday(struct timeval *tp, void *tzp)
 
 /*
  * glob --
- *     Expand a pattern.
+ *     Expand a pattern. Use globfree() to free the result buffer.
  */
 int
 glob(const char *pattern, int flags, int (*error_func)(const char *, int), glob_t *buffer)
@@ -93,7 +93,8 @@ glob(const char *pattern, int flags, int (*error_func)(const char *, int), glob_
     char **b;
     size_t capacity;
 
-    WT_UNUSED(flags);
+    if (flags != 0)
+        return (ENOTSUP);
 
     if (strcmp(pattern, ".") == 0) {
         buffer->gl_pathc = 1;

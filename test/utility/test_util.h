@@ -77,8 +77,8 @@
 /* Generic option parsing structure shared by all test cases. */
 typedef struct {
     char *home;
-    const char *argv0; /* Exec name */
-    char usage[512];   /* Usage string for this parser */
+    const char *argv0;           /* Exec name */
+    char usage[512];             /* Usage string for this parser */
 
     const char *progname;        /* Truncated program name */
     char *build_dir;             /* Build directory path */
@@ -94,10 +94,10 @@ typedef struct {
     FILE *progress_fp; /* Progress tracking file */
     char *progress_file_name;
 
-    WT_RAND_STATE data_rnd;  /* PRNG state for data ops */
-    WT_RAND_STATE extra_rnd; /* PRNG state for extra ops */
-    uint64_t data_seed;      /* Random seed for data ops */
-    uint64_t extra_seed;     /* Random seed for extra ops */
+    WT_RAND_STATE data_rnd;   /* PRNG state for data ops */
+    WT_RAND_STATE extra_rnd;  /* PRNG state for extra ops */
+    uint64_t data_seed;       /* Random seed for data ops */
+    uint64_t extra_seed;      /* Random seed for extra ops */
 
     uint64_t delay_ms;        /* Average length of delay when simulated */
     uint64_t error_ms;        /* Average length of delay when simulated */
@@ -107,21 +107,21 @@ typedef struct {
 
 #define TESTUTIL_SEED_FORMAT "-PSD%" PRIu64 ",E%" PRIu64
 
-    bool absolute_bucket_dir;  /* Use an absolute bucket path when it is a directory */
-    bool compat;               /* Compatibility */
-    bool do_data_ops;          /* Have schema ops use data */
-    bool inmem;                /* In-memory */
-    bool make_bucket_dir;      /* Create bucket when it is a directory */
-    bool preserve;             /* Don't remove files on exit */
-    bool tiered_begun;         /* Tiered storage ready */
-    bool tiered_storage;       /* Configure tiered storage */
-    bool verbose;              /* Run in verbose mode */
-    uint64_t nrecords;         /* Number of records */
-    uint64_t nops;             /* Number of operations */
-    uint64_t nthreads;         /* Number of threads */
-    uint64_t n_append_threads; /* Number of append threads */
-    uint64_t n_read_threads;   /* Number of read threads */
-    uint64_t n_write_threads;  /* Number of write threads */
+    bool absolute_bucket_dir;          /* Use an absolute bucket path when it is a directory */
+    bool compat;                       /* Compatibility */
+    bool do_data_ops;                  /* Have schema ops use data */
+    bool inmem;                        /* In-memory */
+    bool make_bucket_dir;              /* Create bucket when it is a directory */
+    bool preserve;                     /* Don't remove files on exit */
+    bool tiered_begun;                 /* Tiered storage ready */
+    bool tiered_storage;               /* Configure tiered storage */
+    bool verbose;                      /* Run in verbose mode */
+    uint64_t nrecords;                 /* Number of records */
+    uint64_t nops;                     /* Number of operations */
+    uint64_t nthreads;                 /* Number of threads */
+    uint64_t n_append_threads;         /* Number of append threads */
+    uint64_t n_read_threads;           /* Number of read threads */
+    uint64_t n_write_threads;          /* Number of write threads */
 
     uint64_t tiered_flush_interval_us; /* Microseconds between flush_tier calls */
     uint64_t tiered_flush_next_us;     /* Next tiered flush in epoch microseconds */
@@ -175,6 +175,14 @@ typedef struct {
     const char *link_if_prefix; /* Create hard links only for files/directories with this prefix */
     bool preserve;              /* Preserve timestamps and selected other metadata */
 } WT_FILE_COPY_OPTS;
+
+/*
+ * Options for creating directories.
+ */
+typedef struct {
+    bool can_exist; /* Do not fail the test if the directory already exists */
+    bool parents;   /* Create any parents that don't exist */
+} WT_MKDIR_OPTS;
 
 /*
  * testutil_assert --
@@ -451,12 +459,11 @@ bool testutil_is_flag_set(const char *);
 bool testutil_is_dir_store(TEST_OPTS *);
 void testutil_build_dir(TEST_OPTS *, char *, int);
 void testutil_clean_test_artifacts(const char *);
-void testutil_clean_work_dir(const char *);
 void testutil_cleanup(TEST_OPTS *);
 void testutil_copy(const char *, const char *);
-void testutil_copy_ext(const char *, const char *, const WT_FILE_COPY_OPTS *opts);
 void testutil_copy_data(const char *);
 void testutil_copy_data_opt(const char *, const char *);
+void testutil_copy_ext(const char *, const char *, const WT_FILE_COPY_OPTS *opts);
 void testutil_copy_file(WT_SESSION *, const char *);
 void testutil_copy_if_exists(WT_SESSION *, const char *);
 void testutil_create_backup_directory(const char *);
@@ -466,8 +473,8 @@ int testutil_general_event_handler(
 void testutil_lazyfs_cleanup(WT_LAZY_FS *);
 void testutil_lazyfs_clear_cache(WT_LAZY_FS *);
 void testutil_lazyfs_setup(WT_LAZY_FS *, const char *);
-void testutil_make_work_dir(const char *);
 void testutil_mkdir(const char *);
+void testutil_mkdir_ext(const char *, const WT_MKDIR_OPTS *);
 void testutil_modify_apply(WT_ITEM *, WT_ITEM *, WT_MODIFY *, int, uint8_t);
 uint64_t testutil_pareto(uint64_t, uint64_t, u_int);
 void testutil_parse_begin_opt(int, char *const *, const char *, TEST_OPTS *);
@@ -480,6 +487,7 @@ uint32_t testutil_random(WT_RAND_STATE *);
 void testutil_random_init(WT_RAND_STATE *, uint64_t *, uint32_t);
 void testutil_random_from_random(WT_RAND_STATE *, WT_RAND_STATE *);
 void testutil_random_from_seed(WT_RAND_STATE *, uint64_t);
+void testutil_recreate_dir(const char *);
 void testutil_remove(const char *);
 #ifndef _WIN32
 void testutil_sleep_wait(uint32_t, pid_t);

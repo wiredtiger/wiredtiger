@@ -42,10 +42,10 @@ typedef struct {
     const char *start_path; /* The starting point of the traversal. */
     const char *rel_path;   /* The path relative to the start path. */
 
-    bool directory; /* This is a directory. */
-    int depth;      /* The depth we are at (0 = the source). */
+    bool directory;         /* This is a directory. */
+    int depth;              /* The depth we are at (0 = the source). */
 
-    struct stat stat; /* File metadata. */
+    struct stat stat;       /* File metadata. */
 } file_info_t;
 typedef void (*file_callback_t)(const char *, const file_info_t *, void *);
 
@@ -85,8 +85,7 @@ process_directory_tree(const char *start_path, const char *rel_path, int depth, 
     /* Get just the base name. */
     testutil_check(
       _splitpath_s(start_path, NULL, 0, NULL, 0, file_name, _MAX_FNAME, file_ext, _MAX_EXT));
-    testutil_snprintf(base_name, sizeof(base_name), "%s%s%s", file_name,
-      file_ext[0] == '\0' ? "" : DIR_DELIM_STR, file_ext);
+    testutil_snprintf(base_name, sizeof(base_name), "%s%s", file_name, file_ext);
     info.base_name = base_name;
 
     /* Check if the provided path exists and whether it points to a file. */
@@ -127,7 +126,6 @@ process_directory_tree(const char *start_path, const char *rel_path, int depth, 
         on_directory_enter(path, &info, user_data);
 
     for (;;) {
-
         /* Skip . and .. */
         if (strcmp(d.cFileName, ".") != 0 && strcmp(d.cFileName, "..") != 0) {
             if (rel_path == NULL || rel_path[0] == '\0')
@@ -292,7 +290,8 @@ copy_on_file(const char *path, const file_info_t *info, void *user_data)
           dest_path, last_windows_error_message());
 #else
     testutil_assert_errno((rfd = open(path, O_RDONLY)) > 0);
-    testutil_assert_errno((wfd = open(dest_path, O_WRONLY | O_CREAT, info->stat.st_mode)) > 0);
+    testutil_assert_errno(
+      (wfd = open(dest_path, O_WRONLY | O_CREAT | O_TRUNC, info->stat.st_mode)) > 0);
 
     buf = dmalloc(COPY_BUF_SIZE);
     for (;;) {
@@ -410,6 +409,9 @@ testutil_copy(const char *source, const char *dest)
     testutil_copy_ext(source, dest, NULL);
 }
 
+/* Default options for the file copy function. */
+static const WT_FILE_COPY_OPTS default_copy_opts = {0};
+
 /*
  * testutil_copy_ext --
  *     Recursively copy a file or a directory tree. Fail the test on error. With extra options.
@@ -420,7 +422,6 @@ testutil_copy_ext(const char *source, const char *dest, const WT_FILE_COPY_OPTS 
     struct copy_data data;
     struct stat source_stat, dest_stat;
     WT_DECL_RET;
-    WT_FILE_COPY_OPTS default_opts;
     const char *path;
     bool dest_exists;
     bool is_dest_dir;
@@ -428,10 +429,8 @@ testutil_copy_ext(const char *source, const char *dest, const WT_FILE_COPY_OPTS 
     glob_t g;
     size_t i;
 
-    if (opts == NULL) {
-        memset(&default_opts, 0, sizeof(default_opts));
-        opts = &default_opts;
-    }
+    if (opts == NULL)
+        opts = &default_copy_opts;
 
     memset(&data, 0, sizeof(data));
     data.dest = dest;
@@ -472,13 +471,92 @@ testutil_copy_ext(const char *source, const char *dest, const WT_FILE_COPY_OPTS 
 
 /*
  * testutil_mkdir --
- *     Create a directory if it does not exist. Fail the test on error.
+ *     Create a directory. Fail the test on error.
  */
 void
 testutil_mkdir(const char *path)
 {
     testutil_assertfmt(
-      mkdir(path, 0755) == 0, "Cannot create directory %s: %s", path, strerror(errno));
+      mkdir(path, 0777) == 0, "Cannot create directory %s: %s", path, strerror(errno));
+}
+
+/* Default options for directory creation. */
+static const WT_MKDIR_OPTS default_mkdir_opts = {0};
+
+/*
+ * testutil_mkdir_ext --
+ *     Create a directory, with extra options. Fail the test on error.
+ */
+void
+testutil_mkdir_ext(const char *path, const WT_MKDIR_OPTS *opts)
+{
+    WT_DECL_RET;
+    char *buf, *parent;
+#ifdef _WIN32
+    char dir[_MAX_DIR], drive[_MAX_DRIVE], p[_MAX_DIR + _MAX_DRIVE];
+    int i;
+#endif
+
+    if (path[0] == '\0')
+        testutil_die(EINVAL, "Cannot create directory");
+
+    if (opts == NULL)
+        opts = &default_mkdir_opts;
+
+    for (;;) {
+        ret = mkdir(path, 0755);
+        if (ret == 0)
+            return;
+        if (opts->can_exist && errno == EEXIST)
+            return;
+
+        /* Create the parent directory. */
+        if (opts->parents && errno == ENOENT) {
+            /* Get the parent directory. */
+            buf = dstrdup(path);
+#ifdef _WIN32
+            /* Remove trailing separators - note that we need to deal with both '\\' and '/'! */
+            i = ((int)strlen(buf)) - 1;
+            while (i >= 0 && (buf[i] == '/' || buf[i] == '\\'))
+                buf[i--] = '\0';
+            testutil_check(_splitpath_s(buf, drive, _MAX_DRIVE, dir, _MAX_DIR, NULL, 0, NULL, 0));
+            snprintf(p, sizeof(p), "%s%s", drive, dir);
+
+            /* Fail if we reached the top, e.g., if we the drive does not exist. */
+            if (strcmp(dir, "") == 0 || strcmp(dir, ".") == 0 || strcmp(dir, "/") == 0 ||
+              strcmp(dir, "\\") == 0)
+                testutil_die(EINVAL, "Cannot create directory %s", path);
+            parent = p;
+#else
+            parent = dirname(buf);
+            testutil_assert(strcmp(parent, "") != 0);
+
+            /* Fail if we reached the top - this should never happen. */
+            if (strcmp(parent, ".") == 0 || strcmp(parent, "/") == 0)
+                testutil_die(EINVAL, "Cannot create directory %s", path);
+#endif
+
+            /* Create the parent recursively. */
+            testutil_mkdir_ext(parent, opts);
+            free(buf);
+
+            /* Try again. */
+            continue;
+        }
+
+        testutil_die(errno, "Cannot create directory %s", path);
+    }
+}
+
+/*
+ * testutil_recreate_dir --
+ *     Delete the existing directory, then create a new one.
+ */
+void
+testutil_recreate_dir(const char *dir)
+{
+    testutil_remove(dir);
+    testutil_mkdir(dir);
 }
 
 /*

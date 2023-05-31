@@ -117,16 +117,6 @@ testutil_work_dir_from_path(char *buffer, size_t len, const char *dir)
 }
 
 /*
- * testutil_clean_work_dir --
- *     Remove the work directory.
- */
-void
-testutil_clean_work_dir(const char *dir)
-{
-    testutil_remove(dir);
-}
-
-/*
  * testutil_deduce_build_dir --
  *     Deduce the build directory.
  */
@@ -186,17 +176,6 @@ testutil_build_dir(TEST_OPTS *opts, char *buf, int size)
 }
 
 /*
- * testutil_make_work_dir --
- *     Delete the existing work directory, then create a new one.
- */
-void
-testutil_make_work_dir(const char *dir)
-{
-    testutil_clean_work_dir(dir);
-    testutil_mkdir(dir);
-}
-
-/*
  * testutil_progress --
  *     Print a progress message to the progress file.
  */
@@ -233,7 +212,7 @@ testutil_cleanup(TEST_OPTS *opts)
         testutil_assert(fclose(opts->progress_fp) == 0);
 
     if (!opts->preserve)
-        testutil_clean_work_dir(opts->home);
+        testutil_remove(opts->home);
 
     free(opts->uri);
     free(opts->progress_file_name);
@@ -694,7 +673,7 @@ example_setup(int argc, char *const *argv)
      */
     if ((home = getenv("WIREDTIGER_HOME")) == NULL)
         home = "WT_HOME";
-    testutil_make_work_dir(home);
+    testutil_recreate_dir(home);
     return (home);
 }
 
