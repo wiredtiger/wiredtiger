@@ -15,13 +15,13 @@
 int
 __wt_conf_bind(WT_SESSION_IMPL *session, const char *compiled_str, va_list ap)
 {
-    WT_CONF_COMPILED *compiled;
-    WT_CONF_BIND_DESC *bind_desc;
-    WT_CONF_BINDINGS *bound;
     WT_CONFIG_ITEM *value;
+    WT_CONF_BINDINGS *bound;
+    WT_CONF_BIND_DESC *bind_desc;
+    WT_CONF_COMPILED *compiled;
     WT_CONNECTION_IMPL *conn;
-    uint64_t i;
     size_t len;
+    uint64_t i;
     const char *str;
 
     conn = S2C(session);

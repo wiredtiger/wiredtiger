@@ -18,12 +18,12 @@ int
 __wt_conf_gets_fcn(WT_SESSION_IMPL *session, const WT_CONF_LIST *cfg, uint64_t keys, int def,
   bool use_def, WT_CONFIG_ITEM *value)
 {
+    WT_CONFIG_ITEM_STATIC_INIT(false_value);
     WT_CONF_BIND_DESC *bind_desc;
     const WT_CONF_COMPILED *compiled;
     WT_CONF_SET_ITEM *si;
     uint32_t partkey, values_off;
     uint8_t set_item_index;
-    WT_CONFIG_ITEM_STATIC_INIT(false_value);
 
     compiled = cfg;
     WT_ASSERT(session, keys != 0);

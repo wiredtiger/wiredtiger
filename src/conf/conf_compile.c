@@ -129,12 +129,12 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF_COMPILED *top_
   WT_CONF_COMPILED *compiled, const WT_CONFIG_CHECK *checks, u_int check_count, const char *format,
   size_t format_len, bool is_default)
 {
-    WT_CONF_COMPILED *sub_compiled;
-    WT_CONF_SET_ITEM *set_item;
     WT_CONFIG parser;
-    WT_CONFIG_ITEM_TYPE check_type;
     const WT_CONFIG_CHECK *check;
     WT_CONFIG_ITEM key, value;
+    WT_CONFIG_ITEM_TYPE check_type;
+    WT_CONF_COMPILED *sub_compiled;
+    WT_CONF_SET_ITEM *set_item;
     WT_DECL_RET;
     uint32_t i, key_id, set_item_pos;
     bool existing;
@@ -227,8 +227,8 @@ int
 __wt_conf_compile(
   WT_SESSION_IMPL *session, const char *api, const char *format, const char **resultp)
 {
-    WT_CONF_COMPILED *compiled;
     const WT_CONFIG_ENTRY *centry;
+    WT_CONF_COMPILED *compiled;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     size_t format_len;
