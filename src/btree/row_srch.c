@@ -65,6 +65,7 @@ __search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT
                 else
                     cbt->ins_stack[i] = &ins_head->head[i];
             }
+            cbt->next_stack[i] = NULL;
         }
         cbt->compare = -cmp;
         cbt->ins = ins;
