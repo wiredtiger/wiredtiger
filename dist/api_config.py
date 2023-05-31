@@ -279,7 +279,7 @@ def add_keys(keynumber, configs, prefix):
         if ty == 'category':
             add_keys(keynumber, c.subconfig, prefix + c.name + '.')
 
-for name in api_data_def.methods.keys():  # TODO: sorted?
+for name in api_data_def.methods.keys():
     method = api_data_def.methods[name]
     config = method.config
     if config:

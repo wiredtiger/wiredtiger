@@ -63,7 +63,6 @@ __wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF_LIST *cfg, uint64_t 
             values_off = bind_desc->offset + session->conf_bindings.bind_values;
             WT_ASSERT(session,
               bind_desc->offset < cfg->binding_count && values_off <= WT_CONF_BIND_VALUES_LEN);
-            /*TODO: desc not set? fixed? */
             WT_ASSERT(session, session->conf_bindings.values[values_off].desc == bind_desc);
             *value = session->conf_bindings.values[values_off].item;
             return (0);
