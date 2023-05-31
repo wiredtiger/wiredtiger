@@ -6,6 +6,7 @@ static inline WT_INSERT *
 __wt_skip_first(WT_INSERT_HEAD *ins_head, int memorder)
 {
     WT_INSERT *ins;
+
     if (ins_head == NULL)
         return (NULL);
     else {
@@ -22,6 +23,7 @@ static inline WT_INSERT *
 __wt_skip_last(WT_INSERT_HEAD *ins_head, int memorder)
 {
     WT_INSERT *ins;
+
     if (ins_head == NULL)
         return (NULL);
     else {

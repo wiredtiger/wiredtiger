@@ -1007,7 +1007,7 @@ slow:
 
 leaf_insert:
         /* Write any K/V pairs inserted into the page after this key. */
-        if ((ins = __wt_skip_last(WT_ROW_INSERT(page, rip), WT_ATOMIC_RELAXED)) != NULL)
+        if ((ins = __wt_skip_first(WT_ROW_INSERT(page, rip), WT_ATOMIC_RELAXED)) != NULL)
             WT_ERR(__rec_row_leaf_insert(session, r, ins));
     }
 
