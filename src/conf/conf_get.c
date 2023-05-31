@@ -92,38 +92,6 @@ __wt_conf_gets_none_func(
 }
 
 /*
- * __wt_conf_getone --
- *     Get the value for a given key from a single config string.
- */
-int
-__wt_conf_getone(WT_SESSION_IMPL *session, const char *config, uint64_t key, WT_CONFIG_ITEM *value)
-{
-    WT_UNUSED(session);
-    WT_UNUSED(config);
-    WT_UNUSED(key);
-    WT_UNUSED(value);
-
-    /* TODO */
-    return (ENOTSUP);
-}
-
-/*
- * __wt_conf_getones --
- *     Get the value for a given string key from a single config string.
- */
-int
-__wt_conf_getones(WT_SESSION_IMPL *session, const char *config, uint64_t key, WT_CONFIG_ITEM *value)
-{
-    WT_UNUSED(session);
-    WT_UNUSED(config);
-    WT_UNUSED(key);
-    WT_UNUSED(value);
-
-    /* TODO */
-    return (ENOTSUP);
-}
-
-/*
  * __wt_conf_getones_none --
  *     Given a compiled structure of configuration strings, find the final value for a given key,
  *     represented as (up to 4) 16-bit key ids packed into a 64-bit key. Treat "none" as empty.
