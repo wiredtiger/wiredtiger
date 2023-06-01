@@ -24,7 +24,6 @@ endif()
 set(unittest_sources
     tests/main.cpp
     tests/utils.cpp
-    tests/wrappers/block_mods.cpp
     tests/wrappers/connection_wrapper.cpp
     tests/wrappers/item_wrapper.cpp
     tests/wrappers/mock_connection.cpp
