@@ -169,6 +169,7 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
         # Ensure that any space was reclaimed from cache.
         self.assertLess(cache2, cache1)
 
+    # FIXME - WT11133 Uncomment and re-enable this test after fixing this ticket.
     # def test_force_drop_and_sweep(self):
     #     # Create a table to drop.
     #     # The following sequence of operations are expected to generate several errors, but not crash/abort.
