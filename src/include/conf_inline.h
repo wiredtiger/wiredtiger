@@ -8,7 +8,7 @@
 
 /*
  * __wt_conf_get_compiled --
- *     Return true iff the given string is a dummy compiled string, and if so, return the compiled
+ *     Return true if and only if the given string is a dummy compiled string, and if so, return the compiled
  *     structure.
  */
 static inline bool
@@ -26,7 +26,7 @@ __wt_conf_get_compiled(WT_CONNECTION_IMPL *conn, const char *config, WT_CONF_COM
 
 /*
  * __wt_conf_is_compiled --
- *     Return true iff the given string is a dummy compiled string.
+ *     Return true if and only if the given string is a dummy compiled string.
  */
 static inline bool
 __wt_conf_is_compiled(WT_CONNECTION_IMPL *conn, const char *config)
