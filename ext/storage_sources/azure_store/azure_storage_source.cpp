@@ -37,9 +37,10 @@
 
 #include "azure_connection.h"
 #include "azure_log_system.h"
-#include "wt_internal.h"
 
 #include <azure/core/diagnostics/logger.hpp>
+
+#define WT_UNUSED(var) (void)(var)
 
 struct azure_file_system;
 struct azure_file_handle;
@@ -663,7 +664,7 @@ azure_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *size
     azure_file_system *azure_fs = azure_fh->fs;
     auto log = azure_fs->store->log.get();
 
-    WT_DECL_RET;
+    int ret = 0;
     bool exists;
     size_t size = 0;
     *sizep = 0;
