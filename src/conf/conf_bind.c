@@ -15,23 +15,23 @@
 int
 __wt_conf_bind(WT_SESSION_IMPL *session, const char *compiled_str, va_list ap)
 {
-    WT_CONFIG_ITEM *value;
+    WT_CONF *conf;
     WT_CONF_BINDINGS *bound;
     WT_CONF_BIND_DESC *bind_desc;
-    WT_CONF_COMPILED *compiled;
+    WT_CONFIG_ITEM *value;
     WT_CONNECTION_IMPL *conn;
     size_t len;
     uint64_t i;
     const char *str;
 
     conn = S2C(session);
-    if (!__wt_conf_get_compiled(conn, compiled_str, &compiled))
+    if (!__wt_conf_get_compiled(conn, compiled_str, &conf))
         return (EINVAL);
 
     bound = &session->conf_bindings;
 
-    for (i = 0; i < compiled->binding_count; ++i) {
-        bind_desc = compiled->binding_descriptions[i];
+    for (i = 0; i < conf->binding_count; ++i) {
+        bind_desc = conf->binding_descriptions[i];
         WT_ASSERT(session, i == bind_desc->offset);
         bound->values[i].desc = bind_desc;
 

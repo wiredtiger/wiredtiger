@@ -345,3 +345,16 @@
     if (FLD_ISSET(S2C(s)->debug_flags, WT_CONN_DEBUG_CURSOR_REPOSITION) && \
       (s)->api_call_counter == 1)                                          \
     F_CLR((c), WT_CURSTD_EVICT_REPOSITION)
+
+/*
+ * Macros to set up APIs that use compiled configuration strings.
+ */
+#define WT_DECL_CONF(conf) WT_CONF *conf = NULL
+
+#define WT_API_CONFIG_REF(s, h, n) WT_CONFIG_REF(s, h##_##n)
+#define API_CONF(session, h, n, cfg, conf)                              \
+    WT_ERR(__wt_conf_compile_config_strings(session, WT_API_CONFIG_REF(session, h, n), cfg, &conf))
+
+#define SESSION_API_CONF(session, n, cfg, conf) API_CONF(session, WT_SESSION, n, cfg, conf)
+
+#define API_CONF_END(session, conf) __wt_conf_compile_free_compiled(session, conf, false)

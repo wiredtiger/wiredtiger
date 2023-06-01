@@ -12,15 +12,15 @@
  *     structure.
  */
 static inline bool
-__wt_conf_get_compiled(WT_CONNECTION_IMPL *conn, const char *config, WT_CONF_COMPILED **compiledp)
+__wt_conf_get_compiled(WT_CONNECTION_IMPL *conn, const char *config, WT_CONF **confp)
 {
     ssize_t offset;
 
-    offset = (config - conn->conf_compiled_dummy);
-    if (offset < 0 || offset >= conn->conf_compiled_size)
+    offset = (config - conn->conf_dummy);
+    if (offset < 0 || offset >= conn->conf_size)
         return (false);
 
-    *compiledp = conn->conf_compiled_array[offset];
+    *confp = conn->conf_array[offset];
     return (true);
 }
 
@@ -33,6 +33,6 @@ __wt_conf_is_compiled(WT_CONNECTION_IMPL *conn, const char *config)
 {
     ssize_t offset;
 
-    offset = (config - conn->conf_compiled_dummy);
-    return (offset >= 0 && offset < conn->conf_compiled_size);
+    offset = (config - conn->conf_dummy);
+    return (offset >= 0 && offset < conn->conf_size);
 }

@@ -1901,16 +1901,6 @@ err:
     API_END_RET(session, ret);
 }
 
-#define WT_DECL_CONF WT_CONF_COMPILED *conf = NULL
-
-#define WT_API_CONFIG_REF(s, h, n) WT_CONFIG_REF(s, h##_##n)
-#define API_CONF(session, h, n, cfg, conf) \
-    WT_ERR(__wt_conf_compile_config_strings(session, WT_API_CONFIG_REF(session, h, n), cfg, &conf))
-
-#define SESSION_API_CONF(session, n, cfg, conf) API_CONF(session, WT_SESSION, n, cfg, conf)
-
-#define API_CONF_END(session, conf) __wt_conf_compile_free_compiled(session, conf, false)
-
 /*
  * __session_begin_transaction --
  *     WT_SESSION->begin_transaction method.
@@ -1918,16 +1908,12 @@ err:
 static int
 __session_begin_transaction(WT_SESSION *wt_session, const char *config)
 {
-    WT_DECL_CONF;
+    WT_DECL_CONF(conf);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, begin_transaction, config, cfg);
-#if 0
-    SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, begin_transaction, NULL, cfg);
-    cfg[1] = config;
-#endif
     SESSION_API_CONF(session, begin_transaction, cfg, conf);
     WT_STAT_CONN_INCR(session, txn_begin);
     WT_STAT_SESSION_SET(session, txn_bytes_dirty, 0);

@@ -1030,8 +1030,6 @@ static const struct {
 
 #define WT_CONF_BIND_VALUES_LEN 5
 
-typedef WT_CONF_COMPILED WT_CONF_LIST;
-
 /*
  * WT_CONF_BINDINGS --
  *	A set of values bound.
@@ -1055,10 +1053,10 @@ struct __wt_conf_bind_desc {
 };
 
 /*
- * WT_CONF_COMPILED --
+ * WT_CONF --
  *	A compiled configuration string
  */
-struct __wt_conf_compiled {
+struct __wt_conf {
     enum { CONF_COMPILED_TEMP = 0, CONF_COMPILED_CALLER, CONF_COMPILED_BASE_API } compiled_type;
     const WT_CONFIG_ENTRY *compile_time_entry; /* May be used for diagnostic checks. */
     char *orig_config;
@@ -1084,6 +1082,6 @@ struct __wt_conf_set_item {
     union {
         WT_CONFIG_ITEM item;
         WT_CONF_BIND_DESC bind_desc;
-        WT_CONF_COMPILED *sub;
+        WT_CONF *sub;
     } u;
 };

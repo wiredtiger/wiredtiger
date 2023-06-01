@@ -15,30 +15,33 @@
  *     overrides any default found in the compiled structure.
  */
 int
-__wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF_LIST *cfg, uint64_t keys, int def,
+__wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF *orig_conf, uint64_t orig_keys, int def,
   bool use_def, WT_CONFIG_ITEM *value)
 {
-    WT_CONFIG_ITEM_STATIC_INIT(false_value);
+    const WT_CONF *conf;
     WT_CONF_BIND_DESC *bind_desc;
-    const WT_CONF_COMPILED *compiled;
     WT_CONF_SET_ITEM *si;
+    WT_CONFIG_ITEM_STATIC_INIT(false_value);
+    uint64_t keys;
     uint32_t partkey, values_off;
     uint8_t set_item_index;
 
-    compiled = cfg;
+    conf = orig_conf;
+    keys = orig_keys;
+
     WT_ASSERT(session, keys != 0);
     while (keys != 0) {
         partkey = keys & 0xffff;
         WT_ASSERT(session, partkey != 0);
 
-        set_item_index = compiled->key_to_set_item[partkey];
+        set_item_index = conf->key_to_set_item[partkey];
         if (set_item_index == 0)
             return (WT_NOTFOUND);
 
         /* The value in key_to_set_item is one-based, account for that here. */
         --set_item_index;
-        WT_ASSERT(session, set_item_index < compiled->set_item_count);
-        si = &compiled->set_item[set_item_index];
+        WT_ASSERT(session, set_item_index < conf->set_item_count);
+        si = &conf->set_item[set_item_index];
         keys >>= 16;
 
         switch (si->set_type) {
@@ -62,13 +65,13 @@ __wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF_LIST *cfg, uint64_t 
             bind_desc = &si->u.bind_desc;
             values_off = bind_desc->offset + session->conf_bindings.bind_values;
             WT_ASSERT(session,
-              bind_desc->offset < cfg->binding_count && values_off <= WT_CONF_BIND_VALUES_LEN);
+              bind_desc->offset < orig_conf->binding_count && values_off <= WT_CONF_BIND_VALUES_LEN);
             WT_ASSERT(session, session->conf_bindings.values[values_off].desc == bind_desc);
             *value = session->conf_bindings.values[values_off].item;
             return (0);
 
         case CONF_SET_SUB_INFO:
-            compiled = si->u.sub;
+            conf = si->u.sub;
             break;
         }
     }
@@ -82,9 +85,9 @@ __wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF_LIST *cfg, uint64_t 
  */
 int
 __wt_conf_gets_none_func(
-  WT_SESSION_IMPL *session, WT_CONF_LIST *cfg, uint64_t key, WT_CONFIG_ITEM *value)
+  WT_SESSION_IMPL *session, WT_CONF *conf, uint64_t key, WT_CONFIG_ITEM *value)
 {
-    WT_RET(__wt_conf_gets_func(session, cfg, key, 0, false, value));
+    WT_RET(__wt_conf_gets_func(session, conf, key, 0, false, value));
     if (WT_STRING_MATCH("none", value->str, value->len))
         value->len = 0;
     return (0);
