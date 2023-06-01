@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from __future__ import print_function
-import os, re, sys, textwrap
+import os, re, subprocess, sys, textwrap
 from dist import compare_srcfile, format_srcfile
 from contextlib import contextmanager
 
@@ -29,6 +29,9 @@ tfile = open(tmp_file, 'w')
 
 whitespace_re = re.compile(r'\s+')
 cbegin_re = re.compile(r'(\s*\*\s*)@config(?:empty|start)\{(.*?),.*\}')
+
+# Track files that have changed for later formatting.
+clang_format_files = set()
 
 def gen_id_name(name, ty):
     id_name = name
@@ -75,6 +78,7 @@ def replaceable_file_fragment(filename, tmp_file, match):
     finally:
         tfile.close()
     compare_srcfile(tmp_file, filename)
+    clang_format_files.add(filename)
 
 def gettype(c):
     '''Derive the type of a config item'''
@@ -336,6 +340,7 @@ if not test_config:
 
     tfile.close()
     compare_srcfile(tmp_file, f)
+    # Don't add wiredtiger.in to the clang_format list.
 
 #####################################################################
 # Create config_def.c with defaults for each config string
@@ -608,7 +613,7 @@ if not test_config:
             else:
                 structs += '{}struct {}\n'.format(indent, '{')
                 inits += '{}{}\n'.format(indent, '{')
-                (s2, i2) = gen_conf_key_struct_init(indent + '    ', subnames, h)
+                (s2, i2) = gen_conf_key_struct_init(indent + '  ', subnames, h)
                 structs += s2 + '{}{} {};\n'.format(indent, '}', name)
                 inits += i2 + '{}{},\n'.format(indent, '}')
         return [structs, inits]
@@ -640,3 +645,8 @@ if not test_config:
         tfile.write('} WT_CONF_KEY_STRUCTURE = {\n')
         tfile.write(inits)
         tfile.write('};\n')
+
+# Run the formatter on any files we've changed.
+for fname in clang_format_files:
+    fname = fname.replace('../', '')
+    subprocess.check_call(['./s_clang_format', fname])
