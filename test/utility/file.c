@@ -42,10 +42,10 @@ typedef struct {
     const char *start_path; /* The starting point of the traversal. */
     const char *rel_path;   /* The path relative to the start path. */
 
-    bool directory;         /* This is a directory. */
-    int depth;              /* The depth we are at (0 = the source). */
+    bool directory; /* This is a directory. */
+    int depth;      /* The depth we are at (0 = the source). */
 
-    struct stat stat;       /* File metadata. */
+    struct stat stat; /* File metadata. */
 } file_info_t;
 typedef void (*file_callback_t)(const char *, const file_info_t *, void *);
 
@@ -520,7 +520,7 @@ testutil_mkdir_ext(const char *path, const WT_MKDIR_OPTS *opts)
             while (i >= 0 && (buf[i] == '/' || buf[i] == '\\'))
                 buf[i--] = '\0';
             testutil_check(_splitpath_s(buf, drive, _MAX_DRIVE, dir, _MAX_DIR, NULL, 0, NULL, 0));
-            snprintf(p, sizeof(p), "%s%s", drive, dir);
+            testutil_snprintf(p, sizeof(p), "%s%s", drive, dir);
 
             /* Fail if we reached the top, e.g., if we the drive does not exist. */
             if (strcmp(dir, "") == 0 || strcmp(dir, ".") == 0 || strcmp(dir, "/") == 0 ||

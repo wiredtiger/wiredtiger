@@ -157,6 +157,8 @@ static void
 configure_timing_stress(char **p, size_t max)
 {
     CONFIG_APPEND(*p, ",timing_stress_for_test=[");
+    if (GV(STRESS_AGGRESSIVE_STASH_FREE))
+        CONFIG_APPEND(*p, ",aggressive_stash_free");
     if (GV(STRESS_AGGRESSIVE_SWEEP))
         CONFIG_APPEND(*p, ",aggressive_sweep");
     if (GV(STRESS_CHECKPOINT))
@@ -386,7 +388,7 @@ create_database(const char *home, WT_CONNECTION **connp)
         CONFIG_APPEND(p, ",mmap_all=1");
 
     if (GV(DISK_DIRECT_IO))
-        CONFIG_APPEND(p, ",direct_io=(data)");
+        CONFIG_APPEND(p, ",direct_io=(checkpoint,data,log)");
 
     if (GV(DISK_DATA_EXTEND))
         CONFIG_APPEND(p, ",file_extend=(data=8MB)");
