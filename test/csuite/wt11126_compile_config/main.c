@@ -28,8 +28,29 @@
 #include "test_util.h"
 
 /*
- * JIRA ticket reference: WT-11126 tests for precompiling configuration.
+ * This program is both a simple test of precompiling configurations and a benchmark
+ * for the same.  At the time of this program, we only support precompiling for
+ * begin_transaction.  So, we measure the time taken for calling begin_transaction
+ * different coding techniques that we'll call variants.  These variants range from a
+ * naive approach, where the configuration is formatted on each call, to slightly better, where we
+ * choose which of many fixed configurations to use.  Next is using precompiling,
+ * and "binding" the values on each call.  Finally, for completeness, we test having
+ * many fixed configurations that are precompiled.
+ *
+ * For all of these variants, we are using a configuration string that has 4 variables,
+ * which is exactly what MongoDB does.  Our strategy for measuring time is, for each
+ * variant, do a large number (NCALLS) of calls to begin_transaction
+ * (end rollback_transaction), varying the parameters randomly.  We check that the
+ * proper transaction flags are set after each begin_transaction call.  Before and after
+ * the NCALLS, we get system time and collect the difference.  So we do:
+ *   TIME(NCALLS of the first variant), TIME(NCALLS of the second variant), etc.
+ * We do that whole procedure a number of times (NRUNS), and accumulate times for each
+ * variant. This tends to smooth out any timing noise.
+ *
  */
+#define NCALLS (WT_THOUSAND * 10)
+#define NRUNS (100)
+#define NVARIANTS 4
 
 #define IGNORE_PREPARE_VALUE_SIZE 3
 static const char *ignore_prepare_value[3] = {"false", "force", "true"};
@@ -185,7 +206,7 @@ begin_transaction_fast_alternate(WT_SESSION *session, const char **compiled_arra
  *     Run the test with or without configuration compilation.
  */
 static void
-do_config_run(TEST_OPTS *opts, int kind, const char *compiled, const char **compiled_array,
+do_config_run(TEST_OPTS *opts, int variant, const char *compiled, const char **compiled_array,
   bool check, uint64_t *nsec)
 {
     struct timespec before, after;
@@ -201,7 +222,6 @@ do_config_run(TEST_OPTS *opts, int kind, const char *compiled, const char **comp
     /* Initialize the RNG. */
     __wt_random_init(&rnd);
 
-#define NCALLS (WT_THOUSAND * 10)
     __wt_epoch(NULL, &before);
     for (i = 0; i < NCALLS; ++i) {
         r = __wt_random(&rnd);
@@ -211,7 +231,7 @@ do_config_run(TEST_OPTS *opts, int kind, const char *compiled, const char **comp
         roundup_read = ((r & 0x2) != 0);
         no_timestamp = ((r & 0x4) != 0);
 
-        switch (kind) {
+        switch (variant) {
         case 0:
             begin_transaction_slow(
               session, ignore_prepare, roundup_prepared, roundup_read, no_timestamp);
@@ -229,7 +249,7 @@ do_config_run(TEST_OPTS *opts, int kind, const char *compiled, const char **comp
               roundup_prepared, roundup_read, no_timestamp);
             break;
         default:
-            testutil_check(kind < 4);
+            testutil_assert(variant < NVARIANTS);
             break;
         }
 
@@ -268,8 +288,8 @@ int
 main(int argc, char *argv[])
 {
     TEST_OPTS *opts, _opts;
-    uint64_t nsecs[4];
-    int kind, runs;
+    uint64_t base_ns, ns, nsecs[NVARIANTS];
+    int variant, runs;
     const char *compiled_config, **compiled_config_array;
 
     opts = &_opts;
@@ -286,17 +306,20 @@ main(int argc, char *argv[])
 
     memset(nsecs, 0, sizeof(nsecs));
 
-    /* Run the test, alternating the kinds of tests. */
-#define NRUNS (100)
+    /* Run the test, alternating the variants of tests. */
     for (runs = 0; runs < NRUNS; ++runs)
-        for (kind = 0; kind < 4; ++kind) {
+        for (variant = 0; variant < NVARIANTS; ++variant) {
             do_config_run(
-              opts, kind, compiled_config, compiled_config_array, runs == 0, &nsecs[kind]);
+              opts, variant, compiled_config, compiled_config_array, runs == 0, &nsecs[variant]);
         }
 
     printf("number of calls: %d\n", NCALLS * NRUNS);
-    for (kind = 0; kind < 4; ++kind)
-        printf("kind = %d, total = %" PRIu64 "\n", kind, nsecs[kind]);
+    base_ns = ns = nsecs[0]/ (NCALLS * NRUNS);
+    for (variant = 0; variant < NVARIANTS; ++variant) {
+        ns = nsecs[variant]/ (NCALLS * NRUNS);
+        printf("variant = %d, total = %" PRIu64 ", ns per pair of begin/rollback calls = %" PRIu64 ", speed vs baseline = %f\n",
+          variant, nsecs[variant], ns, ((double)base_ns)/ns);
+    }
 
     testutil_cleanup(opts);
     return (EXIT_SUCCESS);
