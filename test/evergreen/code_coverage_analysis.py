@@ -2,12 +2,16 @@ import argparse
 import json
 
 
+# This function reads a gcovr json summary file into a dict and returns it
 def read_coverage_data(coverage_data_path: str):
     with open(coverage_data_path) as json_file:
         data = json.load(json_file)
         return data
 
 
+# The timing data file contains two lines of text, each line containing a single integer.
+# Line one contains the start time in seconds, line two contains the end time in seconds.
+# This function reads the timing data and returns the difference, in seconds, between the start and end times.
 def read_timing_data(timing_data_path: str):
     with open(timing_data_path) as file:
         line1 = file.readline()
@@ -42,7 +46,7 @@ def main():
     code_coverage_per_min = branch_coverage / delta_mins
     print("Time taken: {} seconds".format(delta_secs))
 
-    print("Code coverage = {:.2f}%/min".format(code_coverage_per_min))
+    print("Code coverage rate = {:.2f}%/min".format(code_coverage_per_min))
 
 
 if __name__ == '__main__':
