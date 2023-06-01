@@ -314,11 +314,12 @@ main(int argc, char *argv[])
         }
 
     printf("number of calls: %d\n", NCALLS * NRUNS);
-    base_ns = ns = nsecs[0]/ (NCALLS * NRUNS);
+    base_ns = ns = nsecs[0] / (NCALLS * NRUNS);
     for (variant = 0; variant < NVARIANTS; ++variant) {
-        ns = nsecs[variant]/ (NCALLS * NRUNS);
-        printf("variant = %d, total = %" PRIu64 ", ns per pair of begin/rollback calls = %" PRIu64 ", speed vs baseline = %f\n",
-          variant, nsecs[variant], ns, ((double)base_ns)/ns);
+        ns = nsecs[variant] / (NCALLS * NRUNS);
+        printf("variant = %d, total = %" PRIu64 ", ns per pair of begin/rollback calls = %" PRIu64
+               ", speed vs baseline = %f\n",
+          variant, nsecs[variant], ns, ((double)base_ns) / ns);
     }
 
     testutil_cleanup(opts);
