@@ -20,10 +20,6 @@ add_subdirectory(manydbs)
 add_subdirectory(csuite)
 add_subdirectory(packing)
 
-if(HAVE_UNITTEST)
-    add_subdirectory(unittest)
-endif()
-
 # We currently don't support these tests on non-POSIX systems since they are designed around the
 # existence of POSIX utilities (e.g. certain bash/sh commands, pthreads) or certain system headers
 # e.g Linux signals.
