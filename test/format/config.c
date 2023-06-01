@@ -859,7 +859,7 @@ config_in_memory(void)
     if (!config_explicit(NULL, "runs.in_memory") && mmrand(NULL, 1, 20) == 1) {
         config_single(NULL, "runs.in_memory=1", false);
         /* Use table[0] to access the global value (RUN_ROWS is a table value). */
-        if (NTV(tables[0], RUNS_ROWS) > WT_MILLION) {
+        if ((tables[0]->v[V_TABLE_RUNS_ROWS].v) > WT_MILLION) {
             WARN("%s",
               "limiting runs.rows to 1,000,000 as runs.in_memory has been automatically enabled");
             config_single(NULL, "runs.rows=1000000", true);
