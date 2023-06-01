@@ -16,9 +16,9 @@ int
 __wt_conf_bind(WT_SESSION_IMPL *session, const char *compiled_str, va_list ap)
 {
     WT_CONF *conf;
+    WT_CONFIG_ITEM *value;
     WT_CONF_BINDINGS *bound;
     WT_CONF_BIND_DESC *bind_desc;
-    WT_CONFIG_ITEM *value;
     WT_CONNECTION_IMPL *conn;
     size_t len;
     uint64_t i;

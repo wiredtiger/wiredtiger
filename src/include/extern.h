@@ -440,8 +440,9 @@ extern int __wt_conf_compile_config_strings(WT_SESSION_IMPL *session, const WT_C
   const char **cfg, WT_CONF **confp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conf_compile_init(WT_SESSION_IMPL *session, const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF *conf, uint64_t keys,
-  int def, bool use_def, WT_CONFIG_ITEM *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF *orig_conf,
+  uint64_t orig_keys, int def, bool use_def, WT_CONFIG_ITEM *value)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conf_gets_none_func(WT_SESSION_IMPL *session, WT_CONF *conf, uint64_t key,
   WT_CONFIG_ITEM *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_config_check(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *entry,

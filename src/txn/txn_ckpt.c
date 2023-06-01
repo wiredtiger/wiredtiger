@@ -658,8 +658,8 @@ static int
 __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[])
 {
     struct timespec tsp;
-    WT_CONFIG_ITEM cval;
     WT_CONF *txn_conf;
+    WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_CONF(conf);
     WT_DECL_RET;

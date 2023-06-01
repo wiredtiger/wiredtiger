@@ -18,10 +18,10 @@ int
 __wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF *orig_conf, uint64_t orig_keys, int def,
   bool use_def, WT_CONFIG_ITEM *value)
 {
-    const WT_CONF *conf;
+    WT_CONFIG_ITEM_STATIC_INIT(false_value);
     WT_CONF_BIND_DESC *bind_desc;
     WT_CONF_SET_ITEM *si;
-    WT_CONFIG_ITEM_STATIC_INIT(false_value);
+    const WT_CONF *conf;
     uint64_t keys;
     uint32_t partkey, values_off;
     uint8_t set_item_index;
@@ -65,7 +65,8 @@ __wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF *orig_conf, uint64_t
             bind_desc = &si->u.bind_desc;
             values_off = bind_desc->offset + session->conf_bindings.bind_values;
             WT_ASSERT(session,
-              bind_desc->offset < orig_conf->binding_count && values_off <= WT_CONF_BIND_VALUES_LEN);
+              bind_desc->offset < orig_conf->binding_count &&
+                values_off <= WT_CONF_BIND_VALUES_LEN);
             WT_ASSERT(session, session->conf_bindings.values[values_off].desc == bind_desc);
             *value = session->conf_bindings.values[values_off].item;
             return (0);

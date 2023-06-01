@@ -55,9 +55,8 @@ __conf_string_to_type(WT_SESSION_IMPL *session, const char *typename, WT_CONFIG_
  *     Compile a value into the compiled struct.
  */
 static int
-__conf_compile_value(WT_SESSION_IMPL *session, WT_CONF *top_conf,
-  WT_CONFIG_ITEM_TYPE check_type, WT_CONF_SET_ITEM *set_item, const WT_CONFIG_CHECK *check,
-  WT_CONFIG_ITEM *value, bool is_default)
+__conf_compile_value(WT_SESSION_IMPL *session, WT_CONF *top_conf, WT_CONFIG_ITEM_TYPE check_type,
+  WT_CONF_SET_ITEM *set_item, const WT_CONFIG_CHECK *check, WT_CONFIG_ITEM *value, bool is_default)
 {
     uint32_t bind_offset;
 
@@ -83,8 +82,8 @@ __conf_compile_value(WT_SESSION_IMPL *session, WT_CONF *top_conf,
         set_item->set_type = CONF_SET_BIND_DESC;
         set_item->u.bind_desc.type = check_type;
         set_item->u.bind_desc.offset = bind_offset;
-        WT_RET(__wt_realloc_def(session, &top_conf->binding_allocated,
-          top_conf->binding_count, &top_conf->binding_descriptions));
+        WT_RET(__wt_realloc_def(session, &top_conf->binding_allocated, top_conf->binding_count,
+          &top_conf->binding_descriptions));
         top_conf->binding_descriptions[bind_offset] = &set_item->u.bind_desc;
     } else if (check_type == WT_CONFIG_ITEM_STRUCT) {
         if (value->type != WT_CONFIG_ITEM_STRUCT || value->str[0] != '[')
@@ -126,15 +125,15 @@ __conf_compile_value(WT_SESSION_IMPL *session, WT_CONF *top_conf,
  *     Compile a configuration string into the compiled struct.
  */
 static int
-__conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf,
-  WT_CONF *conf, const WT_CONFIG_CHECK *checks, u_int check_count, const char *format,
-  size_t format_len, bool is_default)
+__conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_CONF *conf,
+  const WT_CONFIG_CHECK *checks, u_int check_count, const char *format, size_t format_len,
+  bool is_default)
 {
+    WT_CONF *sub_conf;
     WT_CONFIG parser;
     const WT_CONFIG_CHECK *check;
     WT_CONFIG_ITEM key, value;
     WT_CONFIG_ITEM_TYPE check_type;
-    WT_CONF *sub_conf;
     WT_CONF_SET_ITEM *set_item;
     WT_DECL_RET;
     uint32_t i, key_id, set_item_pos;
@@ -163,8 +162,8 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf,
                      * a byte */
                     WT_ASSERT(session, set_item_pos + 1 <= 0xff);
                     conf->key_to_set_item[key_id] = (uint8_t)(set_item_pos + 1);
-                    WT_ERR(__wt_realloc_def(session, &conf->set_item_allocated,
-                      conf->set_item_count, &conf->set_item));
+                    WT_ERR(__wt_realloc_def(
+                      session, &conf->set_item_allocated, conf->set_item_count, &conf->set_item));
                 }
                 set_item = &conf->set_item[set_item_pos];
 
@@ -198,9 +197,8 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf,
                         WT_ERR(__wt_calloc_one(session, &sub_conf));
                         set_item->u.sub = sub_conf;
                     }
-                    WT_ERR(
-                      __conf_compile(session, api, top_conf, sub_conf, check->subconfigs,
-                        check->subconfigs_entries, value.str, value.len, is_default));
+                    WT_ERR(__conf_compile(session, api, top_conf, sub_conf, check->subconfigs,
+                      check->subconfigs_entries, value.str, value.len, is_default));
                 } else
                     /* TODO: if check->checks starts with "choices=[...]", we should make sure the
                      * value matches one */
@@ -228,8 +226,8 @@ int
 __wt_conf_compile(
   WT_SESSION_IMPL *session, const char *api, const char *format, const char **resultp)
 {
-    const WT_CONFIG_ENTRY *centry;
     WT_CONF *conf;
+    const WT_CONFIG_ENTRY *centry;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     size_t format_len;
@@ -353,8 +351,8 @@ __wt_conf_compile_init(WT_SESSION_IMPL *session, const char **cfg)
     memset(cs, '~', conn->conf_max + 1);
     lastlen = 1;
     for (i = 0; i < conn->conf_max - lastlen - 2; i += 10) {
-        WT_RET(__wt_snprintf_len_set(
-          &cs[i], conn->conf_max - i - lastlen - 2, &lastlen, "%d", (int)i));
+        WT_RET(
+          __wt_snprintf_len_set(&cs[i], conn->conf_max - i - lastlen - 2, &lastlen, "%d", (int)i));
         cs[i + lastlen] = '~';
     }
     conn->conf_dummy = cs;
