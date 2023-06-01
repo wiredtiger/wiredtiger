@@ -111,7 +111,11 @@ testutil_random(RAND_STATE volatile *rnd_state)
      * of the random state so we can ensure that the calculation operates on the state consistently
      * regardless of concurrent calls with the same random state.
      */
-    WT_ORDERED_READ(rnd, *rnd_state);
+    if (rnd_state != NULL)
+        WT_ORDERED_READ(rnd, *rnd_state);
+    else
+        testutil_random_init_int(&rnd);
+
     w = M_W(rnd);
     z = M_Z(rnd);
 
@@ -128,7 +132,9 @@ testutil_random(RAND_STATE volatile *rnd_state)
 
     M_Z(rnd) = z = 36969 * (z & 65535) + (z >> 16);
     M_W(rnd) = w = 18000 * (w & 65535) + (w >> 16);
-    *rnd_state = rnd;
+
+    if (rnd_state != NULL)
+        *rnd_state = rnd;
 
     return ((z << 16) + (w & 65535));
 #endif
