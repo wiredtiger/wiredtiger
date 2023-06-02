@@ -2,8 +2,7 @@
 
 from __future__ import print_function
 import os, re, subprocess, sys, textwrap
-from dist import compare_srcfile, format_srcfile
-from contextlib import contextmanager
+from dist import compare_srcfile, format_srcfile, ModifyFile
 
 test_config = False
 
@@ -18,7 +17,6 @@ else:
     test_config = True
     import test_data as api_data_def
 
-# Temporary file.
 tmp_file = '__tmp'
 
 #####################################################################
@@ -29,9 +27,6 @@ tfile = open(tmp_file, 'w')
 
 whitespace_re = re.compile(r'\s+')
 cbegin_re = re.compile(r'(\s*\*\s*)@config(?:empty|start)\{(.*?),.*\}')
-
-# Track files that have changed for later formatting.
-clang_format_files = set()
 
 def gen_id_name(name, ty):
     id_name = name
@@ -58,27 +53,6 @@ class KeyNumber:
 
     def get(self, name):
         return self.numbering[name]
-
-@contextmanager
-def replaceable_file_fragment(filename, tmp_file, match):
-    tfile = open(tmp_file, 'w')
-    skip = 0
-    try:
-        for line in open(filename, 'r'):
-            if skip:
-                if match + ': END' in line:
-                    tfile.write('/*\n' + line)
-                    skip = 0
-            else:
-                tfile.write(line)
-            if match + ': BEGIN' in line:
-                skip = 1
-                tfile.write(' */\n')
-                yield tfile
-    finally:
-        tfile.close()
-    compare_srcfile(tmp_file, filename)
-    clang_format_files.add(filename)
 
 def gettype(c):
     '''Derive the type of a config item'''
@@ -573,59 +547,55 @@ tfile.close()
 format_srcfile(tmp_file)
 compare_srcfile(tmp_file, f)
 
-# Update the config.h file with the #defines for the configuration entries.
+# From names = ['verbose'], produce 'WT_CONF_KEY_verbose'
+# From names = ['assert', 'commit_timestamp'],
+#    produce 'WT_CONF_KEY_assert_CAT | (WT_CONF_KEY_archive << 16)'
+def build_key_initializer(names):
+    result = ''
+    shift = 0
+
+    for name in names:
+        if result != '':
+            result += ' | '
+        if shift == 0:
+            result += 'WT_CONF_KEY_{}'.format(name)
+        else:
+            result += '(WT_CONF_KEY_{} << {})'.format(name, shift)
+        shift += 16
+    return result
+
+def gen_conf_key_struct_init(indent, names, conf_keys):
+    structs = ''
+    inits = ''
+    for name in sorted(conf_keys):
+        subnames = names.copy()
+        subnames.append(name)
+        h = conf_keys[name]
+        if type(h) == int:
+            structs += '{}uint64_t {};\n'.format(indent, name)
+            inits += '{}{},\n'.format(indent, build_key_initializer(subnames))
+        else:
+            structs += '{}struct {}\n'.format(indent, '{')
+            inits += '{}{}\n'.format(indent, '{')
+            (s2, i2) = gen_conf_key_struct_init(indent + '  ', subnames, h)
+            structs += s2 + '{}{} {};\n'.format(indent, '}', name)
+            inits += i2 + '{}{},\n'.format(indent, '}')
+    return [structs, inits]
+
+# Update the config.h and conf.h files with the #defines for the configuration entries.
 if not test_config:
-    with replaceable_file_fragment('../src/include/config.h',
-      tmp_file, 'configuration section') as tfile:
+    config_h = ModifyFile('../src/include/config.h')
+    conf_h = ModifyFile('../src/include/conf.h')
+
+    with config_h.replace_fragment('configuration section') as tfile:
         tfile.write(config_defines)
 
     conf_keys = dict()
 
     add_conf_keys(api_data_def.methods, conf_keys, True)
 
-    # From names = ['verbose'], produce 'WT_CONF_KEY_verbose'
-    # From names = ['assert', 'commit_timestamp'],
-    #    produce 'WT_CONF_KEY_assert_CAT | (WT_CONF_KEY_archive << 16)'
-    def build_key_initializer(names):
-        result = ''
-        shift = 0
-
-        for name in names:
-            if result != '':
-                result += ' | '
-            if shift == 0:
-                result += 'WT_CONF_KEY_{}'.format(name)
-            else:
-                result += '(WT_CONF_KEY_{} << {})'.format(name, shift)
-            shift += 16
-        return result
-
-    def gen_conf_key_struct_init(indent, names, conf_keys):
-        structs = ''
-        inits = ''
-        for name in sorted(conf_keys):
-            subnames = names.copy()
-            subnames.append(name)
-            h = conf_keys[name]
-            if type(h) == int:
-                structs += '{}uint64_t {};\n'.format(indent, name)
-                inits += '{}{},\n'.format(indent, build_key_initializer(subnames))
-            else:
-                structs += '{}struct {}\n'.format(indent, '{')
-                inits += '{}{}\n'.format(indent, '{')
-                (s2, i2) = gen_conf_key_struct_init(indent + '  ', subnames, h)
-                structs += s2 + '{}{} {};\n'.format(indent, '}', name)
-                inits += i2 + '{}{},\n'.format(indent, '}')
-        return [structs, inits]
-
     # Assign unique numbers to all keys used in configuration, regardless of "level".
-    with replaceable_file_fragment('../src/include/conf.h',
-      tmp_file, 'API configuration keys') as tfile:
-        #for name in sorted(api_data_def.methods.keys()):
-        #    if api_data_def.methods[name].compilable:
-        #        for c in api_data_def.methods[name].config:
-        #            off = config_key[c.name]
-        #            tfile.write('#define WT_API_{} {}\n'.format(c.name, off))
+    with conf_h.replace_fragment('API configuration keys') as tfile:
         count = 0
         a = keynumber.numbering
         b = dict()
@@ -637,8 +607,7 @@ if not test_config:
         assert count == keynumber.count
         tfile.write('\n#define WT_CONF_KEY_COUNT {}\n'.format(count))
 
-    with replaceable_file_fragment('../src/include/conf.h',
-      tmp_file, 'Configuration key structure') as tfile:
+    with conf_h.replace_fragment('Configuration key structure') as tfile:
         (structs, inits) = gen_conf_key_struct_init('    ', [], conf_keys)
         tfile.write('static const struct {\n')
         tfile.write(structs)
@@ -646,7 +615,5 @@ if not test_config:
         tfile.write(inits)
         tfile.write('};\n')
 
-# Run the formatter on any files we've changed.
-for fname in clang_format_files:
-    fname = fname.replace('../', '')
-    subprocess.check_call(['./s_clang_format', fname])
+    config_h.done()
+    conf_h.done()
