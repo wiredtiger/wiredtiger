@@ -8,15 +8,15 @@
 
 /*
  * Sample usage:
- *
- * __wt_conf_gets(session, cfg, statistics, &cval);
- * __wt_conf_gets(session, cfg, operation_tracking.enabled, &cval);
+ *  __wt_conf_gets(session, conf, statistics, &cval);
+ *  __wt_conf_gets(session, conf, Operation_tracking.enabled, &cval);
+ *  __wt_conf_gets_def(session, conf, no_timestamp, 0, &cval));
  */
-#define __wt_conf_gets(s, cfg, key, cval) \
-    __wt_conf_gets_func(s, cfg, WT_CONF_KEY_STRUCTURE.key, 0, false, cval)
+#define __wt_conf_gets(s, conf, key, cval) \
+    __wt_conf_gets_func(s, conf, WT_CONF_KEY_STRUCTURE.key, 0, false, cval)
 
-#define __wt_conf_gets_def(s, cfg, key, def, cval) \
-    __wt_conf_gets_func(s, cfg, WT_CONF_KEY_STRUCTURE.key, def, true, cval)
+#define __wt_conf_gets_def(s, conf, key, def, cval) \
+    __wt_conf_gets_func(s, conf, WT_CONF_KEY_STRUCTURE.key, def, true, cval)
 
 /*******************************************
  * API configuration keys.
