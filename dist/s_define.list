@@ -105,6 +105,7 @@ __WIREDTIGER_EXT_H_
 __WIREDTIGER_H_
 __WT_INTERNAL_H
 __wt_bswap16
+__wt_conf_gets
 __wt_verbose_error
 __wt_verbose_level
 __wt_verbose_level_multi
