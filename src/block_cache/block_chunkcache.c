@@ -225,10 +225,20 @@ __chunkcache_evict_one(WT_SESSION_IMPL *session)
 
     __wt_spin_lock(session, WT_BUCKET_LOCK(chunkcache, chunk_to_evict->bucket_id));
     if (chunk_to_evict->being_evicted) {
-        (void)__wt_atomic_subv32(&chunk_to_evict->valid, 1);
-        TAILQ_REMOVE(
-            WT_BUCKET_CHUNKS(chunkcache, chunk_to_evict->bucket_id), chunk_to_evict, next_chunk);
-        __chunkcache_free_chunk(session, chunk_to_evict);
+        __wt_verbose(session, WT_VERB_CHUNKCACHE, "evict-remove-free: %s(%u), offset=%" PRIu64 ", size=%" PRIu64,
+                (char *)&chunk_to_evict->hash_id.objectname, chunk_to_evict->hash_id.objectid,
+                (uint64_t)chunk_to_evict->chunk_offset, (uint64_t)chunk_to_evict->chunk_size);
+
+        if(chunk_to_evict->chunk_memory == NULL)
+            __wt_verbose(session, WT_VERB_CHUNKCACHE, "DOUBLE FREE: %s(%u), offset=%" PRIu64 ", size=%" PRIu64,
+                (char *)&chunk_to_evict->hash_id.objectname, chunk_to_evict->hash_id.objectid,
+                        (uint64_t)chunk_to_evict->chunk_offset, (uint64_t)chunk_to_evict->chunk_size);
+        else {
+            (void)__wt_atomic_subv32(&chunk_to_evict->valid, 1);
+            TAILQ_REMOVE(
+                WT_BUCKET_CHUNKS(chunkcache, chunk_to_evict->bucket_id), chunk_to_evict, next_chunk);
+            __chunkcache_free_chunk(session, chunk_to_evict);
+        }
     }
     __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, chunk_to_evict->bucket_id));
 
@@ -254,7 +264,7 @@ __chunkcache_eviction_thread(void *arg)
           ((chunkcache->bytes_used + chunkcache->chunk_size) >
             chunkcache->evict_trigger * chunkcache->capacity / 100))
             __chunkcache_evict_one(session);
-        __wt_sleep(0, 100 * WT_THOUSAND); /* may need tuning */
+        __wt_sleep(0, 10 * WT_THOUSAND); /* may need tuning */
     }
     return (WT_THREAD_RET_VALUE);
 }
