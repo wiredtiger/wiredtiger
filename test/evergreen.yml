@@ -5518,7 +5518,6 @@ buildvariants:
     - name: unit-test-extra-long-nonstandalone
       distros: ubuntu2004-large
     - name: ".data-validation-stress-test-nonstandalone"
-    - name: unittest-assertions
     - name: bench-tiered-push-pull-s3
     - name: csuite-timestamp-abort-test-s3
     - name: unit-test-hook-tiered-s3
