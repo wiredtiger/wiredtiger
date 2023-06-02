@@ -170,18 +170,18 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
                 WT_ERR(__conf_string_to_type(session, check->type, &check_type));
                 if (check_type == WT_CONFIG_ITEM_STRUCT) {
                     if (value.type != WT_CONFIG_ITEM_STRUCT)
-                        WT_RET_MSG(session, EINVAL, "Value '%.*s' expected to be a category",
+                        WT_ERR_MSG(session, EINVAL, "Value '%.*s' expected to be a category",
                           (int)value.len, value.str);
                     if (value.str[0] == '[') {
                         if (value.str[value.len - 1] != ']')
-                            WT_RET_MSG(session, EINVAL, "Value '%.*s' non-matching []",
+                            WT_ERR_MSG(session, EINVAL, "Value '%.*s' non-matching []",
                               (int)value.len, value.str);
                     } else if (value.str[0] == '(') {
                         if (value.str[value.len - 1] != ')')
-                            WT_RET_MSG(session, EINVAL, "Value '%.*s' non-matching ()",
+                            WT_ERR_MSG(session, EINVAL, "Value '%.*s' non-matching ()",
                               (int)value.len, value.str);
                     } else
-                        WT_RET_MSG(session, EINVAL, "Value '%.*s' expected () or []",
+                        WT_ERR_MSG(session, EINVAL, "Value '%.*s' expected () or []",
                           (int)value.len, value.str);
 
                     /* Remove the first and last char */
@@ -253,14 +253,14 @@ __wt_conf_compile(
 
     cfgs[0] = centry->base;
     cfgs[1] = format_copy;
-    WT_RET(__wt_conf_compile_config_strings(session, centry, cfgs, &conf));
+    WT_ERR(__wt_conf_compile_config_strings(session, centry, cfgs, &conf));
 
     /*
      * The entry compiled. Now put it into the connection array if there's room.
      */
     compiled_entry = __wt_atomic_fetch_addv32(&conn->conf_size, 1);
     if (compiled_entry >= conn->conf_max)
-        WT_RET_MSG(session, EINVAL,
+        WT_ERR_MSG(session, EINVAL,
           "Error compiling '%s', overflowed maximum compile slots of %" PRIu32, format,
           conn->conf_max);
     conn->conf_array[compiled_entry] = conf;
