@@ -209,7 +209,6 @@ __chunkcache_evict_one(WT_SESSION_IMPL *session)
     {
         if (chunk_to_evict->valid) {
             TAILQ_REMOVE(&chunkcache->chunkcache_lru_list, chunk_to_evict, next_lru_item);
-            //memset(&chunk_to_evict->next_lru_item, 0, sizeof(chunk_to_evict->next_lru_item));
             chunk_to_evict->being_evicted = true;
             found_eviction_candidate = true;
 
@@ -226,6 +225,7 @@ __chunkcache_evict_one(WT_SESSION_IMPL *session)
 
     __wt_spin_lock(session, WT_BUCKET_LOCK(chunkcache, chunk_to_evict->bucket_id));
     if (chunk_to_evict->being_evicted) {
+        (void)__wt_atomic_subv32(&chunk_to_evict->valid, 1);
         TAILQ_REMOVE(
             WT_BUCKET_CHUNKS(chunkcache, chunk_to_evict->bucket_id), chunk_to_evict, next_chunk);
         __chunkcache_free_chunk(session, chunk_to_evict);
@@ -286,10 +286,6 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
 
     __wt_verbose(session, WT_VERB_CHUNKCACHE, "get: %s(%u), offset=%" PRId64 ", size=%u",
       (char *)block->name, objectid, offset, size);
-
-    if (strncmp((char *)block->name, "WiredTiger.wt", WT_MIN(strlen((char *)block->name), strlen("WiredTiger.wt"))) == 0)
-        return (ENOSPC);
-
     WT_STAT_CONN_INCR(session, chunk_cache_lookups);
 
     /* A block may span two (or more) chunks. Loop until we have read all the data. */
