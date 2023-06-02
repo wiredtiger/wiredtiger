@@ -50,24 +50,12 @@ create_test_executable(run
     CXX
 )
 
-# If you prefer to not use the run binary you can add a test via this mechanism but it is generally
-# frowned upon.
-create_test_executable(csuite_style_example_test
-    SOURCES tests/csuite_style_example_test.cpp
-    LIBS cppsuite_test_harness
-    CXX
-)
-
 if(ENABLE_ANTITHESIS)
     target_link_libraries(run wt::voidstar)
-    target_link_libraries(csuite_style_example_test wt::voidstar)
 endif()
 
 # Test definitions.
 add_test(NAME cppsuite COMMAND ${CMAKE_CURRENT_BINARY_DIR}/run)
-
-add_test(NAME csuite_style_example COMMAND csuite_style_example_test)
-set_tests_properties(csuite_style_example PROPERTIES LABELS "check;cppsuite")
 
 # Run this during a "ctest check" smoke test.
 set_tests_properties(cppsuite PROPERTIES LABELS "check;cppsuite")
