@@ -1825,7 +1825,7 @@ extern void __wt_cond_auto_wait(
 extern void __wt_cond_auto_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond, bool progress,
   bool (*run_func)(WT_SESSION_IMPL *), bool *signalled);
 extern void __wt_conf_compile_discard(WT_SESSION_IMPL *session);
-extern void __wt_conf_compile_free_compiled(WT_SESSION_IMPL *session, WT_CONF *conf, bool final);
+extern void __wt_conf_compile_free(WT_SESSION_IMPL *session, WT_CONF *conf, bool final);
 extern void __wt_config_init(WT_SESSION_IMPL *session, WT_CONFIG *conf, const char *str);
 extern void __wt_config_initn(
   WT_SESSION_IMPL *session, WT_CONFIG *conf, const char *str, size_t len);

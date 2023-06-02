@@ -275,7 +275,7 @@ __wt_conf_compile(
 
 err:
     if (ret != 0)
-        __wt_conf_compile_free_compiled(session, conf, false);
+        __wt_conf_compile_free(session, conf, false);
 
     return (ret);
 }
@@ -320,7 +320,7 @@ __wt_conf_compile_config_strings(
 
 err:
     if (ret != 0)
-        __wt_conf_compile_free_compiled(session, conf, false);
+        __wt_conf_compile_free(session, conf, false);
 
     return (ret);
 }
@@ -363,11 +363,11 @@ __wt_conf_compile_init(WT_SESSION_IMPL *session, const char **cfg)
 }
 
 /*
- * __wt_conf_compile_free_compiled --
+ * __wt_conf_compile_free --
  *     Free one compiled item.
  */
 void
-__wt_conf_compile_free_compiled(WT_SESSION_IMPL *session, WT_CONF *conf, bool final)
+__wt_conf_compile_free(WT_SESSION_IMPL *session, WT_CONF *conf, bool final)
 {
     uint32_t i;
 
@@ -380,7 +380,7 @@ __wt_conf_compile_free_compiled(WT_SESSION_IMPL *session, WT_CONF *conf, bool fi
         __wt_free(session, conf->binding_descriptions);
         for (i = 0; i < conf->set_item_count; ++i)
             if (conf->set_item[i].set_type == CONF_SET_SUB_INFO)
-                __wt_conf_compile_free_compiled(session, conf->set_item[i].u.sub, final);
+                __wt_conf_compile_free(session, conf->set_item[i].u.sub, final);
         __wt_free(session, conf->set_item);
         __wt_free(session, conf);
     }
@@ -400,7 +400,7 @@ __wt_conf_compile_discard(WT_SESSION_IMPL *session)
     __wt_free(session, conn->conf_dummy);
     if (conn->conf_array != NULL) {
         for (i = 0; i < conn->conf_size; ++i)
-            __wt_conf_compile_free_compiled(session, conn->conf_array[i], true);
+            __wt_conf_compile_free(session, conn->conf_array[i], true);
         __wt_free(session, conn->conf_array);
     }
 }

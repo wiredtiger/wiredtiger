@@ -2535,7 +2535,7 @@ struct __wt_connection {
      *
      * @param connection the connection handle
      * @param method the API to the configuration string applies to, e.g.
-     * WT_SESSION.open_cursor
+     * \c "WT_SESSION.open_cursor"
      * @param str the configuration string to compile
      * @param compiled the returned configuration string
      */

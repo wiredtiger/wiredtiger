@@ -78,18 +78,3 @@ __wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF *orig_conf, uint64_t
     }
     return (WT_NOTFOUND);
 }
-
-/*
- * __wt_conf_gets_none_func --
- *     Given a NULL-terminated list of configuration strings, find the final value for a given
- *     string key. Treat "none" as empty.
- */
-int
-__wt_conf_gets_none_func(
-  WT_SESSION_IMPL *session, WT_CONF *conf, uint64_t key, WT_CONFIG_ITEM *value)
-{
-    WT_RET(__wt_conf_gets_func(session, conf, key, 0, false, value));
-    if (WT_STRING_MATCH("none", value->str, value->len))
-        value->len = 0;
-    return (0);
-}
