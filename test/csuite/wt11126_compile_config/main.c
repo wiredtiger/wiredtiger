@@ -317,7 +317,7 @@ main(int argc, char *argv[])
     base_ns = ns = nsecs[0] / (N_CALLS * N_RUNS);
     for (variant = 0; variant < N_VARIANTS; ++variant) {
         ns = nsecs[variant] / (N_CALLS * N_RUNS);
-        printf("variant = %d, total = %" PRIu64 ", ns per pair of begin/rollback calls = %" PRIu64
+        printf("variant = %d, total = %" PRIu64 ", nanoseconds per pair of begin/rollback calls = %" PRIu64
                ", speed vs baseline = %f\n",
           variant, nsecs[variant], ns, ((double)base_ns) / ns);
     }
