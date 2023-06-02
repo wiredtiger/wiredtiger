@@ -283,7 +283,7 @@ runone(bool config_cache)
 
     done = false;
 
-    testutil_make_work_dir(home);
+    testutil_recreate_dir(home);
 
     testutil_check(__wt_snprintf(buf, sizeof(buf),
       "create"
@@ -396,7 +396,7 @@ run(int argc, char *argv[])
     uri_teardown();
 
     if (!preserve)
-        testutil_clean_work_dir(home);
+        testutil_remove(home);
     return (EXIT_SUCCESS);
 }
 
