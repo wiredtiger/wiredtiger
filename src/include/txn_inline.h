@@ -1064,7 +1064,6 @@ __wt_txn_read(
     read_onpage = prepare_retry = true;
 
 retry:
-    __wt_timing_stress(session, WT_TIMING_STRESS_TXN_READ, NULL);
     WT_RET(__wt_txn_read_upd_list_internal(session, cbt, upd, &prepare_upd, &restored_upd));
     if (WT_UPDATE_DATA_VALUE(cbt->upd_value) ||
       (cbt->upd_value->type == WT_UPDATE_MODIFY && cbt->upd_value->skip_buf))
@@ -1227,6 +1226,9 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
     F_SET(txn, WT_TXN_RUNNING);
     if (F_ISSET(S2C(session), WT_CONN_READONLY))
         F_SET(txn, WT_TXN_READONLY);
+
+    WT_ASSERT_ALWAYS(
+      session, txn->mod_count == 0, "The mod count should be 0 when beginning a transaction");
 
     return (0);
 }

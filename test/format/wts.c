@@ -157,6 +157,8 @@ static void
 configure_timing_stress(char **p, size_t max)
 {
     CONFIG_APPEND(*p, ",timing_stress_for_test=[");
+    if (GV(STRESS_AGGRESSIVE_STASH_FREE))
+        CONFIG_APPEND(*p, ",aggressive_stash_free");
     if (GV(STRESS_AGGRESSIVE_SWEEP))
         CONFIG_APPEND(*p, ",aggressive_sweep");
     if (GV(STRESS_CHECKPOINT))
@@ -197,8 +199,6 @@ configure_timing_stress(char **p, size_t max)
         CONFIG_APPEND(*p, ",split_7");
     if (GV(STRESS_SPLIT_8))
         CONFIG_APPEND(*p, ",split_8");
-    if (GV(STRESS_TXN_READ))
-        CONFIG_APPEND(*p, ",txn_read");
     CONFIG_APPEND(*p, "]");
 }
 
@@ -557,10 +557,7 @@ create_object(TABLE *table, void *arg)
 void
 wts_create_home(void)
 {
-    char buf[MAX_FORMAT_PATH * 2];
-
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "rm -rf %s && mkdir %s", g.home, g.home));
-    testutil_checkfmt(system(buf), "database home creation (\"%s\") failed", buf);
+    testutil_recreate_dir(g.home);
 }
 
 /*
