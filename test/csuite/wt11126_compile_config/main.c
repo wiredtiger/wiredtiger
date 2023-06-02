@@ -39,18 +39,18 @@
  *
  * For all of these variants, we are using a configuration string that has 4 variables,
  * which is exactly what MongoDB does.  Our strategy for measuring time is, for each
- * variant, do a large number (NCALLS) of calls to begin_transaction
+ * variant, do a large number (N_CALLS) of calls to begin_transaction
  * (end rollback_transaction), varying the parameters randomly.  We check that the
  * proper transaction flags are set after each begin_transaction call.  Before and after
- * the NCALLS, we get system time and collect the difference.  So we do:
- *   TIME(NCALLS of the first variant), TIME(NCALLS of the second variant), etc.
- * We do that whole procedure a number of times (NRUNS), and accumulate times for each
+ * the N_CALLS, we get system time and collect the difference.  So we do:
+ *   TIME(N_CALLS of the first variant), TIME(N_CALLS of the second variant), etc.
+ * We do that whole procedure a number of times (N_RUNS), and accumulate times for each
  * variant. This tends to smooth out any timing noise.
  *
  */
-#define NCALLS (WT_THOUSAND * 10)
-#define NRUNS (100)
-#define NVARIANTS 4
+#define N_CALLS (WT_THOUSAND * 10)
+#define N_RUNS (100)
+#define N_VARIANTS 4
 
 #define IGNORE_PREPARE_VALUE_SIZE 3
 static const char *ignore_prepare_value[3] = {"false", "force", "true"};
@@ -223,7 +223,7 @@ do_config_run(TEST_OPTS *opts, int variant, const char *compiled, const char **c
     __wt_random_init(&rnd);
 
     __wt_epoch(NULL, &before);
-    for (i = 0; i < NCALLS; ++i) {
+    for (i = 0; i < N_CALLS; ++i) {
         r = __wt_random(&rnd);
 
         ignore_prepare = r % 3;
@@ -249,7 +249,7 @@ do_config_run(TEST_OPTS *opts, int variant, const char *compiled, const char **c
               roundup_prepared, roundup_read, no_timestamp);
             break;
         default:
-            testutil_assert(variant < NVARIANTS);
+            testutil_assert(variant < N_VARIANTS);
             break;
         }
 
@@ -288,7 +288,7 @@ int
 main(int argc, char *argv[])
 {
     TEST_OPTS *opts, _opts;
-    uint64_t base_ns, ns, nsecs[NVARIANTS];
+    uint64_t base_ns, ns, nsecs[N_VARIANTS];
     int variant, runs;
     const char *compiled_config, **compiled_config_array;
 
@@ -307,16 +307,16 @@ main(int argc, char *argv[])
     memset(nsecs, 0, sizeof(nsecs));
 
     /* Run the test, alternating the variants of tests. */
-    for (runs = 0; runs < NRUNS; ++runs)
-        for (variant = 0; variant < NVARIANTS; ++variant) {
+    for (runs = 0; runs < N_RUNS; ++runs)
+        for (variant = 0; variant < N_VARIANTS; ++variant) {
             do_config_run(
               opts, variant, compiled_config, compiled_config_array, runs == 0, &nsecs[variant]);
         }
 
-    printf("number of calls: %d\n", NCALLS * NRUNS);
-    base_ns = ns = nsecs[0] / (NCALLS * NRUNS);
-    for (variant = 0; variant < NVARIANTS; ++variant) {
-        ns = nsecs[variant] / (NCALLS * NRUNS);
+    printf("number of calls: %d\n", N_CALLS * N_RUNS);
+    base_ns = ns = nsecs[0] / (N_CALLS * N_RUNS);
+    for (variant = 0; variant < N_VARIANTS; ++variant) {
+        ns = nsecs[variant] / (N_CALLS * N_RUNS);
         printf("variant = %d, total = %" PRIu64 ", ns per pair of begin/rollback calls = %" PRIu64
                ", speed vs baseline = %f\n",
           variant, nsecs[variant], ns, ((double)base_ns) / ns);
