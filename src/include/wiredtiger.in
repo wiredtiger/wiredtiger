@@ -1147,8 +1147,7 @@ struct __wt_session {
       * @param compiled a string returned from WT_CONNECTION::compile_configuration
       * @errors
       */
-     int __F(bind_configuration)(WT_SESSION *session,
-          const char *compiled, ...);
+     int __F(bind_configuration)(WT_SESSION *session, const char *compiled, ...);
 
     /*!
      * Create a table, column group, index or file.
@@ -2538,6 +2537,7 @@ struct __wt_connection {
      * \c "WT_SESSION.open_cursor"
      * @param str the configuration string to compile
      * @param compiled the returned configuration string
+     * @errors
      */
     int __F(compile_configuration)(WT_CONNECTION *connection, const char *method,
         const char *str, const char **compiled);
