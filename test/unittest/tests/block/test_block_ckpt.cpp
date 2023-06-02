@@ -31,8 +31,7 @@ TEST_CASE("Block helper: __wt_rduppo2", "[block]")
     // REQUIRE(__wt_rduppo2(102, 42) == 0);
 }
 
-static void
-test_ckpt_add_blkmod_entry(wt_off_t, wt_off_t, uint64_t)
+static void test_ckpt_add_blkmod_entry(wt_off_t, wt_off_t, uint64_t)
 {
     // std::shared_ptr<MockSession> session = MockSession::buildTestMockSession();
     // BlockMods blockMods;

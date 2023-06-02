@@ -140,7 +140,7 @@ run_test_clean(bool stress_test, bool column_store, bool preserve, const char *h
 
     /* Cleanup */
     if (!preserve)
-        testutil_clean_work_dir(home_full);
+        testutil_remove(home_full);
 }
 
 /*
@@ -157,7 +157,7 @@ run_test(bool stress_test, bool column_store, const char *home, const char *uri)
     uint64_t pages_reviewed, pages_rewritten, pages_skipped;
     bool size_check_res;
 
-    testutil_make_work_dir(home);
+    testutil_recreate_dir(home);
     testutil_check(wiredtiger_open(home, NULL, conn_config, &conn));
 
     if (stress_test) {
