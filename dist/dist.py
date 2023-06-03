@@ -86,6 +86,13 @@ class ModifyFile:
         self.tmp_name = filename + ".TMP"
         self.current = filename
 
+    # Remove a possibly nonexistant file
+    def remove(self, filename):
+        try:
+            os.remove(self.mod_name)
+        except:
+            pass
+
     @contextmanager
     def replace_fragment(self, match):
         tfile = open(self.tmp_name, 'w')
@@ -105,7 +112,8 @@ class ModifyFile:
         finally:
             tfile.close()
 
-        os.replace(self.tmp_name, self.mod_name)
+        self.remove(self.mod_name)
+        os.rename(self.tmp_name, self.mod_name)
         self.current = self.mod_name
 
     # Called to signal we are done with all modifications.
@@ -118,3 +126,4 @@ class ModifyFile:
         if format:
             format_srcfile(self.mod_name)
         compare_srcfile(self.mod_name, self.final_name)
+        self.remove(self.tmp_name)
