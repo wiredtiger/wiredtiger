@@ -1086,12 +1086,18 @@ struct __wt_conf_set_item {
     } u;
 };
 
-#define WT_CONF_API_NAME(clname, methname) __wt_conf_api_##clname##_##methname
-#define WT_CONF_API_DECLARE(clname, methname, nconf, nitem) \
-    struct WT_CONF_API_NAME(clname, methname) {             \
+#define WT_CONF_API_TYPE(c, m) struct __wt_conf_api_##c##_##m
+#define WT_CONF_API_DECLARE(c, m, nconf, nitem) \
+    WT_CONF_API_TYPE(c, m) {                    \
         WT_CONF conf[nconf];                                \
         WT_CONF_SET_ITEM set_item[nitem];                   \
     }
+
+#define WT_SIZEOF_FIELD(t, f) (sizeof(((t*)0)->f))
+#define WT_FIELD_ELEMENTS(t, f) (WT_SIZEOF_FIELD(t, f) / WT_SIZEOF_FIELD(t, f[0]))
+
+#define WT_CONF_API_COUNT(c, m) (WT_FIELD_ELEMENTS(WT_CONF_API_TYPE(c, m), conf))
+#define WT_CONF_API_KEY_COUNT(c, m) (WT_FIELD_ELEMENTS(WT_CONF_API_TYPE(c, m), set_item))
 
 /*
  * DO NOT EDIT: automatically built by dist/api_config.py.
