@@ -28,17 +28,6 @@ tfile = open(tmp_file, 'w')
 whitespace_re = re.compile(r'\s+')
 cbegin_re = re.compile(r'(\s*\*\s*)@config(?:empty|start)\{(.*?),.*\}')
 
-def gen_id_name(name, ty):
-    id_name = name
-    if ty == 'category':
-        # Generate a different name for the category.  Our API has several instances
-        # where we have a category name, like 'checkpoint' in one API call, that is also a key
-        # name in a different API call.  We don't care that they appear multiple times,
-        # but we must be able to distinguish between IDs that we'll generate for category
-        # names vs regular key names.
-        id_name = id_name[0].upper() + id_name[1:]
-    return id_name
-
 # Remember a set of key names, assigning a unique number to each one.
 class KeyNumber:
     def __init__(self):
@@ -53,6 +42,30 @@ class KeyNumber:
 
     def get(self, name):
         return self.numbering[name]
+
+# We create a generic 'bundle' object that passed around to
+# various functions.  This allows us to collect various aggregated
+# information that we'll use at the end.
+
+class Bundle:
+    pass
+bundle = Bundle
+
+# Map key names to a unique number
+bundle.keynumber = KeyNumber()
+# Maps from class.method name to a pair: number of confs to be allocated and number of set_items
+bundle.conf_counters = dict()
+
+def gen_id_name(name, ty):
+    id_name = name
+    if ty == 'category':
+        # Generate a different name for the category.  Our API has several instances
+        # where we have a category name, like 'checkpoint' in one API call, that is also a key
+        # name in a different API call.  We don't care that they appear multiple times,
+        # but we must be able to distinguish between IDs that we'll generate for category
+        # names vs regular key names.
+        id_name = id_name[0].upper() + id_name[1:]
+    return id_name
 
 def gettype(c):
     '''Derive the type of a config item'''
@@ -153,12 +166,12 @@ def getcompnum(s):
 
 choices_names = set()
 # Get fields that assist the configuration compiler.
-def getcompstr(c, keynumber):
+def getcompstr(c, bundle):
     comptype = -1
     ty = gettype(c)
     # E.g. "WT_CONFIG_COMPILED_TYPE_INT"
     comptype = 'WT_CONFIG_COMPILED_TYPE_' + ty.upper()
-    offset = keynumber.get(gen_id_name(c.name, ty))
+    offset = bundle.keynumber.get(gen_id_name(c.name, ty))
     checks = c.flags
     minval = 'INT64_MIN'
     maxval = 'INT64_MAX'
@@ -189,10 +202,10 @@ def getcompstr(c, keynumber):
 
     return ', {}, {}, {}, {}, {}'.format(comptype, offset, minval, maxval, choices_ref)
 
-def getconfcheck(c, keynumber):
+def getconfcheck(c, bundle):
     check = '{ "' + c.name + '", "' + gettype(c) + '",'
     cstr = checkstr(c)
-    sstr = getsubconfigstr(c, keynumber) + getcompstr(c, keynumber)
+    sstr = getsubconfigstr(c, bundle) + getcompstr(c, bundle)
     if cstr != 'NULL':
         cstr = '"\n\t    "'.join(w.wrap(cstr))
         # Manually re-wrap when there is a check string to avoid ugliness
@@ -241,27 +254,25 @@ config_names = dict()
 config_long_names = dict()
 config_key = []      # sorted by name
 
-keynumber = KeyNumber()
-
 # Before we start any output, walk through all configuration keys, including
 # subcategories, and register the names. Each unique name will get a unique number.
-def add_keys(keynumber, configs, prefix):
+def add_keys(bundle, configs, prefix):
     global config_num, config_key
     for c in configs:
         ty = gettype(c)
         idname = gen_id_name(c.name, ty)
-        keynumber.add(idname)
+        bundle.keynumber.add(idname)
         if not c.name in config_key:
             config_names[c.name] = c.name
         config_long_names[prefix + c.name] = -1
         if ty == 'category':
-            add_keys(keynumber, c.subconfig, prefix + c.name + '.')
+            add_keys(bundle, c.subconfig, prefix + c.name + '.')
 
 for name in api_data_def.methods.keys():
     method = api_data_def.methods[name]
     config = method.config
     if config:
-        add_keys(keynumber, config, '')
+        add_keys(bundle, config, '')
 
 if not test_config:
     for name in sorted(config_names):
@@ -379,7 +390,7 @@ def get_default(c):
         return ''
 
 created_subconfigs=set()
-def add_subconfig(c, cname, keynumber):
+def add_subconfig(c, cname, bundle):
     if cname in created_subconfigs:
         return
     created_subconfigs.add(cname)
@@ -391,7 +402,7 @@ def add_subconfig(c, cname, keynumber):
 ''' % {
     'name' : '\n    '.join(ws.wrap(\
         'static const WT_CONFIG_CHECK confchk_' + cname + '_subconfigs')),
-    'check' : '\n\t'.join(getconfcheck(subc, keynumber) for subc in sorted(c.subconfig)),
+    'check' : '\n\t'.join(getconfcheck(subc, bundle) for subc in sorted(c.subconfig)),
 })
 
 def getcname(c):
@@ -400,12 +411,12 @@ def getcname(c):
              if hasattr(c, 'method_name') else ''
     return prefix + c.name
 
-def getsubconfigstr(c, keynumber):
+def getsubconfigstr(c, bundle):
     '''Return a string indicating if an item has sub configuration'''
     ctype = gettype(c)
     if ctype == 'category':
         cname = getcname(c)
-        add_subconfig(c, cname, keynumber)
+        add_subconfig(c, cname, bundle)
         return 'confchk_' + cname + '_subconfigs, ' + str(len(c.subconfig))
     else:
         return 'NULL, 0'
@@ -422,7 +433,7 @@ static const WT_CONFIG_CHECK confchk_%(name)s[] = {
 };
 ''' % {
     'name' : name.replace('.', '_'),
-    'check' : '\n\t'.join(getconfcheck(c, keynumber) for c in config),
+    'check' : '\n\t'.join(getconfcheck(c, bundle) for c in config),
 })
 
 # Write the initialized list of configuration entry structures.
@@ -582,6 +593,19 @@ def gen_conf_key_struct_init(indent, names, conf_keys):
             inits += i2 + '{}{},\n'.format(indent, '}')
     return [structs, inits]
 
+def get_conf_counts(configs):
+    global config_num, config_key
+    nconf = 1
+    nitem = 0
+    for c in configs:
+        ty = gettype(c)
+        nitem += 1
+        if ty == 'category':
+            (subconf, subitem) = get_conf_counts(c.subconfig)
+            nconf += subconf
+            nitem += subitem
+    return (nconf, nitem)
+
 # Update the config.h and conf.h files with the #defines for the configuration entries.
 if not test_config:
     config_h = ModifyFile('../src/include/config.h')
@@ -597,6 +621,7 @@ if not test_config:
     # Assign unique numbers to all keys used in configuration, regardless of "level".
     with conf_h.replace_fragment('API configuration keys') as tfile:
         count = 0
+        keynumber = bundle.keynumber
         a = keynumber.numbering
         b = dict()
         for name in sorted(keynumber.numbering.keys()):
@@ -614,6 +639,28 @@ if not test_config:
         tfile.write('} WT_CONF_KEY_STRUCTURE = {\n')
         tfile.write(inits)
         tfile.write('};\n')
+
+    with conf_h.replace_fragment('Per-API configuration structure declarations') as tfile:
+        method_to_counts = dict()
+        for name in api_data_def.methods.keys():
+            method = api_data_def.methods[name]
+            config = method.config
+            if config:
+                method_to_counts[name] = get_conf_counts(config)
+
+        for name in sorted(api_data_def.methods.keys()):
+            if name not in method_to_counts:
+                continue
+            (nconf, nitem) = method_to_counts[name]
+            if nitem == 0:
+                continue
+            if '.' in name:
+                (clname, mname) = name.split('.')
+            else:
+                # For names that do not have a class (e.g. wiredtiger_open), place it in GLOBAL
+                clname = 'GLOBAL'
+                mname = name
+            tfile.write('WT_CONF_API_DECLARE({}, {}, {}, {});\n'.format(clname, mname, nconf, nitem))
 
     config_h.done()
     conf_h.done()
