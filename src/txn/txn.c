@@ -2038,7 +2038,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
             dhandle = btree->dhandle;
 
             printf(
-              ".  rollback: mod %d, btree 0x%p, dhandle 0x%p\n", i, (void *)btree, (void *)dhandle);
+              ".  rollback: mod %u, btree 0x%p, dhandle 0x%p\n", i, (void *)btree, (void *)dhandle);
 
             if (F_ISSET(dhandle, WT_DHANDLE_DROPPED)) {
                 printf(".    rollback: WT_DHANDLE_DROPPED is set, so we'll clear it\n");

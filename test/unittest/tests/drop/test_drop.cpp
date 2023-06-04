@@ -35,25 +35,6 @@ insert_sample_values(WT_CURSOR *cursor)
     REQUIRE(insert_key_value(cursor, "key5", "value5") == 0);
 }
 
-/*
- * thread_function_checkpoint --
- *     This function is designed to be used as a thread function, and creates a checkpoint.
- */
-static void
-thread_function_checkpoint(WT_SESSION *session)
-{
-    session->checkpoint(session, nullptr);
-}
-
-/*
- * thread_function_drop --
- *     This function is designed to be used as a thread function, and force drops a table.
- */
-static void
-thread_function_drop(WT_SESSION *session, std::string const &uri)
-{
-    session->drop(session, uri.c_str(), "force=true");
-}
 
 /*
  * print_dhandles
@@ -124,28 +105,27 @@ check_txn_updates(std::string const &label, WT_SESSION_IMPL *session_impl, bool 
  * report_cache_status
  *     For diagnostics of any failing tests, prints cache information.
  */
-static void
-report_cache_status(WT_CACHE *cache, std::string const &label, bool diagnostics)
-{
-    if (diagnostics) {
-        printf("Cache (label is '%s'):\n", label.c_str());
-        printf(". pages_inmem:      %" PRIu64 "\n", cache->pages_inmem);
-        printf(". pages_evicted:    %" PRIu64 "\n", cache->pages_evicted);
-        printf(". bytes_image_intl: %" PRIu64 "\n", cache->bytes_image_intl);
-        printf(". bytes_image_leaf: %" PRIu64 "\n", cache->bytes_image_leaf);
-        printf(". pages_dirty_intl: %" PRIu64 "\n", cache->pages_dirty_intl);
-        printf(". pages_dirty_leaf: %" PRIu64 "\n", cache->pages_dirty_leaf);
-        printf(". bytes_dirty_intl: %" PRIu64 "\n", cache->bytes_dirty_intl);
-        printf(". bytes_dirty_leaf: %" PRIu64 "\n", cache->bytes_dirty_leaf);
-    }
-}
+// static void
+// report_cache_status(WT_CACHE *cache, std::string const &label, bool diagnostics)
+// {
+//     if (diagnostics) {
+//         printf("Cache (label is '%s'):\n", label.c_str());
+//         printf(". pages_inmem:      %" PRIu64 "\n", cache->pages_inmem);
+//         printf(". pages_evicted:    %" PRIu64 "\n", cache->pages_evicted);
+//         printf(". bytes_image_intl: %" PRIu64 "\n", cache->bytes_image_intl);
+//         printf(". bytes_image_leaf: %" PRIu64 "\n", cache->bytes_image_leaf);
+//         printf(". pages_dirty_intl: %" PRIu64 "\n", cache->pages_dirty_intl);
+//         printf(". pages_dirty_leaf: %" PRIu64 "\n", cache->pages_dirty_leaf);
+//         printf(". bytes_dirty_intl: %" PRIu64 "\n", cache->bytes_dirty_intl);
+//         printf(". bytes_dirty_leaf: %" PRIu64 "\n", cache->bytes_dirty_leaf);
+//     }
+// }
 
 int
 debug_dropped_state(WT_SESSION_IMPL *session, const char *uri)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
-    WT_DECL_RET;
 
     printf("Starting debug_dropped_state()\n");
 
@@ -174,9 +154,8 @@ debug_dropped_state(WT_SESSION_IMPL *session, const char *uri)
 
 void
 lock_and_debug_dropped_state(WT_SESSION_IMPL *session, const char *uri) {
-    WT_DECL_RET;
     WT_WITH_HANDLE_LIST_WRITE_LOCK(
-      session, ret = debug_dropped_state(session, uri));
+      session, debug_dropped_state(session, uri));
 }
 
 
@@ -184,50 +163,50 @@ lock_and_debug_dropped_state(WT_SESSION_IMPL *session, const char *uri) {
  * cache_destroy_memory_check --
  *     A simple test displays cache usage info as it runs.
  */
-static void
-cache_destroy_memory_check(
-  std::string const &config, int expected_open_cursor_result, bool diagnostics)
-{
-    SECTION("Check memory freed when using a cursor: config = " + config)
-    {
-        ConnectionWrapper conn(DB_HOME);
-        WT_SESSION_IMPL *session_impl = conn.createSession();
-        WT_SESSION *session = &session_impl->iface;
-        std::string uri = "table:cursor_test";
+// static void
+// cache_destroy_memory_check(
+//   std::string const &config, int expected_open_cursor_result, bool diagnostics)
+// {
+//     SECTION("Check memory freed when using a cursor: config = " + config)
+//     {
+//         ConnectionWrapper conn(DB_HOME);
+//         WT_SESSION_IMPL *session_impl = conn.createSession();
+//         WT_SESSION *session = &session_impl->iface;
+//         std::string uri = "table:cursor_test";
 
-        report_cache_status(conn.getWtConnectionImpl()->cache, ", created connection", diagnostics);
+//         report_cache_status(conn.getWtConnectionImpl()->cache, ", created connection", diagnostics);
 
-        REQUIRE(session->create(session, uri.c_str(), "key_format=S,value_format=S") == 0);
-        report_cache_status(
-          conn.getWtConnectionImpl()->cache, config + ", created session", diagnostics);
+//         REQUIRE(session->create(session, uri.c_str(), "key_format=S,value_format=S") == 0);
+//         report_cache_status(
+//           conn.getWtConnectionImpl()->cache, config + ", created session", diagnostics);
 
-        REQUIRE(session->begin_transaction(session, "") == 0);
-        report_cache_status(
-          conn.getWtConnectionImpl()->cache, config + ", begun transaction", diagnostics);
+//         REQUIRE(session->begin_transaction(session, "") == 0);
+//         report_cache_status(
+//           conn.getWtConnectionImpl()->cache, config + ", begun transaction", diagnostics);
 
-        WT_CURSOR *cursor = nullptr;
-        int open_cursor_result =
-          session->open_cursor(session, uri.c_str(), nullptr, config.c_str(), &cursor);
-        REQUIRE(open_cursor_result == expected_open_cursor_result);
+//         WT_CURSOR *cursor = nullptr;
+//         int open_cursor_result =
+//           session->open_cursor(session, uri.c_str(), nullptr, config.c_str(), &cursor);
+//         REQUIRE(open_cursor_result == expected_open_cursor_result);
 
-        if (open_cursor_result == 0) {
-            report_cache_status(
-              conn.getWtConnectionImpl()->cache, config + ", opened cursor", diagnostics);
+//         if (open_cursor_result == 0) {
+//             report_cache_status(
+//               conn.getWtConnectionImpl()->cache, config + ", opened cursor", diagnostics);
 
-            insert_sample_values(cursor);
-            report_cache_status(
-              conn.getWtConnectionImpl()->cache, config + ", inserted values", diagnostics);
+//             insert_sample_values(cursor);
+//             report_cache_status(
+//               conn.getWtConnectionImpl()->cache, config + ", inserted values", diagnostics);
 
-            REQUIRE(cursor->close(cursor) == 0);
-            report_cache_status(
-              conn.getWtConnectionImpl()->cache, config + ", closed cursor", diagnostics);
+//             REQUIRE(cursor->close(cursor) == 0);
+//             report_cache_status(
+//               conn.getWtConnectionImpl()->cache, config + ", closed cursor", diagnostics);
 
-            REQUIRE(session->commit_transaction(session, "") == 0);
-            report_cache_status(
-              conn.getWtConnectionImpl()->cache, config + ", committed transaction", diagnostics);
-        }
-    }
-}
+//             REQUIRE(session->commit_transaction(session, "") == 0);
+//             report_cache_status(
+//               conn.getWtConnectionImpl()->cache, config + ", committed transaction", diagnostics);
+//         }
+//     }
+// }
 
 
 
@@ -251,25 +230,25 @@ get_dhandles_open_count(WT_CURSOR *stats_cursor)
     return get_stats_value(stats_cursor, WT_STAT_CONN_DH_CONN_HANDLE_COUNT);
 }
 
-void
-dump_stats(WT_CURSOR *stats_cursor)
-{
-    printf("Dump Stats:\n");
-    printf(". WT_STAT_CONN_DH_CONN_HANDLE_SIZE value = %" PRIu64 "\n",
-      get_stats_value(stats_cursor, WT_STAT_CONN_DH_CONN_HANDLE_SIZE));
-    printf(". WT_STAT_CONN_DH_CONN_HANDLE_COUNT value = %" PRIu64 "\n",
-      get_stats_value(stats_cursor, WT_STAT_CONN_DH_CONN_HANDLE_COUNT));
-    printf(". WT_STAT_CONN_DH_SWEEP_REF value = %" PRIu64 "\n",
-      get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_REF));
-    printf(". WT_STAT_CONN_DH_SWEEP_CLOSE value = %" PRIu64 "\n",
-      get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_CLOSE));
-    printf(". WT_STAT_CONN_DH_SWEEP_REMOVE value = %" PRIu64 "\n",
-      get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_REMOVE));
-    printf(". WT_STAT_CONN_DH_SWEEP_TOD value = %" PRIu64 "\n",
-      get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_TOD));
-    printf(". WT_STAT_CONN_DH_SWEEPS value = %" PRIu64 "\n",
-      get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEPS));
-}
+// void
+// dump_stats(WT_CURSOR *stats_cursor)
+// {
+//     printf("Dump Stats:\n");
+//     printf(". WT_STAT_CONN_DH_CONN_HANDLE_SIZE value = %" PRIu64 "\n",
+//       get_stats_value(stats_cursor, WT_STAT_CONN_DH_CONN_HANDLE_SIZE));
+//     printf(". WT_STAT_CONN_DH_CONN_HANDLE_COUNT value = %" PRIu64 "\n",
+//       get_stats_value(stats_cursor, WT_STAT_CONN_DH_CONN_HANDLE_COUNT));
+//     printf(". WT_STAT_CONN_DH_SWEEP_REF value = %" PRIu64 "\n",
+//       get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_REF));
+//     printf(". WT_STAT_CONN_DH_SWEEP_CLOSE value = %" PRIu64 "\n",
+//       get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_CLOSE));
+//     printf(". WT_STAT_CONN_DH_SWEEP_REMOVE value = %" PRIu64 "\n",
+//       get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_REMOVE));
+//     printf(". WT_STAT_CONN_DH_SWEEP_TOD value = %" PRIu64 "\n",
+//       get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_TOD));
+//     printf(". WT_STAT_CONN_DH_SWEEPS value = %" PRIu64 "\n",
+//       get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEPS));
+// }
 
 
 
@@ -428,7 +407,8 @@ TEST_CASE("Drop: dropped dhandles", "[drop]")
     drop_test("", true, EINVAL, diagnostics);
     drop_test("", false, 0, diagnostics);
 
+    return;
 
-    // multiple_drop_test("", 0, EINVAL, false, diagnostics);
-    // multiple_drop_test("", 0, EINVAL, true, diagnostics);
+    multiple_drop_test("", 0, EINVAL, false, diagnostics);
+    multiple_drop_test("", 0, EINVAL, true, diagnostics);
 }
