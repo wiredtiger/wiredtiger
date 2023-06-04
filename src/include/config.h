@@ -30,6 +30,7 @@ struct __wt_config_check {
     const char *checks;
     const WT_CONFIG_CHECK *subconfigs;
     u_int subconfigs_entries;
+    const uint8_t *subconfigs_jump;
     u_int compiled_type;
     u_int key_id;
     int64_t min_value;
@@ -46,6 +47,7 @@ struct __wt_config_entry {
 
     const WT_CONFIG_CHECK *checks; /* check array */
     u_int checks_entries;
+    const uint8_t *checks_jump;
     u_int method_id;
     bool compilable;
 };

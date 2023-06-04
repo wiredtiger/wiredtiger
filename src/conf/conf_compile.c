@@ -126,8 +126,8 @@ __conf_compile_value(WT_SESSION_IMPL *session, WT_CONF *top_conf, WT_CONFIG_ITEM
  */
 static int
 __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_CONF *conf,
-  const WT_CONFIG_CHECK *checks, u_int check_count, const char *format, size_t format_len,
-  bool is_default)
+  const WT_CONFIG_CHECK *checks, u_int check_count, const uint8_t *check_jump, const char *format,
+  size_t format_len, bool is_default)
 {
     WT_CONF *sub_conf;
     WT_CONFIG parser;
@@ -146,7 +146,11 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
      */
     __wt_config_initn(session, &parser, format, format_len);
     while ((ret = __wt_config_next(&parser, &key, &value)) == 0) {
-        for (i = 0; i < check_count; ++i) {
+        if (key.len == 0 || (uint8_t)key.str[0] > 0x80)
+            i = check_count;
+        else
+            i = check_jump[(uint8_t)key.str[0]];
+        for (; i < check_count; ++i) {
             check = &checks[i];
             if (WT_STRING_MATCH(check->name, key.str, key.len)) {
                 /* The key id is an offset into the key_to_set_item table. */
@@ -158,8 +162,8 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
                     set_item_pos = conf->key_to_set_item[key_id] - 1;
                 else {
                     set_item_pos = conf->set_item_count++;
-                    /* The position inserted to the key_to_set_item is one based, and must fit into
-                     * a byte */
+                    /* The position inserted to the key_to_set_item is one based, and must fit
+                     * into a byte */
                     WT_ASSERT(session, set_item_pos + 1 <= 0xff);
                     conf->key_to_set_item[key_id] = (uint8_t)(set_item_pos + 1);
                     WT_ERR(__wt_realloc_def(
@@ -198,10 +202,11 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
                         set_item->u.sub = sub_conf;
                     }
                     WT_ERR(__conf_compile(session, api, top_conf, sub_conf, check->subconfigs,
-                      check->subconfigs_entries, value.str, value.len, is_default));
+                      check->subconfigs_entries, check->subconfigs_jump, value.str, value.len,
+                      is_default));
                 } else
-                    /* TODO: if check->checks starts with "choices=[...]", we should make sure the
-                     * value matches one */
+                    /* TODO: if check->checks starts with "choices=[...]", we should make sure
+                     * the value matches one */
 
                     WT_ERR(__conf_compile_value(
                       session, top_conf, check_type, set_item, check, &value, is_default));
@@ -313,7 +318,7 @@ __wt_conf_compile_config_strings(
         for (i = 0; cfg[i] != NULL; ++i)
             /* Every entry but the last is considered a "default" entry. */
             WT_ERR(__conf_compile(session, centry->method, conf, conf, centry->checks,
-              centry->checks_entries, cfg[i], strlen(cfg[i]), i != last));
+              centry->checks_entries, centry->checks_jump, cfg[i], strlen(cfg[i]), i != last));
     }
     WT_ASSERT(session, conf != NULL);
     *confp = conf;

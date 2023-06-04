@@ -389,20 +389,47 @@ def get_default(c):
     else:
         return ''
 
+# Build a jump table from a sorted array of strings
+# e.g. given [ "ant", "cat", "deer", "dog", "frog" ],
+#   produce [ 5, 5, 5, 5, ...., 0, 5, 1, 2, 4, 5, 5, 5, ....]
+# 5 in this case is the length of the input list, meaning "not found".
+# for position 'a', we produce 0 (offset of "ant"), position 'b' is "not found",
+# position 'c', is 1 (offset of "cat"), 'd' is 2 (offset of "deer"), 'e' is not found,
+# f is 4 (offset of "frog"), etc.
+def build_jump(arr):
+    assert sorted(arr) == arr
+    not_found = len(arr)
+    assert not_found < 256   # we're using a byte array currently
+    result = [not_found] * 128
+    pos = 0
+    for name in arr:
+        letter = name[0]
+        i = ord(letter)
+        assert i < 128
+        if result[i] == not_found:
+            result[i] = pos
+        pos += 1
+    return result
+
 created_subconfigs=set()
 def add_subconfig(c, cname, bundle):
     if cname in created_subconfigs:
         return
     created_subconfigs.add(cname)
+    jump = build_jump([subc.name for subc in sorted(c.subconfig)])
     tfile.write('''
-%(name)s[] = {
+static const WT_CONFIG_CHECK %(name)s[] = {
 \t%(check)s
-\t{ NULL, NULL, NULL, NULL, NULL, 0, 0, 0, 0, 0, NULL }
+\t{ NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL }
+};
+
+static const uint8_t %(name)s_jump[128] = {
+\t%(jump_contents)s
 };
 ''' % {
-    'name' : '\n    '.join(ws.wrap(\
-        'static const WT_CONFIG_CHECK confchk_' + cname + '_subconfigs')),
+    'name' : 'confchk_' + cname + '_subconfigs',
     'check' : '\n\t'.join(getconfcheck(subc, bundle) for subc in sorted(c.subconfig)),
+    'jump_contents' : ', '.join([str(i) for i in jump])
 })
 
 def getcname(c):
@@ -417,23 +444,30 @@ def getsubconfigstr(c, bundle):
     if ctype == 'category':
         cname = getcname(c)
         add_subconfig(c, cname, bundle)
-        return 'confchk_' + cname + '_subconfigs, ' + str(len(c.subconfig))
+        confchk_name = 'confchk_' + cname + '_subconfigs'
+        return confchk_name + ', ' + str(len(c.subconfig)) + ', ' + confchk_name + '_jump'
     else:
-        return 'NULL, 0'
+        return 'NULL, 0, NULL'
 
 # Write structures of arrays of allowable configuration options, including a
 # NULL as a terminator for iteration.
 for name in sorted(api_data_def.methods.keys()):
     config = api_data_def.methods[name].config
     if config:
+        jump = build_jump([c.name for c in config])
         tfile.write('''
 static const WT_CONFIG_CHECK confchk_%(name)s[] = {
 \t%(check)s
-\t{ NULL, NULL, NULL, NULL, NULL, 0, 0, 0, 0, 0, NULL }
+\t{ NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL }
+};
+
+static const uint8_t confchk_%(name)s_jump[128] = {
+\t%(jump_contents)s
 };
 ''' % {
     'name' : name.replace('.', '_'),
     'check' : '\n\t'.join(getconfcheck(c, bundle) for c in config),
+    'jump_contents' : ', '.join([str(i) for i in jump])
 })
 
 # Write the initialized list of configuration entry structures.
@@ -467,10 +501,11 @@ for name in sorted(api_data_def.methods.keys()):
     # Write the checks reference, or NULL if no related checks structure.
     tfile.write('\n\t  ')
     if config:
+        confchk_name = 'confchk_' + name.replace('.', '_')
         tfile.write(
-            'confchk_' + name.replace('.', '_') + ', ' + str(len(config)))
+            confchk_name + ', ' + str(len(config)) + ', ' + confchk_name + '_jump')
     else:
-        tfile.write('NULL, 0')
+        tfile.write('NULL, 0, NULL')
 
     tfile.write(', ' + str(slot + 1))
     if compilable:
@@ -481,7 +516,7 @@ for name in sorted(api_data_def.methods.keys()):
     tfile.write('\n\t},')
 
 # Write a NULL as a terminator for iteration.
-tfile.write('\n\t{ NULL, NULL, NULL, 0, 0, false }')
+tfile.write('\n\t{ NULL, NULL, NULL, 0, NULL, 0, false }')
 tfile.write('\n};\n')
 
 # Write the routine that connects the WT_CONNECTION_IMPL structure to the list
