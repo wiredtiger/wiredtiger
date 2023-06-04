@@ -712,6 +712,8 @@ struct __wt_page {
 #define WT_PAGE_ROW_LEAF 7      /* Row-store leaf page */
     uint8_t type;               /* Page type */
 
+    /* 1 byte hole expected. */
+
     size_t memory_footprint; /* Memory attached to the page */
 
     /* Page's on-disk representation: NULL for pages created in memory. */
