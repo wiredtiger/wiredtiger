@@ -519,13 +519,14 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
          * 1) The checkpoint's state is evaluated to false.
          * 2) -- Race, checkpoint starts.
          * 3) The checkpoint generation number is saved and is equal to the latest one, we cannot
-         * detect any inconsistency.
+         * detect the race.
          *
          * By saving the generation number before, if there is a race, the saved generation number
-         * will not be equal to the latest one.
+         * will not be equal to the latest one. Since we want both variables to be read in as early
+         * as possible in this loop, ordered reads help us achieve this.
          */
-        ckpt_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
-        ckpt_running = S2C(session)->txn_global.checkpoint_running;
+        WT_ORDERED_READ(ckpt_gen, __wt_gen(session, WT_GEN_CHECKPOINT));
+        WT_ORDERED_READ(ckpt_running, S2C(session)->txn_global.checkpoint_running);
 
         if (!must_resolve)
             /* Copy the checkpoint name first because we may need it to get the first wall time. */
