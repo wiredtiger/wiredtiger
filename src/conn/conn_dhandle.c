@@ -309,6 +309,8 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead)
     if (!F_ISSET(dhandle, WT_DHANDLE_OPEN))
         return (0);
 
+    printf("__wt_conn_dhandle_close() - dhandle 0x%p\n", (void*)dhandle);
+
     /*
      * The only data handle type that uses the "handle" field is btree. For other data handle types,
      * it should be NULL.
@@ -775,8 +777,11 @@ __conn_dhandle_close_one(
         if (ret == 0)
             ret = __wt_meta_track_sub_off(session);
     }
-    if (removed)
+    if (removed) {
+        printf("In __conn_dhandle_close_one on %s, txn running = %d\n", uri, (F_ISSET(session->txn, WT_TXN_RUNNING)));
+        F_SET(session->dhandle, WT_DHANDLE_DEAD);
         F_SET(session->dhandle, WT_DHANDLE_DROPPED);
+    }
 
     if (!WT_META_TRACKING(session))
         WT_TRET(__wt_session_release_dhandle(session));

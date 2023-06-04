@@ -1982,8 +1982,10 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 int
 __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    WT_BTREE *btree;
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    WT_DATA_HANDLE *dhandle;
     WT_TXN *txn;
     WT_TXN_OP *op;
     WT_UPDATE *upd;
@@ -2032,6 +2034,17 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
         case WT_TXN_OP_INMEM_ROW:
             upd = op->u.op_upd;
 
+            btree = op->btree;
+            dhandle = btree->dhandle;
+
+            printf(
+              ".  rollback: mod %d, btree 0x%p, dhandle 0x%p\n", i, (void *)btree, (void *)dhandle);
+
+            if (F_ISSET(dhandle, WT_DHANDLE_DROPPED)) {
+                printf(".    rollback: WT_DHANDLE_DROPPED is set, so we'll clear it\n");
+                WT_WITH_HANDLE_LIST_WRITE_LOCK(session, F_CLR(dhandle, WT_DHANDLE_DROPPED));
+            }
+
             if (!prepare) {
                 if (S2C(session)->cache->hs_fileid != 0 &&
                   op->btree->id == S2C(session)->cache->hs_fileid)
@@ -2049,6 +2062,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
                 ++prepare_count;
 #endif
             }
+
+
+
             break;
         case WT_TXN_OP_REF_DELETE:
             WT_TRET(__wt_delete_page_rollback(session, op->u.ref));

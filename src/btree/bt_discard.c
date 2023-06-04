@@ -500,8 +500,12 @@ __wt_free_update_list(WT_SESSION_IMPL *session, WT_UPDATE **updp)
 {
     WT_UPDATE *next, *upd;
 
+    printf("__wt_free_update_list(): session = 0x%p, upd = 0x%p\n", (void*) session, (void*)*updp);
+
     for (upd = *updp; upd != NULL; upd = next) {
         next = upd->next;
+        memset(upd, 0xab, WT_UPDATE_SIZE);
+        printf(". __wt_free_update_list(): freeing upd = 0x%p\n", (void*)upd);
         __wt_free(session, upd);
     }
     *updp = NULL;

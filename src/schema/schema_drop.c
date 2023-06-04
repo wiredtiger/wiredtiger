@@ -154,6 +154,16 @@ __drop_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
     WT_ERR(__wt_schema_release_table(session, &table));
     WT_ERR(__wt_schema_get_table_uri(session, uri, true, WT_DHANDLE_EXCLUSIVE, &table));
     F_SET(&table->iface, WT_DHANDLE_DISCARD);
+
+//    printf("In __drop_table(), is WT_DHANDLE_DROPPED set = %d, txn running = %d\n",
+//       F_ISSET(session->dhandle, WT_DHANDLE_DROPPED), F_ISSET(session->txn, WT_TXN_RUNNING) );
+
+//    if (F_ISSET(session->dhandle, WT_DHANDLE_DROPPED) && F_ISSET(session->txn, WT_TXN_RUNNING)) {
+//        F_CLR(session->dhandle, WT_DHANDLE_DROPPED);
+//
+//    }
+
+
     if (WT_META_TRACKING(session)) {
         WT_WITH_DHANDLE(session, &table->iface, ret = __wt_meta_track_handle_lock(session, false));
         WT_ERR(ret);
