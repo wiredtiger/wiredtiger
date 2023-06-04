@@ -3386,6 +3386,9 @@ tasks:
           checkpoint_args: -t r -n 1000000 -k 5000000 -C cache_size=100MB
 
   - name: coverage-report
+    # This task will measure code coverage across a range of tests, including, but not limited to,
+    # the Catch2-based unit tests.
+    # Currently, it only contains Catch2-based unit tests but that will change soon.
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -3411,6 +3414,7 @@ tasks:
       - func: "code coverage publish summary"
 
   - name: coverage-report-catch2
+    # This task measures code coverage achieved by only the Catch2-based unit tests.
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
