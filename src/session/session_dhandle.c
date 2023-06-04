@@ -553,7 +553,6 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
 
         /* Look up the history store checkpoint. */
         if (hs_dhandlep != NULL) {
-
             if (must_resolve)
                 WT_RET_NOTFOUND_OK(__wt_meta_checkpoint_last_name(
                   session, WT_HS_URI, &hs_checkpoint, &hs_order, &hs_time));
@@ -585,7 +584,6 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
              */
             if (first_snapshot_time == snapshot_time && ds_time > snapshot_time &&
               hs_time <= snapshot_time) {
-
                 /*
                  * If a system-wide checkpoint was running at the start of the loop, it is worth
                  * retrying and waiting for it to finish to resolve the inconsistency. It is also
