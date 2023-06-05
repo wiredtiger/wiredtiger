@@ -779,7 +779,7 @@ __conn_dhandle_close_one(
     }
     if (removed) {
         printf("In __conn_dhandle_close_one on %s, txn running = %d\n", uri, (F_ISSET(session->txn, WT_TXN_RUNNING)));
-        F_SET(session->dhandle, WT_DHANDLE_DEAD);
+//        F_SET(session->dhandle, WT_DHANDLE_DEAD);
         F_SET(session->dhandle, WT_DHANDLE_DROPPED);
     }
 
