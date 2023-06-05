@@ -30,21 +30,19 @@ struct __wt_hazard {
 #endif
 };
 
-// WT-11007-[x] __wt_split_hist struct
 #ifdef HAVE_DIAGNOSTIC
 /*
  * WT_SPLIT_HIST --
  *	State information of a ref at a single point in time.
  */
-struct __wt_split_hist {
+struct __wt_stash_hist {
     const char *name;
     const char *func;
+    uint64_t gen;    /* Generation */
+    uint64_t oldest; /* Generation */
     uint32_t time_sec;
     uint16_t line;
-    uint16_t state;
     size_t len;
-    uint64_t gen; /* Generation */
-    uint64_t oldest; /* Generation */
 };
 #endif
 
@@ -334,31 +332,22 @@ struct __wt_session_impl {
         size_t alloc; /* Allocated bytes */
     } stash[WT_GENERATIONS];
 
-// WT-11007-[x] WT_SPLIT_SAVE macro
-// Add history buffer in the session structure.
 #ifdef HAVE_DIAGNOSTIC
-#define SPLIT_HIST_MAX 5
-    // enum { WT_SPLIT_NONE = 0, WT_SPLIT_EVICT, WT_SPLIT_CKPT } split_hist[SPLIT_HIST_MAX];
-    WT_SPLIT_HIST split_hist[SPLIT_HIST_MAX];
+#define STASH_HIST_MAX 5
+    WT_STASH_HIST split_hist[STASH_HIST_MAX];
     uint64_t splitoff;
 
-#define WT_SPLIT_SAVE_STATE(session, s, l, g, o)                                                    \
+#define WT_STASH_SAVE_STATE(session, l, g, o)                                                 \
     do {                                                                                      \
         (session)->split_hist[(session)->splitoff].name = session->name;                      \
         __wt_seconds32(session, &(session)->split_hist[(session)->splitoff].time_sec);        \
         (session)->split_hist[(session)->splitoff].func = __PRETTY_FUNCTION__;                \
         (session)->split_hist[(session)->splitoff].line = (uint16_t)__LINE__;                 \
-        (session)->split_hist[(session)->splitoff].state = (uint16_t)(s);                     \
-        (session)->split_hist[(session)->splitoff].len = (size_t)(l);\
-        (session)->split_hist[(session)->splitoff].gen = (uint64_t)(g);\
-        (session)->split_hist[(session)->splitoff].oldest = (uint64_t)(o);\
+        (session)->split_hist[(session)->splitoff].len = (size_t)(l);                         \
+        (session)->split_hist[(session)->splitoff].gen = (uint64_t)(g);                       \
+        (session)->split_hist[(session)->splitoff].oldest = (uint64_t)(o);                    \
         (session)->splitoff = ((session)->splitoff + 1) % WT_ELEMENTS((session)->split_hist); \
     } while (0)
-
-// #define WT_SPLIT_SET_STATE(session, s)
-//     do {
-//         WT_SPLIT_SAVE_STATE(session, s, __PRETTY_FUNCTION__, __LINE__)
-//     } while (0)
 #endif
 
 /*

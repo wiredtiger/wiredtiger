@@ -263,10 +263,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
      * If we decide to do an in-memory split. Do it now. If an in-memory split completes, the page
      * stays in memory and the tree is left in the desired state: avoid the usual cleanup.
      */
-    // WT-11007-[ ] macro call
-    // Insert a history entry here.
     if (inmem_split) {
-        WT_SPLIT_SAVE_STATE(session, 1, ref);
         WT_ERR(__wt_split_insert(session, ref));
         goto done;
     }

@@ -555,7 +555,6 @@ struct __wt_col_fix_tw {
 /* WT_COL_FIX_TW_CELL gets the cell pointer from a WT_COL_FIX_TW_ENTRY. */
 #define WT_COL_FIX_TW_CELL(page, entry) ((WT_CELL *)((uint8_t *)(page)->dsk + (entry)->cell_offset))
 
-// WT-11007-[x] Add history struct here.
 #ifdef HAVE_DIAGNOSTIC
 /*
  * WT_SPLIT_HIST --
@@ -564,11 +563,10 @@ struct __wt_col_fix_tw {
 struct __wt_split_page_hist {
     const char *name;
     const char *func;
+    uint64_t prev_split_gen;
+    uint32_t prev_entries;
     uint32_t time_sec;
     uint16_t line;
-    uint16_t state;
-    uint64_t prev_split_gen;
-    uint32_t prev_entries; /* Leaf page entries */
 };
 #endif
 
@@ -776,29 +774,21 @@ struct __wt_page {
     uint64_t cache_create_gen; /* Page create timestamp */
     uint64_t evict_pass_gen;   /* Eviction pass generation */
 
-    // WT-11007-[x] Add macro WT_SPLIT_SAVE for history here.
 #ifdef HAVE_DIAGNOSTIC
 #define SPLIT_PAGE_HIST_MAX 5
-    // enum { WT_SPLIT_NONE = 0, WT_SPLIT_EVICT, WT_SPLIT_CKPT } split_hist[SPLIT_HIST_MAX];
     WT_SPLIT_PAGE_HIST split_hist[SPLIT_PAGE_HIST_MAX];
     uint64_t splitoff;
 
-#define WT_SPLIT_PAGE_SAVE_STATE(page, session, s, entries, split_gen)                           \
+#define WT_SPLIT_PAGE_SAVE_STATE(page, session, entries, split_gen)                  \
     do {                                                                             \
         (page)->split_hist[(page)->splitoff].name = (session)->name;                 \
         __wt_seconds32((session), &(page)->split_hist[(page)->splitoff].time_sec);   \
         (page)->split_hist[(page)->splitoff].func = __PRETTY_FUNCTION__;             \
         (page)->split_hist[(page)->splitoff].line = (uint16_t)__LINE__;              \
-        (page)->split_hist[(page)->splitoff].state = (uint16_t)(s);                  \
         (page)->split_hist[(page)->splitoff].prev_split_gen = (uint32_t)(split_gen); \
-        (page)->split_hist[(page)->splitoff].prev_entries = (uint32_t)(entries); \
+        (page)->split_hist[(page)->splitoff].prev_entries = (uint32_t)(entries);     \
         (page)->splitoff = ((page)->splitoff + 1) % WT_ELEMENTS((page)->split_hist); \
     } while (0)
-
-// #define WT_SPLIT_SET_STATE(session, s)
-//     do {
-//         WT_SPLIT_SAVE_STATE(session, s, __PRETTY_FUNCTION__, __LINE__)
-//     } while (0)
 #endif
 };
 

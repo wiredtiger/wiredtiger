@@ -535,7 +535,6 @@ restart:
          * the page, otherwise, base is the smallest index greater than key, possibly one past the
          * last slot.
          */
-        // WT-11007-note Original fail point.
         descent = pindex->index[base - 1];
 
         /*

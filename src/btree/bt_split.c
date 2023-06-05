@@ -550,9 +550,10 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
      * index. Even if stashing the old value fails, we don't roll back that change, because threads
      * may already be using the new index.
      */
-    // WT-11007-[x] macro call
+#ifdef HAVE_DIAGNOSTIC
+    WT_SPLIT_PAGE_SAVE_STATE(root, session, root->entries, split_gen);
+#endif
     size = sizeof(WT_PAGE_INDEX) + pindex->entries * sizeof(WT_REF *);
-    WT_SPLIT_PAGE_SAVE_STATE(root, session, 1, root->entries, split_gen);
     WT_TRET(__split_safe_free(session, split_gen, false, pindex, size));
     root_decr += size;
 
@@ -833,8 +834,9 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
      * We can't free the previous page index, there may be threads using it. Add it to the session
      * discard list, to be freed when it's safe.
      */
-    // WT-11007-[x] macro call
-    WT_SPLIT_PAGE_SAVE_STATE(parent, session, 1, parent_entries, split_gen);
+#ifdef HAVE_DIAGNOSTIC
+    WT_SPLIT_PAGE_SAVE_STATE(parent, session, parent_entries, split_gen);
+#endif
     size = sizeof(WT_PAGE_INDEX) + pindex->entries * sizeof(WT_REF *);
     WT_TRET(__split_safe_free(session, split_gen, exclusive, pindex, size));
     parent_decr += size;
@@ -986,7 +988,6 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
     for (alloc_refp = alloc_index->index + 1, i = 1; i < children; ++i) {
         slots = i == children - 1 ? remain : chunk;
 
-        // WT-11007-[ ] Add page history here when we allocate new child pages.
         WT_ERR(__wt_page_alloc(session, page->type, slots, false, &child));
 
         /*
@@ -1011,13 +1012,6 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
         child->pg_intl_parent_ref = ref;
         WT_ERR(__wt_page_modify_init(session, child));
         __wt_page_modify_set(session, child);
-
-        // WT-11007-[ ] 
-        // child->split_hist[0] = page->split_hist[0];
-        // child->split_hist[1] = page->split_hist[1];
-        // child->split_hist[2] = page->split_hist[2];
-        // child->splitoff = page->splitoff;
-        // WT_SPLIT_PAGE_SAVE_STATE(child, session, 1, page->entries, __wt_gen(session, WT_GEN_SPLIT));
 
         /*
          * The newly allocated child's page index references the same structures as the parent. (We
@@ -1095,9 +1089,10 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
      * stashing the old value fails, we don't roll back that change, because threads may already be
      * using the new parent page.
      */
-    // WT-11007-[x] macro call
+#ifdef HAVE_DIAGNOSTIC
+    WT_SPLIT_PAGE_SAVE_STATE(page, session, page->entries, split_gen);
+#endif
     size = sizeof(WT_PAGE_INDEX) + pindex->entries * sizeof(WT_REF *);
-    WT_SPLIT_PAGE_SAVE_STATE(page, session, 1, page->entries, split_gen);
     WT_TRET(__split_safe_free(session, split_gen, false, pindex, size));
     page_decr += size;
 
