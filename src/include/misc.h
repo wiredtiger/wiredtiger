@@ -228,6 +228,14 @@
     qsort(base, nmemb, size, compar)
 
 /*
+ * Comparator for __wt_qsort_r last argument is the context argument which may be NULL.
+ */
+typedef int (*__wt_ctx_cmp)(const void *, const void *, void *);
+
+void
+__wt_qsort_r(void *, size_t, size_t, __wt_ctx_cmp, void*);
+
+/*
  * Binary search for an integer key.
  */
 #define WT_BINARY_SEARCH(key, arrayp, n, found)                        \
