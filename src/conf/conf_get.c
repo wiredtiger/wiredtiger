@@ -20,11 +20,11 @@ __wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF *orig_conf, uint64_t
 {
     WT_CONFIG_ITEM_STATIC_INIT(false_value);
     WT_CONF_BIND_DESC *bind_desc;
-    WT_CONF_SET_ITEM *si;
+    WT_CONF_KEY *conf_key;
     const WT_CONF *conf;
     uint64_t keys;
     uint32_t partkey, values_off;
-    uint8_t set_item_index;
+    uint8_t conf_key_index;
 
     conf = orig_conf;
     keys = orig_keys;
@@ -34,18 +34,18 @@ __wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF *orig_conf, uint64_t
         partkey = keys & 0xffff;
         WT_ASSERT(session, partkey != 0);
 
-        set_item_index = conf->key_to_set_item[partkey];
-        if (set_item_index == 0)
+        conf_key_index = conf->key_map[partkey];
+        if (conf_key_index == 0)
             return (WT_NOTFOUND);
 
-        /* The value in key_to_set_item is one-based, account for that here. */
-        --set_item_index;
-        WT_ASSERT(session, set_item_index < conf->set_item_count);
-        si = &conf->set_item[set_item_index];
+        /* The value in key_map is one-based, account for that here. */
+        --conf_key_index;
+        WT_ASSERT(session, conf_key_index < conf->conf_key_count);
+        conf_key = &conf->conf_key[conf_key_index];
         keys >>= 16;
 
-        switch (si->set_type) {
-        case CONF_SET_DEFAULT_ITEM:
+        switch (conf_key->type) {
+        case CONF_KEY_DEFAULT_ITEM:
             if (use_def) {
                 *value = false_value;
                 value->val = def;
@@ -53,16 +53,16 @@ __wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF *orig_conf, uint64_t
             }
 
         /* FALLTHROUGH */
-        case CONF_SET_NONDEFAULT_ITEM:
+        case CONF_KEY_NONDEFAULT_ITEM:
             if (keys != 0)
                 return (WT_NOTFOUND);
-            *value = si->u.item;
+            *value = conf_key->u.item;
             return (0);
 
-        case CONF_SET_BIND_DESC:
+        case CONF_KEY_BIND_DESC:
             if (keys != 0)
                 return (WT_NOTFOUND);
-            bind_desc = &si->u.bind_desc;
+            bind_desc = &conf_key->u.bind_desc;
             values_off = bind_desc->offset + session->conf_bindings.bind_values;
             WT_ASSERT(session,
               bind_desc->offset < orig_conf->binding_count &&
@@ -71,8 +71,8 @@ __wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF *orig_conf, uint64_t
             *value = session->conf_bindings.values[values_off].item;
             return (0);
 
-        case CONF_SET_SUB_INFO:
-            conf = si->u.sub;
+        case CONF_KEY_SUB_INFO:
+            conf = conf_key->u.sub;
             break;
         }
     }

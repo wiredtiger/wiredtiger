@@ -56,7 +56,7 @@ __conf_string_to_type(WT_SESSION_IMPL *session, const char *typename, WT_CONFIG_
  */
 static int
 __conf_compile_value(WT_SESSION_IMPL *session, WT_CONF *top_conf, WT_CONFIG_ITEM_TYPE check_type,
-  WT_CONF_SET_ITEM *set_item, const WT_CONFIG_CHECK *check, WT_CONFIG_ITEM *value, bool is_default)
+  WT_CONF_KEY *conf_key, const WT_CONFIG_CHECK *check, WT_CONFIG_ITEM *value, bool is_default)
 {
     uint32_t bind_offset;
 
@@ -75,21 +75,21 @@ __conf_compile_value(WT_SESSION_IMPL *session, WT_CONF *top_conf, WT_CONFIG_ITEM
 
         bind_offset = top_conf->binding_count++;
 
-        if (set_item->set_type == CONF_SET_BIND_DESC)
+        if (conf_key->type == CONF_KEY_BIND_DESC)
             WT_RET_MSG(session, EINVAL, "Value '%.*s' cannot be used on the same key twice",
               (int)value->len, value->str);
 
-        set_item->set_type = CONF_SET_BIND_DESC;
-        set_item->u.bind_desc.type = check_type;
-        set_item->u.bind_desc.offset = bind_offset;
+        conf_key->type = CONF_KEY_BIND_DESC;
+        conf_key->u.bind_desc.type = check_type;
+        conf_key->u.bind_desc.offset = bind_offset;
         WT_RET(__wt_realloc_def(session, &top_conf->binding_allocated, top_conf->binding_count,
           &top_conf->binding_descriptions));
-        top_conf->binding_descriptions[bind_offset] = &set_item->u.bind_desc;
+        top_conf->binding_descriptions[bind_offset] = &conf_key->u.bind_desc;
     } else if (check_type == WT_CONFIG_ITEM_STRUCT) {
         if (value->type != WT_CONFIG_ITEM_STRUCT || value->str[0] != '[')
             WT_RET_MSG(session, EINVAL, "Value '%.*s' expected to be a category", (int)value->len,
               value->str);
-        set_item->set_type = CONF_SET_SUB_INFO;
+        conf_key->type = CONF_KEY_SUB_INFO;
         abort(); /* TODO: more to do here, call into a variant of __wt_conf_compile */
     } else {
         switch (check_type) {
@@ -114,8 +114,8 @@ __conf_compile_value(WT_SESSION_IMPL *session, WT_CONF *top_conf, WT_CONFIG_ITEM
             return (__wt_illegal_value(session, (int)check_type));
         }
 
-        set_item->set_type = is_default ? CONF_SET_DEFAULT_ITEM : CONF_SET_NONDEFAULT_ITEM;
-        set_item->u.item = *value;
+        conf_key->type = is_default ? CONF_KEY_DEFAULT_ITEM : CONF_KEY_NONDEFAULT_ITEM;
+        conf_key->u.item = *value;
     }
     return (0);
 }
@@ -147,9 +147,9 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
     const WT_CONFIG_CHECK *check;
     WT_CONFIG_ITEM key, value;
     WT_CONFIG_ITEM_TYPE check_type;
-    WT_CONF_SET_ITEM *set_item;
+    WT_CONF_KEY *conf_key;
     WT_DECL_RET;
-    uint32_t i, key_id, set_item_pos;
+    uint32_t i, key_id, conf_key_pos;
     bool existing;
 
     /*
@@ -165,29 +165,29 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
             i = check_jump[(uint8_t)key.str[0]];
             check_count = check_jump[(uint8_t)key.str[0] + 1];
         }
-        check = (const WT_CONFIG_CHECK *)bsearch(&key, &checks[i], check_count - i,
-          sizeof(WT_CONFIG_CHECK), __conf_check_compare);
+        check = (const WT_CONFIG_CHECK *)bsearch(
+          &key, &checks[i], check_count - i, sizeof(WT_CONFIG_CHECK), __conf_check_compare);
         if (check == NULL)
             WT_ERR_MSG(session, EINVAL, "Error compiling '%s', unknown key '%.*s' for method '%s'",
               format, (int)key.len, key.str, api);
 
-        /* The key id is an offset into the key_to_set_item table. */
+        /* The key id is an offset into the key_map table. */
         key_id = check->key_id;
-        WT_ASSERT(session, key_id < WT_CONF_KEY_COUNT);
-        existing = (conf->key_to_set_item[key_id] != 0);
+        WT_ASSERT(session, key_id < WT_CONF_ID_COUNT);
+        existing = (conf->key_map[key_id] != 0);
         if (existing)
             /* The position stored is one-based. */
-            set_item_pos = conf->key_to_set_item[key_id] - 1;
+            conf_key_pos = conf->key_map[key_id] - 1;
         else {
-            set_item_pos = conf->set_item_count++;
-            /* The position inserted to the key_to_set_item is one based, and must fit
+            conf_key_pos = conf->conf_key_count++;
+            /* The position inserted to the key_map is one based, and must fit
              * into a byte */
-            WT_ASSERT(session, set_item_pos + 1 <= 0xff);
-            conf->key_to_set_item[key_id] = (uint8_t)(set_item_pos + 1);
+            WT_ASSERT(session, conf_key_pos + 1 <= 0xff);
+            conf->key_map[key_id] = (uint8_t)(conf_key_pos + 1);
             WT_ERR(__wt_realloc_def(
-                                    session, &conf->set_item_allocated, conf->set_item_count, &conf->set_item));
+              session, &conf->conf_key_allocated, conf->conf_key_count, &conf->conf_key));
         }
-        set_item = &conf->set_item[set_item_pos];
+        conf_key = &conf->conf_key[conf_key_pos];
 
         WT_ERR(__conf_string_to_type(session, check->type, &check_type));
         if (check_type == WT_CONFIG_ITEM_STRUCT) {
@@ -196,39 +196,38 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
                   (int)value.len, value.str);
             if (value.str[0] == '[') {
                 if (value.str[value.len - 1] != ']')
-                    WT_ERR_MSG(session, EINVAL, "Value '%.*s' non-matching []",
-                      (int)value.len, value.str);
+                    WT_ERR_MSG(
+                      session, EINVAL, "Value '%.*s' non-matching []", (int)value.len, value.str);
             } else if (value.str[0] == '(') {
                 if (value.str[value.len - 1] != ')')
-                    WT_ERR_MSG(session, EINVAL, "Value '%.*s' non-matching ()",
-                      (int)value.len, value.str);
+                    WT_ERR_MSG(
+                      session, EINVAL, "Value '%.*s' non-matching ()", (int)value.len, value.str);
             } else
-                WT_ERR_MSG(session, EINVAL, "Value '%.*s' expected () or []",
-                  (int)value.len, value.str);
+                WT_ERR_MSG(
+                  session, EINVAL, "Value '%.*s' expected () or []", (int)value.len, value.str);
 
             /* Remove the first and last char, they were just checked */
             ++value.str;
             value.len -= 2;
 
             if (existing) {
-                WT_ASSERT(session, set_item->set_type == CONF_SET_SUB_INFO);
-                sub_conf = set_item->u.sub;
+                WT_ASSERT(session, conf_key->type == CONF_KEY_SUB_INFO);
+                sub_conf = conf_key->u.sub;
                 WT_ASSERT(session, sub_conf != NULL);
             } else {
-                set_item->set_type = CONF_SET_SUB_INFO;
+                conf_key->type = CONF_KEY_SUB_INFO;
                 WT_ERR(__wt_calloc_one(session, &sub_conf));
-                set_item->u.sub = sub_conf;
+                conf_key->u.sub = sub_conf;
             }
             WT_ERR(__conf_compile(session, api, top_conf, sub_conf, check->subconfigs,
-                check->subconfigs_entries, check->subconfigs_jump, value.str, value.len,
-                is_default));
+              check->subconfigs_entries, check->subconfigs_jump, value.str, value.len, is_default));
         } else
             /*
-             * TODO: if check->checks starts with "choices=[...]", we should make sure
-             * the value matches one.
+             * TODO: if check->checks starts with "choices=[...]", we should make sure the value
+             * matches one.
              */
             WT_ERR(__conf_compile_value(
-              session, top_conf, check_type, set_item, check, &value, is_default));
+              session, top_conf, check_type, conf_key, check, &value, is_default));
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 err:
@@ -395,10 +394,10 @@ __wt_conf_compile_free(WT_SESSION_IMPL *session, WT_CONF *conf, bool final)
     if (conf != NULL && (final || conf->compiled_type == CONF_COMPILED_TEMP)) {
         __wt_free(session, conf->orig_config);
         __wt_free(session, conf->binding_descriptions);
-        for (i = 0; i < conf->set_item_count; ++i)
-            if (conf->set_item[i].set_type == CONF_SET_SUB_INFO)
-                __wt_conf_compile_free(session, conf->set_item[i].u.sub, final);
-        __wt_free(session, conf->set_item);
+        for (i = 0; i < conf->conf_key_count; ++i)
+            if (conf->conf_key[i].type == CONF_KEY_SUB_INFO)
+                __wt_conf_compile_free(session, conf->conf_key[i].u.sub, final);
+        __wt_free(session, conf->conf_key);
         __wt_free(session, conf);
     }
 }

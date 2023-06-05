@@ -599,9 +599,9 @@ tfile.close()
 format_srcfile(tmp_file)
 compare_srcfile(tmp_file, f)
 
-# From names = ['verbose'], produce 'WT_CONF_KEY_verbose'
+# From names = ['verbose'], produce 'WT_CONF_ID_verbose'
 # From names = ['assert', 'commit_timestamp'],
-#    produce 'WT_CONF_KEY_assert_CAT | (WT_CONF_KEY_archive << 16)'
+#    produce 'WT_CONF_ID_assert_CAT | (WT_CONF_ID_archive << 16)'
 def build_key_initializer(names):
     result = ''
     shift = 0
@@ -610,9 +610,9 @@ def build_key_initializer(names):
         if result != '':
             result += ' | '
         if shift == 0:
-            result += 'WT_CONF_KEY_{}'.format(name)
+            result += 'WT_CONF_ID_{}'.format(name)
         else:
-            result += '(WT_CONF_KEY_{} << {})'.format(name, shift)
+            result += '(WT_CONF_ID_{} << {})'.format(name, shift)
         shift += 16
     return result
 
@@ -667,17 +667,17 @@ if not test_config:
         b = dict()
         for name in sorted(keynumber.numbering.keys()):
             off = keynumber.get(name)
-            tfile.write('#define WT_CONF_KEY_{} {}ULL\n'.format(name, off))
+            tfile.write('#define WT_CONF_ID_{} {}ULL\n'.format(name, off))
             count += 1
             b[name] = name
         assert count == keynumber.count
-        tfile.write('\n#define WT_CONF_KEY_COUNT {}\n'.format(count))
+        tfile.write('\n#define WT_CONF_ID_COUNT {}\n'.format(count))
 
     with conf_h.replace_fragment('Configuration key structure') as tfile:
         (structs, inits) = gen_conf_key_struct_init('    ', [], conf_keys)
         tfile.write('static const struct {\n')
         tfile.write(structs)
-        tfile.write('} WT_CONF_KEY_STRUCTURE = {\n')
+        tfile.write('} WT_CONF_ID_STRUCTURE = {\n')
         tfile.write(inits)
         tfile.write('};\n')
 
