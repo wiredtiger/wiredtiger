@@ -32,12 +32,10 @@ from wtdataset import SimpleDataSet
 
 # test_reconcile01.py
 #
-# Test scenarios of removing a non existing key/recno leading to implict delete
+# Test scenarios of removing a non existing key/recno leading to implicit deleted
 # records only to the fixed length column store. Performing eviction on the page
 # when they are globally visible or not and expecting them to read back as 0.
 class test_reconcile01(wttest.WiredTigerTestCase):
-    conn_config = 'in_memory=false'
-
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
         ('column-fix', dict(key_format='r', value_format='8t')),
@@ -61,8 +59,7 @@ class test_reconcile01(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
         evict_cursor.close()
 
-    @wttest.skip_for_hook("timestamp", "crashes in evict function, during cursor reset")  # FIXME-WT-9809
-    def test_flcs(self):
+    def test_reconcile(self):
         uri = "table:test_reconcile01"
         nrows = 44
         ds = SimpleDataSet(
@@ -87,7 +84,8 @@ class test_reconcile01(wttest.WiredTigerTestCase):
             session2 = self.conn.open_session()
             session2.begin_transaction()
 
-        # Append a new key.
+        # Append a new key is necessary otherwise the next remove fails without inserting
+        # the implicitly deleted record.
         cursor.set_key(appendkey2)
         if self.value_format == '8t':
             cursor.set_value(appendkey2)
@@ -102,7 +100,7 @@ class test_reconcile01(wttest.WiredTigerTestCase):
         else:
             self.assertEqual(cursor.remove(), wiredtiger.WT_NOTFOUND)
 
-        # Validate the append key.
+        # Validate the appended and removed keys.
         cursor.set_key(appendkey1)
         if self.value_format == '8t':
             self.assertEqual(cursor.search(), 0)
@@ -117,13 +115,14 @@ class test_reconcile01(wttest.WiredTigerTestCase):
             self.assertEqual(v, str(appendkey2))
         cursor.reset()
 
-        # Evict the page to force reconciliation.
+        # Evict the page to force reconciliation. As part of the reconciliation selecting the
+        # implicit tombstone can go wrong for FLCS if it is not globally visible.
         if self.value_format == '8t':
             self.evict(ds, uri, 1, 1)
         else:
             self.evict(ds, uri, 1, '1')
 
-        # Validate the append key.
+        # Validate the appended and removed keys.
         cursor.set_key(appendkey1)
         if self.value_format == '8t':
             self.assertEqual(cursor.search(), 0)
