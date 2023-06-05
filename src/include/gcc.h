@@ -107,8 +107,8 @@
 #define WT_ATOMIC_ACQ_REL memory_order_acq_rel
 #define WT_ATOMIC_SEQ_CST memory_order_seq_cst
 
-#define WT_C_MEMMODEL_ATOMIC_CAS(ptr, oldp, newv, success_memorder, failure_memorder) \
-    atomic_compare_exchange_strong_explicit(ptr, oldp, newv, success_memorder, failure_memorder)
+#define WT_C_MEMMODEL_ATOMIC_CAS(ptr, oldv, newv, success_memorder, failure_memorder) \
+    atomic_compare_exchange_strong_explicit(ptr, &oldv, newv, success_memorder, failure_memorder)
 #define WT_C_MEMMODEL_ATOMIC_LOAD(var, ptr, memorder) \
     do {                                              \
         var = atomic_load_explicit(ptr, memorder);    \
