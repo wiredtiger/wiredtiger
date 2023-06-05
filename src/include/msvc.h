@@ -62,11 +62,11 @@
 #define WT_C_MEMMODEL_ATOMIC_STORE(ptr, value, memorder)                     \
     do {                                                                     \
         switch (memorder) {                                                  \
-        case WT_ATOMIC_ACQUIRE:                                              \
+        case WT_ATOMIC_RELEASE:                                              \
         case WT_ATOMIC_ACQ_REL:                                              \
             WT_BARRIER();                                                    \
         case WT_ATOMIC_RELAXED:                                              \
-        case WT_ATOMIC_RELEASE:                                              \
+        case WT_ATOMIC_ACQUIRE:                                              \
             *(ptr) = (value);                                                \
             break;                                                           \
         case WT_ATOMIC_SEQ_CST:                                              \
