@@ -29,7 +29,7 @@ exec_timeout_secs: 21600 # 6 hrs
 
 functions:
 
-  "get project" :
+  "get project":
     command: git.get_project
     params:
       directory: wiredtiger
@@ -52,6 +52,7 @@ functions:
   "fetch mongo-tests repo" :
     command: shell.exec
     params:
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -74,6 +75,7 @@ functions:
   "import wiredtiger into mongo" :
     command: shell.exec
     params:
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -136,6 +138,34 @@ functions:
           DEFINED_EVERGREEN_CONFIG_FLAGS=${DEFINED_EVERGREEN_CONFIG_FLAGS/\-DHAVE_BUILTIN_EXTENSION_ZSTD=1/}
         fi
 
+        if [ "${build_variant|}" = "macos-1100" ]; then
+          # For mac builds, we want explicitly tell cmake which python to use, as
+          # well as the matching library directory and header files. The find_libpython
+          # module gives us the library.
+          SYSPY=${python_binary}
+          $SYSPY -mvenv venv
+          source venv/bin/activate
+          pip3 install find_libpython
+          SYSPYLIB=`find_libpython`
+          SYSPYINCDEF=
+
+          # We have the shared library to link to, it may be named simply 'Python3' or 'Python'.
+          # If that's the case, use the associated dylib symlink found in an expected relative
+          # location. Also get the location of the header files. We'll give this all to cmake.
+          base=$(basename $SYSPYLIB)
+          if [ "$base" = 'Python3' -o "$base" = 'Python' ]; then
+             SYSPYDIR=$(dirname $SYSPYLIB)
+             NSYSPYLIB=$(ls $SYSPYDIR/lib/libpython*.dylib 2>/dev/null | head -1)
+             if [ -f "$NSYSPYLIB" ]; then
+                 SYSPYLIB=$NSYSPYLIB
+             fi
+             if [ -d "$SYSPYDIR/Headers" ]; then
+                 SYSPYINCDEF="-DPYTHON_INCLUDE_DIR=$SYSPYDIR/Headers"
+             fi
+          fi
+          DEFINED_EVERGREEN_CONFIG_FLAGS="$DEFINED_EVERGREEN_CONFIG_FLAGS -DPYTHON_EXECUTABLE:FILEPATH=$SYSPY -DPYTHON_LIBRARY=$SYSPYLIB $SYSPYINCDEF"
+        fi
+
         if [ "$OS" = "Windows_NT" ]; then
           # Use the Windows powershell script to configure the CMake build.
           # We execute it in a powershell environment as its easier to detect and source the Visual Studio
@@ -160,6 +190,32 @@ functions:
           cd cmake_build
 
           ${configure_env_vars|} $CMAKE $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|} -G "${cmake_generator|Ninja}" ./..
+        fi
+  "python config check":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/cmake_build"
+      shell: bash
+      script: |
+        set -o errexit
+        set -o verbose
+        # Note: ${var} is used for expansions of evergreen variables, whereas $var are /bin/sh variables.
+        python_configured=$(grep PYTHON_EXECUTABLE: ./CMakeCache.txt | sed -e 's/.*=//')
+        if [ "${python_binary}" = '' -o "$python_configured" = '' -o "$(${python_binary} -V -V)" != "$($python_configured -V -V)" ]; then
+           echo "Python versions do not match."
+           echo "Python version used by cmake builds ($python_configured):"
+           if [ "$python_configured" = '' ]; then
+               echo "No python configured"
+           else
+               $python_configured -V -V
+           fi
+           echo "Python version used in shell commands (${python_binary}):"
+           if [ "${python_binary}" = '' ]; then
+               echo "No python set in Expansions"
+           else
+               ${python_binary} -V -V
+           fi
+           exit 1
         fi
   "make wiredtiger": &make_wiredtiger
     command: shell.exec
@@ -195,6 +251,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger/cmake_build"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -231,9 +288,30 @@ functions:
         script: |
           set -o errexit
 
+          # Set the Azure credentials using config variable.
+          export AZURE_STORAGE_CONNECTION_STRING="${azure_sdk_ext_access_key}"
+
+          # GCP requires a path to a credentials file for authorization. To not expose the private
+          # information within the file, we use a placeholder private variable which are replaced 
+          # in the command line with the evergreen expansion variables and stored in a temporary 
+          # file.
+          file=$(mktemp --suffix ".json")
+
+          # Use '|' as the delimiter instead of default behaviour because the private key contains
+          # slash characters.
+          sed -e 's|gcp_project_id|${gcp_sdk_ext_project_id}|'                      \
+              -e 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|'                \
+              -e 's|gcp_private_id|${gcp_sdk_ext_private_key_id}|'                  \
+              -e 's|gcp_client_email|${gcp_sdk_ext_client_email}|'                  \
+              -e 's|gcp_client_id|${gcp_sdk_ext_client_id}|'                        \
+              -e 's|gcp_client_x509_cert_url|${gcp_sdk_ext_client_x509_cert_url}|'  ../test/evergreen/gcp_auth.json > $file
+          export GOOGLE_APPLICATION_CREDENTIALS="$file"
+
           virtualenv -p python3 venv
           source venv/bin/activate
           pip3 install boto3
+          pip3 install azure-storage-blob
+          pip3 install google-cloud-storage
 
           # Run Python testing for all tiered tests.
           ${test_env_vars|} python3 ../test/suite/run.py -j $(nproc) ${tiered_storage_test_name}
@@ -352,6 +430,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -362,6 +441,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -399,6 +479,7 @@ functions:
     # Delete unnecessary data from the upload.
     - command: shell.exec
       params:
+        shell: bash
         script: |
           rm -rf wiredtiger/cmake_build/examples
           rm -rf wiredtiger/cmake_build/bench
@@ -440,6 +521,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger/cmake_build/bench/wt2853_perf"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -449,6 +531,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger/cmake_build"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -458,6 +541,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -467,20 +551,71 @@ functions:
         else
             ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
         fi
+
+  "code coverage analysis":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/cmake_build"
+      shell: bash
+      script: |
+        set -o errexit
+        set -o verbose
+        virtualenv -p python3 venv
+        source venv/bin/activate
+        pip3 install lxml==4.8.0 Pygments==2.11.2 Jinja2==3.0.3 gcovr==5.0
+        mkdir -p ../coverage_report
+        GCOV=/opt/mongodbtoolchain/v4/bin/gcov gcovr -r .. -f ../src -e '.*/bt_(debug|dump|misc|salvage|vrfy).*' -e '.*/(log|progress|verify_build|strerror|env_msg|err_file|cur_config|os_abort)\..*' -e '.*_stat\..*' -e 'bench' -e 'examples' -e 'test' -e 'ext' -e 'dist' -e 'tools' -j 4 --html-self-contained --html-details ../coverage_report/2_coverage_report.html --json-summary-pretty --json-summary ../coverage_report/1_coverage_report_summary.json
+        python3 ../test/evergreen/code_coverage_analysis.py -c ../coverage_report/1_coverage_report_summary.json -t ../time.txt
+
+  "code coverage publish report":
+    command: s3.put
+    params:
+      aws_secret: ${aws_secret}
+      aws_key: ${aws_key}
+      local_files_include_filter: wiredtiger/coverage_report/*
+      bucket: build_external
+      permissions: public-read
+      content_type: text/html
+      remote_file: wiredtiger/${build_variant}/${revision}/coverage_report_${build_id}-${execution}/
+
+  "code coverage publish summary":
+    command: s3.put
+    params:
+      aws_secret: ${aws_secret}
+      aws_key: ${aws_key}
+      local_file: wiredtiger/coverage_report/2_coverage_report.html
+      bucket: build_external
+      permissions: public-read
+      content_type: text/html
+      # Ensure that the first character of the display_name is a space
+      # This will ensure that it sorts before the per-file report pages which also get a space
+      # at the start of their display name (why this happens is not yet clear).
+      display_name: " 1 Coverage report main page"
+      remote_file: wiredtiger/${build_variant}/${revision}/coverage_report_${build_id}-${execution}/1_coverage_report_main.html
+
   "format test":
     command: shell.exec
     params:
       working_dir: "wiredtiger/cmake_build/test/format"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
+        # Fail, show the configuration file.
+        fail() {
+          echo "======= FAILURE =========="
+          [ -f RUNDIR/CONFIG ] && cat RUNDIR/CONFIG
+          exit 1
+        }
+
         for i in $(seq ${times|1}); do
-          ./t -c ${config|../../../test/format/CONFIG.stress} ${trace_args|-T bulk,txn,retain=100} ${extra_args|} || ( [ -f RUNDIR/CONFIG ] && cat RUNDIR/CONFIG ) 2>&1
+          ./t -c ${config|../../../test/format/CONFIG.stress} ${trace_args|-T bulk,txn,retain=50} ${extra_args|} || fail
         done
   "format test predictable":
     command: shell.exec
     params:
       working_dir: "wiredtiger/cmake_build/test/format"
+      shell: bash
       script: |
         # To test predictable replay, we run test/format three times with the same data seed
         # each time, and compare the keys and values found in the WT home directories.
@@ -489,6 +624,11 @@ functions:
         # replay using the same data seed, should guarantee we have equivalent data created.
         set -o errexit
         set -o verbose
+        # Get a random value with leading zeroes removed, /bin/sh version.
+        rando() {
+          tr -cd 0-9 </dev/urandom | head -c 5 | sed -e 's/0*\(.\)/\1/'
+        }
+        # Fail, showing the configuration file.
         fail() {
           echo "======= FAILURE =========="
           for file; do
@@ -504,9 +644,9 @@ functions:
         config=../../../test/format/CONFIG.replay
         for i in $(seq ${times}); do
           echo Iteration $i/${times}
-          x2=$RANDOM$RANDOM
-          x3=$RANDOM$RANDOM
-          rm -rf RUNDIR_{1,2,3}
+          x2=$(rando)
+          x3=$(rando)
+          rm -rf RUNDIR_1 RUNDIR_2 RUNDIR_3
 
           first_run_args="-c $config runs.timer=$runtime"
           ./t -h RUNDIR_1 $first_run_args ${extra_args} || fail RUNDIR_1/CONFIG 2>&1
@@ -528,6 +668,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger/cmake_build/test/format"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -535,10 +676,28 @@ functions:
         for i in $(seq ${times|1}); do
           ${test_env_vars|} ./format.sh ${smp_command|} ${format_test_script_args|} 2>&1
         done
+  "format test tiered":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/cmake_build/test/format"
+      shell: bash
+      script: |
+        # To make sure we have plenty of flush_tier calls, we set the flush frequency high
+        # and the time between checkpoints low. We specify only using tables, as that's the
+        # only kind of URI that participates in tiered storage.
+        set -o errexit
+        set -o verbose
+        format_args="tiered_storage.storage_source=dir_store tiered_storage.flush_frequency=60 checkpoint.wait=15 runs.source=table runs.timer=10"
+        for i in $(seq ${times}); do
+          echo Iteration $i/${times}
+          rm -rf RUNDIR
+          ./t $format_args ${extra_args}
+        done
   "many dbs test":
     command: shell.exec
     params:
       working_dir: "wiredtiger/cmake_build/test/manydbs"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -547,6 +706,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger/cmake_build/test/thread"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -555,6 +715,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger/cmake_build/test/csuite"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -589,6 +750,62 @@ functions:
           # Just let the system take a breath
           sleep 10s
         done
+  "schema abort predictable":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/cmake_build/test/csuite/schema_abort"
+      shell: bash
+      script: |
+        # Get a random value with leading zeroes removed, /bin/sh version.
+        rando() {
+          tr -cd 0-9 </dev/urandom | head -c 5 | sed -e 's/0*\(.\)/\1/'
+        }
+
+        # Run schema_abort in a way that can test predictable replay.
+        set -o errexit
+        set -o verbose
+        runtime=20  # seconds
+        nthreads=5
+
+        toolsdir=../../../../tools
+        wtutil=../../../wt
+
+        r=$(rando)$(rando)
+        x0=$(rando)$(rando)
+
+        rm -rf RUNDIR_0
+        # The first run is for calibration only.  We just want to run for the designated
+        # time and get an approriate stop timestamp that can be used in later runs.
+        calibration_run_args="-PSD$r,E$x0 -T $nthreads -t $runtime"
+        ./test_schema_abort -p -h RUNDIR_0 $first_run_args || exit 1
+        echo "Finished calibration run"
+        stable_hex=$($toolsdir/wt_timestamps RUNDIR_0/WT_HOME | sed -e '/stable=/!d' -e 's/.*=//')
+        op_count=$(echo $((0x$stable_hex)))
+
+        for i in $(seq ${times}); do
+          echo Iteration $i/${times}
+          x1=$(rando)$(rando)
+          x2=$(rando)$(rando)
+          rm -rf RUNDIR_1 RUNDIR_2
+
+          # Run with up to a slightly different timestamp for each iteration.
+          ops=$(($op_count + $(rando) % 100))
+
+          # Do two runs up to the stable timestamp, using the same data seed,
+          # but with a different extra seed.  Compare it when done.
+          first_run_args="-PSD$r,E$x1 -T $nthreads -s $ops"
+          echo "First run with args $first_run_args"
+          ./test_schema_abort -p -h RUNDIR_1 $first_run_args  || exit 1
+
+          second_run_args="-PSD$r,E$x2 -T $nthreads -s $ops"
+          echo "Second run with args $second_run_args"
+          ./test_schema_abort -p -h RUNDIR_2 $second_run_args  || exit 1
+
+          # We are ignoring the table:wt table. This table does not participate in
+          # predictable replay, as it may be concurrently created, opened (regular or bulk cursor),
+          # verified, upgraded and dropped by multiple threads in test_schema_abort.
+          $toolsdir/wt_cmp_dir -i '^table:wt$' RUNDIR_1/WT_HOME RUNDIR_2/WT_HOME || exit 1
+        done
   "upload artifact":
     - command: archive.targz_pack
       params:
@@ -620,6 +837,7 @@ functions:
   "cleanup":
     command: shell.exec
     params:
+      shell: bash
       script: |
         rm -rf "wiredtiger"
         rm -rf "wiredtiger.tgz"
@@ -628,6 +846,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger/cmake_build"
+      shell: bash
       script: |
         set -o verbose
 
@@ -661,6 +880,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger/cmake_build"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -674,10 +894,60 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger/cmake_build/test/checkpoint"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
         ${test_env_vars|} ./test_checkpoint ${checkpoint_args} 2>&1
+
+  "checkpoint test predictable":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/cmake_build/test/checkpoint"
+      shell: bash
+      script: |
+        # Get a random value with leading zeroes removed, /bin/sh version.
+        rando() {
+          tr -cd 0-9 </dev/urandom | head -c 5 | sed -e 's/0*\(.\)/\1/'
+        }
+
+        # Run test/checkpoint in a way that can test predictable replay.
+        set -o errexit
+        set -o verbose
+
+        toolsdir=../../../tools
+        wtutil=../../wt
+
+        r=$(rando)$(rando)
+        x0=$(rando)$(rando)
+
+        # Always run with timestamps and in the predictable mode
+        base_args="-x -R"
+
+        rm -rf RUNDIR_0
+        # The first run is for calibration only.  We just want to run for the designated
+        # time and get an approriate stop timestamp that can be used in later runs.
+        calibration_run_args="-PSD$r,E$x0"
+        ${test_env_vars|} ./test_checkpoint -h RUNDIR_0 $base_args ${checkpoint_args} $calibration_run_args || exit 1
+        echo "Finished calibration run"
+        stable_hex=$($toolsdir/wt_timestamps RUNDIR_0 | sed -e '/stable=/!d' -e 's/.*=//')
+        stop_ts=$(echo $((0x$stable_hex)))
+        for i in $(seq ${times}); do
+          echo Iteration $i/${times}
+          x1=$(rando)$(rando)
+          x2=$(rando)$(rando)
+          rm -rf RUNDIR_1 RUNDIR_2
+          # Do two runs up to the stable timestamp, using the same data seed,
+          # but with a different extra seed.  Compare it when done.
+          first_run_args="-PSD$r,E$x1 -S $stop_ts"
+          echo "First run with args $base_args ${checkpoint_args} $first_run_args"
+          ${test_env_vars|} ./test_checkpoint -h RUNDIR_1 $base_args ${checkpoint_args} $first_run_args || exit 1
+          second_run_args="-PSD$r,E$x2 -S $stop_ts"
+          echo "Second run with args $base_args ${checkpoint_args} $second_run_args"
+          ${test_env_vars|} ./test_checkpoint -h RUNDIR_2 $base_args ${checkpoint_args} $second_run_args || exit 1
+          # Compare the runs.
+          $toolsdir/wt_cmp_dir RUNDIR_1 RUNDIR_2 || exit 1
+        done
 
   "checkpoint stress test":
     command: shell.exec
@@ -740,6 +1010,7 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -750,10 +1021,18 @@ functions:
       params:
         file: ./wiredtiger/cmake_build/${test_path}.json
 
+  "convert-to-atlas-evergreen-format":
+    - command: shell.exec
+      params:
+        shell: bash
+        script: |
+          set -o errexit
+          set -o verbose
+          ${python_binary} wiredtiger/bench/perf_run_py/perf_json_converter_for_atlas_evergreen.py -i ${input_file} -n ${test_name} -o ${output_path}
+
   "upload-perf-test-stats":
     - command: shell.exec
       params:
-        working_dir: "wiredtiger/cmake_build/bench/wtperf"
         shell: bash
         silent: true
         script: |
@@ -766,17 +1045,17 @@ functions:
           fi
           EVERGREEN_TASK_INFO='{ "evergreen_task_info": { "is_patch": "'${is_patch}'", "task_id": "'${task_id}'", "distro_id": "'${distro_id}'", "execution": "'${execution}'", "task_name": "'${task_name}'", "version_id": "'${version_id}'", "branch_name": "'${branch_name}'" } }'
           echo "EVERGREEN_TASK_INFO: $EVERGREEN_TASK_INFO"
-          ${python_binary} automation-scripts/evergreen/upload_stats_atlas.py -u ${atlas_perf_test_username} -p ${atlas_perf_test_password} -c ${collection|} -f test_stats/atlas_out_${perf-test-name}.json -t ${created_at} -i "$EVERGREEN_TASK_INFO" -g "../../../"
+          ${python_binary} automation-scripts/evergreen/upload_stats_atlas.py -u ${atlas_perf_test_username} -p ${atlas_perf_test_password} -c ${collection|} -f ${stats_dir|./wiredtiger/cmake_build/bench/wtperf/test_stats}/atlas_out_${perf-test-name}.json -t ${created_at} -i "$EVERGREEN_TASK_INFO" -g "./wiredtiger"
     - command: perf.send
       params:
-        file: ./wiredtiger/cmake_build/bench/wtperf/test_stats/evergreen_out_${perf-test-name}.json
+        file: ${stats_dir|./wiredtiger/cmake_build/bench/wtperf/test_stats}/evergreen_out_${perf-test-name}.json
     # Push the json results to the 'Files' tab of the task in Evergreen
     # Parameterised using the 'perf-test-name' variable
     - command: s3.put
       params:
         aws_secret: ${aws_secret}
         aws_key: ${aws_key}
-        local_files_include_filter: wiredtiger/cmake_build/bench/wtperf/test_stats/*_${perf-test-name}.json
+        local_file: ${stats_dir|wiredtiger/cmake_build/bench/wtperf/test_stats}/atlas_out_${perf-test-name}.json
         bucket: build_external
         permissions: public-read
         content_type: text/html
@@ -797,6 +1076,7 @@ functions:
     - command: shell.exec
       params:
         working_dir: "wiredtiger"
+        shell: bash
         script: |
           set -o errexit
           set -o verbose
@@ -816,12 +1096,22 @@ functions:
     command: shell.exec
     params:
       working_dir: "wiredtiger/bench/workgen/runner"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
         for i in $(seq ${times|15}); do
             ${test_env_vars|} ${python_binary|python3} split_stress.py
         done
+
+  "build and push antithesis container":
+    command: subprocess.exec
+    params:
+      working_dir: wiredtiger/tools/antithesis
+      binary: bash
+      add_expansions_to_env: true
+      args:
+      - "./build_and_push_containers.sh"
 
 #######################################
 #               Variables             #
@@ -848,13 +1138,13 @@ variables:
 
   # Configure flags for tiered storage Azure extension.
   - &configure_flags_tiered_storage_azure
-    ENABLE_S3: -DENABLE_AZURE=1
-    IMPORT_S3_SDK: -DIMPORT_AZURE_SDK=external
+    ENABLE_AZURE: -DENABLE_AZURE=1
+    IMPORT_AZURE_SDK: -DIMPORT_AZURE_SDK=external
   
   # Configure flags for tiered storage GCP extension.
   - &configure_flags_tiered_storage_gcp
-    ENABLE_S3: -DENABLE_GCP=1
-    IMPORT_S3_SDK: -DIMPORT_GCP_SDK=external
+    ENABLE_GCP: -DENABLE_GCP=1
+    IMPORT_GCP_SDK: -DIMPORT_GCP_SDK=external
   
   # Configure flags for tiered storage S3 extension.
   - &configure_flags_tiered_storage_s3
@@ -949,6 +1239,7 @@ variables:
       - func: "compile wiredtiger"
         vars:
           <<: *configure_flags_with_builtins
+          CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
       - func: "recovery stress test script"
         vars:
           times: 25
@@ -961,6 +1252,7 @@ variables:
         vars:
           <<: *configure_flags_with_builtins
           NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+          CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
       - func: "recovery stress test script"
         vars:
           times: 25
@@ -970,7 +1262,7 @@ variables:
 #######################################
 
 tasks:
-
+  # Check the python configuration
   # Base compile task on posix flavours
   - name: compile
     tags: ["pull_request"]
@@ -1060,6 +1352,7 @@ tasks:
 
   # Base compile for nonstandalone build
   - name: compile-nonstandalone
+    tags: ["pull_request"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1250,6 +1543,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -1264,6 +1558,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -1645,6 +1940,16 @@ tasks:
         vars:
           test_name: incr_backup
 
+  - name: csuite-random-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "csuite test"
+        vars:
+          test_name: random
+
   - name: csuite-random-abort-test
     tags: ["pull_request"]
     depends_on:
@@ -1699,6 +2004,25 @@ tasks:
         vars:
           test_args: -b cmake_build/test/csuite/timestamp_abort/test_timestamp_abort
           test_binary: timestamp_abort
+
+  - name: csuite-timestamp-abort-test-s3
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_tiered_storage_s3
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/test/csuite/timestamp_abort"
+          shell: bash
+          include_expansions_in_env:
+            - aws_sdk_s3_ext_access_key
+            - aws_sdk_s3_ext_secret_key
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ./test_timestamp_abort -PT -Po s3_store
 
   - name: csuite-timestamp-abort-stress-test
     tags: ["pull_request"]
@@ -2103,6 +2427,16 @@ tasks:
         vars:
           test_name: wt10461_skip_list_stress
 
+  - name: csuite-wt10897-compact-quick-interrupt-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "csuite test"
+        vars:
+          test_name: wt10897_compact_quick_interrupt
+
   # End of csuite test tasks
 
   # Start of Python unit test tasks
@@ -2121,6 +2455,7 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
+      - func: "python config check"
       - func: "unit test"
         vars:
            smp_command: -j $(echo $(sysctl -n hw.logicalcpu) / 2 | bc)
@@ -2147,7 +2482,7 @@ tasks:
         vars:
           unit_test_args: -v 2 --zstd
 
-  - name: unit-test-long
+  - name: unit-test-extra-long
     tags: ["python"]
     depends_on:
     - name: compile
@@ -2155,9 +2490,9 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test"
         vars:
-          unit_test_args: -v 2 --long
+          unit_test_args: -v 2 --extra-long
 
-  - name: unit-test-long-nonstandalone
+  - name: unit-test-extra-long-nonstandalone
     tags: ["python", "python-nonstandalone"]
     depends_on:
     - name: compile-nonstandalone
@@ -2167,7 +2502,7 @@ tasks:
           dependent_task: compile-nonstandalone
       - func: "unit test"
         vars:
-          unit_test_args: -v 2 --long --hook nonstandalone
+          unit_test_args: -v 2 --extra-long --hook nonstandalone
 
   - name: unit-linux-no-ftruncate-test
     tags: ["python"]
@@ -2199,6 +2534,26 @@ tasks:
       - func: "unit test"
         vars:
           unit_test_args: -v 2 --hook tiered
+
+  - name: unit-test-hook-tiered-s3
+    tags: ["python"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_tiered_storage_s3
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build"
+          shell: bash
+          include_expansions_in_env:
+            - aws_sdk_s3_ext_access_key
+            - aws_sdk_s3_ext_secret_key
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} --hook tiered=tier_storage_source='s3_store' ${smp_command|} 2>&1
 
   - name: unit-test-hook-tiered-timestamp
     tags: ["python"]
@@ -2379,7 +2734,152 @@ tasks:
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -b 11/12
+  
+  - name: unit-test-nonstandalone-bucket00
+    tags: ["python", "pull_request"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook nonstandalone -v 2 -b 0/12
+    
+  - name: unit-test-nonstandalone-bucket01
+    tags: ["python", "pull_request"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook nonstandalone -v 2 -b 1/12
+    
+  - name: unit-test-nonstandalone-bucket02
+    tags: ["python", "pull_request"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook nonstandalone -v 2 -b 2/12
+            
+  - name: unit-test-nonstandalone-bucket03
+    tags: ["python", "pull_request"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook nonstandalone -v 2 -b 3/12
 
+            
+  - name: unit-test-nonstandalone-bucket04
+    tags: ["python", "pull_request"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook nonstandalone -v 2 -b 4/12
+            
+  - name: unit-test-nonstandalone-bucket05
+    tags: ["python", "pull_request"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook nonstandalone -v 2 -b 5/12
+            
+  - name: unit-test-nonstandalone-bucket06
+    tags: ["python", "pull_request"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook nonstandalone -v 2 -b 6/12
+            
+  - name: unit-test-nonstandalone-bucket07
+    tags: ["python", "pull_request"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook nonstandalone -v 2 -b 7/12
+            
+  - name: unit-test-nonstandalone-bucket08
+    tags: ["python", "pull_request"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook nonstandalone -v 2 -b 8/12
+            
+  - name: unit-test-nonstandalone-bucket09
+    tags: ["python", "pull_request"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook nonstandalone -v 2 -b 9/12
+            
+  - name: unit-test-nonstandalone-bucket10
+    tags: ["python", "pull_request"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook nonstandalone -v 2 -b 10/12
+
+  - name: unit-test-nonstandalone-bucket11
+    tags: ["python", "pull_request"]
+    depends_on:
+    - name: compile-nonstandalone
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "unit test"
+        vars:
+          unit_test_args: --hook nonstandalone -v 2 -b 11/12
+                      
   - name: unit-test-long-bucket00
     tags: ["python", "unit_test_long"]
     patch_only: true
@@ -2524,23 +3024,14 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/dist"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
-            sh s_all -A -E 2>&1
-
-  - name: s-string
-    # Run the script with "-r" option to remove no-longer-needed words in s_string.ok
-    # This task only needs to be scheduled every a few months. A failure can remind us
-    # to keep the s_string.ok word list up-to-date.
-    commands:
-      - func: "get project"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/dist"
-          script: |
-            set -o errexit
-            set -o verbose
+            sh -x s_all -A -E 2>&1
+            # Run s_string with the "-r" option to remove no-longer-needed words from s_string.ok
+            # This is run separately from s_all as it can be too proactive when run as part of 
+            # developers local workflow, but needs to be run in PR builds before the code is merged.
             sh s_string -r 2>&1
 
   - name: s-outdated-fixmes
@@ -2552,6 +3043,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/dist"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -2566,6 +3058,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build/bench/wtperf"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -2581,6 +3074,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build/test/fops"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -2617,6 +3111,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build/bench/tiered"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -2651,6 +3146,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -2669,6 +3165,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -2785,6 +3282,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -2796,6 +3294,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -2835,6 +3334,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/dist"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -2862,6 +3362,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/test/syscall"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -2885,70 +3386,73 @@ tasks:
           checkpoint_args: -t r -n 1000000 -k 5000000 -C cache_size=100MB
 
   - name: coverage-report
+    # This task will measure code coverage across a range of tests, including, but not limited to,
+    # the Catch2-based unit tests.
+    # Currently, it only contains Catch2-based unit tests but that will change soon.
     commands:
-      - command: timeout.update
-        params:
-          exec_timeout_secs: 43200 # 12 hrs
-          timeout_secs: 1800 # 30 mins
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
           HAVE_UNITTEST: -DHAVE_UNITTEST=1
           <<: *configure_flags_with_builtins
           CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Coverage
-      - func: "unit test"
-        vars:
-          unit_test_args: -v 2
-          check_coverage: true
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build"
-          script: |
-            set -o errexit
-            set -o verbose
-            ${test_env_vars|} test/unittest/unittests
-      - command: shell.exec
-        params:
           shell: bash
-          working_dir: "wiredtiger/cmake_build"
           script: |
             set -o errexit
             set -o verbose
-            virtualenv -p python3 venv
-            source venv/bin/activate
-            pip3 install lxml==4.8.0 Pygments==2.11.2 Jinja2==3.0.3 gcovr==5.0
-            mkdir -p ../coverage_report
-            GCOV=/opt/mongodbtoolchain/v4/bin/gcov gcovr -r .. -f ../src -e '.*/bt_(debug|dump|misc|salvage|vrfy).*' -e '.*/(log|progress|verify_build|strerror|env_msg|err_file|cur_config|os_abort)\..*' -e '.*_stat\..*' -e 'bench' -e 'examples' -e 'test' -e 'ext' -e 'dist' -e 'tools' -j 4 --html-details --html-self-contained -o ../coverage_report/2_coverage_report.html
-      - command: s3.put
-        params:
-          aws_secret: ${aws_secret}
-          aws_key: ${aws_key}
-          local_files_include_filter: wiredtiger/coverage_report/*
-          bucket: build_external
-          permissions: public-read
-          content_type: text/html
-          remote_file: wiredtiger/${build_variant}/${revision}/coverage_report_${build_id}-${execution}/
-      - command: s3.put
-        params:
-          aws_secret: ${aws_secret}
-          aws_key: ${aws_key}
-          local_file: wiredtiger/coverage_report/2_coverage_report.html
-          bucket: build_external
-          permissions: public-read
-          content_type: text/html
-          # Ensure that the first character of the display_name is a space
-          # This will ensure that it sorts before the per-file report pages which also get a space
-          # at the start of their display name (why this happens is not yet clear).
-          display_name: " 1 Coverage report main page"
-          remote_file: wiredtiger/${build_variant}/${revision}/coverage_report_${build_id}-${execution}/1_coverage_report_main.html
+            # Record the start time, in seconds
+            date +%s > ../time.txt
+            # Perform the tests to get code coverage metrics for
+            ${test_env_vars|} test/unittest/unittests
+            # Record the end time, in seconds
+            date +%s >> ../time.txt
+      - func: "code coverage analysis"
+      - func: "code coverage publish report"
+      - func: "code coverage publish summary"
 
-  - name: tiered-storage-extensions-test
+  - name: coverage-report-catch2
+    # This task measures code coverage achieved by only the Catch2-based unit tests.
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          HAVE_UNITTEST: -DHAVE_UNITTEST=1
+          <<: *configure_flags_with_builtins
+          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Coverage
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            # Record the start time, in seconds
+            date +%s > ../time.txt
+            # Perform the tests to get code coverage metrics for
+            ${test_env_vars|} test/unittest/unittests
+            # Record the end time, in seconds
+            date +%s >> ../time.txt
+      - func: "code coverage analysis"
+      - func: "code coverage publish report"
+      - func: "code coverage publish summary"
+
+  - name: s3-tiered-storage-extensions-test
     tags: ["python"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
           <<: *configure_flags_tiered_storage_s3
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
       - func: "run tiered storage test"
         vars:
           # Set this in case of a core to get the correct python binary.
@@ -2987,46 +3491,37 @@ tasks:
 
             # Run S3 extension unit testing.
             ext/storage_sources/s3_store/test/run_s3_unit_tests
-  - name: azure-tiered-unittest-test
-    tags: ["tiered_unittest"]
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_tiered_storage_azure
-          HAVE_UNITTEST: -DHAVE_UNITTEST=1
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build"
-          shell: bash
-          include_expansions_in_env:
-            - azure_sdk_ext_access_key
-          script: |
-            set -o errexit
-            # Set the Azure credentials using config variable.
-            export AZURE_STORAGE_CONNECTION_STRING="${azure_sdk_ext_access_key}"
-            set -o verbose
-
-            # Run Azure extension unit testing.
-            ext/storage_sources/azure_store/test/run_azure_unit_tests
-  - name: gcp-tiered-unittest-test
-    tags: ["tiered_unittest"]
+  - name: azure-gcp-tiered-storage-extensions-test
+    tags: ["python"]
     commands:
       - func: "get project"
       - func: "install gcp dependencies"
       - func: "compile wiredtiger"
         vars:
-          <<: *configure_flags_tiered_storage_gcp
+          <<: [*configure_flags_tiered_storage_azure, *configure_flags_tiered_storage_gcp]
+      - func: "run tiered storage test"
+        vars:
+          # Set this in case of a core to get the correct python binary.
+          python_binary: $(pwd)/venv/bin/python3
+          tiered_storage_test_name: tiered
+  - name: azure-gcp-tiered-unittest-test
+    tags: ["pull_request", "tiered_unittest"]
+    commands:
+      - func: "get project"
+      - func: "install gcp dependencies"
+      - func: "compile wiredtiger"
+        vars:
+          <<: [*configure_flags_tiered_storage_azure, *configure_flags_tiered_storage_gcp]
           HAVE_UNITTEST: -DHAVE_UNITTEST=1
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build"
           shell: bash
-          include_expansions_in_env:
-            - gcp_sdk_ext_private_key
-            - gcp_sdk_ext_private_key_id
-          script: | 
+          script: |
             set -o errexit
+            # Set the Azure credentials using config variable.
+            export AZURE_STORAGE_CONNECTION_STRING="${azure_sdk_ext_access_key}"
+            
             # GCP requires a path to a credentials file for authorization. To not expose the private
             # information within the file, we use a placeholder private variable which are replaced 
             # in the command line with the evergreen expansion variables and stored in a temporary 
@@ -3044,64 +3539,22 @@ tasks:
             export GOOGLE_APPLICATION_CREDENTIALS="$file"
             set -o verbose
 
-            # Run GCP extension unit testing.
-            ext/storage_sources/gcp_store/test/run_gcp_unit_tests
-  - name: azure-tiered-test-small
-    tags: ["python"]
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_tiered_storage_azure
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build"
-          shell: bash
-          include_expansions_in_env:
-            - azure_sdk_ext_access_key
-          script: |
-            set -o errexit
-            # Set the Azure credentials using config variable.
-            export AZURE_STORAGE_CONNECTION_STRING="${azure_sdk_ext_access_key}"
-            set -o verbose
+            # Run Azure extension unit testing.
+            ext/storage_sources/azure_store/test/run_azure_unit_tests
 
-            ${test_env_vars|} python3 ../test/suite/run.py -j $(nproc) tiered19
-  - name: gcp-tiered-test-small
-    tags: ["python"]
+  - name: azure-gcp-tiered-test-small
+    tags: ["pull_request", "python"]
     commands:
       - func: "get project"
       - func: "install gcp dependencies"
       - func: "compile wiredtiger"
         vars:
-          <<: *configure_flags_tiered_storage_gcp
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build"
-          shell: bash
-          include_expansions_in_env:
-            - gcp_sdk_ext_private_key
-            - gcp_sdk_ext_private_key_id
-          script: |
-            set -o errexit
-            # GCP requires a path to a credentials file for authorization. To not expose the private
-            # information within the file, we use a placeholder private variable which are replaced 
-            # in the command line with the evergreen expansion variables and stored in a temporary 
-            # file.
-            file=$(mktemp --suffix ".json")
-
-            # Use '|' as the delimiter instead of default behaviour because the private key contains
-            # slash characters.
-            sed -e 's|gcp_project_id|${gcp_sdk_ext_project_id}|'                      \
-                -e 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|'                \
-                -e 's|gcp_private_id|${gcp_sdk_ext_private_key_id}|'                  \
-                -e 's|gcp_client_email|${gcp_sdk_ext_client_email}|'                  \
-                -e 's|gcp_client_id|${gcp_sdk_ext_client_id}|'                        \
-                -e 's|gcp_client_x509_cert_url|${gcp_sdk_ext_client_x509_cert_url}|'  \
-                ../test/evergreen/gcp_auth.json > $file       
-            export GOOGLE_APPLICATION_CREDENTIALS="$file"
-            set -o verbose
-
-            ${test_env_vars|} python3 ../test/suite/run.py -j $(nproc) tiered19
+          <<: [*configure_flags_tiered_storage_azure, *configure_flags_tiered_storage_gcp]
+      - func: "run tiered storage test"
+        vars:
+          # Set this in case of a core to get the correct python binary.
+          python_binary: $(pwd)/venv/bin/python3
+          tiered_storage_test_name: tiered06
 
   - name: spinlock-gcc-test
     commands:
@@ -3137,6 +3590,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -3269,6 +3723,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/test/csuite"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -3303,6 +3758,9 @@ tasks:
       - func: "format test script"
         vars:
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -S
+      - func: "format test"
+        vars:
+          extra_args: -C "verbose=(checkpoint_cleanup:1)"
 
   - name: format-asan-smoke-test
     commands:
@@ -3316,6 +3774,12 @@ tasks:
             ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0:unmap_shadow_on_exit=1"
             ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
           format_test_script_args: -S
+      - func: "format test"
+        vars:
+          test_env_vars:
+            ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0:unmap_shadow_on_exit=1"
+            ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
+          extra_args: -C "verbose=(checkpoint_cleanup:1)"
 
   - name: format-wtperf-test
     commands:
@@ -3326,6 +3790,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build/bench/wtperf"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -3354,6 +3819,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/tools/memory-model-test"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -3595,6 +4061,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/test/evergreen"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -3633,7 +4100,7 @@ tasks:
 
   - name: format-stress-sanitizer-lsm-test
     # FIXME-WT-6258: Re-enable the test once the outstanding issues with LSM are resolved.
-    # tags: ["stress-test-sanitizer-1"]
+    # tags: ["stress-test-sanitizer"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -3691,6 +4158,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/bench/workgen/runner"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -3710,6 +4178,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/bench/workgen/runner"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -3799,28 +4268,28 @@ tasks:
     tags: ["stress-test-ppc-2"]
   - <<: *format-stress-sanitizer-test
     name: format-stress-sanitizer-test-1
-    tags: ["stress-test-sanitizer-1"]
+    tags: ["stress-test-sanitizer"]
   - <<: *format-stress-sanitizer-test
     name: format-stress-sanitizer-test-2
-    tags: ["stress-test-sanitizer-2"]
+    tags: ["stress-test-sanitizer"]
   - <<: *format-stress-sanitizer-test
     name: format-stress-sanitizer-test-3
-    tags: ["stress-test-sanitizer-3"]
+    tags: ["stress-test-sanitizer"]
   - <<: *format-stress-sanitizer-test
     name: format-stress-sanitizer-test-4
-    tags: ["stress-test-sanitizer-4"]
+    tags: ["stress-test-sanitizer"]
   - <<: *race-condition-stress-sanitizer-test
     name: race-condition-stress-sanitizer-test-1
-    tags: ["stress-test-sanitizer-1"]
+    tags: ["stress-test-sanitizer"]
   - <<: *race-condition-stress-sanitizer-test
     name: race-condition-stress-sanitizer-test-2
-    tags: ["stress-test-sanitizer-2"]
+    tags: ["stress-test-sanitizer"]
   - <<: *race-condition-stress-sanitizer-test
     name: race-condition-stress-sanitizer-test-3
-    tags: ["stress-test-sanitizer-3"]
+    tags: ["stress-test-sanitizer"]
   - <<: *race-condition-stress-sanitizer-test
     name: race-condition-stress-sanitizer-test-4
-    tags: ["stress-test-sanitizer-4"]
+    tags: ["stress-test-sanitizer"]
   - <<: *recovery-stress-test
     name: recovery-stress-test-1
     tags: ["stress-test-1", "stress-test-zseries-1"]
@@ -3868,7 +4337,7 @@ tasks:
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 360
 
   - name: format-stress-sanitizer-test-no-barrier
-    tags: ["stress-test-no-barrier-sanitizer"]
+    tags: ["stress-test-sanitizer"]
     exec_timeout_secs: 25200
     commands:
       - func: "get project"
@@ -3884,7 +4353,7 @@ tasks:
             ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
 
   - name: race-condition-stress-sanitizer-test-no-barrier
-    tags: ["stress-test-no-barrier-sanitizer"]
+    tags: ["stress-test-sanitizer"]
     exec_timeout_secs: 25200
     commands:
       - func: "get project"
@@ -3908,6 +4377,7 @@ tasks:
         vars:
           <<: *configure_flags_with_builtins
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
+          CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
       - func: "recovery stress test script"
         vars:
           times: 25
@@ -3922,6 +4392,7 @@ tasks:
           <<: *configure_flags_with_builtins
           NONSTANDALONE: -DWT_STANDALONE_BUILD=0
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
+          CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
       - func: "recovery stress test script"
         vars:
           times: 25
@@ -3970,6 +4441,57 @@ tasks:
         vars:
           times: 5
 
+  - name: format-tiered-test
+    # Set 2.5 hour timeout (60 * 60 * 2.5)
+    exec_timeout_secs: 9000
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
+      - func: "format test tiered"
+        vars:
+          times: 10
+
+  - name: schema-abort-predictable-test
+    # Set 20 minute timeout (60 * 20)
+    exec_timeout_secs: 1200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
+      - func: "schema abort predictable"
+        vars:
+          times: 5
+
+  - name: checkpoint-filetypes-predictable-test
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          # Don't use diagnostic - this test looks for timing problems that are more likely to occur without it
+          HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
+      # FIXME-WT-10936: Enable once predictable replay supports column store
+      #- func: "checkpoint test predictable"
+      #  vars:
+      #    checkpoint_args: -t m -n 1000000 -k 5000000 -C cache_size=100MB
+      #    times: 5
+      #- func: "checkpoint test predictable"
+      #  vars:
+      #    checkpoint_args: -t c -n 1000000 -k 5000000 -C cache_size=100MB
+      #    times: 5
+      #- func: "checkpoint test predictable"
+      #  vars:
+      #    checkpoint_args: -n 1000000 -k 5000000 -C cache_size=100MB
+      #    times: 5
+      - func: "checkpoint test predictable"
+        vars:
+          checkpoint_args: -t r -n 1000000 -k 5000000 -C cache_size=100MB
+          times: 5
+
   - name: many-collection-test
     commands:
       - command: timeout.update
@@ -3987,9 +4509,6 @@ tasks:
         params:
           working_dir: mongo-tests/largescale
           shell: bash
-          include_expansions_in_env:
-            - atlas_wt_perf_test_user
-            - atlas_wt_perf_pass
           script: |
             set -o errexit
             set -o verbose
@@ -4000,9 +4519,15 @@ tasks:
             pip3 install lorem pymongo==3.12.2 "pymongo[srv]==3.12.2"
             mongod_path=$(find ../../mongo/build -executable -type f -path \*/bin/mongod)
             ./run_many_coll.sh $mongod_path mongodb.log config/many-collection-testing many-collection clean-and-populate
-            # upload the results
-            res_dir=`find ./ -type d -name "many-collection-artifacts" -print`
-            ./upload-results-atlas.py wt-perf-tests many-collection-test ${branch_name} $res_dir/results/results.json
+      - func: "convert-to-atlas-evergreen-format"
+        vars:
+          input_file: ./mongo-tests/largescale/many-collection-artifacts/results/results.json
+          test_name: many-collection-test
+          output_path: ./mongo-tests/largescale/many-collection-artifacts/results/
+      - func: "upload-perf-test-stats"
+        vars:
+          stats_dir: mongo-tests/largescale/many-collection-artifacts/results
+          perf-test-name: many-collection-test
 
   - name: cyclomatic-complexity
     commands:
@@ -4384,7 +4909,7 @@ tasks:
           perf-test-name: update-checkpoint-btree.wtperf
 
   - name: perf-test-update-checkpoint-lsm
-    # Disable/Un-tag the LSM perf test till the support for LSM is restored.
+    # FIXME-WT-8867 Disable/Un-tag the LSM perf test till the support for LSM is restored.
     # tags: ["checkpoint-perf"]
     depends_on:
       - name: compile
@@ -4632,7 +5157,7 @@ tasks:
           perf-test-name: evict-btree-1.wtperf
 
   - name: perf-test-evict-lsm
-    # Disable/Un-tag the LSM perf test till the support for LSM is restored.
+    # FIXME-WT-8867 Disable/Un-tag the LSM perf test till the support for LSM is restored.
     # tags: ["evict-perf"]
     depends_on:
       - name: compile
@@ -4648,7 +5173,7 @@ tasks:
           perf-test-name: evict-lsm.wtperf
 
   - name: perf-test-evict-lsm-1
-    # Disable/Un-tag the LSM perf test till the support for LSM is restored.
+    # FIXME-WT-8867 Disable/Un-tag the LSM perf test till the support for LSM is restored.
     # tags: ["evict-perf"]
     depends_on:
       - name: compile
@@ -4958,6 +5483,27 @@ tasks:
           test_path: bench/wt2853_perf/wt2853_perf
 
 #######################################
+#     Antithesis Integration          #
+#######################################
+
+  - name: debug-have-diagnostic
+    tags: ["antithesis"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "build and push antithesis container"
+
+  - name: release-with-debug-have-diagnostic
+    tags: ["antithesis"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=1
+      - func: "build and push antithesis container"
+
+#######################################
 #            Buildvariants            #
 #######################################
 
@@ -4982,10 +5528,10 @@ buildvariants:
   tasks:
     - name: ".pull_request !.pull_request_compilers"
     - name: ".unit_test_long"
+      distros: ubuntu2004-large
     - name: compile
     - name: doc-compile
     - name: make-check-test
-    - name: unit-test
     - name: configure-combinations
     - name: syscall-linux
     - name: checkpoint-filetypes-test
@@ -4999,7 +5545,7 @@ buildvariants:
     - name: spinlock-pthread-adaptive-test
     - name: ftruncate-test
     - name: long-test
-    - name: unit-test-long
+    - name: unit-test-extra-long
       distros: ubuntu2004-large
     - name: static-wt-build-test
     - name: linux-directio
@@ -5009,19 +5555,19 @@ buildvariants:
     - name: format-failure-configs-test
     - name: ".data-validation-stress-test"
     - name: unittest-test
-    - name: tiered-storage-extensions-test
+    - name: s3-tiered-storage-extensions-test
+    - name: azure-gcp-tiered-storage-extensions-test
     - name: bench-tiered-push-pull
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
-    - name: unit-test-nonstandalone
-    - name: unit-test-long-nonstandalone
+    - name: unit-test-extra-long-nonstandalone
       distros: ubuntu2004-large
     - name: ".data-validation-stress-test-nonstandalone"
     - name: unittest-assertions
     - name: ".tiered_unittest"
-    - name: azure-tiered-test-small
-    - name: gcp-tiered-test-small
     - name: bench-tiered-push-pull-s3
+    - name: csuite-timestamp-abort-test-s3
+    - name: unit-test-hook-tiered-s3
 
 - name: ubuntu2004-asan
   display_name: "! Ubuntu 20.04 ASAN"
@@ -5120,8 +5666,7 @@ buildvariants:
     - name: compile-production-disable-static
     - name: examples-c-production-disable-shared-test
     - name: examples-c-production-disable-static-test
-    # FIXME-WT-10386 Enable this test once this failure is resolved.
-    # - name: format-stress-pull-request-test
+    - name: format-stress-pull-request-test
     - name: make-check-test
     - name: cppsuite-operations-test-default
     - name: cppsuite-hs-cleanup-default
@@ -5147,7 +5692,7 @@ buildvariants:
 - name: ubuntu2004-stress-tests
   display_name: Ubuntu 20.04 Stress tests
   run_on:
-  - ubuntu2004-test
+  - ubuntu2004-small
   expansions:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: ninja
@@ -5165,11 +5710,9 @@ buildvariants:
     - name: ".stress-test-3"
     - name: ".stress-test-4"
     - name: ".stress-test-no-barrier"
-    - name: ".stress-test-no-barrier-sanitizer"
-    - name: ".stress-test-sanitizer-1"
-    - name: ".stress-test-sanitizer-2"
-    - name: ".stress-test-sanitizer-3"
-    - name: ".stress-test-sanitizer-4"
+    - name: ".stress-test-sanitizer"
+      run_on:
+      - ubuntu2004-medium
     - name: format-abort-recovery-stress-test
     - name: ".stress-test-1-nonstandalone"
     - name: ".stress-test-2-nonstandalone"
@@ -5178,6 +5721,11 @@ buildvariants:
     - name: ".stress-test-no-barrier-nonstandalone"
     - name: format-abort-recovery-stress-test-nonstandalone
     - name: format-predictable-test
+    # FIXME-WT-10822
+    # - name: format-tiered-test
+    - name: schema-abort-predictable-test
+    - name: checkpoint-filetypes-predictable-test
+
 
 # When running the Python tests on this variant tcmalloc must be preloaded otherwise the wiredtiger library
 # fails to load and resolve its dependency.
@@ -5209,15 +5757,6 @@ buildvariants:
     - name: ".stress-test-4-nonstandalone"
     - name: ".stress-test-no-barrier-nonstandalone"
     - name: format-abort-recovery-stress-test-nonstandalone
-
-- name: large-scale-tests
-  display_name: "Large scale tests"
-  batchtime: 480 # 3 times a day
-  run_on:
-  - ubuntu2004-test
-  tasks:
-    - name: many-collection-test
-      distros: ubuntu2004-wt-large
 
 - name: cppsuite-stress-tests-ubuntu
   display_name: "Cppsuite Stress Tests Ubuntu 20.04"
@@ -5309,7 +5848,6 @@ buildvariants:
   tasks:
     - name: compile
     - name: make-check-test
-    - name: unit-test
     - name: fops
     - name: time-shift-sensitivity-test
     - name: linux-directio
@@ -5317,7 +5855,7 @@ buildvariants:
     - name: syscall-linux
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
-    - name: unit-test-long
+    - name: unit-test-extra-long
       distros: rhel80-large
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
@@ -5334,13 +5872,13 @@ buildvariants:
     # Remove the default configurations for the toolchain and install prefix.
     CMAKE_TOOLCHAIN_FILE:
     CMAKE_INSTALL_PREFIX:
-    python_binary: '/cygdrive/c/Python39/python'
+    python_binary: '/cygdrive/c/Python311/python'
     configure_env_vars:
-      PATH=/cygdrive/c/Python39:/cygdrive/c/Python39/Scripts:$PATH
+      PATH=/cygdrive/c/Python311:/cygdrive/c/Python311/Scripts:$PATH
     test_env_vars:
       WT_TOPDIR=$(git rev-parse --show-toplevel)
       WT_BUILDDIR=$WT_TOPDIR/cmake_build
-      PATH=/cygdrive/c/Python39:/cygdrive/c/Python39/Scripts:$PATH
+      PATH=/cygdrive/c/Python311:/cygdrive/c/Python311/Scripts:$PATH
       PYTHONPATH=($WT_TOPDIR/lang/python/wiredtiger):$(cygpath -w $WT_TOPDIR/lang/python)
   tasks:
     - name: compile
@@ -5355,10 +5893,12 @@ buildvariants:
   - macos-1100
   batchtime: 120 # 2 hours
   expansions:
-    # The cmake toolchain file is set to the mongodb toolchain gcc by defualt.
+    # The cmake toolchain file is set to the mongodb toolchain gcc by default.
     # Remove that configuration here and let MacOS use the default Xcode toolchain instead.
+    # We'll explicitly use the python3 in /usr/bin, we use the same in configuring cmake.
     CMAKE_TOOLCHAIN_FILE:
-    python_binary: 'python3'
+    CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
+    python_binary: '/usr/bin/python3'
     smp_command: -j $(sysctl -n hw.logicalcpu)
     cmake_generator: "Unix Makefiles"
     make_command: make
@@ -5521,7 +6061,7 @@ buildvariants:
     - name: linux-directio
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
-    - name: unit-test-long
+    - name: unit-test-extra-long
       distros: ubuntu2004-arm64-large
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
@@ -5530,11 +6070,11 @@ buildvariants:
     - name: long-test
     - name: configure-combinations
     - name: format-smoke-test
-    - name: tiered-storage-extensions-test
+    - name: s3-tiered-storage-extensions-test
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
     - name: unit-test-nonstandalone
-    - name: unit-test-long-nonstandalone
+    - name: unit-test-extra-long-nonstandalone
       distros: ubuntu2004-arm64-large
     - name: memory-model-test
       batchtime: 40320 # 28 days
@@ -5567,7 +6107,7 @@ buildvariants:
     - name: linux-directio
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
-    - name: unit-test-long
+    - name: unit-test-extra-long
       distros: amazon2-arm64-large
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
@@ -5575,32 +6115,23 @@ buildvariants:
     - name: ftruncate-test
     - name: long-test
     - name: format-smoke-test
-    - name: tiered-storage-extensions-test
+    - name: s3-tiered-storage-extensions-test
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
     - name: unit-test-nonstandalone
-    - name: unit-test-long-nonstandalone
+    - name: unit-test-extra-long-nonstandalone
       distros: amazon2-arm64-large
 
-- name: infrequent-checks
-  display_name: "~ Infrequent checks"
+# Antithesis build and push
+- name: ubuntu2004-antithesis
+  display_name: "~ Ubuntu 20.04 Antithesis"
   run_on:
   - ubuntu2004-test
   expansions:
-    test_env_vars:
-      WT_TOPDIR=$(git rev-parse --show-toplevel)
-      WT_BUILDDIR=$WT_TOPDIR/cmake_build
-      LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
-      LD_PRELOAD=$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
-    CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"
-    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
-    smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
-    cmake_generator: Ninja
+    posix_configure_flags: -DENABLE_ANTITHESIS=1 -DENABLE_STRICT=0
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     make_command: ninja
   tasks:
-    - name: memory-model-test
-      batchtime: 40320 # 28 days
-    - name: s-outdated-fixmes
-      batchtime: 10080 # 7 days
-    - name: s-string
-      batchtime: 129600 # 90 days
+    - name: ".antithesis"
+      cron: 0 0 * * 4 # once a week (Thursday midnight UTC)
+      patchable: false

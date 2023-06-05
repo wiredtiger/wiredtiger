@@ -37,7 +37,7 @@ namespace test_harness {
  * added at the end of the tree. This means the test frequently executes the reverse split path.
  */
 class reverse_split : public test {
-    public:
+public:
     reverse_split(test_args &args) : test(args)
     {
         /*
@@ -98,6 +98,10 @@ class reverse_split : public test {
                 logger::log_msg(LOG_WARN,
                   "thread {" + std::to_string(tc->id) + "} failed to commit truncation of " +
                     std::to_string(end_key_id - min_key_id) + " records.");
+
+            /* Reset our cursor to avoid pinning content prior to sleep and sync. */
+            testutil_check(write_cursor->reset(write_cursor.get()));
+
             tc->sleep();
             /*
              * Synchronize across our truncate threads so they don't diverge over time. This results

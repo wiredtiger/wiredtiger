@@ -1449,6 +1449,10 @@ prepare_verify:
               head_upd->type == WT_UPDATE_STANDARD && F_ISSET(head_upd, WT_UPDATE_RESTORED_FROM_HS))
                 WT_ASSERT_ALWAYS(session, head_upd->next == NULL,
                   "Rolling back a prepared transaction resulted in an invalid update chain");
+
+            /* We have traversed all the non-obsolete updates. */
+            if (WT_UPDATE_DATA_VALUE(head_upd) && __wt_txn_upd_visible_all(session, head_upd))
+                break;
         }
     }
 
@@ -1659,6 +1663,17 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                  */
                 if (!F_ISSET(op, WT_TXN_OP_KEY_REPEATED))
                     WT_ERR(__txn_resolve_prepared_op(session, op, true, &cursor));
+
+                /*
+                 * Sleep for some number of updates between resolving prepared operations when
+                 * configured, however, avoid causing too much stress when there are a large number
+                 * of updates. Multiplying by 36 provides a reasonable chance of calling the stress
+                 * (as it's a highly composite number) without exceeding a total of 36 calls over
+                 * the total mod_count.
+                 */
+                if ((i * 36) % txn->mod_count == 0)
+                    __wt_timing_stress(session, WT_TIMING_STRESS_PREPARE_RESOLUTION, NULL);
+
 #ifdef HAVE_DIAGNOSTIC
                 ++prepare_count;
 #endif
@@ -2422,6 +2437,12 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
               "[SHUTDOWN_INIT] performing shutdown rollback to stable, stable_timestamp=%s",
               __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string));
             WT_TRET(conn->rts->rollback_to_stable(session, cfg, true));
+
+            if (ret != 0)
+                __wt_verbose_notice(session, WT_VERB_RTS,
+                  WT_RTS_VERB_TAG_SHUTDOWN_RTS
+                  "performing shutdown rollback to stable failed with code %s",
+                  __wt_strerror(session, ret, NULL, 0));
         }
 
         s = NULL;

@@ -127,8 +127,7 @@ handle_progress(
     (void)handler;
 
     if (session->app_private != NULL) {
-        testutil_check(
-          __wt_snprintf(buf, sizeof(buf), "%s %s", (char *)session->app_private, operation));
+        testutil_snprintf(buf, sizeof(buf), "%s %s", (char *)session->app_private, operation);
         track(buf, progress);
         return (0);
     }
@@ -139,14 +138,14 @@ handle_progress(
 
 static WT_EVENT_HANDLER event_handler = {NULL, handle_message, handle_progress, NULL, NULL};
 
-#define CONFIG_APPEND(p, ...)                                               \
-    do {                                                                    \
-        size_t __len;                                                       \
-        testutil_check(__wt_snprintf_len_set(p, max, &__len, __VA_ARGS__)); \
-        if (__len > max)                                                    \
-            __len = max;                                                    \
-        p += __len;                                                         \
-        max -= __len;                                                       \
+#define CONFIG_APPEND(p, ...)                                   \
+    do {                                                        \
+        size_t __len;                                           \
+        testutil_snprintf_len_set(p, max, &__len, __VA_ARGS__); \
+        if (__len > max)                                        \
+            __len = max;                                        \
+        p += __len;                                             \
+        max -= __len;                                           \
     } while (0)
 
 /*
@@ -157,6 +156,8 @@ static void
 configure_timing_stress(char **p, size_t max)
 {
     CONFIG_APPEND(*p, ",timing_stress_for_test=[");
+    if (GV(STRESS_AGGRESSIVE_STASH_FREE))
+        CONFIG_APPEND(*p, ",aggressive_stash_free");
     if (GV(STRESS_AGGRESSIVE_SWEEP))
         CONFIG_APPEND(*p, ",aggressive_sweep");
     if (GV(STRESS_CHECKPOINT))
@@ -177,6 +178,8 @@ configure_timing_stress(char **p, size_t max)
         CONFIG_APPEND(*p, ",history_store_search");
     if (GV(STRESS_HS_SWEEP))
         CONFIG_APPEND(*p, ",history_store_sweep_race");
+    if (GV(STRESS_PREPARE_RESOLUTION))
+        CONFIG_APPEND(*p, ",prepare_resolution");
     if (GV(STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE))
         CONFIG_APPEND(*p, ",sleep_before_read_overflow_onpage");
     if (GV(STRESS_SPLIT_1))
@@ -193,6 +196,8 @@ configure_timing_stress(char **p, size_t max)
         CONFIG_APPEND(*p, ",split_6");
     if (GV(STRESS_SPLIT_7))
         CONFIG_APPEND(*p, ",split_7");
+    if (GV(STRESS_SPLIT_8))
+        CONFIG_APPEND(*p, ",split_8");
     CONFIG_APPEND(*p, "]");
 }
 
@@ -249,6 +254,52 @@ configure_debug_mode(char **p, size_t max)
 }
 
 /*
+ * configure_tiered_storage --
+ *     Configure tiered storage settings for opening a connection.
+ */
+static void
+configure_tiered_storage(const char *home, char **p, size_t max, char *ext_cfg, size_t ext_cfg_size)
+{
+    TEST_OPTS opts;
+    char tiered_cfg[1024];
+
+    if (!g.tiered_storage_config) {
+        testutil_assert(ext_cfg_size > 0);
+        ext_cfg[0] = '\0';
+        return;
+    }
+
+    memset(&opts, 0, sizeof(opts));
+    opts.tiered_storage = true;
+
+    /*
+     * We need to cast these values. Normally, testutil allocates and fills these strings based on
+     * command line arguments and frees them when done. Format doesn't use the standard test command
+     * line parser and doesn't rely on testutil to free anything in this struct. We're only using
+     * the options struct on a temporary basis to help create the tiered storage configuration.
+     */
+    opts.tiered_storage_source = (char *)GVS(TIERED_STORAGE_STORAGE_SOURCE);
+    opts.home = (char *)home;
+    opts.build_dir = (char *)BUILDDIR;
+
+    /*
+     * Have testutil create the bucket directory for us when using the directory store.
+     */
+    opts.make_bucket_dir = true;
+
+    /*
+     * Use an absolute path for the bucket directory when using the directory store. Then we can
+     * create copies of the home directory to be used for backup, and we'll be able to find the
+     * bucket.
+     */
+    opts.absolute_bucket_dir = true;
+
+    testutil_tiered_storage_configuration(
+      &opts, home, tiered_cfg, sizeof(tiered_cfg), ext_cfg, ext_cfg_size);
+    CONFIG_APPEND(*p, ",%s", tiered_cfg);
+}
+
+/*
  * create_database --
  *     Create a WiredTiger database.
  */
@@ -257,7 +308,7 @@ create_database(const char *home, WT_CONNECTION **connp)
 {
     WT_CONNECTION *conn;
     size_t max;
-    char config[8 * 1024], *p;
+    char config[8 * 1024], *p, tiered_ext_cfg[1024];
     const char *s, *sources;
 
     p = config;
@@ -272,6 +323,12 @@ create_database(const char *home, WT_CONNECTION **connp)
       ",operation_timeout_ms=2000"
       ",statistics=(%s)",
       GV(CACHE), progname, GVS(STATISTICS_MODE));
+
+    /* Eviction (dirty) configuration. */
+    if (GV(CACHE_EVICTION_DIRTY_TARGET) != 0)
+        CONFIG_APPEND(p, ",eviction_dirty_target=%" PRIu32, GV(CACHE_EVICTION_DIRTY_TARGET));
+    if (GV(CACHE_EVICTION_DIRTY_TRIGGER) != 0)
+        CONFIG_APPEND(p, ",eviction_dirty_trigger=%" PRIu32, GV(CACHE_EVICTION_DIRTY_TRIGGER));
 
     /* Statistics log configuration. */
     sources = GVS(STATISTICS_LOG_SOURCES);
@@ -297,9 +354,6 @@ create_database(const char *home, WT_CONNECTION **connp)
     /* LSM configuration. */
     if (g.lsm_config)
         CONFIG_APPEND(p, ",lsm_manager=(worker_thread_max=%" PRIu32 "),", GV(LSM_WORKER_THREADS));
-
-    if (g.lsm_config || GV(CACHE) < 20)
-        CONFIG_APPEND(p, ",eviction_dirty_trigger=95");
 
     /* Eviction configuration. */
     if (GV(CACHE_EVICT_MAX) != 0)
@@ -333,7 +387,7 @@ create_database(const char *home, WT_CONNECTION **connp)
         CONFIG_APPEND(p, ",mmap_all=1");
 
     if (GV(DISK_DIRECT_IO))
-        CONFIG_APPEND(p, ",direct_io=(data)");
+        CONFIG_APPEND(p, ",direct_io=(checkpoint,data,log)");
 
     if (GV(DISK_DATA_EXTEND))
         CONFIG_APPEND(p, ",file_extend=(data=8MB)");
@@ -347,13 +401,24 @@ create_database(const char *home, WT_CONNECTION **connp)
     /* Optional debug mode. */
     configure_debug_mode(&p, max);
 
+    /* Optional tiered storage. */
+    configure_tiered_storage(home, &p, max, tiered_ext_cfg, sizeof(tiered_ext_cfg));
+
+#define EXTENSION_PATH(path) (access((path), R_OK) == 0 ? (path) : "")
+
     /* Extensions. */
-    CONFIG_APPEND(p, ",extensions=[\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\"],",
-      REVERSE_PATH, access(LZ4_PATH, R_OK) == 0 ? LZ4_PATH : "",
-      access(ROTN_PATH, R_OK) == 0 ? ROTN_PATH : "",
-      access(SNAPPY_PATH, R_OK) == 0 ? SNAPPY_PATH : "",
-      access(ZLIB_PATH, R_OK) == 0 ? ZLIB_PATH : "", access(ZSTD_PATH, R_OK) == 0 ? ZSTD_PATH : "",
-      access(SODIUM_PATH, R_OK) == 0 ? SODIUM_PATH : "");
+    CONFIG_APPEND(p,
+      ",extensions=["
+      "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", %s],",
+      /* Collators. */
+      REVERSE_PATH,
+      /* Compressors. */
+      EXTENSION_PATH(LZ4_PATH), EXTENSION_PATH(SNAPPY_PATH), EXTENSION_PATH(ZLIB_PATH),
+      EXTENSION_PATH(ZSTD_PATH),
+      /* Encryptors. */
+      EXTENSION_PATH(ROTN_PATH), EXTENSION_PATH(SODIUM_PATH),
+      /* Storage source. */
+      tiered_ext_cfg);
 
     /*
      * Put configuration file configuration options second to last. Put command line configuration
@@ -491,10 +556,7 @@ create_object(TABLE *table, void *arg)
 void
 wts_create_home(void)
 {
-    char buf[MAX_FORMAT_PATH * 2];
-
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "rm -rf %s && mkdir %s", g.home, g.home));
-    testutil_checkfmt(system(buf), "database home creation (\"%s\") failed", buf);
+    testutil_recreate_dir(g.home);
 }
 
 /*
@@ -649,7 +711,7 @@ stats_data_source(TABLE *table, void *arg)
     session = args->session;
 
     testutil_assert(fprintf(fp, "\n\n====== Data source statistics: %s\n", table->uri) >= 0);
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "statistics:%s", table->uri));
+    testutil_snprintf(buf, sizeof(buf), "statistics:%s", table->uri);
     stats_data_print(session, buf, fp);
 }
 
@@ -677,10 +739,15 @@ wts_stats(void)
     wt_wrap_open_session(conn, &sap, NULL, &session);
     stats_data_print(session, "statistics:", fp);
 
-    /* Data source statistics. */
-    args.fp = fp;
-    args.session = session;
-    tables_apply(stats_data_source, &args);
+    /*
+     * Data source statistics.
+     *     FIXME-WT-9785: Statistics cursors on tiered storage objects are not yet supported.
+     */
+    if (!g.tiered_storage_config) {
+        args.fp = fp;
+        args.session = session;
+        tables_apply(stats_data_source, &args);
+    }
 
     wt_wrap_close_session(session);
 

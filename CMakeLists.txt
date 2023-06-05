@@ -59,6 +59,8 @@ include(cmake/third_party/snappy.cmake)
 include(cmake/third_party/sodium.cmake)
 include(cmake/third_party/zlib.cmake)
 include(cmake/third_party/zstd.cmake)
+include(cmake/third_party/iaa.cmake)
+include(cmake/third_party/voidstar.cmake)
 
 # Skip the AZURE SDK build step if the extension is not enabled.
 if(ENABLE_AZURE)
@@ -156,6 +158,10 @@ if(HAVE_BUILTIN_EXTENSION_ZSTD)
     list(APPEND builtin_objs $<TARGET_OBJECTS:wiredtiger_zstd>)
 endif()
 
+if(HAVE_BUILTIN_EXTENSION_IAA)
+    list(APPEND builtin_objs $<TARGET_OBJECTS:wiredtiger_iaa>)
+endif()
+
 # Generate wiredtiger.h include file.
 configure_file(src/include/wiredtiger.in "include/wiredtiger.h" @ONLY)
 # Generate our wiredtiger_config.h include file.
@@ -182,6 +188,9 @@ if(WITH_PIC OR ENABLE_SHARED)
     endif()
     if(ENABLE_TCMALLOC)
         target_include_directories(wt_objs PRIVATE ${HAVE_LIBTCMALLOC_INCLUDES})
+    endif()
+    if(ENABLE_ANTITHESIS)
+        target_include_directories(wt_objs PRIVATE ${CMAKE_SOURCE_DIR}/tools/voidstar/include)
     endif()
     if(HAVE_LIBPTHREAD)
         target_include_directories(wt_objs PRIVATE ${HAVE_LIBPTHREAD_INCLUDES})

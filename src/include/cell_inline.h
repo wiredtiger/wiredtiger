@@ -32,7 +32,7 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw, bool e
  * __cell_pack_value_validity --
  *     Pack the validity window for a value.
  */
-static inline void
+static inline int
 __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDOW *tw)
 {
     uint8_t flags, *flagsp;
@@ -40,10 +40,10 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
     /* Globally visible values have no associated validity window. */
     if (WT_TIME_WINDOW_IS_EMPTY(tw)) {
         ++*pp;
-        return;
+        return (0);
     }
 
-    WT_IGNORE_RET(__cell_check_value_validity(session, tw, false));
+    WT_RET(__cell_check_value_validity(session, tw, false));
 
     **pp |= WT_CELL_SECOND_DESC;
     ++*pp;
@@ -52,42 +52,44 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
 
     flags = 0;
     if (tw->start_ts != WT_TS_NONE) {
-        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, tw->start_ts));
+        WT_RET(__wt_vpack_uint(pp, 0, tw->start_ts));
         LF_SET(WT_CELL_TS_START);
     }
     if (tw->start_txn != WT_TXN_NONE) {
-        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, tw->start_txn));
+        WT_RET(__wt_vpack_uint(pp, 0, tw->start_txn));
         LF_SET(WT_CELL_TXN_START);
     }
     if (tw->durable_start_ts != WT_TS_NONE) {
         WT_ASSERT(session, tw->start_ts <= tw->durable_start_ts);
         /* Store differences if any, not absolutes. */
         if (tw->durable_start_ts - tw->start_ts > 0) {
-            WT_IGNORE_RET(__wt_vpack_uint(pp, 0, tw->durable_start_ts - tw->start_ts));
+            WT_RET(__wt_vpack_uint(pp, 0, tw->durable_start_ts - tw->start_ts));
             LF_SET(WT_CELL_TS_DURABLE_START);
         }
     }
     if (tw->stop_ts != WT_TS_MAX) {
         /* Store differences, not absolutes. */
-        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, tw->stop_ts - tw->start_ts));
+        WT_RET(__wt_vpack_uint(pp, 0, tw->stop_ts - tw->start_ts));
         LF_SET(WT_CELL_TS_STOP);
     }
     if (tw->stop_txn != WT_TXN_MAX) {
         /* Store differences, not absolutes. */
-        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, tw->stop_txn - tw->start_txn));
+        WT_RET(__wt_vpack_uint(pp, 0, tw->stop_txn - tw->start_txn));
         LF_SET(WT_CELL_TXN_STOP);
     }
     if (tw->durable_stop_ts != WT_TS_NONE) {
         WT_ASSERT(session, tw->stop_ts <= tw->durable_stop_ts);
         /* Store differences if any, not absolutes. */
         if (tw->durable_stop_ts - tw->stop_ts > 0) {
-            WT_IGNORE_RET(__wt_vpack_uint(pp, 0, tw->durable_stop_ts - tw->stop_ts));
+            WT_RET(__wt_vpack_uint(pp, 0, tw->durable_stop_ts - tw->stop_ts));
             LF_SET(WT_CELL_TS_DURABLE_STOP);
         }
     }
     if (tw->prepare)
         LF_SET(WT_CELL_PREPARE);
     *flagsp = flags;
+
+    return (0);
 }
 
 /*
@@ -195,7 +197,7 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
  */
 static inline size_t
 __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, uint64_t recno,
-  WT_PAGE_DELETED *page_del, WT_PAGE_STAT *ps, WT_TIME_AGGREGATE *ta, size_t size)
+  WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta, size_t size)
 {
     uint8_t *p;
 
@@ -225,14 +227,6 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
         WT_IGNORE_RET(__wt_vpack_uint(&p, 0, recno));
     }
 
-    /* If passed page stat information, append the row and byte counts. */
-    if (ps != NULL && __wt_process.page_stats_2022) {
-        if (WT_PAGE_STAT_HAS_BYTE_COUNT(ps))
-            WT_IGNORE_RET(__wt_vpack_int(&p, 0, ps->byte_count));
-        if (WT_PAGE_STAT_HAS_ROW_COUNT(ps))
-            WT_IGNORE_RET(__wt_vpack_int(&p, 0, ps->row_count));
-    }
-
     /* Length */
     WT_IGNORE_RET(__wt_vpack_uint(&p, 0, (uint64_t)size));
     return (WT_PTRDIFF(p, cell));
@@ -246,6 +240,7 @@ static inline size_t
 __wt_cell_pack_value(
   WT_SESSION_IMPL *session, WT_CELL *cell, WT_TIME_WINDOW *tw, uint64_t rle, size_t size)
 {
+    WT_DECL_RET;
     uint8_t byte, *p;
     bool validity;
 
@@ -253,7 +248,9 @@ __wt_cell_pack_value(
     p = cell->__chunk;
     *p = '\0';
 
-    __cell_pack_value_validity(session, &p, tw);
+    ret = __cell_pack_value_validity(session, &p, tw);
+    WT_ASSERT(session, ret == 0);
+    WT_UNUSED(ret); /* Avoid "unused variable" warnings in non-debug builds. */
 
     /*
      * Short data cells without a validity window or run-length encoding have 6 bits of data length
@@ -378,13 +375,16 @@ static inline size_t
 __wt_cell_pack_copy(
   WT_SESSION_IMPL *session, WT_CELL *cell, WT_TIME_WINDOW *tw, uint64_t rle, uint64_t v)
 {
+    WT_DECL_RET;
     uint8_t *p;
 
     /* Start building a cell: the descriptor byte starts zero. */
     p = cell->__chunk;
     *p = '\0';
 
-    __cell_pack_value_validity(session, &p, tw);
+    ret = __cell_pack_value_validity(session, &p, tw);
+    WT_ASSERT(session, ret == 0);
+    WT_UNUSED(ret); /* Avoid "unused variable" warnings in non-debug builds. */
 
     if (rle < 2)
         cell->__chunk[0] |= WT_CELL_VALUE_COPY; /* Type */
@@ -406,13 +406,16 @@ __wt_cell_pack_copy(
 static inline size_t
 __wt_cell_pack_del(WT_SESSION_IMPL *session, WT_CELL *cell, WT_TIME_WINDOW *tw, uint64_t rle)
 {
+    WT_DECL_RET;
     uint8_t *p;
 
     /* Start building a cell: the descriptor byte starts zero. */
     p = cell->__chunk;
     *p = '\0';
 
-    __cell_pack_value_validity(session, &p, tw);
+    ret = __cell_pack_value_validity(session, &p, tw);
+    WT_ASSERT(session, ret == 0);
+    WT_UNUSED(ret); /* Avoid "unused variable" warnings in non-debug builds. */
 
     if (rle < 2)
         cell->__chunk[0] |= WT_CELL_DEL; /* Type */
@@ -501,6 +504,7 @@ static inline size_t
 __wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t type, WT_TIME_WINDOW *tw,
   uint64_t rle, size_t size)
 {
+    WT_DECL_RET;
     uint8_t *p;
 
     /* Start building a cell: the descriptor byte starts zero. */
@@ -515,9 +519,12 @@ __wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t type, WT_TI
         break;
     case WT_CELL_VALUE_OVFL:
     case WT_CELL_VALUE_OVFL_RM:
-        __cell_pack_value_validity(session, &p, tw);
+        ret = __cell_pack_value_validity(session, &p, tw);
         break;
     }
+
+    WT_ASSERT(session, ret == 0);
+    WT_UNUSED(ret); /* Avoid "unused variable" warnings in non-debug builds. */
 
     if (rle < 2)
         cell->__chunk[0] |= type; /* Type */
@@ -692,7 +699,6 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
         WT_TIME_WINDOW tw;
     } copy;
     WT_CELL_UNPACK_COMMON *unpack;
-    WT_PAGE_STAT *ps;
     WT_PAGE_DELETED *page_del;
     WT_TIME_AGGREGATE *ta;
     WT_TIME_WINDOW *tw;
@@ -705,8 +711,6 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
     copy.len = 0; /* [-Wconditional-uninitialized] */
     copy.v = 0;   /* [-Wconditional-uninitialized] */
 
-    ps = unpack_addr == NULL ? NULL : &unpack_addr->ps;
-
     if (unpack_addr == NULL) {
         unpack = (WT_CELL_UNPACK_COMMON *)unpack_value;
         tw = &unpack_value->tw;
@@ -716,7 +720,6 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
         WT_ASSERT(session, unpack_value == NULL);
 
         unpack = (WT_CELL_UNPACK_COMMON *)unpack_addr;
-        WT_PAGE_STAT_INIT(ps);
         ta = &unpack_addr->ta;
         WT_TIME_AGGREGATE_INIT(ta);
         tw = NULL;
@@ -934,14 +937,6 @@ copy_cell_restart:
     case WT_CELL_ADDR_INT:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
-        /* Unpack the row and/or byte counts if the chunk of data includes it. */
-        if (ps != NULL && __wt_process.page_stats_2022) {
-            if (F_ISSET(dsk, WT_PAGE_STAT_BYTE_COUNT))
-                WT_RET(__wt_vunpack_int(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ps->byte_count));
-            if (F_ISSET(dsk, WT_PAGE_STAT_ROW_COUNT))
-                WT_RET(__wt_vunpack_int(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ps->row_count));
-        }
-        /* FALLTHROUGH */
     case WT_CELL_KEY:
     case WT_CELL_KEY_PFX:
     case WT_CELL_VALUE:
@@ -1183,7 +1178,12 @@ static inline void
 __wt_cell_unpack_addr(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL *cell,
   WT_CELL_UNPACK_ADDR *unpack_addr)
 {
-    WT_IGNORE_RET(__wt_cell_unpack_safe(session, dsk, cell, unpack_addr, NULL, NULL));
+    WT_DECL_RET;
+
+    ret = __wt_cell_unpack_safe(session, dsk, cell, unpack_addr, NULL, NULL);
+    WT_ASSERT(session, ret == 0);
+    WT_UNUSED(ret); /* Avoid "unused variable" warnings in non-debug builds. */
+
     __cell_unpack_window_cleanup(session, dsk, unpack_addr, NULL);
 }
 
@@ -1195,6 +1195,8 @@ static inline void
 __wt_cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL *cell,
   WT_CELL_UNPACK_KV *unpack_value)
 {
+    WT_DECL_RET;
+
     /*
      * Row-store doesn't store zero-length values on pages, but this allows us to pretend.
      */
@@ -1217,7 +1219,10 @@ __wt_cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL
         return;
     }
 
-    WT_IGNORE_RET(__wt_cell_unpack_safe(session, dsk, cell, NULL, unpack_value, NULL));
+    ret = __wt_cell_unpack_safe(session, dsk, cell, NULL, unpack_value, NULL);
+    WT_ASSERT(session, ret == 0);
+    WT_UNUSED(ret); /* Avoid "unused variable" warnings in non-debug builds. */
+
     __cell_unpack_window_cleanup(session, dsk, NULL, unpack_value);
 }
 

@@ -54,8 +54,7 @@ extern "C" {
 #include <stdint.h>
 #include <stdlib.h>
 #include <errno.h>
-#include "error.h"
-#include "misc.h"
+#include "test_util.h"
 }
 #define BUF_SIZE 100
 
@@ -202,16 +201,16 @@ thread_tables_drop_workload(void *arg)
     return (nullptr);
 }
 
-// The signal handler allows us to gracefully terminate workgen and the user to close the
-// connection in the runner script, thus ensuring a clean shutdown of wiredtiger. The exact
-// signals handled are registered in the WorkloadRunner::run_all function.
+/*
+ * The signal handler allows us to gracefully terminate workgen and the user to close the connection
+ * in the runner script, thus ensuring a clean shutdown of wiredtiger. The exact signals handled are
+ * registered in the WorkloadRunner::run_all function.
+ */
 volatile std::sig_atomic_t signal_raised = 0;
 
 void
 signal_handler(int signum)
 {
-    std::cerr << "Workgen received signal " << signum << ": " << strsignal(signum) << "."
-              << std::endl;
     signal_raised = signum;
 }
 
@@ -345,9 +344,11 @@ gen_random_table_name(char *name, workgen_random_state volatile *rand_state)
     name[DYNAMIC_TABLE_LEN - 1] = '\0';
 }
 
-// Create a dynamic table with the specified name and config. If mirroring tables, add the
-// mirror table uri to the table runtime. Return an error status if the uri already exists
-// or the create fails.
+/*
+ * Create a dynamic table with the specified name and config. If mirroring tables, add the mirror
+ * table uri to the table runtime. Return an error status if the uri already exists or the create
+ * fails.
+ */
 int
 WorkloadRunner::create_table(WT_SESSION *session, const std::string &config, const std::string &uri,
   const std::string &mirror_uri, const bool is_base)
@@ -416,10 +417,11 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
     int creates, retries, status;
     char rand_chars[DYNAMIC_TABLE_LEN];
 
-    // Add app_metadata to the config to indicate the table was created dynamically (can be
-    // selected for random deletion), the name of the table's mirror if mirroring is enabled,
-    // and if this table is a base table or a mirror. We want these settings to persist over
-    // restarts.
+    /*
+     * Add app_metadata to the config to indicate the table was created dynamically (can be selected
+     * for random deletion), the name of the table's mirror if mirroring is enabled, and if this
+     * table is a base table or a mirror. We want these settings to persist over restarts.
+     */
     std::string base_config =
       "key_format=S,value_format=S,app_metadata=\"" + DYN_TABLE_APP_METADATA;
     if (_workload->options.mirror_tables) {
@@ -524,9 +526,11 @@ WorkloadRunner::select_table_for_drop(std::vector<std::string> &pending_delete)
     return 0;
 }
 
-// The table specified by the dynamic table iterator is flagged for deletion and added to the
-// pending delete list. If the table has a mirror, the mirror is also flagged for deletion and
-// added to the pending delete list.
+/*
+ * The table specified by the dynamic table iterator is flagged for deletion and added to the
+ * pending delete list. If the table has a mirror, the mirror is also flagged for deletion and added
+ * to the pending delete list.
+ */
 void
 WorkloadRunner::schedule_table_for_drop(
   const std::map<std::string, tint_t>::iterator &itr, std::vector<std::string> &pending_delete)
@@ -927,9 +931,29 @@ ContextInternal::create_all(WT_CONNECTION *conn)
         THROW("Error extracting dynamic set of tables from the metadata.");
     }
 
-    if ((ret = cursor->close(cursor)) != 0) {
-        THROW("Cursor close failed.");
+    /* Make sure each base has its mirror and vice-versa. */
+    std::vector<tint_t> to_delete;
+    for (const auto &kv : _dyn_table_names) {
+        tint_t id = kv.first;
+        if (_dyn_table_runtime[id].has_mirror() &&
+          _dyn_tint.count(_dyn_table_runtime[id]._mirror) == 0) {
+            to_delete.push_back(id);
+        }
     }
+
+    /* Delete the leftover. */
+    for (const auto &id : to_delete) {
+        const std::string uri(_dyn_table_names[id]);
+        _dyn_tint.erase(uri);
+        _dyn_table_names.erase(id);
+        _dyn_table_runtime.erase(id);
+        while ((ret = session->drop(session, uri.c_str(), "checkpoint_wait=false")) == EBUSY) {
+            sleep(1);
+        }
+        if (ret != 0)
+            THROW("Table drop failed for '" << uri << "' in create_all.");
+    }
+
     if ((ret = session->close(session, NULL)) != 0) {
         THROW("Session close failed.");
     }
@@ -1370,6 +1394,11 @@ ThreadRunner::op_create_all(Operation *op, size_t &keysize, size_t &valuesize)
             else
                 usage_flags |= ThreadRunner::USAGE_WRITE;
             _table_usage[op->_table._internal->_tint] = usage_flags;
+        } else {
+            // Set size of vector storing thread-to-table mappings for the operation.
+            if (op->_tables.size() != _wrunner->_trunners.size()) {
+                op->_tables.assign(_wrunner->_trunners.size(), std::string());
+            }
         }
     }
     if (op->_group != nullptr)
@@ -1395,24 +1424,7 @@ pareto_calculation(uint32_t randint, uint64_t recno_max, ParetoOptions &pareto)
         r = (pareto.range_low * static_cast<double>(UINT32_MAX)) +
           r * (pareto.range_high - pareto.range_low);
     }
-    double S1 = (-1 / PARETO_SHAPE);
-    double S2 = recno_max * (pareto.param / 100.0) * (PARETO_SHAPE - 1);
-    double U = 1 - r / static_cast<double>(UINT32_MAX); // interval [0, 1)
-    uint32_t result = (uint64_t)((pow(U, S1) - 1) * S2);
-
-    /*
-     * This Pareto calculation chooses out of range values less than 20% of the time, depending on
-     * pareto_param. For param of 0, it is never out of range, for param of 100, 19.2%. For the
-     * default pareto_param of 20, it will be out of range 2.7% of the time. Out of range values are
-     * channeled into the first key, making it "hot". Unfortunately, that means that using a higher
-     * param can get a lot lumped into the first bucket.
-     *
-     * XXX This matches the behavior of wtperf, we may consider instead retrying (modifying the
-     * random number) until we get a good value.
-     */
-    if (result > recno_max)
-        result = 0;
-    return (result);
+    return testutil_pareto((uint64_t)r, recno_max, pareto.param);
 }
 
 uint64_t
@@ -1439,23 +1451,53 @@ ThreadRunner::op_get_key_recno(Operation *op, uint64_t range, tint_t tint)
     return (rval % recno_count + 1); // recnos are one-based.
 }
 
-// Clear the table uri and tint value for a dynamic table operation.
+// This runner's thread completed the operation and is no longer using the assigned
+// dynamic table. Remove the (thread,table) map entry for the operation.
 void
 ThreadRunner::op_clear_table(Operation *op)
 {
-    if (op->_random_table && op->is_table_op()) {
-        op->_table._uri = std::string();
-        op->_table._internal->_tint = 0;
+    op->_tables[_number] = std::string();
+}
+
+// Get the uri and tint for the table assigned to the specified operation for this
+// runner's thread.
+std::tuple<std::string, tint_t>
+ThreadRunner::op_get_table(Operation *op) const
+{
+    if (!op->_random_table) {
+        return {op->_table._uri, op->_table._internal->_tint};
+    }
+
+    std::string uri = op->_tables[_number];
+    tint_t tint = 0;
+    if (uri != std::string()) {
+        const std::shared_lock lock(*_icontext->_dyn_mutex);
+        tint = _icontext->_dyn_tint[uri];
+    }
+    return {uri, tint};
+}
+
+/*
+ * Check if the specified operation has an assigned table. For static tables, this information is
+ * saved in the Operation structure. For dynamic tables, the operation maintains a table assignment
+ * for each thread running the operation.
+ */
+bool
+ThreadRunner::op_has_table(Operation *op) const
+{
+    if (op->_random_table) {
+        return (!op->_tables[_number].empty());
+    } else {
+        return (!op->_table._uri.empty());
     }
 }
 
-// Set the table uri and tint value for a dynamic table operation.
+// Set the table uri for the thread running this operation. Used for dynamic table operations.
 void
-ThreadRunner::op_set_table(Operation *op, const std::string &uri, const tint_t tint)
+ThreadRunner::op_set_table(Operation *op, const std::string &uri)
 {
-    if (op->_random_table && op->is_table_op()) {
-        op->_table._uri = uri;
-        op->_table._internal->_tint = tint;
+    if (op->_random_table) {
+        op->_tables[_number] = uri;
     }
 }
 
@@ -1467,12 +1509,14 @@ ThreadRunner::op_kv_gen(Operation *op, const tint_t tint)
         return;
     }
 
-    // A potential race: thread1 is inserting, and increments Context->_recno[] for fileX.wt.
-    // thread2 is doing one of remove/search/update and grabs the new value of Context->_recno[]
-    // for fileX.wt. thread2 randomly chooses the highest recno (which has not yet been inserted
-    // by thread1), and when it accesses the record will get WT_NOTFOUND. It should be somewhat
-    // rare (and most likely when the threads are first beginning). Any WT_NOTFOUND returns are
-    // allowed and get their own statistic bumped.
+    /*
+     * A potential race: thread1 is inserting, and increments Context->_recno[] for fileX.wt.
+     * thread2 is doing one of remove/search/update and grabs the new value of Context->_recno[] for
+     * fileX.wt. thread2 randomly chooses the highest recno (which has not yet been inserted by
+     * thread1), and when it accesses the record will get WT_NOTFOUND. It should be somewhat rare
+     * (and most likely when the threads are first beginning). Any WT_NOTFOUND returns are allowed
+     * and get their own statistic bumped.
+     */
     uint64_t recno = 0;
     uint64_t range = op->_table.options.range;
     if (op->_optype == Operation::OP_INSERT) {
@@ -1512,9 +1556,11 @@ ThreadRunner::op_run_setup(Operation *op)
 
     if (_throttle != nullptr) {
         while (_throttle_ops >= _throttle_limit && !_in_transaction && !_stop) {
-            // Calling throttle causes a sleep until the next time division, and we are given a
-            // new batch of operations to do before calling throttle again. If the number of
-            // operations in the batch is zero, we'll need to go around and throttle again.
+            /*
+             * Calling throttle causes a sleep until the next time division, and we are given a new
+             * batch of operations to do before calling throttle again. If the number of operations
+             * in the batch is zero, we'll need to go around and throttle again.
+             */
             if ((ret = _throttle->throttle(_throttle_ops, &_throttle_limit)) != 0)
                 return ret;
             _throttle_ops = 0;
@@ -1525,9 +1571,18 @@ ThreadRunner::op_run_setup(Operation *op)
             ++_throttle_ops;
     }
 
-    // If this is not a table operation, or if it is and has a table assigned, we have
-    // nothing more to do here.
-    if (!op->is_table_op() || op->has_table()) {
+    // If this is not a table operation, we have nothing more to do here.
+    if (!op->is_table_op()) {
+        return op_run(op);
+    }
+
+    // If the operation already has a table, it's ready to run.
+    if (op_has_table(op)) {
+        // If this is not a dynamic table operation, we need to generate keys and values.
+        if (!op->_random_table) {
+            tint_t tint = op->_table._internal->_tint;
+            op_kv_gen(op, tint);
+        }
         return op_run(op);
     }
 
@@ -1541,7 +1596,7 @@ ThreadRunner::op_run_setup(Operation *op)
         // Select a random base table that is not flagged for deletion.
         std::map<std::string, tint_t>::iterator itr;
         uint32_t retries = 0;
-        size_t num_tables;
+        size_t num_tables = 0;
 
         while (
           (num_tables = _icontext->_dyn_table_names.size()) > 0 && ++retries < TABLE_MAX_RETRIES) {
@@ -1566,18 +1621,18 @@ ThreadRunner::op_run_setup(Operation *op)
 
         // Do we need to mirror operations? If not, we are done here.
         if (!_icontext->_dyn_table_runtime[op_tint].has_mirror()) {
-            op_set_table(op, op_uri, op_tint);
+            op_set_table(op, op_uri);
             return op_run(op);
         }
 
         // Copy this operation to two new operations on the base table and the mirror.
         base_op = *op;
-        op_set_table(&base_op, op_uri, op_tint);
+        op_set_table(&base_op, op_uri);
 
         mirror_op = *op;
         std::string mirror_op_uri = _icontext->_dyn_table_runtime[op_tint]._mirror;
         tint_t mirror_op_tint = _icontext->_dyn_tint[mirror_op_uri];
-        op_set_table(&mirror_op, mirror_op_uri, mirror_op_tint);
+        op_set_table(&mirror_op, mirror_op_uri);
         (void)workgen_atomic_add32(&_icontext->_dyn_table_runtime[mirror_op_tint]._in_use, 1);
         ASSERT(!_icontext->_dyn_table_runtime[mirror_op_tint]._pending_delete);
     }
@@ -1608,8 +1663,7 @@ ThreadRunner::op_run(Operation *op)
     timespec start_time;
     uint64_t time_us;
     char buf[BUF_SIZE];
-    std::string table_uri = op->_table._uri;
-    tint_t tint = op->_table._internal->_tint;
+    auto [table_uri, tint] = op_get_table(op);
 
     WT_CLEAR(item);
     track = nullptr;
@@ -1631,6 +1685,9 @@ ThreadRunner::op_run(Operation *op)
     case Operation::OP_REMOVE:
         track = &_stats.remove;
         break;
+    case Operation::OP_RTS:
+        track = &_stats.rts;
+        break;
     case Operation::OP_SEARCH:
         track = &_stats.read;
         break;
@@ -1648,8 +1705,11 @@ ThreadRunner::op_run(Operation *op)
         cursor = _cursors[tint];
     }
 
-    measure_latency = track != nullptr && track->ops != 0 && track->track_latency() &&
-      (track->ops % _workload->options.sample_rate == 0);
+    // Don't skip measuring the first checkpoint or RTS.
+    measure_latency = track != nullptr && track->track_latency() &&
+      (track->ops % _workload->options.sample_rate == 0) &&
+      (track->ops != 0 || op->_optype == Operation::OP_RTS ||
+        op->_optype == Operation::OP_CHECKPOINT);
 
     uint64_t start;
     if (measure_latency)
@@ -2041,7 +2101,7 @@ Operation::Operation(const Operation &other)
     : _optype(other._optype), _internal(nullptr), _table(other._table), _key(other._key),
       _value(other._value), _config(other._config), transaction(other.transaction),
       _group(other._group), _repeatgroup(other._repeatgroup), _timed(other._timed),
-      _random_table(other._random_table)
+      _random_table(other._random_table), _tables(other._tables)
 {
     // Creation and destruction of _group and transaction is managed
     // by Python.
@@ -2073,6 +2133,7 @@ Operation::operator=(const Operation &other)
     _repeatgroup = other._repeatgroup;
     _timed = other._timed;
     _random_table = other._random_table;
+    _tables = other._tables;
     delete _internal;
     _internal = nullptr;
     init_internal(other._internal);
@@ -2116,6 +2177,12 @@ Operation::init_internal(OperationInternal *other)
             _internal = new SleepOperationInternal();
         else
             _internal = new SleepOperationInternal(*static_cast<SleepOperationInternal *>(other));
+        break;
+    case OP_RTS:
+        if (other == nullptr)
+            _internal = new RTSOperationInternal();
+        else
+            _internal = new RTSOperationInternal(*static_cast<RTSOperationInternal *>(other));
         break;
     default:
         ASSERT(false);
@@ -2197,16 +2264,12 @@ Operation::get_static_counts(Stats &stats, int multiplier)
         }
     else if (_optype == OP_CHECKPOINT)
         stats.checkpoint.ops += multiplier;
+    else if (_optype == OP_RTS)
+        stats.rts.ops += multiplier;
 
     if (_group != nullptr)
         for (std::vector<Operation>::iterator i = _group->begin(); i != _group->end(); i++)
             i->get_static_counts(stats, multiplier * _repeatgroup);
-}
-
-bool
-Operation::has_table() const
-{
-    return (!_table._uri.empty());
 }
 
 bool
@@ -2353,6 +2416,14 @@ CheckpointOperationInternal::run(ThreadRunner *runner, WT_SESSION *session)
 {
     (void)runner; /* not used */
     return (session->checkpoint(session, ckpt_config.c_str()));
+}
+
+int
+RTSOperationInternal::run(ThreadRunner *runner, WT_SESSION *session)
+{
+    (void)runner; /* not used */
+    auto conn = session->connection;
+    return (conn->rollback_to_stable(conn, ""));
 }
 
 int
@@ -2709,13 +2780,14 @@ Track::_get_sec(long *result)
 
 Stats::Stats(bool latency)
     : checkpoint(latency), insert(latency), not_found(latency), read(latency), remove(latency),
-      update(latency), truncate(latency)
+      rts(latency), update(latency), truncate(latency)
 {
 }
 
 Stats::Stats(const Stats &other)
     : checkpoint(other.checkpoint), insert(other.insert), not_found(other.not_found),
-      read(other.read), remove(other.remove), update(other.update), truncate(other.truncate)
+      read(other.read), remove(other.remove), rts(other.rts), update(other.update),
+      truncate(other.truncate)
 {
 }
 
@@ -2727,6 +2799,7 @@ Stats::add(Stats &other, bool reset)
     not_found.add(other.not_found, reset);
     read.add(other.read, reset);
     remove.add(other.remove, reset);
+    rts.add(other.rts, reset);
     update.add(other.update, reset);
     truncate.add(other.truncate, reset);
 }
@@ -2739,6 +2812,7 @@ Stats::assign(const Stats &other)
     not_found.assign(other.not_found);
     read.assign(other.read);
     remove.assign(other.remove);
+    rts.assign(other.rts);
     update.assign(other.update);
     truncate.assign(other.truncate);
 }
@@ -2751,6 +2825,7 @@ Stats::clear()
     not_found.clear();
     read.clear();
     remove.clear();
+    rts.clear();
     update.clear();
     truncate.clear();
 }
@@ -2766,6 +2841,7 @@ Stats::describe(std::ostream &os) const
     os << ", updates " << update.ops;
     os << ", truncates " << truncate.ops;
     os << ", removes " << remove.ops;
+    os << ", RTSes " << rts.ops;
     os << ", checkpoints " << checkpoint.ops;
 }
 
@@ -2780,6 +2856,7 @@ Stats::final_report(std::ostream &os, timespec &totalsecs) const
     ops += update.ops;
     ops += truncate.ops;
     ops += remove.ops;
+    ops += rts.ops;
 
 #define FINAL_OUTPUT(os, field, singular, ops, totalsecs)                                   \
     os << "Executed " << field << " " #singular " operations (" << PCT(field, ops) << "%) " \
@@ -2792,6 +2869,7 @@ Stats::final_report(std::ostream &os, timespec &totalsecs) const
     FINAL_OUTPUT(os, truncate.ops, truncate, ops, totalsecs);
     FINAL_OUTPUT(os, remove.ops, remove, ops, totalsecs);
     FINAL_OUTPUT(os, checkpoint.ops, checkpoint, ops, totalsecs);
+    FINAL_OUTPUT(os, rts.ops, checkpoint, ops, totalsecs);
 }
 
 void
@@ -2805,6 +2883,7 @@ Stats::report(std::ostream &os) const
     os << update.ops << " updates, ";
     os << truncate.ops << " truncates, ";
     os << remove.ops << " removes, ";
+    os << rts.ops << " RTSes, ";
     os << checkpoint.ops << " checkpoints";
 }
 
@@ -2816,6 +2895,7 @@ Stats::subtract(const Stats &other)
     not_found.subtract(other.not_found);
     read.subtract(other.read);
     remove.subtract(other.remove);
+    rts.subtract(other.truncate);
     update.subtract(other.update);
     truncate.subtract(other.truncate);
 }
@@ -2828,6 +2908,7 @@ Stats::track_latency(bool latency)
     not_found.track_latency(latency);
     read.track_latency(latency);
     remove.track_latency(latency);
+    rts.track_latency(latency);
     update.track_latency(latency);
     truncate.track_latency(latency);
 }

@@ -9,6 +9,7 @@
 #include "wt_internal.h"
 
 static int __evict_clear_all_walks(WT_SESSION_IMPL *);
+static void __evict_list_clear_page_locked(WT_SESSION_IMPL *, WT_REF *, bool);
 static int WT_CDECL __evict_lru_cmp(const void *, const void *);
 static int __evict_lru_pages(WT_SESSION_IMPL *, bool);
 static int __evict_lru_walk(WT_SESSION_IMPL *);
@@ -147,36 +148,33 @@ __evict_list_clear(WT_SESSION_IMPL *session, WT_EVICT_ENTRY *e)
 {
     if (e->ref != NULL) {
         WT_ASSERT(session, F_ISSET_ATOMIC_16(e->ref->page, WT_PAGE_EVICT_LRU));
-        F_CLR_ATOMIC_16(e->ref->page, WT_PAGE_EVICT_LRU);
+        F_CLR_ATOMIC_16(e->ref->page, WT_PAGE_EVICT_LRU | WT_PAGE_EVICT_LRU_URGENT);
     }
     e->ref = NULL;
     e->btree = WT_DEBUG_POINT;
 }
 
 /*
- * __wt_evict_list_clear_page --
- *     Make sure a page is not in the LRU eviction list. This called from the page eviction code to
- *     make sure there is no attempt to evict a child page multiple times.
+ * __evict_list_clear_page_locked --
+ *     This function searches for the page in all the eviction queues (skipping the urgent queue if
+ *     requested) and clears it if found. It does not take the eviction queue lock, so the caller
+ *     should hold the appropriate locks before calling this function.
  */
-void
-__wt_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref)
+static void
+__evict_list_clear_page_locked(WT_SESSION_IMPL *session, WT_REF *ref, bool exclude_urgent)
 {
     WT_CACHE *cache;
     WT_EVICT_ENTRY *evict;
-    uint32_t i, elem, q;
+    uint32_t elem, i, q, last_queue_idx;
     bool found;
 
-    WT_ASSERT(session, __wt_ref_is_root(ref) || ref->state == WT_REF_LOCKED);
-
-    /* Fast path: if the page isn't on the queue, don't bother searching. */
-    if (!F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU))
-        return;
-
+    last_queue_idx = exclude_urgent ? WT_EVICT_URGENT_QUEUE : WT_EVICT_QUEUE_MAX;
     cache = S2C(session)->cache;
-    __wt_spin_lock(session, &cache->evict_queue_lock);
-
     found = false;
-    for (q = 0; q < WT_EVICT_QUEUE_MAX && !found; q++) {
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &cache->evict_queue_lock);
+
+    for (q = 0; q < last_queue_idx && !found; q++) {
         __wt_spin_lock(session, &cache->evict_queues[q].evict_lock);
         elem = cache->evict_queues[q].evict_max;
         for (i = 0, evict = cache->evict_queues[q].evict_queue; i < elem; i++, evict++)
@@ -188,6 +186,30 @@ __wt_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref)
         __wt_spin_unlock(session, &cache->evict_queues[q].evict_lock);
     }
     WT_ASSERT(session, !F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU));
+}
+
+/*
+ * __wt_evict_list_clear_page --
+ *     Check whether a page is present in the LRU eviction list. If the page is found in the list,
+ *     remove it. This is called from the page eviction code to make sure there is no attempt to
+ *     evict a child page multiple times.
+ */
+void
+__wt_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_CACHE *cache;
+
+    WT_ASSERT(session, __wt_ref_is_root(ref) || ref->state == WT_REF_LOCKED);
+
+    /* Fast path: if the page isn't in the queue, don't bother searching. */
+    if (!F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU))
+        return;
+    cache = S2C(session)->cache;
+
+    __wt_spin_lock(session, &cache->evict_queue_lock);
+
+    /* Remove the reference from the eviction queues. */
+    __evict_list_clear_page_locked(session, ref, false);
 
     __wt_spin_unlock(session, &cache->evict_queue_lock);
 }
@@ -386,6 +408,8 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
     conn = S2C(session);
     cache = conn->cache;
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &cache->evict_pass_lock);
+
     /* Evict pages from the cache as needed. */
     WT_RET(__evict_pass(session));
 
@@ -450,33 +474,35 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 
     __wt_epoch(session, &now);
 
-#define WT_CACHE_STUCK_TIMEOUT_MS (300 * WT_THOUSAND)
-    time_diff_ms = WT_TIMEDIFF_MS(now, cache->stuck_time);
-
+    /* The checks below should only be executed when a cache timeout has been set. */
+    if (cache->cache_stuck_timeout_ms > 0) {
+        time_diff_ms = WT_TIMEDIFF_MS(now, cache->stuck_time);
 #ifdef HAVE_DIAGNOSTIC
-    /* Enable extra logs 20ms before timing out. */
-    if (time_diff_ms > WT_CACHE_STUCK_TIMEOUT_MS - 20) {
-        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT, WT_VERBOSE_DEBUG_1);
-        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_1);
-        WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT_STUCK, WT_VERBOSE_DEBUG_1);
-    }
-#endif
-
-    if (time_diff_ms > WT_CACHE_STUCK_TIMEOUT_MS) {
-#ifdef HAVE_DIAGNOSTIC
-        __wt_err(session, ETIMEDOUT, "Cache stuck for too long, giving up");
-        WT_RET(__wt_verbose_dump_txn(session));
-        WT_RET(__wt_verbose_dump_cache(session));
-        return (__wt_set_return(session, ETIMEDOUT));
-#else
-        if (WT_VERBOSE_ISSET(session, WT_VERB_EVICT_STUCK)) {
-            WT_RET(__wt_verbose_dump_txn(session));
-            WT_RET(__wt_verbose_dump_cache(session));
-
-            /* Reset the timer. */
-            __wt_epoch(session, &cache->stuck_time);
+        /* Enable extra logs 20ms before timing out. */
+        if (cache->cache_stuck_timeout_ms < 20 ||
+          (time_diff_ms > cache->cache_stuck_timeout_ms - 20)) {
+            WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT, WT_VERBOSE_DEBUG_1);
+            WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_1);
+            WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT_STUCK, WT_VERBOSE_DEBUG_1);
         }
 #endif
+
+        if (time_diff_ms >= cache->cache_stuck_timeout_ms) {
+#ifdef HAVE_DIAGNOSTIC
+            __wt_err(session, ETIMEDOUT, "Cache stuck for too long, giving up");
+            WT_RET(__wt_verbose_dump_txn(session));
+            WT_RET(__wt_verbose_dump_cache(session));
+            return (__wt_set_return(session, ETIMEDOUT));
+#else
+            if (WT_VERBOSE_ISSET(session, WT_VERB_EVICT_STUCK)) {
+                WT_RET(__wt_verbose_dump_txn(session));
+                WT_RET(__wt_verbose_dump_cache(session));
+
+                /* Reset the timer. */
+                __wt_epoch(session, &cache->stuck_time);
+            }
+#endif
+        }
     }
     return (0);
 }
@@ -1734,6 +1760,8 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     restarts = 0;
     give_up = urgent_queued = false;
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &cache->evict_walk_lock);
+
     /*
      * Figure out how many slots to fill from this tree. Note that some care is taken in the
      * calculation to avoid overflow.
@@ -2072,7 +2100,7 @@ fast:
          * If there's a chance the Btree was fully evicted, update the evicted flag in the handle.
          */
         if (__wt_btree_bytes_evictable(session) == 0)
-            F_SET(session->dhandle, WT_DHANDLE_EVICTED);
+            FLD_SET(session->dhandle->advisory_flags, WT_DHANDLE_ADVISORY_EVICTED);
     } else if (btree->evict_walk_period > 0)
         btree->evict_walk_period /= 2;
 
@@ -2499,17 +2527,34 @@ __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ASSERT(session, !__wt_ref_is_root(ref));
 
     page = ref->page;
-    if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU) || S2BT(session)->evict_disabled > 0)
+    if (S2BT(session)->evict_disabled > 0 || F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU_URGENT))
+        return (false);
+
+    cache = S2C(session)->cache;
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU) && F_ISSET(cache, WT_CACHE_EVICT_ALL))
         return (false);
 
     /* Append to the urgent queue if we can. */
-    cache = S2C(session)->cache;
     urgent_queue = &cache->evict_queues[WT_EVICT_URGENT_QUEUE];
     queued = false;
 
     __wt_spin_lock(session, &cache->evict_queue_lock);
-    if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU) || S2BT(session)->evict_disabled > 0)
+
+    /* Check again, in case we raced with another thread. */
+    if (S2BT(session)->evict_disabled > 0 || F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU_URGENT))
         goto done;
+
+    /*
+     * If the page is already in the LRU eviction list, clear it from the list if eviction server is
+     * not running.
+     */
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU)) {
+        if (!F_ISSET(cache, WT_CACHE_EVICT_ALL)) {
+            __evict_list_clear_page_locked(session, ref, true);
+            WT_STAT_CONN_INCR(session, cache_eviction_clear_ordinary);
+        } else
+            goto done;
+    }
 
     __wt_spin_lock(session, &urgent_queue->evict_lock);
     if (__evict_queue_empty(urgent_queue, false)) {
@@ -2521,6 +2566,7 @@ __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
       __evict_push_candidate(session, urgent_queue, evict, ref)) {
         ++urgent_queue->evict_candidates;
         queued = true;
+        FLD_SET(page->flags_atomic, WT_PAGE_EVICT_LRU_URGENT);
     }
     __wt_spin_unlock(session, &urgent_queue->evict_lock);
 

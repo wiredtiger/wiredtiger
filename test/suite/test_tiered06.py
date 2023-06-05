@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import inspect, os, wiredtiger, wttest
+import errno, inspect, os, wiredtiger, wttest
 from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
 from wtscenario import make_scenarios
 
@@ -137,7 +137,7 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
                 lambda: fs.fs_rename(session, 'foobar', 'barfoo', 0))
         self.assertEquals(fs.fs_directory_list(session, '', ''), ['foobar'])
 
-        if self.ss_name == 's3_store':
+        if self.ss_name != 'dir_store':
             # Files that have been flushed cannot be manipulated through the custom file system.
             with self.expectedStderrPattern('foobar: remove of file not supported'):
                 self.assertRaisesException(wiredtiger.WiredTigerError,
@@ -161,7 +161,8 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         prefix = self.bucket_prefix + inspect.stack()[0][3] + '/'
 
         cachedir = self.bucket + '_cache'
-        os.mkdir(cachedir)
+        if (self.has_cache):
+            os.mkdir(cachedir)
 
         # Directory store needs the bucket created as a directory on the filesystem.
         if self.ss_name == 'dir_store':
@@ -232,7 +233,8 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
                 else:
                     self.assertEquals(in_block, a_block)
             fh.close(session)
-            os.remove(os.path.join(cachedir, 'abc'))
+            if (self.has_cache):
+                os.remove(os.path.join(cachedir, 'abc'))
 
         ss.terminate(session)
 
@@ -312,10 +314,11 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         bad_cachedir = '/BAD'
 
         # Create file system objects. First try some error cases.
-        errmsg = '/No such /'
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: ss.ss_customize_file_system(session, self.bucket, self.auth_token,
-                self.get_fs_config(prefix, bad_cachedir)), errmsg)
+        errmsg = '/No such|Invalid bucket name/'
+        if self.has_cache:
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: ss.ss_customize_file_system(session, self.bucket, self.auth_token,
+                    self.get_fs_config(prefix, bad_cachedir)), errmsg)
 
         # S3 store expects a region with the bucket
         if self.ss_name == 's3_store':
@@ -352,7 +355,8 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.check_home(['beagle', 'bird', 'bison', 'bat', 'cat', 'cougar', 'coyote', 'cub'])
         self.check_dirlist(fs1, '', [])
         self.check_dirlist(fs2, '', [])
-        self.check_caches([], [])
+        if (self.has_cache):
+            self.check_caches([], [])
         self.check_local_objects([], [])
 
         # A flush copies to the cloud, nothing is removed.
@@ -360,7 +364,8 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.check_home(['beagle', 'bird', 'bison', 'bat', 'cat', 'cougar', 'coyote', 'cub'])
         self.check_dirlist(fs1, '', ['beagle'])
         self.check_dirlist(fs2, '', [])
-        self.check_caches([], [])
+        if (self.has_cache):
+            self.check_caches([], [])
         self.check_local_objects(['beagle'], [])
 
         # Bad file to flush.
@@ -368,12 +373,22 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_flush(session, fs1, 'bad.wt', 'bad.wtobj'), errmsg)
 
-        # It's okay to flush again, nothing changes.
-        ss.ss_flush(session, fs1, 'beagle.wt', 'beagle.wtobj')
+        # Remove this 'if' and comment when FIXME-WT-11004 is finished.
+        # The cloud driver must implement a no-overwrite policy.
+        # At the moment, only the dir_store driver does this.
+        if self.is_local_storage:
+            # It's not okay to flush again, as we don't allow overwrites.
+            # Expect both an error return and error output.
+            expected_errno = os.strerror(errno.EEXIST)
+            with self.expectedStderrPattern(expected_errno):
+                self.assertRaisesException(wiredtiger.WiredTigerError,
+                    lambda: ss.ss_flush(session, fs1, 'beagle.wt', 'beagle.wtobj'))
+
         self.check_home(['beagle', 'bird', 'bison', 'bat', 'cat', 'cougar', 'coyote', 'cub'])
         self.check_dirlist(fs1, '', ['beagle'])
         self.check_dirlist(fs2, '', [])
-        self.check_caches([], [])
+        if (self.has_cache):
+            self.check_caches([], [])
         self.check_local_objects(['beagle'], [])
 
         # When we flush_finish, the local file will be in both the local and cache directory.
@@ -381,7 +396,8 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.check_home(['beagle', 'bird', 'bison', 'bat', 'cat', 'cougar', 'coyote', 'cub'])
         self.check_dirlist(fs1, '', ['beagle'])
         self.check_dirlist(fs2, '', [])
-        self.check_caches(['beagle'], [])
+        if (self.has_cache):
+            self.check_caches(['beagle'], [])
         self.check_local_objects(['beagle'], [])
 
         # Do a some more in each file system.
@@ -395,7 +411,8 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.check_home(['beagle', 'bird', 'bison', 'bat', 'cat', 'cougar', 'coyote', 'cub'])
         self.check_dirlist(fs1, '', ['beagle', 'bat', 'bison'])
         self.check_dirlist(fs2, '', ['cat', 'cub'])
-        self.check_caches(['beagle', 'bat'], ['cat'])
+        if (self.has_cache):
+            self.check_caches(['beagle', 'bat'], ['cat'])
         self.check_local_objects(['beagle', 'bat', 'bison'], ['cat', 'cub'])
 
         # Test directory listing prefixes.

@@ -1001,8 +1001,8 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
          * Save the restored update to use it as base value update in case if we need to reach
          * history store instead of on-disk value.
          */
-        if (restored_updp != NULL && F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS) &&
-          type == WT_UPDATE_STANDARD) {
+        if (upd->txnid != WT_TXN_ABORTED && restored_updp != NULL &&
+          F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS) && type == WT_UPDATE_STANDARD) {
             WT_ASSERT(session, *restored_updp == NULL);
             *restored_updp = upd;
         }
@@ -1226,6 +1226,9 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
     F_SET(txn, WT_TXN_RUNNING);
     if (F_ISSET(S2C(session), WT_CONN_READONLY))
         F_SET(txn, WT_TXN_READONLY);
+
+    WT_ASSERT_ALWAYS(
+      session, txn->mod_count == 0, "The mod count should be 0 when beginning a transaction");
 
     return (0);
 }

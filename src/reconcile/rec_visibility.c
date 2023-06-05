@@ -86,6 +86,13 @@ __rec_append_orig_value(
 
     /* Review the current update list, checking conditions that mean no work is needed. */
     for (;; upd = upd->next) {
+        if (upd->txnid == WT_TXN_ABORTED) {
+            if (upd->next == NULL)
+                break;
+            else
+                continue;
+        }
+
         /* Done if the update was restored from the data store or the history store. */
         if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS))
             return (0);
@@ -113,8 +120,7 @@ __rec_append_orig_value(
         if (WT_UPDATE_DATA_VALUE(upd) && __wt_txn_upd_visible_all(session, upd))
             return (0);
 
-        if (upd->txnid != WT_TXN_ABORTED)
-            oldest_upd = upd;
+        oldest_upd = upd;
 
         /* Leave reference pointing to the last item in the update list. */
         if (upd->next == NULL)
@@ -530,8 +536,6 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
          */
         if (*first_txn_updp == NULL)
             *first_txn_updp = upd;
-        if (WT_TXNID_LT(max_txn, txnid))
-            max_txn = txnid;
 
         /*
          * Special handling for application threads evicting their own updates.
@@ -590,8 +594,6 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
             if (F_ISSET(r, WT_REC_CHECKPOINT)) {
                 *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
                 *has_newer_updatesp = true;
-                if (upd->start_ts > max_ts)
-                    max_ts = upd->start_ts;
                 seen_prepare = true;
                 continue;
             } else {
@@ -611,13 +613,16 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
             }
         }
 
-        /* Track the first update with non-zero timestamp. */
-        if (upd->start_ts > max_ts)
-            max_ts = upd->start_ts;
-
         /* Always select the newest committed update to write to disk */
         if (upd_select->upd == NULL)
             upd_select->upd = upd;
+
+        /* Track the selected update transaction id and timestamp. */
+        if (WT_TXNID_LT(max_txn, txnid))
+            max_txn = txnid;
+
+        if (upd->start_ts > max_ts)
+            max_ts = upd->start_ts;
 
         /*
          * We only need to walk the whole update chain if we are evicting metadata as it is written

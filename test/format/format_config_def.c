@@ -85,6 +85,12 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"cache.evict_max", "maximum number of eviction workers", 0x0, 0, 5, 100,
     V_GLOBAL_CACHE_EVICT_MAX},
 
+  {"cache.eviction_dirty_target", "dirty content target for eviction", C_IGNORE, 0, 0, 100,
+    V_GLOBAL_CACHE_EVICTION_DIRTY_TARGET},
+
+  {"cache.eviction_dirty_trigger", "dirty content trigger for eviction", C_IGNORE, 0, 0, 100,
+    V_GLOBAL_CACHE_EVICTION_DIRTY_TRIGGER},
+
   {"cache.minimum", "minimum cache size (MB)", C_IGNORE, 0, 0, 100 * 1024, V_GLOBAL_CACHE_MINIMUM},
 
   {"checkpoint", "checkpoint type (on | off | wiredtiger)", C_IGNORE | C_STRING, 0, 0, 0,
@@ -220,6 +226,12 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"ops.hs_cursor", "configure history store cursor reads", C_BOOL, 50, 0, 0,
     V_GLOBAL_OPS_HS_CURSOR},
 
+  {"ops.pareto", "configure crud operations to be pareto distributed", C_BOOL | C_TABLE, 20, 0, 0,
+    V_TABLE_OPS_PARETO},
+
+  {"ops.pareto.skew", "adjusts the amount of skew used by the pareto distribution", C_TABLE, 1, 100,
+    100, V_TABLE_OPS_PARETO_SKEW},
+
   {"ops.pct.delete", "delete operations (percentage)", C_IGNORE | C_TABLE, 0, 0, 100,
     V_TABLE_OPS_PCT_DELETE},
 
@@ -288,6 +300,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"statistics_log.sources", "statistics_log sources (file: | off)", C_IGNORE | C_STRING, 0, 0, 0,
     V_GLOBAL_STATISTICS_LOG_SOURCES},
 
+  {"stress.aggressive_stash_free", "stress freeing stashed memory aggressively", C_BOOL, 2, 0, 0,
+    V_GLOBAL_STRESS_AGGRESSIVE_STASH_FREE},
+
   {"stress.aggressive_sweep", "stress aggressive sweep", C_BOOL, 2, 0, 0,
     V_GLOBAL_STRESS_AGGRESSIVE_SWEEP},
 
@@ -316,6 +331,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"stress.hs_sweep", "stress history store sweep", C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_HS_SWEEP},
 
+  {"stress.prepare_resolution", "stress prepare resolution", C_BOOL, 2, 0, 0,
+    V_GLOBAL_STRESS_PREPARE_RESOLUTION},
+
   {"stress.sleep_before_read_overflow_onpage", "stress onpage overflow read race with checkpoint",
     C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE},
 
@@ -332,6 +350,16 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"stress.split_6", "stress splits (#6)", C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_SPLIT_6},
 
   {"stress.split_7", "stress splits (#7)", C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_SPLIT_7},
+
+  {"stress.split_8", "stress splits (#8)", C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_SPLIT_8},
+
+  {"tiered_storage.flush_frequency",
+    "calls to checkpoint that are flush_tier, if tiered storage enabled (percentage)", 0x0, 0, 50,
+    100, V_GLOBAL_TIERED_STORAGE_FLUSH_FREQUENCY},
+
+  {"tiered_storage.storage_source",
+    "storage source used (azure_store | dir_store | gcp_store | none | off | s3_store)",
+    C_IGNORE | C_STRING, 0, 0, 0, V_GLOBAL_TIERED_STORAGE_STORAGE_SOURCE},
 
   {"transaction.implicit", "implicit, without timestamps, transactions (percentage)", 0, 0, 100,
     100, V_GLOBAL_TRANSACTION_IMPLICIT},

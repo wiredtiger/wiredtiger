@@ -32,6 +32,7 @@ BBBBBBBBBB
 BBBBBBBBBBBBB
 BBBBBBBBBBBBBBBB
 BBBBBBBBBBBBBBBBBB
+BCcLlsvz
 BClmvxz
 BLKCACHE
 BLmRrSVv
@@ -54,6 +55,7 @@ CBT
 CCCCCCCCCCCCCCCCCC
 CELLs
 CET
+CHUNKCACHE
 CKPT
 CLOEXEC
 CMP
@@ -66,7 +68,6 @@ CURSORs
 CURSTD
 CallsCustDate
 Castagnoli
-CcLlsvz
 Cclmpv
 CentOS
 Checkpointing
@@ -74,7 +75,7 @@ Checksums
 CityHash
 CloseHandle
 CmP
-CmPTh
+Codec
 Comparator
 Config
 Coverity
@@ -97,7 +98,7 @@ Decrypt
 DeleteFileW
 Deterministically
 Dk
-DmpvXx
+DmpRvXx
 Dxxx
 EACCES
 EB
@@ -114,10 +115,12 @@ ENOMEM
 ENOTSUP
 ENUM
 EOF
+ERANGE
 ETIME
 ETIMEDOUT
 EVICTSERVER
 EXTLIST
+EXTSUBPATH
 Encryptor
 Encryptors
 Enqueue
@@ -161,10 +164,12 @@ GetFileSizeEx
 GetLastError
 GetModuleHandleExW
 GetProcAddress
+Getters
 HANDLEOPS
 HFS
 HOTBACKUP
 Hendrik
+IAA
 IC
 IEC
 IKEY
@@ -237,6 +242,7 @@ MoveFileExW
 MultiByteToWideChar
 Multithreaded
 Mutex
+Mutexes
 MySecret
 NNN
 NOLINT
@@ -287,6 +293,7 @@ Preload
 Prepend
 Prepending
 Prev
+Ptr
 Px
 QQQS
 QSQ
@@ -322,6 +329,7 @@ SDK
 SIMD
 SLVG
 SMT
+SPINLOCK
 SSHH
 SSq
 STR
@@ -347,6 +355,7 @@ Subdirectory
 TAILQ
 TCMalloc
 TESTUTIL
+TID
 TMP
 TODO
 TORTIOUS
@@ -366,6 +375,7 @@ UINT
 ULINE
 UNC
 UNCOND
+UNSKIPPED
 UPD
 URI
 URIs
@@ -373,6 +383,7 @@ UTF
 UltraSparc
 Unbuffered
 Unencrypted
+Unhandled
 UnixLib
 UnlockFile
 Unmap
@@ -402,6 +413,7 @@ Wduplicated
 WeakHashLen
 Werror
 Wformat
+Whitespaces
 WideCharToMultiByte
 WinNT
 WiredTiger
@@ -441,7 +453,7 @@ allocator
 allocators
 allocfile
 allocsize
-ao
+aor
 ap
 api
 arg
@@ -454,6 +466,7 @@ atomicity
 atou
 auth
 autocommit
+autoconf
 auxheader
 auximage
 auxincr
@@ -462,9 +475,12 @@ bInheritHandle
 backoff
 bal
 basecfg
+bb
+bba
 bbb
 bbuilddir
 bcr
+bd
 beginthreadex
 bigram
 binutils
@@ -486,6 +502,7 @@ booleans
 boption
 br
 breakpoint
+bs
 bstorage
 bswap
 btcur
@@ -497,6 +514,7 @@ buf
 bufsz
 builddir
 builtins
+bursty
 bytestring
 byteswap
 byvalue
@@ -529,6 +547,7 @@ checkvalue
 chk
 chmod
 chongo
+chunkcache
 cip
 ciphertext
 ckpt
@@ -562,6 +581,8 @@ copydoc
 countp
 cp
 cplusplus
+cpp
+cppsuite
 cpuid
 crc
 crypto
@@ -626,6 +647,7 @@ desc
 designator
 dest
 destSize
+destructor
 dev
 dh
 dhandle
@@ -660,6 +682,7 @@ dup
 dv
 eee
 eg
+ejnprx
 el
 emp
 encodings
@@ -744,6 +767,7 @@ fvisibility
 fwrite
 gb
 gcc
+gcp
 gdb
 ge
 getenv
@@ -753,11 +777,13 @@ getone
 getones
 getopt
 getraw
+getters
 gettime
 gettimeofday
 getv
 ggg
 github
+globfree
 gobare
 goesc
 gostring
@@ -783,6 +809,8 @@ hval
 hw
 iS
 iSh
+iaa
+iaaInterface
 ibackup
 icount
 idlems
@@ -834,8 +862,8 @@ isprint
 isrc
 isspace
 iter
+jemalloc
 jjj
-jprx
 js
 json
 kB
@@ -868,6 +896,7 @@ libmemkind
 libs
 libsodium
 libwiredtiger
+lifecycle
 linux
 llll
 llu
@@ -899,8 +928,10 @@ lsn
 lt
 lte
 lu
+luc
 lwsync
 lz
+mP
 madvise
 majorp
 malloc
@@ -932,6 +963,7 @@ mmap
 mmrand
 mn
 mnt
+mongod
 mrs
 msecs
 msg
@@ -981,6 +1013,7 @@ notfound
 notsup
 novalue
 nowait
+np
 nrecs
 nsec
 nset
@@ -1012,10 +1045,10 @@ oversized
 ovfl
 ownp
 pR
+pT
 packv
 pageref
 pagesize
-pagestat
 param
 pareto
 parserp
@@ -1051,6 +1084,7 @@ printlog
 priv
 proc
 progname
+programmatically
 ps
 psp
 pthread
@@ -1071,6 +1105,7 @@ rN
 rS
 rbrace
 rbracket
+rc
 rdlock
 rdtsc
 rduppo
@@ -1078,6 +1113,7 @@ readlock
 readonly
 readunlock
 realloc
+reallocations
 recency
 recno
 recnos
@@ -1087,24 +1123,26 @@ reconfiguring
 recsize
 rectype
 recurse
+reentrant
 refp
 regionp
 relocked
 repl
 repositioned
 repositions
+requeue
 resizable
 ret
 retp
 revint
 rf
 risc
+rl
 rle
 rmw
 rng
 rotN
 rotn
-rp
 rpc
 rts
 ru
@@ -1116,12 +1154,14 @@ sH
 sHQ
 sanitizer
 sanitizers
+scalable
 scr
 sd
 sdk
 secretkey
 sessionp
 setkv
+setname
 setstr
 setv
 setvbuf
@@ -1136,7 +1176,9 @@ sizev
 skiplist
 skiplists
 skipp
+skippable
 slvg
+sn
 snaplen
 snapsort
 snprintf
@@ -1156,6 +1198,7 @@ stdout
 stepp
 str
 strace
+strcat
 strcmp
 strdup
 strerror
@@ -1192,6 +1235,7 @@ syscrypto
 sysinfo
 sz
 t's
+tIf
 tV
 tablename
 td
@@ -1219,6 +1263,7 @@ transactionally
 trecno
 trk
 trk's
+trun
 trunc
 truncations
 trylock
@@ -1236,6 +1281,7 @@ uS
 ui
 uint
 umount
+unallocated
 unbare
 unbuffered
 uncompressing
@@ -1282,6 +1328,7 @@ vN
 vPodir
 vW
 va
+validator
 valuep
 valuev
 vanishingly
@@ -1343,4 +1390,5 @@ zstd
 zstd's
 zu
 zyxwvutsrqponmlkjihgfedcba
+zz
 zzz

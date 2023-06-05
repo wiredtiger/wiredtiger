@@ -143,6 +143,8 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
         calls = stat_cursor[stat.conn.txn_rts][2]
         upd_aborted = (stat_cursor[stat.conn.txn_rts_upd_aborted][2] +
             stat_cursor[stat.conn.txn_rts_hs_removed][2])
+        upd_aborted_dryrun = (stat_cursor[stat.conn.txn_rts_upd_aborted_dryrun][2] +
+            stat_cursor[stat.conn.txn_rts_hs_removed_dryrun][2])
         keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
         keys_restored = stat_cursor[stat.conn.txn_rts_keys_restored][2]
         pages_visited = stat_cursor[stat.conn.txn_rts_pages_visited][2]
@@ -155,8 +157,10 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
 
         if self.dryrun:
             self.assertEqual(upd_aborted, 0)
+            self.assertGreaterEqual(upd_aborted_dryrun, nrows * 2)
         else:
             self.assertGreaterEqual(upd_aborted, nrows * 2)
+            self.assertEqual(upd_aborted_dryrun, 0)
 
 if __name__ == '__main__':
     wttest.run()

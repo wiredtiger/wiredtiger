@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -17,6 +17,7 @@ __wt_bm_read(
   WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t addr_size)
 {
     WT_BLOCK *block;
+    WT_DECL_RET;
     wt_off_t offset;
     uint32_t checksum, objectid, size;
 
@@ -26,24 +27,31 @@ __wt_bm_read(
     WT_RET(__wt_block_addr_unpack(
       session, block, addr, addr_size, &objectid, &offset, &size, &checksum));
 
+    if (bm->is_multi_handle)
+        /* Lookup the block handle */
+        WT_RET(__wt_blkcache_get_handle(session, bm, objectid, true, &block));
+
 #ifdef HAVE_DIAGNOSTIC
     /*
      * In diagnostic mode, verify the block we're about to read isn't on the available list, or for
-     * live systems, the discard list. This only applies if the block is in this object.
+     * the writable objects, the discard list.
      */
-    if (objectid == block->objectid)
-        WT_RET(__wt_block_misplaced(
-          session, block, "read", offset, size, bm->is_live, __PRETTY_FUNCTION__, __LINE__));
+    WT_ERR(__wt_block_misplaced(session, block, "read", offset, size,
+      bm->is_live && block == bm->block, __PRETTY_FUNCTION__, __LINE__));
 #endif
 
     /* Read the block. */
     __wt_capacity_throttle(session, size, WT_THROTTLE_READ);
-    WT_RET(__wt_block_read_off(session, block, buf, objectid, offset, size, checksum));
+    WT_ERR(__wt_block_read_off(session, block, buf, objectid, offset, size, checksum));
 
     /* Optionally discard blocks from the system's buffer cache. */
-    WT_RET(__wt_block_discard(session, block, (size_t)size));
+    WT_ERR(__wt_block_discard(session, block, (size_t)size));
 
-    return (0);
+err:
+    if (bm->is_multi_handle)
+        __wt_blkcache_release_handle(session, block);
+
+    return (ret);
 }
 
 /*
@@ -162,10 +170,6 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
     WT_STAT_CONN_INCR(session, block_read);
     WT_STAT_CONN_INCRV(session, block_byte_read, size);
 
-    /* Swap file handles if reading from a different object. */
-    if (block->objectid != objectid)
-        WT_RET(__wt_blkcache_get_handle(session, block, objectid, &block));
-
     /*
      * Grow the buffer as necessary and read the block. Buffers should be aligned for reading, but
      * there are lots of buffers (for example, file cursors have two buffers each, key and value),
@@ -192,7 +196,14 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
     WT_RET(__wt_buf_init(session, buf, bufsize));
     buf->size = size;
 
-    WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
+    /*
+     * Check if the chunk cache has the needed data. If it does not, the chunk cache may read it
+     * from the file.
+     */
+    if (S2C(session)->chunkcache.configured)
+        WT_RET(__wt_chunkcache_get(session, block, objectid, offset, size, buf->mem));
+    else
+        WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
 
     /*
      * We incrementally read through the structure before doing a checksum, do little- to big-endian

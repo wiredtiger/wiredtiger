@@ -8,6 +8,7 @@ set(default_enable_lz4 OFF)
 set(default_enable_snappy OFF)
 set(default_enable_zlib OFF)
 set(default_enable_zstd OFF)
+set(default_enable_iaa OFF)
 set(default_enable_tcmalloc ${HAVE_LIBTCMALLOC})
 set(default_enable_debug_info ON)
 set(default_enable_static OFF)
@@ -44,6 +45,9 @@ endif()
 if(NOT HAVE_BUILTIN_EXTENSION_ZSTD)
     set(default_enable_zstd ${HAVE_LIBZSTD})
 endif()
+if(NOT HAVE_BUILTIN_EXTENSION_IAA)
+    set(default_enable_iaa ${HAVE_LIBQPL})
+endif()
 
 if("${CMAKE_BUILD_TYPE}" STREQUAL "Release")
     set(default_enable_debug_info OFF)
@@ -76,6 +80,12 @@ config_choice(
         "darwin;WT_DARWIN;"
         "windows;WT_WIN;"
         "linux;WT_LINUX;"
+)
+
+config_bool(
+    ENABLE_ANTITHESIS
+    "Enable the Antithesis random library"
+    DEFAULT OFF
 )
 
 config_bool(
@@ -256,6 +266,16 @@ config_bool(
 )
 
 config_bool(
+    ENABLE_IAA
+    "Build the libqpl compressor extension"
+    DEFAULT ${default_enable_iaa}
+    DEPENDS "HAVE_LIBQPL"
+    # Specifically throw a fatal error if a user tries to enable the qpl compressor without
+    # actually having the library available (as opposed to silently defaulting to OFF).
+    DEPENDS_ERROR ON "Failed to find qpl library"
+)
+
+config_bool(
     ENABLE_SODIUM
     "Build the libsodium encryption extension"
     DEFAULT OFF
@@ -412,4 +432,8 @@ if(WT_WIN)
         # Use the multithread, static version of the run-time library.
         add_compile_options(/MT)
     endif()
+endif()
+
+if(ENABLE_ANTITHESIS)
+    add_compile_options(-fsanitize-coverage=trace-pc-guard)
 endif()

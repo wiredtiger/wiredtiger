@@ -4,3 +4,11 @@ build/
 dist/clang-format
 /docs/
 test-compatibility-run/
+
+# Python artifacts
+**/*.pyc
+
+# CLion related files & directories
+.idea
+cmake-build-release
+cmake-build-debug

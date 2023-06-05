@@ -308,8 +308,8 @@ class WiredTigerTestCase(unittest.TestCase):
     @staticmethod
     def globalSetup(preserveFiles = False, removeAtStart = True, useTimestamp = False,
                     gdbSub = False, lldbSub = False, verbose = 1, builddir = None, dirarg = None,
-                    longtest = False, zstdtest = False, ignoreStdout = False, seedw = 0, seedz = 0, 
-                    hookmgr = None, ss_random_prefix = 0, timeout = 0):
+                    longtest = False, extralongtest = False, zstdtest = False, ignoreStdout = False,
+                    seedw = 0, seedz = 0, hookmgr = None, ss_random_prefix = 0, timeout = 0):
         WiredTigerTestCase._preserveFiles = preserveFiles
         d = 'WT_TEST' if dirarg == None else dirarg
         if useTimestamp:
@@ -327,6 +327,7 @@ class WiredTigerTestCase(unittest.TestCase):
         WiredTigerTestCase._gdbSubprocess = gdbSub
         WiredTigerTestCase._lldbSubprocess = lldbSub
         WiredTigerTestCase._longtest = longtest
+        WiredTigerTestCase._extralongtest = extralongtest
         WiredTigerTestCase._zstdtest = zstdtest
         WiredTigerTestCase._verbose = verbose
         WiredTigerTestCase._ignoreStdout = ignoreStdout
@@ -417,6 +418,10 @@ class WiredTigerTestCase(unittest.TestCase):
     # Return the tier cache percent for this testcase, or 0 if there is none.
     def getTierCachePercent(self):
         return self.platform_api.getTierCachePercent()
+
+    # Return the tier storage source for this testcase, or 'dir_store' if there is none.
+    def getTierStorageSource(self):
+        return self.platform_api.getTierStorageSource()
 
     def __str__(self):
         # when running with scenarios, if the number_scenarios() method
@@ -721,12 +726,22 @@ class WiredTigerTestCase(unittest.TestCase):
 
     def tearDown(self, dueToRetry=False):
         teardown_failed = False
+        teardown_msg = None
         if not dueToRetry:
             for action in self.teardown_actions:
-                tmp = action()
+                try:
+                    tmp = action()
+                except:
+                    e = sys.exc_info()
+                    self.prexception(e)
+                    tmp = (-1, str(e[1]))
                 if tmp[0] != 0:
                     self.pr('ERROR: teardown action failed, message=' + tmp[1])
                     teardown_failed = True
+                    if teardown_msg is None:
+                        teardown_msg = str(tmp[1])
+                    else:
+                        teardown_msg += "; " + str(tmp[1])
 
         # This approach works for all our support Python versions and
         # is suggested by one of the answers in:
@@ -748,14 +763,22 @@ class WiredTigerTestCase(unittest.TestCase):
         self._failed = error or failure or exc_failure
         passed = not (self._failed or teardown_failed)
 
-        self.platform_api.tearDown()
+        try:
+            self.platform_api.tearDown()
+        except:
+            self.pr('ERROR: failed to tear down the platform API')
+            self.prexception(sys.exc_info())
 
-        # Download the files from the S3 bucket for tiered tests if the test fails or preserve is
+        # Download the files from the bucket for tiered tests if the test fails or preserve is
         # turned on.
-        if hasattr(self, 'ss_name') and self.ss_name == 's3_store' and not self.skipped and \
-            (not passed or WiredTigerTestCase._preserveFiles):
-                self.download_objects(self.bucket, self.bucket_prefix)
-                self.pr('downloading s3 files')
+        try:
+            if hasattr(self, 'ss_name') and not self.skipped and \
+                (not passed or WiredTigerTestCase._preserveFiles):
+                    self.pr('downloading object files')
+                    self.download_objects(self.bucket, self.bucket_prefix)
+        except:
+            self.pr('ERROR: failed to download objects')
+            self.prexception(sys.exc_info())
 
         self.pr('finishing')
 
@@ -786,7 +809,11 @@ class WiredTigerTestCase(unittest.TestCase):
         # Clean up unless there's a failure
         self.readyDirectoryForRemoval(self.testdir)
         if (passed and (not WiredTigerTestCase._preserveFiles)) or self.skipped:
-            shutil.rmtree(self.testdir, ignore_errors=True)
+            try:
+                shutil.rmtree(self.testdir, ignore_errors=True)
+            except:
+                self.pr('ERROR: failed to delete the test directory: ' + self.testdir)
+                self.prexception(sys.exc_info())
         else:
             self.pr('preserving directory ' + self.testdir)
 
@@ -795,6 +822,8 @@ class WiredTigerTestCase(unittest.TestCase):
         elapsed = time.time() - self.starttime
         if elapsed > 0.001 and WiredTigerTestCase._verbose >= 2:
             print("[pid:{}]: {}: {:.2f} seconds".format(os.getpid(), str(self), elapsed))
+        if teardown_failed:
+            self.fail(f'Teardown failed with message: {teardown_msg}')
         if (not passed) and (not self.skipped):
             print("[pid:{}]: ERROR in {}".format(os.getpid(), str(self)))
             self.pr('FAIL')
@@ -820,6 +849,39 @@ class WiredTigerTestCase(unittest.TestCase):
             shutil.copy(bkp_cursor.get_key(), backup_dir)
         self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
         bkp_cursor.close()
+
+    # Set a Python breakpoint.  When this function is called,
+    # the python debugger will be called as described here:
+    #   https://docs.python.org/3/library/pdb.html
+    #
+    # This can be used instead of the Python built-in "breakpoint",
+    # so that the terminal has proper I/O and a prompt appears, etc.
+    #
+    # Since the actual breakpoint is in this method, the developer will
+    # probably need to single step to get back to their calling function.
+    def breakpoint(self):
+        import pdb, sys
+        # Restore I/O to the controlling tty so we can
+        # run the debugger.
+        if os.name == "nt":
+            # No solution has been tested here.
+            pass
+        else:
+            sys.stdin = open('/dev/tty', 'r')
+            sys.stdout = open('/dev/tty', 'w')
+            sys.stderr = open('/dev/tty', 'w')
+        self.printOnce("""
+        ********
+        You are now in the python debugger, type "help" for more information.
+        Typing "s" will single step, returning you to the calling function. Common commands:
+          list            -   show python source code
+          s               -   single step
+          n               -   next step
+          b file:number   -   set a breakpoint
+          p variable      -   print the value of a variable
+          c               -   continue
+        ********""")
+        pdb.set_trace()
 
     @contextmanager
     def expectedStdout(self, expect):
@@ -1145,6 +1207,19 @@ def longtest(description):
         return func
     if not WiredTigerTestCase._longtest:
         return unittest.skip(description + ' (enable with --long)')
+    else:
+        return runit_decorator
+
+def extralongtest(description):
+    """
+    Used as a function decorator, for example, @wttest.extralongtest("description").
+    The decorator indicates that this test function should only be included
+    when running the test suite with the --extra-long option.
+    """
+    def runit_decorator(func):
+        return func
+    if not WiredTigerTestCase._extralongtest:
+        return unittest.skip(description + ' (enable with --extra-long)')
     else:
         return runit_decorator
 

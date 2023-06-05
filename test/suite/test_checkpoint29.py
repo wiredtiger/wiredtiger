@@ -49,9 +49,12 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         cursor.close()
 
         # The single-file checkpoint from the bulk cursor cannot be used by the checkpoint cursor,
-        # an error should be returned.
-        self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: self.session.open_cursor(uri, None, f"checkpoint={internal_checkpoint_name}"))
+        # an error should be returned and a warning should be printed out.
+        checkpoint_error_msg = 'could not open the checkpoint'
+        with self.expectedStdoutPattern(checkpoint_error_msg):
+            self.assertRaisesException(wiredtiger.WiredTigerError,
+                lambda: self.session.open_cursor(uri, None,
+                                                 f"checkpoint={internal_checkpoint_name}"))
 
         # Perform a system wide checkpoint to remove the existing inconsistency.
         self.session.checkpoint()

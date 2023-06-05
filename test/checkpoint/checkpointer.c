@@ -32,22 +32,22 @@ static WT_THREAD_RET checkpointer(void *);
 static WT_THREAD_RET clock_thread(void *);
 static int compare_cursors(WT_CURSOR *, table_type, WT_CURSOR *, table_type);
 static int diagnose_key_error(WT_CURSOR *, table_type, int, WT_CURSOR *, table_type, int);
-static int real_checkpointer(void);
+static int real_checkpointer(THREAD_DATA *);
 
 /*
  * set_stable --
- *     Set the stable timestamp from g.ts_stable.
+ *     Set the given timestamp as the stable timestamp.
  */
 static void
-set_stable(void)
+set_stable(uint64_t stable_ts)
 {
     char buf[128];
 
     if (g.race_timestamps)
-        testutil_check(__wt_snprintf(buf, sizeof(buf),
-          "stable_timestamp=%" PRIx64 ",oldest_timestamp=%" PRIx64, g.ts_stable, g.ts_stable));
+        testutil_snprintf(buf, sizeof(buf),
+          "stable_timestamp=%" PRIx64 ",oldest_timestamp=%" PRIx64, stable_ts, stable_ts);
     else
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "stable_timestamp=%" PRIx64, g.ts_stable));
+        testutil_snprintf(buf, sizeof(buf), "stable_timestamp=%" PRIx64, stable_ts);
     testutil_check(g.conn->set_timestamp(g.conn, buf));
 }
 
@@ -58,11 +58,16 @@ set_stable(void)
 void
 start_threads(void)
 {
-    set_stable();
-    testutil_check(__wt_thread_create(NULL, &g.checkpoint_thread, checkpointer, NULL));
+    set_stable(1); /* Let's start with 1 as the stable as 0 is not a valid timestamp. */
+    /*
+     * If there are N worker threads (0 - N-1), the checkpoint thread has an ID of N and the clock
+     * thread an ID of N + 1.
+     */
+    testutil_check(__wt_thread_create(NULL, &g.checkpoint_thread, checkpointer, &g.td[g.nworkers]));
     if (g.use_timestamps) {
         testutil_check(__wt_rwlock_init(NULL, &g.clock_lock));
-        testutil_check(__wt_thread_create(NULL, &g.clock_thread, clock_thread, NULL));
+        testutil_check(
+          __wt_thread_create(NULL, &g.clock_thread, clock_thread, &g.td[g.nworkers + 1]));
     }
 }
 
@@ -87,46 +92,92 @@ end_threads(void)
 }
 
 /*
+ * get_all_committed_ts --
+ *     Returns the least of commit timestamps across all the threads. Returns UINT64_MAX if one of
+ *     the threads has not yet started.
+ */
+static uint64_t
+get_all_committed_ts(void)
+{
+    uint64_t ret;
+    int i;
+
+    ret = UINT64_MAX;
+    for (i = 0; i < g.nworkers; ++i) {
+        if (g.td[i].ts < ret)
+            ret = g.td[i].ts;
+        if (ret == 0)
+            return (UINT64_MAX);
+    }
+
+    return (ret);
+}
+
+/*
  * clock_thread --
  *     Clock thread: ticks up timestamps.
  */
 static WT_THREAD_RET
 clock_thread(void *arg)
 {
-    WT_RAND_STATE rnd;
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
-    uint64_t delay;
+    THREAD_DATA *td;
+    uint64_t delay, last_ts, oldest_ts;
+    char tid[128];
 
-    WT_UNUSED(arg);
+    testutil_check(__wt_thread_str(tid, sizeof(tid)));
+    printf("clock thread starting: tid: %s\n", tid);
+    fflush(stdout);
 
-    __wt_random_init(&rnd);
+    td = (THREAD_DATA *)arg;
+    last_ts = 0;
+
     testutil_check(g.conn->open_session(g.conn, NULL, NULL, &wt_session));
     session = (WT_SESSION_IMPL *)wt_session;
 
     while (g.opts.running) {
-        __wt_writelock(session, &g.clock_lock);
-        if (g.prepare)
-            /*
-             * Leave a gap between timestamps so prepared insert followed by remove don't overlap
-             * with stable timestamp.
-             */
-            g.ts_stable += 5;
-        else
-            ++g.ts_stable;
-        set_stable();
-        if (g.ts_stable % 997 == 0) {
-            /*
-             * Random value between 6 and 10 seconds.
-             */
-            delay = __wt_random(&rnd) % 5;
-            __wt_sleep(delay + 6, 0);
+        if (g.predictable_replay) {
+            oldest_ts = get_all_committed_ts();
+            if (oldest_ts != UINT64_MAX && oldest_ts - last_ts > PRED_REPLAY_STABLE_PERIOD) {
+                /*
+                 * If we are doing a predictable rerun, don't go past the provided stop timestamp.
+                 */
+                if (g.stop_ts > 0 && oldest_ts >= g.stop_ts) {
+                    printf("Clock thread at %" PRIu64
+                           " has reached the provided stop timestamp. "
+                           "Stopping the clock.\n",
+                      g.stop_ts);
+                    set_stable(g.stop_ts);
+                    break;
+                }
+                set_stable(oldest_ts);
+                last_ts = oldest_ts;
+            }
+        } else {
+            __wt_writelock(session, &g.clock_lock);
+            if (g.prepare)
+                /*
+                 * Leave a gap between timestamps so prepared insert followed by remove don't
+                 * overlap with stable timestamp.
+                 */
+                g.ts_stable += 5;
+            else
+                ++g.ts_stable;
+            set_stable(g.ts_stable);
+            if (g.ts_stable % 997 == 0) {
+                /*
+                 * Random value between 6 and 10 seconds.
+                 */
+                delay = __wt_random(&td->extra_rnd) % 5;
+                __wt_sleep(delay + 6, 0);
+            }
+            __wt_writeunlock(session, &g.clock_lock);
         }
-        __wt_writeunlock(session, &g.clock_lock);
         /*
          * Random value between 5000 and 10000.
          */
-        delay = __wt_random(&rnd) % 5001;
+        delay = __wt_random(&td->extra_rnd) % 5001;
         __wt_sleep(0, delay + 5 * WT_THOUSAND);
     }
 
@@ -144,13 +195,11 @@ checkpointer(void *arg)
 {
     char tid[128];
 
-    WT_UNUSED(arg);
-
     testutil_check(__wt_thread_str(tid, sizeof(tid)));
     printf("checkpointer thread starting: tid: %s\n", tid);
     fflush(stdout);
 
-    (void)real_checkpointer();
+    (void)real_checkpointer((THREAD_DATA *)arg);
     return (WT_THREAD_RET_VALUE);
 }
 
@@ -179,12 +228,11 @@ set_flush_tier_delay(WT_RAND_STATE *rnd)
  *     in a timely fashion.
  */
 static int
-real_checkpointer(void)
+real_checkpointer(THREAD_DATA *td)
 {
-    WT_RAND_STATE rnd;
     WT_SESSION *session;
     wt_timestamp_t stable_ts, oldest_ts, verify_ts;
-    uint64_t delay;
+    uint64_t delay, tmp_ts;
     int ret;
     char buf[128], flush_tier_config[128], timestamp_buf[64];
     const char *checkpoint_config, *ts_config;
@@ -197,7 +245,6 @@ real_checkpointer(void)
     if (!g.opts.running)
         return (log_print_err("Checkpoint thread started stopped\n", EINVAL, 1));
 
-    __wt_random_init(&rnd);
     while (g.ntables > g.ntables_created && g.opts.running)
         __wt_yield();
 
@@ -208,15 +255,16 @@ real_checkpointer(void)
         ts_config = "use_timestamp=true";
 
     if (!WT_PREFIX_MATCH(g.checkpoint_name, "WiredTigerCheckpoint")) {
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "name=%s,%s", g.checkpoint_name, ts_config));
+        testutil_snprintf(buf, sizeof(buf), "name=%s,%s", g.checkpoint_name, ts_config);
         checkpoint_config = buf;
     } else
         checkpoint_config = ts_config;
 
-    testutil_check(__wt_snprintf(
-      flush_tier_config, sizeof(flush_tier_config), "flush_tier=(enabled,force),%s", ts_config));
+    testutil_snprintf(
+      flush_tier_config, sizeof(flush_tier_config), "flush_tier=(enabled,force),%s", ts_config);
 
-    set_flush_tier_delay(&rnd);
+    /* Use the extra random generator as the tier delay doesn't affect the actual data content. */
+    set_flush_tier_delay(&td->extra_rnd);
 
     while (g.opts.running) {
         /*
@@ -233,10 +281,25 @@ real_checkpointer(void)
             if (stable_ts <= oldest_ts)
                 verify_ts = stable_ts;
             else
-                verify_ts = __wt_random(&rnd) % (stable_ts - oldest_ts + 1) + oldest_ts;
-            __wt_writelock((WT_SESSION_IMPL *)session, &g.clock_lock);
-            g.ts_oldest = g.ts_stable;
-            __wt_writeunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
+                /* Use the extra random generator as the data is not getting modified. */
+                verify_ts = __wt_random(&td->extra_rnd) % (stable_ts - oldest_ts + 1) + oldest_ts;
+            if (g.predictable_replay) {
+                tmp_ts = WT_MIN(get_all_committed_ts(), stable_ts);
+                /* Update the oldest timestamp, but do not go past the provided stop timestamp. */
+                if (tmp_ts != UINT64_MAX && (g.stop_ts == 0 || tmp_ts <= g.stop_ts))
+                    g.ts_oldest = tmp_ts;
+                if (g.stop_ts > 0 && stable_ts >= g.stop_ts) {
+                    printf(
+                      "The checkpoint thread has reached the stop timestamp of "
+                      "%" PRIu64 ". Finish the test run.\n",
+                      g.stop_ts);
+                    g.opts.running = false;
+                }
+            } else {
+                __wt_writelock((WT_SESSION_IMPL *)session, &g.clock_lock);
+                g.ts_oldest = g.ts_stable;
+                __wt_writeunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
+            }
         }
 
         /* Execute a checkpoint */
@@ -255,7 +318,11 @@ real_checkpointer(void)
             flush_tier = false;
             printf("Finished a flush_tier\n");
 
-            set_flush_tier_delay(&rnd);
+            /*
+             * Use the extra random generator as the tier delay doesn't affect the actual data
+             * content.
+             */
+            set_flush_tier_delay(&td->extra_rnd);
         }
 
         if (!g.opts.running)
@@ -271,14 +338,17 @@ real_checkpointer(void)
 
         /* Advance the oldest timestamp to the most recently set stable timestamp. */
         if (g.use_timestamps && g.ts_oldest != 0) {
-            testutil_check(__wt_snprintf(
-              timestamp_buf, sizeof(timestamp_buf), "oldest_timestamp=%" PRIx64, g.ts_oldest));
+            testutil_snprintf(
+              timestamp_buf, sizeof(timestamp_buf), "oldest_timestamp=%" PRIx64, g.ts_oldest);
             testutil_check(g.conn->set_timestamp(g.conn, timestamp_buf));
         }
 
         if (g.sweep_stress)
-            /* Random value between 4 and 8 seconds. */
-            delay = __wt_random(&rnd) % 5 + 4;
+            /*
+             * Random value between 4 and 8 seconds. Use the extra random generator as the tier
+             * sleep delay doesn't affect the actual data content.
+             */
+            delay = __wt_random(&td->extra_rnd) % 5 + 4;
         else
             /* Just find out if we should flush_tier. */
             delay = 0;
@@ -286,6 +356,12 @@ real_checkpointer(void)
     }
 
 done:
+    /* To be able to replay, print the stable timestamp the test stopped at. */
+    if (g.predictable_replay && g.use_timestamps) {
+        testutil_check(g.conn->query_timestamp(g.conn, timestamp_buf, "get=stable_timestamp"));
+        stable_ts = testutil_timestamp_parse(timestamp_buf);
+        printf("Test stopped at a stable timestamp of %" PRIu64 ".\n", stable_ts);
+    }
     if ((ret = session->close(session, NULL)) != 0)
         return (log_print_err("session.close", ret, 1));
 
@@ -381,16 +457,15 @@ verify_consistency(WT_SESSION *session, wt_timestamp_t verify_ts, bool use_check
         return (log_print_err("verify_consistency", ENOMEM, 1));
 
     if (use_checkpoint) {
-        testutil_check(
-          __wt_snprintf(ckpt_buf, sizeof(ckpt_buf), "checkpoint=%s", g.checkpoint_name));
+        testutil_snprintf(ckpt_buf, sizeof(ckpt_buf), "checkpoint=%s", g.checkpoint_name);
         ckpt = ckpt_buf;
     } else {
         ckpt = NULL;
         if (verify_ts != WT_TS_NONE)
-            testutil_check(__wt_snprintf(cfg_buf, sizeof(cfg_buf),
-              "isolation=snapshot,read_timestamp=%" PRIx64 ",roundup_timestamps=read", verify_ts));
+            testutil_snprintf(cfg_buf, sizeof(cfg_buf),
+              "isolation=snapshot,read_timestamp=%" PRIx64 ",roundup_timestamps=read", verify_ts);
         else
-            testutil_check(__wt_snprintf(cfg_buf, sizeof(cfg_buf), "isolation=snapshot"));
+            testutil_snprintf(cfg_buf, sizeof(cfg_buf), "isolation=snapshot");
         testutil_check(session->begin_transaction(session, cfg_buf));
     }
 
@@ -402,7 +477,7 @@ verify_consistency(WT_SESSION *session, wt_timestamp_t verify_ts, bool use_check
             cursors[i] = NULL;
             continue;
         }
-        testutil_check(__wt_snprintf(next_uri, sizeof(next_uri), "table:__wt%04d", i));
+        testutil_snprintf(next_uri, sizeof(next_uri), "table:__wt%04d", i);
         if ((ret = session->open_cursor(session, next_uri, NULL, ckpt, &cursors[i])) != 0) {
             (void)log_print_err("verify_consistency:session.open_cursor", ret, 1);
             goto err;
@@ -508,7 +583,7 @@ compare_cursors(WT_CURSOR *cursor1, table_type type1, WT_CURSOR *cursor2, table_
     if (type1 == FIX) {
         if (cursor1->get_value(cursor1, &fixval1) != 0)
             goto valuefail;
-        testutil_check(__wt_snprintf(fixbuf1, sizeof(fixbuf1), "%" PRIu8, fixval1));
+        testutil_snprintf(fixbuf1, sizeof(fixbuf1), "%" PRIu8, fixval1);
         strval1 = fixbuf1;
     } else {
         if (cursor1->get_value(cursor1, &strval1) != 0)
@@ -519,7 +594,7 @@ compare_cursors(WT_CURSOR *cursor1, table_type type1, WT_CURSOR *cursor2, table_
     if (type2 == FIX) {
         if (cursor2->get_value(cursor2, &fixval2) != 0)
             goto valuefail;
-        testutil_check(__wt_snprintf(fixbuf2, sizeof(fixbuf2), "%" PRIu8, fixval2));
+        testutil_snprintf(fixbuf2, sizeof(fixbuf2), "%" PRIu8, fixval2);
         strval2 = fixbuf2;
     } else {
         if (cursor2->get_value(cursor2, &strval2) != 0)
@@ -586,7 +661,7 @@ diagnose_key_error(WT_CURSOR *cursor1, table_type type1, int index1, WT_CURSOR *
     session = cursor1->session;
     key1_orig = key2_orig = 0;
 
-    testutil_check(__wt_snprintf(ckpt, sizeof(ckpt), "checkpoint=%s", g.checkpoint_name));
+    testutil_snprintf(ckpt, sizeof(ckpt), "checkpoint=%s", g.checkpoint_name);
 
     /* Save the failed keys. */
     if (cursor1->get_key(cursor1, &key1_orig) != 0 || cursor2->get_key(cursor2, &key2_orig) != 0) {
@@ -629,7 +704,7 @@ diagnose_key_error(WT_CURSOR *cursor1, table_type type1, int index1, WT_CURSOR *
      * Now try opening new cursors on the checkpoints and see if we get the same missing key via
      * searching.
      */
-    testutil_check(__wt_snprintf(next_uri, sizeof(next_uri), "table:__wt%04d", index1));
+    testutil_snprintf(next_uri, sizeof(next_uri), "table:__wt%04d", index1);
     if (session->open_cursor(session, next_uri, NULL, ckpt, &c) != 0)
         return (1);
     c->set_key(c, key1_orig);
@@ -641,7 +716,7 @@ diagnose_key_error(WT_CURSOR *cursor1, table_type type1, int index1, WT_CURSOR *
     if (c->close(c) != 0)
         return (1);
 
-    testutil_check(__wt_snprintf(next_uri, sizeof(next_uri), "table:__wt%04d", index2));
+    testutil_snprintf(next_uri, sizeof(next_uri), "table:__wt%04d", index2);
     if (session->open_cursor(session, next_uri, NULL, ckpt, &c) != 0)
         return (1);
     c->set_key(c, key1_orig);
@@ -658,7 +733,7 @@ live_check:
      * Now try opening cursors on the live checkpoint to see if we get the same missing key via
      * searching.
      */
-    testutil_check(__wt_snprintf(next_uri, sizeof(next_uri), "table:__wt%04d", index1));
+    testutil_snprintf(next_uri, sizeof(next_uri), "table:__wt%04d", index1);
     if (session->open_cursor(session, next_uri, NULL, NULL, &c) != 0)
         return (1);
     c->set_key(c, key1_orig);
@@ -667,7 +742,7 @@ live_check:
     if (c->close(c) != 0)
         return (1);
 
-    testutil_check(__wt_snprintf(next_uri, sizeof(next_uri), "table:__wt%04d", index2));
+    testutil_snprintf(next_uri, sizeof(next_uri), "table:__wt%04d", index2);
     if (session->open_cursor(session, next_uri, NULL, NULL, &c) != 0)
         return (1);
     c->set_key(c, key2_orig);

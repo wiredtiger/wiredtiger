@@ -150,7 +150,7 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
     WT_SESSION *session;
     uint64_t base_id, base_keyno, last_match, table_id, table_keyno, rows;
     uint8_t base_bitv, table_bitv;
-    u_int failures, i;
+    u_int failures, i, last_failures;
     int base_ret, table_ret;
     char buf[256], tagbuf[128];
 
@@ -164,7 +164,7 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
 
     /* Optionally open a checkpoint to verify. */
     if (checkpoint != NULL)
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "checkpoint=%s", checkpoint));
+        testutil_snprintf(buf, sizeof(buf), "checkpoint=%s", checkpoint);
 
     /*
      * If opening a checkpoint, retry if the cursor checkpoint IDs don't match, it just means that a
@@ -185,13 +185,14 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
         testutil_check(table_cursor->close(table_cursor));
     }
 
-    testutil_check(__wt_snprintf(buf, sizeof(buf),
+    testutil_snprintf(buf, sizeof(buf),
       "table %u %s%s"
       "mirror verify",
-      table->id, checkpoint == NULL ? "" : checkpoint, checkpoint == NULL ? "" : " checkpoint "));
+      table->id, checkpoint == NULL ? "" : checkpoint, checkpoint == NULL ? "" : " checkpoint ");
     trace_msg(session, "%s: start", buf);
 
     for (failures = 0, rows = 1; rows <= TV(RUNS_ROWS); ++rows) {
+        last_failures = failures;
         switch (base->type) {
         case FIX:
             testutil_assert(base->type != FIX);
@@ -273,33 +274,34 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
             testutil_check(table_cursor->get_value(table_cursor, &table_value));
 
             if (base_keyno != table_keyno || base_value.size != table_value.size ||
-              memcmp(base_value.data, table_value.data, base_value.size) != 0) {
+              (table_value.size != 0 &&
+                memcmp(base_value.data, table_value.data, base_value.size) != 0)) {
                 table_mirror_fail_msg(session, checkpoint, base, base_keyno, &base_key, &base_value,
                   table, table_keyno, &table_key, &table_value, last_match);
 
 page_dump:
                 /* Dump the cursor pages for the first failure. */
                 if (++failures == 1) {
-                    testutil_check(__wt_snprintf(
-                      tagbuf, sizeof(tagbuf), "mirror error: base cursor (table %u)", base->id));
+                    testutil_snprintf(
+                      tagbuf, sizeof(tagbuf), "mirror error: base cursor (table %u)", base->id);
                     cursor_dump_page(base_cursor, tagbuf);
-                    testutil_check(__wt_snprintf(
-                      tagbuf, sizeof(tagbuf), "mirror error: table cursor (table %u)", table->id));
+                    testutil_snprintf(
+                      tagbuf, sizeof(tagbuf), "mirror error: table cursor (table %u)", table->id);
                     cursor_dump_page(table_cursor, tagbuf);
                     for (i = 1; i <= ntables; ++i) {
                         if (!tables[i]->mirror)
                             continue;
                         if (tables[i] != base &&
                           (tables[i] != table || table_keyno != base_keyno)) {
-                            testutil_check(__wt_snprintf(tagbuf, sizeof(tagbuf),
+                            testutil_snprintf(tagbuf, sizeof(tagbuf),
                               "mirror error: base key number %" PRIu64 " in table %u", base_keyno,
-                              i));
+                              i);
                             table_dump_page(session, checkpoint, tables[i], base_keyno, tagbuf);
                         }
                         if (tables[i] != table && table_keyno != base_keyno) {
-                            testutil_check(__wt_snprintf(tagbuf, sizeof(tagbuf),
+                            testutil_snprintf(tagbuf, sizeof(tagbuf),
                               "mirror error: table key number %" PRIu64 " in table %u", table_keyno,
-                              i));
+                              i);
                             table_dump_page(session, checkpoint, tables[i], table_keyno, tagbuf);
                         }
                     }
@@ -318,7 +320,13 @@ page_dump:
         if (checkpoint == NULL &&
           ((rows < (5 * WT_THOUSAND) && rows % 10 == 0) || rows % (5 * WT_THOUSAND) == 0))
             track(buf, rows);
-        last_match = base_keyno;
+        /*
+         * Failures in methods using record numbers may match on the key even after reset. Only
+         * update the last successful matched key if we didn't have a failure or at least one table
+         * is not using record numbers.
+         */
+        if (last_failures == failures && (base->type == ROW || table->type == ROW))
+            last_match = base_keyno;
     }
     testutil_assert(failures == 0);
 

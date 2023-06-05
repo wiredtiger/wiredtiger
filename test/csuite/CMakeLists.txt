@@ -23,6 +23,13 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_random
+    SOURCES random/main.c
+    DIR_NAME random
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
     TARGET test_random_abort
     SOURCES random_abort/main.c
     DIR_NAME random_abort
@@ -397,6 +404,14 @@ define_c_test(
     TARGET test_wt9937_parse_opts
     SOURCES wt9937_parse_opts/main.c
     DIR_NAME wt9937_parse_opts
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
+    TARGET test_wt10897_compact_quick_interrupt
+    SOURCES wt10897_compact_quick_interrupt/main.c
+    DIR_NAME wt10897_compact_quick_interrupt
     ARGUMENTS
     DEPENDS "WT_POSIX"
 )

@@ -129,6 +129,10 @@ CONFIG configuration_list[] = {
 
 {"cache.evict_max", "maximum number of eviction workers", 0x0, 0, 5, 100}
 
+{"cache.eviction_dirty_target", "dirty content target for eviction", C_IGNORE, 0, 0, 100}
+
+{"cache.eviction_dirty_trigger", "dirty content trigger for eviction", C_IGNORE, 0, 0, 100}
+
 {"cache.minimum", "minimum cache size (MB)", C_IGNORE, 0, 0, 100 * 1024}
 
 {"checkpoint", "checkpoint type (on | off | wiredtiger)", C_IGNORE | C_STRING, 0, 0, 0}
@@ -221,6 +225,10 @@ CONFIG configuration_list[] = {
 
 {"ops.hs_cursor", "configure history store cursor reads", C_BOOL, 50, 0, 0}
 
+{"ops.pareto", "configure crud operations to be pareto distributed", C_BOOL | C_TABLE, 20, 0, 0}
+
+{"ops.pareto.skew", "adjusts the amount of skew used by the pareto distribution", C_TABLE, 1, 100, 100}
+
 {"ops.pct.delete", "delete operations (percentage)", C_IGNORE | C_TABLE, 0, 0, 100}
 
 {"ops.pct.insert", "insert operations (percentage)", C_IGNORE | C_TABLE, 0, 0, 100}
@@ -275,6 +283,8 @@ CONFIG configuration_list[] = {
 
 {"statistics_log.sources", "statistics_log sources (file: | off)", C_IGNORE | C_STRING, 0, 0, 0}
 
+{"stress.aggressive_stash_free", "stress freeing stashed memory aggressively", C_BOOL, 2, 0, 0}
+
 {"stress.aggressive_sweep", "stress aggressive sweep", C_BOOL, 2, 0, 0}
 
 {"stress.checkpoint", "stress checkpoints", C_BOOL, 2, 0, 0}
@@ -295,6 +305,8 @@ CONFIG configuration_list[] = {
 
 {"stress.hs_sweep", "stress history store sweep", C_BOOL, 2, 0, 0}
 
+{"stress.prepare_resolution", "stress prepare resolution", C_BOOL, 2, 0, 0}
+
 {"stress.sleep_before_read_overflow_onpage", "stress onpage overflow read race with checkpoint", C_BOOL, 2, 0, 0}
 
 {"stress.split_1", "stress splits (#1)", C_BOOL, 2, 0, 0}
@@ -310,6 +322,12 @@ CONFIG configuration_list[] = {
 {"stress.split_6", "stress splits (#6)", C_BOOL, 2, 0, 0}
 
 {"stress.split_7", "stress splits (#7)", C_BOOL, 2, 0, 0}
+
+{"stress.split_8", "stress splits (#8)", C_BOOL, 2, 0, 0}
+
+{"tiered_storage.flush_frequency", "calls to checkpoint that are flush_tier, if tiered storage enabled (percentage)", 0x0, 0, 50, 100 }
+
+{"tiered_storage.storage_source", "storage source used (azure_store | dir_store | gcp_store | none | off | s3_store)", C_IGNORE | C_STRING, 0, 0, 0}
 
 {"transaction.implicit", "implicit, without timestamps, transactions (percentage)", 0, 0, 100, 100}
 
@@ -331,3 +349,5 @@ echo '};') >> $fc
 echo
 echo "#define V_ELEMENT_COUNT $n") >> $fh
 
+../../dist/s_clang_format test/format/$fc
+../../dist/s_clang_format test/format/$fh

@@ -45,11 +45,10 @@ check() {
 }
 
 # List of files to spellchk.
-# FIXME-WT-9433 Skip files in the test/cppsuite folder.
-l=`(cd .. &&
-    find bench examples ext src test -not -path "test/cppsuite/*" -name '*.[chsy]' &&
+l=$(cd .. &&
+    find bench examples ext src test -name '*.[chsy]' &&
     find src -name '*.in' &&
-    find test -not -path "test/cppsuite/*" -name '*.cpp')`
+    find test -name '*.cpp')
 
 usage()
 {
@@ -77,7 +76,7 @@ while :
         sort -u -o $t $t
 
 	if ! diff $t s_string.ok >/dev/null 2>&1; then
-            echo "The string.ok list will be updated."
+            echo "The string.ok list will be updated to remove words that are no longer needed."
             cp $t s_string.ok
             exit_val=1
         else

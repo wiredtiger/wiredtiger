@@ -52,6 +52,7 @@ static void config_off(TABLE *, const char *);
 static void config_off_all(const char *);
 static void config_pct(TABLE *);
 static void config_statistics(void);
+static void config_tiered_storage(void);
 static void config_transaction(void);
 static bool config_var(TABLE *);
 
@@ -75,7 +76,7 @@ config_random_generator(
     /* If we generated a seed just now, put it into the configuration file. */
     if (!seed_set) {
         testutil_assert(seed != 0);
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "%s=%" PRIu64, config_name, seed));
+        testutil_snprintf(buf, sizeof(buf), "%s=%" PRIu64, config_name, seed);
         config_single(NULL, buf, true);
     }
 
@@ -150,11 +151,11 @@ config_random(TABLE *table, bool table_only)
          * is "on" (so "on" if random rolled <= N, otherwise "off").
          */
         if (F_ISSET(cp, C_BOOL))
-            testutil_check(__wt_snprintf(buf, sizeof(buf), "%s=%s", cp->name,
-              mmrand(&g.data_rnd, 1, 100) <= cp->min ? "on" : "off"));
+            testutil_snprintf(buf, sizeof(buf), "%s=%s", cp->name,
+              mmrand(&g.data_rnd, 1, 100) <= cp->min ? "on" : "off");
         else
-            testutil_check(__wt_snprintf(buf, sizeof(buf), "%s=%" PRIu32, cp->name,
-              mmrand(&g.data_rnd, cp->min, cp->maxrand)));
+            testutil_snprintf(
+              buf, sizeof(buf), "%s=%" PRIu32, cp->name, mmrand(&g.data_rnd, cp->min, cp->maxrand));
         config_single(table, buf, false);
     }
 }
@@ -169,9 +170,9 @@ config_promote(TABLE *table, CONFIG *cp, CONFIGV *v)
     char buf[128];
 
     if (F_ISSET(cp, C_STRING))
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "%s=%s", cp->name, v->vstr));
+        testutil_snprintf(buf, sizeof(buf), "%s=%s", cp->name, v->vstr);
     else
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "%s=%" PRIu32, cp->name, v->v));
+        testutil_snprintf(buf, sizeof(buf), "%s=%" PRIu32, cp->name, v->v);
     config_single(table, buf, true);
 }
 
@@ -190,7 +191,7 @@ config_table_am(TABLE *table)
      * the original global specification, not the choice set for the global table.
      */
     if (!table->v[V_TABLE_RUNS_TYPE].set && tables[0]->v[V_TABLE_RUNS_TYPE].set) {
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "runs.type=%s", g.runs_type));
+        testutil_snprintf(buf, sizeof(buf), "runs.type=%s", g.runs_type);
         config_single(table, buf, true);
     }
 
@@ -301,13 +302,12 @@ config_table(TABLE *table, void *arg)
      * objects are "tables", but files are tested as well.
      */
     if (ntables == 0)
-        testutil_check(__wt_snprintf(table->uri, sizeof(table->uri), "%s",
-          DATASOURCE(table, "file") ? "file:wt" : "table:wt"));
+        testutil_snprintf(
+          table->uri, sizeof(table->uri), "%s", DATASOURCE(table, "file") ? "file:wt" : "table:wt");
     else
-        testutil_check(__wt_snprintf(table->uri, sizeof(table->uri),
-          DATASOURCE(table, "file") ? "file:F%05u" : "table:T%05u", table->id));
-    testutil_check(
-      __wt_snprintf(table->track_prefix, sizeof(table->track_prefix), "table %u", table->id));
+        testutil_snprintf(table->uri, sizeof(table->uri),
+          DATASOURCE(table, "file") ? "file:F%05u" : "table:T%05u", table->id);
+    testutil_snprintf(table->track_prefix, sizeof(table->track_prefix), "table %u", table->id);
 
     /* Fill in random values for the rest of the run. */
     config_random(table, true);
@@ -485,6 +485,7 @@ config_run(void)
     tables_apply(config_table, NULL); /* Configure the tables. */
 
     /* Order can be important, don't shuffle without careful consideration. */
+    config_tiered_storage();                         /* Tiered storage */
     config_transaction();                            /* Transactions */
     config_backup_incr();                            /* Incremental backup */
     config_checkpoint();                             /* Checkpoints */
@@ -617,8 +618,7 @@ config_backup_incr_granularity(void)
         break;
     }
 
-    testutil_check(
-      __wt_snprintf(confbuf, sizeof(confbuf), "backup.incr_granularity=%" PRIu32, granularity));
+    testutil_snprintf(confbuf, sizeof(confbuf), "backup.incr_granularity=%" PRIu32, granularity);
     config_single(NULL, confbuf, false);
 }
 
@@ -682,12 +682,19 @@ config_cache(void)
 {
     uint64_t cache, workers;
 
+    /* Sum the number of workers. */
+    workers = GV(RUNS_THREADS);
+    if (GV(OPS_HS_CURSOR))
+        ++workers;
+    if (GV(OPS_RANDOM_CURSOR))
+        ++workers;
+
     /* Check if both min and max cache sizes have been specified and if they're consistent. */
     if (config_explicit(NULL, "cache")) {
         if (config_explicit(NULL, "cache.minimum") && GV(CACHE) < GV(CACHE_MINIMUM))
             testutil_die(EINVAL, "minimum cache set larger than cache (%" PRIu32 " > %" PRIu32 ")",
               GV(CACHE_MINIMUM), GV(CACHE));
-        return;
+        goto dirty_eviction_config;
     }
 
     GV(CACHE) = GV(CACHE_MINIMUM);
@@ -704,13 +711,6 @@ config_cache(void)
         if (GV(CACHE) < cache)
             GV(CACHE) = (uint32_t)cache;
     }
-
-    /* Sum the number of workers. */
-    workers = GV(RUNS_THREADS);
-    if (GV(OPS_HS_CURSOR))
-        ++workers;
-    if (GV(OPS_RANDOM_CURSOR))
-        ++workers;
 
     /*
      * Maximum internal/leaf page size sanity.
@@ -747,6 +747,21 @@ config_cache(void)
     /* Give any block cache 20% of the total cache size, over and above the cache. */
     if (GV(BLOCK_CACHE) != 0)
         GV(BLOCK_CACHE_SIZE) = (GV(CACHE) + 4) / 5;
+
+dirty_eviction_config:
+    /* Adjust the dirty eviction settings to reduce test driven cache stuck failures. */
+    if (g.lsm_config || GV(CACHE) < 20) {
+        WARN("Setting cache.eviction_dirty_trigger=95 due to %s",
+          g.lsm_config ? "LSM" : "micro cache");
+        config_single(NULL, "cache.eviction_dirty_trigger=95", false);
+    } else if (GV(CACHE) / workers <= 2 && !config_explicit(NULL, "cache.eviction_dirty_trigger")) {
+        WARN("Cache is minimally configured (%" PRIu32
+             "mb), setting cache.eviction_dirty_trigger=40 and "
+             "cache.eviction_dirty_target=10",
+          GV(CACHE));
+        config_single(NULL, "cache.eviction_dirty_trigger=40", false);
+        config_single(NULL, "cache.eviction_dirty_target=10", false);
+    }
 }
 
 /*
@@ -876,7 +891,7 @@ config_compression(TABLE *table, const char *conf_name)
         break;
     }
 
-    testutil_check(__wt_snprintf(confbuf, sizeof(confbuf), "%s=%s", conf_name, cstr));
+    testutil_snprintf(confbuf, sizeof(confbuf), "%s=%s", conf_name, cstr);
     config_single(table, confbuf, false);
 }
 
@@ -962,9 +977,10 @@ config_fix(TABLE *table)
 {
     /*
      * Fixed-length column stores don't support modify operations, and can't be used with
-     * predictable replay.
+     * predictable replay with insertions.
      */
-    return (!GV(RUNS_PREDICTABLE_REPLAY) && !config_explicit(table, "ops.pct.modify"));
+    return (!config_explicit(table, "ops.pct.modify") &&
+      (!GV(RUNS_PREDICTABLE_REPLAY) || !config_explicit(table, "ops.pct.insert")));
 }
 
 /*
@@ -1140,12 +1156,18 @@ config_mirrors(void)
 {
     u_int available_tables, i, mirrors;
     char buf[100];
-    bool already_set, explicit_mirror;
+    bool already_set, explicit_mirror, fix, var;
 
+    fix = var = false;
+    g.mirror_fix_var = false;
     /* Check for a CONFIG file that's already set up for mirroring. */
     for (already_set = false, i = 1; i <= ntables; ++i)
         if (NTV(tables[i], RUNS_MIRROR)) {
             already_set = tables[i]->mirror = true;
+            if (tables[i]->type == FIX)
+                fix = true;
+            if (tables[i]->type == VAR)
+                var = true;
             if (g.base_mirror == NULL && tables[i]->type != FIX)
                 g.base_mirror = tables[i];
         }
@@ -1159,6 +1181,8 @@ config_mirrors(void)
          * it lets us avoid a bunch of extra logic around figuring out whether we have an acceptable
          * minimum number of tables.
          */
+        if (fix && var)
+            g.mirror_fix_var = true;
         return;
     }
 
@@ -1235,7 +1259,8 @@ config_mirrors(void)
     tables[i]->mirror = true;
     config_single(tables[i], "runs.mirror=1", false);
     g.base_mirror = tables[i];
-
+    if (tables[i]->type == VAR)
+        var = true;
     /*
      * Pick some number of tables to mirror, then turn on mirroring the next (n-1) tables, where
      * allowed.
@@ -1246,17 +1271,26 @@ config_mirrors(void)
         if (tables[i] != g.base_mirror) {
             tables[i]->mirror = true;
             config_single(tables[i], "runs.mirror=1", false);
+            if (tables[i]->type == FIX)
+                fix = true;
+            if (tables[i]->type == VAR)
+                var = true;
             if (--mirrors == 0)
                 break;
         }
     }
 
     /*
+     * There is an edge case that is possible only when we are mirroring both VLCS and FLCS tables.
+     * Note if that is true now.
+     */
+    if (fix && var)
+        g.mirror_fix_var = true;
+    /*
      * Give each mirror the same number of rows (it's not necessary, we could treat end-of-table on
      * a mirror as OK, but this lets us assert matching rows).
      */
-    testutil_check(
-      __wt_snprintf(buf, sizeof(buf), "runs.rows=%" PRIu32, NTV(g.base_mirror, RUNS_ROWS)));
+    testutil_snprintf(buf, sizeof(buf), "runs.rows=%" PRIu32, NTV(g.base_mirror, RUNS_ROWS));
     for (i = 1; i <= ntables; ++i)
         if (tables[i]->mirror && tables[i] != g.base_mirror)
             config_single(tables[i], buf, false);
@@ -1387,6 +1421,47 @@ config_statistics(void)
 }
 
 /*
+ * config_tiered_storage --
+ *     Tiered storage configuration.
+ */
+static void
+config_tiered_storage(void)
+{
+    const char *storage_source;
+
+    storage_source = GVS(TIERED_STORAGE_STORAGE_SOURCE);
+
+    /*
+     * FIXME-WT-9934 If we ever allow tiered storage to be run only locally but with switching
+     * objects, then none becomes a valid option with tiered storage enabled.
+     */
+    g.tiered_storage_config =
+      (strcmp(storage_source, "off") != 0 && strcmp(storage_source, "none") != 0);
+    if (g.tiered_storage_config) {
+        /* Tiered storage requires timestamps. */
+        config_off(NULL, "transaction.implicit");
+        config_single(NULL, "transaction.timestamps=on", true);
+
+        /* If we are flushing, we need a checkpoint thread. */
+        if (GV(TIERED_STORAGE_FLUSH_FREQUENCY) > 0)
+            config_single(NULL, "checkpoint=on", false);
+
+        /* FIXME-PM-2530: Salvage and verify are not yet supported for tiered storage. */
+        config_off(NULL, "ops.salvage");
+        config_off(NULL, "ops.verify");
+
+        /* FIXME-PM-2532: Backup is not yet supported for tiered tables. */
+        config_off(NULL, "backup");
+        config_off(NULL, "backup.incremental");
+
+        /* FIXME-PM-2538: Compact is not yet supported for tiered tables. */
+        config_off(NULL, "ops.compaction");
+    } else
+        /* Never try flush to tiered storage unless running with tiered storage. */
+        config_single(NULL, "tiered_storage.flush_frequency=0", true);
+}
+
+/*
  * config_transaction --
  *     Transaction configuration.
  */
@@ -1395,7 +1470,7 @@ config_transaction(void)
 {
     /* Predictable replay requires timestamps. */
     if (GV(RUNS_PREDICTABLE_REPLAY)) {
-        config_single(NULL, "transaction.implicit=0", false);
+        config_off(NULL, "transaction.implicit");
         config_single(NULL, "transaction.timestamps=on", true);
     }
 
@@ -1537,7 +1612,7 @@ config_print_table(FILE *fp, TABLE *table)
     char buf[128];
     bool lsm;
 
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "table%u.", table->id));
+    testutil_snprintf(buf, sizeof(buf), "table%u.", table->id);
     fprintf(fp, "############################################\n");
     fprintf(fp, "#  TABLE PARAMETERS: table %u\n", table->id);
     fprintf(fp, "############################################\n");
@@ -1739,8 +1814,7 @@ config_off(TABLE *table, const char *s)
     char buf[100];
 
     cp = config_find(s, strlen(s), true);
-    testutil_check(
-      __wt_snprintf(buf, sizeof(buf), "%s=%s", s, F_ISSET(cp, C_BOOL | C_STRING) ? "off" : "0"));
+    testutil_snprintf(buf, sizeof(buf), "%s=%s", s, F_ISSET(cp, C_BOOL | C_STRING) ? "off" : "0");
     config_single(table, buf, false);
 }
 
@@ -1885,7 +1959,7 @@ config_single(TABLE *table, const char *s, bool explicit)
         } else if (strncmp(s, "runs.type", strlen("runs.type")) == 0) {
             /* Save any global configuration for later table configuration. */
             if (table == tables[0])
-                testutil_check(__wt_snprintf(g.runs_type, sizeof(g.runs_type), "%s", equalp));
+                testutil_snprintf(g.runs_type, sizeof(g.runs_type), "%s", equalp);
 
             config_map_file_type(equalp, &table->type);
             equalp = config_file_type(table->type);
