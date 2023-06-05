@@ -513,8 +513,8 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
 
         /*
          * Save the checkpoint generation number and the checkpoint's state to detect races.
-         * Note that we need to save the generation number before the checkpoint's state. Indeed, if
-         * we save the generation number after, we could have the following scenario:
+         * Note that we must save the generation number before the checkpoint's state. Indeed, if we
+         * save the generation number after, we could have the following scenario:
          *
          * 1) The checkpoint's state is evaluated to false.
          * 2) -- Race, checkpoint starts.
@@ -523,7 +523,7 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
          *
          * By saving the generation number before, if there is a race, the saved generation number
          * will not be equal to the latest one. Since we want both variables to be read in as early
-         * as possible in this loop, ordered reads help us achieve this.
+         * as possible in this loop, ordered reads encourage this.
          */
         WT_ORDERED_READ(ckpt_gen, __wt_gen(session, WT_GEN_CHECKPOINT));
         WT_ORDERED_READ(ckpt_running, S2C(session)->txn_global.checkpoint_running);
