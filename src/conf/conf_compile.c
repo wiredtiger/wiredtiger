@@ -121,6 +121,19 @@ __conf_compile_value(WT_SESSION_IMPL *session, WT_CONF *top_conf, WT_CONFIG_ITEM
 }
 
 /*
+ * __conf_check_compiler --
+ *     Compare function used for binary search.
+ */
+static int
+__conf_check_compare(const void *keyvoid, const void *check)
+{
+    const WT_CONFIG_ITEM *key;
+
+    key = keyvoid;
+    return (strncmp(key->str, ((WT_CONFIG_CHECK *)check)->name, key->len));
+}
+
+/*
  * __conf_compile --
  *     Compile a configuration string into the compiled struct.
  */
@@ -152,73 +165,70 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
             i = check_jump[(uint8_t)key.str[0]];
             check_count = check_jump[(uint8_t)key.str[0] + 1];
         }
-        for (; i < check_count; ++i) {
-            check = &checks[i];
-            if (WT_STRING_MATCH(check->name, key.str, key.len)) {
-                /* The key id is an offset into the key_to_set_item table. */
-                key_id = check->key_id;
-                WT_ASSERT(session, key_id < WT_CONF_KEY_COUNT);
-                existing = (conf->key_to_set_item[key_id] != 0);
-                if (existing)
-                    /* The position stored is one-based. */
-                    set_item_pos = conf->key_to_set_item[key_id] - 1;
-                else {
-                    set_item_pos = conf->set_item_count++;
-                    /* The position inserted to the key_to_set_item is one based, and must fit
-                     * into a byte */
-                    WT_ASSERT(session, set_item_pos + 1 <= 0xff);
-                    conf->key_to_set_item[key_id] = (uint8_t)(set_item_pos + 1);
-                    WT_ERR(__wt_realloc_def(
-                      session, &conf->set_item_allocated, conf->set_item_count, &conf->set_item));
-                }
-                set_item = &conf->set_item[set_item_pos];
-
-                WT_ERR(__conf_string_to_type(session, check->type, &check_type));
-                if (check_type == WT_CONFIG_ITEM_STRUCT) {
-                    if (value.type != WT_CONFIG_ITEM_STRUCT)
-                        WT_ERR_MSG(session, EINVAL, "Value '%.*s' expected to be a category",
-                          (int)value.len, value.str);
-                    if (value.str[0] == '[') {
-                        if (value.str[value.len - 1] != ']')
-                            WT_ERR_MSG(session, EINVAL, "Value '%.*s' non-matching []",
-                              (int)value.len, value.str);
-                    } else if (value.str[0] == '(') {
-                        if (value.str[value.len - 1] != ')')
-                            WT_ERR_MSG(session, EINVAL, "Value '%.*s' non-matching ()",
-                              (int)value.len, value.str);
-                    } else
-                        WT_ERR_MSG(session, EINVAL, "Value '%.*s' expected () or []",
-                          (int)value.len, value.str);
-
-                    /* Remove the first and last char, they were just checked */
-                    ++value.str;
-                    value.len -= 2;
-
-                    if (existing) {
-                        WT_ASSERT(session, set_item->set_type == CONF_SET_SUB_INFO);
-                        sub_conf = set_item->u.sub;
-                        WT_ASSERT(session, sub_conf != NULL);
-                    } else {
-                        set_item->set_type = CONF_SET_SUB_INFO;
-                        WT_ERR(__wt_calloc_one(session, &sub_conf));
-                        set_item->u.sub = sub_conf;
-                    }
-                    WT_ERR(__conf_compile(session, api, top_conf, sub_conf, check->subconfigs,
-                      check->subconfigs_entries, check->subconfigs_jump, value.str, value.len,
-                      is_default));
-                } else
-                    /* TODO: if check->checks starts with "choices=[...]", we should make sure
-                     * the value matches one */
-
-                    WT_ERR(__conf_compile_value(
-                      session, top_conf, check_type, set_item, check, &value, is_default));
-
-                break;
-            }
-        }
-        if (i >= check_count)
+        check = (const WT_CONFIG_CHECK *)bsearch(&key, &checks[i], check_count - i,
+          sizeof(WT_CONFIG_CHECK), __conf_check_compare);
+        if (check == NULL)
             WT_ERR_MSG(session, EINVAL, "Error compiling '%s', unknown key '%.*s' for method '%s'",
               format, (int)key.len, key.str, api);
+
+        /* The key id is an offset into the key_to_set_item table. */
+        key_id = check->key_id;
+        WT_ASSERT(session, key_id < WT_CONF_KEY_COUNT);
+        existing = (conf->key_to_set_item[key_id] != 0);
+        if (existing)
+            /* The position stored is one-based. */
+            set_item_pos = conf->key_to_set_item[key_id] - 1;
+        else {
+            set_item_pos = conf->set_item_count++;
+            /* The position inserted to the key_to_set_item is one based, and must fit
+             * into a byte */
+            WT_ASSERT(session, set_item_pos + 1 <= 0xff);
+            conf->key_to_set_item[key_id] = (uint8_t)(set_item_pos + 1);
+            WT_ERR(__wt_realloc_def(
+                                    session, &conf->set_item_allocated, conf->set_item_count, &conf->set_item));
+        }
+        set_item = &conf->set_item[set_item_pos];
+
+        WT_ERR(__conf_string_to_type(session, check->type, &check_type));
+        if (check_type == WT_CONFIG_ITEM_STRUCT) {
+            if (value.type != WT_CONFIG_ITEM_STRUCT)
+                WT_ERR_MSG(session, EINVAL, "Value '%.*s' expected to be a category",
+                  (int)value.len, value.str);
+            if (value.str[0] == '[') {
+                if (value.str[value.len - 1] != ']')
+                    WT_ERR_MSG(session, EINVAL, "Value '%.*s' non-matching []",
+                      (int)value.len, value.str);
+            } else if (value.str[0] == '(') {
+                if (value.str[value.len - 1] != ')')
+                    WT_ERR_MSG(session, EINVAL, "Value '%.*s' non-matching ()",
+                      (int)value.len, value.str);
+            } else
+                WT_ERR_MSG(session, EINVAL, "Value '%.*s' expected () or []",
+                  (int)value.len, value.str);
+
+            /* Remove the first and last char, they were just checked */
+            ++value.str;
+            value.len -= 2;
+
+            if (existing) {
+                WT_ASSERT(session, set_item->set_type == CONF_SET_SUB_INFO);
+                sub_conf = set_item->u.sub;
+                WT_ASSERT(session, sub_conf != NULL);
+            } else {
+                set_item->set_type = CONF_SET_SUB_INFO;
+                WT_ERR(__wt_calloc_one(session, &sub_conf));
+                set_item->u.sub = sub_conf;
+            }
+            WT_ERR(__conf_compile(session, api, top_conf, sub_conf, check->subconfigs,
+                check->subconfigs_entries, check->subconfigs_jump, value.str, value.len,
+                is_default));
+        } else
+            /*
+             * TODO: if check->checks starts with "choices=[...]", we should make sure
+             * the value matches one.
+             */
+            WT_ERR(__conf_compile_value(
+              session, top_conf, check_type, set_item, check, &value, is_default));
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 err:
