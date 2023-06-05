@@ -30,20 +30,27 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 from wtdataset import SimpleDataSet
 
-# test_flcs07.py
+# test_reconcile01.py
 #
-# Test various cases of performing eviction of implict delete records
+# Test scenarios of removing a non existing key/recno leading to implict delete
+# records only to the fixed length column store. Performing eviction on the page
 # when they are globally visible or not and expecting them to read back as 0.
-class test_flcs01(wttest.WiredTigerTestCase):
+class test_reconcile01(wttest.WiredTigerTestCase):
     conn_config = 'in_memory=false'
+
+    format_values = [
+        ('column', dict(key_format='r', value_format='S')),
+        ('column-fix', dict(key_format='r', value_format='8t')),
+        ('integer-row', dict(key_format='i', value_format='S')),
+    ]
 
     long_running_txn_values = [
        ('long-running', dict(long_run_txn=True)),
        ('no-long-running', dict(long_run_txn=False))
     ]
 
-    scenarios = make_scenarios(long_running_txn_values)
-   
+    scenarios = make_scenarios(format_values, long_running_txn_values)
+
     # Evict the page to force reconciliation.
     def evict(self, ds, uri, key, check_value):
         evict_cursor = ds.open_cursor(uri, None, "debug=(release_evict)")
@@ -56,10 +63,10 @@ class test_flcs01(wttest.WiredTigerTestCase):
 
     @wttest.skip_for_hook("timestamp", "crashes in evict function, during cursor reset")  # FIXME-WT-9809
     def test_flcs(self):
-        uri = "table:test_flcs07"
+        uri = "table:test_reconcile01"
         nrows = 44
         ds = SimpleDataSet(
-            self, uri, nrows, key_format='r', value_format='6t', config='leaf_page_max=4096')
+            self, uri, nrows, key_format=self.key_format, value_format=self.value_format, config='leaf_page_max=4096')
         ds.populate()
 
         appendkey1 = nrows + 10
@@ -69,35 +76,64 @@ class test_flcs01(wttest.WiredTigerTestCase):
         cursor = ds.open_cursor(uri)
         self.session.begin_transaction()
         for i in range(1, nrows + 1):
-            cursor[i] = i
+            if self.value_format == '8t':
+                cursor[i] = i
+            else:
+                cursor[i] = str(i)
         self.session.commit_transaction()
 
-        # Start a long running transaction. 
+        # Start a long running transaction.
         if self.long_run_txn:
             session2 = self.conn.open_session()
             session2.begin_transaction()
-            session2.breakpoint()
 
+        # Append a new key.
         cursor.set_key(appendkey2)
-        cursor.set_value(appendkey2)
-        self.assertEqual(cursor.update(), 0)
-        
-        cursor.set_key(appendkey1)
-        self.assertEqual(cursor.remove(), 0)
+        if self.value_format == '8t':
+            cursor.set_value(appendkey2)
+        else:
+            cursor.set_value(str(appendkey2))
+        self.assertEqual(cursor.insert(), 0)
 
-        v = cursor[appendkey1]
-        self.assertEqual(v, 0)
+        # Remove the key that doesn't exist.
+        cursor.set_key(appendkey1)
+        if self.value_format == '8t':
+            self.assertEqual(cursor.remove(), 0)
+        else:
+            self.assertEqual(cursor.remove(), wiredtiger.WT_NOTFOUND)
+
+        # Validate the append key.
+        cursor.set_key(appendkey1)
+        if self.value_format == '8t':
+            self.assertEqual(cursor.search(), 0)
+            self.assertEqual(cursor.get_value(), 0)
+        else:
+            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
 
         v = cursor[appendkey2]
-        self.assertEqual(v, appendkey2)
+        if self.value_format == '8t':
+            self.assertEqual(v, appendkey2)
+        else:
+            self.assertEqual(v, str(appendkey2))
         cursor.reset()
 
         # Evict the page to force reconciliation.
-        self.evict(ds, uri, 1, 1)
+        if self.value_format == '8t':
+            self.evict(ds, uri, 1, 1)
+        else:
+            self.evict(ds, uri, 1, '1')
 
-        v = cursor[appendkey1]
-        self.assertEqual(v, 0)
+        # Validate the append key.
+        cursor.set_key(appendkey1)
+        if self.value_format == '8t':
+            self.assertEqual(cursor.search(), 0)
+            self.assertEqual(cursor.get_value(), 0)
+        else:
+            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
 
         v = cursor[appendkey2]
-        self.assertEqual(v, appendkey2)
+        if self.value_format == '8t':
+            self.assertEqual(v, appendkey2)
+        else:
+            self.assertEqual(v, str(appendkey2))
 
