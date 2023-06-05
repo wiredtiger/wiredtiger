@@ -148,8 +148,10 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
     while ((ret = __wt_config_next(&parser, &key, &value)) == 0) {
         if (key.len == 0 || (uint8_t)key.str[0] > 0x80)
             i = check_count;
-        else
+        else {
             i = check_jump[(uint8_t)key.str[0]];
+            check_count = check_jump[(uint8_t)key.str[0] + 1];
+        }
         for (; i < check_count; ++i) {
             check = &checks[i];
             if (WT_STRING_MATCH(check->name, key.str, key.len)) {
@@ -188,7 +190,7 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
                         WT_ERR_MSG(session, EINVAL, "Value '%.*s' expected () or []",
                           (int)value.len, value.str);
 
-                    /* Remove the first and last char */
+                    /* Remove the first and last char, they were just checked */
                     ++value.str;
                     value.len -= 2;
 
@@ -214,7 +216,7 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
                 break;
             }
         }
-        if (i == check_count)
+        if (i >= check_count)
             WT_ERR_MSG(session, EINVAL, "Error compiling '%s', unknown key '%.*s' for method '%s'",
               format, (int)key.len, key.str, api);
     }

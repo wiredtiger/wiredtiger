@@ -390,25 +390,31 @@ def get_default(c):
         return ''
 
 # Build a jump table from a sorted array of strings
-# e.g. given [ "ant", "cat", "deer", "dog", "frog" ],
-#   produce [ 5, 5, 5, 5, ...., 0, 5, 1, 2, 4, 5, 5, 5, ....]
-# 5 in this case is the length of the input list, meaning "not found".
-# for position 'a', we produce 0 (offset of "ant"), position 'b' is "not found",
-# position 'c', is 1 (offset of "cat"), 'd' is 2 (offset of "deer"), 'e' is not found,
-# f is 4 (offset of "frog"), etc.
+# e.g. given [ "ant", "cat", "deer", "dog", "giraffe" ],
+#   produce [ 0, 0, 0, ...., 0, 1, 1, 2, 4, 4, 4, 5, 5, 5, ....]
+# For position 'a', we produce 0 (offset of "ant"), position 'b' is 1 (offset of "cat")
+# position 'c', is 1 (offset of "cat"), 'd' is 2 (offset of "deer"), 'e' and 'f' are 4 (offset of "giraffe")
+# 'g' is 4 (offset of "giraffe"), 'h' and beyond is 5 (not found).
 def build_jump(arr):
     assert sorted(arr) == arr
-    not_found = len(arr)
-    assert not_found < 256   # we're using a byte array currently
-    result = [not_found] * 128
+    end = len(arr)
+    assert end < 256   # we're using a byte array currently
+    result = [-1] * 128
     pos = 0
     for name in arr:
         letter = name[0]
         i = ord(letter)
         assert i < 128
-        if result[i] == not_found:
+        if result[i] == -1:
             result[i] = pos
         pos += 1
+    cur = end
+    for i in range(127, -1, -1):
+        if result[i] == -1:
+            result[i] = cur
+        else:
+            cur = result[i]
+    assert cur == 0
     return result
 
 created_subconfigs=set()
