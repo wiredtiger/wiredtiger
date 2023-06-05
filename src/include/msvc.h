@@ -34,8 +34,6 @@
 #define WT_GCC_FUNC_ATTRIBUTE(x)
 #define WT_GCC_FUNC_DECL_ATTRIBUTE(x)
 
-#define WT_UNUSED_MSVC(var) (void)(var)
-
 #define WT_ATOMIC_TYPE(type) type
 
 #define WT_ATOMIC_RELAXED 0
