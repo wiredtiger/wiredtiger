@@ -2040,10 +2040,10 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
             printf(
               ".  rollback: mod %u, btree 0x%p, dhandle 0x%p\n", i, (void *)btree, (void *)dhandle);
 
-            if (F_ISSET(dhandle, WT_DHANDLE_DROPPED)) {
-                printf(".    rollback: WT_DHANDLE_DROPPED is set, so we'll clear it\n");
-                WT_WITH_HANDLE_LIST_WRITE_LOCK(session, F_CLR(dhandle, WT_DHANDLE_DROPPED));
-            }
+//            if (F_ISSET(dhandle, WT_DHANDLE_DROPPED)) {
+//                printf(".    rollback: WT_DHANDLE_DROPPED is set, so we'll clear it\n");
+//                WT_WITH_HANDLE_LIST_WRITE_LOCK(session, F_CLR(dhandle, WT_DHANDLE_DROPPED));
+//            }
 
             if (!prepare) {
                 if (S2C(session)->cache->hs_fileid != 0 &&

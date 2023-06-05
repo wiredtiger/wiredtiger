@@ -181,7 +181,7 @@ __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
         if (F_ISSET(dhandle, WT_DHANDLE_DROPPED)) {
             printf("WT_DHANDLE_DROPPED was detected on dhandle %p, flags = 0x%x, session_inuse %d, session_ref %u\n",
               (void*) dhandle, dhandle->flags, dhandle->session_inuse, dhandle->session_ref);
-            continue;
+//            continue;
         }
 
         /* If the handle is marked dead, flush it from cache. */
