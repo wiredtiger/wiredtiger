@@ -366,6 +366,11 @@ __stash_discard(WT_SESSION_IMPL *session, int which)
         if (stash->gen >= oldest)
             break;
 
+        // WT-11007-[x] Add session stash free history here.
+        if (which == WT_GEN_SPLIT){
+            WT_SPLIT_SAVE_STATE(session, 1, stash->len, stash->gen, oldest);
+        }
+
         (void)__wt_atomic_sub64(&conn->stashed_bytes, stash->len);
         (void)__wt_atomic_sub64(&conn->stashed_objects, 1);
 

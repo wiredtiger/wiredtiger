@@ -567,7 +567,6 @@ struct __wt_split_page_hist {
     uint32_t time_sec;
     uint16_t line;
     uint16_t state;
-    // WT_REF *parent;
     uint64_t prev_split_gen;
     uint32_t prev_entries; /* Leaf page entries */
 };

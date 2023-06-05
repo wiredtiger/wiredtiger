@@ -37,12 +37,14 @@ struct __wt_hazard {
  *	State information of a ref at a single point in time.
  */
 struct __wt_split_hist {
-    WT_REF *ref;
     const char *name;
     const char *func;
     uint32_t time_sec;
     uint16_t line;
     uint16_t state;
+    size_t len;
+    uint64_t gen; /* Generation */
+    uint64_t oldest; /* Generation */
 };
 #endif
 
@@ -340,14 +342,16 @@ struct __wt_session_impl {
     WT_SPLIT_HIST split_hist[SPLIT_HIST_MAX];
     uint64_t splitoff;
 
-#define WT_SPLIT_SAVE_STATE(session, s, r)                                                    \
+#define WT_SPLIT_SAVE_STATE(session, s, l, g, o)                                                    \
     do {                                                                                      \
         (session)->split_hist[(session)->splitoff].name = session->name;                      \
-        (session)->split_hist[(session)->splitoff].ref = (r);                                 \
         __wt_seconds32(session, &(session)->split_hist[(session)->splitoff].time_sec);        \
         (session)->split_hist[(session)->splitoff].func = __PRETTY_FUNCTION__;                \
         (session)->split_hist[(session)->splitoff].line = (uint16_t)__LINE__;                 \
         (session)->split_hist[(session)->splitoff].state = (uint16_t)(s);                     \
+        (session)->split_hist[(session)->splitoff].len = (size_t)(l);\
+        (session)->split_hist[(session)->splitoff].gen = (uint64_t)(g);\
+        (session)->split_hist[(session)->splitoff].oldest = (uint64_t)(o);\
         (session)->splitoff = ((session)->splitoff + 1) % WT_ELEMENTS((session)->split_hist); \
     } while (0)
 
