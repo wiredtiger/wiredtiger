@@ -522,8 +522,8 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
          * detect the race.
          *
          * By saving the generation number before, if there is a race, the saved generation number
-         * will not be equal to the latest one. Since we want both variables to be read in as early
-         * as possible in this loop, ordered reads encourage this.
+         * will not be equal to the latest one. We want both variables to be read in as early as
+         * possible in this loop, ordered reads encourage this.
          */
         WT_ORDERED_READ(ckpt_gen, __wt_gen(session, WT_GEN_CHECKPOINT));
         WT_ORDERED_READ(ckpt_running, S2C(session)->txn_global.checkpoint_running);
