@@ -275,9 +275,9 @@
 #define WT_STREQ(s, cs) (sizeof(cs) == 2 ? (s)[0] == (cs)[0] && (s)[1] == '\0' : strcmp(s, cs) == 0)
 
 /*
- * Check if a string matches a byte string of len bytes. This macro expects both strings to be of
- * non-zero length in order to be a match - this means that strings cannot be a match if len
- * == 0.
+ * Check if a non-empty string matches a byte sequence of len bytes. Since the macro expects both
+ * strings to be of non-zero length in order to be a match, it will return false if len == 0. The
+ * bytes argument does not need to be null-terminated.
  *
  * Use an inline function as that tends to be safer and we can check for NULL values.
  */
