@@ -232,8 +232,10 @@
  */
 typedef int (*__wt_ctx_cmp)(const void *, const void *, void *);
 
-void
-__wt_qsort_r(void *, size_t, size_t, __wt_ctx_cmp, void*);
+/*
+ * Common interface to qsort_r type functions.
+ */
+void __wt_qsort_r(void *, size_t, size_t, __wt_ctx_cmp, void *);
 
 /*
  * Binary search for an integer key.

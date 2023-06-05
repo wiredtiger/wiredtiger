@@ -296,6 +296,7 @@ Prev
 Ptr
 Px
 QQQS
+QSORT
 QSQ
 Qsort
 RCS
@@ -592,6 +593,7 @@ cstring
 csuite
 csv
 ctime
+ctx
 ctype
 curbackup
 curbulk
@@ -699,6 +701,7 @@ equalp
 errno
 errx
 esc
+esize
 ev
 evd
 eventv
@@ -1160,6 +1163,7 @@ sd
 sdk
 secretkey
 sessionp
+setjmp
 setkv
 setname
 setstr
@@ -1244,6 +1248,7 @@ tempdir
 testext
 testutil
 th
+thunk
 tid
 tinfo
 tlb
