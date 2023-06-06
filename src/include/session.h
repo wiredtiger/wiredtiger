@@ -32,8 +32,8 @@ struct __wt_hazard {
 
 #ifdef HAVE_DIAGNOSTIC
 /*
- * WT_SPLIT_HIST --
- *	State information of a ref at a single point in time.
+ * WT_STASH_HIST --
+ *	State information of a stash at a single point in time.
  */
 struct __wt_stash_hist {
     const char *name;
@@ -334,19 +334,19 @@ struct __wt_session_impl {
 
 #ifdef HAVE_DIAGNOSTIC
 #define STASH_HIST_MAX 5
-    WT_STASH_HIST split_hist[STASH_HIST_MAX];
-    uint64_t splitoff;
+    WT_STASH_HIST stash_hist[STASH_HIST_MAX];
+    uint64_t stashoff;
 
 #define WT_STASH_SAVE_STATE(session, l, g, o)                                                 \
     do {                                                                                      \
-        (session)->split_hist[(session)->splitoff].name = session->name;                      \
-        __wt_seconds32(session, &(session)->split_hist[(session)->splitoff].time_sec);        \
-        (session)->split_hist[(session)->splitoff].func = __PRETTY_FUNCTION__;                \
-        (session)->split_hist[(session)->splitoff].line = (uint16_t)__LINE__;                 \
-        (session)->split_hist[(session)->splitoff].len = (size_t)(l);                         \
-        (session)->split_hist[(session)->splitoff].gen = (uint64_t)(g);                       \
-        (session)->split_hist[(session)->splitoff].oldest = (uint64_t)(o);                    \
-        (session)->splitoff = ((session)->splitoff + 1) % WT_ELEMENTS((session)->split_hist); \
+        (session)->stash_hist[(session)->stashoff].name = session->name;                      \
+        __wt_seconds32(session, &(session)->stash_hist[(session)->stashoff].time_sec);        \
+        (session)->stash_hist[(session)->stashoff].func = __PRETTY_FUNCTION__;                \
+        (session)->stash_hist[(session)->stashoff].line = (uint16_t)__LINE__;                 \
+        (session)->stash_hist[(session)->stashoff].len = (size_t)(l);                         \
+        (session)->stash_hist[(session)->stashoff].gen = (uint64_t)(g);                       \
+        (session)->stash_hist[(session)->stashoff].oldest = (uint64_t)(o);                    \
+        (session)->stashoff = ((session)->stashoff + 1) % WT_ELEMENTS((session)->stash_hist); \
     } while (0)
 #endif
 

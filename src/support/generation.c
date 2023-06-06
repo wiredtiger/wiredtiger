@@ -366,9 +366,9 @@ __stash_discard(WT_SESSION_IMPL *session, int which)
         if (stash->gen >= oldest)
             break;
 
-        if (which == WT_GEN_SPLIT) {
+        if (which == WT_GEN_SPLIT)
             WT_STASH_SAVE_STATE(session, stash->len, stash->gen, oldest);
-        }
+        
 
         (void)__wt_atomic_sub64(&conn->stashed_bytes, stash->len);
         (void)__wt_atomic_sub64(&conn->stashed_objects, 1);

@@ -558,12 +558,12 @@ struct __wt_col_fix_tw {
 #ifdef HAVE_DIAGNOSTIC
 /*
  * WT_SPLIT_HIST --
- *	State information of a ref at a single point in time.
+ *	State information of a split at a single point in time.
  */
 struct __wt_split_page_hist {
     const char *name;
     const char *func;
-    uint64_t prev_split_gen;
+    uint64_t split_gen;
     uint32_t prev_entries;
     uint32_t time_sec;
     uint16_t line;
@@ -785,7 +785,7 @@ struct __wt_page {
         __wt_seconds32((session), &(page)->split_hist[(page)->splitoff].time_sec);   \
         (page)->split_hist[(page)->splitoff].func = __PRETTY_FUNCTION__;             \
         (page)->split_hist[(page)->splitoff].line = (uint16_t)__LINE__;              \
-        (page)->split_hist[(page)->splitoff].prev_split_gen = (uint32_t)(split_gen); \
+        (page)->split_hist[(page)->splitoff].split_gen = (uint32_t)(split_gen); \
         (page)->split_hist[(page)->splitoff].prev_entries = (uint32_t)(entries);     \
         (page)->splitoff = ((page)->splitoff + 1) % WT_ELEMENTS((page)->split_hist); \
     } while (0)
