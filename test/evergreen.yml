@@ -2607,7 +2607,7 @@ tasks:
       - func: "truncated log test"
 
       # format test
-      # FIXME-WT-8016: temporarily disable FLCS
+      # FIXME-WT-8287: timestamping and history for FLCS.
       # - func: "format test"
       #   vars:
       #     extra_args: file_type=fix
