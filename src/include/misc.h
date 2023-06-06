@@ -227,15 +227,22 @@
     if ((nmemb) != 0)                         \
     qsort(base, nmemb, size, compar)
 
-/*
- * Comparator for __wt_qsort_r last argument is the context argument which may be NULL.
- */
-typedef int (*__wt_ctx_cmp)(const void *, const void *, void *);
-
-/*
- * Common interface to qsort_r type functions.
- */
-void __wt_qsort_r(void *, size_t, size_t, __wt_ctx_cmp, void *);
+#if defined(__linux__)
+#define __wt_qsort_r(base, nmemb, size, compar, ctx) \
+    qsort_r(base, nmemb, size, compar, ctx)
+#define QSORT_R_ARGS(lhs, rhs, ctx) \
+    const void *lhs, const void *rhs, void *ctx
+#elif defined(__APPLE__) || defined(__BSD__)
+#define __wt_qsort_r(base, nmemb, size, compar, ctx) \
+    qsort_r(base, nmemb, size, ctx, compar)
+#define QSORT_R_ARGS(lhs, rhs, ctx) \
+    void *ctx, const void *lhs, const void *rhs
+#elif define(__WIN64__)
+#define __wt_qsort_r(base, nmemb, size, compar, ctx) \
+    qsort_s(base, nmemb, size, compar, ctx)
+#define QSORT_R_ARGS(lhs, rhs, ctx) \
+    void *ctx, const void *lhs, const void *rhs
+#endif
 
 /*
  * Binary search for an integer key.

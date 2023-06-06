@@ -1907,7 +1907,7 @@ extern void __wt_ovfl_discard_free(WT_SESSION_IMPL *session, WT_PAGE *page);
 extern void __wt_ovfl_reuse_free(WT_SESSION_IMPL *session, WT_PAGE *page);
 extern void __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep);
 extern void __wt_print_huffman_code(void *huffman_arg, uint16_t symbol);
-extern void __wt_qsort_r(void *base, size_t count, size_t esize, __wt_ctx_cmp cmp, void *ctx);
+//extern void __wt_qsort_r(void *base, size_t nmemb, size_t size, __wt_qsort_r_cmp cmp, void *ctx);
 extern void __wt_random_init(WT_RAND_STATE volatile *rnd_state)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_random_init_custom_seed(WT_RAND_STATE volatile *rnd_state, uint64_t v)
