@@ -200,7 +200,7 @@ functions:
         set -o errexit
         set -o verbose
         # Note: ${var} is used for expansions of evergreen variables, whereas $var are /bin/sh variables.
-        python_configured=$(grep PYTHON_EXECUTABLE: ./CMakeCache.txt | sed -e 's/.*=//')
+        python_configured=$(grep Python3_EXECUTABLE: ./CMakeCache.txt | sed -e 's/.*=//')
         if [ "${python_binary}" = '' -o "$python_configured" = '' -o "$(${python_binary} -V -V)" != "$($python_configured -V -V)" ]; then
            echo "Python versions do not match."
            echo "Python version used by cmake builds ($python_configured):"
