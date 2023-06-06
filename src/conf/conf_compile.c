@@ -63,8 +63,8 @@ __conf_compile_value(WT_SESSION_IMPL *session, WT_CONF *top_conf, WT_CONFIG_ITEM
     if (value->len > 0 && value->str[0] == '%') {
         /* We must be doing an explicit compilation. */
         if (top_conf->compiled_type != CONF_COMPILED_EXPLICIT)
-            WT_RET_MSG(session, EINVAL, "Value '%.*s' is not valid here",
-              (int)value->len, value->str);
+            WT_RET_MSG(
+              session, EINVAL, "Value '%.*s' is not valid here", (int)value->len, value->str);
 
         if (value->str[1] == 'd') {
             if (check_type != WT_CONFIG_ITEM_NUM && check_type != WT_CONFIG_ITEM_BOOL)
@@ -349,7 +349,8 @@ err:
  */
 int
 __wt_conf_compile_api_call(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *centry,
-  u_int centry_index, const char *config, void *compile_buf, size_t compile_buf_size, WT_CONF **confp)
+  u_int centry_index, const char *config, void *compile_buf, size_t compile_buf_size,
+  WT_CONF **confp)
 {
     WT_CONF *conf, *preconf;
     const WT_CONF_SIZING *sizing;
@@ -390,7 +391,7 @@ __wt_conf_compile_api_call(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *cent
     conf->compiled_type = CONF_COMPILED_IMPLICIT; /* Stack allocated, no frees needed. */
 
     WT_ERR(__conf_compile(session, centry->method, conf, conf, centry->checks,
-        centry->checks_entries, centry->checks_jump, config, strlen(config), false));
+      centry->checks_entries, centry->checks_jump, config, strlen(config), false));
 
     *confp = conf;
 
@@ -443,13 +444,13 @@ int
 __wt_conf_compile_init(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_CONF *conf;
-    const WT_CONF_SIZING *sizing;
     const WT_CONFIG_ENTRY *centry;
     WT_CONFIG_ITEM cval;
+    const WT_CONF_SIZING *sizing;
     WT_CONNECTION_IMPL *conn;
     size_t i, lastlen;
-    const char *cfgs[2] = {NULL, NULL};
     char *cs;
+    const char *cfgs[2] = {NULL, NULL};
 
     conn = S2C(session);
     WT_RET(__wt_config_gets(session, cfg, "compile_configuration_count", &cval));
