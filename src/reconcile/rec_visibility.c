@@ -728,8 +728,9 @@ __rec_fill_tw_from_upd_select(
             return (0);
         }
 
-        WT_ASSERT_ALWAYS(session, vpack != NULL && vpack->type != WT_CELL_DEL && !vpack->tw.prepare,
-          "No ondisk values found that are not prepared updates");
+        WT_ASSERT_ALWAYS(
+          session, vpack != NULL && vpack->type != WT_CELL_DEL, "No on-disk value is found");
+        WT_ASSERT_ALWAYS(session, !vpack->tw.prepare, "On-disk value is a prepared update");
 
         /* Move the pointer to the last update on the update chain. */
         for (last_upd = tombstone; last_upd->next != NULL; last_upd = last_upd->next)
