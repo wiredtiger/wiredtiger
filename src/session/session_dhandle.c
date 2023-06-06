@@ -369,8 +369,8 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
 {
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
-    uint64_t ckpt_gen, ds_time, first_snapshot_time, hs_time, oldest_time, snapshot_time,
-      stable_time;
+    uint64_t ckpt_gen, ds_time, first_snapshot_time, hs_time, oldest_time, snapshot_time;
+    uint64_t stable_time;
     int64_t ds_order, hs_order;
     const char *checkpoint, *hs_checkpoint;
     bool ckpt_running, is_hs, is_unnamed_ckpt, is_reserved_name, must_resolve;
