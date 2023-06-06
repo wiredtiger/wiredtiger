@@ -775,8 +775,7 @@ struct __wt_page {
     uint64_t evict_pass_gen;   /* Eviction pass generation */
 
 #ifdef HAVE_DIAGNOSTIC
-#define SPLIT_PAGE_HIST_MAX 5
-    WT_SPLIT_PAGE_HIST split_hist[SPLIT_PAGE_HIST_MAX];
+    WT_SPLIT_PAGE_HIST split_hist[4];
     uint64_t splitoff;
 
 #define WT_SPLIT_PAGE_SAVE_STATE(page, session, e, g)                                \
