@@ -595,6 +595,18 @@ if not test_config:
     \t*resultp = (u_int)off;
     \treturn (0);
     }
+
+    /*
+    * __wt_conn_config_entry --
+    *      Return the static configuration entry from its entry number.
+    */
+    const WT_CONFIG_ENTRY *
+    __wt_conn_config_entry(u_int entry_number)
+    {
+    \tif (entry_number >= WT_ELEMENTS(config_entries))
+    \t\treturn (NULL);
+    \treturn (&config_entries[entry_number]);
+    }
     ''')
 else:
     tfile.write(
@@ -740,8 +752,8 @@ if not test_config:
             tfile.write(f'WT_CONF_API_DECLARE({clname}, {mname}, {nconf}, {nitem});\n')
             init_info += f'    WT_CONF_SIZING_INITIALIZE("{name}", {clname}, {mname}),\n'
 
-        tfile.write(f'\n#define WT_CONF_SIZING_COUNT {count}\n\n')
-        tfile.write('static const WT_CONF_SIZING __wt_conf_sizing[WT_CONF_SIZING_COUNT] = {\n')
+        tfile.write(f'\n#define WT_CONF_API_ELEMENTS {count}\n\n')
+        tfile.write('static const WT_CONF_SIZING __wt_conf_sizing[WT_CONF_API_ELEMENTS] = {\n')
         tfile.write(init_info)
         tfile.write('};\n')
                     

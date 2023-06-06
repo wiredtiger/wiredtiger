@@ -1180,9 +1180,9 @@ WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_all, 19, 151);
 WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_basecfg, 19, 145);
 WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_usercfg, 19, 144);
 
-#define WT_CONF_SIZING_COUNT 58
+#define WT_CONF_API_ELEMENTS 58
 
-static const WT_CONF_SIZING __wt_conf_sizing[WT_CONF_SIZING_COUNT] = {
+static const WT_CONF_SIZING __wt_conf_sizing[WT_CONF_API_ELEMENTS] = {
   WT_CONF_SIZING_NONE("WT_CONNECTION.add_collator", WT_CONNECTION, add_collator),
   WT_CONF_SIZING_NONE("WT_CONNECTION.add_compressor", WT_CONNECTION, add_compressor),
   WT_CONF_SIZING_NONE("WT_CONNECTION.add_data_source", WT_CONNECTION, add_data_source),

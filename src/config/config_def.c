@@ -3783,3 +3783,15 @@ __wt_conn_config_entry_number(const WT_CONFIG_ENTRY *centry, u_int *resultp)
     *resultp = (u_int)off;
     return (0);
 }
+
+/*
+ * __wt_conn_config_entry --
+ *     Return the static configuration entry from its entry number.
+ */
+const WT_CONFIG_ENTRY *
+__wt_conn_config_entry(u_int entry_number)
+{
+    if (entry_number >= WT_ELEMENTS(config_entries))
+        return (NULL);
+    return (&config_entries[entry_number]);
+}

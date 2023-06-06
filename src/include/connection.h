@@ -547,9 +547,10 @@ struct __wt_connection_impl {
 
     /* Compiled configuration */
     char *conf_dummy;     /* Dummy strings used by caller */
-    WT_CONF **conf_array; /* The array of compiled configurations */
-    uint32_t conf_size;   /* In use size of compiled configuration array */
-    uint32_t conf_max;    /* Allocated size of compiled configuration array */
+    WT_CONF **conf_api_array;   /* The array of standard API pre-compiled configurations */
+    WT_CONF **conf_array; /* The array of user compiled configurations */
+    uint32_t conf_size;   /* In use size of user compiled configuration array */
+    uint32_t conf_max;    /* Allocated size of user compiled configuration array */
 
     /* If non-zero, all buffers used for I/O will be aligned to this. */
     size_t buffer_alignment;

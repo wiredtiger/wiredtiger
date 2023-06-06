@@ -51,6 +51,8 @@ extern char *__wt_time_window_to_string(WT_TIME_WINDOW *tw, char *tw_string)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern char *__wt_timestamp_to_string(wt_timestamp_t ts, char *ts_string)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern const WT_CONFIG_ENTRY *__wt_conn_config_entry(u_int entry_number)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern const WT_CONFIG_ENTRY *__wt_conn_config_match(const char *method)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern const WT_CONFIG_ENTRY *__wt_test_config_match(const char *test_name)
@@ -440,7 +442,7 @@ extern int __wt_conf_compile_api_call(WT_SESSION_IMPL *session, const WT_CONFIG_
   u_int centry_index, const char **cfg, void *compile_buf, size_t compile_buf_size, WT_CONF **confp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conf_compile_config_strings(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *centry,
-  const WT_CONF_SIZING *sizing, const char **cfg, u_int last, WT_CONF *conf)
+  const WT_CONF_SIZING *sizing, const char **cfg, u_int user_supplied, WT_CONF *conf)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conf_compile_init(WT_SESSION_IMPL *session, const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

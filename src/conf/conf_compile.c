@@ -349,7 +349,7 @@ __wt_conf_compile_api_call(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *cent
     WT_CONF *conf, *preconf;
     const WT_CONF_SIZING *sizing;
     WT_DECL_RET;
-    u_int last;
+    u_int user_supplied;
 
     if (!centry->compilable)
         WT_RET_MSG(session, ENOTSUP,
@@ -363,15 +363,15 @@ __wt_conf_compile_api_call(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *cent
       "conf: total size does not equal calculated size");
 
     /* Find the last entry. */
-    for (last = 0; cfg[last] != NULL; ++last)
+    for (user_supplied = 0; cfg[user_supplied] != NULL; ++user_supplied)
         ;
-    --last;
+    --user_supplied;
 
     /*
      * If an entry is precompiled, it will be the last one. A precompiled entry already includes the
      * default values, so very little needs to be done in that case.
      */
-    if (__wt_conf_get_compiled(S2C(session), cfg[last], &preconf)) {
+    if (__wt_conf_get_compiled(S2C(session), cfg[user_supplied], &preconf)) {
         memcpy(compile_buf, preconf, compile_buf_size);
         conf = compile_buf;
 
@@ -383,7 +383,7 @@ __wt_conf_compile_api_call(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *cent
     conf = compile_buf;
     conf->compiled_type = CONF_COMPILED_IMPLICIT; /* Stack allocated, no frees needed. */
 
-    WT_ERR(__wt_conf_compile_config_strings(session, centry, sizing, cfg, last, conf));
+    WT_ERR(__wt_conf_compile_config_strings(session, centry, sizing, cfg, user_supplied, conf));
     *confp = conf;
 
 err:
@@ -399,7 +399,7 @@ err:
  */
 int
 __wt_conf_compile_config_strings(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *centry,
-  const WT_CONF_SIZING *sizing, const char **cfg, u_int last, WT_CONF *conf)
+  const WT_CONF_SIZING *sizing, const char **cfg, u_int user_supplied, WT_CONF *conf)
 {
     u_int i, nconf, nkey;
 
@@ -419,7 +419,7 @@ __wt_conf_compile_config_strings(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY
     for (i = 0; cfg[i] != NULL; ++i)
         /* Every entry but the last is considered a "default" entry. */
         WT_RET(__conf_compile(session, centry->method, conf, conf, centry->checks,
-          centry->checks_entries, centry->checks_jump, cfg[i], strlen(cfg[i]), i != last));
+          centry->checks_entries, centry->checks_jump, cfg[i], strlen(cfg[i]), i != user_supplied));
 
     WT_ASSERT_ALWAYS(session, conf->conf_key_count <= nkey, "conf: key count overflow");
     WT_ASSERT_ALWAYS(session, conf->conf_count <= nconf, "conf: sub-conf count overflow");
@@ -434,9 +434,13 @@ __wt_conf_compile_config_strings(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY
 int
 __wt_conf_compile_init(WT_SESSION_IMPL *session, const char **cfg)
 {
+    WT_CONF *conf;
+    const WT_CONF_SIZING *sizing;
+    const WT_CONFIG_ENTRY *centry;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     size_t i, lastlen;
+    const char *cfgs[2] = {NULL, NULL};
     char *cs;
 
     conn = S2C(session);
@@ -461,6 +465,21 @@ __wt_conf_compile_init(WT_SESSION_IMPL *session, const char **cfg)
     WT_RET(__wt_calloc_def(session, conn->conf_max, &conn->conf_array));
     conn->conf_size = 0;
 
+    WT_RET(__wt_calloc(session, WT_CONF_API_ELEMENTS, sizeof(WT_CONF *), &conn->conf_api_array));
+    for (i = 0; i < WT_CONF_API_ELEMENTS; ++i) {
+        centry = __wt_conn_config_entry((u_int)i);
+        WT_ASSERT(session, centry != NULL);
+        if (centry->compilable) {
+            sizing = &__wt_conf_sizing[i];
+
+            WT_RET(__wt_calloc(session, sizing->total_size, 1, &conf));
+            conf->compiled_type = CONF_COMPILED_EXPLICIT;
+
+            cfgs[0] = centry->base;
+            WT_RET(__wt_conf_compile_config_strings(session, centry, sizing, cfgs, 1, conf));
+            conn->conf_api_array[i] = conf;
+        }
+    }
     return (0);
 }
 
@@ -494,6 +513,11 @@ __wt_conf_compile_discard(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
     __wt_free(session, conn->conf_dummy);
+    if (conn->conf_api_array != NULL) {
+        for (i = 0; i < WT_CONF_API_ELEMENTS; ++i)
+            __wt_conf_compile_free(session, conn->conf_api_array[i]);
+        __wt_free(session, conn->conf_array);
+    }
     if (conn->conf_array != NULL) {
         for (i = 0; i < conn->conf_size; ++i)
             __wt_conf_compile_free(session, conn->conf_array[i]);
