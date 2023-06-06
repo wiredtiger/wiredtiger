@@ -661,7 +661,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_CONF *txn_conf;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_CONF(conf);
+    WT_DECL_CONF(WT_SESSION, begin_transaction, conf);
     WT_DECL_RET;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;

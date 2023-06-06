@@ -1052,19 +1052,31 @@ struct __wt_conf_bind_desc {
     u_int offset;             /* offset into WT_SESSION::conf_bindings.values table */
 };
 
+typedef enum {
+    CONF_COMPILED_SUBCONF = 0,
+    CONF_COMPILED_EXPLICIT = 1,
+    CONF_COMPILED_IMPLICIT = 2
+} WT_CONF_COMPILED_TYPE;
 /*
  * WT_CONF --
  *	A compiled configuration string
  */
 struct __wt_conf {
-    enum { CONF_COMPILED_TEMP = 0, CONF_COMPILED_CALLER, CONF_COMPILED_BASE_API } compiled_type;
+    /*
+     * Explicit compilation is allocated on the heap, implicit is allocated on the stack.
+     * Sub-configurations are always allocated as part of a top level configuration.
+     */
+    WT_CONF_COMPILED_TYPE compiled_type;
     const WT_CONFIG_ENTRY *compile_time_entry; /* May be used for diagnostic checks. */
     char *orig_config;
 
     uint8_t key_map[WT_CONF_ID_COUNT]; /* For each key, a 1-based index into conf_key */
 
+    uint32_t conf_count;
+    uint32_t conf_max;
+
     uint32_t conf_key_count;
-    size_t conf_key_allocated;
+    uint32_t conf_key_max;
     WT_CONF_KEY *conf_key;
 
     uint32_t binding_count;
@@ -1099,6 +1111,28 @@ struct __wt_conf_key {
 
 #define WT_CONF_API_COUNT(c, m) (WT_FIELD_ELEMENTS(WT_CONF_API_TYPE(c, m), conf))
 #define WT_CONF_API_KEY_COUNT(c, m) (WT_FIELD_ELEMENTS(WT_CONF_API_TYPE(c, m), conf_key))
+
+/*
+ * The output of a compilation is statically sized depending on the API we are compiling for. The
+ * number of conf structs needed is one plus the number of sub-structures recursively. The number of
+ * key structs needed is the number of keys in various combinations.
+ */
+struct __wt_conf_sizing {
+    const char *method; /* method name */
+    size_t total_size;  /* total size of the struct */
+    u_int conf_count;   /* number of WT_CONF structures */
+    u_int key_count;    /* number of WT_CONF_KEY structures */
+};
+
+#define WT_CONF_SIZING_INITIALIZE(name, c, m)                                                      \
+    {                                                                                              \
+        name, sizeof(WT_CONF_API_TYPE(c, m)), WT_CONF_API_COUNT(c, m), WT_CONF_API_KEY_COUNT(c, m) \
+    }
+
+#define WT_CONF_SIZING_NONE(name, c, m) \
+    {                                   \
+        name, 0, 0, 0                   \
+    }
 
 /*
  * DO NOT EDIT: automatically built by dist/api_config.py.
@@ -1145,6 +1179,70 @@ WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open, 19, 150);
 WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_all, 19, 151);
 WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_basecfg, 19, 145);
 WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_usercfg, 19, 144);
+
+#define WT_CONF_SIZING_COUNT 58
+
+static const WT_CONF_SIZING __wt_conf_sizing[WT_CONF_SIZING_COUNT] = {
+  WT_CONF_SIZING_NONE("WT_CONNECTION.add_collator", WT_CONNECTION, add_collator),
+  WT_CONF_SIZING_NONE("WT_CONNECTION.add_compressor", WT_CONNECTION, add_compressor),
+  WT_CONF_SIZING_NONE("WT_CONNECTION.add_data_source", WT_CONNECTION, add_data_source),
+  WT_CONF_SIZING_NONE("WT_CONNECTION.add_encryptor", WT_CONNECTION, add_encryptor),
+  WT_CONF_SIZING_NONE("WT_CONNECTION.add_extractor", WT_CONNECTION, add_extractor),
+  WT_CONF_SIZING_NONE("WT_CONNECTION.add_storage_source", WT_CONNECTION, add_storage_source),
+  WT_CONF_SIZING_INITIALIZE("WT_CONNECTION.close", WT_CONNECTION, close),
+  WT_CONF_SIZING_INITIALIZE("WT_CONNECTION.debug_info", WT_CONNECTION, debug_info),
+  WT_CONF_SIZING_INITIALIZE("WT_CONNECTION.load_extension", WT_CONNECTION, load_extension),
+  WT_CONF_SIZING_INITIALIZE("WT_CONNECTION.open_session", WT_CONNECTION, open_session),
+  WT_CONF_SIZING_INITIALIZE("WT_CONNECTION.query_timestamp", WT_CONNECTION, query_timestamp),
+  WT_CONF_SIZING_INITIALIZE("WT_CONNECTION.reconfigure", WT_CONNECTION, reconfigure),
+  WT_CONF_SIZING_INITIALIZE("WT_CONNECTION.rollback_to_stable", WT_CONNECTION, rollback_to_stable),
+  WT_CONF_SIZING_NONE("WT_CONNECTION.set_file_system", WT_CONNECTION, set_file_system),
+  WT_CONF_SIZING_INITIALIZE("WT_CONNECTION.set_timestamp", WT_CONNECTION, set_timestamp),
+  WT_CONF_SIZING_INITIALIZE("WT_CURSOR.bound", WT_CURSOR, bound),
+  WT_CONF_SIZING_NONE("WT_CURSOR.close", WT_CURSOR, close),
+  WT_CONF_SIZING_INITIALIZE("WT_CURSOR.reconfigure", WT_CURSOR, reconfigure),
+  WT_CONF_SIZING_INITIALIZE("WT_SESSION.alter", WT_SESSION, alter),
+  WT_CONF_SIZING_INITIALIZE("WT_SESSION.begin_transaction", WT_SESSION, begin_transaction),
+  WT_CONF_SIZING_INITIALIZE("WT_SESSION.checkpoint", WT_SESSION, checkpoint),
+  WT_CONF_SIZING_NONE("WT_SESSION.close", WT_SESSION, close),
+  WT_CONF_SIZING_INITIALIZE("WT_SESSION.commit_transaction", WT_SESSION, commit_transaction),
+  WT_CONF_SIZING_INITIALIZE("WT_SESSION.compact", WT_SESSION, compact),
+  WT_CONF_SIZING_INITIALIZE("WT_SESSION.create", WT_SESSION, create),
+  WT_CONF_SIZING_INITIALIZE("WT_SESSION.drop", WT_SESSION, drop),
+  WT_CONF_SIZING_INITIALIZE("WT_SESSION.flush_tier", WT_SESSION, flush_tier),
+  WT_CONF_SIZING_INITIALIZE("WT_SESSION.join", WT_SESSION, join),
+  WT_CONF_SIZING_INITIALIZE("WT_SESSION.log_flush", WT_SESSION, log_flush),
+  WT_CONF_SIZING_NONE("WT_SESSION.log_printf", WT_SESSION, log_printf),
+  WT_CONF_SIZING_INITIALIZE("WT_SESSION.open_cursor", WT_SESSION, open_cursor),
+  WT_CONF_SIZING_INITIALIZE("WT_SESSION.prepare_transaction", WT_SESSION, prepare_transaction),
+  WT_CONF_SIZING_INITIALIZE("WT_SESSION.query_timestamp", WT_SESSION, query_timestamp),
+  WT_CONF_SIZING_INITIALIZE("WT_SESSION.reconfigure", WT_SESSION, reconfigure),
+  WT_CONF_SIZING_NONE("WT_SESSION.rename", WT_SESSION, rename),
+  WT_CONF_SIZING_NONE("WT_SESSION.reset", WT_SESSION, reset),
+  WT_CONF_SIZING_NONE("WT_SESSION.reset_snapshot", WT_SESSION, reset_snapshot),
+  WT_CONF_SIZING_INITIALIZE("WT_SESSION.rollback_transaction", WT_SESSION, rollback_transaction),
+  WT_CONF_SIZING_INITIALIZE("WT_SESSION.salvage", WT_SESSION, salvage),
+  WT_CONF_SIZING_NONE("WT_SESSION.strerror", WT_SESSION, strerror),
+  WT_CONF_SIZING_INITIALIZE("WT_SESSION.timestamp_transaction", WT_SESSION, timestamp_transaction),
+  WT_CONF_SIZING_NONE(
+    "WT_SESSION.timestamp_transaction_uint", WT_SESSION, timestamp_transaction_uint),
+  WT_CONF_SIZING_NONE("WT_SESSION.truncate", WT_SESSION, truncate),
+  WT_CONF_SIZING_NONE("WT_SESSION.upgrade", WT_SESSION, upgrade),
+  WT_CONF_SIZING_INITIALIZE("WT_SESSION.verify", WT_SESSION, verify),
+  WT_CONF_SIZING_INITIALIZE("colgroup.meta", colgroup, meta),
+  WT_CONF_SIZING_INITIALIZE("file.config", file, config),
+  WT_CONF_SIZING_INITIALIZE("file.meta", file, meta),
+  WT_CONF_SIZING_INITIALIZE("index.meta", index, meta),
+  WT_CONF_SIZING_INITIALIZE("lsm.meta", lsm, meta),
+  WT_CONF_SIZING_INITIALIZE("object.meta", object, meta),
+  WT_CONF_SIZING_INITIALIZE("table.meta", table, meta),
+  WT_CONF_SIZING_INITIALIZE("tier.meta", tier, meta),
+  WT_CONF_SIZING_INITIALIZE("tiered.meta", tiered, meta),
+  WT_CONF_SIZING_INITIALIZE("wiredtiger_open", GLOBAL, wiredtiger_open),
+  WT_CONF_SIZING_INITIALIZE("wiredtiger_open_all", GLOBAL, wiredtiger_open_all),
+  WT_CONF_SIZING_INITIALIZE("wiredtiger_open_basecfg", GLOBAL, wiredtiger_open_basecfg),
+  WT_CONF_SIZING_INITIALIZE("wiredtiger_open_usercfg", GLOBAL, wiredtiger_open_usercfg),
+};
 /*
  * Per-API configuration structure declarations: END
  */

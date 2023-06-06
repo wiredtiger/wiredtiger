@@ -200,7 +200,7 @@ def getcompstr(c, bundle):
             'values' : '\n\t'.join('"' + choice + '",' for choice in choices),
         })
 
-    return ', {}, {}, {}, {}, {}'.format(comptype, offset, minval, maxval, choices_ref)
+    return f', {comptype}, {offset}, {minval}, {maxval}, {choices_ref}'
 
 def getconfcheck(c, bundle):
     check = '{ "' + c.name + '", "' + gettype(c) + '",'
@@ -229,7 +229,7 @@ def add_conf_keys_one(c, conf_keys):
     else:
         if idname in conf_keys:
             curval = conf_keys[idname]
-            assert type(curval) == int, 'type conflict for name={}'.format(c.name)
+            assert type(curval) == int, f'type conflict for name={c.name}'
         else:
             curval = 0
         curval += 1
@@ -392,9 +392,14 @@ def get_default(c):
 # Build a jump table from a sorted array of strings
 # e.g. given [ "ant", "cat", "deer", "dog", "giraffe" ],
 #   produce [ 0, 0, 0, ...., 0, 1, 1, 2, 4, 4, 4, 5, 5, 5, ....]
-# For position 'a', we produce 0 (offset of "ant"), position 'b' is 1 (offset of "cat")
-# position 'c', is 1 (offset of "cat"), 'd' is 2 (offset of "deer"), 'e' and 'f' are 4 (offset of "giraffe")
-# 'g' is 4 (offset of "giraffe"), 'h' and beyond is 5 (not found).
+#
+# For position 'a', we produce 0 (offset of "ant"),
+# position 'b' is 1 (offset of "cat"),
+# position 'c' is 1 (offset of "cat"),
+# position 'd' is 2 (offset of "deer"),
+# 'e' and 'f' are 4 (offset of "giraffe")
+# 'g' is 4 (offset of "giraffe"),
+# 'h' and beyond is 5 (not found).
 def build_jump(arr):
     assert sorted(arr) == arr
     end = len(arr)
@@ -574,6 +579,22 @@ if not test_config:
     \t\t\treturn (ep);
     \treturn (NULL);
     }
+
+    /*
+    * __wt_conn_config_entry_number --
+    *      Return the entry number for a static configuration entry previously returned.
+    */
+    int
+    __wt_conn_config_entry_number(const WT_CONFIG_ENTRY *centry, u_int *resultp)
+    {
+    \tssize_t off;
+
+    \toff = centry - config_entries;
+    \tif (off < 0 || (u_int)off >= WT_ELEMENTS(config_entries))
+    \t\treturn (WT_NOTFOUND);
+    \t*resultp = (u_int)off;
+    \treturn (0);
+    }
     ''')
 else:
     tfile.write(
@@ -610,9 +631,9 @@ def build_key_initializer(names):
         if result != '':
             result += ' | '
         if shift == 0:
-            result += 'WT_CONF_ID_{}'.format(name)
+            result += f'WT_CONF_ID_{name}'
         else:
-            result += '(WT_CONF_ID_{} << {})'.format(name, shift)
+            result += f'(WT_CONF_ID_{name} << {shift})'
         shift += 16
     return result
 
@@ -624,14 +645,16 @@ def gen_conf_key_struct_init(indent, names, conf_keys):
         subnames.append(name)
         h = conf_keys[name]
         if type(h) == int:
-            structs += '{}uint64_t {};\n'.format(indent, name)
-            inits += '{}{},\n'.format(indent, build_key_initializer(subnames))
+            structs += f'{indent}uint64_t {name};\n'
+            inits += f'{indent}{build_key_initializer(subnames)},\n'
         else:
-            structs += '{}struct {}\n'.format(indent, '{')
-            inits += '{}{}\n'.format(indent, '{')
+            lbrace = '{'
+            rbrace = '}'
+            structs += f'{indent}struct {lbrace}\n'
+            inits += f'{indent}{lbrace}\n'
             (s2, i2) = gen_conf_key_struct_init(indent + '  ', subnames, h)
-            structs += s2 + '{}{} {};\n'.format(indent, '}', name)
-            inits += i2 + '{}{},\n'.format(indent, '}')
+            structs += s2 + f'{indent}{rbrace} {name};\n'
+            inits += i2 + f'{indent}{rbrace},\n'
     return [structs, inits]
 
 def get_conf_counts(configs):
@@ -667,11 +690,11 @@ if not test_config:
         b = dict()
         for name in sorted(keynumber.numbering.keys()):
             off = keynumber.get(name)
-            tfile.write('#define WT_CONF_ID_{} {}ULL\n'.format(name, off))
+            tfile.write(f'#define WT_CONF_ID_{name} {off}ULL\n')
             count += 1
             b[name] = name
         assert count == keynumber.count
-        tfile.write('\n#define WT_CONF_ID_COUNT {}\n'.format(count))
+        tfile.write(f'\n#define WT_CONF_ID_COUNT {count}\n')
 
     with conf_h.replace_fragment('Configuration key structure') as tfile:
         (structs, inits) = gen_conf_key_struct_init('    ', [], conf_keys)
@@ -689,9 +712,22 @@ if not test_config:
             if config:
                 method_to_counts[name] = get_conf_counts(config)
 
+        init_info = ''
+        count = 0
         for name in sorted(api_data_def.methods.keys()):
+            # Extract class and method name
+            if '.' in name:
+                (clname, mname) = name.split('.')
+            else:
+                # For names that do not have a class (e.g. wiredtiger_open), place it in GLOBAL
+                clname = 'GLOBAL'
+                mname = name
+
+            count += 1
             if name not in method_to_counts:
+                init_info += f'    WT_CONF_SIZING_NONE("{name}", {clname}, {mname}),\n'
                 continue
+
             (nconf, nitem) = method_to_counts[name]
             if nitem == 0:
                 continue
@@ -701,7 +737,13 @@ if not test_config:
                 # For names that do not have a class (e.g. wiredtiger_open), place it in GLOBAL
                 clname = 'GLOBAL'
                 mname = name
-            tfile.write('WT_CONF_API_DECLARE({}, {}, {}, {});\n'.format(clname, mname, nconf, nitem))
+            tfile.write(f'WT_CONF_API_DECLARE({clname}, {mname}, {nconf}, {nitem});\n')
+            init_info += f'    WT_CONF_SIZING_INITIALIZE("{name}", {clname}, {mname}),\n'
 
+        tfile.write(f'\n#define WT_CONF_SIZING_COUNT {count}\n\n')
+        tfile.write('static const WT_CONF_SIZING __wt_conf_sizing[WT_CONF_SIZING_COUNT] = {\n')
+        tfile.write(init_info)
+        tfile.write('};\n')
+                    
     config_h.done()
     conf_h.done()

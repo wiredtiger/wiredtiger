@@ -149,6 +149,8 @@ struct __wt_conf_bindings;
 typedef struct __wt_conf_bindings WT_CONF_BINDINGS;
 struct __wt_conf_key;
 typedef struct __wt_conf_key WT_CONF_KEY;
+struct __wt_conf_sizing;
+typedef struct __wt_conf_sizing WT_CONF_SIZING;
 struct __wt_config;
 typedef struct __wt_config WT_CONFIG;
 struct __wt_config_check;

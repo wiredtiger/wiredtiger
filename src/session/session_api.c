@@ -1908,7 +1908,7 @@ err:
 static int
 __session_begin_transaction(WT_SESSION *wt_session, const char *config)
 {
-    WT_DECL_CONF(conf);
+    WT_DECL_CONF(WT_SESSION, begin_transaction, conf);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 

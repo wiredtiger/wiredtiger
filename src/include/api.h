@@ -349,11 +349,14 @@
 /*
  * Macros to set up APIs that use compiled configuration strings.
  */
-#define WT_DECL_CONF(conf) WT_CONF *conf = NULL
+#define WT_DECL_CONF(h, n, conf)  \
+    WT_CONF_API_TYPE(h, n) _conf; \
+    WT_CONF *conf = NULL
 
-#define API_CONF(session, h, n, cfg, conf) \
-    WT_ERR(__wt_conf_compile_config_strings(session, WT_CONFIG_REF(session, h##_##n), cfg, &conf))
+#define API_CONF(session, h, n, cfg, conf)                                      \
+    WT_ERR(__wt_conf_compile_api_call(session, WT_CONFIG_REF(session, h##_##n), \
+      WT_CONFIG_ENTRY_##h##_##n, cfg, &_conf, sizeof(_conf), &conf))
 
 #define SESSION_API_CONF(session, n, cfg, conf) API_CONF(session, WT_SESSION, n, cfg, conf)
 
-#define API_CONF_END(session, conf) __wt_conf_compile_free(session, conf, false)
+#define API_CONF_END(session, conf) __wt_conf_compile_free(session, conf)
