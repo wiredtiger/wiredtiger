@@ -5926,15 +5926,16 @@ buildvariants:
     # The cmake toolchain file is set to the mongodb toolchain gcc by defualt.
     # Remove that configuration here and let MacOS use the default Xcode toolchain instead.
     CMAKE_TOOLCHAIN_FILE:
-    python_binary: 'python3'
+    python_binary: '/opt/homebrew/Frameworks/Python.framework/Versions/3.11/bin/python3.11'
     smp_command: -j $(sysctl -n hw.logicalcpu)
     cmake_generator: "Unix Makefiles"
     make_command: make
     test_env_vars:
       WT_BUILDDIR=$(git rev-parse --show-toplevel)/cmake_build
       DYLD_LIBRARY_PATH=$WT_BUILDDIR
+      Python_ROOT_DIR=$(python_binary)
     # Must disable TCMALLOC as it may be picked up locally and its not on all hosts.
-    posix_configure_flags: -DENABLE_TCMALLOC=0
+    posix_configure_flags: -DENABLE_TCMALLOC=0 -DPYTHON_EXECUTABLE:FILEPATH='$(python_binary)'
   tasks:
     - name: compile
     - name: make-check-test
