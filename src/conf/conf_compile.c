@@ -121,7 +121,7 @@ __conf_compile_value(WT_SESSION_IMPL *session, WT_CONF *top_conf, WT_CONFIG_ITEM
 }
 
 /*
- * __conf_check_compiler --
+ * __conf_check_compare --
  *     Compare function used for binary search.
  */
 static int
