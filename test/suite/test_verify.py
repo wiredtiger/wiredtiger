@@ -196,14 +196,16 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_verify_api_corrupt_first_page(self):
         """
-        Test verify via API, on a table that is purposely corrupted in
-        the first page. A verify operation with read_corrupt on should
-        result in a checksum errors being logged.
+        Test that verify works when the first child of an internal node is corrupted. A verify
+        operation with read_corrupt on should result in a checksum errors being logged.
         """
         params = 'key_format=S,value_format=S'
         self.session.create('table:' + self.tablename, params)
         self.populate(self.tablename)
 
+        # wt verify -d dump_address performs a depth-first traversal of the BTree. So the first 
+        # leaf page it prints is the first child of its parent. Grab the offset of this one so we
+        # can corrupt it.
         self.runWt(['verify', '-d', 'dump_address', 'table:' + self.tablename, '-d'], outfilename='dump.out')
 
         # Grab the offset position of the first page.
