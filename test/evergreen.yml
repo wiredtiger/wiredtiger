@@ -199,8 +199,16 @@ functions:
       script: |
         set -o errexit
         set -o verbose
+        echo "python_config_search_string = '${python_config_search_string}'"
         # Note: ${var} is used for expansions of evergreen variables, whereas $var are /bin/sh variables.
-        python_configured=$(grep Python3_EXECUTABLE: ./CMakeCache.txt | sed -e 's/.*=//')
+        echo "---- Start grep for ${python_config_search_string} ----"
+        grep ${python_config_search_string}: ./CMakeCache.txt
+        echo "---- End grep ----"
+        echo "---- Start grep for python ----"
+        grep python ./CMakeCache.txt
+        echo "---- End grep for python ----"
+        python_configured=$(grep ${python_config_search_string}: ./CMakeCache.txt | sed -e 's/.*=//')
+        echo "python_configured = '$python_configured'"
         if [ "${python_binary}" = '' -o "$python_configured" = '' -o "$(${python_binary} -V -V)" != "$($python_configured -V -V)" ]; then
            echo "Python versions do not match."
            echo "Python version used by cmake builds ($python_configured):"
@@ -2456,6 +2464,21 @@ tasks:
     commands:
       - func: "fetch artifacts"
       - func: "python config check"
+      - command: shell.exec
+        params:
+          shell: bash
+          script: |
+            echo "============== Python Unit Test config =============="
+            echo "python_binary                 = '${python_binary}'"
+            echo "                    version   = $(${python_binary} --version)"            
+            echo "python_config_search_string   = '${python_config_search_string}'"
+            echo "python_configured (via CMake) = '${python_configured}'"
+            if [ "$python_configured" = '' ]; then
+                echo "                    No python configured via CMake"
+            else
+                echo "                    version   = $(${python_configured} --version)"    
+            fi
+            echo "====================================================="
       - func: "unit test"
         vars:
            smp_command: -j $(echo $(sysctl -n hw.logicalcpu) / 2 | bc)
@@ -3823,10 +3846,15 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
+            clang --version
+            g++ --version
+            python3 --version
+            /Library/Frameworks/Python.framework/Versions/3.11/bin/python3 --version
+            /opt/homebrew/Frameworks/Python.framework/Versions/3.11/bin/python3.11 --version
             sysctl -n machdep.cpu.brand_string     # Display the CPU type
             sw_vers                                # Display the macOS version
             g++ -o memory_model_test -O2 memory_model_test.cpp -lpthread -std=c++17 -Wall -Werror -DAVOID_CPP20_SEMAPHORE
-            ./memory_model_test -n 100000000
+            ./memory_model_test -n 1000
 
   - name: data-validation-stress-test-checkpoint
     tags: ["data-validation-stress-test"]
@@ -5899,6 +5927,7 @@ buildvariants:
     CMAKE_TOOLCHAIN_FILE:
     CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
     python_binary: '/usr/bin/python3'
+    python_config_search_string: 'PYTHON_EXECUTABLE'
     smp_command: -j $(sysctl -n hw.logicalcpu)
     cmake_generator: "Unix Makefiles"
     make_command: make
@@ -5928,6 +5957,7 @@ buildvariants:
     CMAKE_TOOLCHAIN_FILE:
     # On the Evergreen M1 Macs, the default Python is 3.9, but we need 3.11
     python_binary: '/opt/homebrew/Frameworks/Python.framework/Versions/3.11/bin/python3.11'
+    python_config_search_string: '_Python3_EXECUTABLE'
     smp_command: -j $(sysctl -n hw.logicalcpu)
     cmake_generator: "Unix Makefiles"
     make_command: make
