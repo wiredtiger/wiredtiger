@@ -149,8 +149,10 @@ __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
     WT_STAT_CONN_DECRV(session, chunk_cache_bytes_inuse, chunk->chunk_size);
     WT_STAT_CONN_DECR(session, chunk_cache_chunks_inuse);
 
-    if (chunkcache->type == WT_CHUNKCACHE_IN_VOLATILE_MEMORY)
+    if (chunkcache->type == WT_CHUNKCACHE_IN_VOLATILE_MEMORY) {
+        __wt_verbose(session, WT_VERB_CHUNKCACHE, "free chunk memory: %p", (void*)chunk->chunk_memory);
         __wt_free(session, chunk->chunk_memory);
+    }
     else {
 #ifdef ENABLE_MEMKIND
         memkind_free(chunkcache->memkind, chunk->chunk_memory);
@@ -225,20 +227,20 @@ __chunkcache_evict_one(WT_SESSION_IMPL *session)
 
     __wt_spin_lock(session, WT_BUCKET_LOCK(chunkcache, chunk_to_evict->bucket_id));
     if (chunk_to_evict->being_evicted) {
-        __wt_verbose(session, WT_VERB_CHUNKCACHE, "evict-remove-free: %s(%u), offset=%" PRIu64 ", size=%" PRIu64,
-                (char *)&chunk_to_evict->hash_id.objectname, chunk_to_evict->hash_id.objectid,
-                (uint64_t)chunk_to_evict->chunk_offset, (uint64_t)chunk_to_evict->chunk_size);
-
+        __wt_verbose(session, WT_VERB_CHUNKCACHE, "evict-remove-free: %s(%u), offset=%" PRIu64 ", size=%" PRIu64 ", memory=%p",
+           (char *)&chunk_to_evict->hash_id.objectname, chunk_to_evict->hash_id.objectid,
+           (uint64_t)chunk_to_evict->chunk_offset, (uint64_t)chunk_to_evict->chunk_size,
+           (void*)chunk_to_evict->chunk_memory);
+/*
         if(chunk_to_evict->chunk_memory == NULL)
             __wt_verbose(session, WT_VERB_CHUNKCACHE, "DOUBLE FREE: %s(%u), offset=%" PRIu64 ", size=%" PRIu64,
                 (char *)&chunk_to_evict->hash_id.objectname, chunk_to_evict->hash_id.objectid,
                         (uint64_t)chunk_to_evict->chunk_offset, (uint64_t)chunk_to_evict->chunk_size);
-        else {
+                        else {*/
             (void)__wt_atomic_subv32(&chunk_to_evict->valid, 1);
             TAILQ_REMOVE(
                 WT_BUCKET_CHUNKS(chunkcache, chunk_to_evict->bucket_id), chunk_to_evict, next_chunk);
             __chunkcache_free_chunk(session, chunk_to_evict);
-        }
     }
     __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, chunk_to_evict->bucket_id));
 
@@ -264,7 +266,7 @@ __chunkcache_eviction_thread(void *arg)
           ((chunkcache->bytes_used + chunkcache->chunk_size) >
             chunkcache->evict_trigger * chunkcache->capacity / 100))
             __chunkcache_evict_one(session);
-        __wt_sleep(0, 10 * WT_THOUSAND); /* may need tuning */
+        __wt_sleep(0, 1000 * WT_THOUSAND); /* may need tuning */
     }
     return (WT_THREAD_RET_VALUE);
 }
@@ -341,11 +343,18 @@ retry:
 
                 /* Place at the front of the LRU list. Must be here. */
                 __wt_spin_lock(session, &chunkcache->chunkcache_lru_lock);
-                if (!chunk->being_evicted)
+                if (!chunk->being_evicted) {
                     TAILQ_REMOVE(&chunkcache->chunkcache_lru_list, chunk, next_lru_item);
+                    __wt_verbose(session, WT_VERB_CHUNKCACHE, "lru-remove (get): %s(%u), offset=%" PRIu64 ", size=%" PRIu64,
+                      (char *)&chunk->hash_id.objectname, chunk->hash_id.objectid,
+                      (uint64_t)chunk->chunk_offset, (uint64_t)chunk->chunk_size);
+                }
                 else
                     chunk->being_evicted = false;
                 TAILQ_INSERT_HEAD(&chunkcache->chunkcache_lru_list, chunk, next_lru_item);
+                __wt_verbose(session, WT_VERB_CHUNKCACHE, "lru-insert (get): %s(%u), offset=%" PRIu64 ", size=%" PRIu64,
+                  (char *)&chunk->hash_id.objectname, chunk->hash_id.objectid,
+                  (uint64_t)chunk->chunk_offset, (uint64_t)chunk->chunk_size);
                 __wt_spin_unlock(session, &chunkcache->chunkcache_lru_lock);
 
                 __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
@@ -387,6 +396,9 @@ retry:
             /* Insert the new chunk into the LRU list. We must do so before making the chunk valid. */
             __wt_spin_lock(session, &chunkcache->chunkcache_lru_lock);
             TAILQ_INSERT_HEAD(&chunkcache->chunkcache_lru_list, chunk, next_lru_item);
+            __wt_verbose(session, WT_VERB_CHUNKCACHE, "lru-insert (allocate): %s(%u), offset=%" PRIu64 ", size=%" PRIu64,
+                  (char *)&chunk->hash_id.objectname, chunk->hash_id.objectid,
+                  (uint64_t)chunk->chunk_offset, (uint64_t)chunk->chunk_size);
             __wt_spin_unlock(session, &chunkcache->chunkcache_lru_lock);
 
             /*
