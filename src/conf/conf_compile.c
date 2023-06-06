@@ -61,6 +61,11 @@ __conf_compile_value(WT_SESSION_IMPL *session, WT_CONF *top_conf, WT_CONFIG_ITEM
     uint32_t bind_offset;
 
     if (value->len > 0 && value->str[0] == '%') {
+        /* We must be doing an explicit compilation. */
+        if (top_conf->compiled_type != CONF_COMPILED_EXPLICIT)
+            WT_RET_MSG(session, EINVAL, "Value '%.*s' is not valid here",
+              (int)value->len, value->str);
+
         if (value->str[1] == 'd') {
             if (check_type != WT_CONFIG_ITEM_NUM && check_type != WT_CONFIG_ITEM_BOOL)
                 WT_RET_MSG(session, EINVAL, "Value '%.*s' is not compatible with %s type",
@@ -344,12 +349,11 @@ err:
  */
 int
 __wt_conf_compile_api_call(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *centry,
-  u_int centry_index, const char **cfg, void *compile_buf, size_t compile_buf_size, WT_CONF **confp)
+  u_int centry_index, const char *config, void *compile_buf, size_t compile_buf_size, WT_CONF **confp)
 {
     WT_CONF *conf, *preconf;
     const WT_CONF_SIZING *sizing;
     WT_DECL_RET;
-    u_int user_supplied;
 
     if (!centry->compilable)
         WT_RET_MSG(session, ENOTSUP,
@@ -362,16 +366,11 @@ __wt_conf_compile_api_call(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *cent
     WT_ASSERT_ALWAYS(session, sizing->total_size == compile_buf_size,
       "conf: total size does not equal calculated size");
 
-    /* Find the last entry. */
-    for (user_supplied = 0; cfg[user_supplied] != NULL; ++user_supplied)
-        ;
-    --user_supplied;
-
     /*
      * If an entry is precompiled, it will be the last one. A precompiled entry already includes the
      * default values, so very little needs to be done in that case.
      */
-    if (__wt_conf_get_compiled(S2C(session), cfg[user_supplied], &preconf)) {
+    if (__wt_conf_get_compiled(S2C(session), config, &preconf)) {
         memcpy(compile_buf, preconf, compile_buf_size);
         conf = compile_buf;
 
@@ -379,11 +378,20 @@ __wt_conf_compile_api_call(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *cent
         *confp = conf;
         return (0);
     }
-    memset(compile_buf, 0, compile_buf_size);
+
+    /*
+     * Otherwise, start with the precompiled base configuration.
+     */
+    preconf = S2C(session)->conf_api_array[centry_index];
+    WT_ASSERT(session, preconf != NULL);
+
+    memcpy(compile_buf, preconf, compile_buf_size);
     conf = compile_buf;
     conf->compiled_type = CONF_COMPILED_IMPLICIT; /* Stack allocated, no frees needed. */
 
-    WT_ERR(__wt_conf_compile_config_strings(session, centry, sizing, cfg, user_supplied, conf));
+    WT_ERR(__conf_compile(session, centry->method, conf, conf, centry->checks,
+        centry->checks_entries, centry->checks_jump, config, strlen(config), false));
+
     *confp = conf;
 
 err:

@@ -439,8 +439,8 @@ extern int __wt_conf_bind(WT_SESSION_IMPL *session, const char *compiled_str, va
 extern int __wt_conf_compile(WT_SESSION_IMPL *session, const char *api, const char *format,
   const char **resultp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conf_compile_api_call(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *centry,
-  u_int centry_index, const char **cfg, void *compile_buf, size_t compile_buf_size, WT_CONF **confp)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  u_int centry_index, const char *config, void *compile_buf, size_t compile_buf_size,
+  WT_CONF **confp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conf_compile_config_strings(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *centry,
   const WT_CONF_SIZING *sizing, const char **cfg, u_int user_supplied, WT_CONF *conf)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

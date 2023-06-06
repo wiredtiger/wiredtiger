@@ -355,7 +355,7 @@
 
 #define API_CONF(session, h, n, cfg, conf)                                      \
     WT_ERR(__wt_conf_compile_api_call(session, WT_CONFIG_REF(session, h##_##n), \
-      WT_CONFIG_ENTRY_##h##_##n, cfg, &_conf, sizeof(_conf), &conf))
+      WT_CONFIG_ENTRY_##h##_##n, cfg[1], &_conf, sizeof(_conf), &conf))
 
 #define SESSION_API_CONF(session, n, cfg, conf) API_CONF(session, WT_SESSION, n, cfg, conf)
 
