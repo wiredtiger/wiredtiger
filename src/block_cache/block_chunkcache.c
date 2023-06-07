@@ -233,8 +233,8 @@ __chunkcache_eviction_thread(void *arg)
                     WT_STAT_CONN_INCR(session, chunk_cache_chunks_evicted);
                     __wt_verbose(session, WT_VERB_CHUNKCACHE,
                       "evicted chunk: %s(%u), offset=%" PRId64 ", size=%" PRIu64,
-                      (char *)&chunk->hash_id.objectname, chunk->hash_id.objectid, chunk->chunk_offset,
-                      (uint64_t)chunk->chunk_size);
+                      (char *)&chunk->hash_id.objectname, chunk->hash_id.objectid,
+                      chunk->chunk_offset, (uint64_t)chunk->chunk_size);
                 }
             }
             __wt_spin_unlock(session, &chunkcache->hashtable[i].bucket_lock);
@@ -249,6 +249,20 @@ __chunkcache_eviction_thread(void *arg)
  * __wt_chunkcache_get --
  *     If the cache has the data at the given size and offset, copy it into the supplied buffer.
  *     Otherwise, read and cache the chunks containing the requested data.
+ *
+ *     During these operations we are holding one or more bucket locks. A bucket lock protects
+ *     the linked list (i.e., the chain) or chunks hashing into the same bucket. We hold the bucket
+ *     lock whenever we are looking for and are inserting a new chunk into that bucket.
+ *     We must hold the lock throughout the entire operation: realizing that the chunk is not
+ *     present, deciding to cache it, allocating the chunk’s metadata and inserting it into the
+ *     chain. If we release the lock during this process, another thread might cache the same chunk;
+ *     we don’t want that. We insert the new chunk into the cache in the not valid state. Once we
+ *     insert the chunk, we can release the lock. As long as the chunk is marked as invalid,
+ *     no other thread will try to re-cache it or to read it. As a result, we can read data from the
+ *     remote storage into this chunk without holding the lock: this is what the current code does.
+ *     We can even allocate the space for that chunk outside the critical section: the current code
+ *     does not do that. Once we read the data into the chunk, we atomically set the valid flag,
+ *     so other threads can use it.
  */
 int
 __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid, wt_off_t offset,
@@ -393,7 +407,6 @@ __wt_chunkcache_remove(
     WT_CHUNKCACHE_HASHID hash_id;
     size_t already_removed, remains_to_remove, removable_in_chunk, size_removed;
     uint64_t bucket_id;
-    bool done;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
@@ -412,7 +425,6 @@ __wt_chunkcache_remove(
         /* Find the bucket for the containing chunk. */
         bucket_id = __chunkcache_make_hash(
           chunkcache, &hash_id, block, objectid, offset + (wt_off_t)already_removed);
-        done = false;
         removable_in_chunk = (size_t)WT_CHUNK_OFFSET(chunkcache, (size_t)offset + already_removed) +
           chunkcache->chunk_size - ((size_t)offset + already_removed);
         __wt_spin_lock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
