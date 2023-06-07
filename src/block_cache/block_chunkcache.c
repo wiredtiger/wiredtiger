@@ -238,9 +238,9 @@ __chunkcache_eviction_thread(void *arg)
                 }
             }
             __wt_spin_unlock(session, &chunkcache->hashtable[i].bucket_lock);
+            if (chunkcache->chunkcache_exiting)
+                return (WT_THREAD_RET_VALUE);
         }
-        if (chunkcache->chunkcache_exiting)
-            return (WT_THREAD_RET_VALUE);
     }
     return (WT_THREAD_RET_VALUE);
 }
