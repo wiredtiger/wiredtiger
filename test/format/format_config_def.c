@@ -300,6 +300,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"statistics_log.sources", "statistics_log sources (file: | off)", C_IGNORE | C_STRING, 0, 0, 0,
     V_GLOBAL_STATISTICS_LOG_SOURCES},
 
+  {"stress.aggressive_stash_free", "stress freeing stashed memory aggressively", C_BOOL, 2, 0, 0,
+    V_GLOBAL_STRESS_AGGRESSIVE_STASH_FREE},
+
   {"stress.aggressive_sweep", "stress aggressive sweep", C_BOOL, 2, 0, 0,
     V_GLOBAL_STRESS_AGGRESSIVE_SWEEP},
 
@@ -349,8 +352,6 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"stress.split_7", "stress splits (#7)", C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_SPLIT_7},
 
   {"stress.split_8", "stress splits (#8)", C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_SPLIT_8},
-
-  {"stress.txn_read", "stress txn read", C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_TXN_READ},
 
   {"tiered_storage.flush_frequency",
     "calls to checkpoint that are flush_tier, if tiered storage enabled (percentage)", 0x0, 0, 50,
