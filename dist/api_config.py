@@ -200,7 +200,7 @@ def getcompstr(c, bundle):
             'values' : '\n\t'.join('"' + choice + '",' for choice in choices),
         })
 
-    return f', {comptype}, {offset}, {minval}, {maxval}, {choices_ref}'
+    return ', {}, {}, {}, {}, {}'.format(comptype, offset, minval, maxval, choices_ref)
 
 def getconfcheck(c, bundle):
     check = '{ "' + c.name + '", "' + gettype(c) + '",'
@@ -229,7 +229,7 @@ def add_conf_keys_one(c, conf_keys):
     else:
         if idname in conf_keys:
             curval = conf_keys[idname]
-            assert type(curval) == int, f'type conflict for name={c.name}'
+            assert type(curval) == int, 'type conflict for name={}'.format(c.name)
         else:
             curval = 0
         curval += 1
@@ -643,9 +643,9 @@ def build_key_initializer(names):
         if result != '':
             result += ' | '
         if shift == 0:
-            result += f'WT_CONF_ID_{name}'
+            result += 'WT_CONF_ID_{}'.format(name)
         else:
-            result += f'(WT_CONF_ID_{name} << {shift})'
+            result += '(WT_CONF_ID_{} << {})'.format(name, shift)
         shift += 16
     return result
 
@@ -657,16 +657,16 @@ def gen_conf_key_struct_init(indent, names, conf_keys):
         subnames.append(name)
         h = conf_keys[name]
         if type(h) == int:
-            structs += f'{indent}uint64_t {name};\n'
-            inits += f'{indent}{build_key_initializer(subnames)},\n'
+            structs += '{}uint64_t {};\n'.format(indent, name)
+            inits += '{}{},\n'.format(indent, build_key_initializer(subnames))
         else:
             lbrace = '{'
             rbrace = '}'
-            structs += f'{indent}struct {lbrace}\n'
-            inits += f'{indent}{lbrace}\n'
+            structs += '{}struct {}\n'.format(indent, lbrace)
+            inits += '{}{}\n'.format(indent, lbrace)
             (s2, i2) = gen_conf_key_struct_init(indent + '  ', subnames, h)
-            structs += s2 + f'{indent}{rbrace} {name};\n'
-            inits += i2 + f'{indent}{rbrace},\n'
+            structs += s2 + '{}{} {};\n'.format(indent, rbrace, name)
+            inits += i2 + '{}{},\n'.format(indent, rbrace)
     return [structs, inits]
 
 def get_conf_counts(configs):
@@ -702,11 +702,11 @@ if not test_config:
         b = dict()
         for name in sorted(keynumber.numbering.keys()):
             off = keynumber.get(name)
-            tfile.write(f'#define WT_CONF_ID_{name} {off}ULL\n')
+            tfile.write('#define WT_CONF_ID_{} {}ULL\n'.format(name, off))
             count += 1
             b[name] = name
         assert count == keynumber.count
-        tfile.write(f'\n#define WT_CONF_ID_COUNT {count}\n')
+        tfile.write('\n#define WT_CONF_ID_COUNT {}\n'.format(count))
 
     with conf_h.replace_fragment('Configuration key structure') as tfile:
         (structs, inits) = gen_conf_key_struct_init('    ', [], conf_keys)
@@ -737,7 +737,7 @@ if not test_config:
 
             count += 1
             if name not in method_to_counts:
-                init_info += f'    WT_CONF_SIZING_NONE("{name}", {clname}, {mname}),\n'
+                init_info += '    WT_CONF_SIZING_NONE("{}", {}, {}),\n'.format(name, clname, mname)
                 continue
 
             (nconf, nitem) = method_to_counts[name]
@@ -749,10 +749,12 @@ if not test_config:
                 # For names that do not have a class (e.g. wiredtiger_open), place it in GLOBAL
                 clname = 'GLOBAL'
                 mname = name
-            tfile.write(f'WT_CONF_API_DECLARE({clname}, {mname}, {nconf}, {nitem});\n')
-            init_info += f'    WT_CONF_SIZING_INITIALIZE("{name}", {clname}, {mname}),\n'
+            tfile.write(
+                'WT_CONF_API_DECLARE({}, {}, {}, {});\n'.format(clname, mname, nconf, nitem))
+            init_info += \
+                '    WT_CONF_SIZING_INITIALIZE("{}", {}, {}),\n'.format(name, clname, mname)
 
-        tfile.write(f'\n#define WT_CONF_API_ELEMENTS {count}\n\n')
+        tfile.write('\n#define WT_CONF_API_ELEMENTS {}\n\n'.format(count))
         tfile.write('static const WT_CONF_SIZING __wt_conf_sizing[WT_CONF_API_ELEMENTS] = {\n')
         tfile.write(init_info)
         tfile.write('};\n')
