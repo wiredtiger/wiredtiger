@@ -550,6 +550,10 @@ connection_runtime_config = [
             periodic checkpoints''',
             min='0', max='100000'),
         ]),
+    Config('checkpoint_cleanup', 'none', r'''
+        control how aggressively obsolete content is removed when creating checkpoints.
+        Default to none, which means no additional work is done to find obsolete content.
+        ''', choices=['none', 'reclaim_space']),
     Config('chunk_cache', '', r'''
         chunk cache configuration options''',
         type='category', subconfig=[
@@ -728,6 +732,10 @@ connection_runtime_config = [
             interval in seconds at which to check for files that are inactive and close them''',
             min=1, max=100000),
         ]),
+    Config('generation_drain_timeout_ms', '240000', r'''
+        the number of milliseconds to wait for a resource to drain before timing out in diagnostic
+        mode. Default will wait for 4 minutes, 0 will wait forever''',
+        min=0),
     Config('history_store', '', r'''
         history store configuration options''',
         type='category', subconfig=[
@@ -829,9 +837,9 @@ connection_runtime_config = [
         stress testing of WiredTiger.''',
         type='list', undoc=True,
         choices=[
-        'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page', 'checkpoint_handle',
-        'checkpoint_slow', 'checkpoint_stop', 'compact_slow', 'evict_reposition',
-        'failpoint_eviction_fail_after_reconciliation',
+        'aggressive_stash_free', 'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page',
+        'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'compact_slow',
+        'evict_reposition', 'failpoint_eviction_fail_after_reconciliation',
         'failpoint_history_store_delete_key_from_ts', 'history_store_checkpoint_delay',
         'history_store_search', 'history_store_sweep_race', 'prepare_checkpoint_delay',
         'prepare_resolution','sleep_before_read_overflow_onpage', 'split_1', 'split_2', 'split_3',
