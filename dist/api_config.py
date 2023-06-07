@@ -588,34 +588,6 @@ if not test_config:
     \t\t\treturn (ep);
     \treturn (NULL);
     }
-
-    /*
-    * __wt_conn_config_entry_number --
-    *      Return the entry number for a static configuration entry previously returned.
-    */
-    int
-    __wt_conn_config_entry_number(const WT_CONFIG_ENTRY *centry, u_int *resultp)
-    {
-    \tssize_t off;
-
-    \toff = centry - config_entries;
-    \tif (off < 0 || (u_int)off >= WT_ELEMENTS(config_entries))
-    \t\treturn (WT_NOTFOUND);
-    \t*resultp = (u_int)off;
-    \treturn (0);
-    }
-
-    /*
-    * __wt_conn_config_entry --
-    *      Return the static configuration entry from its entry number.
-    */
-    const WT_CONFIG_ENTRY *
-    __wt_conn_config_entry(u_int entry_number)
-    {
-    \tif (entry_number >= WT_ELEMENTS(config_entries))
-    \t\treturn (NULL);
-    \treturn (&config_entries[entry_number]);
-    }
     ''')
 else:
     tfile.write(

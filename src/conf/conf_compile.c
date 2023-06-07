@@ -469,8 +469,8 @@ __wt_conf_compile_init(WT_SESSION_IMPL *session, const char **cfg)
 
     WT_RET(__wt_calloc(session, WT_CONF_API_ELEMENTS, sizeof(WT_CONF *), &conn->conf_api_array));
     for (i = 0; i < WT_CONF_API_ELEMENTS; ++i) {
-        centry = __wt_conn_config_entry((u_int)i);
-        WT_ASSERT(session, centry != NULL);
+        centry = conn->config_entries[i];
+        WT_ASSERT(session, centry->method_id == i);
         if (centry->compilable) {
             WT_RET(__wt_calloc(session, centry->conf_total_size, 1, &conf));
             conf->compiled_type = CONF_COMPILED_EXPLICIT;

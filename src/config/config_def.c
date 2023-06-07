@@ -3782,31 +3782,3 @@ __wt_conn_config_match(const char *method)
             return (ep);
     return (NULL);
 }
-
-/*
- * __wt_conn_config_entry_number --
- *     Return the entry number for a static configuration entry previously returned.
- */
-int
-__wt_conn_config_entry_number(const WT_CONFIG_ENTRY *centry, u_int *resultp)
-{
-    ssize_t off;
-
-    off = centry - config_entries;
-    if (off < 0 || (u_int)off >= WT_ELEMENTS(config_entries))
-        return (WT_NOTFOUND);
-    *resultp = (u_int)off;
-    return (0);
-}
-
-/*
- * __wt_conn_config_entry --
- *     Return the static configuration entry from its entry number.
- */
-const WT_CONFIG_ENTRY *
-__wt_conn_config_entry(u_int entry_number)
-{
-    if (entry_number >= WT_ELEMENTS(config_entries))
-        return (NULL);
-    return (&config_entries[entry_number]);
-}
