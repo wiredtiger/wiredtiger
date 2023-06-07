@@ -285,6 +285,9 @@ __wt_conf_compile(
     const char *cfgs[3] = {NULL, NULL, NULL};
     void *buf;
 
+    if (format == NULL || api == NULL)
+        WT_RET_MSG(session, EINVAL, "Missing format or method string");
+
     conn = S2C(session);
     conf = NULL;
     format_len = strlen(format);
@@ -380,9 +383,7 @@ __wt_conf_compile_api_call(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *cent
         return (0);
     }
 
-    /*
-     * Otherwise, start with the precompiled base configuration.
-     */
+    /* Otherwise, start with the precompiled base configuration. */
     preconf = S2C(session)->conf_api_array[centry_index];
     WT_ASSERT(session, preconf != NULL);
 
@@ -390,8 +391,10 @@ __wt_conf_compile_api_call(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *cent
     conf = compile_buf;
     conf->compiled_type = CONF_COMPILED_IMPLICIT; /* Stack allocated, no frees needed. */
 
-    WT_ERR(__conf_compile(session, centry->method, conf, conf, centry->checks,
-      centry->checks_entries, centry->checks_jump, config, strlen(config), false));
+    /* Add to it the user format if any. */
+    if (config != NULL)
+        WT_ERR(__conf_compile(session, centry->method, conf, conf, centry->checks,
+          centry->checks_entries, centry->checks_jump, config, strlen(config), false));
 
     *confp = conf;
 
