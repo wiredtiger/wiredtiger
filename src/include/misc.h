@@ -237,7 +237,7 @@
     qsort_r(base, nmemb, size, ctx, compar)
 #define QSORT_R_ARGS(lhs, rhs, ctx) \
     void *ctx, const void *lhs, const void *rhs
-#elif defined(__WIN64__)
+#elif defined(_WIN64)
 #define __wt_qsort_r(base, nmemb, size, compar, ctx) \
     qsort_s(base, nmemb, size, compar, ctx)
 #define QSORT_R_ARGS(lhs, rhs, ctx) \
