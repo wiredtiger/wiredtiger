@@ -275,12 +275,10 @@ __wt_conf_compile(
 {
     WT_CONF *conf;
     const WT_CONFIG_ENTRY *centry;
-    const WT_CONF_SIZING *sizing;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     size_t format_len;
     uint32_t compiled_entry;
-    u_int config_num;
     char *format_copy;
     const char *cfgs[3] = {NULL, NULL, NULL};
     void *buf;
@@ -301,11 +299,6 @@ __wt_conf_compile(
         WT_RET_MSG(session, ENOTSUP,
           "Error compiling, method '%s' does not support compiled configurations", centry->method);
 
-    /* Get sizing information for the API we are compiling. */
-    WT_ERR(__wt_conn_config_entry_number(centry, &config_num));
-    WT_ASSERT(session, config_num < WT_ELEMENTS(__wt_conf_sizing));
-    sizing = &__wt_conf_sizing[config_num];
-
     /*
      * Keep a copy of the original configuration string, as the caller may reuse their own string,
      * and we will need to have valid pointers to values in the configuration when the precompiled
@@ -315,12 +308,12 @@ __wt_conf_compile(
 
     cfgs[0] = centry->base;
     cfgs[1] = format_copy;
-    WT_ERR(__wt_calloc(session, sizing->total_size, 1, &buf));
+    WT_ERR(__wt_calloc(session, centry->conf_total_size, 1, &buf));
     conf = buf;
     conf->compiled_type = CONF_COMPILED_EXPLICIT;
     conf->orig_config = format_copy;
 
-    WT_ERR(__wt_conf_compile_config_strings(session, centry, sizing, cfgs, 1, conf));
+    WT_ERR(__wt_conf_compile_config_strings(session, centry, cfgs, 1, conf));
 
     /*
      * The entry compiled. Now put it into the connection array if there's room.
@@ -356,7 +349,6 @@ __wt_conf_compile_api_call(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *cent
   WT_CONF **confp)
 {
     WT_CONF *conf, *preconf;
-    const WT_CONF_SIZING *sizing;
     WT_DECL_RET;
 
     if (!centry->compilable)
@@ -364,10 +356,9 @@ __wt_conf_compile_api_call(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *cent
           "Error compiling, method '%s' does not support compiled configurations", centry->method);
 
     conf = NULL;
-    sizing = &__wt_conf_sizing[centry_index];
 
     /* Verify we have the needed size. */
-    WT_ASSERT_ALWAYS(session, sizing->total_size == compile_buf_size,
+    WT_ASSERT_ALWAYS(session, centry->conf_total_size == compile_buf_size,
       "conf: total size does not equal calculated size");
 
     /*
@@ -411,12 +402,12 @@ err:
  */
 int
 __wt_conf_compile_config_strings(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *centry,
-  const WT_CONF_SIZING *sizing, const char **cfg, u_int user_supplied, WT_CONF *conf)
+  const char **cfg, u_int user_supplied, WT_CONF *conf)
 {
     u_int i, nconf, nkey;
 
-    nconf = sizing->conf_count;
-    nkey = sizing->key_count;
+    nconf = centry->conf_count;
+    nkey = centry->conf_key_count;
 
     /*
      * The layout of the compiled conf starts with N conf structs, followed by M key structs.
@@ -449,7 +440,6 @@ __wt_conf_compile_init(WT_SESSION_IMPL *session, const char **cfg)
     WT_CONF *conf;
     const WT_CONFIG_ENTRY *centry;
     WT_CONFIG_ITEM cval;
-    const WT_CONF_SIZING *sizing;
     WT_CONNECTION_IMPL *conn;
     size_t i, lastlen;
     char *cs;
@@ -482,13 +472,11 @@ __wt_conf_compile_init(WT_SESSION_IMPL *session, const char **cfg)
         centry = __wt_conn_config_entry((u_int)i);
         WT_ASSERT(session, centry != NULL);
         if (centry->compilable) {
-            sizing = &__wt_conf_sizing[i];
-
-            WT_RET(__wt_calloc(session, sizing->total_size, 1, &conf));
+            WT_RET(__wt_calloc(session, centry->conf_total_size, 1, &conf));
             conf->compiled_type = CONF_COMPILED_EXPLICIT;
 
             cfgs[0] = centry->base;
-            WT_RET(__wt_conf_compile_config_strings(session, centry, sizing, cfgs, 1, conf));
+            WT_RET(__wt_conf_compile_config_strings(session, centry, cfgs, 1, conf));
             conn->conf_api_array[i] = conf;
         }
     }

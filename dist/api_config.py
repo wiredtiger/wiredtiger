@@ -268,6 +268,14 @@ def add_keys(bundle, configs, prefix):
         if ty == 'category':
             add_keys(bundle, c.subconfig, prefix + c.name + '.')
 
+# Take a method name like WT_SESSION.configure and break it into two parts.
+def get_method_name_parts(name):
+    if '.' in name:
+        return name.split('.')
+    else:
+        # For names that do not have a class (e.g. wiredtiger_open), place it in GLOBAL
+        return ('GLOBAL', name)
+
 for name in api_data_def.methods.keys():
     method = api_data_def.methods[name]
     config = method.config
@@ -518,16 +526,17 @@ for name in sorted(api_data_def.methods.keys()):
     else:
         tfile.write('NULL, 0, NULL')
 
-    tfile.write(', ' + str(slot + 1))
+    tfile.write(', ' + str(slot))
     if compilable:
-        tfile.write(', true')
+        (clname, mname) = get_method_name_parts(name)
+        tfile.write(', WT_CONF_SIZING_INITIALIZE({}, {}), true'.format(clname, mname))
     else:
-        tfile.write(', false')
+        tfile.write(', WT_CONF_SIZING_NONE, false')
 
     tfile.write('\n\t},')
 
 # Write a NULL as a terminator for iteration.
-tfile.write('\n\t{ NULL, NULL, NULL, 0, NULL, 0, false }')
+tfile.write('\n\t{ NULL, NULL, NULL, 0, NULL, 0, WT_CONF_SIZING_NONE, false }')
 tfile.write('\n};\n')
 
 # Write the routine that connects the WT_CONNECTION_IMPL structure to the list
@@ -724,20 +733,12 @@ if not test_config:
             if config:
                 method_to_counts[name] = get_conf_counts(config)
 
-        init_info = ''
         count = 0
         for name in sorted(api_data_def.methods.keys()):
             # Extract class and method name
-            if '.' in name:
-                (clname, mname) = name.split('.')
-            else:
-                # For names that do not have a class (e.g. wiredtiger_open), place it in GLOBAL
-                clname = 'GLOBAL'
-                mname = name
-
+            (clname, mname) = get_method_name_parts(name)
             count += 1
             if name not in method_to_counts:
-                init_info += '    WT_CONF_SIZING_NONE("{}", {}, {}),\n'.format(name, clname, mname)
                 continue
 
             (nconf, nitem) = method_to_counts[name]
@@ -751,13 +752,8 @@ if not test_config:
                 mname = name
             tfile.write(
                 'WT_CONF_API_DECLARE({}, {}, {}, {});\n'.format(clname, mname, nconf, nitem))
-            init_info += \
-                '    WT_CONF_SIZING_INITIALIZE("{}", {}, {}),\n'.format(name, clname, mname)
 
         tfile.write('\n#define WT_CONF_API_ELEMENTS {}\n\n'.format(count))
-        tfile.write('static const WT_CONF_SIZING __wt_conf_sizing[WT_CONF_API_ELEMENTS] = {\n')
-        tfile.write(init_info)
-        tfile.write('};\n')
                     
     config_h.done()
     conf_h.done()
