@@ -182,7 +182,7 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
         existing = (conf->key_map[key_id] != 0);
         if (existing)
             /* The position stored is one-based. */
-            conf_key_pos = conf->key_map[key_id] - 1;
+            conf_key_pos = (uint32_t)(conf->key_map[key_id] - 1);
         else {
             WT_ASSERT_ALWAYS(
               session, conf->conf_key_count < conf->conf_key_max, "conf: key count overflow");
