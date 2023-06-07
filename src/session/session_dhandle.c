@@ -44,6 +44,8 @@ __session_discard_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE_CACHE *dhandl
     TAILQ_REMOVE(&session->dhhash[bucket], dhandle_cache, hashq);
 
     WT_DHANDLE_RELEASE(dhandle_cache->dhandle);
+    printf("In __session_discard_dhandle(), released dhandle %p, name %s, flags = 0x%x, session_inuse %d, session_ref %u\n",
+      (void*) dhandle_cache->dhandle, dhandle_cache->dhandle->name, dhandle_cache->dhandle->flags, dhandle_cache->dhandle->session_inuse, dhandle_cache->dhandle->session_ref);
     __wt_overwrite_and_free(session, dhandle_cache);
 }
 
@@ -742,15 +744,23 @@ __session_find_shared_dhandle(WT_SESSION_IMPL *session, const char *uri, const c
     WT_DECL_RET;
 
     WT_WITH_HANDLE_LIST_READ_LOCK(session,
-      if ((ret = __wt_conn_dhandle_find(session, uri, checkpoint)) == 0)
-        WT_DHANDLE_ACQUIRE(session->dhandle));
+      if ((ret = __wt_conn_dhandle_find(session, uri, checkpoint)) == 0) {
+          WT_DHANDLE_ACQUIRE(session->dhandle);
+          printf("In __session_find_shared_dhandle() - (A), acquired dhandle %p, name %s, flags = 0x%x, session_inuse %d, session_ref %u\n",
+            (void*) session->dhandle, session->dhandle->name, session->dhandle->flags, session->dhandle->session_inuse, session->dhandle->session_ref);
+        });
 
     if (ret != WT_NOTFOUND)
         return (ret);
 
     WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
-      if ((ret = __wt_conn_dhandle_alloc(session, uri, checkpoint)) == 0)
-        WT_DHANDLE_ACQUIRE(session->dhandle));
+      if ((ret = __wt_conn_dhandle_alloc(session, uri, checkpoint)) == 0) {
+          WT_DHANDLE_ACQUIRE(session->dhandle);
+          printf(
+            "In __session_find_shared_dhandle() - (B), acquired dhandle %p, name %s, flags = 0x%x, session_inuse %d, session_ref %u\n",
+            (void *)session->dhandle, session->dhandle->name, session->dhandle->flags,
+            session->dhandle->session_inuse, session->dhandle->session_ref);
+        });
 
     return (ret);
 }
@@ -786,6 +796,8 @@ __session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *che
      */
     if ((ret = __session_add_dhandle(session)) != 0) {
         WT_DHANDLE_RELEASE(session->dhandle);
+        printf("In __session_get_dhandle(), released dhandle %p, name %s, flags = 0x%x, session_inuse %d, session_ref %u\n",
+          (void*) session->dhandle, session->dhandle->name, session->dhandle->flags, session->dhandle->session_inuse, session->dhandle->session_ref);
         session->dhandle = NULL;
     }
 

@@ -736,6 +736,8 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
      */
     session->dhandle = dhandle;
     WT_DHANDLE_ACQUIRE(dhandle);
+    printf("In __wt_cursor_cache(), acquired dhandle %p, name %s, flags = 0x%x, session_inuse %d, session_ref %u\n",
+        (void*) dhandle, dhandle->name, dhandle->flags, dhandle->session_inuse, dhandle->session_ref);
     __wt_cursor_dhandle_decr_use(session);
 
     /* Move the cursor from the open list to the caching hash table. */
@@ -770,6 +772,8 @@ __wt_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
         session->dhandle = dhandle;
         __wt_cursor_dhandle_incr_use(session);
         WT_DHANDLE_RELEASE(dhandle);
+        printf("In __wt_cursor_reopen(), released dhandle %p, name %s, flags = 0x%x, session_inuse %d, session_ref %u\n",
+          (void*) dhandle, dhandle->name, dhandle->flags, dhandle->session_inuse, dhandle->session_ref);
     }
     (void)__wt_atomic_add32(&S2C(session)->open_cursor_count, 1);
     WT_STAT_CONN_DECR_ATOMIC(session, cursor_cached_count);

@@ -143,6 +143,9 @@ __conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, bool f
 {
     WT_DECL_RET;
 
+    printf("__conn_dhandle_destroy(): dhandle %p, name %s, flags = 0x%x, session_inuse %d, session_ref %u\n",
+      (void*) dhandle, dhandle->name, dhandle->flags, dhandle->session_inuse, dhandle->session_ref);
+
     switch (dhandle->type) {
     case WT_DHANDLE_TYPE_BTREE:
         WT_WITH_DHANDLE(session, dhandle, ret = __wt_btree_discard(session));
@@ -423,7 +426,9 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
      * Check discard too, code we call to clear the cache expects the data handle dead flag to be
      * set when discarding modified pages.
      */
-    if ((marked_dead && set_mark_dead_flag) || discard)
+//    if ((marked_dead && set_mark_dead_flag) || discard)
+    WT_UNUSED(set_mark_dead_flag);
+    if ((marked_dead) || discard)
         F_SET(dhandle, WT_DHANDLE_DEAD);
 
     /*
@@ -740,6 +745,8 @@ done:
 err:
     F_CLR(conn, WT_CONN_CKPT_GATHER);
     WT_DHANDLE_RELEASE(dhandle);
+    printf("In __wt_conn_btree_apply(), released dhandle %p, name %s, flags = 0x%x, session_inuse %d, session_ref %u\n",
+      (void*) dhandle, dhandle->name, dhandle->flags, dhandle->session_inuse, dhandle->session_ref);
     return (ret);
 }
 
@@ -810,7 +817,7 @@ __wt_conn_dhandle_close_all(WT_SESSION_IMPL *session, const char *uri, bool remo
      * Lock the live handle first. This ordering is important: we rely on locking the live handle to
      * fail fast if the tree is busy (e.g., with cursors open or in a checkpoint).
      */
-    WT_ERR(__conn_dhandle_close_one(session, uri, NULL, removed, false));
+    WT_ERR(__conn_dhandle_close_one(session, uri, NULL, removed, mark_dead));
 
     bucket = __wt_hash_city64(uri, strlen(uri)) & (conn->dh_hash_size - 1);
     TAILQ_FOREACH (dhandle, &conn->dhhash[bucket], hashq) {
@@ -822,8 +829,8 @@ __wt_conn_dhandle_close_all(WT_SESSION_IMPL *session, const char *uri, bool remo
           session, dhandle->name, dhandle->checkpoint, removed, mark_dead));
     }
 
-    if (mark_dead)
-        F_SET(session->dhandle, WT_DHANDLE_DEAD);
+//    if (mark_dead)
+//        F_SET(session->dhandle, WT_DHANDLE_DEAD);
 
 err:
     session->dhandle = NULL;
