@@ -622,7 +622,7 @@ def gen_conf_key_struct_init(indent, names, conf_keys):
     structs = ''
     inits = ''
     for name in sorted(conf_keys):
-        subnames = names.copy()
+        subnames = list(names)  # build up our own copy
         subnames.append(name)
         h = conf_keys[name]
         if type(h) == int:
