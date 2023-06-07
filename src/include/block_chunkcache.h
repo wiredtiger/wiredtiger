@@ -34,7 +34,7 @@ struct __wt_chunkcache_chunk {
     TAILQ_ENTRY(__wt_chunkcache_chunk) next_lru_item;
 
     WT_CHUNKCACHE_HASHID hash_id;
-    volatile uint64_t access_count;
+    uint64_t access_count;
     uint64_t bucket_id; /* save hash bucket ID for quick removal */
     char *chunk_memory;
     wt_off_t chunk_offset;

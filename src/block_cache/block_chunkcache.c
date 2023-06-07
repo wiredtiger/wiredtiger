@@ -184,27 +184,27 @@ __chunkcache_make_hash(WT_CHUNKCACHE *chunkcache, WT_CHUNKCACHE_HASHID *hash_id,
 }
 
 /*
- * __chunkcache_evict_one --
- *     Decide if we can evict this chunk. In the current algorithm we only evict the chunks
- *     with the zero access count. We always decrement the access count on the chunk that is
- *     given to us. The thread accessing the chunk increments the access count. So we will only
- *     evict the chunks that have not been accessed for a long time.
+ * __chunkcache_should_evict --
+ *     Decide if we can evict this chunk. In the current algorithm we only evict the chunks with the
+ *     zero access count. We always decrement the access count on the chunk that is given to us. The
+ *     thread accessing the chunk increments the access count. So we will only evict the chunks that
+ *     have not been accessed for a long time.
  */
 static inline bool
 __chunkcache_should_evict(WT_CHUNKCACHE_CHUNK *chunk)
 {
     /* Do not evict chunks that are in the processed of being added to the cache. */
     if (!chunk->valid)
-        return false;
+        return (false);
     if (--(chunk->access_count) == 0)
-        return true;
-    return false;
+        return (true);
+    return (false);
 }
 
 /*
  * __chunkcache_eviction_thread --
- *     Periodically sweep the cache and evict chunks with a low access count. This is
- *     similar to the clock eviction algorithm, which is an approximation of the LRU algorithm.
+ *     Periodically sweep the cache and evict chunks with a low access count. This is similar to the
+ *     clock eviction algorithm, which is an approximation of the LRU algorithm.
  */
 static WT_THREAD_RET
 __chunkcache_eviction_thread(void *arg)
@@ -220,13 +220,14 @@ __chunkcache_eviction_thread(void *arg)
     while (!chunkcache->chunkcache_exiting) {
         /* Do not evict if we are not close to exceeding capacity */
         if ((chunkcache->bytes_used + chunkcache->chunk_size) <
-            chunkcache->evict_trigger * chunkcache->capacity / 100) {
+          chunkcache->evict_trigger * chunkcache->capacity / 100) {
             __wt_sleep(1, 0);
             continue;
         }
         for (i = 0; i < (int)chunkcache->hashtable_size; i++) {
             __wt_spin_lock(session, &chunkcache->hashtable[i].bucket_lock);
-            TAILQ_FOREACH_SAFE(chunk, WT_BUCKET_CHUNKS(chunkcache, i), next_chunk, chunk_tmp) {
+            TAILQ_FOREACH_SAFE(chunk, WT_BUCKET_CHUNKS(chunkcache, i), next_chunk, chunk_tmp)
+            {
                 if (__chunkcache_should_evict(chunk)) {
                     TAILQ_REMOVE(WT_BUCKET_CHUNKS(chunkcache, i), chunk, next_chunk);
                     __chunkcache_free_chunk(session, chunk);
@@ -250,19 +251,18 @@ __chunkcache_eviction_thread(void *arg)
  *     If the cache has the data at the given size and offset, copy it into the supplied buffer.
  *     Otherwise, read and cache the chunks containing the requested data.
  *
- *     During these operations we are holding one or more bucket locks. A bucket lock protects
- *     the linked list (i.e., the chain) or chunks hashing into the same bucket. We hold the bucket
- *     lock whenever we are looking for and are inserting a new chunk into that bucket.
- *     We must hold the lock throughout the entire operation: realizing that the chunk is not
- *     present, deciding to cache it, allocating the chunk’s metadata and inserting it into the
- *     chain. If we release the lock during this process, another thread might cache the same chunk;
- *     we don’t want that. We insert the new chunk into the cache in the not valid state. Once we
- *     insert the chunk, we can release the lock. As long as the chunk is marked as invalid,
- *     no other thread will try to re-cache it or to read it. As a result, we can read data from the
- *     remote storage into this chunk without holding the lock: this is what the current code does.
- *     We can even allocate the space for that chunk outside the critical section: the current code
- *     does not do that. Once we read the data into the chunk, we atomically set the valid flag,
- *     so other threads can use it.
+ * During these operations we are holding one or more bucket locks. A bucket lock protects the
+ *     linked list (i.e., the chain) or chunks hashing into the same bucket. We hold the bucket lock
+ *     whenever we are looking for and are inserting a new chunk into that bucket. We must hold the
+ *     lock throughout the entire operation: realizing that the chunk is not present, deciding to
+ *     cache it, allocating the chunks metadata and inserting it into the chain. If we release the
+ *     lock during this process, another thread might cache the same chunk; we do not want that. We
+ *     insert the new chunk into the cache in the not valid state. Once we insert the chunk, we can
+ *     release the lock. As long as the chunk is marked as invalid, no other thread will try to
+ *     re-cache it or to read it. As a result, we can read data from the remote storage into this
+ *     chunk without holding the lock: this is what the current code does. We can even allocate the
+ *     space for that chunk outside the critical section: the current code does not do that. Once we
+ *     read the data into the chunk, we atomically set the valid flag, so other threads can use it.
  */
 int
 __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid, wt_off_t offset,
@@ -330,9 +330,9 @@ retry:
                   size_copied);
 
                 /*
-                 * Increment the access count for eviction. If we are accessing the new chunk,
-                 * the access count would have been incremented on it when it was newly inserted
-                 * to avoid eviction before the chunk is accessed. So we are giving two access counts
+                 * Increment the access count for eviction. If we are accessing the new chunk, the
+                 * access count would have been incremented on it when it was newly inserted to
+                 * avoid eviction before the chunk is accessed. So we are giving two access counts
                  * to newly inserted chunks.
                  */
                 chunk->access_count++;
@@ -360,7 +360,8 @@ retry:
              * This way we avoid two threads trying to cache the same chunk.
              */
             TAILQ_INSERT_HEAD(WT_BUCKET_CHUNKS(chunkcache, bucket_id), chunk, next_chunk);
-            /* Increment the access count, so the chunk doesn't get evicted before the first access */
+            /* Increment the access count, so the chunk doesn't get evicted before the first access
+             */
             chunk->access_count++;
             __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
 
@@ -438,9 +439,9 @@ __wt_chunkcache_remove(
                     TAILQ_REMOVE(WT_BUCKET_CHUNKS(chunkcache, bucket_id), chunk, next_chunk);
                     __chunkcache_free_chunk(session, chunk);
                     __wt_verbose(session, WT_VERB_CHUNKCACHE,
-                       "removed chunk: %s(%u), offset=%" PRId64 ", size=%" PRIu64,
-                       (char *)&hash_id.objectname, hash_id.objectid, chunk->chunk_offset,
-                       (uint64_t)chunk->chunk_size);
+                      "removed chunk: %s(%u), offset=%" PRId64 ", size=%" PRIu64,
+                      (char *)&hash_id.objectname, hash_id.objectid, chunk->chunk_offset,
+                      (uint64_t)chunk->chunk_size);
                     break;
                 }
             }
