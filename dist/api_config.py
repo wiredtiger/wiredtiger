@@ -43,19 +43,6 @@ class KeyNumber:
     def get(self, name):
         return self.numbering[name]
 
-# We create a generic 'bundle' object that passed around to
-# various functions.  This allows us to collect various aggregated
-# information that we'll use at the end.
-
-class Bundle:
-    pass
-bundle = Bundle
-
-# Map key names to a unique number
-bundle.keynumber = KeyNumber()
-# Maps from class.method name to a pair: number of confs to be allocated and number of set_items
-bundle.conf_counters = dict()
-
 def gen_id_name(name, ty):
     id_name = name
     if ty == 'category':
@@ -166,12 +153,12 @@ def getcompnum(s):
 
 choices_names = set()
 # Get fields that assist the configuration compiler.
-def getcompstr(c, bundle):
+def getcompstr(c, keynumber):
     comptype = -1
     ty = gettype(c)
     # E.g. "WT_CONFIG_COMPILED_TYPE_INT"
     comptype = 'WT_CONFIG_COMPILED_TYPE_' + ty.upper()
-    offset = bundle.keynumber.get(gen_id_name(c.name, ty))
+    offset = keynumber.get(gen_id_name(c.name, ty))
     checks = c.flags
     minval = 'INT64_MIN'
     maxval = 'INT64_MAX'
@@ -202,10 +189,10 @@ def getcompstr(c, bundle):
 
     return ', {}, {}, {}, {}, {}'.format(comptype, offset, minval, maxval, choices_ref)
 
-def getconfcheck(c, bundle):
+def getconfcheck(c, keynumber):
     check = '{ "' + c.name + '", "' + gettype(c) + '",'
     cstr = checkstr(c)
-    sstr = getsubconfigstr(c, bundle) + getcompstr(c, bundle)
+    sstr = getsubconfigstr(c, keynumber) + getcompstr(c, keynumber)
     if cstr != 'NULL':
         cstr = '"\n\t    "'.join(w.wrap(cstr))
         # Manually re-wrap when there is a check string to avoid ugliness
@@ -253,20 +240,21 @@ def add_conf_keys(container, conf_keys, is_top):
 config_names = dict()
 config_long_names = dict()
 config_key = []      # sorted by name
+keynumber = KeyNumber()
 
 # Before we start any output, walk through all configuration keys, including
 # subcategories, and register the names. Each unique name will get a unique number.
-def add_keys(bundle, configs, prefix):
+def add_keys(keynumber, configs, prefix):
     global config_num, config_key
     for c in configs:
         ty = gettype(c)
         idname = gen_id_name(c.name, ty)
-        bundle.keynumber.add(idname)
+        keynumber.add(idname)
         if not c.name in config_key:
             config_names[c.name] = c.name
         config_long_names[prefix + c.name] = -1
         if ty == 'category':
-            add_keys(bundle, c.subconfig, prefix + c.name + '.')
+            add_keys(keynumber, c.subconfig, prefix + c.name + '.')
 
 # Take a method name like WT_SESSION.configure and break it into two parts.
 def get_method_name_parts(name):
@@ -280,7 +268,7 @@ for name in api_data_def.methods.keys():
     method = api_data_def.methods[name]
     config = method.config
     if config:
-        add_keys(bundle, config, '')
+        add_keys(keynumber, config, '')
 
 if not test_config:
     for name in sorted(config_names):
@@ -431,7 +419,7 @@ def build_jump(arr):
     return result
 
 created_subconfigs=set()
-def add_subconfig(c, cname, bundle):
+def add_subconfig(c, cname, keynumber):
     if cname in created_subconfigs:
         return
     created_subconfigs.add(cname)
@@ -447,7 +435,7 @@ static const uint8_t %(name)s_jump[128] = {
 };
 ''' % {
     'name' : 'confchk_' + cname + '_subconfigs',
-    'check' : '\n\t'.join(getconfcheck(subc, bundle) for subc in sorted(c.subconfig)),
+    'check' : '\n\t'.join(getconfcheck(subc, keynumber) for subc in sorted(c.subconfig)),
     'jump_contents' : ', '.join([str(i) for i in jump])
 })
 
@@ -457,12 +445,12 @@ def getcname(c):
              if hasattr(c, 'method_name') else ''
     return prefix + c.name
 
-def getsubconfigstr(c, bundle):
+def getsubconfigstr(c, keynumber):
     '''Return a string indicating if an item has sub configuration'''
     ctype = gettype(c)
     if ctype == 'category':
         cname = getcname(c)
-        add_subconfig(c, cname, bundle)
+        add_subconfig(c, cname, keynumber)
         confchk_name = 'confchk_' + cname + '_subconfigs'
         return confchk_name + ', ' + str(len(c.subconfig)) + ', ' + confchk_name + '_jump'
     else:
@@ -485,7 +473,7 @@ static const uint8_t confchk_%(name)s_jump[128] = {
 };
 ''' % {
     'name' : name.replace('.', '_'),
-    'check' : '\n\t'.join(getconfcheck(c, bundle) for c in config),
+    'check' : '\n\t'.join(getconfcheck(c, keynumber) for c in config),
     'jump_contents' : ', '.join([str(i) for i in jump])
 })
 
@@ -678,7 +666,6 @@ if not test_config:
     # Assign unique numbers to all keys used in configuration, regardless of "level".
     with conf_h.replace_fragment('API configuration keys') as tfile:
         count = 0
-        keynumber = bundle.keynumber
         a = keynumber.numbering
         b = dict()
         for name in sorted(keynumber.numbering.keys()):
