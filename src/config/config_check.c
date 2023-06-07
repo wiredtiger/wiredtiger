@@ -164,13 +164,6 @@ config_check(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_int chec
             WT_RET_MSG(session, EINVAL, "Value too large for key '%.*s' the maximum is %" PRIi64,
               (int)k.len, k.str, check->max_value);
 
-        /*
-         * TODO: from the original code, we have this comment for WT_CONFIG_ITEM_STRUCT.
-         *   Handle the 'verbose' case of a list containing restricted choices.
-         *  That is choices=["foo", "bar"] i believe.  Otherwise it is:
-         *  "foo,bar", which the precompiler doesn't currently handle.
-         *   We should handle it there or ban it.
-         */
         if (check->choices != NULL) {
             if (v.len == 0)
                 WT_RET_MSG(session, EINVAL, "Key '%.*s' requires a value", (int)k.len, k.str);
@@ -188,11 +181,6 @@ config_check(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_int chec
             if (!found)
                 WT_RET_MSG(session, EINVAL, "Value '%.*s' not a permitted choice for key '%.*s'",
                   (int)v.len, v.str, (int)k.len, k.str);
-
-            /* TODO: handle this in compiler
-                WT_RET_MSG(session, EINVAL, "unexpected configuration description keyword %.*s",
-                  (int)ck.len, ck.str);
-            */
         }
     }
 
