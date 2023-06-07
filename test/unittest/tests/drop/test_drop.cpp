@@ -287,7 +287,7 @@ drop_test(std::string const &config, bool transaction,
         check_txn_updates("before drop", session_impl, diagnostics);
         lock_and_debug_dropped_state(session_impl, file_uri.c_str());
         __wt_sleep(1, 0);
-        REQUIRE(session->drop(session, uri.c_str(), "force=true") == 0);
+        REQUIRE(session->drop(session, uri.c_str(), "force=true") == 16);
 
         if (diagnostics)
             printf("After drop\n");

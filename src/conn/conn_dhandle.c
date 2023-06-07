@@ -294,7 +294,7 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
  *     Sync and close the underlying btree handle.
  */
 int
-__wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead)
+__wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bool set_mark_dead_flag)
 {
     WT_BM *bm;
     WT_BTREE *btree;
@@ -423,7 +423,7 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead)
      * Check discard too, code we call to clear the cache expects the data handle dead flag to be
      * set when discarding modified pages.
      */
-    if (marked_dead || discard)
+    if ((marked_dead && set_mark_dead_flag) || discard)
         F_SET(dhandle, WT_DHANDLE_DEAD);
 
     /*
@@ -531,7 +531,7 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
      * operation is closed, there won't be updates in the tree that can block the close.
      */
     if (F_ISSET(dhandle, WT_DHANDLE_OPEN))
-        WT_ERR(__wt_conn_dhandle_close(session, false, false));
+        WT_ERR(__wt_conn_dhandle_close(session, false, false, false));
 
     /* Discard any previous configuration, set up the new configuration. */
     __conn_dhandle_config_clear(session);
@@ -768,7 +768,7 @@ __conn_dhandle_close_one(
      */
     if (F_ISSET(session->dhandle, WT_DHANDLE_OPEN)) {
         __wt_meta_track_sub_on(session);
-        ret = __wt_conn_dhandle_close(session, false, mark_dead);
+        ret = __wt_conn_dhandle_close(session, false, mark_dead, false);
 
         /*
          * If the close succeeded, drop any locks it acquired. If there was a failure, this function
@@ -778,7 +778,7 @@ __conn_dhandle_close_one(
             ret = __wt_meta_track_sub_off(session);
     }
     if (removed) {
-        printf("In __conn_dhandle_close_one on %s, txn running = %d\n", uri, (F_ISSET(session->txn, WT_TXN_RUNNING)));
+        printf("In __conn_dhandle_close_one on %s, txn running = %d, dhandle flags 0x%x\n", uri, (F_ISSET(session->txn, WT_TXN_RUNNING)), session->dhandle->flags);
 //        F_SET(session->dhandle, WT_DHANDLE_DEAD);
         F_SET(session->dhandle, WT_DHANDLE_DROPPED);
     }
@@ -810,7 +810,7 @@ __wt_conn_dhandle_close_all(WT_SESSION_IMPL *session, const char *uri, bool remo
      * Lock the live handle first. This ordering is important: we rely on locking the live handle to
      * fail fast if the tree is busy (e.g., with cursors open or in a checkpoint).
      */
-    WT_ERR(__conn_dhandle_close_one(session, uri, NULL, removed, mark_dead));
+    WT_ERR(__conn_dhandle_close_one(session, uri, NULL, removed, false));
 
     bucket = __wt_hash_city64(uri, strlen(uri)) & (conn->dh_hash_size - 1);
     TAILQ_FOREACH (dhandle, &conn->dhhash[bucket], hashq) {
@@ -821,6 +821,9 @@ __wt_conn_dhandle_close_all(WT_SESSION_IMPL *session, const char *uri, bool remo
         WT_ERR(__conn_dhandle_close_one(
           session, dhandle->name, dhandle->checkpoint, removed, mark_dead));
     }
+
+    if (mark_dead)
+        F_SET(session->dhandle, WT_DHANDLE_DEAD);
 
 err:
     session->dhandle = NULL;
@@ -868,7 +871,7 @@ __wt_conn_dhandle_discard_single(WT_SESSION_IMPL *session, bool final, bool mark
     dhandle = session->dhandle;
 
     if (F_ISSET(dhandle, WT_DHANDLE_OPEN)) {
-        tret = __wt_conn_dhandle_close(session, final, mark_dead);
+        tret = __wt_conn_dhandle_close(session, final, mark_dead, false);
         if (final && tret != 0) {
             __wt_err(session, tret, "Final close of %s failed", dhandle->name);
             WT_TRET(tret);
