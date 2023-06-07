@@ -1113,7 +1113,7 @@ struct __wt_conf_key {
 #define WT_CONF_API_KEY_COUNT(c, m) (WT_FIELD_ELEMENTS(WT_CONF_API_TYPE(c, m), conf_key))
 
 /*
- * Initializers for the sizing fields in configuration entries.
+ * Initializing macros for the sizing fields in configuration entries.
  */
 struct __wt_conf_sizing {
     const char *method; /* method name */

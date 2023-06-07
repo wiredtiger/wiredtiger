@@ -228,26 +228,24 @@ __config_add_checks(WT_SESSION_IMPL *session, WT_CONFIG_ENTRY *entry, WT_CONFIG_
     cp->min_value = INT64_MIN;
     cp->max_value = INT64_MAX;
     if (cp->checks != NULL) {
-       /* Setup an iterator for the check string. */
+        /* Setup an iterator for the check string. */
         __wt_config_init(session, &cparser, cp->checks);
         while ((ret = __wt_config_next(&cparser, &ck, &cv)) == 0) {
             if (WT_STRING_MATCH("min", ck.str, ck.len)) {
                 cp->min_value = strtoll(cv.str, &endnum, 10);
                 if (endnum != &cv.str[cv.len])
-                    WT_RET_MSG(session, EINVAL,
-                      "min value invalid for key '%s'", cp->name);
+                    WT_RET_MSG(session, EINVAL, "min value invalid for key '%s'", cp->name);
             } else if (WT_STRING_MATCH("max", ck.str, ck.len)) {
                 cp->max_value = strtoll(cv.str, &endnum, 10);
                 if (endnum != &cv.str[cv.len])
-                    WT_RET_MSG(session, EINVAL,
-                      "max value invalid for key '%s'", cp->name);
+                    WT_RET_MSG(session, EINVAL, "max value invalid for key '%s'", cp->name);
             } else if (WT_STRING_MATCH("choices", ck.str, ck.len)) {
                 if (cv.len == 0)
-                   WT_RET_MSG(session, EINVAL, "Key '%s' requires a value", cp->name);
+                    WT_RET_MSG(session, EINVAL, "Key '%s' requires a value", cp->name);
                 if (cv.type == WT_CONFIG_ITEM_STRUCT) {
                     /*
-                     * Handle the 'verbose' case of a list containing restricted choices.
-                     * This doesn't need to be fast, count the number of items first.
+                     * Handle the 'verbose' case of a list containing restricted choices. This
+                     * doesn't need to be fast, count the number of items first.
                      */
                     __wt_config_subinit(session, &sparser, &cv);
                     count = 0;
@@ -266,7 +264,7 @@ __config_add_checks(WT_SESSION_IMPL *session, WT_CONFIG_ENTRY *entry, WT_CONFIG_
                         ++count;
                     }
                     WT_RET_NOTFOUND_OK(ret);
-               } else {
+                } else {
                     WT_RET(__wt_calloc_def(session, 2, &cp->choices));
                     WT_RET(__wt_config_subgetraw(session, &cv, &v, &dummy));
                     WT_RET(__wt_strndup(session, v.str, v.len, &cp->choices[0]));
@@ -325,7 +323,7 @@ __wt_configure_method(WT_SESSION_IMPL *session, const char *method, const char *
     compiled_type = 0;
     if (strcmp(type, "boolean") == 0)
         compiled_type = WT_CONFIG_COMPILED_TYPE_BOOLEAN;
-    else if (strcmp(type, "int") == 0 )
+    else if (strcmp(type, "int") == 0)
         compiled_type = WT_CONFIG_COMPILED_TYPE_INT;
     else if (strcmp(type, "list") == 0)
         compiled_type = WT_CONFIG_COMPILED_TYPE_LIST;
