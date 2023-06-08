@@ -1479,10 +1479,12 @@ __txn_mod_compare(const void *a, const void *b)
         return (aopt->btree->id < bopt->btree->id);
 
     /*
-     * If the files are the same, order by the key. Row-store collators require WT_SESSION pointers,
-     * and we don't have one. Compare the keys if there's no collator, otherwise return equality.
-     * Column-store is always easy.
+     * If the files are the same, order by the key. Sort none operations to the right as they don't
+     * have a key. Row-store collators require WT_SESSION pointers, and we don't have one. Compare
+     * the keys if there's no collator, otherwise return equality. Column-store is always easy.
      */
+    if (aopt->type == WT_TXN_OP_NONE)
+        return (1);
     if (aopt->type == WT_TXN_OP_BASIC_ROW || aopt->type == WT_TXN_OP_INMEM_ROW)
         return (aopt->btree->collator == NULL ?
             __wt_lex_compare(&aopt->u.op_row.key, &bopt->u.op_row.key) :
