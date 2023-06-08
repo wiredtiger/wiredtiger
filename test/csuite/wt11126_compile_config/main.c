@@ -56,11 +56,11 @@
 static const char *ignore_prepare_value[3] = {"false", "force", "true"};
 static const char *boolean_value[2] = {"false", "true"};
 
-static const char *begin_transaction_config_precompile_format =
-  "ignore_prepare=%s,roundup_timestamps=(prepared=%d,read=%d),no_timestamp=%d";
+#define BEGIN_TRANSACTION_CONFIG_PRECOMPILE_FORMAT \
+    "ignore_prepare=%s,roundup_timestamps=(prepared=%d,read=%d),no_timestamp=%d"
 
-static const char *begin_transaction_config_printf_format =
-  "ignore_prepare=%s,roundup_timestamps=(prepared=%s,read=%s),no_timestamp=%s";
+#define BEGIN_TRANSACTION_CONFIG_PRINTF_FORMAT \
+    "ignore_prepare=%s,roundup_timestamps=(prepared=%s,read=%s),no_timestamp=%s"
 
 /*
  * begin_transaction_slow --
@@ -68,12 +68,12 @@ static const char *begin_transaction_config_printf_format =
  *     incur the cost of formatting the configuration string on every call.
  */
 static void
-begin_transaction_slow(WT_SESSION *session, int ignore_prepare, bool roundup_prepared,
+begin_transaction_slow(WT_SESSION *session, u_int ignore_prepare, bool roundup_prepared,
   bool roundup_read, bool no_timestamp)
 {
     char config[256];
 
-    testutil_check(__wt_snprintf(config, sizeof(config), begin_transaction_config_printf_format,
+    testutil_check(__wt_snprintf(config, sizeof(config), BEGIN_TRANSACTION_CONFIG_PRINTF_FORMAT,
       ignore_prepare_value[ignore_prepare], boolean_value[(int)roundup_prepared],
       boolean_value[(int)roundup_read], boolean_value[(int)no_timestamp]));
     testutil_check(session->begin_transaction(session, config));
@@ -94,13 +94,14 @@ static char medium_config[3 * 2 * 2 * 2][256];
 static void
 begin_transaction_medium_init(void)
 {
-    for (int ignore_prepare = 0; ignore_prepare < IGNORE_PREPARE_VALUE_SIZE; ++ignore_prepare)
-        for (int roundup_prepared = 0; roundup_prepared < 2; ++roundup_prepared)
-            for (int roundup_read = 0; roundup_read < 2; ++roundup_read)
-                for (int no_ts = 0; no_ts < 2; ++no_ts) {
-                    int entry = MEDIUM_ENTRY(ignore_prepare, roundup_prepared, roundup_read, no_ts);
+    for (u_int ignore_prepare = 0; ignore_prepare < IGNORE_PREPARE_VALUE_SIZE; ++ignore_prepare)
+        for (u_int roundup_prepared = 0; roundup_prepared < 2; ++roundup_prepared)
+            for (u_int roundup_read = 0; roundup_read < 2; ++roundup_read)
+                for (u_int no_ts = 0; no_ts < 2; ++no_ts) {
+                    u_int entry =
+                      MEDIUM_ENTRY(ignore_prepare, roundup_prepared, roundup_read, no_ts);
                     testutil_check(__wt_snprintf(medium_config[entry], sizeof(medium_config[entry]),
-                      begin_transaction_config_printf_format, ignore_prepare_value[ignore_prepare],
+                      BEGIN_TRANSACTION_CONFIG_PRINTF_FORMAT, ignore_prepare_value[ignore_prepare],
                       boolean_value[(int)roundup_prepared], boolean_value[(int)roundup_read],
                       boolean_value[(int)no_ts]));
                 }
@@ -111,10 +112,10 @@ begin_transaction_medium_init(void)
  *     A medium implementation of a begin_transaction caller, with a set of fixed config strings.
  */
 static void
-begin_transaction_medium(WT_SESSION *session, int ignore_prepare, bool roundup_prepared,
+begin_transaction_medium(WT_SESSION *session, u_int ignore_prepare, bool roundup_prepared,
   bool roundup_read, bool no_timestamp)
 {
-    int entry;
+    u_int entry;
 
     entry = MEDIUM_ENTRY(ignore_prepare, roundup_prepared, roundup_read, no_timestamp);
     testutil_check(session->begin_transaction(session, medium_config[entry]));
@@ -135,7 +136,7 @@ static void
 begin_transaction_fast_init(WT_CONNECTION *conn, const char **compiled_ptr)
 {
     testutil_check(conn->compile_configuration(conn, "WT_SESSION.begin_transaction",
-      begin_transaction_config_precompile_format, compiled_ptr));
+      BEGIN_TRANSACTION_CONFIG_PRECOMPILE_FORMAT, compiled_ptr));
 }
 
 /*
@@ -144,7 +145,7 @@ begin_transaction_fast_init(WT_CONNECTION *conn, const char **compiled_ptr)
  *     Parameters must be bound before the API call.
  */
 static void
-begin_transaction_fast(WT_SESSION *session, const char *compiled, int ignore_prepare,
+begin_transaction_fast(WT_SESSION *session, const char *compiled, u_int ignore_prepare,
   bool roundup_prepared, bool roundup_read, bool no_timestamp)
 {
     testutil_check(session->bind_configuration(session, compiled,
@@ -170,14 +171,14 @@ begin_transaction_fast_alternate_init(WT_CONNECTION *conn, const char ***compile
 
     char config[256];
 
-    for (int ignore_prepare = 0; ignore_prepare < IGNORE_PREPARE_VALUE_SIZE; ++ignore_prepare)
-        for (int roundup_prepared = 0; roundup_prepared < 2; ++roundup_prepared)
-            for (int roundup_read = 0; roundup_read < 2; ++roundup_read)
-                for (int no_ts = 0; no_ts < 2; ++no_ts) {
-                    int entry =
+    for (u_int ignore_prepare = 0; ignore_prepare < IGNORE_PREPARE_VALUE_SIZE; ++ignore_prepare)
+        for (u_int roundup_prepared = 0; roundup_prepared < 2; ++roundup_prepared)
+            for (u_int roundup_read = 0; roundup_read < 2; ++roundup_read)
+                for (u_int no_ts = 0; no_ts < 2; ++no_ts) {
+                    u_int entry =
                       MANY_COMPILED_ENTRY(ignore_prepare, roundup_prepared, roundup_read, no_ts);
                     testutil_check(
-                      __wt_snprintf(config, sizeof(config), begin_transaction_config_printf_format,
+                      __wt_snprintf(config, sizeof(config), BEGIN_TRANSACTION_CONFIG_PRINTF_FORMAT,
                         ignore_prepare_value[ignore_prepare], boolean_value[(int)roundup_prepared],
                         boolean_value[(int)roundup_read], boolean_value[(int)no_ts]));
                     testutil_check(conn->compile_configuration(
@@ -193,9 +194,9 @@ begin_transaction_fast_alternate_init(WT_CONNECTION *conn, const char ***compile
  */
 static void
 begin_transaction_fast_alternate(WT_SESSION *session, const char **compiled_array,
-  int ignore_prepare, bool roundup_prepared, bool roundup_read, bool no_timestamp)
+  u_int ignore_prepare, bool roundup_prepared, bool roundup_read, bool no_timestamp)
 {
-    int entry;
+    u_int entry;
 
     entry = MANY_COMPILED_ENTRY(ignore_prepare, roundup_prepared, roundup_read, no_timestamp);
     testutil_check(session->begin_transaction(session, compiled_array[entry]));
@@ -214,7 +215,7 @@ do_config_run(TEST_OPTS *opts, int variant, const char *compiled, const char **c
     WT_SESSION *session;
     WT_TXN *txn;
     uint32_t r;
-    int i, ignore_prepare;
+    u_int i, ignore_prepare;
     bool roundup_prepared, roundup_read, no_timestamp;
 
     session = opts->session;
