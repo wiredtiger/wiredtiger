@@ -218,8 +218,8 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
 
             if (existing) {
                 WT_ASSERT(session, conf_key->type == CONF_KEY_SUB_INFO);
-                WT_ASSERT(session, conf_key->u.sub_conf_index > 0 &&
-                  conf_key->u.sub_conf_index < conf->conf_max);
+                WT_ASSERT(session,
+                  conf_key->u.sub_conf_index > 0 && conf_key->u.sub_conf_index < conf->conf_max);
 
                 sub_conf = &conf[conf_key->u.sub_conf_index];
 
