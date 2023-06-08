@@ -304,7 +304,7 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
-    bool discard, is_btree, is_mapped, marked_dead, no_schema_lock;
+    bool die, discard, is_btree, is_mapped, marked_dead, no_schema_lock;
 
     conn = S2C(session);
     dhandle = session->dhandle;
@@ -431,10 +431,14 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
      * Check discard too, code we call to clear the cache expects the data handle dead flag to be
      * set when discarding modified pages.
      */
-    if ((marked_dead && set_mark_dead_flag) || discard)
-//    WT_UNUSED(set_mark_dead_flag);
-//    if ((marked_dead) || discard)
+
+    die = (marked_dead && set_mark_dead_flag) || discard;
+    printf("__wt_conn_dhandle_close() should we set WT_DHANDLE_DEAD - session 0x%p, dhandle 0x%p, name %s, set_mark_dead_flag %d, marked_dead %d, discard %d, is btree %d, die %d\n",
+      (void*)session, (void*)dhandle, dhandle->name, set_mark_dead_flag, marked_dead, discard, WT_DHANDLE_BTREE(dhandle), die);
+
+    if (die) {
         F_SET(dhandle, WT_DHANDLE_DEAD);
+    }
 
     /*
      * Discard from cache any trees not marked dead in this call (that is, including trees
@@ -455,9 +459,10 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
             --conn->open_btree_count;
     }
 
-    printf("In __wt_conn_dhandle_close(), dhandle %p, name %s, flags = 0x%x, session_inuse %d, session_ref %u, dead %d, open %d\n",
+    printf("In __wt_conn_dhandle_close(), dhandle %p, name %s, flags = 0x%x, session_inuse %d, session_ref %u, dead %d, open %d, mark_dead %d, marked_dead %d, discard %d\n",
       (void*) dhandle, dhandle->name, dhandle->flags, dhandle->session_inuse, dhandle->session_ref,
-      F_ISSET(dhandle, WT_DHANDLE_DEAD),F_ISSET(dhandle, WT_DHANDLE_OPEN) );
+      F_ISSET(dhandle, WT_DHANDLE_DEAD),F_ISSET(dhandle, WT_DHANDLE_OPEN),
+      mark_dead, marked_dead, discard);
 
 //    WT_ASSERT(session, F_ISSET(dhandle, WT_DHANDLE_DEAD) || !F_ISSET(dhandle, WT_DHANDLE_OPEN));
 
