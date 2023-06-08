@@ -155,6 +155,7 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
     WT_CONF_KEY *conf_key;
     WT_DECL_RET;
     uint32_t i, key_id, conf_key_pos, subconf_count, subconf_keys;
+    uint8_t *sub_conf_key_addr;
     bool existing;
 
     /*
@@ -192,7 +193,7 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
             WT_ASSERT(session, conf_key_pos + 1 <= 0xff);
             conf->key_map[key_id] = (uint8_t)(conf_key_pos + 1);
         }
-        conf_key = &conf->conf_key[conf_key_pos];
+        conf_key = WT_CONF_KEY_TABLE_ENTRY(conf, conf_key_pos);
 
         WT_ERR(__conf_string_to_type(session, check->type, &check_type));
         if (check_type == WT_CONFIG_ITEM_STRUCT) {
@@ -217,18 +218,25 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
 
             if (existing) {
                 WT_ASSERT(session, conf_key->type == CONF_KEY_SUB_INFO);
-                sub_conf = conf_key->u.sub;
+                WT_ASSERT(session, conf_key->u.sub_conf_index > 0 &&
+                  conf_key->u.sub_conf_index < conf->conf_max);
+
+                sub_conf = &conf[conf_key->u.sub_conf_index];
+
                 WT_ASSERT(session, sub_conf != NULL);
             } else {
                 WT_ASSERT_ALWAYS(
                   session, conf->conf_count < conf->conf_max, "conf: sub-configuration overflow");
 
                 conf_key->type = CONF_KEY_SUB_INFO;
+                conf_key->u.sub_conf_index = conf->conf_count;
 
                 sub_conf = &conf[conf->conf_count];
                 sub_conf->compile_time_entry = top_conf->compile_time_entry;
                 sub_conf->conf_key_count = 0;
-                sub_conf->conf_key = &conf->conf_key[conf->conf_key_count];
+                sub_conf_key_addr = (uint8_t *)WT_CONF_KEY_TABLE_ENTRY(conf, conf->conf_key_count);
+                WT_ASSERT(session, (uint8_t *)sub_conf < sub_conf_key_addr);
+                sub_conf->conf_key_table_offset = (size_t)(sub_conf_key_addr - (uint8_t *)sub_conf);
                 sub_conf->conf_key_max = conf->conf_key_max - conf->conf_key_count;
                 /*
                  * The sub-configuration count needs to count itself.
@@ -237,7 +245,6 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
                 sub_conf->conf_max = conf->conf_max - conf->conf_count;
 
                 ++conf->conf_count;
-                conf_key->u.sub = sub_conf;
             }
 
             /*
@@ -410,9 +417,9 @@ __wt_conf_compile_config_strings(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY
     nkey = centry->conf_key_count;
 
     /*
-     * The layout of the compiled conf starts with N conf structs, followed by M key structs.
+     * The layout of the final compiled conf starts with N conf structs, followed by M key structs.
      */
-    conf->conf_key = (WT_CONF_KEY *)&conf[nconf];
+    conf->conf_key_table_offset = sizeof(WT_CONF) * nconf;
 
     conf->compile_time_entry = centry;
     conf->conf_key_max = nkey;

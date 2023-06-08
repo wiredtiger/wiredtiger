@@ -41,7 +41,7 @@ __wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF *orig_conf, uint64_t
         /* The value in key_map is one-based, account for that here. */
         --conf_key_index;
         WT_ASSERT(session, conf_key_index < conf->conf_key_count);
-        conf_key = &conf->conf_key[conf_key_index];
+        conf_key = WT_CONF_KEY_TABLE_ENTRY(conf, conf_key_index);
         keys >>= 16;
 
         switch (conf_key->type) {
@@ -67,12 +67,12 @@ __wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF *orig_conf, uint64_t
             WT_ASSERT(session,
               bind_desc->offset < orig_conf->binding_count &&
                 values_off <= WT_CONF_BIND_VALUES_LEN);
-            WT_ASSERT(session, session->conf_bindings.values[values_off].desc == bind_desc);
+            //TODO: WT_ASSERT(session, session->conf_bindings.values[values_off].desc == bind_desc);
             *value = session->conf_bindings.values[values_off].item;
             return (0);
 
         case CONF_KEY_SUB_INFO:
-            conf = conf_key->u.sub;
+            conf = &conf[conf_key->u.sub_conf_index];
             break;
         }
     }

@@ -1057,9 +1057,21 @@ typedef enum {
     CONF_COMPILED_EXPLICIT = 1,
     CONF_COMPILED_IMPLICIT = 2
 } WT_CONF_COMPILED_TYPE;
+
 /*
  * WT_CONF --
- *	A compiled configuration string
+ *	A structure corresponding to a compiled configuration string.  This is set up to
+ * be a "position-independent" structure, so once set up, it can be copied without having
+ * to strdup any fields.
+ *
+ * We actually compile into a superstructure that has N WT_CONF struct in an array,
+ * followed by M WT_CONF_KEY structs in another array.  N is the maximum conf count,
+ * M is the maximum key count, these values are stored in this structure.  These two
+ * values are dependent on the particular API we are compiling, and whether the API has
+ * sub-configurations and how many keys the API uses.
+ *
+ * When we copy a conf (for example, by taking a precompiled configuration and making a
+ * copy so we can add modifications), we must copy the entire superstructure.
  */
 struct __wt_conf {
     /*
@@ -1077,12 +1089,20 @@ struct __wt_conf {
 
     uint32_t conf_key_count;
     uint32_t conf_key_max;
-    WT_CONF_KEY *conf_key;
+
+    size_t conf_key_table_offset;
 
     uint32_t binding_count;
     size_t binding_allocated;
     WT_CONF_BIND_DESC **binding_descriptions;
 };
+
+/*
+ * To keep the conf structure position independent, we cannot have a direct pointer to the key
+ * table, we must deduce its position.
+ */
+#define WT_CONF_KEY_TABLE_ENTRY(conf, n) \
+    &((WT_CONF_KEY *)((uint8_t *)conf + conf->conf_key_table_offset))[n]
 
 struct __wt_conf_key {
     enum {
@@ -1094,7 +1114,7 @@ struct __wt_conf_key {
     union {
         WT_CONFIG_ITEM item;
         WT_CONF_BIND_DESC bind_desc;
-        WT_CONF *sub;
+        u_int sub_conf_index;
     } u;
 };
 
