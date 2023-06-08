@@ -44,8 +44,8 @@ __session_discard_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE_CACHE *dhandl
     TAILQ_REMOVE(&session->dhhash[bucket], dhandle_cache, hashq);
 
     WT_DHANDLE_RELEASE(dhandle_cache->dhandle);
-    printf("In __session_discard_dhandle(), released dhandle %p, name %s, flags = 0x%x, session_inuse %d, session_ref %u\n",
-      (void*) dhandle_cache->dhandle, dhandle_cache->dhandle->name, dhandle_cache->dhandle->flags, dhandle_cache->dhandle->session_inuse, dhandle_cache->dhandle->session_ref);
+    printf("In __session_discard_dhandle(), session 0x%p, released dhandle %p, name %s, flags = 0x%x, session_inuse %d, session_ref %u\n",
+      (void*)session, (void*) dhandle_cache->dhandle, dhandle_cache->dhandle->name, dhandle_cache->dhandle->flags, dhandle_cache->dhandle->session_inuse, dhandle_cache->dhandle->session_ref);
     __wt_overwrite_and_free(session, dhandle_cache);
 }
 
@@ -263,7 +263,7 @@ __wt_session_release_dhandle(WT_SESSION_IMPL *session)
       F_ISSET(dhandle, WT_DHANDLE_DISCARD | WT_DHANDLE_DISCARD_KILL)) {
         WT_ASSERT(session, F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE));
 
-        ret = __wt_conn_dhandle_close(session, false, F_ISSET(dhandle, WT_DHANDLE_DISCARD_KILL), false);
+        ret = __wt_conn_dhandle_close(session, false, F_ISSET(dhandle, WT_DHANDLE_DISCARD_KILL), true);
         F_CLR(dhandle, WT_DHANDLE_DISCARD | WT_DHANDLE_DISCARD_KILL);
     }
 

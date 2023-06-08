@@ -312,7 +312,12 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
     if (!F_ISSET(dhandle, WT_DHANDLE_OPEN))
         return (0);
 
-    printf("__wt_conn_dhandle_close() - dhandle 0x%p\n", (void*)dhandle);
+    printf("__wt_conn_dhandle_close() - session 0x%p, dhandle 0x%p, name %s, set_mark_dead_flag %d, is btree %d\n",
+      (void*)session, (void*)dhandle, dhandle->name, set_mark_dead_flag, WT_DHANDLE_BTREE(dhandle));
+
+    if (set_mark_dead_flag) {
+        printf(". set_mark_dead_flag: dhandle 0x%p, name %s\n", (void*)dhandle, dhandle->name);
+    }
 
     /*
      * The only data handle type that uses the "handle" field is btree. For other data handle types,
@@ -426,9 +431,9 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
      * Check discard too, code we call to clear the cache expects the data handle dead flag to be
      * set when discarding modified pages.
      */
-//    if ((marked_dead && set_mark_dead_flag) || discard)
-    WT_UNUSED(set_mark_dead_flag);
-    if ((marked_dead) || discard)
+    if ((marked_dead && set_mark_dead_flag) || discard)
+//    WT_UNUSED(set_mark_dead_flag);
+//    if ((marked_dead) || discard)
         F_SET(dhandle, WT_DHANDLE_DEAD);
 
     /*
@@ -449,7 +454,12 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
         if (dhandle->checkpoint == NULL)
             --conn->open_btree_count;
     }
-    WT_ASSERT(session, F_ISSET(dhandle, WT_DHANDLE_DEAD) || !F_ISSET(dhandle, WT_DHANDLE_OPEN));
+
+    printf("In __wt_conn_dhandle_close(), dhandle %p, name %s, flags = 0x%x, session_inuse %d, session_ref %u, dead %d, open %d\n",
+      (void*) dhandle, dhandle->name, dhandle->flags, dhandle->session_inuse, dhandle->session_ref,
+      F_ISSET(dhandle, WT_DHANDLE_DEAD),F_ISSET(dhandle, WT_DHANDLE_OPEN) );
+
+//    WT_ASSERT(session, F_ISSET(dhandle, WT_DHANDLE_DEAD) || !F_ISSET(dhandle, WT_DHANDLE_OPEN));
 
 err:
     __wt_spin_unlock(session, &dhandle->close_lock);
@@ -829,8 +839,8 @@ __wt_conn_dhandle_close_all(WT_SESSION_IMPL *session, const char *uri, bool remo
           session, dhandle->name, dhandle->checkpoint, removed, mark_dead));
     }
 
-//    if (mark_dead)
-//        F_SET(session->dhandle, WT_DHANDLE_DEAD);
+    if (mark_dead)
+        F_SET(session->dhandle, WT_DHANDLE_DEAD);
 
 err:
     session->dhandle = NULL;

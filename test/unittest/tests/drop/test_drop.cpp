@@ -46,11 +46,11 @@ print_dhandles(WT_SESSION_IMPL *session_impl)
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
 
-    printf("Session dhandle: %p\n", session_impl->dhandle);
+    printf("Session 0x%p, dhandle: 0x%p\n", session_impl, session_impl->dhandle);
     conn = S2C(session_impl);
 
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
-        printf(".   dhandle 0c%p, session_inuse %d, session_ref %u\n",
+        printf(".   dhandle 0x%p, session_inuse %d, session_ref %u\n",
           dhandle, dhandle->session_inuse, dhandle->session_ref);
     }
 }
@@ -251,6 +251,32 @@ get_dhandles_open_count(WT_CURSOR *stats_cursor)
 // }
 
 
+/*
+ * thread_function_drop --
+ *     This function is designed to be used as a thread function, and force drops a table.
+ */
+static void
+thread_function_drop(WT_SESSION *session, std::string const &uri)
+{
+    session->drop(session, uri.c_str(), "force=true");
+}
+
+
+/*
+ * thread_function_drop_in_session --
+ *     This function is designed to be used as a thread function, and force drops a table.
+ */
+static void
+thread_function_drop_in_session(WT_CONNECTION *connection, std::string const &cfg, std::string const &uri)
+{
+    printf("Starting thread_function_drop_in_session()\n");
+    WT_SESSION *session;
+    REQUIRE(connection->open_session(connection, nullptr, cfg.c_str(), &session) == 0);
+    REQUIRE(session->drop(session, uri.c_str(), "force=true") == 0);
+    REQUIRE(session->close(session, "") == 0);
+    printf("Ending thread_function_drop_in_session()\n");
+}
+
 
 /*
  * drop_test --
@@ -324,6 +350,64 @@ drop_test(std::string const &config, bool transaction,
             __wt_sleep(5, 0);
 
             check_txn_updates("near the end", session_impl, diagnostics);
+
+            REQUIRE(session->close(session, "") == 0);
+        }
+
+        printf("Completed a test\n");
+    }
+
+    SECTION(
+      "Drop in second session: transaction = " + txn_as_string + ", config = " + config)
+    {
+        printf("In drop_test(): session 0x%p\n", (void*)session_impl);
+
+        check_txn_updates("before close", session_impl, diagnostics);
+        REQUIRE(cursor->close(cursor) == 0);
+        check_txn_updates("before drop", session_impl, diagnostics);
+        lock_and_debug_dropped_state(session_impl, file_uri.c_str());
+        __wt_sleep(1, 0);
+
+        std::thread thread([&]() { thread_function_drop_in_session(conn.getWtConnection(), "", uri); });
+        thread.join();
+
+        if (diagnostics)
+            printf("After drop\n");
+
+        __wt_sleep(1, 0);
+        if (S2C(session)->sweep_cond != NULL)
+            __wt_cond_signal(session_impl, S2C(session_impl)->sweep_cond);
+        __wt_sleep(1, 0);
+
+        lock_and_debug_dropped_state(session_impl, file_uri.c_str());
+
+        if (transaction) {
+            __wt_sleep(1, 0);
+            if (S2C(session)->sweep_cond != NULL)
+                __wt_cond_signal(session_impl, S2C(session_impl)->sweep_cond);
+            __wt_sleep(1, 0);
+
+            check_txn_updates("before checkpoint", session_impl, diagnostics);
+            REQUIRE(session->checkpoint(session, nullptr) == EINVAL);
+
+            __wt_sleep(1, 0);
+            if (S2C(session)->sweep_cond != NULL)
+                __wt_cond_signal(session_impl, S2C(session_impl)->sweep_cond);
+            __wt_sleep(1, 0);
+
+            check_txn_updates("before commit", session_impl, diagnostics);
+
+            REQUIRE(session->commit_transaction(session, "") == expected_commit_result);
+            check_txn_updates("after commit", session_impl, diagnostics);
+
+            __wt_sleep(1, 0);
+            if (S2C(session)->sweep_cond != NULL)
+                __wt_cond_signal(session_impl, S2C(session_impl)->sweep_cond);
+            __wt_sleep(5, 0);
+
+            check_txn_updates("near the end", session_impl, diagnostics);
+
+            REQUIRE(session->close(session, "") == 0);
         }
 
         printf("Completed a test\n");
