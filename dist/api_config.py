@@ -125,7 +125,7 @@ def getcompnum(s):
     # Already converted?
     if type(s) == int:
         return str(s)
-    result = re.search(r'(\d+)([bBkKmMgGtTpP]*)', s)
+    result = re.search(r'([-\d]+)([bBkKmMgGtTpP]*)', s)
     num = int(result.group(1))
     mult = ''
     for ch in result.group(2):
