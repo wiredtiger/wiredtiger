@@ -9,46 +9,18 @@
 #include "wt_internal.h"
 
 /*
- * __conf_string_to_type --
- *     Convert a type name string into an enum representing the type.
+ * __compiled_type_to_item_type --
+ *     When a configuration key is defined to have a certain type, this table returns the normally
+ *     expected item type.
  */
-static int
-__conf_string_to_type(WT_SESSION_IMPL *session, const char *typename, WT_CONFIG_ITEM_TYPE *result)
-{
-    switch (*typename) {
-    case 'b':
-        if (WT_STREQ(typename, "boolean")) {
-            *result = WT_CONFIG_ITEM_BOOL;
-            return (0);
-        }
-        break;
-    case 'c':
-        if (WT_STREQ(typename, "category")) {
-            *result = WT_CONFIG_ITEM_STRUCT;
-            return (0);
-        }
-        break;
-    case 'i':
-        if (WT_STREQ(typename, "int")) {
-            *result = WT_CONFIG_ITEM_NUM;
-            return (0);
-        }
-        break;
-    case 'l':
-        if (WT_STREQ(typename, "list")) {
-            *result = WT_CONFIG_ITEM_STRUCT;
-            return (0);
-        }
-        break;
-    case 's':
-        if (WT_STREQ(typename, "string")) {
-            *result = WT_CONFIG_ITEM_STRING;
-            return (0);
-        }
-        break;
-    }
-    WT_RET_PANIC(session, EINVAL, "illegal type string found in configuration: %s", typename);
-}
+static const WT_CONFIG_ITEM_TYPE __compiled_type_to_item_type[] = {
+  WT_CONFIG_ITEM_NUM,    /* WT_CONFIG_COMPILED_TYPE_INT, e.g. type='int' */
+  WT_CONFIG_ITEM_BOOL,   /* WT_CONFIG_COMPILED_TYPE_BOOLEAN, e.g. type='boolean' */
+  WT_CONFIG_ITEM_STRING, /* WT_CONFIG_COMPILED_TYPE_FORMAT, e.g. type='format' */
+  WT_CONFIG_ITEM_STRING, /* WT_CONFIG_COMPILED_TYPE_STRING, e.g. type='string' */
+  WT_CONFIG_ITEM_STRUCT, /* WT_CONFIG_COMPILED_TYPE_CATEGORY, e.g. type='category' */
+  WT_CONFIG_ITEM_STRUCT, /* WT_CONFIG_COMPILED_TYPE_LIST, e.g. type='list' */
+};
 
 /*
  * __conf_compile_value --
@@ -195,7 +167,9 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
         }
         conf_key = WT_CONF_KEY_TABLE_ENTRY(conf, conf_key_pos);
 
-        WT_ERR(__conf_string_to_type(session, check->type, &check_type));
+        WT_ASSERT(session, check->compiled_type < WT_ELEMENTS(__compiled_type_to_item_type));
+        check_type = __compiled_type_to_item_type[check->compiled_type];
+
         if (check_type == WT_CONFIG_ITEM_STRUCT) {
             if (value.type != WT_CONFIG_ITEM_STRUCT)
                 WT_ERR_MSG(session, EINVAL, "Value '%.*s' expected to be a category",
