@@ -14,13 +14,10 @@
 static inline bool
 __wt_conf_get_compiled(WT_CONNECTION_IMPL *conn, const char *config, WT_CONF **confp)
 {
-    ssize_t offset;
-
-    offset = (config - conn->conf_dummy);
-    if (offset < 0 || offset >= conn->conf_size)
+    if (config < conn->conf_dummy || config >= conn->conf_dummy + conn->conf_size)
         return (false);
 
-    *confp = conn->conf_array[offset];
+    *confp = conn->conf_array[(uint32_t)(config - conn->conf_dummy)];
     return (true);
 }
 
@@ -31,8 +28,5 @@ __wt_conf_get_compiled(WT_CONNECTION_IMPL *conn, const char *config, WT_CONF **c
 static inline bool
 __wt_conf_is_compiled(WT_CONNECTION_IMPL *conn, const char *config)
 {
-    ssize_t offset;
-
-    offset = (config - conn->conf_dummy);
-    return (offset >= 0 && offset < conn->conf_size);
+    return (config >= conn->conf_dummy && config < conn->conf_dummy + conn->conf_size);
 }
