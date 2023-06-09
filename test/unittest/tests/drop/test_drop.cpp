@@ -274,19 +274,19 @@ int get_dhandle_count(WT_SESSION *session)
 
      REQUIRE(open_stats_cursor_result == 0);
 
-     printf(". WT_STAT_CONN_DH_CONN_HANDLE_SIZE value = %" PRIu64 "\n",
+     printf(". WT_STAT_CONN_DH_CONN_HANDLE_SIZE value = %" PRIi64 "\n",
        get_stats_value(stats_cursor, WT_STAT_CONN_DH_CONN_HANDLE_SIZE));
-     printf(". WT_STAT_CONN_DH_CONN_HANDLE_COUNT value = %" PRIu64 "\n",
+     printf(". WT_STAT_CONN_DH_CONN_HANDLE_COUNT value = %" PRIi64 "\n",
        get_stats_value(stats_cursor, WT_STAT_CONN_DH_CONN_HANDLE_COUNT));
-     printf(". WT_STAT_CONN_DH_SWEEP_REF value = %" PRIu64 "\n",
+     printf(". WT_STAT_CONN_DH_SWEEP_REF value = %" PRIi64 "\n",
        get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_REF));
-     printf(". WT_STAT_CONN_DH_SWEEP_CLOSE value = %" PRIu64 "\n",
+     printf(". WT_STAT_CONN_DH_SWEEP_CLOSE value = %" PRIi64 "\n",
        get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_CLOSE));
-     printf(". WT_STAT_CONN_DH_SWEEP_REMOVE value = %" PRIu64 "\n",
+     printf(". WT_STAT_CONN_DH_SWEEP_REMOVE value = %" PRIi64 "\n",
        get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_REMOVE));
-     printf(". WT_STAT_CONN_DH_SWEEP_TOD value = %" PRIu64 "\n",
+     printf(". WT_STAT_CONN_DH_SWEEP_TOD value = %" PRIi64 "\n",
        get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_TOD));
-     printf(". WT_STAT_CONN_DH_SWEEPS value = %" PRIu64 "\n",
+     printf(". WT_STAT_CONN_DH_SWEEPS value = %" PRIi64 "\n",
        get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEPS));
 
      REQUIRE(stats_cursor->close(stats_cursor) == 0);
@@ -297,11 +297,11 @@ int get_dhandle_count(WT_SESSION *session)
  * thread_function_drop --
  *     This function is designed to be used as a thread function, and force drops a table.
  */
-static void
-thread_function_drop(WT_SESSION *session, std::string const &uri)
-{
-    session->drop(session, uri.c_str(), "force=true");
-}
+// static void
+// thread_function_drop(WT_SESSION *session, std::string const &uri)
+// {
+//     session->drop(session, uri.c_str(), "force=true");
+// }
 
 
 /*
