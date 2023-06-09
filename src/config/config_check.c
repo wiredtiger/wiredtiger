@@ -67,11 +67,11 @@ config_check_search(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_i
 }
 
 /*
- * config_get_choice --
+ * __wt_config_get_choice --
  *     Walk through list of legal choices looking for an item.
  */
-static inline bool
-config_get_choice(const char **choices, WT_CONFIG_ITEM *item)
+bool
+__wt_config_get_choice(const char **choices, WT_CONFIG_ITEM *item)
 {
     const char **choice;
     bool found;
@@ -174,9 +174,9 @@ config_check(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_int chec
                 __wt_config_subinit(session, &sparser, &v);
                 found = true;
                 while (found && (ret = __wt_config_next(&sparser, &v, &dummy)) == 0)
-                    found = config_get_choice(check->choices, &v);
+                    found = __wt_config_get_choice(check->choices, &v);
             } else
-                found = config_get_choice(check->choices, &v);
+                found = __wt_config_get_choice(check->choices, &v);
 
             if (!found)
                 WT_RET_MSG(session, EINVAL, "Value '%.*s' not a permitted choice for key '%.*s'",

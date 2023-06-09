@@ -170,25 +170,42 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
         WT_ASSERT(session, check->compiled_type < WT_ELEMENTS(__compiled_type_to_item_type));
         check_type = __compiled_type_to_item_type[check->compiled_type];
 
-        if (check_type == WT_CONFIG_ITEM_STRUCT) {
-            if (value.type != WT_CONFIG_ITEM_STRUCT)
-                WT_ERR_MSG(session, EINVAL, "Value '%.*s' expected to be a category",
-                  (int)value.len, value.str);
-            if (value.str[0] == '[') {
-                if (value.str[value.len - 1] != ']')
-                    WT_ERR_MSG(
-                      session, EINVAL, "Value '%.*s' non-matching []", (int)value.len, value.str);
-            } else if (value.str[0] == '(') {
-                if (value.str[value.len - 1] != ')')
-                    WT_ERR_MSG(
-                      session, EINVAL, "Value '%.*s' non-matching ()", (int)value.len, value.str);
-            } else
-                WT_ERR_MSG(
-                  session, EINVAL, "Value '%.*s' expected () or []", (int)value.len, value.str);
+        /*
+         * When we expect a choice (a struct item), we allow a single string not enclosed in
+         * parentheses.
+         */
+        if (check_type == WT_CONFIG_ITEM_STRUCT && check->choices != NULL &&
+          value.type == WT_CONFIG_ITEM_STRING && check->choices != NULL) {
+            /* TODO: is this already checked before this?  Is this combination even possible? */
+            if (!__wt_config_get_choice(check->choices, &value))
+                WT_ERR_MSG(session, EINVAL, "Value '%.*s' not a permitted choice for key '%.*s'",
+                  (int)value.len, value.str, (int)key.len, key.str);
+            conf_key->type = is_default ? CONF_KEY_DEFAULT_ITEM : CONF_KEY_NONDEFAULT_ITEM;
+            conf_key->u.item = value;
+        } else if (check_type == WT_CONFIG_ITEM_STRUCT) {
+            /* If the item is a single id, it is ready to go, as a single entry in the category. */
+            if (value.type != WT_CONFIG_ITEM_ID) {
+                /*
+                 * Otherwise, the typical case - we've been given a parenthesized or bracketed
+                 * set of things.  Check for matching pairs of parentheses, etc. and strip them.
+                 */
+                if (value.type != WT_CONFIG_ITEM_STRUCT)
+                    WT_ERR_MSG(session, EINVAL, "Value '%.*s' expected to be a category",
+                      (int)value.len, value.str);
+                if (value.str[0] == '[') {
+                    if (value.str[value.len - 1] != ']')
+                        WT_ERR_MSG(
+                                   session, EINVAL, "Value '%.*s' non-matching []", (int)value.len, value.str);
+                } else if (value.str[0] == '(') {
+                    if (value.str[value.len - 1] != ')')
+                        WT_ERR_MSG(session, EINVAL, "Value '%.*s' non-matching ()", (int)value.len, value.str);
+                } else
+                    WT_ERR_MSG(session, EINVAL, "Value '%.*s' expected () or []", (int)value.len, value.str);
 
-            /* Remove the first and last char, they were just checked */
-            ++value.str;
-            value.len -= 2;
+                /* Remove the first and last char, they were just checked */
+                ++value.str;
+                value.len -= 2;
+            }
 
             if (existing) {
                 WT_ASSERT(session, conf_key->type == CONF_KEY_SUB_INFO);
