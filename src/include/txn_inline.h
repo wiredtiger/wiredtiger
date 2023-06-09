@@ -910,11 +910,6 @@ __wt_upd_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, u_int modify_type
         (value != NULL &&
           !(modify_type == WT_UPDATE_RESERVE || modify_type == WT_UPDATE_TOMBSTONE)));
 
-    /*
-     * If there is no value ensure that the memory allocation size is matches that returned by
-     * sizeof(). Otherwise bit-exact tools like MSan may infer the structure is not completely
-     * initialized.
-     */
     if (value == NULL || value->size == 0)
         allocsz = WT_UPDATE_SIZE_NOVALUE;
     else
