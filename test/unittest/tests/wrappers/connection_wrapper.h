@@ -24,7 +24,7 @@
  */
 class ConnectionWrapper {
 public:
-    ConnectionWrapper(const std::string &db_home, const char *cfg_str = "create");
+    ConnectionWrapper(const std::string &db_home, const char *cfg_str = "create,statistics=(all)");
     ~ConnectionWrapper();
 
     /*

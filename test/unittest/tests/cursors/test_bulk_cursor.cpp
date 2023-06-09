@@ -69,7 +69,9 @@ print_dhandles(WT_SESSION_IMPL *session_impl)
     conn = S2C(session_impl);
 
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
-        printf(".   dhandle 0c%p\n", dhandle);
+        printf(".   dhandle 0c%p, name %s, is dropped %d, is open %d, flags 0x%x, type %d\n",
+          dhandle, dhandle->name, F_ISSET(dhandle, WT_DHANDLE_DROPPED), F_ISSET(dhandle, WT_DHANDLE_OPEN), dhandle->flags, dhandle->type);
+
     }
 }
 

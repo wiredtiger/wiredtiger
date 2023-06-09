@@ -46,12 +46,20 @@ print_dhandles(WT_SESSION_IMPL *session_impl)
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
 
-    printf("Session 0x%p, dhandle: 0x%p\n", session_impl, session_impl->dhandle);
+    printf("print_dhandles(): session 0x%p, dhandle: 0x%p\n", session_impl, session_impl->dhandle);
     conn = S2C(session_impl);
 
-    TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
-        printf(".   dhandle 0x%p, session_inuse %d, session_ref %u\n",
-          dhandle, dhandle->session_inuse, dhandle->session_ref);
+    if (session_impl->dhandle != nullptr) {
+        int num_dhandles = 0;
+
+        TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
+            printf(".   dhandle 0c%p, name %s, is dropped %d, is open %d, flags 0x%x, type %d\n",
+              dhandle, dhandle->name, F_ISSET(dhandle, WT_DHANDLE_DROPPED),
+              F_ISSET(dhandle, WT_DHANDLE_OPEN), dhandle->flags, dhandle->type);
+            num_dhandles++;
+        }
+
+        printf(".  Number of dhandles = %d\n", num_dhandles);
     }
 }
 
@@ -67,33 +75,36 @@ check_txn_updates(std::string const &label, WT_SESSION_IMPL *session_impl, bool 
     if (diagnostics) {
         WT_TXN *txn = session_impl->txn;
 
-        printf("check_txn_updates() - %s\n", label.c_str());
+        printf("check_txn_updates() - %s, txn 0x%p\n", label.c_str(), txn);
         print_dhandles(session_impl);
-        printf("  txn = 0x%p, txn->id = 0x%" PRIu64 ", txn->mod = 0x%p, txn->mod_count = %u\n", txn,
-          txn->id, txn->mod, txn->mod_count);
+        if (txn != nullptr) {
+            printf("  txn = 0x%p, txn->id = 0x%" PRIu64 ", txn->mod = 0x%p, txn->mod_count = %u\n", txn,
+              txn->id, txn->mod, txn->mod_count);
 
-        WT_TXN_OP *op = txn->mod;
-        for (u_int i = 0; i < txn->mod_count; i++, op++) {
-            switch (op->type) {
-            case WT_TXN_OP_NONE:
-            case WT_TXN_OP_REF_DELETE:
-            case WT_TXN_OP_TRUNCATE_COL:
-            case WT_TXN_OP_TRUNCATE_ROW:
-                break;
-            case WT_TXN_OP_BASIC_COL:
-            case WT_TXN_OP_BASIC_ROW:
-            case WT_TXN_OP_INMEM_COL:
-            case WT_TXN_OP_INMEM_ROW:
-                WT_UPDATE *upd = op->u.op_upd;
-                printf(".   mod %u, upd 0x%p, op->type = %i, upd->txnid = 0x%" PRIx64 ", upd->durable_ts 0x%" PRIu64 "\n",
-                  i, upd, op->type, upd->txnid, upd->durable_ts);
+            WT_TXN_OP *op = txn->mod;
+            for (u_int i = 0; i < txn->mod_count; i++, op++) {
+                switch (op->type) {
+                case WT_TXN_OP_NONE:
+                case WT_TXN_OP_REF_DELETE:
+                case WT_TXN_OP_TRUNCATE_COL:
+                case WT_TXN_OP_TRUNCATE_ROW:
+                    break;
+                case WT_TXN_OP_BASIC_COL:
+                case WT_TXN_OP_BASIC_ROW:
+                case WT_TXN_OP_INMEM_COL:
+                case WT_TXN_OP_INMEM_ROW:
+                    WT_UPDATE *upd = op->u.op_upd;
+                    printf(".   mod %u, upd 0x%p, op->type = %i, upd->txnid = 0x%" PRIx64
+                           ", upd->durable_ts 0x%" PRIu64 "\n",
+                      i, upd, op->type, upd->txnid, upd->durable_ts);
 
-                // At least during current diagnosis a txnid greater than 100 means something has gone wrong
-                if (upd->txnid > 100) {
-                    printf(".     The upd->txnid value is wierd!\n");
+                    // At least during current diagnosis a txnid greater than 100 means something has gone wrong
+                    if (upd->txnid > 100) {
+                        printf(".     The upd->txnid value is wierd!\n");
+                    }
+
+                    break;
                 }
-
-                break;
             }
         }
     }
@@ -230,25 +241,36 @@ get_dhandles_open_count(WT_CURSOR *stats_cursor)
     return get_stats_value(stats_cursor, WT_STAT_CONN_DH_CONN_HANDLE_COUNT);
 }
 
-// void
-// dump_stats(WT_CURSOR *stats_cursor)
-// {
-//     printf("Dump Stats:\n");
-//     printf(". WT_STAT_CONN_DH_CONN_HANDLE_SIZE value = %" PRIu64 "\n",
-//       get_stats_value(stats_cursor, WT_STAT_CONN_DH_CONN_HANDLE_SIZE));
-//     printf(". WT_STAT_CONN_DH_CONN_HANDLE_COUNT value = %" PRIu64 "\n",
-//       get_stats_value(stats_cursor, WT_STAT_CONN_DH_CONN_HANDLE_COUNT));
-//     printf(". WT_STAT_CONN_DH_SWEEP_REF value = %" PRIu64 "\n",
-//       get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_REF));
-//     printf(". WT_STAT_CONN_DH_SWEEP_CLOSE value = %" PRIu64 "\n",
-//       get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_CLOSE));
-//     printf(". WT_STAT_CONN_DH_SWEEP_REMOVE value = %" PRIu64 "\n",
-//       get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_REMOVE));
-//     printf(". WT_STAT_CONN_DH_SWEEP_TOD value = %" PRIu64 "\n",
-//       get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_TOD));
-//     printf(". WT_STAT_CONN_DH_SWEEPS value = %" PRIu64 "\n",
-//       get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEPS));
-// }
+ void
+ dump_stats(WT_SESSION *session)
+ {
+     std::string stats_cursor_name = "statistics:";
+
+     WT_CURSOR *stats_cursor;
+     int open_stats_cursor_result =
+       session->open_cursor(session, stats_cursor_name.c_str(), nullptr, nullptr, &stats_cursor);
+
+     printf("Dump Stats - open_stats_cursor_result %d\n", open_stats_cursor_result);
+
+     REQUIRE(open_stats_cursor_result == 0);
+
+     printf(". WT_STAT_CONN_DH_CONN_HANDLE_SIZE value = %" PRIu64 "\n",
+       get_stats_value(stats_cursor, WT_STAT_CONN_DH_CONN_HANDLE_SIZE));
+     printf(". WT_STAT_CONN_DH_CONN_HANDLE_COUNT value = %" PRIu64 "\n",
+       get_stats_value(stats_cursor, WT_STAT_CONN_DH_CONN_HANDLE_COUNT));
+     printf(". WT_STAT_CONN_DH_SWEEP_REF value = %" PRIu64 "\n",
+       get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_REF));
+     printf(". WT_STAT_CONN_DH_SWEEP_CLOSE value = %" PRIu64 "\n",
+       get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_CLOSE));
+     printf(". WT_STAT_CONN_DH_SWEEP_REMOVE value = %" PRIu64 "\n",
+       get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_REMOVE));
+     printf(". WT_STAT_CONN_DH_SWEEP_TOD value = %" PRIu64 "\n",
+       get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_TOD));
+     printf(". WT_STAT_CONN_DH_SWEEPS value = %" PRIu64 "\n",
+       get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEPS));
+
+     REQUIRE(stats_cursor->close(stats_cursor) == 0);
+ }
 
 
 /*
@@ -273,6 +295,7 @@ thread_function_drop_in_session(WT_CONNECTION *connection, std::string const &cf
     WT_SESSION *session;
     REQUIRE(connection->open_session(connection, nullptr, cfg.c_str(), &session) == 0);
     REQUIRE(session->drop(session, uri.c_str(), "force=true") == 0);
+//    dump_stats(session);
     REQUIRE(session->close(session, "") == 0);
     printf("Ending thread_function_drop_in_session()\n");
 }
@@ -308,8 +331,13 @@ drop_test(std::string const &config, bool transaction,
     SECTION(
       "Drop in one thread: transaction = " + txn_as_string + ", config = " + config)
     {
+        dump_stats(session);
+
         check_txn_updates("before close", session_impl, diagnostics);
         REQUIRE(cursor->close(cursor) == 0);
+
+        dump_stats(session);
+
         check_txn_updates("before drop", session_impl, diagnostics);
         lock_and_debug_dropped_state(session_impl, file_uri.c_str());
         __wt_sleep(1, 0);
@@ -318,12 +346,16 @@ drop_test(std::string const &config, bool transaction,
         if (diagnostics)
             printf("After drop\n");
 
+        dump_stats(session);
+
         __wt_sleep(1, 0);
         if (S2C(session)->sweep_cond != NULL)
             __wt_cond_signal(session_impl, S2C(session_impl)->sweep_cond);
         __wt_sleep(1, 0);
 
         lock_and_debug_dropped_state(session_impl, file_uri.c_str());
+
+        dump_stats(session);
 
         if (transaction) {
             __wt_sleep(1, 0);
@@ -334,10 +366,14 @@ drop_test(std::string const &config, bool transaction,
             check_txn_updates("before checkpoint", session_impl, diagnostics);
             REQUIRE(session->checkpoint(session, nullptr) == EINVAL);
 
+            dump_stats(session);
+
             __wt_sleep(1, 0);
             if (S2C(session)->sweep_cond != NULL)
                 __wt_cond_signal(session_impl, S2C(session_impl)->sweep_cond);
             __wt_sleep(1, 0);
+
+            dump_stats(session);
 
             check_txn_updates("before commit", session_impl, diagnostics);
 
@@ -349,10 +385,14 @@ drop_test(std::string const &config, bool transaction,
                 __wt_cond_signal(session_impl, S2C(session_impl)->sweep_cond);
             __wt_sleep(5, 0);
 
+            dump_stats(session);
+
             check_txn_updates("near the end", session_impl, diagnostics);
 
             REQUIRE(session->close(session, "") == 0);
         }
+
+        check_txn_updates("Completed", session_impl, diagnostics);
 
         printf("Completed a test\n");
     }
@@ -362,17 +402,24 @@ drop_test(std::string const &config, bool transaction,
     {
         printf("In drop_test(): session 0x%p\n", (void*)session_impl);
 
+
+        dump_stats(session);
+
         check_txn_updates("before close", session_impl, diagnostics);
         REQUIRE(cursor->close(cursor) == 0);
         check_txn_updates("before drop", session_impl, diagnostics);
         lock_and_debug_dropped_state(session_impl, file_uri.c_str());
         __wt_sleep(1, 0);
 
+        dump_stats(session);
+
         std::thread thread([&]() { thread_function_drop_in_session(conn.getWtConnection(), "", uri); });
         thread.join();
 
         if (diagnostics)
             printf("After drop\n");
+
+        dump_stats(session);
 
         __wt_sleep(1, 0);
         if (S2C(session)->sweep_cond != NULL)
@@ -381,11 +428,15 @@ drop_test(std::string const &config, bool transaction,
 
         lock_and_debug_dropped_state(session_impl, file_uri.c_str());
 
+        dump_stats(session);
+
         if (transaction) {
             __wt_sleep(1, 0);
             if (S2C(session)->sweep_cond != NULL)
                 __wt_cond_signal(session_impl, S2C(session_impl)->sweep_cond);
             __wt_sleep(1, 0);
+
+            dump_stats(session);
 
             check_txn_updates("before checkpoint", session_impl, diagnostics);
             REQUIRE(session->checkpoint(session, nullptr) == EINVAL);
@@ -394,6 +445,8 @@ drop_test(std::string const &config, bool transaction,
             if (S2C(session)->sweep_cond != NULL)
                 __wt_cond_signal(session_impl, S2C(session_impl)->sweep_cond);
             __wt_sleep(1, 0);
+
+            dump_stats(session);
 
             check_txn_updates("before commit", session_impl, diagnostics);
 
@@ -405,10 +458,14 @@ drop_test(std::string const &config, bool transaction,
                 __wt_cond_signal(session_impl, S2C(session_impl)->sweep_cond);
             __wt_sleep(5, 0);
 
+            dump_stats(session);
+
             check_txn_updates("near the end", session_impl, diagnostics);
 
             REQUIRE(session->close(session, "") == 0);
         }
+
+        check_txn_updates("Completed", session_impl, diagnostics);
 
         printf("Completed a test\n");
     }
