@@ -241,6 +241,26 @@ get_dhandles_open_count(WT_CURSOR *stats_cursor)
     return get_stats_value(stats_cursor, WT_STAT_CONN_DH_CONN_HANDLE_COUNT);
 }
 
+
+int get_dhandle_count(WT_SESSION *session)
+{
+    std::string stats_cursor_name = "statistics:";
+
+    WT_CURSOR *stats_cursor;
+    int open_stats_cursor_result =
+      session->open_cursor(session, stats_cursor_name.c_str(), nullptr, nullptr, &stats_cursor);
+
+    printf("Dump Stats - open_stats_cursor_result %d\n", open_stats_cursor_result);
+
+    REQUIRE(open_stats_cursor_result == 0);
+
+    int dhandle_count = get_stats_value(stats_cursor, WT_STAT_CONN_DH_CONN_HANDLE_COUNT);
+
+    REQUIRE(stats_cursor->close(stats_cursor) == 0);
+
+    return dhandle_count;
+}
+
  void
  dump_stats(WT_SESSION *session)
  {
@@ -296,6 +316,7 @@ thread_function_drop_in_session(WT_CONNECTION *connection, std::string const &cf
     REQUIRE(connection->open_session(connection, nullptr, cfg.c_str(), &session) == 0);
     REQUIRE(session->drop(session, uri.c_str(), "force=true") == 0);
 //    dump_stats(session);
+    REQUIRE(session->reset(session) == 0);
     REQUIRE(session->close(session, "") == 0);
     printf("Ending thread_function_drop_in_session()\n");
 }
@@ -307,30 +328,32 @@ thread_function_drop_in_session(WT_CONNECTION *connection, std::string const &cf
  *     in each case.
  */
 static void
-drop_test(std::string const &config, bool transaction,
+drop_test(std::string const &config, bool drop_in_second_thread, bool transaction,
   int expected_commit_result, bool diagnostics)
 {
-    ConnectionWrapper conn(DB_HOME);
-    WT_SESSION_IMPL *session_impl = conn.createSession();
-    WT_SESSION *session = &session_impl->iface;
     std::string uri = "table:cursor_test";
     std::string file_uri = "file:cursor_test.wt";
 
-    REQUIRE(session->create(session, uri.c_str(), "key_format=S,value_format=S") == 0);
-
-    if (transaction) {
-        REQUIRE(session->begin_transaction(session, "") == 0);
-    }
-
-    WT_CURSOR *cursor = nullptr;
-    REQUIRE(session->open_cursor(session, uri.c_str(), nullptr, config.c_str(), &cursor) == 0);
-    insert_sample_values(cursor);
-
     std::string txn_as_string = transaction ? "true" : "false";
+    std::string thread_drop_label = drop_in_second_thread ? "second thread" : "same thread";
 
     SECTION(
-      "Drop in one thread: transaction = " + txn_as_string + ", config = " + config)
+      "Drop in " + thread_drop_label + ": transaction = " + txn_as_string)
     {
+        ConnectionWrapper conn(DB_HOME);
+        WT_SESSION_IMPL *session_impl = conn.createSession();
+        WT_SESSION *session = &session_impl->iface;
+
+        REQUIRE(session->create(session, uri.c_str(), "key_format=S,value_format=S") == 0);
+
+        if (transaction) {
+            REQUIRE(session->begin_transaction(session, "") == 0);
+        }
+
+        WT_CURSOR *cursor = nullptr;
+        REQUIRE(session->open_cursor(session, uri.c_str(), nullptr, config.c_str(), &cursor) == 0);
+        insert_sample_values(cursor);
+
         dump_stats(session);
 
         check_txn_updates("before close", session_impl, diagnostics);
@@ -338,10 +361,19 @@ drop_test(std::string const &config, bool transaction,
 
         dump_stats(session);
 
+        int dhandle_count_early = get_dhandle_count(session);
+
         check_txn_updates("before drop", session_impl, diagnostics);
         lock_and_debug_dropped_state(session_impl, file_uri.c_str());
         __wt_sleep(1, 0);
-        REQUIRE(session->drop(session, uri.c_str(), "force=true") == 0);
+
+        if (drop_in_second_thread) {
+            std::thread thread([&]() {
+                thread_function_drop_in_session(conn.getWtConnection(), "", uri); });
+            thread.join();
+        } else {
+            REQUIRE(session->drop(session, uri.c_str(), "force=true") == 0);
+        }
 
         if (diagnostics)
             printf("After drop\n");
@@ -356,6 +388,8 @@ drop_test(std::string const &config, bool transaction,
         lock_and_debug_dropped_state(session_impl, file_uri.c_str());
 
         dump_stats(session);
+
+        int dhandle_count_late = get_dhandle_count(session);
 
         if (transaction) {
             __wt_sleep(1, 0);
@@ -387,78 +421,7 @@ drop_test(std::string const &config, bool transaction,
 
             dump_stats(session);
 
-            check_txn_updates("near the end", session_impl, diagnostics);
-
-            REQUIRE(session->close(session, "") == 0);
-        }
-
-        check_txn_updates("Completed", session_impl, diagnostics);
-
-        printf("Completed a test\n");
-    }
-
-    SECTION(
-      "Drop in second session: transaction = " + txn_as_string + ", config = " + config)
-    {
-        printf("In drop_test(): session 0x%p\n", (void*)session_impl);
-
-
-        dump_stats(session);
-
-        check_txn_updates("before close", session_impl, diagnostics);
-        REQUIRE(cursor->close(cursor) == 0);
-        check_txn_updates("before drop", session_impl, diagnostics);
-        lock_and_debug_dropped_state(session_impl, file_uri.c_str());
-        __wt_sleep(1, 0);
-
-        dump_stats(session);
-
-        std::thread thread([&]() { thread_function_drop_in_session(conn.getWtConnection(), "", uri); });
-        thread.join();
-
-        if (diagnostics)
-            printf("After drop\n");
-
-        dump_stats(session);
-
-        __wt_sleep(1, 0);
-        if (S2C(session)->sweep_cond != NULL)
-            __wt_cond_signal(session_impl, S2C(session_impl)->sweep_cond);
-        __wt_sleep(1, 0);
-
-        lock_and_debug_dropped_state(session_impl, file_uri.c_str());
-
-        dump_stats(session);
-
-        if (transaction) {
-            __wt_sleep(1, 0);
-            if (S2C(session)->sweep_cond != NULL)
-                __wt_cond_signal(session_impl, S2C(session_impl)->sweep_cond);
-            __wt_sleep(1, 0);
-
-            dump_stats(session);
-
-            check_txn_updates("before checkpoint", session_impl, diagnostics);
-            REQUIRE(session->checkpoint(session, nullptr) == EINVAL);
-
-            __wt_sleep(1, 0);
-            if (S2C(session)->sweep_cond != NULL)
-                __wt_cond_signal(session_impl, S2C(session_impl)->sweep_cond);
-            __wt_sleep(1, 0);
-
-            dump_stats(session);
-
-            check_txn_updates("before commit", session_impl, diagnostics);
-
-            REQUIRE(session->commit_transaction(session, "") == expected_commit_result);
-            check_txn_updates("after commit", session_impl, diagnostics);
-
-            __wt_sleep(1, 0);
-            if (S2C(session)->sweep_cond != NULL)
-                __wt_cond_signal(session_impl, S2C(session_impl)->sweep_cond);
-            __wt_sleep(5, 0);
-
-            dump_stats(session);
+            dhandle_count_late = get_dhandle_count(session);
 
             check_txn_updates("near the end", session_impl, diagnostics);
 
@@ -467,7 +430,8 @@ drop_test(std::string const &config, bool transaction,
 
         check_txn_updates("Completed", session_impl, diagnostics);
 
-        printf("Completed a test\n");
+        printf("==== Completed a test: dhandle_count_early %d, dhandle_count_late %d ====\n",
+          dhandle_count_early, dhandle_count_late);
     }
 }
 
@@ -515,6 +479,8 @@ multiple_drop_test(std::string const &config, int expected_open_cursor_result,
                     __wt_sleep(1, 0);
             }
 
+            dump_stats(session);
+
             check_txn_updates("before drop", session_impl, diagnostics);
             REQUIRE(session->drop(session, uri.c_str(), "force=true") == 0);
 
@@ -533,7 +499,12 @@ multiple_drop_test(std::string const &config, int expected_open_cursor_result,
             check_txn_updates("before commit", session_impl, diagnostics);
             REQUIRE(session->commit_transaction(session, "") == expected_commit_result);
             check_txn_updates("after commit", session_impl, diagnostics);
+
+            dump_stats(session);
+
             REQUIRE(session->close(session, nullptr) == 0);
+
+
         }
 
         // Confirm the correct number of loops were executed & we didn't exit early for any reason
@@ -545,8 +516,11 @@ TEST_CASE("Drop: dropped dhandles", "[drop]")
 {
     const bool diagnostics = true;
 
-    drop_test("", true, EINVAL, diagnostics);
-    drop_test("", false, 0, diagnostics);
+    drop_test("", false, true, EINVAL, diagnostics);
+    drop_test("", true, true, EINVAL, diagnostics);
+
+    drop_test("", false, false, 0, diagnostics);
+    drop_test("", true, false, 0, diagnostics);
 
     return;
 
