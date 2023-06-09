@@ -186,21 +186,23 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
             /* If the item is a single id, it is ready to go, as a single entry in the category. */
             if (value.type != WT_CONFIG_ITEM_ID) {
                 /*
-                 * Otherwise, the typical case - we've been given a parenthesized or bracketed
-                 * set of things.  Check for matching pairs of parentheses, etc. and strip them.
+                 * Otherwise, the typical case - we've been given a parenthesized or bracketed set
+                 * of things. Check for matching pairs of parentheses, etc. and strip them.
                  */
                 if (value.type != WT_CONFIG_ITEM_STRUCT)
                     WT_ERR_MSG(session, EINVAL, "Value '%.*s' expected to be a category",
                       (int)value.len, value.str);
                 if (value.str[0] == '[') {
                     if (value.str[value.len - 1] != ']')
-                        WT_ERR_MSG(
-                                   session, EINVAL, "Value '%.*s' non-matching []", (int)value.len, value.str);
+                        WT_ERR_MSG(session, EINVAL, "Value '%.*s' non-matching []", (int)value.len,
+                          value.str);
                 } else if (value.str[0] == '(') {
                     if (value.str[value.len - 1] != ')')
-                        WT_ERR_MSG(session, EINVAL, "Value '%.*s' non-matching ()", (int)value.len, value.str);
+                        WT_ERR_MSG(session, EINVAL, "Value '%.*s' non-matching ()", (int)value.len,
+                          value.str);
                 } else
-                    WT_ERR_MSG(session, EINVAL, "Value '%.*s' expected () or []", (int)value.len, value.str);
+                    WT_ERR_MSG(
+                      session, EINVAL, "Value '%.*s' expected () or []", (int)value.len, value.str);
 
                 /* Remove the first and last char, they were just checked */
                 ++value.str;
