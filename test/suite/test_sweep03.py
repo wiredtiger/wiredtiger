@@ -118,6 +118,7 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         cache1 = stat_cursor[stat.conn.cache_bytes_inuse][2]
         close1 = stat_cursor[stat.conn.dh_sweep_close][2]
+        dhandle_count1 = stat_cursor[stat.conn.dh_conn_handle_count][2]
         sweep_baseline = stat_cursor[stat.conn.dh_sweeps][2]
         stat_cursor.close()
 
@@ -130,7 +131,12 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         cache2 = stat_cursor[stat.conn.cache_bytes_inuse][2]
         close2 = stat_cursor[stat.conn.dh_sweep_close][2]
+        dhandle_count2 = stat_cursor[stat.conn.dh_conn_handle_count][2]
         stat_cursor.close()
+
+        self.pr('test_disable_idle_timeout_drop_force: cache1={}, cache2={}, close1={}, close2={}'.format(
+            cache1, cache2, close1, close2))
+        self.pr('.   dhandle_count1={}, dhandle_count2={}'.format(dhandle_count1, dhandle_count2))
 
         # Ensure that the handle has been closed after the drop.
         self.assertEqual(close2, 1)
