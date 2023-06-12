@@ -17,7 +17,7 @@ they are used in other settings.
 <tr><th>Term<th>Category<th>Definition
 <td><td>btcur<td>btree<td>a b-tree cursor.
 <tr><td>address cookie<td>block manager<td>an opaque set of bytes returned by the block manager to reference a block in a Btree file, it includes an offset, size, checksum, and object id.
-<tr><td>aggregate time window<td>durable history<td>an aggregation of all time-windows held on a page.
+<tr><td>aggregate time window<td>durable history<td>an aggregation of all time-windows held on a page or subordinate pages.
 <tr><td>atomicity<td>transactions<td>a guarantee provided within the context of a transaction that all operations made within that transaction either succeed or fail.
 <tr><td>barrier<td>general<td>a call that forces the CPU and compiler to enforce ordering constraints on memory operations, used in multithreaded code.
 <tr><td>block<td>block manager<td>the smallest granularity of data that is read from or written to a Btree file.  A btree page, when it appears on disk, may consist of one or more blocks.
@@ -55,7 +55,7 @@ they are used in other settings.
 <tr><td>frag<td>verify<td>in verify, a part of a file that is the minimum allocation size and aligned the same.  The smallest blocks may be the same as a frag, other blocks may be composed of multiple contiguous frags.
 <tr><td>hazard pointer<td>general<td>a data structure that assists in lock free algorithms, used by WiredTiger Btrees
 <tr><td>history store<td>durable history<td>storage in WiredTiger (currently implemented as a Btree) that keeps previous values associated with a key.
-<tr><td>history store value<td>durable history<td>version of a key older than the on-disk value, which have been written out to the history store.
+<tr><td>history store value<td>durable history<td>a version of a key older than the on-disk value, which has been written out to the history store.
 <tr><td>home directory<td>general<td>the directory containing all the data for a WiredTiger connection.  The connection is attached to this directory via a call to ::wiredtiger_open.
 <tr><td>HS<td>durable history<td>see "history store".
 <tr><td>Huffman encoding<td>btree<td>data in a btree may optionally be encoded using a Huffman encoding, based on either English letter frequencies or a custom encoding.  See @subpage_single huffman for details.
