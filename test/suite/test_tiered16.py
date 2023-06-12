@@ -31,7 +31,7 @@
 
 from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
 from wtscenario import make_scenarios
-import os, wiredtiger, wttest
+import errno, os, wiredtiger, wttest
 
 class test_tiered16(TieredConfigMixin, wttest.WiredTigerTestCase):
     tiered_storage_sources = gen_tiered_storage_sources()
@@ -54,6 +54,8 @@ class test_tiered16(TieredConfigMixin, wttest.WiredTigerTestCase):
         base_b = "tieredb-000000000"
         obj1file_b = base_b + "1.wtobj"
         obj2file_b = base_b + "2.wtobj"
+
+        uri_c = "table:tieredc"
 
         self.session.create(uri_a, "key_format=S,value_format=S")
         self.session.create(uri_b, "key_format=S,value_format=S")
@@ -102,5 +104,23 @@ class test_tiered16(TieredConfigMixin, wttest.WiredTigerTestCase):
             self.check_cache(cache_dir, [])
             self.check_bucket([])
 
+        # For any scenario, we should be able to do drops after reopens.
+        self.session.create(uri_c, 'key_format=S,value_format=S')
+
+        # Insert a record
+        cursor = self.session.open_cursor(uri_c, None)
+        cursor["a"] = "a"
+        cursor.close()
+
+        self.session.checkpoint('flush_tier=(enabled,force=true)')
+        self.reopen_conn()
+        #self.conn.reconfigure('verbose=(tiered:5)')
+
+        cursor = self.session.open_cursor(uri_c, None)
+        cursor["a"] = "b"
+        cursor.close()
+
+        self.dropUntilSuccess(self.session, uri_c)
+        
 if __name__ == '__main__':
     wttest.run()
