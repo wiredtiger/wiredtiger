@@ -2490,10 +2490,9 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
      * FIXME: SERVER-44870
      *
      * MongoDB can't (yet) handle rolling back read only transactions. For this reason, don't check
-     * unless there's at least one update or we're configured to time out thread operations (a way
-     * to confirm our caller is prepared for rollback).
+     * unless there's at least one update.
      */
-    if (txn->mod_count == 0 && !__wt_op_timer_fired(session))
+    if (txn->mod_count == 0)
         return (0);
 #else
     /*
