@@ -264,15 +264,18 @@
  * retried on rollback errors. Generally, these only need to be used with readonly APIs, as
  * writable APIs have their own retry code via TXN_API_CALL.  These macros may be used with
  * *API_CALL and API_END* provided they are ordered in a balanced way.
+ *
+ * If we have an operation timeout set, don't retry, the caller wants to see the rollback error.
  */
 #define API_RETRYABLE(s) do {
 
-#define API_RETRYABLE_END(s, ret)                                                                \
-    if ((ret) != WT_ROLLBACK || F_ISSET((s)->txn, WT_TXN_RUNNING) || (s)->api_call_counter != 1) \
-        break;                                                                                   \
-    (ret) = 0;                                                                                   \
-    WT_STAT_CONN_DATA_INCR(s, autocommit_readonly_retry);                                        \
-    }                                                                                            \
+#define API_RETRYABLE_END(s, ret)                                                                  \
+    if ((ret) != WT_ROLLBACK || F_ISSET((s)->txn, WT_TXN_RUNNING) || (s)->api_call_counter != 1 || \
+      session->operation_timeout_us != 0)                                                          \
+        break;                                                                                     \
+    (ret) = 0;                                                                                     \
+    WT_STAT_CONN_DATA_INCR(s, autocommit_readonly_retry);                                          \
+    }                                                                                              \
     while (1)
 
 #define JOINABLE_CURSOR_CALL_CHECK(cur) \
