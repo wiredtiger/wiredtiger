@@ -703,7 +703,6 @@ equalp
 errno
 errx
 esc
-esize
 ev
 evd
 eventv
@@ -1167,7 +1166,6 @@ sd
 sdk
 secretkey
 sessionp
-setjmp
 setkv
 setname
 setstr
@@ -1252,7 +1250,6 @@ tempdir
 testext
 testutil
 th
-thunk
 tid
 tinfo
 tlb
