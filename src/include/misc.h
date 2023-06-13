@@ -227,21 +227,43 @@
     if ((nmemb) != 0)                         \
     qsort(base, nmemb, size, compar)
 
+/*
+ * qsort with a context argument passed to the comparator is apparently useful enough for all
+ * systems to provide a version: but not so useful it was standardized.
+ *
+ * While the function name and argument order for both the function and the comparator vary,
+ * the argument and return types are same. So use macros to rewrite the function name and reorder
+ * the arguments for both the qsort invocation and comparator definition.
+ *
+ * QSORT_R_ARGS types by name:
+ *  const void *lhs
+ *  const void *rhs
+ *  void *ctx
+ */
 #if defined(__linux__)
+
 #define __wt_qsort_r(base, nmemb, size, compar, ctx) \
+    if (nmemb > 0)                                   \
     qsort_r(base, nmemb, size, compar, ctx)
-#define QSORT_R_ARGS(lhs, rhs, ctx) \
-    const void *lhs, const void *rhs, void *ctx
+
+#define QSORT_R_ARGS(lhs, rhs, ctx) const void *lhs, const void *rhs, void *ctx
+
 #elif defined(__APPLE__) || defined(__BSD__)
+
 #define __wt_qsort_r(base, nmemb, size, compar, ctx) \
+    if (nmemb > 0)                                   \
     qsort_r(base, nmemb, size, ctx, compar)
-#define QSORT_R_ARGS(lhs, rhs, ctx) \
-    void *ctx, const void *lhs, const void *rhs
+
+#define QSORT_R_ARGS(lhs, rhs, ctx) void *ctx, const void *lhs, const void *rhs
+
 #elif defined(_WIN64)
+
 #define __wt_qsort_r(base, nmemb, size, compar, ctx) \
+    if (nmemb > 0)                                   \
     qsort_s(base, nmemb, size, compar, ctx)
-#define QSORT_R_ARGS(lhs, rhs, ctx) \
-    void *ctx, const void *lhs, const void *rhs
+
+#define QSORT_R_ARGS(lhs, rhs, ctx) void *ctx, const void *lhs, const void *rhs
+
 #endif
 
 /*

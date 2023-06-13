@@ -15,6 +15,7 @@ LF_MASK
 LIKELY
 LLONG_MAX
 LLONG_MIN
+QSORT_R_ARGS
 SESSION_API_PREPARE_CHECK
 TRIGGER_ABORT
 TXN_API_CALL
@@ -105,6 +106,7 @@ __WIREDTIGER_EXT_H_
 __WIREDTIGER_H_
 __WT_INTERNAL_H
 __wt_bswap16
+__wt_qsort_r
 __wt_verbose_error
 __wt_verbose_level
 __wt_verbose_level_multi

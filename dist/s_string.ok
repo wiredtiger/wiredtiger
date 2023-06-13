@@ -576,6 +576,7 @@ config
 configs
 conn
 connectionp
+const
 constantp
 consts
 cookiep
@@ -895,6 +896,7 @@ lex
 lexicographically
 lf
 lfence
+lhs
 libdatasource
 libmemkind
 libs
@@ -1140,6 +1142,7 @@ ret
 retp
 revint
 rf
+rhs
 risc
 rl
 rle
