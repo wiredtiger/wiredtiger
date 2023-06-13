@@ -271,7 +271,7 @@
 
 #define API_RETRYABLE_END(s, ret)                                                                  \
     if ((ret) != WT_ROLLBACK || F_ISSET((s)->txn, WT_TXN_RUNNING) || (s)->api_call_counter != 1 || \
-      session->operation_timeout_us != 0)                                                          \
+      __wt_op_timer_fired(session))                                                                \
         break;                                                                                     \
     (ret) = 0;                                                                                     \
     WT_STAT_CONN_DATA_INCR(s, autocommit_readonly_retry);                                          \
