@@ -54,8 +54,7 @@ __chunkcache_alloc(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
 
 /*
  * __chunkcache_admit_size --
- *     Decide if we can admit the chunk given the limit on cache capacity and return the size of the
- *     chunk to be admitted.
+ *     Decide if we can admit the chunk given the limit on cache capacity.
  */
 static size_t
 __chunkcache_admit_size(WT_SESSION_IMPL *session)
@@ -78,8 +77,7 @@ __chunkcache_admit_size(WT_SESSION_IMPL *session)
 
 /*
  * __chunkcache_alloc_chunk --
- *     Allocate the chunk and its metadata for a block at a given offset. We hold the lock for the
- *     hashtable bucket where this chunk would be placed while allocating the chunk.
+ *     Allocate the chunk and its metadata for a block at a given offset.
  */
 static int
 __chunkcache_alloc_chunk(WT_SESSION_IMPL *session, wt_off_t offset, WT_BLOCK *block,
@@ -120,6 +118,9 @@ __chunkcache_alloc_chunk(WT_SESSION_IMPL *session, wt_off_t offset, WT_BLOCK *bl
     (*newchunk)->hash_id.offset = (*newchunk)->chunk_offset;
     hash = __wt_hash_city64((void *)hash_id, sizeof(WT_CHUNKCACHE_HASHID));
     (*newchunk)->bucket_id = hash % chunkcache->hashtable_size;
+
+    /* Initialize the access count, so the upper layer code doesn't need to remember to do that. */
+    (*newchunk)->access_count++;
 
     WT_ASSERT_SPINLOCK_OWNED(session, WT_BUCKET_LOCK(chunkcache, (*newchunk)->bucket_id));
 
@@ -164,8 +165,7 @@ __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
 
 /*
  * __chunkcache_make_hash --
- *     Populate the hash data structure, which uniquely identifies the chunk, and return the hash
- *     table bucket number corresponding to this hash.
+ *     Populate the hash data structure, which uniquely identifies the chunk.
  */
 static inline uint64_t
 __chunkcache_make_hash(WT_CHUNKCACHE *chunkcache, WT_CHUNKCACHE_HASHID *hash_id, WT_BLOCK *block,
@@ -185,15 +185,17 @@ __chunkcache_make_hash(WT_CHUNKCACHE *chunkcache, WT_CHUNKCACHE_HASHID *hash_id,
 
 /*
  * __chunkcache_should_evict --
- *     Decide if we can evict this chunk. In the current algorithm we only evict the chunks with the
- *     zero access count. We always decrement the access count on the chunk that is given to us. The
- *     thread accessing the chunk increments the access count. So we will only evict the chunks that
- *     have not been accessed for a long time.
+ *     Decide if we can evict this chunk.
+ *
+ *     In the current algorithm we only evict the chunks with a zero access count. We always decrement
+ *     the access count on the chunk that is given to us. The thread accessing the chunk increments the
+ *     access count. As a result, we will only evict a chunk that has not been accessed for a time
+ *     proportional to the number of accesses made to it.
  */
 static inline bool
 __chunkcache_should_evict(WT_CHUNKCACHE_CHUNK *chunk)
 {
-    /* Do not evict chunks that are in the processed of being added to the cache. */
+    /* Do not evict chunks that are in the process of being added to the cache. */
     if (!chunk->valid)
         return (false);
     if (--(chunk->access_count) == 0)
@@ -203,8 +205,9 @@ __chunkcache_should_evict(WT_CHUNKCACHE_CHUNK *chunk)
 
 /*
  * __chunkcache_eviction_thread --
- *     Periodically sweep the cache and evict chunks with a low access count. This is similar to the
- *     clock eviction algorithm, which is an approximation of the LRU algorithm.
+ *     Periodically sweep the cache and evict chunks with a zero access count.
+ *
+ *     This strategy is similar to the clock eviction algorithm, which is an approximates LRU.
  */
 static WT_THREAD_RET
 __chunkcache_eviction_thread(void *arg)
@@ -218,7 +221,7 @@ __chunkcache_eviction_thread(void *arg)
     chunkcache = &S2C(session)->chunkcache;
 
     while (!chunkcache->chunkcache_exiting) {
-        /* Do not evict if we are not close to exceeding capacity */
+        /* Do not evict if we are not close to exceeding capacity. */
         if ((chunkcache->bytes_used + chunkcache->chunk_size) <
           chunkcache->evict_trigger * chunkcache->capacity / 100) {
             __wt_sleep(1, 0);
@@ -248,10 +251,9 @@ __chunkcache_eviction_thread(void *arg)
 
 /*
  * __wt_chunkcache_get --
- *     If the cache has the data at the given size and offset, copy it into the supplied buffer.
- *     Otherwise, read and cache the chunks containing the requested data.
+ *     Return the data to the caller if we have it. Otherwise read it from storage and cache it.
  *
- * During these operations we are holding one or more bucket locks. A bucket lock protects the
+ *     During these operations we are holding one or more bucket locks. A bucket lock protects the
  *     linked list (i.e., the chain) or chunks hashing into the same bucket. We hold the bucket lock
  *     whenever we are looking for and are inserting a new chunk into that bucket. We must hold the
  *     lock throughout the entire operation: realizing that the chunk is not present, deciding to
@@ -360,9 +362,6 @@ retry:
              * This way we avoid two threads trying to cache the same chunk.
              */
             TAILQ_INSERT_HEAD(WT_BUCKET_CHUNKS(chunkcache, bucket_id), chunk, next_chunk);
-            /* Increment the access count, so the chunk doesn't get evicted before the first access
-             */
-            chunk->access_count++;
             __wt_spin_unlock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
 
             /* Read the new chunk. Only one thread would be caching the new chunk. */
@@ -404,7 +403,7 @@ __wt_chunkcache_remove(
   WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid, wt_off_t offset, uint32_t size)
 {
     WT_CHUNKCACHE *chunkcache;
-    WT_CHUNKCACHE_CHUNK *chunk;
+    WT_CHUNKCACHE_CHUNK *chunk, *chunk_tmp;
     WT_CHUNKCACHE_HASHID hash_id;
     size_t already_removed, remains_to_remove, removable_in_chunk, size_removed;
     uint64_t bucket_id;
@@ -429,7 +428,7 @@ __wt_chunkcache_remove(
         removable_in_chunk = (size_t)WT_CHUNK_OFFSET(chunkcache, (size_t)offset + already_removed) +
           chunkcache->chunk_size - ((size_t)offset + already_removed);
         __wt_spin_lock(session, WT_BUCKET_LOCK(chunkcache, bucket_id));
-        TAILQ_FOREACH (chunk, WT_BUCKET_CHUNKS(chunkcache, bucket_id), next_chunk) {
+        TAILQ_FOREACH_SAFE(chunk, WT_BUCKET_CHUNKS(chunkcache, bucket_id), next_chunk, chunk_tmp) {
             if (memcmp(&chunk->hash_id, &hash_id, sizeof(hash_id)) == 0) {
                 if (chunk->valid) {
                     WT_ASSERT(session,
@@ -450,7 +449,7 @@ __wt_chunkcache_remove(
         /*
          * If we found the chunk, we removed the data and we update the variables so that we can
          * find the next chunk that might contain the block's data. If we did not find the cached
-         * chunk, we still update the variable, so that we can look for the next chunk that might
+         * chunk, we still update the variables, so that we can look for the next chunk that might
          * have part of the block. If we don't update these variables, we will be stuck forever
          * looking for a chunk that's not cached.
          */
