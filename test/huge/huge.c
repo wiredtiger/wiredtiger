@@ -123,8 +123,23 @@ run(CONFIG *cp, int bigkey, size_t bytes)
         cursor->set_key(cursor, "key001");
     cursor->set_value(cursor, big);
 
+    /* We begin the transaction explicitely to avoid using auto-transaction during update. */
+    testutil_check(session->begin_transaction(session, NULL));
+
     /* Insert the record (use update, insert discards the key). */
     testutil_check(cursor->update(cursor));
+    /* Free the page referenced by the cursor, as it could be very large */
+    testutil_check(cursor->reset(cursor));
+
+    testutil_check(session->commit_transaction(session, NULL));
+
+    /* re-set the key after cursor has been reset */
+    if (bigkey)
+        cursor->set_key(cursor, big);
+    else if (cp->recno) {
+        cursor->set_key(cursor, keyno);
+    } else
+        cursor->set_key(cursor, "key001");
 
     /* Retrieve the record and check it. */
     testutil_check(cursor->search(cursor));
