@@ -200,9 +200,10 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
 
     /*
      * Check if the chunk cache has the needed data. If there is a miss in the chunk cache, it will
-     * read and cache the data. If the chunk cache has exceeded its configured capacity and is unable
-     * to evict chunks quickly enough, it will return the error code indicating that it is out of space
-     * We do not propagate this error up to our caller; we read the needed data ourselves instead.
+     * read and cache the data. If the chunk cache has exceeded its configured capacity and is
+     * unable to evict chunks quickly enough, it will return the error code indicating that it is
+     * out of space We do not propagate this error up to our caller; we read the needed data
+     * ourselves instead.
      */
     if (S2C(session)->chunkcache.configured)
         WT_RET_ERROR_OK(
