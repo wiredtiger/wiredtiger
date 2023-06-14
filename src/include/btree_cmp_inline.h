@@ -247,6 +247,7 @@ __wt_lex_compare_skip(
     if (ret_val == 0)
         ret_val = ((usz == tsz) ? 0 : (usz < tsz) ? -1 : 1);
 
+#ifdef HAVE_DIAGNOSTIC
     /*
      * There are various optimizations in the code to skip comparing prefixes that are known to be
      * the same. If configured, check that the prefixes actually match.
@@ -257,6 +258,7 @@ __wt_lex_compare_skip(
         WT_ASSERT_ALWAYS(NULL, full_cmp_ret == ret_val,
           "Comparison that skipped prefix returned different result than a full comparison");
     }
+#endif
 
     return (ret_val);
 }
