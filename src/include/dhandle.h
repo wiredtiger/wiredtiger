@@ -38,9 +38,47 @@
 /* The metadata cursor's data handle. */
 #define WT_SESSION_META_DHANDLE(s) (((WT_CURSOR_BTREE *)((s)->meta_cursor))->dhandle)
 
+/*
 #define WT_DHANDLE_ACQUIRE(dhandle) (void)__wt_atomic_add32(&(dhandle)->session_ref, 1)
 
 #define WT_DHANDLE_RELEASE(dhandle) (void)__wt_atomic_sub32(&(dhandle)->session_ref, 1)
+*/
+
+static inline void
+print_for_breakpoint(const char* str) {
+    printf("%s", str);
+}
+
+static inline void
+print_for_breakpoint2(const char* str) {
+    printf("%s", str);
+}
+
+
+#define WT_DHANDLE_ACQUIRE(dhandle) \
+    do {                            \
+        (void)__wt_atomic_add32(&(dhandle)->session_ref, 1); \
+        printf("In WT_DHANDLE_ACQUIRE in %s() at " __FILE_NAME__ " (line %d)"     \
+           " : dhandle 0x%p (name %s), incremented session_ref to %d, session_inuse %d\n", \
+          __FUNCTION__,  __LINE__, (void *)dhandle, dhandle->name,              \
+          dhandle->session_ref, dhandle->session_inuse); \
+        if (strcmp(dhandle->name, "table:drop_test") == 0)    \
+            print_for_breakpoint("==== WT_DHANDLE_ACQUIRE on table:drop_test ====\n"); \
+    } while (0)
+
+#define WT_DHANDLE_RELEASE(dhandle) \
+    do {                            \
+        (void)__wt_atomic_sub32(&(dhandle)->session_ref, 1); \
+        printf("In WT_DHANDLE_RELEASE in %s() at " __FILE_NAME__ " (line %d)"     \
+               " : dhandle 0x%p (name %s), decremented session_ref to %d, session_inuse %d\n", \
+          __FUNCTION__,  __LINE__, (void *)dhandle, dhandle->name,              \
+          dhandle->session_ref, dhandle->session_inuse); \
+        if (strcmp(dhandle->name, "table:drop_test") == 0) {                                \
+            print_for_breakpoint("==== WT_DHANDLE_RELEASE on table:drop_test ====\n");      \
+            if (dhandle->session_ref == 0)                                                  \
+                print_for_breakpoint2(".    dhandle->session_ref is now 0\n");              \
+        };                                                                                  \
+    } while (0)
 
 #define WT_DHANDLE_NEXT(session, dhandle, head, field)                                     \
     do {                                                                                   \

@@ -169,7 +169,7 @@ __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
     conn = S2C(session);
 
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
-        printf("__sweep_discard_trees: dhandle %p, name %s, flags = 0x%x, session_inuse %d, session_ref %u, is open %d, is dead %d, is exclusive %d, can discard %d\n",
+        printf("__sweep_discard_trees: dhandle %p, name '%s', flags = 0x%x, session_inuse %d, session_ref %u, is open %d, is dead %d, is exclusive %d, can discard %d\n",
           (void*) dhandle, dhandle->name, dhandle->flags, dhandle->session_inuse, dhandle->session_ref,
           F_ISSET(dhandle, WT_DHANDLE_OPEN), F_ISSET(dhandle, WT_DHANDLE_DEAD), F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE),
           WT_DHANDLE_CAN_DISCARD(dhandle));
@@ -184,7 +184,7 @@ __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
          * The sweep server should not close dropped dhandles.
          */
         if (F_ISSET(dhandle, WT_DHANDLE_DROPPED)) {
-            printf("WT_DHANDLE_DROPPED was detected on dhandle %p, name %s, flags = 0x%x, session_inuse %d, session_ref %u, can discard %d\n",
+            printf("WT_DHANDLE_DROPPED was detected on dhandle %p, name '%s', flags = 0x%x, session_inuse %d, session_ref %u, can discard %d\n",
               (void*) dhandle, dhandle->name, dhandle->flags, dhandle->session_inuse, dhandle->session_ref, WT_DHANDLE_CAN_DISCARD(dhandle));
             continue;
         }
@@ -257,7 +257,7 @@ __sweep_remove_handles(WT_SESSION_IMPL *session)
 
     TAILQ_FOREACH_SAFE(dhandle, &conn->dhqh, q, dhandle_tmp)
     {
-        printf("__sweep_remove_handles: dhandle %p, name %s, flags = 0x%x, session_inuse %d, session_ref %u, can discard %d\n",
+        printf("__sweep_remove_handles: dhandle %p, name '%s', flags = 0x%x, session_inuse %d, session_ref %u, can discard %d\n",
           (void*) dhandle, dhandle->name, dhandle->flags, dhandle->session_inuse, dhandle->session_ref, WT_DHANDLE_CAN_DISCARD(dhandle));
 
         if (WT_IS_METADATA(dhandle))

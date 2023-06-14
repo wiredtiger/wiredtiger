@@ -331,8 +331,8 @@ static void
 drop_test(std::string const &config, bool drop_in_second_thread, bool transaction,
   int expected_commit_result, bool diagnostics)
 {
-    std::string uri = "table:cursor_test";
-    std::string file_uri = "file:cursor_test.wt";
+    std::string uri = "table:drop_test";
+    std::string file_uri = "file:drop_test.wt";
 
     std::string txn_as_string = transaction ? "true" : "false";
     std::string thread_drop_label = drop_in_second_thread ? "second thread" : "same thread";
@@ -340,6 +340,9 @@ drop_test(std::string const &config, bool drop_in_second_thread, bool transactio
     SECTION(
       "Drop in " + thread_drop_label + ": transaction = " + txn_as_string)
     {
+        printf("================ Starting drop_test: in %s, in transaction = %s ================\n",
+          thread_drop_label.c_str(), txn_as_string.c_str());
+
         ConnectionWrapper conn(DB_HOME);
         WT_SESSION_IMPL *session_impl = conn.createSession();
         WT_SESSION *session = &session_impl->iface;
@@ -430,7 +433,7 @@ drop_test(std::string const &config, bool drop_in_second_thread, bool transactio
 
         check_txn_updates("Completed", session_impl, diagnostics);
 
-        printf("==== Completed a test: dhandle_count_early %d, dhandle_count_late %d ====\n",
+        printf("==== Completed a drop_test: dhandle_count_early %d, dhandle_count_late %d ====\n",
           dhandle_count_early, dhandle_count_late);
     }
 }
@@ -444,7 +447,7 @@ multiple_drop_test(std::string const &config, int expected_open_cursor_result,
   int expected_commit_result, bool do_sleep, bool diagnostics)
 {
     ConnectionWrapper conn(DB_HOME);
-    std::string uri = "table:cursor_test";
+    std::string uri = "table:multiple_drop_test";
     std::string sleep_as_string = do_sleep ? "true" : "false";
 
     SECTION("Multiple drop test: config = " + config + ", sleep = " + sleep_as_string)
