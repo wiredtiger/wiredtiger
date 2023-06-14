@@ -550,9 +550,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
      * index. Even if stashing the old value fails, we don't roll back that change, because threads
      * may already be using the new index.
      */
-#ifdef HAVE_DIAGNOSTIC
     WT_SPLIT_PAGE_SAVE_STATE(root, session, root->entries, split_gen);
-#endif
     size = sizeof(WT_PAGE_INDEX) + pindex->entries * sizeof(WT_REF *);
     WT_TRET(__split_safe_free(session, split_gen, false, pindex, size));
     root_decr += size;
@@ -834,9 +832,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
      * We can't free the previous page index, there may be threads using it. Add it to the session
      * discard list, to be freed when it's safe.
      */
-#ifdef HAVE_DIAGNOSTIC
     WT_SPLIT_PAGE_SAVE_STATE(parent, session, parent_entries, split_gen);
-#endif
     size = sizeof(WT_PAGE_INDEX) + pindex->entries * sizeof(WT_REF *);
     WT_TRET(__split_safe_free(session, split_gen, exclusive, pindex, size));
     parent_decr += size;
@@ -1089,9 +1085,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
      * stashing the old value fails, we don't roll back that change, because threads may already be
      * using the new parent page.
      */
-#ifdef HAVE_DIAGNOSTIC
     WT_SPLIT_PAGE_SAVE_STATE(page, session, page->entries, split_gen);
-#endif
     size = sizeof(WT_PAGE_INDEX) + pindex->entries * sizeof(WT_REF *);
     WT_TRET(__split_safe_free(session, split_gen, false, pindex, size));
     page_decr += size;

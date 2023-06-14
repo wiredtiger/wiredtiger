@@ -789,6 +789,8 @@ struct __wt_page {
         (page)->split_hist[(page)->splitoff].entries = (uint32_t)(e);                \
         (page)->splitoff = ((page)->splitoff + 1) % WT_ELEMENTS((page)->split_hist); \
     } while (0)
+#else
+#define WT_SPLIT_PAGE_SAVE_STATE(page, session, e, g)
 #endif
 };
 
