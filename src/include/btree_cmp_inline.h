@@ -258,6 +258,8 @@ __wt_lex_compare_skip(
         WT_ASSERT_ALWAYS(NULL, full_cmp_ret == ret_val,
           "Comparison that skipped prefix returned different result than a full comparison");
     }
+#else
+    WT_UNUSED(session);
 #endif
 
     return (ret_val);
