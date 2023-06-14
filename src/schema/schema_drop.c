@@ -251,7 +251,6 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
             WT_PREFIX_SKIP_REQUIRED(session, filename, "file:");
             WT_ERR(__wt_meta_track_drop(session, filename));
         }
-        tiered_tmp.tiers[WT_TIERED_INDEX_LOCAL].tier = NULL;
     }
 
     /* Close any dhandle and remove any tier: entry from metadata. */
@@ -264,7 +263,6 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
             session, ret = __wt_conn_dhandle_close_all(session, tier->name, true, force)));
         WT_ERR(ret);
         WT_ERR(__wt_metadata_remove(session, tier->name));
-        tiered_tmp.tiers[WT_TIERED_INDEX_SHARED].tier = NULL;
     } else
         /* If we don't have a shared tier we better be on the first object. */
         WT_ASSERT(session, localid == 1);
@@ -303,7 +301,7 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
     /*
      * If everything is successful, remove any tiered work associated with this tiered handle. The
      * dhandle has been released so the tiered pointer is stale but queued work still refers to it
-     * but removing it never dereferences the stale value. The worker never sees the stale value
+     * but removing it never de-references the stale value. The worker never sees the stale value
      * because we've been holding the lock the entire time it has been stale.
      */
     __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: remove work for %p", (void *)tiered);

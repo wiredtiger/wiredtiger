@@ -31,7 +31,7 @@
 
 from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
 from wtscenario import make_scenarios
-import errno, os, wiredtiger, wttest
+import os, wiredtiger, wttest
 
 class test_tiered16(TieredConfigMixin, wttest.WiredTigerTestCase):
     tiered_storage_sources = gen_tiered_storage_sources()
