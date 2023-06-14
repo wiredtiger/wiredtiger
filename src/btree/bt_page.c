@@ -329,8 +329,8 @@ err:
  *     Build in-memory page information.
  */
 int
-__wt_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint32_t flags,
-  WT_PAGE **pagep, bool *preparedp)
+__wt_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, size_t image_alloc_size,
+  uint32_t flags, WT_PAGE **pagep, bool *preparedp)
 {
     WT_CELL_UNPACK_ADDR unpack_addr;
     WT_DECL_RET;
@@ -416,7 +416,7 @@ __wt_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint32
      * used to instantiate the page image even though the values might not match exactly, because
      * that's the only value we have when discarding the page image and accounting needs to match.
      */
-    size = LF_ISSET(WT_PAGE_DISK_ALLOC) ? dsk->mem_size : 0;
+    size = LF_ISSET(WT_PAGE_DISK_ALLOC) ? page->dsk_alloc_size = image_alloc_size : 0;
 
     switch (page->type) {
     case WT_PAGE_COL_FIX:

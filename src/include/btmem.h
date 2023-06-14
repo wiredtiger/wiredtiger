@@ -716,16 +716,18 @@ struct __wt_page {
 
     size_t memory_footprint; /* Memory attached to the page */
 
-    /* Page's on-disk representation: NULL for pages created in memory. */
-    const WT_PAGE_HEADER *dsk;
-
     /* If/when the page is modified, we need lots more information. */
     WT_PAGE_MODIFY *modify;
+
+    /* Page's on-disk representation: NULL for pages created in memory. */
+    const WT_PAGE_HEADER *dsk;
 
     /*
      * !!!
      * This is the 64 byte boundary, try to keep hot fields above here.
      */
+
+    size_t dsk_alloc_size;
 
 /*
  * The page's read generation acts as an LRU value for each page in the
