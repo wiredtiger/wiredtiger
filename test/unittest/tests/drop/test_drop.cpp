@@ -46,7 +46,7 @@ print_dhandles(WT_SESSION_IMPL *session_impl)
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
 
-    printf("print_dhandles(): session 0x%p, dhandle: 0x%p\n", session_impl, session_impl->dhandle);
+    printf("print_dhandles(): session %p, dhandle: %p\n", session_impl, session_impl->dhandle);
     conn = S2C(session_impl);
 
     if (session_impl->dhandle != nullptr) {
@@ -75,10 +75,10 @@ check_txn_updates(std::string const &label, WT_SESSION_IMPL *session_impl, bool 
     if (diagnostics) {
         WT_TXN *txn = session_impl->txn;
 
-        printf("check_txn_updates() - %s, txn 0x%p\n", label.c_str(), txn);
+        printf("check_txn_updates() - %s, txn %p\n", label.c_str(), txn);
         print_dhandles(session_impl);
         if (txn != nullptr) {
-            printf("  txn = 0x%p, txn->id = 0x%" PRIu64 ", txn->mod = 0x%p, txn->mod_count = %u\n", txn,
+            printf("  txn = %p, txn->id = 0x%" PRIu64 ", txn->mod = %p, txn->mod_count = %u\n", txn,
               txn->id, txn->mod, txn->mod_count);
 
             WT_TXN_OP *op = txn->mod;
@@ -94,7 +94,7 @@ check_txn_updates(std::string const &label, WT_SESSION_IMPL *session_impl, bool 
                 case WT_TXN_OP_INMEM_COL:
                 case WT_TXN_OP_INMEM_ROW:
                     WT_UPDATE *upd = op->u.op_upd;
-                    printf(".   mod %u, upd 0x%p, op->type = %i, upd->txnid = 0x%" PRIx64
+                    printf(".   mod %u, upd %p, op->type = %i, upd->txnid = 0x%" PRIx64
                            ", upd->durable_ts 0x%" PRIu64 "\n",
                       i, upd, op->type, upd->txnid, upd->durable_ts);
 
@@ -151,7 +151,7 @@ debug_dropped_state(WT_SESSION_IMPL *session, const char *uri)
 
         if (dhandle->type == __wt_data_handle::WT_DHANDLE_TYPE_BTREE) {
             WT_BTREE *btree = (WT_BTREE*)dhandle->handle;
-            printf(".     btree = 0x%p, btree flags = 0x%x, root.page 0x%p\n",
+            printf(".     btree = %p, btree flags = 0x%x, root.page %p\n",
               btree, btree->flags, btree->root.page);
         }
 

@@ -162,7 +162,7 @@ __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
 
-    printf("Starting __sweep_discard_trees(): session 0x%p\n", (void*) session);
+    printf("Starting __sweep_discard_trees(): session %p\n", (void*) session);
 
     *dead_handlesp = 0;
 

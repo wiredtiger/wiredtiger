@@ -59,7 +59,7 @@ print_for_breakpoint2(const char* str) {
     do {                            \
         (void)__wt_atomic_add32(&(dhandle)->session_ref, 1); \
         printf("In WT_DHANDLE_ACQUIRE in %s() at " __FILE_NAME__ " (line %d)"     \
-           " : dhandle 0x%p (name %s), incremented session_ref to %d, session_inuse %d\n", \
+           " : dhandle %p (name %s), incremented session_ref to %d, session_inuse %d\n", \
           __FUNCTION__,  __LINE__, (void *)dhandle, dhandle->name,              \
           dhandle->session_ref, dhandle->session_inuse); \
         if (strcmp(dhandle->name, "table:drop_test") == 0)    \
@@ -70,7 +70,7 @@ print_for_breakpoint2(const char* str) {
     do {                            \
         (void)__wt_atomic_sub32(&(dhandle)->session_ref, 1); \
         printf("In WT_DHANDLE_RELEASE in %s() at " __FILE_NAME__ " (line %d)"     \
-               " : dhandle 0x%p (name %s), decremented session_ref to %d, session_inuse %d\n", \
+               " : dhandle %p (name %s), decremented session_ref to %d, session_inuse %d\n", \
           __FUNCTION__,  __LINE__, (void *)dhandle, dhandle->name,              \
           dhandle->session_ref, dhandle->session_inuse); \
         if (strcmp(dhandle->name, "table:drop_test") == 0) {                                \
@@ -82,6 +82,7 @@ print_for_breakpoint2(const char* str) {
 
 #define WT_DHANDLE_NEXT(session, dhandle, head, field)                                     \
     do {                                                                                   \
+        printf("Starting WT_DHANDLE_NEXT, session %p\n", (void*)session);                \
         WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST)); \
         if ((dhandle) == NULL)                                                             \
             (dhandle) = TAILQ_FIRST(head);                                                 \
@@ -91,6 +92,7 @@ print_for_breakpoint2(const char* str) {
         }                                                                                  \
         if ((dhandle) != NULL)                                                             \
             WT_DHANDLE_ACQUIRE(dhandle);                                                   \
+        printf("Ending WT_DHANDLE_NEXT, session %p\n", (void*)session);                  \
     } while (0)
 
 #define WT_DHANDLE_IS_CHECKPOINT(dhandle) ((dhandle)->checkpoint != NULL)

@@ -146,6 +146,10 @@ __conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, bool f
     printf("__conn_dhandle_destroy(): dhandle %p, name '%s', flags = 0x%x, session_inuse %d, session_ref %u\n",
       (void*) dhandle, dhandle->name, dhandle->flags, dhandle->session_inuse, dhandle->session_ref);
 
+    if (strcmp(dhandle->name, "table:drop_test") == 0)  {
+        printf("++++++++ Destroying table:drop_test +++++++++\n");
+    }
+
     switch (dhandle->type) {
     case WT_DHANDLE_TYPE_BTREE:
         WT_WITH_DHANDLE(session, dhandle, ret = __wt_btree_discard(session));
@@ -312,11 +316,11 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
     if (!F_ISSET(dhandle, WT_DHANDLE_OPEN))
         return (0);
 
-    printf("__wt_conn_dhandle_close() - session 0x%p, dhandle 0x%p, name '%s', set_mark_dead_flag %d, is btree %d\n",
+    printf("__wt_conn_dhandle_close() - session %p, dhandle %p, name '%s', set_mark_dead_flag %d, is btree %d\n",
       (void*)session, (void*)dhandle, dhandle->name, set_mark_dead_flag, WT_DHANDLE_BTREE(dhandle));
 
     if (set_mark_dead_flag) {
-        printf(". set_mark_dead_flag: dhandle 0x%p, name '%s'\n", (void*)dhandle, dhandle->name);
+        printf(". set_mark_dead_flag: dhandle %p, name '%s'\n", (void*)dhandle, dhandle->name);
     }
 
     /*
@@ -433,7 +437,7 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
      */
 
     die = (marked_dead && set_mark_dead_flag) || discard;
-    printf("__wt_conn_dhandle_close() should we set WT_DHANDLE_DEAD - session 0x%p, dhandle 0x%p, name '%s', set_mark_dead_flag %d, marked_dead %d, discard %d, is btree %d, die %d\n",
+    printf("__wt_conn_dhandle_close() should we set WT_DHANDLE_DEAD - session %p, dhandle %p, name '%s', set_mark_dead_flag %d, marked_dead %d, discard %d, is btree %d, die %d\n",
       (void*)session, (void*)dhandle, dhandle->name, set_mark_dead_flag, marked_dead, discard, WT_DHANDLE_BTREE(dhandle), die);
 
     if (die) {
@@ -760,8 +764,8 @@ done:
 err:
     F_CLR(conn, WT_CONN_CKPT_GATHER);
     WT_DHANDLE_RELEASE(dhandle);
-    printf("In __wt_conn_btree_apply(), released dhandle %p, name '%s', flags = 0x%x, session_inuse %d, session_ref %u\n",
-      (void*) dhandle, dhandle->name, dhandle->flags, dhandle->session_inuse, dhandle->session_ref);
+    printf("In __wt_conn_btree_apply(), session %p, released dhandle %p, name '%s', flags = 0x%x, session_inuse %d, session_ref %u\n",
+      (void*) dhandle, (void*) session, dhandle->name, dhandle->flags, dhandle->session_inuse, dhandle->session_ref);
     return (ret);
 }
 

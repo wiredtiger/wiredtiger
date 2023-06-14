@@ -39,7 +39,7 @@ __session_discard_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE_CACHE *dhandl
 {
     uint64_t bucket;
 
-    printf("starting __session_discard_dhandle(), session 0x%p, dhandle 0x%p\n",
+    printf("starting __session_discard_dhandle(), session %p, dhandle %p\n",
       (void*)session, (void*) dhandle_cache->dhandle);
 
     bucket = dhandle_cache->dhandle->name_hash & (S2C(session)->dh_hash_size - 1);
@@ -47,7 +47,7 @@ __session_discard_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE_CACHE *dhandl
     TAILQ_REMOVE(&session->dhhash[bucket], dhandle_cache, hashq);
 
     WT_DHANDLE_RELEASE(dhandle_cache->dhandle);
-    printf("In __session_discard_dhandle(), session 0x%p, released dhandle %p, name '%s', flags = 0x%x, session_ref %u, session_inuse %d, \n",
+    printf("In __session_discard_dhandle(), session %p, released dhandle %p, name '%s', flags = 0x%x, session_ref %u, session_inuse %d, \n",
       (void*)session, (void*) dhandle_cache->dhandle, dhandle_cache->dhandle->name, dhandle_cache->dhandle->flags, dhandle_cache->dhandle->session_ref, dhandle_cache->dhandle->session_inuse);
     __wt_overwrite_and_free(session, dhandle_cache);
 }
@@ -242,8 +242,8 @@ __wt_session_release_dhandle(WT_SESSION_IMPL *session)
     write_locked = F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE);
     locked = true;
 
-    printf("starting __wt_session_release_dhandle(): session %p, dhandle %p, btree %p\n",
-      (void*)session, (void*)dhandle, (void*)btree);
+    printf("starting __wt_session_release_dhandle(): session %p, dhandle %p, name '%s', btree %p\n",
+      (void*)session, (void*)dhandle, dhandle->name, (void*)btree);
 
     /*
      * If we had special flags set, close the handle so that future access can get a handle without
