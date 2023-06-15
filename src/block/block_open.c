@@ -120,7 +120,6 @@ err:
 int
 __wt_block_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
 
     conn = S2C(session);
