@@ -37,6 +37,7 @@
 
 #include <math.h>
 #include "test_util.h"
+#include "wt_internal.h"
 #include <math.h>
 
 extern int __wt_optind;
@@ -98,7 +99,8 @@ static int
 search_insert(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head, WT_ITEM *srch_key)
 {
-    WT_INSERT *ins, **insp, *last_ins;
+    WT_ATOMIC_TYPE(WT_INSERT *) * insp;
+    WT_INSERT *ins, *last_ins;
     WT_ITEM key;
     size_t match, skiphigh, skiplow;
     int cmp, i;
@@ -112,7 +114,8 @@ search_insert(
     match = skiphigh = skiplow = 0;
     ins = last_ins = NULL;
     for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0;) {
-        if ((ins = *insp) == NULL) {
+        WT_C_MEMMODEL_ATOMIC_LOAD(ins, insp, WT_ATOMIC_ACQUIRE);
+        if (ins == NULL) {
             cbt->next_stack[i] = NULL;
             cbt->ins_stack[i--] = insp--;
             continue;
@@ -139,7 +142,7 @@ search_insert(
             skiphigh = match;
         } else
             for (; i >= 0; i--) {
-                cbt->next_stack[i] = ins->next[i];
+                WT_C_MEMMODEL_ATOMIC_LOAD(cbt->next_stack[i], &ins->next[i], WT_ATOMIC_ACQUIRE);
                 cbt->ins_stack[i] = &ins->next[i];
             }
     }
@@ -160,9 +163,10 @@ search_insert(
  *     Add a WT_INSERT entry to the middle of a skiplist. Copy of __insert_simple_func().
  */
 static inline int
-insert_simple_func(
-  WT_SESSION_IMPL *session, WT_INSERT ***ins_stack, WT_INSERT *new_ins, u_int skipdepth)
+insert_simple_func(WT_SESSION_IMPL *session, WT_ATOMIC_TYPE(WT_INSERT *) * *ins_stack,
+  WT_INSERT *new_ins, u_int skipdepth)
 {
+    WT_INSERT *old_ins, *next;
     u_int i;
 
     WT_UNUSED(session);
@@ -178,8 +182,11 @@ insert_simple_func(
      * implementations read the old value multiple times.
      */
     for (i = 0; i < skipdepth; i++) {
-        WT_INSERT *old_ins = *ins_stack[i];
-        if (old_ins != new_ins->next[i] || !__wt_atomic_cas_ptr(ins_stack[i], old_ins, new_ins))
+        WT_C_MEMMODEL_ATOMIC_LOAD(old_ins, ins_stack[i], WT_ATOMIC_ACQUIRE);
+        WT_C_MEMMODEL_ATOMIC_LOAD(next, &new_ins->next[i], WT_ATOMIC_RELAXED);
+        if (old_ins != next ||
+          !WT_C_MEMMODEL_ATOMIC_CAS(
+            ins_stack[i], old_ins, new_ins, WT_ATOMIC_RELEASE, WT_ATOMIC_RELAXED))
             return (i == 0 ? WT_RESTART : 0);
     }
 
@@ -191,9 +198,10 @@ insert_simple_func(
  *     Add a WT_INSERT entry to a skiplist. Copy of __insert_serial_func()
  */
 static inline int
-insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSERT ***ins_stack,
-  WT_INSERT *new_ins, u_int skipdepth)
+insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head,
+  WT_ATOMIC_TYPE(WT_INSERT *) * *ins_stack, WT_INSERT *new_ins, u_int skipdepth)
 {
+    WT_INSERT *old_ins, *next, *tail;
     u_int i;
 
     /* The cursor should be positioned. */
@@ -212,11 +220,15 @@ insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSERT
      * implementations read the old value multiple times.
      */
     for (i = 0; i < skipdepth; i++) {
-        WT_INSERT *old_ins = *ins_stack[i];
-        if (old_ins != new_ins->next[i] || !__wt_atomic_cas_ptr(ins_stack[i], old_ins, new_ins))
+        WT_C_MEMMODEL_ATOMIC_LOAD(old_ins, ins_stack[i], WT_ATOMIC_ACQUIRE);
+        WT_C_MEMMODEL_ATOMIC_LOAD(next, &new_ins->next[i], WT_ATOMIC_RELAXED);
+        if (old_ins != next ||
+          !WT_C_MEMMODEL_ATOMIC_CAS(
+            ins_stack[i], old_ins, new_ins, WT_ATOMIC_RELEASE, WT_ATOMIC_RELAXED))
             return (i == 0 ? WT_RESTART : 0);
-        if (ins_head->tail[i] == NULL || ins_stack[i] == &ins_head->tail[i]->next[i])
-            ins_head->tail[i] = new_ins;
+        WT_C_MEMMODEL_ATOMIC_LOAD(tail, &ins_head->tail[i], WT_ATOMIC_ACQUIRE);
+        if (tail == NULL || ins_stack[i] == &tail->next[i])
+            WT_C_MEMMODEL_ATOMIC_STORE(&ins_head->tail[i], new_ins, WT_ATOMIC_RELEASE);
     }
 
     return (0);
@@ -227,11 +239,11 @@ insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSERT
  *     Top level function for inserting a WT_INSERT into a skiplist. Based on __wt_insert_serial()
  */
 static inline int
-insert_serial(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSERT ***ins_stack,
-  WT_INSERT **new_insp, u_int skipdepth)
+insert_serial(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head,
+  WT_ATOMIC_TYPE(WT_INSERT *) * *ins_stack, WT_INSERT **new_insp, u_int skipdepth)
 {
     WT_DECL_RET;
-    WT_INSERT *new_ins;
+    WT_INSERT *new_ins, *tmp;
     u_int i;
     bool simple;
 
@@ -240,9 +252,11 @@ insert_serial(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSERT ***i
     *new_insp = NULL;
 
     simple = true;
-    for (i = 0; i < skipdepth; i++)
-        if (new_ins->next[i] == NULL)
+    for (i = 0; i < skipdepth; i++) {
+        WT_C_MEMMODEL_ATOMIC_LOAD(tmp, &new_ins->next[i], WT_ATOMIC_RELAXED);
+        if (tmp == NULL)
             simple = false;
+    }
 
     if (simple)
         ret = insert_simple_func(session, ins_stack, new_ins, skipdepth);
@@ -315,11 +329,12 @@ row_insert(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, WT_INSERT_HEAD *ins_head)
     if (cbt->ins_stack[0] == NULL)
         for (i = 0; i < skipdepth; i++) {
             cbt->ins_stack[i] = &ins_head->head[i];
-            ins->next[i] = cbt->next_stack[i] = NULL;
+            WT_C_MEMMODEL_ATOMIC_STORE(&ins->next[i], NULL, WT_ATOMIC_RELAXED);
+            cbt->next_stack[i] = NULL;
         }
     else
         for (i = 0; i < skipdepth; i++)
-            ins->next[i] = cbt->next_stack[i];
+            WT_C_MEMMODEL_ATOMIC_STORE(&ins->next[i], cbt->next_stack[i], WT_ATOMIC_RELAXED);
 
     /* Insert the WT_INSERT structure. */
     WT_ERR(insert_serial(session, cbt->ins_head, cbt->ins_stack, &ins, skipdepth));
@@ -358,14 +373,14 @@ verify_list(WT_SESSION *session, WT_INSERT_HEAD *ins_head)
     WT_ITEM prev;
     int cmp;
 
-    ins = WT_SKIP_FIRST(ins_head);
+    ins = __wt_skip_first(ins_head, WT_ATOMIC_RELAXED);
     if (ins == NULL)
         return;
 
     prev.data = WT_INSERT_KEY(ins);
     prev.size = WT_INSERT_KEY_SIZE(ins);
 
-    while ((ins = WT_SKIP_NEXT(ins)) != NULL) {
+    while ((ins = __wt_skip_next(ins, WT_ATOMIC_RELAXED)) != NULL) {
         cur.data = WT_INSERT_KEY(ins);
         cur.size = WT_INSERT_KEY_SIZE(ins);
         testutil_check(__wt_compare((WT_SESSION_IMPL *)session, NULL, &prev, &cur, &cmp));
@@ -643,7 +658,7 @@ main(int argc, char *argv[])
 
     printf("Success.\n");
     testutil_clean_test_artifacts(home);
-    testutil_clean_work_dir(home);
+    testutil_remove(home);
 
     return (EXIT_SUCCESS);
 }
