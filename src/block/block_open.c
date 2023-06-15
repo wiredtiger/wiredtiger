@@ -122,8 +122,6 @@ __wt_block_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
     WT_DECL_RET;
 
-    conn = S2C(session);
-
     if (block == NULL) /* Safety check, if failed to initialize. */
         return (0);
 
