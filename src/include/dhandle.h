@@ -57,7 +57,7 @@ dhandle_print_for_breakpoint2(const char *str)
         (void)__wt_atomic_add32(&(dhandle)->session_ref, 1);                                      \
         DIAGNOSTIC_EXTRA_PRINTF(                                                                  \
           "In WT_DHANDLE_ACQUIRE in %s() at %s (line %d)"                                         \
-          " : dhandle %p (name %s), decremented session_ref to %" PRIu32 ", session_inuse %d\n",  \
+          " : dhandle %p (name %s), incremented session_ref to %" PRIu32 ", session_inuse %d\n",  \
           __FUNCTION__, __FILE__, __LINE__, (void *)dhandle, dhandle->name, dhandle->session_ref, \
           dhandle->session_inuse);                                                                \
         if (strcmp(dhandle->name, "table:drop_test") == 0)                                        \
