@@ -288,6 +288,8 @@ int get_dhandle_count(WT_SESSION *session)
        get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_TOD));
      printf(". WT_STAT_CONN_DH_SWEEPS value = %" PRIi64 "\n",
        get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEPS));
+     printf(". WT_STAT_CONN_CACHE_BYTES_INUSE value = %" PRIi64 "\n",
+       get_stats_value(stats_cursor, WT_STAT_CONN_CACHE_BYTES_INUSE));
 
      REQUIRE(stats_cursor->close(stats_cursor) == 0);
  }
@@ -315,7 +317,7 @@ thread_function_drop_in_session(WT_CONNECTION *connection, std::string const &cf
     WT_SESSION *session;
     REQUIRE(connection->open_session(connection, nullptr, cfg.c_str(), &session) == 0);
     REQUIRE(session->drop(session, uri.c_str(), "force=true") == 0);
-//    dump_stats(session);
+    dump_stats(session);
     REQUIRE(session->reset(session) == 0);
     REQUIRE(session->close(session, "") == 0);
     printf("Ending thread_function_drop_in_session()\n");
@@ -517,6 +519,8 @@ multiple_drop_test(std::string const &config, int expected_open_cursor_result,
 
 TEST_CASE("Drop: dropped dhandles", "[drop]")
 {
+    DIAGNOSTIC_EXTRA_PRINTF("DIAGNOSTIC_EXTRA is enabled\n");
+
     const bool diagnostics = true;
 
     drop_test("", false, true, EINVAL, diagnostics);

@@ -20,7 +20,7 @@ __drop_file(WT_SESSION_IMPL *session, const char *uri, bool force, const char *c
     const char *filename;
     bool remove_files;
 
-    printf("Starting __drop_file(), session %p, uri %s, force %d\n", (void*)session, uri, force);
+    DIAGNOSTIC_EXTRA_PRINTF("Starting __drop_file(), session %p, uri %s, force %d\n", (void*)session, uri, force);
 
     WT_RET(__wt_config_gets(session, cfg, "remove_files", &cval));
     remove_files = cval.val != 0;
@@ -44,7 +44,7 @@ __drop_file(WT_SESSION_IMPL *session, const char *uri, bool force, const char *c
      */
     WT_TRET(__wt_meta_track_drop(session, filename));
 
-    printf("Ending __drop_file(), uri %s, force %d\n", uri, force);
+    DIAGNOSTIC_EXTRA_PRINTF("Ending __drop_file(), uri %s, force %d\n", uri, force);
 
     return (ret);
 }

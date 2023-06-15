@@ -143,11 +143,11 @@ __conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, bool f
 {
     WT_DECL_RET;
 
-    printf("__conn_dhandle_destroy(): dhandle %p, name '%s', flags = 0x%x, session_inuse %d, session_ref %u\n",
+    DIAGNOSTIC_EXTRA_PRINTF("__conn_dhandle_destroy(): dhandle %p, name '%s', flags = 0x%x, session_inuse %d, session_ref %u\n",
       (void*) dhandle, dhandle->name, dhandle->flags, dhandle->session_inuse, dhandle->session_ref);
 
     if (strcmp(dhandle->name, "table:drop_test") == 0)  {
-        printf("++++++++ Destroying table:drop_test +++++++++\n");
+        DIAGNOSTIC_EXTRA_PRINTF("++++++++ Destroying table:drop_test +++++++++\n");
     }
 
     switch (dhandle->type) {
@@ -316,11 +316,11 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
     if (!F_ISSET(dhandle, WT_DHANDLE_OPEN))
         return (0);
 
-    printf("__wt_conn_dhandle_close() - session %p, dhandle %p, name '%s', set_mark_dead_flag %d, is btree %d\n",
+    DIAGNOSTIC_EXTRA_PRINTF("__wt_conn_dhandle_close() - session %p, dhandle %p, name '%s', set_mark_dead_flag %d, is btree %d\n",
       (void*)session, (void*)dhandle, dhandle->name, set_mark_dead_flag, WT_DHANDLE_BTREE(dhandle));
 
     if (set_mark_dead_flag) {
-        printf(". set_mark_dead_flag: dhandle %p, name '%s'\n", (void*)dhandle, dhandle->name);
+        DIAGNOSTIC_EXTRA_PRINTF(". set_mark_dead_flag: dhandle %p, name '%s'\n", (void*)dhandle, dhandle->name);
     }
 
     /*
@@ -437,7 +437,7 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
      */
 
     die = (marked_dead && set_mark_dead_flag) || discard;
-    printf("__wt_conn_dhandle_close() should we set WT_DHANDLE_DEAD - session %p, dhandle %p, name '%s', set_mark_dead_flag %d, marked_dead %d, discard %d, is btree %d, die %d\n",
+    DIAGNOSTIC_EXTRA_PRINTF("__wt_conn_dhandle_close() should we set WT_DHANDLE_DEAD - session %p, dhandle %p, name '%s', set_mark_dead_flag %d, marked_dead %d, discard %d, is btree %d, die %d\n",
       (void*)session, (void*)dhandle, dhandle->name, set_mark_dead_flag, marked_dead, discard, WT_DHANDLE_BTREE(dhandle), die);
 
     if (die) {
@@ -463,7 +463,7 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
             --conn->open_btree_count;
     }
 
-    printf("In __wt_conn_dhandle_close(), dhandle %p, name '%s', flags = 0x%x, session_inuse %d, session_ref %u, dead %d, open %d, mark_dead %d, marked_dead %d, discard %d\n",
+    DIAGNOSTIC_EXTRA_PRINTF("In __wt_conn_dhandle_close(), dhandle %p, name '%s', flags = 0x%x, session_inuse %d, session_ref %u, dead %d, open %d, mark_dead %d, marked_dead %d, discard %d\n",
       (void*) dhandle, dhandle->name, dhandle->flags, dhandle->session_inuse, dhandle->session_ref,
       F_ISSET(dhandle, WT_DHANDLE_DEAD),F_ISSET(dhandle, WT_DHANDLE_OPEN),
       mark_dead, marked_dead, discard);
@@ -804,7 +804,7 @@ __conn_dhandle_close_one(
             ret = __wt_meta_track_sub_off(session);
     }
     if (removed) {
-        printf("In __conn_dhandle_close_one on %s, txn running = %d, dhandle flags 0x%x\n", uri, (F_ISSET(session->txn, WT_TXN_RUNNING)), session->dhandle->flags);
+        DIAGNOSTIC_EXTRA_PRINTF("In __conn_dhandle_close_one on %s, txn running = %d, dhandle flags 0x%x\n", uri, (F_ISSET(session->txn, WT_TXN_RUNNING)), session->dhandle->flags);
 //        F_SET(session->dhandle, WT_DHANDLE_DEAD);
         F_SET(session->dhandle, WT_DHANDLE_DROPPED);
     }

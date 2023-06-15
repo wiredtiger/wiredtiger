@@ -1982,10 +1982,12 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 int
 __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 {
-    WT_BTREE *btree;
     WT_CURSOR *cursor;
     WT_DECL_RET;
+#ifdef HAVE_DIAGNOSTIC_EXTRA
+    WT_BTREE *btree;
     WT_DATA_HANDLE *dhandle;
+#endif
     WT_TXN *txn;
     WT_TXN_OP *op;
     WT_UPDATE *upd;
@@ -2034,10 +2036,11 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
         case WT_TXN_OP_INMEM_ROW:
             upd = op->u.op_upd;
 
+#ifdef HAVE_DIAGNOSTIC_EXTRA
             btree = op->btree;
             dhandle = btree->dhandle;
-
-            printf(
+#endif
+            DIAGNOSTIC_EXTRA_PRINTF(
               ".  rollback: mod %u, btree 0x%p, dhandle 0x%p\n", i, (void *)btree, (void *)dhandle);
 
 //            if (F_ISSET(dhandle, WT_DHANDLE_DROPPED)) {

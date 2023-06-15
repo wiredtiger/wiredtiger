@@ -320,6 +320,13 @@
 #define __wt_page_swap(session, held, want, flags) __wt_page_swap_func(session, held, want, flags)
 #endif
 
+
+#ifdef HAVE_DIAGNOSTIC_EXTRA
+#define DIAGNOSTIC_EXTRA_PRINTF(...) printf(__VA_ARGS__)
+#else
+#define DIAGNOSTIC_EXTRA_PRINTF(...) {}
+#endif
+
 /* Random number generator state. */
 union __wt_rand_state {
     uint64_t v;
