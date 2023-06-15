@@ -512,6 +512,8 @@ TEST_CASE("Drop: dropped dhandles", "[drop]")
 
     return;
 
+    cache_destroy_memory_check("", 0, false);
+
     multiple_drop_test("", 0, EINVAL, false, diagnostics);
     multiple_drop_test("", 0, EINVAL, true, diagnostics);
 }
