@@ -200,6 +200,14 @@
             (dest)->prepare = 1;                                                              \
     } while (0)
 
+/* Return true if the time aggregates are the same. */
+#define WT_TIME_AGGRTEGATES_EQUAL(ta1, ta2)                                                       \
+    ((ta1)->newest_start_durable_ts == (ta2)->newest_start_durable_ts &&                          \
+      (ta1)->newest_stop_durable_ts == (ta2)->newest_stop_durable_ts &&                           \
+      (ta1)->oldest_start_ts == (ta2)->oldest_start_ts &&                                         \
+      (ta1)->newest_txn == (ta2)->newest_txn && (ta1)->newest_stop_ts == (ta2)->newest_stop_ts && \
+      (ta1)->newest_stop_txn == (ta2)->newest_stop_txn && (ta1)->prepare == (ta2)->prepare)
+
 /* Abstract away checking whether all records in an aggregated time window have been deleted. */
 #define WT_TIME_AGGREGATE_ALL_DELETED(ta) ((ta)->newest_stop_ts != WT_TS_MAX)
 

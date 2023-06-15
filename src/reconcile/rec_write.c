@@ -2004,8 +2004,16 @@ __rec_split_write_reuse(
     if (mod->rec_result != WT_PM_REC_MULTIBLOCK || mod->mod_multi_entries < r->multi_next)
         return (false);
 
+    /*
+     * It is possible that the generated checksum value can be the same from two different images.
+     * Use the time aggregate also along with size and checksum in the comparison to identify
+     * whether the new image is as same as the previously written block to reuse.
+     */
     multi_match = &mod->mod_multi[r->multi_next - 1];
-    if (multi_match->size != multi->size || multi_match->checksum != multi->checksum) {
+    if (multi_match->size != multi->size || multi_match->checksum != multi->checksum ||
+      WT_TIME_AGGREGATE_IS_EMPTY(&multi->addr.ta) ||
+      WT_TIME_AGGREGATE_IS_EMPTY(&multi_match->addr.ta) ||
+      !WT_TIME_AGGRTEGATES_EQUAL(&multi->addr.ta, &multi_match->addr.ta)) {
         r->evict_matching_checksum_failed = true;
         return (false);
     }
@@ -2013,7 +2021,7 @@ __rec_split_write_reuse(
     multi_match->addr.reuse = 1;
     multi->addr = multi_match->addr;
 
-    WT_STAT_DATA_INCR(session, rec_page_match);
+    WT_STAT_CONN_DATA_INCR(session, rec_page_image_reuse);
     return (true);
 }
 
