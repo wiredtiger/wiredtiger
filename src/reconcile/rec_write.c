@@ -2005,9 +2005,9 @@ __rec_split_write_reuse(
         return (false);
 
     /*
-     * It is possible that the generated checksum value can be the same from two different images.
+     * It is possible that the generated checksum values can be the same from two different images.
      * Use the time aggregate also along with size and checksum in the comparison to identify
-     * whether the new image is as same as the previously written block to reuse.
+     * whether the new image is the same as the previously written block to reuse.
      */
     multi_match = &mod->mod_multi[r->multi_next - 1];
     if (multi_match->size != multi->size || multi_match->checksum != multi->checksum ||
