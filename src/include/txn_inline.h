@@ -957,7 +957,10 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
   WT_UPDATE **prepare_updp, WT_UPDATE **restored_updp)
 {
     WT_VISIBLE_TYPE upd_visible;
+    uint64_t prepare_txnid;
     uint8_t prepare_state, type;
+
+    prepare_txnid = WT_TXN_NONE;
 
     if (prepare_updp != NULL)
         *prepare_updp = NULL;
@@ -991,8 +994,22 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
 
         upd_visible = __wt_txn_upd_visible_type(session, upd);
 
-        if (upd_visible == WT_VISIBLE_TRUE)
+        if (upd_visible == WT_VISIBLE_TRUE) {
+            /*
+             * Special case: We previously found a prepared update, check if the visible update we
+             * found has the same transaction id, if it does it must not be visible as it is part of
+             * the same transaction as the previous prepared updated.
+             *
+             * This indicates that the read, which is configured to ignore prepared updates raced
+             * with the commit of the same prepared transaction. If we were to return this update
+             * then the reader would see a partially committed transaction which is bad.
+             */
+            if (prepare_txnid != WT_TXN_NONE && upd->txnid == prepare_txnid) {
+                WT_STAT_CONN_DATA_INCR(session, txn_read_race_prepare_commit);
+                continue;
+            }
             break;
+        }
 
         /*
          * Save the prepared update to help us detect if we race with prepared commit or rollback
@@ -1015,8 +1032,10 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
 
         if (upd_visible == WT_VISIBLE_PREPARE) {
             /* Ignore the prepared update, if transaction configuration says so. */
-            if (F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE))
+            if (F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE)) {
+                prepare_txnid = upd->txnid;
                 continue;
+            }
 
             return (WT_PREPARE_CONFLICT);
         }
