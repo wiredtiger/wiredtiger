@@ -779,7 +779,7 @@ done:
 err:
     F_CLR(conn, WT_CONN_CKPT_GATHER);
     WT_DHANDLE_RELEASE(dhandle);
-    printf(
+    DIAGNOSTIC_EXTRA_PRINTF(
       "In __wt_conn_btree_apply(), session %p, released dhandle %p, name '%s', flags = 0x%x, "
       "session_inuse %d, session_ref %u\n",
       (void *)dhandle, (void *)session, dhandle->name, dhandle->flags, dhandle->session_inuse,
