@@ -492,7 +492,7 @@ __wt_tiered_set_metadata(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_ITEM *b
     for (i = 0; i < WT_TIERED_MAX_TIERS; ++i) {
         t = &tiered->tiers[i];
         __wt_verbose(session, WT_VERB_TIERED,
-          "TIER_SET_META: tiered %p tiers[%d]: dhandle %p flags %" PRIx32 " name %s",
+          "TIER_SET_META: tiered %p tiers[%" PRIu32 "]: dhandle %p flags %" PRIx32 " name %s",
           (void *)tiered, i, (void *)t->tier, t->flags, t->name == NULL ? "NULL" : t->name);
         if (t->name == NULL)
             continue;
