@@ -31,9 +31,7 @@ __wt_bm_close_block(WT_SESSION_IMPL *session, WT_BLOCK *block)
     }
 
     if (block->linked) {
-        /*
-         * Make the block unreachable. Resource cleanup is handled in __wt_block_close().
-         */
+        /* Make the block unreachable. Resource cleanup is handled in __wt_block_close(). */
         hash = __wt_hash_city64(block->name, strlen(block->name));
         bucket = hash & (conn->hash_size - 1);
         WT_CONN_BLOCK_REMOVE(conn, block, bucket);
