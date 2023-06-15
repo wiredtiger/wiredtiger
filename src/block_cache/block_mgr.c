@@ -27,12 +27,6 @@ __wt_bm_close_block(WT_SESSION_IMPL *session, WT_BLOCK *block)
     /* We shouldn't have any read requests in progress. */
     WT_ASSERT(session, block->read_count == 0);
 
-    if (block->linked) {
-        /* The block needs to be removed from the connection. Prepare outside of the spinlock. */
-        hash = __wt_hash_city64(block->name, strlen(block->name));
-        bucket = hash & (conn->hash_size - 1);
-    }
-
     __wt_spin_lock(session, &conn->block_lock);
     if (block->ref > 0 && --block->ref > 0) {
         __wt_spin_unlock(session, &conn->block_lock);
@@ -41,6 +35,8 @@ __wt_bm_close_block(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
     if (block->linked) {
         /* Make the block unreachable. Resource cleanup is done in __wt_block_close(). */
+        hash = __wt_hash_city64(block->name, strlen(block->name));
+        bucket = hash & (conn->hash_size - 1);
         WT_CONN_BLOCK_REMOVE(conn, block, bucket);
     }
     __wt_spin_unlock(session, &conn->block_lock);
