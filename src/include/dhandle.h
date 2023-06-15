@@ -38,43 +38,45 @@
 /* The metadata cursor's data handle. */
 #define WT_SESSION_META_DHANDLE(s) (((WT_CURSOR_BTREE *)((s)->meta_cursor))->dhandle)
 
-
-
 #ifdef HAVE_DIAGNOSTIC_EXTRA
 
 static inline void
-dhandle_print_for_breakpoint(const char* str) {
+dhandle_print_for_breakpoint(const char *str)
+{
     DIAGNOSTIC_EXTRA_PRINTF("%s", str);
 }
 
 static inline void
-dhandle_print_for_breakpoint2(const char* str) {
+dhandle_print_for_breakpoint2(const char *str)
+{
     DIAGNOSTIC_EXTRA_PRINTF("%s", str);
 }
 
-#define WT_DHANDLE_ACQUIRE(dhandle) \
-    do {                            \
-        (void)__wt_atomic_add32(&(dhandle)->session_ref, 1); \
-        DIAGNOSTIC_EXTRA_PRINTF("In WT_DHANDLE_ACQUIRE in %s() at %s (line %d)"     \
-               " : dhandle %p (name %s), decremented session_ref to %" PRIu32 ", session_inuse %d\n",\
-          __FUNCTION__, __FILE__, __LINE__, (void *)dhandle, dhandle->name,            \
-          dhandle->session_ref, dhandle->session_inuse); \
-        if (strcmp(dhandle->name, "table:drop_test") == 0)    \
-            dhandle_print_for_breakpoint("==== WT_DHANDLE_ACQUIRE on table:drop_test ====\n"); \
+#define WT_DHANDLE_ACQUIRE(dhandle)                                                               \
+    do {                                                                                          \
+        (void)__wt_atomic_add32(&(dhandle)->session_ref, 1);                                      \
+        DIAGNOSTIC_EXTRA_PRINTF(                                                                  \
+          "In WT_DHANDLE_ACQUIRE in %s() at %s (line %d)"                                         \
+          " : dhandle %p (name %s), decremented session_ref to %" PRIu32 ", session_inuse %d\n",  \
+          __FUNCTION__, __FILE__, __LINE__, (void *)dhandle, dhandle->name, dhandle->session_ref, \
+          dhandle->session_inuse);                                                                \
+        if (strcmp(dhandle->name, "table:drop_test") == 0)                                        \
+            dhandle_print_for_breakpoint("==== WT_DHANDLE_ACQUIRE on table:drop_test ====\n");    \
     } while (0)
 
-#define WT_DHANDLE_RELEASE(dhandle) \
-    do {                            \
-        (void)__wt_atomic_sub32(&(dhandle)->session_ref, 1); \
-        DIAGNOSTIC_EXTRA_PRINTF("In WT_DHANDLE_RELEASE in %s() at %s (line %d)"     \
-               " : dhandle %p (name %s), decremented session_ref to %" PRIu32 ", session_inuse %d\n",\
-          __FUNCTION__, __FILE__, __LINE__, (void *)dhandle, dhandle->name,            \
-          dhandle->session_ref, dhandle->session_inuse);                                    \
-        if (strcmp(dhandle->name, "table:drop_test") == 0) {                                \
-            dhandle_print_for_breakpoint("==== WT_DHANDLE_RELEASE on table:drop_test ====\n");      \
-            if (dhandle->session_ref == 0)                                                  \
-                dhandle_print_for_breakpoint2(".    dhandle->session_ref is now 0\n");              \
-        };                                                                                  \
+#define WT_DHANDLE_RELEASE(dhandle)                                                               \
+    do {                                                                                          \
+        (void)__wt_atomic_sub32(&(dhandle)->session_ref, 1);                                      \
+        DIAGNOSTIC_EXTRA_PRINTF(                                                                  \
+          "In WT_DHANDLE_RELEASE in %s() at %s (line %d)"                                         \
+          " : dhandle %p (name %s), decremented session_ref to %" PRIu32 ", session_inuse %d\n",  \
+          __FUNCTION__, __FILE__, __LINE__, (void *)dhandle, dhandle->name, dhandle->session_ref, \
+          dhandle->session_inuse);                                                                \
+        if (strcmp(dhandle->name, "table:drop_test") == 0) {                                      \
+            dhandle_print_for_breakpoint("==== WT_DHANDLE_RELEASE on table:drop_test ====\n");    \
+            if (dhandle->session_ref == 0)                                                        \
+                dhandle_print_for_breakpoint2(".    dhandle->session_ref is now 0\n");            \
+        };                                                                                        \
     } while (0)
 
 #else
@@ -83,19 +85,19 @@ dhandle_print_for_breakpoint2(const char* str) {
 #define WT_DHANDLE_RELEASE(dhandle) (void)__wt_atomic_sub32(&(dhandle)->session_ref, 1)
 #endif
 
-#define WT_DHANDLE_NEXT(session, dhandle, head, field)                                     \
-    do {                                                                                   \
-        DIAGNOSTIC_EXTRA_PRINTF("Starting WT_DHANDLE_NEXT, session %p\n", (void*)session);                  \
-        WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST)); \
-        if ((dhandle) == NULL)                                                             \
-            (dhandle) = TAILQ_FIRST(head);                                                 \
-        else {                                                                             \
-            WT_DHANDLE_RELEASE(dhandle);                                                   \
-            (dhandle) = TAILQ_NEXT(dhandle, field);                                        \
-        }                                                                                  \
-        if ((dhandle) != NULL)                                                             \
-            WT_DHANDLE_ACQUIRE(dhandle);                                                   \
-        DIAGNOSTIC_EXTRA_PRINTF("Ending WT_DHANDLE_NEXT, session %p\n", (void*)session);                  \
+#define WT_DHANDLE_NEXT(session, dhandle, head, field)                                      \
+    do {                                                                                    \
+        DIAGNOSTIC_EXTRA_PRINTF("Starting WT_DHANDLE_NEXT, session %p\n", (void *)session); \
+        WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST));  \
+        if ((dhandle) == NULL)                                                              \
+            (dhandle) = TAILQ_FIRST(head);                                                  \
+        else {                                                                              \
+            WT_DHANDLE_RELEASE(dhandle);                                                    \
+            (dhandle) = TAILQ_NEXT(dhandle, field);                                         \
+        }                                                                                   \
+        if ((dhandle) != NULL)                                                              \
+            WT_DHANDLE_ACQUIRE(dhandle);                                                    \
+        DIAGNOSTIC_EXTRA_PRINTF("Ending WT_DHANDLE_NEXT, session %p\n", (void *)session);   \
     } while (0)
 
 #define WT_DHANDLE_IS_CHECKPOINT(dhandle) ((dhandle)->checkpoint != NULL)

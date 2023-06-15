@@ -480,8 +480,10 @@ __wt_conn_dhandle_close(
       F_ISSET(dhandle, WT_DHANDLE_DEAD), F_ISSET(dhandle, WT_DHANDLE_OPEN), mark_dead, marked_dead,
       discard);
 
-    //    WT_ASSERT(session, F_ISSET(dhandle, WT_DHANDLE_DEAD) || !F_ISSET(dhandle,
-    //    WT_DHANDLE_OPEN));
+    /*
+     * WT_ASSERT(session, F_ISSET(dhandle, WT_DHANDLE_DEAD) || !F_ISSET(dhandle,
+     *    WT_DHANDLE_OPEN));
+     */
 
 err:
     __wt_spin_unlock(session, &dhandle->close_lock);
@@ -823,7 +825,7 @@ __conn_dhandle_close_one(
         DIAGNOSTIC_EXTRA_PRINTF(
           "In __conn_dhandle_close_one on %s, txn running = %d, dhandle flags 0x%x\n", uri,
           (F_ISSET(session->txn, WT_TXN_RUNNING)), session->dhandle->flags);
-        //        F_SET(session->dhandle, WT_DHANDLE_DEAD);
+        /* F_SET(session->dhandle, WT_DHANDLE_DEAD); */
         F_SET(session->dhandle, WT_DHANDLE_DROPPED);
     }
 
