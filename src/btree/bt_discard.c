@@ -203,7 +203,7 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
     case WT_PAGE_COL_VAR:
         /* Free the append array. */
         if ((append = WT_COL_APPEND(page)) != NULL) {
-            __free_skip_list(session, WT_SKIP_FIRST(append), update_ignore);
+            __free_skip_list(session, __wt_skip_first(append, WT_ATOMIC_RELAXED), update_ignore);
             __wt_free(session, append);
             __wt_free(session, mod->mod_col_append);
         }
@@ -442,7 +442,7 @@ __free_skip_array(
      */
     for (head = head_arg; entries > 0; --entries, ++head)
         if (*head != NULL) {
-            __free_skip_list(session, WT_SKIP_FIRST(*head), update_ignore);
+            __free_skip_list(session, __wt_skip_first(*head, WT_ATOMIC_RELAXED), update_ignore);
             __wt_free(session, *head);
         }
 
@@ -463,7 +463,7 @@ __free_skip_list(WT_SESSION_IMPL *session, WT_INSERT *ins, bool update_ignore)
     for (; ins != NULL; ins = next) {
         if (!update_ignore)
             __wt_free_update_list(session, &ins->upd);
-        next = WT_SKIP_NEXT(ins);
+        next = __wt_skip_next(ins, WT_ATOMIC_RELAXED);
         __wt_free(session, ins);
     }
 }

@@ -56,7 +56,8 @@ __random_slot_valid(WT_CURSOR_BTREE *cbt, uint32_t slot, bool *validp)
 static uint32_t
 __random_skip_entries(WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head)
 {
-    WT_INSERT **t;
+    WT_ATOMIC_TYPE(WT_INSERT *) * t;
+    WT_INSERT *temp;
     WT_SESSION_IMPL *session;
     uint32_t entries;
     int level;
@@ -69,8 +70,14 @@ __random_skip_entries(WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head)
 
     /* Find a level with enough entries on it to predict the size of the list. */
     for (level = WT_SKIP_MAXDEPTH - 1; level >= 0; --level) {
-        for (entries = 0, t = &ins_head->head[level]; *t != NULL; t = &(*t)->next[level])
+        entries = 0;
+        t = &ins_head->head[level];
+        WT_C_MEMMODEL_ATOMIC_LOAD(temp, t, WT_ATOMIC_RELAXED);
+        for (; temp != NULL;) {
             ++entries;
+            t = &temp->next[level];
+            WT_C_MEMMODEL_ATOMIC_LOAD(temp, t, WT_ATOMIC_RELAXED);
+        }
 
         if (entries > WT_RANDOM_SKIP_PREDICT)
             break;
@@ -122,7 +129,8 @@ __random_leaf_skip(WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head, uint32_t entr
          */
         saved_ins = NULL;
         i = __wt_random(&session->rnd) % entries;
-        for (ins = WT_SKIP_FIRST(ins_head); ins != NULL; ins = WT_SKIP_NEXT(ins)) {
+        for (ins = __wt_skip_first(ins_head, WT_ATOMIC_ACQUIRE); ins != NULL;
+             ins = __wt_skip_next(ins, WT_ATOMIC_ACQUIRE)) {
             if (--i == 0)
                 break;
             if (i == WT_RANDOM_SKIP_LOCAL * 2)
@@ -142,7 +150,7 @@ __random_leaf_skip(WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head, uint32_t entr
             i = WT_RANDOM_SKIP_LOCAL * 2;
             ins = saved_ins;
         }
-        for (; --i > 0 && ins != NULL; ins = WT_SKIP_NEXT(ins)) {
+        for (; --i > 0 && ins != NULL; ins = __wt_skip_next(ins, WT_ATOMIC_ACQUIRE)) {
             WT_RET(__random_insert_valid(cbt, ins_head, ins, validp));
             if (*validp)
                 return (0);

@@ -1439,19 +1439,8 @@ struct __wt_insert {
 #define WT_INSERT_KEY(ins) ((void *)((uint8_t *)(ins) + ((WT_INSERT *)(ins))->u.key.offset))
 #define WT_INSERT_RECNO(ins) (((WT_INSERT *)(ins))->u.recno)
 
-    WT_INSERT *next[0]; /* forward-linked skip list */
+    WT_ATOMIC_TYPE(WT_INSERT *) next[0]; /* forward-linked skip list */
 };
-
-/*
- * Skiplist helper macros.
- */
-#define WT_SKIP_FIRST(ins_head) \
-    (((ins_head) == NULL) ? NULL : ((WT_INSERT_HEAD *)(ins_head))->head[0])
-#define WT_SKIP_LAST(ins_head) \
-    (((ins_head) == NULL) ? NULL : ((WT_INSERT_HEAD *)(ins_head))->tail[0])
-#define WT_SKIP_NEXT(ins) ((ins)->next[0])
-#define WT_SKIP_FOREACH(ins, ins_head) \
-    for ((ins) = WT_SKIP_FIRST(ins_head); (ins) != NULL; (ins) = WT_SKIP_NEXT(ins))
 
 /*
  * Atomically allocate and swap a structure or array into place.
@@ -1472,8 +1461,8 @@ struct __wt_insert {
  * 	The head of a skiplist of WT_INSERT items.
  */
 struct __wt_insert_head {
-    WT_INSERT *head[WT_SKIP_MAXDEPTH]; /* first item on skiplists */
-    WT_INSERT *tail[WT_SKIP_MAXDEPTH]; /* last item on skiplists */
+    WT_ATOMIC_TYPE(WT_INSERT *) head[WT_SKIP_MAXDEPTH]; /* first item on skiplists */
+    WT_ATOMIC_TYPE(WT_INSERT *) tail[WT_SKIP_MAXDEPTH]; /* last item on skiplists */
 };
 
 /*

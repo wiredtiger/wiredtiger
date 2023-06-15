@@ -2013,6 +2013,12 @@ static inline WT_FILE_SYSTEM *__wt_fs_file_system(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline WT_IKEY *__wt_ref_key_instantiated(WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline WT_INSERT *__wt_skip_first(WT_INSERT_HEAD *ins_head, int memorder)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline WT_INSERT *__wt_skip_last(WT_INSERT_HEAD *ins_head, int memorder)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline WT_INSERT *__wt_skip_next(WT_INSERT *ins, int memorder)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline WT_VISIBLE_TYPE __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_btree_dominating_cache(WT_SESSION_IMPL *session, WT_BTREE *btree)
@@ -2150,8 +2156,8 @@ static inline int __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_
 static inline int __wt_check_addr_validity(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta,
   bool expected_error) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
-  WT_INSERT_HEAD *ins_head, WT_INSERT ***ins_stack, WT_INSERT **new_insp, size_t new_ins_size,
-  uint64_t *recnop, u_int skipdepth, bool exclusive)
+  WT_INSERT_HEAD *ins_head, WT_ATOMIC_TYPE(WT_INSERT *) * *ins_stack, WT_INSERT **new_insp,
+  size_t new_ins_size, uint64_t *recnop, u_int skipdepth, bool exclusive)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_compare(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
   const WT_ITEM *user_item, const WT_ITEM *tree_item, int *cmpp)
@@ -2214,8 +2220,9 @@ static inline int __wt_ftruncate(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t o
 static inline int __wt_getline(WT_SESSION_IMPL *session, WT_FSTREAM *fstr, WT_ITEM *buf)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
-  WT_INSERT_HEAD *ins_head, WT_INSERT ***ins_stack, WT_INSERT **new_insp, size_t new_ins_size,
-  u_int skipdepth, bool exclusive) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  WT_INSERT_HEAD *ins_head, WT_ATOMIC_TYPE(WT_INSERT *) * *ins_stack, WT_INSERT **new_insp,
+  size_t new_ins_size, u_int skipdepth, bool exclusive)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_lex_compare_short(const WT_ITEM *user_item, const WT_ITEM *tree_item)

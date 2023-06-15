@@ -310,7 +310,7 @@ past_end:
                 F_SET(cbt, WT_CBT_VAR_ONPAGE_MATCH);
             }
 
-            ins = WT_SKIP_LAST(ins_head);
+            ins = __wt_skip_last(ins_head, WT_ATOMIC_ACQUIRE);
             if (ins != NULL && cbt->recno == WT_INSERT_RECNO(ins)) {
                 cbt->ins_head = ins_head;
                 cbt->ins = ins;

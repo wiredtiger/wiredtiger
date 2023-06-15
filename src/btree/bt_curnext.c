@@ -24,10 +24,10 @@ __cursor_fix_append_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
         goto restart_read;
 
     if (newpage) {
-        if ((cbt->ins = WT_SKIP_FIRST(cbt->ins_head)) == NULL)
+        if ((cbt->ins = __wt_skip_first(cbt->ins_head, WT_ATOMIC_ACQUIRE)) == NULL)
             return (WT_NOTFOUND);
     } else if (cbt->recno >= WT_INSERT_RECNO(cbt->ins) &&
-      (cbt->ins = WT_SKIP_NEXT(cbt->ins)) == NULL)
+      (cbt->ins = __wt_skip_next(cbt->ins, WT_ATOMIC_ACQUIRE)) == NULL)
         return (WT_NOTFOUND);
 
     /*
@@ -163,12 +163,12 @@ __cursor_var_append_next(
         goto restart_read;
 
     if (newpage) {
-        cbt->ins = WT_SKIP_FIRST(cbt->ins_head);
+        cbt->ins = __wt_skip_first(cbt->ins_head, WT_ATOMIC_ACQUIRE);
         goto new_page;
     }
 
     for (;;) {
-        cbt->ins = WT_SKIP_NEXT(cbt->ins);
+        cbt->ins = __wt_skip_next(cbt->ins, WT_ATOMIC_ACQUIRE);
 new_page:
         if (cbt->ins == NULL)
             return (WT_NOTFOUND);
@@ -427,7 +427,7 @@ __cursor_row_next(
          */
         cbt->slot = UINT32_MAX;
         cbt->ins_head = WT_ROW_INSERT_SMALLEST(page);
-        cbt->ins = WT_SKIP_FIRST(cbt->ins_head);
+        cbt->ins = __wt_skip_first(cbt->ins_head, WT_ATOMIC_ACQUIRE);
         cbt->row_iteration_slot = 1;
         cbt->rip_saved = NULL;
         goto new_insert;
@@ -440,7 +440,7 @@ __cursor_row_next(
          * count in case we switch to a cursor previous movement.
          */
         if (cbt->ins != NULL)
-            cbt->ins = WT_SKIP_NEXT(cbt->ins);
+            cbt->ins = __wt_skip_next(cbt->ins, WT_ATOMIC_ACQUIRE);
 
 new_insert:
         cbt->iter_retry = WT_CBT_RETRY_INSERT;
@@ -485,7 +485,7 @@ restart_read_insert:
          */
         if (cbt->row_iteration_slot & 0x01) {
             cbt->ins_head = WT_ROW_INSERT_SLOT(page, cbt->row_iteration_slot / 2 - 1);
-            cbt->ins = WT_SKIP_FIRST(cbt->ins_head);
+            cbt->ins = __wt_skip_first(cbt->ins_head, WT_ATOMIC_ACQUIRE);
             goto new_insert;
         }
         cbt->ins_head = NULL;

@@ -234,11 +234,12 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
         if (cbt->ins_stack[0] == NULL)
             for (i = 0; i < skipdepth; i++) {
                 cbt->ins_stack[i] = &ins_head->head[i];
-                ins->next[i] = cbt->next_stack[i] = NULL;
+                WT_C_MEMMODEL_ATOMIC_STORE(&ins->next[i], NULL, WT_ATOMIC_RELAXED);
+                cbt->next_stack[i] = NULL;
             }
         else
             for (i = 0; i < skipdepth; i++)
-                ins->next[i] = cbt->next_stack[i];
+                WT_C_MEMMODEL_ATOMIC_STORE(&ins->next[i], cbt->next_stack[i], WT_ATOMIC_RELAXED);
 
         /* Insert the WT_INSERT structure. */
         WT_ERR(__wt_insert_serial(

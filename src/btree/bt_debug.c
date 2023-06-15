@@ -1281,7 +1281,7 @@ __debug_page_col_fix(WT_DBG *ds, WT_REF *ref)
     recno = ref->ref_recno;
 
     if (dsk != NULL) {
-        ins = WT_SKIP_FIRST(WT_COL_UPDATE_SINGLE(page));
+        ins = __wt_skip_first(WT_COL_UPDATE_SINGLE(page), WT_ATOMIC_RELAXED);
         curtw = 0;
         numtws = WT_COL_FIX_TWS_SET(page) ? page->pg_fix_numtws : 0;
 
@@ -1308,7 +1308,7 @@ __debug_page_col_fix(WT_DBG *ds, WT_REF *ref)
                 else
                     WT_RET(ds->f(ds, "\tupdate {REDACTED}\n"));
                 WT_RET(__debug_update(ds, ins->upd, true));
-                ins = WT_SKIP_NEXT(ins);
+                ins = __wt_skip_next(ins, WT_ATOMIC_RELAXED);
             }
             ++recno;
         }
@@ -1495,7 +1495,7 @@ __debug_col_skip(
 
     session = ds->session;
 
-    WT_SKIP_FOREACH (ins, head) {
+    WT_SKIP_FOREACH (ins, head, WT_ATOMIC_RELAXED) {
         if (F_ISSET(ds, WT_DEBUG_UNREDACT))
             WT_RET(ds->f(ds, "\t%s %" PRIu64 "\n", tag, WT_INSERT_RECNO(ins)));
         else
@@ -1524,7 +1524,7 @@ __debug_row_skip(WT_DBG *ds, WT_INSERT_HEAD *head)
 
     session = ds->session;
 
-    WT_SKIP_FOREACH (ins, head) {
+    WT_SKIP_FOREACH (ins, head, WT_ATOMIC_RELAXED) {
         WT_RET(__debug_item_key(ds, "insert", WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins)));
         WT_RET(__debug_update(ds, ins->upd, false));
 

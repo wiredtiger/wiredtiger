@@ -1754,8 +1754,9 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
 static int
 __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+    WT_ATOMIC_TYPE(WT_INSERT *) * insp;
     WT_DECL_RET;
-    WT_INSERT *ins, **insp, *moved_ins, *prev_ins;
+    WT_INSERT *head, *ins, *moved_ins, *prev_ins, *tail;
     WT_INSERT_HEAD *ins_head, *tmp_ins_head;
     WT_PAGE *page, *right;
     WT_REF *child, *split_ref[2] = {NULL, NULL};
@@ -1763,6 +1764,9 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     uint8_t type;
     int i;
     void *key;
+#ifdef HAVE_DIAGNOSTIC
+    WT_INSERT *temp;
+#endif
 
     WT_STAT_CONN_DATA_INCR(session, cache_inmem_split);
 
@@ -1788,7 +1792,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
                                         WT_ROW_INSERT_SLOT(page, page->entries - 1);
     else
         ins_head = WT_COL_APPEND(page);
-    moved_ins = WT_SKIP_LAST(ins_head);
+    moved_ins = __wt_skip_last(ins_head, WT_ATOMIC_ACQUIRE);
 
     /*
      * The first page in the split is almost identical to the current page, but we have to create a
@@ -1863,8 +1867,12 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
      * Calculate how much memory we're moving: figure out how deep the skip list stack is for the
      * element we are moving, and the memory used by the item's list of updates.
      */
-    for (i = 0; i < WT_SKIP_MAXDEPTH && ins_head->tail[i] == moved_ins; ++i)
-        ;
+    for (i = 0; i < WT_SKIP_MAXDEPTH; ++i) {
+        WT_C_MEMMODEL_ATOMIC_LOAD(tail, &ins_head->tail[i], WT_ATOMIC_RELAXED);
+        if (tail != moved_ins)
+            break;
+    }
+
     WT_MEM_TRANSFER(page_decr, right_incr, sizeof(WT_INSERT) + (size_t)i * sizeof(WT_INSERT *));
     if (type == WT_PAGE_ROW_LEAF)
         WT_MEM_TRANSFER(page_decr, right_incr, WT_INSERT_KEY_SIZE(moved_ins));
@@ -1878,7 +1886,8 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     tmp_ins_head = type == WT_PAGE_ROW_LEAF ? right->modify->mod_row_insert[0] :
                                               right->modify->mod_col_append[0];
-    tmp_ins_head->head[0] = tmp_ins_head->tail[0] = moved_ins;
+    WT_C_MEMMODEL_ATOMIC_STORE(&tmp_ins_head->head[0], moved_ins, WT_ATOMIC_RELAXED);
+    WT_C_MEMMODEL_ATOMIC_STORE(&tmp_ins_head->tail[0], moved_ins, WT_ATOMIC_RELAXED);
 
     /*
      * Remove the entry from the orig page (i.e truncate the skip list).
@@ -1913,16 +1922,24 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     prev_ins = NULL; /* -Wconditional-uninitialized */
     for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0; i--, insp--) {
+        WT_C_MEMMODEL_ATOMIC_LOAD(head, &ins_head->head[i], WT_ATOMIC_RELAXED);
+        WT_C_MEMMODEL_ATOMIC_LOAD(tail, &ins_head->tail[i], WT_ATOMIC_RELAXED);
         /* Level empty, or a single element. */
-        if (ins_head->head[i] == NULL || ins_head->head[i] == ins_head->tail[i]) {
+        if (head == NULL || head == tail) {
             /* Remove if it is the element being moved. */
-            if (ins_head->head[i] == moved_ins)
-                ins_head->head[i] = ins_head->tail[i] = NULL;
+            if (head == moved_ins) {
+                WT_C_MEMMODEL_ATOMIC_STORE(&ins_head->head[i], NULL, WT_ATOMIC_RELAXED);
+                WT_C_MEMMODEL_ATOMIC_STORE(&ins_head->tail[i], NULL, WT_ATOMIC_RELAXED);
+            }
             continue;
         }
 
-        for (ins = *insp; ins != ins_head->tail[i]; ins = ins->next[i])
+        WT_C_MEMMODEL_ATOMIC_LOAD(tail, &ins_head->tail[i], WT_ATOMIC_RELAXED);
+        WT_C_MEMMODEL_ATOMIC_LOAD(ins, insp, WT_ATOMIC_RELAXED);
+        for (; ins != tail;) {
             prev_ins = ins;
+            WT_C_MEMMODEL_ATOMIC_LOAD(ins, &ins->next[i], WT_ATOMIC_RELAXED);
+        }
 
         /*
          * Update the stack head so that we step down as far to the right as possible. We know that
@@ -1931,10 +1948,14 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
         insp = &prev_ins->next[i];
         if (ins == moved_ins) {
             /* Remove the item being moved. */
-            WT_ASSERT(session, ins_head->head[i] != moved_ins);
-            WT_ASSERT(session, prev_ins->next[i] == moved_ins);
-            *insp = NULL;
-            ins_head->tail[i] = prev_ins;
+#ifdef HAVE_DIAGNOSTIC
+            WT_C_MEMMODEL_ATOMIC_LOAD(head, &ins_head->head[i], WT_ATOMIC_RELAXED);
+            WT_ASSERT(session, head != moved_ins);
+            WT_C_MEMMODEL_ATOMIC_LOAD(temp, insp, WT_ATOMIC_RELAXED);
+            WT_ASSERT(session, temp == moved_ins);
+#endif
+            WT_C_MEMMODEL_ATOMIC_STORE(insp, NULL, WT_ATOMIC_RELAXED);
+            WT_C_MEMMODEL_ATOMIC_STORE(&ins_head->tail[i], prev_ins, WT_ATOMIC_RELAXED);
         }
     }
 
@@ -1942,9 +1963,13 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     /*
      * Verify the moved insert item appears nowhere on the skip list.
      */
-    for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0; i--, insp--)
-        for (ins = *insp; ins != NULL; ins = ins->next[i])
+    for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0; i--, insp--) {
+        WT_C_MEMMODEL_ATOMIC_LOAD(ins, insp, WT_ATOMIC_RELAXED);
+        for (; ins != NULL;) {
             WT_ASSERT(session, ins != moved_ins);
+            WT_C_MEMMODEL_ATOMIC_LOAD(ins, &ins->next[i], WT_ATOMIC_RELAXED);
+        }
+    }
 #endif
 
     /*
@@ -1998,15 +2023,21 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
      * list. As before, we depend on the list having multiple elements and ignore the edge cases
      * small lists have.
      */
-    if (type == WT_PAGE_ROW_LEAF)
-        right->modify->mod_row_insert[0]->head[0] = right->modify->mod_row_insert[0]->tail[0] =
-          NULL;
-    else
-        right->modify->mod_col_append[0]->head[0] = right->modify->mod_col_append[0]->tail[0] =
-          NULL;
+    if (type == WT_PAGE_ROW_LEAF) {
+        WT_C_MEMMODEL_ATOMIC_STORE(
+          &right->modify->mod_row_insert[0]->head[0], NULL, WT_ATOMIC_RELAXED);
+        WT_C_MEMMODEL_ATOMIC_STORE(
+          &right->modify->mod_row_insert[0]->tail[0], NULL, WT_ATOMIC_RELAXED);
+    } else {
+        WT_C_MEMMODEL_ATOMIC_STORE(
+          &right->modify->mod_col_append[0]->head[0], NULL, WT_ATOMIC_RELAXED);
+        WT_C_MEMMODEL_ATOMIC_STORE(
+          &right->modify->mod_col_append[0]->tail[0], NULL, WT_ATOMIC_RELAXED);
+    }
 
-    ins_head->tail[0]->next[0] = moved_ins;
-    ins_head->tail[0] = moved_ins;
+    WT_C_MEMMODEL_ATOMIC_LOAD(tail, &ins_head->tail[0], WT_ATOMIC_RELAXED);
+    WT_C_MEMMODEL_ATOMIC_STORE(&tail->next[0], moved_ins, WT_ATOMIC_RELAXED);
+    WT_C_MEMMODEL_ATOMIC_STORE(&ins_head->tail[0], moved_ins, WT_ATOMIC_RELAXED);
 
     /* Fix up accounting for the page size. */
     __wt_cache_page_inmem_incr(session, page, page_decr);

@@ -34,7 +34,7 @@
 static inline int
 __cursor_skip_prev(WT_CURSOR_BTREE *cbt)
 {
-    WT_INSERT *current, *ins, *next_ins;
+    WT_INSERT *current, *ins, *next_ins, *temp;
     WT_ITEM key;
     WT_SESSION_IMPL *session;
     uint64_t recno;
@@ -89,7 +89,7 @@ restart:
              *
              * Place a read barrier to avoid this issue.
              */
-            WT_ORDERED_READ_WEAK_MEMORDER(ins, cbt->ins_head->head[i]);
+            WT_C_MEMMODEL_ATOMIC_LOAD(ins, &cbt->ins_head->head[i], WT_ATOMIC_ACQUIRE);
             if (ins != NULL && ins != current)
                 break;
         }
@@ -115,7 +115,7 @@ restart:
          *
          * Place a read barrier to avoid this issue.
          */
-        WT_ORDERED_READ_WEAK_MEMORDER(next_ins, ins->next[i]);
+        WT_C_MEMMODEL_ATOMIC_LOAD(next_ins, &ins->next[i], WT_ATOMIC_ACQUIRE);
         if (next_ins != current) /* Stay at this level */
             ins = next_ins;
         else { /* Drop down a level */
@@ -126,8 +126,11 @@ restart:
     }
 
     /* If we found a previous node, the next one must be current. */
-    if (cbt->ins_stack[0] != NULL && *cbt->ins_stack[0] != current)
-        goto restart;
+    if (cbt->ins_stack[0] != NULL) {
+        WT_C_MEMMODEL_ATOMIC_LOAD(temp, cbt->ins_stack[0], WT_ATOMIC_ACQUIRE);
+        if (temp != current)
+            goto restart;
+    }
 
     cbt->ins = PREV_INS(cbt, 0);
     return (0);
@@ -149,7 +152,7 @@ __cursor_fix_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
         goto restart_read;
 
     if (newpage) {
-        if ((cbt->ins = WT_SKIP_LAST(cbt->ins_head)) == NULL)
+        if ((cbt->ins = __wt_skip_last(cbt->ins_head, WT_ATOMIC_ACQUIRE)) == NULL)
             return (WT_NOTFOUND);
     } else {
         /* Move to the previous record in the append list, if any. */
@@ -328,7 +331,7 @@ __cursor_var_append_prev(
         goto restart_read;
 
     if (newpage) {
-        cbt->ins = WT_SKIP_LAST(cbt->ins_head);
+        cbt->ins = __wt_skip_last(cbt->ins_head, WT_ATOMIC_ACQUIRE);
         goto new_page;
     }
 
@@ -608,7 +611,7 @@ __cursor_row_prev(
             cbt->ins_head = WT_ROW_INSERT_SMALLEST(page);
         else
             cbt->ins_head = WT_ROW_INSERT_SLOT(page, page->entries - 1);
-        cbt->ins = WT_SKIP_LAST(cbt->ins_head);
+        cbt->ins = __wt_skip_last(cbt->ins_head, WT_ATOMIC_ACQUIRE);
         cbt->row_iteration_slot = page->entries * 2 + 1;
         cbt->rip_saved = NULL;
         goto new_insert;
@@ -671,7 +674,7 @@ restart_read_insert:
             cbt->ins_head = cbt->row_iteration_slot == 1 ?
               WT_ROW_INSERT_SMALLEST(page) :
               WT_ROW_INSERT_SLOT(page, cbt->row_iteration_slot / 2 - 1);
-            cbt->ins = WT_SKIP_LAST(cbt->ins_head);
+            cbt->ins = __wt_skip_last(cbt->ins_head, WT_ATOMIC_ACQUIRE);
             goto new_insert;
         }
         cbt->ins_head = NULL;

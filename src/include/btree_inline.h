@@ -1789,7 +1789,8 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
  */
 #define WT_MAX_SPLIT_COUNT 5
     if (page->memory_footprint > (size_t)btree->maxleafpage * 2) {
-        for (count = 0, ins = ins_head->head[0]; ins != NULL; ins = ins->next[0]) {
+        for (count = 0, ins = __wt_skip_first(ins_head, WT_ATOMIC_RELAXED); ins != NULL;
+             ins = __wt_skip_next(ins, WT_ATOMIC_RELAXED)) {
             if (++count < WT_MAX_SPLIT_COUNT)
                 continue;
 
@@ -1809,14 +1810,15 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
 #define WT_MIN_SPLIT_COUNT 30
 #define WT_MIN_SPLIT_MULTIPLIER 16 /* At level 2, we see 1/16th entries */
 
-    for (count = 0, size = 0, ins = ins_head->head[WT_MIN_SPLIT_DEPTH]; ins != NULL;
-         ins = ins->next[WT_MIN_SPLIT_DEPTH]) {
+    WT_C_MEMMODEL_ATOMIC_LOAD(ins, &ins_head->head[WT_MIN_SPLIT_DEPTH], WT_ATOMIC_RELAXED);
+    for (count = 0, size = 0; ins != NULL;) {
         count += WT_MIN_SPLIT_MULTIPLIER;
         size += WT_MIN_SPLIT_MULTIPLIER * (WT_INSERT_KEY_SIZE(ins) + WT_UPDATE_MEMSIZE(ins->upd));
         if (count > WT_MIN_SPLIT_COUNT && size > (size_t)btree->maxleafpage) {
             WT_STAT_CONN_DATA_INCR(session, cache_inmem_splittable);
             return (true);
         }
+        WT_C_MEMMODEL_ATOMIC_LOAD(ins, &ins->next[WT_MIN_SPLIT_DEPTH], WT_ATOMIC_RELAXED);
     }
     return (false);
 }
