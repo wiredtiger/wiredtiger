@@ -122,7 +122,6 @@ __wt_block_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    uint64_t bucket, hash;
 
     conn = S2C(session);
 
@@ -130,16 +129,6 @@ __wt_block_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
         return (0);
 
     __wt_verbose(session, WT_VERB_BLOCK, "close: %s", block->name == NULL ? "" : block->name);
-
-    /* We shouldn't have any read requests in progress. */
-    WT_ASSERT(session, block->read_count == 0);
-
-    /* If we failed during allocation, the block won't have been linked. */
-    if (block->linked) {
-        hash = __wt_hash_city64(block->name, strlen(block->name));
-        bucket = hash & (conn->hash_size - 1);
-        WT_CONN_BLOCK_REMOVE(conn, block, bucket);
-    }
 
     __wt_free(session, block->name);
 
