@@ -51,8 +51,6 @@ extern char *__wt_time_window_to_string(WT_TIME_WINDOW *tw, char *tw_string)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern char *__wt_timestamp_to_string(wt_timestamp_t ts, char *ts_string)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern const WT_CONFIG_ENTRY *__wt_conn_config_match(const char *method)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern const WT_CONFIG_ENTRY *__wt_test_config_match(const char *test_name)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern const char *__wt_addr_string(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size,
@@ -480,8 +478,6 @@ extern int __wt_conn_call_log_setup(WT_SESSION_IMPL *session)
 extern int __wt_conn_call_log_teardown(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_conn_config_init(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri,
   const char *checkpoint) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1816,7 +1812,6 @@ extern void __wt_config_init(WT_SESSION_IMPL *session, WT_CONFIG *conf, const ch
 extern void __wt_config_initn(
   WT_SESSION_IMPL *session, WT_CONFIG *conf, const char *str, size_t len);
 extern void __wt_config_subinit(WT_SESSION_IMPL *session, WT_CONFIG *conf, WT_CONFIG_ITEM *item);
-extern void __wt_conn_config_discard(WT_SESSION_IMPL *session);
 extern void __wt_conn_foc_discard(WT_SESSION_IMPL *session);
 extern void __wt_conn_stat_init(WT_SESSION_IMPL *session);
 extern void __wt_connection_destroy(WT_CONNECTION_IMPL *conn);
