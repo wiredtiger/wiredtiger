@@ -70,8 +70,8 @@ print_dhandles(WT_SESSION_IMPL *session_impl)
 
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
         printf(".   dhandle 0c%p, name %s, is dropped %d, is open %d, flags 0x%x, type %d\n",
-          dhandle, dhandle->name, F_ISSET(dhandle, WT_DHANDLE_DROPPED), F_ISSET(dhandle, WT_DHANDLE_OPEN), dhandle->flags, dhandle->type);
-
+          dhandle, dhandle->name, F_ISSET(dhandle, WT_DHANDLE_DROPPED),
+          F_ISSET(dhandle, WT_DHANDLE_OPEN), dhandle->flags, dhandle->type);
     }
 }
 
@@ -372,5 +372,5 @@ TEST_CASE("Cursor: bulk, non-bulk, checkpoint and drop combinations", "[cursor]"
     cursor_test("bulk", true, EINVAL, 0, diagnostics);
 
     multiple_drop_test("bulk", EINVAL, 0, false, diagnostics);
-//    multiple_drop_test("bulk", EINVAL, 0, true, diagnostics);
+    //    multiple_drop_test("bulk", EINVAL, 0, true, diagnostics);
 }

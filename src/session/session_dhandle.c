@@ -40,15 +40,19 @@ __session_discard_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE_CACHE *dhandl
     uint64_t bucket;
 
     DIAGNOSTIC_EXTRA_PRINTF("starting __session_discard_dhandle(), session %p, dhandle %p\n",
-      (void*)session, (void*) dhandle_cache->dhandle);
+      (void *)session, (void *)dhandle_cache->dhandle);
 
     bucket = dhandle_cache->dhandle->name_hash & (S2C(session)->dh_hash_size - 1);
     TAILQ_REMOVE(&session->dhandles, dhandle_cache, q);
     TAILQ_REMOVE(&session->dhhash[bucket], dhandle_cache, hashq);
 
     WT_DHANDLE_RELEASE(dhandle_cache->dhandle);
-    DIAGNOSTIC_EXTRA_PRINTF("In __session_discard_dhandle(), session %p, released dhandle %p, name '%s', flags = 0x%x, session_ref %u, session_inuse %d, \n",
-      (void*)session, (void*) dhandle_cache->dhandle, dhandle_cache->dhandle->name, dhandle_cache->dhandle->flags, dhandle_cache->dhandle->session_ref, dhandle_cache->dhandle->session_inuse);
+    DIAGNOSTIC_EXTRA_PRINTF(
+      "In __session_discard_dhandle(), session %p, released dhandle %p, name '%s', flags = 0x%x, "
+      "session_ref %u, session_inuse %d, \n",
+      (void *)session, (void *)dhandle_cache->dhandle, dhandle_cache->dhandle->name,
+      dhandle_cache->dhandle->flags, dhandle_cache->dhandle->session_ref,
+      dhandle_cache->dhandle->session_inuse);
     __wt_overwrite_and_free(session, dhandle_cache);
 }
 
@@ -64,7 +68,7 @@ __session_find_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *ch
     WT_DATA_HANDLE_CACHE *dhandle_cache;
     uint64_t bucket;
 
-    DIAGNOSTIC_EXTRA_PRINTF("starting __session_find_dhandle(): session %p\n", (void*)session);
+    DIAGNOSTIC_EXTRA_PRINTF("starting __session_find_dhandle(): session %p\n", (void *)session);
 
     dhandle = NULL;
 
@@ -89,7 +93,7 @@ retry:
 
     *dhandle_cachep = dhandle_cache;
 
-    DIAGNOSTIC_EXTRA_PRINTF("ending __session_find_dhandle(): session %p\n", (void*)session);
+    DIAGNOSTIC_EXTRA_PRINTF("ending __session_find_dhandle(): session %p\n", (void *)session);
 }
 
 /*
@@ -242,8 +246,9 @@ __wt_session_release_dhandle(WT_SESSION_IMPL *session)
     write_locked = F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE);
     locked = true;
 
-    DIAGNOSTIC_EXTRA_PRINTF("starting __wt_session_release_dhandle(): session %p, dhandle %p, name '%s', btree %p\n",
-      (void*)session, (void*)dhandle, dhandle->name, (void*)btree);
+    DIAGNOSTIC_EXTRA_PRINTF(
+      "starting __wt_session_release_dhandle(): session %p, dhandle %p, name '%s', btree %p\n",
+      (void *)session, (void *)dhandle, dhandle->name, (void *)btree);
 
     /*
      * If we had special flags set, close the handle so that future access can get a handle without
@@ -273,7 +278,8 @@ __wt_session_release_dhandle(WT_SESSION_IMPL *session)
       F_ISSET(dhandle, WT_DHANDLE_DISCARD | WT_DHANDLE_DISCARD_KILL)) {
         WT_ASSERT(session, F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE));
 
-        ret = __wt_conn_dhandle_close(session, false, F_ISSET(dhandle, WT_DHANDLE_DISCARD_KILL), true);
+        ret =
+          __wt_conn_dhandle_close(session, false, F_ISSET(dhandle, WT_DHANDLE_DISCARD_KILL), true);
         F_CLR(dhandle, WT_DHANDLE_DISCARD | WT_DHANDLE_DISCARD_KILL);
     }
 
@@ -293,7 +299,7 @@ __wt_session_release_dhandle(WT_SESSION_IMPL *session)
 
     session->dhandle = NULL;
 
-    DIAGNOSTIC_EXTRA_PRINTF("ending __wt_session_release_dhandle(): session %p\n", (void*)session);
+    DIAGNOSTIC_EXTRA_PRINTF("ending __wt_session_release_dhandle(): session %p\n", (void *)session);
 
     return (ret);
 }
@@ -694,7 +700,7 @@ __wt_session_close_cache(WT_SESSION_IMPL *session)
 {
     WT_DATA_HANDLE_CACHE *dhandle_cache, *dhandle_cache_tmp;
 
-    DIAGNOSTIC_EXTRA_PRINTF("starting __wt_session_close_cache(): session %p\n", (void*)session);
+    DIAGNOSTIC_EXTRA_PRINTF("starting __wt_session_close_cache(): session %p\n", (void *)session);
 
     WT_TAILQ_SAFE_REMOVE_BEGIN(dhandle_cache, &session->dhandles, q, dhandle_cache_tmp)
     {
@@ -702,7 +708,7 @@ __wt_session_close_cache(WT_SESSION_IMPL *session)
     }
     WT_TAILQ_SAFE_REMOVE_END
 
-    DIAGNOSTIC_EXTRA_PRINTF("ending __wt_session_close_cache(): session %p\n", (void*)session);
+    DIAGNOSTIC_EXTRA_PRINTF("ending __wt_session_close_cache(): session %p\n", (void *)session);
 }
 
 /*
@@ -717,7 +723,7 @@ __wt_session_dhandle_sweep(WT_SESSION_IMPL *session)
     WT_DATA_HANDLE_CACHE *dhandle_cache, *dhandle_cache_tmp;
     uint64_t now;
 
-    DIAGNOSTIC_EXTRA_PRINTF("starting __wt_session_dhandle_sweep(): session %p\n", (void*)session);
+    DIAGNOSTIC_EXTRA_PRINTF("starting __wt_session_dhandle_sweep(): session %p\n", (void *)session);
 
     conn = S2C(session);
 
@@ -751,7 +757,7 @@ __wt_session_dhandle_sweep(WT_SESSION_IMPL *session)
         }
     }
 
-    DIAGNOSTIC_EXTRA_PRINTF("ending __wt_session_dhandle_sweep(): session %p\n", (void*)session);
+    DIAGNOSTIC_EXTRA_PRINTF("ending __wt_session_dhandle_sweep(): session %p\n", (void *)session);
 }
 
 /*
@@ -764,24 +770,28 @@ __session_find_shared_dhandle(WT_SESSION_IMPL *session, const char *uri, const c
 {
     WT_DECL_RET;
 
-    WT_WITH_HANDLE_LIST_READ_LOCK(session,
-      if ((ret = __wt_conn_dhandle_find(session, uri, checkpoint)) == 0) {
+    WT_WITH_HANDLE_LIST_READ_LOCK(
+      session, if ((ret = __wt_conn_dhandle_find(session, uri, checkpoint)) == 0) {
           WT_DHANDLE_ACQUIRE(session->dhandle);
-          DIAGNOSTIC_EXTRA_PRINTF("In __session_find_shared_dhandle() - (A), acquired dhandle %p, name '%s', flags = 0x%x, session_inuse %d, session_ref %u\n",
-            (void*) session->dhandle, session->dhandle->name, session->dhandle->flags, session->dhandle->session_inuse, session->dhandle->session_ref);
-        });
+          DIAGNOSTIC_EXTRA_PRINTF(
+            "In __session_find_shared_dhandle() - (A), acquired dhandle %p, name '%s', flags = "
+            "0x%x, session_inuse %d, session_ref %u\n",
+            (void *)session->dhandle, session->dhandle->name, session->dhandle->flags,
+            session->dhandle->session_inuse, session->dhandle->session_ref);
+      });
 
     if (ret != WT_NOTFOUND)
         return (ret);
 
-    WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
-      if ((ret = __wt_conn_dhandle_alloc(session, uri, checkpoint)) == 0) {
+    WT_WITH_HANDLE_LIST_WRITE_LOCK(
+      session, if ((ret = __wt_conn_dhandle_alloc(session, uri, checkpoint)) == 0) {
           WT_DHANDLE_ACQUIRE(session->dhandle);
           DIAGNOSTIC_EXTRA_PRINTF(
-            "In __session_find_shared_dhandle() - (B), acquired dhandle %p, name '%s', flags = 0x%x, session_inuse %d, session_ref %u\n",
+            "In __session_find_shared_dhandle() - (B), acquired dhandle %p, name '%s', flags = "
+            "0x%x, session_inuse %d, session_ref %u\n",
             (void *)session->dhandle, session->dhandle->name, session->dhandle->flags,
             session->dhandle->session_inuse, session->dhandle->session_ref);
-        });
+      });
 
     return (ret);
 }
@@ -817,8 +827,11 @@ __session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *che
      */
     if ((ret = __session_add_dhandle(session)) != 0) {
         WT_DHANDLE_RELEASE(session->dhandle);
-        printf("In __session_get_dhandle(), released dhandle %p, name '%s', flags = 0x%x, session_inuse %d, session_ref %u\n",
-          (void*) session->dhandle, session->dhandle->name, session->dhandle->flags, session->dhandle->session_inuse, session->dhandle->session_ref);
+        printf(
+          "In __session_get_dhandle(), released dhandle %p, name '%s', flags = 0x%x, session_inuse "
+          "%d, session_ref %u\n",
+          (void *)session->dhandle, session->dhandle->name, session->dhandle->flags,
+          session->dhandle->session_inuse, session->dhandle->session_ref);
         session->dhandle = NULL;
     }
 

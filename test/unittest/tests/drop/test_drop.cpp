@@ -35,7 +35,6 @@ insert_sample_values(WT_CURSOR *cursor)
     REQUIRE(insert_key_value(cursor, "key5", "value5") == 0);
 }
 
-
 /*
  * print_dhandles
  *     For diagnostics of any failing tests, prints the dhandles on a session.
@@ -98,7 +97,8 @@ check_txn_updates(std::string const &label, WT_SESSION_IMPL *session_impl, bool 
                            ", upd->durable_ts 0x%" PRIu64 "\n",
                       i, upd, op->type, upd->txnid, upd->durable_ts);
 
-                    // At least during current diagnosis a txnid greater than 100 means something has gone wrong
+                    // At least during current diagnosis a txnid greater than 100 means something
+                    // has gone wrong
                     if (upd->txnid > 100) {
                         printf(".     The upd->txnid value is wierd!\n");
                     }
@@ -147,12 +147,13 @@ debug_dropped_state(WT_SESSION_IMPL *session, const char *uri)
 
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
         printf(".   dhandle 0c%p, name %s, is dropped %d, is open %d, flags 0x%x, type %d\n",
-          dhandle, dhandle->name, F_ISSET(dhandle, WT_DHANDLE_DROPPED), F_ISSET(dhandle, WT_DHANDLE_OPEN), dhandle->flags, dhandle->type);
+          dhandle, dhandle->name, F_ISSET(dhandle, WT_DHANDLE_DROPPED),
+          F_ISSET(dhandle, WT_DHANDLE_OPEN), dhandle->flags, dhandle->type);
 
         if (dhandle->type == __wt_data_handle::WT_DHANDLE_TYPE_BTREE) {
-            WT_BTREE *btree = (WT_BTREE*)dhandle->handle;
-            printf(".     btree = %p, btree flags = 0x%x, root.page %p\n",
-              btree, btree->flags, btree->root.page);
+            WT_BTREE *btree = (WT_BTREE *)dhandle->handle;
+            printf(".     btree = %p, btree flags = 0x%x, root.page %p\n", btree, btree->flags,
+              btree->root.page);
         }
 
         if (strcmp(uri, dhandle->name) == 0) {
@@ -164,11 +165,10 @@ debug_dropped_state(WT_SESSION_IMPL *session, const char *uri)
 }
 
 void
-lock_and_debug_dropped_state(WT_SESSION_IMPL *session, const char *uri) {
-    WT_WITH_HANDLE_LIST_WRITE_LOCK(
-      session, debug_dropped_state(session, uri));
+lock_and_debug_dropped_state(WT_SESSION_IMPL *session, const char *uri)
+{
+    WT_WITH_HANDLE_LIST_WRITE_LOCK(session, debug_dropped_state(session, uri));
 }
-
 
 /*
  * cache_destroy_memory_check --
@@ -185,7 +185,8 @@ lock_and_debug_dropped_state(WT_SESSION_IMPL *session, const char *uri) {
 //         WT_SESSION *session = &session_impl->iface;
 //         std::string uri = "table:cursor_test";
 
-//         report_cache_status(conn.getWtConnectionImpl()->cache, ", created connection", diagnostics);
+//         report_cache_status(conn.getWtConnectionImpl()->cache, ", created connection",
+//         diagnostics);
 
 //         REQUIRE(session->create(session, uri.c_str(), "key_format=S,value_format=S") == 0);
 //         report_cache_status(
@@ -214,12 +215,11 @@ lock_and_debug_dropped_state(WT_SESSION_IMPL *session, const char *uri) {
 
 //             REQUIRE(session->commit_transaction(session, "") == 0);
 //             report_cache_status(
-//               conn.getWtConnectionImpl()->cache, config + ", committed transaction", diagnostics);
+//               conn.getWtConnectionImpl()->cache, config + ", committed transaction",
+//               diagnostics);
 //         }
 //     }
 // }
-
-
 
 int64_t
 get_stats_value(WT_CURSOR *stats_cursor, int stat)
@@ -234,15 +234,14 @@ get_stats_value(WT_CURSOR *stats_cursor, int stat)
     return dhandles_open_count;
 }
 
-
 int64_t
 get_dhandles_open_count(WT_CURSOR *stats_cursor)
 {
     return get_stats_value(stats_cursor, WT_STAT_CONN_DH_CONN_HANDLE_COUNT);
 }
 
-
-int get_dhandle_count(WT_SESSION *session)
+int
+get_dhandle_count(WT_SESSION *session)
 {
     std::string stats_cursor_name = "statistics:";
 
@@ -261,39 +260,38 @@ int get_dhandle_count(WT_SESSION *session)
     return dhandle_count;
 }
 
- void
- dump_stats(WT_SESSION *session)
- {
-     std::string stats_cursor_name = "statistics:";
+void
+dump_stats(WT_SESSION *session)
+{
+    std::string stats_cursor_name = "statistics:";
 
-     WT_CURSOR *stats_cursor;
-     int open_stats_cursor_result =
-       session->open_cursor(session, stats_cursor_name.c_str(), nullptr, nullptr, &stats_cursor);
+    WT_CURSOR *stats_cursor;
+    int open_stats_cursor_result =
+      session->open_cursor(session, stats_cursor_name.c_str(), nullptr, nullptr, &stats_cursor);
 
-     printf("Dump Stats - open_stats_cursor_result %d\n", open_stats_cursor_result);
+    printf("Dump Stats - open_stats_cursor_result %d\n", open_stats_cursor_result);
 
-     REQUIRE(open_stats_cursor_result == 0);
+    REQUIRE(open_stats_cursor_result == 0);
 
-     printf(". WT_STAT_CONN_DH_CONN_HANDLE_SIZE value = %" PRIi64 "\n",
-       get_stats_value(stats_cursor, WT_STAT_CONN_DH_CONN_HANDLE_SIZE));
-     printf(". WT_STAT_CONN_DH_CONN_HANDLE_COUNT value = %" PRIi64 "\n",
-       get_stats_value(stats_cursor, WT_STAT_CONN_DH_CONN_HANDLE_COUNT));
-     printf(". WT_STAT_CONN_DH_SWEEP_REF value = %" PRIi64 "\n",
-       get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_REF));
-     printf(". WT_STAT_CONN_DH_SWEEP_CLOSE value = %" PRIi64 "\n",
-       get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_CLOSE));
-     printf(". WT_STAT_CONN_DH_SWEEP_REMOVE value = %" PRIi64 "\n",
-       get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_REMOVE));
-     printf(". WT_STAT_CONN_DH_SWEEP_TOD value = %" PRIi64 "\n",
-       get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_TOD));
-     printf(". WT_STAT_CONN_DH_SWEEPS value = %" PRIi64 "\n",
-       get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEPS));
-     printf(". WT_STAT_CONN_CACHE_BYTES_INUSE value = %" PRIi64 "\n",
-       get_stats_value(stats_cursor, WT_STAT_CONN_CACHE_BYTES_INUSE));
+    printf(". WT_STAT_CONN_DH_CONN_HANDLE_SIZE value = %" PRIi64 "\n",
+      get_stats_value(stats_cursor, WT_STAT_CONN_DH_CONN_HANDLE_SIZE));
+    printf(". WT_STAT_CONN_DH_CONN_HANDLE_COUNT value = %" PRIi64 "\n",
+      get_stats_value(stats_cursor, WT_STAT_CONN_DH_CONN_HANDLE_COUNT));
+    printf(". WT_STAT_CONN_DH_SWEEP_REF value = %" PRIi64 "\n",
+      get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_REF));
+    printf(". WT_STAT_CONN_DH_SWEEP_CLOSE value = %" PRIi64 "\n",
+      get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_CLOSE));
+    printf(". WT_STAT_CONN_DH_SWEEP_REMOVE value = %" PRIi64 "\n",
+      get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_REMOVE));
+    printf(". WT_STAT_CONN_DH_SWEEP_TOD value = %" PRIi64 "\n",
+      get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEP_TOD));
+    printf(". WT_STAT_CONN_DH_SWEEPS value = %" PRIi64 "\n",
+      get_stats_value(stats_cursor, WT_STAT_CONN_DH_SWEEPS));
+    printf(". WT_STAT_CONN_CACHE_BYTES_INUSE value = %" PRIi64 "\n",
+      get_stats_value(stats_cursor, WT_STAT_CONN_CACHE_BYTES_INUSE));
 
-     REQUIRE(stats_cursor->close(stats_cursor) == 0);
- }
-
+    REQUIRE(stats_cursor->close(stats_cursor) == 0);
+}
 
 /*
  * thread_function_drop --
@@ -305,13 +303,13 @@ int get_dhandle_count(WT_SESSION *session)
 //     session->drop(session, uri.c_str(), "force=true");
 // }
 
-
 /*
  * thread_function_drop_in_session --
  *     This function is designed to be used as a thread function, and force drops a table.
  */
 static void
-thread_function_drop_in_session(WT_CONNECTION *connection, std::string const &cfg, std::string const &uri)
+thread_function_drop_in_session(
+  WT_CONNECTION *connection, std::string const &cfg, std::string const &uri)
 {
     printf("Starting thread_function_drop_in_session()\n");
     WT_SESSION *session;
@@ -323,11 +321,9 @@ thread_function_drop_in_session(WT_CONNECTION *connection, std::string const &cf
     printf("Ending thread_function_drop_in_session()\n");
 }
 
-
 /*
  * drop_test --
- *     Perform a series of combinations of drop operations to confirm correct behavior
- *     in each case.
+ *     Perform a series of combinations of drop operations to confirm correct behavior in each case.
  */
 static void
 drop_test(std::string const &config, bool drop_in_second_thread, bool transaction,
@@ -339,8 +335,7 @@ drop_test(std::string const &config, bool drop_in_second_thread, bool transactio
     std::string txn_as_string = transaction ? "true" : "false";
     std::string thread_drop_label = drop_in_second_thread ? "second thread" : "same thread";
 
-    SECTION(
-      "Drop in " + thread_drop_label + ": transaction = " + txn_as_string)
+    SECTION("Drop in " + thread_drop_label + ": transaction = " + txn_as_string)
     {
         printf("================ Starting drop_test: in %s, in transaction = %s ================\n",
           thread_drop_label.c_str(), txn_as_string.c_str());
@@ -373,8 +368,8 @@ drop_test(std::string const &config, bool drop_in_second_thread, bool transactio
         __wt_sleep(1, 0);
 
         if (drop_in_second_thread) {
-            std::thread thread([&]() {
-                thread_function_drop_in_session(conn.getWtConnection(), "", uri); });
+            std::thread thread(
+              [&]() { thread_function_drop_in_session(conn.getWtConnection(), "", uri); });
             thread.join();
         } else {
             REQUIRE(session->drop(session, uri.c_str(), "force=true") == 0);
@@ -508,8 +503,6 @@ multiple_drop_test(std::string const &config, int expected_open_cursor_result,
             dump_stats(session);
 
             REQUIRE(session->close(session, nullptr) == 0);
-
-
         }
 
         // Confirm the correct number of loops were executed & we didn't exit early for any reason

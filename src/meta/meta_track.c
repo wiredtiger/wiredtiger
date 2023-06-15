@@ -481,8 +481,8 @@ __wt_meta_track_drop(WT_SESSION_IMPL *session, const char *filename)
     WT_DECL_RET;
     WT_META_TRACK *trk;
 
-    DIAGNOSTIC_EXTRA_PRINTF("Starting __wt_meta_track_drop(), session %p, filename '%s'\n",
-      (void*)session, filename);
+    DIAGNOSTIC_EXTRA_PRINTF(
+      "Starting __wt_meta_track_drop(), session %p, filename '%s'\n", (void *)session, filename);
 
     WT_RET(__meta_track_next(session, &trk));
 

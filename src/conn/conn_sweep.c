@@ -162,16 +162,19 @@ __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
 
-    DIAGNOSTIC_EXTRA_PRINTF("Starting __sweep_discard_trees(): session %p\n", (void*) session);
+    DIAGNOSTIC_EXTRA_PRINTF("Starting __sweep_discard_trees(): session %p\n", (void *)session);
 
     *dead_handlesp = 0;
 
     conn = S2C(session);
 
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
-        DIAGNOSTIC_EXTRA_PRINTF("__sweep_discard_trees: dhandle %p, name '%s', flags = 0x%x, session_inuse %d, session_ref %u, is open %d, is dead %d, is exclusive %d, can discard %d\n",
-          (void*) dhandle, dhandle->name, dhandle->flags, dhandle->session_inuse, dhandle->session_ref,
-          F_ISSET(dhandle, WT_DHANDLE_OPEN), F_ISSET(dhandle, WT_DHANDLE_DEAD), F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE),
+        DIAGNOSTIC_EXTRA_PRINTF(
+          "__sweep_discard_trees: dhandle %p, name '%s', flags = 0x%x, session_inuse %d, "
+          "session_ref %u, is open %d, is dead %d, is exclusive %d, can discard %d\n",
+          (void *)dhandle, dhandle->name, dhandle->flags, dhandle->session_inuse,
+          dhandle->session_ref, F_ISSET(dhandle, WT_DHANDLE_OPEN),
+          F_ISSET(dhandle, WT_DHANDLE_DEAD), F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE),
           WT_DHANDLE_CAN_DISCARD(dhandle));
 
         if (WT_DHANDLE_CAN_DISCARD(dhandle))
@@ -184,13 +187,17 @@ __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
          * The sweep server should not close dropped dhandles.
          */
         if (F_ISSET(dhandle, WT_DHANDLE_DROPPED)) {
-            DIAGNOSTIC_EXTRA_PRINTF("WT_DHANDLE_DROPPED was detected on dhandle %p, name '%s', flags = 0x%x, session_inuse %d, session_ref %u, can discard %d\n",
-              (void*) dhandle, dhandle->name, dhandle->flags, dhandle->session_inuse, dhandle->session_ref, WT_DHANDLE_CAN_DISCARD(dhandle));
+            DIAGNOSTIC_EXTRA_PRINTF(
+              "WT_DHANDLE_DROPPED was detected on dhandle %p, name '%s', flags = 0x%x, "
+              "session_inuse %d, session_ref %u, can discard %d\n",
+              (void *)dhandle, dhandle->name, dhandle->flags, dhandle->session_inuse,
+              dhandle->session_ref, WT_DHANDLE_CAN_DISCARD(dhandle));
             continue;
         }
 
         /* If the handle is marked dead, flush it from cache. */
-        WT_WITH_DHANDLE(session, dhandle, ret = __wt_conn_dhandle_close(session, false, false, true));
+        WT_WITH_DHANDLE(
+          session, dhandle, ret = __wt_conn_dhandle_close(session, false, false, true));
 
         /* We closed the btree handle. */
         if (ret == 0) {
@@ -257,8 +264,11 @@ __sweep_remove_handles(WT_SESSION_IMPL *session)
 
     TAILQ_FOREACH_SAFE(dhandle, &conn->dhqh, q, dhandle_tmp)
     {
-        DIAGNOSTIC_EXTRA_PRINTF("__sweep_remove_handles: dhandle %p, name '%s', flags = 0x%x, session_inuse %d, session_ref %u, can discard %d\n",
-          (void*) dhandle, dhandle->name, dhandle->flags, dhandle->session_inuse, dhandle->session_ref, WT_DHANDLE_CAN_DISCARD(dhandle));
+        DIAGNOSTIC_EXTRA_PRINTF(
+          "__sweep_remove_handles: dhandle %p, name '%s', flags = 0x%x, session_inuse %d, "
+          "session_ref %u, can discard %d\n",
+          (void *)dhandle, dhandle->name, dhandle->flags, dhandle->session_inuse,
+          dhandle->session_ref, WT_DHANDLE_CAN_DISCARD(dhandle));
 
         if (WT_IS_METADATA(dhandle))
             continue;

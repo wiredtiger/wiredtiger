@@ -20,7 +20,8 @@ __drop_file(WT_SESSION_IMPL *session, const char *uri, bool force, const char *c
     const char *filename;
     bool remove_files;
 
-    DIAGNOSTIC_EXTRA_PRINTF("Starting __drop_file(), session %p, uri %s, force %d\n", (void*)session, uri, force);
+    DIAGNOSTIC_EXTRA_PRINTF(
+      "Starting __drop_file(), session %p, uri %s, force %d\n", (void *)session, uri, force);
 
     WT_RET(__wt_config_gets(session, cfg, "remove_files", &cval));
     remove_files = cval.val != 0;
@@ -159,14 +160,14 @@ __drop_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
     WT_ERR(__wt_schema_get_table_uri(session, uri, true, WT_DHANDLE_EXCLUSIVE, &table));
     F_SET(&table->iface, WT_DHANDLE_DISCARD);
 
-//    printf("In __drop_table(), is WT_DHANDLE_DROPPED set = %d, txn running = %d\n",
-//       F_ISSET(session->dhandle, WT_DHANDLE_DROPPED), F_ISSET(session->txn, WT_TXN_RUNNING) );
+    //    printf("In __drop_table(), is WT_DHANDLE_DROPPED set = %d, txn running = %d\n",
+    //       F_ISSET(session->dhandle, WT_DHANDLE_DROPPED), F_ISSET(session->txn, WT_TXN_RUNNING) );
 
-//    if (F_ISSET(session->dhandle, WT_DHANDLE_DROPPED) && F_ISSET(session->txn, WT_TXN_RUNNING)) {
-//        F_CLR(session->dhandle, WT_DHANDLE_DROPPED);
-//
-//    }
-
+    //    if (F_ISSET(session->dhandle, WT_DHANDLE_DROPPED) && F_ISSET(session->txn,
+    //    WT_TXN_RUNNING)) {
+    //        F_CLR(session->dhandle, WT_DHANDLE_DROPPED);
+    //
+    //    }
 
     if (WT_META_TRACKING(session)) {
         WT_WITH_DHANDLE(session, &table->iface, ret = __wt_meta_track_handle_lock(session, false));
