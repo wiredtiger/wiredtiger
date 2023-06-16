@@ -120,8 +120,8 @@ err:
 int
 __wt_block_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
-    WT_DECL_RET;
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     uint64_t bucket, hash;
 
     conn = S2C(session);
@@ -142,7 +142,6 @@ __wt_block_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
         WT_CONN_BLOCK_REMOVE(conn, block, bucket);
     }
     __wt_spin_unlock(session, &conn->block_lock);
-
 
     __wt_verbose(session, WT_VERB_BLOCK, "close: %s", block->name == NULL ? "" : block->name);
 
