@@ -975,6 +975,23 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
             continue;
 
         WT_ORDERED_READ(prepare_state, upd->prepare_state);
+
+        /*
+         * We previously found a prepared update, check if the update has the same transaction id,
+         * if it does it must not be visible as it is part of the same transaction as the previous
+         * prepared update.
+         */
+        if (prepare_txnid != WT_TXN_NONE && upd->txnid == prepare_txnid) {
+            /*
+             * If we see an update with prepare resolved this indicates that the read, which is
+             * configured to ignore prepared updates raced with the commit of the same prepared
+             * transaction. Increment a stat to track this.
+             */
+            if (prepare_state == WT_PREPARE_RESOLVED)
+                WT_STAT_CONN_DATA_INCR(session, txn_read_race_prepare_commit);
+            continue;
+        }
+
         /*
          * If the cursor is configured to ignore tombstones, copy the timestamps from the tombstones
          * to the stop time window of the update value being returned to the caller. Caller can
@@ -994,22 +1011,8 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
 
         upd_visible = __wt_txn_upd_visible_type(session, upd);
 
-        if (upd_visible == WT_VISIBLE_TRUE) {
-            /*
-             * Special case: We previously found a prepared update, check if the visible update we
-             * found has the same transaction id, if it does it must not be visible as it is part of
-             * the same transaction as the previous prepared update.
-             *
-             * This indicates that the read, which is configured to ignore prepared updates raced
-             * with the commit of the same prepared transaction. If we were to return this update
-             * then the reader would see a partially committed transaction which is bad.
-             */
-            if (prepare_txnid != WT_TXN_NONE && upd->txnid == prepare_txnid) {
-                WT_STAT_CONN_DATA_INCR(session, txn_read_race_prepare_commit);
-                continue;
-            }
+        if (upd_visible == WT_VISIBLE_TRUE)
             break;
-        }
 
         /*
          * Save the prepared update to help us detect if we race with prepared commit or rollback
