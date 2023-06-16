@@ -238,7 +238,7 @@ get_dhandles_open_count(WT_CURSOR *stats_cursor)
     return get_stats_value(stats_cursor, WT_STAT_CONN_DH_CONN_HANDLE_COUNT);
 }
 
-int
+int64_t
 get_dhandle_count(WT_SESSION *session)
 {
     std::string stats_cursor_name = "statistics:";
@@ -251,7 +251,7 @@ get_dhandle_count(WT_SESSION *session)
 
     REQUIRE(open_stats_cursor_result == 0);
 
-    int dhandle_count = get_stats_value(stats_cursor, WT_STAT_CONN_DH_CONN_HANDLE_COUNT);
+    int64_t dhandle_count = get_stats_value(stats_cursor, WT_STAT_CONN_DH_CONN_HANDLE_COUNT);
 
     REQUIRE(stats_cursor->close(stats_cursor) == 0);
 
@@ -349,7 +349,7 @@ drop_test(std::string const &config, bool drop_in_second_thread, bool transactio
 
         dump_stats(session);
 
-        int dhandle_count_early = get_dhandle_count(session);
+        int64_t dhandle_count_early = get_dhandle_count(session);
 
         check_txn_updates("before drop", session_impl, diagnostics);
         lock_and_debug_dropped_state(session_impl, file_uri.c_str());
@@ -377,7 +377,7 @@ drop_test(std::string const &config, bool drop_in_second_thread, bool transactio
 
         dump_stats(session);
 
-        int dhandle_count_late = get_dhandle_count(session);
+        int64_t dhandle_count_late = get_dhandle_count(session);
 
         if (transaction) {
             __wt_sleep(1, 0);
@@ -418,8 +418,8 @@ drop_test(std::string const &config, bool drop_in_second_thread, bool transactio
 
         check_txn_updates("Completed", session_impl, diagnostics);
 
-        printf("==== Completed a drop_test: dhandle_count_early %d, dhandle_count_late %d ====\n",
-          dhandle_count_early, dhandle_count_late);
+        printf("==== Completed a drop_test: dhandle_count_early %" PRIi64 ", dhandle_count_late %"
+          PRIi64 " ====\n", dhandle_count_early, dhandle_count_late);
     }
 }
 
