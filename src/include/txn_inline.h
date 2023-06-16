@@ -998,7 +998,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
             /*
              * Special case: We previously found a prepared update, check if the visible update we
              * found has the same transaction id, if it does it must not be visible as it is part of
-             * the same transaction as the previous prepared updated.
+             * the same transaction as the previous prepared update.
              *
              * This indicates that the read, which is configured to ignore prepared updates raced
              * with the commit of the same prepared transaction. If we were to return this update
