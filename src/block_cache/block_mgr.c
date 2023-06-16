@@ -17,29 +17,10 @@ static void __bm_method_set(WT_BM *, bool);
 int
 __wt_bm_close_block(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
-    WT_CONNECTION_IMPL *conn;
-    uint64_t bucket, hash;
-
-    conn = S2C(session);
-
     __wt_verbose(session, WT_VERB_BLKCACHE, "close: %s", block->name);
 
     /* We shouldn't have any read requests in progress. */
     WT_ASSERT(session, block->read_count == 0);
-
-    __wt_spin_lock(session, &conn->block_lock);
-    if (block->ref > 0 && --block->ref > 0) {
-        __wt_spin_unlock(session, &conn->block_lock);
-        return (0);
-    }
-
-    if (block->linked) {
-        /* Make the block unreachable. Resource cleanup is done in __wt_block_close(). */
-        hash = __wt_hash_city64(block->name, strlen(block->name));
-        bucket = hash & (conn->hash_size - 1);
-        WT_CONN_BLOCK_REMOVE(conn, block, bucket);
-    }
-    __wt_spin_unlock(session, &conn->block_lock);
 
     /* You can't close files during a checkpoint. */
     WT_ASSERT(

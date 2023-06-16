@@ -121,9 +121,28 @@ int
 __wt_block_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
     WT_DECL_RET;
+    WT_CONNECTION_IMPL *conn;
+    uint64_t bucket, hash;
+
+    conn = S2C(session);
 
     if (block == NULL) /* Safety check, if failed to initialize. */
         return (0);
+
+    __wt_spin_lock(session, &conn->block_lock);
+    if (block->ref > 0 && --block->ref > 0) {
+        __wt_spin_unlock(session, &conn->block_lock);
+        return (0);
+    }
+
+    if (block->linked) {
+        /* Make the block unreachable. */
+        hash = __wt_hash_city64(block->name, strlen(block->name));
+        bucket = hash & (conn->hash_size - 1);
+        WT_CONN_BLOCK_REMOVE(conn, block, bucket);
+    }
+    __wt_spin_unlock(session, &conn->block_lock);
+
 
     __wt_verbose(session, WT_VERB_BLOCK, "close: %s", block->name == NULL ? "" : block->name);
 
@@ -197,8 +216,10 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     WT_ERR(__wt_strdup(session, filename, &block->name));
     block->objectid = objectid;
     block->ref = 1;
+    __wt_spin_lock(session, &conn->block_lock);
     WT_CONN_BLOCK_INSERT(conn, block, bucket);
     block->linked = true;
+    __wt_spin_unlock(session, &conn->block_lock);
 
     /* If not passed an allocation size, get one from the configuration. */
     if (allocsize == 0) {
