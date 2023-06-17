@@ -35,7 +35,7 @@
 #define WT_TIME_WINDOW_HAS_STOP(tw) ((tw)->stop_txn != WT_TXN_MAX || (tw)->stop_ts != WT_TS_MAX)
 
 /* Return true if the time windows are the same. */
-#define WT_TIME_WINDOWS_EQUAL(tw1, tw2) (memcmp((tw1), (tw2), sizeof(*tw1)))
+#define WT_TIME_WINDOWS_EQUAL(tw1, tw2) (memcmp((tw1), (tw2), sizeof(*tw1)) == 0)
 
 /* Return true if the stop time windows are the same. */
 #define WT_TIME_WINDOWS_STOP_EQUAL(tw1, tw2)                                                 \
@@ -197,7 +197,7 @@
     } while (0)
 
 /* Return true if the time aggregates are the same. */
-#define WT_TIME_AGGREGATE_EQUAL(ta1, ta2) (memcmp((ta1), (ta2), sizeof(*ta1)))
+#define WT_TIME_AGGREGATE_EQUAL(ta1, ta2) (memcmp((ta1), (ta2), sizeof(*ta1)) == 0)
 
 /* Abstract away checking whether all records in an aggregated time window have been deleted. */
 #define WT_TIME_AGGREGATE_ALL_DELETED(ta) ((ta)->newest_stop_ts != WT_TS_MAX)
