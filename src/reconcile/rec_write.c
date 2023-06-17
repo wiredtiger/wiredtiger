@@ -2007,13 +2007,14 @@ __rec_split_write_reuse(
     /*
      * It is possible that the generated checksum values can be the same from two different images.
      * Use the time aggregate also along with size and checksum in the comparison to identify
-     * whether the new image is the same as the previously written block to reuse.
+     * whether the new image is the same as the previously written block to reuse. Note that this
+     * check could still produce a false positive, even taking time aggregate also into account.
      */
     multi_match = &mod->mod_multi[r->multi_next - 1];
     if (multi_match->size != multi->size || multi_match->checksum != multi->checksum ||
       WT_TIME_AGGREGATE_IS_EMPTY(&multi->addr.ta) ||
       WT_TIME_AGGREGATE_IS_EMPTY(&multi_match->addr.ta) ||
-      !WT_TIME_AGGRTEGATES_EQUAL(&multi->addr.ta, &multi_match->addr.ta)) {
+      !WT_TIME_AGGREGATE_EQUAL(&multi->addr.ta, &multi_match->addr.ta)) {
         r->evict_matching_checksum_failed = true;
         return (false);
     }
