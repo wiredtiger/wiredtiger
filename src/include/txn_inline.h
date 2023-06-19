@@ -987,11 +987,12 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
              * configured to ignore prepared updates raced with the commit of the same prepared
              * transaction. Increment a stat to track this.
              *
-             * This case exists as reconciliation chooses which update to read to disk in a newest
-             * to oldest fashion, and cannot handle prepared update resolution happening in the same
-             * newest to oldest direction. Instead prepared update resolution is recursively done
-             * from oldest to newest. Which mean that our reader would see a prepared update
-             * followed by a committed update.
+             * This case exists as reconciliation chooses which update to write to disk in a newest
+             * to oldest fashion, and if prepared update resolution happens in the same direction
+             * some artifacts of a prepared transaction could be written to disk while some remain
+             * only in-memory. Instead prepared update resolution is recursively done from oldest to
+             * newest. Which mean that our reader would see a prepared update followed by a
+             * committed update.
              *
              * FIXME-WT-11195: There is an alternate solution which would have reconciliation forget
              * the chosen update if it sees a prepared update after it. That would allow the update
