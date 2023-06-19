@@ -5949,6 +5949,7 @@ buildvariants:
     # The cmake toolchain file is set to the mongodb toolchain gcc by defualt.
     # Remove that configuration here and let MacOS use the default Xcode toolchain instead.
     CMAKE_TOOLCHAIN_FILE:
+    CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
     # On Evergreen M1 Macs, the default Python is 3.9.
     # However, we need at least Python 3.11 to avoid segfault issues with SWIG related code in the Python unit tests.
     python_binary: '/opt/homebrew/Frameworks/Python.framework/Versions/3.11/bin/python3.11'
