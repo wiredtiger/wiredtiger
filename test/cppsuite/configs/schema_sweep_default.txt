@@ -21,6 +21,11 @@ workload_manager=
     (
         collection_count=100,
         thread_count=10,
+    ),
+    remove_config=
+    (
+        thread_count=10,
+        op_rate=10ms,
     )
 ),
 operation_tracker=

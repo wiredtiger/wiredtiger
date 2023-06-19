@@ -78,10 +78,28 @@ public:
         }
     }
 
+    /* Keeps deleting collections. */
     void
-    remove_operation(thread_worker *) override final
+    remove_operation(thread_worker *tw) override final
     {
-        logger::log_msg(LOG_WARN, "remove_operation: nothing done");
+        auto collection_name_len = 10;
+
+        while (tw->running()) {
+            if (tw->db.get_collection_count() != 0) {
+                auto &collection = tw->db.get_random_collection();
+                bool force = random_generator::instance().generate_bool();
+
+                std::string cfg = "force=";
+                cfg += force ? "true" : "false";
+
+                int ret;
+                while (ret = tw->session->drop(
+                               tw->session.get(), collection.name.c_str(), cfg.c_str()) == EBUSY)
+                    ;
+                testutil_assert(ret == 0 || ret == WT_NOTFOUND);
+            }
+            tw->sleep();
+        }
     }
 
     void
