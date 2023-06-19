@@ -1,3 +1,7 @@
 # Configuration for schema_sweep.
 duration_seconds=5,
-cache_size_mb=250
+cache_size_mb=250,
+operation_tracker=
+(
+    enabled=false,
+)
