@@ -11,7 +11,12 @@ workload_manager=
     (
         thread_count=1,
         op_rate=30s,
-    )
+    ),
+    insert_config=
+    (
+        thread_count=10,
+        op_rate=10ms,
+    ),
     populate_config=
     (
         collection_count=100,
