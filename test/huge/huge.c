@@ -123,12 +123,17 @@ run(CONFIG *cp, int bigkey, size_t bytes)
         cursor->set_key(cursor, "key001");
     cursor->set_value(cursor, big);
 
-    /* We begin the transaction explicitely to avoid using auto-transaction during update. */
+    /*
+     * This test inserts very large single updates and a single page can hit eviction thresholds by itself.
+     * Auto-transactions leave the cursor positioned on the page which pins it and preventing eviction after committing.
+     * This can lead to a case where the transaction blocks on attempting to evict the same page it is pinning.
+     * Use an explicit transaction here to ensure we can reset the cursor and unpin the page.
+     */
     testutil_check(session->begin_transaction(session, NULL));
 
     /* Insert the record (use update, insert discards the key). */
     testutil_check(cursor->update(cursor));
-    /* Free the page referenced by the cursor, as it could be very large */
+    /* Free the page referenced by the cursor */
     testutil_check(cursor->reset(cursor));
 
     testutil_check(session->commit_transaction(session, NULL));
@@ -137,6 +142,7 @@ run(CONFIG *cp, int bigkey, size_t bytes)
     if (bigkey)
         cursor->set_key(cursor, big);
     else if (cp->recno) {
+        keyno = 1;
         cursor->set_key(cursor, keyno);
     } else
         cursor->set_key(cursor, "key001");
