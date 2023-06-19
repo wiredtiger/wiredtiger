@@ -43,17 +43,25 @@ public:
         init_operation_tracker();
     }
 
+    /* Reconfigures the connection with different sweep server parameters 50% of the time. */
     void
-    run() override final
+    custom_operation(thread_worker *tw) override final
     {
-        /* You can remove the call to the base class to fully customize your test. */
-        test::run();
-    }
+        WT_CONNECTION *conn = connection_manager::instance().get_connection();
+        bool aggressive_sweep = false;
+        const std::string aggressive_sweep_cfg =
+          "file_manager=(close_handle_minimum=0,close_idle_time=1,close_scan_interval=1)";
+        const std::string default_sweep_cfg =
+          "file_manager=(close_handle_minimum=250,close_idle_time=30,close_scan_interval=10)";
 
-    void
-    custom_operation(thread_worker *) override final
-    {
-        logger::log_msg(LOG_WARN, "custom_operation: nothing done");
+        while (tw->running()) {
+            tw->sleep();
+            if (random_generator::instance().generate_bool()) {
+                testutil_check(conn->reconfigure(conn,
+                  aggressive_sweep ? default_sweep_cfg.c_str() : aggressive_sweep_cfg.c_str()));
+                aggressive_sweep = !aggressive_sweep;
+            }
+        }
     }
 
     void

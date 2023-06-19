@@ -7,6 +7,11 @@ workload_manager=
     (
         op_rate=5s,
     ),
+    custom_config=
+    (
+        thread_count=1,
+        op_rate=30s,
+    )
     populate_config=
     (
         collection_count=100,
