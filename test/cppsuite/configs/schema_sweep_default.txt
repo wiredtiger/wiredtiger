@@ -6,7 +6,12 @@ workload_manager=
     checkpoint_config=
     (
         op_rate=5s,
-    )
+    ),
+    populate_config=
+    (
+        collection_count=100,
+        thread_count=10,
+    ),
 ),
 operation_tracker=
 (

@@ -51,12 +51,6 @@ public:
     }
 
     void
-    populate(database &, timestamp_manager *, configuration *, operation_tracker *) override final
-    {
-        logger::log_msg(LOG_WARN, "populate: nothing done");
-    }
-
-    void
     custom_operation(thread_worker *) override final
     {
         logger::log_msg(LOG_WARN, "custom_operation: nothing done");
