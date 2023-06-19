@@ -358,15 +358,12 @@ __sweep_server(void *arg)
     __wt_seconds(session, &last);
     for (;;) {
         /* Wait until the next event. */
-        if (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_AGGRESSIVE_SWEEP)) {
+        if (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_AGGRESSIVE_SWEEP))
             sweep_interval = conn->sweep_interval / 10;
-            __wt_cond_wait_signal(session, conn->sweep_cond, sweep_interval * 100 * WT_THOUSAND,
-              __sweep_server_run_chk, &cv_signalled);
-        } else {
+        else
             sweep_interval = conn->sweep_interval;
-            __wt_cond_wait_signal(session, conn->sweep_cond, sweep_interval * WT_MILLION,
-              __sweep_server_run_chk, &cv_signalled);
-        }
+        __wt_cond_wait_signal(session, conn->sweep_cond, sweep_interval * WT_MILLION,
+          __sweep_server_run_chk, &cv_signalled);
 
         /* Check if we're quitting or being reconfigured. */
         if (!__sweep_server_run_chk(session))
