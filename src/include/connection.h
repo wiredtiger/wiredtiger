@@ -347,8 +347,27 @@ struct __wt_connection_impl {
      * array when only a few threads are running.
      */
     WT_SESSION_IMPL *sessions; /* Session reference */
-    uint32_t session_size;     /* Session array size */
-    uint32_t session_cnt;      /* Session count */
+
+#define WT_CONNECTION_FOREACH_SESSION(session, conn)                                             \
+    do {                                                                                         \
+        /*                                                                                       \
+         * No lock is required because the session array is fixed size, but it may contain       \
+         * inactive entries. We must review any active session, so insert a read barrier after   \
+         * reading the active session count. This ensures that the session count is read once at \
+         * the start of the loop. This way, no matter what sessions come or go, we'll check the  \
+         * slots for all of the sessions that could have been active when we started our check.  \
+         */                                                                                      \
+        uint32_t __i, __session_cnt;                                                             \
+        WT_ORDERED_READ(__session_cnt, (conn)->session_cnt);                                     \
+        for (__i = 0, (session) = conn->sessions; __i < __session_cnt; __i++, (session)++) {
+
+#define WT_CONNECTION_FOREACH_SESSION_END \
+    }                                     \
+    }                                     \
+    while (0)
+
+    uint32_t session_size; /* Session array size */
+    uint32_t session_cnt;  /* Session count */
 
     size_t session_scratch_max; /* Max scratch memory per session */
 

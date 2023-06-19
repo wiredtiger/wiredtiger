@@ -295,7 +295,7 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
     WT_CONNECTION_IMPL *conn;
     WT_HAZARD *hp;
     WT_SESSION_IMPL *s;
-    uint32_t i, j, hazard_inuse, max, session_cnt, walk_cnt;
+    uint32_t j, hazard_inuse, max, walk_cnt;
 
     /* If a file can never be evicted, hazard pointers aren't required. */
     if (F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
@@ -311,15 +311,9 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
      */
     __wt_session_gen_enter(session, WT_GEN_HAZARD);
 
-    /*
-     * No lock is required because the session array is fixed size, but it may contain inactive
-     * entries. We must review any active session that might contain a hazard pointer, so insert a
-     * read barrier after reading the active session count. That way, no matter what sessions come
-     * or go, we'll check the slots for all of the sessions that could have been active when we
-     * started our check.
-     */
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    for (s = conn->sessions, i = max = walk_cnt = 0; i < session_cnt; ++s, ++i) {
+    max = walk_cnt = 0;
+    WT_CONNECTION_FOREACH_SESSION(s, conn)
+    {
         if (!s->active)
             continue;
 
@@ -340,6 +334,8 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
             }
         }
     }
+    WT_CONNECTION_FOREACH_SESSION_END;
+
     WT_STAT_CONN_INCRV(session, cache_hazard_walks, walk_cnt);
     hp = NULL;
 
