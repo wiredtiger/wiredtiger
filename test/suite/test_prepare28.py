@@ -30,7 +30,7 @@ from time import sleep
 import wttest, threading
 
 # Prior to a bugfix in WiredTiger it was possible to read a partial transaction if the config
-# ignore prepare, was used. This test demonstrates that case.
+# ignore prepare was provided. This test demonstrates that case.
 class test_prepare28(wttest.WiredTigerTestCase):
     conn_config= 'timing_stress_for_test=[prepare_resolution_2]'
     uri = 'table:test_prepare28'
