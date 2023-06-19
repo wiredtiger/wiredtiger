@@ -196,6 +196,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     WT_ERR(__wt_calloc_one(session, &block));
     WT_ERR(__wt_strdup(session, filename, &block->name));
     block->objectid = objectid;
+    block->ref = 1;
 
     /* If not passed an allocation size, get one from the configuration. */
     if (allocsize == 0) {
