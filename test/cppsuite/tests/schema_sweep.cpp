@@ -63,21 +63,9 @@ public:
     }
 
     void
-    read_operation(thread_worker *) override final
-    {
-        logger::log_msg(LOG_WARN, "read_operation: nothing done");
-    }
-
-    void
     remove_operation(thread_worker *) override final
     {
         logger::log_msg(LOG_WARN, "remove_operation: nothing done");
-    }
-
-    void
-    update_operation(thread_worker *) override final
-    {
-        logger::log_msg(LOG_WARN, "update_operation: nothing done");
     }
 
     void

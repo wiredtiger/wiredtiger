@@ -11,7 +11,7 @@ workload_manager=
     (
         collection_count=100,
         thread_count=10,
-    ),
+    )
 ),
 operation_tracker=
 (
