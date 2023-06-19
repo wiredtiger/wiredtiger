@@ -57,12 +57,6 @@ public:
     }
 
     void
-    checkpoint_operation(thread_worker *) override final
-    {
-        logger::log_msg(LOG_WARN, "checkpoint_operation: nothing done");
-    }
-
-    void
     custom_operation(thread_worker *) override final
     {
         logger::log_msg(LOG_WARN, "custom_operation: nothing done");
