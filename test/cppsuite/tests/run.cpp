@@ -43,6 +43,7 @@
 #include "hs_cleanup.cpp"
 #include "operations_test.cpp"
 #include "reverse_split.cpp"
+#include "schema_sweep.cpp"
 #include "test_template.cpp"
 
 extern "C" {
@@ -155,6 +156,8 @@ run_test(const std::string &test_name, const std::string &config, const std::str
         operations_test(args).run();
     else if (test_name == "reverse_split")
         reverse_split(args).run();
+    else if (test_name == "schema_sweep")
+        schema_sweep(args).run();
     else if (test_name == "test_template")
         test_template(args).run();
     else {
@@ -180,8 +183,8 @@ main(int argc, char *argv[])
     std::string cfg, config_filename, current_cfg, current_test_name, home, test_name,
       wt_open_config;
     int64_t error_code = 0;
-    const std::vector<std::string> all_tests = {"reverse_split", "bounded_cursor_perf",
-      "bounded_cursor_prefix_indices", "bounded_cursor_prefix_search_near",
+    const std::vector<std::string> all_tests = {"schema_sweep", "reverse_split",
+      "bounded_cursor_perf", "bounded_cursor_prefix_indices", "bounded_cursor_prefix_search_near",
       "bounded_cursor_prefix_stat", "bounded_cursor_stress", "burst_inserts", "cache_resize",
       "hs_cleanup", "operations_test", "test_template"};
 

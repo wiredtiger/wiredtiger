@@ -264,4 +264,5 @@ methods = {
     'search_near_02' : Method(test_config),
     'search_near_03' : Method(test_config),
     'test_template' : Method(test_config),
+    'schema_sweep' : Method(test_config),
 }
