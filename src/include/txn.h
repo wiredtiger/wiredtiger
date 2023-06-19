@@ -170,6 +170,27 @@ struct __wt_txn_global {
     volatile uint64_t metadata_pinned; /* Oldest ID for metadata */
 
     WT_TXN_SHARED *txn_shared_list; /* Per-session shared transaction states */
+
+#define WT_TXN_GLOBAL_FOREACH_SESSION_STATE(state, conn)                                           \
+    do {                                                                                           \
+        /*                                                                                         \
+         * No lock is required because the per-session transactions state array is fixed size, but \
+         * the session count may change as sessions are activated and deactivated. Use a read      \
+         * barrier here to ensure that the session count is read once at the start of the loop.    \
+         * This way, no matter what sessions come or go, we'll check the states for all of the     \
+         * sessions that could have been active when we started our check.                         \
+         */                                                                                        \
+        uint32_t __i, __session_cnt;                                                               \
+        WT_ORDERED_READ(__session_cnt, (conn)->session_cnt);                                       \
+        for (__i = 0, (state) = txn_global->txn_shared_list; __i < __session_cnt;                  \
+             __i++, (state)++) {
+
+#define WT_TXN_GLOBAL_FOREACH_SESSION_STATE_END            \
+    }                                                      \
+    WT_STAT_CONN_INCR(session, txn_walk_sessions);         \
+    WT_STAT_CONN_INCRV(session, txn_sessions_walked, __i); \
+    }                                                      \
+    while (0)
 };
 
 typedef enum __wt_txn_isolation {

@@ -152,7 +152,6 @@ __wt_txn_active(WT_SESSION_IMPL *session, uint64_t txnid)
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
     uint64_t oldest_id;
-    uint32_t i, session_cnt;
     bool active;
 
     conn = S2C(session);
@@ -169,14 +168,13 @@ __wt_txn_active(WT_SESSION_IMPL *session, uint64_t txnid)
     }
 
     /* Walk the array of concurrent transactions. */
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    WT_STAT_CONN_INCR(session, txn_walk_sessions);
-    for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
-        WT_STAT_CONN_INCR(session, txn_sessions_walked);
+    WT_TXN_GLOBAL_FOREACH_SESSION_STATE(s, conn)
+    {
         /* If the transaction is in the list, it is uncommitted. */
         if (s->id == txnid)
             goto done;
     }
+    WT_TXN_GLOBAL_FOREACH_SESSION_STATE_END;
 
     active = false;
 done:
@@ -196,7 +194,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s, *txn_shared;
     uint64_t commit_gen, current_id, id, prev_oldest_id, pinned_id;
-    uint32_t i, n, session_cnt;
+    uint32_t n;
 
     conn = S2C(session);
     txn = session->txn;
@@ -242,9 +240,8 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
     }
 
     /* Walk the array of concurrent transactions. */
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    WT_STAT_CONN_INCR(session, txn_walk_sessions);
-    for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
+    WT_TXN_GLOBAL_FOREACH_SESSION_STATE(s, conn)
+    {
         WT_STAT_CONN_INCR(session, txn_sessions_walked);
         /*
          * Build our snapshot of any concurrent transaction IDs.
@@ -285,6 +282,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
             WT_PAUSE();
         }
     }
+    WT_TXN_GLOBAL_FOREACH_SESSION_STATE_END;
 
     /*
      * If we got a new snapshot, update the published pinned ID for this session.
@@ -331,7 +329,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
     uint64_t id, last_running, metadata_pinned, oldest_id, prev_oldest_id;
-    uint32_t i, session_cnt;
+    uint32_t i;
 
     conn = S2C(session);
     txn_global = &conn->txn_global;
@@ -344,9 +342,9 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
         metadata_pinned = oldest_id;
 
     /* Walk the array of concurrent transactions. */
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    WT_STAT_CONN_INCR(session, txn_walk_sessions);
-    for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
+    i = 0;
+    WT_TXN_GLOBAL_FOREACH_SESSION_STATE(s, conn)
+    {
         WT_STAT_CONN_INCR(session, txn_sessions_walked);
         /* Update the last running transaction ID. */
         while ((id = s->id) != WT_TXN_NONE && WT_TXNID_LE(prev_oldest_id, id) &&
@@ -388,7 +386,17 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
             oldest_id = id;
             oldest_session = &conn->sessions[i];
         }
+
+        /*
+         * The index of a session state in the txn_global structure is identical to the index of
+         * that session in the connection->sessions array. That is, if a session is located at
+         * conn->sessions[0] then its session state is located at txn_global->txn_shared_list[0].
+         * Keep track of this index as we iterate through the for-each loop, we can use it to look
+         * up the session in the connection->session array as needed.
+         */
+        i++;
     }
+    WT_TXN_GLOBAL_FOREACH_SESSION_STATE_END;
 
     if (WT_TXNID_LT(last_running, oldest_id))
         oldest_id = last_running;

@@ -88,7 +88,6 @@ __wt_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, uin
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
     wt_timestamp_t tmp_read_ts, tmp_ts;
-    uint32_t i, session_cnt;
     bool include_oldest, txn_has_write_lock;
 
     conn = S2C(session);
@@ -113,8 +112,8 @@ __wt_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, uin
         tmp_ts = txn_global->checkpoint_timestamp;
 
     /* Walk the array of concurrent transactions. */
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
+    WT_TXN_GLOBAL_FOREACH_SESSION_STATE(s, conn)
+    {
         __txn_get_read_timestamp(s, &tmp_read_ts);
         /*
          * A zero timestamp is possible here only when the oldest timestamp is not accounted for.
@@ -122,12 +121,10 @@ __wt_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, uin
         if (tmp_ts == WT_TS_NONE || (tmp_read_ts != WT_TS_NONE && tmp_read_ts < tmp_ts))
             tmp_ts = tmp_read_ts;
     }
+    WT_TXN_GLOBAL_FOREACH_SESSION_STATE_END;
 
     if (!txn_has_write_lock)
         __wt_readunlock(session, &txn_global->rwlock);
-
-    WT_STAT_CONN_INCR(session, txn_walk_sessions);
-    WT_STAT_CONN_INCRV(session, txn_sessions_walked, i);
 
     *tsp = tmp_ts;
 }
@@ -154,7 +151,6 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
     wt_timestamp_t ts, tmpts;
-    uint32_t i, session_cnt;
 
     conn = S2C(session);
     txn_global = &conn->txn_global;
@@ -176,17 +172,16 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
         ts = txn_global->durable_timestamp;
 
         /* Walk the array of concurrent transactions. */
-        WT_ORDERED_READ(session_cnt, conn->session_cnt);
-        for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
+        WT_TXN_GLOBAL_FOREACH_SESSION_STATE(s, conn)
+        {
             __txn_get_durable_timestamp(s, &tmpts);
             if (tmpts != 0 && (ts == 0 || --tmpts < ts))
                 ts = tmpts;
         }
+        WT_TXN_GLOBAL_FOREACH_SESSION_STATE_END;
 
         __wt_readunlock(session, &txn_global->rwlock);
 
-        WT_STAT_CONN_INCR(session, txn_walk_sessions);
-        WT_STAT_CONN_INCRV(session, txn_sessions_walked, i);
     } else if (WT_STRING_MATCH("last_checkpoint", cval.str, cval.len)) {
         /* Read-only value forever. Make sure we don't used a cached version. */
         WT_BARRIER();
@@ -452,22 +447,22 @@ set:
 static void
 __txn_assert_after_reads(WT_SESSION_IMPL *session, const char *op, wt_timestamp_t ts)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
     wt_timestamp_t tmp_timestamp;
-    uint32_t i, session_cnt;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
+    conn = S2C(session);
+
     if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_TXN_VISIBILITY)) {
-        txn_global = &S2C(session)->txn_global;
-        WT_ORDERED_READ(session_cnt, S2C(session)->session_cnt);
-        WT_STAT_CONN_INCR(session, txn_walk_sessions);
-        WT_STAT_CONN_INCRV(session, txn_sessions_walked, session_cnt);
+        txn_global = &conn->txn_global;
 
         __wt_readlock(session, &txn_global->rwlock);
 
         /* Walk the array of concurrent transactions. */
-        for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
+        WT_TXN_GLOBAL_FOREACH_SESSION_STATE(s, conn)
+        {
             __txn_get_read_timestamp(s, &tmp_timestamp);
             if (tmp_timestamp != WT_TS_NONE && tmp_timestamp >= ts) {
                 __wt_err(session, EINVAL,
@@ -479,6 +474,7 @@ __txn_assert_after_reads(WT_SESSION_IMPL *session, const char *op, wt_timestamp_
                 /* NOTREACHED */
             }
         }
+        WT_TXN_GLOBAL_FOREACH_SESSION_STATE_END;
         __wt_readunlock(session, &txn_global->rwlock);
     } else {
         WT_UNUSED(session);
