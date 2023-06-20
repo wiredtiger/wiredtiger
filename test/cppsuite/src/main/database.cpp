@@ -59,6 +59,25 @@ database::add_collection(uint64_t key_count)
       tracking_operation::CREATE_COLLECTION, next_id, _tsm->get_next_ts());
 }
 
+void
+database::remove_random_collection(const std::string& cfg)
+{
+    std::lock_guard<std::mutex> lg(_mtx);
+    if (_session.get() == nullptr)
+        _session = connection_manager::instance().create_session();
+    if (_collections.empty())
+        testutil_die(EINVAL, "The database is empty.");
+
+    auto it = _collections.begin();
+    std::advance(it, rand() % _collections.size());
+    auto &coll = it->second;
+
+    testutil_check(_session->drop(_session.get(), coll.name.c_str(), cfg.c_str()));
+    _collections.erase(coll.id);
+    _operation_tracker->save_schema_operation(
+      tracking_operation::DELETE_COLLECTION, coll.id, _tsm->get_next_ts());
+}
+
 collection &
 database::get_collection(uint64_t id)
 {

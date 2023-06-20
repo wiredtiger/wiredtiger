@@ -86,17 +86,10 @@ public:
 
         while (tw->running()) {
             if (tw->db.get_collection_count() != 0) {
-                auto &collection = tw->db.get_random_collection();
                 bool force = random_generator::instance().generate_bool();
-
                 std::string cfg = "force=";
                 cfg += force ? "true" : "false";
-
-                int ret;
-                while (ret = tw->session->drop(
-                               tw->session.get(), collection.name.c_str(), cfg.c_str()) == EBUSY)
-                    ;
-                testutil_assert(ret == 0 || ret == WT_NOTFOUND);
+                tw->db.remove_random_collection(cfg);
             }
             tw->sleep();
         }
