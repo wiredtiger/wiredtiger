@@ -1,0 +1,34 @@
+# Configuration for schema_sweep.
+duration_seconds=3600,
+cache_size_mb=250,
+workload_manager=
+(
+    checkpoint_config=
+    (
+        op_rate=5s,
+    ),
+    custom_config=
+    (
+        thread_count=1,
+        op_rate=30s,
+    ),
+    insert_config=
+    (
+        thread_count=10,
+        op_rate=10ms,
+    ),
+    populate_config=
+    (
+        collection_count=100,
+        thread_count=10,
+    ),
+    remove_config=
+    (
+        thread_count=10,
+        op_rate=10ms,
+    )
+),
+operation_tracker=
+(
+    enabled=false,
+)
