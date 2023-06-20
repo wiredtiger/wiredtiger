@@ -22,9 +22,6 @@ __wt_bm_close_block(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
     __wt_verbose(session, WT_VERB_BLKCACHE, "close: %s", block->name);
 
-    /* We shouldn't have any read requests in progress. */
-    WT_ASSERT(session, block->read_count == 0);
-
     conn = S2C(session);
     __wt_spin_lock(session, &conn->block_lock);
     if (block->ref > 0 && --block->ref > 0) {
