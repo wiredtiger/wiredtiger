@@ -258,11 +258,11 @@ methods = {
     'hs_cleanup' : Method(test_config),
     'operations_test' : Method(test_config),
     'reverse_split' : Method(test_config),
+    'schema_sweep' : Method(test_config),
     'search_near_01' : Method(test_config + [
         Config("search_near_threads", 10, r'''
         Number of threads that execute search near calls.''')]),
     'search_near_02' : Method(test_config),
     'search_near_03' : Method(test_config),
     'test_template' : Method(test_config),
-    'schema_sweep' : Method(test_config),
 }
