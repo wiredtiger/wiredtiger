@@ -60,7 +60,7 @@ database::add_collection(uint64_t key_count)
 }
 
 void
-database::remove_random_collection(const std::string& cfg)
+database::remove_random_collection(const std::string &cfg)
 {
     std::lock_guard<std::mutex> lg(_mtx);
     if (_session.get() == nullptr)

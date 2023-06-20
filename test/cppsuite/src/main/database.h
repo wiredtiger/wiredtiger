@@ -49,7 +49,7 @@ public:
     /* Add a new collection, this will create the underlying collection in the database. */
     void add_collection(uint64_t key_count = 0);
     /* Removes a random collection from the database. */
-    void remove_random_collection(const std::string& config);
+    void remove_random_collection(const std::string &config);
 
     /* Get a collection using the id of the collection. */
     collection &get_collection(uint64_t id);

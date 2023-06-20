@@ -34,8 +34,7 @@ namespace test_harness {
 
 /*
  * The intent of the test is to stress the code paths related to schema operations and dhandles
- * management.
- * This test keeps performing schema operations while reconfiguring the sweep server.
+ * management. This test keeps performing schema operations while reconfiguring the sweep server.
  */
 class schema_sweep : public test {
 public:
