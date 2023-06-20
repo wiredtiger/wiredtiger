@@ -91,8 +91,9 @@ class test_hs32(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri)
         for ts in range(1, 5):
             for i in range(1, self.nrows):
-                with self.transaction(commit_timestamp = ts):
-                    cursor[self.create_key(i)] = value1
+                self.session.begin_transaction()
+                cursor[self.create_key(i)] = value1
+                self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
 
         # Reconcile and flush versions 1-3 to the history store.
         self.session.checkpoint()
@@ -101,8 +102,9 @@ class test_hs32(wttest.WiredTigerTestCase):
         if self.long_run_txn:
             # Apply a another update at timestamp 5.
             for i in range(1, self.nrows):
-                with self.transaction(commit_timestamp = 5):
-                    cursor[self.create_key(i)] = value1
+                self.session.begin_transaction()
+                cursor[self.create_key(i)] = value1
+                self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(5))
 
             # Start a long running transaction to make tombstone not globally visible.
             session2 = self.conn.open_session()
@@ -110,7 +112,7 @@ class test_hs32(wttest.WiredTigerTestCase):
 
         # Apply an update/delete without timestamp.
         for i in range(1, self.nrows):
-            self.session.begin_transaction('no_timestamp=true')
+            self.session.begin_transaction()
             if i % 2 == 0:
                 if self.update_type == 'deletion':
                     cursor.set_key(self.create_key(i))
@@ -129,27 +131,29 @@ class test_hs32(wttest.WiredTigerTestCase):
 
         # Now apply an update at timestamp 10.
         for i in range(1, self.nrows):
-            with self.transaction(commit_timestamp = 10):
-                cursor[self.create_key(i)] = value2
+            self.session.begin_transaction()
+            cursor[self.create_key(i)] = value2
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
 
         self.session.checkpoint()
 
         # Ensure that we blew away history store content.
         for ts in range(1, 5):
-            with self.transaction(read_timestamp = ts, rollback = True):
-                for i in range(1, self.nrows):
-                    if i % 2 == 0:
-                        if self.update_type == 'deletion':
-                            cursor.set_key(self.create_key(i))
-                            if self.value_format == '8t':
-                                self.assertEqual(cursor.search(), 0)
-                                self.assertEqual(cursor.get_value(), 0)
-                            else:
-                                self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+            self.session.begin_transaction('read_timestamp=' + self.timestamp_str(ts))
+            for i in range(1, self.nrows):
+                if i % 2 == 0:
+                    if self.update_type == 'deletion':
+                        cursor.set_key(self.create_key(i))
+                        if self.value_format == '8t':
+                            self.assertEqual(cursor.search(), 0)
+                            self.assertEqual(cursor.get_value(), 0)
                         else:
-                            self.assertEqual(cursor[self.create_key(i)], value2)
+                            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
                     else:
-                        self.assertEqual(cursor[self.create_key(i)], value1)
+                        self.assertEqual(cursor[self.create_key(i)], value2)
+                else:
+                    self.assertEqual(cursor[self.create_key(i)], value1)
+            self.session.rollback_transaction()
 
         if self.update_type == 'deletion':
             cache_hs_key_truncate = self.get_stat(stat.conn.cache_hs_key_truncate)
