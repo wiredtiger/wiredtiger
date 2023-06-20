@@ -98,13 +98,13 @@ collection &
 database::get_random_collection()
 {
     std::lock_guard<std::mutex> lg(_mtx);
-    size_t collection_count = get_collection_count();
+    size_t collection_count = _collections.size();
 
     /* Any caller should expect at least one collection to exist. */
     testutil_assert(collection_count != 0);
 
     auto it = _collections.begin();
-    std::advance(it, rand() % _collections.size());
+    std::advance(it, rand() % collection_count);
     return it->second;
 }
 
