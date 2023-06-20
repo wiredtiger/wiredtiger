@@ -72,11 +72,15 @@ database::get_collection(uint64_t id)
 collection &
 database::get_random_collection()
 {
+    std::lock_guard<std::mutex> lg(_mtx);
     size_t collection_count = get_collection_count();
+
     /* Any caller should expect at least one collection to exist. */
     testutil_assert(collection_count != 0);
-    return (get_collection(
-      random_generator::instance().generate_integer<uint64_t>(0, collection_count - 1)));
+
+    auto it = _collections.begin();
+    std::advance(it, rand() % _collections.size());
+    return it->second;
 }
 
 uint64_t
