@@ -124,10 +124,11 @@ run(CONFIG *cp, int bigkey, size_t bytes)
     cursor->set_value(cursor, big);
 
     /*
-     * This test inserts very large single updates and a single page can hit eviction thresholds by itself.
-     * Auto-transactions leave the cursor positioned on the page which pins it and preventing eviction after committing.
-     * This can lead to a case where the transaction blocks on attempting to evict the same page it is pinning.
-     * Use an explicit transaction here to ensure we can reset the cursor and unpin the page.
+     * This test inserts very large single updates and a single page can hit eviction thresholds by
+     * itself. Auto-transactions leave the cursor positioned on the page which pins it and
+     * preventing eviction after committing. This can lead to a case where the transaction blocks on
+     * attempting to evict the same page it is pinning. Use an explicit transaction here to ensure
+     * we can reset the cursor and unpin the page.
      */
     testutil_check(session->begin_transaction(session, NULL));
 
