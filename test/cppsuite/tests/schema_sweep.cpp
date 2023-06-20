@@ -70,8 +70,10 @@ public:
     {
         auto max_coll_count = 1000;
         while (tw->running()) {
-            if (tw->db.get_collection_count() < max_coll_count)
-                tw->db.add_collection();
+            if (tw->db.get_collection_count() < max_coll_count) {
+                auto session = connection_manager::instance().create_session();
+                tw->db.add_collection(session);
+            }
             tw->sleep();
         }
     }
