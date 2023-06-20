@@ -80,7 +80,7 @@ database::remove_random_collection(const std::string &cfg)
 
     int ret;
     /* We can get EBUSY if something is referencing the collection. */
-    while (ret = _session->drop(_session.get(), coll.name.c_str(), cfg.c_str()) == EBUSY)
+    while ((ret = _session->drop(_session.get(), coll.name.c_str(), cfg.c_str())) == EBUSY)
         ;
     testutil_check(ret);
     _collections.erase(coll.id);
