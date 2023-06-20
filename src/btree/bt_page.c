@@ -345,7 +345,8 @@ __wt_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, size_t
         *preparedp = false;
 
     dsk = image;
-    alloc_entries = size = 0;
+    alloc_entries = 0;
+    size = 0;
 
     /*
      * Figure out how many underlying objects the page references so we can allocate them along with
