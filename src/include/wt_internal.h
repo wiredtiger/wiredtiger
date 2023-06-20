@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ * 	All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -111,6 +111,14 @@ struct __wt_cell_unpack_common;
 typedef struct __wt_cell_unpack_common WT_CELL_UNPACK_COMMON;
 struct __wt_cell_unpack_kv;
 typedef struct __wt_cell_unpack_kv WT_CELL_UNPACK_KV;
+struct __wt_chunkcache;
+typedef struct __wt_chunkcache WT_CHUNKCACHE;
+struct __wt_chunkcache_bucket;
+typedef struct __wt_chunkcache_bucket WT_CHUNKCACHE_BUCKET;
+struct __wt_chunkcache_chunk;
+typedef struct __wt_chunkcache_chunk WT_CHUNKCACHE_CHUNK;
+struct __wt_chunkcache_hashid;
+typedef struct __wt_chunkcache_hashid WT_CHUNKCACHE_HASHID;
 struct __wt_ckpt;
 typedef struct __wt_ckpt WT_CKPT;
 struct __wt_ckpt_snapshot;
@@ -337,6 +345,8 @@ struct __wt_size;
 typedef struct __wt_size WT_SIZE;
 struct __wt_spinlock;
 typedef struct __wt_spinlock WT_SPINLOCK;
+struct __wt_split_page_hist;
+typedef struct __wt_split_page_hist WT_SPLIT_PAGE_HIST;
 struct __wt_stash;
 typedef struct __wt_stash WT_STASH;
 struct __wt_table;
@@ -359,6 +369,8 @@ struct __wt_time_aggregate;
 typedef struct __wt_time_aggregate WT_TIME_AGGREGATE;
 struct __wt_time_window;
 typedef struct __wt_time_window WT_TIME_WINDOW;
+struct __wt_truncate_info;
+typedef struct __wt_truncate_info WT_TRUNCATE_INFO;
 struct __wt_txn;
 typedef struct __wt_txn WT_TXN;
 struct __wt_txn_global;
@@ -432,6 +444,7 @@ typedef uint64_t wt_timestamp_t;
 #include "api.h"
 #include "block.h"
 #include "block_cache.h"
+#include "block_chunkcache.h"
 #include "bloom.h"
 #include "btmem.h"
 #include "btree.h"
@@ -453,6 +466,7 @@ typedef uint64_t wt_timestamp_t;
 #include "schema.h"
 #include "thread_group.h"
 #include "tiered.h"
+#include "truncate.h"
 #include "txn.h"
 #include "verbose.h"
 

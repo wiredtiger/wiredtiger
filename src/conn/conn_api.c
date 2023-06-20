@@ -894,6 +894,9 @@ extern int zlib_extension_init(WT_CONNECTION *, WT_CONFIG_ARG *);
 #ifdef HAVE_BUILTIN_EXTENSION_ZSTD
 extern int zstd_extension_init(WT_CONNECTION *, WT_CONFIG_ARG *);
 #endif
+#ifdef HAVE_BUILTIN_EXTENSION_IAA
+extern int iaa_extension_init(WT_CONNECTION *, WT_CONFIG_ARG *);
+#endif
 
 /*
  * __conn_builtin_extensions --
@@ -913,6 +916,9 @@ __conn_builtin_extensions(WT_CONNECTION_IMPL *conn, const char *cfg[])
 #endif
 #ifdef HAVE_BUILTIN_EXTENSION_ZSTD
     WT_RET(__conn_builtin_init(conn, "zstd", zstd_extension_init, cfg));
+#endif
+#ifdef HAVE_BUILTIN_EXTENSION_IAA
+    WT_RET(__conn_builtin_init(conn, "iaa", iaa_extension_init, cfg));
 #endif
 
     /* Avoid warnings if no builtin extensions are configured. */
@@ -2102,6 +2108,12 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     else
         FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING);
 
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.tiered_flush_error_continue", &cval));
+    if (cval.val)
+        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE);
+    else
+        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE);
+
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.update_restore_evict", &cval));
     if (cval.val)
         FLD_SET(conn->debug_flags, WT_CONN_DEBUG_UPDATE_RESTORE_EVICT);
@@ -2159,12 +2171,13 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     static const WT_NAME_FLAG verbtypes[] = {{"api", WT_VERB_API}, {"backup", WT_VERB_BACKUP},
       {"block", WT_VERB_BLOCK}, {"block_cache", WT_VERB_BLKCACHE},
       {"checkpoint", WT_VERB_CHECKPOINT}, {"checkpoint_cleanup", WT_VERB_CHECKPOINT_CLEANUP},
-      {"checkpoint_progress", WT_VERB_CHECKPOINT_PROGRESS}, {"compact", WT_VERB_COMPACT},
-      {"compact_progress", WT_VERB_COMPACT_PROGRESS}, {"error_returns", WT_VERB_ERROR_RETURNS},
-      {"evict", WT_VERB_EVICT}, {"evict_stuck", WT_VERB_EVICT_STUCK},
-      {"evictserver", WT_VERB_EVICTSERVER}, {"fileops", WT_VERB_FILEOPS},
-      {"generation", WT_VERB_GENERATION}, {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG},
-      {"hs", WT_VERB_HS}, {"history_store_activity", WT_VERB_HS_ACTIVITY}, {"lsm", WT_VERB_LSM},
+      {"checkpoint_progress", WT_VERB_CHECKPOINT_PROGRESS}, {"chunkcache", WT_VERB_CHUNKCACHE},
+      {"compact", WT_VERB_COMPACT}, {"compact_progress", WT_VERB_COMPACT_PROGRESS},
+      {"error_returns", WT_VERB_ERROR_RETURNS}, {"evict", WT_VERB_EVICT},
+      {"evict_stuck", WT_VERB_EVICT_STUCK}, {"evictserver", WT_VERB_EVICTSERVER},
+      {"fileops", WT_VERB_FILEOPS}, {"generation", WT_VERB_GENERATION},
+      {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG}, {"hs", WT_VERB_HS},
+      {"history_store_activity", WT_VERB_HS_ACTIVITY}, {"lsm", WT_VERB_LSM},
       {"lsm_manager", WT_VERB_LSM_MANAGER}, {"metadata", WT_VERB_METADATA},
       {"mutex", WT_VERB_MUTEX}, {"out_of_order", WT_VERB_OUT_OF_ORDER},
       {"overflow", WT_VERB_OVERFLOW}, {"read", WT_VERB_READ}, {"reconcile", WT_VERB_RECONCILE},
@@ -2331,6 +2344,7 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
      * Fail points are also defined in this list and will occur randomly when enabled.
      */
     static const WT_NAME_FLAG stress_types[] = {
+      {"aggressive_stash_free", WT_TIMING_STRESS_AGGRESSIVE_STASH_FREE},
       {"aggressive_sweep", WT_TIMING_STRESS_AGGRESSIVE_SWEEP},
       {"backup_rename", WT_TIMING_STRESS_BACKUP_RENAME},
       {"checkpoint_evict_page", WT_TIMING_STRESS_CHECKPOINT_EVICT_PAGE},
@@ -2346,7 +2360,9 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
       {"history_store_checkpoint_delay", WT_TIMING_STRESS_HS_CHECKPOINT_DELAY},
       {"history_store_search", WT_TIMING_STRESS_HS_SEARCH},
       {"history_store_sweep_race", WT_TIMING_STRESS_HS_SWEEP},
+      {"prefix_compare", WT_TIMING_STRESS_PREFIX_COMPARE},
       {"prepare_checkpoint_delay", WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY},
+      {"prepare_resolution", WT_TIMING_STRESS_PREPARE_RESOLUTION},
       {"sleep_before_read_overflow_onpage", WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE},
       {"split_1", WT_TIMING_STRESS_SPLIT_1}, {"split_2", WT_TIMING_STRESS_SPLIT_2},
       {"split_3", WT_TIMING_STRESS_SPLIT_3}, {"split_4", WT_TIMING_STRESS_SPLIT_4},
@@ -2893,6 +2909,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_verbose_config(session, cfg, false));
     WT_ERR(__wt_timing_stress_config(session, cfg));
     WT_ERR(__wt_blkcache_setup(session, cfg, false));
+    WT_ERR(__wt_chunkcache_setup(session, cfg, false));
     WT_ERR(__wt_extra_diagnostics_config(session, cfg));
     WT_ERR(__wt_conn_optrack_setup(session, cfg, false));
     WT_ERR(__conn_session_size(session, cfg, &conn->session_size));
@@ -2940,6 +2957,10 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     if (cval.val)
         F_SET(conn, WT_CONN_CACHE_CURSORS);
 
+    WT_ERR(__wt_config_gets(session, cfg, "checkpoint_cleanup", &cval));
+    if (WT_STRING_MATCH("reclaim_space", cval.str, cval.len))
+        F_SET(conn, WT_CONN_CKPT_CLEANUP_SKIP_INT);
+
     WT_ERR(__wt_config_gets(session, cfg, "checkpoint_sync", &cval));
     if (cval.val)
         F_SET(conn, WT_CONN_CKPT_SYNC);
@@ -2974,6 +2995,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         } else
             WT_ERR_NOTFOUND_OK(ret, false);
     }
+
+    WT_ERR(__wt_config_gets(session, cfg, "generation_drain_timeout_ms", &cval));
+    conn->gen_drain_timeout_ms = (uint64_t)cval.val;
 
     WT_ERR(__wt_config_gets(session, cfg, "mmap", &cval));
     conn->mmap = cval.val != 0;

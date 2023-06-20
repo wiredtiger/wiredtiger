@@ -44,6 +44,36 @@ extern int __wt_optind;
 extern char *__wt_optarg;
 
 /*
+ * init_thread_data --
+ *     Initialize the thread data struct.
+ */
+static void
+init_thread_data(THREAD_DATA *td, int info)
+{
+    td->info = info;
+    /*
+     * For a predictable replay have a non-overlapping key space for each thread. Also divide the
+     * key range between the threads. Otherwise, share the key space among all the threads.
+     */
+    if (g.predictable_replay) {
+        td->start_key = (u_int)info * WT_MILLION + 1;
+        td->key_range = g.nkeys / (u_int)g.nworkers;
+    } else {
+        td->start_key = 1;
+        td->key_range = g.nkeys;
+    }
+
+    /*
+     * For a predictable replay the worker threads use a predetermined set of timestamps. They
+     * publish their most recently used timestamps for the clock thread to read across the workers
+     * to base their decision on.
+     */
+    td->ts = 0;
+    testutil_random_from_random(&td->data_rnd, &g.opts.data_rnd);
+    testutil_random_from_random(&td->extra_rnd, &g.opts.extra_rnd);
+}
+
+/*
  * main --
  *     TODO: Add a comment describing this function.
  */
@@ -51,8 +81,9 @@ int
 main(int argc, char *argv[])
 {
     table_type ttype;
-    int ch, cnt, i, ret, runs;
+    int base, ch, cnt, i, ret, runs;
     const char *config_open;
+    char *end_number, *stop_arg;
     bool verify_only;
 
     (void)testutil_set_progname(argv);
@@ -65,6 +96,7 @@ main(int argc, char *argv[])
     g.home = dmalloc(512);
     g.nkeys = 10 * WT_THOUSAND;
     g.nops = 100 * WT_THOUSAND;
+    g.stop_ts = 0;
     g.ntables = 3;
     g.nworkers = 1;
     g.evict_reposition_timing_stress = false;
@@ -74,13 +106,14 @@ main(int argc, char *argv[])
     g.hs_checkpoint_timing_stress = false;
     g.checkpoint_slow_timing_stress = false;
     g.no_ts_deletes = false;
+    g.predictable_replay = false;
     runs = 1;
     verify_only = false;
 
     testutil_parse_begin_opt(argc, argv, SHARED_PARSE_OPTIONS, &g.opts);
 
     while ((ch = __wt_getopt(
-              progname, argc, argv, "C:c:Dk:l:mn:pr:s:T:t:vW:xX" SHARED_PARSE_OPTIONS)) != EOF)
+              progname, argc, argv, "C:c:Dk:l:mn:pr:Rs:S:T:t:vW:xX" SHARED_PARSE_OPTIONS)) != EOF)
         switch (ch) {
         case 'c':
             g.checkpoint_name = __wt_optarg;
@@ -112,6 +145,9 @@ main(int argc, char *argv[])
         case 'r': /* runs */
             runs = atoi(__wt_optarg);
             break;
+        case 'R': /* predictable replay */
+            g.predictable_replay = true;
+            break;
         case 's':
             switch (__wt_optarg[0]) {
             case '1':
@@ -135,6 +171,17 @@ main(int argc, char *argv[])
             default:
                 return (usage());
             }
+            break;
+        case 'S': /* run until this stable timestamp */
+            stop_arg = __wt_optarg;
+            if (WT_PREFIX_MATCH(stop_arg, "0x")) {
+                base = 16;
+                stop_arg += 2;
+            } else
+                base = 10;
+            g.stop_ts = (uint64_t)strtoll(stop_arg, &end_number, base);
+            if (*end_number)
+                return (usage());
             break;
         case 't':
             switch (__wt_optarg[0]) {
@@ -182,6 +229,14 @@ main(int argc, char *argv[])
     if (argc != 0)
         return (usage());
 
+    if (g.stop_ts > 0 && (!g.predictable_replay || !g.use_timestamps)) {
+        fprintf(stderr, "-S is only valid if specified along with -X and -R.\n");
+        return (EXIT_FAILURE);
+    }
+
+    /*
+     * Among other things, this initializes the random number generators in the option structure.
+     */
     testutil_parse_end_opt(&g.opts);
     /* Clean up on signal. */
     (void)signal(SIGINT, onint);
@@ -193,6 +248,10 @@ main(int argc, char *argv[])
     g.ts_oldest = 1;
 
     printf("%s: process %" PRIu64 "\n", progname, (uint64_t)getpid());
+    if (g.predictable_replay)
+        printf("Config to seed for replay: " TESTUTIL_SEED_FORMAT "\n", g.opts.data_seed,
+          g.opts.extra_seed);
+
     for (cnt = 1; (runs == 0 || cnt <= runs) && g.status == 0; ++cnt) {
         cleanup(cnt == 1 && !verify_only); /* Clean up previous runs */
 
@@ -213,9 +272,24 @@ main(int argc, char *argv[])
                     g.cookies[i].type = ROW;
             } else
                 g.cookies[i].type = ttype;
-            testutil_check(__wt_snprintf(
-              g.cookies[i].uri, sizeof(g.cookies[i].uri), "%s%04d", URI_BASE, g.cookies[i].id));
+            testutil_snprintf(
+              g.cookies[i].uri, sizeof(g.cookies[i].uri), "%s%04d", URI_BASE, g.cookies[i].id);
         }
+
+        /*
+         * Setup thread data. There are N worker threads, a checkpoint thread and possibly a clock
+         * thread. The workers have ID 0 to N-1, checkpoint thread has N, and the clock thread has N
+         * + 1.
+         */
+        if ((g.td = calloc((size_t)(g.nworkers + 2), sizeof(THREAD_DATA))) == NULL) {
+            (void)log_print_err("No memory", ENOMEM, 1);
+            break;
+        }
+        for (i = 0; i < g.nworkers; ++i)
+            init_thread_data(&g.td[i], i);
+        init_thread_data(&g.td[g.nworkers], g.nworkers); /* Checkpoint thread. */
+        if (g.use_timestamps)
+            init_thread_data(&g.td[g.nworkers + 1], g.nworkers + 1); /* Clock thread. */
 
         g.opts.running = true;
 
@@ -245,6 +319,8 @@ main(int argc, char *argv[])
 run_complete:
         free(g.cookies);
         g.cookies = NULL;
+        free(g.td);
+        g.td = NULL;
         if ((ret = wt_shutdown()) != 0) {
             (void)log_print_err("Shutdown failed", ret, 1);
             break;
@@ -271,7 +347,6 @@ static void
 wt_connect(const char *config_open)
 {
     static WT_EVENT_HANDLER event_handler = {handle_error, handle_message, NULL, NULL, NULL};
-    WT_RAND_STATE rnd;
     char buf[512], config[1024];
     bool fast_eviction;
 
@@ -280,23 +355,22 @@ wt_connect(const char *config_open)
     /*
      * Randomly decide on the eviction rate (fast or default).
      */
-    __wt_random_init_seed(NULL, &rnd);
-    if ((__wt_random(&rnd) % 15) % 2 == 0)
+    if ((__wt_random(&g.opts.extra_rnd) % 15) % 2 == 0)
         fast_eviction = true;
 
     /* Set up the basic configuration string first. */
-    testutil_check(__wt_snprintf(config, sizeof(config),
+    testutil_snprintf(config, sizeof(config),
       "create,cache_cursors=false,statistics=(all),statistics_log=(json,on_close,wait=1),log=("
       "enabled),"
       "error_prefix=\"%s\",cache_size=1G, eviction_dirty_trigger=%i, "
       "eviction_dirty_target=%i,%s%s%s",
       progname, fast_eviction ? 5 : 20, fast_eviction ? 1 : 5, g.debug_mode ? DEBUG_MODE_CFG : "",
-      config_open == NULL ? "" : ",", config_open == NULL ? "" : config_open));
+      config_open == NULL ? "" : ",", config_open == NULL ? "" : config_open);
 
     if (g.evict_reposition_timing_stress || g.sweep_stress ||
       g.failpoint_eviction_fail_after_reconciliation || g.failpoint_hs_delete_key_from_ts ||
       g.hs_checkpoint_timing_stress || g.checkpoint_slow_timing_stress) {
-        testutil_check(__wt_snprintf(buf, sizeof(buf), ",timing_stress_for_test=[%s%s%s%s%s%s]",
+        testutil_snprintf(buf, sizeof(buf), ",timing_stress_for_test=[%s%s%s%s%s%s]",
           g.checkpoint_slow_timing_stress ? "checkpoint_slow" : "",
           g.evict_reposition_timing_stress ? "evict_reposition" : "",
           g.failpoint_eviction_fail_after_reconciliation ?
@@ -304,7 +378,7 @@ wt_connect(const char *config_open)
             "",
           g.failpoint_hs_delete_key_from_ts ? "failpoint_history_store_delete_key_from_ts" : "",
           g.hs_checkpoint_timing_stress ? "history_store_checkpoint_delay" : "",
-          g.sweep_stress ? "aggressive_sweep" : ""));
+          g.sweep_stress ? "aggressive_sweep" : "");
         strcat(config, buf);
     }
 
@@ -318,8 +392,8 @@ wt_connect(const char *config_open)
      * If we are using tiered add in the extension and tiered storage configuration.
      */
     if (g.opts.tiered_storage) {
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/bucket", g.home));
-        testutil_make_work_dir(buf);
+        testutil_snprintf(buf, sizeof(buf), "%s/bucket", g.home);
+        testutil_recreate_dir(buf);
     }
 
     printf("WT open config: %s\n", config);
@@ -331,7 +405,7 @@ wt_connect(const char *config_open)
         g.opts.conn = g.conn;
 
         /* Set up a random delay for the first flush. */
-        set_flush_tier_delay(&rnd);
+        set_flush_tier_delay(&g.opts.extra_rnd);
         testutil_tiered_begin(&g.opts);
     }
 }
@@ -368,7 +442,7 @@ cleanup(bool remove_dir)
     g.ntables_created = 0;
 
     if (remove_dir)
-        testutil_make_work_dir(g.home);
+        testutil_recreate_dir(g.home);
 }
 
 /*
@@ -601,8 +675,9 @@ usage(void)
 {
     fprintf(stderr,
       "usage: %s\n"
-      "    [-DmpvXx] [-C wiredtiger-config] [-c checkpoint] [-h home] [-k keys] [-l log]\n"
-      "    [-n ops] [-r runs] [-s 1|2|3|4|5] [-T table-config] [-t f|r|v] [-W workers]\n",
+      "    [-DmpRvXx] [-C wiredtiger-config] [-c checkpoint] [-h home] [-k keys] [-l log]\n"
+      "    [-n ops] [-r runs] [-s 1|2|3|4|5] [-T table-config] [-t f|r|v]\n"
+      "    [-W workers]\n",
       progname);
     fprintf(stderr, "%s",
       "\t-C specify wiredtiger_open configuration arguments\n"
@@ -615,7 +690,9 @@ usage(void)
       "\t-n set number of operations each thread does\n"
       "\t-p use prepare\n"
       "\t-r set number of runs (0 for continuous)\n"
+      "\t-R configure predictable replay\n"
       "\t-s specify which timing stress configuration to use ( 1 | 2 | 3 | 4 | 5 )\n"
+      "\t-S set a stable timestamp to stop the test run\n"
       "\t\t1: sweep_stress\n"
       "\t\t2: failpoint_hs_delete_key_from_ts\n"
       "\t\t3: hs_checkpoint_timing_stress\n"

@@ -159,6 +159,8 @@ __compact_handle_append(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_UNUSED(cfg);
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+
     WT_RET(__wt_session_get_dhandle(session, session->dhandle->name, NULL, NULL, 0));
 
     /* Set compact active on the handle. */
@@ -258,6 +260,8 @@ __compact_worker(WT_SESSION_IMPL *session)
                 continue;
 
             __wt_timing_stress(session, WT_TIMING_STRESS_COMPACT_SLOW, NULL);
+            __wt_verbose_debug2(
+              session, WT_VERB_COMPACT, "%s: compact pass %u", session->op_handle[i]->name, loop);
 
             session->compact_state = WT_COMPACT_RUNNING;
             WT_WITH_DHANDLE(session, session->op_handle[i], ret = __wt_compact(session));
@@ -331,6 +335,8 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
     SESSION_API_CALL(session, compact, config, cfg);
 
     WT_STAT_CONN_SET(session, session_table_compact_running, 1);
+
+    __wt_verbose_debug1(session, WT_VERB_COMPACT, "Compacting %s", uri);
 
     /*
      * The compaction thread should not block when the cache is full: it is holding locks blocking

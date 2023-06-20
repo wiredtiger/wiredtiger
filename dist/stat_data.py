@@ -64,6 +64,10 @@ class CheckpointCleanupStat(Stat):
     prefix = 'checkpoint-cleanup'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, CheckpointCleanupStat.prefix, desc, flags)
+class ChunkCacheStat(Stat):
+    prefix = 'chunk-cache'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, ChunkCacheStat.prefix, desc, flags)
 class CompressStat(Stat):
     prefix = 'compression'
     def __init__(self, name, desc, flags=''):
@@ -141,6 +145,7 @@ groups['evict'] = [
     BlockStat.prefix,
     CacheStat.prefix,
     CacheWalkStat.prefix,
+    ChunkCacheStat.prefix,
     ConnStat.prefix,
     ThreadStat.prefix
 ]
@@ -186,7 +191,7 @@ conn_stats = [
     ConnStat('write_io', 'total write I/Os'),
 
     ##########################################
-    # Block manager statistics
+    # Block cache statistics
     ##########################################
     BlockCacheStat('block_cache_blocks', 'total blocks'),
     BlockCacheStat('block_cache_blocks_evicted', 'evicted blocks'),
@@ -257,6 +262,7 @@ conn_stats = [
     CacheStat('cache_eviction_force_dirty_time', 'forced eviction - pages evicted that were dirty time (usecs)'),
     CacheStat('cache_eviction_force_fail', 'forced eviction - pages selected unable to be evicted count'),
     CacheStat('cache_eviction_force_fail_time', 'forced eviction - pages selected unable to be evicted time'),
+    CacheStat('cache_eviction_force_no_retry', 'forced eviction - do not retry count to evict pages selected to evict during reconciliation'),
     CacheStat('cache_eviction_force_hs', 'forced eviction - history store pages selected while session has history store cursor open'),
     CacheStat('cache_eviction_force_hs_fail', 'forced eviction - history store pages failed to evict while session has history store cursor open'),
     CacheStat('cache_eviction_force_hs_success', 'forced eviction - history store pages successfully evicted while session has history store cursor open'),
@@ -269,7 +275,7 @@ conn_stats = [
     CacheStat('cache_eviction_internal_pages_queued', 'internal pages queued for eviction'),
     CacheStat('cache_eviction_internal_pages_seen', 'internal pages seen by eviction walk'),
     CacheStat('cache_eviction_maximum_page_size', 'maximum page size seen at eviction', 'no_clear,no_scale,size'),
-    CacheStat('cache_eviction_maximum_seconds', 'maximum seconds spent at a single eviction', 'no_clear,no_scale,size'),
+    CacheStat('cache_eviction_maximum_milliseconds', 'maximum milliseconds spent at a single eviction', 'no_clear,no_scale,size'),
     CacheStat('cache_eviction_pages_already_queued', 'pages seen by eviction walk that are already queued'),
     CacheStat('cache_eviction_pages_in_parallel_with_checkpoint', 'pages evicted in parallel with checkpoint'),
     CacheStat('cache_eviction_pages_queued', 'pages queued for eviction'),
@@ -301,6 +307,7 @@ conn_stats = [
     CacheStat('cache_hazard_walks', 'hazard pointer check entries walked'),
     CacheStat('cache_hs_ondisk', 'history store table on-disk size', 'no_clear,no_scale,size'),
     CacheStat('cache_hs_ondisk_max', 'history store table max on-disk size', 'no_clear,no_scale,size'),
+    CacheStat('cache_reentry_hs_eviction_milliseconds', 'total milliseconds spent inside reentrant history store evictions in a reconciliation', 'no_clear,no_scale,size'),
     CacheStat('cache_overhead', 'percentage overhead', 'no_clear,no_scale'),
     CacheStat('cache_pages_dirty', 'tracked dirty pages in the cache', 'no_clear,no_scale'),
     CacheStat('cache_pages_inuse', 'pages currently held in the cache', 'no_clear,no_scale'),
@@ -327,6 +334,21 @@ conn_stats = [
     CapacityStat('fsync_all_fh', 'background fsync file handles synced'),
     CapacityStat('fsync_all_fh_total', 'background fsync file handles considered'),
     CapacityStat('fsync_all_time', 'background fsync time (msecs)', 'no_clear,no_scale'),
+
+    ##########################################
+    # Chunk cache statistics
+    ##########################################
+    ChunkCacheStat('chunk_cache_bytes_inuse', 'total bytes used by the cache'),
+    ChunkCacheStat('chunk_cache_chunks_inuse', 'total chunks held by the chunk cache'),
+    ChunkCacheStat('chunk_cache_chunks_evicted', 'chunks evicted'),
+    ChunkCacheStat('chunk_cache_exceeded_capacity', 'could not allocate due to exceeding capacity'),
+    ChunkCacheStat('chunk_cache_io_failed', 'number of times a read from storage failed'),
+    ChunkCacheStat('chunk_cache_lookups', 'lookups'),
+    ChunkCacheStat('chunk_cache_misses', 'number of misses'),
+    ChunkCacheStat('chunk_cache_retries', 'retried accessing a chunk while I/O was in progress'),
+    ChunkCacheStat('chunk_cache_spans_chunks_read', 'aggregate number of spanned chunks on read'),
+    ChunkCacheStat('chunk_cache_spans_chunks_remove', 'aggregate number of spanned chunks on remove'),
+    ChunkCacheStat('chunk_cache_toomany_retries', 'timed out due to too many retries'),
 
     ##########################################
     # Cursor operations
@@ -503,9 +525,9 @@ conn_stats = [
     ##########################################
     # Reconciliation statistics
     ##########################################
-    RecStat('rec_maximum_hs_wrapup_seconds', 'maximum seconds spent in moving updates to the history store in a reconciliation', 'no_clear,no_scale,size'),
-    RecStat('rec_maximum_image_build_seconds', 'maximum seconds spent in building a disk image in a reconciliation', 'no_clear,no_scale,size'),
-    RecStat('rec_maximum_seconds', 'maximum seconds spent in a reconciliation call', 'no_clear,no_scale,size'),
+    RecStat('rec_maximum_hs_wrapup_milliseconds', 'maximum milliseconds spent in moving updates to the history store in a reconciliation', 'no_clear,no_scale,size'),
+    RecStat('rec_maximum_image_build_milliseconds', 'maximum milliseconds spent in building a disk image in a reconciliation', 'no_clear,no_scale,size'),
+    RecStat('rec_maximum_milliseconds', 'maximum milliseconds spent in a reconciliation call', 'no_clear,no_scale,size'),
     RecStat('rec_overflow_key_leaf', 'leaf-page overflow keys'),
     RecStat('rec_pages_with_prepare', 'page reconciliation calls that resulted in values with prepared transaction metadata'),
     RecStat('rec_pages_with_ts', 'page reconciliation calls that resulted in values with timestamps'),
@@ -684,6 +706,7 @@ dsrc_stats = [
     BtreeStat('btree_column_variable', 'column-store variable-size leaf pages', 'no_scale,tree_walk'),
     BtreeStat('btree_compact_pages_reviewed', 'btree compact pages reviewed', 'no_clear,no_scale'),
     BtreeStat('btree_compact_pages_rewritten', 'btree compact pages rewritten', 'no_clear,no_scale'),
+    BtreeStat('btree_compact_pages_rewritten_expected', 'btree expected number of compact pages rewritten', 'no_clear,no_scale'),
     BtreeStat('btree_compact_pages_skipped', 'btree compact pages skipped', 'no_clear,no_scale'),
     BtreeStat('btree_compact_skipped', 'btree skipped by compaction as process would not reduce size', 'no_clear,no_scale'),
     BtreeStat('btree_entries', 'number of key/value pairs', 'no_scale,tree_walk'),
@@ -992,6 +1015,7 @@ conn_dsrc_stats = [
     # Transaction statistics
     ##########################################
     TxnStat('txn_checkpoint_obsolete_applied', 'transaction checkpoints due to obsolete pages'),
+    TxnStat('txn_checkpoint_snapshot_acquired', 'checkpoint has acquired a snapshot for its transaction'),
     TxnStat('txn_read_overflow_remove', 'number of times overflow removed value is read'),
     TxnStat('txn_read_race_prepare_update', 'race to read prepared update retry'),
     TxnStat('txn_rts_delete_rle_skipped', 'rollback to stable skipping delete rle'),

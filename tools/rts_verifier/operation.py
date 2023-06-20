@@ -2,7 +2,7 @@
 
 import os, re
 
-from basic_types import PrepareState, Timestamp, UpdateType
+from basic_types import PrepareState, Timestamp, UpdateType, PageType
 from enum import Enum
 
 class OpType(Enum):
@@ -38,6 +38,19 @@ class OpType(Enum):
     HS_TRUNCATED = 29
     SHUTDOWN_RTS = 30
     END = 31
+    HS_TREE_FINAL_PASS = 32
+    HS_TRUNCATING = 33
+    HS_UPDATE_REMOVE = 34
+    INSERT_LIST_CHECK = 35
+    INSERT_LIST_UPDATE_ABORT = 36
+    ONDISK_ABORT_CHECK = 37
+    ONDISK_KV_FIX = 38
+    PAGE_DELETE = 39
+    PAGE_UNSKIPPED = 40
+    STABLE_UPDATE_FOUND = 41
+    TREE_OBJECT_LOG = 42
+    UPDATE_CHAIN_VERIFY = 43
+    SKIP_DEL = 44
 
 class Operation:
     def __init__(self, line):
@@ -84,7 +97,7 @@ class Operation:
             matches = re.search(f'{prefix}=(0x[A-Za-z0-9]+)', line)
 
         if matches is None:
-            raise Exception("failed to parse address string")
+            raise Exception(f"failed to parse address string with prefix '{prefix}' in '{line}'")
 
         return int(matches.group(1), 16)
 
@@ -118,9 +131,6 @@ class Operation:
         matches = re.search('has_prepared_updates=(\w+)', line)
         self.has_prepared_updates = matches.group(1).lower() == "true"
 
-        matches = re.search('durable_timestamp_not_found=(\w+)', line)
-        self.durable_ts_not_found = matches.group(1).lower() == "true"
-
         matches = re.search('txnid=(\d+).*>.*recovery_checkpoint_snap_min=(\d+): (\w+)', line)
         self.txnid = int(matches.group(1))
         self.recovery_ckpt_snap_min = int(matches.group(2))
@@ -143,6 +153,9 @@ class Operation:
 
         matches = re.search('modified=(\w+)', line)
         self.modified = matches.group(1).lower() == "true"
+
+        matches = re.search('page of type= (\w+)', line)
+        self.page_type = PageType[matches.group(1)]
 
     def __init_update_abort(self, line):
         self.type = OpType.UPDATE_ABORT
@@ -234,6 +247,11 @@ class Operation:
 
         matches = re.search('txnid=(\d+)', line)
         self.txnid = int(matches.group(1))
+
+    def __init_skip_del(self, line):
+        self.type = OpType.SKIP_DEL
+        self.file = self.__extract_file(line)
+        self.ref = self.__extract_pointer('ref', line)
 
     def __init_skip_del_null(self, line):
         self.type = OpType.SKIP_DEL_NULL
@@ -448,6 +466,93 @@ class Operation:
 
         self.stable = self.__extract_simple_timestamp('stable_timestamp', line)
 
+    def __init_hs_tree_final_pass(self, line):
+        self.type = OpType.HS_TREE_FINAL_PASS
+        self.rollback = self.__extract_simple_timestamp('rollback_timestamp', line)
+
+    def __init_hs_truncating(self, line):
+        self.type = OpType.HS_TRUNCATING
+        matches = re.search('truncating history store entries for tree with id=(\d+)', line)
+        self.btree_id = int(matches.group(1))
+
+    def __init_hs_update_remove(self, line):
+        self.type = OpType.HS_UPDATE_REMOVE
+        self.stop = self.__extract_simple_timestamp('stop_timestamp', line)
+        self.stable = self.__extract_simple_timestamp('stable_timestamp', line)
+
+        matches = re.search('time_window=start: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+) stop: \((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+)', line)
+
+        start_start = int(matches.group(1))
+        start_end = int(matches.group(2))
+        self.start = Timestamp(start_start, start_end)
+        durable_start_start = int(matches.group(3))
+        durable_start_end = int(matches.group(4))
+        self.durable_start = Timestamp(durable_start_start, durable_start_end)
+        self.start_txn = int(matches.group(5))
+
+    def __init_insert_list_check(self, line):
+        self.type = OpType.INSERT_LIST_CHECK
+        self.rollback = self.__extract_simple_timestamp('rollback_timestamp', line)
+
+    def __init_insert_list_update_abort(self, line):
+        self.type = OpType.INSERT_LIST_UPDATE_ABORT
+        self.durable = self.__extract_simple_timestamp('durable_timestamp', line)
+
+        matches = re.search('key=(\d+)', line)
+        self.key = int(matches.group(1))
+
+    def __init_ondisk_abort_check(self, line):
+        self.type = OpType.ONDISK_ABORT_CHECK
+        self.rollback = self.__extract_simple_timestamp('rollback_timestamp', line)
+
+        matches = re.search('key=(\d+)', line)
+
+        if matches != None:
+            self.key = int(matches.group(1))
+        else:
+            self.key = None
+
+    def __init_ondisk_kv_fix(self, line):
+        self.type = OpType.ONDISK_KV_FIX
+        self.rollback = self.__extract_simple_timestamp('rollback_timestamp', line)
+
+    def __init_page_delete(self, line):
+        self.type = OpType.PAGE_DELETE
+        self.commit = self.__extract_simple_timestamp('commit_timestamp', line)
+        self.durable = self.__extract_simple_timestamp('durable_timestamp', line)
+        self.rollback = self.__extract_simple_timestamp('rollback_timestamp', line)
+
+        matches = re.search('txnid=(\d+)', line)
+        self.txnid = int(matches.group(1))
+
+    def __init_page_unskipped(self, line):
+        self.type = OpType.PAGE_UNSKIPPED
+        self.addr = self.__extract_pointer('ref', line)
+
+        matches = re.search('reconciled info=(\d+)', line)
+        self.reconcile = int(matches.group(1))
+
+    def __init_stable_update_found(self, line):
+        self.type = OpType.STABLE_UPDATE_FOUND
+
+        matches = re.search('txnid=(\d+)', line)
+        self.txnid = int(matches.group(1))
+
+        self.start = self.__extract_simple_timestamp('stable_timestamp', line)
+        self.durable = self.__extract_simple_timestamp('durable_timestamp', line)
+
+    def __init_tree_object_log(self, line):
+        self.type = OpType.TREE_OBJECT_LOG
+
+        matches = re.search('rollback_txnid=(\d+)', line)
+        self.rollback_txnid= int(matches.group(1))
+
+        self.durable = self.__extract_simple_timestamp('newest_start_durable_timestamp', line)
+
+    def __init_update_chain_verify(self, line):
+        self.type = OpType.UPDATE_CHAIN_VERIFY
+        self.rollback = self.__extract_simple_timestamp('rollback_timestamp', line)
+
     def __init_hs_restore_tombstone(self, line):
         self.type = OpType.HS_RESTORE_TOMBSTONE
         self.file = self.__extract_file(line)
@@ -472,7 +577,6 @@ class Operation:
 
         matches = re.search('btree=(\d+)', line)
         self.btree_id = int(matches.group(1))
-
 
     def __init_end(self, line):
         self.type = OpType.END

@@ -29,6 +29,8 @@
 #include "format.h"
 
 #define SNAP_LIST_SIZE 512
+#define TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION \
+    "oldest pinned transaction ID rolled back for eviction"
 
 /*
  * snap_init --
@@ -297,11 +299,11 @@ snap_verify_callback(WT_CURSOR *cursor, int ret, void *arg)
         if (snap->op == REMOVE)
             strcpy(snap_buf, "remove");
         else
-            testutil_check(__wt_snprintf(snap_buf, sizeof(snap_buf), "0x%02x", (u_int)snap->bitv));
+            testutil_snprintf(snap_buf, sizeof(snap_buf), "0x%02x", (u_int)snap->bitv);
         if (ret == WT_NOTFOUND)
             strcpy(ret_buf, "notfound");
         else
-            testutil_check(__wt_snprintf(ret_buf, sizeof(ret_buf), "0x%02x", (u_int)bitv));
+            testutil_snprintf(ret_buf, sizeof(ret_buf), "0x%02x", (u_int)bitv);
         fprintf(stderr, "snapshot-isolation: %" PRIu64 " search: expected {%s}, found {%s}\n",
           keyno, snap_buf, ret_buf);
         break;
@@ -631,9 +633,11 @@ snap_repeat(TINFO *tinfo, SNAP_OPS *snap)
 {
     WT_DECL_RET;
     WT_SESSION *session;
+    const char *rollback_reason;
 #define MAX_RETRY_ON_ROLLBACK WT_THOUSAND
     u_int max_retry;
 
+    rollback_reason = NULL;
     session = tinfo->session;
 
     /* Start a transaction with a read-timestamp and verify the record. */
@@ -657,11 +661,24 @@ snap_repeat(TINFO *tinfo, SNAP_OPS *snap)
             break;
         testutil_assertfmt(ret == WT_ROLLBACK, "operation failed: %d", ret);
 
+        rollback_reason = session->get_rollback_reason(session);
+
         testutil_check(session->rollback_transaction(session, NULL));
     }
-    testutil_assert(max_retry < MAX_RETRY_ON_ROLLBACK);
 
-    testutil_check(session->rollback_transaction(session, NULL));
+    /*
+     * If we have a long running checkpoint, it may block eviction for an excessive amount of time.
+     * This would cause the snapshot read to rollback even we retry many times. Give up and ignore
+     * this case.
+     */
+    if (max_retry >= MAX_RETRY_ON_ROLLBACK && rollback_reason != NULL &&
+      strcmp(rollback_reason, TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION) == 0)
+        WARN(
+          "%s: %s", "snap repeat exceeds maximum retry", TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION);
+    else {
+        testutil_assert(max_retry < MAX_RETRY_ON_ROLLBACK);
+        testutil_check(session->rollback_transaction(session, NULL));
+    }
 }
 
 /*
@@ -735,8 +752,8 @@ snap_repeat_rollback(WT_SESSION *session, TINFO **tinfo_array, size_t tinfo_coun
                     snap_repeat(tinfo, snap);
                     ++count;
                     if (count % 100 == 0) {
-                        testutil_check(__wt_snprintf(
-                          buf, sizeof(buf), "rollback_to_stable: %" PRIu32 " ops repeated", count));
+                        testutil_snprintf(
+                          buf, sizeof(buf), "rollback_to_stable: %" PRIu32 " ops repeated", count);
                         track(buf, 0ULL);
                     }
                 }
@@ -748,7 +765,6 @@ snap_repeat_rollback(WT_SESSION *session, TINFO **tinfo_array, size_t tinfo_coun
     }
 
     /* Show the final result. */
-    testutil_check(
-      __wt_snprintf(buf, sizeof(buf), "rollback_to_stable: %" PRIu32 " ops repeated", count));
+    testutil_snprintf(buf, sizeof(buf), "rollback_to_stable: %" PRIu32 " ops repeated", count);
     track(buf, 0ULL);
 }

@@ -129,6 +129,10 @@ CONFIG configuration_list[] = {
 
 {"cache.evict_max", "maximum number of eviction workers", 0x0, 0, 5, 100}
 
+{"cache.eviction_dirty_target", "dirty content target for eviction", C_IGNORE, 0, 0, 100}
+
+{"cache.eviction_dirty_trigger", "dirty content trigger for eviction", C_IGNORE, 0, 0, 100}
+
 {"cache.minimum", "minimum cache size (MB)", C_IGNORE, 0, 0, 100 * 1024}
 
 {"checkpoint", "checkpoint type (on | off | wiredtiger)", C_IGNORE | C_STRING, 0, 0, 0}
@@ -279,6 +283,8 @@ CONFIG configuration_list[] = {
 
 {"statistics_log.sources", "statistics_log sources (file: | off)", C_IGNORE | C_STRING, 0, 0, 0}
 
+{"stress.aggressive_stash_free", "stress freeing stashed memory aggressively", C_BOOL, 2, 0, 0}
+
 {"stress.aggressive_sweep", "stress aggressive sweep", C_BOOL, 2, 0, 0}
 
 {"stress.checkpoint", "stress checkpoints", C_BOOL, 2, 0, 0}
@@ -298,6 +304,8 @@ CONFIG configuration_list[] = {
 {"stress.hs_search", "stress history store search", C_BOOL, 2, 0, 0}
 
 {"stress.hs_sweep", "stress history store sweep", C_BOOL, 2, 0, 0}
+
+{"stress.prepare_resolution", "stress prepare resolution", C_BOOL, 2, 0, 0}
 
 {"stress.sleep_before_read_overflow_onpage", "stress onpage overflow read race with checkpoint", C_BOOL, 2, 0, 0}
 

@@ -115,6 +115,15 @@ struct __wt_size {
     for ((skip) = (head)[0]; (skip) != NULL; (skip) = (skip)->next[(skip)->depth])
 
 /*
+ * WT_EXT_FOREACH_FROM_OFFSET_INCL --
+ *	Walk a by-offset skiplist from the given offset, starting with the extent that contains the
+ * given offset if available.
+ */
+#define WT_EXT_FOREACH_FROM_OFFSET_INCL(skip, el, start)                        \
+    for ((skip) = __wt_block_off_srch_inclusive((el), (start)); (skip) != NULL; \
+         (skip) = (skip)->next[0])
+
+/*
  * Checkpoint cookie: carries a version number as I don't want to rev the schema
  * file version should the default block manager checkpoint format change.
  *
@@ -240,7 +249,6 @@ struct __wt_block {
 
     TAILQ_ENTRY(__wt_block) q;     /* Linked list of handles */
     TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */
-    bool linked;
 
     WT_FH *fh;            /* Backing file handle */
     wt_off_t size;        /* File size */
@@ -276,10 +284,14 @@ struct __wt_block {
     WT_CKPT *final_ckpt; /* Final live checkpoint write */
 
     /* Compaction support */
-    int compact_pct_tenths;           /* Percent to compact */
-    uint64_t compact_pages_rewritten; /* Pages rewritten */
-    uint64_t compact_pages_reviewed;  /* Pages reviewed */
-    uint64_t compact_pages_skipped;   /* Pages skipped */
+    int compact_pct_tenths;                    /* Percent to compact */
+    uint64_t compact_bytes_reviewed;           /* Bytes reviewed */
+    uint64_t compact_bytes_rewritten;          /* Bytes rewritten */
+    uint64_t compact_internal_pages_reviewed;  /* Internal pages reviewed */
+    uint64_t compact_pages_reviewed;           /* Pages reviewed */
+    uint64_t compact_pages_rewritten;          /* Pages rewritten */
+    uint64_t compact_pages_rewritten_expected; /* The expected number of pages to rewrite */
+    uint64_t compact_pages_skipped;            /* Pages skipped */
 
     /* Salvage support */
     wt_off_t slvg_off; /* Salvage file offset */
@@ -293,6 +305,9 @@ struct __wt_block {
     uint64_t frags;          /* Maximum frags in the file */
     uint8_t *fragfile;       /* Per-file frag tracking list */
     uint8_t *fragckpt;       /* Per-checkpoint frag tracking list */
+
+    /* Multi-file support */
+    uint32_t read_count; /* Count of active read requests using this block handle */
 };
 
 /*
