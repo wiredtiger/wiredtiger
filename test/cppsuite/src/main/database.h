@@ -48,7 +48,7 @@ public:
 public:
     /* Add a new collection, this will create the underlying collection in the database. */
     void add_collection(uint64_t key_count = 0);
-    void add_collection(scoped_session& session, uint64_t key_count = 0);
+    void add_collection(scoped_session &session, uint64_t key_count = 0);
     /* Removes a random collection from the database. */
     void remove_random_collection(const std::string &config);
 

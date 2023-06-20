@@ -49,7 +49,7 @@ database::add_collection(uint64_t key_count)
 }
 
 void
-database::add_collection(scoped_session& session, uint64_t key_count)
+database::add_collection(scoped_session &session, uint64_t key_count)
 {
     std::lock_guard<std::mutex> lg(_mtx);
     if (_collection_create_config.empty())
@@ -59,8 +59,8 @@ database::add_collection(scoped_session& session, uint64_t key_count)
     /* FIX-ME-Test-Framework: This will get removed when we split the model up. */
     _collections.emplace(std::piecewise_construct, std::forward_as_tuple(next_id),
       std::forward_as_tuple(next_id, key_count, collection_name));
-    testutil_check(
-      session.get()->create(session.get(), collection_name.c_str(), _collection_create_config.c_str()));
+    testutil_check(session.get()->create(
+      session.get(), collection_name.c_str(), _collection_create_config.c_str()));
     _operation_tracker->save_schema_operation(
       tracking_operation::CREATE_COLLECTION, next_id, _tsm->get_next_ts());
 }
@@ -80,7 +80,8 @@ database::remove_random_collection(const std::string &cfg)
 
     int ret;
     /* We can get EBUSY if something is referencing the collection. */
-    while(ret = _session->drop(_session.get(), coll.name.c_str(), cfg.c_str()) == EBUSY);
+    while (ret = _session->drop(_session.get(), coll.name.c_str(), cfg.c_str()) == EBUSY)
+        ;
     testutil_check(ret);
     _collections.erase(coll.id);
     _operation_tracker->save_schema_operation(
