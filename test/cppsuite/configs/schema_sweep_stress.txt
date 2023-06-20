@@ -1,5 +1,5 @@
 # Configuration for schema_sweep.
-duration_seconds=3600,
+duration_seconds=600,
 cache_size_mb=250,
 workload_manager=
 (
