@@ -152,6 +152,7 @@
     }                                                               \
     break;                                                          \
     }                                                               \
+    /* !!!! This is a while(1) loop. !!!! */                        \
     while (1)
 
 /*
