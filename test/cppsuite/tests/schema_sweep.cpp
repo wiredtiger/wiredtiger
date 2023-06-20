@@ -112,7 +112,11 @@ public:
                 int ret = session->open_cursor(
                   session.get(), collection_name.c_str(), nullptr, nullptr, &cursor);
                 // The collection may have been / is being deleted.
-                testutil_assert(ret == 0 || ret == WT_NOTFOUND || ret == EBUSY);
+                if (ret != 0 && ret != ENOENT)
+                    testutil_die(LOG_ERROR,
+                      "update_operation failed: cursor->open_cursor() returned an unexpected error "
+                      "%d.",
+                      ret);
                 if (ret != 0)
                     continue;
 
