@@ -727,6 +727,10 @@ struct __wt_page {
      * This is the 64 byte boundary, try to keep hot fields above here.
      */
 
+    /*
+     * The allocated memory for the page-disk image, solely used for cache tracking purposes. The
+     * 'dsk' variable above contains the actual number of bytes consumed by the disk image.
+     */
     size_t dsk_alloc_size;
 
 /*
