@@ -101,12 +101,6 @@ public:
             tw->sleep();
         }
     }
-
-    void
-    validate(const std::string &, const std::string &, database &) override final
-    {
-        logger::log_msg(LOG_WARN, "validate: nothing done");
-    }
 };
 
 } // namespace test_harness
