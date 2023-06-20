@@ -84,9 +84,8 @@ public:
     {
         while (tw->running()) {
             if (tw->db.get_collection_count() != 0) {
-                bool force = random_generator::instance().generate_bool();
                 std::string cfg = "force=";
-                cfg += force ? "true" : "false";
+                cfg += random_generator::instance().generate_bool() ? "true" : "false";
                 tw->db.remove_random_collection(cfg);
             }
             tw->sleep();
