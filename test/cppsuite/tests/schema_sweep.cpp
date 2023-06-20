@@ -43,7 +43,7 @@ public:
         init_operation_tracker();
     }
 
-    /* Reconfigures the connection with different sweep server parameters 50% of the time. */
+    /* Reconfigures the connection with different sweep server parameters. */
     void
     custom_operation(thread_worker *tw) override final
     {
@@ -56,11 +56,9 @@ public:
 
         while (tw->running()) {
             tw->sleep();
-            if (random_generator::instance().generate_bool()) {
-                testutil_check(conn->reconfigure(conn,
-                  aggressive_sweep ? default_sweep_cfg.c_str() : aggressive_sweep_cfg.c_str()));
-                aggressive_sweep = !aggressive_sweep;
-            }
+            testutil_check(conn->reconfigure(
+              conn, aggressive_sweep ? default_sweep_cfg.c_str() : aggressive_sweep_cfg.c_str()));
+            aggressive_sweep = !aggressive_sweep;
         }
     }
 
