@@ -33,8 +33,9 @@
 namespace test_harness {
 
 /*
- * Class that defines operations that do nothing as an example. This shows how database operations
- * can be overridden and customized.
+ * The intent of the test is to stress the code paths related to schema operations and dhandles
+ * management.
+ * This test keeps performing schema operations while reconfiguring the sweep server.
  */
 class schema_sweep : public test {
 public:
