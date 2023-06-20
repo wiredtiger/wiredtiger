@@ -110,9 +110,9 @@ public:
                 WT_CURSOR *cursor;
                 int ret = session->open_cursor(
                   session.get(), collection_name.c_str(), nullptr, nullptr, &cursor);
-                // The collection may have been deleted in the meantime.
-                testutil_assert(ret == 0 || ret == WT_NOTFOUND);
-                if (ret == WT_NOTFOUND)
+                // The collection may have been / is being deleted.
+                testutil_assert(ret == 0 || ret == WT_NOTFOUND || ret == EBUSY);
+                if (ret != 0)
                     continue;
 
                 // We have a cursor opened on the collection, the ref should prevent it from being
