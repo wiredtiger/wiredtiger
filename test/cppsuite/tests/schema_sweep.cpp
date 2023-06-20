@@ -96,15 +96,16 @@ public:
     {
         while (tw->running()) {
             tw->sleep();
-            if (tw->db.get_collection_count() == 0)
-                continue;
             {
                 /*
                  * Use a function that holds a lock while retrieving the name. If we retrieve the
                  * collection then get the name from it, another thread may free the data allocated
-                 * to the collection in parallel.
+                 * to the collection in parallel since we don't hold a lock on the database here.
+                 * The name is empty if the database is empty.
                  */
                 const std::string collection_name(tw->db.get_random_collection_name());
+                if (collection_name.empty())
+                    continue;
                 auto session = connection_manager::instance().create_session();
 
                 WT_CURSOR *cursor;

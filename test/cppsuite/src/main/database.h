@@ -59,7 +59,8 @@ public:
     /* Get a random collection. */
     collection &get_random_collection();
 
-    // Get the name of a random collection present in the database.
+    // Get the name of a random collection present in the database. The returned named is empty
+    // if the database is empty.
     std::string get_random_collection_name();
 
     /*
