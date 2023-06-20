@@ -68,9 +68,7 @@ public:
     void
     insert_operation(thread_worker *tw) override final
     {
-        auto collection_name_len = 10;
         auto max_coll_count = 1000;
-
         while (tw->running()) {
             if (tw->db.get_collection_count() < max_coll_count)
                 tw->db.add_collection();
@@ -82,8 +80,6 @@ public:
     void
     remove_operation(thread_worker *tw) override final
     {
-        auto collection_name_len = 10;
-
         while (tw->running()) {
             if (tw->db.get_collection_count() != 0) {
                 bool force = random_generator::instance().generate_bool();
