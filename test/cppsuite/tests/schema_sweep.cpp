@@ -32,10 +32,8 @@
 
 namespace test_harness {
 
-/*
- * The intent of the test is to stress the code paths related to schema operations and dhandles
- * management. This test keeps performing schema operations while reconfiguring the sweep server.
- */
+// The intent of the test is to stress the code paths related to schema operations and dhandles
+// management. This test keeps performing schema operations while reconfiguring the sweep server.
 class schema_sweep : public test {
 public:
     schema_sweep(const test_args &args) : test(args)
@@ -91,10 +89,8 @@ public:
         }
     }
 
-    /*
-     * Selects a random collection and performs an update on it. Note that the collection can be
-     * deleted while the update is happening.
-     */
+    // Selects a random collection and performs an update on it. Note that the collection can be
+    // deleted while the update is happening.
     void
     update_operation(thread_worker *tw) override final
     {
