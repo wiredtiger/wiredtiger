@@ -65,27 +65,28 @@ database::add_collection(scoped_session &session, uint64_t key_count)
       tracking_operation::CREATE_COLLECTION, next_id, _tsm->get_next_ts());
 }
 
-void
+bool
 database::remove_random_collection(const std::string &cfg)
 {
     std::lock_guard<std::mutex> lg(_mtx);
+    if (_collections.empty())
+        return false;
     if (_session.get() == nullptr)
         _session = connection_manager::instance().create_session();
-    if (_collections.empty())
-        return;
 
     auto it = _collections.begin();
     std::advance(it, rand() % _collections.size());
     auto &coll = it->second;
 
-    int ret;
     /* We can get EBUSY if something is referencing the collection. */
-    while ((ret = _session->drop(_session.get(), coll.name.c_str(), cfg.c_str())) == EBUSY)
-        ;
-    testutil_check(ret);
-    _collections.erase(coll.id);
-    _operation_tracker->save_schema_operation(
-      tracking_operation::DELETE_COLLECTION, coll.id, _tsm->get_next_ts());
+    int ret = _session->drop(_session.get(), coll.name.c_str(), cfg.c_str());
+    testutil_assert(ret == 0 || ret == EBUSY);
+    if (ret == 0) {
+        _collections.erase(coll.id);
+        _operation_tracker->save_schema_operation(
+          tracking_operation::DELETE_COLLECTION, coll.id, _tsm->get_next_ts());
+    }
+    return ret == 0;
 }
 
 collection &
