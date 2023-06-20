@@ -1810,6 +1810,17 @@ tasks:
           test_config_filename: configs/reverse_split_stress.txt
           test_name: reverse_split
 
+  - name: cppsuite-schema-sweep-stress
+    depends_on:
+      - name: compile
+    tags: ["cppsuite-stress-test"]
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/schema_sweep_stress.txt
+          test_name: schema_sweep
+
   - name: cppsuite-operations-test-stress-nonstandalone
     depends_on:
       - name: compile-nonstandalone
@@ -1926,6 +1937,19 @@ tasks:
         vars:
           test_config_filename: configs/reverse_split_stress.txt
           test_name: reverse_split
+
+  - name: cppsuite-schema-sweep-stress-nonstandalone
+    depends_on:
+      - name: compile-nonstandalone
+    tags: ["cppsuite-stress-test-nonstandalone"]
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-nonstandalone
+      - func: "cppsuite test"
+        vars:
+          test_config_filename: configs/schema_sweep_stress.txt
+          test_name: schema_sweep
 
   # End of cppsuite test tasks.
   # Start of csuite test tasks
