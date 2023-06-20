@@ -1379,8 +1379,10 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     WT_SAVE_UPD *supd;
     WT_UPDATE *prev_onpage, *upd, *tmp;
     uint64_t recno;
-    uint32_t i, slot;
+    uint32_t dsk_alloc_size, i, slot;
     bool prepare;
+
+    dsk_alloc_size = ((WT_PAGE_HEADER *)multi->disk_image)->mem_size;
 
     /*
      * This code re-creates an in-memory page from a disk image, and adds references to any
@@ -1396,7 +1398,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * will discard the allocated page on error, when discarding the allocated WT_REF.
      */
     WT_RET(__wt_page_inmem(
-      session, ref, multi->disk_image, multi->size, WT_PAGE_DISK_ALLOC, &page, &prepare));
+      session, ref, multi->disk_image, dsk_alloc_size, WT_PAGE_DISK_ALLOC, &page, &prepare));
     multi->disk_image = NULL;
 
     /*
