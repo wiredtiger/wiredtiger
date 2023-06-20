@@ -78,7 +78,7 @@ database::remove_random_collection(const std::string &cfg)
     std::advance(it, rand() % _collections.size());
     auto &coll = it->second;
 
-    /* We can get EBUSY if something is referencing the collection. */
+    // We can get EBUSY if something is referencing the collection.
     int ret = _session->drop(_session.get(), coll.name.c_str(), cfg.c_str());
     testutil_assert(ret == 0 || ret == EBUSY);
     if (ret == 0) {

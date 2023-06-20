@@ -43,7 +43,7 @@ public:
         init_operation_tracker();
     }
 
-    /* Reconfigures the connection with different sweep server parameters. */
+    // Reconfigures the connection with different sweep server parameters.
     void
     custom_operation(thread_worker *tw) override final
     {
@@ -62,7 +62,7 @@ public:
         }
     }
 
-    /* Keeps creating collections. */
+    // Keeps creating collections.
     void
     insert_operation(thread_worker *tw) override final
     {
@@ -76,7 +76,7 @@ public:
         }
     }
 
-    /* Keeps deleting collections. */
+    // Keeps deleting collections.
     void
     remove_operation(thread_worker *tw) override final
     {
