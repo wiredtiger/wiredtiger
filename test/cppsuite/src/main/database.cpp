@@ -72,7 +72,7 @@ database::remove_random_collection(const std::string &cfg)
     if (_session.get() == nullptr)
         _session = connection_manager::instance().create_session();
     if (_collections.empty())
-        testutil_die(EINVAL, "The database is empty.");
+        return;
 
     auto it = _collections.begin();
     std::advance(it, rand() % _collections.size());
