@@ -994,10 +994,10 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
              * newest. Which mean that our reader would see a prepared update followed by a
              * committed update.
              *
-             * FIXME-WT-11195: There is an alternate solution which would have reconciliation forget
-             * the chosen update if it sees a prepared update after it. That would allow the update
-             * chain resolution to occur from newest to oldest and this reader edge case would no
-             * longer exist. That solution needs further exploration.
+             * There is an alternate solution which would have reconciliation forget the chosen
+             * update if it sees a prepared update after it. That would allow the update chain
+             * resolution to occur from newest to oldest and this reader edge case would no longer
+             * exist. That solution needs further exploration.
              */
             if (prepare_state == WT_PREPARE_RESOLVED)
                 WT_STAT_CONN_DATA_INCR(session, txn_read_race_prepare_commit);
