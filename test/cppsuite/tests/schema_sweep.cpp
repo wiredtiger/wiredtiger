@@ -89,6 +89,47 @@ public:
             tw->sleep();
         }
     }
+
+    /*
+     * Selects a random collection and performs an update on it. Note that the collection can be
+     * deleted while the update happening.
+     */
+    void
+    update_operation(thread_worker *tw) override final
+    {
+        while (tw->running()) {
+            tw->sleep();
+            if (tw->db.get_collection_count() == 0)
+                continue;
+            {
+                auto &coll = tw->db.get_random_collection();
+                auto session = connection_manager::instance().create_session();
+
+                // The collection may be deleted in the meantime.
+                WT_CURSOR *cursor;
+                int ret =
+                  session->open_cursor(session.get(), coll.name.c_str(), nullptr, nullptr, &cursor);
+                testutil_assert(ret == 0 || ret == WT_NOTFOUND);
+                if (ret == WT_NOTFOUND)
+                    continue;
+
+                /*
+                 * We have a cursor opened on the collection, the ref should prevent it from being
+                 * deleted.
+                 */
+                testutil_check(session->begin_transaction(session.get(), nullptr));
+
+                auto key = random_generator::instance().generate_pseudo_random_string(tw->key_size);
+                auto value =
+                  random_generator::instance().generate_pseudo_random_string(tw->value_size);
+                cursor->set_key(cursor, key.c_str());
+                cursor->set_value(cursor, value.c_str());
+                testutil_check(cursor->update(cursor));
+
+                testutil_check(session->commit_transaction(session.get(), nullptr));
+            }
+        }
+    }
 };
 
 } // namespace test_harness

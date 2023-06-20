@@ -9,13 +9,13 @@ workload_manager=
     ),
     custom_config=
     (
-        thread_count=1,
         op_rate=30s,
+        thread_count=1,
     ),
     insert_config=
     (
-        thread_count=10,
         op_rate=10ms,
+        thread_count=10,
     ),
     populate_config=
     (
@@ -24,9 +24,14 @@ workload_manager=
     ),
     remove_config=
     (
-        thread_count=10,
         op_rate=10ms,
-    )
+        thread_count=10,
+    ),
+    update_config=
+    (
+        op_rate=10ms,
+        thread_count=10,
+    ),
 ),
 operation_tracker=
 (

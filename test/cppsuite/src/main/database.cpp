@@ -78,7 +78,10 @@ database::remove_random_collection(const std::string &cfg)
     std::advance(it, rand() % _collections.size());
     auto &coll = it->second;
 
-    testutil_check(_session->drop(_session.get(), coll.name.c_str(), cfg.c_str()));
+    int ret;
+    /* We can get EBUSY if something is referencing the collection. */
+    while(ret = _session->drop(_session.get(), coll.name.c_str(), cfg.c_str()) == EBUSY);
+    testutil_check(ret);
     _collections.erase(coll.id);
     _operation_tracker->save_schema_operation(
       tracking_operation::DELETE_COLLECTION, coll.id, _tsm->get_next_ts());
