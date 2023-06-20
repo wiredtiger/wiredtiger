@@ -129,9 +129,16 @@ public:
                   random_generator::instance().generate_pseudo_random_string(tw->value_size);
                 cursor->set_key(cursor, key.c_str());
                 cursor->set_value(cursor, value.c_str());
-                testutil_check(cursor->update(cursor));
-
-                testutil_check(session->commit_transaction(session.get(), nullptr));
+                ret = cursor->update(cursor);
+                if (ret != 0 && ret != WT_ROLLBACK)
+                    testutil_die(LOG_ERROR,
+                      "update_operation failed: cursor->update() returned an unexpected error "
+                      "%d.",
+                      ret);
+                if (ret == 0)
+                    testutil_check(session->commit_transaction(session.get(), nullptr));
+                else
+                    testutil_check(session->rollback_transaction(session.get(), nullptr));
             }
         }
     }
