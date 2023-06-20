@@ -113,6 +113,20 @@ database::get_random_collection()
     return it->second;
 }
 
+std::string
+database::get_random_collection_name()
+{
+    std::lock_guard<std::mutex> lg(_mtx);
+    size_t collection_count = _collections.size();
+
+    /* Any caller should expect at least one collection to exist. */
+    testutil_assert(collection_count != 0);
+
+    auto it = _collections.begin();
+    std::advance(it, rand() % collection_count);
+    return it->second.name;
+}
+
 uint64_t
 database::get_collection_count()
 {

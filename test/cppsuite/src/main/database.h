@@ -49,6 +49,7 @@ public:
     // Add a new collection, this will create the underlying collection in the database.
     void add_collection(uint64_t key_count = 0);
     void add_collection(scoped_session &session, uint64_t key_count = 0);
+
     // Removes a random collection from the database.
     bool remove_random_collection(const std::string &config);
 
@@ -57,6 +58,9 @@ public:
 
     /* Get a random collection. */
     collection &get_random_collection();
+
+    // Get the name of a random collection present in the database.
+    std::string get_random_collection_name();
 
     /*
      * Retrieve the current collection count, collection names are indexed from 0 so when using this

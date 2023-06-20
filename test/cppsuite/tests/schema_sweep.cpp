@@ -84,6 +84,7 @@ public:
             if (tw->db.get_collection_count() != 0) {
                 std::string cfg = "force=";
                 cfg += random_generator::instance().generate_bool() ? "true" : "false";
+                // We don't need to check whether the collection has been actually removed or not.
                 tw->db.remove_random_collection(cfg);
             }
             tw->sleep();
@@ -92,7 +93,7 @@ public:
 
     /*
      * Selects a random collection and performs an update on it. Note that the collection can be
-     * deleted while the update happening.
+     * deleted while the update is happening.
      */
     void
     update_operation(thread_worker *tw) override final
@@ -102,21 +103,24 @@ public:
             if (tw->db.get_collection_count() == 0)
                 continue;
             {
-                auto &coll = tw->db.get_random_collection();
+                /*
+                 * Use a function that holds a lock while retrieving the name. If we retrieve the
+                 * collection then get the name from it, another thread may free the data allocated
+                 * to the collection in parallel.
+                 */
+                const std::string collection_name(tw->db.get_random_collection_name());
                 auto session = connection_manager::instance().create_session();
 
-                // The collection may be deleted in the meantime.
                 WT_CURSOR *cursor;
-                int ret =
-                  session->open_cursor(session.get(), coll.name.c_str(), nullptr, nullptr, &cursor);
+                int ret = session->open_cursor(
+                  session.get(), collection_name.c_str(), nullptr, nullptr, &cursor);
+                // The collection may have been deleted in the meantime.
                 testutil_assert(ret == 0 || ret == WT_NOTFOUND);
                 if (ret == WT_NOTFOUND)
                     continue;
 
-                /*
-                 * We have a cursor opened on the collection, the ref should prevent it from being
-                 * deleted.
-                 */
+                // We have a cursor opened on the collection, the ref should prevent it from being
+                // deleted and we can perform an update safely.
                 testutil_check(session->begin_transaction(session.get(), nullptr));
 
                 auto key = random_generator::instance().generate_pseudo_random_string(tw->key_size);
