@@ -396,7 +396,7 @@ __wt_update_obsolete_check(
      */
     if (count > WT_THOUSAND) {
         WT_STAT_CONN_INCR(session, cache_eviction_force_long_update_list);
-        __wt_page_evict_soon(session, cbt->ref);
+        WT_IGNORE_RET_BOOL(__wt_page_evict_urgent(session, cbt->ref));
     }
 
     if (next != NULL)
