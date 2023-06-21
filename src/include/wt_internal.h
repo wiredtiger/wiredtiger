@@ -345,6 +345,8 @@ struct __wt_size;
 typedef struct __wt_size WT_SIZE;
 struct __wt_spinlock;
 typedef struct __wt_spinlock WT_SPINLOCK;
+struct __wt_split_page_hist;
+typedef struct __wt_split_page_hist WT_SPLIT_PAGE_HIST;
 struct __wt_stash;
 typedef struct __wt_stash WT_STASH;
 struct __wt_table;
@@ -367,6 +369,8 @@ struct __wt_time_aggregate;
 typedef struct __wt_time_aggregate WT_TIME_AGGREGATE;
 struct __wt_time_window;
 typedef struct __wt_time_window WT_TIME_WINDOW;
+struct __wt_truncate_info;
+typedef struct __wt_truncate_info WT_TRUNCATE_INFO;
 struct __wt_txn;
 typedef struct __wt_txn WT_TXN;
 struct __wt_txn_global;
@@ -462,6 +466,7 @@ typedef uint64_t wt_timestamp_t;
 #include "schema.h"
 #include "thread_group.h"
 #include "tiered.h"
+#include "truncate.h"
 #include "txn.h"
 #include "verbose.h"
 

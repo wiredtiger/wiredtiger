@@ -536,8 +536,6 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
          */
         if (*first_txn_updp == NULL)
             *first_txn_updp = upd;
-        if (WT_TXNID_LT(max_txn, txnid))
-            max_txn = txnid;
 
         /*
          * Special handling for application threads evicting their own updates.
@@ -596,8 +594,6 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
             if (F_ISSET(r, WT_REC_CHECKPOINT)) {
                 *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
                 *has_newer_updatesp = true;
-                if (upd->start_ts > max_ts)
-                    max_ts = upd->start_ts;
                 seen_prepare = true;
                 continue;
             } else {
@@ -617,13 +613,16 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
             }
         }
 
-        /* Track the first update with non-zero timestamp. */
-        if (upd->start_ts > max_ts)
-            max_ts = upd->start_ts;
-
         /* Always select the newest committed update to write to disk */
         if (upd_select->upd == NULL)
             upd_select->upd = upd;
+
+        /* Track the selected update transaction id and timestamp. */
+        if (WT_TXNID_LT(max_txn, txnid))
+            max_txn = txnid;
+
+        if (upd->start_ts > max_ts)
+            max_ts = upd->start_ts;
 
         /*
          * We only need to walk the whole update chain if we are evicting metadata as it is written
@@ -719,8 +718,19 @@ __rec_fill_tw_from_upd_select(
     else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
         WT_ASSERT_ALWAYS(
           session, tombstone != NULL, "The only contents of the update list is a single tombstone");
-        WT_ASSERT_ALWAYS(session, vpack != NULL && vpack->type != WT_CELL_DEL && !vpack->tw.prepare,
-          "No ondisk values found that are not prepared updates");
+
+        /*
+         * The fixed-length column-store implicitly fills the gap with empty records of single
+         * tombstones. We are done with update selection if there is no on-disk entry.
+         */
+        if (vpack == NULL && S2BT(session)->type == BTREE_COL_FIX) {
+            upd_select->upd = tombstone;
+            return (0);
+        }
+
+        WT_ASSERT_ALWAYS(
+          session, vpack != NULL && vpack->type != WT_CELL_DEL, "No on-disk value is found");
+        WT_ASSERT_ALWAYS(session, !vpack->tw.prepare, "On-disk value is a prepared update");
 
         /* Move the pointer to the last update on the update chain. */
         for (last_upd = tombstone; last_upd->next != NULL; last_upd = last_upd->next)

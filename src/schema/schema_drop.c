@@ -180,13 +180,13 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *tier;
     WT_DECL_RET;
-    WT_TIERED *tiered;
+    WT_TIERED *tiered, tiered_tmp;
     u_int i, localid;
     const char *filename, *name;
-    bool exist, got_dhandle, locked, remove_files, remove_shared;
+    bool exist, got_dhandle, remove_files, remove_shared;
 
     conn = S2C(session);
-    got_dhandle = locked = false;
+    got_dhandle = false;
     WT_RET(__wt_config_gets(session, cfg, "remove_files", &cval));
     remove_files = cval.val != 0;
     WT_RET(__wt_config_gets(session, cfg, "remove_shared", &cval));
@@ -202,14 +202,42 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
     got_dhandle = true;
     tiered = (WT_TIERED *)session->dhandle;
+    /*
+     * Save a copy because we cannot release the tiered resources until after the dhandle is
+     * released and closed. We have to know if the table is busy or if the close is successful
+     * before cleaning up the tiered information.
+     */
+    tiered_tmp = *tiered;
+
+    /*
+     * We are about to close the dhandle. If that is successful we need to remove any tiered work
+     * from the queue relating to that dhandle. But if closing the dhandle has an error we don't
+     * remove the work. So hold the tiered lock for the duration so that the worker thread cannot
+     * race and process work for this handle.
+     */
+    __wt_spin_lock(session, &conn->tiered_lock);
+    /*
+     * Close all btree handles associated with this table. This must be done after we're done using
+     * the tiered structure because that is from the dhandle.
+     */
+    WT_ERR(__wt_session_release_dhandle(session));
+    got_dhandle = false;
+    WT_WITH_HANDLE_LIST_WRITE_LOCK(
+      session, ret = __wt_conn_dhandle_close_all(session, uri, true, force));
+    WT_ERR(ret);
+
+    /*
+     * If closing the URI succeeded then we can remove tiered information using the saved tiered
+     * structure from above. We need the copy because the dhandle has been released.
+     */
 
     /*
      * We cannot remove the objects on shared storage as other systems may be accessing them too.
      * Remove the current local file object, the tiered entry and all bucket objects from the
      * metadata only.
      */
-    tier = tiered->tiers[WT_TIERED_INDEX_LOCAL].tier;
-    localid = tiered->current_id;
+    tier = tiered_tmp.tiers[WT_TIERED_INDEX_LOCAL].tier;
+    localid = tiered_tmp.current_id;
     if (tier != NULL) {
         __wt_verbose_debug2(
           session, WT_VERB_TIERED, "DROP_TIERED: drop %u local object %s", localid, tier->name);
@@ -223,11 +251,10 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
             WT_PREFIX_SKIP_REQUIRED(session, filename, "file:");
             WT_ERR(__wt_meta_track_drop(session, filename));
         }
-        tiered->tiers[WT_TIERED_INDEX_LOCAL].tier = NULL;
     }
 
     /* Close any dhandle and remove any tier: entry from metadata. */
-    tier = tiered->tiers[WT_TIERED_INDEX_SHARED].tier;
+    tier = tiered_tmp.tiers[WT_TIERED_INDEX_SHARED].tier;
     if (tier != NULL) {
         __wt_verbose_debug2(
           session, WT_VERB_TIERED, "DROP_TIERED: drop shared object %s", tier->name);
@@ -236,7 +263,6 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
             session, ret = __wt_conn_dhandle_close_all(session, tier->name, true, force)));
         WT_ERR(ret);
         WT_ERR(__wt_metadata_remove(session, tier->name));
-        tiered->tiers[WT_TIERED_INDEX_SHARED].tier = NULL;
     } else
         /* If we don't have a shared tier we better be on the first object. */
         WT_ASSERT(session, localid == 1);
@@ -245,13 +271,13 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
      * We remove all metadata entries for both the file and object versions of an object. The local
      * retention means we can have both versions in the metadata. Ignore WT_NOTFOUND.
      */
-    for (i = tiered->oldest_id; i < tiered->current_id; ++i) {
-        WT_ERR(__wt_tiered_name(session, &tiered->iface, i, WT_TIERED_NAME_LOCAL, &name));
+    for (i = tiered_tmp.oldest_id; i < tiered_tmp.current_id; ++i) {
+        WT_ERR(__wt_tiered_name(session, &tiered_tmp.iface, i, WT_TIERED_NAME_LOCAL, &name));
         __wt_verbose_debug2(
-          session, WT_VERB_TIERED, "DROP_TIERED: remove object %s from metadata", name);
+          session, WT_VERB_TIERED, "DROP_TIERED: remove local object %s from metadata", name);
         WT_ERR_NOTFOUND_OK(__wt_metadata_remove(session, name), false);
         __wt_free(session, name);
-        WT_ERR(__wt_tiered_name(session, &tiered->iface, i, WT_TIERED_NAME_OBJECT, &name));
+        WT_ERR(__wt_tiered_name(session, &tiered_tmp.iface, i, WT_TIERED_NAME_OBJECT, &name));
         __wt_verbose_debug2(
           session, WT_VERB_TIERED, "DROP_TIERED: remove object %s from metadata", name);
         WT_ERR_NOTFOUND_OK(__wt_metadata_remove(session, name), false);
@@ -267,43 +293,29 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
              * objects, we want to remove these files after the drop operation is successful.
              */
             if (remove_shared)
-                WT_ERR(__wt_meta_track_drop_object(session, tiered->bstorage, filename));
+                WT_ERR(__wt_meta_track_drop_object(session, tiered_tmp.bstorage, filename));
         }
         __wt_free(session, name);
     }
 
     /*
-     * We are about to close the dhandle. If that is successful we need to remove any tiered work
-     * from the queue relating to that dhandle. But if closing the dhandle has an error we don't
-     * remove the work. So hold the tiered lock for the duration so that the worker thread cannot
-     * race and process work for this handle.
+     * FIXME: WT-11176 This comment won't be valid when that ticket work is done. If everything is
+     * successful, remove any tiered work associated with this tiered handle. The dhandle has been
+     * released so the tiered pointer is stale but queued work still refers to it. The worker should
+     * never see the stale value because we've been holding the lock the entire time it has been
+     * stale.
      */
-    __wt_spin_lock(session, &conn->tiered_lock);
-    locked = true;
-    /*
-     * Close all btree handles associated with this table. This must be done after we're done using
-     * the tiered structure because that is from the dhandle.
-     */
-    WT_ERR(__wt_session_release_dhandle(session));
-    got_dhandle = false;
-    WT_WITH_HANDLE_LIST_WRITE_LOCK(
-      session, ret = __wt_conn_dhandle_close_all(session, uri, true, force));
-    WT_ERR(ret);
-
-    /* If everything is successful, remove any tiered work associated with this tiered handle. */
-    __wt_tiered_remove_work(session, tiered, locked);
+    __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: remove work for %p", (void *)tiered);
+    __wt_tiered_remove_work(session, tiered, true);
     __wt_spin_unlock(session, &conn->tiered_lock);
-    locked = false;
 
-    __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: remove tiered table %s from metadata", uri);
     ret = __wt_metadata_remove(session, uri);
 
 err:
     if (got_dhandle)
         WT_TRET(__wt_session_release_dhandle(session));
     __wt_free(session, name);
-    if (locked)
-        __wt_spin_unlock(session, &conn->tiered_lock);
+    __wt_spin_unlock_if_owned(session, &conn->tiered_lock);
     return (ret);
 }
 
@@ -369,6 +381,15 @@ __wt_schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *int_session;
+
+    /*
+     * We should be calling this function with the schema lock, but we cannot verify it here because
+     * we can re-enter this function with the internal session. If we get here using the internal
+     * session, we cannot check whether we own the lock, as it would be locked by the outer session.
+     * We can thus only check whether the lock is acquired, as opposed to, whether the lock is
+     * acquired by us.
+     */
+    WT_ASSERT(session, __wt_spin_locked(session, &S2C(session)->schema_lock));
 
     WT_RET(__wt_schema_internal_session(session, &int_session));
     ret = __schema_drop(int_session, uri, cfg);
