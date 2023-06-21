@@ -194,13 +194,13 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s, *txn_shared;
     uint64_t commit_gen, current_id, id, prev_oldest_id, pinned_id;
-    uint32_t n;
+    uint32_t snapshot_index;
 
     conn = S2C(session);
     txn = session->txn;
     txn_global = &conn->txn_global;
     txn_shared = WT_SESSION_TXN_SHARED(session);
-    n = 0;
+    snapshot_index = 0;
 
     /* Fast path if we already have the current snapshot. */
     if ((commit_gen = __wt_session_gen(session, WT_GEN_COMMIT)) != 0) {
@@ -226,7 +226,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
      */
     if ((id = txn_global->checkpoint_txn_shared.id) != WT_TXN_NONE) {
         if (txn->id != id)
-            txn->snapshot[n++] = id;
+            txn->snapshot[snapshot_index++] = id;
         if (publish)
             txn_shared->metadata_pinned = id;
     }
@@ -273,7 +273,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
                  */
                 WT_READ_BARRIER();
                 if (id == s->id) {
-                    txn->snapshot[n++] = id;
+                    txn->snapshot[snapshot_index++] = id;
                     if (WT_TXNID_LT(id, pinned_id))
                         pinned_id = id;
                     break;
@@ -293,7 +293,7 @@ done:
     if (publish)
         txn_shared->pinned_id = pinned_id;
     __wt_readunlock(session, &txn_global->rwlock);
-    __txn_sort_snapshot(session, n, current_id);
+    __txn_sort_snapshot(session, snapshot_index, current_id);
 }
 
 /*
