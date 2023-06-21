@@ -233,6 +233,14 @@ def session_create_replace(orig_session_create, session_self, uri, config):
     ret = orig_session_create(session_self, uri, new_config)
     return ret
 
+# Called to replace Session.drop. Most test cases consider a drop
+# to completely remove a file's artifacts, so that the name can be reused.
+# For tiered storage, this means removing associated cloud objects.
+def session_drop_replace(orig_session_drop, session_self, uri, config):
+    if config == None or config == '':
+        config = 'force=true,remove_shared=true'
+    return orig_session_drop(session_self, uri, config)
+
 # FIXME-WT-9785
 # Called to replace Session.open_cursor. This is needed to skip tests that
 # do statistics on (tiered) table data sources, as that is not yet supported.
@@ -399,6 +407,10 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
         orig_session_create = self.Session['create']
         self.Session['create'] =  (wthooks.HOOK_REPLACE, lambda s, uri, config=None:
           session_create_replace(orig_session_create, s, uri, config))
+
+        orig_session_drop = self.Session['drop']
+        self.Session['drop'] =  (wthooks.HOOK_REPLACE, lambda s, uri, config=None:
+          session_drop_replace(orig_session_drop, s, uri, config))
 
         orig_session_open_cursor = self.Session['open_cursor']
         self.Session['open_cursor'] = (wthooks.HOOK_REPLACE, lambda s, uri, todup=None, config=None:
