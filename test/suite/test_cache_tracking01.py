@@ -45,6 +45,11 @@ class test_cache_tracking(wttest.WiredTigerTestCase):
     ]
     scenarios = make_scenarios(format_values, compressors)
 
+    # Load the compressor extension, skip the test if missing.
+    def conn_extensions(self, extlist):
+        extlist.skip_if_missing = True
+        extlist.extension('compressors', self.compressor)
+
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')
         val = stat_cursor[stat][2]
