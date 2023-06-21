@@ -172,7 +172,13 @@ create_configs()
     echo "salvage=0" >> $file_name                  # Faster runs
     echo "stress.checkpoint=0" >> $file_name        # Faster runs
     echo "timer=4" >> $file_name
-    echo "verify=1" >> $file_name                   # Faster runs
+    echo "verify=1" >> $file_name
+    # WT-8601 has not been backported to 4.2 and transactions are expected to be timestamped.
+    if [ "$branch_name" == "mongodb-4.2" ] ; then
+        echo "transaction.timestamps=1" >> $file_name # WT-7545 - Older releases can't do non-timestamp transactions
+    else
+        echo "transaction.timestamps=0" >> $file_name # WT-8601 - Timestamps do not work with logged tables
+    fi
 
     # Append older release configs for newer compatibility release test
     if [ $newer = true ]; then
@@ -180,7 +186,6 @@ create_configs()
         do
             if [ "$i" == "$branch_name" ] ; then
                 echo "transaction.isolation=snapshot" >> $file_name # WT-7545 - Older releases can't do lower isolation levels
-                echo "transaction.timestamps=1" >> $file_name       # WT-7545 - Older releases can't do non-timestamp transactions
                 break
             fi
         done
