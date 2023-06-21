@@ -158,7 +158,7 @@ create_configs()
     echo "cache=80" >> $file_name                   # Medium cache so there's eviction
     echo "checksum=on" >> $file_name                # WT-7851 Fix illegal checksum configuration
     echo "checkpoints=1"  >> $file_name             # Force periodic writes
-    echo "compression=snappy"  >> $file_name        # We only built with snappy, force the choice
+    echo "compression=snappy"  >> $file_name        # We only build with snappy, force the choice
     echo "data_source=table" >> $file_name
     echo "debug.cursor_reposition=0" >> $file_name  # WT-10594 - Not supported by older releases
     echo "debug.log_retention=0" >> $file_name      # WT-10434 - Not supported by older releases
