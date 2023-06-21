@@ -297,6 +297,8 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
     WT_SESSION_IMPL *s;
     uint32_t j, hazard_inuse, max, walk_cnt;
 
+    max = walk_cnt = 0;
+
     /* If a file can never be evicted, hazard pointers aren't required. */
     if (F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
         return (NULL);
@@ -311,7 +313,6 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
      */
     __wt_session_gen_enter(session, WT_GEN_HAZARD);
 
-    max = walk_cnt = 0;
     WT_CONNECTION_FOREACH_SESSION(s, conn)
     {
         if (!s->active)
