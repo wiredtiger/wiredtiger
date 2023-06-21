@@ -168,13 +168,13 @@ __wt_txn_active(WT_SESSION_IMPL *session, uint64_t txnid)
     }
 
     /* Walk the array of concurrent transactions. */
-    WT_TXN_GLOBAL_FOREACH_SESSION_STATE(s, conn)
+    WT_TXN_SHARED_FOREACH_BEGIN(s, conn)
     {
         /* If the transaction is in the list, it is uncommitted. */
         if (s->id == txnid)
             goto done;
     }
-    WT_TXN_GLOBAL_FOREACH_SESSION_STATE_END;
+    WT_TXN_SHARED_FOREACH_END;
 
     active = false;
 done:
@@ -240,7 +240,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
     }
 
     /* Walk the array of concurrent transactions. */
-    WT_TXN_GLOBAL_FOREACH_SESSION_STATE(s, conn)
+    WT_TXN_SHARED_FOREACH_BEGIN(s, conn)
     {
         WT_STAT_CONN_INCR(session, txn_sessions_walked);
         /*
@@ -282,7 +282,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
             WT_PAUSE();
         }
     }
-    WT_TXN_GLOBAL_FOREACH_SESSION_STATE_END;
+    WT_TXN_SHARED_FOREACH_END;
 
     /*
      * If we got a new snapshot, update the published pinned ID for this session.
@@ -343,7 +343,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
 
     /* Walk the array of concurrent transactions. */
     i = 0;
-    WT_TXN_GLOBAL_FOREACH_SESSION_STATE(s, conn)
+    WT_TXN_SHARED_FOREACH_BEGIN(s, conn)
     {
         WT_STAT_CONN_INCR(session, txn_sessions_walked);
         /* Update the last running transaction ID. */
@@ -396,7 +396,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
          */
         i++;
     }
-    WT_TXN_GLOBAL_FOREACH_SESSION_STATE_END;
+    WT_TXN_SHARED_FOREACH_END;
 
     if (WT_TXNID_LT(last_running, oldest_id))
         oldest_id = last_running;

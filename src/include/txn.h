@@ -171,7 +171,7 @@ struct __wt_txn_global {
 
     WT_TXN_SHARED *txn_shared_list; /* Per-session shared transaction states */
 
-#define WT_TXN_GLOBAL_FOREACH_SESSION_STATE(state, conn)                                           \
+#define WT_TXN_SHARED_FOREACH_BEGIN(state, conn)                                           \
     do {                                                                                           \
         /*                                                                                         \
          * No lock is required because the per-session transactions state array is fixed size, but \
@@ -185,7 +185,7 @@ struct __wt_txn_global {
         for (__i = 0, (state) = txn_global->txn_shared_list; __i < __session_cnt;                  \
              __i++, (state)++) {
 
-#define WT_TXN_GLOBAL_FOREACH_SESSION_STATE_END            \
+#define WT_TXN_SHARED_FOREACH_END            \
     }                                                      \
     WT_STAT_CONN_INCR(session, txn_walk_sessions);         \
     WT_STAT_CONN_INCRV(session, txn_sessions_walked, __i); \

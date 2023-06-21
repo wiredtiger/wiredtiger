@@ -112,7 +112,7 @@ __wt_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, uin
         tmp_ts = txn_global->checkpoint_timestamp;
 
     /* Walk the array of concurrent transactions. */
-    WT_TXN_GLOBAL_FOREACH_SESSION_STATE(s, conn)
+    WT_TXN_SHARED_FOREACH_BEGIN(s, conn)
     {
         __txn_get_read_timestamp(s, &tmp_read_ts);
         /*
@@ -121,7 +121,7 @@ __wt_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, uin
         if (tmp_ts == WT_TS_NONE || (tmp_read_ts != WT_TS_NONE && tmp_read_ts < tmp_ts))
             tmp_ts = tmp_read_ts;
     }
-    WT_TXN_GLOBAL_FOREACH_SESSION_STATE_END;
+    WT_TXN_SHARED_FOREACH_END;
 
     if (!txn_has_write_lock)
         __wt_readunlock(session, &txn_global->rwlock);
@@ -172,13 +172,13 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
         ts = txn_global->durable_timestamp;
 
         /* Walk the array of concurrent transactions. */
-        WT_TXN_GLOBAL_FOREACH_SESSION_STATE(s, conn)
+        WT_TXN_SHARED_FOREACH_BEGIN(s, conn)
         {
             __txn_get_durable_timestamp(s, &tmpts);
             if (tmpts != 0 && (ts == 0 || --tmpts < ts))
                 ts = tmpts;
         }
-        WT_TXN_GLOBAL_FOREACH_SESSION_STATE_END;
+        WT_TXN_SHARED_FOREACH_END;
 
         __wt_readunlock(session, &txn_global->rwlock);
 
@@ -461,7 +461,7 @@ __txn_assert_after_reads(WT_SESSION_IMPL *session, const char *op, wt_timestamp_
         __wt_readlock(session, &txn_global->rwlock);
 
         /* Walk the array of concurrent transactions. */
-        WT_TXN_GLOBAL_FOREACH_SESSION_STATE(s, conn)
+        WT_TXN_SHARED_FOREACH_BEGIN(s, conn)
         {
             __txn_get_read_timestamp(s, &tmp_timestamp);
             if (tmp_timestamp != WT_TS_NONE && tmp_timestamp >= ts) {
@@ -474,7 +474,7 @@ __txn_assert_after_reads(WT_SESSION_IMPL *session, const char *op, wt_timestamp_
                 /* NOTREACHED */
             }
         }
-        WT_TXN_GLOBAL_FOREACH_SESSION_STATE_END;
+        WT_TXN_SHARED_FOREACH_END;
         __wt_readunlock(session, &txn_global->rwlock);
     } else {
         WT_UNUSED(session);
