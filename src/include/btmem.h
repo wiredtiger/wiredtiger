@@ -728,8 +728,8 @@ struct __wt_page {
      */
 
     /*
-     * The allocated memory for the page-disk image, solely used for cache tracking purposes. The
-     * 'dsk' variable above contains the actual number of bytes consumed by the disk image.
+     * The allocated memory for the page's disk image, solely used for cache tracking purposes. The
+     * 'dsk' variable above contains the actual size of the page contained in the disk image.
      */
     size_t dsk_alloc_size;
 
