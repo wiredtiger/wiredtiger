@@ -198,47 +198,8 @@ functions:
       shell: bash
       script: |
         set -o errexit
-        set -o verbose
-        # Note: ${var} is used for expansions of evergreen variables, whereas $var are /bin/sh variables.
-        echo "python_binary = '${python_binary}'"
-        echo "python_config_search_string = '${python_config_search_string}'"
-        echo "---- Start grep for ${python_config_search_string} ----"
-        grep "${python_config_search_string}": ./CMakeCache.txt
-        echo "---- End grep ----"
-        echo "---- Start grep for python ----"
-        grep python ./CMakeCache.txt
-        echo "---- End grep for python ----"
-        python_configured=$(grep ${python_config_search_string}: ./CMakeCache.txt | sed -e 's/.*=//')
-        echo "python_configured = '$python_configured'"
-
-        echo "============== Python Unit Test config check =============="
-        echo "python_binary                 = '${python_binary}'"
-        echo "                    version   = $(${python_binary} --version)"            
-        echo "python_config_search_string   = '${python_config_search_string}'"
-        echo "python_configured (via CMake) = '$python_configured'"
-        if [ "$python_configured" = '' ]; then
-            echo "                    No python configured via CMake"
-        else
-            echo "                    version   = $($python_configured --version)"    
-        fi
-        echo "==========================================================="
-
-        if [ "${python_binary}" = '' -o "$python_configured" = '' -o "$(${python_binary} -V -V)" != "$($python_configured -V -V)" ]; then
-           echo "Python versions do not match."
-           echo "Python version used by cmake builds ($python_configured):"
-           if [ "$python_configured" = '' ]; then
-               echo "No python configured"
-           else
-               $python_configured -V -V
-           fi
-           echo "Python version used in shell commands (${python_binary}):"
-           if [ "${python_binary}" = '' ]; then
-               echo "No python set in Expansions"
-           else
-               ${python_binary} -V -V
-           fi
-           exit 1
-        fi
+        # Confirm that the Python binary matches the version of that configured by CMake.
+        ${python_binary} ../test/evergreen/python_version_check.py -v -c ./CMakeCache.txt -s ${python_config_search_string}
   "make wiredtiger": &make_wiredtiger
     command: shell.exec
     params:
@@ -1179,6 +1140,17 @@ variables:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
     ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
+
+
+  # Configure flags for Mac Intel builds
+  - &configure_flags_for_mac_intel
+    python_binary: '/usr/bin/python3'
+    python_config_search_string: 'PYTHON_EXECUTABLE'
+
+  # Configure flags for Mac M1 builds
+  - &configure_flags_for_mac_m1
+    python_binary: '/opt/homebrew/Frameworks/Python.framework/Versions/3.11/bin/python3.11'
+    python_config_search_string: '_Python3_EXECUTABLE'
 
 #########################################################################################
 # The following stress tests are configured to run for six hours via the "-t 360"
