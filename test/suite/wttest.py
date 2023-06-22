@@ -1008,15 +1008,15 @@ class WiredTigerTestCase(unittest.TestCase):
         return '%x' % t
 
     # Some tests do table drops as a means to perform some test repeatedly in a loop.
-    # These tests require that a name be completely removed.  However, tiered storage does
-    # not always provide a way to remove or rename objects that have been stored, as doing
-    # that is not the normal part of a workflow, and thus these APIs return ENOTSUP.
-    # In the future, we'll need a way to garbage collect objects, but it's not clear how
-    # or where that will be implemented (it might not be a part of the WT API).  So we're
-    # left with skipping tests that have this requirement.
+    # These tests require that a name be completely removed before the next iteration
+    # can begin.  However, tiered storage does not always provide a way to remove or
+    # rename objects that have been stored to the cloud, as doing that is not the normal
+    # part of a workflow (at this writing, GC is not yet implemented). Most storage sources
+    # return ENOTSUP when asked to remove a cloud object, so we really don't have a way to
+    # clear out the name space, and so we skip these tests under tiered storage.
     #
-    # Note: as part of PM-3389, we'll probably end up with unique names for every cloud object,
-    # so we could remove this restriction.
+    # Note: as part of PM-3389, we may end up with unique names for every cloud object.
+    # If so, we could remove this restriction.
     def requireDropRemovesNameConflict(self):
         if self.runningHook('tiered'):
             self.skipTest('Test requires removal from cloud storage, which is not yet permitted')
