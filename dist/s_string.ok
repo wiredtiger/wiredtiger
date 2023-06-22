@@ -236,6 +236,7 @@ MacOS
 MapViewOfFile
 Marsaglia
 Marsaglia's
+McIlroy's
 Mellor
 Mewhort
 Mitzenmacher
@@ -323,6 +324,7 @@ RXB
 ReadFile
 Readonly
 Realloc
+Recurse
 RedHat
 Redistributions
 Rogerio
@@ -333,6 +335,7 @@ SLVG
 SMT
 SPINLOCK
 SSHH
+SSIZE
 SSq
 STR
 STRUCT
@@ -428,7 +431,9 @@ WiredTigerPreplog
 WiredTigerTmplog
 WithSeeds
 Wmissing
+Wollman
 WriteFile
+Wsign
 Wundef
 Wuninitialized
 Wunused
@@ -1061,6 +1066,7 @@ perf
 pfx
 pid
 pmem
+pn
 poptable
 popthreads
 portably
@@ -1073,6 +1079,7 @@ pre
 pread
 prealloc
 precomp
+preemptible
 preload
 prepend
 prepended
@@ -1125,6 +1132,7 @@ reconfiguring
 recsize
 rectype
 recurse
+recursing
 reentrant
 refp
 regionp
@@ -1171,6 +1179,7 @@ sfence
 shareability
 sig
 signalled
+signedness
 sii
 sizeof
 sizep

@@ -223,9 +223,6 @@
  * there are no elements to compare (note zero elements is allowed by the IEEE Std 1003.1-2017
  * standard). Avoid the complaint.
  */
-#define __wt_qsort(base, nmemb, size, compar) \
-    if ((nmemb) != 0)                         \
-    qsort(base, nmemb, size, compar)
 
 /*
  * Binary search for an integer key.
