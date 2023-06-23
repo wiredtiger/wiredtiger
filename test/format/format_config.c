@@ -439,9 +439,16 @@ config_table(TABLE *table, void *arg)
     if (table->type != ROW)
         g.column_store_config = true;
 
-    /* Only row-store tables support a collation order. */
+    /* Only row-store tables support a collation order. If not explicitly set, reconfigure the
+     * reverse setting to reflect the intention of enabling it 10% of the time. */
     if (table->type != ROW)
         config_off(table, "btree.reverse");
+    else if (!config_explicit(table, "btree.reverse"))
+        config_single(table,
+          mmrand(&g.data_rnd, 1, 100) <= configuration_list[V_TABLE_BTREE_REVERSE].min ?
+            "btree.reverse=1" :
+            "btree.reverse=0",
+          false);
 
     /* Give LSM a final review and flag if there's at least one LSM data source. */
     if (DATASOURCE(table, "lsm")) {
