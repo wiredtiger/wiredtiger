@@ -121,7 +121,7 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
 
     minutes = 0;
     pause_cnt = 0;
-    WT_CONNECTION_FOREACH_SESSION(s, conn)
+    WT_CONN_SESSION_FOREACH(s, conn)
     {
         if (!s->active)
             continue;
@@ -204,7 +204,7 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
             }
         }
     }
-    WT_CONNECTION_FOREACH_SESSION_END;
+    WT_CONN_SESSION_FOREACH_END;
 }
 
 /*
@@ -221,7 +221,7 @@ __gen_oldest(WT_SESSION_IMPL *session, int which)
     conn = S2C(session);
 
     oldest = conn->generations[which];
-    WT_CONNECTION_FOREACH_SESSION(s, conn)
+    WT_CONN_SESSION_FOREACH(s, conn)
     {
         if (!s->active)
             continue;
@@ -232,7 +232,7 @@ __gen_oldest(WT_SESSION_IMPL *session, int which)
         if (v != 0 && v < oldest)
             oldest = v;
     }
-    WT_CONNECTION_FOREACH_SESSION_END;
+    WT_CONN_SESSION_FOREACH_END;
 
     return (oldest);
 }
@@ -250,7 +250,7 @@ __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
 
     conn = S2C(session);
 
-    WT_CONNECTION_FOREACH_SESSION(s, conn)
+    WT_CONN_SESSION_FOREACH(s, conn)
     {
         if (!s->active)
             continue;
@@ -261,7 +261,7 @@ __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
         if (v != 0 && generation >= v)
             return (true);
     }
-    WT_CONNECTION_FOREACH_SESSION_END;
+    WT_CONN_SESSION_FOREACH_END;
 
     WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_GENERATION_CHECK,
       generation < __gen_oldest(session, which), "Generation is older than gen_oldest");

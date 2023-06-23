@@ -313,7 +313,7 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
      */
     __wt_session_gen_enter(session, WT_GEN_HAZARD);
 
-    WT_CONNECTION_FOREACH_SESSION(s, conn)
+    WT_CONN_SESSION_FOREACH(s, conn)
     {
         if (!s->active)
             continue;
@@ -335,7 +335,7 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessi
             }
         }
     }
-    WT_CONNECTION_FOREACH_SESSION_END;
+    WT_CONN_SESSION_FOREACH_END;
 
     WT_STAT_CONN_INCRV(session, cache_hazard_walks, walk_cnt);
     hp = NULL;

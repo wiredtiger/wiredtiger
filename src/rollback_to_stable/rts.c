@@ -35,7 +35,7 @@ __wt_rts_check(WT_SESSION_IMPL *session)
      */
     __wt_spin_lock(session, &conn->api_lock);
 
-    WT_CONNECTION_FOREACH_SESSION(session_in_list, conn)
+    WT_CONN_SESSION_FOREACH(session_in_list, conn)
     {
         /* Skip inactive or internal sessions. */
         if (!session_in_list->active || F_ISSET(session_in_list, WT_SESSION_INTERNAL))
@@ -53,7 +53,7 @@ __wt_rts_check(WT_SESSION_IMPL *session)
             break;
         }
     }
-    WT_CONNECTION_FOREACH_SESSION_END;
+    WT_CONN_SESSION_FOREACH_END;
 
     __wt_spin_unlock(session, &conn->api_lock);
 

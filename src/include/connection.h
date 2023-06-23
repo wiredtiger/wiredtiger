@@ -348,7 +348,7 @@ struct __wt_connection_impl {
      */
     WT_SESSION_IMPL *sessions; /* Session reference */
 
-#define WT_CONNECTION_FOREACH_SESSION(session, conn)                                             \
+#define WT_CONN_SESSION_FOREACH(session, conn)                                                   \
     do {                                                                                         \
         /*                                                                                       \
          * No lock is required because the session array is fixed size, but it may contain       \
@@ -361,9 +361,9 @@ struct __wt_connection_impl {
         WT_ORDERED_READ(__session_cnt, (conn)->session_cnt);                                     \
         for (__i = 0, (session) = conn->sessions; __i < __session_cnt; __i++, (session)++) {
 
-#define WT_CONNECTION_FOREACH_SESSION_END \
-    }                                     \
-    }                                     \
+#define WT_CONN_SESSION_FOREACH_END \
+    }                               \
+    }                               \
     while (0)
 
     uint32_t session_size; /* Session array size */
