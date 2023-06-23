@@ -470,31 +470,30 @@ upgrade_downgrade()
     top="$PWD"
     for am in $3; do
         config=$top/$format_dir_branch2/RUNDIR.$am/CONFIG
-        # In order to be able to test against 4.2, we need to have timestamped transactions. Those
-        # are incompatible with implicit transactions. Adjust the config temporarily.
-        if [ "$1" == "mongodb-4.2" ] ; then
-            echo "Temporarily forcing transaction.timestamps=1 for $config"
-            cp $config $config.orig
-            echo "transaction.timestamps=1" >> $config
-            echo "transaction.implicit=0" >> $config
-        fi
         for _ in {1..2}; do
+            # In order to be able to test against 4.2, we need to have timestamped transactions. Those
+            # are incompatible with implicit transactions. Adjust the config temporarily.
+            if [ "$1" == "mongodb-4.2" ] ; then
+                echo "Temporarily forcing transaction.timestamps=1 for $config"
+                cp $config $config.orig
+                echo "transaction.timestamps=1" >> $config
+                echo "transaction.implicit=0" >> $config
+            fi
             echo "$1 format running on $2 access method $am..."
             cd "$top/$format_dir_branch1"
             flags="-1Rq $(bflag $1)"
             ./t $flags -h "$top/$format_dir_branch2/RUNDIR.$am" timer=2
+            # Revert to the original config.
+            if [ "$1" == "mongodb-4.2" ] ; then
+                echo "Reverting $config to its original state"
+                mv $config.orig $config
+            fi
 
             echo "$2 format running on $2 access method $am..."
             cd "$top/$format_dir_branch2"
             flags="-1Rq $(bflag $2)"
             ./t $flags -h "RUNDIR.$am" timer=2
         done
-        # Revert to the original config.
-        if [ "$1" == "mongodb-4.2" ] ; then
-            echo "Reverting $config to its original state"
-            cp $config.orig $config
-            rm $config.orig
-        fi
     done
 }
 
