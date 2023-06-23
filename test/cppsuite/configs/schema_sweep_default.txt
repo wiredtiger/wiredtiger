@@ -1,15 +1,15 @@
 # Configuration for schema_sweep.
-duration_seconds=5,
+duration_seconds=10,
 cache_size_mb=250,
 workload_manager=
 (
     checkpoint_config=
     (
-        op_rate=5s,
+        op_rate=2s,
     ),
     custom_config=
     (
-        op_rate=30s,
+        op_rate=5s,
         thread_count=1,
     ),
     insert_config=
