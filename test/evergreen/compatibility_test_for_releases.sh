@@ -95,13 +95,17 @@ build_branch()
         # Old releases didn't have these enabled, need to make it consistent.
         config+="-DENABLE_LZ4=0 -DENABLE_ZLIB=0 -DENABLE_ZSTD=0 "
         config+="-DWT_STANDALONE_BUILD=0 "
-        # Use the stable MongoDB toolchain for this build.
-        config+="-DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake "
+        # Use the stable MongoDB toolchain. Note that the branches 5.0 and below need v3.
+        major=`echo $1 | cut -d '-' -f 2 | cut -d '.' -f 1`
+        if [ $major -le 5 ]; then
+            config+="-DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake "
+        else
+            config+="-DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake "
+        fi
         # Disable cppsuite - not all versions build with the toolchain
         config+="-DENABLE_CPPSUITE=0"
 
-        (mkdir -p build && cd build &&
-            $CMAKE $config ../. && make -j $(grep -c ^processor /proc/cpuinfo)) > /dev/null
+        (mkdir -p build && cd build && $CMAKE $config -G Ninja ../. && ninja) > /dev/null
     else
         config+="--enable-snappy "
         config+="--disable-standalone-build "
@@ -724,15 +728,12 @@ scopes[two_versions]="any two given versions"
 get_build_system()
 {
     branch="$1"
-    # Default to cmake.
-    local build_system="cmake"
 
-    # As of MongoDB 6.0, WiredTiger standalone builds switched to CMake
-    if [[ $branch == mongodb-* ]]; then
-        major=`echo $branch | cut -d '-' -f 2 | cut -d '.' -f 1`
-        if [ $major -lt 6 ]; then
-            build_system="autoconf"
-        fi
+    # Recent WiredTiger versions can be built using CMake.
+    if [ -d "cmake" ]; then
+        build_system="cmake"
+    else
+        build_system="autoconf"
     fi
     # Check for WiredTiger standalone branch names. They are of the form 10.0.0 - figure out
     # if the first element is numerical, and use that to decide.
