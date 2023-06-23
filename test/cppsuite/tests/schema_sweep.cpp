@@ -96,50 +96,47 @@ public:
     {
         while (tw->running()) {
             tw->sleep();
-            {
-                /*
-                 * Use a function that holds a lock while retrieving the name. If we retrieve the
-                 * collection then get the name from it, another thread may free the data allocated
-                 * to the collection in parallel since we don't hold a lock on the database here.
-                 * The name is empty if the database is empty.
-                 */
-                const std::string collection_name(tw->db.get_random_collection_name());
-                if (collection_name.empty())
-                    continue;
-                auto session = connection_manager::instance().create_session();
+            /*
+             * Use a function that holds a lock while retrieving the name. If we retrieve the
+             * collection then get the name from it, another thread may free the data allocated
+             * to the collection in parallel since we don't hold a lock on the database here.
+             * The name is empty if the database is empty.
+             */
+            const std::string collection_name(tw->db.get_random_collection_name());
+            if (collection_name.empty())
+                continue;
+            auto session = connection_manager::instance().create_session();
 
-                WT_CURSOR *cursor;
-                int ret = session->open_cursor(
-                  session.get(), collection_name.c_str(), nullptr, nullptr, &cursor);
-                // The collection may have been / is being deleted.
-                if (ret != 0 && ret != ENOENT)
-                    testutil_die(LOG_ERROR,
-                      "update_operation failed: cursor->open_cursor() returned an unexpected error "
-                      "%d.",
-                      ret);
-                if (ret != 0)
-                    continue;
+            WT_CURSOR *cursor;
+            int ret = session->open_cursor(
+              session.get(), collection_name.c_str(), nullptr, nullptr, &cursor);
+            // The collection may have been / is being deleted.
+            if (ret != 0 && ret != ENOENT)
+                testutil_die(LOG_ERROR,
+                  "update_operation failed: cursor->open_cursor() returned an unexpected error "
+                  "%d.",
+                  ret);
+            if (ret != 0)
+                continue;
 
-                // We have a cursor opened on the collection, the ref should prevent it from being
-                // deleted and we can perform an update safely.
-                testutil_check(session->begin_transaction(session.get(), nullptr));
+            // We have a cursor opened on the collection, the ref should prevent it from being
+            // deleted and we can perform an update safely.
+            testutil_check(session->begin_transaction(session.get(), nullptr));
 
-                auto key = random_generator::instance().generate_pseudo_random_string(tw->key_size);
-                auto value =
-                  random_generator::instance().generate_pseudo_random_string(tw->value_size);
-                cursor->set_key(cursor, key.c_str());
-                cursor->set_value(cursor, value.c_str());
-                ret = cursor->update(cursor);
-                if (ret != 0 && ret != WT_ROLLBACK)
-                    testutil_die(LOG_ERROR,
-                      "update_operation failed: cursor->update() returned an unexpected error "
-                      "%d.",
-                      ret);
-                if (ret == 0)
-                    testutil_check(session->commit_transaction(session.get(), nullptr));
-                else
-                    testutil_check(session->rollback_transaction(session.get(), nullptr));
-            }
+            auto key = random_generator::instance().generate_pseudo_random_string(tw->key_size);
+            auto value = random_generator::instance().generate_pseudo_random_string(tw->value_size);
+            cursor->set_key(cursor, key.c_str());
+            cursor->set_value(cursor, value.c_str());
+            ret = cursor->update(cursor);
+            if (ret != 0 && ret != WT_ROLLBACK)
+                testutil_die(LOG_ERROR,
+                  "update_operation failed: cursor->update() returned an unexpected error "
+                  "%d.",
+                  ret);
+            if (ret == 0)
+                testutil_check(session->commit_transaction(session.get(), nullptr));
+            else
+                testutil_check(session->rollback_transaction(session.get(), nullptr));
         }
     }
 };
