@@ -73,27 +73,28 @@
         }                                                                    \
     } while (0)
 
-#define WT_ATOMIC_FUNC(name, ret, type, s, t)                         \
-    static inline ret __wt_atomic_add##name(type *vp, type v)         \
-    {                                                                 \
-        return (_InterlockedExchangeAdd##s((t *)(vp), (t)(v)) + (v)); \
-    }                                                                 \
-    static inline ret __wt_atomic_fetch_add##name(type *vp, type v)   \
-    {                                                                 \
-        return (_InterlockedExchangeAdd##s((t *)(vp), (t)(v)));       \
+#define WT_ATOMIC_FUNC(name, ret, type, s, t)                                                     \
+    static inline ret __wt_atomic_add##name(type *vp, type v)                                     \
+    {                                                                                             \
+        return (_InterlockedExchangeAdd##s((t *)(vp), (t)(v)) + (v));                             \
+    }                                                                                             \
+    static inline ret __wt_atomic_fetch_add##name(type *vp, type v)                               \
+    {                                                                                             \
+        return (_InterlockedExchangeAdd##s((t *)(vp), (t)(v)));                                   \
+    }                                                                                             \
+    static inline ret __wt_c_memmodel_fetch_add##name(type *vp, type v, int memorder)             \
+    {                                                                                             \
+        return (_InterlockedExchangeAdd##s((t *)(vp), (t)(v)));                                   \
+    }                                                                                             \
+    static inline ret __wt_atomic_sub##name(type *vp, type v)                                     \
+    {                                                                                             \
+        return (_InterlockedExchangeAdd##s((t *)(vp), -(t)v) - (v));                              \
+    }                                                                                             \
+    static inline bool __wt_atomic_cas##name(type *vp, type old_val, type new_val)                \
+    {                                                                                             \
+        return (                                                                                  \
+          _InterlockedCompareExchange##s((t *)(vp), (t)(new_val), (t)(old_val)) == (t)(old_val)); \
     }
-static inline ret __wt_c_memmodel_fetch_add##name(type *vp, type v, int memorder)
-{
-    return (_InterlockedExchangeAdd##s((t *)(vp), (t)(v)));
-}
-static inline ret __wt_atomic_sub##name(type *vp, type v)
-{
-    return (_InterlockedExchangeAdd##s((t *)(vp), -(t)v) - (v));
-}
-static inline bool __wt_atomic_cas##name(type *vp, type old_val, type new_val)
-{
-    return (_InterlockedCompareExchange##s((t *)(vp), (t)(new_val), (t)(old_val)) == (t)(old_val));
-}
 
 WT_ATOMIC_FUNC(8, uint8_t, uint8_t, 8, char)
 WT_ATOMIC_FUNC(v8, uint8_t, volatile uint8_t, 8, char)
