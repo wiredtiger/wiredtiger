@@ -28,6 +28,7 @@ primitives = [
     "WT_REF_UNLOCK",
     "WT_STAT_DECRV_ATOMIC",
     "WT_STAT_INCRV_ATOMIC",
+    "WT_TXN_SHARED_FOREACH_BEGIN",
     "WT_WRITE_BARRIER",
 ]
 
