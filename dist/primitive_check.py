@@ -15,6 +15,7 @@ primitives = [
     "REF_SET_STATE",
     "volatile",
     "WT_BARRIER",
+    "WT_CONN_SESSION_FOREACH",
     "WT_DHANDLE_ACQUIRE",
     "WT_DHANDLE_RELEASE",
     "WT_FULL_BARRIER",
