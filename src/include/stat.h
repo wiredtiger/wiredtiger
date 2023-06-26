@@ -769,7 +769,6 @@ struct __wt_connection_stats {
     int64_t rec_maximum_milliseconds;
     int64_t rec_maximum_image_build_milliseconds;
     int64_t rec_maximum_hs_wrapup_milliseconds;
-    int64_t rec_page_image_reuse;
     int64_t rec_pages;
     int64_t rec_pages_eviction;
     int64_t rec_pages_with_prepare;
@@ -1177,7 +1176,6 @@ struct __wt_dsrc_stats {
     int64_t rec_overflow_key_leaf;
     int64_t rec_multiblock_max;
     int64_t rec_overflow_value;
-    int64_t rec_page_image_reuse;
     int64_t rec_pages;
     int64_t rec_pages_eviction;
     int64_t rec_page_delete;
