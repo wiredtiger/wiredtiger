@@ -1914,7 +1914,7 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
     dsk->recno = btree->type == BTREE_ROW ? WT_RECNO_OOB : multi->key.recno;
 
     __rec_set_page_write_gen(btree, dsk);
-    dsk->mem_size = multi->size;
+    dsk->mem_size = WT_STORE_SIZE(chunk->image.size);
     dsk->u.entries = chunk->entries;
     dsk->type = page->type;
 
@@ -2065,7 +2065,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     default:
         return (__wt_illegal_value(session, page->type));
     }
-    multi->size = WT_STORE_SIZE(chunk->image.size);
     multi->supd_restore = false;
 
     /* Set the key. */

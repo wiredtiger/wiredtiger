@@ -268,9 +268,7 @@ struct __wt_multi {
     uint32_t supd_entries;
     bool supd_restore; /* Whether to restore saved update chains to this page */
 
-    /* Disk image was written: address and size. */
-    WT_ADDR addr;
-    uint32_t size;
+    WT_ADDR addr; /* Disk image written address */
 };
 
 /*
