@@ -109,7 +109,6 @@
 
 #define WT_C_MEMMODEL_ATOMIC_CAS(ptr, oldv, newv, success_memorder, failure_memorder) \
     atomic_compare_exchange_strong_explicit(ptr, &oldv, newv, success_memorder, failure_memorder)
-#define WT_C_MEMMODEL_ATOMIC_ADD(ptr, val, memorder) atomic_fetch_add_explicit(ptr, val, memorder)
 #define WT_C_MEMMODEL_ATOMIC_LOAD(var, ptr, memorder) \
     do {                                              \
         var = atomic_load_explicit(ptr, memorder);    \
@@ -147,18 +146,22 @@ __wt_atomic_cas_ptr(void *vp, void *old, void *newv)
     return (WT_ATOMIC_CAS((void **)vp, &old, newv));
 }
 
-#define WT_ATOMIC_FUNC(name, ret, vp_arg, v_arg)                 \
-    static inline ret __wt_atomic_add##name(vp_arg, v_arg)       \
-    {                                                            \
-        return (__atomic_add_fetch(vp, v, __ATOMIC_SEQ_CST));    \
-    }                                                            \
-    static inline ret __wt_atomic_fetch_add##name(vp_arg, v_arg) \
-    {                                                            \
-        return (__atomic_fetch_add(vp, v, __ATOMIC_SEQ_CST));    \
-    }                                                            \
-    static inline ret __wt_atomic_sub##name(vp_arg, v_arg)       \
-    {                                                            \
-        return (__atomic_sub_fetch(vp, v, __ATOMIC_SEQ_CST));    \
+#define WT_ATOMIC_FUNC(name, ret, vp_arg, v_arg)                                          \
+    static inline ret __wt_atomic_add##name(vp_arg, v_arg)                                \
+    {                                                                                     \
+        return (__atomic_add_fetch(vp, v, __ATOMIC_SEQ_CST));                             \
+    }                                                                                     \
+    static inline ret __wt_atomic_fetch_add##name(vp_arg, v_arg)                          \
+    {                                                                                     \
+        return (__atomic_fetch_add(vp, v, __ATOMIC_SEQ_CST));                             \
+    }                                                                                     \
+    static inline ret __wt_c_memmodel_atomic_fetch_add##name(vp_arg, v_arg, int memorder) \
+    {                                                                                     \
+        return (atomic_fetch_add_explicit(ptr, val, memorder));                           \
+    }                                                                                     \
+    static inline ret __wt_atomic_sub##name(vp_arg, v_arg)                                \
+    {                                                                                     \
+        return (__atomic_sub_fetch(vp, v, __ATOMIC_SEQ_CST));                             \
     }
 WT_ATOMIC_FUNC(8, uint8_t, uint8_t *vp, uint8_t v)
 WT_ATOMIC_FUNC(v8, uint8_t, volatile uint8_t *vp, volatile uint8_t v)
