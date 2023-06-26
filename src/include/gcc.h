@@ -109,6 +109,7 @@
 
 #define WT_C_MEMMODEL_ATOMIC_CAS(ptr, oldv, newv, success_memorder, failure_memorder) \
     atomic_compare_exchange_strong_explicit(ptr, &oldv, newv, success_memorder, failure_memorder)
+#define WT_C_MEMMODEL_ATOMIC_ADD(ptr, val, memorder) atomic_fetch_add_explicit(ptr, val, memorder)
 #define WT_C_MEMMODEL_ATOMIC_LOAD(var, ptr, memorder) \
     do {                                              \
         var = atomic_load_explicit(ptr, memorder);    \

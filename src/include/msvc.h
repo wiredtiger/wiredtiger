@@ -119,6 +119,8 @@ __wt_atomic_cas_ptr(void *vp, void *old_val, void *new_val)
 #define WT_C_MEMMODEL_ATOMIC_CAS(ptr, oldv, newv, success_memorder, failure_memorder) \
     __wt_atomic_cas_ptr(ptr, oldv, newv)
 
+#define WT_C_MEMMODEL_ATOMIC_ADD(ptr, val, memorder) __wt_atomic_fetch_add(ptr, val)
+
 /*
  * WT_BARRIER --
  *	MSVC implementation of WT_BARRIER.
