@@ -10,7 +10,7 @@
 
 /*
  * __wt_exclusive_handle_operation --
- *     Get exclusive access to a file and apply a function.
+ *     Optionally get exclusive access to a file and apply a function.
  */
 int
 __wt_exclusive_handle_operation(WT_SESSION_IMPL *session, const char *uri,
