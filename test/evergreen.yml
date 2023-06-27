@@ -6445,7 +6445,8 @@ buildvariants:
     - name: long-test
     - name: configure-combinations
     - name: format-smoke-test
-    - name: tiered-storage-extensions-test
+    - name: s3-tiered-storage-extensions-test
+    - name: azure-gcp-tiered-storage-extensions-test
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
     - name: unit-test-nonstandalone
@@ -6480,7 +6481,7 @@ buildvariants:
     - name: long-test
     - name: configure-combinations
     - name: format-smoke-test
-    - name: tiered-storage-extensions-test
+    - name: s3-tiered-storage-extensions-test
     - name: compile-nonstandalone
     - name: make-check-nonstandalone
     - name: unit-test-nonstandalone
@@ -6505,8 +6506,7 @@ buildvariants:
   tasks:
     - name: ".stress-test-1"
     - name: ".stress-test-2"
-    - name: ".stress-test-sanitizer-1"
-    - name: ".stress-test-sanitizer-2"
+    - name: ".stress-test-sanitizer"
     - name: format-abort-recovery-stress-test
     - name: ".stress-test-1-nonstandalone"
     - name: ".stress-test-2-nonstandalone"
