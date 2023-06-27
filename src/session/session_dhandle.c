@@ -197,6 +197,7 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
                 WT_WITH_DHANDLE(session, dhandle, __wt_session_dhandle_writeunlock(session));
                 return (__wt_set_return(session, EBUSY));
             }
+
             /*
              * If it was opened while we waited, drop the write lock and get a read lock instead.
              */
