@@ -1402,6 +1402,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: forced eviction - pages evicted that were dirty time (usecs)",
   "cache: forced eviction - pages selected because of a large number of updates to a single item",
   "cache: forced eviction - pages selected because of too many deleted items count",
+  "cache: forced eviction - pages selected because of too many obsolete deleted items count",
   "cache: forced eviction - pages selected count",
   "cache: forced eviction - pages selected unable to be evicted count",
   "cache: forced eviction - pages selected unable to be evicted time",
@@ -2055,6 +2056,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_force_dirty_time = 0;
     stats->cache_eviction_force_long_update_list = 0;
     stats->cache_eviction_force_delete = 0;
+    stats->cache_eviction_force_obsolete_delete = 0;
     stats->cache_eviction_force = 0;
     stats->cache_eviction_force_fail = 0;
     stats->cache_eviction_force_fail_time = 0;
@@ -2681,6 +2683,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_force_long_update_list +=
       WT_STAT_READ(from, cache_eviction_force_long_update_list);
     to->cache_eviction_force_delete += WT_STAT_READ(from, cache_eviction_force_delete);
+    to->cache_eviction_force_obsolete_delete +=
+      WT_STAT_READ(from, cache_eviction_force_obsolete_delete);
     to->cache_eviction_force += WT_STAT_READ(from, cache_eviction_force);
     to->cache_eviction_force_fail += WT_STAT_READ(from, cache_eviction_force_fail);
     to->cache_eviction_force_fail_time += WT_STAT_READ(from, cache_eviction_force_fail_time);

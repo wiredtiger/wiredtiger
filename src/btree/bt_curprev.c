@@ -359,9 +359,17 @@ restart_read:
             continue;
         }
         if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-            if (cbt->upd_value->tw.stop_txn != WT_TXN_NONE &&
-              __wt_txn_upd_value_visible_all(session, cbt->upd_value))
-                ++cbt->page_deleted_count;
+            if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
+                ++cbt->page_obsolete_deleted_count;
+            /*
+             * If the selected tombstone is not first in the update list indicates that there are
+             * newer updates in the list that is either not committed or not visible.
+             */
+            else if (cbt->upd_value->type != cbt->ins->upd->type ||
+              cbt->upd_value->tw.durable_stop_ts != cbt->ins->upd->durable_ts ||
+              cbt->upd_value->tw.stop_ts != cbt->ins->upd->start_ts ||
+              cbt->upd_value->tw.stop_txn != cbt->ins->upd->txnid)
+                cbt->valid_data = true;
             ++*skippedp;
             continue;
         }
@@ -452,9 +460,17 @@ restart_read:
         }
         if (cbt->upd_value->type != WT_UPDATE_INVALID) {
             if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-                if (cbt->upd_value->tw.stop_txn != WT_TXN_NONE &&
-                  __wt_txn_upd_value_visible_all(session, cbt->upd_value))
-                    ++cbt->page_deleted_count;
+                if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
+                    ++cbt->page_obsolete_deleted_count;
+                /*
+                 * If the selected tombstone is not first in the update list indicates that there
+                 * are newer updates in the list that is either not committed or not visible.
+                 */
+                else if (cbt->upd_value->type != cbt->ins->upd->type ||
+                  cbt->upd_value->tw.durable_stop_ts != cbt->ins->upd->durable_ts ||
+                  cbt->upd_value->tw.stop_ts != cbt->ins->upd->start_ts ||
+                  cbt->upd_value->tw.stop_txn != cbt->ins->upd->txnid)
+                    cbt->valid_data = true;
                 ++*skippedp;
                 continue;
             }
@@ -572,6 +588,7 @@ __cursor_row_prev(
     WT_PAGE *page;
     WT_ROW *rip;
     WT_SESSION_IMPL *session;
+    WT_UPDATE *first_upd;
 
     key = &cbt->iface.key;
     page = cbt->ref->page;
@@ -648,9 +665,17 @@ restart_read_insert:
                 continue;
             }
             if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-                if (cbt->upd_value->tw.stop_txn != WT_TXN_NONE &&
-                  __wt_txn_upd_value_visible_all(session, cbt->upd_value))
-                    ++cbt->page_deleted_count;
+                if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
+                    ++cbt->page_obsolete_deleted_count;
+                /*
+                 * If the selected tombstone is not first in the update list indicates that there
+                 * are newer updates in the list that is either not committed or not visible.
+                 */
+                else if (cbt->upd_value->type != cbt->ins->upd->type ||
+                  cbt->upd_value->tw.durable_stop_ts != cbt->ins->upd->durable_ts ||
+                  cbt->upd_value->tw.stop_ts != cbt->ins->upd->start_ts ||
+                  cbt->upd_value->tw.stop_txn != cbt->ins->upd->txnid)
+                    cbt->valid_data = true;
                 ++*skippedp;
                 continue;
             }
@@ -703,16 +728,25 @@ restart_read_page:
          * Read the on-disk value and/or history. Pass an update list: the update list may contain
          * the base update for a modify chain after rollback-to-stable, required for correctness.
          */
-        WT_RET(
-          __wt_txn_read(session, cbt, &cbt->iface.key, WT_RECNO_OOB, WT_ROW_UPDATE(page, rip)));
+        first_upd = WT_ROW_UPDATE(page, rip);
+        WT_RET(__wt_txn_read(session, cbt, &cbt->iface.key, WT_RECNO_OOB, first_upd));
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
             ++*skippedp;
             continue;
         }
         if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-            if (cbt->upd_value->tw.stop_txn != WT_TXN_NONE &&
-              __wt_txn_upd_value_visible_all(session, cbt->upd_value))
-                ++cbt->page_deleted_count;
+            if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
+                ++cbt->page_obsolete_deleted_count;
+            /*
+             * If the selected tombstone is not first in the update list indicates that there are
+             * newer updates in the list that is either not committed or not visible.
+             */
+            else if (first_upd != NULL &&
+              (cbt->upd_value->type != first_upd->type ||
+                cbt->upd_value->tw.durable_stop_ts != first_upd->durable_ts ||
+                cbt->upd_value->tw.stop_ts != first_upd->start_ts ||
+                cbt->upd_value->tw.stop_txn != first_upd->txnid))
+                cbt->valid_data = true;
             ++*skippedp;
             continue;
         }
@@ -860,13 +894,18 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
          * from reconciliation getting rid of the obsolete content. Hence mark the page dirty to
          * force it through reconciliation.
          */
-        if (page != NULL &&
-          (cbt->page_deleted_count > WT_BTREE_DELETE_THRESHOLD ||
-            (newpage && cbt->page_deleted_count > 0))) {
-            WT_ERR(__wt_page_dirty_and_evict_soon(session, cbt->ref));
-            WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
+        if (page != NULL) {
+            if (cbt->page_obsolete_deleted_count > WT_BTREE_DELETE_THRESHOLD ||
+              (newpage && cbt->page_obsolete_deleted_count > 0)) {
+                WT_ERR(__wt_page_dirty_and_evict_soon(session, cbt->ref));
+                WT_STAT_CONN_INCR(session, cache_eviction_force_obsolete_delete);
+            } else if (!cbt->valid_data) {
+                __wt_page_evict_soon(session, cbt->ref);
+                WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
+            }
         }
-        cbt->page_deleted_count = 0;
+        cbt->page_obsolete_deleted_count = 0;
+        cbt->valid_data = false;
 
         if (F_ISSET(cbt, WT_CBT_READ_ONCE))
             LF_SET(WT_READ_WONT_NEED);
