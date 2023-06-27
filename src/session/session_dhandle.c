@@ -146,9 +146,7 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
             return (0);
         }
 
-        /*
-         * If the handle is already open for a special operation, give up.
-         */
+        /* If the handle is already open for a special operation, give up. */
         if (btree != NULL && F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS))
             return (__wt_set_return(session, EBUSY));
 
@@ -166,6 +164,12 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
                 *is_deadp = true;
                 WT_WITH_DHANDLE(session, dhandle, __wt_session_dhandle_readunlock(session));
                 return (0);
+            }
+
+            /* Check the special flags again in case they have changed since the last check. */
+            if (btree != NULL && F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS)) {
+                WT_WITH_DHANDLE(session, dhandle, __wt_session_dhandle_readunlock(session));
+                return (__wt_set_return(session, EBUSY));
             }
 
             is_open = F_ISSET(dhandle, WT_DHANDLE_OPEN);
@@ -188,6 +192,11 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
                 return (0);
             }
 
+            /* Check the special flags again in case they have changed since the last check. */
+            if (btree != NULL && F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS)) {
+                WT_WITH_DHANDLE(session, dhandle, __wt_session_dhandle_writeunlock(session));
+                return (__wt_set_return(session, EBUSY));
+            }
             /*
              * If it was opened while we waited, drop the write lock and get a read lock instead.
              */
