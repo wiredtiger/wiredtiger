@@ -82,7 +82,7 @@
     {                                                                                             \
         return (_InterlockedExchangeAdd##s((t *)(vp), (t)(v)));                                   \
     }                                                                                             \
-    \ static inline ret __wt_atomic_sub##name(type *vp, type v)                                   \
+    static inline ret __wt_atomic_sub##name(type *vp, type v)                                     \
     {                                                                                             \
         return (_InterlockedExchangeAdd##s((t *)(vp), -(t)v) - (v));                              \
     }                                                                                             \
