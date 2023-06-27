@@ -108,7 +108,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t, 64, __int64)
 static inline uint64_t
 __wt_c_memmodel_fetch_add64(WT_ATOMIC_TYPE(uint64_t) * vp, uint64_t v, int memorder)
 {
-    return (_InterlockedExchangeAdd##s((t *)(vp), (t)(v)));
+    return (_InterlockedExchangeAdd64((t *)(vp), (t)(v)));
 }
 /*
  * __wt_atomic_cas_ptr --
