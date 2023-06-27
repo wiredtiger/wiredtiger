@@ -319,6 +319,7 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    uint32_t session_cnt;
 #ifdef HAVE_CALL_LOG
     bool internal_session;
 #endif
@@ -412,9 +413,13 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
      * not be at the end of the array, step toward the beginning of the array until we reach an
      * active session.
      */
-    while (conn->sessions[conn->session_cnt - 1].active == 0)
-        if (--conn->session_cnt == 0)
+    WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &conn->session_cnt, WT_ATOMIC_SEQ_CST);
+    while (conn->sessions[session_cnt - 1].active == 0) {
+        session_cnt -= 1;
+        WT_C_MEMMODEL_ATOMIC_STORE(&conn->session_cnt, session_cnt, WT_ATOMIC_SEQ_CST);
+        if (session_cnt == 0)
             break;
+    }
 
     __wt_spin_unlock(session, &conn->api_lock);
 
@@ -2489,7 +2494,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         __wt_session_breakpoint};
     WT_DECL_RET;
     WT_SESSION_IMPL *session, *session_ret;
-    uint32_t i;
+    uint32_t i, session_cnt;
 
     *sessionp = NULL;
 
@@ -2518,8 +2523,9 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
      * session count on error, as long as we don't mark this session as active, we'll clean it up on
      * close.
      */
-    if (i >= conn->session_cnt) /* Defend against off-by-one errors. */
-        conn->session_cnt = i + 1;
+    WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &conn->session_cnt, WT_ATOMIC_SEQ_CST);
+    if (i >= session_cnt) /* Defend against off-by-one errors. */
+        WT_C_MEMMODEL_ATOMIC_STORE(&conn->session_cnt, i + 1, WT_ATOMIC_SEQ_CST);
 
     /* Find the set of methods appropriate to this session. */
     if (F_ISSET(conn, WT_CONN_MINIMAL) && !F_ISSET(session, WT_SESSION_INTERNAL))

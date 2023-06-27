@@ -278,11 +278,12 @@ __sweep_check_session_sweep(WT_SESSION_IMPL *session, uint64_t now)
     WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *s;
     uint64_t last, last_cursor_big_sweep, last_sweep;
-    uint32_t i;
+    uint32_t i, session_cnt;
 
     conn = S2C(session);
+    WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &conn->session_cnt, WT_ATOMIC_RELAXED);
 
-    for (s = conn->sessions, i = 0; i < conn->session_cnt; ++s, ++i) {
+    for (s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
         /*
          * Ignore inactive and internal sessions.
          */

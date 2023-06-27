@@ -298,7 +298,7 @@ struct __wt_session_impl {
 #define WT_GEN_HAZARD 3     /* Hazard pointer */
 #define WT_GEN_SPLIT 4      /* Page splits */
 #define WT_GENERATIONS 5    /* Total generation manager entries */
-    volatile uint64_t generations[WT_GENERATIONS];
+    WT_ATOMIC_TYPE(uint64_t) generations[WT_GENERATIONS];
 
     /*
      * Session memory persists past session close because it's accessed by threads of control other

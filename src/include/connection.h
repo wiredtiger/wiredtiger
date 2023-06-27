@@ -346,9 +346,9 @@ struct __wt_connection_impl {
      * that way because we want an easy way for the server thread code to avoid walking the entire
      * array when only a few threads are running.
      */
-    WT_SESSION_IMPL *sessions; /* Session reference */
-    uint32_t session_size;     /* Session array size */
-    uint32_t session_cnt;      /* Session count */
+    WT_SESSION_IMPL *sessions;            /* Session reference */
+    uint32_t session_size;                /* Session array size */
+    WT_ATOMIC_TYPE(uint32_t) session_cnt; /* Session count */
 
     size_t session_scratch_max; /* Max scratch memory per session */
 
@@ -552,7 +552,7 @@ struct __wt_connection_impl {
     uint64_t stashed_objects;
 
     /* Generations manager */
-    volatile uint64_t generations[WT_GENERATIONS];
+    WT_ATOMIC_TYPE(uint64_t) generations[WT_GENERATIONS];
     uint64_t gen_drain_timeout_ms; /* Maximum waiting time for a resource to drain in diagnostic
                                       mode before timing out */
 

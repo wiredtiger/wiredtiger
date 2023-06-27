@@ -1107,7 +1107,7 @@ __conn_close(WT_CONNECTION *wt_conn, const char *config)
     WT_DECL_RET;
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *s, *session;
-    uint32_t i;
+    uint32_t i, session_cnt;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
 
@@ -1132,14 +1132,15 @@ err:
      * transaction in one session could cause trouble when closing a file, even if that session
      * never referenced that file.
      */
-    for (s = conn->sessions, i = 0; i < conn->session_cnt; ++s, ++i)
+    WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &conn->session_cnt, WT_ATOMIC_RELAXED);
+    for (s = conn->sessions, i = 0; i < session_cnt; ++s, ++i)
         if (s->active && !F_ISSET(s, WT_SESSION_INTERNAL) && F_ISSET(s->txn, WT_TXN_RUNNING)) {
             wt_session = &s->iface;
             WT_TRET(wt_session->rollback_transaction(wt_session, NULL));
         }
 
     /* Close open, external sessions. */
-    for (s = conn->sessions, i = 0; i < conn->session_cnt; ++s, ++i)
+    for (s = conn->sessions, i = 0; i < session_cnt; ++s, ++i)
         if (s->active && !F_ISSET(s, WT_SESSION_INTERNAL)) {
             wt_session = &s->iface;
             /*
@@ -2251,15 +2252,16 @@ __wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
     WT_SESSION_IMPL *s;
-    uint32_t i, internal;
+    uint32_t i, internal, session_cnt;
 
     conn = S2C(session);
     WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
-    WT_RET(__wt_msg(session, "Active sessions: %" PRIu32 " Max: %" PRIu32, conn->session_cnt,
-      conn->session_size));
+    WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &conn->session_cnt, WT_ATOMIC_RELAXED);
+    WT_RET(__wt_msg(
+      session, "Active sessions: %" PRIu32 " Max: %" PRIu32, session_cnt, conn->session_size));
     WT_RET(__wt_scr_alloc(session, 0, &buf));
     internal = 0;
-    for (s = conn->sessions, i = 0; i < conn->session_cnt; ++s, ++i) {
+    for (s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
         /*
          * If it is not active or it is an internal session it is not interesting.
          */

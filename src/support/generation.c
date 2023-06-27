@@ -53,10 +53,7 @@ __wt_gen_init(WT_SESSION_IMPL *session)
      * All generations start at 1, a session with a generation of 0 isn't using the resource.
      */
     for (i = 0; i < WT_GENERATIONS; ++i)
-        S2C(session)->generations[i] = 1;
-
-    /* Ensure threads see the state change. */
-    WT_WRITE_BARRIER();
+        WT_C_MEMMODEL_ATOMIC_STORE(&S2C(session)->generations[i], 1, WT_ATOMIC_RELAXED);
 }
 
 /*
@@ -66,7 +63,10 @@ __wt_gen_init(WT_SESSION_IMPL *session)
 uint64_t
 __wt_gen(WT_SESSION_IMPL *session, int which)
 {
-    return (S2C(session)->generations[which]);
+    uint64_t gen;
+
+    WT_C_MEMMODEL_ATOMIC_LOAD(gen, &S2C(session)->generations[which], WT_ATOMIC_SEQ_CST);
+    return (gen);
 }
 
 /*
@@ -78,7 +78,8 @@ __wt_gen_next(WT_SESSION_IMPL *session, int which, uint64_t *genp)
 {
     uint64_t gen;
 
-    gen = __wt_atomic_addv64(&S2C(session)->generations[which], 1);
+    gen =
+      __wt_c_memmodel_atomic_fetch_add64(&S2C(session)->generations[which], 1, WT_ATOMIC_SEQ_CST);
     if (genp != NULL)
         *genp = gen;
 }
@@ -92,7 +93,7 @@ __wt_gen_next_drain(WT_SESSION_IMPL *session, int which)
 {
     uint64_t v;
 
-    v = __wt_atomic_addv64(&S2C(session)->generations[which], 1);
+    v = __wt_c_memmodel_atomic_fetch_add64(&S2C(session)->generations[which], 1, WT_ATOMIC_SEQ_CST);
 
     __wt_gen_drain(session, which, v);
 }
@@ -126,14 +127,14 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
      * session count. That way, no matter what sessions come or go, we'll check the slots for all of
      * the sessions that could have been active when we started our check.
      */
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
+    WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &conn->session_cnt, WT_ATOMIC_SEQ_CST);
     for (minutes = 0, pause_cnt = 0, s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
         if (!s->active)
             continue;
 
         for (;;) {
             /* Ensure we only read the value once. */
-            WT_ORDERED_READ(v, s->generations[which]);
+            WT_C_MEMMODEL_ATOMIC_LOAD(v, &s->generations[which], WT_ATOMIC_SEQ_CST);
 
             /*
              * The generation argument is newer than the limit. Wait for threads in generations
@@ -231,13 +232,14 @@ __gen_oldest(WT_SESSION_IMPL *session, int which)
      * session count. That way, no matter what sessions come or go, we'll check the slots for all of
      * the sessions that could have been active when we started our check.
      */
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    for (oldest = conn->generations[which], s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
+    WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &conn->session_cnt, WT_ATOMIC_SEQ_CST);
+    WT_C_MEMMODEL_ATOMIC_LOAD(oldest, &conn->generations[which], WT_ATOMIC_SEQ_CST);
+    for (s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
         if (!s->active)
             continue;
 
         /* Ensure we only read the value once. */
-        WT_ORDERED_READ(v, s->generations[which]);
+        WT_C_MEMMODEL_ATOMIC_LOAD(v, &s->generations[which], WT_ATOMIC_SEQ_CST);
 
         if (v != 0 && v < oldest)
             oldest = v;
@@ -266,13 +268,13 @@ __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
      * session count. That way, no matter what sessions come or go, we'll check the slots for all of
      * the sessions that could have been active when we started our check.
      */
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
+    WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &conn->session_cnt, WT_ATOMIC_SEQ_CST);
     for (s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
         if (!s->active)
             continue;
 
         /* Ensure we only read the value once. */
-        WT_ORDERED_READ(v, s->generations[which]);
+        WT_C_MEMMODEL_ATOMIC_LOAD(v, &s->generations[which], WT_ATOMIC_SEQ_CST);
 
         if (v != 0 && generation >= v)
             return (true);
@@ -290,7 +292,10 @@ __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
 uint64_t
 __wt_session_gen(WT_SESSION_IMPL *session, int which)
 {
-    return (session->generations[which]);
+    uint64_t gen;
+
+    WT_C_MEMMODEL_ATOMIC_LOAD(gen, &session->generations[which], WT_ATOMIC_SEQ_CST);
+    return (gen);
 }
 
 /*
@@ -300,13 +305,20 @@ __wt_session_gen(WT_SESSION_IMPL *session, int which)
 void
 __wt_session_gen_enter(WT_SESSION_IMPL *session, int which)
 {
+    uint64_t gen;
+#ifdef HAVE_DIAGNOSTIC
+    uint32_t session_cnt;
+
     /*
      * Don't enter a generation we're already in, it will likely result in code intended to be
      * protected by a generation running outside one.
      */
-    WT_ASSERT(session, session->generations[which] == 0);
+    WT_C_MEMMODEL_ATOMIC_LOAD(gen, &session->generations[which], WT_ATOMIC_RELAXED);
+    WT_ASSERT(session, gen == 0);
     WT_ASSERT(session, session->active);
-    WT_ASSERT(session, session->id < S2C(session)->session_cnt);
+    WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &S2C(session)->session_cnt, WT_ATOMIC_RELAXED);
+    WT_ASSERT(session, session->id < session_cnt);
+#endif
 
     /*
      * Assign the thread's resource generation and publish it, ensuring threads waiting on a
@@ -315,9 +327,9 @@ __wt_session_gen_enter(WT_SESSION_IMPL *session, int which)
      * generation.
      */
     do {
-        session->generations[which] = __wt_gen(session, which);
-        WT_WRITE_BARRIER();
-    } while (session->generations[which] != __wt_gen(session, which));
+        gen = __wt_gen(session, which);
+        WT_C_MEMMODEL_ATOMIC_STORE(&session->generations[which], gen, WT_ATOMIC_SEQ_CST);
+    } while (gen != __wt_gen(session, which));
 }
 
 /*
@@ -327,14 +339,16 @@ __wt_session_gen_enter(WT_SESSION_IMPL *session, int which)
 void
 __wt_session_gen_leave(WT_SESSION_IMPL *session, int which)
 {
+#ifdef HAVE_DIAGNOSTIC
+    uint32_t session_cnt;
+
     WT_ASSERT(session, session->active);
-    WT_ASSERT(session, session->id < S2C(session)->session_cnt);
+    WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &S2C(session)->session_cnt, WT_ATOMIC_RELAXED);
+    WT_ASSERT(session, session->id < session_cnt);
+#endif
 
     /* Ensure writes made by this thread are visible. */
-    WT_PUBLISH(session->generations[which], 0);
-
-    /* Let threads waiting for the resource to drain proceed quickly. */
-    WT_FULL_BARRIER();
+    WT_C_MEMMODEL_ATOMIC_STORE(&session->generations[which], 0, WT_ATOMIC_SEQ_CST);
 }
 
 /*

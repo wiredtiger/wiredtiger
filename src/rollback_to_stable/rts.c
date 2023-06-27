@@ -36,7 +36,7 @@ __wt_rts_check(WT_SESSION_IMPL *session)
      */
     __wt_spin_lock(session, &conn->api_lock);
 
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
+    WT_C_MEMMODEL_ATOMIC_LOAD(session_cnt, &conn->session_cnt, WT_ATOMIC_SEQ_CST);
     for (i = 0, session_in_list = conn->sessions; i < session_cnt; i++, session_in_list++) {
 
         /* Skip inactive or internal sessions. */
