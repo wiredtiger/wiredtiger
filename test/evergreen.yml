@@ -307,7 +307,7 @@ functions:
               -e 's|gcp_client_x509_cert_url|${gcp_sdk_ext_client_x509_cert_url}|'  ../test/evergreen/gcp_auth.json > $file
           export GOOGLE_APPLICATION_CREDENTIALS="$file"
 
-          ${configure_env_vars|} virtualenv -p python3 venv
+          PATH=/opt/mongodbtoolchain/v4/bin:$PATH virtualenv -p python3 venv
           source venv/bin/activate
           pip3 install boto3
           pip3 install azure-storage-blob
