@@ -173,9 +173,9 @@ WT_ATOMIC_FUNC(iv64, int64_t, volatile int64_t *vp, volatile int64_t v)
 WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
 
 static inline uint64_t
-__wt_c_memmodel_atomic_fetch_add64(WT_ATOMIC_TYPE(uint64_t) * vp, uint64_t v, int memorder)
+__wt_c_memmodel_atomic_add_fetch64(WT_ATOMIC_TYPE(uint64_t) * vp, uint64_t v, int memorder)
 {
-    return (atomic_fetch_add_explicit(vp, v, memorder));
+    return (atomic_fetch_add_explicit(vp, v, memorder) + v);
 }
 
 /* Compile read-write barrier */
