@@ -82,11 +82,7 @@
     {                                                                                             \
         return (_InterlockedExchangeAdd##s((t *)(vp), (t)(v)));                                   \
     }                                                                                             \
-    static inline ret __wt_c_memmodel_fetch_add##name(type *vp, type v, int memorder)             \
-    {                                                                                             \
-        return (_InterlockedExchangeAdd##s((t *)(vp), (t)(v)));                                   \
-    }                                                                                             \
-    static inline ret __wt_atomic_sub##name(type *vp, type v)                                     \
+    \ static inline ret __wt_atomic_sub##name(type *vp, type v)                                   \
     {                                                                                             \
         return (_InterlockedExchangeAdd##s((t *)(vp), -(t)v) - (v));                              \
     }                                                                                             \
@@ -109,6 +105,11 @@ WT_ATOMIC_FUNC(i64, int64_t, int64_t, 64, __int64)
 WT_ATOMIC_FUNC(iv64, int64_t, volatile int64_t, 64, __int64)
 WT_ATOMIC_FUNC(size, size_t, size_t, 64, __int64)
 
+static inline uint64_t
+__wt_c_memmodel_fetch_add64(WT_ATOMIC_TYPE(uint64_t) * vp, uint64_t v, int memorder)
+{
+    return (_InterlockedExchangeAdd##s((t *)(vp), (t)(v)));
+}
 /*
  * __wt_atomic_cas_ptr --
  *     Pointer compare and swap.
