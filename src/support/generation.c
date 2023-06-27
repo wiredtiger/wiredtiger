@@ -79,7 +79,7 @@ __wt_gen_next(WT_SESSION_IMPL *session, int which, uint64_t *genp)
     uint64_t gen;
 
     gen =
-      __wt_c_memmodel_atomic_fetch_add64(&S2C(session)->generations[which], 1, WT_ATOMIC_SEQ_CST);
+      __wt_c_memmodel_atomic_add_fetch64(&S2C(session)->generations[which], 1, WT_ATOMIC_SEQ_CST);
     if (genp != NULL)
         *genp = gen;
 }
@@ -93,7 +93,7 @@ __wt_gen_next_drain(WT_SESSION_IMPL *session, int which)
 {
     uint64_t v;
 
-    v = __wt_c_memmodel_atomic_fetch_add64(&S2C(session)->generations[which], 1, WT_ATOMIC_SEQ_CST);
+    v = __wt_c_memmodel_atomic_add_fetch64(&S2C(session)->generations[which], 1, WT_ATOMIC_SEQ_CST);
 
     __wt_gen_drain(session, which, v);
 }
