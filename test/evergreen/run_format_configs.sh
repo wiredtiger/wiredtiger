@@ -62,7 +62,7 @@ do
 	let "running++"
 
 	PID="$!"
-    PID_LIST+=("$PID")
+	PID_LIST+=("$PID")
 
 	echo "$PID:$config" >> $tmp_file
 
