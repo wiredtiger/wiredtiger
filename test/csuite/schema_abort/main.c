@@ -152,7 +152,7 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
 usage(void)
 {
-    fprintf(stderr, "usage: %s [-h dir] [-s stop_timestamp] [-T threads] [-t time] [-CSlmvxz]\n",
+    fprintf(stderr, "usage: %s [-h dir] [-s stop_timestamp] [-T threads] [-t time] [-ClmSvxz]\n",
       progname);
     fprintf(stderr, "%s",
       "\t-c use variable-length columns\n"
@@ -1211,10 +1211,9 @@ main(int argc, char *argv[])
         printf("Parent: Create %" PRIu32 " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
         printf("CONFIG: %s%s%s%s%s%s%s -h %s -s %" PRIu64 " -T %" PRIu32 " -t %" PRIu32
                " " TESTUTIL_SEED_FORMAT "\n",
-          progname, opts->compat ? " -C" : "", aggressive_sweep ? " -S" : "",
-          use_lazyfs ? " -l" : "", opts->inmem ? " -m" : "", opts->tiered_storage ? " -PT" : "",
-          !use_ts ? " -z" : "", opts->home, stop_timestamp, nth, timeout, opts->data_seed,
-          opts->extra_seed);
+          progname, opts->compat ? " -C" : "", use_lazyfs ? " -l" : "", opts->inmem ? " -m" : "",
+          opts->tiered_storage ? " -PT" : "", aggressive_sweep ? " -S" : "", !use_ts ? " -z" : "",
+          opts->home, stop_timestamp, nth, timeout, opts->data_seed, opts->extra_seed);
         /*
          * Fork a child to insert as many items. We will then randomly kill the child, run recovery
          * and make sure all items we wrote exist after recovery runs.
