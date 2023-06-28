@@ -22,6 +22,7 @@ success=0
 failure=0
 running=0
 parallel_jobs=8
+cleanup=0
 PID=""
 declare -a PID_LIST
 
@@ -48,19 +49,23 @@ while :; do
 done
 
 # Wait for other format runs.
-wait_for_other_format_runs()
+wait_for_process()
 {
 	while true
 	do
 		for process in ${PID_LIST[@]};do
 			if ps $process > /dev/null ; then
-				# The process id running so sleep for 5 second before checking another
+				# The process id is running so sleep for 2 second before checking another
 				# process status.
 				sleep 2
 			else
 				# Remove the process id of the completed runs from the process id array.
 				PID_LIST=(${PID_LIST[@]/$process})
+
+				#wait for the process to get the exit status.
+				wait $process
 				exit_status=$?
+
 				let "running--"
 
 				config_name=`egrep $process $tmp_file | awk -F ":" '{print $2}' | rev | awk -F "/" '{print $1}' | rev`
@@ -77,8 +82,14 @@ wait_for_other_format_runs()
 				break
 			fi
 		done
-		# Break if any of the process have completed.
-		[ $running -lt $parallel_jobs ] && break
+
+		# Cleanup the remaining processes.
+		if [ ${cleanup} -ne 0 ]; then
+			[ ${#PID_LIST[@]} -eq 0 ] && break
+		elif [ $running -lt $parallel_jobs ]; then
+			# Break if any of the process have completed.
+			break
+		fi
 	done
 }
 
@@ -98,12 +109,13 @@ do
 	echo "$PID:$config" >> $tmp_file
 
 	if [ ${running} -ge ${parallel_jobs} ]; then
-		wait_for_other_format_runs
+		wait_for_process
 		sleep 10
 	fi
 done
 
-wait_for_other_format_runs
+cleanup=1
+wait_for_process
 
 echo -e "\nSummary of '$(basename $0)': $success successful CONFIG(s), $failure failed CONFIG(s)\n"
 
