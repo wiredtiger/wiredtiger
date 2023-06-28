@@ -148,13 +148,22 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 /*
  * usage --
- *     TODO: Add a comment describing this function.
+ *     Display usage statement and exit failure.
  */
 static void
 usage(void)
 {
     fprintf(stderr, "usage: %s [-h dir] [-s stop_timestamp] [-T threads] [-t time] [-BClmvxz]\n",
       progname);
+    fprintf(stderr, "%s",
+      "\t-c use variable-length columns\n"
+      "\t-l use LazyFS\n"
+      "\t-s set a stop timestamp to stop the threads to run\n"
+      "\t-T set number of threads\n"
+      "\t-t set timeout in seconds\n"
+      "\t-v verify only\n"
+      "\t-x use transactions\n"
+      "\t-z don't use timestamps\n");
     exit(EXIT_FAILURE);
 }
 
