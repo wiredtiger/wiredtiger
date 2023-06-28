@@ -153,7 +153,7 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
 usage(void)
 {
-    fprintf(stderr, "usage: %s [-h dir] [-s stop_timestamp] [-T threads] [-t time] [-BClmvxz]\n",
+    fprintf(stderr, "usage: %s [-h dir] [-s stop_timestamp] [-T threads] [-t time] [-Clmvxz]\n",
       progname);
     fprintf(stderr, "%s",
       "\t-c use variable-length columns\n"
@@ -1088,7 +1088,7 @@ main(int argc, char *argv[])
     timeout = MIN_TIME;
     verify_only = false;
 
-    testutil_parse_begin_opt(argc, argv, "b:Ch:mP:pT:v", opts);
+    testutil_parse_begin_opt(argc, argv, "Ch:mP:pT:v", opts);
 
     while ((ch = __wt_getopt(progname, argc, argv, "Cch:lmpP:s:T:t:vxz")) != EOF)
         switch (ch) {
