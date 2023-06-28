@@ -22,15 +22,21 @@ fi
 $TEST_WRAPPER "$test_bin" -t 10 -T 5
 $TEST_WRAPPER "$test_bin" -t 10 -T 5 -m
 $TEST_WRAPPER "$test_bin" -t 10 -T 5 -C
+$TEST_WRAPPER "$test_bin" -t 10 -T 5 -C -S
 $TEST_WRAPPER "$test_bin" -t 10 -T 5 -m -C
 
 $TEST_WRAPPER "$test_bin" -t 10 -T 5 -c
 $TEST_WRAPPER "$test_bin" -t 10 -T 5 -c -m
 $TEST_WRAPPER "$test_bin" -t 10 -T 5 -c -C
+$TEST_WRAPPER "$test_bin" -t 10 -T 5 -c -C -S
 $TEST_WRAPPER "$test_bin" -t 10 -T 5 -c -m -C
 
+$TEST_WRAPPER "$test_bin" -t 10 -T 5 -z
+$TEST_WRAPPER "$test_bin" -t 10 -T 5 -z -S
 $TEST_WRAPPER "$test_bin" -t 10 -T 5 -z -m
 $TEST_WRAPPER "$test_bin" -t 10 -T 5 -z -m -c
 
+$TEST_WRAPPER "$test_bin" -t 10 -T 5 -x
+$TEST_WRAPPER "$test_bin" -t 10 -T 5 -x -S
 $TEST_WRAPPER "$test_bin" -t 10 -T 5 -x -m
 $TEST_WRAPPER "$test_bin" -t 10 -T 5 -x -m -c
