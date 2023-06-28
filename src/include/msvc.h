@@ -108,7 +108,7 @@ WT_ATOMIC_FUNC(iv64, int64_t, volatile int64_t, 64, __int64)
 WT_ATOMIC_FUNC(size, size_t, size_t, 64, __int64)
 
 static inline uint64_t
-__wt_c_memmodel_add_fetch64(WT_ATOMIC_TYPE(uint64_t) * vp, uint64_t v, int memorder)
+__wt_c_memmodel_atomic_add_fetch64(WT_ATOMIC_TYPE(uint64_t) * vp, uint64_t v, int memorder)
 {
     WT_WIN_UNUSED(memorder);
     return (_InterlockedExchangeAdd64((__int64 *)(vp), (__int64)(v)) + v);
