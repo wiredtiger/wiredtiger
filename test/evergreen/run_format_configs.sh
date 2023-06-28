@@ -54,7 +54,7 @@ wait_for_process()
 	while true
 	do
 		for process in ${PID_LIST[@]};do
-			if ps $process > /dev/null ; then
+			if [ ps $process > /dev/null ] ; then
 				# The process id is running so sleep for 2 second before checking another
 				# process status.
 				sleep 2
@@ -83,11 +83,11 @@ wait_for_process()
 			fi
 		done
 
-		# Cleanup the remaining processes.
 		if [ ${cleanup} -ne 0 ]; then
+			# Cleanup, wait for the remaining processes.
 			[ ${#PID_LIST[@]} -eq 0 ] && break
 		elif [ $running -lt $parallel_jobs ]; then
-			# Break if any of the process have completed.
+			# Break and invoke a new process if any of the process have completed.
 			break
 		fi
 	done
