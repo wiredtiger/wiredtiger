@@ -23,6 +23,8 @@
 #define WT_PTRDIFFT_FMT "Id" /* ptrdiff_t format string */
 #define WT_SIZET_FMT "Iu"    /* size_t format string */
 
+#define WT_WIN_UNUSED(var) (void)(var)
+
 /* MSVC-specific attributes. */
 #define WT_PACKED_STRUCT_BEGIN(name) __pragma(pack(push, 1)) struct name {
 
@@ -108,6 +110,7 @@ WT_ATOMIC_FUNC(size, size_t, size_t, 64, __int64)
 static inline uint64_t
 __wt_c_memmodel_add_fetch64(WT_ATOMIC_TYPE(uint64_t) * vp, uint64_t v, int memorder)
 {
+    WT_WIN_UNUSED(memorder);
     return (_InterlockedExchangeAdd64((__int64 *)(vp), (__int64)(v)) + v);
 }
 /*
