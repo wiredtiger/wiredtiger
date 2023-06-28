@@ -1431,33 +1431,21 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         WT_ERR(__txn_fixup_hs_update(session, hs_cursor));
 
 prepare_verify:
-    if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_PREPARED)) {
-        for (; head_upd != NULL; head_upd = head_upd->next) {
-            /*
-             * Assert if we still have an update from the current transaction that hasn't been
-             * resolved or aborted.
-             */
-            WT_ASSERT_ALWAYS(session,
-              head_upd->txnid == WT_TXN_ABORTED || head_upd->prepare_state == WT_PREPARE_RESOLVED ||
-                head_upd->txnid != txn->id,
+    /*
+     * If we are committing a prepared transaction we can check, to some level, that we resolved the
+     * update chain correctly.
+     */
+    if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_PREPARED) && commit) {
+        /*
+         * We need to stop walking as soon as we see an aborted update or an update that doesn't
+         * belong to our transaction as it could be freed concurrently by the update obsolete check
+         * logic.
+         */
+        for (; head_upd != NULL && head_upd->txnid != WT_TXN_ABORTED && head_upd->txnid == txn->id;
+             head_upd = head_upd->next)
+            /* Any update we find should be resolved. */
+            WT_ASSERT_ALWAYS(session, head_upd->prepare_state == WT_PREPARE_RESOLVED,
               "Failed to resolve all updates associated with a prepared transaction");
-
-            if (head_upd->txnid == WT_TXN_ABORTED)
-                continue;
-
-            /*
-             * If we restored an update from the history store, it should be the last update on the
-             * chain.
-             */
-            if (!commit && resolve_case == RESOLVE_PREPARE_ON_DISK &&
-              head_upd->type == WT_UPDATE_STANDARD && F_ISSET(head_upd, WT_UPDATE_RESTORED_FROM_HS))
-                WT_ASSERT_ALWAYS(session, head_upd->next == NULL,
-                  "Rolling back a prepared transaction resulted in an invalid update chain");
-
-            /* We have traversed all the non-obsolete updates. */
-            if (WT_UPDATE_DATA_VALUE(head_upd) && __wt_txn_upd_visible_all(session, head_upd))
-                break;
-        }
     }
 
 err:
