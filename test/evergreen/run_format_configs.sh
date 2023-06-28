@@ -3,8 +3,7 @@
 # Cycle through a list of test/format configurations that failed previously,
 # and run format test against each of those configurations to capture issues.
 #
-
-set -u
+# Note - Any of the failed configs does not require a restart.
 
 set -e
 # Switch to the Git repo toplevel directory
@@ -22,32 +21,64 @@ fi
 success=0
 failure=0
 running=0
-# Jobs to execute in parallel (hard coded to 8)
 parallel_jobs=8
 PID=""
 declare -a PID_LIST
 
+usage() {
+	echo "usage: $0 "
+	echo "    -j parallel  jobs to execute in parallel (defaults to 8)"
+
+	exit 1
+}
+
+
+while :; do
+	case "$1" in
+	-j)
+		parallel_jobs="$2"
+		[[ "$parallel_jobs" =~ ^[1-9][0-9]*$ ]] ||
+			fatal_msg "-j option argument must be a non-zero integer"
+		shift ; shift ;;
+	-*)
+		usage ;;
+	*)
+		break ;;
+	esac
+done
+
 # Wait for other format runs.
 wait_for_other_format_runs()
 {
-	for process in ${PID_LIST[@]};do
-		# Remove the process id of the completed runs from the process id array.
-		unset PID_LIST[0]
-		PID_LIST=(${PID_LIST[@]})
-		wait $process
-		exit_status=$?
-		let "running--"
-		config_name=`egrep $process $tmp_file | awk -F ":" '{print $2}' | rev | awk -F "/" '{print $1}' | rev`
-		if [ $exit_status -ne "0" ]; then
-			let "failure++"
-			[ -f WT_TEST_${config_name}/CONFIG ] && cat WT_TEST_${config_name}/CONFIG
-		else
-			let "success++"
-			# Remove database files of successful jobs.
-			[ -d WT_TEST_${config_name} ] && rm -rf WT_TEST_${config_name}
-		fi
+	while true
+	do
+		for process in ${PID_LIST[@]};do
+			if ps $process > /dev/null ; then
+				# The process id running so sleep for 5 second before checking another
+				# process status.
+				sleep 2
+			else
+				# Remove the process id of the completed runs from the process id array.
+				PID_LIST=(${PID_LIST[@]/$process})
+				exit_status=$?
+				let "running--"
 
-		return
+				config_name=`egrep $process $tmp_file | awk -F ":" '{print $2}' | rev | awk -F "/" '{print $1}' | rev`
+				if [ $exit_status -ne "0" ]; then
+					let "failure++"
+					[ -f WT_TEST_${config_name}/CONFIG ] && cat WT_TEST_${config_name}/CONFIG
+				else
+					let "success++"
+					# Remove database files of successful jobs.
+					[ -d WT_TEST_${config_name} ] && rm -rf WT_TEST_${config_name}
+				fi
+
+				echo "Exit status of config ${config_name} is ${exit_status}"
+				break
+			fi
+		done
+		# Break if any of the process have completed.
+		[ $running -lt $parallel_jobs ] && break
 	done
 }
 
