@@ -211,7 +211,7 @@ run_test(bool column_store, bool preserve)
      * time we notice that child process has written a checkpoint. That allows the test to run
      * correctly on really slow machines.
      */
-    testutil_check(__wt_snprintf(ckpt_file, sizeof(ckpt_file), ckpt_file_fmt, home));
+    testutil_snprintf(ckpt_file, sizeof(ckpt_file), ckpt_file_fmt, home);
     while (stat(ckpt_file, &sb) != 0)
         testutil_sleep_wait(1, pid);
 
@@ -288,7 +288,7 @@ workload_compact(const char *home, const char *table_config)
          * finished and can start its timer.
          */
         if (!first_ckpt) {
-            testutil_check(__wt_snprintf(ckpt_file, sizeof(ckpt_file), ckpt_file_fmt, home));
+            testutil_snprintf(ckpt_file, sizeof(ckpt_file), ckpt_file_fmt, home);
             testutil_assert_errno((fp = fopen(ckpt_file, "w")) != NULL);
             testutil_assert_errno(fclose(fp) == 0);
             first_ckpt = true;
@@ -473,7 +473,7 @@ get_file_stats(WT_SESSION *session, const char *uri, uint64_t *file_sz, uint64_t
     WT_CURSOR *cur_stat;
     char *descr, stat_uri[128], *str_val;
 
-    testutil_check(__wt_snprintf(stat_uri, sizeof(stat_uri), "statistics:%s", uri));
+    testutil_snprintf(stat_uri, sizeof(stat_uri), "statistics:%s", uri);
     testutil_check(session->open_cursor(session, stat_uri, NULL, "statistics=(all)", &cur_stat));
 
     /* Get file size. */
@@ -523,7 +523,7 @@ get_compact_progress(WT_SESSION *session, const char *uri, uint64_t *pages_revie
     WT_CURSOR *cur_stat;
     char *descr, *str_val, stat_uri[128];
 
-    testutil_check(__wt_snprintf(stat_uri, sizeof(stat_uri), "statistics:%s", uri));
+    testutil_snprintf(stat_uri, sizeof(stat_uri), "statistics:%s", uri);
     testutil_check(session->open_cursor(session, stat_uri, NULL, "statistics=(all)", &cur_stat));
 
     cur_stat->set_key(cur_stat, WT_STAT_DSRC_BTREE_COMPACT_PAGES_REVIEWED);
