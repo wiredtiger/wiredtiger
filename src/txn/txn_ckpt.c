@@ -2550,5 +2550,10 @@ __checkpoint_timing_stress(WT_SESSION_IMPL *session, uint64_t flag, struct times
      */
     if (conn->ckpt_session != session && conn->meta_ckpt_session != session &&
       FLD_ISSET(conn->timing_stress_flags, flag))
+#ifdef ENABLE_ANTITHESIS
+        WT_UNUSED(tsp);
+        (void)__wt_msg(session, "ANTITHESIS: %s", __wt_stress_types[flag].name);
+#else
         __wt_sleep((uint64_t)tsp->tv_sec, (uint64_t)tsp->tv_nsec / WT_THOUSAND);
+#endif
 }
