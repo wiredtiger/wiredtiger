@@ -23,11 +23,6 @@
     do {                    \
         __wt_yield();       \
     } while (0)
-#elif defined ENABLE_ANTITHESIS
-#define WT_DIAGNOSTIC_YIELD                                                          \
-    do {                                                                             \
-        __wt_msg_antithesis_func("DIAGNOSTIC_YIELD", __PRETTY_FUNCTION__, __LINE__); \
-    } while (0)
 #else
 #define WT_DIAGNOSTIC_YIELD
 #endif

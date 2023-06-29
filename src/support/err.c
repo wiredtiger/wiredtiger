@@ -640,18 +640,6 @@ __wt_verbose_worker(WT_SESSION_IMPL *session, WT_VERBOSE_CATEGORY category, WT_V
     va_end(ap);
 }
 
-#ifdef ENABLE_ANTITHESIS
-/*
- * __wt_msg_antithesis_func --
- *     Print an informational message for antithesis with function and line number.
- */
-void
-__wt_msg_antithesis_func(const char *msg, const char *func, int line)
-{
-    (void)__wt_msg(NULL, "ANTITHESIS: %s: %s %d", msg, func, line);
-}
-#endif
-
 /*
  * __wt_msg --
  *     Informational message.
