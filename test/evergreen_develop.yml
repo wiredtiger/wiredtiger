@@ -22,6 +22,7 @@ variables:
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: Ninja
     make_command: ninja
+    database: WTPerformanceDataDB
   display_tasks:
     - name: Wiredtiger-perf-btree-jobs
       execution_tasks:
@@ -61,7 +62,6 @@ buildvariants:
     - ubuntu2004-medium
   expansions:
     <<: *ubuntu2004-perf-tests-expansions-template
-    database: WTPerformanceDataDB
     collection: AllPerfTests
   tasks:
     - name: compile
@@ -85,7 +85,6 @@ buildvariants:
     - ubuntu2004-arm64-large
   expansions:
     <<: *ubuntu2004-perf-tests-expansions-template
-    database: WTPerformanceDataDB
     collection: AllPerfTestsARM64
   tasks:
     - name: compile
