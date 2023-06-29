@@ -108,7 +108,7 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    doc_update_branches: develop,mongodb-6.0,mongodb-5.0,mongodb-4.4,mongodb-4.2
+    doc_update_branches: develop,mongodb-7.0,mongodb-6.0,mongodb-5.0,mongodb-4.4,mongodb-4.2
   tasks:
     - name: doc-update
 
@@ -129,6 +129,7 @@ buildvariants:
     CMAKE_INSTALL_PREFIX: -DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL
   tasks:
     - name: coverage-report
+    - name: coverage-report-catch2
     - name: cyclomatic-complexity
 
 - name: compatibility-tests-less-frequent
