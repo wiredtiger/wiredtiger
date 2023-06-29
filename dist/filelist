@@ -138,6 +138,7 @@ src/os_common/os_fstream.c
 src/os_common/os_fstream_stdio.c
 src/os_common/os_getopt.c
 src/os_common/os_strtouq.c
+src/os_module/os_module.c
 src/os_posix/os_dir.c            POSIX_HOST
 src/os_posix/os_dlopen.c         POSIX_HOST
 src/os_posix/os_fallocate.c      POSIX_HOST

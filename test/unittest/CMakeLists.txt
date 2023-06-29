@@ -18,6 +18,7 @@ else()
         tests/cursors/test_bulk_cursor.cpp
         tests/cursors/test_cursor_get_raw_key_value.cpp
         tests/packing/test_intpack.cpp
+        tests/os_module/test_sample.cpp
     )
 endif()
 
@@ -29,6 +30,7 @@ set(unittest_sources
     tests/wrappers/item_wrapper.cpp
     tests/wrappers/mock_connection.cpp
     tests/wrappers/mock_session.cpp
+    ${CMAKE_SOURCE_DIR}/src/os_module/os_module.c
     ${unittests}
 )
 
@@ -42,6 +44,7 @@ endif()
 create_test_executable(unittests
     SOURCES ${unittest_sources}
     FLAGS ${UNITTEST_FLAGS}
+    INCLUDES ${CMAKE_SOURCE_DIR}/src/os_module
     CXX
 )
 

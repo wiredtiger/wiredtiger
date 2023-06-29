@@ -130,6 +130,9 @@ enable_testing()
 # Include the extensions to the build.
 add_subdirectory(ext)
 
+# Collect all the module paths.
+parse_filelist_source(${CMAKE_CURRENT_LIST_DIR}/dist/modincludelist wt_mod_includes)
+
 # Collect all the library sources we need to compile from the source filelist.
 parse_filelist_source(${CMAKE_CURRENT_LIST_DIR}/dist/filelist wt_sources)
 if(WT_WIN)
@@ -178,6 +181,7 @@ if(WITH_PIC OR ENABLE_SHARED)
         ${CMAKE_CURRENT_BINARY_DIR}/include
         ${CMAKE_CURRENT_BINARY_DIR}/config
         ${CMAKE_CURRENT_LIST_DIR}/src/include
+        ${wt_mod_includes}
     )
     # Append any provided C flags.
     if(COMPILER_DIAGNOSTIC_C_FLAGS)
@@ -209,13 +213,13 @@ if(ENABLE_STATIC)
         define_wiredtiger_library(wiredtiger_static STATIC
             SOURCES $<TARGET_OBJECTS:wt_objs> ${builtin_objs}
             PUBLIC_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/include
-            PRIVATE_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/config ${CMAKE_CURRENT_LIST_DIR}/src/include
+            PRIVATE_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/config ${CMAKE_CURRENT_LIST_DIR}/src/include ${wt_mod_includes}
         )
     else()
         define_wiredtiger_library(wiredtiger_static STATIC
             SOURCES ${wt_sources} ${builtin_objs}
             PUBLIC_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/include
-            PRIVATE_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/config ${CMAKE_CURRENT_LIST_DIR}/src/include
+            PRIVATE_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/config ${CMAKE_CURRENT_LIST_DIR}/src/include ${wt_mod_includes}
         )
     endif()
 endif()
@@ -224,7 +228,7 @@ if(ENABLE_SHARED)
     define_wiredtiger_library(wiredtiger_shared SHARED
         SOURCES $<TARGET_OBJECTS:wt_objs> ${builtin_objs}
         PUBLIC_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/include
-        PRIVATE_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/config ${CMAKE_CURRENT_LIST_DIR}/src/include
+        PRIVATE_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/config ${CMAKE_CURRENT_LIST_DIR}/src/include ${wt_mod_includes}
     )
     # Set the SOVERSION property of the wiredtiger library, so we can export the appropriately versioned symlinks.
     set_target_properties(wiredtiger_shared PROPERTIES SOVERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")

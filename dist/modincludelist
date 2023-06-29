@@ -1,0 +1,4 @@
+# modincludelist --
+#    List of modules for WiredTiger library.
+
+src/os_module
