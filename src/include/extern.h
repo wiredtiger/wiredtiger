@@ -1900,6 +1900,7 @@ extern void __wt_meta_track_discard(WT_SESSION_IMPL *session);
 extern void __wt_meta_track_sub_on(WT_SESSION_IMPL *session);
 extern void __wt_metadata_free_ckptlist(WT_SESSION *session, WT_CKPT *ckptbase)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
+extern void __wt_msg_antithesis_func(const char *msg, const char *func, int line);
 extern void __wt_optrack_flush_buffer(WT_SESSION_IMPL *s);
 extern void __wt_optrack_record_funcid(
   WT_SESSION_IMPL *session, const char *func, uint16_t *func_idp);
@@ -2490,7 +2491,7 @@ static inline void __wt_spin_lock_track(WT_SESSION_IMPL *session, WT_SPINLOCK *t
 static inline void __wt_spin_unlock(WT_SESSION_IMPL *session, WT_SPINLOCK *t);
 static inline void __wt_spin_unlock_if_owned(WT_SESSION_IMPL *session, WT_SPINLOCK *t);
 static inline void __wt_struct_size_adjust(WT_SESSION_IMPL *session, size_t *sizep);
-static inline void __wt_timing_stress(WT_SESSION_IMPL *session, u_int flag, struct timespec *tsp);
+static inline void __wt_timing_stress(WT_SESSION_IMPL *session, uint32_t flag);
 static inline void __wt_timing_stress_sleep_random(WT_SESSION_IMPL *session);
 static inline void __wt_tree_modify_set(WT_SESSION_IMPL *session);
 static inline void __wt_txn_cursor_op(WT_SESSION_IMPL *session);
