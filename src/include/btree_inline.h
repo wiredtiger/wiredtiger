@@ -2270,6 +2270,83 @@ __wt_btcur_bounds_early_exit(
 }
 
 /*
+ * __wt_btcur_skip_inmem_del_page --
+ *     Return if the cursor is pointing to a page with deleted records and can be skipped for cursor
+ *     traversal.
+ */
+static inline int
+__wt_btcur_skip_inmem_del_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
+{
+    WT_ADDR_COPY addr;
+    WT_DECL_RET;
+    WT_MULTI *multi;
+    WT_PAGE_MODIFY *mod;
+    WT_TIME_AGGREGATE newest_ta;
+    uint32_t i;
+    bool busy, do_visibility_check;
+
+    *skipp = false;
+
+    WT_RET(__wt_hazard_set(session, ref, &busy));
+    if (busy)
+        return (0);
+
+    /*
+     * Skip the modified pages as their reconciliation results are not valid anymore. Check for the
+     * page modification only after acquiring the hazard pointer to protect against the page being
+     * freed in parallel.
+     */
+    WT_ASSERT(session, ref->page != NULL);
+    if (__wt_page_is_modified(ref->page)) {
+        WT_TRET(__wt_hazard_clear(session, ref));
+        return (0);
+    }
+
+    /*
+     * If we can't lock it, don't check it, that's okay. Reviewing in-memory pages require looking
+     * at page reconciliation results and we must ensure we don't race with page reconciliation, as
+     * it's writing the page modify information.
+     */
+    if (WT_PAGE_TRYLOCK(session, ref->page) != 0) {
+        WT_TRET(__wt_hazard_clear(session, ref));
+        return (0);
+    }
+
+    /*
+     * Initialize the time aggregate via the merge initialization, so that stop visibility is copied
+     * across correctly. That is we need the stop timestamp/transaction IDs to start as none,
+     * otherwise we'd never mark anything as obsolete.
+     */
+    WT_TIME_AGGREGATE_INIT_MERGE(&newest_ta);
+    do_visibility_check = false;
+
+    mod = ref->page->modify;
+    if (mod != NULL && mod->rec_result == WT_PM_REC_EMPTY)
+        *skipp = true;
+    else if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {
+        /* Calculate the max stop time point by traversing all multi addresses. */
+        for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i)
+            WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &newest_ta, &multi->addr.ta);
+        do_visibility_check = true;
+    } else if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE) {
+        WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &newest_ta, &mod->mod_replace.ta);
+        do_visibility_check = true;
+    } else if (__wt_ref_addr_copy(session, ref, &addr)) {
+        WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &newest_ta, &addr.ta);
+        do_visibility_check = true;
+    }
+
+    /* FIXME: Change it to snap_min visible function. */
+    if (do_visibility_check)
+        *skipp = __wt_txn_visible(session, newest_ta.newest_stop_txn, newest_ta.newest_stop_ts,
+          newest_ta.newest_stop_durable_ts);
+
+    WT_PAGE_UNLOCK(session, ref->page);
+    WT_TRET(__wt_hazard_clear(session, ref));
+    return (ret);
+}
+
+/*
  * __wt_btcur_skip_page --
  *     Return if the cursor is pointing to a page with deleted records and can be skipped for cursor
  *     traversal.
@@ -2331,14 +2408,8 @@ __wt_btcur_skip_page(
         goto unlock;
     }
 
-    /*
-     * Look at the disk address, if it exists, and if the page is unmodified. We must skip this test
-     * if the page has been modified since it was reconciled, since neither the delete information
-     * nor the timestamp information is necessarily up to date.
-     */
-    if ((previous_state == WT_REF_DISK ||
-          (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page))) &&
-      __wt_ref_addr_copy(session, ref, &addr)) {
+    /* Look at the disk address, if it exists. */
+    if (previous_state == WT_REF_DISK && __wt_ref_addr_copy(session, ref, &addr)) {
         /* If there's delete information in the disk address, we can use it. */
         if (addr.del_set && __wt_page_del_visible(session, &addr.del, true)) {
             *skipp = true;
@@ -2355,7 +2426,8 @@ __wt_btcur_skip_page(
             *skipp = true;
             goto unlock;
         }
-    }
+    } else if (previous_state == WT_REF_MEM)
+        WT_IGNORE_RET(__wt_btcur_skip_inmem_del_page(session, ref, skipp));
 
 unlock:
     WT_REF_UNLOCK(ref, previous_state);
