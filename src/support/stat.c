@@ -253,7 +253,6 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: leaf-page overflow keys",
   "reconciliation: maximum blocks required for a page",
   "reconciliation: overflow values written",
-  "reconciliation: page checksum matches",
   "reconciliation: page reconciliation calls",
   "reconciliation: page reconciliation calls for eviction",
   "reconciliation: pages deleted",
@@ -279,6 +278,7 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: records written including a stop timestamp",
   "reconciliation: records written including a stop transaction ID",
   "session: object compaction",
+  "transaction: a reader raced with a prepared transaction commit and skipped an update or updates",
   "transaction: checkpoint has acquired a snapshot for its transaction",
   "transaction: number of times overflow removed value is read",
   "transaction: race to read prepared update retry",
@@ -580,7 +580,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_overflow_key_leaf = 0;
     stats->rec_multiblock_max = 0;
     stats->rec_overflow_value = 0;
-    stats->rec_page_match = 0;
     stats->rec_pages = 0;
     stats->rec_pages_eviction = 0;
     stats->rec_page_delete = 0;
@@ -606,6 +605,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_time_window_stop_ts = 0;
     stats->rec_time_window_stop_txn = 0;
     stats->session_compact = 0;
+    stats->txn_read_race_prepare_commit = 0;
     stats->txn_checkpoint_snapshot_acquired = 0;
     stats->txn_read_overflow_remove = 0;
     stats->txn_read_race_prepare_update = 0;
@@ -897,7 +897,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     if (from->rec_multiblock_max > to->rec_multiblock_max)
         to->rec_multiblock_max = from->rec_multiblock_max;
     to->rec_overflow_value += from->rec_overflow_value;
-    to->rec_page_match += from->rec_page_match;
     to->rec_pages += from->rec_pages;
     to->rec_pages_eviction += from->rec_pages_eviction;
     to->rec_page_delete += from->rec_page_delete;
@@ -923,6 +922,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_time_window_stop_ts += from->rec_time_window_stop_ts;
     to->rec_time_window_stop_txn += from->rec_time_window_stop_txn;
     to->session_compact += from->session_compact;
+    to->txn_read_race_prepare_commit += from->txn_read_race_prepare_commit;
     to->txn_checkpoint_snapshot_acquired += from->txn_checkpoint_snapshot_acquired;
     to->txn_read_overflow_remove += from->txn_read_overflow_remove;
     to->txn_read_race_prepare_update += from->txn_read_race_prepare_update;
@@ -1220,7 +1220,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     if ((v = WT_STAT_READ(from, rec_multiblock_max)) > to->rec_multiblock_max)
         to->rec_multiblock_max = v;
     to->rec_overflow_value += WT_STAT_READ(from, rec_overflow_value);
-    to->rec_page_match += WT_STAT_READ(from, rec_page_match);
     to->rec_pages += WT_STAT_READ(from, rec_pages);
     to->rec_pages_eviction += WT_STAT_READ(from, rec_pages_eviction);
     to->rec_page_delete += WT_STAT_READ(from, rec_page_delete);
@@ -1250,6 +1249,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_time_window_stop_ts += WT_STAT_READ(from, rec_time_window_stop_ts);
     to->rec_time_window_stop_txn += WT_STAT_READ(from, rec_time_window_stop_txn);
     to->session_compact += WT_STAT_READ(from, session_compact);
+    to->txn_read_race_prepare_commit += WT_STAT_READ(from, txn_read_race_prepare_commit);
     to->txn_checkpoint_snapshot_acquired += WT_STAT_READ(from, txn_checkpoint_snapshot_acquired);
     to->txn_read_overflow_remove += WT_STAT_READ(from, txn_read_overflow_remove);
     to->txn_read_race_prepare_update += WT_STAT_READ(from, txn_read_race_prepare_update);
@@ -1814,6 +1814,7 @@ static const char *const __stats_connection_desc[] = {
   "transaction: Number of prepared updates committed",
   "transaction: Number of prepared updates repeated on the same key",
   "transaction: Number of prepared updates rolled back",
+  "transaction: a reader raced with a prepared transaction commit and skipped an update or updates",
   "transaction: checkpoint has acquired a snapshot for its transaction",
   "transaction: number of times overflow removed value is read",
   "transaction: oldest pinned transaction ID rolled back for eviction",
@@ -2454,6 +2455,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_prepared_updates_committed = 0;
     stats->txn_prepared_updates_key_repeated = 0;
     stats->txn_prepared_updates_rolledback = 0;
+    stats->txn_read_race_prepare_commit = 0;
     stats->txn_checkpoint_snapshot_acquired = 0;
     stats->txn_read_overflow_remove = 0;
     stats->txn_rollback_oldest_pinned = 0;
@@ -3117,6 +3119,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_prepared_updates_committed += WT_STAT_READ(from, txn_prepared_updates_committed);
     to->txn_prepared_updates_key_repeated += WT_STAT_READ(from, txn_prepared_updates_key_repeated);
     to->txn_prepared_updates_rolledback += WT_STAT_READ(from, txn_prepared_updates_rolledback);
+    to->txn_read_race_prepare_commit += WT_STAT_READ(from, txn_read_race_prepare_commit);
     to->txn_checkpoint_snapshot_acquired += WT_STAT_READ(from, txn_checkpoint_snapshot_acquired);
     to->txn_read_overflow_remove += WT_STAT_READ(from, txn_read_overflow_remove);
     to->txn_rollback_oldest_pinned += WT_STAT_READ(from, txn_rollback_oldest_pinned);
