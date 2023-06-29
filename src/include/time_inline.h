@@ -169,9 +169,8 @@ __wt_op_timer_start(WT_SESSION_IMPL *session)
 {
     uint64_t timeout_us;
 
-    /* Timer can be configured per-transaction, and defaults to per-connection. */
-    if (session->txn == NULL || (timeout_us = session->txn->operation_timeout_us) == 0)
-        timeout_us = S2C(session)->operation_timeout_us;
+    /* Timer is configured per-transaction if there is a value. */
+    timeout_us = (session->txn == NULL) ? 0 : session->txn->operation_timeout_us;
     if (timeout_us == 0)
         session->operation_start_us = session->operation_timeout_us = 0;
     else {
