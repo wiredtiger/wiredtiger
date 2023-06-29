@@ -155,8 +155,13 @@ usage(void)
     fprintf(stderr, "usage: %s [-h dir] [-s stop_timestamp] [-T threads] [-t time] [-ClmSvxz]\n",
       progname);
     fprintf(stderr, "%s",
+      "\t-C compatibility\n"
       "\t-c use variable-length columns\n"
+      "\t-h home directory\n"
       "\t-l use LazyFS\n"
+      "\t-m in-memory\n"
+      "\t-P tiered storage options\n"
+      "\t-p preserve directory contents\n"
       "\t-S set sweep server to be aggressive\n"
       "\t-s set a stop timestamp to stop the threads to run\n"
       "\t-T set number of threads\n"
