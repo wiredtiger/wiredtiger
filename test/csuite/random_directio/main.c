@@ -73,7 +73,7 @@
 #include <signal.h>
 #include <sys/wait.h>
 
-pid_t child_pid = 0;
+static pid_t child_pid = 0;
 static char home[1024]; /* Program working dir */
 
 static const char *const uri_main = "table:main";
