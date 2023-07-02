@@ -553,6 +553,13 @@ struct __wt_connection_stats {
     int64_t cc_pages_removed;
     int64_t cc_pages_walk_skipped;
     int64_t cc_pages_visited;
+    int64_t ckpt_state;
+    int64_t ckpt_presync;
+    int64_t ckpt_dsrc;
+    int64_t ckpt_sync;
+    int64_t ckpt_update_list;
+    int64_t ckpt_update_prev_named;
+    int64_t ckpt_wait_reduce_dirty;
     int64_t chunk_cache_spans_chunks_read;
     int64_t chunk_cache_spans_chunks_remove;
     int64_t chunk_cache_chunks_evicted;
@@ -895,8 +902,6 @@ struct __wt_connection_stats {
     int64_t txn_set_ts_stable;
     int64_t txn_set_ts_stable_upd;
     int64_t txn_begin;
-    int64_t txn_checkpoint_running;
-    int64_t txn_checkpoint_running_hs;
     int64_t txn_checkpoint_generation;
     int64_t txn_hs_ckpt_duration;
     int64_t txn_checkpoint_time_max;
@@ -1085,6 +1090,13 @@ struct __wt_dsrc_stats {
     int64_t cc_pages_removed;
     int64_t cc_pages_walk_skipped;
     int64_t cc_pages_visited;
+    int64_t ckpt_state;
+    int64_t ckpt_presync;
+    int64_t ckpt_dsrc;
+    int64_t ckpt_sync;
+    int64_t ckpt_update_list;
+    int64_t ckpt_update_prev_named;
+    int64_t ckpt_wait_reduce_dirty;
     int64_t compress_precomp_intl_max_page_size;
     int64_t compress_precomp_leaf_max_page_size;
     int64_t compress_read;

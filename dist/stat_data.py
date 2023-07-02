@@ -60,6 +60,10 @@ class CapacityStat(Stat):
     prefix = 'capacity'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, CapacityStat.prefix, desc, flags)
+class CheckpointStat(Stat):
+    prefix = 'checkpoint'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, CheckpointStat.prefix, desc, flags)
 class CheckpointCleanupStat(Stat):
     prefix = 'checkpoint-cleanup'
     def __init__(self, name, desc, flags=''):
@@ -608,8 +612,6 @@ conn_stats = [
     TxnStat('txn_checkpoint_prep_recent', 'transaction checkpoint prepare most recent time (msecs)', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_prep_running', 'transaction checkpoint prepare currently running', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_prep_total', 'transaction checkpoint prepare total time (msecs)', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_running', 'transaction checkpoint currently running', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_running_hs', 'transaction checkpoint currently running for history store file', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_scrub_target', 'transaction checkpoint scrub dirty target', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_scrub_time', 'transaction checkpoint scrub time (msecs)', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_skipped', 'transaction checkpoints skipped because database was clean'),
@@ -966,6 +968,17 @@ conn_dsrc_stats = [
     CursorStat('cursor_search_near_error', 'cursor search near calls that return an error'),
     CursorStat('cursor_search_error', 'cursor search calls that return an error'),
     CursorStat('cursor_update_error', 'cursor update calls that return an error'),
+
+    ##########################################
+    # Checkpoint statistics
+    ##########################################
+    CheckpointStat('ckpt_state', 'last potentially expensive operation attemped', 'no_clear,no_scale'),
+    CheckpointStat('ckpt_dsrc', 'number of custom data sources checkpointed'),
+    CheckpointStat('ckpt_wait_reduce_dirty', 'wait cycles while cache dirty level is decreasing'),
+    CheckpointStat('ckpt_update_prev_named', 'number of older named checkpoints updated during reconciliation'),
+    CheckpointStat('ckpt_update_list', 'number of older named checkpoints altered to include new checkpoint'),
+    CheckpointStat('ckpt_presync', 'number of btrees marked TODO'),
+    CheckpointStat('ckpt_sync', 'number of files synced as part of checkpoint'),
 
     ##########################################
     # Checkpoint cleanup statistics
