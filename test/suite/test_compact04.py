@@ -93,12 +93,15 @@ class test_compact04(wttest.WiredTigerTestCase):
 
             d = abs(pages_rewritten - pages_rewritten_expected) / pages_rewritten
 
-            # Check whether we succeeded. Terminate the test early if things are going well.
+            # Check whether we succeeded. Terminate the test early if things are going well. If we
+            # experience even one failure, run through all iterations to ensure that the failures
+            # are rare. Each iteration runs on the order of seconds, so this test will complete
+            # quickly even if we have to run through all iterations.
             message = 'Compacting %s: Prediction error: %0.2f%%' % (table_uri, d * 100)
             if d < 0.15:
                 self.pr(message)
                 num_successes += 1
-                if num_successes >= 4 and num_failures == 0:
+                if num_successes >= 1 and num_failures == 0:
                     self.pr('Finishing the test early')
                     return
             else:
