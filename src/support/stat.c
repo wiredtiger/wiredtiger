@@ -167,6 +167,7 @@ static const char *const __stats_dsrc_desc[] = {
   "checkpoint: number of handles visited after checkpoint writes complete",
   "checkpoint: number of older named checkpoints altered to include new checkpoint",
   "checkpoint: number of older named checkpoints updated during reconciliation",
+  "checkpoint: transaction checkpoint data handle operation applied",
   "checkpoint: transaction checkpoint generation",
   "checkpoint: transaction checkpoint max time (msecs)",
   "checkpoint: transaction checkpoint min time (msecs)",
@@ -527,6 +528,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->checkpoint_presync = 0;
     stats->checkpoint_update_list = 0;
     stats->checkpoint_update_prev_named = 0;
+    stats->checkpoint_handle_checked = 0;
     /* not clearing checkpoint_generation */
     /* not clearing checkpoint_time_max */
     /* not clearing checkpoint_time_min */
@@ -872,6 +874,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->checkpoint_presync += from->checkpoint_presync;
     to->checkpoint_update_list += from->checkpoint_update_list;
     to->checkpoint_update_prev_named += from->checkpoint_update_prev_named;
+    to->checkpoint_handle_checked += from->checkpoint_handle_checked;
     to->checkpoint_generation += from->checkpoint_generation;
     to->checkpoint_time_max += from->checkpoint_time_max;
     to->checkpoint_time_min += from->checkpoint_time_min;
@@ -1222,6 +1225,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->checkpoint_presync += WT_STAT_READ(from, checkpoint_presync);
     to->checkpoint_update_list += WT_STAT_READ(from, checkpoint_update_list);
     to->checkpoint_update_prev_named += WT_STAT_READ(from, checkpoint_update_prev_named);
+    to->checkpoint_handle_checked += WT_STAT_READ(from, checkpoint_handle_checked);
     to->checkpoint_generation += WT_STAT_READ(from, checkpoint_generation);
     to->checkpoint_time_max += WT_STAT_READ(from, checkpoint_time_max);
     to->checkpoint_time_min += WT_STAT_READ(from, checkpoint_time_min);
@@ -1636,6 +1640,7 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: number of handles visited after checkpoint writes complete",
   "checkpoint: number of older named checkpoints altered to include new checkpoint",
   "checkpoint: number of older named checkpoints updated during reconciliation",
+  "checkpoint: transaction checkpoint data handle operation applied",
   "checkpoint: transaction checkpoint generation",
   "checkpoint: transaction checkpoint max time (msecs)",
   "checkpoint: transaction checkpoint min time (msecs)",
@@ -2286,6 +2291,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->checkpoint_presync = 0;
     stats->checkpoint_update_list = 0;
     stats->checkpoint_update_prev_named = 0;
+    stats->checkpoint_handle_checked = 0;
     /* not clearing checkpoint_generation */
     /* not clearing checkpoint_time_max */
     /* not clearing checkpoint_time_min */
@@ -2940,6 +2946,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_presync += WT_STAT_READ(from, checkpoint_presync);
     to->checkpoint_update_list += WT_STAT_READ(from, checkpoint_update_list);
     to->checkpoint_update_prev_named += WT_STAT_READ(from, checkpoint_update_prev_named);
+    to->checkpoint_handle_checked += WT_STAT_READ(from, checkpoint_handle_checked);
     to->checkpoint_generation += WT_STAT_READ(from, checkpoint_generation);
     to->checkpoint_time_max += WT_STAT_READ(from, checkpoint_time_max);
     to->checkpoint_time_min += WT_STAT_READ(from, checkpoint_time_min);

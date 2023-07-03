@@ -22,11 +22,6 @@
  */
 #define WT_CHECKPOINT_SESSION_FLAGS (WT_SESSION_CAN_WAIT | WT_SESSION_IGNORE_CACHE_SIZE)
 
-/*
- * TODO enum this? TODO explain that i added the state to stuff that needs to do counting outside
- * our subsystem - don't want to make other stuff pay. TODO revise all "txn_checkpoint_*" stats -
- * move to checkpoint stats? TODO WT_STAT_SET -> WT_STAT_CONN_SET?
- */
 #define WT_CHECKPOINT_STATE_INACTIVE 0
 #define WT_CHECKPOINT_STATE_RESET_CURSORS 1
 #define WT_CHECKPOINT_STATE_FLUSH_TIER_WAIT 2
@@ -45,3 +40,6 @@
 #define WT_CHECKPOINT_STATE_META_SYNC 15
 #define WT_CHECKPOINT_STATE_ROLLBACK 16
 #define WT_CHECKPOINT_STATE_LOG 17
+#define WT_CHECKPOINT_STATE_RUNNING 18
+#define WT_CHECKPOINT_STATE_ESTABLISH 19
+#define WT_CHECKPOINT_STATE_START_TXN 20

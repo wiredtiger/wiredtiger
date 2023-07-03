@@ -560,6 +560,7 @@ struct __wt_connection_stats {
     int64_t checkpoint_presync;
     int64_t checkpoint_update_list;
     int64_t checkpoint_update_prev_named;
+    int64_t checkpoint_handle_checked;
     int64_t checkpoint_generation;
     int64_t checkpoint_time_max;
     int64_t checkpoint_time_min;
@@ -1097,6 +1098,7 @@ struct __wt_dsrc_stats {
     int64_t checkpoint_presync;
     int64_t checkpoint_update_list;
     int64_t checkpoint_update_prev_named;
+    int64_t checkpoint_handle_checked;
     int64_t checkpoint_generation;
     int64_t checkpoint_time_max;
     int64_t checkpoint_time_min;

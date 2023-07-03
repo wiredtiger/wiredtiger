@@ -345,6 +345,7 @@ __checkpoint_apply_to_dhandles(
 
     /* If we have already locked the handles, apply the operation. */
     for (i = 0; i < session->ckpt_handle_next; ++i) {
+        WT_STAT_CONN_INCR(session, checkpoint_handle_checked);
         if (session->ckpt_handle[i] == NULL)
             continue;
         WT_WITH_DHANDLE(session, session->ckpt_handle[i], ret = (*op)(session, cfg));
@@ -1023,6 +1024,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     saved_isolation = session->isolation;
     full = idle = tracking = use_timestamp = false;
 
+    WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_ESTABLISH);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
     /* Avoid doing work if possible. */
@@ -1093,6 +1095,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ERR(__wt_txn_checkpoint_log(session, full, WT_TXN_LOG_CKPT_PREPARE, NULL));
 
     __checkpoint_verbose_track(session, "starting transaction");
+    WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_START_TXN);
 
     if (full)
         __wt_epoch(session, &conn->ckpt_timer_scrub_end);
@@ -1234,6 +1237,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      */
     time_start_fsync = __wt_clock(session);
 
+    WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_BM_SYNC);
     WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __wt_checkpoint_sync));
 
     /* Sync the history store file. */
@@ -1508,8 +1512,6 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
 err:
     F_CLR(session, WT_CHECKPOINT_SESSION_FLAGS);
     F_SET(session, orig_flags);
-
-    WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_INACTIVE);
 
     return (ret);
 }
@@ -2466,7 +2468,6 @@ __wt_checkpoint_sync(WT_SESSION_IMPL *session, const char *cfg[])
         return (0);
 
     WT_STAT_CONN_INCR(session, checkpoint_sync);
-    WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_BM_SYNC);
     return (bm->sync(bm, session, true));
 }
 

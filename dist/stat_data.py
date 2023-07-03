@@ -904,6 +904,7 @@ conn_dsrc_stats = [
     CheckpointStat('checkpoint_fsync_post_duration', 'transaction fsync duration for checkpoint after allocating the transaction ID (usecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_generation', 'transaction checkpoint generation', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_handle_applied', 'transaction checkpoint most recent handles applied'),
+    CheckpointStat('checkpoint_handle_checked', 'transaction checkpoint data handle operation applied'),
     CheckpointStat('checkpoint_handle_duration', 'transaction checkpoint most recent duration for gathering all handles (usecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_handle_duration_apply', 'transaction checkpoint most recent duration for gathering applied handles (usecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_handle_duration_skip', 'transaction checkpoint most recent duration for gathering skipped handles (usecs)', 'no_clear,no_scale'),
