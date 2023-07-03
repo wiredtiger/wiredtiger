@@ -1445,7 +1445,7 @@ prepare_verify:
              head_upd = head_upd->next)
             /* Any update we find should be resolved. */
             WT_ASSERT_ALWAYS(session, head_upd->prepare_state == WT_PREPARE_RESOLVED,
-              "Failed to resolve all updates associated with a prepared transaction");
+              "A prepared update wasn't resolved when it should be");
     }
 
 err:
