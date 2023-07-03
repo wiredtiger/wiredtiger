@@ -324,9 +324,11 @@ wt_wrap_begin_transaction(WT_SESSION *session, const char *config)
 
     /* Configure a transaction operation timeout if one is provided. */
     if (config != NULL)
-        testutil_snprintf(transaction_config, sizeof(transaction_config), "%s,operation_timeout_ms=%" PRIu32, config, g.operation_timeout_ms);
+        testutil_snprintf(transaction_config, sizeof(transaction_config),
+          "%s,operation_timeout_ms=%" PRIu32, config, g.operation_timeout_ms);
     else
-        testutil_snprintf(transaction_config, sizeof(transaction_config), "operation_timeout_ms=%" PRIu32, g.operation_timeout_ms);
+        testutil_snprintf(transaction_config, sizeof(transaction_config),
+          "operation_timeout_ms=%" PRIu32, g.operation_timeout_ms);
 
     /*
      * Keep trying to start a new transaction if it's timing out. There are no resources pinned, it
