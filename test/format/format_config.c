@@ -1537,6 +1537,7 @@ config_transaction(void)
     if (!GV(TRANSACTION_TIMESTAMPS))
         config_off(NULL, "ops.prepare");
 
+    g.operation_timeout_ms = GV(TRANSACTION_OPERATION_TIMEOUT_MS);
     g.transaction_timestamps_config = GV(TRANSACTION_TIMESTAMPS) != 0;
 }
 
