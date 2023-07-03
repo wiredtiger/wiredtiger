@@ -340,6 +340,41 @@ conn_stats = [
     CapacityStat('fsync_all_time', 'background fsync time (msecs)', 'no_clear,no_scale'),
 
     ##########################################
+    # Checkpoint statistics
+    ##########################################
+    CheckpointStat('checkpoint', 'transaction checkpoints'),
+    CheckpointStat('checkpoint_custom_dsrc', 'number of custom data sources checkpointed'),
+    CheckpointStat('checkpoint_fsync_post', 'transaction fsync calls for checkpoint after allocating the transaction ID'),
+    CheckpointStat('checkpoint_fsync_post_duration', 'transaction fsync duration for checkpoint after allocating the transaction ID (usecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_generation', 'transaction checkpoint generation', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_handle_applied', 'transaction checkpoint most recent handles applied'),
+    CheckpointStat('checkpoint_handle_checked', 'transaction checkpoint data handle operation applied'),
+    CheckpointStat('checkpoint_handle_duration', 'transaction checkpoint most recent duration for gathering all handles (usecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_handle_duration_apply', 'transaction checkpoint most recent duration for gathering applied handles (usecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_handle_duration_skip', 'transaction checkpoint most recent duration for gathering skipped handles (usecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_handle_skipped', 'transaction checkpoint most recent handles skipped'),
+    CheckpointStat('checkpoint_handle_walked', 'transaction checkpoint most recent handles walked'),
+    CheckpointStat('checkpoint_prep_max', 'transaction checkpoint prepare max time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_prep_min', 'transaction checkpoint prepare min time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_prep_recent', 'transaction checkpoint prepare most recent time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_prep_running', 'transaction checkpoint prepare currently running', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_prep_total', 'transaction checkpoint prepare total time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_presync', 'number of handles visited after checkpoint writes complete'),
+    CheckpointStat('checkpoint_scrub_target', 'transaction checkpoint scrub dirty target', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_scrub_time', 'transaction checkpoint scrub time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_skipped', 'transaction checkpoints skipped because database was clean'),
+    CheckpointStat('checkpoint_state', 'last potentially expensive operation attempted', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_stop_stress_active', 'transaction checkpoint stop timing stress active', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_sync', 'number of files synced as part of checkpoint'),
+    CheckpointStat('checkpoint_time_max', 'transaction checkpoint max time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_time_min', 'transaction checkpoint min time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_time_recent', 'transaction checkpoint most recent time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_time_total', 'transaction checkpoint total time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_update_postprocess', 'number of older named checkpoints altered to include new checkpoint'),
+    CheckpointStat('checkpoint_update_prev_named', 'number of older named checkpoints updated during reconciliation'),
+    CheckpointStat('checkpoint_wait_reduce_dirty', 'wait cycles while cache dirty level is decreasing'),
+
+    ##########################################
     # Chunk cache statistics
     ##########################################
     ChunkCacheStat('chunk_cache_bytes_inuse', 'total bytes used by the cache'),
@@ -898,39 +933,8 @@ conn_dsrc_stats = [
     ##########################################
     # Checkpoint statistics
     ##########################################
-    CheckpointStat('checkpoint', 'transaction checkpoints'),
-    CheckpointStat('checkpoint_custom_dsrc', 'number of custom data sources checkpointed'),
-    CheckpointStat('checkpoint_fsync_post', 'transaction fsync calls for checkpoint after allocating the transaction ID'),
-    CheckpointStat('checkpoint_fsync_post_duration', 'transaction fsync duration for checkpoint after allocating the transaction ID (usecs)', 'no_clear,no_scale'),
-    CheckpointStat('checkpoint_generation', 'transaction checkpoint generation', 'no_clear,no_scale'),
-    CheckpointStat('checkpoint_handle_applied', 'transaction checkpoint most recent handles applied'),
-    CheckpointStat('checkpoint_handle_checked', 'transaction checkpoint data handle operation applied'),
-    CheckpointStat('checkpoint_handle_duration', 'transaction checkpoint most recent duration for gathering all handles (usecs)', 'no_clear,no_scale'),
-    CheckpointStat('checkpoint_handle_duration_apply', 'transaction checkpoint most recent duration for gathering applied handles (usecs)', 'no_clear,no_scale'),
-    CheckpointStat('checkpoint_handle_duration_skip', 'transaction checkpoint most recent duration for gathering skipped handles (usecs)', 'no_clear,no_scale'),
-    CheckpointStat('checkpoint_handle_skipped', 'transaction checkpoint most recent handles skipped'),
-    CheckpointStat('checkpoint_handle_walked', 'transaction checkpoint most recent handles walked'),
     CheckpointStat('checkpoint_obsolete_applied', 'transaction checkpoints due to obsolete pages'),
-    CheckpointStat('checkpoint_prep_max', 'transaction checkpoint prepare max time (msecs)', 'no_clear,no_scale'),
-    CheckpointStat('checkpoint_prep_min', 'transaction checkpoint prepare min time (msecs)', 'no_clear,no_scale'),
-    CheckpointStat('checkpoint_prep_recent', 'transaction checkpoint prepare most recent time (msecs)', 'no_clear,no_scale'),
-    CheckpointStat('checkpoint_prep_running', 'transaction checkpoint prepare currently running', 'no_clear,no_scale'),
-    CheckpointStat('checkpoint_prep_total', 'transaction checkpoint prepare total time (msecs)', 'no_clear,no_scale'),
-    CheckpointStat('checkpoint_presync', 'number of handles visited after checkpoint writes complete'),
-    CheckpointStat('checkpoint_scrub_target', 'transaction checkpoint scrub dirty target', 'no_clear,no_scale'),
-    CheckpointStat('checkpoint_scrub_time', 'transaction checkpoint scrub time (msecs)', 'no_clear,no_scale'),
-    CheckpointStat('checkpoint_skipped', 'transaction checkpoints skipped because database was clean'),
     CheckpointStat('checkpoint_snapshot_acquired', 'checkpoint has acquired a snapshot for its transaction'),
-    CheckpointStat('checkpoint_state', 'last potentially expensive operation attempted', 'no_clear,no_scale'),
-    CheckpointStat('checkpoint_stop_stress_active', 'transaction checkpoint stop timing stress active', 'no_clear,no_scale'),
-    CheckpointStat('checkpoint_sync', 'number of files synced as part of checkpoint'),
-    CheckpointStat('checkpoint_time_max', 'transaction checkpoint max time (msecs)', 'no_clear,no_scale'),
-    CheckpointStat('checkpoint_time_min', 'transaction checkpoint min time (msecs)', 'no_clear,no_scale'),
-    CheckpointStat('checkpoint_time_recent', 'transaction checkpoint most recent time (msecs)', 'no_clear,no_scale'),
-    CheckpointStat('checkpoint_time_total', 'transaction checkpoint total time (msecs)', 'no_clear,no_scale'),
-    CheckpointStat('checkpoint_update_list', 'number of older named checkpoints altered to include new checkpoint'),
-    CheckpointStat('checkpoint_update_prev_named', 'number of older named checkpoints updated during reconciliation'),
-    CheckpointStat('checkpoint_wait_reduce_dirty', 'wait cycles while cache dirty level is decreasing'),
 
     ##########################################
     # Checkpoint cleanup statistics

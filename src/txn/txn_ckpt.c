@@ -2140,6 +2140,8 @@ __checkpoint_save_ckptlist(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
     ckpt_itr = ckptbase;
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));
     WT_CKPT_FOREACH (ckptbase, ckpt) {
+        WT_STAT_CONN_INCR(session, checkpoint_update_postprocess);
+
         /* Remove any deleted checkpoints, by shifting the array. */
         if (F_ISSET(ckpt, WT_CKPT_DELETE)) {
             __wt_meta_checkpoint_free(session, ckpt);
