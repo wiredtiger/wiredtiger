@@ -597,29 +597,6 @@ conn_stats = [
     # Transaction statistics
     ##########################################
     TxnStat('txn_begin', 'transaction begins'),
-    TxnStat('txn_checkpoint', 'transaction checkpoints'),
-    TxnStat('txn_checkpoint_fsync_post', 'transaction fsync calls for checkpoint after allocating the transaction ID'),
-    TxnStat('txn_checkpoint_fsync_post_duration', 'transaction fsync duration for checkpoint after allocating the transaction ID (usecs)', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_generation', 'transaction checkpoint generation', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_handle_applied', 'transaction checkpoint most recent handles applied'),
-    TxnStat('txn_checkpoint_handle_duration', 'transaction checkpoint most recent duration for gathering all handles (usecs)', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_handle_duration_apply', 'transaction checkpoint most recent duration for gathering applied handles (usecs)', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_handle_duration_skip', 'transaction checkpoint most recent duration for gathering skipped handles (usecs)', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_handle_skipped', 'transaction checkpoint most recent handles skipped'),
-    TxnStat('txn_checkpoint_handle_walked', 'transaction checkpoint most recent handles walked'),
-    TxnStat('txn_checkpoint_prep_max', 'transaction checkpoint prepare max time (msecs)', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_prep_min', 'transaction checkpoint prepare min time (msecs)', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_prep_recent', 'transaction checkpoint prepare most recent time (msecs)', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_prep_running', 'transaction checkpoint prepare currently running', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_prep_total', 'transaction checkpoint prepare total time (msecs)', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_scrub_target', 'transaction checkpoint scrub dirty target', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_scrub_time', 'transaction checkpoint scrub time (msecs)', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_skipped', 'transaction checkpoints skipped because database was clean'),
-    TxnStat('txn_checkpoint_time_max', 'transaction checkpoint max time (msecs)', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_time_min', 'transaction checkpoint min time (msecs)', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_time_recent', 'transaction checkpoint most recent time (msecs)', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_time_total', 'transaction checkpoint total time (msecs)', 'no_clear,no_scale'),
-    TxnStat('txn_checkpoint_stop_stress_active', 'transaction checkpoint stop timing stress active', 'no_clear,no_scale'),
     TxnStat('txn_commit', 'transactions committed'),
     TxnStat('txn_hs_ckpt_duration', 'transaction checkpoint history store file duration (usecs)'),
     TxnStat('txn_pinned_checkpoint_range', 'transaction range of IDs currently pinned by a checkpoint', 'no_clear,no_scale'),
@@ -919,13 +896,57 @@ conn_dsrc_stats = [
     CacheStat('cache_write_restore', 'pages written requiring in-memory restoration'),
 
     ##########################################
+    # Checkpoint statistics
+    ##########################################
+    CheckpointStat('checkpoint', 'transaction checkpoints'),
+    CheckpointStat('checkpoint_custom_dsrc', 'number of custom data sources checkpointed'),
+    CheckpointStat('checkpoint_fsync_post', 'transaction fsync calls for checkpoint after allocating the transaction ID'),
+    CheckpointStat('checkpoint_fsync_post_duration', 'transaction fsync duration for checkpoint after allocating the transaction ID (usecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_generation', 'transaction checkpoint generation', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_handle_applied', 'transaction checkpoint most recent handles applied'),
+    CheckpointStat('checkpoint_handle_duration', 'transaction checkpoint most recent duration for gathering all handles (usecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_handle_duration_apply', 'transaction checkpoint most recent duration for gathering applied handles (usecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_handle_duration_skip', 'transaction checkpoint most recent duration for gathering skipped handles (usecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_handle_skipped', 'transaction checkpoint most recent handles skipped'),
+    CheckpointStat('checkpoint_handle_walked', 'transaction checkpoint most recent handles walked'),
+    CheckpointStat('checkpoint_obsolete_applied', 'transaction checkpoints due to obsolete pages'),
+    CheckpointStat('checkpoint_prep_max', 'transaction checkpoint prepare max time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_prep_min', 'transaction checkpoint prepare min time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_prep_recent', 'transaction checkpoint prepare most recent time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_prep_running', 'transaction checkpoint prepare currently running', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_prep_total', 'transaction checkpoint prepare total time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_presync', 'number of handles visited after checkpoint writes complete'),
+    CheckpointStat('checkpoint_scrub_target', 'transaction checkpoint scrub dirty target', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_scrub_time', 'transaction checkpoint scrub time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_skipped', 'transaction checkpoints skipped because database was clean'),
+    CheckpointStat('checkpoint_snapshot_acquired', 'checkpoint has acquired a snapshot for its transaction'),
+    CheckpointStat('checkpoint_state', 'last potentially expensive operation attempted', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_stop_stress_active', 'transaction checkpoint stop timing stress active', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_sync', 'number of files synced as part of checkpoint'),
+    CheckpointStat('checkpoint_time_max', 'transaction checkpoint max time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_time_min', 'transaction checkpoint min time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_time_recent', 'transaction checkpoint most recent time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_time_total', 'transaction checkpoint total time (msecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_update_list', 'number of older named checkpoints altered to include new checkpoint'),
+    CheckpointStat('checkpoint_update_prev_named', 'number of older named checkpoints updated during reconciliation'),
+    CheckpointStat('checkpoint_wait_reduce_dirty', 'wait cycles while cache dirty level is decreasing'),
+
+    ##########################################
+    # Checkpoint cleanup statistics
+    ##########################################
+    CheckpointCleanupStat('cc_pages_evict', 'pages added for eviction'),
+    CheckpointCleanupStat('cc_pages_removed', 'pages removed'),
+    CheckpointCleanupStat('cc_pages_visited', 'pages visited'),
+    CheckpointCleanupStat('cc_pages_walk_skipped', 'pages skipped during tree walk'),
+
+    ##########################################
     # Cursor operations
     ##########################################
     CursorStat('cursor_bounds_comparisons', 'cursor bounds comparisons performed'),
     CursorStat('cursor_bounds_reset', 'cursor bounds cleared from reset'),
     CursorStat('cursor_bounds_next_early_exit', 'cursor bounds next early exit'),
     CursorStat('cursor_bounds_prev_early_exit', 'cursor bounds prev early exit'),
-    CursorStat('cursor_bounds_search_early_exit', 'cursor bounds search early exit'),    
+    CursorStat('cursor_bounds_search_early_exit', 'cursor bounds search early exit'),
     CursorStat('cursor_bounds_search_near_repositioned_cursor', 'cursor bounds search near call repositioned cursor'),
     CursorStat('cursor_bounds_next_unpositioned', 'cursor bounds next called on an unpositioned cursor'),
     CursorStat('cursor_bounds_prev_unpositioned', 'cursor bounds prev called on an unpositioned cursor'),
@@ -970,25 +991,6 @@ conn_dsrc_stats = [
     CursorStat('cursor_update_error', 'cursor update calls that return an error'),
 
     ##########################################
-    # Checkpoint statistics
-    ##########################################
-    CheckpointStat('ckpt_state', 'last potentially expensive operation attemped', 'no_clear,no_scale'),
-    CheckpointStat('ckpt_dsrc', 'number of custom data sources checkpointed'),
-    CheckpointStat('ckpt_wait_reduce_dirty', 'wait cycles while cache dirty level is decreasing'),
-    CheckpointStat('ckpt_update_prev_named', 'number of older named checkpoints updated during reconciliation'),
-    CheckpointStat('ckpt_update_list', 'number of older named checkpoints altered to include new checkpoint'),
-    CheckpointStat('ckpt_presync', 'number of btrees marked TODO'),
-    CheckpointStat('ckpt_sync', 'number of files synced as part of checkpoint'),
-
-    ##########################################
-    # Checkpoint cleanup statistics
-    ##########################################
-    CheckpointCleanupStat('cc_pages_evict', 'pages added for eviction'),
-    CheckpointCleanupStat('cc_pages_removed', 'pages removed'),
-    CheckpointCleanupStat('cc_pages_visited', 'pages visited'),
-    CheckpointCleanupStat('cc_pages_walk_skipped', 'pages skipped during tree walk'),
-
-    ##########################################
     # LSM statistics
     ##########################################
     LSMStat('lsm_checkpoint_throttle', 'sleep for LSM checkpoint throttle'),
@@ -1026,8 +1028,6 @@ conn_dsrc_stats = [
     ##########################################
     # Transaction statistics
     ##########################################
-    TxnStat('txn_checkpoint_obsolete_applied', 'transaction checkpoints due to obsolete pages'),
-    TxnStat('txn_checkpoint_snapshot_acquired', 'checkpoint has acquired a snapshot for its transaction'),
     TxnStat('txn_read_overflow_remove', 'number of times overflow removed value is read'),
     TxnStat('txn_read_race_prepare_update', 'race to read prepared update retry'),
     TxnStat('txn_read_race_prepare_commit', 'a reader raced with a prepared transaction commit and skipped an update or updates'),
