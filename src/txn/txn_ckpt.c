@@ -1481,6 +1481,20 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
     /* Ensure the metadata table is open before taking any locks. */
     WT_RET(__wt_metadata_cursor(session, NULL));
 
+    /*
+     * Don't hijack the session checkpoint thread for eviction.
+     *
+     * Application threads are not generally available for potentially slow operations, but checkpoint
+     * does enough I/O it may be called upon to perform slow operations for the block manager.
+     *
+     * Application checkpoints wait until the checkpoint lock is available, compaction checkpoints
+     * don't.
+     *
+     * Checkpoints should always use a separate session for history store updates, otherwise those
+     * updates are pinned until the checkpoint commits. Also, there are unfortunate interactions between
+     * the special rules for history store eviction and the special handling of the checkpoint
+     * transaction.
+     */
     orig_flags = F_MASK(session, WT_CHECKPOINT_SESSION_FLAGS);
     F_SET(session, WT_CHECKPOINT_SESSION_FLAGS);
 

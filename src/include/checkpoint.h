@@ -6,20 +6,6 @@
  * See the file LICENSE for redistribution information.
  */
 
-/*
- * Don't hijack the session checkpoint thread for eviction.
- *
- * Application threads are not generally available for potentially slow operations, but checkpoint
- * does enough I/O it may be called upon to perform slow operations for the block manager.
- *
- * Application checkpoints wait until the checkpoint lock is available, compaction checkpoints
- * don't.
- *
- * Checkpoints should always use a separate session for history store updates, otherwise those
- * updates are pinned until the checkpoint commits. Also, there are unfortunate interactions between
- * the special rules for history store eviction and the special handling of the checkpoint
- * transaction.
- */
 #define WT_CHECKPOINT_SESSION_FLAGS (WT_SESSION_CAN_WAIT | WT_SESSION_IGNORE_CACHE_SIZE)
 
 #define WT_CHECKPOINT_STATE_INACTIVE 0

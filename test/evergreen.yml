@@ -4908,21 +4908,6 @@ tasks:
         vars:
           perf-test-name: update-checkpoint-btree.wtperf
 
-  - name: perf-test-checkpoint-latency
-    tags: ["checkpoint-perf"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "run-perf-test"
-        vars:
-          perf-test-name: checkpoint-latency-0.wtperf
-          maxruns: 1
-          wtarg: "-bf ../../../bench/wtperf/runners/update-checkpoint.json"
-      - func: "upload-perf-test-stats"
-        vars:
-          perf-test-name: checkpoint-latency-0.wtperf
- 
   - name: perf-test-update-checkpoint-lsm
     # FIXME-WT-8867 Disable/Un-tag the LSM perf test till the support for LSM is restored.
     # tags: ["checkpoint-perf"]
