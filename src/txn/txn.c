@@ -1439,8 +1439,8 @@ prepare_verify:
      * WiredTiger.
      *
      * In the rollback case the updates are changed to aborted and in theory a newer update could be
-     * added to chain concurrently and become globally visible. Thus our updates could be freed. We
-     * don't walk the chain in rollback for that reason.
+     * added to the chain concurrently and become globally visible. Thus our updates could be freed.
+     * We don't walk the chain in rollback for that reason.
      */
     if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_PREPARED) && commit) {
         for (; head_upd != NULL; head_upd = head_upd->next) {
