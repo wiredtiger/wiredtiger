@@ -578,8 +578,7 @@ functions:
         virtualenv -p python3 venv
         source venv/bin/activate
         pip3 install lxml==4.8.0 Pygments==2.11.2 Jinja2==3.0.3 gcovr==5.0
-        mkdir -p ../coverage_report
-        python3 ../test/evergreen/code_coverage_analysis.py -c component_coverage -s ../coverage_report/1_coverage_report_summary.json -t ../time.txt -o ../atlas_out_code_coverage.json
+        python3 ../test/evergreen/code_coverage_analysis.py -c component_coverage -o ../atlas_out_code_coverage.json -s ../coverage_report/1_coverage_report_summary.json -t ../time.txt
 
   "upload-component-coverage-report-atlas":
     - command: shell.exec
@@ -597,7 +596,7 @@ functions:
           fi
 
           EVERGREEN_TASK_INFO='{ "evergreen_task_info": { "is_patch": "'${is_patch}'", "task_id": "'${task_id}'", "distro_id": "'${distro_id}'", "execution": "'${execution}'", "task_name": "'${task_name}'", "version_id": "'${version_id}'", "branch_name": "'${branch_name}'" } }'
-
+          echo "EVERGREEN_TASK_INFO: $EVERGREEN_TASK_INFO"
           ${python_binary} automation-scripts/evergreen/upload_stats_atlas.py -u ${atlas_perf_test_username} -p ${atlas_perf_test_password} -c ${collection|} -d ${database|} -f ./wiredtiger/atlas_out_code_coverage.json -t ${created_at} -i "$EVERGREEN_TASK_INFO" -g "./wiredtiger"
 
 
