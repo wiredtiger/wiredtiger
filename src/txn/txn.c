@@ -1432,20 +1432,31 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 
 prepare_verify:
     /*
-     * If we are committing a prepared transaction we can check, to some level, that we resolved the
-     * update chain correctly.
+     * If we are committing a prepared transaction we can check that we resolved the whole update
+     * chain. As long as we don't walk past a globally visible update we are guaranteed that the
+     * update chain won't be freed concurrently. In the commit case prepared updates cannot become
+     * globally visible before we finish resolving them, this is an implicit contract within
+     * WiredTiger.
+     *
+     * In the rollback case the updates are changed to aborted and in theory a newer update could be
+     * added to chain concurrently and become globally visible. Thus our updates could be freed.
+     * We don't walk the chain in rollback for that reason.
      */
     if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_PREPARED) && commit) {
-        /*
-         * We need to stop walking as soon as we see an aborted update or an update that doesn't
-         * belong to our transaction as it could be freed concurrently by the update obsolete check
-         * logic.
-         */
-        for (; head_upd != NULL && head_upd->txnid != WT_TXN_ABORTED && head_upd->txnid == txn->id;
-             head_upd = head_upd->next)
+        for (; head_upd != NULL; head_upd = head_upd->next) {
+            /*
+             * Ignore aborted updates. We could have them in the middle of the relevant update
+             * chain, as a result of the cursor reserve API.
+             */
+            if (head_upd->txnid == WT_TXN_ABORTED)
+                continue;
+            /* Exit once we have visited all updates from the current transaction. */
+            if (head_upd->txnid != txn->id)
+                break;
             /* Any update we find should be resolved. */
             WT_ASSERT_ALWAYS(session, head_upd->prepare_state == WT_PREPARE_RESOLVED,
               "A prepared update wasn't resolved when it should be");
+        }
     }
 
 err:
