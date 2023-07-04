@@ -320,7 +320,7 @@ static inline void
 wt_wrap_begin_transaction(WT_SESSION *session, const char *config)
 {
     WT_DECL_RET;
-    char transaction_config[MAX_FORMAT_PATH];
+    char transaction_config[256];
 
     /* Configure a transaction operation timeout if one is provided. */
     if (config != NULL)

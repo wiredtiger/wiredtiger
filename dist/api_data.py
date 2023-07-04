@@ -776,6 +776,9 @@ connection_runtime_config = [
             merge LSM chunks where possible''',
             type='boolean')
         ]),
+    Config('operation_timeout_ms', '0', r'''
+        this option is no longer supported, retained for backward compatibility.''',
+        min=0),
     Config('operation_tracking', '', r'''
         enable tracking of performance-critical functions. See @ref operation_tracking for
         more information''',
