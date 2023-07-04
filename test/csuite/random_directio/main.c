@@ -1128,6 +1128,7 @@ handler(int sig)
 
     WT_UNUSED(sig);
 
+    /* Check if child has been killed by die(), if so, no need to wait. */
     if (child_pid == 0)
         return;
 
@@ -1392,6 +1393,7 @@ main(int argc, char *argv[])
         testutil_assert_errno(sigaction(SIGCHLD, &sa, NULL) == 0);
         testutil_assert_errno(kill(pid, SIGKILL) == 0);
         testutil_assert_errno(waitpid(pid, &status, 0) != -1);
+        child_pid = 0;
     }
     if (verify_only && !check_db(nth, datasize, 0, false, flags)) {
         printf("FAIL\n");
