@@ -23,25 +23,21 @@ def read_timing_data(timing_data_path: str):
         print("Timing data: {} to {}, delta {}".format(start_time_secs, end_time_secs, delta_secs))
         return delta_secs
 
-# Calculate the per component coverage from the detailed files.
-def get_component_coverage_list(branch_coverage, coverage_files, outfile):
+# Calculate the branch coverage from the detailed files.
+def get_branch_coverage(branch_coverage, coverage_files, outfile='atlas_out_code_coverage.json'):
     component_dict = defaultdict(list)
     new_component_dict = {}
 
-    if outfile is None:
-        outfile='atlas_out_code_coverage.json'
-
-    # Using for loop
     for i in coverage_files:
-        component = i["filename"].split('/')[1]
+        component = i['filename'].split('/')[1]
         if component not in component_dict:
-            component_dict[component] = [i["branch_covered"], i["branch_total"]]
+            component_dict[component] = [i['branch_covered'], i['branch_total']]
         else:
-            component_dict[component][0] += i["branch_covered"]
-            component_dict[component][1] += i["branch_total"]
+            component_dict[component][0] += i['branch_covered']
+            component_dict[component][1] += i['branch_total']
 
     # Insert the overall branch coverage data
-    new_component_dict["overall"] = branch_coverage
+    new_component_dict['overall'] = branch_coverage
 
     for key in component_dict:
         percent =  100 * float(component_dict[key][0]) / float(component_dict[key][1])
@@ -50,8 +46,8 @@ def get_component_coverage_list(branch_coverage, coverage_files, outfile):
     resultList = []
     for key, value in new_component_dict.items():
         atlas_format = {}
-        atlas_format["name"] = key
-        atlas_format["value"]=value
+        atlas_format['name'] = key
+        atlas_format['value']=value
         resultList.append(atlas_format)
 
     return (resultList)
@@ -61,7 +57,7 @@ def get_component_coverage(branch_coverage, coverage_files, outfile):
     atlas_format = {
                 'Test Name': "Code Coverage",
                 'config': {},
-                'metrics': get_component_coverage_list(branch_coverage, coverage_files, outfile),
+                'metrics': get_branch_coverage(branch_coverage, coverage_files, outfile),
             }
 
     dir_name = os.path.dirname(outfile)
@@ -75,8 +71,9 @@ def get_component_coverage(branch_coverage, coverage_files, outfile):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-s', '--summary', required=True, help='Path to the gcovr json summary data file')
-    parser.add_argument('-o', '--outfile', help='path of the file to write test output to')
-    parser.add_argument('-c', '--coverage_type', help='Coverage type - overall coverage or component level coverage')
+    parser.add_argument('-o', '--outfile', help='Path of the file to write test output to')
+    parser.add_argument('-c', '--coverage_type',
+                        help='Type of the coverage report to generate, component_coverage to generate component level coverage(by default the coverage type is overall)')
     parser.add_argument('-t', '--time', required=True, help='Path to the timing data file')
     parser.add_argument('-v', '--verbose', action="store_true", help='be verbose')
     args = parser.parse_args()
@@ -95,9 +92,9 @@ def main():
 
     coverage_data = read_coverage_data(args.summary)
     branch_coverage = coverage_data['branch_percent']
-    coverage_files = coverage_data["files"]
+    coverage_files = coverage_data['files']
 
-    # Generate atlas compatible code comIf the covergage type is component coverage then ge
+    # Generate Atlas compatible format report.
     if args.coverage_type == 'component_coverage':
         get_component_coverage(branch_coverage, coverage_files, args.outfile)
 
