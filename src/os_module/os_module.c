@@ -30,7 +30,7 @@ test_mod(void)
  *     ANSI calloc function.
  */
 int
-__wt_calloc_mod(/*WT_SESSION_IMPL *session, */size_t number, size_t size, void *retp)
+__wt_calloc_mod(WT_SESSION_IMPL *session, size_t number, size_t size, void *retp)
   WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
     void *p;
@@ -44,7 +44,7 @@ __wt_calloc_mod(/*WT_SESSION_IMPL *session, */size_t number, size_t size, void *
      * !!!
      * This function MUST handle a NULL WT_SESSION_IMPL handle.
      */
-    WT_ASSERT(NULL, number != 0 && size != 0);
+    WT_ASSERT(session, number != 0 && size != 0);
 
     //if (session != NULL)
     //    WT_STAT_CONN_INCR(session, memory_allocation);

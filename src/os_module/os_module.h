@@ -16,8 +16,10 @@ extern "C" {
 #include "gcc_decl.h"
 #include <stdio.h>
 
+typedef struct __wt_session_impl WT_SESSION_IMPL;
+
 extern int test_mod(void);
-extern int __wt_calloc_mod(size_t number, size_t size, void *retp)
+extern int __wt_calloc_mod(WT_SESSION_IMPL *session, size_t number, size_t size, void *retp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
     WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 
