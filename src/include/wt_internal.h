@@ -410,6 +410,7 @@ typedef uint64_t wt_timestamp_t;
  *******************************************/
 #if defined(__GNUC__)
 #include "gcc.h"
+#include "gcc_decl.h"
 #elif defined(_MSC_VER)
 #include "msvc.h"
 #endif
@@ -435,6 +436,7 @@ typedef uint64_t wt_timestamp_t;
 #endif
 
 #include "misc.h"
+#include "misc_module.h"
 #include "mutex.h"
 
 #include "stat.h"      /* required by dhandle.h */
@@ -456,6 +458,7 @@ typedef uint64_t wt_timestamp_t;
 #include "cursor.h"
 #include "dlh.h"
 #include "error.h"
+#include "error_module.h"
 #include "log.h"
 #include "lsm.h"
 #include "meta.h" /* required by block.h */

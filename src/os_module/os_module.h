@@ -13,7 +13,13 @@
 extern "C" {
 #endif
 
+#include "gcc_decl.h"
+#include <stdio.h>
+
 extern int test_mod(void);
+extern int __wt_calloc_mod(size_t number, size_t size, void *retp)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
+    WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 
 #if defined(__cplusplus)
 }

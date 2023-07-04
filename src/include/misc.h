@@ -10,7 +10,6 @@
  * Quiet compiler warnings about unused function parameters and variables, and unused function
  * return values.
  */
-#define WT_UNUSED(var) (void)(var)
 #define WT_NOT_READ(v, val) \
     do {                    \
         (v) = (val);        \

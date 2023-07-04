@@ -125,18 +125,6 @@
     __wt_panic(session, EINVAL, "%s: 0x%" PRIxMAX, \
       "encountered an illegal file format or internal value", (uintmax_t)(v))
 
-/*
- * Branch prediction hints. If an expression is likely to return true/false we can use this
- * information to improve performance at runtime. This is not supported for MSVC compilers.
- */
-#if !defined(_MSC_VER)
-#define LIKELY(x) __builtin_expect(!!(x), 1)
-#define UNLIKELY(x) __builtin_expect(!!(x), 0)
-#else
-#define LIKELY(x) (x)
-#define UNLIKELY(x) (x)
-#endif
-
 #define WT_ERR_MSG_BUF_LEN 1024
 
 /*
@@ -192,21 +180,6 @@
 #define EXTRA_DIAGNOSTICS_ENABLED(session, category) \
     ((session != NULL) &&                            \
       UNLIKELY(FLD_ISSET(S2C(session)->extra_diagnostics_flags, category | WT_DIAGNOSTIC_ALL)))
-
-/*
- * WT_ASSERT --
- *  Assert an expression and abort if it fails.
- *  Only enabled when compiled with HAVE_DIAGNOSTIC=1.
- */
-#ifdef HAVE_DIAGNOSTIC
-#define WT_ASSERT(session, exp)                                       \
-    do {                                                              \
-        if (UNLIKELY(!(exp)))                                         \
-            TRIGGER_ABORT(session, exp, "Expression returned false"); \
-    } while (0)
-#else
-#define WT_ASSERT(session, exp) WT_UNUSED(session)
-#endif
 
 /*
  * WT_ASSERT_OPTIONAL --
