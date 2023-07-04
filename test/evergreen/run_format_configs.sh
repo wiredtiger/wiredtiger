@@ -3,7 +3,7 @@
 # Cycle through a list of test/format configurations that failed previously,
 # and run format test against each of those configurations to capture issues.
 #
-# Note - Any of the failed configs does not require a restart.
+# Note - The failed configs must not require restart (such as abort)
 
 set -e
 # Switch to the Git repo toplevel directory
@@ -28,31 +28,15 @@ declare -a PID_LIST
 
 usage() {
 	echo "usage: $0 "
-	echo "    -j parallel  jobs to execute in parallel (defaults to 8)"
+	echo "    -j <num_of_jobs>  number of jobs to execute in parallel (defaults to 8)"
 
 	exit 1
 }
 
-
-while :; do
-	case "$1" in
-	-j)
-		parallel_jobs="$2"
-		[[ "$parallel_jobs" =~ ^[1-9][0-9]*$ ]] ||
-			fatal_msg "-j option argument must be a non-zero integer"
-		shift ; shift ;;
-	-*)
-		usage ;;
-	*)
-		break ;;
-	esac
-done
-
 # Wait for other format runs.
 wait_for_process()
 {
-	while true
-	do
+	while true ; do
 		for process in ${PID_LIST[@]};do
 			if [ ps $process > /dev/null ] ; then
 				# The process id is running so sleep for 2 second before checking another
@@ -92,6 +76,20 @@ wait_for_process()
 		fi
 	done
 }
+
+while :; do
+	case "$1" in
+	-j)
+		parallel_jobs="$2"
+		[[ "$parallel_jobs" =~ ^[1-9][0-9]*$ ]] ||
+			fatal_msg "-j option argument must be a non-zero integer"
+		shift ; shift ;;
+	-*)
+		usage ;;
+	*)
+		break ;;
+	esac
+done
 
 tmp_file="format_list.txt"
 touch $tmp_file
