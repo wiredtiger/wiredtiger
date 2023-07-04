@@ -30,7 +30,7 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 from wtdataset import SimpleDataSet
 
-# Ensure cache is tracked correctly for page disk images.
+# Ensure that cache size is tracked correctly when the content on a disk page is smaller than the page itself.
 class test_cache_tracking(wttest.WiredTigerTestCase):
     uri = "table:test_cache_tracking"
     conn_config = "cache_size=1GB,statistics=(all),statistics_log=(wait=1,json=true,on_close=true)"
@@ -81,9 +81,12 @@ class test_cache_tracking(wttest.WiredTigerTestCase):
         cursor.set_key(ds.key(1))
         cursor.search()
 
+        # This test aims to validate accurate tracking of the cache size.
+        # For uncompressed pages read in memory, we allocate space based on their on-disk size rather than their in-memory size.
+        # Conversely, for compressed pages read in memory, we allocate memory to the in-memory page size.
+        # The assertion below verifies the same.
         cache_bytes_page_image = self.get_stat(wiredtiger.stat.conn.cache_bytes_image)
-
         if self.compressor == "none":
-            self.assertGreaterEqual(cache_bytes_page_image, _128MB)
+            self.assertGreater(cache_bytes_page_image, _128MB)
         else:
             self.assertLess(cache_bytes_page_image, _128MB)
