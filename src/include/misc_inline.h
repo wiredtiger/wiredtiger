@@ -86,29 +86,6 @@ __wt_strcat(char *dest, size_t size, const char *src)
 }
 
 /*
- * __wt_snprintf --
- *     snprintf convenience function, ignoring the returned size.
- */
-static inline int
-__wt_snprintf(char *buf, size_t size, const char *fmt, ...)
-  WT_GCC_FUNC_ATTRIBUTE((format(printf, 3, 4)))
-{
-    WT_DECL_RET;
-    size_t len;
-    va_list ap;
-
-    len = 0;
-
-    va_start(ap, fmt);
-    ret = __wt_vsnprintf_len_incr(buf, size, &len, fmt, ap);
-    va_end(ap);
-    WT_RET(ret);
-
-    /* It's an error if the buffer couldn't hold everything. */
-    return (len >= size ? ERANGE : 0);
-}
-
-/*
  * __wt_vsnprintf --
  *     vsnprintf convenience function, ignoring the returned size.
  */
@@ -123,25 +100,6 @@ __wt_vsnprintf(char *buf, size_t size, const char *fmt, va_list ap)
 
     /* It's an error if the buffer couldn't hold everything. */
     return (len >= size ? ERANGE : 0);
-}
-
-/*
- * __wt_snprintf_len_set --
- *     snprintf convenience function, setting the returned size.
- */
-static inline int
-__wt_snprintf_len_set(char *buf, size_t size, size_t *retsizep, const char *fmt, ...)
-  WT_GCC_FUNC_ATTRIBUTE((format(printf, 4, 5)))
-{
-    WT_DECL_RET;
-    va_list ap;
-
-    *retsizep = 0;
-
-    va_start(ap, fmt);
-    ret = __wt_vsnprintf_len_incr(buf, size, retsizep, fmt, ap);
-    va_end(ap);
-    return (ret);
 }
 
 /*

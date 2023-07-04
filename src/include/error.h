@@ -30,8 +30,6 @@
 #define __wt_err(session, error, ...) \
     __wt_err_func(                    \
       session, error, __PRETTY_FUNCTION__, __LINE__, WT_VERBOSE_CATEGORY_DEFAULT, __VA_ARGS__)
-#define __wt_errx(session, ...) \
-    __wt_errx_func(session, __PRETTY_FUNCTION__, __LINE__, WT_VERBOSE_CATEGORY_DEFAULT, __VA_ARGS__)
 #define __wt_panic(session, error, ...) \
     __wt_panic_func(                    \
       session, error, __PRETTY_FUNCTION__, __LINE__, WT_VERBOSE_CATEGORY_DEFAULT, __VA_ARGS__)
@@ -64,13 +62,6 @@
 /* Return WT_PANIC regardless of earlier return codes. */
 #define WT_ERR_PANIC(session, v, ...) WT_ERR(__wt_panic(session, v, __VA_ARGS__))
 
-/* Return tests. */
-#define WT_RET(a)               \
-    do {                        \
-        int __ret;              \
-        if ((__ret = (a)) != 0) \
-            return (__ret);     \
-    } while (0)
 #define WT_RET_TRACK(a)               \
     do {                              \
         int __ret;                    \
@@ -124,52 +115,6 @@
 #define __wt_illegal_value(session, v)             \
     __wt_panic(session, EINVAL, "%s: 0x%" PRIxMAX, \
       "encountered an illegal file format or internal value", (uintmax_t)(v))
-
-#define WT_ERR_MSG_BUF_LEN 1024
-
-/*
- * BUILD_ASSERTION_STRING --
- *  Append a common prefix to an assertion message and save into the provided buffer.
- */
-#define BUILD_ASSERTION_STRING(session, buf, len, exp, ...)                                        \
-    do {                                                                                           \
-        size_t _offset;                                                                            \
-        _offset = 0;                                                                               \
-        WT_IGNORE_RET(                                                                             \
-          __wt_snprintf_len_set(buf, len, &_offset, "WiredTiger assertion failed: '%s'. ", #exp)); \
-        /* If we would overflow, finish with what we have. */                                      \
-        if (_offset < len)                                                                         \
-            WT_IGNORE_RET(__wt_snprintf(buf + _offset, len - _offset, __VA_ARGS__));               \
-    } while (0)
-
-/*
- * TRIGGER_ABORT --
- *  Abort the program.
- *
- * When unit testing assertions we don't want to call __wt_abort, but we do want to track that we
- * should have done so.
- */
-#ifdef HAVE_UNITTEST_ASSERTS
-#define TRIGGER_ABORT(session, exp, ...)                                                    \
-    do {                                                                                    \
-        if ((session) == NULL) {                                                            \
-            __wt_errx(                                                                      \
-              session, "A non-NULL session must be provided when unit testing assertions"); \
-            __wt_abort(session);                                                            \
-        }                                                                                   \
-        BUILD_ASSERTION_STRING(                                                             \
-          session, (session)->unittest_assert_msg, WT_ERR_MSG_BUF_LEN, exp, __VA_ARGS__);   \
-        (session)->unittest_assert_hit = true;                                              \
-    } while (0)
-#else
-#define TRIGGER_ABORT(session, exp, ...)                                             \
-    do {                                                                             \
-        char _buf[WT_ERR_MSG_BUF_LEN];                                               \
-        BUILD_ASSERTION_STRING(session, _buf, WT_ERR_MSG_BUF_LEN, exp, __VA_ARGS__); \
-        __wt_errx(session, "%s", _buf);                                              \
-        __wt_abort(session);                                                         \
-    } while (0)
-#endif
 
 /*
  * EXTRA_DIAGNOSTICS_ENABLED --

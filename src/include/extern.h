@@ -2256,13 +2256,7 @@ static inline int __wt_row_leaf_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_
   WT_ITEM *key, bool instantiate) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_row_leaf_key_instantiate(WT_SESSION_IMPL *session, WT_PAGE *page)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_snprintf(char *buf, size_t size, const char *fmt, ...)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 3, 4)))
-    WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_snprintf_len_incr(char *buf, size_t size, size_t *retsizep, const char *fmt,
-  ...) WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 4, 5)))
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_snprintf_len_set(char *buf, size_t size, size_t *retsizep, const char *fmt,
   ...) WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 4, 5)))
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_spin_init(WT_SESSION_IMPL *session, WT_SPINLOCK *t, const char *name)

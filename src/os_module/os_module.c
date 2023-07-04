@@ -10,6 +10,7 @@
 #include "error_module.h"
 
 #include <stdlib.h>
+#include <stdbool.h>
 
 // For now HAVE_DIAGNOSTIC compile flag is not passed to unit tests, so they always build
 // modules without diagnostic - need to look into future to test modules diag also.

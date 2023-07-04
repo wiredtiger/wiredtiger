@@ -15,12 +15,6 @@
         (v) = (val);        \
         (void)(v);          \
     } while (0);
-#define WT_IGNORE_RET(call)                \
-    do {                                   \
-        uintmax_t __ignored_ret;           \
-        __ignored_ret = (uintmax_t)(call); \
-        WT_UNUSED(__ignored_ret);          \
-    } while (0)
 #define WT_IGNORE_RET_BOOL(call)  \
     do {                          \
         bool __ignored_ret;       \
@@ -295,7 +289,6 @@ __wt_string_match(const char *str, const char *bytes, size_t len)
 
 /* Function return value and scratch buffer declaration and initialization. */
 #define WT_DECL_ITEM(i) WT_ITEM *i = NULL
-#define WT_DECL_RET int ret = 0
 
 /* If a WT_ITEM data field points somewhere in its allocated memory. */
 #define WT_DATA_IN_ITEM(i) \

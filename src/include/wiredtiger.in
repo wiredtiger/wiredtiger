@@ -7712,6 +7712,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * within WiredTiger. As such, the categories are subject to change and evolve
  * between different WiredTiger releases.
  */
+#ifndef WT_VERBOSE_CATEGORY_DECL
+#define WT_VERBOSE_CATEGORY_DECL
 typedef enum {
 /* VERBOSE ENUM START */
     WT_VERB_API,                  /*!< API messages. */
@@ -7761,6 +7763,7 @@ typedef enum {
 /* VERBOSE ENUM STOP */
     WT_VERB_NUM_CATEGORIES
 } WT_VERBOSE_CATEGORY;
+#endif
 /*! @} */
 
 /*******************************************

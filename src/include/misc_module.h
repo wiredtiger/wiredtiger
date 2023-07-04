@@ -14,5 +14,13 @@
  * return values.
  */
 #define WT_UNUSED(var) (void)(var)
+#define WT_IGNORE_RET(call)                \
+    do {                                   \
+        uintmax_t __ignored_ret;           \
+        __ignored_ret = (uintmax_t)(call); \
+        WT_UNUSED(__ignored_ret);          \
+    } while (0)
+
+#define WT_DECL_RET int ret = 0
 
 #endif /* __WIREDTIGER_MISC_MODULE_H_ */
