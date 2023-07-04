@@ -793,11 +793,11 @@ __txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
 }
 
 /*
- * __wt_txn_visible --
- *     Can the current transaction see the given ID / timestamp?
+ * __wt_txn_timestamp_visible --
+ *     Can the current transaction can see the given timestamp?
  */
 static inline bool
-__wt_txn_visible(
+__wt_txn_timestamp_visible(
   WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp, wt_timestamp_t durable_timestamp)
 {
     WT_TXN *txn;
@@ -805,9 +805,6 @@ __wt_txn_visible(
 
     txn = session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(session);
-
-    if (!__txn_visible_id(session, id))
-        return (false);
 
     /* Transactions read their writes, regardless of timestamps. */
     if (F_ISSET(session->txn, WT_TXN_HAS_ID) && id == session->txn->id)
@@ -830,6 +827,37 @@ __wt_txn_visible(
           (durable_timestamp <= txn->checkpoint_stable_timestamp));
 
     return (timestamp <= txn_shared->read_timestamp);
+}
+
+/*
+ * __wt_txn_snap_min_visible --
+ *     Can the current transaction snapshot minimum/read timestamp see the given ID/timestamp?
+ */
+static inline bool
+__wt_txn_snap_min_visible(
+  WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp, wt_timestamp_t durable_timestamp)
+{
+    /* Transaction snapshot minimum check. */
+    if (!WT_TXNID_LT(id, session->txn->snap_min))
+        return (false);
+
+    /* Timestamp check. */
+    return (__wt_txn_timestamp_visible(session, id, timestamp, durable_timestamp));
+}
+
+/*
+ * __wt_txn_visible --
+ *     Can the current transaction see the given ID/timestamp?
+ */
+static inline bool
+__wt_txn_visible(
+  WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp, wt_timestamp_t durable_timestamp)
+{
+    if (!__txn_visible_id(session, id))
+        return (false);
+
+    /* Timestamp check. */
+    return (__wt_txn_timestamp_visible(session, id, timestamp, durable_timestamp));
 }
 
 /*
