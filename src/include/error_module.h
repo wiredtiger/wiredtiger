@@ -210,7 +210,6 @@ __wt_snprintf(char *buf, size_t size, const char *fmt, ...)
     } while (0)
 #endif
 
-#define HAVE_DIAGNOSTIC 1 // delme later testing
 /*
  * WT_ASSERT --
  *  Assert an expression and abort if it fails.
