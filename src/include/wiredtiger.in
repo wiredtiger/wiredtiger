@@ -5962,7 +5962,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! checkpoint: transaction checkpoint total time (msecs) */
 #define	WT_STAT_CONN_CHECKPOINT_TIME_TOTAL		1240
 /*! checkpoint: transaction checkpoints */
-#define	WT_STAT_CONN_CHECKPOINT				1241
+#define	WT_STAT_CONN_CHECKPOINTS			1241
 /*! checkpoint: transaction checkpoints due to obsolete pages */
 #define	WT_STAT_CONN_CHECKPOINT_OBSOLETE_APPLIED	1242
 /*! checkpoint: transaction checkpoints skipped because database was clean */

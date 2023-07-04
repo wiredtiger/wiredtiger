@@ -2186,7 +2186,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing checkpoint_scrub_time */
     /* not clearing checkpoint_stop_stress_active */
     /* not clearing checkpoint_time_total */
-    stats->checkpoint = 0;
+    stats->checkpoints = 0;
     stats->checkpoint_obsolete_applied = 0;
     stats->checkpoint_skipped = 0;
     stats->checkpoint_fsync_post = 0;
@@ -2841,7 +2841,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_scrub_time += WT_STAT_READ(from, checkpoint_scrub_time);
     to->checkpoint_stop_stress_active += WT_STAT_READ(from, checkpoint_stop_stress_active);
     to->checkpoint_time_total += WT_STAT_READ(from, checkpoint_time_total);
-    to->checkpoint += WT_STAT_READ(from, checkpoint);
+    to->checkpoints += WT_STAT_READ(from, checkpoints);
     to->checkpoint_obsolete_applied += WT_STAT_READ(from, checkpoint_obsolete_applied);
     to->checkpoint_skipped += WT_STAT_READ(from, checkpoint_skipped);
     to->checkpoint_fsync_post += WT_STAT_READ(from, checkpoint_fsync_post);

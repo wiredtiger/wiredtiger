@@ -90,7 +90,7 @@ class test_checkpoint04(wttest.WiredTigerTestCase):
             # Check the statistics.
             # Set them into a variable so that we can print them all out. We've had a failure
             # on Windows that is very difficult to reproduce so collect what info we can.
-            num_ckpt = self.get_stat(stat.conn.checkpoint)
+            num_ckpt = self.get_stat(stat.conn.checkpoints)
             self.pr('checkpoint, number of checkpoints ' + str(num_ckpt))
             running = self.get_stat(stat.conn.checkpoint_state)
             self.pr('checkpoint_state ' + str(running))
