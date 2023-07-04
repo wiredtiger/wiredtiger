@@ -73,8 +73,6 @@
 #include <signal.h>
 #include <sys/wait.h>
 
-static char home[1024]; /* Program working dir */
-
 static const char *const uri_main = "table:main";
 static const char *const uri_rev = "table:rev";
 
@@ -639,7 +637,7 @@ create_db(const char *method, uint32_t flags)
     }
 
     printf("create_db: wiredtiger_open configuration: %s\n", envconf);
-    testutil_check(wiredtiger_open(home, NULL, envconf, &conn));
+    testutil_check(wiredtiger_open(opts->home, NULL, envconf, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     testutil_check(session->create(session, uri_main, "key_format=S,value_format=S"));
     testutil_check(session->create(session, uri_rev, "key_format=S,value_format=S"));
@@ -671,8 +669,8 @@ fill_db(uint32_t nth, uint32_t datasize, const char *method, uint32_t flags)
     /* Allocate number of threads plus another for checkpoint. */
     thr = dcalloc(nth + 1, sizeof(*thr));
     td = dcalloc(nth + 1, sizeof(WT_THREAD_DATA));
-    if (chdir(home) != 0)
-        testutil_die(errno, "Child chdir: %s", home);
+    if (chdir(opts->home) != 0)
+        testutil_die(errno, "Child chdir: %s", opts->home);
     testutil_snprintf(envconf, sizeof(envconf), ENV_CONFIG, method);
     if (opts->tiered_storage) {
         testutil_snprintf(tierconf, sizeof(tierconf), ENV_CONFIG_TIER_EXT, "../");
@@ -695,7 +693,7 @@ fill_db(uint32_t nth, uint32_t datasize, const char *method, uint32_t flags)
         td[i].data = dcalloc(datasize, 1);
         td[i].datasize = datasize;
         td[i].id = i;
-	testutil_random_from_random(&td[i].extra_rnd, &opts->extra_rnd);
+        testutil_random_from_random(&td[i].extra_rnd, &opts->extra_rnd);
         td[i].flags = flags;
         testutil_check(__wt_thread_create(NULL, &thr[i], thread_run, &td[i]));
     }
@@ -907,9 +905,9 @@ check_db(uint32_t nth, uint32_t datasize, pid_t pid, bool directio, uint32_t fla
         large_arr[th] = dcalloc(LARGE_WRITE_SIZE, 1);
         large_buf(large_arr[th], LARGE_WRITE_SIZE, th, true);
     }
-    testutil_snprintf(checkdir, sizeof(checkdir), "../%s.CHECK", home);
-    testutil_snprintf(dbgdir, sizeof(savedir), "../%s.DEBUG", home);
-    testutil_snprintf(savedir, sizeof(savedir), "../%s.SAVE", home);
+    testutil_snprintf(checkdir, sizeof(checkdir), "../%s.CHECK", opts->home);
+    testutil_snprintf(dbgdir, sizeof(savedir), "../%s.DEBUG", opts->home);
+    testutil_snprintf(savedir, sizeof(savedir), "../%s.SAVE", opts->home);
 
     /*
      * We make a copy of the directory (possibly using direct I/O) for recovery and checking, and an
@@ -922,8 +920,8 @@ check_db(uint32_t nth, uint32_t datasize, pid_t pid, bool directio, uint32_t fla
      * Copy the original home directory explicitly without direct I/O. Copy this first because
      * copying with directio may abort and we want to see what the original copy saw.
      */
-    copy_directory(home, dbgdir, false);
-    copy_directory(home, checkdir, directio);
+    copy_directory(opts->home, dbgdir, false);
+    copy_directory(opts->home, checkdir, directio);
     copy_directory(checkdir, savedir, false);
 
     printf("Open database, run recovery and verify content\n");
@@ -1283,7 +1281,7 @@ main(int argc, char *argv[])
     if (opts->tiered_storage && !LF_ISSET(TEST_CKPT))
         usage();
 
-    testutil_work_dir_from_path(opts->home, sizeof(home), working_dir);
+    testutil_work_dir_from_path(opts->home, PATH_MAX, working_dir);
     /*
      * If the user wants to verify they need to tell us how many threads there were so we know what
      * records we can expect.
