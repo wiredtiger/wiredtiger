@@ -121,6 +121,7 @@ __rec_append_orig_value(
             return (0);
 
         oldest_upd = upd;
+
         /* Leave reference pointing to the last item in the update list. */
         if (upd->next == NULL)
             break;
