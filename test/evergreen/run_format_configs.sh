@@ -38,12 +38,11 @@ wait_for_process()
 {
 	while true ; do
 		for process in ${PID_LIST[@]};do
-			if [ ps $process > /dev/null ] ; then
-				# The process id is running so sleep for 2 second before checking another
-				# process status.
-				sleep 2
-			else
-				# Remove the process id of the completed runs from the process id array.
+			ps $process > /dev/null
+			ps_exit_status=$?
+
+			if [ ${ps_exit_status} -eq "1" ] ; then
+				# The process is completed so remove the process id from the list of processes.
 				PID_LIST=(${PID_LIST[@]/$process})
 
 				#wait for the process to get the exit status.
@@ -63,17 +62,19 @@ wait_for_process()
 				fi
 
 				echo "Exit status of config ${config_name} is ${exit_status}"
-				break
 			fi
 		done
 
 		if [ ${cleanup} -ne 0 ]; then
-			# Cleanup, wait for the remaining processes.
+			# Cleanup, wait for all the remaining processes to complete.
 			[ ${#PID_LIST[@]} -eq 0 ] && break
 		elif [ $running -lt $parallel_jobs ]; then
 			# Break and invoke a new process if any of the process have completed.
 			break
 		fi
+
+		# Sleep for 2 seconds before iterating the list of running processes.
+		sleep 2
 	done
 }
 
@@ -108,10 +109,10 @@ do
 
 	if [ ${running} -ge ${parallel_jobs} ]; then
 		wait_for_process
-		sleep 10
 	fi
 done
 
+# Cleanup, wait for all the remaining processes to complete.
 cleanup=1
 wait_for_process
 
