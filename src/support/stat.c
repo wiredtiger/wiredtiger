@@ -156,11 +156,11 @@ static const char *const __stats_dsrc_desc[] = {
   "cache_walk: Refs skipped during cache traversal",
   "cache_walk: Size of the root page",
   "cache_walk: Total number of pages currently in cache",
-  "checkpoint-cleanup: pages added for eviction",
-  "checkpoint-cleanup: pages removed",
-  "checkpoint-cleanup: pages skipped during tree walk",
-  "checkpoint-cleanup: pages visited",
   "checkpoint: checkpoint has acquired a snapshot for its transaction",
+  "checkpoint: pages added for eviction during checkpoint cleanup",
+  "checkpoint: pages removed during checkpoint cleanup",
+  "checkpoint: pages skipped during checkpoint cleanup tree walk",
+  "checkpoint: pages visited during checkpoint cleanup",
   "checkpoint: transaction checkpoints due to obsolete pages",
   "compression: compressed page maximum internal page size prior to compression",
   "compression: compressed page maximum leaf page size prior to compression ",
@@ -485,11 +485,11 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     /* not clearing cache_state_refs_skipped */
     /* not clearing cache_state_root_size */
     /* not clearing cache_state_pages */
-    stats->cc_pages_evict = 0;
-    stats->cc_pages_removed = 0;
-    stats->cc_pages_walk_skipped = 0;
-    stats->cc_pages_visited = 0;
     stats->checkpoint_snapshot_acquired = 0;
+    stats->checkpoint_cleanup_pages_evict = 0;
+    stats->checkpoint_cleanup_pages_removed = 0;
+    stats->checkpoint_cleanup_pages_walk_skipped = 0;
+    stats->checkpoint_cleanup_pages_visited = 0;
     stats->checkpoint_obsolete_applied = 0;
     /* not clearing compress_precomp_intl_max_page_size */
     /* not clearing compress_precomp_leaf_max_page_size */
@@ -800,11 +800,11 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_state_refs_skipped += from->cache_state_refs_skipped;
     to->cache_state_root_size += from->cache_state_root_size;
     to->cache_state_pages += from->cache_state_pages;
-    to->cc_pages_evict += from->cc_pages_evict;
-    to->cc_pages_removed += from->cc_pages_removed;
-    to->cc_pages_walk_skipped += from->cc_pages_walk_skipped;
-    to->cc_pages_visited += from->cc_pages_visited;
     to->checkpoint_snapshot_acquired += from->checkpoint_snapshot_acquired;
+    to->checkpoint_cleanup_pages_evict += from->checkpoint_cleanup_pages_evict;
+    to->checkpoint_cleanup_pages_removed += from->checkpoint_cleanup_pages_removed;
+    to->checkpoint_cleanup_pages_walk_skipped += from->checkpoint_cleanup_pages_walk_skipped;
+    to->checkpoint_cleanup_pages_visited += from->checkpoint_cleanup_pages_visited;
     to->checkpoint_obsolete_applied += from->checkpoint_obsolete_applied;
     to->compress_precomp_intl_max_page_size += from->compress_precomp_intl_max_page_size;
     to->compress_precomp_leaf_max_page_size += from->compress_precomp_leaf_max_page_size;
@@ -1120,11 +1120,12 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_state_refs_skipped += WT_STAT_READ(from, cache_state_refs_skipped);
     to->cache_state_root_size += WT_STAT_READ(from, cache_state_root_size);
     to->cache_state_pages += WT_STAT_READ(from, cache_state_pages);
-    to->cc_pages_evict += WT_STAT_READ(from, cc_pages_evict);
-    to->cc_pages_removed += WT_STAT_READ(from, cc_pages_removed);
-    to->cc_pages_walk_skipped += WT_STAT_READ(from, cc_pages_walk_skipped);
-    to->cc_pages_visited += WT_STAT_READ(from, cc_pages_visited);
     to->checkpoint_snapshot_acquired += WT_STAT_READ(from, checkpoint_snapshot_acquired);
+    to->checkpoint_cleanup_pages_evict += WT_STAT_READ(from, checkpoint_cleanup_pages_evict);
+    to->checkpoint_cleanup_pages_removed += WT_STAT_READ(from, checkpoint_cleanup_pages_removed);
+    to->checkpoint_cleanup_pages_walk_skipped +=
+      WT_STAT_READ(from, checkpoint_cleanup_pages_walk_skipped);
+    to->checkpoint_cleanup_pages_visited += WT_STAT_READ(from, checkpoint_cleanup_pages_visited);
     to->checkpoint_obsolete_applied += WT_STAT_READ(from, checkpoint_obsolete_applied);
     to->compress_precomp_intl_max_page_size +=
       WT_STAT_READ(from, compress_precomp_intl_max_page_size);
@@ -1504,17 +1505,23 @@ static const char *const __stats_connection_desc[] = {
   "capacity: time waiting during eviction (usecs)",
   "capacity: time waiting during logging (usecs)",
   "capacity: time waiting during read (usecs)",
-  "checkpoint-cleanup: pages added for eviction",
-  "checkpoint-cleanup: pages removed",
-  "checkpoint-cleanup: pages skipped during tree walk",
-  "checkpoint-cleanup: pages visited",
   "checkpoint: checkpoint has acquired a snapshot for its transaction",
   "checkpoint: last potentially expensive operation attempted",
+  "checkpoint: number of checkpoints started",
   "checkpoint: number of custom data sources checkpointed",
   "checkpoint: number of files synced as part of checkpoint",
   "checkpoint: number of handles visited after checkpoint writes complete",
+  "checkpoint: number of history store pages that checkpoint caused to be reconciled",
+  "checkpoint: number of internal pages visited by a checkpoint",
+  "checkpoint: number of leaf pages visited by a checkpoint",
   "checkpoint: number of older named checkpoints altered to include new checkpoint",
   "checkpoint: number of older named checkpoints updated during reconciliation",
+  "checkpoint: number of pages that checkpoint caused to be reconciled",
+  "checkpoint: number of pages that checkpoint read into the cache",
+  "checkpoint: pages added for eviction during checkpoint cleanup",
+  "checkpoint: pages removed during checkpoint cleanup",
+  "checkpoint: pages skipped during checkpoint cleanup tree walk",
+  "checkpoint: pages visited during checkpoint cleanup",
   "checkpoint: transaction checkpoint data handle operation applied",
   "checkpoint: transaction checkpoint generation",
   "checkpoint: transaction checkpoint max time (msecs)",
@@ -1535,7 +1542,6 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: transaction checkpoint scrub time (msecs)",
   "checkpoint: transaction checkpoint stop timing stress active",
   "checkpoint: transaction checkpoint total time (msecs)",
-  "checkpoint: transaction checkpoints",
   "checkpoint: transaction checkpoints due to obsolete pages",
   "checkpoint: transaction checkpoints skipped because database was clean",
   "checkpoint: transaction fsync calls for checkpoint after allocating the transaction ID",
@@ -2155,17 +2161,23 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->capacity_time_evict = 0;
     stats->capacity_time_log = 0;
     stats->capacity_time_read = 0;
-    stats->cc_pages_evict = 0;
-    stats->cc_pages_removed = 0;
-    stats->cc_pages_walk_skipped = 0;
-    stats->cc_pages_visited = 0;
     stats->checkpoint_snapshot_acquired = 0;
     /* not clearing checkpoint_state */
+    stats->checkpoints = 0;
     stats->checkpoint_custom_dsrc = 0;
     stats->checkpoint_sync = 0;
     stats->checkpoint_presync = 0;
+    stats->checkpoint_hs_pages_reconciled = 0;
+    stats->checkpoint_pages_visited_internal = 0;
+    stats->checkpoint_pages_visited_leaf = 0;
     stats->checkpoint_update_postprocess = 0;
     stats->checkpoint_update_prev_named = 0;
+    stats->checkpoint_pages_reconciled = 0;
+    stats->checkpoint_pages_read_to_cache = 0;
+    stats->checkpoint_cleanup_pages_evict = 0;
+    stats->checkpoint_cleanup_pages_removed = 0;
+    stats->checkpoint_cleanup_pages_walk_skipped = 0;
+    stats->checkpoint_cleanup_pages_visited = 0;
     stats->checkpoint_handle_checked = 0;
     /* not clearing checkpoint_generation */
     /* not clearing checkpoint_time_max */
@@ -2186,7 +2198,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing checkpoint_scrub_time */
     /* not clearing checkpoint_stop_stress_active */
     /* not clearing checkpoint_time_total */
-    stats->checkpoints = 0;
     stats->checkpoint_obsolete_applied = 0;
     stats->checkpoint_skipped = 0;
     stats->checkpoint_fsync_post = 0;
@@ -2810,17 +2821,24 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->capacity_time_evict += WT_STAT_READ(from, capacity_time_evict);
     to->capacity_time_log += WT_STAT_READ(from, capacity_time_log);
     to->capacity_time_read += WT_STAT_READ(from, capacity_time_read);
-    to->cc_pages_evict += WT_STAT_READ(from, cc_pages_evict);
-    to->cc_pages_removed += WT_STAT_READ(from, cc_pages_removed);
-    to->cc_pages_walk_skipped += WT_STAT_READ(from, cc_pages_walk_skipped);
-    to->cc_pages_visited += WT_STAT_READ(from, cc_pages_visited);
     to->checkpoint_snapshot_acquired += WT_STAT_READ(from, checkpoint_snapshot_acquired);
     to->checkpoint_state += WT_STAT_READ(from, checkpoint_state);
+    to->checkpoints += WT_STAT_READ(from, checkpoints);
     to->checkpoint_custom_dsrc += WT_STAT_READ(from, checkpoint_custom_dsrc);
     to->checkpoint_sync += WT_STAT_READ(from, checkpoint_sync);
     to->checkpoint_presync += WT_STAT_READ(from, checkpoint_presync);
+    to->checkpoint_hs_pages_reconciled += WT_STAT_READ(from, checkpoint_hs_pages_reconciled);
+    to->checkpoint_pages_visited_internal += WT_STAT_READ(from, checkpoint_pages_visited_internal);
+    to->checkpoint_pages_visited_leaf += WT_STAT_READ(from, checkpoint_pages_visited_leaf);
     to->checkpoint_update_postprocess += WT_STAT_READ(from, checkpoint_update_postprocess);
     to->checkpoint_update_prev_named += WT_STAT_READ(from, checkpoint_update_prev_named);
+    to->checkpoint_pages_reconciled += WT_STAT_READ(from, checkpoint_pages_reconciled);
+    to->checkpoint_pages_read_to_cache += WT_STAT_READ(from, checkpoint_pages_read_to_cache);
+    to->checkpoint_cleanup_pages_evict += WT_STAT_READ(from, checkpoint_cleanup_pages_evict);
+    to->checkpoint_cleanup_pages_removed += WT_STAT_READ(from, checkpoint_cleanup_pages_removed);
+    to->checkpoint_cleanup_pages_walk_skipped +=
+      WT_STAT_READ(from, checkpoint_cleanup_pages_walk_skipped);
+    to->checkpoint_cleanup_pages_visited += WT_STAT_READ(from, checkpoint_cleanup_pages_visited);
     to->checkpoint_handle_checked += WT_STAT_READ(from, checkpoint_handle_checked);
     to->checkpoint_generation += WT_STAT_READ(from, checkpoint_generation);
     to->checkpoint_time_max += WT_STAT_READ(from, checkpoint_time_max);
@@ -2841,7 +2859,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_scrub_time += WT_STAT_READ(from, checkpoint_scrub_time);
     to->checkpoint_stop_stress_active += WT_STAT_READ(from, checkpoint_stop_stress_active);
     to->checkpoint_time_total += WT_STAT_READ(from, checkpoint_time_total);
-    to->checkpoints += WT_STAT_READ(from, checkpoints);
     to->checkpoint_obsolete_applied += WT_STAT_READ(from, checkpoint_obsolete_applied);
     to->checkpoint_skipped += WT_STAT_READ(from, checkpoint_skipped);
     to->checkpoint_fsync_post += WT_STAT_READ(from, checkpoint_fsync_post);

@@ -64,10 +64,6 @@ class CheckpointStat(Stat):
     prefix = 'checkpoint'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, CheckpointStat.prefix, desc, flags)
-class CheckpointCleanupStat(Stat):
-    prefix = 'checkpoint-cleanup'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, CheckpointCleanupStat.prefix, desc, flags)
 class ChunkCacheStat(Stat):
     prefix = 'chunk-cache'
     def __init__(self, name, desc, flags=''):
@@ -342,7 +338,7 @@ conn_stats = [
     ##########################################
     # Checkpoint statistics
     ##########################################
-    CheckpointStat('checkpoints', 'transaction checkpoints'),
+    CheckpointStat('checkpoints', 'number of checkpoints started'),
     CheckpointStat('checkpoint_custom_dsrc', 'number of custom data sources checkpointed'),
     CheckpointStat('checkpoint_fsync_post', 'transaction fsync calls for checkpoint after allocating the transaction ID'),
     CheckpointStat('checkpoint_fsync_post_duration', 'transaction fsync duration for checkpoint after allocating the transaction ID (usecs)', 'no_clear,no_scale'),
@@ -354,6 +350,11 @@ conn_stats = [
     CheckpointStat('checkpoint_handle_duration_skip', 'transaction checkpoint most recent duration for gathering skipped handles (usecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_handle_skipped', 'transaction checkpoint most recent handles skipped'),
     CheckpointStat('checkpoint_handle_walked', 'transaction checkpoint most recent handles walked'),
+    CheckpointStat('checkpoint_hs_pages_reconciled', 'number of history store pages that checkpoint caused to be reconciled'),
+    CheckpointStat('checkpoint_pages_read_to_cache', 'number of pages that checkpoint read into the cache'),
+    CheckpointStat('checkpoint_pages_reconciled', 'number of pages that checkpoint caused to be reconciled'),
+    CheckpointStat('checkpoint_pages_visited_internal', 'number of internal pages visited by a checkpoint'),
+    CheckpointStat('checkpoint_pages_visited_leaf', 'number of leaf pages visited by a checkpoint'),
     CheckpointStat('checkpoint_prep_max', 'transaction checkpoint prepare max time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_prep_min', 'transaction checkpoint prepare min time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_prep_recent', 'transaction checkpoint prepare most recent time (msecs)', 'no_clear,no_scale'),
@@ -933,16 +934,12 @@ conn_dsrc_stats = [
     ##########################################
     # Checkpoint statistics
     ##########################################
+    CheckpointStat('checkpoint_cleanup_pages_evict', 'pages added for eviction during checkpoint cleanup'),
+    CheckpointStat('checkpoint_cleanup_pages_removed', 'pages removed during checkpoint cleanup'),
+    CheckpointStat('checkpoint_cleanup_pages_visited', 'pages visited during checkpoint cleanup'),
+    CheckpointStat('checkpoint_cleanup_pages_walk_skipped', 'pages skipped during checkpoint cleanup tree walk'),
     CheckpointStat('checkpoint_obsolete_applied', 'transaction checkpoints due to obsolete pages'),
     CheckpointStat('checkpoint_snapshot_acquired', 'checkpoint has acquired a snapshot for its transaction'),
-
-    ##########################################
-    # Checkpoint cleanup statistics
-    ##########################################
-    CheckpointCleanupStat('cc_pages_evict', 'pages added for eviction'),
-    CheckpointCleanupStat('cc_pages_removed', 'pages removed'),
-    CheckpointCleanupStat('cc_pages_visited', 'pages visited'),
-    CheckpointCleanupStat('cc_pages_walk_skipped', 'pages skipped during tree walk'),
 
     ##########################################
     # Cursor operations
