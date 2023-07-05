@@ -365,7 +365,7 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
     100, V_GLOBAL_TRANSACTION_IMPLICIT},
 
   {"transaction.operation_timeout_ms",
-    "requested limit on the time taken to complete operations in this transaction", 0, 2000, 0,
+    "requested limit on the time taken to complete operations in this transaction", 0, 0, 0,
     UINT_MAX, V_GLOBAL_TRANSACTION_OPERATION_TIMEOUT_MS},
 
   {"transaction.timestamps", "all transactions (or none), have timestamps", C_BOOL, 80, 0, 0,
