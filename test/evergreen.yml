@@ -1055,7 +1055,7 @@ functions:
           set -o verbose
           ${python_binary} wiredtiger/bench/perf_run_py/perf_json_converter_for_atlas_evergreen.py -i ${input_file} -n ${test_name} -o ${output_path}
 
-  "upload-perf-test-stats":
+  "upload-stats-to-atlas":
     - command: shell.exec
       params:
         shell: bash
@@ -1070,17 +1070,19 @@ functions:
           fi
           EVERGREEN_TASK_INFO='{ "evergreen_task_info": { "is_patch": "'${is_patch}'", "task_id": "'${task_id}'", "distro_id": "'${distro_id}'", "execution": "'${execution}'", "task_name": "'${task_name}'", "version_id": "'${version_id}'", "branch_name": "'${branch_name}'" } }'
           echo "EVERGREEN_TASK_INFO: $EVERGREEN_TASK_INFO"
-          ${python_binary} automation-scripts/evergreen/upload_stats_atlas.py -u ${atlas_perf_test_username} -p ${atlas_perf_test_password} -c ${collection|} -d ${database|} -f ${stats_dir|./wiredtiger/cmake_build/bench/wtperf/test_stats}/atlas_out_${perf-test-name}.json -t ${created_at} -i "$EVERGREEN_TASK_INFO" -g "./wiredtiger"
+          ${python_binary} automation-scripts/evergreen/upload_stats_atlas.py -u ${atlas_perf_test_username} -p ${atlas_perf_test_password} -c ${collection|} -d ${database|} -f ${stats_dir|./wiredtiger/cmake_build/bench/wtperf/test_stats}/atlas_out_${test-name}.json -t ${created_at} -i "$EVERGREEN_TASK_INFO" -g "./wiredtiger"
+
+  "upload-stats-to-evergreen":
     - command: perf.send
       params:
-        file: ${stats_dir|./wiredtiger/cmake_build/bench/wtperf/test_stats}/evergreen_out_${perf-test-name}.json
+        file: ${stats_dir|./wiredtiger/cmake_build/bench/wtperf/test_stats}/evergreen_out_${test-name}.json
     # Push the json results to the 'Files' tab of the task in Evergreen
-    # Parameterised using the 'perf-test-name' variable
+    # Parameterised using the 'test-name' variable
     - command: s3.put
       params:
         aws_secret: ${aws_secret}
         aws_key: ${aws_key}
-        local_file: ${stats_dir|wiredtiger/cmake_build/bench/wtperf/test_stats}/atlas_out_${perf-test-name}.json
+        local_file: ${stats_dir|wiredtiger/cmake_build/bench/wtperf/test_stats}/atlas_out_${test-name}.json
         bucket: build_external
         permissions: public-read
         content_type: text/html
@@ -3437,7 +3439,10 @@ tasks:
       - func: "code coverage analysis"
         vars:
           generate_atlas_format: true
-      - func: "upload-component-coverage-report-atlas"
+      - func: "upload-stats-to-atlas"
+        vars:
+          stats_dir: ./wiredtiger/coverage_report
+          test-name: code_coverage
       - func: "code coverage publish report"
       - func: "code coverage publish summary"
 
@@ -4552,10 +4557,14 @@ tasks:
           input_file: ./mongo-tests/largescale/many-collection-artifacts/results/results.json
           test_name: many-collection-test
           output_path: ./mongo-tests/largescale/many-collection-artifacts/results/
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
           stats_dir: mongo-tests/largescale/many-collection-artifacts/results
-          perf-test-name: many-collection-test
+          test-name: many-collection-test
+      - func: "upload-stats-to-evergreen"
+        vars:
+          stats_dir: mongo-tests/largescale/many-collection-artifacts/results
+          test-name: many-collection-test
 
   - name: cyclomatic-complexity
     commands:
@@ -4605,9 +4614,13 @@ tasks:
           perf-test-name: small-lsm.wtperf
           maxruns: 3
           wtarg: -ops ['"load", "read"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: small-lsm.wtperf
+          test-name: small-lsm.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: small-lsm.wtperf
+
 
   - name: perf-test-medium-lsm
     tags: ["lsm-perf"]
@@ -4620,9 +4633,12 @@ tasks:
           perf-test-name: medium-lsm.wtperf
           maxruns: 1
           wtarg: -ops ['"load", "read"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: medium-lsm.wtperf
+          test-name: medium-lsm.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: medium-lsm.wtperf
 
   - name: perf-test-medium-lsm-compact
     tags: ["lsm-perf"]
@@ -4635,9 +4651,12 @@ tasks:
           perf-test-name: medium-lsm-compact.wtperf
           maxruns: 1
           wtarg: -ops ['"load", "read"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: medium-lsm-compact.wtperf
+          test-name: medium-lsm-compact.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: medium-lsm-compact.wtperf
 
   - name: perf-test-medium-multi-lsm
     tags: ["lsm-perf"]
@@ -4650,9 +4669,12 @@ tasks:
           perf-test-name: medium-multi-lsm.wtperf
           maxruns: 1
           wtarg: -ops ['"load", "read", "update"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: medium-multi-lsm.wtperf
+          test-name: medium-multi-lsm.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: medium-multi-lsm.wtperf
 
   - name: perf-test-parallel-pop-lsm
     tags: ["lsm-perf"]
@@ -4665,9 +4687,12 @@ tasks:
           perf-test-name: parallel-pop-lsm.wtperf
           maxruns: 1
           wtarg: -ops ['"load"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: parallel-pop-lsm.wtperf
+          test-name: parallel-pop-lsm.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: parallel-pop-lsm.wtperf
 
   - name: perf-test-update-lsm
     tags: ["lsm-perf"]
@@ -4680,9 +4705,12 @@ tasks:
           perf-test-name: update-lsm.wtperf
           maxruns: 1
           wtarg: -ops ['"load", "read", "update", "insert"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: update-lsm.wtperf
+          test-name: update-lsm.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: update-lsm.wtperf
 
     ###############################
     # Performance Tests for btree #
@@ -4699,9 +4727,12 @@ tasks:
           perf-test-name: small-btree.wtperf
           maxruns: 1
           wtarg: -ops ['"load", "read"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: small-btree.wtperf
+          test-name: small-btree.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: small-btree.wtperf
 
   - name: perf-test-small-btree-backup
     tags: ["btree-perf"]
@@ -4714,9 +4745,12 @@ tasks:
           perf-test-name: small-btree-backup.wtperf
           maxruns: 1
           wtarg: -ops ['"load", "read"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: small-btree-backup.wtperf
+          test-name: small-btree-backup.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: small-btree-backup.wtperf
 
   - name: perf-test-medium-btree
     tags: ["btree-perf"]
@@ -4729,9 +4763,12 @@ tasks:
           perf-test-name: medium-btree.wtperf
           maxruns: 3
           wtarg: -ops ['"load", "read"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: medium-btree.wtperf
+          test-name: medium-btree.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: medium-btree.wtperf
 
   - name: perf-test-medium-btree-backup
     tags: ["btree-perf"]
@@ -4744,9 +4781,12 @@ tasks:
           perf-test-name: medium-btree-backup.wtperf
           maxruns: 3
           wtarg: -ops ['"load", "read"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: medium-btree-backup.wtperf
+          test-name: medium-btree-backup.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: medium-btree-backup.wtperf
 
   - name: perf-test-parallel-pop-btree
     tags: ["btree-perf"]
@@ -4759,10 +4799,13 @@ tasks:
           perf-test-name: parallel-pop-btree.wtperf
           maxruns: 1
           wtarg: -ops ['"load"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: parallel-pop-btree.wtperf
-  
+          test-name: parallel-pop-btree.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: parallel-pop-btree.wtperf
+
   - name: perf-test-parallel-pop-btree-long
     tags: ["btree-perf"]
     depends_on:
@@ -4774,9 +4817,12 @@ tasks:
           perf-test-name: parallel-pop-btree-long.wtperf
           maxruns: 1
           wtarg: -ops ['"load"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: parallel-pop-btree-long.wtperf
+          test-name: parallel-pop-btree-long.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: parallel-pop-btree-long.wtperf
 
   - name: perf-test-update-only-btree
     tags: ["btree-perf"]
@@ -4789,9 +4835,12 @@ tasks:
           perf-test-name: update-only-btree.wtperf
           maxruns: 3
           wtarg: -ops ['"update"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: update-only-btree.wtperf
+          test-name: update-only-btree.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: update-only-btree.wtperf
 
   - name: perf-test-update-btree
     tags: ["btree-perf"]
@@ -4804,9 +4853,12 @@ tasks:
           perf-test-name: update-btree.wtperf
           maxruns: 1
           wtarg: "-bf ../../../bench/wtperf/runners/update-btree.json"
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: update-btree.wtperf
+          test-name: update-btree.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: update-btree.wtperf
 
   - name: perf-test-update-large-record-btree
     tags: ["btree-perf"]
@@ -4819,9 +4871,12 @@ tasks:
           perf-test-name: update-large-record-btree.wtperf
           maxruns: 3
           wtarg: -ops ['"load", "update"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: update-large-record-btree.wtperf
+          test-name: update-large-record-btree.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: update-large-record-btree.wtperf
 
   - name: perf-test-modify-large-record-btree
     tags: ["btree-perf"]
@@ -4834,9 +4889,12 @@ tasks:
           perf-test-name: modify-large-record-btree.wtperf
           maxruns: 3
           wtarg: -ops ['"load", "modify"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: modify-large-record-btree.wtperf
+          test-name: modify-large-record-btree.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: modify-large-record-btree.wtperf
 
   - name: perf-test-modify-force-update-large-record-btree
     tags: ["btree-perf"]
@@ -4849,9 +4907,12 @@ tasks:
           perf-test-name: modify-force-update-large-record-btree.wtperf
           maxruns: 3
           wtarg: -ops ['"load", "modify"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: modify-force-update-large-record-btree.wtperf
+          test-name: modify-force-update-large-record-btree.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: modify-force-update-large-record-btree.wtperf
 
     ###############################
     # Performance Tests for oplog #
@@ -4868,9 +4929,12 @@ tasks:
           perf-test-name: mongodb-oplog.wtperf
           maxruns: 1
           wtarg: -ops ['"load", "insert", "truncate", "database_size"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: mongodb-oplog.wtperf
+          test-name: mongodb-oplog.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: mongodb-oplog.wtperf
 
   - name: perf-test-mongodb-small-oplog
     tags: ["oplog-perf"]
@@ -4883,9 +4947,12 @@ tasks:
           perf-test-name: mongodb-small-oplog.wtperf
           maxruns: 1
           wtarg: -ops ['"load", "insert", "truncate", "database_size"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: mongodb-small-oplog.wtperf
+          test-name: mongodb-small-oplog.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: mongodb-small-oplog.wtperf
 
   - name: perf-test-mongodb-large-oplog
     tags: ["oplog-perf"]
@@ -4898,9 +4965,12 @@ tasks:
           perf-test-name: mongodb-large-oplog.wtperf
           maxruns: 1
           wtarg: -ops ['"load", "insert", "truncate", "database_size"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: mongodb-large-oplog.wtperf
+          test-name: mongodb-large-oplog.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: mongodb-large-oplog.wtperf
 
   - name: perf-test-mongodb-secondary-apply
     tags: ["oplog-perf"]
@@ -4913,9 +4983,12 @@ tasks:
           perf-test-name: mongodb-secondary-apply.wtperf
           maxruns: 1
           wtarg: -ops ['"insert"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: mongodb-secondary-apply.wtperf
+          test-name: mongodb-secondary-apply.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: mongodb-secondary-apply.wtperf
 
     #########################################
     # Performance Tests for perf-checkpoint #
@@ -4932,9 +5005,12 @@ tasks:
           perf-test-name: update-checkpoint-btree.wtperf
           maxruns: 1
           wtarg: "-bf ../../../bench/wtperf/runners/update-checkpoint.json"
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: update-checkpoint-btree.wtperf
+          test-name: update-checkpoint-btree.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: update-checkpoint-btree.wtperf
 
   - name: perf-test-update-checkpoint-lsm
     # FIXME-WT-8867 Disable/Un-tag the LSM perf test till the support for LSM is restored.
@@ -4948,9 +5024,12 @@ tasks:
           perf-test-name: update-checkpoint-lsm.wtperf
           maxruns: 1
           wtarg: "-bf ../../../bench/wtperf/runners/update-checkpoint.json"
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: update-checkpoint-lsm.wtperf
+          test-name: update-checkpoint-lsm.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: update-checkpoint-lsm.wtperf
 
     ###############################
     # Performance Tests for stress #
@@ -4967,9 +5046,12 @@ tasks:
           perf-test-name: overflow-10k.wtperf
           maxruns: 1
           wtarg: -ops ['"load", "read", "update"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: overflow-10k.wtperf
+          test-name: overflow-10k.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: overflow-10k.wtperf
 
   - name: perf-test-overflow-130k
     tags: ["stress-perf"]
@@ -4982,9 +5064,12 @@ tasks:
           perf-test-name: overflow-130k.wtperf
           maxruns: 1
           wtarg: -ops ['"load", "read", "update"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: overflow-130k.wtperf
+          test-name: overflow-130k.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: overflow-130k.wtperf
 
   - name: perf-test-parallel-pop-stress
     tags: ["stress-perf"]
@@ -4997,9 +5082,12 @@ tasks:
           perf-test-name: parallel-pop-stress.wtperf
           maxruns: 1
           wtarg: -ops ['"load"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: parallel-pop-stress.wtperf
+          test-name: parallel-pop-stress.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: parallel-pop-stress.wtperf
 
   - name: perf-test-update-grow-stress
     tags: ["stress-perf"]
@@ -5012,9 +5100,12 @@ tasks:
           perf-test-name: update-grow-stress.wtperf
           maxruns: 1
           wtarg: -ops ['"update"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: update-grow-stress.wtperf
+          test-name: update-grow-stress.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: update-grow-stress.wtperf
 
   - name: perf-test-update-shrink-stress
     tags: ["stress-perf"]
@@ -5027,9 +5118,12 @@ tasks:
           perf-test-name: update-shrink-stress.wtperf
           maxruns: 1
           wtarg: -ops ['"update"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: update-shrink-stress.wtperf
+          test-name: update-shrink-stress.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: update-shrink-stress.wtperf
 
   - name: perf-test-update-delta-mix1
     tags: ["stress-perf"]
@@ -5042,9 +5136,12 @@ tasks:
           perf-test-name: update-delta-mix1.wtperf
           maxruns: 1
           wtarg: -ops ['"update"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: update-delta-mix1.wtperf
+          test-name: update-delta-mix1.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: update-delta-mix1.wtperf
 
   - name: perf-test-update-delta-mix2
     tags: ["stress-perf"]
@@ -5057,9 +5154,12 @@ tasks:
           perf-test-name: update-delta-mix2.wtperf
           maxruns: 1
           wtarg: -ops ['"update"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: update-delta-mix2.wtperf
+          test-name: update-delta-mix2.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: update-delta-mix2.wtperf
 
   - name: perf-test-update-delta-mix3
     tags: ["stress-perf"]
@@ -5072,9 +5172,12 @@ tasks:
           perf-test-name: update-delta-mix3.wtperf
           maxruns: 1
           wtarg: -ops ['"update"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: update-delta-mix3.wtperf
+          test-name: update-delta-mix3.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: update-delta-mix3.wtperf
 
   - name: perf-test-multi-btree-zipfian
     tags: ["stress-perf"]
@@ -5092,9 +5195,12 @@ tasks:
           maxruns: 1
           no_create: true
           wtarg: -ops ['"read"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: multi-btree-zipfian-workload.wtperf
+          test-name: multi-btree-zipfian-workload.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: multi-btree-zipfian-workload.wtperf
 
   - name: perf-test-many-table-stress
     tags: ["stress-perf"]
@@ -5146,9 +5252,12 @@ tasks:
           perf-test-name: evict-btree-stress-multi.wtperf
           maxruns: 1
           wtarg: -ops ['"warnings", "top5_latencies_read_update"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: evict-btree-stress-multi.wtperf
+          test-name: evict-btree-stress-multi.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: evict-btree-stress-multi.wtperf
 
     ##################################
     # Performance Tests for eviction #
@@ -5165,9 +5274,12 @@ tasks:
           perf-test-name: evict-btree.wtperf
           maxruns: 1
           wtarg: -ops ['"load", "read"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: evict-btree.wtperf
+          test-name: evict-btree.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: evict-btree.wtperf
 
   - name: perf-test-evict-btree-1
     tags: ["evict-perf"]
@@ -5180,9 +5292,12 @@ tasks:
           perf-test-name: evict-btree-1.wtperf
           maxruns: 1
           wtarg: -ops ['"read"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: evict-btree-1.wtperf
+          test-name: evict-btree-1.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: evict-btree-1.wtperf
 
   - name: perf-test-evict-lsm
     # FIXME-WT-8867 Disable/Un-tag the LSM perf test till the support for LSM is restored.
@@ -5196,9 +5311,12 @@ tasks:
           perf-test-name: evict-lsm.wtperf
           maxruns: 1
           wtarg: -ops ['"load", "read"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: evict-lsm.wtperf
+          test-name: evict-lsm.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: evict-lsm.wtperf
 
   - name: perf-test-evict-lsm-1
     # FIXME-WT-8867 Disable/Un-tag the LSM perf test till the support for LSM is restored.
@@ -5212,9 +5330,12 @@ tasks:
           perf-test-name: evict-lsm-1.wtperf
           maxruns: 1
           wtarg: -ops ['"read"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: evict-lsm-1.wtperf
+          test-name: evict-lsm-1.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: evict-lsm-1.wtperf
 
     ###########################################
     # Performance Tests for log consolidation #
@@ -5231,9 +5352,12 @@ tasks:
           perf-test-name: log.wtperf
           maxruns: 1
           wtarg: -ops ['"update", "min_max_update_throughput"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: log.wtperf
+          test-name: log.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: log.wtperf
 
   - name: perf-test-log-small-files
     tags: ["log-perf"]
@@ -5246,9 +5370,12 @@ tasks:
           perf-test-name: log.wtperf
           maxruns: 1
           wtarg: -args ['"-C log=(enabled,file_max=1M)"'] -ops ['"update"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: log.wtperf
+          test-name: log.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: log.wtperf
 
   - name: perf-test-log-no-checkpoints
     tags: ["log-perf"]
@@ -5261,9 +5388,12 @@ tasks:
           perf-test-name: log.wtperf
           maxruns: 1
           wtarg: -args ['"-C checkpoint=(wait=0)"'] -ops ['"update"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: log.wtperf
+          test-name: log.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: log.wtperf
 
   - name: perf-test-log-no-prealloc
     tags: ["log-perf"]
@@ -5276,9 +5406,12 @@ tasks:
           perf-test-name: log.wtperf
           maxruns: 1
           wtarg: -args ['"-C log=(enabled,file_max=1M,prealloc=false)"'] -ops ['"update"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: log.wtperf
+          test-name: log.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: log.wtperf
 
   - name: perf-test-log-zero-fill
     tags: ["log-perf"]
@@ -5291,9 +5424,12 @@ tasks:
           perf-test-name: log.wtperf
           maxruns: 1
           wtarg: -args ['"-C log=(enabled,file_max=1M,zero_fill=true)"'] -ops ['"update"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: log.wtperf
+          test-name: log.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: log.wtperf
 
   - name: perf-test-log-many-threads
     tags: ["log-perf"]
@@ -5306,9 +5442,12 @@ tasks:
           perf-test-name: log.wtperf
           maxruns: 1
           wtarg: -args ['"-C log=(enabled,file_max=1M),session_max=256", "-o threads=((count=128,updates=1))"'] -ops ['"update"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: log.wtperf
+          test-name: log.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: log.wtperf
 
     ###########################################
     #        Performance Long Tests           #
@@ -5329,9 +5468,12 @@ tasks:
           perf-test-name: 500m-btree-populate.wtperf
           maxruns: 1
           wtarg: -args ['"-C create,statistics=(fast),statistics_log=(json,wait=1,sources=[file:])"'] -ops ['"load", "warnings", "max_latency_insert"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: 500m-btree-populate.wtperf
+          test-name: 500m-btree-populate.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: 500m-btree-populate.wtperf
       - func: "upload artifact"
         vars:
           upload_filename: WT_TEST.tgz
@@ -5361,9 +5503,12 @@ tasks:
           maxruns: 1
           no_create: true
           wtarg: -args ['"-C create,statistics=(fast),statistics_log=(json,wait=1,sources=[file:])"'] -ops ['"read", "update", "warnings", "max_latency_read_update"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: 500m-btree-50r50u.wtperf
+          test-name: 500m-btree-50r50u.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: 500m-btree-50r50u.wtperf
       - func: "cleanup"
 
   - name: perf-test-long-500m-btree-50r50u-backup
@@ -5388,9 +5533,12 @@ tasks:
           maxruns: 1
           no_create: true
           wtarg: -args ['"-C create,statistics=(fast),statistics_log=(json,wait=1,sources=[file:])"'] -ops ['"read", "update", "warnings", "max_latency_read_update"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: 500m-btree-50r50u-backup.wtperf
+          test-name: 500m-btree-50r50u-backup.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: 500m-btree-50r50u-backup.wtperf
       - func: "cleanup"
 
   - name: perf-test-long-500m-btree-80r20u
@@ -5415,9 +5563,12 @@ tasks:
           maxruns: 1
           no_create: true
           wtarg: -args ['"-C create,statistics=(fast),statistics_log=(json,wait=1,sources=[file:])"'] -ops ['"read", "update", "warnings", "max_latency_read_update"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: 500m-btree-80r20u.wtperf
+          test-name: 500m-btree-80r20u.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: 500m-btree-80r20u.wtperf
       - func: "cleanup"
 
   - name: perf-test-long-500m-btree-rdonly
@@ -5442,9 +5593,12 @@ tasks:
           maxruns: 1
           no_create: true
           wtarg: -args ['"-C create,statistics=(fast),statistics_log=(json,wait=1,sources=[file:])"'] -ops ['"read", "warnings", "max_latency_read_update", "min_max_read_throughput"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: 500m-btree-rdonly.wtperf
+          test-name: 500m-btree-rdonly.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: 500m-btree-rdonly.wtperf
       - func: "cleanup"
 
   - name: perf-test-long-checkpoint-stress
@@ -5458,9 +5612,12 @@ tasks:
           perf-test-name: checkpoint-stress.wtperf
           maxruns: 1
           wtarg: -args ['"-C create,statistics=(fast),statistics_log=(json,wait=1,sources=[file:])"'] -ops ['"update", "checkpoint"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: checkpoint-stress.wtperf
+          test-name: checkpoint-stress.wtperf
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: checkpoint-stress.wtperf
 
   - name: many-dhandle-stress
     depends_on:
@@ -5475,9 +5632,12 @@ tasks:
           perf-test-name: many-dhandle-stress.py
           maxruns: 1
           wtarg: -ops ['"max_latency_create", "max_latency_drop", "max_latency_drop_diff", "max_latency_insert_micro_sec", "max_latency_read_micro_sec", "max_latency_update_micro_sec", "warning_idle", "warning_idle_create", "warning_idle_drop", "warning_insert", "warning_operations", "warning_read", "warning_update"']
-      - func: "upload-perf-test-stats"
+      - func: "upload-stats-to-atlas"
         vars:
-          perf-test-name: many-dhandle-stress.py
+          test-name: many-dhandle-stress.py
+      - func: "upload-stats-to-evergreen"
+        vars:
+          test-name: many-dhandle-stress.py
       - func: "validate-expected-stats"
         vars:
           stat_file: './test_stats/evergreen_out_many-dhandle-stress.py.json'
