@@ -853,7 +853,7 @@ __wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered, bool final)
 {
     __wt_verbose(session, WT_VERB_TIERED, "TIERED_CLOSE: tiered %p called final %d", (void *)tiered,
       (int) final);
-    __tiered_cleanup(session, tiered, final);
+    __tiered_cleanup_tiers(session, tiered, final);
 
     return (__wt_btree_close(session));
 }
