@@ -2271,25 +2271,20 @@ __wt_btcur_bounds_early_exit(
 
 /*
  * __wt_btcur_skip_inmem_del_page --
- *     Return if the cursor is pointing to a page with deleted records and can be skipped for cursor
- *     traversal.
+ *     Return if the cursor is pointing to an in-memory page with deleted records and can be skipped
+ *     for cursor traversal.
  */
-static inline int
+static inline void
 __wt_btcur_skip_inmem_del_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 {
     WT_ADDR_COPY addr;
-    WT_DECL_RET;
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     WT_TIME_AGGREGATE newest_ta;
     uint32_t i;
-    bool busy, do_visibility_check;
+    bool do_visibility_check;
 
     *skipp = false;
-
-    WT_RET(__wt_hazard_set(session, ref, &busy));
-    if (busy)
-        return (0);
 
     /*
      * Skip the modified pages as their reconciliation results are not valid anymore. Check for the
@@ -2297,20 +2292,16 @@ __wt_btcur_skip_inmem_del_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skip
      * freed in parallel.
      */
     WT_ASSERT(session, ref->page != NULL);
-    if (__wt_page_is_modified(ref->page)) {
-        WT_TRET(__wt_hazard_clear(session, ref));
-        return (0);
-    }
+    if (__wt_page_is_modified(ref->page))
+        return;
 
     /*
      * If we can't lock it, don't check it, that's okay. Reviewing in-memory pages require looking
      * at page reconciliation results and we must ensure we don't race with page reconciliation, as
      * it's writing the page modify information.
      */
-    if (WT_PAGE_TRYLOCK(session, ref->page) != 0) {
-        WT_TRET(__wt_hazard_clear(session, ref));
-        return (0);
-    }
+    if (WT_PAGE_TRYLOCK(session, ref->page) != 0)
+        return;
 
     /*
      * Initialize the time aggregate via the merge initialization, so that stop visibility is copied
@@ -2336,14 +2327,16 @@ __wt_btcur_skip_inmem_del_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skip
         do_visibility_check = true;
     }
 
+    WT_PAGE_UNLOCK(session, ref->page);
     /* FIXME: Change it to snap_min visible function. */
     if (do_visibility_check)
         *skipp = __wt_txn_visible(session, newest_ta.newest_stop_txn, newest_ta.newest_stop_ts,
           newest_ta.newest_stop_durable_ts);
 
-    WT_PAGE_UNLOCK(session, ref->page);
-    WT_TRET(__wt_hazard_clear(session, ref));
-    return (ret);
+    if (*skipp)
+        WT_STAT_CONN_DATA_INCR(session, cursor_tree_walk_inmem_del_page_skip);
+
+    return;
 }
 
 /*
@@ -2405,6 +2398,7 @@ __wt_btcur_skip_page(
      */
     if (previous_state == WT_REF_DELETED && __wt_page_del_visible(session, ref->page_del, true)) {
         *skipp = true;
+        WT_STAT_CONN_DATA_INCR(session, cursor_tree_walk_del_page_skip);
         goto unlock;
     }
 
@@ -2413,6 +2407,7 @@ __wt_btcur_skip_page(
         /* If there's delete information in the disk address, we can use it. */
         if (addr.del_set && __wt_page_del_visible(session, &addr.del, true)) {
             *skipp = true;
+            WT_STAT_CONN_DATA_INCR(session, cursor_tree_walk_del_page_skip);
             goto unlock;
         }
 
@@ -2424,10 +2419,11 @@ __wt_btcur_skip_page(
           __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts,
             addr.ta.newest_stop_durable_ts)) {
             *skipp = true;
+            WT_STAT_CONN_DATA_INCR(session, cursor_tree_walk_ondisk_del_page_skip);
             goto unlock;
         }
     } else if (previous_state == WT_REF_MEM)
-        WT_IGNORE_RET(__wt_btcur_skip_inmem_del_page(session, ref, skipp));
+        __wt_btcur_skip_inmem_del_page(session, ref, skipp);
 
 unlock:
     WT_REF_UNLOCK(ref, previous_state);
