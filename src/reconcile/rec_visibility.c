@@ -559,9 +559,10 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
          *
          * Also, if an earlier reconciliation performed an update-restore eviction and this update
          * was restored from disk, or, we rolled back a prepared transaction and restored an update
-         * from the history store, we can select this update irrespective of visibility. This
-         * scenario can happen if the current reconciliation has a limited visibility of updates
-         * compared to one of the previous reconciliations.
+         * from the history store, or, we rolled back a prepared transaction and aim to delete the
+         * following update from the history store, we can select this update irrespective of
+         * visibility. This scenario can happen if the current reconciliation has a limited
+         * visibility of updates compared to one of the previous reconciliations.
          */
         if (!F_ISSET(upd,
               WT_UPDATE_DS | WT_UPDATE_PREPARE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_DS |
