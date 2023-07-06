@@ -2270,14 +2270,13 @@ __wt_btcur_bounds_early_exit(
 }
 
 /*
- * __wt_btcur_skip_inmem_del_page --
- *     Return if the cursor is pointing to an in-memory page with deleted records and can be skipped
- *     for cursor traversal.
+ * __wt_btcur_skip_inmem_reconcile_page --
+ *     Return if the cursor is pointing to an in-memory page reconciliation image with deleted
+ *     records and can be skipped for cursor traversal.
  */
 static inline void
-__wt_btcur_skip_inmem_del_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
+__wt_btcur_skip_inmem_reconcile_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 {
-    WT_ADDR_COPY addr;
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     WT_TIME_AGGREGATE newest_ta;
@@ -2285,15 +2284,6 @@ __wt_btcur_skip_inmem_del_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skip
     bool do_visibility_check;
 
     *skipp = false;
-
-    /*
-     * Skip the modified pages as their reconciliation results are not valid anymore. Check for the
-     * page modification only after acquiring the hazard pointer to protect against the page being
-     * freed in parallel.
-     */
-    WT_ASSERT(session, ref->page != NULL);
-    if (__wt_page_is_modified(ref->page))
-        return;
 
     /*
      * If we can't lock it, don't check it, that's okay. Reviewing in-memory pages require looking
@@ -2310,24 +2300,21 @@ __wt_btcur_skip_inmem_del_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skip
      */
     WT_TIME_AGGREGATE_INIT_MERGE(&newest_ta);
     do_visibility_check = false;
-
     mod = ref->page->modify;
-    if (mod != NULL && mod->rec_result == WT_PM_REC_EMPTY)
+    if (mod->rec_result == WT_PM_REC_EMPTY)
         *skipp = true;
-    else if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {
+    else if (mod->rec_result == WT_PM_REC_MULTIBLOCK) {
         /* Calculate the max stop time point by traversing all multi addresses. */
         for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i)
             WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &newest_ta, &multi->addr.ta);
         do_visibility_check = true;
-    } else if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE) {
+    } else if (mod->rec_result == WT_PM_REC_REPLACE) {
         WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &newest_ta, &mod->mod_replace.ta);
-        do_visibility_check = true;
-    } else if (__wt_ref_addr_copy(session, ref, &addr)) {
-        WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &newest_ta, &addr.ta);
         do_visibility_check = true;
     }
 
     WT_PAGE_UNLOCK(session, ref->page);
+
     /* FIXME: Change it to snap_min visible function. */
     if (do_visibility_check)
         *skipp = __wt_txn_visible(session, newest_ta.newest_stop_txn, newest_ta.newest_stop_ts,
@@ -2403,7 +2390,9 @@ __wt_btcur_skip_page(
     }
 
     /* Look at the disk address, if it exists. */
-    if (previous_state == WT_REF_DISK && __wt_ref_addr_copy(session, ref, &addr)) {
+    if ((previous_state == WT_REF_DISK ||
+          (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page))) &&
+      __wt_ref_addr_copy(session, ref, &addr)) {
         /* If there's delete information in the disk address, we can use it. */
         if (addr.del_set && __wt_page_del_visible(session, &addr.del, true)) {
             *skipp = true;
@@ -2422,8 +2411,9 @@ __wt_btcur_skip_page(
             WT_STAT_CONN_DATA_INCR(session, cursor_tree_walk_ondisk_del_page_skip);
             goto unlock;
         }
-    } else if (previous_state == WT_REF_MEM)
-        __wt_btcur_skip_inmem_del_page(session, ref, skipp);
+    } else if (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page) &&
+      ref->page->modify != NULL)
+        __wt_btcur_skip_inmem_reconcile_page(session, ref, skipp);
 
 unlock:
     WT_REF_UNLOCK(ref, previous_state);
