@@ -6080,6 +6080,7 @@ buildvariants:
     - name: make-check-test
     - name: unit-test
     - name: fops
+    - name: format-failure-configs-test
     - name: linux-directio
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
@@ -6125,6 +6126,7 @@ buildvariants:
     - name: make-check-test
     - name: unit-test
     - name: fops
+    - name: format-failure-configs-test
     - name: linux-directio
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
