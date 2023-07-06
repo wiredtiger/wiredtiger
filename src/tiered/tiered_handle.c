@@ -853,6 +853,10 @@ __wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered, bool final)
 {
     __wt_verbose(session, WT_VERB_TIERED, "TIERED_CLOSE: tiered %p called final %d", (void *)tiered,
       (int) final);
+    /*
+     * We are only closing the handle so only clean up the tiers. We don't yet want to free the
+     * entire structure. That will happen when we discard it.
+     */
     __tiered_cleanup_tiers(session, tiered, final);
 
     return (__wt_btree_close(session));
