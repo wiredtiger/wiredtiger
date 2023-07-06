@@ -559,12 +559,16 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
          *
          * There are several cases we should select the update irrespective of visibility:
          *
-         * 1. an earlier reconciliation performed an update-restore eviction and this update was
+         * 1. a previous reconciliation selected this update.
+         *
+         * 2. the update is restored from the disk image.
+         *
+         * 3. an earlier reconciliation performed an update-restore eviction and this update was
          * restored from disk.
          *
-         * 2. we rolled back a prepared transaction and restored an update from the history store.
+         * 4. we rolled back a prepared transaction and restored an update from the history store.
          *
-         * 3. we rolled back a prepared transaction and aim to delete the following update from the
+         * 5. we rolled back a prepared transaction and aim to delete the following update from the
          * history store.
          *
          * These scenarios can happen if the current reconciliation has a limited visibility of
