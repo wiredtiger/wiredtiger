@@ -38,14 +38,12 @@ wait_for_process()
 {
 	while true ; do
 		for process in ${PID_LIST[@]};do
-			ps $process > /dev/null
-			ps_exit_status=$?
-
+			ps $process > /dev/null; ps_exit_status=$?
 			if [ ${ps_exit_status} -eq "1" ] ; then
 				# The process is completed so remove the process id from the list of processes.
 				PID_LIST=(${PID_LIST[@]/$process})
 
-				#wait for the process to get the exit status.
+				# Wait for the process to get the exit status.
 				wait $process
 				exit_status=$?
 
@@ -62,6 +60,8 @@ wait_for_process()
 				fi
 
 				echo "Exit status of config ${config_name} is ${exit_status}"
+				# Continue checking other runnung process status before exiting the for loop.
+				continue
 			fi
 		done
 
@@ -78,7 +78,7 @@ wait_for_process()
 	done
 }
 
-while :; do
+while true ; do
 	case "$1" in
 	-j)
 		parallel_jobs="$2"
