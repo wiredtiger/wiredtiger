@@ -320,7 +320,7 @@ err:
         if (!closing)
             __evict_exclusive_clear(session, ref, previous_state);
 
-        if (ebusy_only)
+        if (ebusy_only && ret != EBUSY)
             WT_RET_PANIC(session, ret, "eviction failed when only EBUSY is allowed");
     }
 
