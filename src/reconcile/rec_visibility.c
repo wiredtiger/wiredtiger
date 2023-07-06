@@ -552,27 +552,25 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
          * check is not required for history store updates as they are implicitly committed. As
          * prepared transaction IDs are globally visible, need to check the update state as well.
          *
-         * If an earlier reconciliation chose this update (it is marked as being destined for the
-         * data store), we should select it regardless of visibility if we haven't already selected
-         * one. This is important as it is never ok to shift the on-disk value backwards in the
-         * update chain.
-         *
          * There are several cases we should select the update irrespective of visibility:
          *
-         * 1. a previous reconciliation selected this update.
+         * 1. A previous reconciliation selected this update as writing anything that is older
+         * undoes the previous work.
          *
-         * 2. the update is restored from the disk image.
+         * 2. The update is restored from the disk image as writing anything that is older undoes
+         * the previous work.
          *
-         * 3. an earlier reconciliation performed an update-restore eviction and this update was
+         * 3. An earlier reconciliation performed an update-restore eviction and this update was
          * restored from disk.
          *
-         * 4. we rolled back a prepared transaction and restored an update from the history store.
+         * 4. We rolled back a prepared transaction and restored an update from the history store.
          *
-         * 5. we rolled back a prepared transaction and aim to delete the following update from the
+         * 5. We rolled back a prepared transaction and aim to delete the following update from the
          * history store.
          *
          * These scenarios can happen if the current reconciliation has a limited visibility of
-         * updates compared to one of the previous reconciliations.
+         * updates compared to one of the previous reconciliations. This is important as it is never
+         * ok to undo the work of the previous reconciliations.
          */
         if (!F_ISSET(upd,
               WT_UPDATE_DS | WT_UPDATE_PREPARE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_DS |
