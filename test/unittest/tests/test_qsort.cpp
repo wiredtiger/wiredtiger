@@ -18,7 +18,7 @@ namespace {
 const uint8_t COMPOUND_MAGIC_B = 123;
 const uint64_t COMPOUND_MAGIC_C = 0xdeadbeefBAADF00D;
 struct compound_test_type {
-    uint64_t a;
+    int a;
     uint8_t b;
     uint64_t c;
 };
