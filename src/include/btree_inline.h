@@ -2316,8 +2316,8 @@ __wt_btcur_skip_inmem_reconcile_page(WT_SESSION_IMPL *session, WT_REF *ref, bool
     WT_PAGE_UNLOCK(session, ref->page);
 
     if (do_visibility_check)
-        *skipp = __wt_txn_snap_min_visible(session, newest_ta.newest_stop_txn, newest_ta.newest_stop_ts,
-          newest_ta.newest_stop_durable_ts);
+        *skipp = __wt_txn_snap_min_visible(session, newest_ta.newest_stop_txn,
+          newest_ta.newest_stop_ts, newest_ta.newest_stop_durable_ts);
 
     if (*skipp)
         WT_STAT_CONN_DATA_INCR(session, cursor_tree_walk_inmem_del_page_skip);
