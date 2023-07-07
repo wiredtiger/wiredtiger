@@ -113,8 +113,8 @@ __qsort(void *arr, size_t nmemb, size_t elem_sz, wt_cmp_t cmp, void *context)
     size_t lhs_unsorted, rhs_unsorted;
     int cmp_result;
     bool swapped;
-    uint8_t *a, *hi_pseudomedian, *highest_gt_median, *lo_pseudomedian, *lowest_lt_median, *pseudomedian,
-      *hi_unknown, *lo_unknown;
+    uint8_t *a, *hi_pseudomedian, *highest_gt_median, *lo_pseudomedian, *lowest_lt_median,
+      *pseudomedian, *hi_unknown, *lo_unknown;
 
     WT_ASSERT(NULL, cmp != NULL);
     if (nmemb < 2)
@@ -204,7 +204,8 @@ __qsort(void *arr, size_t nmemb, size_t elem_sz, wt_cmp_t cmp, void *context)
         WT_ASSERT(NULL, hi_pseudomedian >= (highest_gt_median + elem_sz));
 
         /* Swap our pivot back into the correct place. */
-        lhs_unsorted = WT_MIN((size_t)(lowest_lt_median - a), (size_t)(lo_unknown - lowest_lt_median));
+        lhs_unsorted =
+          WT_MIN((size_t)(lowest_lt_median - a), (size_t)(lo_unknown - lowest_lt_median));
         __swap_bytes(a, lo_unknown - lhs_unsorted, lhs_unsorted);
         lhs_unsorted = WT_MIN((size_t)(highest_gt_median - hi_unknown),
           (size_t)(hi_pseudomedian - (highest_gt_median - elem_sz)));
@@ -242,7 +243,8 @@ __qsort(void *arr, size_t nmemb, size_t elem_sz, wt_cmp_t cmp, void *context)
  *     Sort an array using a user-supplied comparator function and context argument.
  */
 void
-__wt_qsort_r(void *a, size_t nmemb, size_t elem_sz, int (*cmp)(const void *, const void *, void *), void *context)
+__wt_qsort_r(void *a, size_t nmemb, size_t elem_sz, int (*cmp)(const void *, const void *, void *),
+  void *context)
 {
     __qsort(a, nmemb, elem_sz, cmp, context);
 }

@@ -92,7 +92,8 @@ transposable_cmp(const void *a, const void *b, void *ctx)
     return *lhs - *rhs;
 };
 
-int counting_cmp(const void *a, const void *b, void *ctx)
+int
+counting_cmp(const void *a, const void *b, void *ctx)
 {
     auto count = static_cast<int *>(ctx);
     (*count)++;
@@ -112,7 +113,7 @@ TEST_CASE("Safe to invoke on an empty array", "[qsort]")
 
 TEST_CASE("Single element", "[qsort]")
 {
-    std::vector<int> input = { 123 };
+    std::vector<int> input = {123};
     __wt_qsort_r(&input[0], input.size(), sizeof(input[0]), transposable_cmp, nullptr);
     CHECK(input[0] == 123);
 }
