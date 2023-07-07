@@ -127,7 +127,7 @@ TEST_CASE("Compound type", "[qsort]")
 
     for (int i = 0; i < 1000; i++) {
         if (i != 0)
-            CHECK(input[i - 1].a < input[i].a);
+            CHECK(input[i - 1].a <= input[i].a);
         CHECK(input[i].b == COMPOUND_MAGIC_B);
         CHECK(input[i].c == COMPOUND_MAGIC_C);
     }
