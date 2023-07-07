@@ -553,7 +553,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
          * prepared transaction IDs are globally visible, need to check the update state as well.
          *
          * There are several cases we should select the update irrespective of visibility. See the
-         * detailed scenarios in the definition of WT_UPDATE_SELECT.
+         * detailed scenarios in the definition of WT_UPDATE_SELECT_FOR_DS.
          *
          * These scenarios can happen if the current reconciliation has a limited visibility of
          * updates compared to one of the previous reconciliations. This is important as it is never
