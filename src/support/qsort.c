@@ -92,26 +92,24 @@ __med3(void *a, void *b, void *c, wt_cmp_t cmp, void *context)
 /*
  * __wt_qsort_r --
  *     Sort an array using a user-supplied comparator function and a context argument.
- *
- * DO NOT EDIT
- *
- * This is originally from "Engineering a Sort Function", by Jon L. Bentley and Douglas M. McIlroy
- * ("Software - Practice and Experience, Vol. 23(11)", November 1993). It's been massaged into a
- * form suitable for WiredTiger, initially by Luke Pearson.
- *
- * It's not simple, so some description of where all these variables point is in order:
- *
- * -----------------------------------------------
- * | = |        <         | ? |      >       | = |
- * -----------------------------------------------
- *      ^                  ^ ^              ^
- *      |                  | |              |
- *      lowest_lt_median   | hi_unknown     highest_gt_median
- *                         lo_unknown
  */
 static void
 __qsort(void *arr, size_t nmemb, size_t elem_sz, wt_cmp_t cmp, void *context)
 {
+    /*
+     * This is originally from "Engineering a Sort Function", by Jon L. Bentley and Douglas
+     * M. McIlroy ("Software - Practice and Experience, Vol. 23(11)", November 1993). It's been
+     * massaged into a form suitable for WiredTiger, initially by Luke Pearson.
+     *
+     * It's not simple, so some description of where all these variables point is in order:
+     * -----------------------------------------------
+     * | = |        <         | ? |      >       | = |
+     * -----------------------------------------------
+     *      ^                  ^ ^              ^
+     *      |                  | |              |
+     *      lowest_lt_median   | hi_unknown     highest_gt_median
+     *                         lo_unknown
+     */
     size_t lhs_unsorted, rhs_unsorted;
     int cmp_result;
     bool swapped;
