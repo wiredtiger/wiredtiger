@@ -1,6 +1,4 @@
 /*-
- * SPDX-License-Identifier: BSD-3-Clause
- *
  * Copyright (c) 1992, 1993
  *    The Regents of the University of California.  All rights reserved.
  *
@@ -113,8 +111,8 @@ __qsort(void *arr, size_t nmemb, size_t elem_sz, wt_cmp_t cmp, void *context)
     bool swapped;
     int cmp_result;
     size_t lhs_unsorted, rhs_unsorted;
-    uint8_t *a, *hi_pseudomedian, *highest_gt_median, *lo_pseudomedian, *lowest_lt_median,
-      *pseudomedian, *hi_unknown, *lo_unknown;
+    uint8_t *a, *hi_pseudomedian, *hi_unknown, *highest_gt_median, *lo_pseudomedian, *lo_unknown,
+      *lowest_lt_median, *pseudomedian;
 
     WT_ASSERT(NULL, cmp != NULL);
     if (nmemb < 2)
