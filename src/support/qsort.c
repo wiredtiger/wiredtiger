@@ -90,7 +90,7 @@ __med3(void *a, void *b, void *c, wt_cmp_t cmp, void *context)
 }
 
 /*
- * __wt_qsort_r --
+ * __qsort --
  *     Sort an array using a user-supplied comparator function and a context argument.
  */
 static void
@@ -110,9 +110,9 @@ __qsort(void *arr, size_t nmemb, size_t elem_sz, wt_cmp_t cmp, void *context)
      *      lowest_lt_median   | hi_unknown     highest_gt_median
      *                         lo_unknown
      */
-    size_t lhs_unsorted, rhs_unsorted;
-    int cmp_result;
     bool swapped;
+    int cmp_result;
+    size_t lhs_unsorted, rhs_unsorted;
     uint8_t *a, *hi_pseudomedian, *highest_gt_median, *lo_pseudomedian, *lowest_lt_median,
       *pseudomedian, *hi_unknown, *lo_unknown;
 
