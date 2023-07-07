@@ -552,30 +552,14 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
          * check is not required for history store updates as they are implicitly committed. As
          * prepared transaction IDs are globally visible, need to check the update state as well.
          *
-         * There are several cases we should select the update irrespective of visibility:
-         *
-         * 1. A previous reconciliation selected this update as writing anything that is older
-         * undoes the previous work.
-         *
-         * 2. The update is restored from the disk image as writing anything that is older undoes
-         * the previous work.
-         *
-         * 3. An earlier reconciliation performed an update-restore eviction and this update was
-         * restored from disk.
-         *
-         * 4. We rolled back a prepared transaction and restored an update from the history store.
-         *
-         * 5. We rolled back a prepared transaction and aim to delete the following update from the
-         * history store.
+         * There are several cases we should select the update irrespective of visibility. See the
+         * detailed scenarios in the definition of WT_UPDATE_SELECT.
          *
          * These scenarios can happen if the current reconciliation has a limited visibility of
          * updates compared to one of the previous reconciliations. This is important as it is never
          * ok to undo the work of the previous reconciliations.
          */
-        if (!F_ISSET(upd,
-              WT_UPDATE_DS | WT_UPDATE_PREPARE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_DS |
-                WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_TO_DELETE_FROM_HS) &&
-          !is_hs_page &&
+        if (!F_ISSET(upd, WT_UPDATE_SELECT_FOR_DS) && !is_hs_page &&
           (F_ISSET(r, WT_REC_VISIBLE_ALL) ? WT_TXNID_LE(r->last_running, txnid) :
                                             !__txn_visible_id(session, txnid))) {
             /*
